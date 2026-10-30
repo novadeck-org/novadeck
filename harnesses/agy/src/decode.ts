@@ -2,10 +2,10 @@ import { createHash } from "node:crypto"
 import { extname, isAbsolute, relative } from "node:path"
 
 import { absolute, errorText, shortName, sessionId, text } from "@novadeck/harness-core/decode"
-import type { BackgroundJob, HarnessEvent, PromptShown } from "@novadeck/harness-core/events"
+import type { BackgroundJob, HarnessEvent } from "@novadeck/harness-core/events"
 import type { Report } from "@novadeck/harness-core/report"
 
-import { ended, forget, pending, remember, running, type Base } from "./conversations.js"
+import { ended, forget, pending, remember, running, type Base } from "./call-memory.js"
 import { statusLine } from "./status-line.js"
 import { kindOf, toolCall, writers, type ToolCall } from "./tools.js"
 
@@ -33,7 +33,7 @@ import { kindOf, toolCall, writers, type ToolCall } from "./tools.js"
  * What outlives a turn it starts and then wakes the agent with a turn of its own: a
  * `run_command` it backgrounds, and a `schedule` timer. Their PostToolUse fires when they
  * end, not when the turn does, so a call whose PreToolUse has had none by a Stop runs on
- * (see `pending` in conversations.ts).
+ * (see `pending` in call-memory.ts).
  */
 export const decode = (report: Report): readonly HarnessEvent[] => {
   const events = decodeEvent(report)
@@ -285,12 +285,3 @@ const written = (
   if (!writers.includes(name) || !path || text(payload.error)) return []
   return [{ type: "file-touched", ...base, actor: null, path }]
 }
-
-/**
- * Antigravity's prompt showing before any conversation: a plain start's status line says
- * idle and names none until the first prompt starts one (probed 2026-10-01, 1.2.14).
- */
-export const shown = ({ event, seq, instance, payload }: Report): PromptShown | undefined =>
-  event === "StatusLine" && payload.agent_state === "idle" && !payload.conversation_id
-    ? { type: "prompt-shown", agent: "agy", instance, startedAt: seq }
-    : undefined

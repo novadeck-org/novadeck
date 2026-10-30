@@ -3,13 +3,14 @@ import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "nod
 import { tmpdir } from "node:os"
 import { join } from "node:path"
 
-import { decode, shown } from "@novadeck/harness-agy/decode"
+import { decode } from "@novadeck/harness-agy/decode"
 import {
   statusLineCommand,
   statusLineLimit,
   statusLineSettings,
   windowsStatusLine,
 } from "@novadeck/harness-agy/settings"
+import { shown } from "@novadeck/harness-agy/status-line"
 import type { ActivityEvent } from "@novadeck/harness-core/events"
 import type { Install } from "@novadeck/harness-core/harness"
 import type { Report } from "@novadeck/harness-core/report"
@@ -436,8 +437,8 @@ const it = base.extend<{ fixture: Fixture }>({
   fixture: async ({ resources }, use) => {
     const root = mkdtempSync(join(tmpdir(), "novadeck-agy-settings-"))
     resources.defer(() => rmSync(root, { recursive: true, force: true }))
-    const home = join(root, "antigravity-cli")
-    mkdirSync(home)
+    const home = join(root, ".gemini", "antigravity-cli")
+    mkdirSync(home, { recursive: true })
     const plugin = join(root, "shell", "plugins", "agy")
     mkdirSync(plugin, { recursive: true })
     const install: Install = { env: {}, home: root, platform: "linux", plugin }
@@ -445,8 +446,6 @@ const it = base.extend<{ fixture: Fixture }>({
   },
 })
 
-const settingsOf = (fixture: Fixture) =>
-  statusLineSettings(() => join(fixture.root, "antigravity-cli"))
 const read = (file: string) => JSON.parse(readFileSync(file, "utf8")) as Record<string, unknown>
 
 describe("connecting Antigravity's status line", () => {
@@ -454,7 +453,7 @@ describe("connecting Antigravity's status line", () => {
     fixture,
   }) => {
     writeFileSync(fixture.settings, JSON.stringify({ trustedWorkspaces: ["/w"] }))
-    const { apply, revert } = settingsOf(fixture)
+    const { apply, revert } = statusLineSettings
     await apply(fixture.install)
     await apply(fixture.install)
     expect(read(fixture.settings)).toEqual({
@@ -474,7 +473,7 @@ describe("connecting Antigravity's status line", () => {
   it("gives the person's own status line back from the settings alone", async ({ fixture }) => {
     const own = { type: "command", command: "printf '%s' \"it's\"\n# mine", enabled: true }
     writeFileSync(fixture.settings, JSON.stringify({ statusLine: own }))
-    const { apply, revert } = settingsOf(fixture)
+    const { apply, revert } = statusLineSettings
     await apply(fixture.install)
     expect(read(fixture.settings).statusLine).toEqual({
       ...own,
@@ -494,7 +493,7 @@ describe("connecting Antigravity's status line", () => {
   })
 
   it("keeps what the person had without a command of theirs", async ({ fixture }) => {
-    const { apply, revert } = settingsOf(fixture)
+    const { apply, revert } = statusLineSettings
     const cases = [
       [{ enabled: false }, { enabled: false }],
       [{ command: "echo untyped" }, { type: "command", command: "echo untyped" }],
@@ -523,14 +522,14 @@ describe("connecting Antigravity's status line", () => {
 
   it("leaves settings it cannot read as they are, and still disconnects", async ({ fixture }) => {
     writeFileSync(fixture.settings, "{ not json")
-    const { apply, revert } = settingsOf(fixture)
+    const { apply, revert } = statusLineSettings
     await expect(apply(fixture.install)).rejects.toThrow("not valid settings")
     await revert(fixture.install)
     expect(readFileSync(fixture.settings, "utf8")).toBe("{ not json")
   })
 
   it("on Windows, reports where the person has no line, and leaves theirs", async ({ fixture }) => {
-    const { apply, revert } = settingsOf(fixture)
+    const { apply, revert } = statusLineSettings
     const windows = { ...fixture.install, platform: "win32" as const }
     await apply(windows)
     expect(read(fixture.settings).statusLine).toEqual({
@@ -558,23 +557,22 @@ describe("connecting Antigravity's status line", () => {
   it("says messaging is limited on Windows only where the person's own line stays", async ({
     fixture,
   }) => {
-    const { apply } = settingsOf(fixture)
-    const limited = statusLineLimit(() => join(fixture.root, "antigravity-cli"))
+    const { apply } = statusLineSettings
     const windows = { ...fixture.install, platform: "win32" as const }
     await apply(windows)
-    expect(await limited(windows)).toBeUndefined()
+    expect(await statusLineLimit(windows)).toBeUndefined()
     writeFileSync(
       fixture.settings,
       JSON.stringify({ statusLine: { type: "command", command: "echo mine" } }),
     )
     await apply(windows)
-    expect(await limited(windows)).toBe("own-status-line")
+    expect(await statusLineLimit(windows)).toBe("own-status-line")
     // Elsewhere Novadeck's line runs theirs after it.
-    expect(await limited(fixture.install)).toBeUndefined()
+    expect(await statusLineLimit(fixture.install)).toBeUndefined()
     // A line of theirs without a command shows Antigravity's own, and Novadeck's goes in.
     writeFileSync(fixture.settings, JSON.stringify({ statusLine: { enabled: true } }))
     await apply(windows)
-    expect(await limited(windows)).toBeUndefined()
+    expect(await statusLineLimit(windows)).toBeUndefined()
   })
 })
 

@@ -2299,7 +2299,7 @@ again.
    tell their prompt the same way before any session binds (`prompt-shown`): Codex's
    title (`harnesses/codex/src/title.ts`, set by its shim, counted only while a `codex`
    process holds the foreground and its hooks are trusted, `harnesses/codex/src/trust.ts`),
-   Antigravity's status line (`harnesses/agy/src/decode.ts`); the terminal manager tells
+   Antigravity's status line (`harnesses/agy/src/status-line.ts`); the terminal manager tells
    messaging (`Messaging.shown`), which keeps the agent's messages for the session to
    come.
 

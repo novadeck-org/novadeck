@@ -1,8 +1,8 @@
 import { absolute, sessionId, text } from "@novadeck/harness-core/decode"
-import type { HarnessEvent } from "@novadeck/harness-core/events"
+import type { HarnessEvent, PromptShown } from "@novadeck/harness-core/events"
 import type { Report } from "@novadeck/harness-core/report"
 
-import { abandoned, latestOf, type Base } from "./conversations.js"
+import { abandoned, latestOf, type Base } from "./call-memory.js"
 
 // Statuses of a subagent that no longer runs.
 const finished = new Set(["done", "completed", "finished", "idle", "failed", "cancelled", "error"])
@@ -155,3 +155,12 @@ export const statusLine = ({
   })
   return events
 }
+
+/**
+ * Antigravity's prompt showing before any conversation: a plain start's status line says
+ * idle and names none until the first prompt starts one (probed 2026-10-01, 1.2.14).
+ */
+export const shown = ({ event, seq, instance, payload }: Report): PromptShown | undefined =>
+  event === "StatusLine" && payload.agent_state === "idle" && !payload.conversation_id
+    ? { type: "prompt-shown", agent: "agy", instance, startedAt: seq }
+    : undefined

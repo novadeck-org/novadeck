@@ -3,7 +3,7 @@ import { join } from "node:path"
 import type { MessagingProfile, Harness } from "@novadeck/harness-core/harness"
 
 import { box } from "./box.js"
-import { decode, shown } from "./decode.js"
+import { decode } from "./decode.js"
 import { dialogs } from "./dialogs.js"
 import { antigravityHome } from "./home.js"
 import { models } from "./models.js"
@@ -19,6 +19,7 @@ import {
   preToolUseAnswer,
 } from "./plugin.js"
 import { statusLineLimit, statusLineSettings, trustsFolder } from "./settings.js"
+import { shown } from "./status-line.js"
 import { transcripts, typedEntry } from "./transcripts.js"
 
 // A Stop continued with a reason gets it as a lasting system step. A message injected at
@@ -38,9 +39,7 @@ const messaging: MessagingProfile = {
   // `-i` submits its prompt about 0.9 s after it starts, even while its "Do you trust
   // this folder?" dialog is up, so only in a folder it already trusts.
   initialPrompt: async (line, { install, cwd }) =>
-    install && (await trustsFolder(antigravityHome(install), cwd))
-      ? ["agy", "-i", line]
-      : undefined,
+    install && (await trustsFolder(install, cwd)) ? ["agy", "-i", line] : undefined,
   start: ["agy"],
   models: () => Promise.resolve(models),
   choose: ({ model, effort }) => [
@@ -67,8 +66,8 @@ export const agy = {
   files,
   // Its status line tells what no hook does: working or idle, a confirmation waiting on
   // the person, and its context and quotas.
-  settings: statusLineSettings(antigravityHome),
-  limited: statusLineLimit(antigravityHome),
+  settings: statusLineSettings,
+  limited: statusLineLimit,
   // Its subcommands (`agy --help`, 1.4.8), with help and version (`-v` is no version flag
   // there: it takes an argument, as `agy -v` says). Its print mode, `--print`, `-p` and
   // `--prompt`, runs it on the caller's text, so it is a session's use.
