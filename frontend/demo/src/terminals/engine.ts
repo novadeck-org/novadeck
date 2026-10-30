@@ -5,6 +5,7 @@ import type { TerminalMetadata, Workspace } from "@novadeck/core/types"
 
 import { demoAgent, mockReply, type DemoAgent } from "../samples"
 import { emptyLine, type Line } from "../screen/line-editor"
+import { terminalsOf } from "../workspace"
 
 export type Entry = {
   readonly id: string
@@ -101,33 +102,19 @@ export const createDemoEngine = (): DemoEngine => {
     reconcile: (workspace, actions) => {
       const before = new Map<string, TerminalMetadata>()
       for (const project of workspace.projects) projects.set(project.id, project.name)
-      for (const project of workspace.projects)
-        for (const session of project.history)
-          for (const terminal of session.state.roster.terminals) {
-            const key = {
-              projectId: project.id,
-              workspaceSessionId: session.id,
-              terminalId: terminal.id,
-            }
-            const known = registry.get(key)?.terminal
-            if (known) before.set(terminalKeyId(key), known)
-          }
+      for (const { key } of terminalsOf(workspace)) {
+        const known = registry.get(key)?.terminal
+        if (known) before.set(terminalKeyId(key), known)
+      }
       registry.reconcile(workspace, actions)
-      for (const project of workspace.projects)
-        for (const session of project.history)
-          for (const terminal of session.state.roster.terminals) {
-            const key = {
-              projectId: project.id,
-              workspaceSessionId: session.id,
-              terminalId: terminal.id,
-            }
-            // A terminal whose program changed in place opens afresh for its new agent.
-            const entry = registry.get(key)?.entry
-            if (entry && entry.snapshot.opening.agent !== demoAgent(terminal))
-              entry.snapshot = { ...entry.snapshot, opening: openingOf(terminal) }
-            const was = before.get(terminalKeyId(key))
-            if (was && was !== terminal) publish(key)
-          }
+      for (const { key, terminal } of terminalsOf(workspace)) {
+        // A terminal whose program changed in place opens afresh for its new agent.
+        const entry = registry.get(key)?.entry
+        if (entry && entry.snapshot.opening.agent !== demoAgent(terminal))
+          entry.snapshot = { ...entry.snapshot, opening: openingOf(terminal) }
+        const was = before.get(terminalKeyId(key))
+        if (was && was !== terminal) publish(key)
+      }
     },
     has: (key) => registry.get(key) !== undefined,
     terminal: (key) => registry.get(key)?.terminal,

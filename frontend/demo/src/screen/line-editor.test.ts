@@ -108,7 +108,7 @@ describe("a demo terminal's command line", () => {
     // Ctrl+J, and a line break as CR LF, are one Enter.
     expect(keys(["ls\n"]).events).toEqual([{ type: "submit", line: "ls" }])
     expect(keys(["ls\r\n"]).events).toEqual([{ type: "submit", line: "ls" }])
-    // A blank line submits nothing, as the form's did, and keeps what it had.
+    // A blank line submits nothing and keeps what it had.
     expect(keys(["\r"]).events).toEqual([])
     expect(keys(["   ", "\r"])).toMatchObject({ events: [], line: { draft: "   " } })
   })
@@ -190,7 +190,7 @@ describe("a demo terminal's command line", () => {
     expect(restored.recalled).toBeNull()
   })
 
-  it("adds the words an interrupted turn gives back, as the form did", () => {
+  it("adds the words an interrupted turn gives back", () => {
     expect(shown(withReturnedWords(keys(["and then"]).line, "fix the tests"))).toBe(
       "and then fix the tests|",
     )

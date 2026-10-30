@@ -2,7 +2,7 @@ import { withWords } from "./agent-input"
 
 // The command line of a demo terminal drawn as terminal output: what the emulator sends
 // for the person's keys, read as the line a shell's readline keeps. Pure, so the terminal
-// only routes what comes of it. It follows the form it replaces: Enter submits a line with
+// only routes what comes of it. Enter submits a line with
 // something in it, and Escape is left to the terminal, which interrupts a working agent. A
 // locked or ended terminal is the views' to hold: their emulator sends no keys while locked,
 // and takes Enter itself once ended.
@@ -18,7 +18,7 @@ export type Line = {
   readonly stashed: string
 }
 
-export type LineEvent =
+type LineEvent =
   // A line with something in it; the draft is cleared and the line kept in the history.
   | { readonly type: "submit"; readonly line: string }
   // A lone Escape, which the emulator sends as a chunk of its own.
@@ -271,7 +271,7 @@ export const restoreLine = (line: Line, text: string): Line => ({
   recalled: null,
 })
 
-// The words an interrupted turn gives back, added to the draft as the form adds them.
+// The words an interrupted turn gives back, added to the draft after a space.
 export const withReturnedWords = (line: Line, words: string): Line => {
   const draft = withWords(line.draft, words)
   return edited(line, draft, draft.length)

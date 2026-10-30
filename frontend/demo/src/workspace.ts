@@ -14,6 +14,19 @@ export const terminalOf = (
     ?.history.find((session) => session.id === workspaceSessionId)
     ?.state.roster.terminals.find((terminal) => terminal.id === terminalId)
 
+// Every terminal of the workspace, in every session of every project, with its key.
+export const terminalsOf = (
+  workspace: Workspace,
+): { key: TerminalKey; terminal: TerminalMetadata }[] =>
+  workspace.projects.flatMap((project) =>
+    project.history.flatMap((session) =>
+      session.state.roster.terminals.map((terminal) => ({
+        key: { projectId: project.id, workspaceSessionId: session.id, terminalId: terminal.id },
+        terminal,
+      })),
+    ),
+  )
+
 // The folder of a terminal's project.
 export const directoryOf = (
   workspace: Workspace | undefined,

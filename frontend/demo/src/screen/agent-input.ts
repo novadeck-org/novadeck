@@ -15,7 +15,7 @@ export const withWords = (draft: string, words: string): string =>
 
 type QuestionAnswer = Extract<ChatAnswer, { type: "questions" }>["answers"][number]
 
-export type LineResult =
+type LineResult =
   // Muted text under the dialog, for a line it can't take.
   | { readonly type: "note"; readonly text: string }
   // A question taken; the next one is up.
