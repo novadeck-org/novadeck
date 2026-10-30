@@ -60,8 +60,8 @@ With `CI=true` a missing or changed golden fails the test instead of being writt
 also fails on a golden no fixture owns.
 
 A change to a decoder, to `groupItems`, to a harness's `describe` or to the components should
-change a golden only when the chat is meant to show something else. A move of code (a package split,
-a rename) must leave every golden as it is.
+change a golden only when the chat is meant to show something else. A move of code (a package
+split, a rename) must leave every golden as it is.
 
 ## Fixtures
 

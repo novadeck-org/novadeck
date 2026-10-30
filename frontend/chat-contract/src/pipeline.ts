@@ -108,9 +108,9 @@ const lineOf = (block: Element): { line: string; rows: number } => {
   }
   if (block.matches(".chat-note")) return { line: `note: ${textOf(block)}`, rows: 0 }
   const role = block.getAttribute("data-role")
-  if (role === "agent") {
+  const bubble = role === "agent" ? block.querySelector(".chat-bubble")?.cloneNode(true) : null
+  if (bubble instanceof Element) {
     const from = block.getAttribute("aria-label")?.replace(/^Message from /, "") ?? ""
-    const bubble = block.querySelector(".chat-bubble")!.cloneNode(true) as Element
     bubble.querySelector(".chat-author")?.remove()
     return { line: `agent (${from}): ${textOf(bubble)}`, rows: 0 }
   }

@@ -17,7 +17,7 @@ type Conversation = { readonly name: string; readonly lines: readonly string[] }
 export type Written = { readonly name: string; readonly records: readonly object[] }
 
 // What an extractor found: the conversations, and the scenarios it had nothing to render in.
-export type Extracted = { readonly conversations: Conversation[]; readonly skipped: string[] }
+type Extracted = { readonly conversations: Conversation[]; readonly skipped: string[] }
 
 export type Fixture = {
   // The golden's path below goldens/.

@@ -109,7 +109,7 @@ export const claudeAskSkipped: readonly string[] = [
   "k-write-over-blank-end@2.1.291",
 ]
 
-// Codex's ask scenarios with no rollout, in both of its recorded versions.
+// Codex's ask scenarios with no rollout, in the 0.163.0 and 0.160.1 recordings.
 export const codexAskSkipped: readonly string[] = ["rui-default-off", "y-with-no-dialog"]
 
 // Antigravity's ask scenarios that keep no list of steps.
