@@ -8,6 +8,7 @@ import { expect } from "vitest"
 
 import { dialogs } from "./dialogs.js"
 import { codex } from "./index.js"
+import { report } from "./report.test-support.js"
 
 // What Codex's dialog tests share: the probes' scenarios, as screens and the requests their
 // hooks told, and the answers and keys a test reads.
@@ -35,18 +36,8 @@ export const hooks = (name: string, source = probe): readonly Hook[] =>
   source.scenarios[name]!.hooksAll!.filter(({ kind }) => kind === "start").map(
     ({ event, payload }) => ({ event: event!, payload: { ...payload!, session_id: session } }),
   )
-export const decoded = (hook: Hook, fields: Partial<Report> = {}): readonly HarnessEvent[] =>
-  codex.decode({
-    terminalId: "t",
-    token: "0".repeat(48),
-    agent: "codex",
-    event: hook.event,
-    seq: 1000,
-    instance: null,
-    env: { cursor: false },
-    payload: hook.payload,
-    ...fields,
-  })
+export const decoded = (hook: Hook): readonly HarnessEvent[] =>
+  codex.decode({ ...report(hook.event, hook.payload), seq: 1000, instance: null })
 export const asks = (name: string, source = probe) =>
   hooks(name, source)
     .flatMap((hook) => decoded(hook))

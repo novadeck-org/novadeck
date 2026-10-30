@@ -91,8 +91,10 @@ export const labelled = (head: string, label: string): boolean =>
 export const fieldsOf = (value: unknown): Fields | undefined =>
   isFields(value) ? value : undefined
 
-// What a dialog offers by its own wording: each label Codex has for it, and whether the
-// person's words go with it as a prompt after (the option that tells Codex what to do).
+/**
+ * What a dialog offers by its own wording: each label Codex has for it, and whether the
+ * person's words go with it as a prompt after (the option that tells Codex what to do).
+ */
 export type Wording = { readonly label: RegExp; readonly prompt?: true }
 
 export type Choice = {

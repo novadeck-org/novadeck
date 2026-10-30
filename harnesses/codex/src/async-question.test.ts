@@ -1,11 +1,11 @@
 import type { Report } from "@novadeck/harness-core/report"
 import { describe, expect, it } from "vitest"
 
-import { hook as decoded } from "./report.test-support.js"
+import { hook as reported } from "./report.test-support.js"
 
 const session = "11111111-2222-4333-8444-555555555555"
 const hook = (event: string, payload: Report["payload"]) =>
-  decoded(event, { session_id: session, ...payload })
+  reported(event, { session_id: session, ...payload })
 
 const input = {
   questions: [{ title: "Which color should the button be?", options: ["Blue", "Green"] }],

@@ -60,7 +60,7 @@ const asyncOther = "Other"
 type Picker = {
   /** The question on it: its title, as the screen wraps it, squashed. */
   readonly title: string
-  /** Its option rows, the Other row last; none for a free-text question. */
+  /** Its option rows (`pickerOn` checks the last is Other); none for a free-text question. */
   readonly rows: readonly Row[]
   /** Whether it is a free-text question, taking the person's words alone. */
   readonly words: boolean

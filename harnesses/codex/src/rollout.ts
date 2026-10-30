@@ -12,7 +12,7 @@ import type { HarnessEvent } from "@novadeck/harness-core/events"
 import { followLines } from "@novadeck/harness-core/follow"
 import type { Harness, Run, WrittenPlan } from "@novadeck/harness-core/harness"
 import { record } from "@novadeck/harness-core/items"
-import type { Fields } from "@novadeck/harness-core/tools"
+import { isFields, type Fields } from "@novadeck/harness-core/tools"
 import type { AgentTelemetry } from "@novadeck/protocol"
 
 import { callOf, type EventBase } from "./decode.js"
@@ -40,8 +40,8 @@ const number = (value: unknown): number | undefined =>
 // A rate-limit window as Codex reports it: the percentage used, the window's length in
 // minutes, and when it resets in epoch seconds.
 const limit = (window: unknown): Limit | undefined => {
-  if (typeof window !== "object" || window === null) return undefined
-  const { used_percent: percent, window_minutes: minutes, resets_at: resets } = window as Fields
+  if (!isFields(window)) return undefined
+  const { used_percent: percent, window_minutes: minutes, resets_at: resets } = window
   const used = number(percent)
   if (used === undefined) return undefined
   const length = number(minutes)

