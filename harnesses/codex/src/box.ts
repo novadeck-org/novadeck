@@ -12,7 +12,8 @@ const markers: Markers = { prompt: "›", shell: "!" }
 
 /**
  * Whether its footer says the box is in its shell mode (`!`), where Enter runs what it
- * holds as a command: its last row says so, "Shell mode", at its end or before its warnings (probed 0.159.3 and 0.160.1, fixtures/shell-mode.probe.json).
+ * holds as a command: its last row says so, "Shell mode", at its end or before its warnings
+ * (probed 0.159.3 and 0.160.1, fixtures/shell-mode.probe.json).
  */
 export const shellFooter = (rows: readonly string[]): boolean => {
   const last = rows.findLast((row) => row.trim() !== "")
@@ -23,9 +24,11 @@ export const shellFooter = (rows: readonly string[]): boolean => {
  * Whether it shows its history search (Ctrl-R: "reverse-i-search:" under its box, which
  * then takes the line as its query), its shortcuts panel (`?`: "? / esc close"), or a
  * `/side` conversation ("Side from main thread · ctrl+/ to switch · ctrl+c to close", `^`
- * for ctrl in 0.161.0, and `⌃` on macOS in 0.163.0, seen in CI 2026-10-18), whose turns are no root's: all drawn with its empty box on screen (probed 0.159.3 in the e2e sandbox, 2026-10-16).
+ * for ctrl in 0.161.0, and `⌃` on macOS in 0.163.0, seen in CI 2026-10-18), whose turns
+ * are no root's: all drawn with its empty box on screen (probed 0.159.3 in the e2e
+ * sandbox, 2026-10-16).
  */
-export const overlay = (screen: ScreenText): boolean =>
+const overlay = (screen: ScreenText): boolean =>
   footerRows(screen).some((row) =>
     /(^|\s)reverse-i-search:|\? \/ esc close|Side from main thread · (?:ctrl\+|\^|⌃)\/ to switch/.test(
       row,
@@ -63,14 +66,14 @@ export const box: BoxProfile = {
   // without a session, as it binds none (`starts`).
   shell: { expands: true, starts: false, footer: shellFooter },
   collapsed: ({ text }) => /^\[Pasted Content \d+ chars?\]$/.test(text.trim()),
-  // 999 and 1,000 characters showed whole, 1,024 did not, whatever the lines: 30 short
-  // lines showed whole.
+  overlay,
   // A queued message waits "to be submitted after next tool call", and an Escape sends it
   // at once as a steer, which a second Escape stops; the box stays empty (probed). One under
   // "Queued follow-up inputs" waits for the turn to end; what an Escape does to it is
   // unprobed.
-  overlay,
   queued,
+  // 999 and 1,000 characters showed whole, 1,024 did not, whatever the lines: 30 short
+  // lines showed whole.
   collapses: (text) => text.length > 1024,
   // The cursor's row is the box's last, a blank row, its status line and its hints below.
   room: (rows) => rows - 3,

@@ -58,6 +58,28 @@ suite("what a Codex tool call was", () => {
     expect(run("update_plan", { plan: [{}, {}] }).detail).toBe("2 steps")
   })
 
+  it("shows a question by its first question, waiting or not", () => {
+    const asked = { kind: "plan", title: "Asked", detail: "Which color should the button be?" }
+    expect(
+      run("request_user_input", {
+        questions: [
+          { id: "color", header: "Color", question: "Which color should the button be?" },
+          { id: "label", header: "Label", question: "What should its label say?" },
+        ],
+      }),
+    ).toEqual(asked)
+    expect(
+      run("request_user_input_async", {
+        questions: [
+          { title: "Which color should the button be?", options: ["Blue", "Green"] },
+          { title: "What should its label say?" },
+        ],
+      }),
+    ).toEqual(asked)
+    expect(run("request_user_input", { questions: [] })).toEqual({ ...asked, detail: "" })
+    expect(run("request_user_input_async", "not json")).toEqual({ ...asked, detail: "" })
+  })
+
   const send = { to: "fox", text: "Tests are green.\nShip it." }
   const labelled = { kind: "agent", title: "Messaged fox", detail: "Tests are green." }
 

@@ -1,7 +1,7 @@
 import { readdir } from "node:fs/promises"
 import { dirname, join } from "node:path"
 
-import { parseFields } from "@novadeck/harness-core/fields"
+import { parseFields, type Fields } from "@novadeck/harness-core/fields"
 import type { Harness } from "@novadeck/harness-core/harness"
 import { at, entry, joined, textOf } from "@novadeck/harness-core/items"
 import { shellCall } from "@novadeck/harness-core/tools"
@@ -68,18 +68,19 @@ const dayFolders = (folder: string): string[] => {
 
 // A call's tool as `mcp__<server>__<tool>`, the way Codex names it elsewhere: its rollout
 // records an MCP tool's server apart, as the call's `namespace` (`mcp__novadeck`).
-const toolName = (payload: Record<string, unknown>): unknown =>
+const toolName = (payload: Fields): unknown =>
   typeof payload.namespace === "string" && typeof payload.name === "string"
     ? `${payload.namespace.replace(/_+$/, "")}__${payload.name}`
     : payload.name
 
 /**
  * Codex's transcripts are its rollouts: the session's, and one per subagent, named for
- * its thread and kept under the day it started, its parent's or a later one. Each response item holds the person's or the
- * agent's text, another agent's message to it, a tool call or its output; reasoning
- * stays out, as do developer messages and the context Codex adds as the person's. A
- * command the person ran in shell mode is one user message, which reads as the person's
- * `!command` and a Bash run with its output, and its exit code when not zero.
+ * its thread and kept under the day it started, its parent's or a later one. Each response
+ * item holds the person's or the agent's text, another agent's message to it, a tool call
+ * or its output; reasoning stays out, as do developer messages and the context Codex adds
+ * as the person's. A command the person ran in shell mode is one user message, which reads
+ * as the person's `!command` and a Bash run with its output, and its exit code when not
+ * zero.
  */
 export const transcripts: NonNullable<Harness["transcripts"]> = {
   locate: async (root, _sessionId, subagent) => {
@@ -96,7 +97,7 @@ export const transcripts: NonNullable<Harness["transcripts"]> = {
   items: (line) => {
     const fields = parseFields(line)
     if (fields?.type !== "response_item") return []
-    const payload = (fields.payload ?? {}) as Record<string, unknown>
+    const payload = (fields.payload ?? {}) as Fields
     const time = at(fields.timestamp)
     switch (payload.type) {
       case "message": {
@@ -105,7 +106,7 @@ export const transcripts: NonNullable<Harness["transcripts"]> = {
         const text = joined(withoutImageTags(payload.content), ["input_text", "output_text"])
         const ran = role === "user" ? shell.exec(text) : null
         if (ran) {
-          const [, command, code, printed] = ran as unknown as [string, string, string, string]
+          const [, command = "", code = "", printed = ""] = ran
           const output = [printed.trimEnd(), code === "0" ? "" : `[exit code ${code}]`]
             .filter(Boolean)
             .join("\n")

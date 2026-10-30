@@ -1,5 +1,3 @@
-import { posix, win32 } from "node:path"
-
 import {
   absolute,
   withRequestCwd,
@@ -10,10 +8,12 @@ import {
   subjectOf,
   text,
 } from "@novadeck/harness-core/decode"
-import type { HarnessEvent } from "@novadeck/harness-core/events"
+import type { EventBase, HarnessEvent } from "@novadeck/harness-core/events"
 import { promptStart } from "@novadeck/harness-core/prompts"
 import type { Report } from "@novadeck/harness-core/report"
 
+import { asyncReplies, asyncRequestId, asyncSubject, asyncTool, quoted } from "./async-question.js"
+import { applied, patched } from "./patch.js"
 import { kindOf } from "./tools.js"
 
 /**
@@ -28,17 +28,16 @@ import { kindOf } from "./tools.js"
  * `request_user_input_async` is the exception: it returns `{"accepted":true}` at once and
  * the turn runs on, so its PostToolUse answers nothing, the request outlives the turn
  * (`detached`), and the person's answer comes back as a prompt of Codex's own, a
- * `<send_user_message_question_reply>` that names the call (`asyncReplies`).
+ * `<send_user_message_question_reply>` that names the call (`asyncReplies`). Its hooks name
+ * `permission_mode` as `default` even in Plan Mode: its rollout says whether it plans.
  */
-// Its hooks name `permission_mode` as `default` even in Plan Mode: its rollout says
-// whether it plans.
 export const decode = (report: Report): readonly HarnessEvent[] =>
   withRequestCwd(decodeHook(report), report.payload)
 
 const decodeHook = ({ event, seq, instance, env, payload }: Report): readonly HarnessEvent[] => {
   const id = sessionId(payload.session_id)
   if (!id || (env.codexThread !== undefined && env.codexThread !== id)) return []
-  const base = { agent: "codex", sessionId: id, instance, startedAt: seq } as const
+  const base: EventBase<"codex"> = { agent: "codex", sessionId: id, instance, startedAt: seq }
   const tool = text(payload.tool_name) ?? ""
   const actor = text(payload.agent_id) ?? null
   const input = payload.tool_input
@@ -182,136 +181,27 @@ const decodeHook = ({ event, seq, instance, env, payload }: Report): readonly Ha
   }
 }
 
-/** The tool Codex offers to ask without waiting (0.162.1 on, to a model that lists it). */
-const asyncTool = "request_user_input_async"
-
-/**
- * An async question's request by its call's id, which its answers name (their
- * `questionItemId` carries it): the actor is left out, for the answer's prompt is the
- * root's whoever asked.
- */
-const asyncRequestId = (call: string): string => callId(null, asyncTool, { call })
-
-// The prompt Codex gives the model for the answers to its async questions (0.165.0): one
-// JSON array between the tags, an object per answered question, its `questionItemId` a
-// JSON array of the tool, the call's id and the question's place (probed 2026-10-29).
-const asyncReply =
-  /^\s*<send_user_message_question_reply>\s*(\[[\s\S]*\])\s*<\/send_user_message_question_reply>\s*$/
-
-/**
- * The questions a prompt answers by quoting them as Codex does once the turn that asked
- * ended: `> ` and the question on a line of its own, a blank line, then the answer.
- */
-const quoted = (prompt: string): readonly string[] =>
-  [...prompt.replace(/\r\n?/g, "\n").matchAll(/(?:^|\n\n)> ([^\n]+)\n\n(?=\S)/g)].map(
-    ([, question]) => question!.trim(),
-  )
-
-/**
- * The questions a prompt answers, each once, by its call's id and its place in the call,
- * where it is Codex's reply to async questions: one reply for each question answered.
- * None for any other prompt, and for one whose JSON or items are not as probed.
- */
-const asyncReplies = (
-  prompt: string,
-): readonly { readonly call: string; readonly part: number }[] => {
-  const body = asyncReply.exec(prompt)?.[1]
-  if (body === undefined) return []
-  let items: unknown
-  try {
-    items = JSON.parse(body)
-  } catch {
-    return []
-  }
-  if (!Array.isArray(items) || items.length === 0) return []
-  const answered = new Map<string, { readonly call: string; readonly part: number }>()
-  for (const item of items) {
-    const raw = (item as { questionItemId?: unknown } | null)?.questionItemId
-    if (typeof raw !== "string") return []
-    let place: unknown
-    try {
-      place = JSON.parse(raw)
-    } catch {
-      return []
-    }
-    if (!Array.isArray(place) || place[0] !== asyncTool) return []
-    if (typeof place[1] !== "string" || place[1] === "") return []
-    if (!Number.isInteger(place[2]) || (place[2] as number) < 0) return []
-    answered.set(JSON.stringify(place.slice(1, 3)), { call: place[1], part: place[2] as number })
-  }
-  return [...answered.values()]
-}
-
-/**
- * What an async question's request asks about: its first question's title, and that
- * question's options, as the other question tools' requests give theirs (`subjectOf`
- * reads `question` and `label`, where this tool has `title` and plain strings); and each
- * question's title as a part, as each is answered on its own.
- */
-const asyncSubject = (
-  input: unknown,
-): {
-  readonly subject: string | null
-  readonly choices: readonly string[]
-  readonly parts: readonly string[]
-} => {
-  const questions = (input as { questions?: unknown } | null)?.questions
-  const listed: unknown[] = Array.isArray(questions) ? questions : []
-  const [first] = listed
-  const { title, options } = (first ?? {}) as { title?: unknown; options?: unknown }
-  return {
-    parts: listed.map((each) => {
-      const named = (each as { title?: unknown } | null)?.title
-      return typeof named === "string" ? named.trim() : ""
-    }),
-    subject: typeof title === "string" ? title.slice(0, 1024) : null,
-    choices: (Array.isArray(options) ? options : [])
-      .filter((option): option is string => typeof option === "string" && option.length > 0)
-      .slice(0, 16)
-      .map((option) => option.slice(0, 256)),
-  }
-}
-
 /** A call as its request and its result both know it: a shell call by its command alone. */
 export const callOf = (input: unknown): unknown =>
   typeof input === "object" && input !== null && "command" in input
     ? { command: (input as { command: unknown }).command }
     : input
 
-/**
- * An MCP tool's name as Codex's hooks give it: each character of its server and tool
- * outside ASCII letters, digits and `_` as one `_` (`probe-srv` and `probe.srv` both
- * `probe_srv`, `tüch` and `t😀ch` both `t_ch`; probed 0.159.3). Two servers that come out
- * the same each gain a hash of Codex's own (`a_b_e0598e406614`): their names match nothing,
- * so their requests settle only as before, and their dialogs read as none.
- */
-export const mcpTool = (server: string, tool: string): string =>
-  `mcp__${mcpName(server)}__${mcpName(tool)}`
-
-/** One part of an MCP tool's name as Codex's hooks give it (see `mcpTool`). */
-export const mcpName = (name: string): string => name.replace(/\W/gu, "_")
-
+/** A request waiting on the person for a tool call, named by its call unless `own` names it. */
 const asked = (
-  base: {
-    readonly agent: "codex"
-    readonly sessionId: string
-    readonly instance: string | null
-    readonly startedAt: number
-  },
+  base: EventBase<"codex">,
   actor: string | null,
   tool: string,
   input: unknown,
   call: unknown,
   kind: "permission" | "question",
-  own:
-    | {
-        readonly requestId: string
-        readonly subject: string | null
-        readonly choices: readonly string[]
-        readonly parts: readonly string[]
-        readonly detached: true
-      }
-    | undefined = undefined,
+  own?: {
+    readonly requestId: string
+    readonly subject: string | null
+    readonly choices: readonly string[]
+    readonly parts: readonly string[]
+    readonly detached: true
+  },
 ): HarnessEvent => ({
   type: "attention-requested",
   ...base,
@@ -323,47 +213,3 @@ const asked = (
   input,
   ...own,
 })
-
-// The lines of a patch that name the files it adds, changes, deletes or moves to.
-const patchFile = /^\*\*\* (?:Add File|Update File|Delete File|Move to): (.+)$/gm
-
-// Whether a patch's PostToolUse response does not say it failed. Codex answers a patch it
-// applied "Success. Updated the following files: ..." (seen from the shell's, 0.159.3); a
-// text that begins otherwise (a failed verification) names no file. A response of no text
-// is no word of failure. Its response for the tool itself is unprobed: the fake model's
-// Codex is offered none, and a rollout's completed `FileChange` backs this up.
-const applied = (response: unknown): boolean =>
-  typeof response !== "string" || response.trim() === "" || /^Success\b/.test(response.trim())
-
-/**
- * The path rules the given paths are written in, whatever host this runs on: a drive
- * letter, a backslash or a UNC prefix make them Windows paths, anything else POSIX.
- */
-export const flavourOf = (...paths: (string | undefined)[]): typeof posix =>
-  paths.some((path) => path !== undefined && /^[A-Za-z]:[\\/]|^\\\\|\\/.test(path)) ? win32 : posix
-
-/**
- * The files a tool call's patch wrote, as Codex's apply_patch names them in its input,
- * from the session's directory; none for any other call.
- */
-export const patched = (input: unknown, cwd: string | undefined): readonly string[] => {
-  if (typeof input !== "object" || input === null) return []
-  const texts = Object.values(input).filter((value): value is string => typeof value === "string")
-  const paths = texts.flatMap((each) =>
-    [...each.matchAll(patchFile)].map(([, path]) => path!.trim()),
-  )
-  return paths.flatMap((path) =>
-    flavourOf(path, cwd).isAbsolute(path)
-      ? [flavourOf(path).normalize(path)]
-      : cwd !== undefined
-        ? [flavourOf(path, cwd).resolve(cwd, path)]
-        : [],
-  )
-}
-
-/** The files a permission request for a Codex patch asks to write, from its directory. */
-export const patchRequested = (
-  tool: string,
-  input: unknown,
-  cwd: string | undefined,
-): readonly string[] => (tool === "apply_patch" ? patched(input, cwd) : [])
