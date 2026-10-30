@@ -2,11 +2,12 @@ import { createHash } from "node:crypto"
 import { extname, isAbsolute, relative } from "node:path"
 
 import { absolute, errorText, shortName, sessionId, text } from "@novadeck/harness-core/decode"
-import type { BackgroundJob, HarnessEvent, PromptShown } from "@novadeck/harness-core/events"
+import type { BackgroundJob, EventBase, HarnessEvent } from "@novadeck/harness-core/events"
 import type { Report } from "@novadeck/harness-core/report"
-import { oneLine } from "@novadeck/harness-core/tools"
 
-import { kindOf } from "./tools.js"
+import { ended, forget, pending, remember, running } from "./call-memory.js"
+import { statusLine } from "./status-line.js"
+import { kindOf, toolCall, writers, type ToolCall } from "./tools.js"
 
 /**
  * Antigravity's hooks, as normalized facts. Every hook names the conversation it runs in,
@@ -28,17 +29,17 @@ import { kindOf } from "./tools.js"
  * ask_question is a request of its own, as no status line tells that dialog, resolved by
  * its PostToolUse. Any other call may or may not ask the person, as their policy says, so
  * it asks nothing here; the latest of each conversation is only remembered, as the call a
- * confirmation the status line shows is about (see `confirmation`).
+ * confirmation the status line shows is about (see status-line.ts).
  * What outlives a turn it starts and then wakes the agent with a turn of its own: a
  * `run_command` it backgrounds, and a `schedule` timer. Their PostToolUse fires when they
  * end, not when the turn does, so a call whose PreToolUse has had none by a Stop runs on
- * (see `pending`).
+ * (see `pending` in call-memory.ts).
  */
 export const decode = (report: Report): readonly HarnessEvent[] => {
   const events = decodeEvent(report)
   const { seq, instance, payload } = report
   const id = sessionId(payload.conversationId)
-  const model = report.event === "StatusLine" ? undefined : reading(payload.modelName)
+  const model = report.event === "StatusLine" ? undefined : modelOf(payload.modelName)
   return id && model
     ? [
         ...events,
@@ -63,7 +64,7 @@ const levels: ReadonlySet<string> = new Set(["minimal", "low", "medium", "high",
  * something Antigravity documents; any other name is the model whole, with no effort, which
  * clears the last model's.
  */
-const reading = (name: unknown): { model: string; effort: string | null } | undefined => {
+const modelOf = (name: unknown): { model: string; effort: string | null } | undefined => {
   const whole = shortName(name, 128)
   if (!whole) return undefined
   const cut = whole.lastIndexOf("-")
@@ -98,7 +99,7 @@ const decodeEvent = ({ event, seq, instance, payload }: Report): readonly Harnes
   const workspaces = Array.isArray(payload.workspacePaths) ? payload.workspacePaths : []
   const cwd = absolute(workspaces[0])
   const transcript = absolute(payload.transcriptPath)
-  const base = { agent: "agy", sessionId: id, instance, startedAt: seq } as const
+  const base: EventBase<"agy"> = { agent: "agy", sessionId: id, instance, startedAt: seq }
   const observed: HarnessEvent = {
     type: "session-observed",
     ...base,
@@ -154,46 +155,34 @@ const decodeEvent = ({ event, seq, instance, payload }: Report): readonly Harnes
         },
       ]
     }
-    case "PreToolUse":
+    case "PreToolUse": {
+      const call = toolCall(payload.toolCall)
+      if (!call) return [observed]
       return [
         observed,
-        ...calling(base, id, payload),
-        ...called(base, payload),
-        ...pending(base, id, payload),
+        ...calling(base, call, payload),
+        called(base, call),
+        ...(typeof payload.stepIdx === "number" ? pending(base, call, payload.stepIdx) : []),
       ]
-    case "PostToolUse":
+    }
+    case "PostToolUse": {
+      const call = toolCall(payload.toolCall)
       return [
         observed,
-        ...ended(base, id, payload),
-        ...written(base, payload),
-        ...artifact(base, payload),
-        ...answered(base, payload),
+        ...(typeof payload.stepIdx === "number" ? ended(base, payload.stepIdx) : []),
+        ...(call
+          ? [
+              ...written(base, call, payload),
+              ...artifact(base, call, payload),
+              ...answered(base, call, payload),
+            ]
+          : []),
       ]
+    }
     default:
       return [observed]
   }
 }
-
-type Base = { agent: "agy"; sessionId: string; instance: string | null; startedAt: number }
-
-/** A tool call as a hook names it. */
-type ToolCall = { readonly name: string; readonly args: Record<string, unknown> }
-
-const toolCall = (payload: Report["payload"]): ToolCall | undefined => {
-  const { name, args } = (payload.toolCall ?? {}) as { name?: unknown; args?: unknown }
-  if (typeof name !== "string" || name === "") return undefined
-  return {
-    name,
-    args: typeof args === "object" && args !== null ? (args as Record<string, unknown>) : {},
-  }
-}
-
-// The latest call each conversation's PreToolUse named, for as many conversations as it
-// has any use for: a confirmation always follows its own call's hook. A confirmation of a
-// call this doesn't hold, or that a later call replaced (parallel calls), gets no input,
-// and its dialog stays unrecognised.
-const latest = new Map<string, { call: ToolCall; id: string }>()
-const remembered = 32
 
 // A call's request id: its step, which its PostToolUse names too, or a hash of its input.
 const callId = (call: ToolCall, payload: Report["payload"]): string =>
@@ -219,12 +208,12 @@ const questionsOf = (call: ToolCall): { question: string; options: string[] }[] 
 
 // A call about to run: remembered as the one a confirmation may be about, and, for
 // ask_question, a question the person is asked.
-const calling = (base: Base, conversation: string, payload: Report["payload"]): HarnessEvent[] => {
-  const call = toolCall(payload)
-  if (!call) return []
-  latest.delete(conversation)
-  latest.set(conversation, { call, id: callId(call, payload) })
-  for (const [oldest] of latest) if (latest.size > remembered) latest.delete(oldest)
+const calling = (
+  base: EventBase<"agy">,
+  call: ToolCall,
+  payload: Report["payload"],
+): HarnessEvent[] => {
+  remember(base.sessionId, call, callId(call, payload))
   if (call.name !== "ask_question") return []
   const [first] = questionsOf(call)
   if (!first) return []
@@ -244,224 +233,49 @@ const calling = (base: Base, conversation: string, payload: Report["payload"]): 
 }
 
 // Every call about to run, reported once; its kind is told by its name and arguments.
-const called = (base: Base, payload: Report["payload"]): HarnessEvent[] => {
-  const call = toolCall(payload)
-  return call
+const called = (base: EventBase<"agy">, call: ToolCall): HarnessEvent => ({
+  type: "tool-called",
+  ...base,
+  actor: null,
+  toolName: call.name,
+  kind: kindOf(call.name, call.args),
+})
+
+// An ask_question that was answered, or skipped: its PostToolUse.
+const answered = (
+  base: EventBase<"agy">,
+  call: ToolCall,
+  payload: Report["payload"],
+): HarnessEvent[] =>
+  call.name === "ask_question"
     ? [
         {
-          type: "tool-called",
+          type: "attention-resolved",
           ...base,
+          requestId: callId(call, payload),
           actor: null,
           toolName: call.name,
-          kind: kindOf(call.name, call.args),
+          loose: false,
+          outcome: "allowed",
         },
       ]
     : []
-}
-
-// How much of a job's description the protocol takes.
-const maxDescription = 512
-
-// The first line of what the agent wrote, sanitized and cut to what the protocol takes;
-// undefined if blank.
-const firstLine = (value: unknown): string | undefined => {
-  const line = oneLine(errorText(value) ?? "").slice(0, maxDescription)
-  return line === "" ? undefined : line
-}
-
-/**
- * A call that may outlive its turn, and that Antigravity counts a background task while it
- * does: a command, with the agent's words for it, or a timer, with the wake-up it sets;
- * a daemon, a cron or a timer too long is neither, as none ends by itself or sets a
- * wake-up, but all hold a place in that count. Told by its PreToolUse, at `at`, and over when its
- * PostToolUse comes, which for these fires when they end (probed 2026-10-24, 1.4.6).
- */
-type Pending = {
-  readonly id: string
-  readonly at: number
-  /** Whether it is a command that ends by itself, as a job the agent waits on. */
-  readonly job: boolean
-  readonly description: string | null
-  readonly command: string
-  readonly wake: { at: number; reason: string | null } | null
-  /** Whether a Stop saw it pending, which proves its turn completed with it backgrounded. */
-  seen: boolean
-}
-
-// What each conversation's calls await their PostToolUse, for as many conversations as
-// `latest` holds, and as many calls in each as the activity takes jobs.
-const open = new Map<string, Map<string, Pending>>()
-const remembering = 16
-
-// The tasks the latest idle status line of each conversation counted.
-const counted = new Map<string, number>()
-
-// The longest timer taken at its word: a day. A longer one sets no wake-up.
-const maxTimerSeconds = 86_400
-
-const awaiting = (conversation: string): Map<string, Pending> => {
-  const calls = open.get(conversation) ?? new Map<string, Pending>()
-  open.delete(conversation)
-  open.set(conversation, calls)
-  for (const [oldest] of open) if (open.size > remembered) open.delete(oldest)
-  return calls
-}
-
-// A call over, as the activity learns it.
-const over = (base: Base, call: Pending): HarnessEvent => ({
-  type: "task-ended",
-  ...base,
-  id: call.id,
-})
-
-// A command it runs for good (`IsDaemon`) is left out of the jobs a Stop lists, as it
-// declares it runs for ever, as Claude Code leaves subagents out of its jobs; a cron or a
-// timer that repeats is no job or wake-up either. The rest are told here whether they end
-// in the background or not, by whether their PostToolUse comes before the turn's Stop.
-// Killing a task names it by an id no hook gives, so it ends every call of the
-// conversation: a wait missed beats one that never ends.
-const pending = (base: Base, conversation: string, payload: Report["payload"]): HarnessEvent[] => {
-  const call = toolCall(payload)
-  const { stepIdx } = payload
-  if (!call || typeof stepIdx !== "number") return []
-  const { name, args } = call
-  if (name === "manage_task" && args.Action === "kill") {
-    const calls = open.get(conversation)
-    const killed = [...(calls?.values() ?? [])].map((each) => over(base, each))
-    calls?.clear()
-    return killed
-  }
-  if (name !== "run_command" && name !== "schedule") return []
-  const id = `${conversation}:${stepIdx}`
-  const daemon = args.IsDaemon === true
-  const seconds = args.DurationSeconds
-  const wake =
-    name === "schedule" &&
-    !daemon &&
-    typeof seconds === "number" &&
-    seconds > 0 &&
-    seconds <= maxTimerSeconds &&
-    !("CronExpression" in args)
-      ? { at: base.startedAt + seconds * 1000, reason: firstLine(args.Prompt) ?? null }
-      : null
-  const command = errorText(args.CommandLine) ?? ""
-  const said = firstLine(args.toolSummary)
-  const calls = awaiting(conversation)
-  calls.set(id, {
-    id,
-    at: base.startedAt,
-    job: name === "run_command" && !daemon,
-    description: said === command.trim() ? null : (said ?? null),
-    command,
-    wake,
-    seen: false,
-  })
-  for (const [oldest] of calls) if (calls.size > remembering) calls.delete(oldest)
-  return wake ? [{ type: "wake-scheduled", ...base, ...wake, id }] : []
-}
-
-// What a Stop finds running on: the commands never ended, and the earliest timer.
-const running = (
-  conversation: string,
-): {
-  jobs: Pending[]
-  wake: { at: number; reason: string | null; id: string } | undefined
-} => {
-  const calls = [...(open.get(conversation)?.values() ?? [])]
-  // A Stop proves its turn completed, so these outlive it.
-  for (const call of calls) call.seen = true
-  const timers = calls.filter(({ wake }) => wake).toSorted((a, b) => a.wake!.at - b.wake!.at)
-  return {
-    jobs: calls.filter(({ job }) => job),
-    wake: timers[0] && { ...timers[0].wake!, id: timers[0].id },
-  }
-}
-
-/**
- * The calls no running task accounts for, and so none that a denial or an Escape ended,
- * which fires no PostToolUse: the status line counts `tasks`, the calls a Stop saw take
- * their places, and the unseen ones, oldest first, the rest. A turn ends on its last call,
- * so the newest go. Where it counts none, every call is over, seen or not (`seenToo`).
- */
-const unaccounted = (
-  conversation: string,
-  tasks: number,
-  { before = Infinity, seenToo = false } = {},
-): Pending[] => {
-  const calls = [...(open.get(conversation)?.values() ?? [])]
-  const dropped =
-    seenToo && tasks === 0
-      ? calls.filter(({ at }) => at <= before)
-      : calls
-          .filter(({ at, seen }) => !seen && at <= before)
-          .slice(Math.max(0, tasks - calls.filter(({ seen }) => seen).length))
-  for (const { id } of dropped) open.get(conversation)!.delete(id)
-  return dropped
-}
-
-// A turn begun without a Stop having ended the one before: that turn was denied or
-// stopped, and the calls of it that its last status line did not count never ran on.
-const forget = (conversation: string): void => {
-  unaccounted(conversation, counted.get(conversation) ?? 0)
-}
-
-// A call over: its PostToolUse, which comes at the end of a backgrounded one, so a job done
-// is no longer waited on.
-const ended = (base: Base, conversation: string, payload: Report["payload"]): HarnessEvent[] => {
-  const { stepIdx } = payload
-  if (typeof stepIdx !== "number") return []
-  const id = `${conversation}:${stepIdx}`
-  const call = open.get(conversation)?.get(id)
-  if (!call) return []
-  open.get(conversation)!.delete(id)
-  return [over(base, call)]
-}
-
-// What an idle status line shows over: see `unaccounted`.
-const abandoned = (base: Base, conversation: string, tasks: number): HarnessEvent[] => {
-  counted.delete(conversation)
-  counted.set(conversation, tasks)
-  for (const [oldest] of counted) if (counted.size > remembered) counted.delete(oldest)
-  return unaccounted(conversation, tasks, { before: base.startedAt, seenToo: true }).map((call) =>
-    over(base, call),
-  )
-}
-
-// An ask_question that was answered, or skipped: its PostToolUse.
-const answered = (base: Base, payload: Report["payload"]): HarnessEvent[] => {
-  const call = toolCall(payload)
-  if (call?.name !== "ask_question") return []
-  return [
-    {
-      type: "attention-resolved",
-      ...base,
-      requestId: callId(call, payload),
-      actor: null,
-      toolName: call.name,
-      loose: false,
-      outcome: "allowed",
-    },
-  ]
-}
 
 // A plan: Markdown the agent writes, in the conversation's own folder, as an artifact
 // asking for the person's review; one it failed to write is none.
 const artifact = (
-  base: { agent: "agy"; sessionId: string; instance: string | null; startedAt: number },
+  base: EventBase<"agy">,
+  { name, args }: ToolCall,
   payload: Report["payload"],
 ): HarnessEvent[] => {
-  const { name, args } = (payload.toolCall ?? {}) as {
-    name?: unknown
-    args?: Record<string, unknown>
-  }
-  const metadata = args?.ArtifactMetadata as { RequestFeedback?: unknown } | undefined
+  const metadata = args.ArtifactMetadata as { RequestFeedback?: unknown } | undefined
   if (
     (name !== "write_file" && name !== "write_to_file") ||
     metadata?.RequestFeedback !== true ||
     text(payload.error)
   )
     return []
-  const path = absolute(args?.Path ?? args?.TargetFile)
+  const path = absolute(args.Path ?? args.TargetFile)
   const folder = absolute(payload.artifactDirectoryPath)
   if (!path || !folder || extname(path) !== ".md") return []
   const inside = relative(folder, path)
@@ -469,183 +283,13 @@ const artifact = (
   return [{ type: "plan-observed", ...base, actor: null, plan: { kind: "file", path } }]
 }
 
-// The tools that write a file, each naming it in its PostToolUse: write_file and edit_file
-// as Path from 1.4 (probed 2026-10-20, 1.4.3), write_to_file and replace_file_content as
-// TargetFile before (probed 2026-10-15, 1.2.14 and 1.3.5: replace_file_content is its only
-// edit tool; a model is offered no multi_replace_file_content).
-const writers: ReadonlySet<string> = new Set([
-  "write_file",
-  "edit_file",
-  "write_to_file",
-  "replace_file_content",
-])
-
 // A file it wrote, as its write or edit call names it.
 const written = (
-  base: { agent: "agy"; sessionId: string; instance: string | null; startedAt: number },
+  base: EventBase<"agy">,
+  { name, args }: ToolCall,
   payload: Report["payload"],
 ): HarnessEvent[] => {
-  const { name, args } = (payload.toolCall ?? {}) as {
-    name?: unknown
-    args?: Record<string, unknown>
-  }
-  const path = absolute(args?.Path ?? args?.TargetFile)
-  if (typeof name !== "string" || !writers.has(name) || !path || text(payload.error)) return []
+  const path = absolute(args.Path ?? args.TargetFile)
+  if (!writers.includes(name) || !path || text(payload.error)) return []
   return [{ type: "file-touched", ...base, actor: null, path }]
 }
-
-// Statuses of a subagent that no longer runs.
-const finished = new Set(["done", "completed", "finished", "idle", "failed", "cancelled", "error"])
-
-/**
- * How many subagents the status line lists still running. It lists them while they run,
- * and after, as `completed` (probed 2026-10-04, 1.2.14); one that names its state counts
- * only while that is not a finished one.
- */
-const subagentsRunning = (subagents: unknown): number =>
-  Array.isArray(subagents)
-    ? subagents.filter((subagent) => {
-        if (typeof subagent !== "object" || subagent === null) return true
-        const { status, state } = subagent as { status?: unknown; state?: unknown }
-        const named = text(status) ?? text(state)
-        return named === undefined || !finished.has(named.toLowerCase())
-      }).length
-    : 0
-
-const count = (value: unknown): number | undefined =>
-  typeof value === "number" && Number.isFinite(value) && value >= 0 ? value : undefined
-
-// How long each of Antigravity's quota windows lasts, by the end of its name.
-const windows = { weekly: 10_080, daily: 1440 } as const
-
-// A confirmation is the one request Antigravity shows at a time, and says nothing of.
-const confirmation = {
-  requestId: "confirmation",
-  actor: null,
-  toolName: "confirmation",
-} as const
-
-/**
- * Antigravity's status line: whether the agent works or waits on the person's
- * confirmation, whether it plans, how full its context window is, and its named quota windows, each with
- * the fraction left and when it resets. It names the person's account too, which nothing
- * here reads. Before a conversation starts it names none. It says idle only once its own
- * prompt shows: "authenticating" and "initializing" before, behind its login screen and
- * its folder-trust dialog too (probed 2026-10-01, 1.2.14), so a conversation it names
- * while idle is one at its prompt.
- */
-const statusLine = ({ seq, instance, payload }: Pick<Report, "seq" | "instance" | "payload">) => {
-  const id = sessionId(payload.conversation_id)
-  if (!id) return []
-  const cwd = absolute(payload.cwd)
-  const base = { agent: "agy", sessionId: id, instance, startedAt: seq } as const
-  const events: HarnessEvent[] = [
-    {
-      type: "session-observed",
-      ...base,
-      evidence: "conversation-observed",
-      ...(cwd !== undefined && { cwd }),
-      root: true,
-      ...(payload.agent_state === "idle" && { atPrompt: true }),
-    },
-    // Its mode, which it names only while not the default, and reruns on when it changes.
-    { type: "mode-observed", ...base, planning: payload.cycle_mode === "plan" },
-  ]
-  // Idle reads the same after a completed turn, an Esc and a denial: it ends a turn its
-  // Stop did not, as abnormally. Working never starts a turn, as its hook may run 10 to
-  // 60 ms after the turn's Stop and still say working (probed 2026-10-02, 1.2.14): only
-  // PreInvocation starts one. It resumes only a turn an older idle snapshot ended, as an
-  // idle one may be stale too, never one a Stop ended. A confirmation it shows counts only
-  // while a turn runs (`midTurn`), as Antigravity asks one only mid-turn, before its Stop:
-  // one drawn just after the Stop asks nothing. Working without a confirmation settles one
-  // the turn waited on. A snapshot's hook may start after the next turn's, so none of
-  // these holds for long against a wrong one.
-  const working = payload.agent_state === "working" || payload.agent_state === "tool_use"
-  // It lists its subagents while the turn runs too, so a working snapshot tells how many
-  // run, by status and not position, as the list's order flips (probed 2026-10-07, 1.2.16).
-  if (working)
-    events.push({ type: "turn-working", ...base, running: subagentsRunning(payload.subagents) })
-  if (payload.agent_state === "idle")
-    events.push({
-      type: "turn-idle",
-      ...base,
-      background: { agents: subagentsRunning(payload.subagents), tasks: 0 },
-    })
-  else if (payload.tool_confirmation_pending === true)
-    events.push({
-      type: "attention-requested",
-      ...base,
-      ...confirmation,
-      // One request per call it is about, so back-to-back confirmations are distinct.
-      ...(latest.has(id) && { requestId: `confirmation:${latest.get(id)!.id}` }),
-      kind: "permission",
-      subject: null,
-      choices: [],
-      // The call its conversation's latest PreToolUse named: the status line names none.
-      ...(latest.has(id) && { input: latest.get(id)!.call }),
-      midTurn: true,
-    })
-  else if (working)
-    events.push({
-      type: "attention-resolved",
-      ...base,
-      ...confirmation,
-      // Whichever call's, as the status line names none: the actor's oldest.
-      loose: true,
-      outcome: "allowed",
-    })
-  // Its count of background tasks, which it drops once none runs. A call that never
-  // ended, though no task runs, was denied or stopped, and fires no PostToolUse; with
-  // tasks running, so is one that no Stop saw and the count cannot account for.
-  if (payload.agent_state === "idle")
-    events.push(...abandoned(base, id, count(payload.task_count) ?? 0))
-  const window = (payload.context_window ?? {}) as Record<string, unknown>
-  const capacity = count(window.context_window_size)
-  const percent = count(window.used_percentage)
-  const quota = payload.quota
-  const limits =
-    typeof quota === "object" && quota !== null
-      ? Object.entries(quota as Record<string, unknown>).flatMap(([name, value]) => {
-          const { remaining_fraction: left, reset_time: resets } = (value ?? {}) as Record<
-            string,
-            unknown
-          >
-          const fraction = count(left)
-          if (fraction === undefined) return []
-          const at = typeof resets === "string" ? Date.parse(resets) : Number.NaN
-          const minutes = Object.entries(windows).find(([end]) => name.endsWith(end))?.[1] ?? null
-          return [
-            {
-              minutes,
-              used: Math.max(0, 1 - Math.min(1, fraction)),
-              resetsAt: Number.isNaN(at) ? null : at,
-            },
-          ]
-        })
-      : undefined
-  events.push({
-    type: "telemetry-observed",
-    ...base,
-    // Its share of the window, as it reports it: its token counts come only once a turn
-    // is over.
-    ...(capacity !== undefined &&
-      capacity >= 1 &&
-      percent !== undefined && {
-        context: {
-          occupied: Math.round((capacity * Math.min(100, percent)) / 100),
-          capacity: Math.round(capacity),
-        },
-      }),
-    ...(limits !== undefined && { limits: limits.slice(0, 8) }),
-  })
-  return events
-}
-
-/**
- * Antigravity's prompt showing before any conversation: a plain start's status line says
- * idle and names none until the first prompt starts one (probed 2026-10-01, 1.2.14).
- */
-export const shown = ({ event, seq, instance, payload }: Report): PromptShown | undefined =>
-  event === "StatusLine" && payload.agent_state === "idle" && !payload.conversation_id
-    ? { type: "prompt-shown", agent: "agy", instance, startedAt: seq }
-    : undefined

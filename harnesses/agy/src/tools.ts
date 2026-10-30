@@ -11,6 +11,32 @@ import {
 } from "@novadeck/harness-core/tools"
 import type { ToolRun } from "@novadeck/protocol"
 
+/** A tool call as a hook names it, and as a request's input holds it. */
+export type ToolCall = { readonly name: string; readonly args: Fields }
+
+/** The call `value` holds as `{name, args}`, its arguments `{}` where they are no object. */
+export const toolCall = (value: unknown): ToolCall | undefined => {
+  const { name, args } = (value ?? {}) as { name?: unknown; args?: unknown }
+  if (typeof name !== "string" || name === "") return undefined
+  return { name, args: typeof args === "object" && args !== null ? (args as Fields) : {} }
+}
+
+/**
+ * The tools that write a file, each naming it in its PostToolUse: write_file and edit_file
+ * as Path from 1.4 (probed 2026-10-20, 1.4.3), write_to_file and replace_file_content as
+ * TargetFile before (probed 2026-10-15, 1.2.14 and 1.3.5: replace_file_content is its only
+ * edit tool; a model is offered no multi_replace_file_content).
+ */
+export const writers: readonly string[] = [
+  "write_file",
+  "edit_file",
+  "write_to_file",
+  "replace_file_content",
+]
+
+// Where run_command's arguments may hold its command line.
+const commandKeys = ["cmd", "command", "CommandLine"]
+
 // Novadeck's MCP tools as Antigravity names them when it loads them eagerly:
 // `mcp_novadeck_novadeck_send`.
 const eager = /^mcp_novadeck_novadeck_(.+)$/
@@ -43,7 +69,7 @@ const known = (name: string, fields: Fields | undefined): ToolRun | undefined =>
       return {
         kind: "run",
         title: "Ran",
-        detail: oneLine(textField(fields, "cmd", "command", "CommandLine")),
+        detail: oneLine(textField(fields, ...commandKeys)),
       }
     case "view_file":
     case "read_file":
@@ -118,7 +144,6 @@ export const kindOf = (tool: string, args: Fields): ToolKind => {
     return descriptors.test(textField(args, "file_path", "AbsolutePath", "Path", "path"))
       ? "novadeck"
       : "work"
-  if (tool === "run_command")
-    return sleepOnly(textField(args, "cmd", "command", "CommandLine")) ? "waiting" : "work"
+  if (tool === "run_command") return sleepOnly(textField(args, ...commandKeys)) ? "waiting" : "work"
   return "work"
 }

@@ -1,4 +1,4 @@
-import { parseFields } from "@novadeck/harness-core/fields"
+import { parseFields, type Fields } from "@novadeck/harness-core/fields"
 import type { Harness, UserEntry } from "@novadeck/harness-core/harness"
 import { at, entry, textOf } from "@novadeck/harness-core/items"
 
@@ -6,6 +6,17 @@ import { describe } from "./tools.js"
 
 // The person's words within the context Antigravity wraps a prompt in.
 const request = /<USER_REQUEST>\n?([\s\S]*?)\n?<\/USER_REQUEST>/
+
+const contentOf = (fields: Fields): string =>
+  typeof fields.content === "string" ? fields.content : ""
+
+// What a step says was typed into the box, unwrapped: a USER_EXPLICIT USER_INPUT step's
+// text. Subagents' messages, hooks' continuations and notices are SYSTEM_MESSAGE steps.
+const typed = (fields: Fields): string | undefined => {
+  if (fields.source !== "USER_EXPLICIT" || fields.type !== "USER_INPUT") return undefined
+  const content = contentOf(fields)
+  return (request.exec(content)?.[1] ?? content).trim()
+}
 
 /**
  * Antigravity's transcript: a JSONL of the conversation's steps, which hooks name. The
@@ -20,11 +31,9 @@ export const transcripts: NonNullable<Harness["transcripts"]> = {
     if (!fields) return []
     const step = typeof fields.step_index === "number" ? fields.step_index : undefined
     const time = at(fields.created_at)
-    const content = typeof fields.content === "string" ? fields.content : ""
-    if (fields.source === "USER_EXPLICIT" && fields.type === "USER_INPUT") {
-      const text = (request.exec(content)?.[1] ?? content).trim()
-      return text ? [entry("user", "text", text, { at: time })] : []
-    }
+    const content = contentOf(fields)
+    const text = typed(fields)
+    if (text !== undefined) return text ? [entry("user", "text", text, { at: time })] : []
     if (fields.source !== "MODEL") return []
     if (fields.type === "GENERIC")
       return [
@@ -48,17 +57,15 @@ export const transcripts: NonNullable<Harness["transcripts"]> = {
 }
 
 /**
- * What one transcript line records as typed into the box: a USER_EXPLICIT USER_INPUT
- * step, the person's text (or a line typed for them, as the doorbell's) unwrapped, its
- * time and its step's index. Subagents' messages, hooks' continuations and notices are
- * SYSTEM_MESSAGE steps, never this.
+ * What one transcript line records as typed into the box: the person's text (or a line
+ * typed for them, as the doorbell's), its time and its step's index.
  */
 export const typedEntry = (line: string): UserEntry | undefined => {
   const fields = parseFields(line)
-  if (fields?.source !== "USER_EXPLICIT" || fields.type !== "USER_INPUT") return undefined
-  const content = typeof fields.content === "string" ? fields.content : ""
+  const text = fields && typed(fields)
+  if (!fields || text === undefined) return undefined
   return {
-    text: (request.exec(content)?.[1] ?? content).trim(),
+    text,
     at: at(fields.created_at),
     id: typeof fields.step_index === "number" ? fields.step_index : null,
   }

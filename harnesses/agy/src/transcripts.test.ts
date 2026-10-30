@@ -2,7 +2,7 @@ import type { Report } from "@novadeck/harness-core/report"
 import { loadProbe } from "@novadeck/harness-core/testing/probes"
 import { describe, expect, it } from "vitest"
 
-import { decode } from "./decode.js"
+import { hook } from "./report.test-support.js"
 import { transcripts } from "./transcripts.js"
 
 const { transcript, parallel, hooks } = loadProbe(import.meta.dirname, "transcript.probe.json") as {
@@ -84,22 +84,13 @@ describe("Antigravity's transcript, as captured", () => {
   })
 })
 
-// A PostToolUse report of Antigravity's.
-const report = (payload: Report["payload"]): Report => ({
-  terminalId: "t",
-  token: "0".repeat(48),
-  agent: "agy",
-  event: "PostToolUse",
-  seq: 1,
-  instance: null,
-  env: { cursor: false },
-  payload,
-})
+// The events of a PostToolUse of Antigravity's.
+const postToolUse = (payload: Report["payload"]) => hook("PostToolUse", payload)
 
 describe("Antigravity's plans, as captured", () => {
   it("are the artifacts it writes asking for review, not its walkthrough", () => {
     const plans = hooks.flatMap(({ payload }) =>
-      decode(report(payload)).filter((event) => event.type === "plan-observed"),
+      postToolUse(payload).filter((event) => event.type === "plan-observed"),
     )
     expect(plans).toMatchObject([
       {
@@ -116,7 +107,7 @@ describe("Antigravity's plans, as captured", () => {
           ?.ArtifactMetadata?.RequestFeedback === true,
     )
     const planned = (payload: Report["payload"]) =>
-      decode(report(payload)).filter((event) => event.type === "plan-observed")
+      postToolUse(payload).filter((event) => event.type === "plan-observed")
     expect(planned(plan!.payload)).toHaveLength(1)
     expect(planned({ ...plan!.payload, error: "permission denied" })).toEqual([])
     const call = plan!.payload.toolCall as { name: string; args: Record<string, unknown> }
@@ -137,14 +128,14 @@ describe("Antigravity's plans, as captured", () => {
       args: { ...rest, Path: TargetFile, Content: CodeContent },
     }
     expect(
-      decode(report({ ...plan!.payload, toolCall: written })).filter(
+      postToolUse({ ...plan!.payload, toolCall: written }).filter(
         (event) => event.type === "plan-observed",
       ),
     ).toMatchObject([{ plan: { kind: "file", path: TargetFile } }])
   })
 
   it("name the transcript on every hook", () => {
-    expect(decode(report(hooks[0]!.payload))[0]).toMatchObject({
+    expect(postToolUse(hooks[0]!.payload)[0]).toMatchObject({
       type: "session-observed",
       transcript: expect.stringMatching(/transcript_full\.jsonl$/),
     })

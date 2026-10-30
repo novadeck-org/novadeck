@@ -1,7 +1,11 @@
 import { readFile, rename, writeFile } from "node:fs/promises"
 import { join, resolve } from "node:path"
 
+import { fieldsOf, type Fields } from "@novadeck/harness-core/fields"
 import type { Install } from "@novadeck/harness-core/harness"
+import { json } from "@novadeck/harness-core/plugin"
+
+import { antigravityHome } from "./home.js"
 
 /**
  * Antigravity takes its status line only from its user settings, so connecting it puts
@@ -35,18 +39,12 @@ export const statusLineCommand = (own: string | undefined): string =>
 export const windowsStatusLine =
   "if defined NOVADECK_HOOK (%NOVADECK_HOOK% agy StatusLine >nul 2>nul)"
 
-type Settings = { [key: string]: unknown; statusLine?: unknown }
-type Line = { [key: string]: unknown; type?: unknown; command?: unknown }
-
-const line = (value: unknown): Line | undefined =>
-  typeof value === "object" && value !== null && !Array.isArray(value) ? (value as Line) : undefined
-
 /**
  * The person's own command a line of Novadeck's runs: null for none, undefined when the
  * line is not Novadeck's.
  */
 const ownOf = (value: unknown): string | null | undefined => {
-  const command = line(value)?.command
+  const command = fieldsOf(value)?.command
   if (command === windowsStatusLine) return null
   if (typeof command !== "string" || !command.startsWith(start)) return undefined
   if (command === start) return null
@@ -57,12 +55,14 @@ const ownOf = (value: unknown): string | null | undefined => {
 }
 
 // What Novadeck's line shows without the person's own.
-const added: Record<string, unknown> = { enabled: true, stack_with_default: true }
+const added: Fields = { enabled: true, stack_with_default: true }
 
-const settingsFile = (home: string): string => join(home, "settings.json")
+// Antigravity's user settings, in its home.
+const settingsFile = (install: Pick<Install, "home">): string =>
+  join(antigravityHome(install), "settings.json")
 
 // Settings, or undefined when the file holds something else.
-const read = async (file: string): Promise<Settings | undefined> => {
+const read = async (file: string): Promise<Fields | undefined> => {
   let text: string
   try {
     text = await readFile(file, "utf8")
@@ -72,7 +72,7 @@ const read = async (file: string): Promise<Settings | undefined> => {
   }
   try {
     const settings = JSON.parse(text) as unknown
-    return line(settings)
+    return fieldsOf(settings)
   } catch {
     return undefined
   }
@@ -81,49 +81,54 @@ const read = async (file: string): Promise<Settings | undefined> => {
 // Replaces the file whole, so Antigravity reads the old settings or the new.
 const write = async (file: string, value: unknown): Promise<void> => {
   const temporary = `${file}.${process.pid}.novadeck`
-  await writeFile(temporary, `${JSON.stringify(value, null, 2)}\n`, { mode: 0o600 })
+  await writeFile(temporary, json(value), { mode: 0o600 })
   await rename(temporary, file)
 }
 
-export const statusLineSettings = (home: (install: Install) => string) => ({
+export const statusLineSettings = {
   apply: async (install: Install): Promise<void> => {
-    const file = settingsFile(home(install))
+    const file = settingsFile(install)
     const settings = await read(file)
     if (!settings)
       throw new Error(`${file} is not valid settings. Repair it, then connect Antigravity again.`)
     if (ownOf(settings.statusLine) !== undefined) return
-    const own = line(settings.statusLine)
+    const own = fieldsOf(settings.statusLine)
     // Antigravity runs a command whatever its type names, or none.
     const command = typeof own?.command === "string" ? own.command : ""
     // On Windows the person's own line stays as it is: cmd can't run it after Novadeck's.
     if (install.platform === "win32" && command) return
     // The person's display choices stay; without a status line of their own, Antigravity's
     // default keeps showing above Novadeck's, which prints nothing.
-    settings.statusLine = {
-      ...(own ?? added),
-      type: "command",
-      command:
-        install.platform === "win32" ? windowsStatusLine : statusLineCommand(command || undefined),
-    }
-    await write(file, settings)
+    await write(file, {
+      ...settings,
+      statusLine: {
+        ...(own ?? added),
+        type: "command",
+        command:
+          install.platform === "win32"
+            ? windowsStatusLine
+            : statusLineCommand(command || undefined),
+      },
+    })
   },
   // Keeps whatever the person changed of the line meanwhile, and a file it cannot read:
   // Novadeck's line still runs theirs.
   revert: async (install: Install): Promise<void> => {
-    const file = settingsFile(home(install))
+    const file = settingsFile(install)
     const settings = await read(file)
     const own = settings && ownOf(settings.statusLine)
     if (!settings || own === undefined) return
-    if (own === null) {
-      // Only what Novadeck added goes; a line the person switched off stays so.
-      const { command: _command, type: _type, ...rest } = line(settings.statusLine) ?? {}
-      if (Object.entries(rest).every(([key, value]) => value === added[key]))
-        delete settings.statusLine
-      else settings.statusLine = rest
-    } else settings.statusLine = { ...line(settings.statusLine), command: own }
-    await write(file, settings)
+    const { statusLine: line, ...others } = settings
+    if (own !== null) {
+      await write(file, { ...settings, statusLine: { ...fieldsOf(line), command: own } })
+      return
+    }
+    // Only what Novadeck added goes; a line the person switched off stays so.
+    const { command: _command, type: _type, ...rest } = fieldsOf(line) ?? {}
+    const onlyAdded = Object.entries(rest).every(([key, value]) => value === added[key])
+    await write(file, onlyAdded ? others : { ...settings, statusLine: rest })
   },
-})
+}
 
 /**
  * What keeps messaging with Antigravity from working whole: on Windows, the person's own
@@ -133,15 +138,13 @@ export const statusLineSettings = (home: (install: Install) => string) => ({
  * the person's first prompt there (probed 2026-10-11, 1.2.14). Once a turn had run, rings
  * and deliveries went through. Elsewhere Novadeck's line runs the person's own after it.
  */
-export const statusLineLimit =
-  (home: (install: Install) => string) =>
-  async (install: Install): Promise<"own-status-line" | undefined> => {
-    if (install.platform !== "win32") return undefined
-    const settings = await read(settingsFile(home(install))).catch(() => undefined)
-    if (!settings || ownOf(settings.statusLine) !== undefined) return undefined
-    const command = line(settings.statusLine)?.command
-    return typeof command === "string" && command ? "own-status-line" : undefined
-  }
+export const statusLineLimit = async (install: Install): Promise<"own-status-line" | undefined> => {
+  if (install.platform !== "win32") return undefined
+  const settings = await read(settingsFile(install)).catch(() => undefined)
+  if (!settings || ownOf(settings.statusLine) !== undefined) return undefined
+  const command = fieldsOf(settings.statusLine)?.command
+  return typeof command === "string" && command ? "own-status-line" : undefined
+}
 
 /**
  * Whether Antigravity trusts `cwd`: its settings list it among `trustedWorkspaces`, the
@@ -149,8 +152,11 @@ export const statusLineLimit =
  * taken as trusted and the agent starts plain. A folder inside a trusted one isn't taken
  * as trusted either, which no probe showed. Unreadable settings trust nothing.
  */
-export const trustsFolder = async (antigravityHome: string, cwd: string): Promise<boolean> => {
-  const settings = await read(settingsFile(antigravityHome)).catch(() => undefined)
+export const trustsFolder = async (
+  install: Pick<Install, "home">,
+  cwd: string,
+): Promise<boolean> => {
+  const settings = await read(settingsFile(install)).catch(() => undefined)
   const listed = settings?.trustedWorkspaces
   if (!Array.isArray(listed)) return false
   const here = resolve(cwd)
