@@ -155,7 +155,7 @@ import {
 import { registerPortableLinksIpc, shownPath } from "./portable/links.js"
 import { leaveForNewerInstalled, redirectMarker } from "./portable/redirect.js"
 import { quitOnShutdown, saveBeforeClose, saveOnSessionEnd, savePages } from "./quit.js"
-import { prepareAppImage } from "./release/appimage.js"
+import { prepareAppImage } from "./releases/appimage.js"
 import {
   portableAssets,
   sha512Base64,
@@ -163,14 +163,14 @@ import {
   type Digest,
   type Download,
   type Fetched,
-} from "./release/download.js"
+} from "./releases/download.js"
 import {
   releaseDownloadsUrl,
   releaseLatestUrl,
   releasePageUrl,
   releaseRepositoryOf,
-} from "./release/repository.js"
-import { isNewerVersion } from "./release/versions.js"
+} from "./releases/repository.js"
+import { isNewerVersion } from "./releases/versions.js"
 import { startRunner, type RunnerEvents, type RunnerProcess } from "./runner.js"
 import { registerSandboxIpc, sandboxState } from "./sandbox.js"
 import { loadTranscriptKey } from "./transcript-key.js"

@@ -19,4 +19,3 @@ describe("which version is newer", () => {
     expect(isNewerVersion("2.0.0", "x")).toBe(false)
   })
 })
-

@@ -55,7 +55,7 @@ export const goneData = (details: {
 
 /**
  * Whether a process ended other than cleanly. A kill counts: the system's OOM killer and a
- * person's `kill -9` both end the runner so, and a kill the host asks for is a slow close's.
+ * person's `kill -9` both end the runner so, and a kill the app asks for is a slow close's.
  */
 export const goneBadly = (reason: string): boolean => reason !== "clean-exit"
 
@@ -84,15 +84,15 @@ export const eachLine = (
 }
 
 /** How many lines of each stream of each start of the runner are logged. */
-export const outputLimit = 2_000
+const outputLimit = 2_000
 
 /** How many of the lines past the limit are kept, the last ones, to be logged as it ends. */
-export const outputTail = 100
+const outputTail = 100
 
 // The caret Node prints under the source line of an error nothing caught.
 const caret = /^\s*\^+\s*$/
 
-/** What the host does with each line the runner writes, and with the end of each stream. */
+/** What the app's main process does with each line the runner writes, and with the end of each stream. */
 export type RunnerOutput = {
   readonly line: (run: number, stream: "stdout" | "stderr", text: string) => void
   readonly end: (run: number, stream: "stdout" | "stderr") => void
@@ -240,8 +240,8 @@ export const uiErrorOf = (value: unknown): UiError | undefined => {
   }
 }
 
-/** The page's error as an Error, so the log keeps it as it keeps the host's own. */
-export const uiErrorAsError = (report: UiError): Error => {
+/** The page's error as an Error, so the log keeps it as it keeps the main process's own. */
+const uiErrorAsError = (report: UiError): Error => {
   const error =
     report.name === "SyntaxError" ? new SyntaxError(report.message) : new Error(report.message)
   error.name = report.name
@@ -310,7 +310,7 @@ const updaterLine = (message: unknown): { readonly text: string; readonly err?: 
     : { text: typeof message === "string" ? message : inspect(message, { breakLength: Infinity }) }
 
 /**
- * The log of updating, in the host's log: what the host says of checks, downloads and
+ * The log of updating, in the app's log: what the main process says of checks, downloads and
  * installs (`update.progress`, `update.warning`), and electron-updater's own messages through
  * `logger` (`updater.info`, `updater.warning`, `updater.error`), redacted as every line is.
  */
@@ -322,10 +322,10 @@ export const updateLogOn = (log: Log) => {
       log[level](evt, text, err === undefined ? {} : { err })
     }
   return {
-    /** A failure the host reports, with its error. */
+    /** A failure the main process reports, with its error. */
     warn: (message: string, error?: unknown): void =>
       log.warn("update.warning", message, error === undefined ? {} : { err: error }),
-    /** Routine progress the host reports. */
+    /** Routine progress the main process reports. */
     info: (message: string): void => log.info("update.progress", message),
     /** What electron-updater logs through. */
     logger: {

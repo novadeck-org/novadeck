@@ -1,5 +1,7 @@
+// Notes and checks for a portable copy that may hand a launch over to an installed one.
+
 import { currentOrNewerCopy, type InstalledCopy } from "../install/linux.js"
-import { isNewerVersion } from "../release/versions.js"
+import { isNewerVersion } from "../releases/versions.js"
 
 /** What a launch of a portable copy does about an installed copy of the same version or newer. */
 export type InstalledCopyCheck = {

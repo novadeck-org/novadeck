@@ -1,4 +1,3 @@
-import { isNewerVersion } from "./versions.js"
 import { latestVersionOf } from "../install/windows.js"
 import {
   downloadChecked,
@@ -7,6 +6,7 @@ import {
   type Download,
   type ReleaseText,
 } from "./download.js"
+import { isNewerVersion } from "./versions.js"
 
 /** How getting the release's AppImage ready went: the file, or why not. */
 export type AppImageOutcome =

@@ -612,7 +612,7 @@ describe("the installer's running-app check", () => {
     expect(macro).not.toMatch(/^[^#\n]*(taskkill|\/IM\b|KILL_PROCESS)/mu)
   })
 
-  it("leaves the marker the host reads in the key the uninstaller deletes whole", () => {
+  it("leaves the marker the app reads in the key the uninstaller deletes whole", () => {
     const macro = readFileSync(join(process.cwd(), "resources", "installer.nsh"), "utf8")
     expect(macro).toContain(`"\${INSTALL_REGISTRY_KEY}" ${runningCheckValue} 1`)
     expect(template("uninstaller.nsh")).toContain(

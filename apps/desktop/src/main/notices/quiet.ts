@@ -8,7 +8,7 @@ import { notificationsQuietChannel } from "../../bridge.js"
 export type Run = (file: string, args: readonly string[], timeout: number) => Promise<string>
 
 /** Runs programs in `env`, as the system's own programs expect to be started. */
-export const runIn =
+const runIn =
   (env: NodeJS.ProcessEnv): Run =>
   (file, args, timeout) =>
     new Promise((resolve, reject) => {
@@ -26,7 +26,7 @@ const patience = 120
  * Whether GNOME holds its banners back. Its Do Not Disturb switch is the `show-banners`
  * setting, read from the settings database without any notification server involved.
  */
-export const gnomeQuiet = async (run: Run): Promise<boolean> => {
+const gnomeQuiet = async (run: Run): Promise<boolean> => {
   const out = await run(
     "gsettings",
     ["get", "org.gnome.desktop.notifications", "show-banners"],
@@ -41,7 +41,7 @@ export const gnomeQuiet = async (run: Run): Promise<boolean> => {
  * which other servers may. A server without the property fails the call, so it is not
  * quiet.
  */
-export const inhibitedQuiet = async (run: Run): Promise<boolean> => {
+const inhibitedQuiet = async (run: Run): Promise<boolean> => {
   const out = await run(
     "gdbus",
     [
@@ -67,13 +67,13 @@ export const inhibitedQuiet = async (run: Run): Promise<boolean> => {
  * Whether XFCE's notification daemon is set to Do Not Disturb: `xfconf-query` prints `true`
  * for the `/do-not-disturb` property of `xfce4-notifyd`.
  */
-export const xfceQuiet = async (run: Run): Promise<boolean> => {
+const xfceQuiet = async (run: Run): Promise<boolean> => {
   const out = await run("xfconf-query", ["-c", "xfce4-notifyd", "-p", "/do-not-disturb"], 1500)
   return out.trim() === "true"
 }
 
 /** Whether dunst is paused, which is its Do Not Disturb: `dunstctl is-paused` prints `true`. */
-export const dunstQuiet = async (run: Run): Promise<boolean> => {
+const dunstQuiet = async (run: Run): Promise<boolean> => {
   const out = await run("dunstctl", ["is-paused"], 1500)
   return out.trim() === "true"
 }
@@ -105,7 +105,7 @@ export const linuxProbe = (run: Run, desktop: string | undefined) => async (): P
 const quietHoursState = 0x0d83063ea3bf1c75n
 
 /** Reads the shell's quiet hours state: its value, or undefined when the system gives none. */
-export type StateQuery = () => Promise<number | undefined>
+type StateQuery = () => Promise<number | undefined>
 
 /**
  * `NtQueryWnfStateData` from the system library, called in this process through koffi. The

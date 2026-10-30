@@ -69,7 +69,7 @@ mac:
   icon: resources/icon.icns
   # node-pty ships prebuilds for both architectures, and the relay is built universal; the
   # universal merge sees them unchanged in the x64 and arm64 copies, and each runs the
-  # architecture of the host.
+  # architecture of the computer it runs on.
   x64ArchFiles: "{Contents/Resources/app.asar.unpacked/node_modules/node-pty/prebuilds/darwin-*/*,Contents/Resources/relay/*}"
   extendInfo:
     NSMicrophoneUsageDescription: Novadeck uses the microphone for voice input, transcribed on this computer.

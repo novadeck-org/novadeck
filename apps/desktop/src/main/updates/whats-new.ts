@@ -3,7 +3,7 @@ import { readNotesBlock, type ReleaseNotes } from "@novadeck/protocol/release-no
 import type { IpcMainEvent, IpcMainInvokeEvent } from "electron"
 
 import { dismissWhatsNewChannel, whatsNewChannel } from "../../bridge.js"
-import type { ReleaseRepository } from "../release/repository.js"
+import type { ReleaseRepository } from "../releases/repository.js"
 
 /** How long reading the release waits; the card is optional, so a slow network gives it up. */
 export const releaseReadMs = 10_000
@@ -309,8 +309,8 @@ export const keepWhatsNew = ({
       const shown = gather(version, start, [own, ...skipped], newer)
       if (shown) return shown
       // A prerelease with no highlights may get some yet: promoting it writes them onto
-      // this same tag before it turns stable, so an experimental user who installed it is shown
-      // them then.
+      // this same tag before it turns stable, so a person on the experimental channel who
+      // installed it is shown them then.
       if (own.prerelease) recordCheck(now())
       else forget()
     } catch (error) {

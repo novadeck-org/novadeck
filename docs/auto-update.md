@@ -16,7 +16,7 @@ bundle once the app has shut down (see "macOS"), and Windows runs the installer,
 closes a copy reopened before it finishes so its update lands all the same, and then
 starts the new one in its place.
 
-What the host says of checks, downloads and installs goes to the app's `host.log` as
+What the app says of checks, downloads and installs goes to the app's `host.log` as
 `update.progress` and `update.warning` lines, and electron-updater's own messages as
 `updater.info`, `updater.warning` and `updater.error`, redacted as every line of the log is
 (see `@novadeck/log` and `main/logs.ts`, `updateLogOn`). The logs folder is
@@ -26,13 +26,13 @@ The repository to look in comes from `resources/app-update.yml`, which electron-
 writes into the app from its `publish` block. The release workflow fills that block from
 `github.repository` (`-c.publish.owner` and `-c.publish.repo`), and its "Check Package
 Names" step asserts the file names the repository that built the release. Nothing in the
-host names a repository: the release page and the voice and murmur engine downloads read
-the same validated owner and repository from that file (`update-release.ts`).
+app names a repository: the release page and the voice and murmur engine downloads read
+the same validated owner and repository from that file (`releases/repository.ts`).
 
 ## Channels
 
 A build follows one channel, which the person picks with Preferences' Experimental switch
-(on is `experimental`, which also turns on the IS_EXPERIMENTAL flag) and the host keeps
+(on is `experimental`, which also turns on the IS_EXPERIMENTAL flag) and the app keeps
 across launches in `update.json` in the data folder. The same file keeps what the card of what is
 new needs (see "What is new"): `lastRunVersion`, `whatsNewPending`, `whatsNewFrom`,
 `whatsNewSettled` and `whatsNewCheckedAt`.
@@ -178,13 +178,13 @@ macOS build checks its own signature once at launch with `codesign`. See
 
 ### macOS
 
-The host installs macOS updates itself, as Linux does, rather than through Squirrel.Mac.
+The app installs macOS updates itself, as Linux does, rather than through Squirrel.Mac.
 Squirrel's ShipIt installs only once the app has exited, checks the update for about five
 seconds, and gives up ("App Still Running Error") when the app is running again by then, so
 a quit and a quick reopen lost every update, and the next launch downloaded it again and
 said it was ready again. electron-updater still downloads the zip; with
 `autoInstallOnAppQuit` off its `MacUpdater` hands nothing to Squirrel. Then
-(`mac-update.ts`):
+(`updates/mac.ts`):
 
 - **Prepared once downloaded.** The zip is unpacked with `ditto` into a folder of its own
   in `~/Library/Caches/dev.mzpk.novadeck.updates` (`dev.mzpk.novadeck.update-*`), which the
@@ -223,7 +223,7 @@ before this installs its next update through Squirrel, once.
 
 - **Installing** builds download in the background and show it. The update is offered to
   the page as `downloading` at each whole percent electron-updater reports
-  (`download-progress`), from the first; only the progress of the download the host started
+  (`download-progress`), from the first; only the progress of the download the app started
   counts. A download already on disk from an earlier launch reports none and is `ready` at
   once, without a flash of progress. It becomes `ready` once downloaded (on macOS, once
   prepared, with the percent staying where it was until then), and the page
@@ -257,7 +257,7 @@ before this installs its next update through Squirrel, once.
   lands installs the newer release. On Windows the newer one costs its changed ranges and
   then the whole file, and its percent starts over once: electron-updater's differential
   download pairs the waiting update's blockmap with the installed build's installer, the
-  result fails its checksum, and it falls back to a full download. On macOS the waiting update stays in place until the newer one is prepared, so a quit meanwhile installs the waiting one. `updater.test.ts` pins the file names and electron-updater's handling of the
+  result fails its checksum, and it falls back to a full download. On macOS the waiting update stays in place until the newer one is prepared, so a quit meanwhile installs the waiting one. `updates/updater.test.ts` pins the file names and electron-updater's handling of the
   waiting file: were the folder emptied while the updater still names the file, quitting
   would delete the running AppImage and install nothing.
 - **Telling** builds download nothing and keep checking, so a newer release replaces the
@@ -274,14 +274,14 @@ before this installs its next update through Squirrel, once.
 ### Install failures
 
 Only an error raised while installing counts as a failed install: one raised after the
-updater's `install` (the quit-time install) was called, which the host wraps to know, and
+updater's `install` (the quit-time install) was called, which the app wraps to know, and
 on macOS a download that fails its checks or a swap that fails. The
 AppImage's folder turned read-only, say. Any other error, such as a check still in flight failing offline after
-the download, is only logged. The host then switches installing on quit off, so the same
+the download, is only logged. The app then switches installing on quit off, so the same
 failure does not come back at every quit; writes the version whose install failed (the
 offered one, not the running one) to `update.json`; and re-offers the update as `available`.
 From the next launch that release is only told of: the updater never downloads on its own,
-the host asks for each download, and leaves out the release the mark names, which is offered
+the app asks for each download, and leaves out the release the mark names, which is offered
 as `available`. A newer release installs as usual and the mark, being for the older one,
 is ignored. The comparison is in `checkForUpdates` (`failedVersion`), where it is tested. Every write to `update.json` is synchronous and goes through a
 temporary file that is renamed over, re-reading the file first, so the failure mark, which
@@ -306,14 +306,14 @@ installed copy.
 Electron 44 on Linux turns SIGTERM, SIGINT and SIGHUP into an ordinary quit: `before-quit`,
 `will-quit` and `quit` with exit code 0, even when the main process has its own
 `process.on("SIGTERM")` handler, which never runs. electron-updater installs on such a quit,
-so a desktop logout or `kill` could kill an AppImage swap halfway. The host tells the orderly quits, the person's,
+so a desktop logout or `kill` could kill an AppImage swap halfway. The app tells the orderly quits, the person's,
 from signals by marking them before they begin:
 
 - Closing the last window.
 - Ctrl+Q and File > Quit. Electron's default menu is present on Linux even with the menu
-  bar hidden, and its Quit is a role that cannot be told from a signal, so the host sets
+  bar hidden, and its Quit is a role that cannot be told from a signal, so the app sets
   the same menu (File, Edit, View and Window) with a Quit of its own on the same
-  accelerator (`menu.ts`). Checked under Electron 44 with xvfb: a synthetic Ctrl+Q key
+  accelerator (`window/menu.ts`). Checked under Electron 44 with xvfb: a synthetic Ctrl+Q key
   event sent to an otherwise empty page reaches that item's handler although the bar is
   hidden. Not tested with a terminal focused: xterm.js may consume Ctrl+Q (it sends XON to
   the shell), in which case the accelerator does not fire and File > Quit from the menu bar
@@ -331,14 +331,14 @@ nobody reopens leaves Novadeck closed on every system. Nor does it apply to a qu
 installs nothing, as a signal's or the session ending, or to a quit with no update.
 
 - **Linux** swaps the AppImage at the start of an orderly quit, not after the shutdown
-  (`installNow` in `updater.ts`, called from `before-quit` only for the person's quit; see
+  (`installNow` in `updates/updater.ts`, called from `before-quit` only for the person's quit; see
   "Quitting by a signal on Linux"). Replacing the file is safe while the app runs, as the
   mounted image holds the old file through its inode. electron-updater's own install is not
   used: it deletes `$APPIMAGE` and then moves the new file in, so a launch in between finds
   no file, and it then runs the new AppImage once with `APPIMAGE_EXIT_AFTER_INSTALL`, which
   only skips the desktop integration and the EULA of the AppRun this build has (neither),
-  so the step does nothing here. The host replaces `doInstall` of the `AppImageUpdater`
-  (`loadUpdater`, `swapAppImage` in `appimage-swap.ts`) with one atomic rename of the
+  so the step does nothing here. The app replaces `doInstall` of the `AppImageUpdater`
+  (`loadUpdater`, `swapAppImage` in `updates/appimage-swap.ts`) with one atomic rename of the
   verified download over `$APPIMAGE` (or, when the download sits on another file system,
   a copy beside the file that is renamed over it); the file keeps its name, as no release
   file carries a version. Everything else of electron-updater's install stays: it is the
@@ -388,7 +388,7 @@ the app has gone, "Opening 1.2.0, which is put in place as the app quits.".
 
 ### Linux builds
 
-The host builds its updater itself rather than take electron-updater's `autoUpdater`. A
+The app builds its updater itself rather than take electron-updater's `autoUpdater`. A
 Linux build is an AppImage when `APPIMAGE` is set and the running executable lies inside
 `APPDIR`; shells inside an AppImage inherit `APPIMAGE`, so a program started from one is told
 apart by its executable. Any other packaged Linux build never checks: Linux ships only the
@@ -401,7 +401,7 @@ to the installed app, which updates itself. On Linux it is an AppImage anywhere 
 places the installer puts it, `${XDG_DATA_HOME:-~/.local/share}/novadeck/novadeck.AppImage`
 (a relative `XDG_DATA_HOME` counts as unset) and Homebrew's `~/Applications/novadeck.AppImage`;
 paths are compared by their canonical form, so a link to an install counts as installed
-(`install-location.ts`, shared with the sandbox fix). An AppImage run from Downloads therefore
+(`install/location.ts`, shared with the sandbox fix). An AppImage run from Downloads therefore
 no longer replaces its own file, as it once did in any writable folder. On macOS it is the
 packaged app anywhere but an Applications folder (Electron's `app.isInApplicationsFolder()`
 is false: Downloads, a translocated copy, the mounted disk image), signed or not. On Windows it
@@ -415,11 +415,11 @@ The page raises its corner card by itself once per run, with or without a releas
 that run in local storage, so a window closed and opened again within one run (macOS keeps the
 app running with no window) is not taken for a launch and the card does not come back by
 itself; the footer chip reopens it. `installApp` installs from the
-copy (`portable.ts`; `install-linux.ts` on Linux, `applications-folder.ts` on macOS,
-`install-windows.ts` on Windows) while this copy keeps running. Novadeck never restarts
+copy (`portable/installer.ts`; `install/linux.ts` on Linux, `install/mac.ts` on macOS,
+`install/windows.ts` on Windows) while this copy keeps running. Novadeck never restarts
 itself for the person: the install ends `installed`, the page says the installed copy "takes
 effect after you restart Novadeck", and nothing is quit, started or handed off. `installApp`
-answers nothing: the host owns the install's phase (`PortableState.install`, starting `idle`)
+answers nothing: the app owns the install's phase (`PortableState.install`, starting `idle`)
 and pushes the whole `PortableState` to every window at each change (`onPortableState`):
 `installing` at once, as the answer to the click; on Windows then `downloading` with each new
 whole percent and `installing` again while the setup runs; then `installed`, `newer` (with the
@@ -444,12 +444,12 @@ does nothing either. On Linux:
 - An installed copy newer than the portable one is never overwritten. The answer is `newer`
   (nothing is written, and the end state is the same as `installed`). An installed copy's version is
   read from `X-AppImage-Version` in the menu entry electron-builder writes into the AppImage.
-  This does execute the installed file's own AppImage runtime, as `install-linux.ts` runs
+  This does execute the installed file's own AppImage runtime, as `install/linux.ts` runs
   `<file> --appimage-extract '*.desktop'` in a temporary folder with a 20 second limit; that
   unpacks the entry and starts no app. The result has three cases:
   - The version is read.
   - The file has no version, and is replaced: its first bytes are not an ELF header with the
-    AppImage marker `AI\x02` at bytes 8 to 10 (the host reads them itself), the system says
+    AppImage marker `AI\x02` at bytes 8 to 10 (the app reads them itself), the system says
     it is no program (`ENOEXEC`), or the runtime ran (exit 0) and found no menu entry or
     version.
   - It could not be checked, and is never overwritten: the install answers `failed` with a
@@ -471,7 +471,7 @@ does nothing either. On Linux:
 - A failure, such as a full disk or a folder that cannot be written, is returned with a short
   reason, as is a request while the app is already quitting ("Novadeck is quitting.").
 
-On macOS the install is `installBundle` in `applications-folder.ts`, not Electron's
+On macOS the install is `installBundle` in `install/mac.ts`, not Electron's
 `app.moveToApplicationsFolder()`, which always quits and relaunches the app. The target is the
 first installed copy found (`/Applications` first, then `~/Applications`, by `Info.plist`
 version, at the launch and before an install; one whose plist cannot be read is not
@@ -508,7 +508,7 @@ left off. An older runner refuses a database a newer one has upgraded.
 
 At launch, before the runner starts, a portable copy looks for an installed copy of the same
 version or a newer one (`leaveForNewerInstalled`, with `currentOrNewerCopy` in
-`install-linux.ts`). If there is one, it is started in place of this launch, without asking:
+`install/linux.ts`). If there is one, it is started in place of this launch, without asking:
 the person opened Novadeck, and the installed copy is the one they keep. One that is older,
 cannot be checked, or is absent lets the launch carry on; so does a failure to list the
 copies. If the installed copy will not start and is the same version, the failure is logged
@@ -539,8 +539,8 @@ names only the setup, and a ZIP copy does not update itself. Both copies use `%A
 (the name is `novadeck` in code; Windows ignores case, so this is also `Novadeck`), so installing
 keeps the workspace.
 
-- **Detection** (`installedByInstaller` in `install-windows.ts`). Nothing marks the ZIP, so the
-  host tells an installed copy instead: it is installed if `Uninstall <executable name>.exe` sits
+- **Detection** (`installedByInstaller` in `install/windows.ts`). Nothing marks the ZIP, so the
+  app tells an installed copy instead: it is installed if `Uninstall <executable name>.exe` sits
   beside the running executable (`UNINSTALL_FILENAME` in electron-builder's `common.nsh`, here
   `Uninstall novadeck.exe`, which the ZIP lacks), or if the executable's folder is the
   `InstallLocation` the installer recorded or its default, `%LOCALAPPDATA%\Programs\novadeck`
@@ -555,7 +555,7 @@ keeps the workspace.
   electron-builder derives from the app id (UUID v5 of `dev.mzpk.novadeck`; `installerGuid`):
   `HKCU\Software\<guid>` `InstallLocation` and the Uninstall key's `DisplayVersion`, read with
   `reg.exe query` (no native module), plus the default folder. reg.exe writes the OEM code page
-  while Node decodes UTF-8, so a profile path with letters outside ASCII reaches the host
+  while Node decodes UTF-8, so a profile path with letters outside ASCII reaches the app
   garbled; when the recorded folder holds no executable but the default one does, the
   (ASCII) `DisplayVersion` is trusted for the default folder. A copy whose version is not in
   the record (a missing or unreadable key) is `unchecked` and never replaced; the advice is to
@@ -587,7 +587,7 @@ keeps the workspace.
   `failed` with a short reason and changes nothing. Only then is the setup `spawn`ed detached
   with `/S` alone (never `shell.openPath`, which goes through SmartScreen), while this copy
   keeps running, holds its lock and exits nothing. There is no `--force-run`, so the setup
-  starts nothing when done; `--updated` is left off too. The host waits for the setup to exit,
+  starts nothing when done; `--updated` is left off too. The app waits for the setup to exit,
   up to five minutes (it is not killed at the timeout; if no copy is found then, the answer is
   "The installer is still running. Try again in a few minutes.", and a retry that cannot clear
   the locked setup folder says the same), and then trusts nothing about how it
@@ -637,7 +637,7 @@ keeps the workspace.
     self-update or uninstaller ends with exit code 3 at round 7; an interactive run shows the
     "click OK to close it" box but closes nothing, and offers Retry at round 7 for the
     person to close Novadeck by hand.
-  - `install-windows.test.ts` pins that the builder in use still reaches the hook from the
+  - `install/windows.test.ts` pins that the builder in use still reaches the hook from the
     install section, the uninstaller and `CHECK_APP_RUNNING`, that `installer.nsh` is still
     included by name from `directories.buildResources`, and that the install section still
     runs `customInstall`.
@@ -648,7 +648,7 @@ keeps the workspace.
   folder such as `...\Programs\novadeck-portable` dies; without it, `taskkill /IM
   novadeck.exe` stops any portable. The installer therefore writes a `RunningCheck` value
   next to `InstallLocation` (`HKCU\Software\<guid>`, from `customInstall`); builder's
-  uninstaller deletes that whole key. The host treats an install as legacy
+  uninstaller deletes that whole key. The app treats an install as legacy
   (`readLegacyUninstaller`) when the registry records one, an `UninstallString` or an
   `InstallLocation` (whether or not `novadeck.exe` is still there), without the marker, or
   when the registry cannot be read. Then it also refuses a portable whose folder path merely
@@ -658,7 +658,7 @@ keeps the workspace.
   installer from the Releases page."). This guard is marked LEGACY in code. Delete it once
   no install without the marker matters. Residual risks: the old uninstaller still stops
   anything running from inside the install folder, and it runs its own PowerShell test
-  again when it starts. If that fails, even briefly after the host's check passed, it runs
+  again when it starts. If that fails, even briefly after the app's check passed, it runs
   `taskkill /IM novadeck.exe`, which closes the portable copy. The guard narrows this and
   cannot remove it.
 - **Limits.** Only a real Windows run proves this end to end. Smart App Control blocks an
@@ -670,7 +670,7 @@ keeps the workspace.
 
 ## One instance per data folder
 
-The host takes Electron's single-instance lock at startup. Chromium keys it on the data
+The app takes Electron's single-instance lock at startup. Chromium keys it on the data
 folder (`userData`), not on the executable, so a portable and an installed copy exclude each
 other. A second launch quits at once, before it starts anything, and the running window comes
 to the front, or opens one on macOS, where the app lives on with no window. So after a
@@ -704,7 +704,7 @@ The app tells of an update in one place, a card of highlights for the version it
 the releases it skipped on the way, shown at each launch until the person dismisses it or the
 releases turn out to have none. The notes come from the releases themselves: each prerelease, and
 again its promotion to stable, writes a hidden `<!-- novadeck:notes {json} -->` block in its body,
-before the "All commits" details (`scripts/release-notes`), and the host reads it with
+before the "All commits" details (`scripts/release-notes`), and the app reads it with
 `readNotesBlock` from the release API (`/releases/tags/v{version}`, then `/releases` for the
 skipped ones), never from the page.
 
@@ -720,11 +720,11 @@ earlier builds never recorded the version they ran.
 
 Each highlight may name an icon, a Lucide name from the fixed `highlightIcons` set in
 `contract/protocol/src/release-notes.ts`, which the model picks from when it writes the notes.
-The host's reader drops a name outside the set, and the preload checks only its shape, so it
+The app's reader drops a name outside the set, and the preload checks only its shape, so it
 carries no schema library; the card draws a sparkle for a highlight with no icon, as those of
 releases written before icons, or with one it doesn't know.
 
-At launch the host records the version it runs in `update.json` as `lastRunVersion`, and marks
+At launch the app records the version it runs in `update.json` as `lastRunVersion`, and marks
 that version `whatsNewPending` when it is newer than the one the last launch recorded. A first
 launch marks nothing; an install from before the version was kept counts as updated when the
 data folder holds the runner's `workspace.sqlite`. The mark is settled, and the version

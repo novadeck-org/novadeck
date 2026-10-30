@@ -3,7 +3,7 @@ import { win32 } from "node:path"
 
 import { updateVersionPattern } from "@novadeck/protocol/bridge"
 
-import { isNewerVersion } from "../release/versions.js"
+import { isNewerVersion } from "../releases/versions.js"
 import type { InstalledCopy } from "./linux.js"
 import type { StartedProcess } from "./start.js"
 

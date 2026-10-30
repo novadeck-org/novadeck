@@ -17,9 +17,9 @@ import {
   updateOfferChannel,
   updateRequestChannel,
 } from "../../bridge.js"
-import type { ReleaseRepository } from "../release/repository.js"
-import { localOrigin, novadeckSite } from "../release/site.js"
-import { isNewerVersion } from "../release/versions.js"
+import type { ReleaseRepository } from "../releases/repository.js"
+import { localOrigin, novadeckSite } from "../releases/site.js"
+import { isNewerVersion } from "../releases/versions.js"
 
 /** How long after launch the first check waits, so it never competes with startup. */
 export const firstCheckMs = 10_000
@@ -106,7 +106,7 @@ export type UpdateBuild = {
   /**
    * How the macOS app bundle can be replaced: whole, when it and the folder holding it can
    * be written, or its `Contents`, when only it can; undefined when neither. See
-   * ./mac-update.ts.
+   * ./mac.ts.
    */
   readonly bundleSwap: "whole" | "contents" | undefined
   /** Whether the folder holding the AppImage file can be written to. */
@@ -250,7 +250,7 @@ const sameOffer = (a: UpdateOffer, b: UpdateOffer): boolean =>
  * a page that started listening later, such as after a reload or in a new window. A
  * report of what the pages already know is dropped, and that includes the `percent` of a
  * `downloading` offer, so each whole percent a download reaches is told once; any other
- * replaces the last, a newer version and a `ready` update the host then could not install
+ * replaces the last, a newer version and a `ready` update the app then could not install
  * alike. `pages` lists the windows showing the app's own UI. Only a `downloading` offer
  * carries a `percent`.
  */
@@ -330,7 +330,7 @@ export const registerUpdateIpc = <Window>(
 /**
  * A quit that leaves an update waiting uninstalled: for the system ending the session,
  * which may kill a silent installer or a swap halfway. Ordinary quits install. On macOS,
- * where the host swaps the bundle itself, `updater` names the switch that swap reads.
+ * where the app swaps the bundle itself, `updater` names the switch that swap reads.
  */
 export const quitWithoutInstalling =
   (updater: () => Pick<Updater, "autoInstallOnAppQuit"> | undefined, quit: () => void) =>
@@ -399,7 +399,7 @@ export type Updater = {
  *
  * In `install` mode it downloads what it finds and installs it when the app next quits.
  * `offer` is told the update is `downloading` at each whole percent electron-updater
- * reports, from the first, then `ready` once downloaded and, where the host gives
+ * reports, from the first, then `ready` once downloaded and, where the app gives
  * `prepare`, once that has made the download ready to put in place. A download already on disk from
  * an earlier launch reports none, and is `ready` at once. A release whose download fails
  * is tried again, once in a run, by a check `retryCheckMs` later; after that the schedule
@@ -424,7 +424,7 @@ export type Updater = {
  * with it, as electron-updater clears its download folder then: the newer release is
  * offered as `retrying` until the retry downloads it.
  *
- * On macOS the host installs the update itself as the app quits (see ./mac-update.ts), so
+ * On macOS the app installs the update itself as the app quits (see ./mac.ts), so
  * electron-updater only downloads it: `prepare` hears of each download, its version and
  * file, and the update stays `downloading`, at the last percent reported, until that is
  * done, and is `ready` then. Should `prepare` reject the download, as one not signed by
@@ -498,7 +498,7 @@ export const checkForUpdates = (
     readonly allow?: boolean | undefined
     /** Checks through novadeck.dev, falling back to GitHub; see above. */
     readonly feed?: UpdateFeed | undefined
-    /** On macOS, makes a download ready for the host to put in place on quitting. */
+    /** On macOS, makes a download ready for the app to put in place on quitting. */
     readonly prepare?:
       | ((update: { readonly version: string; readonly file: string }) => Promise<void>)
       | undefined
@@ -525,7 +525,7 @@ export const checkForUpdates = (
 } => {
   // Downloads are asked for, to leave out the release that failed to install.
   updater.autoDownload = false
-  // electron-updater installs on quitting, but on macOS, where the host does: there its
+  // electron-updater installs on quitting, but on macOS, where the app does: there its
   // updater hands a download to Squirrel.Mac only while this is on.
   updater.autoInstallOnAppQuit = mode === "install" && prepare === undefined
   updater.allowPrerelease = channel === "experimental"

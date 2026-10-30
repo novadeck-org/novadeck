@@ -19,7 +19,7 @@ import { dirname, join } from "node:path"
 
 import { updateVersionPattern } from "@novadeck/protocol/bridge"
 
-import { isNewerVersion } from "../release/versions.js"
+import { isNewerVersion } from "../releases/versions.js"
 import { dataHome, installedImage, installedImages, type InstallLocationHost } from "./location.js"
 import { reasonText } from "./reason.js"
 

@@ -523,7 +523,7 @@ app runs: whenever the preference changes, and whenever the system's scheme does
   `apply.ts` removes that once the theme's file sets `color-scheme`.
 - **Windows** stay in step: each listens for the `storage` event and takes up the
   preferences another window saved, theme included.
-- **The desktop host** follows the page. On every change the page reports its scheme
+- **The desktop app** follows the page. On every change the page reports its scheme
   and its `--color-paper`, the ground `body` paints before anything draws on it, as
   `#rrggbb` through the preload bridge, so the window and the first paint are one
   colour. The host sets `nativeTheme.themeSource` so native menus and

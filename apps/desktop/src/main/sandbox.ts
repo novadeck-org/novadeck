@@ -3,7 +3,7 @@ import type { IpcMainInvokeEvent } from "electron"
 
 import { sandboxChannel } from "../bridge.js"
 import { isInstalledImage } from "./install/location.js"
-import type { ReleaseRepository } from "./release/repository.js"
+import type { ReleaseRepository } from "./releases/repository.js"
 
 /** What choosing a fix looks at of the machine; the caller reads it. */
 export type SandboxHost = {

@@ -1,6 +1,6 @@
 import { updateVersionPattern } from "@novadeck/protocol/bridge"
 
-import { isNewerVersion } from "../release/versions.js"
+import { isNewerVersion } from "../releases/versions.js"
 
 /** The file in the data folder where a portable copy leaves its path and version. */
 export const portableRecordName = "portable-copy.json"

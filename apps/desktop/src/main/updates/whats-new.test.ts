@@ -5,7 +5,7 @@ import { vi } from "vitest"
 
 import { dismissWhatsNewChannel, whatsNewChannel } from "../../bridge.js"
 import { context, describe, expect, it } from "../../test"
-import { isNewerVersion } from "../release/versions"
+import { isNewerVersion } from "../releases/versions"
 import {
   keepUpdateNews,
   keepWhatsNew,

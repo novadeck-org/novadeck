@@ -189,7 +189,7 @@ describe.skipIf(process.platform !== "linux")("the descriptors of the installed 
     return file
   }
 
-  // Starts the program as the host does, but with descriptors 3 to 12 handed to the child
+  // Starts the program as the app does, but with descriptors 3 to 12 handed to the child
   // as Chromium leaves them: Node marks its own close-on-exec, so spawn passes these on.
   const descriptorsOf = async (direct: boolean): Promise<string[]> => {
     const image = await program()

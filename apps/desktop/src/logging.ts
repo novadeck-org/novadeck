@@ -13,7 +13,7 @@ import {
 } from "@novadeck/log"
 
 /**
- * What a process of the app needs to write its log, as the host hands it to the runner in
+ * What a process of the app needs to write its log, as the main process hands it to the runner in
  * `logArgumentPrefix`'s argument: the logs folder, the launch, which start of the runner
  * this is, and the app's folders the redactor writes as placeholders.
  */
@@ -86,7 +86,7 @@ export const appReadableNames: readonly string[] = [
 
 /**
  * The addresses that stay readable whole: the app's own, its releases, and the services its
- * agents and engines talk to. Any other host is hashed.
+ * agents and engines talk to. Any other host name is hashed.
  */
 export const appReadableUrls: readonly string[] = [
   "novadeck.dev",

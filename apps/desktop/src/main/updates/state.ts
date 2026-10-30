@@ -3,7 +3,7 @@ import { readFileSync, renameSync, rmSync, writeFileSync } from "node:fs"
 
 import { updateChannels, updateVersionPattern, type UpdateChannel } from "@novadeck/protocol/bridge"
 
-/** What the host remembers across launches about updating. */
+/** What the app remembers across launches about updating. */
 export type UpdateState = {
   /** Which releases the build follows. */
   readonly channel: UpdateChannel
@@ -74,7 +74,7 @@ const versionOf = (value: unknown): string | undefined =>
   typeof value === "string" && updateVersionPattern.test(value) ? value : undefined
 
 /**
- * The state in a file's text. The file is the host's own, but a damaged or edited one
+ * The state in a file's text. The file is the app's own, but a damaged or edited one
  * must not break launching, so each field that is not a known value falls back to its
  * default on its own.
  */

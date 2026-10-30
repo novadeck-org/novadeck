@@ -249,7 +249,7 @@ const verify = async (
  * (see `updateRequirement`), which it must have. Resolves to the prepared `.app`; rejects with an Error
  * whose message is a plain sentence, an `UpdateRejected` when the update is not one to
  * install. Nothing is left behind by a failure. Earlier prepared folders are left alone:
- * one may be on its way into place as the app quits, so the host removes them (see
+ * one may be on its way into place as the app quits, so the app removes them (see
  * `removeMacUpdates`).
  */
 export const prepareMacUpdate = async (
@@ -375,7 +375,7 @@ export const recheckMacUpdate = async (
  * the install rejects. The old one then moves into the prepared update's folder, as
  * removing it would hold up the quit, until `removeMacUpdates` clears it at the next
  * launch; where that crosses volumes an old app stays beside the bundle, and old
- * `Contents` are removed at once. The host checks the prepared app again first (see
+ * `Contents` are removed at once. The app checks the prepared app again first (see
  * `recheckMacUpdate`).
  * Meant for the quit, once the app has saved: it neither quits nor restarts anything.
  */

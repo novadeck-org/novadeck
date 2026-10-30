@@ -102,7 +102,7 @@ afterEach(() => {
   process.argv.splice(process.argv.indexOf(argument), 1)
 })
 
-// The host asks the page to save before quitting, and counts the answers it got.
+// The main process asks the page to save before quitting, and counts the answers it got.
 const askToSave = async (): Promise<number> => {
   electron.renderer.emit(saveBeforeQuitChannel)
   await new Promise((resolve) => setTimeout(resolve, 0))
@@ -439,7 +439,7 @@ describe("the window's focus", () => {
 const ready = { kind: "ready", version: "1.2.3" }
 
 describe("an update offer", () => {
-  it("asks the host for the last one once the page listens", () => {
+  it("asks the main process for the last one once the page listens", () => {
     electron.exposed.onUpdate!(() => {})
     expect(electron.sent).toEqual([updateRequestChannel])
   })
@@ -489,7 +489,7 @@ describe("an update offer", () => {
     expect(offers).toEqual([])
   })
 
-  it("passes on every kind of offer, and drops what the host sent beyond the contract", () => {
+  it("passes on every kind of offer, and drops what the main process sent beyond the contract", () => {
     const offers: unknown[] = []
     electron.exposed.onUpdate!((offer) => offers.push(offer))
     for (const kind of ["ready", "retrying", "available"])
@@ -499,7 +499,7 @@ describe("an update offer", () => {
     )
   })
 
-  it("has its release page opened by asking the host, naming nothing", () => {
+  it("has its release page opened by asking the main process, naming nothing", () => {
     electron.exposed.openUpdatePage!()
     expect(electron.sent).toEqual([openUpdatePageChannel])
     expect(electron.messages).toEqual([])
@@ -507,13 +507,13 @@ describe("an update offer", () => {
 })
 
 describe("the update channel", () => {
-  it("is what the host answers, when it is a channel", async () => {
+  it("is what the main process answers, when it is a channel", async () => {
     electron.answer = "experimental"
     expect(await electron.exposed.updateChannel!()).toBe("experimental")
     expect(electron.sent).toEqual([updateChannelChannel])
   })
 
-  it("is stable when the host answers anything else", async () => {
+  it("is stable when the main process answers anything else", async () => {
     const answers = [undefined, "nightly", { channel: "experimental" }, 3]
     const channels = answers.map((answer) => {
       electron.answer = answer
@@ -522,7 +522,7 @@ describe("the update channel", () => {
     expect(await Promise.all(channels)).toEqual(answers.map(() => "stable"))
   })
 
-  it("is switched by telling the host a known channel", () => {
+  it("is switched by telling the main process a known channel", () => {
     electron.exposed.setUpdateChannel!("experimental")
     expect(electron.messages).toEqual([[setUpdateChannelChannel, "experimental"]])
   })
@@ -535,7 +535,7 @@ describe("the update channel", () => {
 })
 
 describe("what is new", () => {
-  it("is what the host answers, when the contract allows it", async () => {
+  it("is what the main process answers, when the contract allows it", async () => {
     electron.answer = {
       version: "0.5.0",
       highlights: [{ title: "Faster", line: "Grid is quick." }],
@@ -544,7 +544,7 @@ describe("what is new", () => {
     expect(electron.sent).toEqual([whatsNewChannel])
   })
 
-  it("is nothing when the host answers anything else, dropping the highlights that break it", async () => {
+  it("is nothing when the main process answers anything else, dropping the highlights that break it", async () => {
     const answers = [
       undefined,
       "0.5.0",
@@ -570,7 +570,7 @@ describe("what is new", () => {
     })
   })
 
-  it("tells the host of a dismissal, naming nothing", () => {
+  it("tells the main process of a dismissal, naming nothing", () => {
     electron.exposed.dismissWhatsNew!()
     expect(electron.sent).toEqual([dismissWhatsNewChannel])
     expect(electron.messages).toEqual([])
@@ -578,13 +578,13 @@ describe("what is new", () => {
 })
 
 describe("the version", () => {
-  it("is what the host answers, when it looks like a release's", async () => {
+  it("is what the main process answers, when it looks like a release's", async () => {
     electron.answer = "0.4.2"
     expect(await electron.exposed.version!()).toBe("0.4.2")
     expect(electron.sent).toEqual([versionChannel])
   })
 
-  it("is refused when the host answers anything else", async () => {
+  it("is refused when the main process answers anything else", async () => {
     const answers = [undefined, "", "latest", "0.4.2\n<b>", { version: "0.4.2" }, 3]
     const asked = answers.map((answer) => {
       electron.answer = answer
@@ -595,7 +595,7 @@ describe("the version", () => {
 })
 
 describe("the sandbox", () => {
-  it("is what the host answers, asked for without naming anything", async () => {
+  it("is what the main process answers, asked for without naming anything", async () => {
     electron.answer = { sandboxed: false, fix: "curl -fsSL x | sh" }
     expect(await electron.exposed.sandbox!()).toEqual({
       sandboxed: false,
@@ -604,7 +604,7 @@ describe("the sandbox", () => {
     expect(electron.sent).toEqual([sandboxChannel])
   })
 
-  it("is on when the host answers anything else", async () => {
+  it("is on when the main process answers anything else", async () => {
     const answers = [undefined, "off", 3, { sandboxed: "no" }, { fix: "x" }]
     const states = answers.map((answer) => {
       electron.answer = answer
@@ -631,7 +631,7 @@ const portableState = (install: unknown) => ({
 })
 
 describe("whether this copy is portable", () => {
-  it("is what the host answers when it is a portable copy of a release version", async () => {
+  it("is what the main process answers when it is a portable copy of a release version", async () => {
     electron.answer = { ...portableState({ phase: "installing" }), extra: "dropped" }
     expect(await electron.exposed.portable!()).toEqual(portableState({ phase: "installing" }))
     expect(electron.sent).toEqual([portableChannel])
@@ -678,7 +678,7 @@ describe("whether this copy is portable", () => {
     ])
   })
 
-  it("is not portable when the host answers anything else", async () => {
+  it("is not portable when the main process answers anything else", async () => {
     const answers = [
       undefined,
       "portable",
@@ -703,7 +703,7 @@ describe("whether this copy is portable", () => {
 })
 
 describe("installing the app from a portable copy", () => {
-  it("tells the host, naming nothing, and expects no answer", () => {
+  it("tells the main process, naming nothing, and expects no answer", () => {
     expect(electron.exposed.installApp!()).toBeUndefined()
     expect(electron.sent).toEqual([installAppChannel])
     expect(electron.messages).toEqual([])
@@ -711,7 +711,7 @@ describe("installing the app from a portable copy", () => {
 })
 
 describe("the portable copy's links", () => {
-  it("tells the host, naming nothing, for each of its requests, and expects no answer", () => {
+  it("tells the main process, naming nothing, for each of its requests, and expects no answer", () => {
     expect(electron.exposed.openPortableDownload!()).toBeUndefined()
     expect(electron.exposed.showDataFolder!()).toBeUndefined()
     expect(electron.sent).toEqual([openPortableDownloadChannel, showDataFolderChannel])
@@ -720,7 +720,7 @@ describe("the portable copy's links", () => {
 })
 
 describe("what is new in the offered version", () => {
-  it("is what the host answers, when the contract allows it", async () => {
+  it("is what the main process answers, when the contract allows it", async () => {
     electron.answer = {
       version: "0.6.0",
       from: "0.5.0",
@@ -730,7 +730,7 @@ describe("what is new in the offered version", () => {
     expect(electron.sent).toEqual([updateNewsChannel])
   })
 
-  it("is nothing when the host answers anything else", async () => {
+  it("is nothing when the main process answers anything else", async () => {
     const answers = [
       undefined,
       "0.6.0",
@@ -796,7 +796,7 @@ describe("uninstalling the app", () => {
     expect(await Promise.all(plans)).toEqual(answers.map(() => ({ kind: "unavailable" })))
   })
 
-  it("asks the host to keep the data unless the page says exactly not to", async () => {
+  it("asks the main process to keep the data unless the page says exactly not to", async () => {
     electron.answer = { kind: "removed" }
     await electron.exposed.uninstallApp!({ keepData: false })
     await electron.exposed.uninstallApp!({ keepData: true })
@@ -824,7 +824,7 @@ describe("uninstalling the app", () => {
     expect(await electron.exposed.uninstallApp!({ keepData: true })).toEqual({ kind: "removed" })
   })
 
-  it("is a failure when the host answers anything else", async () => {
+  it("is a failure when the main process answers anything else", async () => {
     const failed = { kind: "failed", reason: "Something went wrong." }
     const answers = [
       undefined,
@@ -840,7 +840,7 @@ describe("uninstalling the app", () => {
     expect(await Promise.all(results)).toEqual(answers.map(() => failed))
   })
 
-  it("quits by asking the host, naming nothing", () => {
+  it("quits by asking the main process, naming nothing", () => {
     electron.exposed.quitApp!()
     expect(electron.sent).toEqual([quitAppChannel])
     expect(electron.messages).toEqual([])
@@ -857,7 +857,7 @@ describe("the WebGL context limit", () => {
     return electron.exposed
   }
 
-  it("is told to the page when the host gives a valid one", async () => {
+  it("is told to the page when the main process gives a valid one", async () => {
     expect((await loadWith("64")).webglContexts).toBe(64)
   })
 
@@ -875,20 +875,20 @@ describe("feedback", () => {
     return electron.exposed
   }
 
-  it("is offered only when the host says it sends notes", async () => {
+  it("is offered only when the main process says it sends notes", async () => {
     expect((await loadWith([`${feedbackArgumentPrefix}1`])).feedback).toBe(true)
     expect(await loadWith([])).not.toHaveProperty("feedback")
     expect(await loadWith([`${feedbackArgumentPrefix}0`])).not.toHaveProperty("feedback")
   })
 
-  it("hands a note to the host as its kind and text alone", async () => {
+  it("hands a note to the main process as its kind and text alone", async () => {
     electron.messages.length = 0
     await electron.exposed.sendFeedback!({ kind: "bug", text: "x", extra: 1 } as never)
     expect(electron.sent).toEqual([feedbackSendChannel])
     expect(electron.messages).toEqual([[feedbackSendChannel, { kind: "bug", text: "x" }]])
   })
 
-  it("asks the host what goes along with a note", async () => {
+  it("asks the main process what goes along with a note", async () => {
     const about = { version: "1.0.0", os: "linux", arch: "x64" }
     electron.answer = about
     expect(await electron.exposed.feedbackAbout!()).toEqual(about)

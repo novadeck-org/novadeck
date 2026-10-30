@@ -93,7 +93,7 @@ export const notificationText = (
 })
 
 /** What Electron's `Notification` takes to show a notice. */
-export type NotificationOptions = {
+type NotificationOptions = {
   readonly title: string
   readonly body: string
   readonly silent?: true

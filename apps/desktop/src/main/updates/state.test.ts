@@ -6,7 +6,7 @@ import { join } from "node:path"
 import { afterEach, beforeEach } from "vitest"
 
 import { context, describe, expect, it } from "../../test"
-import { isNewerVersion } from "../release/versions"
+import { isNewerVersion } from "../releases/versions"
 import {
   failureOutdated,
   fileIdentity,
@@ -25,7 +25,7 @@ beforeEach(async () => {
 })
 afterEach(() => rm(folder, { recursive: true, force: true }))
 
-describe("what the host remembers about updating", () => {
+describe("what the app remembers about updating", () => {
   it("starts on the stable channel with nothing failed", () => {
     expect(keepUpdateState(file).read()).toEqual({
       channel: "stable",

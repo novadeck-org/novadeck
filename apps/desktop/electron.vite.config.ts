@@ -3,7 +3,7 @@ import { dirname, resolve } from "node:path"
 
 import { defineConfig } from "electron-vite"
 
-// The runner's source, which the host's dependency on it finds wherever its folder is.
+// The runner's source, which the app's dependency on it finds wherever its folder is.
 const runnerSource = dirname(createRequire(import.meta.url).resolve("@novadeck/runner"))
 
 export default defineConfig({

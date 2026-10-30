@@ -10,10 +10,10 @@ export const voiceSourceArgumentPrefix = "--novadeck-voice-source="
 export const murmurEngineArgumentPrefix = "--novadeck-murmur-engine="
 /** Where the murmur engine's archive comes from: an https address ending in "/", or a folder. */
 export const murmurSourceArgumentPrefix = "--novadeck-murmur-source="
-/** Given as `software` when the host saw no graphics hardware, so murmur can't run and voice input goes straight to its small model; absent otherwise. */
+/** Given as `software` when the app saw no graphics hardware, so murmur can't run and voice input goes straight to its small model; absent otherwise. */
 export const graphicsArgumentPrefix = "--novadeck-graphics="
 
-/** Given to the page's preload when the host sends feedback notes: the value is `1`; absent otherwise. */
+/** Given to the page's preload when the app sends feedback notes: the value is `1`; absent otherwise. */
 export const feedbackArgumentPrefix = "--novadeck-feedback="
 
 /** Renderer-to-main request for what goes along with a feedback note; answers it. */
@@ -188,13 +188,13 @@ export const pagePhoneChannel = "novadeck:page-phone"
 
 /**
  * Renderer-to-main report of an error the page didn't catch, `{ kind, name, message, stack }`,
- * which the host logs; see main/ui-errors.ts.
+ * which the main process logs.
  */
 export const uiErrorChannel = "novadeck:ui-error"
 
 /**
  * Renderer-to-main report of how the page's WebGL pool has fared, `RendererPoolReport`,
- * which the host logs.
+ * which the main process logs.
  */
 export const rendererPoolChannel = "novadeck:renderer-pool"
 
@@ -209,11 +209,11 @@ export type RunnerCommand =
   | { readonly type: "transcriptKey"; readonly key: string | null }
   | { readonly type: "persist" }
   | { readonly type: "close" }
-  // The host's main process is alive and answering; see ./runner/host-watch.ts.
+  // The main process is alive and answering; see ./runner/main-watch.ts.
   | { readonly type: "beat" }
 
-/** How often the host's main process beats to the runner, in ms. */
-export const hostBeatMs = 1_000
+/** How often the main process beats to the runner, in ms. */
+export const mainBeatMs = 1_000
 
 /** Messages from the runner's utility process to the main process: it is ready to serve. */
 export type RunnerReport = { readonly type: "ready" }

@@ -648,7 +648,7 @@ describe("checking for updates", () => {
       expect(offered).toEqual([["ready", "1.2.3"]])
     })
 
-    context("on macOS, where the host puts the update in place itself", () => {
+    context("on macOS, where the app puts the update in place itself", () => {
       const downloaded = { version: "1.2.3", downloadedFile: "/cache/update.zip" }
 
       it("hands no download to Squirrel.Mac, which installs only while this is on", () => {

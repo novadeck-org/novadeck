@@ -26,13 +26,13 @@ afterEach(() => {
 })
 
 const scratch = (): string => {
-  const made = mkdtempSync(join(tmpdir(), "novadeck-host-log-"))
+  const made = mkdtempSync(join(tmpdir(), "novadeck-app-log-"))
   folders.push(made)
   return made
 }
 
-/** A host's log in a fresh folder, redacted for a person named ana, and what it wrote. */
-const hostLog = () => {
+/** The app's log in a fresh folder, redacted for a person named ana, and what it wrote. */
+const appLog = () => {
   const folder = scratch()
   const logger: Logger = createLogger({
     proc: "host",
@@ -115,7 +115,7 @@ describe("a process that ended", () => {
 })
 
 describe("the runner's output", () => {
-  // Feeds `stderr` through to the log as the host does, and waits for it to end.
+  // Feeds `stderr` through to the log as the app does, and waits for it to end.
   const pipe = async (
     output: ReturnType<typeof logRunnerOutput>,
     run: number,
@@ -133,8 +133,8 @@ describe("the runner's output", () => {
     await ended
   }
 
-  it("reaches the host's log line by line, redacted, as V8 reports running out of memory", async () => {
-    const { logger, lines } = hostLog()
+  it("reaches the app's log line by line, redacted, as V8 reports running out of memory", async () => {
+    const { logger, lines } = appLog()
     await pipe(logRunnerOutput(logger.for("runner")), 2, [
       "\n<--- Last few GCs --->\nFATAL ERROR: Reached heap lim",
       "it Allocation failed - JavaScript heap out of memory\n",
@@ -156,7 +156,7 @@ describe("the runner's output", () => {
   })
 
   it("withholds the source Node prints of an error nothing caught, and what a JSON.parse was given", async () => {
-    const { logger, lines } = hostLog()
+    const { logger, lines } = appLog()
     // As Node prints a JSON.parse of a message's body that nothing caught.
     await pipe(logRunnerOutput(logger.for("runner")), 1, [
       "<anonymous_script>:1\n",
@@ -177,7 +177,7 @@ describe("the runner's output", () => {
   })
 
   it("past its limit, says so, and keeps the last lines for when the stream ends", async () => {
-    const { logger, lines } = hostLog()
+    const { logger, lines } = appLog()
     const output = logRunnerOutput(logger.for("runner"), 2)
     await pipe(output, 1, [
       ...Array.from({ length: 6 }, (_, index) => `chatter ${index}\n`),
@@ -202,8 +202,8 @@ describe("the runner's output", () => {
 })
 
 describe("the log of updating", () => {
-  it("writes what updating says to the host's log, redacted, electron-updater's errors as errors", () => {
-    const { logger, lines } = hostLog()
+  it("writes what updating says to the app's log, redacted, electron-updater's errors as errors", () => {
+    const { logger, lines } = appLog()
     const updates = updateLogOn(logger.for("updates"))
     updates.info("1.2.3 is ready to install on quitting.")
     updates.warn("Installing the update failed.", new Error("EACCES /home/ana/apps/x"))
@@ -222,7 +222,7 @@ describe("the log of updating", () => {
 
 describe("logNewDumps", () => {
   it("logs each crash report once, by its name and size, never what it holds", () => {
-    const { logger, lines } = hostLog()
+    const { logger, lines } = appLog()
     const dumps = scratch()
     const seen = join(scratch(), "crash-dumps.json")
     mkdirSync(join(dumps, "completed"))
@@ -241,7 +241,7 @@ describe("logNewDumps", () => {
   })
 
   it("logs nothing where Crashpad kept nothing", () => {
-    const { logger, lines } = hostLog()
+    const { logger, lines } = appLog()
     logNewDumps(join(scratch(), "missing"), join(scratch(), "seen.json"), logger.for("crash"))
     logger.close()
     expect(lines()).toEqual([])
@@ -283,7 +283,7 @@ describe("the page's logs and errors", () => {
   }
 
   const setup = () => {
-    const { logger, lines } = hostLog()
+    const { logger, lines } = appLog()
     const opened: string[] = []
     const fake = ipc()
     registerLogIpc(fake as never, {

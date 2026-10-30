@@ -4,7 +4,7 @@ import {
   databaseArgumentPrefix,
   murmurEngineArgumentPrefix,
   graphicsArgumentPrefix,
-  hostBeatMs,
+  mainBeatMs,
   logArgumentPrefix,
   murmurSourceArgumentPrefix,
   relayArgumentPrefix,
@@ -121,10 +121,10 @@ export const startRunner = (options: {
     return worker
   }
   spawn()
-  // The runner logs the host as stalled when these stop; see ../runner/host-watch.ts.
+  // The runner logs the main process as stalled when these stop; see ../runner/main-watch.ts.
   const beats = setInterval(() => {
     if (child && !closing) send(child, { type: "beat" })
-  }, hostBeatMs)
+  }, mainBeatMs)
   return {
     deliver(port) {
       if (closing) return false

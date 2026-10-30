@@ -21,7 +21,7 @@ pnpm dev:web
 ```
 
 Open <http://127.0.0.1:5173>. `dev:web` starts a runner with a fresh random token
-and hands the same token to the UI dev server. A browser has no desktop host, so it shows
+and hands the same token to the UI dev server. A browser has no desktop app, so it shows
 no notification when an agent finishes; its terminals are still marked done. For UI-only work, use
 `pnpm --filter @novadeck/desktop exec vite --host 127.0.0.1 --mode web` with `VITE_NOVADECK_RUNNER_URL` and
 `VITE_NOVADECK_RUNNER_TOKEN` pointing at a runner you started; the web entry reads
@@ -629,7 +629,7 @@ holds the desk at its first frames: nothing moves on its own and the plan never 
 ## Repository map
 
 This is a TypeScript monorepo using pnpm workspaces and Turborepo. `apps/` holds what
-ships or deploys: the desktop host, the visitor build and the content preview; `frontend/`
+ships or deploys: the desktop app, the visitor build and the content preview; `frontend/`
 the UI, split into packages (the model, the two backend adapters, the terminal views, the
 specs and the test kit); `backend/` the runner and the relay; `contract/` the protocol and
 the runner client; `engines/` holds the native inference engines Novadeck downloads once
@@ -645,7 +645,7 @@ atlas.
 | `frontend/toolkit`        | The controls every feature draws with: Ark UI wrappers, shared recipes, the sidebar item.  |
 | `frontend/items`          | The items package: kinds, store, taskbar, peek, plan editor, messages, bar drag and homes. |
 | `frontend/chat`           | The chat view: transcript, requests and composer, with the chat's own store and commands.  |
-| `frontend/runner-adapter` | The UI's backend for a runner, over a WebSocket or the desktop host.                       |
+| `frontend/runner-adapter` | The UI's backend for a runner, over a WebSocket or the desktop app.                        |
 | `frontend/terminal-views` | The xterm mount both backends draw terminals with.                                         |
 | `frontend/demo`           | The demo backend: a scripted workspace and simulated terminals.                            |
 | `frontend/demo-debug`     | The demo's debug panel and rehearsals.                                                     |
