@@ -22,7 +22,7 @@ node scripts/flaky-capture/grid.ts --output /path/to/grid-capture --attempts 5
 ```
 
 Each attempt starts a fresh Vitest process and runs the complete, unchanged
-`companions.spec.tsx`: all 32 cases, including the predecessors of the ordinary
+`companions.spec.tsx`: every case, including the predecessors of the ordinary
 12-move and separate one-move Grid undocking cases. The existing 30-second case
 deadlines and assertions are inherited from the specs package's Vitest config. There is no added delay,
 repeated gesture within a case, app mock or forced scheduling condition.
@@ -33,10 +33,11 @@ setup. Either limit may end collection before five attempts and is reported as a
 not a reproduced Grid failure. The workflow gives capture 17 minutes within a 25-minute
 job so artifacts have time to upload.
 
-A successful attempt requires finalized Vitest JSON reporting all 32 original cases
-passed, 32 per-case records, and native release plus app-drop observations for both Grid
-variants. Empty, skipped or incomplete collection cannot report success. If the original
-file changes, review and update this explicit completeness contract.
+A successful attempt requires finalized Vitest JSON reporting every case Vitest collected
+from the file passed, a per-case record for each, and native release plus app-drop
+observations for both Grid variants. The count comes from that collection, so the file
+may gain or lose cases; empty, skipped or incomplete collection cannot report success. If
+the Grid variants' titles change, update them in `grid-results.ts`.
 
 The output contains:
 
@@ -61,8 +62,9 @@ capture does not rule out the original failure.
 
 ## Antigravity
 
-The Linux probe requires the pinned Antigravity 1.2.14 binary, protocol/relay builds and
-the existing loopback-only network namespace wrapper:
+The Linux probe requires the Antigravity version `backend/runner/src/e2e/harnesses.json`
+pins (the one the E2E suite runs), protocol/relay builds and the existing loopback-only
+network namespace wrapper:
 
 ```sh
 export NOVADECK_E2E_AGENTS=agy
@@ -87,6 +89,11 @@ log. A visible `hooks.txt` copy preserves the fixture's hidden trace for artifac
 The probe redacts the fixture credentials and reports bounded-buffer overflow. Its
 summary distinguishes a submitted follow-up that never reached the model from other
 scenario failures; either result still needs investigation before choosing a repair.
+When the probe stops before writing its summary, `capture.json` takes the cause from
+Vitest's JSON report (`tests.json`): `failed-before-scenario`, with the first error line
+when the report has one (a failed install hook's is only in `vitest.log`); `skipped` when
+the probe didn't run; `no-scenario-summary` when it passed without one; or
+`no-test-report` when Vitest never reported (see `vitest.log`).
 
 Artifacts remain for seven days. Keep successful controls and the first failure together
 when archiving them, with the actual checked-out SHA rather than only the PR merge ref.

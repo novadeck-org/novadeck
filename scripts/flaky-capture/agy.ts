@@ -14,6 +14,8 @@ import { join, resolve } from "node:path"
 import { fileURLToPath } from "node:url"
 import { parseArgs } from "node:util"
 
+import { agyOutcome, type AgyOutcome, type AgyReport } from "./agy-results.ts"
+
 // Each successful control gets a fresh Vitest/CLI process. A failure is never retried.
 const root = fileURLToPath(new URL("../../", import.meta.url))
 const run = (args: readonly string[], env: NodeJS.ProcessEnv, log: number): Promise<number> =>
@@ -40,6 +42,9 @@ const run = (args: readonly string[], env: NodeJS.ProcessEnv, log: number): Prom
     })
   })
 
+const readJson = <T>(file: string): T | undefined =>
+  existsSync(file) ? (JSON.parse(readFileSync(file, "utf8")) as T) : undefined
+
 const main = async (): Promise<number> => {
   if (process.platform !== "linux")
     throw new Error("AGY capture requires the Linux network namespace wrapper")
@@ -59,7 +64,7 @@ const main = async (): Promise<number> => {
   const expected = process.env.NOVADECK_CAPTURE_HEAD
   if (expected && head.stdout.trim() !== expected)
     throw new Error("Capture checkout does not match NOVADECK_CAPTURE_HEAD")
-  const results: { attempt: number; code: number; outcome: string }[] = []
+  const results: ({ attempt: number; code: number } & AgyOutcome)[] = []
   const save = () =>
     writeFileSync(
       join(output, "capture.json"),
@@ -99,6 +104,9 @@ const main = async (): Promise<number> => {
           "run",
           "--config",
           "vitest.agy-capture.config.ts",
+          "--reporter=default",
+          "--reporter=json",
+          `--outputFile.json=${join(folder, "tests.json")}`,
         ],
         {
           ...process.env,
@@ -120,13 +128,13 @@ const main = async (): Promise<number> => {
     if (existsSync(traces))
       for (const file of readdirSync(traces))
         if (file.endsWith(".txt")) copyFileSync(join(traces, file), join(folder, "hooks.txt"))
-    const summary = join(folder, "summary.json")
-    const outcome = existsSync(summary)
-      ? (JSON.parse(readFileSync(summary, "utf8")) as { outcome: string }).outcome
-      : "infrastructure-before-scenario"
-    results.push({ attempt, code, outcome })
+    const { outcome, error } = agyOutcome(
+      readJson<{ outcome: string }>(join(folder, "summary.json")),
+      readJson<AgyReport>(join(folder, "tests.json")),
+    )
+    results.push({ attempt, code, outcome, ...(error ? { error } : {}) })
     save()
-    console.log(`AGY capture ${attempt}: ${outcome}, exit ${code}`)
+    console.log(`AGY capture ${attempt}: ${outcome}, exit ${code}${error ? `: ${error}` : ""}`)
     if (code !== 0 || outcome !== "delivered") return code || 1
   }
   return 0
