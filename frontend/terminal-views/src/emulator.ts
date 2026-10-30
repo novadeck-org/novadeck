@@ -1,4 +1,9 @@
-import { createView, type Renderers, type View, type ViewOptions } from "@novadeck/emulator/browser"
+import {
+  createView,
+  type RendererPool,
+  type View,
+  type ViewOptions,
+} from "@novadeck/emulator/browser"
 
 import { ligaturesOn, watchLigatures } from "./ligatures"
 import { linkOptions } from "./links"
@@ -26,12 +31,12 @@ const readWhileFocused = (element: HTMLElement, view: View): (() => void) => {
   }
 }
 
-// How every backend's screens open their emulator: in the font and theme the views pass, with
+// How every backend's screens open their emulator: in the font and theme the screens pass, with
 // the WebGL pool it is given and its links. With `screenReader`, the terminal is read only while
 // focus is in it: an emulator announces whatever is written to it, so terminals out of focus,
 // which go on printing, would talk over the one the person is in.
 export const openEmulator =
-  ({ renderers, screenReader = false }: { renderers: Renderers; screenReader?: boolean }) =>
+  ({ pool, screenReader = false }: { pool: RendererPool; screenReader?: boolean }) =>
   (element: HTMLElement, open: Pick<ViewOptions, "fontSize" | "fontFamily" | "theme">): View => {
     const view = createView(element, {
       ...open,
@@ -40,7 +45,7 @@ export const openEmulator =
       minimumContrastRatio: 4.5,
       scrollback: 1000,
       links: linkOptions(),
-      renderers,
+      pool,
     })
     // Ligatures follow the preference on <html> (data-ligatures, set from Preferences).
     view.setLigatures(ligaturesOn())

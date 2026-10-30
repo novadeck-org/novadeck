@@ -9,7 +9,7 @@
     "./emulator": "./src/emulator.ts",
     "./mount": "./src/mount.ts",
     "./paste-notice": "./src/paste-notice.ts",
-    "./renderers": "./src/renderers.ts",
+    "./renderer-pool": "./src/renderer-pool.ts",
     "./theme": "./src/theme.ts"
   },
   "scripts": {

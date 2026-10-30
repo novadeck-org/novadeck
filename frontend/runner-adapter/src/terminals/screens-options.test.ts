@@ -3,13 +3,13 @@ import { createStore } from "@novadeck/core/store"
 import type { TerminalEvent } from "@novadeck/protocol"
 import type { AttachedTerminal } from "@novadeck/runner-client"
 import { noTheme } from "@novadeck/terminal-views/theme"
-import { createTerminalViews } from "@novadeck/terminal/view"
+import { createTerminalScreens } from "@novadeck/terminal/view"
 import { WireError } from "@novadeck/wire"
 import { afterEach, vi } from "vitest"
 
 import type { SurfaceRuntime } from "../backend"
 import { context, describe, expect, it } from "../test"
-import { pasteNotice, retainMs, viewOptions } from "./view-options"
+import { pasteNotice, retainMs, screensOptions } from "./screens-options"
 
 describe("a failed paste's notice", () => {
   it("says the clipboard could not be read", () => {
@@ -85,7 +85,7 @@ const runtimeOf = (attached: AttachedTerminal) => {
   return { runtime, noted, released }
 }
 
-describe("the runner's terminal views' options", () => {
+describe("the runner's terminal screens' options", () => {
   it("follow the runner's attachment as the terminal library's stream", async () => {
     const attached: AttachedTerminal = {
       id: "t",
@@ -98,7 +98,7 @@ describe("the runner's terminal views' options", () => {
       detach: vi.fn<AttachedTerminal["detach"]>(async () => {}),
     }
     const { runtime, noted, released } = runtimeOf(attached)
-    const options = viewOptions(runtime, { theme: noTheme })
+    const options = screensOptions(runtime, { theme: noTheme })
     const stream = await options.attach(key)
     expect(stream.mode).toBe("control")
     await stream.write("ls\r")
@@ -113,7 +113,9 @@ describe("the runner's terminal views' options", () => {
   })
 
   it("tell a busy runner and a lost link apart from a failure", () => {
-    const { classify } = viewOptions(runtimeOf({} as AttachedTerminal).runtime, { theme: noTheme })
+    const { classify } = screensOptions(runtimeOf({} as AttachedTerminal).runtime, {
+      theme: noTheme,
+    })
     expect(classify(new WireError("RESOURCE_LIMIT"))).toBe("busy")
     expect(classify(new WireError("DISCONNECTED"))).toBe("offline")
     expect(classify(new WireError("CONTROL_IN_USE"))).toBe("fatal")
@@ -121,7 +123,7 @@ describe("the runner's terminal views' options", () => {
   })
 
   it("wait for Enter after an exit that can start again, not after a clean one", () => {
-    const { waitsAfter } = viewOptions(runtimeOf({} as AttachedTerminal).runtime, {
+    const { waitsAfter } = screensOptions(runtimeOf({} as AttachedTerminal).runtime, {
       theme: noTheme,
     })
     expect(waitsAfter({ code: 0, signal: null, ranMs: 60_000 })).toBe(false)
@@ -139,20 +141,24 @@ describe("the runner's terminal views' options", () => {
         configurable: true,
         value: { pathForFile: (pasted: File) => (pasted === file ? "/home/me/notes.txt" : "") },
       })
-      const { paste } = viewOptions(runtimeOf({} as AttachedTerminal).runtime, { theme: noTheme })
+      const { paste } = screensOptions(runtimeOf({} as AttachedTerminal).runtime, {
+        theme: noTheme,
+      })
       expect(paste.pathOf?.(file)).toBe("/home/me/notes.txt")
       expect(paste.trustedClipboard).toBe(true)
     })
 
     it("upload a browser's files, and ask before reading its clipboard", () => {
-      const { paste } = viewOptions(runtimeOf({} as AttachedTerminal).runtime, { theme: noTheme })
+      const { paste } = screensOptions(runtimeOf({} as AttachedTerminal).runtime, {
+        theme: noTheme,
+      })
       expect(paste.pathOf).toBeUndefined()
       expect(paste.trustedClipboard).toBe(false)
     })
   })
 })
 
-describe("the runner's terminal views over a runtime", () => {
+describe("the runner's terminal screens over a runtime", () => {
   const holds: { release: () => void }[] = []
   // A screen closes once its session has stayed off screen for its retention; it closes here,
   // while the file's DOM is still there to take its listeners off.
@@ -190,7 +196,7 @@ describe("the runner's terminal views over a runtime", () => {
     return attached
   }
 
-  // A runtime that records what the views ask of it and tell it.
+  // A runtime that records what the screens ask of it and tell it.
   const recording = (over: Partial<SurfaceRuntime> = {}) => {
     const asked: string[] = []
     const told: string[] = []
@@ -226,10 +232,10 @@ describe("the runner's terminal views over a runtime", () => {
     return { runtime, asked, told, connection, show: (value: boolean) => (shown = value) }
   }
   const open = (runtime: SurfaceRuntime, which = key) => {
-    const views = createTerminalViews(viewOptions(runtime, { theme: noTheme }))
+    const screens = createTerminalScreens(screensOptions(runtime, { theme: noTheme }))
     const element = document.createElement("div")
     document.body.append(element)
-    const hold = views.acquire(which, { label: "Input for T", phase: "running", webgl: false })
+    const hold = screens.acquire(which, { label: "Input for T", phase: "running", webgl: false })
     hold.place(element)
     holds.push({
       release: () => {
@@ -237,7 +243,7 @@ describe("the runner's terminal views over a runtime", () => {
         element.remove()
       },
     })
-    return { views, hold, element }
+    return { screens, hold, element }
   }
 
   it("follows the terminal its runtime has for the key, and tells the runtime how it goes", async () => {
@@ -249,17 +255,17 @@ describe("the runner's terminal views over a runtime", () => {
     expect(asked).toContain("entry t")
     expect(asked).toContain("attach t")
     expect(told).toEqual(expect.arrayContaining(["t mounted", "t shown"]))
-    const options = viewOptions(runtime, { theme: noTheme })
+    const options = screensOptions(runtime, { theme: noTheme })
     options.on?.resized?.(key, { cols: 100, rows: 30 })
     expect(told).toContain("resized t 100")
   })
 
   it("keeps a screen per session and terminal", () => {
     const { runtime } = recording()
-    const views = createTerminalViews(viewOptions(runtime, { theme: noTheme }))
+    const screens = createTerminalScreens(screensOptions(runtime, { theme: noTheme }))
     const containerOf = (which: typeof key) => {
       const element = document.createElement("div")
-      views.acquire(which, { label: "T", phase: "running", webgl: false }).place(element)
+      screens.acquire(which, { label: "T", phase: "running", webgl: false }).place(element)
       return element.firstElementChild
     }
     const containers = [

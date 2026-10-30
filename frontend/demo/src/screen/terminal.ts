@@ -16,7 +16,7 @@ import { createDemoScreen, type Block, type ScreenSize, type TailOf } from "./sc
 
 // One demo terminal's screen, written as the terminal output a real program would print: its
 // intro, the commands typed at it and their replies, its agent's conversation, and under them
-// the live tail with the command line. It outlives the streams the views attach: each one
+// the live tail with the command line. It outlives the streams the terminal screens attach: each one
 // opens with the whole screen and then takes what changes, and what the person types into
 // one comes back through `input`.
 
