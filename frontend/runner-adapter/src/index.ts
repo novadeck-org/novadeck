@@ -12,24 +12,11 @@ import { WireError } from "@novadeck/wire"
 import { websocket, type Transport } from "@novadeck/wire/client"
 
 import { pause, runnerBackend, type RunnerBackend } from "./backend"
-import {
-  desktopBadge,
-  desktopFeedback,
-  desktopHost,
-  desktopNotices,
-  desktopPortable,
-  desktopSandbox,
-  desktopUninstall,
-  desktopUpdates,
-  desktopVersion,
-  desktopWhatsNew,
-  desktopWindowFocus,
-} from "./desktop/app"
-import { reportPoolTo } from "./desktop/renderer-report"
-import { sizePoolTo } from "./desktop/webgl-cap"
+import { desktopApp, desktopOptions } from "./desktop/app"
+import { reportPoolTo, sizePoolTo } from "./desktop/renderer-pool"
 import type { RunnerListing } from "./sessions/seed"
 
-/** The desktop app's runner: the one its host starts, over a port the host hands the page. */
+/** The desktop app's runner: the one the app starts, over a port it hands the page. */
 export const desktopTransport = (): Transport => desktop()
 
 /** A runner reached over a WebSocket, as `pnpm dev:web` starts one: its URL and token. */
@@ -148,8 +135,9 @@ export const connectRunnerBackend = async (
   progress: (stage: "loading") => void,
   { transport, theme }: { readonly transport: () => Transport; readonly theme: ThemeSource },
 ): Promise<BackendConnection> => {
+  const app = desktopApp()
   // Before anything makes the page's pool (the backend's views do, below).
-  sizePoolTo(desktopHost())
+  sizePoolTo(app)
   let runner: Runner
   try {
     runner = await connectRunner(transport(), { signal })
@@ -163,24 +151,8 @@ export const connectRunnerBackend = async (
       runner.settings.get(),
       runner.agents.list(),
     ])
-    const pick = desktopHost()?.pickDirectory
-    const beforeQuit = desktopHost()?.beforeQuit
-    const showAppearance = desktopHost()?.showAppearance
-    const notices = desktopNotices(desktopHost())
-    const badge = desktopBadge(desktopHost())
-    const windowFocus = desktopWindowFocus(desktopHost())
-    const updates = desktopUpdates(desktopHost())
-    const whatsNew = desktopWhatsNew(desktopHost())
-    const version = desktopVersion(desktopHost())
-    const openLogs = desktopHost()?.openLogs
-    const feedback = desktopFeedback(desktopHost())
-    const pagePicture = desktopHost()?.pagePicture
-    const pageLook = desktopHost()?.lookAtPage
-    const pagePhone = desktopHost()?.pagePhone
-    reportPoolTo(desktopHost())
-    const sandbox = desktopSandbox(desktopHost())
-    const portable = desktopPortable(desktopHost())
-    const uninstall = desktopUninstall(desktopHost())
+    const appOptions = desktopOptions(app)
+    reportPoolTo(app)
     // StrictMode creates a backend twice and keeps the first, so the last one created is
     // not necessarily the one running: close waits on them all (an unstarted one is idle).
     const created: RunnerBackend[] = []
@@ -189,24 +161,7 @@ export const connectRunnerBackend = async (
         const next = runnerBackend(runner, listing, {
           newId,
           theme,
-          ...(pick ? { pickDirectory: () => pick() } : {}),
-          ...(beforeQuit ? { beforeQuit: (save) => beforeQuit(save) } : {}),
-          ...(showAppearance ? { showAppearance: (look) => showAppearance(look) } : {}),
-          ...(notices ? { notices } : {}),
-          ...(badge ? { badge } : {}),
-          ...(windowFocus ? { windowFocus } : {}),
-          ...(updates ? { updates } : {}),
-          ...(whatsNew ? { whatsNew } : {}),
-          ...(version ? { version } : {}),
-          ...(openLogs ? { openLogs: () => openLogs() } : {}),
-          ...(feedback ? { feedback } : {}),
-          ...(sandbox ? { sandbox } : {}),
-          ...(portable ? { portable } : {}),
-          ...(uninstall ? { uninstall } : {}),
-          livePages: desktopHost()?.livePages === true,
-          ...(pagePicture ? { pagePicture: (page, width) => pagePicture(page, width) } : {}),
-          ...(pageLook ? { pageLook: (request) => pageLook(request) } : {}),
-          ...(pagePhone ? { pagePhone: (page, phone) => pagePhone(page, phone) } : {}),
+          ...appOptions,
           transcripts,
           transcriptsAvailable,
           agents,

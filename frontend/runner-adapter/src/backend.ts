@@ -103,31 +103,31 @@ export type RunnerBackendOptions = {
   // milliseconds.
   readonly quickExitMs?: number
   readonly pickDirectory?: () => Promise<string | null>
-  // Where the host's window follows the page's appearance.
+  // Where the app's window follows the page's appearance.
   readonly showAppearance?: Backend["showAppearance"]
-  // Where the host shows desktop notifications.
+  // Where the app shows desktop notifications.
   readonly notices?: Backend["notices"]
-  // Where the host shows the Inbox count on the app icon.
+  // Where the app shows the Inbox count on the app icon.
   readonly badge?: Backend["badge"]
   readonly windowFocus?: Backend["windowFocus"]
-  // Where the host offers the update it has downloaded.
+  // Where the app offers the update it has downloaded.
   readonly updates?: Backend["updates"]
   readonly version?: Backend["version"]
   readonly openLogs?: Backend["openLogs"]
-  // Where the host sends the person's feedback notes.
+  // Where the app sends the person's feedback notes.
   readonly feedback?: Backend["feedback"]
   readonly sandbox?: Backend["sandbox"]
   readonly whatsNew?: Backend["whatsNew"]
   readonly portable?: Backend["portable"]
   readonly uninstall?: Backend["uninstall"]
-  // Where the host lets the page finish its saves before its window closes or the app
+  // Where the app lets the page finish its saves before its window closes or the app
   // quits; returns the undo.
   readonly beforeQuit?: (save: () => Promise<void>) => () => void
-  // Whether the host can load web pages in the pane, as the desktop app can, how it takes
+  // Whether the app can load web pages in the pane, as the desktop app can, how it takes
   // a picture of one, for it to rest as, and how it makes one a phone's.
   readonly livePages?: boolean
   readonly pagePicture?: NonNullable<Backend["companions"]>["picture"]
-  // Where the host loads a page afresh, out of sight, to picture it for an agent's look.
+  // Where the app loads a page afresh, out of sight, to picture it for an agent's look.
   readonly pageLook?: Looks["fresh"]
   readonly pagePhone?: NonNullable<Backend["companions"]>["phone"]
   readonly now?: () => number
@@ -1479,7 +1479,7 @@ export const runnerBackend = (
     voice.follow()
     murmur.follow()
     window.addEventListener("pagehide", flush)
-    // The host waits for these saves, removals and closes before a close or quit can end
+    // The app waits for these saves, removals and closes before a close or quit can end
     // the shells, so they name what still runs.
     const stopQuit = options.beforeQuit?.(beforeQuit)
     return () => {
@@ -1616,7 +1616,7 @@ export const runnerBackend = (
     ...(options.updates ? { updates: options.updates } : {}),
     ...(options.version ? { version: options.version } : {}),
     ...(options.openLogs ? { openLogs: options.openLogs } : {}),
-    // The host's sender with the runner's routes: asking and the drafts exist only where a
+    // The app's sender with the runner's routes: asking and the drafts exist only where a
     // draft could then be sent.
     ...(options.feedback
       ? { feedback: runnerFeedback(options.feedback, runner.feedback, track) }

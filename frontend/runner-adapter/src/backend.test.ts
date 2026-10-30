@@ -862,7 +862,7 @@ describe("runner backend", () => {
 
   context("when the app quits", () => {
     it.skipIf(process.platform !== "linux")(
-      "saves the program in the foreground before the host ends the shells",
+      "saves the program in the foreground before the app ends the shells",
       async () => {
         const quits: (() => Promise<void>)[] = []
         const app = open(runner.listing, {

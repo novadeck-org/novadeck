@@ -51,7 +51,7 @@ export const windowOf = ({
   titleSource,
 })
 
-// What an item holds, as the pane shows it. A page loads live where the host can load
+// What an item holds, as the pane shows it. A page loads live where the app can load
 // it; a plan says itself whether it can be written and whether its agent has the skill.
 export const contentOf = (content: RunnerContent, livePages: boolean): ItemContent => {
   if (content.state === "unavailable") return content

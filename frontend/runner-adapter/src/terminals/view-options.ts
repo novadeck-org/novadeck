@@ -13,7 +13,7 @@ import type { PasteFailure } from "@novadeck/terminal/view"
 import { parkedCap, parkMs, type TerminalViewOptions } from "@novadeck/terminal/view"
 
 import type { SurfaceRuntime } from "../backend"
-import { desktopHost } from "../desktop/app"
+import { desktopApp } from "../desktop/app"
 import { exitStatus, restartable } from "./activity"
 
 // How long a screen stays once its session leaves the screen, so going back to a session or
@@ -87,9 +87,9 @@ export const viewOptions = (
   paste: {
     upload: (key, file) => runtime.upload(key.terminalId, file),
     // The desktop app's runner is on this machine, so a copied file's own path names it.
-    pathOf: desktopHost()?.pathForFile,
+    pathOf: desktopApp()?.pathForFile,
     maxBytes: maxUploadBytes,
-    trustedClipboard: desktopHost() !== undefined,
+    trustedClipboard: desktopApp() !== undefined,
     notice: pasteNotice,
   },
   on: {

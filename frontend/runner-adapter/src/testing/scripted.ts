@@ -157,7 +157,7 @@ export const scripted = ({
   apply?: boolean
   // Whether the runner can keep transcripts encrypted.
   transcriptsAvailable?: boolean
-  // The host's feedback, where it has one.
+  // The app's feedback, where it has one.
   feedback?: Backend["feedback"]
   // How the runner answers `feedback.settle` and `feedback.ask` (they take by default).
   feedbackCalls?: { settle?: (id: string) => Promise<void> }

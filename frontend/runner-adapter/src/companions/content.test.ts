@@ -110,12 +110,12 @@ describe("a picture of a live page", () => {
   const runner = {} as Parameters<typeof createRunnerCompanions>[0]
   const picture = async (page: number, width?: number) => `data:image/jpeg;base64,${page}-${width}`
 
-  it("is the host's to take, where pages load live", async () => {
+  it("is the app's to take, where pages load live", async () => {
     const companions = createRunnerCompanions(runner, { livePages: true, picture })
     expect(await companions.picture?.(7, 640)).toBe("data:image/jpeg;base64,7-640")
   })
 
-  it("is none where pages don't load live, or the host takes none", () => {
+  it("is none where pages don't load live, or the app takes none", () => {
     expect(createRunnerCompanions(runner, { picture }).picture).toBeUndefined()
     expect(createRunnerCompanions(runner, { livePages: true }).picture).toBeUndefined()
   })
@@ -125,7 +125,7 @@ describe("a live page made a phone's", () => {
   const runner = {} as Parameters<typeof createRunnerCompanions>[0]
   const phone = async (page: number, asPhone: boolean) => page === 7 && asPhone
 
-  it("is the host's to make, where pages load live, and nothing otherwise", async () => {
+  it("is the app's to make, where pages load live, and nothing otherwise", async () => {
     expect(await createRunnerCompanions(runner, { livePages: true, phone }).phone?.(7, true)).toBe(
       true,
     )
@@ -150,7 +150,7 @@ describe("the runner's companion content", () => {
     ])
   })
 
-  it("loads a page live where the host can", async () => {
+  it("loads a page live where the app can", async () => {
     const app = following({ livePages: true })
     app.follow()
     app.push({

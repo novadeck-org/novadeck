@@ -56,7 +56,7 @@ export const startTestRunner = async (options: RunnerOptions = {}): Promise<Test
   })
   const links = new Set<() => void>()
   let current: (() => void) | undefined
-  // A fresh port for every connection, as the desktop host hands out.
+  // A fresh port for every connection, as the desktop app hands out.
   const connect = (): Promise<MessagePortLike> => {
     const { port1, port2 } = new MessageChannel()
     const dispose = servePort(service.sessions, port1)

@@ -2,10 +2,10 @@ import type { AgentFeedbackDraft, Feedback, FeedbackDrafts } from "@novadeck/cor
 import type { FeedbackDraft } from "@novadeck/protocol"
 import { hasCode, type Runner } from "@novadeck/runner-client"
 
-// The runner's side of feedback: the host's sender (the footer card's) with the runner's
+// The runner's side of feedback: the app's sender (the footer card's) with the runner's
 // two routes beside it. `ask` relays the person's request to a terminal's agent, and `drafts`
-// follows the drafts the agents write, to be sent through the host's `send` and then settled.
-// Both exist only where the host can send, so an agent is asked only when its draft could go.
+// follows the drafts the agents write, to be sent through the app's `send` and then settled.
+// Both exist only where the app can send, so an agent is asked only when its draft could go.
 
 const draftOf = (entry: FeedbackDraft): AgentFeedbackDraft => ({
   id: entry.id,
@@ -83,13 +83,13 @@ const followDrafts = (
   }
 }
 
-// The host's feedback with the runner's routes added.
+// The app's feedback with the runner's routes added.
 export const runnerFeedback = (
-  host: Feedback,
+  app: Feedback,
   runner: Runner["feedback"],
   track: <T>(work: Promise<T>) => Promise<T>,
 ): Feedback => ({
-  ...host,
+  ...app,
   ask: (key, hint) => track(runner.ask(key.terminalId, hint)),
   drafts: followDrafts(runner, track),
 })

@@ -162,7 +162,7 @@ describe("an agent's look at a page", () => {
       expect(told[0]).toMatchObject({ url: expect.stringMatching(/^.{2048}$/) })
     })
 
-    it("is the host's reason, when it has no picture", async () => {
+    it("is the app's reason, when it has no picture", async () => {
       expect(
         await answerLook(look, {
           sights: createPageSights(),
@@ -171,7 +171,7 @@ describe("an agent's look at a page", () => {
       ).toEqual({ lookId: "look-1", reason: "Another picture of a page is being taken." })
     })
 
-    it("is a reason when the host fails or answers a picture too large", async () => {
+    it("is a reason when the app fails or answers a picture too large", async () => {
       const sights = createPageSights()
       expect(
         await answerLook(look, {
@@ -189,7 +189,7 @@ describe("an agent's look at a page", () => {
     })
   })
 
-  it("is a clear reason where the host can't take pictures of pages", async () => {
+  it("is a clear reason where the app can't take pictures of pages", async () => {
     expect(await answerLook(look, { sights: createPageSights() })).toEqual({
       lookId: "look-1",
       reason: noPictures,
@@ -203,7 +203,7 @@ const runner = await startTestRunner()
 afterAll(() => runner.close())
 
 describe("looks through the runner backend", () => {
-  it("answers each look the runner sends, with a reason where the host can't take one", async () => {
+  it("answers each look the runner sends, with a reason where the app can't take one", async () => {
     const queued: PageLook[] = []
     let wake: (() => void) | undefined
     const iterator: AsyncIterableIterator<PageLook, undefined> = {

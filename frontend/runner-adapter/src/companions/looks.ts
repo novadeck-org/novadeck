@@ -10,7 +10,7 @@ import type { DesktopPageLook } from "@novadeck/protocol/bridge"
 import { clip, troubleOf } from "./content"
 
 // An agent's look at a page item, answered with a picture: the pane's own, if a pane shows the
-// page live on screen, else the page loaded afresh by the host, out of sight.
+// page live on screen, else the page loaded afresh by the app, out of sight.
 
 /** The widest a look's picture is, in device pixels; the widths it then tries if it comes out too large. */
 export const lookWidths = [1280, 960, 640] as const
@@ -24,7 +24,7 @@ export const noPictures =
 const sized = (value: number): number => Math.min(8192, Math.max(1, Math.round(value) || 1))
 
 export type Looks = {
-  /** Where the host loads a page afresh, out of sight, and pictures it; absent where it can't. */
+  /** Where the app loads a page afresh, out of sight, and pictures it; absent where it can't. */
   readonly fresh?:
     | ((request: {
         readonly url: string

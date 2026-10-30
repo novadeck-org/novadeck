@@ -130,10 +130,10 @@ describe("the runner's terminal views' options", () => {
     expect(waitsAfter({ code: null, signal: "SIGKILL", ranMs: 500 })).toBe(true)
   })
 
-  context("with and without the desktop app's host", () => {
+  context("with and without the desktop app", () => {
     afterEach(() => void Reflect.deleteProperty(globalThis, "novadeck"))
 
-    it("name a copied file by its own path as the desktop host does, and read its clipboard unasked", () => {
+    it("name a copied file by its own path as the desktop app does, and read its clipboard unasked", () => {
       const file = new File(["x"], "notes.txt")
       Object.defineProperty(globalThis, "novadeck", {
         configurable: true,
@@ -257,19 +257,19 @@ describe("the runner's terminal views over a runtime", () => {
   it("keeps a screen per session and terminal", () => {
     const { runtime } = recording()
     const views = createTerminalViews(viewOptions(runtime, { theme: noTheme }))
-    const hostOf = (which: typeof key) => {
+    const containerOf = (which: typeof key) => {
       const element = document.createElement("div")
       views.acquire(which, { label: "T", phase: "running", webgl: false }).place(element)
       return element.firstElementChild
     }
-    const hosts = [
-      hostOf(key),
-      hostOf({ ...key, workspaceSessionId: "other" }),
-      hostOf({ ...key, terminalId: "other" }),
-      hostOf({ ...key, projectId: "other" }),
+    const containers = [
+      containerOf(key),
+      containerOf({ ...key, workspaceSessionId: "other" }),
+      containerOf({ ...key, terminalId: "other" }),
+      containerOf({ ...key, projectId: "other" }),
     ]
-    expect(new Set(hosts).size).toBe(4)
-    expect(hostOf(key)).toBe(hosts[0])
+    expect(new Set(containers).size).toBe(4)
+    expect(containerOf(key)).toBe(containers[0])
   })
 
   it("keeps a screen nobody shows while the runtime says its session is on screen", () => {

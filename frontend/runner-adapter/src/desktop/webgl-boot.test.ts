@@ -18,7 +18,7 @@ import { scriptedRunner } from "../testing/scripted-server"
 // The order inside connectRunnerBackend matters: the pool is made by whatever asks for it
 // first, and a cap configured after that throws at every launch.
 describe("connecting the desktop backend", () => {
-  it("makes the page's pool with the host's context limit less two", async () => {
+  it("makes the page's pool with the app's context limit less two", async () => {
     vi.stubGlobal("novadeck", { webglContexts: 64, apiUrl: "http://127.0.0.1:1/api/" })
     const runner = scriptedRunner({ terminals: 1 })
     const connection = await runner.connect(new AbortController().signal, {} as never)

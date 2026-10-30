@@ -25,15 +25,15 @@ import {
   desktopVersion,
   desktopWhatsNew,
   desktopWindowFocus,
-  hostNotice,
-  hostSandbox,
-  hostUninstallPlan,
-  hostUninstallResult,
+  desktopNoticeOf,
+  sandboxStateOf,
+  uninstallPlanOf,
+  uninstallResultOf,
   noticeText,
 } from "./app"
 
-// A host's notification bridge that records what the page shows, and lets a test click.
-const host = () => {
+// An app's notification bridge that records what the page shows, and lets a test click.
+const app = () => {
   const shown: DesktopNotice[] = []
   const closed: string[] = []
   const badges: unknown[] = []
@@ -64,22 +64,22 @@ describe("a notice's text", () => {
   })
 })
 
-describe("a notice for the host", () => {
+describe("a notice for the app", () => {
   it("passes for a terminal id, bounded", () => {
-    const notice = hostNotice({ id: "3f2a-01", title: "@moth is done", body: "x".repeat(500) })
+    const notice = desktopNoticeOf({ id: "3f2a-01", title: "@moth is done", body: "x".repeat(500) })
     expect(notice?.body).toHaveLength(120)
   })
 
   it("is dropped for an id that is no terminal's, or with nothing to say", () => {
-    expect(hostNotice({ id: "../evil", title: "@moth is done", body: "" })).toBeUndefined()
-    expect(hostNotice({ id: "01", title: "\n", body: "Done." })).toBeUndefined()
+    expect(desktopNoticeOf({ id: "../evil", title: "@moth is done", body: "" })).toBeUndefined()
+    expect(desktopNoticeOf({ id: "01", title: "\n", body: "Done." })).toBeUndefined()
   })
 })
 
 describe("desktop notices", () => {
-  context("in a host that has them", () => {
+  context("in an app that has them", () => {
     it("shows what passes and hears clicks that name a terminal", () => {
-      const { bridge, shown, click } = host()
+      const { bridge, shown, click } = app()
       const notices = desktopNotices(bridge)!
       notices.show({ id: "01", title: "@moth is done: Tests", body: "All green." })
       notices.show({ id: "bad id", title: "@moth is done", body: "" })
@@ -95,9 +95,9 @@ describe("desktop notices", () => {
     })
   })
 
-  context("when the host's notifications play the sound", () => {
+  context("when the app's notifications play the sound", () => {
     it("says so, and passes the person's silent choice", () => {
-      const { bridge, shown } = host()
+      const { bridge, shown } = app()
       const notices = desktopNotices({ ...bridge, notificationsSound: true } as DesktopApp)!
       expect(notices.sounds).toBe(true)
       notices.show({ id: "01", title: "@moth is done", body: "", silent: true })
@@ -108,8 +108,8 @@ describe("desktop notices", () => {
       ])
     })
 
-    it("passes the theme's sound, and drops a name the host does not have", () => {
-      const { bridge, shown } = host()
+    it("passes the theme's sound, and drops a name the app does not have", () => {
+      const { bridge, shown } = app()
       const notices = desktopNotices({ ...bridge, notificationsSound: true } as DesktopApp)!
       notices.show({ id: "01", title: "@moth is done", body: "", sound: "afterglow" })
       notices.show({ id: "02", title: "@moth is done", body: "", sound: "../x" as never })
@@ -119,14 +119,14 @@ describe("desktop notices", () => {
       ])
     })
 
-    it("claims no sound in a host that lacks it", () => {
-      expect(desktopNotices(host().bridge)!.sounds).toBeUndefined()
+    it("claims no sound in an app that lacks it", () => {
+      expect(desktopNotices(app().bridge)!.sounds).toBeUndefined()
     })
   })
 
-  context("when the host can tell whether notifications are held back", () => {
+  context("when the app can tell whether notifications are held back", () => {
     it("passes a boolean answer, and a failure or anything else is false", async () => {
-      const { bridge } = host()
+      const { bridge } = app()
       const ask = (answer: () => Promise<unknown>) =>
         desktopNotices({ ...bridge, notificationsQuiet: answer } as unknown as DesktopApp)!.quiet!()
       expect(await ask(async () => true)).toBe(true)
@@ -134,14 +134,14 @@ describe("desktop notices", () => {
       expect(await ask(() => Promise.reject(new Error("gone")))).toBe(false)
     })
 
-    it("has no quiet in a host that lacks it", () => {
-      expect(desktopNotices(host().bridge)!.quiet).toBeUndefined()
+    it("has no quiet in an app that lacks it", () => {
+      expect(desktopNotices(app().bridge)!.quiet).toBeUndefined()
     })
   })
 
-  context("when the host can take one away", () => {
+  context("when the app can take one away", () => {
     it("closes by a terminal id and drops anything else", () => {
-      const { bridge, closed } = host()
+      const { bridge, closed } = app()
       const notices = desktopNotices(bridge)!
       notices.close!("01")
       notices.close!("../02")
@@ -149,14 +149,14 @@ describe("desktop notices", () => {
       expect(closed).toEqual(["01"])
     })
 
-    it("has no close in a host that lacks it", () => {
-      const { bridge } = host()
+    it("has no close in an app that lacks it", () => {
+      const { bridge } = app()
       const old = { ...bridge, closeNotice: undefined } as unknown as DesktopApp
       expect(desktopNotices(old)!.close).toBeUndefined()
     })
   })
 
-  context("in a browser, or a host that came before them", () => {
+  context("in a browser, or an app that came before them", () => {
     it("are absent", () => {
       expect(desktopNotices(undefined)).toBeUndefined()
       expect(desktopNotices({} as DesktopApp)).toBeUndefined()
@@ -167,8 +167,8 @@ describe("desktop notices", () => {
 describe("the desktop badge", () => {
   const png = "data:image/png;base64,iVBORw0KGgo="
 
-  it("passes valid badges to the host", () => {
-    const { bridge, badges } = host()
+  it("passes valid badges to the app", () => {
+    const { bridge, badges } = app()
     const badge = desktopBadge(bridge)!
     badge({ count: 3, image: png })
     badge({ count: 0, image: null })
@@ -179,7 +179,7 @@ describe("the desktop badge", () => {
   })
 
   it("drops what the contract does not allow", () => {
-    const { bridge, badges } = host()
+    const { bridge, badges } = app()
     const badge = desktopBadge(bridge)!
     for (const value of [
       { count: -1, image: null },
@@ -195,14 +195,14 @@ describe("the desktop badge", () => {
     expect(badges).toEqual([])
   })
 
-  it("is absent in a browser, or a host that came before it", () => {
+  it("is absent in a browser, or an app that came before it", () => {
     expect(desktopBadge(undefined)).toBeUndefined()
     expect(desktopBadge({} as DesktopApp)).toBeUndefined()
   })
 })
 
 describe("the desktop window's focus", () => {
-  it("passes the host's booleans to the page until it stops", () => {
+  it("passes the app's booleans to the page until it stops", () => {
     let report: ((focused: unknown) => void) | undefined
     const bridge = {
       onWindowFocus: (listener: (focused: unknown) => void) => {
@@ -223,13 +223,13 @@ describe("the desktop window's focus", () => {
     expect(report).toBeUndefined()
   })
 
-  it("is absent in a browser, or a host that came before it", () => {
+  it("is absent in a browser, or an app that came before it", () => {
     expect(desktopWindowFocus(undefined)).toBeUndefined()
     expect(desktopWindowFocus({} as DesktopApp)).toBeUndefined()
   })
 })
 
-// A host's update bridge that lets a test report offers and counts what the page asks.
+// An app's update bridge that lets a test report offers and counts what the page asks.
 const updater = (channel: unknown = "stable") => {
   let report: ((offer: unknown) => void) | undefined
   let pages = 0
@@ -260,12 +260,12 @@ const asking = (answer: unknown) =>
   ({ version: () => Promise.resolve(answer) }) as unknown as DesktopApp
 
 describe("desktop version", () => {
-  it("is absent in a host that does not say", () => {
+  it("is absent in an app that does not say", () => {
     expect(desktopVersion(undefined)).toBeUndefined()
     expect(desktopVersion({} as DesktopApp)).toBeUndefined()
   })
 
-  it("is what the host answers, when it looks like a release's", async () => {
+  it("is what the app answers, when it looks like a release's", async () => {
     expect(await desktopVersion(asking("0.4.2"))!()).toBe("0.4.2")
     expect(await desktopVersion(asking("1.2.3-beta.1"))!()).toBe("1.2.3-beta.1")
   })
@@ -281,7 +281,7 @@ describe("desktop version", () => {
 })
 
 describe("desktop updates", () => {
-  context("in a host that has them", () => {
+  context("in an app that has them", () => {
     it("hears offers that look like a release's, and a download to retry, and no others", () => {
       const { bridge, report } = updater()
       const heard: unknown[] = []
@@ -321,7 +321,7 @@ describe("desktop updates", () => {
       ])
     })
 
-    it("opens the release page through the host", () => {
+    it("opens the release page through the app", () => {
       const { bridge, pages } = updater()
       const updates = desktopUpdates(bridge)!
       updates.openPage()
@@ -344,7 +344,7 @@ describe("desktop updates", () => {
       ])
     })
 
-    it("asks the host to allow updates, where it can", () => {
+    it("asks the app to allow updates, where it can", () => {
       const { bridge, allowed } = updater()
       desktopUpdates(bridge)!.allow!()
       expect(allowed()).toBe(1)
@@ -361,14 +361,14 @@ describe("desktop updates", () => {
       await expect(desktopUpdates(updater("nightly").bridge)!.channel!.get()).rejects.toThrow()
     })
 
-    it("offers no channel where the host has none", () => {
+    it("offers no channel where the app has none", () => {
       const { bridge } = updater()
       delete (bridge as { updateChannel?: unknown }).updateChannel
       expect(desktopUpdates(bridge)!.channel).toBeUndefined()
     })
   })
 
-  context("in a browser, or a host that came before them", () => {
+  context("in a browser, or an app that came before them", () => {
     it("are absent", () => {
       expect(desktopUpdates(undefined)).toBeUndefined()
       expect(desktopUpdates({} as DesktopApp)).toBeUndefined()
@@ -378,7 +378,7 @@ describe("desktop updates", () => {
 
 describe("desktop what's new", () => {
   const highlight = { title: "Word handles", line: "Talk to @moth." }
-  const whatsNewHost = (answer: unknown) => {
+  const whatsNewApp = (answer: unknown) => {
     const calls = { dismissed: 0 }
     const bridge = {
       whatsNew: () => Promise.resolve(answer),
@@ -394,16 +394,16 @@ describe("desktop what's new", () => {
     expect(back).toEqual(ours)
   })
 
-  it("is absent in a browser, a host that came before it, or one with only some of its calls", () => {
+  it("is absent in a browser, an app that came before it, or one with only some of its calls", () => {
     expect(desktopWhatsNew(undefined)).toBeUndefined()
     expect(desktopWhatsNew({} as DesktopApp)).toBeUndefined()
-    const { bridge } = whatsNewHost(undefined)
+    const { bridge } = whatsNewApp(undefined)
     delete (bridge as { dismissWhatsNew?: unknown }).dismissWhatsNew
     expect(desktopWhatsNew(bridge)).toBeUndefined()
   })
 
   it("gives the highlights the contract allows, as plain lines", async () => {
-    const { bridge } = whatsNewHost({
+    const { bridge } = whatsNewApp({
       version: "0.2.0",
       highlights: [{ title: "  A\n<b>b</b> ", line: "x" }, { title: "", line: "no title" }, 3],
     })
@@ -414,7 +414,7 @@ describe("desktop what's new", () => {
   })
 
   it("keeps an icon named as Lucide names them, and drops another without dropping the highlight", async () => {
-    const { bridge } = whatsNewHost({
+    const { bridge } = whatsNewApp({
       version: "0.2.0",
       highlights: [
         { title: "A", line: "a", icon: "gauge" },
@@ -434,7 +434,7 @@ describe("desktop what's new", () => {
     })
   })
 
-  it("has nothing to give when the host has none, or its answer breaks the contract", async () => {
+  it("has nothing to give when the app has none, or its answer breaks the contract", async () => {
     const answers = [
       undefined,
       null,
@@ -443,19 +443,19 @@ describe("desktop what's new", () => {
       { version: "0.2.0", highlights: [] },
     ]
     const heard = await Promise.all(
-      answers.map((answer) => desktopWhatsNew(whatsNewHost(answer).bridge)!.get()),
+      answers.map((answer) => desktopWhatsNew(whatsNewApp(answer).bridge)!.get()),
     )
     expect(heard).toEqual(answers.map(() => undefined))
   })
 
-  it("dismisses through the host, once per call", () => {
-    const { bridge, calls } = whatsNewHost(undefined)
+  it("dismisses through the app, once per call", () => {
+    const { bridge, calls } = whatsNewApp(undefined)
     desktopWhatsNew(bridge)!.dismiss()
     expect(calls).toEqual({ dismissed: 1 })
   })
 })
 
-describe("a host's sandbox", () => {
+describe("the app's sandbox", () => {
   it("fits the protocol's, which the page's own copy must keep to", () => {
     const ours: SandboxState = { sandboxed: false, fix: "x" }
     const theirs: BridgeState = ours
@@ -464,8 +464,8 @@ describe("a host's sandbox", () => {
   })
 
   it("is sandboxed, or not with the command that fixes it", () => {
-    expect(hostSandbox({ sandboxed: true })).toEqual({ sandboxed: true })
-    expect(hostSandbox({ sandboxed: false, fix: " sudo ln -s a b \n" })).toEqual({
+    expect(sandboxStateOf({ sandboxed: true })).toEqual({ sandboxed: true })
+    expect(sandboxStateOf({ sandboxed: false, fix: " sudo ln -s a b \n" })).toEqual({
       sandboxed: false,
       fix: "sudo ln -s a b",
     })
@@ -473,31 +473,31 @@ describe("a host's sandbox", () => {
 
   it("keeps no command that is not one plain line of reasonable length", () => {
     const unfixed = { sandboxed: false, fix: "" }
-    expect(hostSandbox({ sandboxed: false, fix: "a\nsudo b" })).toEqual(unfixed)
-    expect(hostSandbox({ sandboxed: false, fix: "a\u202eb" })).toEqual(unfixed)
-    expect(hostSandbox({ sandboxed: false, fix: "a".repeat(301) })).toEqual(unfixed)
-    expect(hostSandbox({ sandboxed: false, fix: 7 })).toEqual(unfixed)
-    expect(hostSandbox({ sandboxed: false })).toEqual(unfixed)
+    expect(sandboxStateOf({ sandboxed: false, fix: "a\nsudo b" })).toEqual(unfixed)
+    expect(sandboxStateOf({ sandboxed: false, fix: "a\u202eb" })).toEqual(unfixed)
+    expect(sandboxStateOf({ sandboxed: false, fix: "a".repeat(301) })).toEqual(unfixed)
+    expect(sandboxStateOf({ sandboxed: false, fix: 7 })).toEqual(unfixed)
+    expect(sandboxStateOf({ sandboxed: false })).toEqual(unfixed)
   })
 
   it("is refused when it is neither", () => {
-    expect(() => hostSandbox(null)).toThrow()
-    expect(() => hostSandbox({ sandboxed: "no" })).toThrow()
+    expect(() => sandboxStateOf(null)).toThrow()
+    expect(() => sandboxStateOf({ sandboxed: "no" })).toThrow()
   })
 
-  it("is asked of the host, where it has one", async () => {
+  it("is asked of the app, where it has one", async () => {
     const bridge = { sandbox: () => Promise.resolve({ sandboxed: true }) } as unknown as DesktopApp
     expect(await desktopSandbox(bridge)!()).toEqual({ sandboxed: true })
   })
 
-  it("is absent in a browser, or a host that came before it", () => {
+  it("is absent in a browser, or an app that came before it", () => {
     expect(desktopSandbox(undefined)).toBeUndefined()
     expect(desktopSandbox({} as DesktopApp)).toBeUndefined()
   })
 })
 
-// A host's portable bridge that lets a test push states and counts the installs asked for.
-const portableHost = (first: unknown) => {
+// An app's portable bridge that lets a test push states and counts the installs asked for.
+const portableApp = (first: unknown) => {
   let push: ((state: unknown) => void) | undefined
   let installs = 0
   const bridge = {
@@ -520,7 +520,7 @@ const idleState = () => ({
   install: { phase: "idle" },
 })
 
-describe("a host's portable copy", () => {
+describe("the app's portable copy", () => {
   it("fits the protocol's, which the page's own copy must keep to", () => {
     const states: PortableState[] = [
       { portable: false },
@@ -560,20 +560,20 @@ describe("a host's portable copy", () => {
 
   it("is portable with its version and install, or not", async () => {
     const idle = idleState()
-    expect(await desktopPortable(portableHost({ portable: false }).bridge)!.state()).toEqual({
+    expect(await desktopPortable(portableApp({ portable: false }).bridge)!.state()).toEqual({
       portable: false,
     })
-    expect(await desktopPortable(portableHost(idle).bridge)!.state()).toEqual(idle)
+    expect(await desktopPortable(portableApp(idle).bridge)!.state()).toEqual(idle)
   })
 
   it("keeps a plain data folder, and leaves out one that is no path", async () => {
     const folder = { ...idleState(), dataFolder: "/home/me/.config/novadeck" }
-    expect(await desktopPortable(portableHost(folder).bridge)!.state()).toEqual(folder)
+    expect(await desktopPortable(portableApp(folder).bridge)!.state()).toEqual(folder)
     const odd = { ...idleState(), dataFolder: "/home/me/\nx" }
-    expect(await desktopPortable(portableHost(odd).bridge)!.state()).toEqual(idleState())
+    expect(await desktopPortable(portableApp(odd).bridge)!.state()).toEqual(idleState())
   })
 
-  it("carries the calls the host has, and reads the news as the contract allows", async () => {
+  it("carries the calls the app has, and reads the news as the contract allows", async () => {
     const calls: string[] = []
     const bridge = {
       portable: () => Promise.resolve({ portable: false }),
@@ -597,7 +597,7 @@ describe("a host's portable copy", () => {
       from: "0.0.70",
       highlights: [{ title: "A", line: "B" }],
     })
-    const bare = desktopPortable(portableHost({ portable: false }).bridge)!
+    const bare = desktopPortable(portableApp({ portable: false }).bridge)!
     expect([bare.openDownload, bare.showDataFolder, bare.news]).toEqual([
       undefined,
       undefined,
@@ -606,7 +606,7 @@ describe("a host's portable copy", () => {
   })
 
   it("is not taken from an answer that is none of the contract's", async () => {
-    const state = (answer: unknown) => desktopPortable(portableHost(answer).bridge)!.state()
+    const state = (answer: unknown) => desktopPortable(portableApp(answer).bridge)!.state()
     const run = { version: "0.0.70", run: "0a1b" }
     await expect(state(null)).rejects.toThrow()
     await expect(state({ portable: true })).rejects.toThrow()
@@ -624,8 +624,8 @@ describe("a host's portable copy", () => {
     await expect(state({ portable: "yes", ...run, install: { phase: "idle" } })).rejects.toThrow()
   })
 
-  it("asks the host to install, and hears each step it can read", () => {
-    const { bridge, push, installs } = portableHost({ portable: false })
+  it("asks the app to install, and hears each step it can read", () => {
+    const { bridge, push, installs } = portableApp({ portable: false })
     const portable = desktopPortable(bridge)!
     portable.install()
     expect(installs()).toBe(1)
@@ -646,14 +646,14 @@ describe("a host's portable copy", () => {
     ])
   })
 
-  it("is absent in a browser, or a host that came before it", () => {
+  it("is absent in a browser, or an app that came before it", () => {
     expect(desktopPortable(undefined)).toBeUndefined()
     expect(desktopPortable({} as DesktopApp)).toBeUndefined()
     expect(desktopPortable({ portable: () => {}, installApp: () => {} } as never)).toBeUndefined()
   })
 })
 
-describe("a host's uninstall", () => {
+describe("the app's uninstall", () => {
   const ready: UninstallPlan = {
     kind: "ready",
     dataFolders: ["/home/me/.config/novadeck"],
@@ -679,57 +679,58 @@ describe("a host's uninstall", () => {
   })
 
   it("takes a plan of the three kinds", () => {
-    expect(hostUninstallPlan({ kind: "unavailable" })).toEqual({ kind: "unavailable" })
-    expect(
-      hostUninstallPlan({ kind: "manual", command: "brew uninstall --cask novadeck" }),
-    ).toEqual({ kind: "manual", command: "brew uninstall --cask novadeck" })
-    expect(hostUninstallPlan(ready)).toEqual(ready)
+    expect(uninstallPlanOf({ kind: "unavailable" })).toEqual({ kind: "unavailable" })
+    expect(uninstallPlanOf({ kind: "manual", command: "brew uninstall --cask novadeck" })).toEqual({
+      kind: "manual",
+      command: "brew uninstall --cask novadeck",
+    })
+    expect(uninstallPlanOf(ready)).toEqual(ready)
   })
 
-  it("takes a data folder path as long as the host's preload does", () => {
+  it("takes a data folder path as long as the app's preload does", () => {
     const path = `/${"a".repeat(999)}`
-    expect(hostUninstallPlan({ ...ready, dataFolders: [path] })).toEqual({
+    expect(uninstallPlanOf({ ...ready, dataFolders: [path] })).toEqual({
       ...ready,
       dataFolders: [path],
     })
-    expect(() => hostUninstallPlan({ ...ready, dataFolders: [`${path}a`] })).toThrow()
+    expect(() => uninstallPlanOf({ ...ready, dataFolders: [`${path}a`] })).toThrow()
   })
 
   it("takes no plan from an answer that is none of them, or whose text is not plain", () => {
-    expect(() => hostUninstallPlan(null)).toThrow()
-    expect(() => hostUninstallPlan({ kind: "later" })).toThrow()
-    expect(() => hostUninstallPlan({ kind: "manual" })).toThrow()
-    expect(() => hostUninstallPlan({ kind: "manual", command: "a\nb" })).toThrow()
-    expect(() => hostUninstallPlan({ kind: "ready", dataFolders: [], handoff: "me" })).toThrow()
-    expect(() => hostUninstallPlan({ ...ready, dataFolders: ["/ok", 7] })).toThrow()
-    expect(() => hostUninstallPlan({ ...ready, dataFolders: ["/a\u202eb"] })).toThrow()
+    expect(() => uninstallPlanOf(null)).toThrow()
+    expect(() => uninstallPlanOf({ kind: "later" })).toThrow()
+    expect(() => uninstallPlanOf({ kind: "manual" })).toThrow()
+    expect(() => uninstallPlanOf({ kind: "manual", command: "a\nb" })).toThrow()
+    expect(() => uninstallPlanOf({ kind: "ready", dataFolders: [], handoff: "me" })).toThrow()
+    expect(() => uninstallPlanOf({ ...ready, dataFolders: ["/ok", 7] })).toThrow()
+    expect(() => uninstallPlanOf({ ...ready, dataFolders: ["/a\u202eb"] })).toThrow()
   })
 
   it("takes a result of the three kinds, dropping a leftover that is not one plain line", () => {
-    expect(hostUninstallResult({ kind: "uninstalling" })).toEqual({ kind: "uninstalling" })
-    expect(hostUninstallResult({ kind: "removed" })).toEqual({ kind: "removed" })
-    expect(hostUninstallResult({ kind: "removed", leftover: "sudo rm x" })).toEqual({
+    expect(uninstallResultOf({ kind: "uninstalling" })).toEqual({ kind: "uninstalling" })
+    expect(uninstallResultOf({ kind: "removed" })).toEqual({ kind: "removed" })
+    expect(uninstallResultOf({ kind: "removed", leftover: "sudo rm x" })).toEqual({
       kind: "removed",
       leftover: "sudo rm x",
     })
-    expect(hostUninstallResult({ kind: "removed", leftover: "a\nb" })).toEqual({ kind: "removed" })
-    expect(hostUninstallResult({ kind: "failed", reason: " Disk\nbusy " })).toEqual({
+    expect(uninstallResultOf({ kind: "removed", leftover: "a\nb" })).toEqual({ kind: "removed" })
+    expect(uninstallResultOf({ kind: "failed", reason: " Disk\nbusy " })).toEqual({
       kind: "failed",
       reason: "Disk busy",
     })
   })
 
-  it("keeps a reason of the length the host's preload takes, with the advice it ends in", () => {
+  it("keeps a reason of the length the app's preload takes, with the advice it ends in", () => {
     const advice = " Novadeck has stopped your terminals; quit it and open it again."
     const reason = `${"a".repeat(266 - advice.length)}${advice}`
     expect(reason).toHaveLength(266)
-    expect(hostUninstallResult({ kind: "failed", reason })).toEqual({ kind: "failed", reason })
+    expect(uninstallResultOf({ kind: "failed", reason })).toEqual({ kind: "failed", reason })
     const longest = "b".repeat(300)
-    expect(hostUninstallResult({ kind: "failed", reason: longest })).toEqual({
+    expect(uninstallResultOf({ kind: "failed", reason: longest })).toEqual({
       kind: "failed",
       reason: longest,
     })
-    expect(hostUninstallResult({ kind: "failed", reason: "b".repeat(301) })).toEqual({
+    expect(uninstallResultOf({ kind: "failed", reason: "b".repeat(301) })).toEqual({
       kind: "failed",
       reason: "Something went wrong.",
     })
@@ -737,12 +738,12 @@ describe("a host's uninstall", () => {
 
   it("takes any other answer for a failure the person can read", () => {
     const unknown = { kind: "failed", reason: "Something went wrong." }
-    expect(hostUninstallResult(undefined)).toEqual(unknown)
-    expect(hostUninstallResult({ kind: "done" })).toEqual(unknown)
-    expect(hostUninstallResult({ kind: "failed", reason: "  " })).toEqual(unknown)
+    expect(uninstallResultOf(undefined)).toEqual(unknown)
+    expect(uninstallResultOf({ kind: "done" })).toEqual(unknown)
+    expect(uninstallResultOf({ kind: "failed", reason: "  " })).toEqual(unknown)
   })
 
-  it("asks, uninstalls and quits through the host", async () => {
+  it("asks, uninstalls and quits through the app", async () => {
     let quit = 0
     const asked: boolean[] = []
     const bridge = {
@@ -761,7 +762,7 @@ describe("a host's uninstall", () => {
     expect(quit).toBe(1)
   })
 
-  it("fails an uninstall the host throws on", async () => {
+  it("fails an uninstall the app throws on", async () => {
     const bridge = {
       uninstallPlan: () => Promise.resolve(ready),
       uninstallApp: () => Promise.reject(new Error("gone")),
@@ -770,7 +771,7 @@ describe("a host's uninstall", () => {
     expect((await desktopUninstall(bridge)!.run({ keepData: true })).kind).toBe("failed")
   })
 
-  it("is absent in a browser, or a host that has only some of it", () => {
+  it("is absent in a browser, or an app that has only some of it", () => {
     expect(desktopUninstall(undefined)).toBeUndefined()
     expect(desktopUninstall({} as DesktopApp)).toBeUndefined()
     expect(
@@ -781,7 +782,7 @@ describe("a host's uninstall", () => {
 
 describe("desktop feedback", () => {
   const sent: unknown[] = []
-  const feedbackHost = (overrides: Record<string, unknown> = {}) =>
+  const feedbackApp = (overrides: Record<string, unknown> = {}) =>
     ({
       feedback: true,
       feedbackAbout: () => Promise.resolve({ version: "0.0.219", os: "macos", arch: "arm64" }),
@@ -792,27 +793,27 @@ describe("desktop feedback", () => {
       ...overrides,
     }) as unknown as DesktopApp
 
-  it("is absent unless the host says it sends notes", () => {
+  it("is absent unless the app says it sends notes", () => {
     expect(desktopFeedback(undefined)).toBeUndefined()
     expect(desktopFeedback({} as DesktopApp)).toBeUndefined()
-    expect(desktopFeedback(feedbackHost({ feedback: undefined }))).toBeUndefined()
-    expect(desktopFeedback(feedbackHost({ sendFeedback: undefined }))).toBeUndefined()
+    expect(desktopFeedback(feedbackApp({ feedback: undefined }))).toBeUndefined()
+    expect(desktopFeedback(feedbackApp({ sendFeedback: undefined }))).toBeUndefined()
   })
 
   it("has no way to ask an agent yet", () => {
-    expect(desktopFeedback(feedbackHost())).not.toHaveProperty("ask")
+    expect(desktopFeedback(feedbackApp())).not.toHaveProperty("ask")
   })
 
   it("shows the version and the OS as the demo does", async () => {
-    expect(await desktopFeedback(feedbackHost())!.about()).toEqual({
+    expect(await desktopFeedback(feedbackApp())!.about()).toEqual({
       version: "0.0.219",
       os: "macOS arm64",
     })
-    const windows = feedbackHost({
+    const windows = feedbackApp({
       feedbackAbout: () => Promise.resolve({ version: "1.0.0", os: "windows", arch: "x64" }),
     })
     expect((await desktopFeedback(windows)!.about()).os).toBe("Windows x64")
-    const linux = feedbackHost({
+    const linux = feedbackApp({
       feedbackAbout: () => Promise.resolve({ version: "1.0.0", os: "linux", arch: "x64" }),
     })
     expect((await desktopFeedback(linux)!.about()).os).toBe("Linux x64")
@@ -824,14 +825,14 @@ describe("desktop feedback", () => {
     { version: "1.0.0", os: "beos", arch: "x64" },
     { version: "1.0.0", os: "linux", arch: "x 64!" },
   ])("refuses details like %j", async (answer) => {
-    const odd = feedbackHost({ feedbackAbout: () => Promise.resolve(answer) })
+    const odd = feedbackApp({ feedbackAbout: () => Promise.resolve(answer) })
     await expect(desktopFeedback(odd)!.about()).rejects.toThrow()
   })
 
-  it("hands the host a note's kind and text, and rejects when it fails", async () => {
-    await desktopFeedback(feedbackHost())!.send({ kind: "idea", text: "Hi" })
+  it("hands the app a note's kind and text, and rejects when it fails", async () => {
+    await desktopFeedback(feedbackApp())!.send({ kind: "idea", text: "Hi" })
     expect(sent).toEqual([{ kind: "idea", text: "Hi" }])
-    const failing = feedbackHost({ sendFeedback: () => Promise.reject(new Error("503")) })
+    const failing = feedbackApp({ sendFeedback: () => Promise.reject(new Error("503")) })
     await expect(desktopFeedback(failing)!.send({ kind: null, text: "x" })).rejects.toThrow("503")
   })
 })
