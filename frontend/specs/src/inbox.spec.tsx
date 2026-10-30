@@ -268,13 +268,14 @@ describe("An item's sheet", () => {
       await expect.element(sheet("Checkout review")).toBeVisible()
     })
 
-    it("shows the terminal it is about", async () => {
+    it("shows the terminal it is about, with the terminals in the sidebar", async () => {
       await openInbox()
       await row("Run pnpm add").click()
       await sheet("Checkout review").getByRole("button", { name: "Show terminal" }).click()
 
       await expect.element(sheet("Checkout review")).not.toBeInTheDocument()
       await expect.element(terminal("Checkout review")).toBeVisible()
+      await expect.element(sidebarPanel("Terminals")).toBeChecked()
     })
   })
 
@@ -355,7 +356,11 @@ describe("An item's sheet", () => {
           "Novadeck can't answer this prompt from here. Answer it in the terminal.",
         )
       await expect.element(answer(open, "Allow")).not.toBeInTheDocument()
-      await expect.element(answer(open, "Go to terminal")).toBeVisible()
+      await answer(open, "Go to terminal").click()
+
+      await expect.element(open).not.toBeInTheDocument()
+      await expect.element(terminal("Runtime")).toBeVisible()
+      await expect.element(sidebarPanel("Terminals")).toBeChecked()
     })
   })
 
