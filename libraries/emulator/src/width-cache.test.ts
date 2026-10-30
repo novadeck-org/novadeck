@@ -2,6 +2,8 @@
 import type { Terminal as XTerminal } from "@xterm/xterm"
 import { afterEach, beforeAll, describe, expect, it, vi } from "vitest"
 
+import { leaveStylesheetsUnparsed } from "./stylesheets.test-support.js"
+
 // The app's bundler loads xterm's ES bundle and Node loads the CommonJS one; the patch is made
 // in both, so the tests run against each.
 type Terminal = XTerminal
@@ -54,6 +56,9 @@ Object.defineProperty(HTMLElement.prototype, "offsetHeight", {
     return this.classList.contains("xterm-char-measure-element") ? 16 : 0
   },
 })
+
+// Nothing here reads a stylesheet; parsing them was half of what these tests took.
+leaveStylesheetsUnparsed()
 
 const containers: HTMLElement[] = []
 const terminals: Terminal[] = []
@@ -206,7 +211,8 @@ describe.each(bundles)("the DOM renderer's width measurements in lib/%s", (bundl
     pass()
     expect(reads - start).toBeGreaterThan(4000)
     expect([pass(), pass(), pass()]).toEqual([0, 0, 0])
-  })
+    // Each of the 4500 characters is measured through jsdom, which a slow runner takes seconds over.
+  }, 10_000)
 
   it("keep a string in use across the table's turning over, and stay bounded", async () => {
     const { terminal } = await open()

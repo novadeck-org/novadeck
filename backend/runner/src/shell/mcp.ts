@@ -30,7 +30,15 @@
  */
 import { efforts } from "@novadeck/harness-core/harness"
 import { manifest } from "@novadeck/harness-core/plugin"
-import { harnessIds, harnesses } from "@novadeck/protocol"
+import {
+  agentNames,
+  harnesses,
+  inboxTextLimits,
+  maxAskOptions,
+  maxCommandLines,
+  maxFeedbackText,
+  maxStartupCommand,
+} from "@novadeck/protocol"
 
 import { maxMessageBytes } from "../messaging/messages.js"
 import { unboundNote } from "../messaging/peers.js"
@@ -425,7 +433,7 @@ const openTerminal: Tool<Opened> = {
         description:
           "A command line to run at the new shell's first prompt, as if the user typed it, " +
           "such as npm run dev: one line. Leave it out for a plain shell.",
-        maxLength: 4096,
+        maxLength: maxStartupCommand,
       },
       cwd: cwdProperty,
       title: {
@@ -557,7 +565,7 @@ const openAgent: Tool<Opened> = {
     properties: {
       agent: {
         type: "string",
-        enum: harnessIds,
+        enum: agentNames,
         description: `The agent to start there: ${agentChoices}.`,
       },
       message: {
@@ -968,11 +976,11 @@ const summarize: Tool<unknown> = {
 }
 
 const entryFields = {
-  subject: { type: "string", description: "One-line subject.", maxLength: 256 },
+  subject: { type: "string", description: "One-line subject.", maxLength: inboxTextLimits.line },
   body: {
     type: "string",
     description: "Markdown explaining what you need or want to tell the user.",
-    maxLength: 16384,
+    maxLength: inboxTextLimits.markdown,
   },
 }
 // Claude Code omits tools with a union at the schema root. The runner validates
@@ -1014,11 +1022,15 @@ const ask: Tool<{ readonly id: string; readonly withdrawn?: boolean }> = {
     type: "object",
     properties: {
       ...entryFields,
-      details: { type: "string", description: "Optional additional Markdown.", maxLength: 16384 },
+      details: {
+        type: "string",
+        description: "Optional additional Markdown.",
+        maxLength: inboxTextLimits.markdown,
+      },
       hard_to_undo: {
         type: "string",
         description: "Why the decision would be hard to undo.",
-        maxLength: 2048,
+        maxLength: inboxTextLimits.hardToUndo,
       },
       shape: {
         oneOf: [
@@ -1036,18 +1048,18 @@ const ask: Tool<{ readonly id: string; readonly withdrawn?: boolean }> = {
                 type: "array",
                 description: "One to three choices.",
                 minItems: 1,
-                maxItems: 3,
+                maxItems: maxAskOptions,
                 items: {
                   type: "object",
                   properties: {
-                    label: { type: "string", maxLength: 256 },
-                    summary: { type: "string", maxLength: 2048 },
-                    details: { type: "string", maxLength: 16384 },
+                    label: { type: "string", maxLength: inboxTextLimits.line },
+                    summary: { type: "string", maxLength: inboxTextLimits.summary },
+                    details: { type: "string", maxLength: inboxTextLimits.markdown },
                     code: {
                       type: "object",
                       properties: {
-                        path: { type: "string", maxLength: 256 },
-                        text: { type: "string", maxLength: 16384 },
+                        path: { type: "string", maxLength: inboxTextLimits.line },
+                        text: { type: "string", maxLength: inboxTextLimits.markdown },
                       },
                       required: ["path", "text"],
                       additionalProperties: false,
@@ -1060,7 +1072,7 @@ const ask: Tool<{ readonly id: string; readonly withdrawn?: boolean }> = {
               recommend: {
                 type: ["integer", "null"],
                 minimum: 0,
-                maximum: 2,
+                maximum: maxAskOptions - 1,
                 description: "Index of your pick, counted from zero, or null.",
               },
             },
@@ -1073,13 +1085,13 @@ const ask: Tool<{ readonly id: string; readonly withdrawn?: boolean }> = {
               type: { const: "action" },
               command: {
                 type: "string",
-                maxLength: 4096,
+                maxLength: inboxTextLimits.command,
                 description:
-                  "What the user runs themselves, up to 40 lines, in characters that show: " +
+                  `What the user runs themselves, up to ${maxCommandLines} lines, in characters that show: ` +
                   "Novadeck refuses one holding a character that draws as nothing.",
               },
-              directory: { type: "string", maxLength: 4096 },
-              done_label: { type: "string", maxLength: 256 },
+              directory: { type: "string", maxLength: inboxTextLimits.directory },
+              done_label: { type: "string", maxLength: inboxTextLimits.line },
             },
             required: ["type", "command", "done_label"],
             additionalProperties: false,
@@ -1163,8 +1175,8 @@ const feedback: Tool<unknown> = {
       },
       text: {
         type: "string",
-        description: "The feedback, up to 2,000 characters.",
-        maxLength: 2000,
+        description: `The feedback, up to ${maxFeedbackText.toLocaleString("en-US")} characters.`,
+        maxLength: maxFeedbackText,
       },
     },
     required: ["kind", "text"],

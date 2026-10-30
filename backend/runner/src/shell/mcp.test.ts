@@ -5,6 +5,13 @@ import { tmpdir } from "node:os"
 import { join } from "node:path"
 
 import { manifest } from "@novadeck/harness-core/plugin"
+import {
+  agentAsk,
+  inboxEntry,
+  maxAskOptions,
+  maxFeedbackText,
+  startupCommand,
+} from "@novadeck/protocol"
 import { relayPath } from "@novadeck/relay"
 import { afterAll, beforeAll, onTestFinished } from "vitest"
 
@@ -1602,4 +1609,48 @@ it("answers methods it doesn't know with an error", async () => {
     { id: 6, method: "resources/list" },
   ])
   expect(unknown?.error).toMatchObject({ code: -32601 })
+})
+
+describe("the bounds Novadeck's MCP tools advertise", () => {
+  // Each advertised bound and the protocol's own for the field the runner fills from it, so
+  // an agent that keeps to the schema it is shown is never refused for a length.
+  type Schema = { readonly [key: string]: any }
+  const listed = async (): Promise<{ readonly [name: string]: Schema }> => {
+    const line = JSON.stringify({ jsonrpc: "2.0", id: 1, method: "tools/list" })
+    const reply = JSON.parse((await mcpAnswer(line, async () => ({ ok: false })))!) as {
+      result: { tools: { name: string; inputSchema: Schema }[] }
+    }
+    return Object.fromEntries(reply.result.tools.map((tool) => [tool.name, tool.inputSchema]))
+  }
+
+  it("are the protocol's for an ask, a tell, a done, a startup command and feedback", async () => {
+    const tools = await listed()
+    const ask = agentAsk.shape
+    const shapes = ask.shape.options
+    const options = shapes[1].shape.options
+    const option = options.element.shape
+    const action = shapes[2].shape
+    const tell = inboxEntry.shape.content.options[1].shape
+    const [, choices, act] = tools["ask"]!.properties.shape.oneOf
+    const offered = choices.properties.options
+    for (const name of ["ask", "tell", "done"]) {
+      expect(tools[name]!.properties.subject.maxLength).toBe(tell.subject.maxLength)
+      expect(tools[name]!.properties.body.maxLength).toBe(tell.body.maxLength)
+    }
+    expect(tools["ask"]!.properties.details.maxLength).toBe(ask.details.unwrap().maxLength)
+    expect(tools["ask"]!.properties.hard_to_undo.maxLength).toBe(ask.hardToUndo.unwrap().maxLength)
+    expect(offered.maxItems).toBe(maxAskOptions)
+    expect(offered.items.properties.label.maxLength).toBe(option.label.maxLength)
+    expect(offered.items.properties.summary.maxLength).toBe(option.summary.unwrap().maxLength)
+    expect(offered.items.properties.details.maxLength).toBe(option.details.unwrap().maxLength)
+    const code = option.code.unwrap().shape
+    expect(offered.items.properties.code.properties.path.maxLength).toBe(code.path.maxLength)
+    expect(offered.items.properties.code.properties.text.maxLength).toBe(code.text.maxLength)
+    expect(choices.properties.recommend.maximum).toBe(maxAskOptions - 1)
+    expect(act.properties.command.maxLength).toBe(action.command.maxLength)
+    expect(act.properties.directory.maxLength).toBe(action.directory.unwrap().maxLength)
+    expect(act.properties.done_label.maxLength).toBe(action.doneLabel.maxLength)
+    expect(tools["open_terminal"]!.properties.command.maxLength).toBe(startupCommand.maxLength)
+    expect(tools["feedback"]!.properties.text.maxLength).toBe(maxFeedbackText)
+  })
 })

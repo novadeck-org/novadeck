@@ -1,4 +1,4 @@
-import { transcriptItem, type ToolRun } from "@novadeck/protocol"
+import { transcriptItem, transcriptLimits, type ToolRun } from "@novadeck/protocol"
 import { describe, expect, it } from "vitest"
 
 import { entry } from "./items.js"
@@ -11,13 +11,19 @@ const seen = (tool: string, input: string): ToolRun => ({
 })
 
 describe("an item's run", () => {
-  it("is described on the call as the item carries it: its input cut at 16 KiB, its name at 256", () => {
-    const call = entry("assistant", "tool-call", "x".repeat(20_000), {
+  it("is described on the call as the item carries it: its input and its name cut to the protocol's limits", () => {
+    const call = entry("assistant", "tool-call", "x".repeat(transcriptLimits.text + 1000), {
       at: null,
-      tool: "t".repeat(300),
+      tool: "t".repeat(transcriptLimits.name + 50),
       describe: seen,
     })
-    expect(call.run).toEqual({ kind: "other", title: "t".repeat(256), detail: "x".repeat(16_384) })
+    expect(call.run).toEqual({
+      kind: "other",
+      title: "t".repeat(transcriptLimits.name),
+      detail: "x".repeat(transcriptLimits.text),
+    })
+    // Numbered as its harness's transcript reads it.
+    expect(transcriptItem.safeParse({ ...call, index: 0 }).success).toBe(true)
   })
 
   it('describes a call whose tool is not text as "tool"', () => {

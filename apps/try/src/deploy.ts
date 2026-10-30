@@ -1,24 +1,15 @@
-import { connectSources } from "@novadeck/build-kit/connect-sources"
+import { configuredSources } from "@novadeck/build-kit/connect-sources"
 import type { Build } from "@novadeck/build-kit/content-security-policy"
 import type { HeaderRule } from "@novadeck/build-kit/hosting-headers"
 
 // How the visitor build is deployed, as vite.config.ts hands it to the build kit: what it may
 // connect to, that it stays out of search results, and what its host serves it with.
 
-/** What index.html's connect-src holds until a build fills it. */
-export const connectSourcesPlaceholder = "__NOVADECK_CONNECT_SOURCES__"
-
 // Built, the visitor build, the website's demo, reaches nothing but the page's own origin.
 // Served for development, or built in a mode other than `try`, it reaches what it is
 // configured for.
 export const connect = (build: Pick<Build, "mode" | "command" | "env">): readonly string[] =>
-  build.mode === "try" && build.command === "build"
-    ? ["'self'"]
-    : connectSources({
-        api: { url: build.env.VITE_API_URL, name: "VITE_API_URL" },
-        runner: { url: build.env.VITE_NOVADECK_RUNNER_URL, name: "VITE_NOVADECK_RUNNER_URL" },
-        development: build.command === "serve",
-      })
+  build.mode === "try" && build.command === "build" ? ["'self'"] : configuredSources(build)
 
 /** The visitor build is a public demo that should not turn up in search results. */
 export const hidden = (mode: string): boolean => mode === "try"

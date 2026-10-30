@@ -1,6 +1,7 @@
 import { shortName } from "@novadeck/harness-core/decode"
 import type { EventBase, HarnessEvent } from "@novadeck/harness-core/events"
 import type { Report } from "@novadeck/harness-core/report"
+import { telemetryLimits } from "@novadeck/protocol"
 
 // A non-negative number the status line gives, or none.
 const count = (value: unknown): number | undefined =>
@@ -33,9 +34,12 @@ export const statusLine = (
   const limits = (payload.rate_limits ?? {}) as Record<string, unknown>
   const model = shortName(
     (payload.model as { display_name?: unknown } | undefined)?.display_name,
-    128,
+    telemetryLimits.model,
   )
-  const effort = shortName((payload.effort as { level?: unknown } | undefined)?.level, 32)
+  const effort = shortName(
+    (payload.effort as { level?: unknown } | undefined)?.level,
+    telemetryLimits.effort,
+  )
   const known = Object.entries(windows).flatMap(([name, minutes]) => {
     const { used_percentage: used, resets_at: resets } = (limits[name] ?? {}) as Record<
       string,

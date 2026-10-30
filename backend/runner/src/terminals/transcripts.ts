@@ -1,13 +1,13 @@
 import { followLines } from "@novadeck/harness-core/follow"
 import type { Harness, TranscriptEntry } from "@novadeck/harness-core/harness"
 import { interruptionEntry } from "@novadeck/harness-core/items"
-import type { TranscriptChange } from "@novadeck/protocol"
+import { transcriptLimits, type TranscriptChange } from "@novadeck/protocol"
 
 import type { Record } from "./record.js"
 
 // Items per change, as the protocol takes them, and how many may wait unread before the
 // file's reading pauses.
-const batch = 256
+const batch = transcriptLimits.items
 const backlog = 4 * batch
 
 /**

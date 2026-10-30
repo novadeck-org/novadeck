@@ -10,6 +10,7 @@ import { readManifest, type Artifact } from "../engines/manifest.js"
 import type { Launch } from "../engines/server.js"
 import { logs, useLogger } from "../log.js"
 import { describe, expect, it } from "../test.js"
+import { fakeClock } from "../testing/clock.js"
 import {
   arc,
   fakeLaunch,
@@ -1037,22 +1038,19 @@ describe("a digest that takes too long to redact", () => {
       let finished = false
       // Only the deadline is controlled; the worker and its main-loop acknowledgement
       // stay real, without racing the host's timer cadence against 300 ms.
-      vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] })
-      try {
-        const job = context.murmur.describe(hanging, { terminal: "a" }).then((result) => {
-          finished = true
-          return result
-        })
-        await probe.observe()
-        expect(finished).toBe(false)
-        await vi.advanceTimersByTimeAsync(299)
-        expect(finished).toBe(false)
-        await vi.advanceTimersByTimeAsync(1)
-        expect(finished).toBe(true)
-        expect(await job).toBeUndefined()
-      } finally {
-        vi.useRealTimers()
-      }
+      const clock = fakeClock(resources, ["setTimeout", "clearTimeout"])
+      const job = context.murmur.describe(hanging, { terminal: "a" }).then((result) => {
+        finished = true
+        return result
+      })
+      await probe.observe()
+      expect(finished).toBe(false)
+      await vi.advanceTimersByTimeAsync(299)
+      expect(finished).toBe(false)
+      await vi.advanceTimersByTimeAsync(1)
+      expect(finished).toBe(true)
+      expect(await job).toBeUndefined()
+      await clock.restore()
       // Only that terminal is held off; another still gets a title.
       expect(
         await context.murmur.describe({ ...digest, project: "app" }, { terminal: "b" }),

@@ -1,7 +1,7 @@
 import { chmodSync, existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs"
 import { delimiter, join } from "node:path"
 
-import { harnessIds } from "@novadeck/protocol"
+import { agentNames } from "@novadeck/protocol"
 import { createSandbox, type Sandbox as Base } from "@novadeck/sandbox"
 
 /**
@@ -78,7 +78,7 @@ export const createE2ESandbox = (options: {
   const sandbox = createSandbox({
     ...options,
     prefix: prefix(),
-    forbidden: harnessIds,
+    forbidden: agentNames,
     user: "novadeck",
   })
   if (process.platform !== "darwin") return sandbox

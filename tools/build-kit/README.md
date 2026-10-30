@@ -4,16 +4,18 @@ The apps' Vite helpers: how a build is deployed, which each app configures in it
 `vite.config.ts`. It's a tools package, not a library: what it applies is these apps' deploy
 policy, so it needs no library fences.
 
-- `contentSecurityPolicy({ placeholder, connect, envPrefix })` fills the connect-src of the
-  page's Content Security Policy. `placeholder`, in `index.html`, becomes the sources
-  `connect(build)` gives for the build's `mode`, `command` and environment: the variables of
-  the env files the app's build reads, with `envPrefix` (the app's own by default; never
-  empty), the process's before the files'. A page without the placeholder fails the build.
-- `connectSources({ api, runner, development })` (`/connect-sources`, with nothing of Vite, so
-  an app's tests can read its policy anywhere), the sources of an app that talks to services
-  on loopback, and where configured to an HTTP(S) API (an absolute URL, or a relative path,
-  which adds nothing) and a WebSocket runner elsewhere; while served, the development server's
-  WebSocket on loopback too. Each URL comes with the setting that names it, for its errors.
+- `contentSecurityPolicy({ connect, envPrefix })` fills the connect-src of the page's Content
+  Security Policy. `connectSourcesPlaceholder`, which every app's `index.html` holds, becomes
+  the sources `connect(build)` gives for the build's `mode`, `command` and environment: the
+  variables of the env files the app's build reads, with `envPrefix` (the app's own by
+  default; never empty), the process's before the files'. A page without the placeholder
+  fails the build.
+- `connectSources({ runner, development })` (`/connect-sources`, with nothing of Vite, so an
+  app's tests can read its policy anywhere), the sources of an app that talks to services on
+  loopback, and where configured to a WebSocket runner elsewhere; while served, the
+  development server's WebSocket on loopback too. The runner's URL comes with the setting that
+  names it, for its errors. `configuredSources(build)` is that for a build as it is
+  configured: the runner `VITE_NOVADECK_RUNNER_URL` names, which every app's `connect` uses.
 - `hostingHeaders({ rules })` emits a build's `_headers` file where `rules(mode)` has any;
   `headersFile(rules)` writes one, each path then its headers. A host applies every rule a
   path matches and joins a header several set, so rules should set each header once.
@@ -26,7 +28,8 @@ policy, so it needs no library fences.
   terminal emulator with its first chunk, draws terminals without their styles
   (`terminal-xterm.css`), or whose CSS lost a folder the UI's stylesheet scans for Tailwind
   (`utilities` lists one utility from each: `frontendUtilities` for the visitor build and
-  the preview, `desktopUtilities` for the desktop app, which adds the UI's own). It fails
+  the preview, `desktopUtilities` for the desktop app, which adds the UI's own; a scanned
+  folder that writes no utility only it writes is in `unguardedFolders` instead). It fails
   too when the build holds nothing for these checks to read. With `budgets` it also fails a
   build that weighs too much: `first`, what the page loads first, its scripts and styles
   gzipped and every woff2 font they declare, and `demo`, the module `demoModule` names with

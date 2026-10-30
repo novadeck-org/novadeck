@@ -19,7 +19,7 @@ import {
   leadHearsOf,
   type Asked,
   type InboxInputs,
-  type InboxEntry,
+  type WrittenEntry,
 } from "./rows"
 
 const agentParty = (handle: string): MessageParty => ({ kind: "agent", handle, agent: null })
@@ -160,7 +160,7 @@ const inputs = (
   ...more,
 })
 
-const entry = (change: Partial<InboxEntry> = {}): InboxEntry => ({
+const entry = (change: Partial<WrittenEntry> = {}): WrittenEntry => ({
   id: "entry-1",
   terminalId: "01",
   projectId: "p",
@@ -289,7 +289,7 @@ describe("The Inbox's rows", () => {
   })
 
   describe("a done report", () => {
-    const report = (change: Partial<InboxEntry> = {}): InboxEntry =>
+    const report = (change: Partial<WrittenEntry> = {}): WrittenEntry =>
       entry({
         id: "entry:done-1",
         content: { kind: "done", subject: "Search rebuilt", body: "All 412 pages." },
@@ -778,7 +778,7 @@ describe("The Inbox's rows", () => {
 
   describe("an entry", () => {
     const attention: AgentStatus = { working: true, attention: { kind: "permission", count: 1 } }
-    const told = (id = "told-1"): InboxEntry =>
+    const told = (id = "told-1"): WrittenEntry =>
       entry({ id, content: { kind: "tell", subject: "Preview ready", body: "Open the preview." } })
 
     it("derives whether an ask waits from the agent's current working state", () => {

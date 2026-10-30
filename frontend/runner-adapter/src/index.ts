@@ -1,6 +1,7 @@
 import type { BackendConnection, ConnectFailure, ThemeSource } from "@novadeck/core/port"
 import { sessionName } from "@novadeck/core/session-name"
 import type { Project } from "@novadeck/protocol"
+import { desktopApp } from "@novadeck/protocol/bridge"
 import {
   connectRunner,
   desktop,
@@ -12,7 +13,7 @@ import { WireError } from "@novadeck/wire"
 import { websocket, type Transport } from "@novadeck/wire/client"
 
 import { pause, runnerBackend, type RunnerBackend } from "./backend"
-import { desktopApp, desktopOptions } from "./desktop/app"
+import { desktopOptions } from "./desktop/app"
 import { reportPoolTo, sizePoolTo } from "./desktop/renderer-pool"
 import type { RunnerListing } from "./sessions/seed"
 

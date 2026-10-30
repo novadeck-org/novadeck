@@ -33,6 +33,7 @@ import { followRoot } from "../harnesses/roots.js"
 import { limitGraceMs } from "../harnesses/telemetry.js"
 import type { Messaging } from "../messaging/messaging.js"
 import { describe, expect, it as base } from "../test.js"
+import { fakeClock } from "../testing/clock.js"
 import { ptyOptions } from "../testing/pty.js"
 import type { Resources } from "../testing/resources.js"
 import { plainSealer } from "../testing/sealing.js"
@@ -135,6 +136,7 @@ describe("terminal creation ownership", () => {
 describe("holding the person's input", () => {
   it("lasts as long as the caller asked, past the doorbell's 8 s cap on the resizes", async ({
     terminals,
+    resources,
   }) => {
     const manager = terminals.manager(ptyOptions)
     const terminal = await manager.create(
@@ -151,26 +153,22 @@ describe("holding the person's input", () => {
         ) => Hold
       }
     ).holdInput(terminal.id, { inputMs: 60_000, sizeMs: 70_000 }, { deferKeys: true })
-    vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] })
-    try {
-      // Timers armed before the clock was faked still run on real time: arm anew.
-      hold.settle()
-      const again = (
-        (manager as unknown as { typing: unknown }).typing as {
-          holdInput: (
-            id: string,
-            budget: { inputMs: number; sizeMs: number },
-            options?: object,
-          ) => Hold
-        }
-      ).holdInput(terminal.id, { inputMs: 60_000, sizeMs: 70_000 }, { deferKeys: true })
-      vi.advanceTimersByTime(9_000)
-      expect(again.holding()).toBe(true)
-      vi.advanceTimersByTime(61_000)
-      expect(again.holding()).toBe(false)
-    } finally {
-      vi.useRealTimers()
-    }
+    fakeClock(resources, ["setTimeout", "clearTimeout"])
+    // Timers armed before the clock was faked still run on real time: arm anew.
+    hold.settle()
+    const again = (
+      (manager as unknown as { typing: unknown }).typing as {
+        holdInput: (
+          id: string,
+          budget: { inputMs: number; sizeMs: number },
+          options?: object,
+        ) => Hold
+      }
+    ).holdInput(terminal.id, { inputMs: 60_000, sizeMs: 70_000 }, { deferKeys: true })
+    vi.advanceTimersByTime(9_000)
+    expect(again.holding()).toBe(true)
+    vi.advanceTimersByTime(61_000)
+    expect(again.holding()).toBe(false)
   })
 })
 
@@ -1832,6 +1830,7 @@ describe("a turn the person's Escape ended", () => {
 
   it("reads completed once the window passes with a Stop told since, else interrupted", async ({
     terminals,
+    resources,
   }) => {
     const manager = terminals.manager(ptyOptions)
     const terminal = await manager.create(
@@ -1847,25 +1846,21 @@ describe("a turn the person's Escape ended", () => {
       return event
     }
     const lastTurn = () => record.bound && record.bound.activity.lastTurn
-    vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] })
-    try {
-      for (const stop of [true, false]) {
-        record.bound = { binding, activity: fresh(0), telemetry: null }
-        tell({ type: "turn-started", cause: "prompt", startedAt: 10 })
-        // Delivery tells the Escape once, as the manager asks after the person's key.
-        const escaped = { ...binding, type: "turn-escaped", startedAt: 20 } as ActivityEvent
-        inside.messaging.escaped = () => escaped
-        inside.bindings.escaped(record)
-        if (stop) tell({ type: "turn-ended", outcome: "completed", startedAt: 25, reply: "Done." })
-        vi.advanceTimersByTime(escapeVerdictMs - 1)
-        expect(lastTurn()).toMatchObject({ outcome: "interrupted" })
-        vi.advanceTimersByTime(1)
-        expect(lastTurn()).toMatchObject(
-          stop ? { outcome: "completed", reply: "Done." } : { outcome: "interrupted" },
-        )
-      }
-    } finally {
-      vi.useRealTimers()
+    fakeClock(resources, ["setTimeout", "clearTimeout"])
+    for (const stop of [true, false]) {
+      record.bound = { binding, activity: fresh(0), telemetry: null }
+      tell({ type: "turn-started", cause: "prompt", startedAt: 10 })
+      // Delivery tells the Escape once, as the manager asks after the person's key.
+      const escaped = { ...binding, type: "turn-escaped", startedAt: 20 } as ActivityEvent
+      inside.messaging.escaped = () => escaped
+      inside.bindings.escaped(record)
+      if (stop) tell({ type: "turn-ended", outcome: "completed", startedAt: 25, reply: "Done." })
+      vi.advanceTimersByTime(escapeVerdictMs - 1)
+      expect(lastTurn()).toMatchObject({ outcome: "interrupted" })
+      vi.advanceTimersByTime(1)
+      expect(lastTurn()).toMatchObject(
+        stop ? { outcome: "completed", reply: "Done." } : { outcome: "interrupted" },
+      )
     }
   })
 

@@ -211,9 +211,7 @@ export const budgetViolations = (
 // that no other scanned file does), and each is written here in halves: Tailwind scans no file
 // of this package, but a whole copy anywhere it does scan would make the class itself, and the
 // check would pass however much the scan lost. Do not quote one whole in a comment either.
-// terminal-views, the items package and the chat write no utility of their own (the items
-// package's and the chat's TSX use utilities such as `sr-only` that other folders write too,
-// and their other classes are recipes), so they have no guard.
+// A scanned folder that writes no utility of its own is in `unguardedFolders` instead.
 export const frontendUtilities: readonly ScannedUtility[] = [
   { folder: "frontend/demo-debug/", utility: ["h-[min(760px,", "calc(100vh-80px))]"].join("") },
   { folder: "frontend/demo/", utility: ["under", "line"].join("") },
@@ -229,6 +227,26 @@ export const desktopUtilities: readonly ScannedUtility[] = [
   {
     folder: "frontend/ui/",
     utility: ["grid-cols-[minmax(0,1fr)_auto", "_minmax(0,1fr)]"].join(""),
+  },
+]
+
+/**
+ * The folders the UI's stylesheet scans that have no guard, since they write no utility no
+ * other folder writes, and why. tailwind-guards.test.ts checks that every scanned folder is
+ * guarded or here.
+ */
+export const unguardedFolders: readonly { readonly folder: string; readonly why: string }[] = [
+  {
+    folder: "frontend/terminal-views/",
+    why: "it writes no class: its screens' styles are its own stylesheet, terminal-xterm.css",
+  },
+  {
+    folder: "frontend/items/",
+    why: "its TSX uses utilities such as `sr-only` that other folders write too, and its other classes are recipes",
+  },
+  {
+    folder: "frontend/chat/",
+    why: "its TSX uses utilities such as `sr-only` that other folders write too, and its other classes are recipes",
   },
 ]
 

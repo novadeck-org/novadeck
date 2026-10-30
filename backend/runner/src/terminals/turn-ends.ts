@@ -1,4 +1,4 @@
-import { replyPreviewLength } from "@novadeck/protocol"
+import { maxTurnError, replyPreviewLength } from "@novadeck/protocol"
 import type { AgentActivity } from "@novadeck/protocol"
 
 import { escapeVerdictMs, summary as activitySummary } from "../harnesses/activity.js"
@@ -299,7 +299,7 @@ export class TurnEnds {
       }
     }
     const reply = await one(seen.reply, replyPreviewLength)
-    const error = await one(seen.error, 2048)
+    const error = await one(seen.error, maxTurnError)
     seen.masked = { reply, error, from }
     return seen.masked
   }
