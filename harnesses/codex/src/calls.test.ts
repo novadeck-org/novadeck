@@ -108,6 +108,18 @@ describe("a Codex tool call", () => {
     expect(
       executed({ command: ["/bin/bash", "-lc", "cd ..\\b; ls"], cwd: "C:\\w\\a" }),
     ).toMatchObject([{ type: "command-ran", folder: "C:\\w\\b" }])
+    // A Windows Codex's PowerShell moving on, by the script it hands PowerShell.
+    expect(
+      executed({
+        command: [
+          "powershell.exe",
+          "-NoProfile",
+          "-Command",
+          "Set-Location -LiteralPath ..\\b; ls",
+        ],
+        cwd: "file:///C:/w/a",
+      }),
+    ).toMatchObject([{ type: "command-ran", folder: "C:\\w\\b" }])
     expect(executed({ command: ["/bin/bash", "-lc", "cd ../b && ls"], cwd: "/w/a" })).toMatchObject(
       [{ type: "command-ran", folder: "/w/b" }],
     )

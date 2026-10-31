@@ -44,8 +44,13 @@ const scriptOf = (fields: Fields | undefined): string => {
   const list = fields?.command
   if (!Array.isArray(list)) return ""
   const words = list.filter((word): word is string => typeof word === "string")
-  const wrapped = words.length === 3 && /^-\w*c$/.test(words[1]!)
-  return wrapped ? words[2]! : words.join(" ")
+  // The script a shell is handed: bash's `-lc`, PowerShell's `-Command` (after any
+  // `-NoProfile`), cmd's `/c`.
+  const wrapped =
+    words.length >= 3 &&
+    /(?:^|[\\/])(?:(?:ba|da|k|z)?sh|pwsh|powershell|cmd)(?:\.exe)?$/i.test(words[0]!) &&
+    /^(?:-\w*c|-command|\/c)$/i.test(words.at(-2)!)
+  return wrapped ? words.at(-1)! : words.join(" ")
 }
 
 const commandOf = (fields: Fields | undefined): string => {

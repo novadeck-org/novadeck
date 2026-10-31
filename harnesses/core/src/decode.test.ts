@@ -143,6 +143,38 @@ describe("the folder a command runs in", () => {
     expect(commandFolder("ls", "\\\\host\\share\\w")).toBe("\\\\host\\share\\w")
   })
 
+  it("is where PowerShell's Set-Location or Push-Location moves it, by any of their names", () => {
+    const w = "C:\\w"
+    for (const move of [
+      "Set-Location",
+      "set-location",
+      "sl",
+      "chdir",
+      "cd",
+      "Push-Location",
+      "pushd",
+    ])
+      expect(commandFolder(`${move} D:\\tasks\\b; npm test`, w), move).toBe("D:\\tasks\\b")
+    expect(commandFolder("Set-Location -Path D:\\b; npm test", w)).toBe("D:\\b")
+    expect(commandFolder("Set-Location -LiteralPath 'D:\\with space'; ls", w)).toBe(
+      "D:\\with space",
+    )
+    expect(commandFolder('Push-Location -LiteralPath "wt\\docs"; ls', w)).toBe("C:\\w\\wt\\docs")
+    expect(commandFolder("sl -path ..\\b\nnpm test", "C:\\w\\a")).toBe("C:\\w\\b")
+    expect(commandFolder("Set-Location D:\\b && npm test", w)).toBe("D:\\b")
+    // A shell's own pushd and chdir move it as cd does.
+    expect(commandFolder("pushd /x && ls", "/w")).toBe("/x")
+    expect(commandFolder("chdir /x; ls", "/w")).toBe("/x")
+  })
+
+  it("is nothing for a PowerShell move to a variable, home or the last folder", () => {
+    expect(commandFolder("Set-Location $env:REPO; ls", "C:\\w")).toBeUndefined()
+    expect(commandFolder("Set-Location -Path ~\\repo; ls", "C:\\w")).toBeUndefined()
+    expect(commandFolder("Set-Location -; ls", "C:\\w")).toBeUndefined()
+    expect(commandFolder("Set-Location D:\\b | Out-Null", "C:\\w")).toBe("C:\\w")
+    expect(commandFolder("Set-LocationX D:\\b; ls", "C:\\w")).toBe("C:\\w")
+  })
+
   it("reads Git Bash's drive folders, as Claude Code's Bash on Windows writes them", () => {
     expect(commandFolder("cd /d/tasks/b && ls", "C:\\w")).toBe("D:\\tasks\\b")
     expect(commandFolder("cd /c && ls", "C:\\w")).toBe("C:\\")

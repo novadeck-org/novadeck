@@ -230,7 +230,9 @@ export const agy: AgentSetup = {
           allow: [
             "mcp(novadeck_novadeck/*)",
             ...(process.platform === "win32"
-              ? Object.values(nestedRuns).map((prompt) => `command(${nested(prompt)})`)
+              ? [...Object.values(nestedRuns).map(nested), ...(seed?.commands ?? [])].map(
+                  (command) => `command(${command})`,
+                )
               : ["command(agy -p)"]),
           ],
         },

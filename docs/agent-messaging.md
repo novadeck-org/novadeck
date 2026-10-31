@@ -406,11 +406,15 @@ like them, only inside Novadeck's terminals.
      another worktree: then that checkout and its branch, with "(its agent works here now;
      its terminal started in …)". The calls are the root's shell commands, by the folder
      each ran in, and the files any of its actors wrote. Each harness tells a command's
-     folder its own way: Claude Code by a leading `cd`, else its hook's directory, which
-     keeps the `cd`s it allows; Antigravity by a leading `cd` (or the `Cwd` its 1.2
+     folder its own way: Claude Code by a leading move, else its hook's directory, which
+     keeps the `cd`s it allows; Antigravity by a leading move (or the `Cwd` its 1.2
      `run_command` took and 1.4 refuses), else its workspace; Codex by its rollout's
      `CommandExecution` items, whose `cwd` is the command's own `workdir`, which its hook
-     never names (probed 2026-10-31, 0.163.0). A folder follows the agent's own path rules,
+     never names (probed 2026-10-31, 0.163.0). A leading move is a shell's `cd`, `chdir` or
+     `pushd`, or PowerShell's `Set-Location` (`sl`, `chdir`, `cd`) or `Push-Location`
+     (`pushd`), its folder alone or after `-Path` or `-LiteralPath`, as Windows agents
+     move in PowerShell; Codex's script is the one its list hands a shell (`bash -lc`,
+     `powershell -Command`, `cmd /c`). A folder follows the agent's own path rules,
      Windows' for one with a drive or share, whatever system runs the runner, and reads Git
      Bash's `/c/…` (Claude Code's Bash on Windows) as `C:\…`; the listing writes every path
      with `/`. The last eight (`keptPlaces`) are kept

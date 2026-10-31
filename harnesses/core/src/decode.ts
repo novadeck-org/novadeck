@@ -36,14 +36,19 @@ export const absolute = (value: unknown): string | undefined =>
 /** The start of an absolute Windows path: a drive and its root, or a share. */
 const windowsAbsolute = /^(?:[a-z]:[\\/]|[\\/]{2}[^\\/])/i
 
-// A leading `cd` and the folder it names: bare, or in single or double quotes, followed by
-// `&&`, `;`, the end of its line or the command's end.
-const leadingCd = /^\s*cd\s+(?:"([^"]+)"|'([^']+)'|([^\s;&|'"]+))[ \t]*(?:&&|;|\r?\n|$)/
+// A leading move and the folder it names: a shell's `cd` (also `chdir`, `pushd`), or
+// PowerShell's `Set-Location` and its aliases `sl`, `chdir` and `cd`, or `Push-Location` and
+// `pushd`, in any case and with its folder after `-Path` or `-LiteralPath` or alone; the
+// folder bare or in single or double quotes, followed by `&&`, `;`, the end of its line or
+// the command's end.
+const leadingCd =
+  /^\s*(?:cd|chdir|pushd|sl|set-location|push-location)\s+(?:-(?:literalpath|path)\s+)?(?:"([^"]+)"|'([^']+)'|([^\s;&|'"]+))[ \t]*(?:&&|;|\r?\n|$)/i
 
 /**
  * The folder a shell command runs in, as an absolute path: its tool's own working-directory
  * field where it takes one (Codex's `workdir`, Antigravity's `Cwd`), else the folder a
- * leading `cd` moves it to (`cd /x && …`, `cd x; …`), else `cwd`, the directory its hook
+ * leading move takes it to (`cd /x && …`, `cd x; …`, PowerShell's `Set-Location -LiteralPath
+ * 'C:\\x'; …`), else `cwd`, the directory its hook
  * ran in. A relative folder resolves against `cwd`, unless `cwd` already ends in it, as
  * where the harness reports its directory after the `cd` it kept; one naming a variable,
  * `~` or `-` is no folder, nor is anything where `cwd` isn't absolute to resolve it against.

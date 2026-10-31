@@ -77,6 +77,12 @@ describe("an Antigravity tool call", () => {
       { folder: "C:\\w\\b" },
     ])
     expect(ranOnWindows({ CommandLine: "npm test" })).toMatchObject([{ folder: "C:\\w\\a" }])
+    expect(
+      ranOnWindows({ CommandLine: "Set-Location -LiteralPath 'wt\\docs'; agy -p 'x'" }),
+    ).toMatchObject([{ folder: "C:\\w\\a\\wt\\docs" }])
+    expect(ranOnWindows({ CommandLine: "pushd D:\\w\\d; npm test" })).toMatchObject([
+      { folder: "D:\\w\\d" },
+    ])
     const viewed = called("PreToolUse", {
       workspacePaths: ["/w/a"],
       toolCall: { name: "view_file", args: { AbsolutePath: "/w/a/x" } },

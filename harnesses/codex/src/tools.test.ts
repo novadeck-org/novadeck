@@ -16,6 +16,14 @@ suite("what a Codex tool call was", () => {
 
   it("unwraps a shell command list run through bash -lc", () => {
     expect(run("shell", { command: ["bash", "-lc", "git status"] }).detail).toBe("git status")
+    expect(
+      run("shell", {
+        command: ["C:\\WINDOWS\\powershell.exe", "-NoProfile", "-Command", "Get-ChildItem"],
+      }).detail,
+    ).toBe("Get-ChildItem")
+    expect(run("shell", { command: ["cmd.exe", "/c", "dir"] }).detail).toBe("dir")
+    // Only a shell's: another program's flag is its own.
+    expect(run("shell", { command: ["grep", "-c", "x"] }).detail).toBe("grep -c x")
   })
 
   it("names the files a raw patch touches", () => {

@@ -98,6 +98,13 @@ describe("a Claude Code tool call", () => {
     expect(ranOnWindows("cd /d/w/b && pnpm test")).toMatchObject([{ folder: "D:\\w\\b" }])
     expect(ranOnWindows('cd "C:\\w\\c" && pnpm test')).toMatchObject([{ folder: "C:\\w\\c" }])
     expect(ranOnWindows("pnpm test")).toMatchObject([{ folder: "C:\\w\\a" }])
+    // Its PowerShell tool, by PowerShell's own moves.
+    const ranInPowerShell = (command: string) =>
+      called("PostToolUse", { tool_name: "PowerShell", cwd: "C:\\w\\a", tool_input: { command } })
+    expect(ranInPowerShell("Set-Location -Path D:\\w\\b; pnpm test")).toMatchObject([
+      { folder: "D:\\w\\b" },
+    ])
+    expect(ranInPowerShell("sl ..\\c; pnpm test")).toMatchObject([{ folder: "C:\\w\\c" }])
     const read = called("PostToolUse", { tool_name: "Read", cwd: "/w/a", tool_input: {} })
     expect(read[0]).not.toHaveProperty("folder")
   })
