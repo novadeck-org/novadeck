@@ -16,9 +16,9 @@ import {
 } from "./dialogs.test-support.js"
 
 describe("Codex's async question", () => {
-  // Its screens as the newest release probed (0.165.0) drew them: the pin's own run is the
-  // same but for the version, and holds fewer of them (fixtures/ask.probe*.json).
-  const newest = load("ask.probe.0.165.0.json")
+  // Its screens as the pin (0.166.0) drew them; 0.165.0's read the same, but for the `•`
+  // that headed the question in the chat where 0.166.0 draws `?` (fixtures/ask.probe*.json).
+  const newest = load("ask.probe.0.166.0.json")
   type Steps = { readonly label: string; readonly screen: ScreenText }[]
   const panel = (name: string, source = newest): string[] => [
     ...(source.scenarios[name] as unknown as { before: ScreenText }).before.rows,
@@ -116,16 +116,30 @@ describe("Codex's async question", () => {
     // the turn finished with them still drawn, and keys pressed there open nothing.
     const ended = (rows: readonly string[]): string[] =>
       rows.flatMap((row) =>
-        /esc to interrupt/.test(row)
+        /\(\d+s • esc to interrupt\)/.test(row)
           ? ["• Finished the request.", "  Worked for 1s • 9:45 AM"]
           : [row],
       )
+    // While the turn runs its status row reads however it is drawn: cut by a narrow
+    // screen, behind a hook, or headed by the model's reasoning.
+    const status = (rows: readonly string[], row: string): string[] =>
+      rows.map((each) => (/\(\d+s • esc to interrupt\)/.test(each) ? row : each))
     for (const rows of [
       panel("rui-async-panel-digit-2"),
       step("rui-async-panel-digit-2", "shift+left"),
+      // An answer queued, the picker on the next question, under the queued answers.
+      step("rui-async-panel-two-questions", "1"),
     ]) {
-      expect(read(rows, one)).toBeDefined()
-      expect(read(ended(rows), one)).toBeUndefined()
+      const facts = rows.some((row) => row.includes("↳ >")) ? { ...two, answered: [0] } : one
+      expect(read(rows, facts)).toBeDefined()
+      expect(read(ended(rows), facts)).toBeUndefined()
+      for (const row of [
+        "• Working (5s • esc to int",
+        "• Working",
+        "◦ Working (5s • esc to interrupt) · Running hooks",
+        "• Planning the button's color (1m 05s • esc to interrupt)",
+      ])
+        expect(read(status(rows, row), facts), row).toBeDefined()
     }
   })
 

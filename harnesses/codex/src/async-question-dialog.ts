@@ -165,6 +165,21 @@ const working = (lines: readonly string[]): boolean =>
   lines.some((line) => /^\s*[•◦] .*\(\d[^()]*esc to interrupt\)\s*$/.test(line))
 
 /**
+ * Whether Codex's status row is right above its queued blocks (the answers queued, then the
+ * queued heading), as while its turn runs: a bulleted row (`•` or `◦`, as it blinks),
+ * whatever its header and however the screen's width cuts it (`• Working (5s • esc to int`,
+ * probed 0.160.1), with or without a hook's ` · Running hooks` after it. Once the turn has
+ * ended the row there is the history's last, `Worked for 1s • 9:45 AM` (0.165.0 and
+ * 0.166.0), unbulleted.
+ */
+const statusAbove = (lines: readonly string[]): boolean => {
+  const heading = lines.findLastIndex((line) => queuedHeading.test(line))
+  const answers = lines.findLastIndex((line) => answeredHeading.test(line))
+  const top = answers >= 0 && answers < heading ? answers : heading
+  return top > 0 && /^\s*[•◦] \S/.test(lines[top - 1]!)
+}
+
+/**
  * Whether the screen is Codex idle at its composer, nothing queued or asked on it. Whether
  * the composer is empty is the prompt's own check, through the box: empty, it shows one of
  * several suggestions drawn dim, which only its colour tells from a draft.
@@ -205,10 +220,10 @@ export const asyncQuestions = (
   const picker = pickerOf(lines)
   const panel = panelOf(lines)
   // Codex draws its panel and picker only while the turn runs, under its status row. One
-  // without that row is a turn just ended, which drops it a moment later (0.166.0 a few
+  // under anything else is a turn just ended, which drops it a moment later (0.166.0 a few
   // hundred ms after its Stop hook, seen in CI 2026-10-31): keys pressed into it go
   // nowhere, so nothing reads until it has gone and the answer can go as the next prompt.
-  if ((picker || panel !== undefined) && !working(lines)) return undefined
+  if ((picker || panel !== undefined) && !statusAbove(lines)) return undefined
   // Where the answer goes: the panel's or picker's keys while the turn runs, a prompt after.
   let opening: readonly KeyStep[] | undefined
   if (picker) {
