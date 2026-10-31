@@ -201,6 +201,12 @@ export type ActivityEvent = EventBase &
         readonly kind: ToolKind
         /** It started work that runs on in the background, as Claude Code's `run_in_background`. */
         readonly background?: true
+        /**
+         * The folder a shell command ran in, as an absolute path, where the call tells it
+         * (see `commandFolder`): with the files it writes, what tells where the agent works
+         * now. A harness whose hook can't tell it says it with `command-ran` instead.
+         */
+        readonly folder?: string
       }
     /**
      * A background task the agent started is known by an id a Stop's list of what runs
@@ -242,6 +248,16 @@ export type ActivityEvent = EventBase &
         readonly id: string
         readonly at: number
         readonly reason: string | null
+      }
+    /**
+     * A shell command the root agent ran, and the folder it ran in, told by the harness's
+     * records where its hooks name only the turn's directory, as Codex's rollout names a
+     * command's own (its `workdir`) while its hook doesn't. With the files it writes, what
+     * tells where the agent works now; it counts as no tool call of its own.
+     */
+    | {
+        readonly type: "command-ran"
+        readonly folder: string
       }
     | {
         readonly type: "file-touched"

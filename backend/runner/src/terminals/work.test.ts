@@ -4,13 +4,16 @@ import type { Root } from "../harnesses/roots.js"
 import { describe, expect, it } from "../test.js"
 import {
   busiestFolders,
+  currentCheckout,
   firstFrom,
   freshWork,
   judgedFirst,
   keptFiles,
   keptFolders,
   lastFiles,
+  keptPlaces,
   personPrompted,
+  plainPrompt,
   promptChars,
   tallied,
   workAfter,
@@ -32,6 +35,117 @@ const touched = (path: string): HarnessEvent => ({
   ...fact,
   actor: null,
   path,
+})
+
+const ran = (folder: string, actor: string | null = null): HarnessEvent => ({
+  type: "tool-called",
+  ...fact,
+  actor,
+  toolName: "Bash",
+  kind: "work",
+  folder,
+})
+
+describe("where a root session works now", () => {
+  it("keeps the folders of its latest commands and writes, the latest first", () => {
+    const work = workAfter(
+      null,
+      root,
+      [ran("/t/a"), touched("/t/b/src/x.ts"), prompted("go"), ran("/t/b")],
+      1,
+    )
+    expect(work?.places).toEqual(["/t/b", "/t/b/src", "/t/a"])
+  })
+
+  it("counts a subagent's writes but not its commands, nor a call naming no folder", () => {
+    const work = workAfter(
+      null,
+      root,
+      [
+        ran("/elsewhere", "a1"),
+        { type: "file-touched", ...fact, actor: "a1", path: "/t/b/x.ts" },
+        { type: "tool-called", ...fact, actor: null, toolName: "Read", kind: "work" },
+      ],
+      1,
+    )
+    expect(work?.places).toEqual(["/t/b"])
+  })
+
+  it("keeps the folder of a command its harness's records tell, as Codex's rollout does", () => {
+    const work = workAfter(
+      null,
+      root,
+      [ran("/t/a"), { type: "command-ran", ...fact, folder: "/t/b" }],
+      1,
+    )
+    expect(work?.places).toEqual(["/t/b", "/t/a"])
+  })
+
+  it("keeps the latest few, and is the same work while the calls stay in one folder", () => {
+    const calls = Array.from({ length: keptPlaces + 3 }, () => ran("/t/a"))
+    const work = workAfter(null, root, [ran("/t/z"), ...calls], 1)
+    expect(work?.places).toEqual(Array.from({ length: keptPlaces }, () => "/t/a"))
+    expect(workAfter(work, root, [ran("/t/a")], 2)).toBe(work)
+  })
+
+  it("is another checkout once more than half its latest places are in it, the latest on a tie", () => {
+    const checkout = (folder: string) =>
+      folder.startsWith("/tmp") ? null : `/${folder.split("/")[1]}`
+    const times = (count: number, folder: string) => Array.from({ length: count }, () => folder)
+    const half = keptPlaces / 2
+    expect(
+      currentCheckout([...times(half + 1, "/b/x"), ...times(half - 1, "/a/x")], checkout, "/a"),
+    ).toBe("/b")
+    // A few looks into a teammate's checkout, or a fresh session's first command, don't move it.
+    expect(
+      currentCheckout([...times(half, "/b/x"), ...times(half, "/a/x")], checkout, "/a"),
+    ).toBeNull()
+    expect(currentCheckout(["/b/x"], checkout, "/a")).toBeNull()
+    // Its own checkout, and a scratchpad outside every checkout, never count for another.
+    expect(currentCheckout(times(keptPlaces, "/a/x"), checkout, "/a")).toBeNull()
+    expect(currentCheckout(times(keptPlaces, "/tmp/x"), checkout, "/a")).toBeNull()
+    // Between two others, the one most are in, the latest on a tie.
+    expect(
+      currentCheckout([...times(half + 1, "/c/x"), ...times(half - 1, "/b/x")], checkout, null),
+    ).toBe("/c")
+    expect(currentCheckout([], checkout, "/a")).toBeNull()
+  })
+})
+
+describe("a prompt as others read it", () => {
+  it("drops the tags wrapping one agent's message to another, naming its sender", () => {
+    expect(
+      plainPrompt(
+        '<agent-message from="sable" id="m1">\n[Subagent hand-back] Done.\n</agent-message>',
+      ),
+    ).toBe("(a message from sable) [Subagent hand-back] Done.")
+    expect(
+      plainPrompt(
+        '<novadeck-messages note="…"><message id="m" from="fox" thread="t">Fix it</message></novadeck-messages>',
+      ),
+    ).toBe("(a message from fox) Fix it")
+  })
+
+  it("leaves a prompt with no such tags as it is, other markup too", () => {
+    expect(plainPrompt("Fix <b>bold</b> in a <div>")).toBe("Fix <b>bold</b> in a <div>")
+    expect(plainPrompt("Render <user-card> in the list")).toBe("Render <user-card> in the list")
+  })
+
+  it("drops a wrapping tag a runner before kept cut short", () => {
+    expect(plainPrompt('Done <agent-message from="sable" id="m-1" thre')).toBe(
+      "(a message from sable) Done",
+    )
+  })
+
+  it("is what the work keeps of the person's prompt", () => {
+    const work = workAfter(
+      null,
+      root,
+      [prompted('<agent-message from="sable">Go</agent-message>')],
+      1,
+    )
+    expect(work?.first).toBe("(a message from sable) Go")
+  })
 })
 
 describe("what a root session worked on", () => {
@@ -107,6 +221,7 @@ describe("what a root session worked on", () => {
       latest: null,
       folders: { "/w": 1 },
       files: ["/w/a.ts"],
+      places: ["/w"],
       activeAt: 4,
     })
     // Without the correction, another session starts afresh.

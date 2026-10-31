@@ -404,8 +404,18 @@ like them, only inside Novadeck's terminals.
   handle it first names the caller's team, when it is in one, from the running leads
   only: "Your team: led by @fox, with @owl, @haze." for its lead and the others that lead
   leads ("no other teammates" when there are none), and "Your team: you lead @owl." or,
-  with a lead of its own, "You also lead @owl." for the terminals it leads. Then each
-  other terminal:
+  with a lead of its own, "You also lead @owl." for the terminals it leads.
+
+  With more than five other terminals (`compactPast`), a lead with a team calls it often
+  to see who is busy, idle or waiting on the person, so each terminal is one line: its
+  handle and title, its agent and its state (busy, idle, "waiting on the user:" and what
+  for, which always shows, or waiting on its own job or wake-up; "no agent" for a plain
+  terminal), its branch, how it
+  relates to the caller, and its standing done, else its latest update, else its agent's
+  summary: `- @fox · ti delivery: Claude Code, busy, on task/ti-delivery, led by you —
+  update 15 min ago: PR opened`. The tool's `terminal` (a handle) gives that terminal's
+  block alone, and `full: true` every terminal's block, as five or fewer always show.
+  Each block:
   1. its handle;
   2. its title, from the runner's terminal record, with "(set by @fox, not the user)" when
      an agent gave it (an agent that opened the terminal), and "(written by Novadeck's local model, not the user)" for murmur's; then
@@ -413,17 +423,41 @@ like them, only inside Novadeck's terminals.
      when it did;
   3. its agent (Claude Code, Codex or Antigravity);
   4. its folder, relative to the project when inside it, and git branch (read from
-     git's own files, cached, with a short timeout);
+     git's own files, cached, with a short timeout): where its agent works now. That is
+     its terminal's folder, which follows the harness's own directory, unless its agent's
+     latest tool calls are mostly in another git checkout, as an agent that moved on to
+     another worktree: then that checkout and its branch, with "(its agent works here now;
+     its terminal started in …)". The calls are the root's shell commands, by the folder
+     each ran in, and the files any of its actors wrote. Each harness tells a command's
+     folder its own way: Claude Code by a leading move, else its hook's directory, which
+     keeps the `cd`s it allows; Antigravity by a leading move (or the `Cwd` its 1.2
+     `run_command` took and 1.4 refuses), else its workspace; Codex by its rollout's
+     `CommandExecution` items, whose `cwd` is the command's own `workdir`, which its hook
+     never names (probed 2026-10-31, 0.163.0). A leading move is a shell's `cd`, `chdir` or
+     `pushd`, or PowerShell's `Set-Location` (`sl`, `chdir`, `cd`) or `Push-Location`
+     (`pushd`), its folder alone or after `-Path` or `-LiteralPath`, as Windows agents
+     move in PowerShell; Codex's script is the one its list hands a shell (`bash -lc`,
+     `powershell -Command`, `cmd /c`). A folder follows the agent's own path rules,
+     Windows' for one with a drive or share, whatever system runs the runner, and reads Git
+     Bash's `/c/…` (Claude Code's Bash on Windows) as `C:\…`; the listing writes every path
+     with `/`. The last eight (`keptPlaces`) are kept
+     with its work; another checkout wins once it holds more than half of them, so a few
+     looks elsewhere (a teammate's log) or a fresh session's first command don't move it.
+     Folders are compared with their links resolved. A folder in
+     no checkout (a scratchpad, a memory folder) never counts;
   5. "started with": the person's first root prompt in the bound session, about 120
      characters. In the first root session of a terminal another agent opened, a first
      prompt that isn't the user's (see [Naming](#naming)) is the
      opener's command's, and says so: "started with (@fox's command)";
   6. "latest": the person's most recent root prompt there, left out when it is the
-     first. Only the person's prompts count, never a turn the harness started (a task
+     first. Prompts and the "with you" message show without the tags that wrap one
+     agent's message to another (`<agent-message from="fox">`, `<novadeck-messages>`),
+     as "(a message from fox) …". Only the person's prompts count, never a turn the harness started (a task
      notification, a subagent waking Antigravity, which never shows prompt text);
   7. its plan's title, when it has one;
   8. "works in": the three folders it writes in most, from its edit and write tool
-     events, with counts (`src/api/ (14), tests/ (3)`);
+     events, with counts (`src/api/ (14), tests/ (3)`); outside the project, each run of
+     ids in a path is one `…` (`/tmp/claude-1000/…/scratchpad/ (6)`);
   9. "with you": the latest message between it and the caller, either way: who sent
      it, about 80 characters of it, and when. Only one the caller sent, or one delivered
      to it: a message still on its way (queued, held or leased) never shows, so listing
@@ -1975,18 +2009,19 @@ model behind a `Describer` (`murmur/`).
   derives the title by precedence:
 
   1. the person's (renaming, or creating the terminal);
-  2. murmur's latest title;
-  3. the title the opening agent gave through `open_terminal` or `open_agent`, which shows until murmur's
-     first title;
+  2. the title the opening agent gave through `open_terminal` or `open_agent`: a lead names
+     its teammates so it and the person can tell them apart, so it stays until the person
+     renames the terminal;
+  3. murmur's latest title;
   4. the default: the program it was opened to run (`claude`), else "Terminal".
 
   Clients see who it is from as the summary's `titleSource` (`person`, `murmur`, `agent`
-  with its handle, or `default`). A summary is no part of the title. While a person's title
-  is set murmur is not asked about the terminal at all (it could not show), though the
-  agent still summarizes it; the runner API's `terminals.resetTitle` takes the person's
-  title away, so the title is automatic again (murmur's, else the opener's), and murmur
-  names the terminal again: an agent's at once from a summary written while the person's
-  title showed, else at its next summary; a shell's at its next prompt.
+  with its handle, or `default`). A summary is no part of the title. While a person's or an
+  opener's title is set murmur is not asked about the terminal at all (it could not show),
+  though the agent still summarizes it; the runner API's `terminals.resetTitle` takes the
+  person's title away, so the title is the opener's again, else automatic, and murmur
+  names a terminal no agent titled again: an agent's at once from a summary written while
+  the person's title showed, else at its next summary; a shell's at its next prompt.
 
 - **The opener's title.** An opener's title never passes through the client as the
   person's: the request the client gets has no title, and the client creates the terminal
@@ -2187,7 +2222,7 @@ starts out as unusable until its service says otherwise, and while it is, nothin
 read or serialized (no transcript, no screen), and what waited is dropped. When it becomes
 usable, every running terminal with no title yet is titled: an agent's from its summary,
 and one with none waits; a shell's once it has more on screen than a prompt. A terminal the
-person titled is never asked about.
+person titled, or the agent that opened it did, is never asked about.
 
 An **agent's terminal** (one with a bound agent) is named from its agent's own summary
 alone, never from the person's prompts, the agent's replies, its turns' ends, its branch
@@ -2196,12 +2231,11 @@ written with the whole session in view, names the work. Murmur is asked when the
 calls `summarize` with a summary that says something other than the last one it named
 the terminal from (not the same text in other letters or spaces, as the summary nudges
 bring it again), 3 seconds after it (`settleMs`) so a burst is one title. The model is
-shown the summary and nothing else, not the previous name, and the new title replaces the
-name (murmur's, else the opener's) only when it shares no content word with it
+shown the summary and nothing else, not the previous name, and the new title replaces
+murmur's earlier one only when it shares no content word with it
 (`sharesContentWord` in `murmur/description.ts`), so a reworded summary of the same work
 keeps the name. A title murmur wrote for the terminal as a plain shell is no name of the
-agent's work, and is always replaced by the agent's next summary, even when the opener's
-title beneath it shares a word; one written before a runner restart is not known as a shell's, and is weighed as any
+agent's work, and is always replaced by the agent's next summary; one written before a runner restart is not known as a shell's, and is weighed as any
 title is. An agent with no summary keeps the title it has. The summary is the one the
 person sees, which stays across `/clear` and an agent's exit until the next is written.
 

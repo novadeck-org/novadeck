@@ -192,7 +192,13 @@ const decodeHook = ({ event, seq, instance, env, payload }: Report): readonly Ha
               path,
             }))
           : []),
-        { type: "tool-called", ...base, actor, toolName: tool, kind: kindOf(tool, input) },
+        {
+          type: "tool-called",
+          ...base,
+          actor,
+          toolName: tool,
+          kind: kindOf(tool, input),
+        },
       ]
     default:
       return []

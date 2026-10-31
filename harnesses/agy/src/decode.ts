@@ -8,7 +8,7 @@ import { telemetryLimits } from "@novadeck/protocol"
 
 import { ended, forget, pending, remember, running } from "./call-memory.js"
 import { statusLine } from "./status-line.js"
-import { kindOf, toolCall, writers, type ToolCall } from "./tools.js"
+import { folderOf, kindOf, toolCall, writers, type ToolCall } from "./tools.js"
 
 /**
  * Antigravity's hooks, as normalized facts. Every hook names the conversation it runs in,
@@ -162,7 +162,7 @@ const decodeEvent = ({ event, seq, instance, payload }: Report): readonly Harnes
       return [
         observed,
         ...calling(base, call, payload),
-        called(base, call),
+        called(base, call, cwd),
         ...(typeof payload.stepIdx === "number" ? pending(base, call, payload.stepIdx) : []),
       ]
     }
@@ -233,14 +233,19 @@ const calling = (
   ]
 }
 
-// Every call about to run, reported once; its kind is told by its name and arguments.
-const called = (base: EventBase<"agy">, call: ToolCall): HarnessEvent => ({
-  type: "tool-called",
-  ...base,
-  actor: null,
-  toolName: call.name,
-  kind: kindOf(call.name, call.args),
-})
+// Every call about to run, reported once; its kind is told by its name and arguments, and
+// a command's folder by its own or else the conversation's workspace, `cwd`.
+const called = (base: EventBase<"agy">, call: ToolCall, cwd: string | undefined): HarnessEvent => {
+  const folder = folderOf(call, cwd)
+  return {
+    type: "tool-called",
+    ...base,
+    actor: null,
+    toolName: call.name,
+    kind: kindOf(call.name, call.args),
+    ...(folder !== undefined && { folder }),
+  }
+}
 
 // An ask_question that was answered, or skipped: its PostToolUse.
 const answered = (

@@ -1,3 +1,4 @@
+import { commandFolder } from "@novadeck/harness-core/decode"
 import type { ToolKind } from "@novadeck/harness-core/events"
 import { fieldsOf, parseFields, type Fields } from "@novadeck/harness-core/fields"
 import {
@@ -132,6 +133,24 @@ export const describe = (tool: string, input: string): ToolRun => {
 // The folder Antigravity keeps Novadeck's MCP server's descriptor files in, which it reads
 // before calling the server's tools.
 const descriptors = /(?:^|[\\/])mcp[\\/]novadeck_novadeck[\\/]/
+
+/**
+ * The folder a call ran in, for run_command alone: its own `Cwd` where its version takes
+ * one (1.2 did; 1.4 refuses it, probed 2026-10-31, 1.4.12), else a leading `cd` in its
+ * command line, else `workspace`, the folder of the conversation's workspace. Its string
+ * values may be quoted a second time, as `textField` reads them.
+ */
+export const folderOf = (
+  { name, args }: ToolCall,
+  workspace: string | undefined,
+): string | undefined =>
+  name === "run_command"
+    ? commandFolder(
+        textField(args, ...commandKeys) || undefined,
+        workspace,
+        textField(args, "Cwd", "cwd") || undefined,
+      )
+    : undefined
 
 /**
  * What a tool call counts as to the messaging loop guard: see `ToolKind`. `args` is the
