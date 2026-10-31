@@ -1,5 +1,7 @@
 import { randomBytes } from "node:crypto"
 
+import type { Held } from "./messages.js"
+
 /**
  * Messages handed to a hook that has yet to say it printed them; none, where it carries only
  * Novadeck's notices (see `settles`).
@@ -25,6 +27,11 @@ export type Lease = {
    */
   readonly settles?: () => void
   readonly asks?: number
+  /**
+   * The rules notes it gave its root session in full, which stay in that session's context
+   * once printed, where its harness keeps what this hook prints (`MessagingProfile.lasting`).
+   */
+  readonly gave?: { readonly sessionId: string; readonly notes: Held }
 }
 
 /**

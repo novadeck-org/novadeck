@@ -10,11 +10,11 @@ import type { Delivery, Waits } from "./delivery.js"
 import { Holds } from "./holds.js"
 import { HookAnswers, type Answer } from "./hook-answers.js"
 import { Leading } from "./leading.js"
-import { Leasing } from "./leasing.js"
+import { Leasing, type LeasingHost } from "./leasing.js"
 import type { Deliverable, Scope } from "./live.js"
 import { Loops } from "./loops.js"
 import { MessageStore, type MessagingChange } from "./message-store.js"
-import type { Message } from "./messages.js"
+import type { Held, Message } from "./messages.js"
 import type { About } from "./peers.js"
 import { memoryMessages, type MessageRecords } from "./records.js"
 import { Relays, type InboxOwner } from "./relays.js"
@@ -54,6 +54,8 @@ export type MessagingOptions = {
   readonly platform?: NodeJS.Platform
   /** What each terminal's agent did, for the loop hold; a new tracker when omitted. */
   readonly loops?: Loops
+  /** The notes a root session holds grew, for the terminals to keep (`LeasingHost.held`). */
+  readonly held?: LeasingHost["held"]
 }
 
 /**
@@ -114,7 +116,8 @@ export class Messaging {
       letBriefGo: (terminalId) => this.leading.letBriefGo(terminalId),
     })
     this.sessions = sessions
-    this.leasing = new Leasing(options.leaseMs ?? 5_000, { sessions, store, loops, now, step })
+    const leasing = { sessions, store, loops, now, step, held: options.held }
+    this.leasing = new Leasing(options.leaseMs ?? 5_000, leasing)
     this.deliveries = new Deliveries({
       sessions,
       store,
@@ -227,8 +230,8 @@ export class Messaging {
     this.sessions.unregister(terminalId, forGood)
   }
 
-  rooted(terminalId: string, changes: readonly RootChange[]): void {
-    this.sessions.rooted(terminalId, changes)
+  rooted(terminalId: string, changes: readonly RootChange[], held?: Held): void {
+    this.sessions.rooted(terminalId, changes, held)
   }
 
   awaits(terminalId: string, sessionId: string): boolean {

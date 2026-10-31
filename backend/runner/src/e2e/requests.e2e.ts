@@ -100,11 +100,8 @@ const continued = async (
     { after: calls },
   )
   const carrying = await model.waitFor((call) => delivered(call, "fox"), { after: calls })
-  // The one message, which Claude Code's continuation quotes twice: as the Stop hook's
-  // feedback and again as its blocking error (2.1.287).
-  expect(new Set(deliveries(carrying).map((one) => JSON.stringify(one)))).toEqual(
-    new Set([JSON.stringify({ from: "fox", text: "The build is green." })]),
-  )
+  // The one message, read once (#589).
+  expect(deliveries(carrying)).toEqual([{ from: "fox", text: "The build is green." }])
   expect(model.calls.indexOf(carrying)).toBeGreaterThan(model.calls.indexOf(looked))
   // The turn the tool ran in, its answer to the result last before the delivery: a Stop
   // continuing it, not a prompt, the doorbell's or the person's.

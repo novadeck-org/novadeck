@@ -252,6 +252,12 @@ export type AgentSetup = {
    */
   readonly bindsAtReady: boolean
   /**
+   * Whether what its hooks print stays in its later model calls, so a delivery's rules note
+   * is given in full once and pointed to after: Claude Code's and Codex's do; Antigravity's
+   * prompt-time injection lasts one call, so each of its deliveries carries the note.
+   */
+  readonly keepsHookText: boolean
+  /**
    * Whether a prompt given as its turn starts may join that turn, as Codex steers a running
    * turn with what is queued: one model call then holds both prompts.
    */

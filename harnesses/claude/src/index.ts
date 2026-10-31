@@ -1,6 +1,7 @@
 import { join } from "node:path"
 
 import type { Harness, LaunchProfile, MessagingProfile } from "@novadeck/harness-core/harness"
+import type { Report } from "@novadeck/harness-core/report"
 
 import { box } from "./box.js"
 import { decode } from "./decode.js"
@@ -16,8 +17,19 @@ import { transcripts } from "./transcripts.js"
 const context = (event: string, delivery: string): string =>
   `${JSON.stringify({ hookSpecificOutput: { hookEventName: event, additionalContext: delivery } })}\n`
 
-// A Stop's reason continues the turn, and reaches the model as the Stop hook's feedback;
-// a prompt's context is an attachment beside the prompt, never the prompt itself; a tool
+// What continues a Stop's turn with a delivery the model reads once, by version (probed
+// with a fake model, 2026-10-31, #589): a `decision: "block"` reason reaches it once up to
+// at least 2.1.233, but twice by 2.1.287, as "Stop hook feedback" and again as a "Stop hook
+// blocking error"; a Stop's context continues the turn, read once as a system reminder
+// ("Stop hook additional context: …"), only from 2.1.163. Its Stop reports `prompt_id`
+// from a version between 2.1.177 and 2.1.233 on, so that says the context works, and
+// without it a block reads once.
+const stop = (delivery: string, payload?: Report["payload"]): string =>
+  payload?.prompt_id !== undefined
+    ? context("Stop", delivery)
+    : `${JSON.stringify({ decision: "block", reason: delivery })}\n`
+
+// A prompt's context is an attachment beside the prompt, never the prompt itself; a tool
 // call's context (PostToolUse, or PostToolUseFailure) is a system reminder next to the
 // tool's result, which the model reads on its next request.
 const messaging: MessagingProfile = {
@@ -28,10 +40,14 @@ const messaging: MessagingProfile = {
     PostToolUseFailure: "tool",
   },
   silent: { "*": "" },
-  stop: (delivery) => `${JSON.stringify({ decision: "block", reason: delivery })}\n`,
+  stop,
   prompt: (delivery) => context("UserPromptSubmit", delivery),
   call: (delivery, event) => context(event, delivery),
   reinjectPerCall: false,
+  // What a Stop, a prompt and a tool call print is all kept in its transcript,
+  // which it sends again on every later call, and a resumed session's too; its
+  // `SessionStart` says `compact` once it compacted them away.
+  lasting: ["stop", "prompt", "tool"],
   root: "binding",
   silentOnFailure: false,
   // A background agent and shell running, it took a typed prompt (fixture

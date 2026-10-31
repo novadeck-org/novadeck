@@ -91,13 +91,14 @@ describe.skipIf(process.platform === "win32" || !existsSync(bash))(
         ok: true,
         text: reaches("when its current turn ends"),
       })
-      const stopped = JSON.parse(await step(claude.id, { hook: "Stop", payload: {} })) as {
-        decision: string
-        reason: string
-      }
-      expect(stopped.decision).toBe("block")
-      expect(stopped.reason).toContain('from="fox" agent="Codex"')
-      expect(stopped.reason).toContain(">Looks good &amp; ships.</message>")
+      // Its Stop goes on with the reply, as context where the Stop says `prompt_id`, which
+      // Claude Code reads once, and as a block's reason where it doesn't, as in versions
+      // whose Stop takes no context.
+      const stopped = context(
+        await step(claude.id, { hook: "Stop", payload: { prompt_id: "p-1" } }),
+      )
+      expect(stopped).toContain('from="fox" agent="Codex"')
+      expect(stopped).toContain(">Looks good &amp; ships.</message>")
       await expect
         .poll(() => manager.messages(claude.id).threads[0]?.messages.map(({ state }) => state))
         .toEqual(["delivered", "delivered"])

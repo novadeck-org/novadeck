@@ -3,6 +3,7 @@ import { chmodSync, existsSync, mkdirSync, symlinkSync, writeFileSync } from "no
 import { join } from "node:path"
 
 import { Terminals } from "../terminals/index.js"
+import { barDigest } from "../terminals/nudges.js"
 import { describe, expect } from "../test.js"
 import { FakeDescriber } from "../testing/describer.js"
 import { bash, it, create } from "./integration.test-support.js"
@@ -159,6 +160,77 @@ describe.skipIf(process.platform === "win32" || !existsSync(bash))(
       // them retitled nothing.
       await new Promise((resolve) => setTimeout(resolve, 300))
       expect(agents()).toEqual([expect.objectContaining({ summary: "Fixes the build." })])
+    })
+
+    it("tells a session resumed after a restart nothing it heard, and a compacted one all again", async ({
+      shell,
+    }) => {
+      const bin = standIn(shell.home)
+      const env = { HOME: shell.home, PS1: "$ ", PATH: `${bin}:${process.env.PATH}` }
+      const first = shell.manager({ env, describer: new FakeDescriber(), murmurTimes })
+      const terminal = await create(first, shell)
+      const peer = await create(first, shell)
+      const one = driver(shell, first)
+      await one.start(terminal.id, "claude", "s-claude")
+      await one.start(peer.id, "codex", "s-codex")
+      await expect.poll(() => first.get(terminal.id).activity).not.toBeNull()
+      const prompt = async (step: typeof one.step, text: string) =>
+        context(await step(terminal.id, { hook: "UserPromptSubmit", payload: { prompt: text } }))
+      // Each message is taken, never refused, as sent once moth's session is bound.
+      const send = async (step: typeof one.step, text: string) =>
+        expect(
+          JSON.parse(await step(peer.id, { call: "send", request: { to: "moth", text } })),
+        ).toMatchObject({ ok: true })
+      const pointer = "the full note given earlier in this session has the rules"
+      await send(one.step, "First.")
+      const given = await prompt(one.step, "Fix the build")
+      expect(given).toMatch(/beside this terminal/)
+      expect(given).toContain("First.")
+      expect(given).not.toContain(pointer)
+      await one.step(terminal.id, { call: "summarize", request: { summary: "Fixes the build." } })
+      await one.step(terminal.id, { hook: "Stop", payload: {} })
+      // Kept with the session's report, which a restart reads back.
+      await expect
+        .poll(() => shell.store.terminal(terminal.id)?.agents.claude)
+        .toMatchObject({
+          sessionId: "s-claude",
+          told: { bar: barDigest, notes: { peer: expect.any(String) } },
+        })
+      await first.shutdown()
+
+      // The same session again under a new runner, as a restart resumes it: it holds the
+      // notices and the note still, so it hears none of them again.
+      const second = shell.manager({ env, describer: new FakeDescriber(), murmurTimes })
+      await create(second, shell, { id: terminal.id, restore: true })
+      await create(second, shell, { id: peer.id, restore: true })
+      const two = driver(shell, second)
+      await two.start(terminal.id, "claude", "s-claude")
+      await two.start(peer.id, "codex", "s-codex")
+      // Restored without a resume, it expects no agent: a message waits for its session only
+      // once that binds, which its stand-in's ready line may come before.
+      await expect.poll(() => second.get(terminal.id).activity).not.toBeNull()
+      await send(two.step, "Second.")
+      const resumed = await prompt(two.step, "go on")
+      expect(resumed).toContain("Second.")
+      expect(resumed).toContain(pointer)
+      expect(resumed).not.toMatch(/beside this terminal/)
+      await two.step(terminal.id, { hook: "Stop", payload: {} })
+
+      // Compacted, it may have lost them: all again, and the report holds nothing.
+      await two.step(terminal.id, {
+        hook: "SessionStart",
+        payload: { source: "compact", cwd: shell.home },
+      })
+      await expect
+        .poll(() => shell.store.terminal(terminal.id)?.agents.claude?.told)
+        .toBeUndefined()
+      await send(two.step, "Third.")
+      const after = (await prompt(two.step, "and now?")).split("\n\n")
+      expect(after[0]).toContain("Third.")
+      expect(after[0]).not.toContain(pointer)
+      expect(after[1]).toMatch(/beside this terminal/)
+      expect(after[2]).toMatch(/the user rarely watches this terminal/)
+      await second.shutdown()
     })
 
     it("never titles an agent from its prompts, its turns' ends or its drift", async ({
