@@ -1,6 +1,6 @@
-import { doneNotice, finishNotice } from "@novadeck/core/agent-finish"
+import { doneNotice, finishNotice } from "@novadeck/core/agents/finish"
 import { terminalDone, type Inbox, type InboxRow, type InboxTurn } from "@novadeck/core/inbox"
-import { leadHearsOf } from "@novadeck/core/inbox-rows"
+import { leadHearsOf } from "@novadeck/core/inbox/rows"
 import type { Store } from "@novadeck/core/store"
 import type { TerminalMetadata, Workspace } from "@novadeck/core/types"
 
@@ -14,10 +14,10 @@ import type { UiStore } from "./ui-store"
 const launchSlackMs = 5000
 
 // A desktop notification about one terminal, as a backend shows it.
-// `itemId` is the Inbox row it is about, which a click on it opens.
+// `rowId` is the Inbox row it is about, which a click on it opens.
 export type FinishNotify = (
   notice: { readonly id: string; readonly title: string; readonly body: string },
-  itemId: string,
+  rowId: string,
 ) => void
 
 // Every terminal of every session, by `${context}/${terminalId}`.
@@ -38,14 +38,13 @@ const terminalOf = (terminals: Terminals, turn: InboxTurn): TerminalMetadata | u
 
 // A terminal's unseen `done` report, as the Inbox lists it.
 type DoneEntry = Extract<InboxRow, { kind: "update" }>
-const doneEntries = (items: readonly InboxRow[]): DoneEntry[] =>
-  items.filter(
-    (item): item is DoneEntry =>
-      item.kind === "update" && item.update.type === "done" && !item.seen,
+const doneEntries = (rows: readonly InboxRow[]): DoneEntry[] =>
+  rows.filter(
+    (row): row is DoneEntry => row.kind === "update" && row.update.type === "done" && !row.seen,
   )
 
-const entryContext = (item: InboxRow): string =>
-  `${item.source.projectId}/${item.source.workspaceSessionId}`
+const entryContext = (row: InboxRow): string =>
+  `${row.source.projectId}/${row.source.workspaceSessionId}`
 
 // Follows the stored finished turns of the Inbox (`inbox.turns`) and its done reports
 // (`inbox.state`) for the rest of the app.
@@ -54,7 +53,7 @@ const entryContext = (item: InboxRow): string =>
 // carries how its newest row ended (`unread` or `failed`). A completed row of a worker whose
 // lead's agent runs is the lead's to hear, so it marks nothing, as the Inbox hides it too;
 // its failed row still marks. The marks outlast the agent's next turn, as the rows do. A done
-// report is no turn: the tab reads it from the Inbox's items itself.
+// report is no turn: the tab reads it from the Inbox's rows itself.
 //
 // Looking reads: the rows of the terminal the person views (the selected one while the page
 // has their focus, but on a phone not while the Inbox list covers the screen), as they come in and, on a focused launch, as they were stored.
@@ -82,7 +81,7 @@ export const watchUnreadTurns = (
     desktop?: () => boolean
   } = {},
 ): (() => void) => {
-  const { turns, readFinishes, state: items } = inbox
+  const { turns, readFinishes, state: inboxState } = inbox
   if (!turns) return () => {}
   const startedAt = Date.now()
   // Every row id any listing held since the last baseline.
@@ -116,7 +115,7 @@ export const watchUnreadTurns = (
     const fresh = before ? list.filter((turn) => !before.has(turn.id)) : []
     listed = new Set([...(before ?? []), ...list.map((turn) => turn.id)])
     const terminals = terminalsOf(snapshot)
-    const entries = doneEntries(items.getSnapshot().items)
+    const entries = doneEntries(inboxState.getSnapshot().items)
     const beforeDone = listedDone
     const freshDone = beforeDone ? entries.filter((entry) => !beforeDone.has(entry.id)) : []
     listedDone = new Set([...(beforeDone ?? []), ...entries.map((entry) => entry.id)])
@@ -254,7 +253,7 @@ export const watchUnreadTurns = (
   follow()
   const stops = [
     turns.subscribe(follow),
-    items.subscribe(follow),
+    inboxState.subscribe(follow),
     workspace.subscribe(follow),
     ui.subscribe(follow),
   ]

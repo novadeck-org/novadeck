@@ -1,16 +1,16 @@
+import { clearPortableCardRaised } from "@novadeck/core/desktop/portable-card-raised"
+import type { SandboxState } from "@novadeck/core/desktop/sandbox"
 import type { BackendConnection, ConnectBackend, ThemeSource } from "@novadeck/core/port"
-import { clearPortableCardRaised } from "@novadeck/core/portable-card-raised"
-import type { SandboxState } from "@novadeck/core/sandbox"
 import { keepVariant, rememberVariant, requestedVariant } from "@novadeck/demo/variants"
 
 import { bootFailures } from "./boot-failures"
 import type { BootRehearsals } from "./boot-rehearsal"
+import { createDebugDemo, type DemoLaunch } from "./debug-demo"
+import type { DemoPortable } from "./desktop/portable"
+import type { DemoUninstall } from "./desktop/uninstall"
 import { restoreIconGuides } from "./icon-guides"
-import type { DemoPortable } from "./portable"
-import type { DemoUninstall } from "./uninstall"
-import { createDebugDemo, type DemoLaunch } from "./with-debug"
 
-export { debugPanelOf } from "./with-debug"
+export { debugPanelOf } from "./debug-demo"
 
 const unavailable = (code: string): Error => {
   const failure =

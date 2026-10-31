@@ -78,7 +78,7 @@ export type RunnerOptions = {
     readonly directory?: string
   }
   /**
-   * The host saw only software rendering: murmur is not available on this computer, and
+   * The app saw only software rendering: murmur is not available on this computer, and
    * voice input installs its small model without trying turbo.
    */
   softwareGraphics?: boolean
@@ -173,7 +173,7 @@ export const wire = (options: RunnerOptions) => {
     },
     livePlan: (item) => terminals.livePlan(item),
   })
-  const voice = new Voice(store, {
+  const voice = new Voice(store.settings, {
     ...(options.softwareGraphics !== undefined && { softwareGraphics: options.softwareGraphics }),
     engine: options.voice?.engine,
     source: options.voice?.source,
@@ -199,7 +199,7 @@ export const wire = (options: RunnerOptions) => {
   })
   // Not awaited: the runner starts at once, and the first voice call waits for the load.
   voice.start()
-  const murmur = new Murmur(store, {
+  const murmur = new Murmur(store.settings, {
     engine: options.murmur?.engine,
     source: options.murmur?.source,
     directory:
@@ -215,7 +215,7 @@ export const wire = (options: RunnerOptions) => {
   // On Linux each shell runs in a systemd scope of its own, so one killed for memory
   // takes down its terminal, not the app.
   const scopes = userScopes()
-  // Without a key from the host no transcript is saved or shown.
+  // Without a key from the app no transcript is saved or shown.
   const sealer = createTranscriptSealer(options.transcriptKey)
   const terminals = new Terminals({
     records: store,
@@ -228,7 +228,7 @@ export const wire = (options: RunnerOptions) => {
     // Where each harness lives, which says how it may start with a task.
     install: (agent) => agents.install(agent),
     models: (agent) => agents.models(agent),
-    transcripts: store.settings().transcripts,
+    transcripts: store.settings.runner().transcripts,
     projectFolder: (sessionId) => store.project(store.session(sessionId).projectId).cwd,
     // Agents message each other within a project, and their messages are kept with it.
     messages: store,

@@ -1,4 +1,4 @@
-import { MURMUR_NAME } from "@novadeck/core/murmur"
+import { MURMUR_NAME } from "@novadeck/core/addons/murmur"
 import { itemFixture, terminalFixture } from "@novadeck/core/testing"
 
 import { context, describe, expect, it } from "../test"

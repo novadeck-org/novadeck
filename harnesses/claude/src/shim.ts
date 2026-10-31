@@ -68,7 +68,7 @@ done
 exec "$novadeck_real" --settings "$novadeck_settings" "$@"
 `
 
-// The same on Windows, as Codex's (`../codex/shim.ts`): `where` lists matches in PATH
+// The same on Windows, as Codex's (`harnesses/codex/src/shim.ts`): `where` lists matches in PATH
 // order, this shim included, and the first other runnable one wins. Claude Code reads its
 // keys raw, so Ctrl+C reaches it as a key and never has cmd ask to end this batch file.
 export const cmdShim = `@echo off

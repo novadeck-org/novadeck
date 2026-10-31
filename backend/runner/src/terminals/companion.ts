@@ -5,11 +5,11 @@ import type { PlanText } from "../companions/content.js"
 import type { CompanionItems, TerminalPlace } from "../companions/items.js"
 import type { ItemRecord } from "../companions/records.js"
 import {
-  readDismissRequest,
+  readCloseShownRequest,
   readLookRequest,
-  readRequest,
-  type DismissAnswer,
-  type PresentAnswer,
+  readShowRequest,
+  type CloseShownAnswer,
+  type ShowAnswer,
 } from "../companions/request.js"
 import type { Binding } from "../harnesses/bindings.js"
 import { harnesses } from "../harnesses/registry.js"
@@ -17,9 +17,9 @@ import { unanswered, unansweredCalls, type Call } from "../shell/reports.js"
 import type { HintFacts } from "../voice/hint.js"
 import { callerOf } from "./callers.js"
 import { lookText, lookTroubles, pictureAllowed } from "./looks.js"
-import { peerOf, type TerminalPeers } from "./peers.js"
+import { peerOf, type TerminalPeers } from "./peers-host.js"
 import type { Record } from "./record.js"
-import type { SavedTerminal } from "./records.js"
+import type { SavedTerminal } from "./saved-terminals.js"
 import { itemGone, lookedAt, troubled } from "./troubles.js"
 
 /** What `look` answers: words and the picture, or why there is none. */
@@ -86,9 +86,9 @@ export class Companion {
    * the terminal's shells, on the terminal's own bar (see `CompanionItems.show`). A call
    * without the shell's own token learns nothing more.
    */
-  async present(call: Call): Promise<PresentAnswer> {
+  async show(call: Call): Promise<ShowAnswer> {
     if (!callerOf(this.host.records(), call)) return unanswered
-    const read = readRequest(call.request)
+    const read = readShowRequest(call.request)
     if (!read.ok) return read
     const place = this.place(call.terminalId)
     if (!place || !this.items) return unanswered
@@ -97,16 +97,16 @@ export class Companion {
 
   /**
    * Closes what the caller's agent showed on its own terminal's bar, through Novadeck's
-   * MCP server (see `CompanionItems.dismiss`). A call without the shell's own token
+   * MCP server (see `CompanionItems.closeShown`). A call without the shell's own token
    * learns nothing more.
    */
-  async dismiss(call: Call): Promise<DismissAnswer> {
-    if (!callerOf(this.host.records(), call)) return unansweredCalls.dismiss
-    const read = readDismissRequest(call.request)
+  async closeShown(call: Call): Promise<CloseShownAnswer> {
+    if (!callerOf(this.host.records(), call)) return unansweredCalls.closeShown
+    const read = readCloseShownRequest(call.request)
     if (!read.ok) return read
     const place = this.place(call.terminalId)
-    if (!place || !this.items) return unansweredCalls.dismiss
-    return this.items.dismiss(place, read.request)
+    if (!place || !this.items) return unansweredCalls.closeShown
+    return this.items.closeShown(place, read.request)
   }
 
   /**
@@ -123,7 +123,7 @@ export class Companion {
    * Pictures a page on the caller's own terminal's bar for its agent, through Novadeck's
    * MCP server (see `CompanionItems.look`): the picture as an MCP image, and in words the
    * page's name, address, title, how it was taken and its troubles, those the runner holds
-   * of the user's pane too, which this look then spends, so the next prompt's notice does
+   * of the person's pane too, which this look then spends, so the next prompt's notice does
    * not repeat them. A page that moved off this machine since is
    * not pictured. A call without the shell's own token learns nothing more.
    */

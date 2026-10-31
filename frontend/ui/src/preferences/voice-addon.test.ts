@@ -1,5 +1,5 @@
-import { formatSize } from "@novadeck/core/addon-format"
-import { installSize, type VoiceState } from "@novadeck/core/voice"
+import { formatSize } from "@novadeck/core/addons/format"
+import { installSize, type VoiceState } from "@novadeck/core/addons/voice"
 import { describe, expect, it } from "vitest"
 
 import { installedSize, voiceSetUp } from "./voice-addon"

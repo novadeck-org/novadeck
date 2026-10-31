@@ -10,7 +10,7 @@ Code: `backend/runner/src/murmur`, the engine build in `engines/murmur`.
 ## What it reads
 
 Terminals ask for a description when something worth a new one happened (see
-`terminals/murmur.ts`) and hand over a digest:
+`terminals/descriptions.ts`) and hand over a digest:
 
 - an agent terminal: the agent's own summary, alone. The person's prompts and the agent's
   replies are never read for a title: with them the model named the latest step ("Critic PR
@@ -162,7 +162,7 @@ UI then derives "unchecked" (below), which Try again (an install) answers by run
 
 Installed with no passed check and nothing running (a check the person cancelled, a restart
 after a failed one, or a check dropped because its device went away) is `installed: true,
-check: null`, which the UI derives as "unchecked" (`unchecked(state)` in `core/murmur.ts`; it
+check: null`, which the UI derives as "unchecked" (`unchecked(state)` in `core/addons/murmur.ts`; it
 is not on the wire). It has no `failure` of its own: a cancel is no failure (if something else
 went wrong, `failure` is set too and is what the card shows). Install again runs just the check.
 `failure` is only what the runner says: a failed install or engine update, until the next one;

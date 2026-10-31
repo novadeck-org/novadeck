@@ -1,6 +1,7 @@
 import { rmSync } from "node:fs"
 
-import { doorbell, type Choice } from "@novadeck/harness-core/harness"
+import type { Choice } from "@novadeck/harness-core/harness"
+import { doorbell } from "@novadeck/harness-core/prompts"
 import type { AgentName } from "@novadeck/protocol"
 
 import { DomainError } from "../errors.js"
@@ -9,7 +10,7 @@ import { harnesses } from "../harnesses/registry.js"
 import { agentLabel } from "../messaging/messages.js"
 import { expectedAgent } from "./commands.js"
 import type { Record } from "./record.js"
-import { hasRun, type SavedTerminal } from "./records.js"
+import { hasRun, type SavedTerminal } from "./saved-terminals.js"
 
 /**
  * The task a worker lost before its agent's first session starts with again: the command
@@ -67,7 +68,7 @@ export const resumeRefusal = (agent: AgentName, reason: UnavailableReason): stri
 }
 
 /** Whether a session may resume now: its command and claim, or why not. */
-export type ResumeCheck =
+type ResumeCheck =
   | {
       readonly ok: true
       readonly argv: readonly string[]
@@ -121,7 +122,7 @@ export class Claims {
     connected: boolean,
     choice?: Choice,
   ): ResumeCheck {
-    const { resume } = harnesses[agent]
+    const { resume } = harnesses[agent].launch
     const key = `${agent}:${session}`
     const claimant = this.claims.get(key)
     const bound = this.host.boundElsewhere(terminalId, agent, session)

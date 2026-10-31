@@ -132,11 +132,15 @@ const harnesses: readonly {
   },
 ]
 
-describe.each(harnesses)("the input box of $name", ({ name, profile, versions, states }) => {
-  const key = name === "Claude Code" ? "claude" : name === "Codex" ? "codex" : "agy"
-  const { versions: seen } = fixture(key)
+const boxes = harnesses.flatMap(({ versions, ...harness }) =>
+  versions.map((version) => ({ ...harness, version })),
+)
 
-  describe.each(versions)("as %s draws it", (version) => {
+describe.each(boxes)(
+  "the input box of $name as $version draws it",
+  ({ name, profile, states, version }) => {
+    const key = name === "Claude Code" ? "claude" : name === "Codex" ? "codex" : "agy"
+    const { versions: seen } = fixture(key)
     const shown = seen[version]!
 
     it("is probed in every state the harness is checked in", () => {
@@ -186,8 +190,8 @@ describe.each(harnesses)("the input box of $name", ({ name, profile, versions, s
       const noCursor = { ...text, cursor: { row: 2, column: 4 } }
       expect(profile.read(noCursor)).toBe(undefined)
     })
-  })
-})
+  },
+)
 
 describe("Codex 0.163.0's box for a text taller than it", () => {
   const shown = fixture("codex").versions["0.163.0"]!

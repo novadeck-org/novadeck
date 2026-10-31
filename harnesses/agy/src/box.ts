@@ -13,7 +13,8 @@ const markers: Markers = { prompt: ">", shell: "!" }
 
 /**
  * Whether its footer says the box is in its shell mode (`!`), where Enter runs what it
- * holds as a command: its last row says so, "activated bash mode · esc to cancel" (probed 1.2.14 and 1.3.0, fixtures/shell-mode.probe.json).
+ * holds as a command: its last row says so, "activated bash mode · esc to cancel" (probed
+ * 1.2.14 and 1.3.0, fixtures/shell-mode.probe.json).
  */
 export const shellFooter = (rows: readonly string[]): boolean => {
   const last = rows.findLast((row) => row.trim() !== "")
@@ -93,7 +94,7 @@ const withoutPanel = (screen: ScreenText): ScreenText => {
  * and pushes the footer, whose hint a paste erases, further from the box than a paste's
  * reach (`nearRows`).
  */
-export const still = (rows: readonly string[]): readonly string[] => {
+const still = (rows: readonly string[]): readonly string[] => {
   const panel = panelOf(rows)
   return panel ? rows.filter((_, at) => at < panel.first || at > panel.last) : rows
 }
@@ -110,7 +111,7 @@ const interruption = "⎿Interrupted·WhatshouldAntigravityCLIdoinstead?"
  * either (probed 2026-10-10, 1.2.14). The word may wrap over a few rows. Undefined where
  * no box is found to read above, as mid-redraw or under a dialog: no telling then.
  */
-export const interruptedShown = (screen: ScreenText): boolean | undefined => {
+const interruptedShown = (screen: ScreenText): boolean | undefined => {
   const box = ruledBox(withoutPanel(screen), markers)
   if (!box) return undefined
   const top = screen.rows.slice(0, box.first).findLastIndex(rule)
@@ -130,7 +131,7 @@ export const interruptedShown = (screen: ScreenText): boolean | undefined => {
  * opens), each with a "Keyboard: … esc Close|Dismiss" row and its empty box above (probed
  * 1.2.14 in the e2e sandbox, 2026-10-16).
  */
-export const overlay = (screen: ScreenText): boolean =>
+const overlay = (screen: ScreenText): boolean =>
   footerRows(screen).some((row) => /^Keyboard: .*\besc (Close|Dismiss)\b/.test(row.trim()))
 
 /**

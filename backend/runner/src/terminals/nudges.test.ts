@@ -4,7 +4,7 @@ import {
   backstopPrompts,
   afterSummary,
   drifted,
-  artifactsNotice,
+  companionNotice,
   inboxNotice,
   fired,
   noNudges,
@@ -33,7 +33,7 @@ describe("nudges to describe a terminal", () => {
   it("add nothing while no trigger fired", () => {
     expect(quietly(noNudges)).toEqual({
       nudge: false,
-      artifacts: false,
+      companion: false,
       summarize: false,
       pages: [],
       nudges: noNudges,
@@ -60,7 +60,7 @@ describe("nudges to describe a terminal", () => {
     const late = take(pending, false)
     expect(late).toEqual({
       nudge: false,
-      artifacts: false,
+      companion: false,
       summarize: false,
       pages: [],
       nudges: pending,
@@ -71,15 +71,15 @@ describe("nudges to describe a terminal", () => {
   it("share the answer with messages: the summary's request first, then the bar and Inbox, the rest later", () => {
     const pending = sessionBegan(noNudges, 0)
     // Beside a long delivery only the summary's request fits: the bar and Inbox wait.
-    const tight = take(pending, true, (took) => !took.artifacts)
-    expect(tight).toMatchObject({ nudge: true, summarize: true, artifacts: false })
-    expect(tight.nudges).toMatchObject({ pending: [], artifacts: true })
+    const tight = take(pending, true, (took) => !took.companion)
+    expect(tight).toMatchObject({ nudge: true, summarize: true, companion: false })
+    expect(tight.nudges).toMatchObject({ pending: [], companion: true })
     // The next turn, with room, tells of them.
-    expect(quietly(tight.nudges)).toMatchObject({ nudge: true, summarize: false, artifacts: true })
+    expect(quietly(tight.nudges)).toMatchObject({ nudge: true, summarize: false, companion: true })
     // With no room at all, everything waits.
     const full = take(pending, true, () => false)
     expect(full.nudge).toBe(false)
-    expect(full.nudges).toMatchObject({ pending: ["session"], artifacts: true })
+    expect(full.nudges).toMatchObject({ pending: ["session"], companion: true })
   })
 
   it("are cleared by a describe, which drift is then measured from", () => {
@@ -89,7 +89,7 @@ describe("nudges to describe a terminal", () => {
       prompts: 0,
       baseline: facts,
       driftedTo: null,
-      artifacts: false,
+      companion: false,
       troubles: noTroubles,
       since: 0,
     })
@@ -180,7 +180,7 @@ describe("a prompt's nudge", () => {
       inTime: true,
       unsummarized: true,
     })
-    expect(rung).toMatchObject({ nudge: true, summarize: true, artifacts: true })
+    expect(rung).toMatchObject({ nudge: true, summarize: true, companion: true })
     expect(rung.nudges.prompts).toBe(0)
   })
 
@@ -194,7 +194,7 @@ describe("a prompt's nudge", () => {
     expect(first).toMatchObject({ nudge: true, summarize: true })
     // The work comes in the next prompt, long before the backstop.
     const second = atTurnStart(first.nudges, { person: true, inTime: true, unsummarized: true })
-    expect(second).toMatchObject({ nudge: true, summarize: true, artifacts: false })
+    expect(second).toMatchObject({ nudge: true, summarize: true, companion: false })
     // One that carries messages waits, and the next quiet one asks.
     const busy = atTurnStart(second.nudges, { person: true, inTime: false, unsummarized: true })
     expect(busy.nudge).toBe(false)
@@ -223,9 +223,9 @@ describe("a nudge", () => {
     const current = { summary: null }
     for (const trigger of ["session", "compaction"] as const) {
       const taken = quietly(raise(noNudges, trigger))
-      expect(taken).toMatchObject({ nudge: true, artifacts: true, summarize: true })
+      expect(taken).toMatchObject({ nudge: true, companion: true, summarize: true })
       expect(noticesAt(taken, current).split("\n\n")).toEqual([
-        artifactsNotice,
+        companionNotice,
         inboxNotice,
         nudgeText(current),
       ])
@@ -233,11 +233,11 @@ describe("a nudge", () => {
     }
     for (const trigger of ["drift", "prompts"] as const) {
       const taken = quietly(raise(noNudges, trigger))
-      expect(taken).toMatchObject({ artifacts: false, summarize: true })
+      expect(taken).toMatchObject({ companion: false, summarize: true })
       expect(noticesAt(taken, current)).toBe(nudgeText(current))
     }
-    expect(artifactsNotice).toMatch(/^Novadeck: automatic notice, not from the user: /)
-    expect(artifactsNotice).not.toContain("\n")
+    expect(companionNotice).toMatch(/^Novadeck: automatic notice, not from the user: /)
+    expect(companionNotice).not.toContain("\n")
     for (const word of [
       "show tool",
       "deliverable",
@@ -248,7 +248,7 @@ describe("a nudge", () => {
       "open",
       "close",
     ])
-      expect(artifactsNotice).toContain(word)
+      expect(companionNotice).toContain(word)
     expect(inboxNotice).toMatch(/^Novadeck: automatic notice, not from the user: /)
     expect(inboxNotice).not.toContain("\n")
     for (const words of [
@@ -282,8 +282,8 @@ describe("a nudge", () => {
     const after = afterSummary(busy.nudges, facts)
     expect(after.pending).toEqual([])
     const taken = quietly(after)
-    expect(taken).toMatchObject({ nudge: true, artifacts: true, summarize: false })
-    expect(noticesAt(taken, current)).toBe(`${artifactsNotice}\n\n${inboxNotice}`)
+    expect(taken).toMatchObject({ nudge: true, companion: true, summarize: false })
+    expect(noticesAt(taken, current)).toBe(`${companionNotice}\n\n${inboxNotice}`)
     expect(quietly(taken.nudges).nudge).toBe(false)
   })
 

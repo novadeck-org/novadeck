@@ -5,24 +5,24 @@ import { cn } from "./class-name"
 import { Tooltip } from "./Tooltip"
 
 export type SegmentOption = {
-  value: string
-  label: string
-  icon?: ReactNode
+  readonly value: string
+  readonly label: string
+  readonly icon?: ReactNode
 }
 
 export type SegmentGroupProps = {
-  label: string
-  tooltips?: boolean
-  items: SegmentOption[]
-  value: string
-  onValueChange: (value: string) => void
-  disabled?: boolean
-  className?: string
+  readonly label: string
+  readonly tooltips?: boolean
+  readonly items: readonly SegmentOption[]
+  readonly value: string
+  readonly onValueChange: (value: string) => void
+  readonly disabled?: boolean
+  readonly className?: string
   // Arranges each item; the segmented recipe draws it.
-  itemClassName?: string
+  readonly itemClassName?: string
   // Draws the active item's look behind the items, sliding between them, instead of on
   // the active item; the class places it.
-  indicatorClassName?: string
+  readonly indicatorClassName?: string
 }
 
 export const SegmentGroup = ({

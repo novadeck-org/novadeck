@@ -1,4 +1,4 @@
-import { replyPreviewLength } from "@novadeck/protocol"
+import { maxTurnError, replyPreviewLength } from "@novadeck/protocol"
 import type { AgentActivity } from "@novadeck/protocol"
 
 import { escapeVerdictMs, summary as activitySummary } from "../harnesses/activity.js"
@@ -14,7 +14,7 @@ const log = logs.for("inbox")
  * How long a completed end waits before it is stored: a harness that took the person's
  * Escape just after its reply fires its Stop, then records the interruption within about
  * half a second of the key (docs/harness-coverage.md), and the end is only a finish if it
- * still stands then. Mirrors the client's constant of the same name (core's `agent-finish`).
+ * still stands then. Mirrors the client's constant of the same name (core's `agents/finish`).
  */
 export const finishGraceMs = 700
 
@@ -299,7 +299,7 @@ export class TurnEnds {
       }
     }
     const reply = await one(seen.reply, replyPreviewLength)
-    const error = await one(seen.error, 2048)
+    const error = await one(seen.error, maxTurnError)
     seen.masked = { reply, error, from }
     return seen.masked
   }

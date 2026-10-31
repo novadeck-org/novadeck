@@ -1,5 +1,5 @@
-import { arrive, emptyBar, messagesKey, settle, type Bar, type BarKey } from "./companion-bar"
 import { isOnBar, type Item } from "./items"
+import { arrive, emptyBar, messagesKey, settle, type Bar, type BarKey } from "./items/companion-bar"
 import { addCompactGridTerminal, initialGridLayouts } from "./layout/grid-placement"
 import { placeTerminal, removeFromLayout } from "./layout/workspace-layout"
 import { addTerminal, addWindow, isWindow, tilesOf } from "./roster"
@@ -22,7 +22,7 @@ import type {
 } from "./types"
 
 // How the UI showed a session's terminals and windows, as it saved it: only its own view
-// state, by id, never the terminals, windows or companion items themselves, which their
+// state, by id, never the terminals, windows or items themselves, which their
 // backend reports. What's new, or waiting to open, isn't kept: nothing is after a reload.
 export type RestoredView = Omit<
   WorkspaceState,
@@ -50,7 +50,7 @@ export type SessionSeed = {
   readonly name: string
   // The session's terminals, as the backend reports them, oldest first.
   readonly terminals: readonly TerminalMetadata[]
-  // Its windows undocked from companions, each with its item among `items`, and what
+  // Its windows undocked from bars, each with its item among `items`, and what
   // agents showed and the person attached.
   readonly windows: readonly CompanionWindowMeta[]
   readonly items: readonly Item[]
@@ -170,7 +170,7 @@ const restoredState = (
   return withItems(laid, items, bars)
 }
 
-export type SeedDefaults = {
+type SeedDefaults = {
   readonly view: ViewMode
   readonly windowedView: WindowedView
   readonly now: number

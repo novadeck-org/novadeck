@@ -7,7 +7,7 @@ import { countListenersWoken } from "@novadeck/core/store"
 export type Counts = {
   // Store listeners woken: each subscriber called once per change it hears of, in every
   // store `core/store` makes. A store built by hand elsewhere isn't counted.
-  notifications: number
+  wakes: number
   // MutationObserver records anywhere under the page's body.
   mutations: number
   // Commits React made, and the components it rendered for them.
@@ -15,13 +15,13 @@ export type Counts = {
   renders: number
 }
 
-export const counts: Counts = { notifications: 0, mutations: 0, commits: 0, renders: 0 }
+export const counts: Counts = { wakes: 0, mutations: 0, commits: 0, renders: 0 }
 
 // Counts every listener a store wakes, through the stores' own hook, until the returned
 // stop.
-export const countNotifications = (): (() => void) =>
+export const countWakes = (): (() => void) =>
   countListenersWoken(() => {
-    counts.notifications += 1
+    counts.wakes += 1
   })
 
 // Counts mutation records under the body from now on, each batch as its callback hears of

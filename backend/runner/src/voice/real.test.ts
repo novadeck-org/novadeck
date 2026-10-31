@@ -81,7 +81,7 @@ describe.skipIf(!engine || !model || !vad || !clip)("voice input with the real e
       }),
     )
     const store = new WorkspaceStore()
-    const voice = new Voice(store, {
+    const voice = new Voice(store.settings, {
       engine: manifest,
       directory: await folder(resources),
       catalog: {

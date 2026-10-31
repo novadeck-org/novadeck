@@ -146,11 +146,11 @@ const main = async (): Promise<void> => {
       }
     ).version
   const files = [
-    "frontend/specs/src/companions.spec.tsx",
+    "frontend/specs/src/companions/companions.spec.tsx",
     "frontend/specs/src/support/companions.tsx",
     "frontend/specs/src/support/bar-drag.ts",
-    "frontend/items/src/use-bar-drag.ts",
-    "frontend/items/src/drag-session.ts",
+    "frontend/items/src/bar/use-bar-drag.ts",
+    "frontend/items/src/bar/drag-session.ts",
     "frontend/ui/src/layouts/grid/Grid.tsx",
     "scripts/flaky-capture/grid.ts",
     "scripts/flaky-capture/grid-results.ts",

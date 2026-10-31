@@ -1,4 +1,4 @@
-import type { UpdateOffer } from "@novadeck/core/update"
+import type { UpdateOffer } from "@novadeck/core/desktop/update"
 import { Progress } from "@novadeck/toolkit/Progress"
 import { useLayoutEffect, useState } from "react"
 
@@ -28,7 +28,8 @@ export const watchedAfter = (
 // and how far along, nothing to press. It never takes keys, focus or clicks, so the corner
 // it covers stays usable, and it waits out Zen mode with the footer, and any notice open in
 // the same corner. A finished download says it installs on the next restart (on macOS,
-// where closing the window doesn't quit, when the person quits) and fades; a failed one (`retrying`) drops the bar at once, as the host tries again by itself.
+// where closing the window doesn't quit, when the person quits) and fades; a failed one
+// (`retrying`) drops the bar at once, as the desktop app tries again by itself.
 export const UpdateProgress = ({
   offer,
   hidden,

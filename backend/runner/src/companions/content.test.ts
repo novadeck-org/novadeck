@@ -18,6 +18,7 @@ import { tmpdir } from "node:os"
 import { join } from "node:path"
 
 import { loadProbe } from "@novadeck/harness-core/testing/probes"
+import { companionLimits } from "@novadeck/protocol"
 
 import { describe, expect, it as base } from "../test.js"
 import { adapterFolder } from "../testing/adapters.js"
@@ -117,6 +118,41 @@ describe("what a show points at", () => {
 
 // A numbered line, padded to 99 characters.
 const padded = (line: number) => `line ${line}`.padEnd(99, ".")
+
+describe("a long line as it loads", () => {
+  // A line is kept to the protocol's limit; the file is read 64 KiB at a time.
+  const limit = companionLimits.lineLength
+  const chunk = 64 * 1024
+  const linesOf = async (directory: string, text: string) => {
+    const path = join(directory, "long.txt")
+    writeFileSync(path, text)
+    const loaded = await loadFile(file(path), false)
+    if (loaded.state !== "ready" || loaded.content.kind !== "file") throw new Error("not loaded")
+    return loaded.content.lines
+  }
+
+  it("is cut to exactly the limit when no emoji is at it", async ({ directory }) => {
+    const lines = await linesOf(directory, `${"a".repeat(limit + 50)}\nnext`)
+    expect(lines).toEqual(["a".repeat(limit), "next"])
+  })
+
+  it("leaves no half of an emoji at the limit, in one chunk or across two", async ({
+    directory,
+  }) => {
+    // The emoji's pair spans the limit's last unit and the one past it, so the limit falls
+    // between its halves.
+    const kept = "a".repeat(limit - 1)
+    const long = `${kept}😀 and more\nnext`
+    expect(await linesOf(directory, long)).toEqual([kept, "next"])
+    // The line opens in one chunk, and the rest of it, with the emoji, is the next chunk's.
+    const filler = "x".repeat(chunk - (limit - 5) - 1)
+    expect(await linesOf(directory, `${filler}\n${long}`)).toEqual([
+      "x".repeat(limit),
+      kept,
+      "next",
+    ])
+  })
+})
 
 describe("a text file as it loads", () => {
   it("is all of a short file, with the lines pointed at, pulled back to its end", async ({

@@ -690,6 +690,7 @@ work with it, and an option without a value would be read as the agent.
    Novadeck (Antigravity's `{"decision":"ask"}` before a tool, `{}` otherwise). When a
    lease came and printing succeeded, it sends `{"ack":"<leaseId>"}` on the same
    connection.
+   A lease may name only a notice and no messages; it is acknowledged the same way.
 
 A hook gives up two seconds after it starts when it reports, four when it asks, and five
 for Claude Code's status line. For the status line, the relay also runs the person's own
@@ -813,7 +814,11 @@ one from an earlier runner.
   without the context wrapped around it, the agent's words, each tool call and its
   result, never its reasoning or system steps). A Codex agent's transcript also holds
   the messages other agents sent it, as role `agent` with `author` naming the sender's
-  path (`/root`, `/root/<name>`). The runner reads no further ahead than it has sent, but a remote client's own
+  path (`/root`, `/root/<name>`). A user item marked `interrupted` is where the person
+  interrupted the turn: Claude Code's and Codex's records hold their own, and for
+  Antigravity, whose record holds none, the runner adds one where an Escape that stood
+  came: after the turn's last steps, before the person's next prompt written after the key.
+  It keeps them in memory, so a runner restart forgets them. The runner reads no further ahead than it has sent, but a remote client's own
   pace is not tracked: a large record on a slow link fills the socket's buffer like any
   other output.
   An actor the terminal's session does not have, or without a transcript Novadeck reads,

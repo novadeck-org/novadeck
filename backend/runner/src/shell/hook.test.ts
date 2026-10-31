@@ -17,7 +17,7 @@ import { relayPath } from "@novadeck/relay"
 
 import { agents, harnesses } from "../harnesses/registry.js"
 import { describe, expect, it as base } from "../test.js"
-import { relayHook } from "./hook.js"
+import { hookVariables, prune, relayHook } from "./hook.js"
 import { installShellFiles } from "./install.js"
 import { listenForReports, unanswered, unheard, type Ack, type HookAnswer } from "./reports.js"
 import { relayConfig } from "./scripts.js"
@@ -693,6 +693,20 @@ describe("reading a relay's hook", () => {
     expect(relayHook(claude)?.report.instance).toBe("4242")
   })
 
+  it("names an agent by its own pid only where its harness's pidVariable says so", () => {
+    const ancestors = [{ pid: 20, name: "codex" }]
+    // Codex sets none: a CLAUDE_PID it inherited from a Claude Code above it names not it.
+    expect(relayHook(hook({ ancestors, env: { CLAUDE_PID: "4242" } }))?.report.instance).toBe("20")
+    // Claude Code without one falls back to its nearest ancestor too.
+    const claude = hook({ agent: "claude", ancestors: [{ pid: 30, name: "claude" }] })
+    expect(relayHook(claude)?.report.instance).toBe("30")
+  })
+
+  it("is forwarded every harness's pidVariable by the relay", () => {
+    for (const { pidVariable } of Object.values(harnesses))
+      if (pidVariable !== undefined) expect(hookVariables).toContain(pidVariable)
+  })
+
   it("tells when the agent fired it: when the shell it started the hook in started", () => {
     // The relay under the hook launcher's cmd, under PowerShell, under Codex.
     const ancestors = [
@@ -812,5 +826,13 @@ describe("reading a relay's hook", () => {
     expect(relayHook(hook({ agent: "gemini" }))).toBeUndefined()
     expect(relayHook(hook({ payload: "[1]" }))).toBeUndefined()
     expect(relayHook(hook({ seq: "soon" }))).toBeUndefined()
+  })
+})
+
+describe("a pruned copy of a hook's payload", () => {
+  it("cuts text to the limit, never through an emoji", () => {
+    expect(prune("abc😀", 0, 4)).toBe("abc")
+    expect(prune("abc😀", 0, 5)).toBe("abc😀")
+    expect(prune({ list: ["ab😀"] }, 0, 3)).toEqual({ list: ["ab"] })
   })
 })

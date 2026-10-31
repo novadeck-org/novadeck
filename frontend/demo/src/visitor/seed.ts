@@ -1,6 +1,6 @@
+import { noTelemetry, setUsage, type Telemetry } from "@novadeck/core/agents/telemetry"
 import type { WorkspaceSeed } from "@novadeck/core/seed"
 import { sessionName } from "@novadeck/core/session-name"
-import { noTelemetry, setUsage, type Telemetry } from "@novadeck/core/telemetry"
 import type { AgentStatus, CanvasLayout, Project, TerminalMetadata } from "@novadeck/core/types"
 
 import { demoHandle } from "../handles"

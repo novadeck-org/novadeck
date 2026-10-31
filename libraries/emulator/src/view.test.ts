@@ -2,7 +2,8 @@
 import type { Terminal } from "@xterm/xterm"
 import { afterEach, describe, expect, it, vi } from "vitest"
 
-import { createRenderers, type Drawing } from "./renderer.js"
+import { createRendererPool, type Drawing } from "./renderer.js"
+import { leaveStylesheetsUnparsed } from "./stylesheets.test-support.js"
 import { createView, type View, type ViewOptions } from "./view.js"
 import { cells } from "./width.js"
 
@@ -42,6 +43,9 @@ vi.hoisted(() => {
     }),
   })
 })
+
+// Nothing here reads a stylesheet; parsing them was most of what these tests took.
+leaveStylesheetsUnparsed()
 
 const opened: (() => void)[] = []
 afterEach(() => {
@@ -250,7 +254,7 @@ describe("a view's font", () => {
     const { loaded } = fonts()
     loaded.add("13px Other Mono")
     const cleared = vi.fn<() => void>()
-    const renderers = createRenderers<Terminal>({
+    const pool = createRendererPool<Terminal>({
       load: () => ({
         onContextLoss: () => ({ dispose: () => {} }),
         clearTextureAtlas: cleared,
@@ -260,7 +264,7 @@ describe("a view's font", () => {
       supported: () => true,
       cap: 1,
     })
-    const { view } = open({ renderers })
+    const { view } = open({ pool })
     view.renderer.take()
     await view.setFont("Other Mono")
     expect(cleared).toHaveBeenCalledTimes(1)
@@ -310,11 +314,11 @@ describe("a view's links", () => {
 })
 
 describe("a view's renderer", () => {
-  const pool = () => {
+  const drawingPool = () => {
     const drawings: Drawing[] = []
     return {
       drawings,
-      renderers: createRenderers<Terminal>({
+      pool: createRendererPool<Terminal>({
         load: () => {
           const drawing: Drawing = {
             onContextLoss: () => ({ dispose: () => {} }),
@@ -332,9 +336,9 @@ describe("a view's renderer", () => {
   }
 
   it("tells of each change of renderer, but not as the view closes", () => {
-    const { renderers } = pool()
+    const { pool } = drawingPool()
     const changed = vi.fn<() => void>()
-    const { view } = open({ renderers })
+    const { view } = open({ pool })
     view.onRendererChange(changed)
     view.renderer.take()
     expect(changed).toHaveBeenCalledTimes(1)
@@ -355,9 +359,9 @@ describe("a view's renderer", () => {
   })
 
   it("stops telling a listener that has stopped listening", () => {
-    const { renderers } = pool()
+    const { pool } = drawingPool()
     const changed = vi.fn<() => void>()
-    const { view } = open({ renderers })
+    const { view } = open({ pool })
     view.onRendererChange(changed).dispose()
     view.renderer.take()
     expect(changed).not.toHaveBeenCalled()
@@ -366,7 +370,7 @@ describe("a view's renderer", () => {
 
 describe("a view's ligatures", () => {
   const pool = () =>
-    createRenderers<Terminal>({
+    createRendererPool<Terminal>({
       load: () => ({
         onContextLoss: () => ({ dispose: () => {} }),
         clearTextureAtlas: () => {},
@@ -388,7 +392,7 @@ describe("a view's ligatures", () => {
   /* eslint-enable no-underscore-dangle */
 
   it("hands WebGL the font's runs while ligatures are on and WebGL draws the view", () => {
-    const { view } = open({ renderers: pool(), fontFamily: "'JetBrains Mono Variable', monospace" })
+    const { view } = open({ pool: pool(), fontFamily: "'JetBrains Mono Variable', monospace" })
     view.renderer.take()
     view.setLigatures(true)
     expect(joiners(view)).toHaveLength(1)
@@ -399,14 +403,14 @@ describe("a view's ligatures", () => {
   })
 
   it("keeps the joiner off the DOM renderer, which draws ligatures from its text", () => {
-    const { view } = open({ renderers: pool(), fontFamily: "'JetBrains Mono Variable', monospace" })
+    const { view } = open({ pool: pool(), fontFamily: "'JetBrains Mono Variable', monospace" })
     view.setLigatures(true)
     expect(joiners(view)).toHaveLength(0)
     expect(open().view.setLigatures(true)).toBeUndefined()
   })
 
   it("follows the view between renderers and the setting going off", () => {
-    const { view } = open({ renderers: pool(), fontFamily: "'JetBrains Mono Variable', monospace" })
+    const { view } = open({ pool: pool(), fontFamily: "'JetBrains Mono Variable', monospace" })
     view.setLigatures(true)
     view.renderer.take()
     expect(joiners(view)).toHaveLength(1)
@@ -419,7 +423,7 @@ describe("a view's ligatures", () => {
   })
 
   it("draws the screen again when the joiner comes or goes", () => {
-    const { view } = open({ renderers: pool(), fontFamily: "'JetBrains Mono Variable', monospace" })
+    const { view } = open({ pool: pool(), fontFamily: "'JetBrains Mono Variable', monospace" })
     view.renderer.take()
     const refresh = vi.spyOn(view.terminal, "refresh")
     view.setLigatures(true)
@@ -429,7 +433,7 @@ describe("a view's ligatures", () => {
   })
 
   it("keeps the joiner off another face, whose glyphs the table's runs would squeeze for nothing", async () => {
-    const { view } = open({ renderers: pool(), fontFamily: "'Share Tech Mono', monospace" })
+    const { view } = open({ pool: pool(), fontFamily: "'Share Tech Mono', monospace" })
     view.renderer.take()
     view.setLigatures(true)
     expect(joiners(view)).toHaveLength(0)
@@ -441,7 +445,7 @@ describe("a view's ligatures", () => {
   })
 
   it("cuts a long line into runs the glyph atlas holds", () => {
-    const { view } = open({ renderers: pool(), fontFamily: "'JetBrains Mono Variable', monospace" })
+    const { view } = open({ pool: pool(), fontFamily: "'JetBrains Mono Variable', monospace" })
     view.renderer.take()
     view.setLigatures(true)
     const runs = joiners(view)[0]!.handler("=".repeat(200))

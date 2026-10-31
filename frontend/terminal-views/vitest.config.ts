@@ -49,7 +49,8 @@ export default defineConfig({
       unit(),
       browserProject({
         name: "renderers",
-        // Its specs run a terminal in a real browser: swapping the WebGL renderer, and mouse at any zoom.
+        // Its specs run a terminal in a real browser: the WebGL renderer, the cell both renderers
+        // fit, and the mouse at any zoom.
         exclude: ["src/ligatures.spec.ts"],
       }),
       browserProject({

@@ -2,6 +2,8 @@
 import type { Terminal as XTerminal } from "@xterm/xterm"
 import { afterEach, beforeAll, describe, expect, it, vi } from "vitest"
 
+import { leaveStylesheetsUnparsed } from "./stylesheets.test-support.js"
+
 // The app's bundler loads xterm's ES bundle and Node loads the CommonJS one; the patch is made
 // in both, so the tests run against each.
 type Terminal = XTerminal
@@ -55,7 +57,10 @@ Object.defineProperty(HTMLElement.prototype, "offsetHeight", {
   },
 })
 
-const hosts: HTMLElement[] = []
+// Nothing here reads a stylesheet; parsing them was half of what these tests took.
+leaveStylesheetsUnparsed()
+
+const containers: HTMLElement[] = []
 const terminals: Terminal[] = []
 type Renderer = {
   handleCharSizeChanged(): void
@@ -82,11 +87,11 @@ const renderer = (terminal: Terminal): Renderer => renderService(terminal)["_ren
 // screen, come back.
 const open = async (options: ConstructorParameters<typeof Terminal>[0] = {}) => {
   const before = reads
-  const host = document.body.appendChild(document.createElement("div"))
+  const container = document.body.appendChild(document.createElement("div"))
   const terminal = new Terminal({ fontFamily: "Test Mono", fontSize: 14, ...options })
-  hosts.push(host)
+  containers.push(container)
   terminals.push(terminal)
-  terminal.open(host)
+  terminal.open(container)
   await new Promise<void>((done) =>
     terminal.write("Hello, wörld! \u001b[1mbold\u001b[0m \u001b[3mitalic\u001b[0m", done),
   )
@@ -96,7 +101,7 @@ const open = async (options: ConstructorParameters<typeof Terminal>[0] = {}) => 
 
 afterEach(() => {
   terminals.splice(0).forEach((terminal) => terminal.dispose())
-  hosts.splice(0).forEach((host) => host.remove())
+  containers.splice(0).forEach((container) => container.remove())
   broken = false
   jbLoaded = false
   glyph = 8
@@ -206,7 +211,8 @@ describe.each(bundles)("the DOM renderer's width measurements in lib/%s", (bundl
     pass()
     expect(reads - start).toBeGreaterThan(4000)
     expect([pass(), pass(), pass()]).toEqual([0, 0, 0])
-  })
+    // Each of the 4500 characters is measured through jsdom, which a slow runner takes seconds over.
+  }, 10_000)
 
   it("keep a string in use across the table's turning over, and stay bounded", async () => {
     const { terminal } = await open()

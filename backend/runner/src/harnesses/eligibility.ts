@@ -1,7 +1,7 @@
 import { agentSessionId, type AgentName } from "@novadeck/protocol"
 
 /** Whether a feature can be used now, and why not when it cannot. */
-export type Availability =
+type Availability =
   | { readonly state: "ready" }
   | { readonly state: "unavailable"; readonly reason: UnavailableReason }
 

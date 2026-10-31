@@ -9,12 +9,14 @@ tools: Ran [run] · echo approved > probe-out.txt | Call: exec_command: 3 lines:
 
 # exec-cancel
 tools: Ran [run] · echo approved > probe-out.txt | Call: exec_command: 3 lines: cmd: echo approved > probe-out.txt → 2 lines: Wall time: <n> seconds
+note: Interrupted
 
 # exec-decline-key-not-offered
 tools: Ran [run] · echo approved > probe-out.txt | Call: exec_command: 3 lines: cmd: echo approved > probe-out.txt → no result recorded.
 
 # exec-long-command
 tools: Ran [run] · echo xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx && echo yyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyy\ | Call: exec_command: 5 lines: cmd: → 2 lines: Wall time: <n> seconds
+note: Interrupted
 
 # exec-two-queued
 tools: Ran [run] · echo first > probe-first.txt | Call: exec_command: 3 lines: cmd: echo first > probe-first.txt → 5 lines: Chunk ID: <id>; Ran [run] · echo second > probe-second.txt | Call: exec_command: 3 lines: cmd: echo second > probe-second.txt → 5 lines: Chunk ID: <id>
@@ -42,12 +44,13 @@ tools: Ran [run] · echo approved > probe-out.txt | Call: exec_command: 3 lines:
 
 # hook-person-presses-esc
 tools: Ran [run] · echo approved > probe-out.txt | Call: exec_command: 3 lines: cmd: echo approved > probe-out.txt → 2 lines: Wall time: <n> seconds
+note: Interrupted
 
 # hook-person-presses-y
 tools: Ran [run] · echo approved > probe-out.txt | Call: exec_command: 3 lines: cmd: echo approved > probe-out.txt → 5 lines: Chunk ID: <id>
 
 # hook-rui-pretooluse-block
-tools: request_user_input [other] | Call: 1 line: [{"id":"color","header":"Color","question":"Whi… → 1 line: Tool call blocked by PreToolUse hook: The perso…
+tools: Asked [plan] · Which color should the button be? | Call: request_user_input: 1 line: [{"id":"color","header":"Color","question":"Whi… → 1 line: Tool call blocked by PreToolUse hook: The perso…
 
 # hook-timeout
 tools: Ran [run] · echo approved > probe-out.txt | Call: exec_command: 3 lines: cmd: echo approved > probe-out.txt → no result recorded.
@@ -69,6 +72,7 @@ tools: Ran [run] · apply_patch <<'EOF' | Call: exec_command: 6 lines: apply_pat
 
 # patch-cancel
 tools: Ran [run] · apply_patch <<'EOF' | Call: exec_command: 6 lines: apply_patch <<'EOF' → 2 lines: Wall time: <n> seconds
+note: Interrupted
 
 # plan-prompt
 
@@ -80,46 +84,48 @@ tools: Ran [run] · apply_patch <<'EOF' | Call: exec_command: 6 lines: apply_pat
 tools: request_permissions [other] | Call: 2 lines: reason: Need network for the build → 1 line: {"permissions":{"network":{"enabled":true},"fil…
 
 # rui-async-offered
-tools: request_user_input_async [other] | Call: 1 line: [{"title":"Which color should the button be?","… → 1 line: {"accepted":true}
+tools: Asked [plan] · Which color should the button be? | Call: request_user_input_async: 1 line: [{"title":"Which color should the button be?","… → 1 line: {"accepted":true}
 
 # rui-async-panel-digit-2
-tools: request_user_input_async [other] | Call: 1 line: [{"title":"Which color should the button be?","… → 1 line: {"accepted":true}
+tools: Asked [plan] · Which color should the button be? | Call: request_user_input_async: 1 line: [{"title":"Which color should the button be?","… → 1 line: {"accepted":true}
 
 # rui-async-panel-free-text
-tools: request_user_input_async [other] | Call: 1 line: [{"title":"What should its label say?"}] → 1 line: {"accepted":true}
+tools: Asked [plan] · What should its label say? | Call: request_user_input_async: 1 line: [{"title":"What should its label say?"}] → 1 line: {"accepted":true}
 
 # rui-async-panel-free-words
-tools: request_user_input_async [other] | Call: 1 line: [{"title":"What should its label say?"}] → 1 line: {"accepted":true}
+tools: Asked [plan] · What should its label say? | Call: request_user_input_async: 1 line: [{"title":"What should its label say?"}] → 1 line: {"accepted":true}
 
 # rui-async-panel-other-pasted
-tools: request_user_input_async [other] | Call: 1 line: [{"title":"Which color should the button be?","… → 1 line: {"accepted":true}
+tools: Asked [plan] · Which color should the button be? | Call: request_user_input_async: 1 line: [{"title":"Which color should the button be?","… → 1 line: {"accepted":true}
 
 # rui-async-panel-other-typed
-tools: request_user_input_async [other] | Call: 1 line: [{"title":"Which color should the button be?","… → 1 line: {"accepted":true}
+tools: Asked [plan] · Which color should the button be? | Call: request_user_input_async: 1 line: [{"title":"Which color should the button be?","… → 1 line: {"accepted":true}
 
 # rui-async-panel-other-words
-tools: request_user_input_async [other] | Call: 1 line: [{"title":"Which color should the button be?","… → 1 line: {"accepted":true}
+tools: Asked [plan] · Which color should the button be? | Call: request_user_input_async: 1 line: [{"title":"Which color should the button be?","… → 1 line: {"accepted":true}
 
 # rui-async-panel-two-other
-tools: request_user_input_async [other] | Call: 1 line: [{"title":"Which color should the button be?","… → 1 line: {"accepted":true}
+tools: Asked [plan] · Which color should the button be? | Call: request_user_input_async: 1 line: [{"title":"Which color should the button be?","… → 1 line: {"accepted":true}
 
 # rui-default-on
-tools: request_user_input [other] | Call: 1 line: [{"id":"color","header":"Color","question":"Whi… → 1 line: {"answers":{"color":{"answers":["Green"]}}}
+tools: Asked [plan] · Which color should the button be? | Call: request_user_input: 1 line: [{"id":"color","header":"Color","question":"Whi… → 1 line: {"answers":{"color":{"answers":["Green"]}}}
 
 # rui-esc-then-prompt
-tools: request_user_input [other] | Call: 1 line: [{"id":"color","header":"Color","question":"Whi… → 1 line: aborted by user after <n>s
+tools: Asked [plan] · Which color should the button be? | Call: request_user_input: 1 line: [{"id":"color","header":"Color","question":"Whi… → 1 line: aborted by user after <n>s
+note: Interrupted
 
 # rui-none-of-the-above-notes
-tools: request_user_input [other] | Call: 1 line: [{"id":"color","header":"Color","question":"Whi… → 1 line: {"answers":{"color":{"answers":["None of the ab…
+tools: Asked [plan] · Which color should the button be? | Call: request_user_input: 1 line: [{"id":"color","header":"Color","question":"Whi… → 1 line: {"answers":{"color":{"answers":["None of the ab…
 
 # rui-plan-digit-1
-tools: request_user_input [other] | Call: 1 line: [{"id":"color","header":"Color","question":"Whi… → 1 line: {"answers":{"color":{"answers":["Blue (Recommen…
+tools: Asked [plan] · Which color should the button be? | Call: request_user_input: 1 line: [{"id":"color","header":"Color","question":"Whi… → 1 line: {"answers":{"color":{"answers":["Blue (Recommen…
 
 # rui-plan-digit-2
-tools: request_user_input [other] | Call: 1 line: [{"id":"color","header":"Color","question":"Whi… → 1 line: {"answers":{"color":{"answers":["Green"]}}}
+tools: Asked [plan] · Which color should the button be? | Call: request_user_input: 1 line: [{"id":"color","header":"Color","question":"Whi… → 1 line: {"answers":{"color":{"answers":["Green"]}}}
 
 # rui-plan-esc
-tools: request_user_input [other] | Call: 1 line: [{"id":"color","header":"Color","question":"Whi… → 1 line: aborted by user after <n>s
+tools: Asked [plan] · Which color should the button be? | Call: request_user_input: 1 line: [{"id":"color","header":"Color","question":"Whi… → 1 line: aborted by user after <n>s
+note: Interrupted
 
 # rui-plan-wrong-key-y
-tools: request_user_input [other] | Call: 1 line: [{"id":"color","header":"Color","question":"Whi… → no result recorded.
+tools: Asked [plan] · Which color should the button be? | Call: request_user_input: 1 line: [{"id":"color","header":"Color","question":"Whi… → no result recorded.

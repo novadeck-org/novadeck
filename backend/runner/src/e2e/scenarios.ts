@@ -1,4 +1,4 @@
-import { doorbell } from "@novadeck/harness-core/harness"
+import { doorbell } from "@novadeck/harness-core/prompts"
 import type { AgentName, MessageState } from "@novadeck/protocol"
 
 import { expectedAgent } from "../terminals/commands.js"
@@ -171,7 +171,7 @@ export const turn = async (
 
 /**
  * What the suite's nested runs of a harness are asked, which only their own conversations
- * hold as a user's words: one a command left running starts (controls.e2e.ts), one
+ * hold as a person's words: one a command left running starts (controls.e2e.ts), one
  * inside an agent's turn (nested.e2e.ts), and one held while prompts queue behind it
  * (chat.e2e.ts). A harness that allows a command only by its whole text is allowed each.
  */
@@ -249,7 +249,7 @@ export const releases = (text: string, to: string): Rule =>
     return { calls: [{ name: release, input: { to } }] }
   })
 
-/** Whether the call is the agent's next look after its `lead` asked the user about `handle`. */
+/** Whether the call is the agent's next look after its `lead` asked the person about `handle`. */
 export const askedToLead = (call: Call, handle: string): boolean => {
   const last = call.turns.at(-1)
   return last?.role === "tool" && lead("Asked the user to let you lead ", handle).test(last.text)
@@ -294,7 +294,7 @@ export const closed = (call: Call, handle: string): boolean => {
   return last?.role === "tool" && lead("Closed ", handle).test(last.text)
 }
 
-/** Whether the call is the agent's next look after its `close_terminal` asked the user to confirm closing `handle`. */
+/** Whether the call is the agent's next look after its `close_terminal` asked the person to confirm closing `handle`. */
 export const askedToClose = (call: Call, handle: string): boolean => {
   const last = call.turns.at(-1)
   return last?.role === "tool" && lead("Asked the user to confirm closing ", handle).test(last.text)

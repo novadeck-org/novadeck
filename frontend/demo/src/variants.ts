@@ -1,11 +1,12 @@
 import type { Backend } from "@novadeck/core/port"
 
-import { contentDemo } from "./content"
+import { addressParams } from "./address"
+import type { DemoTurns } from "./agents/turns"
 import { plainDemo, type PlainVariant } from "./index"
-import type { DemoTurns } from "./turns"
-import type { DemoTerminalSetup } from "./views"
+import { showcaseDemo } from "./showcase/demo"
+import type { DemoTerminalSetup } from "./terminals/screens"
 
-// The demos the content preview can run: the content showcase, and the plain ones.
+// The demos the content preview can run: the showcase, and the plain ones.
 export type DemoVariant = "showcase" | PlainVariant
 
 export const demoVariants: readonly DemoVariant[] = [
@@ -27,7 +28,7 @@ export const createDemo = (
   turns?: DemoTurns,
 ): Backend =>
   variant === "showcase"
-    ? contentDemo(terminals, turns)
+    ? showcaseDemo(terminals, turns)
     : plainDemo(variant, terminals, undefined, turns)
 
 const remembered = "novadeck.demo-variant"
@@ -48,7 +49,7 @@ const stored = (): string | null => {
 // last chose in this tab, else the showcase. The tab keeps the choice because the router
 // rewrites the address as soon as the app opens.
 export const requestedVariant = (): DemoVariant => {
-  const demo = new URLSearchParams(window.location.hash.split("?")[1] ?? "").get("demo")
+  const demo = addressParams().get("demo")
   return variantOf(demo) ?? variantOf(stored()) ?? "showcase"
 }
 

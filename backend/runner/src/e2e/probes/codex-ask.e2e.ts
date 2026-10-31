@@ -8,7 +8,6 @@ import {
   writeFileSync,
 } from "node:fs"
 import { join } from "node:path"
-import { setTimeout as sleep } from "node:timers/promises"
 
 import { screenRecord, type ScreenRecord } from "@novadeck/harness-core/testing/probes"
 import { afterAll } from "vitest"
@@ -21,6 +20,7 @@ import { describe, e2e, supported, type E2E } from "../fixture.js"
 import { installHarness, pins } from "../install.js"
 import { asked, type Call, type Rule } from "../model/script.js"
 import { prompted } from "../scenarios.js"
+import { sleep } from "./support.js"
 
 // PROBE, not a test of Novadeck: how Codex (the pin, or the newest with NOVADECK_E2E_HARNESS=latest) asks the person for things in its
 // interactive TUI, which hooks fire, what its rollout records and which keys answer, for
@@ -175,18 +175,38 @@ const rollout = (run: E2E): Json[] => {
     : []
 }
 
-/** The rollout's records that say what was asked and answered, not the context noise. */
+// The context Codex writes as the person's message (the environment, AGENTS.md), which
+// differs run to run and which the chat leaves out.
+const contextMessage = /^\s*(<environment_context>|# AGENTS\.md instructions)/
+
+const isContext = (payload: Json): boolean =>
+  Array.isArray(payload.content) &&
+  payload.content.some(
+    (part) =>
+      typeof (part as Json).text === "string" && contextMessage.test(String((part as Json).text)),
+  )
+
+/**
+ * The rollout's records that say what was asked and answered, not the context noise: the
+ * tool calls, their outputs and the person's and the agent's messages, which the chat's
+ * transcript is made of.
+ */
 const interesting = (records: Json[]): Json[] =>
   records.filter((record) => {
     const payload = record.payload as Json | undefined
     const type = String(payload?.type ?? "")
     if (record.type === "response_item")
-      return [
-        "function_call",
-        "function_call_output",
-        "custom_tool_call",
-        "custom_tool_call_output",
-      ].includes(type)
+      return (
+        [
+          "function_call",
+          "function_call_output",
+          "custom_tool_call",
+          "custom_tool_call_output",
+        ].includes(type) ||
+        (type === "message" &&
+          (payload?.role === "user" || payload?.role === "assistant") &&
+          !isContext(payload))
+      )
     if (record.type === "event_msg")
       return (
         !/token_count|agent_message|user_message|thread_name/.test(type) ||

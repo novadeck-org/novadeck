@@ -1,27 +1,7 @@
-import type { TranscriptItem } from "@novadeck/protocol"
+import { transcriptLimits, type ToolRun, type TranscriptItem } from "@novadeck/protocol"
 
-import { ref, type TranscriptEntry } from "./harness.js"
-import type { ToolRun } from "./tools.js"
-
-// What the protocol takes of an item's text and a tool's name.
-const maxText = 16_384
-const maxTool = 256
-
-// Claude Code records a stopped turn as a user message in brackets. Every harness's items
-// are read for it, as the chat always did.
-const interruption = /^\s*\[Request interrupted by user[^\]]*\]\s*$/
-
-/** A transcript line's record, or undefined for one that is not a JSON object. */
-export const record = (line: string): Record<string, unknown> | undefined => {
-  try {
-    const value = JSON.parse(line) as unknown
-    return typeof value === "object" && value !== null && !Array.isArray(value)
-      ? (value as Record<string, unknown>)
-      : undefined
-  } catch {
-    return undefined
-  }
-}
+import { ref } from "./decode.js"
+import type { TranscriptEntry } from "./harness.js"
 
 /** When a record was written, from its ISO timestamp. */
 export const at = (value: unknown): number | null => {
@@ -43,11 +23,16 @@ export const joined = (parts: unknown, types: readonly string[]): string =>
 
 type Describe = (tool: string, input: string) => ToolRun
 
-type Fields = {
+type EntryFields = {
   readonly at: number | null
   readonly tool?: unknown
   readonly call?: unknown
   readonly author?: unknown
+  /**
+   * Whether a user's text records that the person interrupted the turn, as its harness
+   * tells by its own record of it; the chat shows it as a note.
+   */
+  readonly interrupted?: boolean
 }
 
 /**
@@ -61,33 +46,53 @@ export function entry(
   role: TranscriptItem["role"],
   kind: "text" | "tool-result",
   text: string,
-  fields: Fields,
+  fields: EntryFields,
 ): TranscriptEntry
 export function entry(
   role: TranscriptItem["role"],
   kind: "tool-call",
   text: string,
-  fields: Fields & { readonly describe: Describe },
+  fields: EntryFields & { readonly describe: Describe },
 ): TranscriptEntry
 export function entry(
   role: TranscriptItem["role"],
   kind: TranscriptItem["kind"],
   text: string,
-  fields: Fields & { readonly describe?: Describe },
+  fields: EntryFields & { readonly describe?: Describe },
 ): TranscriptEntry {
-  const cut = text.slice(0, maxText)
-  const tool = typeof fields.tool === "string" ? fields.tool.slice(0, maxTool) : null
+  const cut = text.slice(0, transcriptLimits.text)
+  const tool = typeof fields.tool === "string" ? fields.tool.slice(0, transcriptLimits.name) : null
   return {
     at: fields.at,
     role,
     kind,
     text: cut,
-    truncated: text.length > maxText,
+    truncated: text.length > transcriptLimits.text,
     tool,
     call: typeof fields.call === "string" && fields.call ? ref("call", fields.call) : null,
     author:
-      typeof fields.author === "string" && fields.author ? fields.author.slice(0, maxTool) : null,
+      typeof fields.author === "string" && fields.author
+        ? fields.author.slice(0, transcriptLimits.name)
+        : null,
     run: kind === "tool-call" ? (fields.describe?.(tool ?? "tool", cut) ?? null) : null,
-    interrupted: role === "user" && kind === "text" && interruption.test(cut),
+    interrupted: role === "user" && kind === "text" && fields.interrupted === true,
   }
 }
+
+/**
+ * The item that shows where the person interrupted a turn, for a harness whose records hold
+ * no interruption of their own (Antigravity's): the runner joins it to the transcript's
+ * items, read as a harness's own record of one reads.
+ */
+export const interruptionEntry = (when: number): TranscriptEntry => ({
+  at: when,
+  role: "user",
+  kind: "text",
+  text: "Interrupted",
+  truncated: false,
+  tool: null,
+  call: null,
+  author: null,
+  run: null,
+  interrupted: true,
+})

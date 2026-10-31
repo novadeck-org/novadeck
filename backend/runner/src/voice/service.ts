@@ -16,15 +16,18 @@ import {
 import { Versioned } from "@novadeck/wire/server"
 
 import { ActivityTracker, type Activity } from "../engines/activity.js"
-import { DownloadError, download } from "../engines/download.js"
+import { download } from "../engines/download.js"
 import { aborted, engineStatus, fetchEngine, removeContents } from "../engines/install.js"
+import { explainInstall, progressMs, updateRetryMs } from "../engines/installing.js"
 import { readManifest, type Manifest } from "../engines/manifest.js"
 import { modelFile, pruneModels } from "../engines/models.js"
 import type { Launch } from "../engines/server.js"
-import { EngineError, engineFolder, exists } from "../engines/unpack.js"
+import { EngineError, engineFolder } from "../engines/unpack.js"
 import { DomainError } from "../errors.js"
+import { exists } from "../files.js"
 import { logs } from "../log.js"
-import type { VoiceSettingsChange } from "../workspaces/store.js"
+import { cut } from "../text.js"
+import type { VoiceSettingsChange } from "../workspaces/settings.js"
 import { catalog as pinned, recommend, type Catalog } from "./catalog.js"
 import { Clips } from "./clips.js"
 import { Engine, engineProgram, type EngineConfig } from "./engine.js"
@@ -32,7 +35,7 @@ import { dictationHint, type HintFacts } from "./hint.js"
 import { wav } from "./wav.js"
 
 /** Where the runner keeps voice input's settings. */
-export type VoiceSettingsStore = {
+type VoiceSettingsStore = {
   voiceSettings(): VoiceSettings
   saveVoiceSettings(settings: VoiceSettingsChange): void
   voiceEnabledChoice(): boolean | undefined
@@ -51,7 +54,7 @@ export type VoiceOptions = {
   /** The models to download; those Novadeck ships unless a test brings its own. */
   readonly catalog?: Catalog
   readonly launch?: Launch
-  /** The host saw only software rendering: turbo is not tried, small is installed directly. */
+  /** The app saw only software rendering: turbo is not tried, small is installed directly. */
   readonly softwareGraphics?: boolean
   readonly idleMs?: number
   /** How long each of the check's transcriptions may take after an install. */
@@ -77,21 +80,8 @@ const unavailable = (reason: VoiceUnavailable["reason"], message: string): Domai
 
 const log = logs.for("voice")
 
-const explain = (error: unknown): string => {
-  if (error instanceof DownloadError || error instanceof EngineError) return error.message
-  if (error instanceof Error && "code" in error && error.code === "ENOSPC")
-    return "There is not enough disk space to install voice input."
-  return `Voice input could not be installed: ${error instanceof Error ? error.message : String(error)}`
-}
-
 // How long the facts for a hint are read for before the clip goes without one.
 const hintMs = 500
-// How long after a failed engine update the next clip tries it again, as when the
-// network was down: soon enough to recover by itself, not once per clip.
-export const updateRetryMs = 60_000
-
-// How often install progress reaches watchers, at most.
-const progressMs = 100
 
 /**
  * Voice input: the engine and models people install, the settings, the clips being
@@ -113,8 +103,8 @@ export class Voice {
   private engineDir: string | undefined
   // Loading the saved state at start, which the first call to use it waits for.
   private loading: Promise<void> = Promise.resolve()
-  // An engine update that failed is not tried again by every clip; installing retries it.
-  // When the last engine update failed: another waits a minute, not for every clip.
+  // When the last engine update failed: another waits a minute, not for every clip, and
+  // installing retries it.
   private updateFailedAt: number | undefined
   private uninstalling = false
   private installing: VoiceInstall | null = null
@@ -280,12 +270,12 @@ export class Voice {
 
   /**
    * The model an install fetches first: turbo, unless this computer is known not to suit
-   * it, from the host's verdict, a check that found no GPU, or a turbo that was rejected
+   * it, from the app's verdict, a check that found no GPU, or a turbo that was rejected
    * before (small is then the model chosen).
    */
   private aim(): VoiceModel {
     // A model that passed its check stays the aim: a retry checks it again, but one slow or
-    // GPU-less result, or the host's verdict on this launch, never demotes it.
+    // GPU-less result, or the app's verdict on this launch, never demotes it.
     const kept = this.keptModel()
     if (kept !== undefined) return kept
     return this.options.softwareGraphics || this.settings.voiceSettings().model === "small"
@@ -460,12 +450,12 @@ export class Voice {
       // Closing ends the engine under a clip in flight: that is no failure to log.
       if (!this.closed)
         log.warn("voice.transcribe-failed", "Voice input could not transcribe a clip.", {
-          data: { reason: message.slice(0, 1024) },
+          data: { reason: cut(message, 1024) },
           err: error,
         })
       // The engine may be what went wrong with a first clip; keep the clip for another try.
       // Only the caller hears of it: the shared failure is for the install and the engine.
-      throw new DomainError("VOICE_FAILED", message.slice(0, 1024))
+      throw new DomainError("VOICE_FAILED", cut(message, 1024))
     }
   }
 
@@ -665,7 +655,7 @@ export class Voice {
     } catch (error) {
       // Cancelling is the person's choice, not a failure.
       if (!signal.aborted && !aborted(error)) {
-        this.failure = explain(error).slice(0, 1024)
+        this.failure = cut(explainInstall(error, "voice input"), 1024)
         this.updateFailedAt = engineOnly ? this.clock() : undefined
         // The card shows it until the next try; the log keeps it after that.
         log.warn("voice.install-failed", "Voice input's install failed.", {
@@ -775,7 +765,9 @@ export class Voice {
     try {
       await engine.start(config).catch((error: unknown) => {
         signal.throwIfAborted()
-        throw new StartFailure(`The voice engine could not start. (${explain(error)})`)
+        throw new StartFailure(
+          `The voice engine could not start. (${explainInstall(error, "voice input")})`,
+        )
       })
       // Cancelling may come while the engine starts, which nothing interrupts.
       signal.throwIfAborted()
@@ -790,7 +782,7 @@ export class Voice {
           throw new UnfitModel(
             `The ${model} model did not transcribe a short test clip within ` +
               `${Math.round(timeoutMs / 1000)} s. ` +
-              `(${explain(error)})`,
+              `(${explainInstall(error, "voice input")})`,
           )
         })
       // The first run loads the voice model and warms up the GPU, which later clips do not pay for.

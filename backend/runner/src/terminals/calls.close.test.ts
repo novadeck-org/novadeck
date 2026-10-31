@@ -1,7 +1,8 @@
 import type { AgentName } from "@novadeck/protocol"
 import { afterEach, beforeEach, vi } from "vitest"
 
-import type { Messaging, PeerAnswer } from "../messaging/messaging.js"
+import type { Messaging } from "../messaging/messaging.js"
+import type { PeerAnswer } from "../messaging/sending.js"
 import { describe, expect, it } from "../test.js"
 import { Approvals } from "./approvals.js"
 import { Calls, type CallsHost } from "./calls.js"
@@ -27,7 +28,7 @@ const setup = (
 ) => {
   const ids = Object.keys(runs)
   const records = new Map(ids.map((handle) => [`id-${handle}`, terminal(`id-${handle}`, handle)]))
-  const asks = new Approvals()
+  const approvals = new Approvals()
   const steps: string[] = []
   const notices: { to: string; text: string; always?: true }[] = []
   let stopping = false
@@ -53,7 +54,7 @@ const setup = (
           : { ok: false, reason: `"${to}" is no terminal's handle here.` }
       },
     }),
-    approvals: () => asks,
+    approvals: () => approvals,
     closingNow: () => false,
     closeForGood: (record: Record) => {
       record.closed = true
@@ -76,7 +77,7 @@ const setup = (
     calls.closePeer({ type: "close", terminalId: `id-${from}`, token, request: { to } })
   return {
     calls,
-    asks,
+    approvals,
     close,
     steps,
     notices,
@@ -85,11 +86,11 @@ const setup = (
   }
 }
 
-// The client following the asks, collecting what it is sent.
-const person = (asks: Approvals) => {
+// The client following the approvals, collecting what it is sent.
+const person = (approvals: Approvals) => {
   const items: { type: string; requestId: string }[] = []
   void (async () => {
-    for await (const item of asks.follow("person")) items.push(item)
+    for await (const item of approvals.follow("person")) items.push(item)
   })()
   return items
 }
@@ -166,13 +167,13 @@ describe("an agent closing its own terminal", () => {
 describe("an agent closing a teammate it leads, or a terminal with no agent", () => {
   it("closes a teammate it leads at once, with no ask", async () => {
     const run = setup({ moth: "claude", fox: "codex" }, { fox: "moth" })
-    const asked = person(run.asks)
+    const requested = person(run.approvals)
     await expect(run.close("moth", "fox")).resolves.toMatchObject({
       ok: true,
       handle: "fox",
       ran: "Codex",
     })
-    expect(asked).toEqual([])
+    expect(requested).toEqual([])
     expect(run.steps).toContain("removed fox")
   })
 
@@ -186,9 +187,9 @@ describe("an agent closing a teammate it leads, or a terminal with no agent", ()
 })
 
 describe("an agent closing another agent's terminal", () => {
-  it("asks the user and answers at once, closing nothing yet", async () => {
+  it("asks the person and answers at once, closing nothing yet", async () => {
     const run = setup({ moth: "claude", fox: "codex" })
-    const asked = person(run.asks)
+    const requested = person(run.approvals)
     await expect(run.close("moth", "fox")).resolves.toEqual({
       ok: true,
       asked: true,
@@ -197,7 +198,7 @@ describe("an agent closing another agent's terminal", () => {
       ran: "Codex",
     })
     await settle()
-    expect(asked).toEqual([
+    expect(requested).toEqual([
       {
         type: "request",
         requestId: expect.any(String),
@@ -210,12 +211,12 @@ describe("an agent closing another agent's terminal", () => {
     expect(run.steps).toEqual([])
   })
 
-  it("closes it once the user confirms, and tells the agent that asked", async () => {
+  it("closes it once the person confirms, and tells the agent that asked", async () => {
     const run = setup({ moth: "claude", fox: "codex" })
-    const asked = person(run.asks)
+    const requested = person(run.approvals)
     await run.close("moth", "fox")
     await settle()
-    run.asks.answer({ requestId: asked[0]!.requestId, approved: true }, "person")
+    run.approvals.answer({ requestId: requested[0]!.requestId, approved: true }, "person")
     await settle()
     expect(run.steps).toEqual(["closing fox", "ended fox", "removed fox", "forgot id-fox"])
     expect(run.notices).toEqual([
@@ -223,12 +224,12 @@ describe("an agent closing another agent's terminal", () => {
     ])
   })
 
-  it("keeps it open when the user declines, and tells the agent that asked", async () => {
+  it("keeps it open when the person declines, and tells the agent that asked", async () => {
     const run = setup({ moth: "claude", fox: "codex" })
-    const asked = person(run.asks)
+    const requested = person(run.approvals)
     await run.close("moth", "fox")
     await settle()
-    run.asks.answer({ requestId: asked[0]!.requestId, approved: false }, "person")
+    run.approvals.answer({ requestId: requested[0]!.requestId, approved: false }, "person")
     await settle()
     expect(run.steps).toEqual([])
     expect(run.notices).toEqual([
@@ -236,32 +237,32 @@ describe("an agent closing another agent's terminal", () => {
     ])
   })
 
-  it("takes the ask back when the target closes meanwhile, and tells the agent", async () => {
+  it("takes the request back when the target closes meanwhile, and tells the agent", async () => {
     const run = setup({ moth: "claude", fox: "codex" })
-    const asked = person(run.asks)
+    const requested = person(run.approvals)
     await run.close("moth", "fox")
     await settle()
     run.calls.forgetOpener("id-fox")
     await settle()
-    expect(asked.map((item) => item.type)).toEqual(["request", "withdrawn"])
+    expect(requested.map((item) => item.type)).toEqual(["request", "withdrawn"])
     expect(run.notices).toEqual([
       { to: "id-moth", always: true, text: closeNotice.vanished("fox") },
     ])
     // A late yes closes nothing.
     expect(() =>
-      run.asks.answer({ requestId: asked[0]!.requestId, approved: true }, "person"),
+      run.approvals.answer({ requestId: requested[0]!.requestId, approved: true }, "person"),
     ).toThrow(expect.objectContaining({ code: "NOT_FOUND" }))
     expect(run.steps).toEqual([])
   })
 
-  it("closes nothing when the user confirms after the target closed some other way", async () => {
+  it("closes nothing when the person confirms after the target closed some other way", async () => {
     const run = setup({ moth: "claude", fox: "codex" })
-    const asked = person(run.asks)
+    const requested = person(run.approvals)
     await run.close("moth", "fox")
     await settle()
     // Its record went without the ask hearing of it.
     run.records.get("id-fox")!.closed = true
-    run.asks.answer({ requestId: asked[0]!.requestId, approved: true }, "person")
+    run.approvals.answer({ requestId: requested[0]!.requestId, approved: true }, "person")
     await settle()
     expect(run.steps).toEqual([])
     expect(run.notices).toEqual([
@@ -269,30 +270,30 @@ describe("an agent closing another agent's terminal", () => {
     ])
   })
 
-  it("takes the ask back when the agent that asked closes, and says nothing to it", async () => {
+  it("takes the request back when the agent that asked closes, and says nothing to it", async () => {
     const run = setup({ moth: "claude", fox: "codex" })
-    const asked = person(run.asks)
+    const requested = person(run.approvals)
     await run.close("moth", "fox")
     await settle()
     run.records.delete("id-moth")
     run.calls.forgetOpener("id-moth")
     await settle()
-    expect(asked.map((item) => item.type)).toEqual(["request", "withdrawn"])
+    expect(requested.map((item) => item.type)).toEqual(["request", "withdrawn"])
     expect(run.steps).toEqual([])
   })
 
-  it("tells the agent nothing closed when the client goes away before the user answers", async () => {
+  it("tells the agent nothing closed when the client goes away before the person answers", async () => {
     const run = setup({ moth: "claude", fox: "codex" })
-    person(run.asks)
+    person(run.approvals)
     await run.close("moth", "fox")
     await settle()
-    run.asks.release("person")
+    run.approvals.release("person")
     await settle()
     expect(run.steps).toEqual([])
     expect(run.notices).toEqual([{ to: "id-moth", always: true, text: closeNotice.gone("fox") }])
   })
 
-  it("refuses when no client follows the asks", async () => {
+  it("refuses when no client follows the requests", async () => {
     const run = setup({ moth: "claude", fox: "codex" })
     await expect(run.close("moth", "fox")).resolves.toEqual({
       ok: false,
@@ -301,9 +302,9 @@ describe("an agent closing another agent's terminal", () => {
     expect(run.steps).toEqual([])
   })
 
-  it("refuses a second ask for a terminal already waiting for the user", async () => {
+  it("refuses a second ask for a terminal already waiting for the person", async () => {
     const run = setup({ moth: "claude", fox: "codex", owl: "claude" })
-    person(run.asks)
+    person(run.approvals)
     await expect(run.close("moth", "fox")).resolves.toMatchObject({ ok: true, asked: true })
     await expect(run.close("owl", "fox")).resolves.toEqual({
       ok: false,
@@ -311,13 +312,13 @@ describe("an agent closing another agent's terminal", () => {
     })
   })
 
-  it("charges the close budget at ask time, so agents can't spam the user", async () => {
+  it("charges the close budget at ask time, so agents can't spam the person", async () => {
     const targets = ["a0", "a1", "a2", "a3", "a4", "a5"]
     const run = setup({
       moth: "claude",
       ...Object.fromEntries(targets.map((each) => [each, "codex"])),
     })
-    person(run.asks)
+    person(run.approvals)
     for (const each of targets.slice(0, 5))
       // eslint-disable-next-line no-await-in-loop -- Asked in turn.
       await expect(run.close("moth", each)).resolves.toMatchObject({ ok: true, asked: true })

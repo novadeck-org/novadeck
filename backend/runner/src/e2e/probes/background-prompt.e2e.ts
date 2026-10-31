@@ -12,7 +12,6 @@
 /* eslint-disable no-await-in-loop -- A probe's steps run in order, each after the screen settles. */
 import { mkdirSync, writeFileSync } from "node:fs"
 import { join } from "node:path"
-import { setTimeout as sleep } from "node:timers/promises"
 
 import { screenRecord } from "@novadeck/harness-core/testing/probes"
 
@@ -20,8 +19,8 @@ import { setups } from "../agents/index.js"
 import { describe, e2e, supported } from "../fixture.js"
 import { asked, gate, type Call, type Reply } from "../model/script.js"
 import { own, result, start } from "../scenarios.js"
+import { sleep, probing } from "./support.js"
 
-const probing = process.env.NOVADECK_E2E_PROBES === "1"
 // The helper's own task, which only its conversation holds as a user's words.
 const helper = "Helper task: wait for the build"
 

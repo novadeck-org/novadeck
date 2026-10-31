@@ -1,6 +1,6 @@
 import { OutlineThumb } from "../../document/OutlineThumb"
 import type { ItemProps } from "../../registration"
-import { usePlan } from "../../use-item-store"
+import { usePlan } from "../../store/use-item-store"
 
 // The plan: its title over its sections, its name until it loads.
 export const PlanThumb = ({ item, itemStore }: ItemProps): React.JSX.Element => {

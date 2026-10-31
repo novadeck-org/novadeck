@@ -1,12 +1,12 @@
 import type { BackendAction, TerminalKey } from "@novadeck/core/port"
-import { isAgentProgram } from "@novadeck/core/process"
 import { workspaceFromSeed } from "@novadeck/core/seed"
 import { workspaceReducer } from "@novadeck/core/state"
-import { terminalEnding } from "@novadeck/core/terminal-ending"
-import { terminalPhase } from "@novadeck/core/terminal-ending"
+import { terminalEnding } from "@novadeck/core/terminals/ending"
+import { terminalPhase } from "@novadeck/core/terminals/ending"
+import { isAgentProgram } from "@novadeck/core/terminals/process"
 import type { AgentStatus, TerminalMetadata, Workspace } from "@novadeck/core/types"
 import { demoSeed, demoTerminalId } from "@novadeck/demo/samples"
-import { terminalOf } from "@novadeck/demo/terminals"
+import { terminalOf } from "@novadeck/demo/workspace"
 
 import {
   backToPrompt,

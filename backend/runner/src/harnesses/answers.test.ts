@@ -3,16 +3,15 @@ import { tmpdir } from "node:os"
 import { join } from "node:path"
 
 import type { HarnessEvent } from "@novadeck/harness-core/events"
+import { type Launchers, silentFor } from "@novadeck/harness-core/harness"
+import { hookSeconds } from "@novadeck/harness-core/hook-command"
 import {
   continuationPrompt,
   doorbellLine,
   doorbellNonce,
-  hookSeconds,
   promptStart,
   withoutDoorbell,
-  type Launchers,
-  silentFor,
-} from "@novadeck/harness-core/harness"
+} from "@novadeck/harness-core/prompts"
 import type { Report } from "@novadeck/harness-core/report"
 import { loadProbe } from "@novadeck/harness-core/testing/probes"
 import type { AgentName } from "@novadeck/protocol"
@@ -101,8 +100,7 @@ describe("each harness's messaging profile", () => {
 })
 
 describe("a continuation's prompt", () => {
-  it("is a Stop hook's or a delivery's, never the person's", () => {
-    expect(continuationPrompt("<hook_prompt>go on</hook_prompt>")).toBe(true)
+  it("is a delivery's, in any harness, never the person's", () => {
     expect(continuationPrompt(`text\n${delivery}`)).toBe(true)
     expect(continuationPrompt("Review the Novadeck notice")).toBe(false)
   })
@@ -133,9 +131,7 @@ describe("a doorbell prompt", () => {
       prompt: "fix the build",
     })
     expect(withoutDoorbell(`half ${bell} typed`)).toBe("half typed")
-    expect(promptStart(base, "<hook_prompt>go on</hook_prompt>")).toMatchObject({
-      cause: "harness",
-    })
+    expect(promptStart(base, `go on\n${delivery}`)).toMatchObject({ cause: "harness" })
     expect(promptStart(base, "anything", true)).toMatchObject({ cause: "harness" })
   })
 
@@ -143,16 +139,16 @@ describe("a doorbell prompt", () => {
     resources,
   }) => {
     const place = { install: undefined, cwd: "/work" }
-    await expect(harnesses.claude.messaging.initialPrompt(bell, place)).resolves.toEqual([
+    await expect(harnesses.claude.launch.initialPrompt(bell, place)).resolves.toEqual([
       "claude",
       bell,
     ])
-    await expect(harnesses.codex.messaging.initialPrompt(bell, place)).resolves.toEqual([
+    await expect(harnesses.codex.launch.initialPrompt(bell, place)).resolves.toEqual([
       "codex",
       bell,
     ])
     // Without its settings, Antigravity trusts nothing.
-    await expect(harnesses.agy.messaging.initialPrompt(bell, place)).resolves.toBeUndefined()
+    await expect(harnesses.agy.launch.initialPrompt(bell, place)).resolves.toBeUndefined()
     const home = mkdtempSync(join(tmpdir(), "novadeck-agy-"))
     resources.defer(() => rmSync(home, { recursive: true, force: true }))
     const trusted = join(home, "trusted")
@@ -164,20 +160,20 @@ describe("a doorbell prompt", () => {
     )
     const install = { env: {}, home, platform: process.platform, plugin: join(home, "plugin") }
     await expect(
-      harnesses.agy.messaging.initialPrompt(bell, { install, cwd: trusted }),
+      harnesses.agy.launch.initialPrompt(bell, { install, cwd: trusted }),
     ).resolves.toEqual(["agy", "-i", bell])
     await expect(
-      harnesses.agy.messaging.initialPrompt(bell, { install, cwd: home }),
+      harnesses.agy.launch.initialPrompt(bell, { install, cwd: home }),
     ).resolves.toBeUndefined()
     // The same path, written another way, is trusted; a link to it isn't, failing safe.
     await expect(
-      harnesses.agy.messaging.initialPrompt(bell, { install, cwd: `${trusted}/./` }),
+      harnesses.agy.launch.initialPrompt(bell, { install, cwd: `${trusted}/./` }),
     ).resolves.toEqual(["agy", "-i", bell])
     symlinkSync(trusted, join(home, "linked"))
     await expect(
-      harnesses.agy.messaging.initialPrompt(bell, { install, cwd: join(home, "linked") }),
+      harnesses.agy.launch.initialPrompt(bell, { install, cwd: join(home, "linked") }),
     ).resolves.toBeUndefined()
-    expect(harnesses.agy.messaging.start).toEqual(["agy"])
+    expect(harnesses.agy.launch.start).toEqual(["agy"])
   })
 })
 
@@ -349,21 +345,27 @@ describe("root turns, as each harness reports them", () => {
   })
 
   it("never take a Stop hook's continuation for the person's prompt", () => {
-    for (const agent of ["claude", "codex"] as const)
-      for (const prompt of [
-        "<hook_prompt>Stop hook feedback</hook_prompt>",
-        '<novadeck-messages note="…">\n<message id="m-1">hi</message>\n</novadeck-messages>',
+    const hookPrompt = "<hook_prompt>Stop hook feedback</hook_prompt>"
+    // Codex submits a Stop's reason as a prompt of its own; Claude Code takes it as the
+    // hook's feedback, never as a prompt, so its text there is the person's.
+    for (const [agent, prompt] of [
+      ["claude", delivery],
+      ["codex", delivery],
+      ["codex", hookPrompt],
+    ] as const)
+      expect(turns(decode(agent, "UserPromptSubmit", { session_id: "s", prompt }))).toEqual([
+        {
+          type: "turn-started",
+          agent,
+          sessionId: "s",
+          instance: "7",
+          startedAt: 1,
+          cause: "harness",
+        },
       ])
-        expect(turns(decode(agent, "UserPromptSubmit", { session_id: "s", prompt }))).toEqual([
-          {
-            type: "turn-started",
-            agent,
-            sessionId: "s",
-            instance: "7",
-            startedAt: 1,
-            cause: "harness",
-          },
-        ])
+    expect(
+      turns(decode("claude", "UserPromptSubmit", { session_id: "s", prompt: hookPrompt })),
+    ).toMatchObject([{ cause: "prompt", prompt: hookPrompt }])
   })
 
   it("leave a subagent's prompt out of the root's turns", () => {

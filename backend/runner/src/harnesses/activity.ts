@@ -1,8 +1,15 @@
-import { flavourOf, patchRequested } from "@novadeck/harness-codex/decode"
+import { ref } from "@novadeck/harness-core/decode"
 import type { ActivityEvent, Background, PlanSource } from "@novadeck/harness-core/events"
-import { ref } from "@novadeck/harness-core/harness"
-import type { AgentActivity } from "@novadeck/protocol"
+import { samePath } from "@novadeck/harness-core/paths"
+import {
+  agentLimits,
+  maxTurnError,
+  maxTurnFilePath,
+  maxTurnFiles,
+  type AgentActivity,
+} from "@novadeck/protocol"
 
+import { cut } from "../text.js"
 import type { Binding } from "./bindings.js"
 import { endless } from "./waits.js"
 
@@ -21,6 +28,8 @@ export type Request = {
   readonly input?: unknown
   /** The directory its hook said the agent ran in, where it said one. */
   readonly cwd?: string
+  /** The files it asks to write, where its harness told them (see the event's `writes`). */
+  readonly writes?: readonly string[]
   /** Whether only the screen told it (see `DialogAdapter.screenRequest`), no hook. */
   readonly screen?: true
   /** Whether it asks without waiting (see the `attention-requested` event's `detached`). */
@@ -33,22 +42,9 @@ export type Request = {
   readonly askedAt: number
 }
 
-// A path as a comparison reads it: separators alike, and case folded where it is a Windows
-// drive's.
-const comparable = (path: string): string => {
-  const slashed = flavourOf(path).normalize(path).replace(/\\/g, "/")
-  return /^[A-Za-z]:\//.test(slashed) ? slashed.toLowerCase() : slashed
-}
-
-/**
- * Whether a permission request is Codex's to apply a patch that writes `path`: the files
- * its patch names, each from the directory it asked in, whole paths compared.
- */
+/** Whether a permission request asks to write `path`, whole paths compared. */
 const asksToWrite = (request: Request, path: string): boolean =>
-  request.kind === "permission" &&
-  patchRequested(request.toolName, request.input, request.cwd).some(
-    (file) => comparable(file) === comparable(path),
-  )
+  request.kind === "permission" && (request.writes ?? []).some((file) => samePath(file, path))
 
 /** An actor's latest plan, as the hook that named it started. */
 type Plan = { readonly actor: string | null; readonly source: PlanSource; readonly at: number }
@@ -68,19 +64,13 @@ type Subagent = {
   readonly abortedAt?: number
 }
 
-// More than any agent runs at once; a runaway harness cannot grow the summary. Once full,
-// the subagent whose turn aborted longest ago, idle since, makes room for another.
-const maxSubagents = 32
 // How many ended subagents are remembered, so a start arriving after its end is ignored.
 // A resumed one keeps its id, and starts after that end.
 const maxEnded = 64
-// What the protocol carries of an id or a kind.
-const maxText = 256
 // The most parts a request is asked in that are told apart: more than a harness asks at once.
 const maxParts = 16
-// How many background tasks' starts are remembered, and how many jobs an agent waits on.
+// How many background tasks' starts are remembered.
 const maxTasks = 64
-const maxJobs = 16
 
 /**
  * A background task the agent started, as its call's result named it: when, and until when
@@ -318,7 +308,7 @@ const waitsOn = (
     return [{ id, description, command, since: task?.at ?? endedAt, until: task?.until ?? null }]
   })
   const { wake } = activity
-  return waited.length > 0 || wake ? { jobs: waited.slice(0, maxJobs), wake } : null
+  return waited.length > 0 || wake ? { jobs: waited.slice(0, agentLimits.jobs), wake } : null
 }
 
 /** What a turn's start leaves of what the last one waited on: its jobs. */
@@ -335,12 +325,13 @@ const endOf = (ended: Activity["ended"], actor: string): number | undefined =>
   ended.find(({ id }) => id === actor)?.at
 
 /**
- * The subagents with room for one more: full, less the one whose turn aborted longest ago
- * with no request since (it asks again as one never seen starting); undefined when none
- * can give way.
+ * The subagents with room for one more: full (at the protocol's limit, more than any agent
+ * runs at once, so a runaway harness cannot grow the summary), less the one whose turn
+ * aborted longest ago with no request since (it asks again as one never seen starting);
+ * undefined when none can give way.
  */
 const room = (subagents: readonly Subagent[]): readonly Subagent[] | undefined => {
-  if (subagents.length < maxSubagents) return subagents
+  if (subagents.length < agentLimits.subagents) return subagents
   let oldest: number | undefined
   for (const [index, { abortedAt }] of subagents.entries())
     if (
@@ -360,7 +351,7 @@ const startable = (
   id: string,
   startedAt: number,
 ): boolean =>
-  id.length <= maxText &&
+  id.length <= agentLimits.name &&
   room(subagents) !== undefined &&
   !subagents.some((subagent) => subagent.id === id) &&
   startedAt >= (endOf(ended, id) ?? Number.NEGATIVE_INFINITY) &&
@@ -439,7 +430,7 @@ const afterPrompt = (
     if (!request.detached) return [request]
     if (!answers?.length) return []
     const quoted = (request.parts ?? []).flatMap((part, index) =>
-      answers.some((answer) => answer.slice(0, maxText) === part) ? [index] : [],
+      answers.some((answer) => cut(answer, agentLimits.name) === part) ? [index] : [],
     )
     if (quoted.length === 0) return [request]
     const left = answering(request, quoted)
@@ -463,20 +454,19 @@ export const ordered = (pending: readonly Request[]): readonly Request[] => [
   ...pending.filter(({ detached }) => detached === true),
 ]
 
+/** The files with `path` added, once each and at most `maxTurnFiles`; undefined where unchanged. */
+const withFile = (files: readonly string[], path: string): readonly string[] | undefined =>
+  path.length === 0 ||
+  path.length > maxTurnFilePath ||
+  files.length >= maxTurnFiles ||
+  files.includes(path)
+    ? undefined
+    : [...files, path]
+
 /**
  * The turn's end as the activity takes it, for a root turn still running or one an Escape
  * ended before its harness said more.
  */
-/** How many files a turn names, and how long an error is kept. */
-export const maxFiles = 16
-const maxError = 2048
-
-/** The files with `path` added, once each and at most `maxFiles`; undefined where unchanged. */
-const withFile = (files: readonly string[], path: string): readonly string[] | undefined =>
-  path.length === 0 || path.length > 1024 || files.length >= maxFiles || files.includes(path)
-    ? undefined
-    : [...files, path]
-
 const turnEnded = (activity: Activity, event: TurnEnded): Activity | undefined => {
   // Its records end only the turn still running, its own where they name one, and
   // leave its fence where it was, so the hook's own Stop, should it come after all,
@@ -492,7 +482,9 @@ const turnEnded = (activity: Activity, event: TurnEnded): Activity | undefined =
   const again = activity.state === "idle" && activity.lastTurn?.recorded === true && !recorded
   const before = again && activity.lastTurn!.outcome === event.outcome ? activity.lastTurn : null
   const error =
-    event.outcome === "failed" ? event.error?.slice(0, maxError) || before?.error : undefined
+    event.outcome === "failed"
+      ? (event.error && cut(event.error, maxTurnError)) || before?.error
+      : undefined
   const limited = event.outcome === "failed" && (event.limited || before?.limited)
   const turn = {
     state: "idle",
@@ -575,14 +567,13 @@ const ending = (activity: Activity, event: TurnEnded): Activity | undefined =>
  * A turn the person's Escape ended that its harness finished all the same: the end it
  * reported, kept as a correction's due should the harness yet record the interruption.
  */
-const finished = (activity: Activity, event: TurnEnded): Activity | undefined => {
-  const { escaped } = activity.lastTurn!
+const finished = (activity: Activity, escaped: Escape, event: TurnEnded): Activity | undefined => {
   const next = ending(activity, { ...event, outcome: "completed" })
-  const stop = event.recorded ? escaped!.stop : event.startedAt
+  const stop = event.recorded ? escaped.stop : event.startedAt
   return (
     next && {
       ...next,
-      lastTurn: { ...next.lastTurn!, escaped: { ...escaped!, held: null, stop, settled: true } },
+      lastTurn: { ...next.lastTurn!, escaped: { ...escaped, held: null, stop, settled: true } },
     }
   )
 }
@@ -618,7 +609,7 @@ const afterEscape = (
     // Its record names the Escape's own end; a hook's end older than the key, too.
     return event.recorded || event.startedAt < activity.turnAt ? confirmed(activity) : null
   }
-  if (event.recorded || !activity.records) return finished(activity, escaped.held ?? event)
+  if (event.recorded || !activity.records) return finished(activity, escaped, escaped.held ?? event)
   return {
     ...activity,
     lastTurn: {
@@ -693,11 +684,11 @@ export const apply = (
       }
       // Older than the running turn's start, it is some other turn's.
       if (activity.state !== "working" || event.startedAt < activity.turnAt) return undefined
-      // A write that landed settles the permission asked for it where no hook does:
-      // Codex fires no PostToolUse for a patch it ran through its shell, and its rollout
-      // names the file (probed 2026-10-15, 0.159.3). Left pending, that request would sit
-      // ahead of the next, the one on screen. Only a request already asked qualifies, the
-      // latest of them: the write follows the approval just before it.
+      // A write that landed settles the permission that asked to write it (its `writes`)
+      // where no hook does, as Codex fires no PostToolUse for a patch it ran through its
+      // shell, and its rollout names the file (probed 2026-10-15, 0.159.3). Left pending,
+      // that request would sit ahead of the next, the one on screen. Only a request already
+      // asked qualifies, the latest of them: the write follows the approval just before it.
       const asked = event.settles
         ? activity.pending.reduce(
             (found, each, index) =>
@@ -722,7 +713,8 @@ export const apply = (
     case "task-started": {
       // Remembered across turns: the Stop that lists it may be a later turn's.
       const { id, startedAt: at, until, persistent } = event
-      if (id.length > maxText || activity.tasks.some((task) => task.id === id)) return undefined
+      if (id.length > agentLimits.name || activity.tasks.some((task) => task.id === id))
+        return undefined
       const task = { id, at, until, persistent: persistent === true }
       return { ...activity, tasks: [...activity.tasks, task].slice(-maxTasks) }
     }
@@ -767,14 +759,14 @@ export const apply = (
     case "subagent-started": {
       const { actor: id, startedAt } = event
       if (!startable(activity, id, startedAt)) return undefined
-      const type = event.actorType?.slice(0, maxText) ?? null
+      const type = (event.actorType && cut(event.actorType, agentLimits.name)) ?? null
       return { ...activity, subagents: [...room(activity.subagents)!, { id, type, startedAt }] }
     }
     case "subagent-stopped": {
       const { subagents, ended } = activity
       const { actor, startedAt } = event
       const running = subagents.some(({ id }) => id === actor)
-      if (actor.length > maxText || (!running && startedAt <= (endOf(ended, actor) ?? -1)))
+      if (actor.length > agentLimits.name || (!running && startedAt <= (endOf(ended, actor) ?? -1)))
         return undefined
       // A stop may arrive before its start: remembered, it keeps that start out. A
       // stopped subagent waits on the person no longer, whatever it asked.
@@ -991,10 +983,10 @@ export const apply = (
       )
         return undefined
       const { held } = lastTurn.escaped
-      if (held) return finished(activity, held)
+      if (held) return finished(activity, lastTurn.escaped, held)
       if (event.reply === undefined) return confirmed(activity)
       // The reply came before the key took, though no Stop said so.
-      return finished(activity, {
+      return finished(activity, lastTurn.escaped, {
         type: "turn-ended",
         agent: event.agent,
         sessionId: event.sessionId,
@@ -1054,10 +1046,11 @@ const asked = (
         choices,
         ...(event.input !== undefined && { input: event.input }),
         ...(event.cwd !== undefined && { cwd: event.cwd }),
+        ...(event.writes !== undefined && { writes: event.writes }),
         ...(event.screen === true && { screen: true as const }),
         ...(event.detached === true && { detached: true as const }),
         ...(event.parts && {
-          parts: event.parts.slice(0, maxParts).map((part) => part.slice(0, maxText)),
+          parts: event.parts.slice(0, maxParts).map((part) => cut(part, agentLimits.name)),
         }),
         askedAt: startedAt,
       },

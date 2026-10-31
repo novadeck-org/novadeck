@@ -1,10 +1,12 @@
 import { readdir } from "node:fs/promises"
 import { dirname, join } from "node:path"
 
-import type { Harness } from "@novadeck/harness-core/harness"
-import { at, entry, joined, record, textOf } from "@novadeck/harness-core/items"
+import { parseFields, type Fields } from "@novadeck/harness-core/fields"
+import type { Harness, TranscriptEntry } from "@novadeck/harness-core/harness"
+import { at, entry, joined, textOf } from "@novadeck/harness-core/items"
 import { shellCall } from "@novadeck/harness-core/tools"
 
+import { asyncReplyText } from "./async-question.js"
 import { describe } from "./tools.js"
 
 // Context Codex writes into the conversation as the person's message.
@@ -67,18 +69,32 @@ const dayFolders = (folder: string): string[] => {
 
 // A call's tool as `mcp__<server>__<tool>`, the way Codex names it elsewhere: its rollout
 // records an MCP tool's server apart, as the call's `namespace` (`mcp__novadeck`).
-const toolName = (payload: Record<string, unknown>): unknown =>
+const toolName = (payload: Fields): unknown =>
   typeof payload.namespace === "string" && typeof payload.name === "string"
     ? `${payload.namespace.replace(/_+$/, "")}__${payload.name}`
     : payload.name
 
+// The person's Esc, as Codex records it: the turn's abort, an event (the developer message
+// it tells the model with stays out with the rest), read as the chat's note that they
+// interrupted it (probed 2026-10, 0.162.1 and 0.165.0). Another reason, as a turn another
+// replaced, is no interruption of theirs.
+const interruption = (fields: Fields): readonly TranscriptEntry[] => {
+  const payload = (fields.payload ?? {}) as Fields
+  return payload.type === "turn_aborted" && payload.reason === "interrupted"
+    ? [entry("user", "text", "Interrupted", { at: at(fields.timestamp), interrupted: true })]
+    : []
+}
+
 /**
  * Codex's transcripts are its rollouts: the session's, and one per subagent, named for
- * its thread and kept under the day it started, its parent's or a later one. Each response item holds the person's or the
- * agent's text, another agent's message to it, a tool call or its output; reasoning
- * stays out, as do developer messages and the context Codex adds as the person's. A
- * command the person ran in shell mode is one user message, which reads as the person's
- * `!command` and a Bash run with its output, and its exit code when not zero.
+ * its thread and kept under the day it started, its parent's or a later one. Each response
+ * item holds the person's or the agent's text, another agent's message to it, a tool call
+ * or its output; reasoning stays out, as do developer messages and the context Codex adds
+ * as the person's. A command the person ran in shell mode is one user message, which reads
+ * as the person's `!command` and a Bash run with its output, and its exit code when not
+ * zero. The person's answer to an async question is a user message of Codex's own, which
+ * reads as its history shows it: `Re: ` and the question, then the answer. A turn the person
+ * interrupted reads as their interruption, where it ended.
  */
 export const transcripts: NonNullable<Harness["transcripts"]> = {
   locate: async (root, _sessionId, subagent) => {
@@ -93,18 +109,21 @@ export const transcripts: NonNullable<Harness["transcripts"]> = {
     return undefined
   },
   items: (line) => {
-    const fields = record(line)
+    const fields = parseFields(line)
+    if (fields?.type === "event_msg") return interruption(fields)
     if (fields?.type !== "response_item") return []
-    const payload = (fields.payload ?? {}) as Record<string, unknown>
+    const payload = (fields.payload ?? {}) as Fields
     const time = at(fields.timestamp)
     switch (payload.type) {
       case "message": {
         const { role } = payload
         if (role !== "user" && role !== "assistant") return []
         const text = joined(withoutImageTags(payload.content), ["input_text", "output_text"])
+        const reply = role === "user" ? asyncReplyText(text) : undefined
+        if (reply !== undefined) return [entry("user", "text", reply, { at: time })]
         const ran = role === "user" ? shell.exec(text) : null
         if (ran) {
-          const [, command, code, printed] = ran as unknown as [string, string, string, string]
+          const [, command = "", code = "", printed = ""] = ran
           const output = [printed.trimEnd(), code === "0" ? "" : `[exit code ${code}]`]
             .filter(Boolean)
             .join("\n")

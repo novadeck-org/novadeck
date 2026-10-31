@@ -11,9 +11,10 @@ import type { WireStatus } from "@novadeck/wire/client"
 import { afterEach, beforeEach, vi } from "vitest"
 
 import { runnerBackend, type RunnerApi, type RunnerBackendOptions } from "./backend"
-import { channel, id as uuid, keptSummary, noCompanions } from "./scripted"
-import type { RunnerListing } from "./seed"
+import type { RunnerListing } from "./sessions/seed"
 import { describe, expect, it } from "./test"
+import { channel } from "./testing/channel"
+import { id as uuid, keptSummary, noCompanions } from "./testing/scripted"
 
 // Every wait here runs on a fake clock, so a slow machine can't push a step past a
 // deadline it should beat, or a deadline past a step that should see it run out.
@@ -23,14 +24,7 @@ afterEach(() => vi.useRealTimers())
 const elapse = async (ms: number): Promise<void> => void (await vi.advanceTimersByTimeAsync(ms))
 
 // A terminal watch that never reports anything.
-const nothing = (): AsyncIterableIterator<never, undefined> => {
-  const iterator: AsyncIterableIterator<never, undefined> = {
-    [Symbol.asyncIterator]: () => iterator,
-    next: () => new Promise(() => {}),
-    return: async () => ({ done: true, value: undefined }),
-  }
-  return iterator
-}
+const nothing = (): AsyncIterableIterator<never, undefined> => channel<never>().iterator
 
 // A runner whose link drops right after it started a shell, before it could answer:
 // a situation a real runner cannot be put in on cue.

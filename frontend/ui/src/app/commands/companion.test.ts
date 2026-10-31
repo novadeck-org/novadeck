@@ -1,4 +1,4 @@
-import { messagesKey } from "@novadeck/core/companion-bar"
+import { messagesKey } from "@novadeck/core/items/companion-bar"
 import { workspaceReducer, type WorkspaceAction } from "@novadeck/core/state"
 import { itemFixture, workspaceFixture } from "@novadeck/core/testing"
 import type { Workspace } from "@novadeck/core/types"

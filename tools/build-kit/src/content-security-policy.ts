@@ -8,13 +8,15 @@ export type Build = {
   readonly env: Readonly<Record<string, string | undefined>>
 }
 
+/** What the connect-src of every app's index.html holds until a build fills it. */
+export const connectSourcesPlaceholder = "__NOVADECK_CONNECT_SOURCES__"
+
 /**
- * Fills the connect-src of the page's Content Security Policy: `placeholder` in its
+ * Fills the connect-src of the page's Content Security Policy: the placeholder in its
  * index.html becomes the sources `connect` gives for the build. A page without the
  * placeholder fails the build, so a policy can't silently go unfilled.
  */
 export const contentSecurityPolicy = (options: {
-  readonly placeholder: string
   readonly connect: (build: Build) => readonly string[]
   /** The prefix of the variables the policy reads; the app's `envPrefix`, by default. */
   readonly envPrefix?: string | readonly string[]
@@ -35,10 +37,10 @@ export const contentSecurityPolicy = (options: {
       }
     },
     transformIndexHtml(html) {
-      if (!html.includes(options.placeholder)) {
+      if (!html.includes(connectSourcesPlaceholder)) {
         throw new Error("Content Security Policy connect-src placeholder is missing")
       }
-      return html.replace(options.placeholder, options.connect(build).join(" "))
+      return html.replace(connectSourcesPlaceholder, options.connect(build).join(" "))
     },
   }
 }

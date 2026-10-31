@@ -1,25 +1,53 @@
-/* oxlint-disable react/no-array-index-key -- Lines are read from text and transcripts that have no ids; they never reorder. */
-import { answered, choose, questionsAnswer, write, type Picks } from "@novadeck/core/answers"
+import type { AgentStep } from "@novadeck/core/agents/steps"
 import type { ChatQuestion } from "@novadeck/core/conversation"
-import type { HeldMessage, InboxRow, Trouble } from "@novadeck/core/inbox"
+/* oxlint-disable react/no-array-index-key -- Lines are read from text and transcripts that have no ids; they never reorder. */
+import {
+  answered,
+  choose,
+  questionsAnswer,
+  write,
+  type Picks,
+} from "@novadeck/core/conversation/picks"
+import type { HeldMessage, InboxAnswer, InboxRow, Trouble } from "@novadeck/core/inbox"
 import { unsaidWaits, waitsText } from "@novadeck/core/messages"
 import { HandleChip } from "@novadeck/toolkit/HandleChip"
 import { Markdown } from "@novadeck/toolkit/Markdown"
 import { useEffect, useLayoutEffect, useRef, useState, type ReactNode } from "react"
 
-import { useAgentContext, type AgentStep } from "./agent-context"
-import { answerable, menuOf, resetLabel, type Menu as MenuModel, type Row } from "./console-menu"
+import { useAgentContext } from "./agent-context"
+import {
+  answerable,
+  menuOf,
+  resetLabel,
+  type Menu as MenuModel,
+  type MenuRow,
+} from "./console-menu"
 import { rowOf } from "./inbox-dom"
 import { actionOf, agentName, limitWindow, recommended, subjectOf } from "./inbox-text"
-import { noDraft, useInboxContext } from "./InboxProvider"
+import { noDraft, useInboxContext, type Sent } from "./InboxProvider"
 import { Menu, wordsLimit, type MenuHandle, type MenuItem } from "./Menu"
-import type { SheetContentProps } from "./Page"
 import { usePlanAnswered, usePlanText } from "./plan-text"
 import { CommandBox, Disclosure, Failure, Text } from "./sheet-parts"
 
 // The Console sheet: one layout for every kind. The person's last words to the agent and the
 // few steps it took since; the thing it asks about, word for word; and a numbered menu that
 // answers it. Nothing here says what the head or the row says already.
+
+// What the sheet gets: its row, and what it knows around it.
+export type SheetContentProps = {
+  readonly row: InboxRow
+  // The answer the person gave, once they have.
+  readonly sent: Sent | undefined
+  // Whether an answer is on its way, and why the last one didn't take.
+  readonly answering: boolean
+  readonly failed: string | undefined
+  // Answers the row, with the receipt that tells the person what it did.
+  readonly submit: (answer: InboxAnswer, note: string) => void
+  // Changes how the row is handled, without answering it: it stays.
+  readonly change: (answer: InboxAnswer) => void
+  // Shows the row's terminal.
+  readonly reveal: () => void
+}
 
 // How long the room for the context stays kept while the agent's transcript is read. An agent
 // with none (a plain shell) gives the room back then.
@@ -28,8 +56,8 @@ export const contextWaitMs = 2000
 // Your last words, never an agent's, and up to three steps that edited, ran or failed. It fills in
 // late and in batches, so the block holds the room of its longest self from the start: the menu
 // under it must not move as the person aims at it. Nothing where there is no transcript.
-const Context = ({ item }: { readonly item: InboxRow }): React.JSX.Element | null => {
-  const context = useAgentContext(item)
+const Context = ({ row }: { readonly row: InboxRow }): React.JSX.Element | null => {
+  const context = useAgentContext(row)
   const [waiting, setWaiting] = useState(true)
   useEffect(() => {
     const timer = setTimeout(() => setWaiting(false), contextWaitMs)
@@ -118,8 +146,8 @@ const Prose = ({ text }: { readonly text: string }): React.JSX.Element | null =>
 
 // The plan in a box of its own, as the chat draws Markdown: only the box scrolls. While its
 // text is on its way the box says so; where there is none, the dialog's own words stand in.
-const PlanBox = ({ item, fallback }: { readonly item: InboxRow; readonly fallback: string }) => {
-  const plan = usePlanText(item)
+const PlanBox = ({ row, fallback }: { readonly row: InboxRow; readonly fallback: string }) => {
+  const plan = usePlanText(row)
   if (plan === undefined)
     return (
       <div className="console-planbox" data-loading="true">
@@ -169,15 +197,15 @@ const Held = ({ held }: { readonly held: HeldMessage }): React.JSX.Element => (
 )
 
 const TroubleThing = ({
-  item,
+  row,
   trouble,
   now,
 }: {
-  readonly item: InboxRow
+  readonly row: InboxRow
   readonly trouble: Trouble
   readonly now: number
 }): React.JSX.Element => {
-  const agent = agentName(item.source.agent)
+  const agent = agentName(row.source.agent)
   switch (trouble.type) {
     case "failed":
       return trouble.error ? (
@@ -205,7 +233,7 @@ const TroubleThing = ({
           <p className="console-body">
             <Text text={trouble.summary} />
           </p>
-          <div className="console-box" aria-label={`What @${item.source.handle} ran`}>
+          <div className="console-box" aria-label={`What @${row.source.handle} ran`}>
             {trouble.evidence.map((line, index) => (
               <div className="console-evidence" key={index}>
                 <span>
@@ -227,21 +255,21 @@ const TroubleThing = ({
   }
 }
 
-// What the item is about, word for word.
-const Thing = ({ item, now }: { readonly item: InboxRow; readonly now: number }) => {
-  switch (item.kind) {
+// What the row is about, word for word.
+const Thing = ({ row, now }: { readonly row: InboxRow; readonly now: number }) => {
+  switch (row.kind) {
     case "request": {
-      const { request } = item
+      const { request } = row
       const { dialog } = request
-      if (dialog?.type === "choices" && answerable(item)) {
+      if (dialog?.type === "choices" && answerable(row)) {
         const detail = dialog.detail ?? request.subject ?? ""
-        if (request.kind === "plan") return <PlanBox item={item} fallback={detail} />
+        if (request.kind === "plan") return <PlanBox row={row} fallback={detail} />
         return (
           <>
             {/* Another tool's name says what the box can't. */}
             {actionOf(request) === "other" && (
               <Heading>
-                <Text text={subjectOf(item)} />
+                <Text text={subjectOf(row)} />
               </Heading>
             )}
             {detail && <CommandBox command={detail} />}
@@ -253,7 +281,7 @@ const Thing = ({ item, now }: { readonly item: InboxRow; readonly now: number })
       return (
         <>
           <Heading>
-            <Text text={subjectOf(item)} />
+            <Text text={subjectOf(row)} />
           </Heading>
           {dialog?.type === "choices" && dialog.detail && <CommandBox command={dialog.detail} />}
           {dialog?.type === "raw" && (
@@ -272,9 +300,9 @@ const Thing = ({ item, now }: { readonly item: InboxRow; readonly now: number })
       )
     }
     case "held":
-      return <Held held={item.held} />
+      return <Held held={row.held} />
     case "ask": {
-      const { ask } = item
+      const { ask } = row
       return (
         <>
           <Heading glyph={ask.shape.type === "action" ? "!" : "?"}>
@@ -296,23 +324,23 @@ const Thing = ({ item, now }: { readonly item: InboxRow; readonly now: number })
       )
     }
     case "trouble":
-      return <TroubleThing item={item} trouble={item.trouble} now={now} />
+      return <TroubleThing row={row} trouble={row.trouble} now={now} />
     case "update":
-      return <Prose text={item.update.body} />
+      return <Prose text={row.update.body} />
   }
 }
 
 // How a settled ask ended, said once in place of its menu.
-const settledLine = (item: InboxRow): string | null => {
-  if (!item.settled) return null
-  const who = `@${item.source.handle}`
-  if (item.settled.how === "withdrawn") return `${who} withdrew this ask. Nothing to answer.`
-  if (item.settled.how === "dismissed") return `You dismissed this ask; ${who} was told.`
+const settledLine = (row: InboxRow): string | null => {
+  if (!row.settled) return null
+  const who = `@${row.source.handle}`
+  if (row.settled.how === "withdrawn") return `${who} withdrew this ask. Nothing to answer.`
+  if (row.settled.how === "dismissed") return `You dismissed this ask; ${who} was told.`
   return `You wrote to ${who} in its terminal, so this ask is settled.`
 }
 
 // Option details as the cursor reaches them.
-const detailsOf = (details: Extract<Row, { type: "answer" }>["details"]): ReactNode =>
+const detailsOf = (details: Extract<MenuRow, { type: "answer" }>["details"]): ReactNode =>
   details && (
     <>
       {details.details && <Markdown text={details.details} />}
@@ -328,7 +356,7 @@ const detailsOf = (details: Extract<Row, { type: "answer" }>["details"]): ReactN
   )
 
 // The menu of every kind but a dialog of questions.
-const RowsMenu = ({
+const ChoicesMenu = ({
   props,
   model,
   handle,
@@ -339,65 +367,67 @@ const RowsMenu = ({
   readonly handle: React.Ref<MenuHandle>
   readonly arrived: boolean
 }): React.JSX.Element => {
-  const { item, answering, submit, change, reveal } = props
+  const { row, answering, submit, change, reveal } = props
   const { drafts, setDraft } = useInboxContext()
   // An agent's ask keeps its words as a draft, on its row; other words are the sheet's.
   const [local, setLocal] = useState<Readonly<Record<number, string>>>({})
   const [pressed, setPressed] = useState<number | null>(null)
   const wordsOf = (at: number): string =>
-    item.kind === "ask" ? (drafts[item.id] ?? noDraft).text : (local[at] ?? "")
+    row.kind === "ask" ? (drafts[row.id] ?? noDraft).text : (local[at] ?? "")
   const setWords = (at: number, text: string): void =>
-    item.kind === "ask"
-      ? setDraft(item.id, { text })
+    row.kind === "ask"
+      ? setDraft(row.id, { text })
       : setLocal((record) => ({ ...record, [at]: text }))
-  const items = model.rows.map((row, at): MenuItem => {
-    switch (row.type) {
+  // The rows that answer, the way to the terminal aside.
+  const answers = model.rows.filter((menuRow) => menuRow.type !== "reveal").length
+  const items = model.rows.map((menuRow, at): MenuItem => {
+    switch (menuRow.type) {
       case "answer":
         return {
           key: `a${at}`,
-          label: row.label,
-          effect: row.effect,
-          pick: row.pick,
-          ...(row.hard && { arms: true }),
-          more: detailsOf(row.details),
+          label: menuRow.label,
+          effect: menuRow.effect,
+          pick: menuRow.pick,
+          ...(menuRow.hard && { arms: true }),
+          more: detailsOf(menuRow.details),
         }
       case "words": {
         const value = wordsOf(at)
         return {
           key: `w${at}`,
-          label: row.label,
+          label: menuRow.label,
           effect: null,
           words: {
             value,
             onChange: (text) => setWords(at, text),
-            placeholder: row.placeholder,
-            field: row.field,
-            required: row.required,
-            refused: value.trim() === "" ? null : row.refused(value),
-            hint: item.kind === "ask" && model.rows.length > 1 ? "send your words instead" : "send",
+            placeholder: menuRow.placeholder,
+            field: menuRow.field,
+            required: menuRow.required,
+            refused: value.trim() === "" ? null : menuRow.refused(value),
+            hint: row.kind === "ask" && answers > 1 ? "send your words instead" : "send",
           },
         }
       }
       case "reveal":
-        return { key: `r${at}`, label: row.label, effect: row.effect }
+        return { key: `r${at}`, label: menuRow.label, effect: menuRow.effect, away: true }
       case "toggle":
-        return { key: `t${at}`, label: row.label, effect: null, check: row.on }
+        return { key: `t${at}`, label: menuRow.label, effect: null, check: menuRow.on }
     }
   })
   const run = (at: number): void => {
-    const row = model.rows[at]
-    if (!row) return
-    if (row.type === "reveal") return reveal()
-    if (row.type === "toggle") return change(row.change)
+    const menuRow = model.rows[at]
+    if (!menuRow) return
+    if (menuRow.type === "reveal") return reveal()
+    if (menuRow.type === "toggle") return change(menuRow.change)
     setPressed(at)
-    if (row.type === "answer") {
-      submit(row.answer, row.receipt)
-      if (row.reveal) reveal()
+    if (menuRow.type === "answer") {
+      submit(menuRow.answer, menuRow.receipt)
+      if (menuRow.reveal) reveal()
       return
     }
     const text = wordsOf(at)
     if (text.length > wordsLimit) return
-    submit(row.answer(text), row.receipt(text))
+    submit(menuRow.answer(text), menuRow.receipt(text))
   }
   return (
     <Menu
@@ -438,14 +468,14 @@ const QuestionsMenu = ({
   readonly handles: React.RefObject<(MenuHandle | null)[]>
   readonly arrived: boolean
 }): React.JSX.Element => {
-  const { item, answering, submit } = props
+  const { row, answering, submit, reveal } = props
   const { drafts, setDraft } = useInboxContext()
-  const picks: Picks = drafts[item.id]?.picks ?? {}
-  const leftOut = drafts[item.id]?.leftOut ?? []
+  const picks: Picks = drafts[row.id]?.picks ?? {}
+  const leftOut = drafts[row.id]?.leftOut ?? []
   const setPicks = (next: Picks, left: readonly string[] = leftOut): void =>
-    setDraft(item.id, { picks: next, leftOut: left })
+    setDraft(row.id, { picks: next, leftOut: left })
   const [pressed, setPressed] = useState<{ question: number; at: number } | null>(null)
-  const receipt = `Answered @${item.source.handle}'s ${questions.length > 1 ? "questions" : "question"}.`
+  const receipt = `Answered @${row.source.handle}'s ${questions.length > 1 ? "questions" : "question"}.`
   const now = counted(picks, leftOut)
   const unanswered = questions.filter((question) => !answered(now, question))
   const over = questions.filter((question) => (now[question.id]?.text.length ?? 0) > wordsLimit)
@@ -458,7 +488,8 @@ const QuestionsMenu = ({
     const long = questions.findIndex(
       (question) => (ready[question.id]?.text.length ?? 0) > wordsLimit,
     )
-    if (long >= 0) return void handles.current[long]?.key("End")
+    // Its words row comes after its options.
+    if (long >= 0) return void handles.current[long]?.go(questions[long]!.options.length)
     submit({ kind: "request", answer: questionsAnswer(dialog, ready, questions) }, receipt)
   }
   return (
@@ -495,7 +526,7 @@ const QuestionsMenu = ({
                   write(picks, question, text),
                   leftOut.filter((id) => id !== question.id),
                 ),
-              placeholder: `Reply to ${agentName(item.source.agent)}`,
+              placeholder: `Reply to ${agentName(row.source.agent)}`,
               field: `Your answer to ${question.question}`,
               required: !question.multiSelect || count === 0,
               refused: null,
@@ -509,6 +540,11 @@ const QuestionsMenu = ({
             },
           })
         }
+        // The words row, where there is one, before the way to the terminal.
+        const wordsAt = items.length - 1
+        // Every question's menu ends on the way to the terminal.
+        const terminalAt = items.length
+        items.push({ key: "terminal", label: "Go to terminal", effect: null, away: true })
         return (
           <div className="console-question" key={question.id}>
             <Heading>
@@ -526,6 +562,7 @@ const QuestionsMenu = ({
                 handles.current[index] = handle
               }}
               onPress={(at) => {
+                if (at === terminalAt) return reveal()
                 const option = question.options[at]
                 if (!option) {
                   // The words row, in a menu of several picks: ticking brings the words
@@ -547,7 +584,7 @@ const QuestionsMenu = ({
                 finish(after, leftOut)
               }}
               onWords={() => {
-                setPressed({ question: index, at: items.length - 1 })
+                setPressed({ question: index, at: wordsAt })
                 finish(picks, leftOut)
               }}
               onSend={() => finish(picks, leftOut)}
@@ -568,37 +605,37 @@ const QuestionsMenu = ({
   )
 }
 
-// One item's page under the head: its context, the thing, and the menu that answers it.
+// One row's page under the head: its context, the thing, and the menu that answers it.
 export const ConsoleSheet = (shown: SheetContentProps): React.JSX.Element => {
-  const { item, failed, sent } = shown
+  const { row, failed, sent } = shown
   // A plan approval answered spends the plan its sheet showed: a round sent back is never the
   // next approval's plan.
   const planAnswered = usePlanAnswered()
   const props: SheetContentProps = {
     ...shown,
     submit: (answer, note) => {
-      if (item.kind === "request" && item.request.kind === "plan") planAnswered(item)
+      if (row.kind === "request" && row.request.kind === "plan") planAnswered(row)
       shown.submit(answer, note)
     },
   }
   const { now, drafts, receipt } = useInboxContext()
-  // An answered item opened again says what its answer did, in place of its menu.
-  const settled = settledLine(item) ?? sent?.note ?? null
+  // An answered row opened again says what its answer did, in place of its menu.
+  const settled = settledLine(row) ?? sent?.note ?? null
   // Whether the Inbox moved on to it from another's answer.
-  const arrived = receipt !== null && receipt.from !== item.id
-  const dialog = item.kind === "request" ? item.request.dialog : null
+  const arrived = receipt !== null && receipt.from !== row.id
+  const dialog = row.kind === "request" ? row.request.dialog : null
   const questions = dialog?.type === "questions" ? dialog : null
-  const model = questions ? null : menuOf(item, now)
+  const model = questions ? null : menuOf(row, now)
   const one = useRef<MenuHandle | null>(null)
   const several = useRef<(MenuHandle | null)[]>([])
   // The picks as of the last render, for the keys below.
   const picks = useRef<Picks>({})
-  const drafted = drafts[item.id]?.picks
+  const drafted = drafts[row.id]?.picks
   useLayoutEffect(() => {
-    picks.current = counted(drafted ?? {}, drafts[item.id]?.leftOut ?? [])
+    picks.current = counted(drafted ?? {}, drafts[row.id]?.leftOut ?? [])
   })
 
-  // A number or an arrow pressed on the item's row or the sheet's title goes to the menu: the
+  // A number or an arrow pressed on the row or the sheet's title goes to the menu: the
   // menu of the first question still unanswered, where there are several. Enter and Space
   // there stay the row's and the title's own, so a key pressed twice to open the sheet answers
   // nothing; nor does a key held, nor one pressed with focus nowhere, on a sheet not yet seen.
@@ -612,7 +649,7 @@ export const ConsoleSheet = (shown: SheetContentProps): React.JSX.Element => {
       const target = event.target
       const outside =
         target instanceof Element &&
-        (rowOf(item.id)?.contains(target) || target.matches(".inbox-sheet-title"))
+        (rowOf(row.id)?.contains(target) || target.matches(".inbox-sheet-title"))
       if (!outside) return
       const open = questions
         ? questions.questions.findIndex((question) => !answered(picks.current, question))
@@ -622,12 +659,12 @@ export const ConsoleSheet = (shown: SheetContentProps): React.JSX.Element => {
     }
     document.addEventListener("keydown", onKey)
     return () => document.removeEventListener("keydown", onKey)
-  }, [item.id, settled, questions])
+  }, [row.id, settled, questions])
 
   return (
     <div className="inbox-sheet-scroll console-page">
-      <Context item={item} />
-      <Thing item={item} now={now} />
+      <Context row={row} />
+      <Thing row={row} now={now} />
       {settled ? (
         <p className="console-settled" role="status">
           {settled}
@@ -643,7 +680,7 @@ export const ConsoleSheet = (shown: SheetContentProps): React.JSX.Element => {
       ) : (
         model &&
         model.rows.length > 0 && (
-          <RowsMenu props={props} model={model} handle={one} arrived={arrived} />
+          <ChoicesMenu props={props} model={model} handle={one} arrived={arrived} />
         )
       )}
       <Failure message={failed} />

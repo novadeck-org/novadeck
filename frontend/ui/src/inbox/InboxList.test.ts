@@ -71,7 +71,7 @@ const told = (id: string, at: number): InboxRow => ({
   update: { type: "told", subject: id, body: "" },
 })
 
-// An Inbox whose items the test changes, with the list, the held pill and the sheets as the
+// An Inbox whose rows the test changes, with the list, the held pill and the sheets as the
 // sidebar and the workspace wire them.
 const agentAsk = (id: string, at: number, settled?: InboxRow["settled"]): InboxRow => ({
   id,
@@ -85,13 +85,13 @@ const agentAsk = (id: string, at: number, settled?: InboxRow["settled"]): InboxR
 })
 
 const mount = (
-  items: readonly InboxRow[],
+  rows: readonly InboxRow[],
   working = false,
   dismissing = false,
   arranging = false,
   snoozing = false,
 ) => {
-  const state = createStore<InboxState>({ ...emptyInbox, items })
+  const state = createStore<InboxState>({ ...emptyInbox, items: rows })
   const answered: string[] = []
   const order = createStore<readonly string[]>([])
   const inbox: Inbox = {
@@ -100,7 +100,7 @@ const mount = (
     see: (id) =>
       state.update((current) => ({
         ...current,
-        items: current.items.map((item) => (item.id === id ? { ...item, seen: true } : item)),
+        items: current.items.map((row) => (row.id === id ? { ...row, seen: true } : row)),
       })),
     readAll: () => {},
     ...(dismissing
@@ -108,14 +108,14 @@ const mount = (
           dismiss: (id: string) =>
             state.update((current) => ({
               ...current,
-              items: current.items.map((item) =>
-                item.id === id ? { ...item, settled: { how: "dismissed", at: 99 } } : item,
+              items: current.items.map((row) =>
+                row.id === id ? { ...row, settled: { how: "dismissed", at: 99 } } : row,
               ),
             })),
           clear: (ids: readonly string[]) =>
             state.update((current) => ({
               ...current,
-              items: current.items.filter((item) => !ids.includes(item.id)),
+              items: current.items.filter((row) => !ids.includes(row.id)),
             })),
         }
       : {}),
@@ -152,9 +152,9 @@ const mount = (
         .querySelector<HTMLElement>(`[data-inbox-row="${id}"] .inbox-row-select`)!
         .click(),
     )
-  const arrive = (item: InboxRow): void =>
+  const arrive = (row: InboxRow): void =>
     act(() => {
-      state.update((current) => ({ ...current, items: [...current.items, item] }))
+      state.update((current) => ({ ...current, items: [...current.items, row] }))
     })
   const press = (key: string): void =>
     act(() => {
@@ -195,7 +195,7 @@ describe("The Inbox's list", () => {
     })
   })
 
-  context("when an item arrives with no sheet open", () => {
+  context("when a row arrives with no sheet open", () => {
     it("joins the list at once", async () => {
       const inbox = mount([permission("a", 1)])
       inbox.arrive(permission("b", 2))
@@ -209,7 +209,7 @@ describe("The Inbox's list", () => {
     })
   })
 
-  context("when an item arrives while a sheet is open", () => {
+  context("when a row arrives while a sheet is open", () => {
     it("is held: the list stays as it was, and the header counts it", async () => {
       const inbox = mount([permission("a", 1), permission("b", 2)])
       inbox.open("a")
@@ -250,7 +250,7 @@ describe("The Inbox's list", () => {
   })
 
   context("when moving with j and k", () => {
-    it("opens the item below and above, within the list", async () => {
+    it("opens the row below and above, within the list", async () => {
       const inbox = mount([permission("a", 1), permission("b", 2), permission("c", 3)])
       inbox.open("a")
       await nextFrame()

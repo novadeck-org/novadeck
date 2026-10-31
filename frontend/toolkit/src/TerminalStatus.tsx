@@ -5,7 +5,7 @@ import { Tooltip } from "./Tooltip"
 // What a terminal surface lays over its output, whichever backend draws it: the notice
 // while typing is paused, and the bar that says how the shell ended.
 
-// How a shell ended, as `terminalEnding` in core/terminal-ending words it.
+// How a shell ended, as `terminalEnding` in core/terminals/ending words it.
 export type TerminalEndingView = {
   readonly tone: "danger" | "warning"
   readonly status: string
@@ -17,7 +17,7 @@ const endingLine = ({ status, reason }: TerminalEndingView): string =>
 
 // Why typing is paused, set in capitals by CSS so assistive technology reads words.
 export const TerminalNotice = ({ notice }: { readonly notice: string }): React.JSX.Element => (
-  <span className="terminal-lock-notice px-3.5 py-2 text-control font-bold">{notice}</span>
+  <span className="terminal-notice px-3.5 py-2 text-control font-bold">{notice}</span>
 )
 
 // Over the whole surface while typing is paused: the output dims under the notice.

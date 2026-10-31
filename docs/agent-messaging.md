@@ -121,16 +121,16 @@ flowchart LR
   R --> U[Runner API: messages, pause, release, stop]
 ```
 
-| Part         | Where                                                                                                                   | Owns                                                                                |
-| ------------ | ----------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------- |
-| MCP tools    | `shell/mcp.ts`, beside `show`, `showing`, `look`, `close`, `open_terminal`, `open_agent`, `close_terminal`              | `send`, `agents`, `summarize` and `feedback`; the terminal's token on every call    |
-| Messages     | Runner, stored with the workspace (`WorkspaceStore`)                                                                    | Messages, threads, guards, pause, retention                                         |
-| Delivery     | Runner, one state machine per recipient terminal                                                                        | When and how a recipient notices: leases to hooks and the doorbell                  |
-| Hook answers | `shell/hook.ts` asks the runner; the runner returns stdout                                                              | Each harness's output encoding, in its adapter beside its decoder                   |
-| Doorbell     | `messaging/doorbell.ts`, behind `DoorbellHost` (built in `terminals/ringing.ts`); the manager owns every PTY and screen | The settle window, the calm check, the test paste, Enter, holding input and resizes |
-| Runner API   | Protocol and router                                                                                                     | Listing messages, pause and release, for the UI to come                             |
+| Part         | Where                                                                                                                         | Owns                                                                                |
+| ------------ | ----------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------- |
+| MCP tools    | `shell/mcp.ts`, beside `show`, `showing`, `look`, `close`, `open_terminal`, `open_agent`, `close_terminal`                    | `send`, `agents`, `summarize` and `feedback`; the terminal's token on every call    |
+| Messages     | Runner, stored with the workspace (`WorkspaceStore`)                                                                          | Messages, threads, guards, pause, retention                                         |
+| Delivery     | Runner, one state machine per recipient terminal                                                                              | When and how a recipient notices: leases to hooks and the doorbell                  |
+| Hook answers | `shell/hook.ts` asks the runner; the runner returns stdout                                                                    | Each harness's output encoding, in its adapter beside its decoder                   |
+| Doorbell     | `messaging/doorbell.ts`, behind `DoorbellHost` (built in `terminals/doorbell-host.ts`); the manager owns every PTY and screen | The settle window, the calm check, the test paste, Enter, holding input and resizes |
+| Runner API   | Protocol and router                                                                                                           | Listing messages, pause and release, for the UI to come                             |
 
-Messaging is an application operation like `present`, `open_terminal` and `open_agent`: the MCP
+Messaging is an application operation like `show`, `open_terminal` and `open_agent`: the MCP
 server only forwards calls with the terminal's token, and the runner decides.
 
 ## Authority
@@ -530,24 +530,29 @@ So does the person writing to the agent in its terminal. When a root turn starts
 person's own submission, as delivery judges it (see [What counts](#what-counts):
 a doorbell ring, a turn the harness or the agent started, and the first prompt an
 agent's command line gave never count), Novadeck withdraws that agent session's open asks
-made before the person submitted it, in every harness: the same `withdrawn` state as the
-agent's own withdrawal, so the row leaves the Inbox, and its toast or OS notification
-clears with it, and Messages shows it withdrawn. Tells, done rows and turn rows stay, and
+made before the person submitted it, in every harness, once the agent has been told (below):
+the same `withdrawn` state as the agent's own withdrawal, so the row leaves the Inbox, and its
+toast or OS notification clears with it, and Messages shows it withdrawn. Tells, done rows and turn rows stay, and
 so does an ask the agent makes during the new turn. The same prompt's hook answer carries a
 short automatic notice that names the withdrawn asks' subjects (shortened and quoted) and
-says to read the person's message as their reply and to ask again, as a new ask, only what
-it leaves open. It rides with any messages or hold notices the answer carries, and the asks are
-withdrawn only as it goes into an answer the hook still has time to print (the same
-`leaseMargin` rule messages use). A turn start whose answer comes too late, or is heard
-with no answer to print in, leaves the asks open and owes the withdrawal, but only within the turn
-the person's prompt started: the next tool-call hook of that turn (or Antigravity's next
-model call of it) that has time withdraws those still open and made before the person's
-submission, and tells the agent then. If the turn ends unpaid the debt is dropped and the
-asks stay open (the agent's notice already says to withdraw an ask itself if the user
-answered it in the terminal and no notice came). A Stop is never used, as printing there
-would continue the turn. The debt is also dropped when the session ends or another binds.
-A notice paid at a later model call of Antigravity's turn is given again on the turn's
-remaining calls, as one paid at its first. A message that then no longer fits the delivery budget (`maxDeliveryBytes`)
+says they are closed and can no longer be answered in the Inbox, to read the person's message
+as their reply, and to ask again with the ask tool, before ending the turn, whatever it leaves
+open, rather than saying it waits in the Inbox. It rides with any messages or hold notices the answer carries, in the same
+lease, or in a lease of its own that covers only the notice (no messages in it). The asks are
+withdrawn only when that lease is acknowledged, that is, once the hook has printed the notice:
+an answer too late to print, lost, or whose lease lapses unacknowledged withdraws nothing, and
+the asks stay open. The person's prompt leaves a debt, and the debt stays until then. A turn
+start whose answer comes too late, or is heard with no answer to print in, leaves the debt
+unpaid, and so does one whose notice was never acknowledged, but only within the turn the
+person's prompt started: the next tool-call hook of that turn (or Antigravity's next model call
+of it) that has time offers the notice again, with a new lease, for the asks still open and
+made before the person's submission, and its acknowledgement withdraws them. If the turn ends
+unpaid the debt is dropped and the asks stay open (the agent's notice already says to withdraw
+an ask itself if the user answered it in the terminal and no notice came). A Stop is never
+used, as printing there would continue the turn. The debt is also dropped when the session ends
+or another binds. A notice acknowledged at a later model call of Antigravity's turn is given
+again on the turn's remaining calls, as one acknowledged at its first; one not acknowledged is
+not kept. A message that then no longer fits the delivery budget (`maxDeliveryBytes`)
 waits for the next hook, and the notice goes alone. A
 prompt the person steers into a running turn counts when delivery takes it as theirs by the
 same Enter. A prompt they queued during the previous turn (Claude Code's and Codex's queues,
@@ -1211,6 +1216,9 @@ the runner, over the same endpoint and token `show` uses, and print what it retu
    turn ended, and the usual rules give Settled or Drafting; unless the turn has
    moved on since (the hook printed it and only its acknowledgement was lost), when the
    lapse leaves the delivery state alone.
+   A lease may cover only a notice, with no messages: its acknowledgement then settles
+   what the notice stands for (the person's prompt withdrawing the agent's asks), and
+   a lapse leaves that undone, to be offered again at the turn's next hook.
 
 ### A turn the runner's stop cut short
 
@@ -1816,9 +1824,9 @@ an opt-in local model (see [murmur.md](murmur.md)), writes the titles, for agent
 and plain shells. Each agent writes the summary of its own terminal, through its
 `summarize` tool. No agent has a way to set a title: no tool takes one, nothing grants a
 rename, and the only title an agent gives is the one it opens another terminal with.
-Built: the layers in `terminals/naming.ts`, the summary tool in `terminals/summarize.ts`
+Built: the layers in `terminals/titles.ts`, the summary tool in `terminals/summarize-request.ts`
 and `Calls.summarize` (`terminals/calls.ts`), the tool in `shell/mcp.ts`, its nudges
-in `terminals/nudges.ts`, murmur's triggers and digests in `terminals/murmur.ts`, and the
+in `terminals/nudges.ts`, murmur's triggers and digests in `terminals/descriptions.ts`, and the
 model behind a `Describer` (`murmur/`).
 
 - **`summarize(summary)`**, listed like the other tools only inside Novadeck's terminals,
@@ -1896,7 +1904,7 @@ whole printed answer stays within the 8 KB delivery budget (see "Hook output has
 in turn the summary's request (short, and it asks for something), the bar's and the
 Inbox's, then pages' troubles. What doesn't fit waits for the next turn the person or the
 doorbell begins (messaging hands the terminals side the answer to add to as `adding`, in
-`messaging.ts`; `take` in `terminals/nudges.ts` decides). Drift's facts are read only for
+`messaging/hook-answers.ts`; `take` in `terminals/nudges.ts` decides). Drift's facts are read only for
 an answer that delivers no messages, so a delivery never waits on them. On Antigravity the
 notices last one model call, as before: they are never kept with a delivery it is given
 again on each call.
@@ -1991,7 +1999,7 @@ nothing when exactly one page is on the bar. The rules:
    as `terminals.requests` and `answerRequest` do. Each look goes to the client that
    subscribed last, as `{ lookId, itemId, shown, url }`, where `shown` is the item's latest
    show (its `version`): the client doesn't picture a pane still at an earlier show, and
-   loads the page fresh instead. The desktop host takes looks one at a time and queues the
+   loads the page fresh instead. The desktop app takes looks one at a time and queues the
    rest, and gives each a deadline: a look the runner has given up on is dropped from the
    queue rather than run. A look first tries the pane: for each view of the item, one
    capture per width in `lookWidths` (1280, 960, 640), the next only when the picture came
@@ -2066,7 +2074,7 @@ A refusal from the model names nothing until the next summary. A title that did 
 (murmur busy or backed off) is asked again after a minute (`retryMs`), and one stopped by
 murmur becoming unusable, or a summary that came meanwhile or while another was named,
 once it is usable again. What
-murmur remembers of a terminal (`Watch` in `terminals/murmur.ts`) is lost with the runner,
+murmur remembers of a terminal (`Watch` in `terminals/descriptions.ts`) is lost with the runner,
 so after a restart a terminal's title stays until its agent's next summary.
 
 A **plain shell** is titled (never summarized) on:
@@ -2276,10 +2284,10 @@ again.
    `terminals/TerminalTab.tsx`.
 4. **Naming:** the title's layers (the person, murmur, the opener, the default) and
    agents' own `summarize`, which replaced `describe` and the first-prompt title. Built:
-   the layers in `backend/runner/src/terminals/naming.ts`, the summary tool in
-   `terminals/summarize.ts`, its nudges in `terminals/nudges.ts`, murmur's triggers and
-   digests in `terminals/murmur.ts`, their wiring in `terminals/describing.ts`, the person's turn
-   (`byPerson`) in `messaging/delivery.ts` and their prompt in `messaging/messaging.ts`,
+   the layers in `backend/runner/src/terminals/titles.ts`, the summary tool in
+   `terminals/summarize-request.ts`, its nudges in `terminals/nudges.ts`, murmur's triggers and
+   digests in `terminals/descriptions.ts`, their wiring in `terminals/murmur-host.ts`, the person's turn
+   (`byPerson`) in `messaging/delivery.ts` and their prompt in `messaging/deliveries.ts`,
    and the runner API as `titleSource`, `terminals.resetTitle` and `create`'s
    `requestId`.
 
@@ -2291,7 +2299,7 @@ again.
    tell their prompt the same way before any session binds (`prompt-shown`): Codex's
    title (`harnesses/codex/src/title.ts`, set by its shim, counted only while a `codex`
    process holds the foreground and its hooks are trusted, `harnesses/codex/src/trust.ts`),
-   Antigravity's status line (`harnesses/agy/src/decode.ts`); the terminal manager tells
+   Antigravity's status line (`harnesses/agy/src/status-line.ts`); the terminal manager tells
    messaging (`Messaging.shown`), which keeps the agent's messages for the session to
    come.
 

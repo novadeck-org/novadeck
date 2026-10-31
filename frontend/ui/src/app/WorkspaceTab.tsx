@@ -66,10 +66,10 @@ export const WorkspaceTab = memo(
       isProjectWindow(terminal) && item && directory !== undefined
         ? projectFolder(item.path, directory)
         : undefined
-    const companionKey = { ...target, terminalId: id }
-    const badge = useMessageBadge(backend.messages, companionKey)
+    const terminalKey = { ...target, terminalId: id }
+    const badge = useMessageBadge(backend.messages, terminalKey)
     // What its companion bar holds, as the bar itself draws it.
-    const hasMessages = useHasMessages(backend.messages, companionKey)
+    const hasMessages = useHasMessages(backend.messages, terminalKey)
     const { bar, items, fresh } = useTerminalBar(id)
     const slots = useMemo(
       () =>

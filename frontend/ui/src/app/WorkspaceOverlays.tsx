@@ -1,8 +1,8 @@
+import type { OfferedUninstall } from "@novadeck/core/desktop/uninstall"
 import type { AgentName } from "@novadeck/core/harnesses"
 import type { Backend } from "@novadeck/core/port"
 import { orderedTiles } from "@novadeck/core/roster"
 import { activeProject } from "@novadeck/core/state"
-import type { OfferedUninstall } from "@novadeck/core/uninstall"
 import {
   memo,
   Suspense,
@@ -190,7 +190,7 @@ const useVersion = (version: Backend["version"], open: boolean): string | undefi
   return value
 }
 
-// What Preferences offers of uninstalling the app, asked of the host each time Preferences
+// What Preferences offers of uninstalling the app, asked of the desktop app each time Preferences
 // opens; undefined until it has said, and where it offers nothing. Running it disconnects
 // the connected agents first, one by one.
 const useUninstall = (
@@ -309,7 +309,9 @@ export const WorkspaceOverlays = memo((): React.JSX.Element => {
           terminalElement(id)?.querySelector<HTMLElement>("[data-terminal-input]") ?? null
         }
       />
-      {backend.approvals && <ApprovalDialog ask={approval} onAnswer={backend.approvals.answer} />}
+      {backend.approvals && (
+        <ApprovalDialog approval={approval} onAnswer={backend.approvals.answer} />
+      )}
       <NameOffer />
       {backend.feedback?.ask && <AskAgent feedback={backend.feedback} />}
       {switcher && (
@@ -351,7 +353,7 @@ export const WorkspaceOverlays = memo((): React.JSX.Element => {
           onClose={closeDialog}
           {...(transcripts ? { transcripts } : {})}
           notices={backend.notices !== undefined}
-          hostSounds={backend.notices?.sounds === true}
+          systemSounds={backend.notices?.sounds === true}
           hearSound={dingOf(backend, ui).preview}
           chat={backend.conversations !== undefined}
           {...(voice ? { voice } : {})}

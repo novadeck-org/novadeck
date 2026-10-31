@@ -1,12 +1,14 @@
 import {
-  createRenderers,
+  createRendererPool,
   createView,
   loadWebgl,
   type Drawing,
   type ScreenRenderer,
   type Terminal,
 } from "@novadeck/emulator/browser"
-import { afterEach, describe as context, describe, expect, it, vi } from "vitest"
+import { afterEach, vi } from "vitest"
+
+import { context, describe, expect, it } from "./test"
 
 // xterm's WebGL addon in a real browser: what it holds of the page's WebGL contexts, which
 // Chromium caps. Headless Chromium draws WebGL in software, enough to hold a context.
@@ -131,7 +133,7 @@ describe.skipIf(!hasWebgl)("xterm's WebGL renderer", () => {
       keepBuffers()
       const drawings = new Map<Terminal, Drawing>()
       const screens = new Map<Terminal, ScreenRenderer>()
-      const pool = createRenderers<Terminal>({
+      const pool = createRendererPool<Terminal>({
         load: (xterm) => {
           const drawing = loadWebgl(xterm)
           drawings.set(xterm, drawing)
@@ -140,7 +142,7 @@ describe.skipIf(!hasWebgl)("xterm's WebGL renderer", () => {
         supported: () => true,
         cap: 4,
       })
-      const renderers: typeof pool = {
+      const watched: typeof pool = {
         ...pool,
         screen: (xterm, switched) => {
           const screen = pool.screen(xterm, switched)
@@ -158,7 +160,7 @@ describe.skipIf(!hasWebgl)("xterm's WebGL renderer", () => {
           fontFamily: "monospace",
           theme: {},
           scrollback: 0,
-          renderers,
+          pool: watched,
         })
         view.terminal.resize(60, rows)
         view.renderer.take()

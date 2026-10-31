@@ -4,6 +4,8 @@ import { join } from "node:path"
 import type { PromptShown } from "@novadeck/harness-core/events"
 import type { Install } from "@novadeck/harness-core/harness"
 
+import { codexHome } from "./home.js"
+
 /**
  * The items Novadeck's shim gives Codex's terminal title, as one `-c` setting: its run
  * state, then the start of its thread's id, as "Ready | 01a0f932-a824-7c30-b713-b59ed...".
@@ -74,8 +76,7 @@ export const startedSession = async (
   waitMs = 2_000,
 ): Promise<boolean> => {
   if (prefix.length < confirmingPrefix) return false
-  const home = where.env.CODEX_HOME || join(where.home, ".codex")
-  const locks = join(home, "thread-writer-locks")
+  const locks = join(codexHome(where), "thread-writer-locks")
   const until = Date.now() + waitMs
   for (;;) {
     // eslint-disable-next-line no-await-in-loop -- Looked for again until it shows.

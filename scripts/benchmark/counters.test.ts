@@ -11,6 +11,7 @@ import {
   parseReading,
   sharesBudgets,
   tickChanges,
+  withCurrentNames,
   type Budget,
   type Budgets,
   type Reading,
@@ -18,7 +19,7 @@ import {
 
 const phase = {
   ticks: 10,
-  tickTotals: { notifications: 100, mutations: 20, commits: 10, renders: 400 },
+  tickTotals: { wakes: 100, mutations: 20, commits: 10, renders: 400 },
   bytes: 500,
   written: 500,
   streamingPeak: 13,
@@ -27,7 +28,7 @@ const phase = {
 const reading: Reading = { grid: phase, focus: phase, switches: phase }
 const budget = {
   ticks: 10,
-  notifications: 100,
+  wakes: 100,
   mutations: 20,
   bytes: 500,
   streamingPeak: 13,
@@ -73,13 +74,13 @@ describe("the counter run's budgets", () => {
         ...reading,
         grid: {
           ...phase,
-          tickTotals: { ...phase.tickTotals, notifications: 100 * failsAt + 1 },
+          tickTotals: { ...phase.tickTotals, wakes: 100 * failsAt + 1 },
         },
       }
       const rows = checkCounters(blown, budgets)
       expect(rows.find((row) => row.verdict === "fails")).toMatchObject({
         phase: "grid",
-        counter: "notifications",
+        counter: "wakes",
       })
       expect(countersSummary(blown, rows)).toContain("which fails the build")
     })
@@ -89,12 +90,12 @@ describe("the counter run's budgets", () => {
     it("asks for the budget to come down", () => {
       const better = {
         ...reading,
-        grid: { ...phase, tickTotals: { ...phase.tickTotals, notifications: 40 } },
+        grid: { ...phase, tickTotals: { ...phase.tickTotals, wakes: 40 } },
       }
       const rows = checkCounters(better, budgets)
       expect(rows.find((row) => row.verdict === "under")).toMatchObject({
         phase: "grid",
-        counter: "notifications",
+        counter: "wakes",
       })
       expect(countersSummary(better, rows)).toContain("lower the budget")
     })
@@ -252,6 +253,14 @@ describe("the counter run's budgets", () => {
   })
 
   context("when the base branch's budgets are in an older form", () => {
+    it("reads budgets written under the key wakes had before, as unchanged", () => {
+      const { wakes, ...rest } = budget
+      const older = { ...rest, notifications: wakes }
+      const raw = withCurrentNames({ grid: older, focus: older, switches: older })
+      expect(budgetChanges(budgets, parseBaseBudgets(raw, "base"))).toEqual([])
+      expect(goneBudgets(budgets, raw)).toEqual([])
+    })
+
     it("compares the budgets both have, so a change of form can land", () => {
       const { ticks: _, streamingPeak: __, ...older } = budget
       const base = parseBaseBudgets({ grid: older, focus: older }, "base")

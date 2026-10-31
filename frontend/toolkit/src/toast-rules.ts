@@ -24,7 +24,7 @@ export type Arrival = {
 
 // How far the pointer travels after a reset before it has gone somewhere, in px: more than
 // the jitter of a hand at rest.
-export const arrivalTravel = 3
+const arrivalTravel = 3
 
 export const createArrival = (): Arrival => {
   let travelled = 0

@@ -1,4 +1,4 @@
-import type { UpdateOffer, WhatsNew } from "@novadeck/core/update"
+import type { UpdateOffer, WhatsNew } from "@novadeck/core/desktop/update"
 import { render, type Rendered } from "@novadeck/test-kit/render"
 import { act, createElement, useEffect } from "react"
 import { afterEach, vi } from "vitest"
@@ -27,7 +27,7 @@ const Probe = ({ ask, offer: made }: { ask: Ask | undefined; offer: UpdateOffer 
 const page = (ask: Ask | undefined, made: UpdateOffer | null) =>
   createElement(Probe, { ask, offer: made })
 
-// A host's answer that the test settles when it likes.
+// A desktop app's answer that the test settles when it likes.
 const pending = () => {
   const asks: { resolve: (news: WhatsNew | undefined) => void; reject: () => void }[] = []
   const ask: Ask = () =>
@@ -52,7 +52,7 @@ afterEach(() => {
 })
 
 describe("the news of an offered release", () => {
-  it("waits for the first answer, then holds what the host said", async () => {
+  it("waits for the first answer, then holds what the desktop app said", async () => {
     const { ask, asks } = pending()
     const rendered = show(page(ask, offer("0.0.80")))
     expect(said(rendered)).toBe("none waiting")
@@ -62,7 +62,7 @@ describe("the news of an offered release", () => {
     expect(ask).toHaveBeenCalledOnce()
   })
 
-  it("has nothing to wait for without an offer or a host that tells", () => {
+  it("has nothing to wait for without an offer or a desktop app that tells", () => {
     const { ask } = pending()
     expect(said(show(page(ask, null)))).toBe("none settled")
     expect(said(show(page(undefined, offer("0.0.80"))))).toBe("none settled")
@@ -82,7 +82,7 @@ describe("the news of an offered release", () => {
     expect(said(rendered)).toBe("0.0.81 settled")
   })
 
-  it("settles on none when the host fails, and tries again when asked", async () => {
+  it("settles on none when the desktop app fails, and tries again when asked", async () => {
     const { ask, asks } = pending()
     const rendered = show(page(ask, offer("0.0.80")))
     asks[0]!.reject()
@@ -129,7 +129,7 @@ describe("the news of an offered release", () => {
     expect(ask).toHaveBeenCalledOnce()
   })
 
-  it("stops waiting once the host's own wait would have run out", () => {
+  it("stops waiting once the desktop app's own wait would have run out", () => {
     vi.useFakeTimers()
     const { ask } = pending()
     const rendered = show(page(ask, offer("0.0.80")))

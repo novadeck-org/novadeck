@@ -3,6 +3,7 @@ import { dirname } from "node:path"
 import type { HarnessEvent } from "@novadeck/harness-core/events"
 
 import { rootedIn, type Root, type RootChange } from "../harnesses/roots.js"
+import { shorten } from "../text.js"
 
 /**
  * What the agent session at a terminal's root worked on, as its hooks said: the person's
@@ -64,18 +65,6 @@ export const personPrompted = (work: Work, at: number): Work =>
 /** The work once told whether the person's own submission started its first prompt; told once. */
 export const judgedFirst = (work: Work, byPerson: boolean): Work =>
   !work.first || work.firstByPerson !== undefined ? work : { ...work, firstByPerson: byPerson }
-
-/** Text on one line, cut to `max` characters (code points, never half of one) with an ellipsis. */
-export const shorten = (text: string, max: number): string => {
-  const line = text.replace(/\s+/g, " ").trim()
-  const characters = [...line]
-  return characters.length > max
-    ? `${characters
-        .slice(0, max - 1)
-        .join("")
-        .trimEnd()}…`
-    : line
-}
 
 const sessionOf = (root: Root): string => `${root.agent}:${root.sessionId}`
 

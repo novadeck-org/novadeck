@@ -1,6 +1,7 @@
 import { useReactFlow } from "@xyflow/react"
 import { useCallback, useImperativeHandle, useState, type Ref } from "react"
 
+import { prefersReducedMotion } from "../../interaction/reduced-motion"
 import type { CanvasHandle, CanvasViewport, TerminalNode } from "./types"
 import { createCanvasVisit } from "./visit"
 
@@ -11,7 +12,7 @@ export const useCanvasVisit = (handleRef: Ref<CanvasHandle>) => {
     (flight: { viewport: CanvasViewport }) => {
       const run = (current: { viewport: CanvasViewport }): void => {
         void setViewport(current.viewport, {
-          duration: matchMedia("(prefers-reduced-motion: reduce)").matches ? 0 : 350,
+          duration: prefersReducedMotion() ? 0 : 350,
         }).then(
           (completed) => {
             const next = visit.finish(current, completed)

@@ -4,7 +4,8 @@ import { join } from "node:path"
 
 import { text } from "../model/script.js"
 import { own, result } from "../scenarios.js"
-import { sleep, surface, tweak } from "./claude-support.js"
+import { surface, tweak } from "./claude-support.js"
+import { sleep } from "./support.js"
 
 const Down = "\x1b[B"
 const Up = "\x1b[A"

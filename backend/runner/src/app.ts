@@ -1,7 +1,7 @@
 import { Hono } from "hono"
 import { cors } from "hono/cors"
 
-export type AppOptions = Readonly<{
+type AppOptions = Readonly<{
   origins?: readonly string[]
 }>
 

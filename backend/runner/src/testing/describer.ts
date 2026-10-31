@@ -1,7 +1,7 @@
 import type { Describer, Description, Digest } from "../murmur/describer.js"
 
 /** One call to a fake describer: the digest and signal it was given, and a way to answer it. */
-export type FakeJob = {
+type FakeJob = {
   readonly digest: Digest
   readonly signal: AbortSignal | undefined
   /** The terminal it was asked for. */

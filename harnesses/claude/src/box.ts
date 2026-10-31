@@ -30,7 +30,7 @@ export const clearPending = (rows: readonly string[]): boolean =>
  * the prompt history search Ctrl-R opens; the detailed transcript Ctrl-O toggles (probed
  * 2.1.287 in the e2e sandbox, 2026-10-16).
  */
-export const overlay = (screen: ScreenText): boolean =>
+const overlay = (screen: ScreenText): boolean =>
   footerRows(screen).some((row) =>
     /enter to return · space to reply|Esc to cancel · ctrl\+s to scope|Showing detailed transcript/.test(
       row,
@@ -46,7 +46,7 @@ export const overlay = (screen: ScreenText): boolean =>
 const agentRow = /^(\s*(?:❯ )?◯ .*?)\s+(?:\d+d )?(?:\d+h )?(?:\d+m )?\d+(?:\.\d+)?s(?: · .*)?$/
 
 /** The rows without what counts up by itself while it idles: a background agent's elapsed time. */
-export const still = (rows: readonly string[]): readonly string[] =>
+const still = (rows: readonly string[]): readonly string[] =>
   rows.map((row) => row.replace(agentRow, "$1"))
 
 /**

@@ -2,7 +2,7 @@
   "name": "@novadeck/harness-claude",
   "version": "0.0.0",
   "private": true,
-  "description": "The Claude Code harness adapter: hooks, transcripts, dialogs and input box.",
+  "description": "The Claude Code harness adapter: its plugin and hooks, transcripts, dialogs and input box.",
   "license": "GPL-3.0-or-later",
   "author": "mzpkdev",
   "type": "module",
@@ -27,16 +27,6 @@
       "development": "./src/index.ts",
       "types": "./dist/index.d.ts",
       "default": "./dist/index.js"
-    },
-    "./shim": {
-      "development": "./src/shim.ts",
-      "types": "./dist/shim.d.ts",
-      "default": "./dist/shim.js"
-    },
-    "./transcript": {
-      "development": "./src/transcript.ts",
-      "types": "./dist/transcript.d.ts",
-      "default": "./dist/transcript.js"
     },
     "./transcripts": {
       "development": "./src/transcripts.ts",

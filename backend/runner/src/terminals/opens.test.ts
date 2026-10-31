@@ -170,7 +170,7 @@ describe("requests on their way to the client", () => {
 
   it("go nowhere without a client following them", async () => {
     await expect(
-      new OpenRequests().ask(request, 1_000, { by: "moth", leads: false }),
+      new OpenRequests().request(request, 1_000, { by: "moth", leads: false }),
     ).resolves.toEqual({
       type: "nobody",
     })
@@ -184,7 +184,7 @@ describe("requests on their way to the client", () => {
     // A stream follows from its first read.
     void older.next()
     const first = newer.next()
-    const asked = opens.ask(request, 1_000, {
+    const asked = opens.request(request, 1_000, {
       by: "moth",
       title: "Server",
       leads: false,
@@ -222,15 +222,15 @@ describe("requests on their way to the client", () => {
     const opens = new OpenRequests()
     const stream = opens.follow("client")
     const first = stream.next()
-    await expect(opens.ask(request, 10, { by: "moth", leads: false })).resolves.toEqual({
+    await expect(opens.request(request, 10, { by: "moth", leads: false })).resolves.toEqual({
       type: "late",
     })
     await first
-    const asked = opens.ask(request, 1_000, { by: "moth", leads: false })
+    const asked = opens.request(request, 1_000, { by: "moth", leads: false })
     opens.release("client")
     await expect(asked).resolves.toEqual({ type: "gone" })
     await expect(stream.next()).resolves.toMatchObject({ done: true })
-    await expect(opens.ask(request, 1_000, { by: "moth", leads: false })).resolves.toEqual({
+    await expect(opens.request(request, 1_000, { by: "moth", leads: false })).resolves.toEqual({
       type: "nobody",
     })
   })

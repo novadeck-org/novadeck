@@ -1,8 +1,8 @@
-import { handleText } from "@novadeck/core/handle"
+import { handleText } from "@novadeck/core/terminals/handle"
 import type { TerminalMetadata } from "@novadeck/core/types"
 import { ConfirmDialog } from "@novadeck/toolkit/ConfirmDialog"
 
-export type CloseTerminalDialogProps = {
+type CloseTerminalDialogProps = {
   // The terminal waiting to close, or null when nothing asks.
   readonly terminal: Pick<TerminalMetadata, "id" | "name" | "process" | "handle"> | null
   readonly onConfirm: () => void

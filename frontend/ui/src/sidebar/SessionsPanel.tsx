@@ -5,7 +5,7 @@ import { Layers2, Plus } from "lucide-react"
 import { shortcutBindings } from "../interaction/shortcuts"
 import { sidebarCreateClasses } from "./SidebarPanel"
 
-export type WorkspaceSessionSummary = {
+type WorkspaceSessionSummary = {
   id: string
   name: string
   // Null until the person first opens it.
@@ -15,7 +15,7 @@ export type WorkspaceSessionSummary = {
 }
 
 type SessionsPanelProps = {
-  items: WorkspaceSessionSummary[]
+  sessions: WorkspaceSessionSummary[]
   activeId: string
   onSelect: (id: string) => void
   onFresh: () => void
@@ -37,7 +37,7 @@ const formatVisited = (visitedAt: number | null, active: boolean): string =>
       : `Last visited ${timestamp.format(new Date(visitedAt))}`
 
 export const SessionsPanel = ({
-  items,
+  sessions,
   activeId,
   onSelect,
   onFresh,
@@ -63,32 +63,32 @@ export const SessionsPanel = ({
         role="list"
         aria-label="Saved sessions"
       >
-        {items.map((item) => {
-          const active = item.id === activeId
-          const terminalCount = item.terminalNames.length
-          const preview = terminalCount ? item.terminalNames.join(", ") : "No terminals yet"
-          const visited = formatVisited(item.visitedAt, active)
+        {sessions.map((session) => {
+          const active = session.id === activeId
+          const terminalCount = session.terminalNames.length
+          const preview = terminalCount ? session.terminalNames.join(", ") : "No terminals yet"
+          const visited = formatVisited(session.visitedAt, active)
 
           return (
             <SidebarItem
-              key={item.id}
+              key={session.id}
               className={`sessions-panel-entry${active ? " active" : ""}`}
               role="listitem"
-              data-workspace-session={item.id}
-              name={item.name}
+              data-workspace-session={session.id}
+              name={session.name}
               icon={<Layers2 size={14} strokeWidth={1.5} />}
               selected={active}
-              selectLabel={`Open ${item.name}`}
+              selectLabel={`Open ${session.name}`}
               description={`${visited}. ${preview}`}
-              tooltip={`${item.name}\n${visited}\n${preview}`}
-              onSelect={() => onSelect(item.id)}
+              tooltip={`${session.name}\n${visited}\n${preview}`}
+              onSelect={() => onSelect(session.id)}
               detail={
                 <>
                   <span>
                     {terminalCount} {terminalCount === 1 ? "terminal" : "terminals"}
                   </span>
-                  {item.running > 0 && (
-                    <span className="session-running">{item.running} running</span>
+                  {session.running > 0 && (
+                    <span className="session-running">{session.running} running</span>
                   )}
                 </>
               }

@@ -64,14 +64,14 @@ const following = () => {
   return { companions, follows, report }
 }
 
-// What `usePlanText` says of `item`, rendered over `workspace`, as it changes.
+// What `usePlanText` says of `row`, rendered over `workspace`, as it changes.
 const show = (
   workspace: WorkspaceStore,
   companions: Companions | undefined,
-  item: InboxRow,
+  row: InboxRow,
 ): { readonly text: () => string | null | undefined; readonly unmount: () => void } => {
   const Probe = (): React.JSX.Element => {
-    const text = usePlanText(item)
+    const text = usePlanText(row)
     return createElement(
       "output",
       { "data-state": text === undefined ? "loading" : text === null ? "none" : "text" },
@@ -247,7 +247,7 @@ describe("the plan text a plan approval's sheet shows", () => {
     plain.unmount()
   })
 
-  it("is null for an item that is no plan approval, which follows nothing", () => {
+  it("is null for a row that is no plan approval, which follows nothing", () => {
     const workspace = createWorkspaceStore(workspaceFixture())
     upsert(workspace, planItem(1, asked))
     const { companions, follows } = following()

@@ -1,12 +1,12 @@
-import type { PortableInstall } from "@novadeck/core/portable"
-import type { UpdateOffer, WhatsNew } from "@novadeck/core/update"
+import type { PortableInstall } from "@novadeck/core/desktop/portable"
+import type { UpdateOffer, WhatsNew } from "@novadeck/core/desktop/update"
 import { render, type Rendered } from "@novadeck/test-kit/render"
 import { act, createElement } from "react"
 import { afterEach, vi } from "vitest"
 
 import { context, describe, expect, it } from "../test"
 import { fadeMs, finishedForMs } from "./linger"
-import type { FooterPortable } from "./PortableInstall"
+import type { PortableCopy } from "./PortableInstall"
 import { UpdateProgress } from "./UpdateProgress"
 import { WorkspaceFooter } from "./WorkspaceFooter"
 
@@ -491,7 +491,7 @@ describe("workspace footer", () => {
         expect(region.textContent).not.toContain("Release notes")
       })
 
-      // The card open with the host's account of the install, which is all it shows.
+      // The card open with the desktop app's account of the install, which is all it shows.
       const installing = (install: PortableInstall, onInstall = () => {}) =>
         createElement(WorkspaceFooter, {
           ...props(),
@@ -502,9 +502,9 @@ describe("workspace footer", () => {
           },
         })
 
-      // The card for the offered release, with the host's folder, notes and calls.
+      // The card for the offered release, with the desktop app's folder, notes and calls.
       const withNotes = (
-        aside: Partial<FooterPortable> & {
+        aside: Partial<PortableCopy> & {
           news?: WhatsNew | undefined
           newsSettled?: boolean
           onShown?: () => void
@@ -579,7 +579,7 @@ describe("workspace footer", () => {
         expect(onShowFolder).toHaveBeenCalledOnce()
       })
 
-      it("has no data line, or button, where the host can't say the folder or show it", () => {
+      it("has no data line, or button, where the desktop app can't say the folder or show it", () => {
         const page = render(withNotes({ dataFolder: "/home/me/x" }))
         mounted.push(page)
         expect(notice(page)!.querySelector(".portable-data")).not.toBeNull()
@@ -588,7 +588,7 @@ describe("workspace footer", () => {
         expect(notice(page)!.querySelector(".portable-data")).toBeNull()
       })
 
-      it("offers Get new portable only with a release and a host that opens the download", () => {
+      it("offers Get new portable only with a release and a desktop app that opens the download", () => {
         const onDownload = vi.fn<() => void>()
         const page = render(withNotes({ onDownload }))
         mounted.push(page)
@@ -668,7 +668,7 @@ describe("workspace footer", () => {
         )
       })
 
-      it("asks the host to install, and shows nothing of it until the host says", () => {
+      it("asks the desktop app to install, and shows nothing of it until the desktop app says", () => {
         const onInstall = vi.fn<() => void>()
         const page = render(installing({ phase: "idle" }, onInstall))
         mounted.push(page)
@@ -679,7 +679,7 @@ describe("workspace footer", () => {
         expect(notice(page)!.textContent).not.toContain("Installing Novadeck")
       })
 
-      it("shows a determinate bar and the percent while the host reports a download", () => {
+      it("shows a determinate bar and the percent while the desktop app reports a download", () => {
         const page = render(installing({ phase: "downloading", percent: 42 }))
         mounted.push(page)
         expect(notice(page)!.textContent).toContain("Installing Novadeck")
@@ -777,7 +777,7 @@ describe("workspace footer", () => {
         )
       })
 
-      // The card as its parent holds it: open or not, with the install the host reports.
+      // The card as its parent holds it: open or not, with the install the desktop app reports.
       const held = (install: PortableInstall, open: boolean, aside = {}) =>
         createElement(WorkspaceFooter, {
           ...props(),
@@ -1027,7 +1027,7 @@ describe("the footer without the security sandbox", () => {
     return page
   }
 
-  it("shows nothing where the app is sandboxed or the host does not say", () => {
+  it("shows nothing where the app is sandboxed or the desktop app does not say", () => {
     const page = render(createElement(WorkspaceFooter, props()))
     mounted.push(page)
     expect(sandboxChip(page)).toBeUndefined()

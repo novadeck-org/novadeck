@@ -1,9 +1,10 @@
-import { hookShellSlackMs } from "@novadeck/harness-core/harness"
-import { dialectPrograms } from "@novadeck/harness-core/hook-command"
+import { hookShellSlackMs, dialectPrograms } from "@novadeck/harness-core/hook-command"
 import type { Report } from "@novadeck/harness-core/report"
-import { agentName } from "@novadeck/protocol"
+import { agentName, type AgentName } from "@novadeck/protocol"
 
 import { harnesses } from "../harnesses/registry.js"
+import { cut } from "../text.js"
+import { object, type Fields } from "./json.js"
 
 /**
  * An agent hook, as the runner takes it from Novadeck's relay (see backend/relay).
@@ -17,7 +18,7 @@ import { harnesses } from "../harnesses/registry.js"
  * the hook in Novadeck's shells, which then shows the person's own, as the relay finds
  * and runs it beside the report.
  */
-export type RelayHook = {
+type RelayHook = {
   readonly report: Omit<Report, "terminalId" | "token">
   /** An ask's deadline, in epoch milliseconds; absent for a report. */
   readonly deadline?: number
@@ -41,17 +42,12 @@ export const hookVariables = ["CLAUDE_PID", "CURSOR_VERSION", "CODEX_THREAD_ID"]
  */
 const printMs = 500
 
-type Fields = { readonly [key: string]: unknown }
-
-const object = (value: unknown): value is Fields =>
-  typeof value === "object" && value !== null && !Array.isArray(value)
-
 const text = (value: unknown, max: number): string | undefined =>
   typeof value === "string" && value !== "" && value.length <= max ? value : undefined
 
 /** A copy small enough to keep: text past a path's length cut short, deep or wide values dropped. */
 export const prune = (value: unknown, depth: number, limit: number): unknown => {
-  if (typeof value === "string") return value.length > limit ? value.slice(0, limit) : value
+  if (typeof value === "string") return cut(value, limit)
   if (typeof value !== "object" || value === null) return value
   if (depth > 6) return null
   if (Array.isArray(value)) return value.slice(0, 50).map((each) => prune(each, depth + 1, limit))
@@ -77,8 +73,9 @@ const ancestorsOf = (value: unknown): Ancestor[] =>
     .filter(
       (each): each is Ancestor =>
         object(each) &&
+        typeof each.pid === "number" &&
         Number.isSafeInteger(each.pid) &&
-        (each.pid as number) > 0 &&
+        each.pid > 0 &&
         typeof each.name === "string" &&
         (each.startedAt === undefined ||
           (typeof each.startedAt === "number" && Number.isFinite(each.startedAt))),
@@ -105,7 +102,7 @@ const clockSlackMs = 50
  * isn't among them, its child's start isn't told, or the start makes no sense for a hook
  * that started at `seq`.
  */
-export const firedAtOf = (
+const firedAtOf = (
   instance: string | null,
   seq: number,
   ancestors: readonly Ancestor[],
@@ -116,7 +113,7 @@ export const firedAtOf = (
   const index =
     instance === null ? -1 : ancestors.findIndex((each) => String(each.pid) === instance)
   if (index < 0) return undefined
-  const shell = index === 0 ? undefined : ancestors[index - 1]!
+  const shell = index === 0 ? undefined : ancestors[index - 1]
   if (shell !== undefined && !shells.includes(shell.name)) return undefined
   const fired = shell === undefined ? seq : shell.startedAt
   if (fired === undefined || fired > seq + clockSlackMs || seq - fired > maxShellMs)
@@ -125,11 +122,14 @@ export const firedAtOf = (
 }
 
 /**
- * The agent process that ran the hook: Claude Code names itself; the others are the
- * nearest ancestor with the agent's own name. Unknown where the platform hides it.
+ * The agent process that ran the hook: the one its harness's `pidVariable` names, where it
+ * sets one, as Claude Code does; else the nearest ancestor with the agent's own name.
+ * Unknown where the platform hides it.
  */
-const instanceOf = (agent: string, claudePid: string | undefined, ancestors: Ancestor[]) => {
-  if (agent === "claude" && claudePid !== undefined) return claudePid
+const instanceOf = (agent: AgentName, env: Fields, ancestors: Ancestor[]): string | null => {
+  const { pidVariable } = harnesses[agent]
+  const own = pidVariable === undefined ? undefined : text(env[pidVariable], 10)
+  if (own !== undefined) return own
   const found = ancestors.find((each) => each.name === agent)
   return found ? String(found.pid) : null
 }
@@ -160,9 +160,8 @@ export const relayHook = (
     (typeof payload.hook_event_name === "string" && payload.hook_event_name.length <= 64
       ? payload.hook_event_name
       : "")
-  const claudePid = text(env.CLAUDE_PID, 10)
   const ancestors = ancestorsOf(value.ancestors)
-  const named = instanceOf(agent.data, claudePid, ancestors)
+  const named = instanceOf(agent.data, env, ancestors)
   const instance = named !== null && /^\d{1,10}$/.test(named) ? named : null
   const codexThread = text(env.CODEX_THREAD_ID, 128)
   const shells = dialectPrograms[harnesses[agent.data].hookDialect(platform, event)]

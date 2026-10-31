@@ -1,4 +1,4 @@
-export type Rect<T> = { item: T; x: number; y: number; w: number; h: number }
+type Rect<T> = { item: T; x: number; y: number; w: number; h: number }
 
 // Squarified treemap: lays `items` out in the box so each rect's area is its share of the
 // total value, keeping rects close to square.

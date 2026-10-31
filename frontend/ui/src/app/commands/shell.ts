@@ -34,7 +34,7 @@ export type ShellCommands = {
 }
 
 // Shell changes shared by the workspace commands.
-export type ShellEdits = {
+type ShellEdits = {
   readonly change: (edit: (shell: ShellState) => ShellState) => void
   readonly set: <K extends keyof ShellState>(key: K, value: ShellState[K]) => void
   readonly pulse: (move?: NavigationMove) => void

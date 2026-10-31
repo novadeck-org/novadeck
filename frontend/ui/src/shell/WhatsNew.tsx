@@ -1,4 +1,4 @@
-import type { WhatsNew as Notes } from "@novadeck/core/update"
+import type { WhatsNew as Notes } from "@novadeck/core/desktop/update"
 import { X } from "lucide-react"
 import { useEffect, useId, useLayoutEffect, useRef, useState } from "react"
 
@@ -17,7 +17,7 @@ export type WhatsNewProps = {
   readonly returnFocus: () => boolean
 }
 
-// The highlights with a key each, even when the host repeats one: the second of two equal
+// The highlights with a key each, even when the desktop app repeats one: the second of two equal
 // highlights is told apart by how many came before it.
 const keyed = (
   highlights: Notes["highlights"],
@@ -76,12 +76,12 @@ export const useOverflow = (): readonly [(list: HTMLUListElement | null) => void
 
 // What assistive technology hears when the card comes up, once: the version and the
 // highlights' titles, not their lines, which the card has for whoever goes to read it.
-export const announcement = ({ version, highlights }: Notes): string =>
+const announcement = ({ version, highlights }: Notes): string =>
   `New in Novadeck ${version}: ${highlights.map(({ title }) => title).join(", ")}`
 
 // The card that tells what is new after an update, in the corner the download's bar and
 // the install notices use, as a `.floating` surface: a strip of label tape across its top
-// edge naming the version, the version it is new since when the host knows it, and each
+// edge naming the version, the version it is new since when the desktop app knows it, and each
 // highlight as a title with its line under it, led by the highlight's icon on a tile (a
 // sparkle when the release names none or one this build doesn't know), nothing else. It
 // is a plain panel, not a dialog or a layer: it never takes focus or keys by itself, so
@@ -90,7 +90,7 @@ export const announcement = ({ version, highlights }: Notes): string =>
 // terminal. It shares the corner with the other notices by waiting
 // (`blocked`, or Zen mode, `hidden`) while one is open, and for the download's bar, which
 // has the corner from its start until it fades (WorkspaceFooter.tsx): the card can stay for
-// weeks, a download must not be hidden by it. The text is the host's and is shown as text:
+// weeks, a download must not be hidden by it. The text is the desktop app's and is shown as text:
 // no Markdown, no markup, no links. In a short window the card keeps to the room between
 // the header and the footer and the highlights scroll inside it, the × in view.
 export const WhatsNew = ({

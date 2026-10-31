@@ -11,9 +11,9 @@ import type { AgentStatus, Workspace } from "@novadeck/core/types"
 import { createView, type Terminal } from "@novadeck/emulator/browser"
 import { afterEach, vi } from "vitest"
 
-import type { DemoAgentLink } from "../agent-link"
-import { createDemoEngine } from "../engine"
+import type { DemoAgentLink } from "../agents/link"
 import { demoSeed, demoTerminalId } from "../samples"
+import { createDemoEngine } from "../terminals/engine"
 import { context, describe, expect, it } from "../test"
 import { createDemoTerminalScreen, fixedIntro } from "./terminal"
 import { span, wrap } from "./vt"
@@ -48,7 +48,7 @@ const slot = (number: number): TerminalKey => ({
 const closing: (() => void)[] = []
 afterEach(() => closing.splice(0).forEach((close) => close()))
 
-// A real emulator, as the views draw with, reading what the screen writes.
+// A real emulator, as the terminal screens draw with, reading what the screen writes.
 const emulator = (cols: number, rows: number): Terminal => {
   const element = document.body.appendChild(document.createElement("div"))
   const view = createView(element, {

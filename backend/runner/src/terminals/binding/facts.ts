@@ -1,9 +1,11 @@
+import { stat } from "node:fs/promises"
 import { setTimeout as sleep } from "node:timers/promises"
 
 import type { ActivityEvent, HarnessEvent, SessionObserved } from "@novadeck/harness-core/events"
 import type { AgentName, TerminalSummary } from "@novadeck/protocol"
 
 import {
+  type Activity,
   apply,
   blocking,
   escapeScreenMs,
@@ -20,7 +22,7 @@ import type { Companion } from "../companion.js"
 import { failed } from "../failures.js"
 import { markTurn } from "../interrupted.js"
 import type { Record } from "../record.js"
-import { hasRun } from "../records.js"
+import { hasRun } from "../saved-terminals.js"
 import { TurnEnds, type TurnsHost } from "../turn-ends.js"
 import type { Typing } from "../typing.js"
 import { savedSession } from "./standing.js"
@@ -31,6 +33,9 @@ import { savedSession } from "./standing.js"
  * `/status`, or nothing): a prompt binds in about a second (probed 2026-10-04, 0.159.3).
  */
 export const readyReturnMs = 5000
+
+// The interruptions a terminal keeps for its chat: more than a session's chat shows.
+const maxInterruptions = 256
 
 export type BindingsHost = {
   /** The runner is stopping: an Escape's verdict changes nothing any more. */
@@ -273,7 +278,49 @@ export class Bindings {
     const event = binding && this.host.messaging().escaped(record.summary.id, binding)
     if (!event) return
     if (this.applyFact(record, event)) this.publishAgent(record, false)
+    // Where its transcript stood at the key, for the chat to show the interruption it
+    // doesn't record, should the Escape stand.
+    const { transcript } = record
+    record.escape =
+      !harnesses[binding.agent].records && transcript
+        ? {
+            key: event.startedAt,
+            offset: stat(transcript).then(
+              ({ size }) => size,
+              () => undefined,
+            ),
+          }
+        : undefined
     this.awaitVerdict(record, event)
+  }
+
+  /**
+   * Keeps where the person's latest Escape interrupted the turn, for a session whose
+   * transcript doesn't record it, once it stands: the window passed with the turn still
+   * interrupted, or the person's next turn began within it, before anything said the turn
+   * finished. `before` is the last turn as it was before the fact just applied.
+   */
+  private interruptionStood(record: Record, before: Activity["lastTurn"] | undefined): void {
+    const { escape, bound } = record
+    if (!escape || !bound) return
+    const { lastTurn: last, state } = bound.activity
+    const confirmed = last?.outcome === "interrupted" && last.at === escape.key && !last.escaped
+    const overtaken =
+      before?.outcome === "interrupted" &&
+      before.at === escape.key &&
+      before.escaped !== undefined &&
+      !last &&
+      state === "working"
+    if (!confirmed && !overtaken) return
+    record.escape = undefined
+    const { sessionId } = bound.binding
+    void escape.offset.then((offset) => {
+      if (offset === undefined || record.bound?.binding.sessionId !== sessionId) return
+      const kept = record.interruptions ?? []
+      record.interruptions = [...kept, { sessionId, offset, at: escape.key }].slice(
+        -maxInterruptions,
+      )
+    })
   }
 
   /**
@@ -352,7 +399,9 @@ export class Bindings {
   /** Applies what the bound session's hooks or records said; true when it changed. */
   applyFact(record: Record, fact: Exclude<HarnessEvent, SessionObserved>): boolean {
     const waited = blocking(record.bound?.activity.pending).length > 0
+    const before = record.bound?.activity.lastTurn
     const applied = this.appliedFact(record, fact)
+    if (applied) this.interruptionStood(record, before)
     // A request no longer waits on the person: what they typed meanwhile counts now, at
     // once, before the report's prompt reaches messaging. The doorbell looks again too, as
     // the request kept it from ringing and its screen may not change.

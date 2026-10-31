@@ -1,5 +1,4 @@
-import { messagesKey } from "@novadeck/core/companion-bar"
-import { companionKeyId, companionKeyOf, type CompanionKey } from "@novadeck/core/items"
+import { messagesKey } from "@novadeck/core/items/companion-bar"
 import {
   hasMessages,
   messageBadge,
@@ -13,6 +12,7 @@ import {
 } from "@novadeck/core/messages"
 import type { WorkspaceAction } from "@novadeck/core/state"
 import type { Store, WorkspaceStore } from "@novadeck/core/store"
+import { type TerminalKey, terminalKeyPath, terminalKeyOfPath } from "@novadeck/core/types"
 import { useSyncExternalStore } from "react"
 
 import { markSeen, seenAt, seenKey, seenStore } from "./seen"
@@ -31,17 +31,17 @@ const useMessagesPart = <T>(
 // What a terminal's tab shows of its messages: the count waiting for its agent.
 export const useMessageBadge = (
   messages: Messages | undefined,
-  key: CompanionKey,
+  key: TerminalKey,
 ): MessageBadge | null => {
-  const id = companionKeyId(key)
+  const id = terminalKeyPath(key)
   const threads = useMessagesPart(messages, (state) => state.terminals[id])
   const paused = useMessagesPart(messages, (state) => state.paused)
   return messageBadge(threads, paused)
 }
 
 // Whether a terminal has a messages view, which puts the messages on its bar.
-export const useHasMessages = (messages: Messages | undefined, key: CompanionKey): boolean => {
-  const id = companionKeyId(key)
+export const useHasMessages = (messages: Messages | undefined, key: TerminalKey): boolean => {
+  const id = terminalKeyPath(key)
   return useMessagesPart(messages, (state) => hasMessages(state.terminals[id]))
 }
 
@@ -54,7 +54,7 @@ export type MessagesHandle = {
   // Why the last pause or resume didn't take.
   readonly error: string | null
   // Whether the terminal has a messages view: it has had messages.
-  readonly present: boolean
+  readonly hasMessages: boolean
   readonly badge: MessageBadge | null
   readonly pause: (paused: boolean) => void
   // When the person last saw a conversation, by its key, and that they saw it up to `at`.
@@ -62,8 +62,8 @@ export type MessagesHandle = {
   readonly seen: (conversation: string, at: number) => void
 }
 
-export const useMessages = (messages: Messages | undefined, key: CompanionKey): MessagesHandle => {
-  const id = companionKeyId(key)
+export const useMessages = (messages: Messages | undefined, key: TerminalKey): MessagesHandle => {
+  const id = terminalKeyPath(key)
   const threads = useMessagesPart(messages, (state) => state.terminals[id])
   const paused = useMessagesPart(messages, (state) => state.paused)
   const pending = useMessagesPart(messages, (state) => state.pending)
@@ -75,7 +75,7 @@ export const useMessages = (messages: Messages | undefined, key: CompanionKey): 
     paused,
     pending,
     error,
-    present: hasMessages(threads),
+    hasMessages: hasMessages(threads),
     badge: messageBadge(threads, paused),
     pause: (next) => messages?.pause(next),
     seenAt: (conversation) => seenAt(record, seenKey(id, conversation)),
@@ -85,7 +85,7 @@ export const useMessages = (messages: Messages | undefined, key: CompanionKey): 
 }
 
 // What the messages' views know of the session around the terminal: the other terminals
-// by handle, and the ways out of the pane, to another terminal and to the Inbox item an
+// by handle, and the ways out of the pane, to another terminal and to the Inbox row an
 // entry waits in.
 // The peers are a store, which only the views that draw them subscribe to, so a terminal
 // whose pane is shut never renders again as an agent starts or stops working.
@@ -124,7 +124,7 @@ export const followMessages = (workspace: WorkspaceStore, messages: Messages): (
       counts.set(id, count)
       if (!hasMessages(threads)) continue
       // A terminal closed since its messages came takes nothing: the bar's actions pass it by.
-      const { terminalId, ...target } = companionKeyOf(id)
+      const { terminalId, ...target } = terminalKeyOfPath(id)
       actions.push({ type: "bar/arrive", target, terminalId, key: messagesKey })
       if (more) actions.push({ type: "bar/reopen", target, terminalId, key: messagesKey })
     }

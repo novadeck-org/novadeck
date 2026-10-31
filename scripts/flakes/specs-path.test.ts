@@ -55,3 +55,51 @@ describe("a flake registered before the specs had a package", () => {
     expect(verdict).toMatchObject({ flakes: [] })
   })
 })
+
+describe("a flake registered before the specs went into domain folders", () => {
+  const moved = parseRegister({
+    aggregates: [],
+    flakes: [
+      {
+        id: "pins",
+        jobs: ["^Test \\(Linux\\)$"],
+        test: "src/projects/pins.spec.tsx > A pinned project > reorders",
+        signature: "AssertionError",
+        status: "known",
+        cause: "Unknown.",
+        seen: ["#3"],
+      },
+      {
+        id: "grid",
+        jobs: ["^Test \\(Linux\\)$"],
+        test: "src/grid.spec.tsx > Grid view > keeps its layout",
+        signature: "AssertionError",
+        status: "known",
+        cause: "Unknown.",
+        seen: ["#4"],
+      },
+    ],
+  })
+
+  it("is known by its file's new folder, and by the names it had before", () => {
+    for (const [file, test, id] of [
+      ["src/projects/pins.spec.tsx", "A pinned project > reorders", "pins"],
+      ["src/agents.spec.tsx", "A pinned project > reorders", "pins"],
+      ["src/specs/agents.spec.tsx", "A pinned project > reorders", "pins"],
+      ["src/views/grid.spec.tsx", "Grid view > keeps its layout", "grid"],
+      ["src/grid.spec.tsx", "Grid view > keeps its layout", "grid"],
+    ] as const)
+      expect(judgeJob(moved, "Test (Linux)", log(file, test)), file).toMatchObject({
+        flakes: [id],
+      })
+  })
+
+  it("leaves a group that stayed behind in the old file to be triaged", () => {
+    const verdict = judgeJob(
+      moved,
+      "Test (Linux)",
+      log("src/agents.spec.tsx", "A pinned projectile > reorders"),
+    )
+    expect(verdict).toMatchObject({ flakes: [] })
+  })
+})

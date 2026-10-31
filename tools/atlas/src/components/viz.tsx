@@ -109,3 +109,7 @@ export const Token = ({
     </span>
   )
 }
+
+// A label cut to n characters, with an ellipsis where it was.
+export const clip = (text: string, n: number) =>
+  text.length > n ? `${text.slice(0, n - 1)}…` : text

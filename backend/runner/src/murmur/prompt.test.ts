@@ -62,6 +62,14 @@ describe("asking for a title", () => {
     expect(user(shell)).toContain("Running now: tail -f app.log")
   })
 
+  it("cuts a long screen row to its budget, keeping every character whole", () => {
+    const row = `${"x".repeat(158)}😀😀tail`
+    const text = user({ ...shell, screen: [row, "short"] })
+
+    expect(text).toContain(`\n${"x".repeat(158)}…\n`)
+    expect(text).not.toMatch(/[\ud800-\udbff](?![\udc00-\udfff])/)
+  })
+
   it("splits at row 0 without a background section", () => {
     const text = user({
       ...shell,

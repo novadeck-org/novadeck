@@ -1,6 +1,8 @@
-// Scenarios of the fixtures that hold no transcript to render, by name: a claude ask
-// scenario recorded without a `transcriptTail`. An extractor reports what it skipped, and the
-// test compares that with these, so a scenario dropping out of a fixture (or into one) shows.
+// Scenarios of the fixtures that hold no transcript to render, by name. An extractor reports
+// what it skipped, and the test compares that with these, so a scenario dropping out of a
+// fixture (or into one) shows.
+
+// Claude's ask scenarios recorded without a `transcriptTail`.
 
 export const claudeAskSkipped: readonly string[] = [
   "channel-relay-allow",
@@ -105,4 +107,16 @@ export const claudeAskSkipped: readonly string[] = [
   "k-write-blank-end@2.1.291",
   "k-write-over-nonl@2.1.291",
   "k-write-over-blank-end@2.1.291",
+]
+
+// Codex's ask scenarios with no rollout, in the 0.163.0 and 0.160.1 recordings.
+export const codexAskSkipped: readonly string[] = ["rui-default-off", "y-with-no-dialog"]
+
+// Antigravity's ask scenarios that keep no list of steps.
+export const agyAskSkipped: readonly string[] = [
+  "ask_question",
+  "hook",
+  "answered",
+  "twin",
+  "replace_file_content",
 ]

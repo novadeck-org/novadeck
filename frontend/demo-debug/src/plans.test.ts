@@ -1,4 +1,5 @@
-import { itemIdOf, type CompanionKey, type ItemContent } from "@novadeck/core/items"
+import { itemIdOf, type ItemContent } from "@novadeck/core/items"
+import type { TerminalKey } from "@novadeck/core/types"
 import { studioAgent } from "@novadeck/demo/showcase/agents"
 import { createShowcase } from "@novadeck/demo/showcase/simulation"
 
@@ -6,11 +7,11 @@ import { planGroups } from "./plans"
 import { describe, expect, it } from "./test"
 import type { DemoActionContext } from "./types"
 
-const key: CompanionKey = { projectId: "p", workspaceSessionId: "s", terminalId: "01" }
+const key: TerminalKey = { projectId: "p", workspaceSessionId: "s", terminalId: "01" }
 
 const run = (
   label: string,
-  selected: CompanionKey | undefined,
+  selected: TerminalKey | undefined,
   companions: ReturnType<typeof createShowcase>,
 ) => {
   const notes: string[] = []

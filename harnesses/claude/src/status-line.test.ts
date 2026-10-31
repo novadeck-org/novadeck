@@ -1,0 +1,74 @@
+import type { Report } from "@novadeck/harness-core/report"
+import { loadProbe } from "@novadeck/harness-core/testing/probes"
+import { hookReport } from "@novadeck/harness-core/testing/reports"
+import { telemetryLimits } from "@novadeck/protocol"
+import { describe, expect, it } from "vitest"
+
+import { decode } from "./decode.js"
+
+type Window = { used_percentage: number; resets_at: number }
+const { payload } = loadProbe(import.meta.dirname, "statusline.probe.json") as {
+  payload: Report["payload"] & {
+    model: { display_name: string }
+    context_window: {
+      context_window_size: number
+      current_usage: Record<string, number>
+    }
+    rate_limits: { five_hour: Window; seven_day: Window }
+  }
+}
+const report = hookReport("claude", "StatusLine", payload, { seq: 5 })
+
+describe("Claude Code's status line, as captured", () => {
+  it("gives the context's size beside what it holds", () => {
+    const usage = payload.context_window.current_usage
+    expect(decode(report)).toMatchObject([
+      {
+        type: "telemetry-observed",
+        context: {
+          occupied:
+            usage.input_tokens! +
+            usage.cache_creation_input_tokens! +
+            usage.cache_read_input_tokens!,
+          capacity: payload.context_window.context_window_size,
+        },
+      },
+    ])
+  })
+
+  it("gives the model's display name, and its effort level, none where the payload has none", () => {
+    // None clears the last model's, as after a switch to a model without levels.
+    expect(decode(report)).toMatchObject([{ model: payload.model.display_name, effort: null }])
+    const effort = { ...payload, effort: { level: "xhigh" } }
+    expect(decode({ ...report, payload: effort })).toMatchObject([
+      { model: payload.model.display_name, effort: "xhigh" },
+    ])
+  })
+
+  it("gives no model or effort name longer than the protocol takes", () => {
+    const named = (model: string, level: string) =>
+      decode({
+        ...report,
+        payload: { ...payload, model: { display_name: model }, effort: { level } },
+      })
+    const fits = "m".repeat(telemetryLimits.model)
+    const effort = "e".repeat(telemetryLimits.effort)
+    expect(named(fits, effort)).toMatchObject([{ model: fits, effort }])
+    expect(named(fits, `${effort}e`)).toMatchObject([{ model: fits, effort: null }])
+    expect(named(`${fits}m`, `${effort}e`)[0]).not.toHaveProperty("model")
+    expect(named(`${fits}m`, `${effort}e`)[0]).not.toHaveProperty("effort")
+  })
+
+  it("gives the five-hour and seven-day windows as used fractions with their resets", () => {
+    const { five_hour, seven_day } = payload.rate_limits
+    const [event] = decode(report)
+    expect(event?.type === "telemetry-observed" && event.limits).toEqual([
+      { minutes: 300, used: five_hour.used_percentage / 100, resetsAt: five_hour.resets_at * 1000 },
+      {
+        minutes: 10_080,
+        used: seven_day.used_percentage / 100,
+        resetsAt: seven_day.resets_at * 1000,
+      },
+    ])
+  })
+})

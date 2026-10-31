@@ -3,14 +3,14 @@ import type { AgentName } from "@novadeck/protocol"
 
 import { logs } from "../log.js"
 import type { Record } from "./record.js"
+import type { TranscriptRedactor } from "./redaction.js"
 import type {
   ListedTerminal,
   SavedTerminal,
   TerminalIdentity,
   TerminalRecords,
   TerminalToSave,
-} from "./records.js"
-import type { TranscriptRedactor } from "./redaction.js"
+} from "./saved-terminals.js"
 import { sealedShape, type TranscriptSealer } from "./sealing.js"
 import type { TranscriptInput } from "./transcriptRedaction.js"
 

@@ -1,3 +1,9 @@
+import {
+  createTelemetryStore,
+  dropProject,
+  dropTerminal,
+  noTelemetry,
+} from "@novadeck/core/agents/telemetry"
 import type { Conversations } from "@novadeck/core/conversation"
 import { withSnoozes, type InboxRow } from "@novadeck/core/inbox"
 import { emptyCompanions, itemIdOf, type Item } from "@novadeck/core/items"
@@ -11,27 +17,21 @@ import type {
 } from "@novadeck/core/port"
 import type { WorkspaceSeed } from "@novadeck/core/seed"
 import { createStore } from "@novadeck/core/store"
-import {
-  createTelemetryStore,
-  dropProject,
-  dropTerminal,
-  noTelemetry,
-} from "@novadeck/core/telemetry"
 import type { TitleSource, Workspace } from "@novadeck/core/types"
 
-import type { DemoAgentLink } from "./agent-link"
-import { babciaIntroOf, createBabcia } from "./babcia"
-import { createDemoChat } from "./chat"
-import { chirpIntroOf, chirpSeed, chirpTranscripts } from "./chirp"
-import { createDemoEngine, type DemoEngine } from "./engine"
+import { createDemoMurmur, heldMurmurTiming, requestedMurmur } from "./addons/murmur"
+import { createDemoVoice, heldVoiceTiming, requestedVoice } from "./addons/voice"
+import { addressParams } from "./address"
+import { createDemoChat } from "./agents/chat"
+import type { DemoAgentLink } from "./agents/link"
+import { agentTranscripts, type DemoTranscript } from "./agents/transcripts"
+import { demoTurns, type DemoTurns } from "./agents/turns"
 import { withFeedback } from "./feedback"
 import { demoHandle } from "./handles"
 import { createDemoInbox, isDemoInbox } from "./inbox"
-import { demoInboxRows, demoEntries, demoPlanStates } from "./inbox-fixtures"
-import { inboxLeadMessages, inboxTranscripts, withInboxLead } from "./inbox-transcripts"
-import { createLaunch } from "./launch"
+import { demoInboxRows, demoEntries, demoPlanStates } from "./inbox/fixtures"
+import { inboxLeadMessages, inboxTranscripts, withInboxLead } from "./inbox/transcripts"
 import { checkoutMessages, createDemoMessages, isDemoMessages } from "./messages"
-import { createDemoMurmur, heldMurmurTiming, requestedMurmur } from "./murmur"
 import {
   createMockTerminal,
   defaultName,
@@ -43,13 +43,17 @@ import {
 } from "./samples"
 import { createShowcase } from "./showcase/simulation"
 import { checkoutPlan, storefrontArtifacts } from "./showcase/storefront"
-import { directoryOf, itemsOf } from "./showcase/workspace"
 import { withSource } from "./source"
-import { terminalOf } from "./terminals"
-import { agentTranscripts, type DemoTranscript } from "./transcripts"
-import { demoTurns, type DemoTurns } from "./turns"
-import { createDemoTerminals, type DemoTerminals, type DemoTerminalSetup } from "./views"
-import { createDemoVoice, heldVoiceTiming, requestedVoice } from "./voice"
+import { createDemoEngine, type DemoEngine } from "./terminals/engine"
+import {
+  createDemoTerminals,
+  type DemoTerminals,
+  type DemoTerminalSetup,
+} from "./terminals/screens"
+import { babciaIntroOf, createBabcia } from "./videos/babcia"
+import { chirpIntroOf, chirpSeed, chirpTranscripts } from "./videos/chirp"
+import { createLaunch } from "./videos/launch"
+import { directoryOf, itemsOf, sessionOf, terminalOf } from "./workspace"
 
 // Sample agents: Claude Code and Codex installed, Antigravity not.
 const sampleAgents: readonly AgentConnection[] = [
@@ -63,8 +67,7 @@ const addressOf = (projectId: string, sessionId: string) => `${projectId}/${sess
 
 // What a spec that stops an install asks for in its address's hash: `&install=held`.
 const installHeld = (): boolean =>
-  typeof window !== "undefined" &&
-  new URLSearchParams(window.location.hash.split("?")[1] ?? "").get("install") === "held"
+  typeof window !== "undefined" && addressParams().get("install") === "held"
 
 // Each demo backend's terminals by the mount they serve, which the backends wrapping it keep:
 // `withConversations` links them to its agents.
@@ -107,9 +110,7 @@ export const demoBackend = (
     // Every backend built here is the demo's, which shows features still being designed.
     demo: true,
     newTerminal: ({ target, directory, title, launch }) => {
-      const session = latest?.projects
-        .find((project) => project.id === target.projectId)
-        ?.history.find((each) => each.id === target.workspaceSessionId)
+      const session = sessionOf(latest, target)
       const highest = Math.max(
         0,
         ...(session?.state.roster.terminals ?? []).map((terminal) =>
@@ -139,7 +140,7 @@ export const demoBackend = (
     telemetry: createTelemetryStore(),
     voice,
     murmur,
-    // Older than every update the demo offers (see debug/states.ts).
+    // Older than every update the demo offers (see demo-debug's `updates.ts`).
     version: () => Promise.resolve("0.0.79"),
     // The demo keeps no logs: Preferences offers the folder as the desktop app does, and
     // opening it does nothing.
@@ -182,9 +183,7 @@ export const windowReset = (
   workspace: Workspace | undefined,
   { projectId, workspaceSessionId, terminalId }: TerminalKey,
 ): BackendAction[] => {
-  const state = workspace?.projects
-    .find((project) => project.id === projectId)
-    ?.history.find((session) => session.id === workspaceSessionId)?.state
+  const state = sessionOf(workspace, { projectId, workspaceSessionId })?.state
   const window = state?.roster.windows.find((each) => each.id === terminalId)
   const item = window && state?.items.find((each) => each.id === window.itemId)
   if (!window || !item) return []
@@ -343,19 +342,19 @@ export const withConversations = (
 }
 
 // A backend with the demo's Inbox (see `createDemoInbox`): what its agents wait on, from the
-// conversations and messages `backend` has, which `withConversations` gave it, and `items`
+// conversations and messages `backend` has, which `withConversations` gave it, and `rows`
 // over them, the demo's own. Answering one of those for an agent that waits takes the agent
 // past it, to wait for the person's next words. Its messages keep a record of what the
 // person answered, where they are the demo's.
 export const withInbox = (
   backend: Backend,
   turns: DemoTurns,
-  items: readonly InboxRow[] = [],
+  rows: readonly InboxRow[] = [],
 ): Backend => {
   const { conversations, messages } = backend
   if (!conversations) throw new Error("withInbox wraps a backend withConversations made")
   const record = isDemoMessages(messages) ? messages.record : undefined
-  const inbox = createDemoInbox(Date.now(), items, record, {
+  const inbox = createDemoInbox(Date.now(), rows, record, {
     conversations,
     messages,
     resume: (key, terminal) => turns.resume(key, terminal, { waits: true }),
@@ -375,7 +374,7 @@ export const withInbox = (
 
 // The agents demo's storefront terminals hold what their agents showed, on their bars,
 // to open, peek at and move. What the person opens from the Source panel joins them.
-export const withStorefrontArtifacts = (backend: Backend): Backend => {
+const withStorefrontArtifacts = (backend: Backend): Backend => {
   let latest: Workspace | undefined
   const session = { projectId: "storefront", workspaceSessionId: "initial" }
   const showcase = createShowcase({
@@ -543,11 +542,11 @@ const withFinishes = (backend: Backend, turns: DemoTurns): Backend => ({
   },
 })
 
-// The demos with no content showcase: the plain one, the agents', the agents' with
-// messages between them, the agents' with every kind of Inbox item, the plain one with its
+// The demos with no showcase: the plain one, the agents', the agents' with
+// messages between them, the agents' with every kind of Inbox row, the plain one with its
 // first-run welcome dialog open, and Chirp's, Babcia's and Launch's, one-offs for videos (see
-// `chirp.ts`, `babcia.ts` and `launch.ts`). Each has
-// the Inbox its agents make; the Inbox demo shows the hardcoded items of every kind over theirs.
+// `videos/chirp.ts`, `videos/babcia.ts` and `videos/launch.ts`). Each has
+// the Inbox its agents make; the Inbox demo shows the hardcoded rows of every kind over theirs.
 // The agents', messages' and Inbox demos have the Source of the storefront project (see
 // `source.ts`), as the try demo does: the others have no agents there to change files.
 export type PlainVariant =
@@ -586,8 +585,7 @@ const plainBackend = (
     welcome:
       variant === "welcome" ||
       (import.meta.env.DEV && import.meta.env.VITE_WELCOME_PREVIEW === "true"),
-    // Chirp's, Babcia's and Launch's agents open on their own work (see `chirp.ts`, `babcia.ts`
-    // and `launch.ts`).
+    // Chirp's, Babcia's and Launch's agents open on their own work (see `videos/`).
     ...(variant === "chirp"
       ? { terminals: { ...terminals, introOf: chirpIntroOf } }
       : variant === "babcia"
@@ -647,8 +645,8 @@ const plainBackend = (
       ),
       turns,
     )
-  // The Inbox demo's agents elsewhere have done things before their items came, and one
-  // has a lead, for the sheets to show (see `inbox-transcripts.ts`).
+  // The Inbox demo's agents elsewhere have done things before their rows came, and one
+  // has a lead, for the sheets to show (see `inbox/transcripts.ts`).
   const inbox = variant === "inbox"
   const seed = demoSeed(now, true)
   const conversing = withConversations(
@@ -681,7 +679,7 @@ const plainBackend = (
 // the turn ends, which a busy machine may not in the usual 1.5 s. `terminals` is where
 // they draw, as specs give them the page's theme.
 export const createDemoBackend = (terminals?: DemoTerminalSetup): Backend => {
-  const params = new URLSearchParams(window.location.hash.split("?")[1])
+  const params = addressParams()
   const demo = params.get("demo")
   const turnMs = Number(params.get("turnMs"))
   const backend = plainDemo(

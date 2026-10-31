@@ -9,6 +9,7 @@ import type { Report } from "@novadeck/harness-core/report"
 
 import { logs } from "../log.js"
 import { relayHook } from "./hook.js"
+import { object, type Fields } from "./json.js"
 import { mcpAnswer, type McpCall } from "./mcp.js"
 
 const log = logs.for("reports")
@@ -28,13 +29,13 @@ export type Ack = { readonly terminalId: string; readonly token: string; readonl
 
 /**
  * What Novadeck's MCP server forwards: a tool call an agent made in a terminal, which
- * waits for its answer. `present` shows something beside it, `showing` lists what is
- * there, `look` pictures a page there and `dismiss` closes what it showed (see `companions/items.ts`), `open` opens a new terminal beside it (see
+ * waits for its answer. `show` shows something beside it, `showing` lists what is
+ * there, `look` pictures a page there and `closeShown` closes what it showed (see `companions/items.ts`), `open` opens a new terminal beside it (see
  * `terminals/opens.ts`), `close` closes another terminal of its project and session (see
  * `terminals/closes.ts`), `lead` asks the person to let it lead another terminal's agent and
  * `release` ends such a lead (see `terminals/leads.ts`), and `send` and `agents` message other terminals' agents and
- * describe them (see `messaging/messaging.ts`), and `summarize` says what the caller's own
- * terminal works on (see `terminals/summarize.ts`); the runner reads `request`, and nothing
+ * describe them (see `messaging/sending.ts`), and `summarize` says what the caller's own
+ * terminal works on (see `terminals/summarize-request.ts`); the runner reads `request`, and nothing
  * here does.
  */
 export type Call = {
@@ -45,10 +46,10 @@ export type Call = {
 }
 
 const callTypes = [
-  "present",
+  "show",
   "showing",
   "look",
-  "dismiss",
+  "closeShown",
   "open",
   "close",
   "lead",
@@ -69,10 +70,10 @@ export const unanswered = { ok: false, reason: "Novadeck couldn't show it." } as
 
 /** The same, for each type of call. */
 export const unansweredCalls = {
-  present: unanswered,
+  show: unanswered,
   showing: { ok: false, reason: "Novadeck couldn't list what is showing beside you." },
   look: { ok: false, reason: "Novadeck couldn't picture the page." },
-  dismiss: { ok: false, reason: "Novadeck couldn't close it." },
+  closeShown: { ok: false, reason: "Novadeck couldn't close it." },
   open: { ok: false, reason: "Novadeck couldn't open the terminal." },
   close: { ok: false, reason: "Novadeck couldn't close the terminal." },
   lead: { ok: false, reason: "Novadeck couldn't ask the user to let you lead the terminal." },
@@ -87,13 +88,8 @@ export const unansweredCalls = {
   models: { ok: false, reason: "Novadeck couldn't list the models." },
 } as const satisfies { readonly [type in CallType]: { ok: false; reason: string } }
 
-const object = (value: unknown): value is { readonly [key: string]: unknown } =>
-  typeof value === "object" && value !== null && !Array.isArray(value)
-
 /** Who sent a message: a terminal, and a token that could be the runner's. */
-const sender = (value: {
-  readonly [key: string]: unknown
-}): { terminalId: string; token: string } | undefined => {
+const sender = (value: Fields): { terminalId: string; token: string } | undefined => {
   const { terminalId, token } = value
   if (typeof terminalId !== "string" || terminalId.length > 64) return undefined
   // The runner's tokens are 48 hex digits; anything else cannot match one.
@@ -122,7 +118,7 @@ const relayStart = '{"relay":'
  * protocol changes, the runner keeps taking the version before it for a release. A
  * relay the runner doesn't take answers by itself, with no tools.
  */
-export const relayVersions: ReadonlySet<number> = new Set([2])
+const relayVersions: ReadonlySet<number> = new Set([2])
 
 // What the endpoint turned away, said once each, so a mismatch shows in the runner's log
 // without filling it.
@@ -326,11 +322,7 @@ export const listenForReports = async (
    * its deadline or as `unheard`. The relay then prints what it delivers and, holding a
    * lease, acknowledges it with one more line, `{ ack }`, on the same connection.
    */
-  const serveHook = async (
-    socket: Socket,
-    value: { readonly [key: string]: unknown },
-    rest: string,
-  ) => {
+  const serveHook = async (socket: Socket, value: Fields, rest: string) => {
     // What the relay sends after its hook, read from the start: its acknowledgement,
     // which counts once its answer named the lease it acknowledges.
     let text = rest
@@ -362,16 +354,44 @@ export const listenForReports = async (
     })
     const hook = from && relayHook(value)
     let answer = unheard
+    // A hook that heard its ask late or not at all says so once, in the runner's log: the
+    // lease of an answer nobody printed is never acknowledged, and only this line tells.
+    let said = false
+    const lost = (given: { readonly [key: string]: number | boolean }) => {
+      if (said || !from || !hook) return
+      said = true
+      log.warn("reports.hook-late", "Novadeck's answer to a hook wasn't printed", {
+        data: {
+          terminalId: from.terminalId,
+          agent: hook.report.agent,
+          event: hook.report.event,
+          ...given,
+        },
+      })
+    }
+    let asked = false
     if (from && hook) {
       const report = { ...from, ...hook.report }
       if (hook.deadline === undefined) {
         handlers.report(report)
       } else {
+        asked = true
         const ms = Math.min(answerMs, hook.deadline - Date.now())
-        answer = await within(handlers.ask(report, hook.deadline), ms, unheard)
+        const cutoff = Date.now() + Math.max(0, ms)
+        // Set once the wait is over: an answer after it is the late one the line is for.
+        let over = false
+        const raced = handlers.ask(report, hook.deadline).then((late) => {
+          if (over) lost({ lateMs: Date.now() - cutoff, leased: late.leaseId !== null })
+          return late
+        })
+        answer = await within(raced, ms, unheard)
+        over = true
       }
     }
-    if (!socket.writable) return
+    if (!socket.writable) {
+      if (asked) lost({ gone: true, leased: answer.leaseId !== null })
+      return
+    }
     socket.write(`${JSON.stringify(answer)}\n`)
     if (!from || answer.leaseId === null) {
       done = true

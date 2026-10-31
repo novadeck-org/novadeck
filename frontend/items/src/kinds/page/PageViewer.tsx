@@ -1,6 +1,6 @@
 import { pageTroublesPerCall, type PageContent } from "@novadeck/core/items"
-import { pageSights } from "@novadeck/core/page-sights"
-import { pagesPartition } from "@novadeck/core/pages"
+import { pageSights } from "@novadeck/core/items/page-sights"
+import { pagesPartition } from "@novadeck/core/items/pages"
 import { useShown } from "@novadeck/toolkit/shown"
 import { Tooltip } from "@novadeck/toolkit/Tooltip"
 import { mountBrowser, type Load, type Place, type Trouble } from "@novadeck/viewers/browser"
@@ -65,7 +65,7 @@ const useTroubles = (tell: Tell): ((trouble: Trouble, shown: number) => void) =>
   return batch.collect
 }
 
-// A page in the browser viewer: live where the backend's host allows, else its snapshot.
+// A page in the browser viewer: live where the app can load it, else its snapshot.
 // Where its viewer was, by item, is kept: where the person had taken it, and the picture
 // of it a live page rests as while the pane sleeps, which costs nothing to draw.
 const ShownPage = ({
@@ -212,7 +212,7 @@ const ShownPage = ({
   )
 }
 
-// A page loads live where the backend's host allows, in Electron's <webview>, which the
+// A page loads live where the app can, in Electron's <webview>, which the
 // desktop app locks down (no Node, its own session, http(s) only; see the browser viewer);
 // elsewhere it's a link to open in the browser, with a snapshot when the backend has one.
 export const PageViewer = ({

@@ -7,37 +7,16 @@ import { afterAll, vi } from "vitest"
 
 import { runnerBackend, type RunnerApi } from "./backend"
 import { context, describe, expect, it } from "./test"
-import { startTestRunner } from "./testing"
+import { channel } from "./testing/channel"
+import { startTestRunner } from "./testing/runner"
 
 vi.setConfig({ testTimeout: 20_000 })
 
 const runner = await startTestRunner()
 afterAll(() => runner.close())
 
-// Asks pushed by the test, as the runner would send them.
-const asks = () => {
-  const queued: Approval[] = []
-  let wake: (() => void) | undefined
-  const iterator: AsyncIterableIterator<Approval, undefined> = {
-    [Symbol.asyncIterator]: () => iterator,
-    next: async () => {
-      // eslint-disable-next-line no-await-in-loop -- Waits for the next pushed ask.
-      while (!queued.length) await new Promise<void>((resolve) => (wake = resolve))
-      return { value: queued.shift()!, done: false }
-    },
-    return: async () => ({ value: undefined, done: true }),
-  }
-  return {
-    iterator,
-    push: (ask: Approval) => {
-      queued.push(ask)
-      wake?.()
-    },
-  }
-}
-
 const open = (failAnswer = false) => {
-  const sent = asks()
+  const sent = channel<Approval>()
   const answers: ApprovalAnswer[] = []
   const released: string[] = []
   // The link's status, which the test changes as a dropped connection would.
@@ -70,7 +49,7 @@ const open = (failAnswer = false) => {
     [],
   )
   const stop = backend.start!({ dispatch: () => {}, open: () => {} })
-  const ask = (fields: Partial<Extract<Approval, { type: "request" }>> = {}) => {
+  const request = (fields: Partial<Extract<Approval, { type: "request" }>> = {}) => {
     const made: Extract<Approval, { type: "request" }> = {
       type: "request",
       requestId: crypto.randomUUID(),
@@ -84,7 +63,7 @@ const open = (failAnswer = false) => {
     return made
   }
   const pending = () => backend.approvals!.pending.getSnapshot()
-  // Lets the pushed asks reach the store.
+  // Lets the pushed requests reach the store.
   const settled = async () => {
     await new Promise((resolve) => setTimeout(resolve, 20))
     await idle()
@@ -103,7 +82,7 @@ const open = (failAnswer = false) => {
     reconnect,
     answers,
     released,
-    ask,
+    request,
     pending,
     push: sent.push,
     settled,
@@ -112,11 +91,11 @@ const open = (failAnswer = false) => {
 }
 
 describe("approvals through the runner backend", () => {
-  context("when the runner sends asks", () => {
+  context("when the runner sends requests", () => {
     it("lists them in order, with the terminals they name", async () => {
       const app = open()
-      const first = app.ask()
-      const second = app.ask()
+      const first = app.request()
+      const second = app.request()
       await app.settled()
       expect(app.pending()).toEqual([
         {
@@ -137,9 +116,9 @@ describe("approvals through the runner backend", () => {
   })
 
   context("when an agent asks to lead a terminal", () => {
-    it("lists the ask with its brief", async () => {
+    it("lists the request with its brief", async () => {
       const app = open()
-      const lead = app.ask({ action: { type: "lead", brief: "Review the diff." } })
+      const lead = app.request({ action: { type: "lead", brief: "Review the diff." } })
       await app.settled()
       expect(app.pending()).toEqual([
         {
@@ -163,11 +142,11 @@ describe("approvals through the runner backend", () => {
     })
   })
 
-  context("when the runner withdraws an ask", () => {
-    it("drops that ask and keeps the rest", async () => {
+  context("when the runner withdraws a request", () => {
+    it("drops that request and keeps the rest", async () => {
       const app = open()
-      const first = app.ask()
-      const second = app.ask()
+      const first = app.request()
+      const second = app.request()
       app.push({ type: "withdrawn", requestId: first.requestId })
       await app.settled()
       expect(app.pending().map((each) => each.requestId)).toEqual([second.requestId])
@@ -176,9 +155,9 @@ describe("approvals through the runner backend", () => {
   })
 
   context("when the person answers", () => {
-    it("sends the answer to the runner and drops the ask", async () => {
+    it("sends the answer to the runner and drops the request", async () => {
       const app = open()
-      const first = app.ask()
+      const first = app.request()
       await app.settled()
       app.backend.approvals!.answer(first.requestId, true)
       expect(app.answers).toEqual([{ requestId: first.requestId, approved: true }])
@@ -188,7 +167,7 @@ describe("approvals through the runner backend", () => {
 
     it("ignores a runner that no longer waits for it", async () => {
       const app = open(true)
-      const first = app.ask()
+      const first = app.request()
       await app.settled()
       app.backend.approvals!.answer(first.requestId, false)
       await app.settled()
@@ -199,20 +178,20 @@ describe("approvals through the runner backend", () => {
   })
 
   context("when the link to the runner drops", () => {
-    it("forgets the asks, which the runner settled, and lists the ones sent once it reconnects", async () => {
+    it("forgets the requests, which the runner settled, and lists the ones sent once it reconnects", async () => {
       const app = open()
-      app.ask()
+      app.request()
       await app.settled()
       app.drop()
       await app.settled()
       expect(app.pending()).toEqual([])
       // One still on its way as the link dropped was settled too: it never shows.
-      app.ask()
+      app.request()
       await app.settled()
       expect(app.pending()).toEqual([])
       app.reconnect()
       await app.settled()
-      const later = app.ask()
+      const later = app.request()
       await app.settled()
       expect(app.pending().map((each) => each.requestId)).toEqual([later.requestId])
       app.stop()
@@ -220,9 +199,9 @@ describe("approvals through the runner backend", () => {
   })
 
   context("when the backend stops", () => {
-    it("forgets the asks", async () => {
+    it("forgets the requests", async () => {
       const app = open()
-      app.ask()
+      app.request()
       await app.settled()
       app.stop()
       expect(app.pending()).toEqual([])

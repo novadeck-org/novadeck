@@ -1,33 +1,49 @@
 /**
- * Novadeck's MCP server, as the runner serves it to a connected agent's plugin. The
- * agent starts Novadeck's relay (see backend/relay), which carries its messages, one
- * JSON-RPC message per line, to the runner of the terminal it runs in, over the endpoint
- * the agent's hooks report to, and the answers back; outside Novadeck's terminals the
- * relay answers the handshake itself, with no tools. Its tools: `show`, which puts an
- * image, a text file, a web page or the agent's changes in front of the user, beside the
- * terminal the agent runs in (one source per call, `file`, `page` or `changes`, each with
- * its own options inside it),
- * `showing`, which lists what is there now, `look`, which pictures a page there, and `close`, which takes away what the agent
- * showed, by the same source; `open_terminal`, which opens a
- * new terminal beside it, optionally starting a command there; `open_agent`, which opens
- * one running another agent, on a model and effort if asked, with a brief as its task (its
- * model choices come from the runner when the tools are listed); `close_terminal`, which
- * closes one of the project's terminals by its handle, or the agent's own; `lead`, which
- * asks the user to let it lead an agent already running in another terminal, and `release`,
- * which ends such a lead; `send` and
- * `agents`, which message the agents in the project's other terminals and list them; `summarize`,
- * which says what the agent's own terminal works on; and `feedback`, which drafts feedback
- * about Novadeck for the user's feedback card (see docs/agent-messaging.md). Each call goes to the terminal's runner with the terminal's
- * own token, as the relay named them, and the runner's answer is told back as text.
- * Only Claude Code reads a server's own instructions, so each tool's description carries
- * its rules.
+ * Novadeck's MCP server, as the runner serves it to a connected agent's plugin. The agent
+ * starts Novadeck's relay (see backend/relay), which carries its messages, one JSON-RPC
+ * message per line, to the runner of the terminal it runs in, over the endpoint the
+ * agent's hooks report to, and the answers back; outside Novadeck's terminals the relay
+ * answers the handshake itself, with no tools.
+ *
+ * Its tools:
+ * - `show` puts an image, a text file, a web page or the agent's changes in front of the
+ *   person, beside the terminal the agent runs in (one source per call, `file`, `page` or
+ *   `changes`, each with its own options inside it); `showing` lists what is there now,
+ *   `look` pictures a page there, and `close` takes away what the agent showed, by the
+ *   same source.
+ * - `open_terminal` opens a new terminal beside it, optionally starting a command there;
+ *   `open_agent` opens one running another agent, on a model and effort if asked, with a
+ *   brief as its task (its model choices come from the runner when the tools are listed);
+ *   `close_terminal` closes one of the project's terminals by its handle, or the agent's
+ *   own.
+ * - `lead` asks the person to let it lead an agent already running in another terminal,
+ *   and `release` ends such a lead; `send` and `agents` message the agents in the
+ *   project's other terminals and list them; `summarize` says what the agent's own
+ *   terminal works on.
+ * - `ask`, `tell` and `done` put a question, a milestone and a report in the person's
+ *   Inbox; `feedback` drafts feedback about Novadeck for the person's feedback card (see
+ *   docs/agent-messaging.md).
+ *
+ * Each call goes to the terminal's runner with the terminal's own token, as the relay named
+ * them, and the runner's answer is told back as text. Only Claude Code reads a server's
+ * own instructions, so each tool's description carries its rules.
  */
-import { efforts, plugin } from "@novadeck/harness-core/harness"
-import { harnessIds, harnesses } from "@novadeck/protocol"
+import { efforts } from "@novadeck/harness-core/harness"
+import { manifest } from "@novadeck/harness-core/plugin"
+import {
+  agentNames,
+  harnesses,
+  inboxTextLimits,
+  maxAskOptions,
+  maxCommandLines,
+  maxFeedbackText,
+  maxStartupCommand,
+} from "@novadeck/protocol"
 
 import { maxMessageBytes } from "../messaging/messages.js"
 import { unboundNote } from "../messaging/peers.js"
 import { mention } from "../terminals/handles.js"
+import { object } from "./json.js"
 import type { CallType } from "./reports.js"
 
 /** The MCP versions Novadeck's server speaks, newest first; it answers others with the newest. */
@@ -68,7 +84,7 @@ type Shown = {
   readonly tooLarge?: boolean
 }
 type Listing = { readonly text: string }
-type Dismissed = { readonly name: string }
+type ClosedShown = { readonly name: string }
 type Opened = {
   readonly handle?: string
   readonly title?: string
@@ -102,7 +118,7 @@ type Closed = {
   readonly ran?: string
   /** The caller's own terminal, closing a moment after the answer. */
   readonly self?: true
-  /** The user was asked to confirm; the terminal is still open. */
+  /** The person was asked to confirm; the terminal is still open. */
   readonly asked?: true
   readonly gone?: readonly Gone[]
   readonly others?: number
@@ -234,7 +250,7 @@ const show: Tool<Shown> = {
     },
     additionalProperties: false,
   },
-  call: "present",
+  call: "show",
   // Whole, so the runner's strict reading names a key that belongs to no source.
   request: (args) => args,
   said: (answer) =>
@@ -316,7 +332,7 @@ const look: Tool<Listing & { readonly picture: Picture }> = {
   failed: "Novadeck couldn't picture the page.",
 }
 
-const close: Tool<Dismissed> = {
+const close: Tool<ClosedShown> = {
   name: "close",
   description:
     "Close something you showed beside your terminal in Novadeck, by the same file, page " +
@@ -365,7 +381,7 @@ const close: Tool<Dismissed> = {
     },
     additionalProperties: false,
   },
-  call: "dismiss",
+  call: "closeShown",
   // Whole, so the runner's strict reading names a key that belongs to no source.
   request: (args) => args,
   said: (answer) => "Closed " + answer.name + " beside you in Novadeck.",
@@ -417,7 +433,7 @@ const openTerminal: Tool<Opened> = {
         description:
           "A command line to run at the new shell's first prompt, as if the user typed it, " +
           "such as npm run dev: one line. Leave it out for a plain shell.",
-        maxLength: 4096,
+        maxLength: maxStartupCommand,
       },
       cwd: cwdProperty,
       title: {
@@ -477,11 +493,12 @@ const modelProperty = (models: Models): object => {
     "Set it only when the user asked for a model or the brief needs one; otherwise leave " +
     "it out and the agent keeps the user's own default."
   if (ids.length === 0) return noModel
-  const per = harnesses
-    .filter(({ id }) => (models[id] ?? []).length > 0)
-    .map(({ id, name }) => `${id} (${name}): ${models[id]!.map(modelChoice).join(", ")}`)
+  const offered = harnesses.map(({ id, name }) => ({ id, name, list: models[id] ?? [] }))
+  const per = offered
+    .filter(({ list }) => list.length > 0)
+    .map(({ id, name, list }) => `${id} (${name}): ${list.map(modelChoice).join(", ")}`)
     .join("; ")
-  const missing = harnesses.some(({ id }) => (models[id] ?? []).length === 0)
+  const missing = offered.some(({ list }) => list.length === 0)
     ? " An agent not named here can't take a model now: leave model out for it."
     : ""
   return {
@@ -491,28 +508,31 @@ const modelProperty = (models: Models): object => {
   }
 }
 
+// The models a harness's list names, with the efforts each takes; entries that name no id are skipped.
+const readModels = (list: unknown): Models[string] =>
+  Array.isArray(list)
+    ? list.flatMap((each) =>
+        object(each) && typeof each.id === "string"
+          ? [
+              {
+                id: each.id,
+                efforts: Array.isArray(each.efforts)
+                  ? each.efforts.filter((effort) => typeof effort === "string")
+                  : [],
+              },
+            ]
+          : [],
+      )
+    : []
+
 // The runner's list of models by harness, or none when it can't say.
 const listModels = async (call: McpCall): Promise<Models> => {
   try {
     const answer = await call("models", {})
     if (!object(answer) || answer.ok !== true || !object(answer.models)) return {}
-    const models: { [harness: string]: Models[string][number][] } = {}
-    for (const [harness, list] of Object.entries(answer.models))
-      models[harness] = Array.isArray(list)
-        ? list.flatMap((each) =>
-            object(each) && typeof each.id === "string"
-              ? [
-                  {
-                    id: each.id,
-                    efforts: Array.isArray(each.efforts)
-                      ? each.efforts.filter((effort) => typeof effort === "string")
-                      : [],
-                  },
-                ]
-              : [],
-          )
-        : []
-    return models
+    return Object.fromEntries(
+      Object.entries(answer.models).map(([harness, list]) => [harness, readModels(list)]),
+    )
   } catch {
     return {}
   }
@@ -545,7 +565,7 @@ const openAgent: Tool<Opened> = {
     properties: {
       agent: {
         type: "string",
-        enum: harnessIds,
+        enum: agentNames,
         description: `The agent to start there: ${agentChoices}.`,
       },
       message: {
@@ -956,11 +976,11 @@ const summarize: Tool<unknown> = {
 }
 
 const entryFields = {
-  subject: { type: "string", description: "One-line subject.", maxLength: 256 },
+  subject: { type: "string", description: "One-line subject.", maxLength: inboxTextLimits.line },
   body: {
     type: "string",
     description: "Markdown explaining what you need or want to tell the user.",
-    maxLength: 16384,
+    maxLength: inboxTextLimits.markdown,
   },
 }
 // Claude Code omits tools with a union at the schema root. The runner validates
@@ -1002,11 +1022,15 @@ const ask: Tool<{ readonly id: string; readonly withdrawn?: boolean }> = {
     type: "object",
     properties: {
       ...entryFields,
-      details: { type: "string", description: "Optional additional Markdown.", maxLength: 16384 },
+      details: {
+        type: "string",
+        description: "Optional additional Markdown.",
+        maxLength: inboxTextLimits.markdown,
+      },
       hard_to_undo: {
         type: "string",
         description: "Why the decision would be hard to undo.",
-        maxLength: 2048,
+        maxLength: inboxTextLimits.hardToUndo,
       },
       shape: {
         oneOf: [
@@ -1024,18 +1048,18 @@ const ask: Tool<{ readonly id: string; readonly withdrawn?: boolean }> = {
                 type: "array",
                 description: "One to three choices.",
                 minItems: 1,
-                maxItems: 3,
+                maxItems: maxAskOptions,
                 items: {
                   type: "object",
                   properties: {
-                    label: { type: "string", maxLength: 256 },
-                    summary: { type: "string", maxLength: 2048 },
-                    details: { type: "string", maxLength: 16384 },
+                    label: { type: "string", maxLength: inboxTextLimits.line },
+                    summary: { type: "string", maxLength: inboxTextLimits.summary },
+                    details: { type: "string", maxLength: inboxTextLimits.markdown },
                     code: {
                       type: "object",
                       properties: {
-                        path: { type: "string", maxLength: 256 },
-                        text: { type: "string", maxLength: 16384 },
+                        path: { type: "string", maxLength: inboxTextLimits.line },
+                        text: { type: "string", maxLength: inboxTextLimits.markdown },
                       },
                       required: ["path", "text"],
                       additionalProperties: false,
@@ -1048,7 +1072,7 @@ const ask: Tool<{ readonly id: string; readonly withdrawn?: boolean }> = {
               recommend: {
                 type: ["integer", "null"],
                 minimum: 0,
-                maximum: 2,
+                maximum: maxAskOptions - 1,
                 description: "Index of your pick, counted from zero, or null.",
               },
             },
@@ -1061,13 +1085,13 @@ const ask: Tool<{ readonly id: string; readonly withdrawn?: boolean }> = {
               type: { const: "action" },
               command: {
                 type: "string",
-                maxLength: 4096,
+                maxLength: inboxTextLimits.command,
                 description:
-                  "What the user runs themselves, up to 40 lines, in characters that show: " +
+                  `What the user runs themselves, up to ${maxCommandLines} lines, in characters that show: ` +
                   "Novadeck refuses one holding a character that draws as nothing.",
               },
-              directory: { type: "string", maxLength: 4096 },
-              done_label: { type: "string", maxLength: 256 },
+              directory: { type: "string", maxLength: inboxTextLimits.directory },
+              done_label: { type: "string", maxLength: inboxTextLimits.line },
             },
             required: ["type", "command", "done_label"],
             additionalProperties: false,
@@ -1151,8 +1175,8 @@ const feedback: Tool<unknown> = {
       },
       text: {
         type: "string",
-        description: "The feedback, up to 2,000 characters.",
-        maxLength: 2000,
+        description: `The feedback, up to ${maxFeedbackText.toLocaleString("en-US")} characters.`,
+        maxLength: maxFeedbackText,
       },
     },
     required: ["kind", "text"],
@@ -1190,9 +1214,6 @@ type Reply = { readonly id: unknown } & Outcome
 type Outcome =
   | { readonly result: unknown }
   | { readonly error: { readonly code: number; readonly message: string } }
-
-const object = (value: unknown): value is Arguments =>
-  typeof value === "object" && value !== null && !Array.isArray(value)
 
 /**
  * One call to the terminal's runner: the call's type, with the request's arguments; it
@@ -1238,6 +1259,28 @@ const instructions =
   "user's. Its feedback drafts a note about Novadeck for the user to read and send, when " +
   "they ask for one or you hit a bug in Novadeck itself."
 
+// The answer to the handshake: the protocol version the agent asked for when it is one of
+// the server's, else the newest.
+const initialized = (params: unknown, inTerminal: boolean) => {
+  const asked = object(params) ? params.protocolVersion : undefined
+  return {
+    protocolVersion: mcpVersions.find((version) => version === asked) ?? mcpVersions[0],
+    capabilities: { tools: {} },
+    serverInfo: { name: "novadeck", version: manifest.version },
+    ...(inTerminal ? { instructions } : {}),
+  }
+}
+
+// Every tool as the agent lists it, with the schema the runner's state makes now.
+const listedTools = (call: McpCall) =>
+  Promise.all(
+    tools.map(async ({ name, description, inputSchema, schema }) => ({
+      name,
+      description,
+      inputSchema: (await schema?.(call)) ?? inputSchema,
+    })),
+  )
+
 const respond = async (line: string, call?: McpCall): Promise<Reply | undefined> => {
   if (line.trim() === "") return undefined
   let message: unknown
@@ -1252,34 +1295,9 @@ const respond = async (line: string, call?: McpCall): Promise<Reply | undefined>
   // Notifications, such as notifications/initialized, need no answer; nor do answers,
   // since this server asks nothing.
   if (id === undefined || id === null || typeof method !== "string") return undefined
-  if (method === "initialize") {
-    const asked = object(params) ? params.protocolVersion : undefined
-    return {
-      id,
-      result: {
-        protocolVersion: mcpVersions.find((version) => version === asked) ?? mcpVersions[0],
-        capabilities: { tools: {} },
-        serverInfo: { name: "novadeck", version: plugin.version },
-        ...(call ? { instructions } : {}),
-      },
-    }
-  }
+  if (method === "initialize") return { id, result: initialized(params, call !== undefined) }
   if (method === "ping") return { id, result: {} }
-  if (method === "tools/list")
-    return {
-      id,
-      result: {
-        tools: call
-          ? await Promise.all(
-              tools.map(async ({ name, description, inputSchema, schema }) => ({
-                name,
-                description,
-                inputSchema: (await schema?.(call)) ?? inputSchema,
-              })),
-            )
-          : [],
-      },
-    }
+  if (method === "tools/list") return { id, result: { tools: call ? await listedTools(call) : [] } }
   if (method === "tools/call") {
     const outcome = await toolCall(object(params) ? params : {}, call)
     return { id, ...outcome }

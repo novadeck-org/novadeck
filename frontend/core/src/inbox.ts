@@ -2,12 +2,12 @@ import type { ChatAnswer, ChatRequest } from "./conversation"
 import type { AgentName } from "./harnesses"
 import type { MessageWaits } from "./messages"
 import { createStore, type Store } from "./store"
-import type { Workspace } from "./types"
+import type { TerminalKey, Workspace } from "./types"
 
 // The Inbox: everything across the workspace that an agent, or Novadeck about an agent,
-// puts in front of the person, every item its own row. The person reads and answers it
-// there, without going to the terminal. Each item is one of six sources, and the UI
-// presents it as one of five types:
+// puts in front of the person, each as its own row. The person reads and answers it
+// there, without going to the terminal. Each row comes from one of five sources, and the UI
+// presents it as one of four types:
 // - `request`: a prompt the agent's harness shows and Novadeck reads from its screen
 //   (`ChatRequest`, as the chat view has it). A permission or plan is an Unblock, a
 //   question an Ask; a dialog Novadeck can't read (`raw`) is answered in the terminal.
@@ -20,7 +20,7 @@ import type { Workspace } from "./types"
 // - `update`: what the agent reported through the MCP `done` tool, or told through `tell`.
 // Agents write subjects, bodies and options; Novadeck shows them as they are.
 
-// Where an item comes from: the terminal, its project and session, the agent running in
+// Where a row comes from: the terminal, its project and session, the agent running in
 // it, and its title as the sidebar shows it.
 export type InboxSource = {
   readonly projectId: string
@@ -138,7 +138,7 @@ export type AskSettled = {
   readonly at: number
 }
 
-// One item. `at` is when it started waiting, in epoch milliseconds. `stopped` whether the
+// One row. `at` is when it started waiting, in epoch milliseconds. `stopped` whether the
 // agent waits on the person (a gate, an ask after which it ended its turn, a stuck or
 // failed agent) rather than working on. `seen` once the person opened it. `settled` only on
 // an ask that no longer waits (see `AskSettled`): it stays listed until the person clears it.
@@ -154,18 +154,18 @@ export type InboxRow = InboxContent & {
   readonly snoozed?: true
 }
 
-// The four ways the Inbox presents an item: Unblock (the agent can't go on without the
+// The four ways the Inbox presents a row: Unblock (the agent can't go on without the
 // person's yes or action), Ask (a question), Trouble and Update.
 export type InboxType = "unblock" | "ask" | "trouble" | "update"
 
-export const inboxType = (item: InboxContent): InboxType => {
-  if (item.kind === "request") return item.request.kind === "question" ? "ask" : "unblock"
-  if (item.kind === "held") return "unblock"
-  if (item.kind === "ask" && item.ask.shape.type === "action") return "unblock"
-  return item.kind
+export const inboxType = (row: InboxContent): InboxType => {
+  if (row.kind === "request") return row.request.kind === "question" ? "ask" : "unblock"
+  if (row.kind === "held") return "unblock"
+  if (row.kind === "ask" && row.ask.shape.type === "action") return "unblock"
+  return row.kind
 }
 
-// The person's answer to an item, by its source: a dialog's answer as the chat sends it;
+// The person's answer to a row, by its source: a dialog's answer as the chat sends it;
 // a held thread released or stopped; an ask's option and/or words, or its
 // action done; a stuck agent nudged with these words or stopped, auto-resume at a limit
 // turned on or off, or the agent continued once the limit has reset; an update read.
@@ -192,7 +192,7 @@ export type InboxAnswer =
     }
   | { readonly kind: "update"; readonly action: "read" }
 
-// Every item, waiting ones first by how long they waited. `answering` the items whose
+// Every row, waiting ones first by how long they waited. `answering` the rows whose
 // answer is on its way, until the backend drops them; `failed` why an answer didn't take.
 export type InboxState = {
   readonly items: readonly InboxRow[]
@@ -231,12 +231,12 @@ export type InboxBinding = {
 
 export type Inbox = {
   readonly state: Store<InboxState>
-  // Optional. Hands the Inbox the app's state to build its items from, until the returned
+  // Optional. Hands the Inbox the app's state to build its rows from, until the returned
   // function stops it. Absent where the backend has all it needs of its own.
   readonly bind?: (binding: InboxBinding) => () => void
-  // Answers an item. The backend removes it once the answer took, or says why it didn't.
+  // Answers a row. The backend removes it once the answer took, or says why it didn't.
   readonly answer: (id: string, answer: InboxAnswer) => void
-  // Marks an item opened.
+  // Marks a row opened.
   readonly see: (id: string) => void
   // Reads every update, leaving everything that waits on the person.
   readonly readAll: () => void
@@ -263,40 +263,40 @@ export type Inbox = {
   readonly readFinishes?: (finishes: readonly InboxFinish[]) => void
 }
 
-// How urgent an item is, most urgent first: trouble that stopped the agent, then
+// How urgent a row is, most urgent first: trouble that stopped the agent, then
 // anything else that stopped it (a limit that waits for the person among them), then what
 // asks while the agent works on, then trouble that handles itself (a limit Novadeck
 // resumes from) or that only holds its messages (whose own question, if any, comes first),
 // then updates, and with
 // them a failed turn that is no longer the agent's current end (not `stopped`), which only
 // informs.
-export const urgency = (item: InboxRow): number => {
-  const type = inboxType(item)
+export const urgency = (row: InboxRow): number => {
+  const type = inboxType(row)
   if (type === "update") return 4
-  if (item.kind === "trouble" && item.trouble.type === "waits") return 3
+  if (row.kind === "trouble" && row.trouble.type === "waits") return 3
   if (type === "trouble") {
-    if (!item.stopped) return item.kind === "trouble" && item.trouble.type === "failed" ? 4 : 3
-    return item.kind === "trouble" && item.trouble.type === "limit" ? 1 : 0
+    if (!row.stopped) return row.kind === "trouble" && row.trouble.type === "failed" ? 4 : 3
+    return row.kind === "trouble" && row.trouble.type === "limit" ? 1 : 0
   }
-  return item.stopped ? 1 : 2
+  return row.stopped ? 1 : 2
 }
 
 // The Inbox's order: by urgency, then the longest waiting first; settled asks after all of it.
-export const ordered = (items: readonly InboxRow[]): InboxRow[] =>
-  items.toSorted((a, b) => {
+export const ordered = (rows: readonly InboxRow[]): InboxRow[] =>
+  rows.toSorted((a, b) => {
     // Settled asks come last, the latest settled first.
     if (a.settled || b.settled)
       return a.settled && b.settled ? b.settled.at - a.settled.at : a.settled ? 1 : -1
     return urgency(a) - urgency(b) || a.at - b.at
   })
 
-// The item an entry in a terminal's messages waits in: the one it came from, by id, as the
-// runner lists an entry as `m-` and its item's id without dashes.
+// The row an entry in a terminal's messages waits in: the one it came from, by id, as the
+// runner lists an entry as `m-` and its row's id without dashes.
 export const entryRow = (
-  items: readonly InboxRow[],
+  rows: readonly InboxRow[],
   entry: { readonly id: string },
 ): InboxRow | undefined =>
-  items.find((item) => item.id === entry.id || `m-${item.id.replaceAll("-", "")}` === entry.id)
+  rows.find((row) => row.id === entry.id || `m-${row.id.replaceAll("-", "")}` === entry.id)
 
 // How many snoozes are kept, the latest: as many as the runner keeps (`maxInboxOrder`, which
 // the runner adapter's tests hold it to).
@@ -304,7 +304,7 @@ export const maxSnoozes = 200
 
 // A row by its id and when it began, as the person's order and snoozes keep it: a newer row
 // under the same id, as a thread held again or a harness asking the same again, is another.
-export const rowKey = (item: InboxRow): string => `${item.id}@${item.at}`
+export const rowKey = (row: InboxRow): string => `${row.id}@${row.at}`
 
 // `inbox` with snoozes: its rows that the person snoozed, and that haven't settled, carry
 // `snoozed`. `initial` the snoozes kept before, and `save` keeps them each time one is
@@ -321,15 +321,15 @@ export const withSnoozes = <I extends Inbox>(
   // Each row's snoozed copy, while the backend keeps the row itself, so it stays the same.
   let copies = new WeakMap<InboxRow, InboxRow>()
   const listeners = new Set<() => void>()
-  const asleep = (item: InboxRow): boolean => !item.settled && keys.has(rowKey(item))
-  const copy = (item: InboxRow): InboxRow => {
-    const made = copies.get(item) ?? { ...item, snoozed: true as const }
-    copies.set(item, made)
+  const asleep = (row: InboxRow): boolean => !row.settled && keys.has(rowKey(row))
+  const copy = (row: InboxRow): InboxRow => {
+    const made = copies.get(row) ?? { ...row, snoozed: true as const }
+    copies.set(row, made)
     return made
   }
   const mark = (state: InboxState): InboxState =>
     state.items.some(asleep)
-      ? { ...state, items: state.items.map((item) => (asleep(item) ? copy(item) : item)) }
+      ? { ...state, items: state.items.map((row) => (asleep(row) ? copy(row) : row)) }
       : state
   const getSnapshot = (): InboxState => {
     const now = inbox.state.getSnapshot()
@@ -355,10 +355,10 @@ export const withSnoozes = <I extends Inbox>(
       },
     },
     snooze: (id, on) => {
-      const item = inbox.state.getSnapshot().items.find((each) => each.id === id)
-      if (on && !item) return
+      const row = inbox.state.getSnapshot().items.find((each) => each.id === id)
+      if (on && !row) return
       const kept = snoozed.filter((key) => !key.startsWith(`${id}@`))
-      snoozed = (on && item ? [...kept, rowKey(item)] : kept).slice(-maxSnoozes)
+      snoozed = (on && row ? [...kept, rowKey(row)] : kept).slice(-maxSnoozes)
       keys = new Set(snoozed)
       from = undefined
       copies = new WeakMap()
@@ -376,55 +376,48 @@ export const noInbox: Inbox = {
   readAll: () => {},
 }
 
-// The terminal an unseen-or-not check is about: its full address.
-export type TerminalAt = {
-  readonly projectId: string
-  readonly workspaceSessionId: string
-  readonly terminalId: string
-}
+export const atTerminal = (row: InboxRow, at: TerminalKey): boolean =>
+  row.source.projectId === at.projectId &&
+  row.source.workspaceSessionId === at.workspaceSessionId &&
+  row.source.terminalId === at.terminalId
 
-const atTerminal = (item: InboxRow, at: TerminalAt): boolean =>
-  item.source.projectId === at.projectId &&
-  item.source.workspaceSessionId === at.workspaceSessionId &&
-  item.source.terminalId === at.terminalId
-
-// What a terminal needs of the person, for its tab's mark: "unblock" for any Unblock item
+// What a terminal needs of the person, for its tab's mark: "unblock" for any Unblock row
 // or a limit past its reset that Novadeck won't resume from; otherwise "ask" for any Ask;
 // otherwise nothing. Trouble, updates, settled asks and what the person snoozed don't count.
-// Takes every item, as the backend lists them: the landing rule hides rows from the Inbox,
+// Takes every row, as the backend lists them: the landing rule hides rows from the Inbox,
 // never from the marks.
 export const terminalNeed = (
-  items: readonly InboxRow[],
-  at: TerminalAt,
+  rows: readonly InboxRow[],
+  at: TerminalKey,
   now: number,
 ): "unblock" | "ask" | undefined => {
-  const mine = items.filter((item) => atTerminal(item, at) && !item.settled && !item.snoozed)
-  const limitReset = (item: InboxRow): boolean =>
-    item.kind === "trouble" &&
-    item.trouble.type === "limit" &&
-    item.trouble.resetsAt <= now &&
-    item.trouble.autoResume !== true
-  if (mine.some((item) => inboxType(item) === "unblock" || limitReset(item))) return "unblock"
-  return mine.some((item) => inboxType(item) === "ask") ? "ask" : undefined
+  const mine = rows.filter((row) => atTerminal(row, at) && !row.settled && !row.snoozed)
+  const limitReset = (row: InboxRow): boolean =>
+    row.kind === "trouble" &&
+    row.trouble.type === "limit" &&
+    row.trouble.resetsAt <= now &&
+    row.trouble.autoResume !== true
+  if (mine.some((row) => inboxType(row) === "unblock" || limitReset(row))) return "unblock"
+  return mine.some((row) => inboxType(row) === "ask") ? "ask" : undefined
 }
 
-// When the next usage limit among `items` that is still ahead of `now` resets, which turns
+// When the next usage limit among `rows` that is still ahead of `now` resets, which turns
 // its terminal into an Unblock where auto-resume is off (see `terminalNeed`); undefined when none.
-export const nextLimitReset = (items: readonly InboxRow[], now: number): number | undefined =>
-  items.reduce<number | undefined>(
-    (soonest, item) =>
-      item.kind === "trouble" &&
-      item.trouble.type === "limit" &&
-      item.trouble.resetsAt > now &&
-      (soonest === undefined || item.trouble.resetsAt < soonest)
-        ? item.trouble.resetsAt
+export const nextLimitReset = (rows: readonly InboxRow[], now: number): number | undefined =>
+  rows.reduce<number | undefined>(
+    (soonest, row) =>
+      row.kind === "trouble" &&
+      row.trouble.type === "limit" &&
+      row.trouble.resetsAt > now &&
+      (soonest === undefined || row.trouble.resetsAt < soonest)
+        ? row.trouble.resetsAt
         : soonest,
     undefined,
   )
 
 // Whether the terminal has a `done` report the person hasn't seen.
-export const terminalDone = (items: readonly InboxRow[], at: TerminalAt): boolean =>
-  items.some(
-    (item) =>
-      atTerminal(item, at) && !item.seen && item.kind === "update" && item.update.type === "done",
+export const terminalDone = (rows: readonly InboxRow[], at: TerminalKey): boolean =>
+  rows.some(
+    (row) =>
+      atTerminal(row, at) && !row.seen && row.kind === "update" && row.update.type === "done",
   )

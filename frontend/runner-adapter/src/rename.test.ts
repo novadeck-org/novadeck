@@ -1,8 +1,8 @@
 import { workspaceFromSeed } from "@novadeck/core/seed"
 import { vi } from "vitest"
 
-import { id, scripted } from "./scripted"
 import { describe, expect, it } from "./test"
+import { id, scripted } from "./testing/scripted"
 
 describe("renaming a terminal", () => {
   it("reaches the runner for one with no shell, as one kept off screen", async () => {

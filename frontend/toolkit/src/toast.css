@@ -2,7 +2,7 @@
    region, fixed at the top right; each `.toast` (also a `.floating`, which gives it its
    surface) sits in it with `data-rank` 0 for the newest up, and holds the caller's content,
    a `.toast-close`, a `.toast-countdown` line along its foot and, on the ones that end the
-   row, a `.toast-more` pill (data-fan="rest" | "fanned") that counts what is past the shown
+   row, a `.toast-more` pill (data-pose="rest" | "spread") that counts what is past the shown
    few.
 
    At rest (Ark's data-overlap) the front toast shows and the next two peek out behind it,
@@ -78,8 +78,8 @@
   }
 }
 .toast[data-mounted][data-overlap] {
-  --_lift: calc(min(var(--toast-rank), 2) * var(--toast-peek, 12px));
-  --_scale: calc(1 - min(var(--toast-rank), 3) * 0.045);
+  --_lift: calc(min(var(--_rank), 2) * var(--toast-peek, 12px));
+  --_scale: calc(1 - min(var(--_rank), 3) * 0.045);
 }
 .toast[data-mounted][data-stack] {
   --_lift: var(--offset);
@@ -167,7 +167,7 @@
   height: 2px;
   border-bottom-left-radius: var(--_radius);
   background-color: var(--toast-countdown-bg, var(--color-line-strong));
-  animation: toast-countdown var(--toast-life, 8s) linear forwards;
+  animation: toast-countdown var(--_life, 8s) linear forwards;
 }
 @keyframes toast-countdown {
   to {
@@ -199,14 +199,14 @@
   opacity: 0;
   pointer-events: none;
 }
-.toast-more[data-fan="rest"] {
+.toast-more[data-pose="rest"] {
   top: calc(100% + 2 * var(--toast-peek, 12px) + 8px);
 }
-.toast-more[data-fan="fanned"] {
+.toast-more[data-pose="spread"] {
   top: calc(100% + 8px);
 }
-.toast[data-overlap] .toast-more[data-fan="rest"],
-.toast[data-stack] .toast-more[data-fan="fanned"] {
+.toast[data-overlap] .toast-more[data-pose="rest"],
+.toast[data-stack] .toast-more[data-pose="spread"] {
   opacity: 1;
   pointer-events: auto;
 }

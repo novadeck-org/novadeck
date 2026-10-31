@@ -2,12 +2,17 @@
   "name": "@novadeck/harness-core",
   "version": "0.0.0",
   "private": true,
-  "description": "The contract every agent harness adapter fills in, and the helpers they share: hook reports, events, dialogs, transcripts and plugin files.",
+  "description": "The contract every agent harness adapter fills in, and the helpers they share: hook reports and commands, events, payload decoding, prompts, dialogs, transcripts and plugin files.",
   "license": "GPL-3.0-or-later",
   "author": "mzpkdev",
   "type": "module",
   "sideEffects": false,
   "exports": {
+    "./decode": {
+      "development": "./src/decode.ts",
+      "types": "./dist/decode.d.ts",
+      "default": "./dist/decode.js"
+    },
     "./dialogs": {
       "development": "./src/dialogs.ts",
       "types": "./dist/dialogs.d.ts",
@@ -17,6 +22,11 @@
       "development": "./src/events.ts",
       "types": "./dist/events.d.ts",
       "default": "./dist/events.js"
+    },
+    "./fields": {
+      "development": "./src/fields.ts",
+      "types": "./dist/fields.d.ts",
+      "default": "./dist/fields.js"
     },
     "./follow": {
       "development": "./src/follow.ts",
@@ -43,6 +53,21 @@
       "types": "./dist/items.d.ts",
       "default": "./dist/items.js"
     },
+    "./paths": {
+      "development": "./src/paths.ts",
+      "types": "./dist/paths.d.ts",
+      "default": "./dist/paths.js"
+    },
+    "./plugin": {
+      "development": "./src/plugin.ts",
+      "types": "./dist/plugin.d.ts",
+      "default": "./dist/plugin.js"
+    },
+    "./prompts": {
+      "development": "./src/prompts.ts",
+      "types": "./dist/prompts.d.ts",
+      "default": "./dist/prompts.js"
+    },
     "./report": {
       "development": "./src/report.ts",
       "types": "./dist/report.d.ts",
@@ -57,6 +82,11 @@
       "development": "./src/testing/probes.ts",
       "types": "./dist/testing/probes.d.ts",
       "default": "./dist/testing/probes.js"
+    },
+    "./testing/reports": {
+      "development": "./src/testing/reports.ts",
+      "types": "./dist/testing/reports.d.ts",
+      "default": "./dist/testing/reports.js"
     },
     "./testing/screens": {
       "development": "./src/testing/screens.ts",

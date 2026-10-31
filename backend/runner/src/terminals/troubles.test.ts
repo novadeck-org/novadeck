@@ -202,7 +202,7 @@ describe("the size of page notices", () => {
     let held = noTroubles
     for (let index = 0; index < count; index += 1)
       held = troubled(held, { ...page, itemId: `i-${index}`, name: "N".repeat(80) }, heavy(index))
-    return { ...noNudges, troubles: held, pending: ["session"], artifacts: true }
+    return { ...noNudges, troubles: held, pending: ["session"], companion: true }
   }
   const current = { summary: "s".repeat(200) }
   // What a hook prints, as the delivery budget measures it.
@@ -226,9 +226,9 @@ describe("the size of page notices", () => {
 
   it("keep a page waiting that only fails to fit beside the other notices", () => {
     const alone = (took: Parameters<typeof noticesAt>[0]) =>
-      took.pages.length === 0 || (!took.artifacts && !took.summarize)
+      took.pages.length === 0 || (!took.companion && !took.summarize)
     const first = take(many(1), true, alone)
-    expect(first).toMatchObject({ nudge: true, artifacts: true, summarize: true, pages: [] })
+    expect(first).toMatchObject({ nudge: true, companion: true, summarize: true, pages: [] })
     expect(due(first.nudges.troubles)).toBe(true)
     expect(take(first.nudges, true, alone).pages).toHaveLength(1)
   })

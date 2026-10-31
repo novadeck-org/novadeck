@@ -43,8 +43,8 @@ The recorded fixtures are thin: mostly redacted, naming a handful of tools. So
 `src/vocabulary/` holds one set of conversations per harness, written by hand in that
 harness's native record shape and read by its real decoder. They are synthetic records that
 pin today's rendering, not recordings; see `src/vocabulary/README.md` for what they name. They
-are what protects a move of the chat's vocabulary (each harness's `describe`, `inputText`, the tool kinds,
-the fold).
+are what protects a move of the chat's vocabulary (each harness's `describe`, `inputText`, the
+tool kinds, the fold).
 
 ## Changing a golden
 
@@ -59,15 +59,15 @@ git diff frontend/chat-contract/src/goldens
 With `CI=true` a missing or changed golden fails the test instead of being written. The test
 also fails on a golden no fixture owns.
 
-A change to a decoder, to `groupItems`, to a harness's `describe` or to the components should change a
-golden only when the chat is meant to show something else. A move of code (a package split,
-a rename) must leave every golden as it is.
+A change to a decoder, to `groupItems`, to a harness's `describe` or to the components should
+change a golden only when the chat is meant to show something else. A move of code (a package
+split, a rename) must leave every golden as it is.
 
 ## Fixtures
 
 `src/fixtures.ts` has one small extractor per fixture shape (scenarios of records, a list of
 records, Antigravity's steps, Codex's rollout stages, Claude's flattened `transcriptTail`).
 Each fixture says how many conversations it has and which scenarios it skips (those with
-nothing to render), and the test compares both with what the extractor found. An extractor
-that finds no records throws; so does a fixture that renders no block, and one expected to
-call tools that renders no tool row.
+nothing to render, listed in `src/skipped.ts`), and the test compares both with what the
+extractor found. An extractor that finds no records throws; so does a fixture that renders no
+block, and one expected to call tools that renders no tool row.

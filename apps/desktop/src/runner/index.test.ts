@@ -62,7 +62,7 @@ const start = (database: string, extra: readonly string[] = []) => {
     workerData: { entry },
   })
   // Rejects if the runner fails to start, rather than leaving the handshake to time out. It
-  // says it is ready first, as the host hears, then listens.
+  // says it is ready first, as the main process hears, then listens.
   const listening = (async () => {
     for await (const [message] of on(worker, "message")) if (message === "listening") return
   })()
@@ -71,12 +71,12 @@ const start = (database: string, extra: readonly string[] = []) => {
     const { port1, port2 } = new MessageChannel()
     // eslint-disable-next-line unicorn/require-post-message-target-origin -- A Node worker, not a window.
     worker.postMessage({ data: { type: "connect" }, ports: [port1] }, [port1])
-    return connectRunner(messagePort(port2), { timeout: 10_000 })
+    return connectRunner(messagePort(port2), { timeoutMs: 10_000 })
   }
   const persist = () =>
     // eslint-disable-next-line unicorn/require-post-message-target-origin -- A Node worker, not a window.
     worker.postMessage({ data: { type: "persist" }, ports: [] })
-  // The transcripts' key, as the host hands it over once the keychain gave it.
+  // The transcripts' key, as the main process hands it over once the keychain gave it.
   const key = (bytes: Buffer | null) => {
     const data = { type: "transcriptKey", key: bytes?.toString("base64") ?? null }
     // eslint-disable-next-line unicorn/require-post-message-target-origin -- A Node worker, not a window.
@@ -92,9 +92,9 @@ const start = (database: string, extra: readonly string[] = []) => {
 }
 
 describe("compiled desktop runner", () => {
-  context("in a utility process given a port by the host", () => {
+  context("in a utility process given a port by the main process", () => {
     it("serves shells and stores metadata in the given database", async () => {
-      const directory = await mkdtemp(join(tmpdir(), "novadeck-host-runner-"))
+      const directory = await mkdtemp(join(tmpdir(), "novadeck-runner-"))
       const database = join(directory, "workspace.sqlite")
       const runner = start(database)
       const transcriptKey = randomBytes(32)
@@ -134,7 +134,7 @@ describe("compiled desktop runner", () => {
         )
         await reading
         // Asked to before the system session ends, it saves the terminal's screen, as it
-        // stands then, sealed with the key the host gave; asked again each time, the latest
+        // stands then, sealed with the key the main process gave; asked again each time, the latest
         // ask counts.
         const saved = new DatabaseSync(database, { readOnly: true })
         try {
@@ -162,7 +162,7 @@ describe("compiled desktop runner", () => {
           "claude",
           "codex",
         ])
-        // With its own copy of the relay the host gave it, which agents start.
+        // With its own copy of the relay the main process gave it, which agents start.
         expect(await readFile(join(directory, "shell", relayName))).toEqual(
           await readFile(relayPath),
         )
@@ -177,7 +177,7 @@ describe("compiled desktop runner", () => {
     // Windows CI, and took 19s there in a run that slowed every test in this file about
     // sixfold, which left the 20s it had no room.
     it("has no terminal limit, unlike a standalone runner", async () => {
-      const directory = await mkdtemp(join(tmpdir(), "novadeck-host-runner-"))
+      const directory = await mkdtemp(join(tmpdir(), "novadeck-runner-"))
       const runner = start(join(directory, "workspace.sqlite"))
       try {
         const client = await runner.connect()
@@ -210,8 +210,8 @@ describe("compiled desktop runner", () => {
       }
     }, 60_000)
 
-    it("keeps metadata when the host starts a new runner", async () => {
-      const directory = await mkdtemp(join(tmpdir(), "novadeck-host-runner-"))
+    it("keeps metadata when the main process starts a new runner", async () => {
+      const directory = await mkdtemp(join(tmpdir(), "novadeck-runner-"))
       const database = join(directory, "workspace.sqlite")
       try {
         const first = start(database)
@@ -234,8 +234,8 @@ describe("compiled desktop runner", () => {
       }
     }, 20_000)
 
-    it("tells murmur and voice input the host saw only software rendering", async () => {
-      const directory = await mkdtemp(join(tmpdir(), "novadeck-host-runner-"))
+    it("tells murmur and voice input the main process saw only software rendering", async () => {
+      const directory = await mkdtemp(join(tmpdir(), "novadeck-runner-"))
       try {
         const states: (string | null)[] = []
         const aims: string[] = []
@@ -260,15 +260,15 @@ describe("compiled desktop runner", () => {
         }
         expect(states[0]).toEqual(expect.stringContaining("software"))
         expect(states[1]).toBeNull()
-        // Voice input installs its small model straight away only where the host said so.
+        // Voice input installs its small model straight away only where the main process said so.
         expect(aims).toEqual(["small", "turbo"])
       } finally {
         await rm(directory, { recursive: true, force: true, maxRetries: 10, retryDelay: 100 })
       }
     }, 30_000)
 
-    it("writes its own log, numbered as the host started it, and leaves the launch's marker alone", async () => {
-      const directory = await mkdtemp(join(tmpdir(), "novadeck-host-runner-"))
+    it("writes its own log, numbered as the main process started it, and leaves the launch's marker alone", async () => {
+      const directory = await mkdtemp(join(tmpdir(), "novadeck-runner-"))
       const logs = join(directory, "logs")
       const setup: LogSetup = {
         folder: logs,
@@ -302,7 +302,7 @@ describe("compiled desktop runner", () => {
         )
         expect(lines.every((line) => line.sid === "launch-1" && line.run === 3)).toBe(true)
         expect(lines.every((line) => line.proc === "runner")).toBe(true)
-        // The launch's marker is the host's: the runner never writes it.
+        // The launch's marker is the main process's: the runner never writes it.
         await expect(stat(join(logs, "session.json"))).rejects.toThrow()
       } finally {
         await rm(directory, { recursive: true, force: true, maxRetries: 10, retryDelay: 100 })

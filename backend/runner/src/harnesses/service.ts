@@ -1,5 +1,5 @@
 import { spawn } from "node:child_process"
-import { access, readFile, rm, writeFile } from "node:fs/promises"
+import { readFile, rm, writeFile } from "node:fs/promises"
 import { homedir } from "node:os"
 import { delimiter, join } from "node:path"
 
@@ -9,6 +9,7 @@ import { relayPath } from "@novadeck/relay"
 import { refreshPath } from "@novadeck/terminal/shell"
 
 import { DomainError } from "../errors.js"
+import { exists } from "../files.js"
 import { logs } from "../log.js"
 import type { ShellPaths } from "../shell/scripts.js"
 import { agents, harnesses } from "./registry.js"
@@ -34,12 +35,6 @@ export type HarnessesOptions = {
    */
   readonly relay?: string
 }
-
-const exists = (path: string): Promise<boolean> =>
-  access(path).then(
-    () => true,
-    () => false,
-  )
 
 // Windows' cmd reads an argument in double quotes as it is; a path cannot hold one.
 const cmdLine = (argv: readonly string[]): string =>
@@ -263,7 +258,7 @@ export const createHarnesses = (
         const where = (await installs())?.(agent)
         const harness = harnesses[agent]
         if (!where || !(await exists(harness.home(where)))) return []
-        return await harness.messaging.models(where)
+        return await harness.launch.models(where)
       } catch (error) {
         log.warn("harnesses.models-failed", `Novadeck could not list ${agent}'s models`, {
           data: { agent },

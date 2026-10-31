@@ -32,6 +32,9 @@ export type Pkg = {
   readonly tooling?: readonly string[]
   /** The `include` of its tsconfig besides src. */
   readonly include?: readonly string[]
+  /** Why its typecheck adds the `node` condition, as its tsconfig's comment's lines say it, the
+   * first going on from "leaves out". Every app adds it (docs/build-graph.md). */
+  readonly node?: readonly string[]
   readonly author?: string
 }
 
@@ -48,8 +51,8 @@ export const packages: readonly Pkg[] = [
     name: "@novadeck/core",
     description:
       "The Novadeck UI's model: its state, stores and the port it talks to a backend through.",
-    // Core's deep paths are its API, as `#core/*` was; `testing` is its fixtures.
-    exports: { "./*": "./src/*.ts", "./testing": "./src/testing.ts" },
+    // Core's deep paths are its API, as `#core/*` was.
+    exports: { "./*": "./src/*.ts" },
     scripts: unitScripts,
     vitest: "unit",
   },
@@ -57,11 +60,12 @@ export const packages: readonly Pkg[] = [
     id: "test-kit",
     dir: "frontend/test-kit",
     name: "@novadeck/test-kit",
-    description: "What the UI's tests render and drive the app with.",
+    description:
+      "The frontend's test helpers: a jsdom render, the port contract suite, test phase timing.",
     exports: {
       "./render": "./src/render.ts",
       "./phases": "./src/phases.ts",
-      "./backend-contract": "./src/backend-contract.tsx",
+      "./backend-contract": "./src/backend-contract.ts",
     },
     scripts: { typecheck: "tsc --noEmit -p tsconfig.json" },
   },
@@ -77,17 +81,21 @@ export const packages: readonly Pkg[] = [
     id: "runner-adapter",
     dir: "frontend/runner-adapter",
     name: "@novadeck/runner-adapter",
-    description: "The UI's backend for a Novadeck runner, over a WebSocket or the desktop host.",
-    // `testing`, `scripted` and `scripted-server` are dev subpaths: they stay out of the build,
-    // so the runner's and the oRPC server's edges stay dev-only.
+    description: "The UI's backend for a Novadeck runner, over a WebSocket or the desktop app.",
+    // `scripted-server` is a dev subpath, for the specs: it stays out of the build, so the
+    // oRPC server's edge stays dev-only.
     exports: {
       ".": "./src/index.ts",
-      "./testing": { node: "./src/testing.ts" },
-      "./scripted": "./src/scripted.ts",
-      "./scripted-server": "./src/scripted-server.ts",
+      "./conversations": "./src/agents/conversations.ts",
+      "./scripted-server": "./src/testing/scripted-server.ts",
     },
     scripts: unitScripts,
     vitest: "unit",
+    node: [
+      ": its tests start the runner, whose",
+      "source and the harnesses' import Node-only subpaths. The lint keeps the adapter's browser",
+      "code off them.",
+    ],
   },
   {
     id: "demo",
@@ -110,7 +118,7 @@ export const packages: readonly Pkg[] = [
     dir: "frontend/specs",
     name: "@novadeck/specs",
     description:
-      "The UI's behaviour specs: the whole app in a real browser, over the demo backend.",
+      "The UI's behaviour specs and integration tests: the whole app over the demo backend, in a real browser or jsdom.",
     allDev: true,
     scripts: unitScripts,
     vitest: "template",
@@ -164,12 +172,16 @@ export const packages: readonly Pkg[] = [
       dev: "vite --host 127.0.0.1 --mode try",
       build: "vite build --mode try",
       preview: "vite preview --host 127.0.0.1",
-      "poster:try": "node scripts/poster.ts",
+      poster: "node scripts/poster.ts",
       test: "vitest run",
       typecheck: "tsc --noEmit -p tsconfig.json",
     },
     vitest: "unit",
     include: ["scripts/**/*.ts"],
+    node: [
+      ", as every app's does (docs/build-graph.md):",
+      "its Vite config and scripts run in Node.",
+    ],
   },
   {
     id: "previews",
@@ -183,6 +195,7 @@ export const packages: readonly Pkg[] = [
       preview: "vite preview --host 127.0.0.1",
       typecheck: "tsc --noEmit -p tsconfig.json",
     },
+    node: [", as every app's does (docs/build-graph.md):", "its Vite config runs in Node."],
   },
 ]
 
@@ -206,7 +219,7 @@ export const rules: readonly Rule[] = [
   { from: `${ui}/src/test/fixtures.ts`, to: "frontend/core/src/testing.ts" },
   { from: `${ui}/src/test/render.ts`, to: "frontend/test-kit/src/render.ts" },
   { from: `${ui}/src/test/phases.ts`, to: "frontend/test-kit/src/phases.ts" },
-  { from: `${ui}/src/test/backend-contract.tsx`, to: "frontend/test-kit/src/backend-contract.tsx" },
+  { from: `${ui}/src/test/backend-contract.tsx`, to: "frontend/test-kit/src/backend-contract.ts" },
   { from: `${ui}/src/bundle-boundary.ts`, to: "tools/build-kit/src/bundle-checks.ts" },
   { from: `${ui}/src/bundle-boundary.test.ts`, to: "tools/build-kit/src/bundle-checks.test.ts" },
   { from: `${ui}/src/deploy.ts`, to: "apps/try/src/deploy.ts" },
@@ -302,10 +315,10 @@ export const samples: Kept = [
   { path: "application/ui/src/backend/demo/showcase/artifacts.ts", why: "code the demo shows" },
   { path: "application/ui/src/backend/demo/showcase/storefront.ts", why: "code the demo shows" },
   { path: "application/ui/src/backend/demo/transcripts.ts", why: "code the demo shows" },
-  { path: "frontend/demo/src/launch.ts", why: "code the demo shows" },
+  { path: "frontend/demo/src/agents/transcripts.ts", why: "code the demo shows" },
   { path: "frontend/demo/src/showcase/artifacts.ts", why: "code the demo shows" },
   { path: "frontend/demo/src/showcase/storefront.ts", why: "code the demo shows" },
-  { path: "frontend/demo/src/transcripts.ts", why: "code the demo shows" },
+  { path: "frontend/demo/src/videos/launch.ts", why: "code the demo shows" },
 ]
 
 const formsOf = (file: string): readonly RegExp[] =>
@@ -558,7 +571,7 @@ export const cycleProblem = (edges: readonly Edge[]): string[] => {
 }
 
 const testFile =
-  /\.(?:test|spec)\.[cm]?[jt]sx?$|\/src\/(?:test|testing|scripted|scripted-server)\.ts$|\/src\/test\/|\/setup\.ts$/
+  /\.(?:test|spec)\.[cm]?[jt]sx?$|\/src\/(?:test|testing|scripted|scripted-server)\.ts$|\/src\/(?:test|testing)\/|\/setup\.ts$/
 const configFile = /\/(?:vite|vitest)\.config\.[cm]?ts$|\/scripts\//
 
 /** Whether the file is test, config or tooling: what it imports is a dev dependency. */
@@ -720,11 +733,11 @@ export const manifestOf = (
     devDependencies: deps.devDependencies,
   })
 
-/** A package's tsconfig.json. */
-export const tsconfigOf = (pkg: Pkg, types: readonly string[]): string => {
+/** A package's tsconfig.json: JSX only where it has .tsx files. */
+export const tsconfigOf = (pkg: Pkg, types: readonly string[], tsx: boolean): string => {
   const include = [
     "src/**/*.ts",
-    "src/**/*.tsx",
+    ...(tsx ? ["src/**/*.tsx"] : []),
     ...(pkg.include ?? []),
     ...(pkg.app || pkg.id === "ui" ? ["vite.config.ts"] : []),
     ...(pkg.vitest ? ["vitest.config.ts"] : []),
@@ -732,15 +745,11 @@ export const tsconfigOf = (pkg: Pkg, types: readonly string[]): string => {
   return `{
   "compilerOptions": {
     // Workspace packages' source, as Vitest reads it: no build first (see docs/build-graph.md).
-    // \`node\` too, which \`Bundler\` resolution leaves out: the runner's and the harnesses' source,
-    // which the adapter's test runner reaches, imports Node-only subpaths. The lint keeps the
-    // UI's own code off them.
-    "customConditions": ["node", "development"],
+${conditions(pkg.node)}
     "target": "ES2022",
     "lib": ["ES2023", "DOM", "DOM.Iterable"],
     "module": "ESNext",
-    "moduleResolution": "Bundler",
-    "jsx": "react-jsx",
+    "moduleResolution": "Bundler",${tsx ? '\n    "jsx": "react-jsx",' : ""}
     "strict": true,
     "noUncheckedIndexedAccess": true,
     "exactOptionalPropertyTypes": true,
@@ -753,6 +762,18 @@ export const tsconfigOf = (pkg: Pkg, types: readonly string[]): string => {
 }
 `
 }
+
+// A tsconfig's conditions, with the comment on why `node` is one, if it is.
+const conditions = (node: readonly string[] | undefined): string =>
+  node === undefined
+    ? `    "customConditions": ["development"],`
+    : [
+        ...node.map(
+          (line, at) =>
+            `    // ${at === 0 ? "`node` too, which `Bundler` resolution leaves out" : ""}${line}`,
+        ),
+        `    "customConditions": ["node", "development"],`,
+      ].join("\n")
 
 const emulatorEntries = [
   "@novadeck/emulator > @xterm/addon-fit",
@@ -986,8 +1007,10 @@ export const edits: readonly Edit[] = [
   {
     file: "package.json",
     before: '"poster:try": "pnpm --filter @novadeck/ui poster:try",',
-    after: '"poster:try": "pnpm --filter @novadeck/try poster:try",',
+    after: '"poster:try": "pnpm --filter @novadeck/try poster",',
     why: "the posters are the visitor build's",
+    // The line before the app's script was named poster.
+    settled: ['"poster:try": "pnpm --filter @novadeck/try poster:try",'],
   },
   {
     file: "package.json",
@@ -1831,7 +1854,14 @@ export const plan = (input: PlanInput): Planned => {
       ...(deps.devDependencies["@types/node"] ? ["node"] : []),
     ]
     const file = `${pkg.dir}/tsconfig.json`
-    make(file, tsconfigOf(pkg, types), generatedWas[file], "the package's compiler options", true)
+    const tsx = [...all.keys()].some((f) => f.startsWith(`${pkg.dir}/`) && f.endsWith(".tsx"))
+    make(
+      file,
+      tsconfigOf(pkg, types, tsx),
+      generatedWas[file],
+      "the package's compiler options",
+      true,
+    )
     const manifest = `${pkg.dir}/package.json`
     const text = manifestOf(pkg, deps, mine.exports)
     const existing = originOf.has(manifest) ? undefined : originals.get(manifest)
@@ -1929,7 +1959,7 @@ export const kept: Kept = [
     path: ".github/workflows/try.yml",
     why: "its layouts are those of tags it deploys, the old one among them",
   },
-  { path: "backend/runner/src/terminals/peers.test.ts", why: "sample paths" },
+  { path: "backend/runner/src/terminals/peers-host.test.ts", why: "sample paths" },
   { path: "scripts/flaky-capture/grid-results.test.ts", why: "a sample result's checkout path" },
   { path: "scripts/libraries/graph.test.ts", why: "sample specs the package graph refuses" },
   { path: "scripts/libraries/fence.test.ts", why: "sample paths the fence refuses" },

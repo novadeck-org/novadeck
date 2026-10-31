@@ -13,21 +13,7 @@ import { realpath, stat } from "node:fs/promises"
 import { dirname, isAbsolute, join } from "node:path"
 import { DatabaseSync, type SQLTagStore } from "node:sqlite"
 
-import {
-  murmurCheck,
-  runnerSettings,
-  voiceCheck,
-  voiceLanguage,
-  voiceModel,
-  type AgentName,
-  type MurmurCheck,
-  type MurmurSettings,
-  type Project,
-  type RunnerSettings,
-  type VoiceCheck,
-  type VoiceSettings,
-  type WorkspaceSession,
-} from "@novadeck/protocol"
+import type { AgentName, Project, WorkspaceSession } from "@novadeck/protocol"
 
 import type { ItemRecord, ItemRecords, Placed, WindowRecord } from "../companions/records.js"
 import { DomainError } from "../errors.js"
@@ -36,15 +22,16 @@ import type { InboxRecords, StoredEntry } from "../messaging/inbox.js"
 import { novadeckSender, personSender, type Message, type Thread } from "../messaging/messages.js"
 import type { MessageRecords } from "../messaging/records.js"
 import { handleOrder, nextHandle } from "../terminals/handles.js"
-import type { Naming } from "../terminals/naming.js"
 import type {
   ListedTerminal,
   SavedTerminal,
   TerminalIdentity,
   TerminalRecords,
   TerminalToSave,
-} from "../terminals/records.js"
+} from "../terminals/saved-terminals.js"
+import type { Naming } from "../terminals/titles.js"
 import type { Work } from "../terminals/work.js"
+import { Settings } from "./settings.js"
 
 const log = logs.for("store")
 
@@ -57,26 +44,6 @@ const projectOf = ({ pinned, ...project }: ProjectRow): Project => ({
   ...project,
   pinned: pinned === 1,
 })
-
-/** Settings to change; those left out, or undefined, stay as they are. */
-export type VoiceSettingsChange = {
-  readonly [K in Exclude<keyof VoiceSettings, "enabled">]?: VoiceSettings[K] | undefined
-} & {
-  /** `null` forgets the choice, as when it is turned on before an install. */
-  readonly enabled?: boolean | null | undefined
-}
-
-/** Why an install found this computer can't run murmur, and the engine build it ran. */
-export type MurmurVerdict = { readonly reason: string; readonly engine: string }
-
-/** Murmur's settings to change; `enabled: null` forgets the choice, as when it is turned on before an install. */
-export type MurmurSettingsChange = {
-  readonly enabled?: boolean | null | undefined
-}
-
-export type SettingsChange = {
-  readonly [K in keyof RunnerSettings]?: RunnerSettings[K] | undefined
-}
 
 // Raise it for any change to a table's columns or constraints, and for a new table, with a
 // step in `migrations` that carries a database of the version before to it: a person's
@@ -914,17 +881,6 @@ const workOf = (text: string | null): Work | null => {
   }
 }
 
-// Inbox rows as saved, by id, or none where they can't be read.
-const inboxRowsOf = (text: string | undefined): string[] => {
-  if (text === undefined) return []
-  try {
-    const order = runnerSettings.shape.inboxOrder.safeParse(JSON.parse(text))
-    return order.success ? order.data : []
-  } catch {
-    return []
-  }
-}
-
 type NamingRow = Pick<TerminalRow, "person_title" | "opener_title" | "murmur_title" | "summary">
 
 const namingOf = (row: NamingRow): Naming => ({
@@ -1148,6 +1104,8 @@ const checkedChars = 1_024
 export class WorkspaceStore implements TerminalRecords, MessageRecords, InboxRecords, ItemRecords {
   private readonly database: DatabaseSync
   private readonly queries: SQLTagStore
+  /** The person's settings, over the same queries. */
+  readonly settings: Settings
   private lastSave = 0
   // The checkpoint that empties the write-ahead log after something was forgotten.
   private scrubbing: NodeJS.Timeout | undefined
@@ -1178,6 +1136,7 @@ export class WorkspaceStore implements TerminalRecords, MessageRecords, InboxRec
     this.database.exec("PRAGMA journal_mode = WAL")
     this.database.exec("PRAGMA synchronous = NORMAL")
     this.queries = this.database.createTagStore(64)
+    this.settings = new Settings(this.queries)
   }
 
   projects(): Project[] {
@@ -1614,102 +1573,11 @@ export class WorkspaceStore implements TerminalRecords, MessageRecords, InboxRec
   }
 
   messagingPaused(): boolean {
-    const row = this.queries.get`SELECT value FROM settings WHERE key = 'messagingPaused'` as
-      | { value: string }
-      | undefined
-    return row?.value === "true"
+    return this.settings.messagingPaused()
   }
 
   pauseMessaging(paused: boolean): void {
-    void this.queries.run`
-      INSERT INTO settings (key, value) VALUES ('messagingPaused', ${String(paused)})
-      ON CONFLICT (key) DO UPDATE SET value = excluded.value
-    `
-  }
-
-  settings(): RunnerSettings {
-    const rows = this.queries.all`SELECT key, value FROM settings` as {
-      key: string
-      value: string
-    }[]
-    const saved = new Map(rows.map((row) => [row.key, row.value]))
-    // Transcripts are kept unless turned off; the welcome dialog waits until seen; the Inbox
-    // keeps its own order until the person drags its rows, and snoozes none until they do.
-    return {
-      transcripts: saved.get("transcripts") !== "false",
-      welcomed: saved.get("welcomed") === "true",
-      inboxOrder: inboxRowsOf(saved.get("inboxOrder")),
-      inboxSnoozed: inboxRowsOf(saved.get("inboxSnoozed")),
-    }
-  }
-
-  // Each as JSON, which writes a switch as `true` or `false`, as it always was.
-  saveSettings(settings: SettingsChange): void {
-    for (const [key, value] of Object.entries(settings))
-      if (value !== undefined)
-        void this.queries.run`
-        INSERT INTO settings (key, value) VALUES (${key}, ${JSON.stringify(value)})
-        ON CONFLICT (key) DO UPDATE SET value = excluded.value
-      `
-  }
-
-  /** Voice input's settings: off, on the lighter model, and detecting the language, until chosen. */
-  voiceSettings(): VoiceSettings {
-    const rows = this.queries.all`SELECT key, value FROM settings WHERE key LIKE 'voice.%'` as {
-      key: string
-      value: string
-    }[]
-    const saved = new Map(rows.map((row) => [row.key, row.value]))
-    return {
-      enabled: saved.get("voice.enabled") === "true",
-      model: voiceModel.catch("turbo").parse(saved.get("voice.model")),
-      language: voiceLanguage.catch("auto").parse(saved.get("voice.language")),
-    }
-  }
-
-  /**
-   * Whether the person chose voice input on or off: `undefined` until they, or an install,
-   * did. A first install forgets an earlier off and turns it on; an off chosen during it,
-   * or before a later model's install, survives.
-   */
-  voiceEnabledChoice(): boolean | undefined {
-    const row = this.queries.get`SELECT value FROM settings WHERE key = 'voice.enabled'` as
-      | { value: string }
-      | undefined
-    return row === undefined ? undefined : row.value === "true"
-  }
-
-  /** The check the last install passed, as saved; `null` when there is none or it can't be read. */
-  voiceCheck(): VoiceCheck | null {
-    const row = this.queries.get`SELECT value FROM settings WHERE key = 'voice.check'` as
-      | { value: string }
-      | undefined
-    if (row === undefined) return null
-    try {
-      // Read leniently: a check an earlier build saved carries more than the wire has now.
-      const saved: unknown = JSON.parse(row.value)
-      const parsed = voiceCheck.safeParse(
-        typeof saved === "object" && saved !== null
-          ? {
-              model: (saved as Record<string, unknown>).model,
-              milliseconds: (saved as Record<string, unknown>).milliseconds,
-            }
-          : saved,
-      )
-      return parsed.success ? parsed.data : null
-    } catch {
-      return null
-    }
-  }
-
-  /** Replaces the saved check; `null` forgets it, as when voice input is removed. */
-  saveVoiceCheck(check: VoiceCheck | null): void {
-    if (check === null) void this.queries.run`DELETE FROM settings WHERE key = 'voice.check'`
-    else
-      void this.queries.run`
-        INSERT INTO settings (key, value) VALUES ('voice.check', ${JSON.stringify(check)})
-        ON CONFLICT (key) DO UPDATE SET value = excluded.value
-      `
+    this.settings.pauseMessaging(paused)
   }
 
   /**
@@ -1723,111 +1591,6 @@ export class WorkspaceStore implements TerminalRecords, MessageRecords, InboxRec
       `,
     ) as { id: string }[]
     return rows.map(({ id }) => id)
-  }
-
-  /** Saves what is given; `enabled: null` forgets the choice. */
-  saveVoiceSettings(settings: VoiceSettingsChange): void {
-    for (const [key, value] of Object.entries(settings)) {
-      if (value === null) void this.queries.run`DELETE FROM settings WHERE key = ${`voice.${key}`}`
-      else if (value !== undefined)
-        void this.queries.run`
-        INSERT INTO settings (key, value) VALUES (${`voice.${key}`}, ${String(value)})
-        ON CONFLICT (key) DO UPDATE SET value = excluded.value
-      `
-    }
-  }
-
-  /** Murmur's settings: off until the person turns it on. */
-  murmurSettings(): MurmurSettings {
-    return { enabled: this.murmurEnabledChoice() === true }
-  }
-
-  /** Whether the person chose murmur on or off: `undefined` until they, or an install, did. */
-  murmurEnabledChoice(): boolean | undefined {
-    const row = this.queries.get`SELECT value FROM settings WHERE key = 'murmur.enabled'` as
-      | { value: string }
-      | undefined
-    return row === undefined ? undefined : row.value === "true"
-  }
-
-  /** The check the last install passed, as saved; `null` when there is none or it can't be read. */
-  murmurCheck(): MurmurCheck | null {
-    const row = this.queries.get`SELECT value FROM settings WHERE key = 'murmur.check'` as
-      | { value: string }
-      | undefined
-    if (row === undefined) return null
-    try {
-      const parsed = murmurCheck.safeParse(JSON.parse(row.value))
-      return parsed.success ? parsed.data : null
-    } catch {
-      return null
-    }
-  }
-
-  /** Replaces the saved check; `null` forgets it, as when murmur is removed. */
-  saveMurmurCheck(check: MurmurCheck | null): void {
-    if (check === null) void this.queries.run`DELETE FROM settings WHERE key = 'murmur.check'`
-    else
-      void this.queries.run`
-        INSERT INTO settings (key, value) VALUES ('murmur.check', ${JSON.stringify(check)})
-        ON CONFLICT (key) DO UPDATE SET value = excluded.value
-      `
-  }
-
-  /**
-   * Why an install found this computer can't run murmur, with the sha of the engine build
-   * it ran; `null` when it never did or the value can't be read.
-   */
-  murmurUnsupported(): MurmurVerdict | null {
-    const row = this.queries.get`SELECT value FROM settings WHERE key = 'murmur.unsupported'` as
-      | { value: string }
-      | undefined
-    if (row === undefined) return null
-    try {
-      const { reason, engine } = JSON.parse(row.value) as Partial<MurmurVerdict>
-      return typeof reason === "string" && typeof engine === "string" ? { reason, engine } : null
-    } catch {
-      return null
-    }
-  }
-
-  /** Remembers that this computer can't run murmur; `null` forgets it. */
-  saveMurmurUnsupported(verdict: MurmurVerdict | null): void {
-    if (verdict === null)
-      void this.queries.run`DELETE FROM settings WHERE key = 'murmur.unsupported'`
-    else
-      void this.queries.run`
-        INSERT INTO settings (key, value) VALUES ('murmur.unsupported', ${JSON.stringify(verdict)})
-        ON CONFLICT (key) DO UPDATE SET value = excluded.value
-      `
-  }
-
-  /** In how many sessions of the app the one-time offer was shown. */
-  murmurOffers(): number {
-    const row = this.queries.get`SELECT value FROM settings WHERE key = 'murmur.offers'` as
-      | { value: string }
-      | undefined
-    const offers = Number(row?.value)
-    return Number.isInteger(offers) && offers > 0 ? offers : 0
-  }
-
-  saveMurmurOffers(offers: number): void {
-    void this.queries.run`
-      INSERT INTO settings (key, value) VALUES ('murmur.offers', ${String(offers)})
-      ON CONFLICT (key) DO UPDATE SET value = excluded.value
-    `
-  }
-
-  /** Saves what is given; `enabled: null` forgets the choice. */
-  saveMurmurSettings(settings: MurmurSettingsChange): void {
-    for (const [key, value] of Object.entries(settings)) {
-      if (value === null) void this.queries.run`DELETE FROM settings WHERE key = ${`murmur.${key}`}`
-      else if (value !== undefined)
-        void this.queries.run`
-        INSERT INTO settings (key, value) VALUES (${`murmur.${key}`}, ${String(value)})
-        ON CONFLICT (key) DO UPDATE SET value = excluded.value
-      `
-    }
   }
 
   item(itemId: string): ItemRecord | undefined {

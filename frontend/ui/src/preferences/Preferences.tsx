@@ -1,4 +1,4 @@
-import { MURMUR_NAME } from "@novadeck/core/murmur"
+import { MURMUR_NAME } from "@novadeck/core/addons/murmur"
 import type { NoticeSound } from "@novadeck/core/sounds"
 import { viewModes } from "@novadeck/core/state"
 import type { PreferencesValue } from "@novadeck/core/types"
@@ -17,7 +17,8 @@ import { currentPlatform } from "../interaction/shortcuts"
 import { soundChoiceOf, soundInEffect, soundName, sounds } from "../sounds"
 import { themes, type ThemeEntry, type ThemeId } from "../theme/themes"
 import { AddonRow } from "./addon-parts"
-import { AgentSwitches, agentsExplanation, type AgentSwitch } from "./AgentSwitches"
+import { agentsExplanation, type AgentSwitch } from "./agent-switches"
+import { AgentSwitches } from "./AgentSwitches"
 import { murmurDescription } from "./murmur-addon"
 import { MurmurAddon, type MurmurAddonValue } from "./MurmurAddon"
 import {
@@ -110,7 +111,7 @@ export const Preferences = ({
   logs,
   uninstall,
   notices = false,
-  hostSounds = false,
+  systemSounds = false,
   hearSound,
   chat = false,
 }: {
@@ -133,8 +134,8 @@ export const Preferences = ({
   notices?: boolean
   // Whether the system's notifications play the sound themselves, at the system's alert
   // volume, as on macOS.
-  hostSounds?: boolean
-  // Plays the notification sound at a volume, for the person to hear what they set.
+  systemSounds?: boolean
+  // Plays the notice sound at a volume, for the person to hear what they set.
   hearSound?: (volume: number, sound?: NoticeSound) => void
   // Whether the backend reads agents' conversations, which the chat view shows.
   chat?: boolean
@@ -348,7 +349,7 @@ export const Preferences = ({
                         portalContainer={dialog}
                       />
                       <div className={`preference-row ${settingRowClasses}`}>
-                        {hostSounds ? (
+                        {systemSounds ? (
                           <SettingText
                             id="sound-volume-label"
                             label="Volume"
@@ -370,7 +371,7 @@ export const Preferences = ({
                             }
                             aria-labelledby="sound-volume-label"
                             aria-valuetext={`${Math.round(value.soundVolume * 100)}%`}
-                            {...(hostSounds
+                            {...(systemSounds
                               ? { "aria-describedby": "sound-volume-description" }
                               : {})}
                             className="settings-range w-32 cursor-pointer"

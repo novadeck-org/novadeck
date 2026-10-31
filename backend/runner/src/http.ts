@@ -10,7 +10,7 @@ export type HttpOptions = Readonly<{
   origins?: readonly string[]
 }>
 
-export type HttpService = {
+type HttpService = {
   attach(server: ServerType): void
   close(): Promise<void>
 }

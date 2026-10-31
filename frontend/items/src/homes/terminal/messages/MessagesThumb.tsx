@@ -1,4 +1,4 @@
-import { handleText } from "@novadeck/core/handle"
+import { handleText } from "@novadeck/core/terminals/handle"
 
 import { conversationsOf, listed, youKey } from "./conversations"
 import { usePeers, type MessagesHandle, type MessageLinks } from "./messages"
@@ -16,7 +16,7 @@ export const MessagesThumb = ({
     ? listed(conversationsOf(messagesHandle.threads))
     : []
   return (
-    <span className="peek-plan peek-messages">
+    <span className="peek-list peek-messages">
       <b>{conversations.length ? "Conversations" : "No messages yet"}</b>
       {conversations.slice(0, 4).map(({ key, peer }) => (
         <span key={key}>

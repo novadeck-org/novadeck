@@ -12,6 +12,7 @@ import {
   parseReading,
   sharesBudgets,
   tickChanges,
+  withCurrentNames,
 } from "./counters.ts"
 
 const readingPath = "frontend/specs/test-results/counters.json"
@@ -33,7 +34,7 @@ export const main = (basePath = process.argv[2]): void => {
   const reading = parseReading(readJson(readingPath))
   const budgets = parseBudgets(readJson(budgetsPath), budgetsPath)
   if (basePath && !existsSync(basePath)) throw new Error(`No base budgets at ${basePath}.`)
-  const raw = basePath ? readJson(basePath) : undefined
+  const raw = basePath ? withCurrentNames(readJson(basePath)) : undefined
   const base = basePath ? parseBaseBudgets(raw, "The base branch's budget file") : undefined
   // A base that has none of the phases compares with nothing: every budget shows as new,
   // and the gate warns.

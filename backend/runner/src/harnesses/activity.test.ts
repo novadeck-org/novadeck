@@ -1,7 +1,14 @@
 import type { ActivityEvent } from "@novadeck/harness-core/events"
 import type { Report } from "@novadeck/harness-core/report"
 import { loadProbe } from "@novadeck/harness-core/testing/probes"
-import type { AgentName } from "@novadeck/protocol"
+import {
+  agentActivity,
+  agentLimits,
+  maxTurnError,
+  maxTurnFilePath,
+  maxTurnFiles,
+  type AgentName,
+} from "@novadeck/protocol"
 
 import { describe, expect, it } from "../test.js"
 import { adapterFolder } from "../testing/adapters.js"
@@ -640,14 +647,15 @@ describe("applying activity", () => {
   })
 
   it("carries no id or kind longer than the protocol takes", () => {
-    const long = "x".repeat(300)
+    const long = "x".repeat(agentLimits.name + 50)
     expect(apply(started(0), binding, subagent("subagent-started", long))).toBeUndefined()
     const typed = apply(
       started(0),
       binding,
       fact({ type: "subagent-started", actor: "a", actorType: long }),
     )!
-    expect(summary(typed).subagents[0]?.type).toHaveLength(256)
+    expect(summary(typed).subagents[0]?.type).toHaveLength(agentLimits.name)
+    expect(agentActivity.safeParse(summary(typed)).success).toBe(true)
   })
 
   it("keeps a subagent's request when it asks again, as its parallel calls show dialogs together", () => {
@@ -743,18 +751,19 @@ describe("applying activity", () => {
     expect(apply(again, binding, { ...early, startedAt: 11 })?.pending).toEqual([])
   })
 
-  it("keeps at most 32 subagents", () => {
+  it("keeps as many subagents as the protocol takes", () => {
     let activity = started(0)
-    for (let index = 0; index < 40; index += 1)
+    for (let index = 0; index < agentLimits.subagents + 8; index += 1)
       activity = apply(activity, binding, subagent("subagent-started", `a${index}`)) ?? activity
-    expect(activity.subagents).toHaveLength(32)
+    expect(activity.subagents).toHaveLength(agentLimits.subagents)
+    expect(agentActivity.safeParse(summary(activity)).success).toBe(true)
   })
 
-  it("makes room at 32 subagents for a new one's request, the one whose turn aborted longest ago giving way", () => {
+  it("makes room at the subagents' limit for a new one's request, the one whose turn aborted longest ago giving way", () => {
     // Codex keeps a subagent's thread open after Esc aborted its turn: it may never run
     // again, and must not crowd a live one's request out of the subagents it follows.
     let full = started(0)
-    for (let index = 0; index < 32; index += 1)
+    for (let index = 0; index < agentLimits.subagents; index += 1)
       full = apply(full, binding, subagent("subagent-started", `a${index}`, 1))!
     const abort = (activity: Activity, actor: string, at: number) =>
       apply(
@@ -765,7 +774,7 @@ describe("applying activity", () => {
     const aborted = abort(abort(full, "a7", 4), "a3", 6)
     const asked = apply(aborted, binding, request("n:Bash:1", "n", 9))!
     const running = asked.subagents.map(({ id }) => id)
-    expect(running).toHaveLength(32)
+    expect(running).toHaveLength(agentLimits.subagents)
     expect(running).toContain("n")
     expect(running).not.toContain("a7")
     expect(running).toContain("a3")
@@ -1710,146 +1719,180 @@ describe("what a turn wrote and how it failed", () => {
     expect(summary(stop(activity, 5)).lastTurn?.files).toEqual(["/w/a.ts", "/w/b.ts"])
   })
 
-  describe("a patch's permission, settled by the rollout's word on the file", () => {
-    const patch = (...files: string[]) =>
-      `*** Begin Patch\n${files.map((file) => `*** Add File: ${file}\n+x`).join("\n")}\n*** End Patch`
-    const asked = (
-      activity: Activity,
-      requestId: string,
-      input: unknown,
-      startedAt: number,
-      extra: object = {},
-    ) =>
-      on(activity, {
-        type: "attention-requested",
-        requestId,
-        actor: null,
-        toolName: "apply_patch",
-        kind: "permission",
-        subject: null,
-        choices: [],
-        input,
-        cwd: "/w",
-        startedAt,
-        ...extra,
-      })
-    const patching = (...files: string[]) => ({ command: patch(...files) })
-    const settled = (activity: Activity, path: string, startedAt: number, settles = true) =>
-      on(activity, {
-        type: "file-touched",
-        actor: null,
-        path,
-        startedAt,
-        ...(settles && { settles }),
-      })
-    const waiting = (activity: Activity) => activity.pending.map(({ requestId }) => requestId)
-
-    it("settles the request that asked for the file, and only that one", () => {
-      let activity = turn(started(0), 1)
-      activity = asked(asked(activity, "a", patching("a.ts"), 2), "b", patching("/w/b.ts"), 3)
-      activity = settled(activity, "/w/a.ts", 4)
-      expect(waiting(activity)).toEqual(["b"])
-      // A file nobody asked about settles nothing, and is still named.
-      activity = settled(activity, "/w/c.ts", 5)
-      expect(waiting(activity)).toEqual(["b"])
-      expect(activity.files).toEqual(["/w/a.ts", "/w/c.ts"])
+  const asked = (
+    activity: Activity,
+    requestId: string,
+    writes: readonly string[] | undefined,
+    startedAt: number,
+    extra: object = {},
+  ) =>
+    on(activity, {
+      type: "attention-requested",
+      requestId,
+      actor: null,
+      toolName: "apply_patch",
+      kind: "permission",
+      subject: null,
+      choices: [],
+      ...(writes && { writes }),
+      startedAt,
+      ...extra,
     })
-
-    it("compares whole paths, never a part of one", () => {
-      let activity = turn(started(0), 1)
-      activity = asked(activity, "a", patching("a.ts"), 2)
-      for (const path of ["/w/data.ts", "/w/a.tsx", "/w/x/a.ts", "/w/..a.ts"])
-        activity = settled(activity, path, 3)
-      expect(waiting(activity)).toEqual(["a"])
-      // A directory named `..foo` is a directory, not a way out of one.
-      const dotted = asked(turn(started(0), 1), "d", patching("..foo/a.ts"), 2)
-      expect(waiting(settled(dotted, "/w/..foo/a.ts", 3))).toEqual([])
-      expect(waiting(settled(dotted, "/foo/a.ts", 3))).toEqual(["d"])
+  const settled = (activity: Activity, path: string, startedAt: number, settles = true) =>
+    on(activity, {
+      type: "file-touched",
+      actor: null,
+      path,
+      startedAt,
+      ...(settles && { settles }),
     })
+  const waiting = (activity: Activity) => activity.pending.map(({ requestId }) => requestId)
 
-    it("settles no command's permission, whatever its text holds", () => {
-      const activity = asked(turn(started(0), 1), "c", { command: "cat /w/a.ts" }, 2, {
-        toolName: "Bash",
-      })
-      expect(waiting(settled(activity, "/w/a.ts", 3))).toEqual(["c"])
-    })
-
-    it("settles on a rollout's word alone, never on a hook's", () => {
-      const activity = asked(turn(started(0), 1), "a", patching("a.ts"), 2)
-      expect(
-        apply(
-          activity,
-          binding,
-          fact({ type: "file-touched", actor: null, path: "/w/a.ts", startedAt: 3 } as Fields),
-        )?.pending,
-      ).toEqual(activity.pending)
-    })
-
-    it("settles no request asked after the write", () => {
-      let activity = turn(started(0), 1)
-      activity = asked(activity, "late", patching("a.ts"), 9)
-      expect(waiting(settled(activity, "/w/a.ts", 4))).toEqual(["late"])
-    })
-
-    it("takes every file of a patch, and the latest of two asking for the same one", () => {
-      let activity = turn(started(0), 1)
-      activity = asked(activity, "old", patching("a.ts"), 2)
-      activity = asked(activity, "multi", patching("m.ts", "a.ts"), 3)
-      activity = settled(activity, "/w/a.ts", 4)
-      expect(waiting(activity)).toEqual(["old"])
-      const several = settled(
-        asked(turn(started(0), 1), "m", patching("m.ts", "n.ts"), 2),
-        "/w/n.ts",
-        3,
-      )
-      expect(waiting(several)).toEqual([])
-    })
-
-    it("compares Windows paths across separators and case, on any host", () => {
-      const input = { command: patch("C:\\Work\\a.ts", "src\\b.ts") }
-      const activity = asked(turn(started(0), 1), "w", input, 2, { cwd: "C:\\Work" })
-      expect(waiting(settled(activity, "c:/work/A.ts", 3))).toEqual([])
-      // A relative file is from the request's directory, its separators either way.
-      expect(waiting(settled(activity, "C:/WORK/src/b.ts", 3))).toEqual([])
-      expect(waiting(settled(activity, "C:\\Work\\src\\c.ts", 3))).toEqual(["w"])
-      // A UNC share is a Windows path too.
-      const unc = asked(turn(started(0), 1), "u", { command: patch("\\\\host\\share\\a.ts") }, 2)
-      expect(waiting(settled(unc, "\\\\host\\share\\a.ts", 3))).toEqual([])
-    })
-
-    it("compares POSIX paths as they are, on any host", () => {
-      // Case matters, and a backslash-less path is not resolved against a drive.
-      const activity = asked(turn(started(0), 1), "p", patching("src/a.ts"), 2)
-      expect(waiting(settled(activity, "/w/SRC/a.ts", 3))).toEqual(["p"])
-      expect(waiting(settled(activity, "/w/src/../src/a.ts", 3))).toEqual([])
-    })
-
-    it("leaves a Claude write's PostToolUse to settle only its own request", () => {
-      let activity = turn(started(0), 1)
-      for (const [id, startedAt] of [
-        ["a", 2],
-        ["b", 3],
-      ] as const)
-        activity = asked(activity, id, { file_path: `/w/${id}.ts` }, startedAt, {
-          toolName: "Write",
-        })
-      activity = on(activity, {
-        type: "attention-resolved",
-        requestId: "a",
-        actor: null,
-        toolName: "Write",
-        loose: false,
-        outcome: "allowed",
-        startedAt: 4,
-      })
-      activity = settled(activity, "/w/a.ts", 5, false)
-      expect(waiting(activity)).toEqual(["b"])
-    })
+  it("a write's permission: settles the request that asked for the file, and only that one", () => {
+    let activity = turn(started(0), 1)
+    activity = asked(asked(activity, "a", ["/w/a.ts"], 2), "b", ["/w/b.ts"], 3)
+    activity = settled(activity, "/w/a.ts", 4)
+    expect(waiting(activity)).toEqual(["b"])
+    // A file nobody asked about settles nothing, and is still named.
+    activity = settled(activity, "/w/c.ts", 5)
+    expect(waiting(activity)).toEqual(["b"])
+    expect(activity.files).toEqual(["/w/a.ts", "/w/c.ts"])
   })
 
-  it("keeps at most 16 files and ignores a path too long to show", () => {
+  it("a write's permission: compares whole paths, never a part of one", () => {
     let activity = turn(started(0), 1)
-    for (let n = 0; n < 20; n++)
+    activity = asked(activity, "a", ["/w/a.ts"], 2)
+    for (const path of ["/w/data.ts", "/w/a.tsx", "/w/x/a.ts", "/w/..a.ts"])
+      activity = settled(activity, path, 3)
+    expect(waiting(activity)).toEqual(["a"])
+    // A directory named `..foo` is a directory, not a way out of one.
+    const dotted = asked(turn(started(0), 1), "d", ["/w/..foo/a.ts"], 2)
+    expect(waiting(settled(dotted, "/w/..foo/a.ts", 3))).toEqual([])
+    expect(waiting(settled(dotted, "/foo/a.ts", 3))).toEqual(["d"])
+  })
+
+  it("a write's permission: settles no permission that names no file, whatever its call holds", () => {
+    const activity = asked(turn(started(0), 1), "c", undefined, 2, {
+      toolName: "Bash",
+      input: { command: "cat /w/a.ts" },
+    })
+    expect(waiting(settled(activity, "/w/a.ts", 3))).toEqual(["c"])
+  })
+
+  it("a write's permission: settles on a rollout's word alone, never on a hook's", () => {
+    const activity = asked(turn(started(0), 1), "a", ["/w/a.ts"], 2)
+    expect(
+      apply(
+        activity,
+        binding,
+        fact({ type: "file-touched", actor: null, path: "/w/a.ts", startedAt: 3 } as Fields),
+      )?.pending,
+    ).toEqual(activity.pending)
+  })
+
+  it("a write's permission: settles no request asked after the write", () => {
+    let activity = turn(started(0), 1)
+    activity = asked(activity, "late", ["/w/a.ts"], 9)
+    expect(waiting(settled(activity, "/w/a.ts", 4))).toEqual(["late"])
+  })
+
+  it("a write's permission: takes every file it names, and the latest of two asking for the same one", () => {
+    let activity = turn(started(0), 1)
+    activity = asked(activity, "old", ["/w/a.ts"], 2)
+    activity = asked(activity, "multi", ["/w/m.ts", "/w/a.ts"], 3)
+    activity = settled(activity, "/w/a.ts", 4)
+    expect(waiting(activity)).toEqual(["old"])
+    const several = settled(
+      asked(turn(started(0), 1), "m", ["/w/m.ts", "/w/n.ts"], 2),
+      "/w/n.ts",
+      3,
+    )
+    expect(waiting(several)).toEqual([])
+  })
+
+  it("a write's permission: compares Windows paths across separators and case, on any host", () => {
+    const activity = asked(turn(started(0), 1), "w", ["C:\\Work\\a.ts", "C:\\Work\\src\\b.ts"], 2)
+    expect(waiting(settled(activity, "c:/work/A.ts", 3))).toEqual([])
+    expect(waiting(settled(activity, "C:/WORK/src/b.ts", 3))).toEqual([])
+    expect(waiting(settled(activity, "C:\\Work\\src\\c.ts", 3))).toEqual(["w"])
+    // A UNC share is a Windows path too.
+    const unc = asked(turn(started(0), 1), "u", ["\\\\host\\share\\a.ts"], 2)
+    expect(waiting(settled(unc, "\\\\host\\share\\a.ts", 3))).toEqual([])
+  })
+
+  it("a write's permission: compares POSIX paths as they are, on any host", () => {
+    // Case matters, and a backslash-less path is not resolved against a drive.
+    const activity = asked(turn(started(0), 1), "p", ["/w/src/a.ts"], 2)
+    expect(waiting(settled(activity, "/w/SRC/a.ts", 3))).toEqual(["p"])
+    expect(waiting(settled(activity, "/w/src/../src/a.ts", 3))).toEqual([])
+  })
+
+  it("a write's permission: is as Codex's decoder tells a patch's files, from the directory it asked in", () => {
+    const patch = [
+      "*** Begin Patch",
+      "*** Add File: a.ts",
+      "+x",
+      "*** Add File: /abs/b.ts",
+      "+y",
+      "*** End Patch",
+    ]
+    const report: Report = {
+      terminalId: "t",
+      token: "0".repeat(48),
+      agent: "codex",
+      event: "PermissionRequest",
+      seq: 2,
+      instance: null,
+      env: { cursor: false },
+      payload: {
+        session_id: "s",
+        cwd: "/w",
+        tool_name: "apply_patch",
+        tool_input: { command: patch.join("\n") },
+      },
+    }
+    const codex: Binding = { agent: "codex", sessionId: "s", instance: null }
+    const [request] = harnesses.codex.decode(report)
+    const activity = apply(turn(started(0), 1), codex, request as ActivityEvent)!
+    expect(activity.pending).toMatchObject([{ writes: ["/w/a.ts", "/abs/b.ts"] }])
+    const write = fact({
+      type: "file-touched",
+      agent: "codex",
+      instance: null,
+      actor: null,
+      path: "/abs/b.ts",
+      startedAt: 3,
+      settles: true,
+    } as Fields)
+    expect(waiting(apply(activity, codex, write)!)).toEqual([])
+  })
+
+  it("a write's permission: leaves a Claude write's PostToolUse to settle only its own request", () => {
+    let activity = turn(started(0), 1)
+    for (const [id, startedAt] of [
+      ["a", 2],
+      ["b", 3],
+    ] as const)
+      activity = asked(activity, id, undefined, startedAt, {
+        toolName: "Write",
+        input: { file_path: `/w/${id}.ts` },
+      })
+    activity = on(activity, {
+      type: "attention-resolved",
+      requestId: "a",
+      actor: null,
+      toolName: "Write",
+      loose: false,
+      outcome: "allowed",
+      startedAt: 4,
+    })
+    activity = settled(activity, "/w/a.ts", 5, false)
+    expect(waiting(activity)).toEqual(["b"])
+  })
+
+  it("keeps as many files as the protocol takes and ignores a path too long to show", () => {
+    let activity = turn(started(0), 1)
+    for (let n = 0; n < maxTurnFiles + 4; n++)
       activity =
         apply(
           activity,
@@ -1868,14 +1911,16 @@ describe("what a turn wrote and how it failed", () => {
         fact({
           type: "file-touched",
           actor: null,
-          path: `/${"x".repeat(1024)}`,
+          path: `/${"x".repeat(maxTurnFilePath)}`,
           startedAt: 30,
         } as Fields),
       ) ?? activity
-    const { files } = summary(stop(activity, 40)).lastTurn!
-    expect(files).toHaveLength(16)
+    const ended = summary(stop(activity, 40))
+    expect(agentActivity.safeParse(ended).success).toBe(true)
+    const { files } = ended.lastTurn!
+    expect(files).toHaveLength(maxTurnFiles)
     expect(files[0]).toBe("/w/0.ts")
-    expect(files.at(-1)).toBe("/w/15.ts")
+    expect(files.at(-1)).toBe(`/w/${maxTurnFiles - 1}.ts`)
   })
 
   it("empties the files when a new turn starts, but not when the turn already ran", () => {
@@ -1940,10 +1985,52 @@ describe("what a turn wrote and how it failed", () => {
   })
 
   it("tells a failed turn's error, trimmed to what the wire holds, and no error of any other", () => {
-    const failed = stop(turn(started(0), 1), 2, { outcome: "failed", error: "x".repeat(3000) })
-    expect(summary(failed).lastTurn?.error).toHaveLength(2048)
+    const failed = stop(turn(started(0), 1), 2, {
+      outcome: "failed",
+      error: "x".repeat(maxTurnError + 1000),
+    })
+    expect(agentActivity.safeParse(summary(failed)).success).toBe(true)
+    expect(summary(failed).lastTurn?.error).toHaveLength(maxTurnError)
     expect(summary(stop(turn(started(0), 1), 2, { error: "ignored" })).lastTurn?.error).toBeNull()
     expect(summary(stop(turn(started(0), 1), 2, { outcome: "failed" })).lastTurn?.error).toBeNull()
+  })
+
+  it("keeps every character whole where text is cut to the wire's limits", () => {
+    const emoji = "😀"
+    // The limit falls inside the emoji: the cut keeps one unit fewer, never half of it.
+    const error = stop(turn(started(0), 1), 2, {
+      outcome: "failed",
+      error: `${"x".repeat(maxTurnError - 1)}${emoji}tail`,
+    })
+    expect(summary(error).lastTurn?.error).toBe("x".repeat(maxTurnError - 1))
+
+    const long = `${"x".repeat(agentLimits.name - 1)}${emoji}tail`
+    const sub = on(turn(started(0), 1), {
+      type: "subagent-started",
+      actor: "a",
+      actorType: long,
+      startedAt: 3,
+    })
+    expect(sub.subagents[0]?.type).toBe("x".repeat(agentLimits.name - 1))
+
+    const detached = on(turn(started(0), 1), {
+      type: "attention-requested",
+      requestId: "q",
+      actor: null,
+      toolName: "request_user_input_async",
+      kind: "question",
+      detached: true,
+      parts: [long],
+      startedAt: 4,
+    })
+    expect(detached.pending[0]?.parts).toEqual(["x".repeat(agentLimits.name - 1)])
+    // The prompt quoting the whole text still settles the part it was cut from.
+    const quoted = apply(
+      stop(detached, 5),
+      binding,
+      fact({ type: "turn-started", cause: "prompt", answers: [long], startedAt: 6 }),
+    )!
+    expect(quoted.pending).toEqual([])
   })
 
   it("keeps the error and the limit of an end when the hook's Stop fills it in, the records told it first", () => {

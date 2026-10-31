@@ -1,12 +1,12 @@
-import { clockTime, nextWaitingChange } from "@novadeck/core/agent-waiting"
-import { handleText, terminalLabel } from "@novadeck/core/handle"
 import { isWindow } from "@novadeck/core/roster"
 import {
   idleNote,
   pausedUntil,
   terminalNote,
   type NeedDialog,
-} from "@novadeck/core/terminal-ending"
+} from "@novadeck/core/terminals/ending"
+import { handleText, terminalLabel } from "@novadeck/core/terminals/handle"
+import { clockTime, nextWaitingChange } from "@novadeck/core/terminals/waiting"
 import type { Tile } from "@novadeck/core/types"
 import { ContextMenu, type ContextMenuItem } from "@novadeck/toolkit/ContextMenu"
 import { HandleChip } from "@novadeck/toolkit/HandleChip"
@@ -25,7 +25,7 @@ import { lazy, Suspense, useRef, type ReactNode } from "react"
 import { shortcutBindings } from "../interaction/shortcuts"
 import { isProjectWindow } from "./project-window"
 import { TerminalRenameInput, type TerminalRename } from "./TerminalRenameInput"
-import { useRenderAt } from "./use-render-at"
+import { useRenderAt } from "./useRenderAt"
 
 // What a layout contributes to each terminal it places.
 export type TerminalLayoutControls = {
@@ -77,8 +77,8 @@ export type WindowShellProps = {
   // Its agent ended a turn while the person looked elsewhere, on its own or on an error: a
   // failed one says so until they look.
   unread?: "unread" | "failed" | undefined
-  // What the Inbox says it needs of the person (`unblock` or `ask`), the subject of the item
-  // behind it. The agent's live dialog adds its own need.
+  // What the Inbox says it needs of the person (`unblock` or `ask`), the subject of the Inbox
+  // entry behind it. The agent's live dialog adds its own need.
   need?: "unblock" | "ask" | undefined
   needSubject?: string | undefined
   needDialog?: NeedDialog | undefined

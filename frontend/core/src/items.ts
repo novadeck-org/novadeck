@@ -1,28 +1,15 @@
-import { pageKey } from "./pages"
+import { pageKey } from "./items/pages"
 import type { CompanionWindowMeta, WorkspaceTarget } from "./types"
 
-// What agents put in front of the user beside their terminals: the plans they write,
+// What agents put in front of the person beside their terminals: the plans they write,
 // and images, project files and preview-browser pages they show. A backend reports
 // them; each terminal's companion pane presents them. The content-preview demo
 // implements this with sample agents; a runner reports the same from the agents' own
 // files and hooks, and from what they present through Novadeck's MCP server.
 
-// A terminal, as the backend port knows it: a terminal is addressed by its project and session as well as its ID.
-export type CompanionKey = WorkspaceTarget & { readonly terminalId: string }
-
-export const companionKeyId = ({
-  projectId,
-  workspaceSessionId,
-  terminalId,
-}: CompanionKey): string => `${projectId}/${workspaceSessionId}/${terminalId}`
-
-// The terminal a `companionKeyId` names. Its ids hold no slashes.
-export const companionKeyOf = (id: string): CompanionKey => {
-  const [projectId = "", workspaceSessionId = "", terminalId = ""] = id.split("/")
-  return { projectId, workspaceSessionId, terminalId }
-}
-
-export type ArtifactKind = "image" | "file" | "page" | "changes"
+// The kinds an agent shows (with `show`) or the person attaches: each points at a file, a
+// page or a change. A plan is the one kind an agent writes rather than shows.
+export type ShownKind = "image" | "file" | "page" | "changes"
 
 // What an agent showed or the person attached, as the backend keeps it: a pointer to a
 // file or page, never a copy, held by exactly one terminal's bar or one undocked window.
@@ -36,7 +23,7 @@ export const itemIdOf = (id: string): ItemId => id as ItemId
 // Who holds the item: a terminal's bar, or a window of its own.
 export type ItemHolder = { readonly terminalId: string } | { readonly windowId: string }
 
-export type ItemKind = ArtifactKind | "plan"
+export type ItemKind = ShownKind | "plan"
 
 export type Item = {
   readonly id: ItemId
@@ -85,7 +72,7 @@ export const windowOfItem = (item: Item): string | undefined =>
   "windowId" in item.holder ? item.holder.windowId : undefined
 
 // What each kind of item means as data, apart from how it looks. A new kind adds its line.
-export type KindRule = {
+type KindRule = {
   // What the kind points at, so showing the same thing again finds it: a file by its path, a
   // page by the runner's own key for its address, a change by its repository's folder. A
   // plan has none here: which agent's plan slot it fills is the backend's to know.
@@ -173,7 +160,7 @@ export type FileContent = {
   readonly clamped: boolean
 }
 
-// A web page, by its http(s) address. `live` when the backend's host can load it in the
+// A web page, by its http(s) address. `live` when the app can load it in the
 // pane, as the desktop app does; otherwise it shows as a link to open in the browser,
 // with its `snapshot` image when the backend has one. `shown` counts the agent's shows of
 // it, as its item's version: each later one loads it afresh, and brings `scroll`, a CSS
@@ -353,12 +340,12 @@ export type Companions = {
   ) => Promise<{ readonly item: Item; readonly window: CompanionWindowMeta }>
   // A picture of what a live page shows now, by its view's web contents id, no wider than
   // `width` device pixels, which the pane shows in its place while the person isn't at it;
-  // undefined when there's none to take. Absent where pages don't load live, or the host
+  // undefined when there's none to take. Absent where pages don't load live, or the app
   // can't picture them: they stay live.
   readonly picture?: (page: number, width?: number) => Promise<string | undefined>
   // Makes a live page's view act as a phone's, by its web contents id, or as itself again:
   // touched, with a phone's screen and browser; false when it can't. Absent where pages
-  // don't load live, or the host can't: a page at a phone's size is then only as narrow.
+  // don't load live, or the app can't: a page at a phone's size is then only as narrow.
   readonly phone?: (page: number, phone: boolean) => Promise<boolean>
 }
 

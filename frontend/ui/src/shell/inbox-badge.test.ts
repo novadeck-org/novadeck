@@ -3,9 +3,9 @@ import { describe, expect, it } from "vitest"
 
 import { inboxBadge } from "./inbox-badge"
 
-const entry = (content: InboxContent, index = 0, stopped = true): InboxRow => ({
+const row = (content: InboxContent, index = 0, stopped = true): InboxRow => ({
   ...content,
-  id: `item-${index}`,
+  id: `row-${index}`,
   source: {
     projectId: "project",
     workspaceSessionId: "session",
@@ -39,24 +39,24 @@ const held: InboxContent = {
 describe("inboxBadge", () => {
   it("shows nothing while nothing but updates is there", () => {
     expect(inboxBadge([])).toBeUndefined()
-    expect(inboxBadge([entry(done)])).toBeUndefined()
+    expect(inboxBadge([row(done)])).toBeUndefined()
   })
 
   it("counts what waits, and no update, and says so in the bell's name", () => {
-    expect(inboxBadge([entry(done), entry(held, 1), entry(held, 2)])).toEqual({
+    expect(inboxBadge([row(done), row(held, 1), row(held, 2)])).toEqual({
       count: 2,
       label: "Inbox, 2 waiting",
     })
   })
 
   it("counts past nine", () => {
-    const list = Array.from({ length: 12 }, (_, index) => entry(held, index))
-    expect(inboxBadge(list)).toMatchObject({ count: 12, label: "Inbox, 12 waiting" })
+    const rows = Array.from({ length: 12 }, (_, index) => row(held, index))
+    expect(inboxBadge(rows)).toMatchObject({ count: 12, label: "Inbox, 12 waiting" })
   })
 
   it("leaves out what the person snoozed, so a snoozed row alone shows no dot", () => {
-    const snoozed = { ...entry(held, 1), snoozed: true as const }
+    const snoozed = { ...row(held, 1), snoozed: true as const }
     expect(inboxBadge([snoozed])).toBeUndefined()
-    expect(inboxBadge([snoozed, entry(held, 2)])).toMatchObject({ count: 1 })
+    expect(inboxBadge([snoozed, row(held, 2)])).toMatchObject({ count: 1 })
   })
 })

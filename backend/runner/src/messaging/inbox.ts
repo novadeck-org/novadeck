@@ -5,7 +5,12 @@ import {
   askAnswer,
   hiddenIn,
   inboxEntry,
+  inboxTextLimits,
+  maxAskOptions,
   maxCommandLines,
+  maxTurnError,
+  maxTurnFilePath,
+  maxTurnFiles,
   replyPreviewLength,
   type AgentAsk,
   type AgentName,
@@ -19,12 +24,13 @@ import { z } from "zod"
 import { DomainError } from "../errors.js"
 import type { RootChange } from "../harnesses/roots.js"
 import { logs } from "../log.js"
-import { shorten } from "../terminals/work.js"
+import { cut, firstFew, shorten } from "../text.js"
 import {
   allowSend,
   byteLength,
   cleanInboxText,
   rates,
+  recentSends,
   retentionMs,
   undelivered,
   type Message,
@@ -100,11 +106,11 @@ const subject = z
       .string()
       .trim()
       .min(1)
-      .max(256)
+      .max(inboxTextLimits.line)
       // eslint-disable-next-line no-control-regex -- Subjects must stay one line after cleaning.
       .refine((text) => !/[\r\n\x00-\x1f]/.test(text), "Use one line for the subject"),
   )
-const markdown = z.string().max(16_384)
+const markdown = z.string().max(inboxTextLimits.markdown)
 // A command an agent asks the person to run, kept as written, with every part of it in
 // sight: refused where it holds a character that draws as nothing, which could push the
 // rest past a run of blank rows, or more lines than the person reads before running it.
@@ -116,7 +122,7 @@ const command = z
     z
       .string()
       .min(1)
-      .max(4096)
+      .max(inboxTextLimits.command)
       .superRefine((text, context) => {
         const hidden = hiddenIn(text)
         if (hidden)
@@ -133,7 +139,12 @@ const command = z
   )
 const option = z.strictObject({
   label: subject,
-  summary: z.string().transform(cleanInboxText).pipe(z.string().max(2048)).nullable().optional(),
+  summary: z
+    .string()
+    .transform(cleanInboxText)
+    .pipe(z.string().max(inboxTextLimits.summary))
+    .nullable()
+    .optional(),
   details: markdown.nullable().optional(),
   code: z.strictObject({ path: subject, text: markdown }).nullable().optional(),
 })
@@ -141,8 +152,14 @@ const requestedShape = z.discriminatedUnion("type", [
   z.strictObject({ type: z.literal("text") }),
   z.strictObject({
     type: z.literal("options"),
-    options: z.array(option).min(1).max(3),
-    recommend: z.number().int().min(0).max(2).nullable().optional(),
+    options: z.array(option).min(1).max(maxAskOptions),
+    recommend: z
+      .number()
+      .int()
+      .min(0)
+      .max(maxAskOptions - 1)
+      .nullable()
+      .optional(),
   }),
   z.strictObject({
     type: z.literal("action"),
@@ -153,7 +170,7 @@ const requestedShape = z.discriminatedUnion("type", [
       .pipe(
         z
           .string()
-          .max(1024)
+          .max(inboxTextLimits.directory)
           // One line: the rule for what draws as nothing covers every control but a line feed.
           .refine(
             (text) => !text.includes("\n") && !hiddenIn(text),
@@ -169,7 +186,7 @@ const askRequest = z.strictObject({
   subject,
   body: markdown,
   details: markdown.nullable().optional(),
-  hard_to_undo: z.string().max(2048).nullable().optional(),
+  hard_to_undo: z.string().max(inboxTextLimits.hardToUndo).nullable().optional(),
   shape: requestedShape.optional(),
 })
 const tellRequest = z.strictObject({ subject, body: markdown })
@@ -217,11 +234,10 @@ const askText = (ask: AgentAsk): string => {
     .join("\n\n")
 }
 
-export const maxOpenAsks = 50
-export const maxUnreadTells = 50
+const maxOpenAsks = 50
+const maxUnreadTells = 50
 /** Unread finished turns kept per terminal: the oldest goes at the 51st. */
 export const maxUnreadTurns = 50
-const maxTurnFiles = 16
 export const maxResolvedEntries = 100
 export const askSweepMs = 60_000
 /**
@@ -229,11 +245,11 @@ export const askSweepMs = 60_000
  * before it ends: a restored terminal resumes its agent and binds the session again within
  * seconds, or never. An ask it ended reopens if that session binds after all.
  */
-export const askResumeGraceMs = 120_000
+const askResumeGraceMs = 120_000
 
 const isTurn = (entry: StoredEntry): boolean => entry.content.kind === "turn"
 const clipped = (value: unknown, max: number): string | null =>
-  typeof value === "string" && value.length > 0 ? value.slice(0, max) : null
+  typeof value === "string" && value.length > 0 ? cut(value, max) : null
 
 /**
  * A stored turn entry as today's rules read it: its text cut to the limits, its files
@@ -245,7 +261,7 @@ const clampedTurn = (content: unknown): TurnContent | undefined => {
   const raw = content as { [key: string]: unknown }
   const files = Array.isArray(raw["files"])
     ? raw["files"].flatMap((file: unknown) => {
-        const path = clipped(file, 1024)
+        const path = clipped(file, maxTurnFilePath)
         return path ? [path] : []
       })
     : []
@@ -253,7 +269,7 @@ const clampedTurn = (content: unknown): TurnContent | undefined => {
     kind: "turn",
     outcome: raw["outcome"] === "completed" ? "completed" : "failed",
     reply: clipped(raw["reply"], replyPreviewLength),
-    error: clipped(raw["error"], 2048),
+    error: clipped(raw["error"], maxTurnError),
     files: files.slice(0, maxTurnFiles),
   })
   return parsed.success && parsed.data.kind === "turn" ? parsed.data : undefined
@@ -262,35 +278,35 @@ const clampedTurn = (content: unknown): TurnContent | undefined => {
 const noticedSubjects = 5
 
 /**
- * Novadeck's notice to an agent whose open asks it took out of the user's Inbox because the
- * user wrote to it in its terminal: one paragraph, in the voice of Novadeck's other notices.
- * The subjects are the agent's own words, shortened and quoted.
+ * Novadeck's notice to an agent whose open asks it took out of the person's Inbox because
+ * the person wrote to it in its terminal: one paragraph, in the voice of Novadeck's other
+ * notices. The subjects are the agent's own words, shortened and quoted.
  */
 export const withdrawnNotice = (subjects: readonly string[]): string => {
-  const named = subjects.slice(0, noticedSubjects).map((each) => JSON.stringify(shorten(each, 80)))
-  const more = subjects.length - named.length
+  const named = subjects.map((each) => JSON.stringify(shorten(each, 80)))
   const one = subjects.length === 1
   return (
     "Novadeck: automatic notice, not from the user: the user wrote to you, " +
     `so Novadeck took your open ${one ? "ask" : "asks"} out of their Inbox: ` +
-    `${named.join(", ")}${more > 0 ? ` and ${more} more` : ""}. ` +
-    `Read their message as their reply to ${one ? "it" : "them"}; ask again, as a new ask, ` +
-    "only what it leaves open. This notice needs no reply."
+    `${firstFew(named, noticedSubjects)}. ` +
+    `${one ? "It is" : "They are"} closed and can no longer be answered in the Inbox. ` +
+    `Read their message as their reply to ${one ? "it" : "them"}; whatever it leaves open, ` +
+    "ask again with the ask tool before ending the turn, rather than saying it waits in the " +
+    "Inbox. This notice needs no reply."
   )
 }
 
 /**
- * Novadeck's quiet notice to an agent whose open asks the user dismissed from their Inbox
- * without answering: printed beside the agent's next hook answer, waking nothing.
+ * Novadeck's quiet notice to an agent whose open asks the person dismissed from their
+ * Inbox without answering: printed beside the agent's next hook answer, waking nothing.
  */
 export const dismissedNotice = (
   asks: readonly { readonly subject: string; readonly action: string }[],
 ): string => {
-  const named = asks
-    .slice(0, noticedSubjects)
-    .map((each) => JSON.stringify(shorten(each.subject, 80)))
-  const more = asks.length - named.length
-  const list = `${named.join(", ")}${more > 0 ? ` and ${more} more` : ""}`
+  const list = firstFew(
+    asks.map((each) => JSON.stringify(shorten(each.subject, 80))),
+    noticedSubjects,
+  )
   const one = asks.length === 1
   const head = "Novadeck: automatic notice, not from the user: the user dismissed "
   const tail = " This notice needs no reply."
@@ -716,11 +732,14 @@ export class Inbox {
 
   /**
    * The person wrote to the terminal's agent in its terminal, in a turn that started at
-   * `before`: the session's open asks made earlier are withdrawn, as the agent's own
-   * withdrawal does (tells, done rows and turn rows stay). The notice for the agent, naming
-   * them; undefined when none was open.
+   * `before`: the session's open asks made earlier, which `withdrawReplied` would take out
+   * (tells, done entries and turn entries stay), and the notice naming them for the agent. Nothing
+   * changes; undefined when none is open.
    */
-  withdrawBefore(terminalId: string, before: number): string | undefined {
+  withdrawable(
+    terminalId: string,
+    before: number,
+  ): { readonly asks: readonly string[]; readonly notice: string } | undefined {
     if (this.closed) return undefined
     const owner = this.host.owner(terminalId)
     const taken = [...(this.byTerminal.get(terminalId)?.values() ?? [])]
@@ -733,13 +752,39 @@ export class Inbox {
       )
       .toSorted((a, b) => a.at - b.at)
     if (taken.length === 0) return undefined
-    const subjects: string[] = []
-    for (const entry of taken) {
+    const subjects = taken.flatMap((entry) =>
+      entry.content.kind === "ask" ? [entry.content.ask.subject] : [],
+    )
+    return { asks: taken.map((entry) => entry.id), notice: withdrawnNotice(subjects) }
+  }
+
+  /**
+   * The agent was told (see `withdrawable`) that the person's prompt took these asks out:
+   * those still open in its session are withdrawn as replied, as the agent's own withdrawal
+   * does. Any since answered, dismissed, withdrawn or from another session stay as they are.
+   */
+  withdrawReplied(terminalId: string, ids: readonly string[]): void {
+    if (this.closed) return
+    const owner = this.host.owner(terminalId)
+    let count = 0
+    for (const id of ids) {
+      const entry = this.entries.get(id)
+      if (
+        !entry ||
+        entry.terminalId !== terminalId ||
+        entry.state !== "open" ||
+        entry.content.kind !== "ask" ||
+        !same(entry, owner)
+      )
+        continue
       this.put({ ...entry, state: "withdrawn", cause: "replied" })
-      if (entry.content.kind === "ask") subjects.push(entry.content.ask.subject)
+      count += 1
     }
+    if (count === 0) return
     this.maintain(terminalId)
-    return withdrawnNotice(subjects)
+    log.info("inbox.withdrawn", "Novadeck took asks out of the Inbox once their agent was told", {
+      data: { terminalId, count, cause: "replied" },
+    })
   }
 
   /**
@@ -988,7 +1033,7 @@ export class Inbox {
     }
     this.remove(gone)
     for (const [id, times] of this.sent) {
-      const recent = times.filter((time) => at - time < rates.windowMs)
+      const recent = recentSends(times, at)
       if (recent.length) this.sent.set(id, recent)
       else this.sent.delete(id)
     }

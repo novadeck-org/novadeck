@@ -219,6 +219,29 @@ describe("finished turns across a restart", () => {
     expect(records.entries()[0]!.content).toHaveProperty("later")
   })
 
+  it("clamps a stored turn's text without leaving half a character", () => {
+    const records = memoryInbox()
+    // The limit falls between the two halves of the emoji's surrogate pair.
+    const path = `/${"p".repeat(1022)}😀`
+    records.saveEntry(
+      stored({
+        kind: "turn",
+        outcome: "completed",
+        reply: `${"r".repeat(119)}😀 and more`,
+        error: `${"e".repeat(2047)}😀`,
+        files: [path],
+      }),
+    )
+    const run = setup(records)
+    expect(run.turns()[0]!.content).toEqual({
+      kind: "turn",
+      outcome: "completed",
+      reply: "r".repeat(119),
+      error: "e".repeat(2047),
+      files: [`/${"p".repeat(1022)}`],
+    })
+  })
+
   it("drops a stored entry with no content and still constructs", () => {
     const records = memoryInbox()
     records.saveEntry(stored(undefined))

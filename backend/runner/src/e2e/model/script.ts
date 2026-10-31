@@ -72,6 +72,12 @@ export type Reply = {
  */
 export type Rule = (call: Call) => Reply | undefined | Promise<Reply | undefined>
 
+/** The fields of an object value, or none for anything else. */
+export const record = (value: unknown): Readonly<Record<string, unknown>> =>
+  typeof value === "object" && value !== null && !Array.isArray(value)
+    ? (value as Record<string, unknown>)
+    : {}
+
 /** The answer when no rule takes a call. */
 export const fallback: Reply = { text: "OK." }
 

@@ -1,13 +1,6 @@
 import { useSortable } from "@dnd-kit/react/sortable"
-import { subagentMarks, subagentsBadge, subagentsDetail } from "@novadeck/core/agent-subagents"
-import {
-  clockTime,
-  nextWaitingChange,
-  waitingOf,
-  wakeFill,
-  wakePassed,
-} from "@novadeck/core/agent-waiting"
-import { showsHandle, terminalLabel } from "@novadeck/core/handle"
+import { subagentMarks, subagentsBadge, subagentsDetail } from "@novadeck/core/agents/subagents"
+import { nextTurnAge, turnAge } from "@novadeck/core/agents/turn-age"
 import { messageBadgeLabel, type MessageBadge } from "@novadeck/core/messages"
 import { isWindow } from "@novadeck/core/roster"
 import {
@@ -17,8 +10,15 @@ import {
   terminalEnding,
   terminalNote,
   type NeedDialog,
-} from "@novadeck/core/terminal-ending"
-import { nextTurnAge, turnAge } from "@novadeck/core/turn-age"
+} from "@novadeck/core/terminals/ending"
+import { showsHandle, terminalLabel } from "@novadeck/core/terminals/handle"
+import {
+  clockTime,
+  nextWaitingChange,
+  waitingOf,
+  wakeFill,
+  wakePassed,
+} from "@novadeck/core/terminals/waiting"
 import type { Tile } from "@novadeck/core/types"
 import { ContextMenu } from "@novadeck/toolkit/ContextMenu"
 import { HandleChip } from "@novadeck/toolkit/HandleChip"
@@ -32,7 +32,7 @@ import { isProjectWindow } from "./project-window"
 import { SubagentBranches, SubagentLine } from "./TabSubagents"
 import { TerminalRenameInput, type TerminalRename } from "./TerminalRenameInput"
 import { tabInstructionsId } from "./TerminalTabs"
-import { useRenderAt } from "./use-render-at"
+import { useRenderAt } from "./useRenderAt"
 import { windowMenu, type AskFeedback, type DockTarget, type ReleaseLead } from "./window-menu"
 
 // What a waiting agent's tab draws beyond its glyph loads when one waits, as most never do.
@@ -51,7 +51,7 @@ const actionClasses = "terminal-tab-action icon-button small dim quiet"
 const revealedActionClasses = `${actionClasses} terminal-tab-revealed`
 
 export const TerminalTab = ({
-  terminal: tile,
+  terminal,
   icon: Icon,
   index,
   selected,
@@ -94,8 +94,8 @@ export const TerminalTab = ({
   // Its agent ended a turn while the person looked elsewhere: on its own, which brightens
   // its program, or on an error, which marks it failed, until they look.
   unread?: "unread" | "failed" | undefined
-  // What the Inbox says it needs of the person (`unblock` or `ask`), the subject of the item
-  // behind it. The agent's live dialog adds its own need.
+  // What the Inbox says it needs of the person (`unblock` or `ask`), the subject of the Inbox
+  // entry behind it. The agent's live dialog adds its own need.
   need?: "unblock" | "ask" | undefined
   needSubject?: string | undefined
   needDialog?: NeedDialog | undefined
@@ -127,8 +127,7 @@ export const TerminalTab = ({
   folder?: string | undefined
 }): React.JSX.Element => {
   const editing = Boolean(rename)
-  const terminal = tile
-  const shell = isWindow(tile) ? undefined : tile
+  const shell = isWindow(terminal) ? undefined : terminal
   const icon = <Icon size={14} strokeWidth={1.5} />
   const label = terminalLabel(terminal.name, shell?.handle)
   // The detail line shows the state: a glyph (a spinner while a program runs) before the
@@ -253,7 +252,7 @@ export const TerminalTab = ({
             )}
             {/* After the program, so the program comes first; where a pointer hovers it
                 waits in the slot Hide and Rename slide into (tabs.css). Only on a terminal
-                agents name by its handle (core/handle.ts). */}
+                agents name by its handle (core/terminals/handle.ts). */}
             <HandleChip
               handle={shell && showsHandle(shell) ? shell.handle : undefined}
               className="handle-plain terminal-tab-handle"
@@ -290,7 +289,6 @@ export const TerminalTab = ({
         {...(marks ? { "data-terminal-subagents": marks.working ? "working" : "background" } : {})}
         data-terminal-hidden={hidden}
         {...(team ? { "data-team": team } : {})}
-
         className={`terminal-tab [--_sidebar-actions-space:76px] ${selected ? "selected" : ""} ${editing ? "editing" : ""} ${isDragSource ? "dragging" : ""}`}
         editing={editing}
         editor={

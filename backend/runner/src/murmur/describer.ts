@@ -39,9 +39,6 @@ export type ShellDigest = {
 
 export type Digest = AgentDigest | ShellDigest
 
-/** Everything murmur may be shown: what the worker redacts and writes a chat for. */
-export type Input = Digest
-
 /** A terminal's title, written by murmur and already validated. */
 export type Description = { readonly title: string }
 

@@ -13,12 +13,14 @@ source; builds read `dist`.
 - **Vitest** takes `development` itself (it runs Vite outside production), so a package's tests
   run against its dependencies' source with nothing built first.
 - **tsc** takes it from `customConditions: ["development"]` in the `tsconfig.json` of the
-  runner, the contract packages and the harnesses, so a typecheck reads the same files the
-  tests do. The host's, the root's and every frontend package's and app's add `node`, which
-  their `Bundler` resolution leaves out, so a `node`-only export such as the sandbox's, the
-  terminal library's or the emulator's `/headless` resolves (the frontend packages'
-  typechecks follow the runner's source, which the runner adapter's tests start, into them).
-  The lint keeps the browser code off those subpaths.
+  runner, the contract packages, the harnesses and the frontend packages, so a typecheck reads
+  the same files the tests do. The root's, every app's, the runner adapter's and the chat
+  contract's add `node`, which their `Bundler` resolution leaves out, so a `node`-only export
+  such as the sandbox's, the terminal library's or the emulator's `/headless` resolves (the
+  adapter's typecheck follows the runner's source, which its tests start, into them, and the
+  chat contract's the harnesses'). An app adds it as its Vite config runs in Node, though no app's
+  typecheck reaches such an export yet. The other frontend packages leave it out, so a
+  `node`-only export fails their typecheck, and the lint keeps the browser code off those subpaths.
 - **Builds** reset it (`customConditions: []` in `tsconfig.build.json`) and read their
   dependencies' built types, as a published consumer would. So `build` keeps `^build`.
   A script that builds one package outside turbo names it with pnpm's `...`
@@ -43,11 +45,11 @@ a package it imports changes, as they did when they waited for `^build`. Without
 - `typecheck` no longer waits for `^typecheck`, for the same reason, nor `^build`, as it reads
   source.
 - `test` waits for the package's own `build` only where its tests run that build:
-  - the host (`apps/desktop`: `src/build.test.ts` reads the pages' `dist`, and its main-process
+  - the desktop app (`apps/desktop`: `src/build.test.ts` reads the pages' `dist`, and its main-process
     tests load the built `out/main`);
   - the runner (its CLI smoke tests run `dist/cli.js`, and its MCP tests run the relay's
     binary, so it also waits for `@novadeck/relay#build`).
-- atlas's extractor reads the built protocol (`extract/protocol.ts` builds it, and the wire,
+- atlas's extractor reads the built protocol (`extract/ensure-built.ts` builds it, and the wire,
   emulator and terminal libraries it reads as built, when they are missing), so atlas's test and
   typecheck wait for `@novadeck/protocol#build`, not for a build of their own racing turbo's.
   They are never cached: the extractor reads files across the repository that turbo doesn't
@@ -56,9 +58,9 @@ a package it imports changes, as they did when they waited for `^build`. Without
 ## `pnpm test` runs the browser-heavy packages' tests one at a time, and the rest together
 
 `pnpm test` runs the repository checks first, then every package's tests in parallel but the
-frontend packages' (`frontend/*`), the apps' (`apps/*`), the runner's and the host's, then
+frontend packages' (`frontend/*`), the apps' (`apps/*`), the runner's and the desktop app's, then
 those, one at a time (`--concurrency=1`). They are the timing-sensitive ones: the UI's browser
-specs, the runner's real-PTY tests and the host's real runner. The UI's and the runner's, run
+specs, the runner's real-PTY tests and the desktop app's real runner. The UI's and the runner's, run
 together, starved the smaller CI runners enough to time out. Every other package's tests are
 short and run beside each other, so a new package or library adds its time to the parallel
 part, not to a serial chain. A package whose tests are as timing-sensitive joins the second
@@ -66,7 +68,7 @@ list in the root `package.json`'s `test`. The shard scripts (`test:shard1`, `tes
 The first runs the repository checks, the parallel part, and half (Vitest's `--shard=1/2`)
 of the big frontend packages' tests (the UI, the specs, the core, the runner adapter, the
 demo and its debug panel); the second runs the other half, then the remaining frontend
-packages, the apps and the host; the third runs the runner.
+packages, the apps and the desktop app; the third runs the runner.
 
 The serial part is most of a cold run (here about 200 s for the runner's, 120 s for the UI's),
 so this saves little over one package at a time. Running them together too took a cold

@@ -1,5 +1,7 @@
 import { defineConfig } from "vitest/config"
 
+const hookTimeout = 600_000
+
 // The end-to-end suite: real harnesses in Novadeck's terminals against the fake model.
 // Each test starts TUIs and waits on their screens and model calls, so it takes seconds;
 // files run one after another, as their harnesses would compete for the machine.
@@ -11,7 +13,9 @@ export default defineConfig({
     exclude: process.env.NOVADECK_E2E_PROBES ? [] : ["src/e2e/probes/**"],
     testTimeout: 180_000,
     // Installing a harness the first time downloads it, in each file's beforeAll.
-    hookTimeout: 600_000,
+    hookTimeout,
+    // A test's cleanups (src/test.ts) get a hook's time each.
+    provide: { cleanupMs: hookTimeout },
     fileParallelism: false,
   },
 })

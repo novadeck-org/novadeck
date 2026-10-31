@@ -1,16 +1,16 @@
 import type { Inbox } from "@novadeck/core/inbox"
 import type { BackendAction, TerminalKey } from "@novadeck/core/port"
-import { isAgentProgram } from "@novadeck/core/process"
 import { workspaceFromSeed } from "@novadeck/core/seed"
 import { workspaceReducer } from "@novadeck/core/state"
 import { createWorkspaceStore } from "@novadeck/core/store"
-import { terminalPhase } from "@novadeck/core/terminal-ending"
+import { terminalPhase } from "@novadeck/core/terminals/ending"
+import { isAgentProgram } from "@novadeck/core/terminals/process"
 import type { AgentStatus, AgentUsage, TerminalMetadata, Workspace } from "@novadeck/core/types"
-import type { DemoAgentVerbs } from "@novadeck/demo/agent-link"
+import type { DemoAgentVerbs } from "@novadeck/demo/agents/link"
+import { demoTurns } from "@novadeck/demo/agents/turns"
 import { createMockTerminal, demoSeed, demoTerminalId, terminalSlot } from "@novadeck/demo/samples"
-import { terminalOf } from "@novadeck/demo/terminals"
-import { demoTurns } from "@novadeck/demo/turns"
 import { createDemo } from "@novadeck/demo/variants"
+import { terminalOf } from "@novadeck/demo/workspace"
 import { afterEach, beforeEach, vi } from "vitest"
 
 import { createDemoStates } from "./states"
@@ -408,7 +408,7 @@ describe("demo states", () => {
     it("lets go of the terminals of the gallery's metadata tiles, not its agents'", async () => {
       const { run, released, added } = panel("04")
       await run("Every state at once")
-      // The ten that set no agent verb: two that ask through MCP (their Inbox items are the
+      // The ten that set no agent verb: two that ask through MCP (their Inbox rows are the
       // demo's own), unheard, program, a shell an agent opened, one an
       // agent exited from, starting, and the three ways to end.
       expect(released).toHaveLength(10)

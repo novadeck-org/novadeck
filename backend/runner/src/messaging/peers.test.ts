@@ -163,7 +163,7 @@ describe("a peer as agents read it", () => {
       expecting: "codex",
     })
     expect(read(starting)).toEqual(["- @crow: expecting Codex, not started yet"])
-    // Its agent at its prompt, whose hooks Novadeck can't run there until the user trusts them.
+    // Its agent at its prompt, whose hooks Novadeck can't run there until the person trusts them.
     const untrusted = listing({
       terminalId: "F",
       handle: "raven",
@@ -214,7 +214,7 @@ describe("a peer as agents read it", () => {
     expect(read(led("owl", "crow", "crow"))[1]).toBe("  led by @crow")
   })
 
-  it("names the lead of the reader, and what a peer waits on the user for", () => {
+  it("names the lead of the reader, and what a peer waits on the person for", () => {
     expect(listed(null, "owl")).toEqual(["- @owl: Claude Code, busy", "  led by @haze"])
     const waits = (waiting: Waiting) => listed(waiting)[0]
     expect(
@@ -375,7 +375,7 @@ describe("a peer as agents read it", () => {
     ).toMatchObject({ from: "you" })
   })
 
-  it("says a terminal another agent opened started with its command, unless the user prompted it", () => {
+  it("says a terminal another agent opened started with its command, unless the person prompted it", () => {
     expect(read(opened(false))).toContain("  started with (@moth's command): fix the build")
     expect(read(opened(true))).toContain("  started with: fix the build")
     // Only its first root session after the open: a later one is the person's.
@@ -454,7 +454,7 @@ describe("what agents and a refused send say", () => {
     expect(text).toContain(": held until the user releases its thread")
   })
 
-  it("say why a message of the caller's will not arrive: its session ended, or the user stopped its thread", () => {
+  it("say why a message of the caller's will not arrive: its session ended, or the person stopped its thread", () => {
     const told = (fields: Partial<Message>) =>
       renderAgents({
         handle: "moth",
@@ -477,6 +477,10 @@ describe("what agents and a refused send say", () => {
     ])
     expect(unknownHandle("moth", "moth", [], now, null)).toBe(
       "@moth is this terminal.\nThere are no other terminals in this project and session.",
+    )
+    // A long name is echoed cut short, never through an emoji.
+    expect(unknownHandle(`${"a".repeat(63)}😀`, "moth", [], now, null)).toMatch(
+      new RegExp(`^"${"a".repeat(63)}" is no terminal's handle here\\.`),
     )
     // Its team first, as agents names it.
     expect(

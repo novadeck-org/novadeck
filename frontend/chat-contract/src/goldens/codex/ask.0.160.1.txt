@@ -12,6 +12,7 @@ tools: Ran [run] · echo approved > probe-out.txt | Call: exec_command: 3 lines:
 
 # exec-cancel
 tools: Ran [run] · echo approved > probe-out.txt | Call: exec_command: 3 lines: cmd: echo approved > probe-out.txt → 2 lines: Wall time: 4.4 seconds
+note: Interrupted
 
 # patch-approve
 tools: Ran [run] · apply_patch <<'EOF' | Call: exec_command: 6 lines: apply_patch <<'EOF' → 7 lines: Wall time: 0.0000 seconds
@@ -21,21 +22,23 @@ tools: Ran [run] · apply_patch <<'EOF' | Call: exec_command: 6 lines: apply_pat
 
 # patch-cancel
 tools: Ran [run] · apply_patch <<'EOF' | Call: exec_command: 6 lines: apply_patch <<'EOF' → 2 lines: Wall time: 4.4 seconds
+note: Interrupted
 
 # rui-plan-digit-1
-tools: request_user_input [other] | Call: 1 line: [{"id":"color","header":"Color","question":"Whi… → 1 line: {"answers":{"color":{"answers":["Blue (Recommen…
+tools: Asked [plan] · Which color should the button be? | Call: request_user_input: 1 line: [{"id":"color","header":"Color","question":"Whi… → 1 line: {"answers":{"color":{"answers":["Blue (Recommen…
 
 # rui-plan-digit-2
-tools: request_user_input [other] | Call: 1 line: [{"id":"color","header":"Color","question":"Whi… → 1 line: {"answers":{"color":{"answers":["Green"]}}}
+tools: Asked [plan] · Which color should the button be? | Call: request_user_input: 1 line: [{"id":"color","header":"Color","question":"Whi… → 1 line: {"answers":{"color":{"answers":["Green"]}}}
 
 # rui-plan-esc
-tools: request_user_input [other] | Call: 1 line: [{"id":"color","header":"Color","question":"Whi… → 1 line: aborted by user after 3.7s
+tools: Asked [plan] · Which color should the button be? | Call: request_user_input: 1 line: [{"id":"color","header":"Color","question":"Whi… → 1 line: aborted by user after 3.7s
+note: Interrupted
 
 # rui-plan-wrong-key-y
-tools: request_user_input [other] | Call: 1 line: [{"id":"color","header":"Color","question":"Whi… → no result recorded.
+tools: Asked [plan] · Which color should the button be? | Call: request_user_input: 1 line: [{"id":"color","header":"Color","question":"Whi… → no result recorded.
 
 # rui-default-on
-tools: request_user_input [other] | Call: 1 line: [{"id":"color","header":"Color","question":"Whi… → 1 line: {"answers":{"color":{"answers":["Green"]}}}
+tools: Asked [plan] · Which color should the button be? | Call: request_user_input: 1 line: [{"id":"color","header":"Color","question":"Whi… → 1 line: {"answers":{"color":{"answers":["Green"]}}}
 
 # hook-allow
 tools: Ran [run] · echo approved > probe-out.txt | Call: exec_command: 3 lines: cmd: echo approved > probe-out.txt → 5 lines: Chunk ID: 3a9333
@@ -60,12 +63,14 @@ tools: Ran [run] · echo approved > probe-out.txt | Call: exec_command: 3 lines:
 
 # hook-person-presses-esc
 tools: Ran [run] · echo approved > probe-out.txt | Call: exec_command: 3 lines: cmd: echo approved > probe-out.txt → 2 lines: Wall time: 3.2 seconds
+note: Interrupted
 
 # hook-novadeck-view
 tools: Ran [run] · echo approved > probe-out.txt | Call: exec_command: 3 lines: cmd: echo approved > probe-out.txt → 5 lines: Chunk ID: 39ca71
 
 # exec-long-command
 tools: Ran [run] · echo xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx && echo yyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyy\ | Call: exec_command: 5 lines: cmd: → 2 lines: Wall time: 4.3 seconds
+note: Interrupted
 
 # exec-two-queued
 tools: Ran [run] · echo first > probe-first.txt | Call: exec_command: 3 lines: cmd: echo first > probe-first.txt → 5 lines: Chunk ID: 162875; Ran [run] · echo second > probe-second.txt | Call: exec_command: 3 lines: cmd: echo second > probe-second.txt → 5 lines: Chunk ID: 162875
@@ -80,7 +85,7 @@ tools: request_permissions [other] | Call: 2 lines: reason: Need network for the
 
 
 # hook-rui-pretooluse-block
-tools: request_user_input [other] | Call: 1 line: [{"id":"color","header":"Color","question":"Whi… → 1 line: Tool call blocked by PreToolUse hook: The perso…
+tools: Asked [plan] · Which color should the button be? | Call: request_user_input: 1 line: [{"id":"color","header":"Color","question":"Whi… → 1 line: Tool call blocked by PreToolUse hook: The perso…
 
 # mcp-tool-approval
 tools: mcp__probe__touch [other] | Call: 1 line: a.txt → 3 lines: Wall time: 13.1390 seconds

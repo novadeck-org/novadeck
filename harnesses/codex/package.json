@@ -33,16 +33,6 @@
       "types": "./dist/rollout.d.ts",
       "default": "./dist/rollout.js"
     },
-    "./shim": {
-      "development": "./src/shim.ts",
-      "types": "./dist/shim.d.ts",
-      "default": "./dist/shim.js"
-    },
-    "./title": {
-      "development": "./src/title.ts",
-      "types": "./dist/title.d.ts",
-      "default": "./dist/title.js"
-    },
     "./transcripts": {
       "development": "./src/transcripts.ts",
       "types": "./dist/transcripts.d.ts",

@@ -1,4 +1,4 @@
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
+import { afterEach, beforeEach, vi } from "vitest"
 import { page, userEvent } from "vitest/browser"
 
 import { taskbarIcon } from "./support/companions"
@@ -8,6 +8,7 @@ import {
   chooseView,
   expectStaysAbsent,
   labelled,
+  nextFrames,
   openWorkspace,
   press,
   sidebar,
@@ -18,6 +19,7 @@ import {
   view,
   viewSwitcher,
 } from "./support/workspace"
+import { describe, expect, it } from "./test"
 
 // The website's demo, as far as the app's own parts of it go.
 const openVisitor = async (): Promise<void> => {
@@ -48,10 +50,6 @@ const preferringMotion = () => {
   })
 }
 
-const framesPass = (count: number): Promise<void> =>
-  count === 0
-    ? Promise.resolve()
-    : new Promise((resolve) => requestAnimationFrame(resolve)).then(() => framesPass(count - 1))
 describe("the visitor build", () => {
   afterEach(() => page.viewport(1440, 900))
 
@@ -159,7 +157,7 @@ describe("the visitor build", () => {
       })
       await page.viewport(1440, 900)
       const element = await taken
-      await framesPass(10)
+      await nextFrames(10)
       expect(document.activeElement).toBe(element)
     })
   })
@@ -168,7 +166,7 @@ describe("the visitor build", () => {
     const post = vi.spyOn(window.parent, "postMessage")
     try {
       await openVisitor()
-      await framesPass(5)
+      await nextFrames(5)
       expect(post.mock.calls.filter(([message]) => message?.type === "novadeck:ready")).toEqual([])
     } finally {
       post.mockRestore()
@@ -209,7 +207,7 @@ describe("the visitor build", () => {
       const post = vi.spyOn(window.parent, "postMessage")
       try {
         await openEmbedded()
-        await framesPass(5)
+        await nextFrames(5)
         expect(post.mock.calls.filter(([message]) => message?.type === "novadeck:ready")).toEqual([
           [{ type: "novadeck:ready" }, "*"],
         ])
@@ -286,7 +284,7 @@ describe("the visitor build", () => {
         await expect
           .poll(() => tabDescription("Checkout implementation"))
           .toBe("Plan ready for review: Checkout flow")
-        await framesPass(10)
+        await nextFrames(10)
         expect(document.activeElement).toBe(document.body)
       } finally {
         motion.mockRestore()
@@ -305,13 +303,13 @@ describe("the visitor build", () => {
     // True of the app anywhere; framed, it leaves the page around it its focus.
     it("takes no focus until the person uses it", async () => {
       await openEmbedded()
-      await framesPass(10)
+      await nextFrames(10)
       expect(document.activeElement).toBe(document.body)
     })
   })
 
   describe("on its desk", () => {
-    // The landing rule holds an item of the terminal being looked at, which takes the page to
+    // The landing rule holds an Inbox row of the terminal being looked at, which takes the page to
     // have the person's focus; a spec browser's frame has none until a click gives it, so each
     // case here gives it, whatever ran before.
     beforeEach(async () => {
@@ -335,7 +333,7 @@ describe("the visitor build", () => {
       await expect
         .poll(() => tabDescription("Checkout implementation"))
         .toBe("Plan ready for review: Checkout flow")
-      // The visitor looks at the asking terminal, so its item holds back from the bell and the
+      // The visitor looks at the asking terminal, so its Inbox row holds back from the bell and the
       // tab's mark carries it; it lands once they look away.
       await expect.element(bell()).toHaveAccessibleName("Inbox")
       await expect.element(workspaceSwitcher()).not.toHaveAttribute("data-project-status")
@@ -348,7 +346,7 @@ describe("the visitor build", () => {
       // seen by whoever looks at it.
       await openWorkspace("/?visitor=on&turnMs=200&nudgeMs=1000")
       // Codex reviews, and asks nothing while the plan waits; the visitor looks at the plan,
-      // whose item is held back from the bell, the tab carrying it.
+      // whose Inbox row is held back from the bell, the tab carrying it.
       await expect
         .poll(() => tabDescription("Checkout implementation"))
         .toBe("Plan ready for review: Checkout flow")

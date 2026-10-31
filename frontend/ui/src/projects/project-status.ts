@@ -1,7 +1,7 @@
-import { agentWorking } from "@novadeck/core/agent-finish"
+import { agentWorking } from "@novadeck/core/agents/finish"
 import type { InboxRow } from "@novadeck/core/inbox"
-import { inboxMarks } from "@novadeck/core/inbox-marks"
-import { doneText, terminalGlance } from "@novadeck/core/terminal-ending"
+import { inboxMarks } from "@novadeck/core/inbox/marks"
+import { doneText, terminalGlance } from "@novadeck/core/terminals/ending"
 import type { WorkspaceProject } from "@novadeck/core/types"
 
 // What a project's terminals show at a glance, the most pressing of them, as the switcher
@@ -38,7 +38,7 @@ export const statusText: Record<ProjectStatus, string> = {
 export const projectStatus = (
   project: WorkspaceProject,
   unread: UnreadEnds,
-  items: readonly InboxRow[] = [],
+  rows: readonly InboxRow[] = [],
   now = Date.now(),
 ): ProjectStatus | undefined => {
   let status: ProjectStatus | undefined
@@ -53,7 +53,7 @@ export const projectStatus = (
       }
       const { need, phase, failed } = terminalGlance(
         terminal,
-        inboxMarks(items, at, now),
+        inboxMarks(rows, at, now),
         unread(context, terminal.id),
         now,
       )
@@ -86,12 +86,12 @@ export const needsPerson = (status: ProjectStatus | undefined): boolean =>
 export const projectStatuses = (
   projects: readonly WorkspaceProject[],
   unread: UnreadEnds,
-  items: readonly InboxRow[] = [],
+  rows: readonly InboxRow[] = [],
   now = Date.now(),
 ): Readonly<Record<string, ProjectStatus>> => {
   const statuses: Record<string, ProjectStatus> = {}
   for (const project of projects) {
-    const status = projectStatus(project, unread, items, now)
+    const status = projectStatus(project, unread, rows, now)
     if (status) statuses[project.id] = status
   }
   return statuses

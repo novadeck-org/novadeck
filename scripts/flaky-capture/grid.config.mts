@@ -26,7 +26,7 @@ export default {
         test: {
           ...behaviour.test,
           // Keep every preceding case and the original ordinary/one-move gestures.
-          include: ["src/companions.spec.tsx"],
+          include: ["src/companions/companions.spec.tsx"],
           setupFiles: [
             ...behaviour.test.setupFiles,
             fileURLToPath(new URL("./grid.setup.mjs", import.meta.url)),

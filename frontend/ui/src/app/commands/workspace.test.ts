@@ -521,7 +521,7 @@ describe("workspace commands", () => {
     })
   })
 
-  context("when the person clicks a notification about a terminal", () => {
+  context("when the person clicks an Inbox row or desktop notification about a terminal", () => {
     it("selects it in the session on screen", () => {
       const app = openCommands({ url: "/projects/project/sessions/initial/grid?terminal=01" })
       app.commands.reveal("02")

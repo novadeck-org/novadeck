@@ -1,19 +1,9 @@
 import type { Report } from "@novadeck/harness-core/report"
 import { describe, expect, it } from "vitest"
 
-import { decode } from "./decode.js"
+import { hook } from "./report.test-support.js"
 
-const stopFailure = (payload: Report["payload"]) =>
-  decode({
-    terminalId: "t",
-    token: "0".repeat(48),
-    agent: "claude",
-    event: "StopFailure",
-    seq: 1,
-    instance: "7",
-    env: { cursor: false },
-    payload: { session_id: "s", ...payload },
-  })
+const stopFailure = (payload: Report["payload"]) => hook("StopFailure", payload)
 
 // Payloads as Claude Code 2.1.287 sent them (probed 2026-10-15).
 describe("Claude Code's StopFailure", () => {
@@ -70,16 +60,9 @@ describe("Claude Code's StopFailure", () => {
 
 describe("Claude Code's written files", () => {
   const tool = (event: string) =>
-    decode({
-      terminalId: "t",
-      token: "0".repeat(48),
-      agent: "claude",
-      event,
-      seq: 1,
-      instance: "7",
-      env: { cursor: false },
-      payload: { session_id: "s", tool_name: "Edit", tool_input: { file_path: "/w/a.ts" } },
-    }).filter(({ type }) => type === "file-touched")
+    hook(event, { tool_name: "Edit", tool_input: { file_path: "/w/a.ts" } }).filter(
+      ({ type }) => type === "file-touched",
+    )
 
   it("name a file once its tool succeeded, never when it failed", () => {
     expect(tool("PostToolUse")).toMatchObject([{ path: "/w/a.ts" }])

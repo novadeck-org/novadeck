@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest"
 
-import { agentLimit, agentNote, type AgentSwitch } from "./AgentSwitches"
+import { agentLimit, agentNote, type AgentSwitch } from "./agent-switches"
 
 const antigravity: AgentSwitch = {
   agent: "agy",

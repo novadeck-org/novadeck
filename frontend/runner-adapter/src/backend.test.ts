@@ -2,8 +2,8 @@ import { mkdtemp, writeFile } from "node:fs/promises"
 import { tmpdir } from "node:os"
 import { join } from "node:path"
 
-import { messagesKey } from "@novadeck/core/companion-bar"
-import { companionKeyId, itemIdOf } from "@novadeck/core/items"
+import { itemIdOf } from "@novadeck/core/items"
+import { messagesKey } from "@novadeck/core/items/companion-bar"
 import type { BackendAction } from "@novadeck/core/port"
 import { workspaceFromSeed } from "@novadeck/core/seed"
 import {
@@ -15,7 +15,7 @@ import {
 } from "@novadeck/core/state"
 import { createStore } from "@novadeck/core/store"
 import { workspaceFixture } from "@novadeck/core/testing"
-import type { Workspace, WorkspaceTarget } from "@novadeck/core/types"
+import { type Workspace, type WorkspaceTarget, terminalKeyPath } from "@novadeck/core/types"
 import { noTheme } from "@novadeck/terminal-views/theme"
 import { WireError } from "@novadeck/wire"
 import { afterAll, vi } from "vitest"
@@ -26,11 +26,11 @@ import {
   type RunnerBackend,
   type RunnerBackendOptions,
 } from "./backend"
-import { keptSummary } from "./scripted"
-import { runnerSeed, startingTerminal, type RunnerListing } from "./seed"
-import { encodeSession } from "./session-state"
+import { runnerSeed, startingTerminal, type RunnerListing } from "./sessions/seed"
+import { encodeSession } from "./sessions/state"
 import { context, describe, expect, it } from "./test"
-import { recordingRunner, startTestRunner, typeInto } from "./testing"
+import { recordingRunner, startTestRunner, typeInto } from "./testing/runner"
+import { keptSummary } from "./testing/scripted"
 
 // The runner samples the foreground process about once a second.
 const eventually = { timeout: 5000 }
@@ -613,7 +613,7 @@ describe("runner backend", () => {
       const terminal = app.addTerminal()
       await app.idle()
       const messages = app.backend.messages!
-      const id = companionKeyId({ ...app.target(), terminalId: terminal.id })
+      const id = terminalKeyPath({ ...app.target(), terminalId: terminal.id })
       await vi.waitFor(() =>
         expect(messages.state.getSnapshot().terminals[id]).toEqual({
           handle: expect.stringMatching(/^[a-z]{2,12}[0-9]*$/),
@@ -862,7 +862,7 @@ describe("runner backend", () => {
 
   context("when the app quits", () => {
     it.skipIf(process.platform !== "linux")(
-      "saves the program in the foreground before the host ends the shells",
+      "saves the program in the foreground before the app ends the shells",
       async () => {
         const quits: (() => Promise<void>)[] = []
         const app = open(runner.listing, {

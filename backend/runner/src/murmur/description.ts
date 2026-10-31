@@ -74,7 +74,7 @@ const chatWords = new Set(
 )
 
 // What the terminals side counts as no mission in a prompt, so that a title made of it alone
-// names nothing either (kept in step with `filler` in terminals/murmur.ts).
+// names nothing either (kept in step with `filler` in terminals/descriptions.ts).
 const moreChatWords = words(
   `hiya howdy yo greetings thx ty cheers k kk yeah yep yup nope nah fine awesome perfect lovely
   proceed pls other one an and with more next sorry lgtm done s sup hows doing u ur everyone all
@@ -132,7 +132,7 @@ const spacelessChat = new Set([
 // Scripts written without spaces: a title in one counts its characters, not its words.
 const spaceless =
   /[\p{Script=Han}\p{Script=Hiragana}\p{Script=Katakana}\p{Script=Hangul}\p{Script=Thai}]/u
-export const spacelessCharacters = { min: 2, max: 10 }
+const spacelessCharacters = { min: 2, max: 10 }
 
 const tidy = (text: string): string => text.replace(/\s+/g, " ").trim()
 

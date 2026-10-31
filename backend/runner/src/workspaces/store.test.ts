@@ -24,6 +24,7 @@ import { novadeckSender, personSender, type Message, type Thread } from "../mess
 import { handleOrder, handleWords } from "../terminals/handles.js"
 import { sealedShape } from "../terminals/sealing.js"
 import { describe, expect, it as base } from "../test.js"
+import { fakeClock } from "../testing/clock.js"
 import { sealed as sealedText } from "../testing/sealing.js"
 import {
   EarlierWorkspaceError,
@@ -1655,138 +1656,135 @@ describe("saved terminals", () => {
   it("overwrite what they forget, which may hold secrets, and empty their log after", async ({
     directory,
     kept,
+    resources,
   }) => {
-    vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] })
-    try {
-      const cwd = directory()
-      const path = join(cwd, "workspace.sqlite")
-      const workspace = kept(path)
-      const project = await workspace.createProject({ id: randomUUID(), name: "P", cwd })
-      const session = workspace.createSession({
-        id: randomUUID(),
-        projectId: project.id,
-        name: "S",
+    fakeClock(resources, ["setTimeout", "clearTimeout"])
+    const cwd = directory()
+    const path = join(cwd, "workspace.sqlite")
+    const workspace = kept(path)
+    const project = await workspace.createProject({ id: randomUUID(), name: "P", cwd })
+    const session = workspace.createSession({
+      id: randomUUID(),
+      projectId: project.id,
+      name: "S",
+    })
+    const terminal = (transcript: string, agentSession = "s1") => {
+      const id = randomUUID()
+      workspace.saveTerminal({
+        ...numbered(id, id),
+        sessionId: session.id,
+        agents: { codex: { sessionId: agentSession, at: 1 } } as never,
+        transcript,
       })
-      const terminal = (transcript: string, agentSession = "s1") => {
-        const id = randomUUID()
-        workspace.saveTerminal({
-          ...numbered(id, id),
-          sessionId: session.id,
-          agents: { codex: { sessionId: agentSession, at: 1 } } as never,
-          transcript,
-        })
-        return id
-      }
-      // Each way something is forgotten: what it held, and the forgetting.
-      const forgetting: [string, string, () => void][] = [
-        [
-          "transcripts",
-          "SECRET_TRANSCRIPT_ONE",
-          () => (terminal("SECRET_TRANSCRIPT_ONE"), workspace.clearTranscripts()),
-        ],
-        [
-          "a terminal",
-          "SECRET_TRANSCRIPT_TWO",
-          () => workspace.removeTerminal(terminal("SECRET_TRANSCRIPT_TWO")),
-        ],
-        [
-          "an agent",
-          "SECRET_AGENT_SESSION",
-          () => (terminal("", "SECRET_AGENT_SESSION"), workspace.forgetAgent("codex")),
-        ],
-        [
-          "messages",
-          "SECRET_MESSAGE_TEXT",
-          () => {
-            const id = randomUUID()
-            const sent = { ...message(id, "queued"), projectId: project.id, thread: id }
-            workspace.saveThread({
-              id,
-              projectId: project.id,
-              between: ["a", "b"],
-              hops: 1,
-              heldFrom: null,
-              heldFor: null,
-              lastAt: 1,
-              stoppedAt: null,
-            })
-            workspace.saveMessage({ ...sent, text: "SECRET_MESSAGE_TEXT" })
-            workspace.removeMessages([id])
-          },
-        ],
-        [
-          "threads",
-          "SECRET_THREAD_ID",
-          () => {
-            const between = ["a", "b"] as const
-            const thread = {
-              projectId: project.id,
-              between,
-              hops: 1,
-              heldFrom: null,
-              heldFor: null,
-              lastAt: 1,
-              stoppedAt: null,
-            }
-            workspace.saveThread({ ...thread, id: "SECRET_THREAD_ID" })
-            workspace.removeThreads(["SECRET_THREAD_ID"])
-          },
-        ],
-        [
-          "an item",
-          "SECRET_ITEM_DETAIL",
-          () => {
-            const shown = item(session.id, keptTerminal(workspace, session.id, "haze"), "/work/x")
-            workspace.saveItem({ ...shown, detail: "SECRET_ITEM_DETAIL" })
-            workspace.removeItem(shown.id)
-          },
-        ],
-        [
-          "an item docked over",
-          "SECRET_REPLACED_DETAIL",
-          () => {
-            const there = keptTerminal(workspace, session.id, "volt")
-            const shown = item(session.id, there, "/work/y", {
-              detail: "SECRET_REPLACED_DETAIL",
-            })
-            workspace.saveItem(shown)
-            const moving = item(session.id, keptTerminal(workspace, session.id, "dusk"), "/work/y")
-            workspace.saveItem(moving)
-            workspace.dockItem(moving.id, there)
-          },
-        ],
-        [
-          "murmur's titles",
-          "SECRET_MURMUR_TITLE",
-          () => {
-            const naming = { person: null, opener: null, summary: null }
-            workspace.saveTerminal({
-              ...numbered(randomUUID(), "raven"),
-              sessionId: session.id,
-              naming: { ...naming, murmur: { title: "SECRET_MURMUR_TITLE" } },
-            })
-            workspace.clearMurmurTitles()
-          },
-        ],
-      ]
-      for (const [what, secret, forget] of forgetting) {
-        forget()
-        // Its checkpoint waits a moment, for whatever else is forgotten meanwhile.
-        vi.advanceTimersByTime(999)
-        expect(statSync(`${path}-wal`).size, what).toBeGreaterThan(0)
-        vi.advanceTimersByTime(1)
-        expect(statSync(`${path}-wal`).size, what).toBe(0)
-        expect(holds(path, secret), what).toBe(false)
-      }
-      // A project goes with all it held; closing empties the log at once.
-      terminal("SECRET_PROJECT_TRANSCRIPT")
-      workspace.removeProject(project.id)
-      workspace.close()
-      expect(holds(path, "SECRET_PROJECT_TRANSCRIPT")).toBe(false)
-      expect(holds(`${path}-wal`, "SECRET_PROJECT_TRANSCRIPT")).toBe(false)
-    } finally {
-      vi.useRealTimers()
+      return id
     }
+    // Each way something is forgotten: what it held, and the forgetting.
+    const forgetting: [string, string, () => void][] = [
+      [
+        "transcripts",
+        "SECRET_TRANSCRIPT_ONE",
+        () => (terminal("SECRET_TRANSCRIPT_ONE"), workspace.clearTranscripts()),
+      ],
+      [
+        "a terminal",
+        "SECRET_TRANSCRIPT_TWO",
+        () => workspace.removeTerminal(terminal("SECRET_TRANSCRIPT_TWO")),
+      ],
+      [
+        "an agent",
+        "SECRET_AGENT_SESSION",
+        () => (terminal("", "SECRET_AGENT_SESSION"), workspace.forgetAgent("codex")),
+      ],
+      [
+        "messages",
+        "SECRET_MESSAGE_TEXT",
+        () => {
+          const id = randomUUID()
+          const sent = { ...message(id, "queued"), projectId: project.id, thread: id }
+          workspace.saveThread({
+            id,
+            projectId: project.id,
+            between: ["a", "b"],
+            hops: 1,
+            heldFrom: null,
+            heldFor: null,
+            lastAt: 1,
+            stoppedAt: null,
+          })
+          workspace.saveMessage({ ...sent, text: "SECRET_MESSAGE_TEXT" })
+          workspace.removeMessages([id])
+        },
+      ],
+      [
+        "threads",
+        "SECRET_THREAD_ID",
+        () => {
+          const between = ["a", "b"] as const
+          const thread = {
+            projectId: project.id,
+            between,
+            hops: 1,
+            heldFrom: null,
+            heldFor: null,
+            lastAt: 1,
+            stoppedAt: null,
+          }
+          workspace.saveThread({ ...thread, id: "SECRET_THREAD_ID" })
+          workspace.removeThreads(["SECRET_THREAD_ID"])
+        },
+      ],
+      [
+        "an item",
+        "SECRET_ITEM_DETAIL",
+        () => {
+          const shown = item(session.id, keptTerminal(workspace, session.id, "haze"), "/work/x")
+          workspace.saveItem({ ...shown, detail: "SECRET_ITEM_DETAIL" })
+          workspace.removeItem(shown.id)
+        },
+      ],
+      [
+        "an item docked over",
+        "SECRET_REPLACED_DETAIL",
+        () => {
+          const there = keptTerminal(workspace, session.id, "volt")
+          const shown = item(session.id, there, "/work/y", {
+            detail: "SECRET_REPLACED_DETAIL",
+          })
+          workspace.saveItem(shown)
+          const moving = item(session.id, keptTerminal(workspace, session.id, "dusk"), "/work/y")
+          workspace.saveItem(moving)
+          workspace.dockItem(moving.id, there)
+        },
+      ],
+      [
+        "murmur's titles",
+        "SECRET_MURMUR_TITLE",
+        () => {
+          const naming = { person: null, opener: null, summary: null }
+          workspace.saveTerminal({
+            ...numbered(randomUUID(), "raven"),
+            sessionId: session.id,
+            naming: { ...naming, murmur: { title: "SECRET_MURMUR_TITLE" } },
+          })
+          workspace.clearMurmurTitles()
+        },
+      ],
+    ]
+    for (const [what, secret, forget] of forgetting) {
+      forget()
+      // Its checkpoint waits a moment, for whatever else is forgotten meanwhile.
+      vi.advanceTimersByTime(999)
+      expect(statSync(`${path}-wal`).size, what).toBeGreaterThan(0)
+      vi.advanceTimersByTime(1)
+      expect(statSync(`${path}-wal`).size, what).toBe(0)
+      expect(holds(path, secret), what).toBe(false)
+    }
+    // A project goes with all it held; closing empties the log at once.
+    terminal("SECRET_PROJECT_TRANSCRIPT")
+    workspace.removeProject(project.id)
+    workspace.close()
+    expect(holds(path, "SECRET_PROJECT_TRANSCRIPT")).toBe(false)
+    expect(holds(`${path}-wal`, "SECRET_PROJECT_TRANSCRIPT")).toBe(false)
   })
 
   it("write through a log as private as the database, so a save never flushes the disk", ({
@@ -1967,15 +1965,15 @@ describe("saved terminals", () => {
 
   it("keep transcripts until they are turned off", ({ kept }) => {
     const workspace = kept()
-    expect(workspace.settings()).toEqual({
+    expect(workspace.settings.runner()).toEqual({
       transcripts: true,
       welcomed: false,
       inboxOrder: [],
       inboxSnoozed: [],
     })
-    workspace.saveSettings({ transcripts: false })
-    workspace.saveSettings({ welcomed: true })
-    expect(workspace.settings()).toEqual({
+    workspace.settings.saveRunner({ transcripts: false })
+    workspace.settings.saveRunner({ welcomed: true })
+    expect(workspace.settings.runner()).toEqual({
       transcripts: false,
       welcomed: true,
       inboxOrder: [],
@@ -1987,18 +1985,18 @@ describe("saved terminals", () => {
     kept,
   }) => {
     const workspace = kept()
-    workspace.saveSettings({ inboxOrder: ["request:r-2", "a1b2", "held:t-1"] })
-    expect(workspace.settings().inboxOrder).toEqual(["request:r-2", "a1b2", "held:t-1"])
+    workspace.settings.saveRunner({ inboxOrder: ["request:r-2", "a1b2", "held:t-1"] })
+    expect(workspace.settings.runner().inboxOrder).toEqual(["request:r-2", "a1b2", "held:t-1"])
     // The switches are kept as they always were, so an older runner reads them.
-    workspace.saveSettings({ transcripts: false })
+    workspace.settings.saveRunner({ transcripts: false })
     const database = workspace["database"]
     expect(database.prepare("SELECT value FROM settings WHERE key = 'transcripts'").get()).toEqual({
       value: "false",
     })
     database.exec("UPDATE settings SET value = '[1,' WHERE key = 'inboxOrder'")
-    expect(workspace.settings().inboxOrder).toEqual([])
-    workspace.saveSettings({ inboxSnoozed: ["a1b2"] })
-    expect(workspace.settings().inboxSnoozed).toEqual(["a1b2"])
+    expect(workspace.settings.runner().inboxOrder).toEqual([])
+    workspace.settings.saveRunner({ inboxSnoozed: ["a1b2"] })
+    expect(workspace.settings.runner().inboxSnoozed).toEqual(["a1b2"])
   })
 })
 
@@ -2087,7 +2085,7 @@ describe("the messages", () => {
     ])
     expect(reopened.messagingPaused()).toBe(true)
     // The pause is the runner's own, not one of the client's settings.
-    expect(reopened.settings()).toEqual({
+    expect(reopened.settings.runner()).toEqual({
       transcripts: true,
       welcomed: false,
       inboxOrder: [],
@@ -2318,59 +2316,62 @@ describe("murmur's settings", () => {
   it("are off until chosen, and the choice is kept or forgotten", ({ directory, store }) => {
     const path = join(directory(), "workspace.sqlite")
     const workspace = store(path)
-    expect(workspace.murmurSettings()).toEqual({ enabled: false })
-    expect(workspace.murmurEnabledChoice()).toBeUndefined()
-    workspace.saveMurmurSettings({ enabled: true })
+    expect(workspace.settings.murmurSettings()).toEqual({ enabled: false })
+    expect(workspace.settings.murmurEnabledChoice()).toBeUndefined()
+    workspace.settings.saveMurmurSettings({ enabled: true })
     workspace.close()
     const reopened = store(path)
-    expect(reopened.murmurSettings()).toEqual({ enabled: true })
-    expect(reopened.murmurEnabledChoice()).toBe(true)
-    reopened.saveMurmurSettings({ enabled: false })
-    expect(reopened.murmurEnabledChoice()).toBe(false)
+    expect(reopened.settings.murmurSettings()).toEqual({ enabled: true })
+    expect(reopened.settings.murmurEnabledChoice()).toBe(true)
+    reopened.settings.saveMurmurSettings({ enabled: false })
+    expect(reopened.settings.murmurEnabledChoice()).toBe(false)
     // Nothing given changes nothing; null forgets the choice.
-    reopened.saveMurmurSettings({})
-    expect(reopened.murmurEnabledChoice()).toBe(false)
-    reopened.saveMurmurSettings({ enabled: null })
-    expect(reopened.murmurEnabledChoice()).toBeUndefined()
+    reopened.settings.saveMurmurSettings({})
+    expect(reopened.settings.murmurEnabledChoice()).toBe(false)
+    reopened.settings.saveMurmurSettings({ enabled: null })
+    expect(reopened.settings.murmurEnabledChoice()).toBeUndefined()
   })
 
   it("keep the check the install passed, validated when read", ({ directory, store }) => {
     const path = join(directory(), "workspace.sqlite")
     const workspace = store(path)
-    expect(workspace.murmurCheck()).toBeNull()
+    expect(workspace.settings.murmurCheck()).toBeNull()
     const check = { device: "Vulkan0", integrated: true, milliseconds: 5_200 }
-    workspace.saveMurmurCheck(check)
-    expect(workspace.murmurCheck()).toEqual(check)
+    workspace.settings.saveMurmurCheck(check)
+    expect(workspace.settings.murmurCheck()).toEqual(check)
     workspace.close()
     const database = new DatabaseSync(path)
     database.exec("UPDATE settings SET value = '{\"device\":1}' WHERE key = 'murmur.check'")
     database.close()
     const reopened = store(path)
-    expect(reopened.murmurCheck()).toBeNull()
-    reopened.saveMurmurCheck(check)
-    reopened.saveMurmurCheck(null)
-    expect(reopened.murmurCheck()).toBeNull()
+    expect(reopened.settings.murmurCheck()).toBeNull()
+    reopened.settings.saveMurmurCheck(check)
+    reopened.settings.saveMurmurCheck(null)
+    expect(reopened.settings.murmurCheck()).toBeNull()
   })
 
   it("keep why this computer can't run murmur, until it is forgotten", ({ directory, store }) => {
     const path = join(directory(), "workspace.sqlite")
     const workspace = store(path)
-    expect(workspace.murmurUnsupported()).toBeNull()
-    workspace.saveMurmurUnsupported({ reason: "No graphics device answered.", engine: "abc" })
-    workspace.close()
-    const reopened = store(path)
-    expect(reopened.murmurUnsupported()).toEqual({
+    expect(workspace.settings.murmurUnsupported()).toBeNull()
+    workspace.settings.saveMurmurUnsupported({
       reason: "No graphics device answered.",
       engine: "abc",
     })
-    reopened.saveMurmurUnsupported(null)
-    expect(reopened.murmurUnsupported()).toBeNull()
+    workspace.close()
+    const reopened = store(path)
+    expect(reopened.settings.murmurUnsupported()).toEqual({
+      reason: "No graphics device answered.",
+      engine: "abc",
+    })
+    reopened.settings.saveMurmurUnsupported(null)
+    expect(reopened.settings.murmurUnsupported()).toBeNull()
   })
 
   it("reads a voice check an earlier build saved with more in it", ({ directory, store }) => {
     const path = join(directory(), "workspace.sqlite")
     const workspace = store(path)
-    expect(workspace.voiceCheck()).toBeNull()
+    expect(workspace.settings.voiceCheck()).toBeNull()
     workspace.close()
     const database = new DatabaseSync(path)
     const save = (value: string) =>
@@ -2382,9 +2383,9 @@ describe("murmur's settings", () => {
     save(JSON.stringify({ model: "turbo", milliseconds: 2300, gpu: true, recommended: "turbo" }))
     database.close()
     const reopened = store(path)
-    expect(reopened.voiceCheck()).toEqual({ model: "turbo", milliseconds: 2300 })
-    reopened.saveVoiceCheck(null)
-    expect(reopened.voiceCheck()).toBeNull()
+    expect(reopened.settings.voiceCheck()).toEqual({ model: "turbo", milliseconds: 2300 })
+    reopened.settings.saveVoiceCheck(null)
+    expect(reopened.settings.voiceCheck()).toBeNull()
   })
 })
 

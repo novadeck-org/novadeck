@@ -3,20 +3,20 @@ import type { TerminalKey } from "@novadeck/core/port"
 import type { Store } from "@novadeck/core/store"
 import type { TerminalMetadata } from "@novadeck/core/types"
 
-import { readLine, shownRequest } from "../agent-input"
-import type { DemoAgentLink } from "../agent-link"
-import type { DemoEngine, Entry } from "../engine"
-import { editLine, restoreLine, withReturnedWords } from "../line-editor"
+import type { DemoAgentLink } from "../agents/link"
 import { lessMotion, stillRequested } from "../motion"
 import { chatAgent, demoAgent, sampleOutput } from "../samples"
+import type { DemoEngine, Entry } from "../terminals/engine"
 import { agentTail, agyBlocks, inputLines, itemBlock, shellTail, statusLines } from "./agent"
+import { readLine, shownRequest } from "./agent-input"
+import { editLine, restoreLine, withReturnedWords } from "./line-editor"
 import { openingBlocks, readingAt } from "./openings"
 import { commandBlock, sampleBlocks } from "./samples"
 import { createDemoScreen, type Block, type ScreenSize, type TailOf } from "./screen"
 
 // One demo terminal's screen, written as the terminal output a real program would print: its
 // intro, the commands typed at it and their replies, its agent's conversation, and under them
-// the live tail with the command line. It outlives the streams the views attach: each one
+// the live tail with the command line. It outlives the streams the terminal screens attach: each one
 // opens with the whole screen and then takes what changes, and what the person types into
 // one comes back through `input`.
 

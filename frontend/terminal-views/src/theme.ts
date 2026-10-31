@@ -1,16 +1,24 @@
 import type { ThemeSource } from "@novadeck/core/port"
 import type { ITheme } from "@novadeck/emulator/browser"
 
-const ansi = ["black", "red", "green", "yellow", "blue", "magenta", "cyan", "white"] as const
-type AnsiName = (typeof ansi)[number]
-const ansiKey = (name: AnsiName, bright: boolean): keyof ITheme =>
-  bright ? (`bright${name[0]!.toUpperCase()}${name.slice(1)}` as keyof ITheme) : name
+// The eight ANSI colours: each one's token name and the emulator's keys for it and its bright.
+const ansi = [
+  ["black", "brightBlack"],
+  ["red", "brightRed"],
+  ["green", "brightGreen"],
+  ["yellow", "brightYellow"],
+  ["blue", "brightBlue"],
+  ["magenta", "brightMagenta"],
+  ["cyan", "brightCyan"],
+  ["white", "brightWhite"],
+] as const satisfies readonly (readonly [keyof ITheme, keyof ITheme])[]
+
 const terminalTokens = [
   "--terminal-bg",
   "--terminal-fg",
   "--terminal-cursor",
   "--terminal-selection",
-  ...ansi.flatMap((name) => [`--terminal-ansi-${name}`, `--terminal-ansi-${name}-bright`]),
+  ...ansi.flatMap(([name]) => [`--terminal-ansi-${name}`, `--terminal-ansi-${name}-bright`]),
   // The scrollbar matches the app's own: a line-grey thumb that darkens when used.
   "--color-line",
   "--color-line-strong",
@@ -31,9 +39,9 @@ const themeOf = (source: ThemeSource, element: Element): ITheme => {
     ["cursor", colors["--terminal-cursor"]],
     ["cursorAccent", colors["--terminal-bg"]],
     ["selectionBackground", colors["--terminal-selection"]],
-    ...ansi.flatMap((name): [keyof ITheme, string | undefined][] => [
-      [ansiKey(name, false), colors[`--terminal-ansi-${name}`]],
-      [ansiKey(name, true), colors[`--terminal-ansi-${name}-bright`]],
+    ...ansi.flatMap(([name, bright]): [keyof ITheme, string | undefined][] => [
+      [name, colors[`--terminal-ansi-${name}`]],
+      [bright, colors[`--terminal-ansi-${name}-bright`]],
     ]),
     ["scrollbarSliderBackground", colors["--color-line"]],
     ["scrollbarSliderHoverBackground", colors["--color-line-strong"]],

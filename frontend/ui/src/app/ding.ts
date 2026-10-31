@@ -4,7 +4,7 @@ import { defaultNoticeSound, type NoticeSound } from "@novadeck/core/sounds"
 import { soundInEffect, soundUrl } from "../sounds"
 import type { UiStore } from "./ui-store"
 
-// Novadeck's own sound for ringing the person, the same on every system: the host's
+// Novadeck's own sound for ringing the person, the same on every system: the desktop app's
 // notifications stay silent and this plays instead. The sound is the person's choice or,
 // by default, the shown theme's; the sounds themselves are the files in sounds/.
 
@@ -21,14 +21,14 @@ export const dingTerminalMs = 10_000
 export type DingAudio = { readonly play: () => Promise<void> | void }
 
 export type Ding = {
-  // Whether the person wants the sound, as a notice tells the host.
+  // Whether the person wants the sound, as a notice tells the desktop app.
   readonly on: () => boolean
-  // The sound in effect (the person's choice or the theme's), as a notice tells a host that
+  // The sound in effect (the person's choice or the theme's), as a notice tells a desktop app that
   // plays it.
   readonly sound: () => NoticeSound
   // Whether a ring for `key` (a terminal) may sound: the person wants the sound, nothing
   // rang just now and `key` didn't ring lately. Counts as a ring when it says yes, so a
-  // host that plays the sound itself calls this alone and marks its notice by the answer.
+  // desktop app that plays the sound itself calls this alone and marks its notice by the answer.
   readonly take: (key: string) => boolean
   // Plays the ding unless the system is holding notifications. Never throws.
   readonly play: () => void
@@ -56,7 +56,7 @@ export const createDing = ({
   // The person's setting and the sound in effect, read as the ding rings, so a change of
   // either, the theme included, holds at once.
   sound: () => { readonly on: boolean; readonly volume: number; readonly name: NoticeSound }
-  // The host's check for the system's Do Not Disturb or Focus; true holds the ding back.
+  // The desktop app's check for the system's Do Not Disturb or Focus; true holds the ding back.
   quiet?: (() => Promise<boolean>) | undefined
   audio?: (volume: number, sound: NoticeSound) => DingAudio
   now?: () => number
@@ -121,7 +121,7 @@ const dings = new WeakMap<object, Ding>()
 export const dingOf = (backend: Backend, ui: UiStore): Ding => {
   const known = dings.get(backend)
   if (known) return known
-  // Sounds only where the host shows desktop notifications; the browser demo and the site's
+  // Sounds only where the desktop app shows desktop notifications; the browser demo and the site's
   // live app stay silent.
   if (!backend.notices) {
     dings.set(backend, mute)

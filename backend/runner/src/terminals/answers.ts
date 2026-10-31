@@ -28,7 +28,7 @@ type Other = {
 }
 
 /** What answers need of the terminal manager and the dialogs tracker, by terminal. */
-export type AnswerHost = {
+export type AnswersHost = {
   /**
    * The request a ref names, as the terminal's agent has it waiting; undefined when it
    * has none such. Throws `TERMINAL_NOT_FOUND`, `TERMINAL_EXITED` or `CLOSING`
@@ -87,7 +87,7 @@ export type AnswerHost = {
   readonly busy: (terminalId: string, on: boolean) => void
 }
 
-export type AnswerOptions = {
+export type AnswersOptions = {
   /** How often the screen is looked at while waiting, in milliseconds. */
   readonly pollMs?: number
   /** How long the dialog may take to show it was answered, in milliseconds. */
@@ -169,9 +169,9 @@ export class Answers {
   private readonly calmMs: number
 
   constructor(
-    private readonly host: AnswerHost,
+    private readonly host: AnswersHost,
     private readonly queue: InputQueue,
-    options: AnswerOptions = {},
+    options: AnswersOptions = {},
   ) {
     this.pollMs = options.pollMs ?? 50
     this.answeredMs = options.answeredMs ?? 5_000

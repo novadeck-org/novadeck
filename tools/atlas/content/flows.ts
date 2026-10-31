@@ -2,9 +2,9 @@ import type { AnchorRef, Flow, FlowStep } from "../src/atlas.ts"
 
 type CuratedStep = Omit<FlowStep, "anchor" | "label"> & { label?: string; anchor: AnchorRef }
 
-const host = "apps/desktop/src"
+const desktop = "apps/desktop/src"
 const runnerSrc = "backend/runner/src"
-const hostSrc = "libraries/terminal/src/host"
+const terminalHost = "libraries/terminal/src/host"
 const adapter = "frontend/runner-adapter/src"
 const relay = "backend/relay/src"
 
@@ -21,8 +21,8 @@ export const flows: (Omit<Flow, "steps"> & { steps: CuratedStep[] })[] = [
         from: "electron-main",
         to: "runner",
         label: "fork runner",
-        text: "The host forks the runner as a utility process, passing the database, relay and engine paths as arguments.",
-        anchor: { file: `${host}/main/runner.ts`, text: "utilityProcess.fork(" },
+        text: "The desktop app forks the runner as a utility process, passing the database, relay and engine paths as arguments.",
+        anchor: { file: `${desktop}/main/runner.ts`, text: "utilityProcess.fork(" },
       },
       {
         from: "runner",
@@ -38,8 +38,8 @@ export const flows: (Omit<Flow, "steps"> & { steps: CuratedStep[] })[] = [
         from: "electron-main",
         to: "renderer",
         label: "load packaged UI",
-        text: "The host creates the window and loads the packaged UI, or the Vite dev server in development.",
-        anchor: { file: `${host}/main/index.ts`, text: "void window.loadFile(" },
+        text: "The desktop app creates the window and loads the packaged UI, or the Vite dev server in development.",
+        anchor: { file: `${desktop}/main/window/app-window.ts`, text: "void window.loadFile(" },
       },
       {
         from: "preload",
@@ -47,7 +47,7 @@ export const flows: (Omit<Flow, "steps"> & { steps: CuratedStep[] })[] = [
         label: "expose window.novadeck",
         text: "The preload exposes window.novadeck, including requestRunner, to the page.",
         anchor: {
-          file: `${host}/preload/index.ts`,
+          file: `${desktop}/preload/index.ts`,
           text: 'contextBridge.exposeInMainWorld("novadeck"',
         },
       },
@@ -55,19 +55,19 @@ export const flows: (Omit<Flow, "steps"> & { steps: CuratedStep[] })[] = [
         from: "renderer",
         to: "electron-main",
         label: "request runner port",
-        text: "The UI's desktop transport asks the host for a runner port, which the preload sends over IPC.",
+        text: "The UI's desktop transport asks the desktop app for a runner port, which the preload sends over IPC.",
         anchor: {
           file: "contract/runner-client/src/desktop.ts",
-          text: "host.requestRunner(id)",
+          text: "app.requestRunner(id)",
         },
       },
       {
         from: "electron-main",
         to: "runner",
         label: "MessageChannel to runner",
-        text: "After checking that the sender is its own window, the host makes a MessageChannel and gives one end to the runner.",
+        text: "After checking that the sender is its own window, the desktop app makes a MessageChannel and gives one end to the runner.",
         anchor: {
-          file: `${host}/main/runner.ts`,
+          file: `${desktop}/main/runner.ts`,
           text: 'send(child ?? spawn(), { type: "connect" }, [port])',
         },
       },
@@ -76,14 +76,17 @@ export const flows: (Omit<Flow, "steps"> & { steps: CuratedStep[] })[] = [
         to: "renderer",
         label: "port → page via preload",
         text: "The other end goes to the page, relayed by the preload as a window message because a port cannot cross the context bridge.",
-        anchor: { file: `${host}/preload/index.ts`, text: "requestRunner: relayPorts(" },
+        anchor: { file: `${desktop}/preload/index.ts`, text: "requestRunner: relayPorts(" },
       },
       {
         from: "runner",
         to: "runner",
         label: "serve router on port",
         text: "The runner serves the router over the port it was handed.",
-        anchor: { file: `${host}/runner/index.ts`, text: "servePort(runner.sessions, ports[0])" },
+        anchor: {
+          file: `${desktop}/runner/index.ts`,
+          text: "servePort(runner.sessions, ports[0])",
+        },
       },
       {
         from: "renderer",
@@ -129,8 +132,8 @@ export const flows: (Omit<Flow, "steps"> & { steps: CuratedStep[] })[] = [
         label: "terminals.write",
         text: "The attachment sends the data in a terminals.write call.",
         anchor: {
-          file: "contract/runner-client/src/runner.ts",
-          text: "await link.client.terminals.write({ terminalId: id, data })",
+          file: "contract/runner-client/src/terminal.ts",
+          text: "await session.client.terminals.write({ terminalId: id, data })",
         },
       },
       {
@@ -148,14 +151,17 @@ export const flows: (Omit<Flow, "steps"> & { steps: CuratedStep[] })[] = [
         to: "agent",
         label: "write to PTY",
         text: "Unless a doorbell or answer holds the input, the terminal writes the data to the PTY.",
-        anchor: { file: `${hostSrc}/terminal.ts`, text: "input: (data) => {" },
+        anchor: { file: `${terminalHost}/terminal.ts`, text: "input: (data) => {" },
       },
       {
         from: "agent",
         to: "runner",
         label: "PTY output",
         text: "The shell or agent in the PTY prints, and node-pty reports the output.",
-        anchor: { file: `${hostSrc}/terminal.ts`, text: "pty.onData((data) => output(pty, data))" },
+        anchor: {
+          file: `${terminalHost}/terminal.ts`,
+          text: "pty.onData((data) => output(pty, data))",
+        },
       },
       {
         from: "runner",
@@ -163,7 +169,7 @@ export const flows: (Omit<Flow, "steps"> & { steps: CuratedStep[] })[] = [
         label: "draw headless screen",
         text: "The terminal draws the output on its own headless screen, then emits it in chunks to every subscriber.",
         anchor: {
-          file: `${hostSrc}/terminal.ts`,
+          file: `${terminalHost}/terminal.ts`,
           text: "const output = (from: Pty, data: string) => {",
         },
       },
@@ -220,8 +226,8 @@ export const flows: (Omit<Flow, "steps"> & { steps: CuratedStep[] })[] = [
       {
         from: "runner",
         to: "runner",
-        label: "map show to present",
-        text: "The MCP server maps the show tool to a present call.",
+        label: "map tool to call",
+        text: "The MCP server maps the show tool to the call it makes of the runner.",
         anchor: { file: `${runnerSrc}/shell/mcp.ts`, text: "const show: Tool<Shown> = {" },
       },
       {
@@ -241,7 +247,7 @@ export const flows: (Omit<Flow, "steps"> & { steps: CuratedStep[] })[] = [
         text: "It checks the terminal's token and reads the request.",
         anchor: {
           file: `${runnerSrc}/terminals/companion.ts`,
-          text: "async present(call: Call): Promise<PresentAnswer>",
+          text: "async show(call: Call): Promise<ShowAnswer>",
         },
       },
       {
@@ -266,7 +272,7 @@ export const flows: (Omit<Flow, "steps"> & { steps: CuratedStep[] })[] = [
         to: "renderer",
         label: "item → companion bar",
         text: "The UI applies the change, and the item appears in the terminal's bar.",
-        anchor: { file: `${adapter}/items.ts`, text: "const changes = runner.watch()" },
+        anchor: { file: `${adapter}/companions/items.ts`, text: "const changes = runner.watch()" },
       },
       {
         from: "runner",
@@ -288,7 +294,7 @@ export const flows: (Omit<Flow, "steps"> & { steps: CuratedStep[] })[] = [
         to: "relay",
         label: "PermissionRequest hook",
         text: "Claude Code reaches a permission prompt and fires its PermissionRequest hook, a command the plugin registered.",
-        anchor: { file: "harnesses/claude/src/index.ts", text: "command: hook(platform, event)," },
+        anchor: { file: "harnesses/claude/src/plugin.ts", text: "command: hook(platform, event)," },
       },
       {
         from: "relay",
@@ -350,7 +356,7 @@ export const flows: (Omit<Flow, "steps"> & { steps: CuratedStep[] })[] = [
         label: "requests → chat cards",
         text: "The conversation turns the pending requests into cards in the chat view, where the person picks an answer.",
         anchor: {
-          file: `${adapter}/conversations.ts`,
+          file: `${adapter}/agents/conversations.ts`,
           text: "const requestsOf = (detail: AgentDetail, root: string | null)",
         },
       },
@@ -360,7 +366,7 @@ export const flows: (Omit<Flow, "steps"> & { steps: CuratedStep[] })[] = [
         label: "agents.answer call",
         text: "The chosen answer goes to the runner as an agents.answer call.",
         anchor: {
-          file: `${adapter}/conversations.ts`,
+          file: `${adapter}/agents/conversations.ts`,
           text: "streams.answer(terminalId, request, requestAnswerOf(answer))",
         },
       },
@@ -409,7 +415,7 @@ export const flows: (Omit<Flow, "steps"> & { steps: CuratedStep[] })[] = [
         label: "store waiting message",
         text: "Messaging checks the text and recipient, finds or starts a thread, applies the limits and stores the message as waiting.",
         anchor: {
-          file: `${runnerSrc}/messaging/messaging.ts`,
+          file: `${runnerSrc}/messaging/sending.ts`,
           text: "private sendFrom(live: Live, request: unknown, about: About): SendAnswer",
         },
       },
@@ -434,7 +440,7 @@ export const flows: (Omit<Flow, "steps"> & { steps: CuratedStep[] })[] = [
         text: "The relay sends the hook with a deadline, so the runner treats it as an ask and answers by then.",
         anchor: {
           file: `${runnerSrc}/shell/reports.ts`,
-          text: "answer = await within(handlers.ask(report, hook.deadline), ms, unheard)",
+          text: "answer = await within(raced, ms, unheard)",
         },
       },
       {
@@ -443,7 +449,7 @@ export const flows: (Omit<Flow, "steps"> & { steps: CuratedStep[] })[] = [
         label: "lease as context",
         text: "Messaging leases the waiting message and wraps it as the agent's attributed context, never as the person's prompt.",
         anchor: {
-          file: `${runnerSrc}/messaging/messaging.ts`,
+          file: `${runnerSrc}/messaging/hook-answers.ts`,
           text: "private askPrompt({ live, root, profile, silent, events, time, person }: Asked): Answer",
         },
       },

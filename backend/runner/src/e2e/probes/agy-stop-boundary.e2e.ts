@@ -34,7 +34,6 @@ type Inside = {
 describe.skipIf(!enabled || !supported)("Antigravity natural Stop boundary capture", () => {
   const it = e2e(agy)
   it("preserves the original back-to-back prompt order", async ({ e2e: run }) => {
-    expect(pins.agy?.version).toBe("1.2.14")
     const folder = process.env.AGY_CAPTURE_OUT!
     mkdirSync(folder, { recursive: true })
     const zero = performance.now()
@@ -85,8 +84,9 @@ describe.skipIf(!enabled || !supported)("Antigravity natural Stop boundary captu
         },
       }
     }
+    // Whatever harnesses.json pins, so the capture follows the version the E2E suite runs.
     const installed = await installHarness("agy")
-    expect(installed.version).toBe("1.2.14")
+    expect(installed.version).toBe(pins.agy?.version)
     const binary = join(installed.bin, "agy")
     save("identity.json", {
       scenario: "original-natural-order",

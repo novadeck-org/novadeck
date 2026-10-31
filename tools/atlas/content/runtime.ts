@@ -13,7 +13,7 @@ export const runtime: {
       title: "Electron main",
       kind: "process",
       summary:
-        "The desktop host: owns windows, the menu, notifications and updates, and starts the runner in a utility process. It never touches a terminal itself.",
+        "The desktop app's main process (`@novadeck/desktop`): owns windows, the menu, notices and updates, and starts the runner in a utility process. It never touches a terminal itself.",
       anchor: { file: "apps/desktop/src/main/index.ts", text: "runner = startRunner({" },
       position: { x: 40, y: 300 },
     },
@@ -46,7 +46,7 @@ export const runtime: {
       title: "Runner",
       kind: "process",
       summary:
-        "An Electron utility process that owns the shells, the SQLite workspace, the harness adapters, agent messaging and the companion items, and serves the oRPC router to the UI.",
+        "An Electron utility process that owns the shells, the SQLite workspace, the harnesses, agent messaging and the companion items, and serves the oRPC router to the UI.",
       anchor: {
         file: "apps/desktop/src/runner/index.ts",
         text: "const runner = createRunner({",
@@ -69,7 +69,7 @@ export const runtime: {
       summary:
         "Claude Code, Codex or Antigravity, running inside a Novadeck terminal. Novadeck installs a plugin into it, whose hooks and MCP server both start the relay.",
       anchor: {
-        file: "harnesses/claude/src/index.ts",
+        file: "harnesses/claude/src/plugin.ts",
         text: 'path: join("novadeck", "hooks", "hooks.json")',
       },
       position: { x: 1050, y: 460 },
@@ -99,7 +99,7 @@ export const runtime: {
       summary:
         "Where updates and the engine archives come from: electron-updater checks the repository's releases, and the runner downloads the engines from the release of the running version.",
       anchor: {
-        file: "apps/desktop/src/main/update-release.ts",
+        file: "apps/desktop/src/main/releases/repository.ts",
         text: "export const releaseDownloadsUrl",
       },
       position: { x: 40, y: 640 },
@@ -112,7 +112,7 @@ export const runtime: {
       to: "runner",
       channel: "Utility process + MessagePort",
       summary:
-        "The host forks the runner as a utility process with its database, relay and engine paths as arguments, then sends it commands (connect, persist, close) and one MessagePort per renderer connection.",
+        "The desktop app forks the runner as a utility process with its database, relay and engine paths as arguments, then sends it commands (connect, persist, close) and one MessagePort per renderer connection.",
       anchor: { file: "apps/desktop/src/main/runner.ts", text: "utilityProcess.fork(" },
     },
     {
@@ -121,8 +121,8 @@ export const runtime: {
       to: "renderer",
       channel: "BrowserWindow load",
       summary:
-        "The host opens the window, loading the packaged UI from disk or the Vite dev server, and hands the page a loopback API URL for the status endpoint.",
-      anchor: { file: "apps/desktop/src/main/index.ts", text: "void window.loadFile(" },
+        "The desktop app opens the window, loading the packaged UI from disk or the Vite dev server, and hands the page a loopback API URL for the status endpoint.",
+      anchor: { file: "apps/desktop/src/main/window/app-window.ts", text: "void window.loadFile(" },
     },
     {
       id: "preload-main",
@@ -231,7 +231,7 @@ export const runtime: {
       summary:
         "A packaged build loads the electron-updater class for its kind (NSIS, Mac, AppImage) and checks the releases on a schedule.",
       anchor: {
-        file: "apps/desktop/src/main/index.ts",
+        file: "apps/desktop/src/main/updates/updating.ts",
         text: 'await import("electron-updater")',
       },
     },

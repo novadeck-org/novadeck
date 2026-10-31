@@ -6,6 +6,7 @@ import type { VoiceState } from "@novadeck/protocol"
 import { maxVoiceSeconds, voiceSampleRate } from "@novadeck/protocol"
 import { vi } from "vitest"
 
+import { updateRetryMs } from "../engines/installing.js"
 import { engineInterface } from "../engines/unpack.js"
 import { logs, useLogger } from "../log.js"
 import { describe, expect, it } from "../test.js"
@@ -14,7 +15,7 @@ import { engineArchive, fakeLaunch, folder, modelCatalog } from "../testing/voic
 import { WorkspaceStore } from "../workspaces/store.js"
 import type { Catalog } from "./catalog.js"
 import type { HintFacts } from "./hint.js"
-import { updateRetryMs, Voice, type VoiceOptions } from "./service.js"
+import { Voice, type VoiceOptions } from "./service.js"
 
 // The service's sleeps, watched: a case can tell which waits it asked for and when they ended,
 // without measuring the time a real engine takes around them.
@@ -62,7 +63,7 @@ const setup = async (
   const directory = options.directory ?? (await folder(resources))
   const manifest =
     options.engine === false ? undefined : (options.engine ?? (await engineArchive(resources)))
-  const voice = new Voice(store, {
+  const voice = new Voice(store.settings, {
     engine: manifest,
     directory,
     catalog: options.catalog ?? (await modelCatalog(resources)),
@@ -163,7 +164,7 @@ describe("installing voice input", () => {
       failure: null,
       check: { model: "small" },
     })
-    expect(store.voiceSettings()).toMatchObject({ enabled: true, model: "small" })
+    expect(store.settings.voiceSettings()).toMatchObject({ enabled: true, model: "small" })
   })
 
   it("installs turbo alone when a GPU runs it well", async ({ resources }) => {
@@ -230,7 +231,7 @@ describe("installing voice input", () => {
     })
   })
 
-  it("installs small alone where the host saw only software rendering", async ({ resources }) => {
+  it("installs small alone where the app saw only software rendering", async ({ resources }) => {
     const { voice, directory } = await setup(resources, {
       catalog: await modelCatalog(resources, { turbo: "turbo gpu" }),
       softwareGraphics: true,
@@ -469,7 +470,7 @@ describe("installing voice input", () => {
     await voice.set({ enabled: true })
 
     expect(voice.state()).toMatchObject({ enabled: false, wanted: true })
-    expect(store.voiceEnabledChoice()).toBeUndefined()
+    expect(store.settings.voiceEnabledChoice()).toBeUndefined()
   })
 
   it("keeps a working model usable when a reinstall is cancelled", async ({ resources }) => {
@@ -480,7 +481,7 @@ describe("installing voice input", () => {
     await voice.set({ enabled: false })
     await voice.set({ enabled: true })
 
-    expect(store.voiceCheck()).toEqual(check)
+    expect(store.settings.voiceCheck()).toEqual(check)
     expect(voice.state()).toMatchObject({ enabled: true, model: "small" })
   })
 
@@ -524,7 +525,7 @@ describe("installing voice input", () => {
     expect(again.voice.state()).toMatchObject({ check: null, enabled: false })
   })
 
-  it("keeps a turbo that passed its check through a retry where the host now says software rendering", async ({
+  it("keeps a turbo that passed its check through a retry where the app now says software rendering", async ({
     resources,
   }) => {
     const first = await setup(resources, {
@@ -578,7 +579,7 @@ describe("installing voice input", () => {
       installed: ["turbo"],
       enabled: true,
     })
-    expect(again.store.voiceCheck()).toMatchObject({ model: "turbo" })
+    expect(again.store.settings.voiceCheck()).toMatchObject({ model: "turbo" })
   })
 
   it("keeps turbo, and blames the engine, when neither model starts", async ({ resources }) => {
@@ -606,7 +607,7 @@ describe("installing voice input", () => {
     expect(voice.state().aim).toBe("turbo")
   })
 
-  it("aims for small after an uninstall where the host saw only software rendering", async ({
+  it("aims for small after an uninstall where the app saw only software rendering", async ({
     resources,
   }) => {
     const { voice } = await setup(resources, { softwareGraphics: true })
@@ -709,7 +710,7 @@ describe("voice input settings", () => {
   }) => {
     const { voice, store } = await installed(resources)
     await voice.set({ enabled: false })
-    store.saveVoiceSettings({ model: "turbo" })
+    store.settings.saveVoiceSettings({ model: "turbo" })
     await expect(voice.set({ enabled: true })).rejects.toThrowError(
       expect.objectContaining({ code: "CONFLICT" }),
     )
@@ -726,7 +727,7 @@ describe("voice input settings", () => {
     // Turned on before an install, it is wanted again, and the install will turn it on.
     await voice.set({ enabled: true, language: "pl" })
     expect(voice.state()).toMatchObject({ enabled: false, wanted: true, language: "pl" })
-    expect(store.voiceEnabledChoice()).toBeUndefined()
+    expect(store.settings.voiceEnabledChoice()).toBeUndefined()
   })
 
   it("turns off and on", async ({ resources }) => {
@@ -763,26 +764,26 @@ describe("voice input settings", () => {
   }) => {
     const first = await installed(resources)
     const check = first.voice.state().check
-    expect(first.store.voiceCheck()).toEqual(check)
+    expect(first.store.settings.voiceCheck()).toEqual(check)
 
     await first.voice.install()
     // The check that passed stays until the new one replaces it.
-    expect(first.store.voiceCheck()).toEqual(check)
+    expect(first.store.settings.voiceCheck()).toEqual(check)
     await first.voice.settled()
-    expect(first.store.voiceCheck()).toMatchObject({ model: "small" })
+    expect(first.store.settings.voiceCheck()).toMatchObject({ model: "small" })
 
     await first.voice.uninstall()
-    expect(first.store.voiceCheck()).toBeNull()
+    expect(first.store.settings.voiceCheck()).toBeNull()
   })
 
   it("ignore a saved check that cannot be read", async ({ resources }) => {
     const { voice, store } = await installed(resources)
-    store.saveVoiceCheck({ model: "small", milliseconds: 1 })
+    store.settings.saveVoiceCheck({ model: "small", milliseconds: 1 })
     expect(voice.state().check).not.toBeNull()
 
-    store.saveVoiceCheck(JSON.parse('{"model":"huge"}') as never)
+    store.settings.saveVoiceCheck(JSON.parse('{"model":"huge"}') as never)
 
-    expect(store.voiceCheck()).toBeNull()
+    expect(store.settings.voiceCheck()).toBeNull()
     expect(voice.state().check).toBeNull()
   })
 })
@@ -961,6 +962,33 @@ describe("transcribing a recording", () => {
   })
 })
 
+describe("a failure cut to the limit", () => {
+  // Models whose source is a missing file named in emoji make an error that names it, longer
+  // than 1024 units, with the limit inside a pair whether `pad` makes the words before it
+  // an even or an odd number of units. Nothing is made at that path, so no system's path
+  // limit stands in the way.
+  it.for(["", "x"])(
+    "keeps whole characters in an install failure (pad %j)",
+    async (pad, { resources }) => {
+      const missing = {
+        url: join(await folder(resources), `${pad}${"😀".repeat(520)}`),
+        sha256: "0".repeat(64),
+        size: 1,
+      }
+      const catalog = { models: { turbo: missing, small: missing }, vad: missing }
+      const { voice } = await setup(resources, { catalog })
+
+      await voice.install()
+      await voice.settled()
+
+      const failure = voice.state().failure!
+      expect(failure.length).toBeGreaterThan(1000)
+      expect(failure.length).toBeLessThanOrEqual(1024)
+      expect(Buffer.from(failure).toString()).toBe(failure)
+    },
+  )
+})
+
 describe("uninstalling voice input", () => {
   it("removes the engine and models and turns voice input off", async ({ resources }) => {
     const { voice, directory } = await installed(resources)
@@ -991,7 +1019,7 @@ describe("uninstalling voice input while it is used", () => {
       expect.objectContaining({ code: "CONFLICT" }),
     )
     await removing
-    expect(store.voiceSettings().enabled).toBe(false)
+    expect(store.settings.voiceSettings().enabled).toBe(false)
     // And installs again afterwards.
     await voice.install()
     await voice.settled()
@@ -1015,7 +1043,7 @@ describe("uninstalling voice input while it is used", () => {
       message: expect.stringContaining("could not be removed"),
     })
 
-    expect(store.voiceSettings().enabled).toBe(false)
+    expect(store.settings.voiceSettings().enabled).toBe(false)
     expect(voice.state().enabled).toBe(false)
     await chmod(stuck, 0o700)
     await voice.uninstall()
@@ -1212,7 +1240,7 @@ describe("voice input after the app brings a new engine", () => {
 describe("voice input after the runner restarts", () => {
   it("dictates before anything watches, once the saved state is loaded", async ({ resources }) => {
     const first = await installed(resources)
-    const restarted = new Voice(first.store, {
+    const restarted = new Voice(first.store.settings, {
       engine: first.manifest,
       directory: first.directory,
       catalog: await modelCatalog(resources),
@@ -1233,26 +1261,26 @@ describe("voice input after the runner restarts", () => {
     const { voice, store } = await setup(resources, { catalog: await modelCatalog(resources) })
     await voice.install()
     await voice.settled()
-    store.saveVoiceSettings({ model: "turbo" })
+    store.settings.saveVoiceSettings({ model: "turbo" })
 
     await voice.refresh()
-    expect(store.voiceSettings().model).toBe("turbo")
+    expect(store.settings.voiceSettings().model).toBe("turbo")
     await voice.load()
-    expect(store.voiceSettings().model).toBe("small")
+    expect(store.settings.voiceSettings().model).toBe("small")
   })
 })
 
 describe("the switch of voice input", () => {
   it("is not chosen until an install, which turns it on, or a person", async ({ resources }) => {
     const { voice, store } = await setup(resources)
-    expect(store.voiceEnabledChoice()).toBeUndefined()
+    expect(store.settings.voiceEnabledChoice()).toBeUndefined()
 
     await voice.install()
     await voice.settled()
-    expect(store.voiceEnabledChoice()).toBe(true)
+    expect(store.settings.voiceEnabledChoice()).toBe(true)
 
     await voice.set({ enabled: false })
-    expect(store.voiceEnabledChoice()).toBe(false)
+    expect(store.settings.voiceEnabledChoice()).toBe(false)
     expect(voice.state().enabled).toBe(false)
   })
 
@@ -1288,7 +1316,7 @@ describe("the switch of voice input", () => {
 
     await voice.install()
     await voice.settled()
-    expect(store.voiceEnabledChoice()).toBe(false)
+    expect(store.settings.voiceEnabledChoice()).toBe(false)
 
     // Removing it says the person doesn't want it; installing it again says they do.
     await voice.uninstall()
@@ -1303,13 +1331,13 @@ describe("a chosen model that went missing", () => {
   it("gives way to one that is installed", async ({ resources }) => {
     const { voice, store, directory } = await installed(resources)
     // As if turbo had been chosen, and its file were gone.
-    store.saveVoiceSettings({ model: "turbo" })
+    store.settings.saveVoiceSettings({ model: "turbo" })
     expect(voice.state().enabled).toBe(false)
 
     await voice.load()
 
     expect(voice.state()).toMatchObject({ installed: ["small"], model: "small", enabled: true })
-    expect(store.voiceSettings().model).toBe("small")
+    expect(store.settings.voiceSettings().model).toBe("small")
     expect(await readdir(`${directory}/models`)).toHaveLength(2)
   })
 })

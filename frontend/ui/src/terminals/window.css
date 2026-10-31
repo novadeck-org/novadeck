@@ -125,25 +125,6 @@
 :where(.terminal-actions) {
   @apply gap-1;
 }
-/* A terminal's handle (frontend/toolkit/src/HandleChip.tsx), in the quiet metadata voice on a soft
-   chip tinted from its own ink, so it follows every skin and window ground. It never wraps
-   or shrinks: names truncate before it does. */
-.handle-chip {
-  flex-shrink: 0;
-  padding: 0 0.375rem;
-  border-radius: var(--radius-control, 4px);
-  background-color: color-mix(in srgb, currentColor 10%, transparent);
-  color: var(--window-metadata-fg, var(--color-muted));
-  font-family: var(--window-metadata-font, var(--font-glyphs));
-  font-size: var(--text-caption);
-  line-height: var(--text-caption--line-height);
-  white-space: nowrap;
-}
-/* In a sidebar tab, after its program or in its actions slot, the handle is plain muted text. */
-.handle-chip.handle-plain {
-  padding: 0;
-  background: none;
-}
 /* The switcher at the start of the header (WindowShell.tsx) holds the program's icon and
    the terminal's handle. The sidebar shows every handle, so here the handle unfolds beside
    the icon only under the pointer or with keyboard focus, waiting a moment under the

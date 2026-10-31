@@ -4,11 +4,11 @@ import { vi } from "vitest"
 import type { AttachStream, Exit, TerminalEvent } from "../contract.js"
 import type { Lifecycle } from "./follow.js"
 import {
-  createTerminalViews,
+  createTerminalScreens,
   type Hold,
   type ShowOptions,
-  type TerminalViewOptions,
-  type TerminalViews,
+  type TerminalScreensOptions,
+  type TerminalScreens,
 } from "./screens.js"
 import { createStore, type ViewLink } from "./view-state.js"
 
@@ -78,7 +78,7 @@ export const themed = () => {
 }
 
 // What the options say of a failed paste: enough to tell which failure it was.
-const noticeOf: TerminalViewOptions<string>["paste"]["notice"] = (failure) =>
+const noticeOf: TerminalScreensOptions<string>["paste"]["notice"] = (failure) =>
   failure.kind === "clipboard"
     ? "clipboard"
     : `${failure.type}: ${
@@ -91,7 +91,7 @@ const noticeOf: TerminalViewOptions<string>["paste"]["notice"] = (failure) =>
 
 // Options for string-keyed terminals whose shells run and never get a stream, over a theme of
 // no colours; `over` replaces whichever the test is about.
-export const optionsOf = (over: Partial<TerminalViewOptions<string>> = {}) =>
+export const optionsOf = (over: Partial<TerminalScreensOptions<string>> = {}) =>
   ({
     keyOf: (key) => key,
     emulator: (container, open) => createView(container, { ...open, scrollback: 0 }),
@@ -111,14 +111,14 @@ export const optionsOf = (over: Partial<TerminalViewOptions<string>> = {}) =>
       notice: noticeOf,
     },
     ...over,
-  }) satisfies TerminalViewOptions<string>
+  }) satisfies TerminalScreensOptions<string>
 
 // What the tests close once they end: every hold they took, and every element they placed
 // a screen in. A screen closes once its session has stayed off screen for its retention, so
-// `closeViews` runs the clock past it while the file's DOM is still there to take the
+// `closeScreens` runs the clock past it while the file's DOM is still there to take the
 // screens' listeners off.
 const closers: (() => void)[] = []
-export const closeViews = (): void => {
+export const closeScreens = (): void => {
   const fake = vi.isFakeTimers()
   if (!fake) vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout", "Date"] })
   try {
@@ -129,13 +129,13 @@ export const closeViews = (): void => {
   }
 }
 
-// Views over `options`, whose holds the test ends with `closeViews`.
-export const viewsOf = (options: TerminalViewOptions<string>): TerminalViews<string> => {
-  const views = createTerminalViews(options)
+// Screens over `options`, whose holds the test ends with `closeScreens`.
+export const screensOf = (options: TerminalScreensOptions<string>): TerminalScreens<string> => {
+  const screens = createTerminalScreens(options)
   return {
-    ...views,
+    ...screens,
     acquire: (key, show) => {
-      const hold = views.acquire(key, show)
+      const hold = screens.acquire(key, show)
       closers.push(() => hold.release())
       return hold
     },
@@ -154,12 +154,12 @@ export const running: ShowOptions = { label: "Input for T", phase: "running", we
 
 // A terminal's screen held as a mount holds it: acquired, and placed in an element.
 export const shown = (
-  views: TerminalViews<string>,
+  screens: TerminalScreens<string>,
   key: string,
   options: Partial<ShowOptions> = {},
   element: HTMLElement = slot(),
 ): { readonly hold: Hold; readonly element: HTMLElement } => {
-  const hold = views.acquire(key, { ...running, ...options })
+  const hold = screens.acquire(key, { ...running, ...options })
   hold.place(element)
   return { hold, element }
 }

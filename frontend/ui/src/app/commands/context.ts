@@ -1,10 +1,10 @@
 import type { Chat } from "@novadeck/chat/state"
+import type { Murmur } from "@novadeck/core/addons/murmur"
 import type { Rect } from "@novadeck/core/layout/spatial"
-import type { Murmur } from "@novadeck/core/murmur"
 import type { Backend } from "@novadeck/core/port"
 import type { WorkspaceStore } from "@novadeck/core/store"
 import type { SidebarPanel } from "@novadeck/core/types"
-import type { ItemStore } from "@novadeck/items/state"
+import type { ItemStore } from "@novadeck/items/store"
 
 import type { CanvasHandle } from "../../layouts/canvas/types"
 import type { Dictation } from "../../voice/dictation-control"

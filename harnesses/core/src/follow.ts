@@ -32,18 +32,19 @@ export const tailLines = async (
 }
 
 /**
- * Calls `onLine` with each line appended to `path` until `signal` aborts, polling every
- * `intervalMs`. A file that already exists is followed from its end: only what is
+ * Calls `onLine` with each line appended to `path`, and where in the file it ends (the
+ * byte past its line break), until `signal` aborts, polling every `intervalMs`. A file that already exists is followed from its end: only what is
  * written from now on counts, unless `fromStart` reads it whole first. One that does not
  * exist yet is read from its start once it appears, as an agent may create its
  * transcript after its first hook. A file that shrinks, or another put in its place,
- * was rewritten: `onReset` is told, and it is read again from its start. `onIdle` is told whenever it has read all there
- * is for now, and each read waits for `pace`, so a slow reader holds it back.
+ * was rewritten: `onReset` is told, and it is read again from its start. `onIdle` is told
+ * whenever it has read all there is for now, and each read waits for `pace`, so a slow
+ * reader holds it back.
  */
 export const followLines = async (
   path: string,
   signal: AbortSignal,
-  onLine: (line: string) => void,
+  onLine: (line: string, end: number) => void,
   {
     intervalMs = 400,
     fromStart = false,
@@ -68,6 +69,9 @@ export const followLines = async (
   let file: number | undefined
   let decoder = new StringDecoder("utf8")
   let rest = ""
+  // Where the line `rest` begins sits in the file, counted from the bytes of the lines
+  // before it: a harness writes UTF-8, which reads back to the same bytes.
+  let start = offset
   // One poll: reads what was appended since the last, and says how much it read.
   const poll = async (): Promise<number> => {
     let read = 0
@@ -77,6 +81,7 @@ export const followLines = async (
       file = ino
       if (size < offset || replaced) {
         offset = 0
+        start = 0
         decoder = new StringDecoder("utf8")
         rest = ""
         onReset?.()
@@ -93,8 +98,14 @@ export const followLines = async (
       }
       const lines = rest.split("\n")
       rest = lines.pop() ?? ""
-      if (rest.length > maxLine) rest = ""
-      for (const line of lines) if (line && !signal.aborted) onLine(line)
+      for (const line of lines) {
+        start += Buffer.byteLength(line) + 1
+        if (line && !signal.aborted) onLine(line, start)
+      }
+      if (rest.length > maxLine) {
+        start += Buffer.byteLength(rest)
+        rest = ""
+      }
     } catch {
       // Not there yet, or gone for now: try again.
     }

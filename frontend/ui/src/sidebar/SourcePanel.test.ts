@@ -5,7 +5,9 @@ import { afterEach, vi } from "vitest"
 
 import { context, describe, expect, it } from "../test"
 import { folderListings } from "../test/source"
-import { pulseMs, readTimeoutMs, SourcePanel } from "./SourcePanel"
+import { SourcePanel } from "./SourcePanel"
+import { readTimeoutMs } from "./useFolderReader"
+import { pulseMs } from "./usePulses"
 
 // jsdom has no layout and no ResizeObserver, which the header's tooltip and the tree's chip
 // folding both watch with. The stub lets a test set the tree's width and resize it.

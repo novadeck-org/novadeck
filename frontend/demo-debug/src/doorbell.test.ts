@@ -1,5 +1,5 @@
-import { companionKeyId } from "@novadeck/core/items"
 import type { MessagesState } from "@novadeck/core/messages"
+import { terminalKeyPath } from "@novadeck/core/types"
 import { checkoutMessages, createDemoMessages } from "@novadeck/demo/messages"
 
 import { doorbellGroups } from "./doorbell"
@@ -25,7 +25,7 @@ describe("the debug panel's Doorbell group", () => {
     const [group] = doorbellGroups(messages)
     const waits = () => {
       const state: MessagesState = messages.state.getSnapshot()
-      return state.terminals[companionKeyId(key)]?.waits
+      return state.terminals[terminalKeyPath(key)]?.waits
     }
     const run = (label: string, selected = key) => {
       const notes: string[] = []
@@ -43,6 +43,6 @@ describe("the debug panel's Doorbell group", () => {
     expect(waits()).toBe("dialog")
     run("Doorbell can ring")
     expect(waits()).toBeNull()
-    expect(run("Asking the user", { ...key, terminalId: "nope" })).toHaveLength(1)
+    expect(run("Asking the person", { ...key, terminalId: "nope" })).toHaveLength(1)
   })
 })

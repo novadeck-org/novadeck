@@ -3,6 +3,7 @@ import { tmpdir } from "node:os"
 import { join } from "node:path"
 
 import { loadProbe } from "@novadeck/harness-core/testing/probes"
+import { transcriptLimits } from "@novadeck/protocol"
 import { describe, expect, it } from "vitest"
 
 import { transcripts } from "./transcripts.js"
@@ -34,6 +35,54 @@ describe("Codex's rollout, as captured", () => {
 const shell = loadProbe(import.meta.dirname, "shell.probe.json") as {
   scenarios: { [name: string]: object[] }
 }
+
+describe("Codex's interruptions", () => {
+  const { scenarios } = loadProbe(import.meta.dirname, "ask.probe.json") as {
+    scenarios: { [name: string]: { [key: string]: object[] } }
+  }
+  const aborted = (reason: string) => ({
+    timestamp: "2026-10-20T10:00:00.000Z",
+    type: "event_msg",
+    payload: { type: "turn_aborted", turn_id: "t1", reason },
+  })
+
+  it("read as the person's interruption, where the turn ended, as captured", () => {
+    const [interrupted, ...rest] = items(scenarios["rui-esc-then-prompt"]!.rolloutFinal!).filter(
+      (each) => each.interrupted,
+    )
+    expect(rest).toEqual([])
+    expect(interrupted).toMatchObject({ role: "user", kind: "text", interrupted: true })
+  })
+
+  it("are only an abort the person made, and nothing else Codex tells of it", () => {
+    expect(items([aborted("interrupted")])).toMatchObject([
+      { at: Date.parse("2026-10-20T10:00:00.000Z"), role: "user", interrupted: true },
+    ])
+    expect(items([aborted("replaced")])).toEqual([])
+    // The message it tells the model of the abort with is a developer's, which stays out.
+    const told = item({
+      type: "message",
+      role: "developer",
+      content: [
+        {
+          type: "input_text",
+          text: "<turn_aborted>\nThe previous turn was interrupted on purpose.\n</turn_aborted>",
+        },
+      ],
+    })
+    expect(items([told])).toEqual([])
+    // Claude Code's marker is no record of Codex's.
+    expect(
+      items([
+        item({
+          type: "message",
+          role: "user",
+          content: [{ type: "input_text", text: "[Request interrupted by user]" }],
+        }),
+      ]),
+    ).toMatchObject([{ role: "user", interrupted: false }])
+  })
+})
 
 describe("Codex's shell-mode commands, as captured", () => {
   const ran = (name: string) => items(shell.scenarios[name]!)
@@ -89,7 +138,7 @@ describe("Codex's shell-mode commands, as captured", () => {
       }),
     ])
     expect(result).toMatchObject({ truncated: true })
-    expect(result?.text).toHaveLength(16_384)
+    expect(result?.text).toHaveLength(transcriptLimits.text)
   })
 })
 
@@ -169,6 +218,84 @@ describe("Codex's rollout records", () => {
       tool: "mcp__novadeck__send",
       run: { kind: "agent", title: "Messaged t2", detail: "hi" },
     })
+  })
+})
+
+const asked = loadProbe(import.meta.dirname, "ask.probe.0.166.0.json") as {
+  scenarios: { [name: string]: { rollout: object[] } }
+}
+
+describe("Codex's answers to its async questions, as captured", () => {
+  const said = (name: string) =>
+    items(asked.scenarios[name]!.rollout).map(({ role, kind, text }) => `${role} ${kind}: ${text}`)
+
+  it("read as the person's words, the question then the answer, after the question's call", () => {
+    expect(said("rui-async-panel-digit-2")).toEqual([
+      "user text: Ask me about the button",
+      expect.stringMatching(/^assistant tool-call: /),
+      'tool tool-result: {"accepted":true}',
+      "user text: Re: Which color should the button be?\nGreen",
+      "assistant text: Thanks for the answer.",
+    ])
+  })
+
+  it("read one message for each question answered, as Codex replies to each on its own", () => {
+    expect(said("rui-async-panel-two-questions").filter((line) => line.startsWith("user"))).toEqual(
+      [
+        "user text: Ask me about the button",
+        "user text: Re: Which color should the button be?\nBlue",
+        "user text: Re: What should its label say?\nLarge",
+      ],
+    )
+  })
+
+  it("never show the reply's own markup", () => {
+    for (const name of Object.keys(asked.scenarios))
+      for (const line of said(name)) expect(line).not.toContain("question_reply")
+  })
+})
+
+describe("Codex's reply to async questions", () => {
+  const reply = (answers: readonly object[]) =>
+    item({
+      type: "message",
+      role: "user",
+      content: [
+        {
+          type: "input_text",
+          text: `<send_user_message_question_reply>\n${JSON.stringify(answers)}\n</send_user_message_question_reply>`,
+        },
+      ],
+    })
+  const place = (part: number) => JSON.stringify(["request_user_input_async", "call_a", part])
+
+  it("gives every question it answers, set apart by a blank line", () => {
+    expect(
+      items([
+        reply([
+          { answer: "Blue", question: "Which color?", questionItemId: place(0) },
+          { answer: "Large", question: "Which size?", questionItemId: place(1) },
+        ]),
+      ]).map(({ role, text }) => `${role}: ${text}`),
+    ).toEqual(["user: Re: Which color?\nBlue\n\nRe: Which size?\nLarge"])
+  })
+
+  it("gives the answer alone where it names no question", () => {
+    expect(items([reply([{ answer: "Blue", questionItemId: place(0) }])])[0]?.text).toBe("Blue")
+  })
+
+  it("says so where an answer holds no text, rather than showing the reply as written", () => {
+    expect(
+      items([
+        reply([{ answer: "", question: "Which color?", questionItemId: place(0) }]),
+        reply([{ questionItemId: place(0) }]),
+      ]).map(({ text }) => text),
+    ).toEqual(["Re: Which color?\n(no answer)", "(no answer)"])
+  })
+
+  it("stays as written where its items are not as probed", () => {
+    const [entry] = items([reply([{ answer: "Blue" }])])
+    expect(entry?.text).toMatch(/^<send_user_message_question_reply>/)
   })
 })
 

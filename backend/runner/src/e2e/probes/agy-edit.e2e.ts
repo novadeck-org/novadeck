@@ -2,7 +2,6 @@ import { spawnSync } from "node:child_process"
 import { existsSync, mkdirSync, readFileSync, unlinkSync, writeFileSync } from "node:fs"
 import { tmpdir } from "node:os"
 import { join } from "node:path"
-import { setTimeout as sleep } from "node:timers/promises"
 
 import { screenRecord } from "@novadeck/harness-core/testing/probes"
 
@@ -12,6 +11,7 @@ import { describe, e2e, expect, supported, type E2E } from "../fixture.js"
 import { gemini } from "../model/gemini.js"
 import { asked, type Call, type Reply, type Rule } from "../model/script.js"
 import { own, start } from "../scenarios.js"
+import { sleep } from "./support.js"
 
 // PROBE, not a regression test: Antigravity's edit tool (edit_file from 1.4,
 // replace_file_content before), its

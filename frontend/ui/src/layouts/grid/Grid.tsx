@@ -1,5 +1,6 @@
 import "./grid.css"
 import type { Team } from "@novadeck/core/derivations"
+import { gridColumns } from "@novadeck/core/layout/grid-placement"
 import { gridPresetWidth, gridTileHeight } from "@novadeck/core/layout/terminal-size"
 import { dropOnGrid, type WindowPlace } from "@novadeck/core/layout/window-place"
 import type {
@@ -28,6 +29,7 @@ import {
   verticalCompactor,
 } from "react-grid-layout"
 
+import { prefersReducedMotion } from "../../interaction/reduced-motion"
 import type { TerminalLayoutControls } from "../../terminals/WindowShell"
 import { backgroundPointerHandlers } from "../background"
 import { useTerminalVisibility } from "../useTerminalVisibility"
@@ -35,8 +37,10 @@ import { GridTeamWire } from "./GridTeamWire"
 import {
   dropLayout,
   dropPlaceholder,
+  gridMargin,
+  gridRow,
+  gridRowHeight,
   savedGridLayouts,
-  gridColumns,
   toggleGridWidth,
   type GridWidthToggle,
   visibleGridLayouts,
@@ -44,11 +48,6 @@ import {
 import { tileBoxes } from "./team-route"
 
 const breakpoints = { wide: 1586, desktop: 1036, tablet: 636, mobile: 0 }
-// The grid's rows and the space between windows, in pixels: a row is its height and the
-// margin below it.
-const gridRowHeight = 8
-const gridMargin = 16
-const gridRow = gridRowHeight + gridMargin
 
 // The wheel over a window scrolls the grid, unless the window is the selected one and holds
 // the focus: only then does what is in it, such as a terminal's history or its program, take
@@ -140,7 +139,7 @@ export const Grid = ({
       const terminal = container.querySelector<HTMLElement>(`[data-grid-terminal="${selected}"]`)
       if (!terminal) return
       terminal.scrollIntoView({
-        behavior: matchMedia("(prefers-reduced-motion: reduce)").matches ? "instant" : "smooth",
+        behavior: prefersReducedMotion() ? "instant" : "smooth",
         block: "nearest",
         inline: "nearest",
       })
@@ -268,7 +267,7 @@ export const Grid = ({
     const item = current[breakpoint]?.find((entry) => entry.i === resized)
     const stage = containerRef.current?.closest<HTMLElement>(".grid-stage")
     if (!stage || !item) return
-    const top = item.y * 24
+    const top = item.y * gridRow
     const frame = requestAnimationFrame(() => stage.scrollTo({ top, behavior: "instant" }))
     return () => cancelAnimationFrame(frame)
   }, [resized, current, width, containerRef])
@@ -320,7 +319,7 @@ export const Grid = ({
           if (!resized || terminal.dataset.gridTerminal !== resized) return
           const breakpoint = getBreakpointFromWidth(breakpoints, width) as GridBreakpoint
           const item = current[breakpoint]?.find((entry) => entry.i === resized)
-          if (item) event.currentTarget.scrollTo({ top: item.y * 24, behavior: "instant" })
+          if (item) event.currentTarget.scrollTo({ top: item.y * gridRow, behavior: "instant" })
         }}
       >
         <div ref={containerRef} className="relative">

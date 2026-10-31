@@ -6,6 +6,7 @@ import {
   workspaceArea,
   workspaceContent,
 } from "../interaction/dom"
+import { prefersReducedMotion } from "../interaction/reduced-motion"
 
 let active: ViewTransition | undefined
 let revision = 0
@@ -43,11 +44,7 @@ const nextTick = (): Promise<void> => new Promise((resolve) => setTimeout(resolv
 const transitionView = (update: () => void, id?: string, direction: 1 | -1 = 1): void => {
   const pending = active
   cancelTerminalTransition()
-  if (
-    pending ||
-    !document.startViewTransition ||
-    matchMedia("(prefers-reduced-motion: reduce)").matches
-  ) {
+  if (pending || !document.startViewTransition || prefersReducedMotion()) {
     update()
     return
   }

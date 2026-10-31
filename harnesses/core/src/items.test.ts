@@ -1,8 +1,7 @@
-import { transcriptItem } from "@novadeck/protocol"
+import { transcriptItem, transcriptLimits, type ToolRun } from "@novadeck/protocol"
 import { describe, expect, it } from "vitest"
 
 import { entry } from "./items.js"
-import type { ToolRun } from "./tools.js"
 
 // A describe that shows what it was given.
 const seen = (tool: string, input: string): ToolRun => ({
@@ -12,13 +11,19 @@ const seen = (tool: string, input: string): ToolRun => ({
 })
 
 describe("an item's run", () => {
-  it("is described on the call as the item carries it: its input cut at 16 KiB, its name at 256", () => {
-    const call = entry("assistant", "tool-call", "x".repeat(20_000), {
+  it("is described on the call as the item carries it: its input and its name cut to the protocol's limits", () => {
+    const call = entry("assistant", "tool-call", "x".repeat(transcriptLimits.text + 1000), {
       at: null,
-      tool: "t".repeat(300),
+      tool: "t".repeat(transcriptLimits.name + 50),
       describe: seen,
     })
-    expect(call.run).toEqual({ kind: "other", title: "t".repeat(256), detail: "x".repeat(16_384) })
+    expect(call.run).toEqual({
+      kind: "other",
+      title: "t".repeat(transcriptLimits.name),
+      detail: "x".repeat(transcriptLimits.text),
+    })
+    // Numbered as its harness's transcript reads it.
+    expect(transcriptItem.safeParse({ ...call, index: 0 }).success).toBe(true)
   })
 
   it('describes a call whose tool is not text as "tool"', () => {
@@ -44,19 +49,21 @@ describe("a tool call without a describe", () => {
 })
 
 describe("an interrupted item", () => {
-  const marker = "[Request interrupted by user for tool use]"
-
-  it("is a user text item that is Claude Code's marker, however the harness wrote it", () => {
-    expect(entry("user", "text", marker, { at: null }).interrupted).toBe(true)
-    expect(
-      entry("user", "text", `  [Request interrupted by user]\n`, { at: null }).interrupted,
-    ).toBe(true)
+  it("is a user text item its harness says records the interruption", () => {
+    expect(entry("user", "text", "Interrupted", { at: null, interrupted: true }).interrupted).toBe(
+      true,
+    )
   })
 
-  it("is nothing else", () => {
-    expect(entry("assistant", "text", marker, { at: null }).interrupted).toBe(false)
-    expect(entry("user", "text", `${marker} and more`, { at: null }).interrupted).toBe(false)
-    expect(entry("tool", "tool-result", marker, { at: null }).interrupted).toBe(false)
+  it("is nothing else, whatever its text holds", () => {
+    const marker = "[Request interrupted by user]"
+    expect(entry("user", "text", marker, { at: null }).interrupted).toBe(false)
+    expect(entry("assistant", "text", marker, { at: null, interrupted: true }).interrupted).toBe(
+      false,
+    )
+    expect(entry("tool", "tool-result", marker, { at: null, interrupted: true }).interrupted).toBe(
+      false,
+    )
   })
 })
 

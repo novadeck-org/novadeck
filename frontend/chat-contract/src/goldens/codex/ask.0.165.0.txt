@@ -1,0 +1,32 @@
+# rui-async-offered
+tools: Asked [plan] · Which color should the button be? | Call: request_user_input_async: 1 line: [{"title":"Which color should the button be?","… → 1 line: {"accepted":true}
+
+# rui-async-panel-after-turn
+tools: Asked [plan] · Which color should the button be? | Call: request_user_input_async: 1 line: [{"title":"Which color should the button be?","… → 1 line: {"accepted":true}
+
+# rui-async-panel-digit-2
+tools: Asked [plan] · Which color should the button be? | Call: request_user_input_async: 1 line: [{"title":"Which color should the button be?","… → 1 line: {"accepted":true}
+
+# rui-async-panel-down-enter
+tools: Asked [plan] · Which color should the button be? | Call: request_user_input_async: 1 line: [{"title":"Which color should the button be?","… → 1 line: {"accepted":true}
+
+# rui-async-panel-enter
+tools: Asked [plan] · Which color should the button be? | Call: request_user_input_async: 1 line: [{"title":"Which color should the button be?","… → 1 line: {"accepted":true}
+
+# rui-async-panel-esc
+tools: Asked [plan] · Which color should the button be? | Call: request_user_input_async: 1 line: [{"title":"Which color should the button be?","… → 1 line: {"accepted":true}
+
+# rui-async-panel-other-text
+tools: Asked [plan] · Which color should the button be? | Call: request_user_input_async: 1 line: [{"title":"Which color should the button be?","… → 1 line: {"accepted":true}
+
+# rui-async-panel-skip
+tools: Asked [plan] · Which color should the button be? | Call: request_user_input_async: 1 line: [{"title":"Which color should the button be?","… → 1 line: {"accepted":true}
+
+# rui-async-panel-two-questions
+tools: Asked [plan] · Which color should the button be? | Call: request_user_input_async: 1 line: [{"title":"Which color should the button be?","… → 1 line: {"accepted":true}
+
+# rui-async-typed-after
+tools: Asked [plan] · Which color should the button be? | Call: request_user_input_async: 1 line: [{"title":"Which color should the button be?","… → 1 line: {"accepted":true}; Asked [plan] · Which color should the button be? | Call: request_user_input_async: 1 line: [{"title":"Which color should the button be?","… → 1 line: {"accepted":true}
+
+# rui-async-while-running
+tools: Asked [plan] · Which color should the button be? | Call: request_user_input_async: 1 line: [{"title":"Which color should the button be?","… → 1 line: {"accepted":true}

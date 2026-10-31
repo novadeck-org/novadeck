@@ -2,8 +2,8 @@ import { maxSnoozes } from "@novadeck/core/inbox"
 import { maxInboxOrder } from "@novadeck/protocol"
 import { WireError } from "@novadeck/wire"
 
-import { scripted } from "./scripted"
 import { describe, expect, it } from "./test"
+import { scripted } from "./testing/scripted"
 
 describe("the transcript setting", () => {
   it("shows what the runner said, and changes it there", async () => {

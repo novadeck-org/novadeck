@@ -5,12 +5,19 @@ import { basename, dirname, extname, join, resolve } from "node:path"
 import { StringDecoder } from "node:string_decoder"
 
 import type { PlanSource } from "@novadeck/harness-core/events"
-import type { AgentName, ItemContent, PlanSaveResult, PlanUnwritable } from "@novadeck/protocol"
+import {
+  companionLimits,
+  type AgentName,
+  type ItemContent,
+  type PlanSaveResult,
+  type PlanUnwritable,
+} from "@novadeck/protocol"
 
 import { DomainError } from "../errors.js"
 import { harnesses } from "../harnesses/registry.js"
+import { cut, tail } from "../text.js"
 import type { ItemRecord } from "./records.js"
-import { failure, maxUrlChars, type PresentFailure } from "./request.js"
+import { failure, type RequestFailure } from "./request.js"
 import { secret } from "./secrets.js"
 
 // What is shown as an image, by extension.
@@ -34,10 +41,8 @@ const sniffBytes = 8 * 1024
 // A file this long is shown whole; a longer one, around what was pointed at.
 const wholeLines = 400
 const contextLines = 40
-// What the protocol takes of a file and a plan.
-const maxLines = 2000
-const maxLineChars = 4096
-const maxPlanBytes = 256 * 1024
+// What the protocol takes of a plan, which a plan's file is read up to in bytes.
+const maxPlanBytes = companionLimits.plan
 
 /** What an item's content reads of a pointer: unavailable, with why, or ready. */
 type Unavailable = Extract<ItemContent, { state: "unavailable" }>
@@ -47,11 +52,8 @@ const unavailable = (reason: Unavailable["reason"], size: number | null = null):
   size,
 })
 
-const clip = (text: string, max: number): string =>
-  text.length <= max ? text : `…${text.slice(text.length - max + 1)}`
-
 /** Whether a file is shown as an image, by its extension. */
-export const isImage = (path: string): boolean => images[extname(path).toLowerCase()] !== undefined
+const isImage = (path: string): boolean => images[extname(path).toLowerCase()] !== undefined
 
 /**
  * The lines of a file of `total` lines shown, from `first` to `last`, and the ones
@@ -69,7 +71,7 @@ export const captureWindow = (
   if (total <= wholeLines) return { first: 1, last: total, from, to, clamped }
   if (!lines) return { first: 1, last: wholeLines, from: 1, to: wholeLines, clamped }
   const first = Math.max(1, from - contextLines)
-  const last = Math.min(total, to + contextLines, first + maxLines - 1)
+  const last = Math.min(total, to + contextLines, first + companionLimits.lines - 1)
   return { first, last, from, to: Math.min(to, last), clamped }
 }
 
@@ -87,7 +89,7 @@ export type Pointed = {
  * A file a request points at, from the terminal's directory: anything but a missing
  * path, a folder, or a pipe or device. What it holds is read only as it loads.
  */
-export const pointAt = async (given: string, cwd: string): Promise<Pointed | PresentFailure> => {
+export const pointAt = async (given: string, cwd: string): Promise<Pointed | RequestFailure> => {
   const path = await realpath(resolve(cwd, given)).catch(() => undefined)
   if (!path) return failure("That file doesn't exist.")
   const stats = await stat(path).catch(() => undefined)
@@ -110,7 +112,7 @@ export const pointAt = async (given: string, cwd: string): Promise<Pointed | Pre
  */
 export const pageAt = (
   address: string,
-): { readonly ok: true; readonly url: URL } | PresentFailure => {
+): { readonly ok: true; readonly url: URL } | RequestFailure => {
   let url: URL
   try {
     url = new URL(address)
@@ -122,7 +124,7 @@ export const pageAt = (
   if (url.username || url.password)
     return failure("Novadeck won't show an address with a user name or password in it.")
   // Encoding can lengthen it past what the protocol carries.
-  if (url.href.length > maxUrlChars) return failure("That address is too long.")
+  if (url.href.length > companionLimits.url) return failure("That address is too long.")
   return { ok: true, url }
 }
 
@@ -191,11 +193,13 @@ const readLines = async (
   range: { readonly from: number; readonly to: number } | null,
 ): Promise<{ kept: Map<number, string>; count: number; ended: boolean } | "binary"> => {
   const start = range ? Math.max(1, range.from - contextLines) : 1
-  const last = range ? Math.min(range.to + contextLines, start + maxLines - 1) : wholeLines
+  const last = range
+    ? Math.min(range.to + contextLines, start + companionLimits.lines - 1)
+    : wholeLines
   const keeps = (line: number) => line <= wholeLines || (line >= start && line <= last)
   const kept = new Map<number, string>()
   // The latest lines read, which a range past the file's end is pulled back to.
-  const tail: [number, string][] = []
+  const trailing: [number, string][] = []
   const decoder = new StringDecoder("utf8")
   const breaks = /\r\n|\r|\n/g
   const buffer = Buffer.alloc(chunkBytes)
@@ -208,9 +212,11 @@ const readLines = async (
   let past: number | undefined
   const push = () => {
     count += 1
-    if (keeps(count)) kept.set(count, line)
-    tail.push([count, line])
-    if (tail.length > contextLines + 1) tail.shift()
+    // One unit past the limit is held, to see whether it falls inside a pair.
+    const recorded = cut(line, companionLimits.lineLength)
+    if (keeps(count)) kept.set(count, recorded)
+    trailing.push([count, recorded])
+    if (trailing.length > contextLines + 1) trailing.shift()
     if (count === last) past = position
     line = ""
   }
@@ -218,11 +224,11 @@ const readLines = async (
     let at = carriage && text.startsWith("\n") ? 1 : 0
     breaks.lastIndex = at
     for (let found = breaks.exec(text); found; found = breaks.exec(text)) {
-      line = (line + text.slice(at, found.index)).slice(0, maxLineChars)
+      line = (line + text.slice(at, found.index)).slice(0, companionLimits.lineLength + 1)
       push()
       at = breaks.lastIndex
     }
-    line = (line + text.slice(at)).slice(0, maxLineChars)
+    line = (line + text.slice(at)).slice(0, companionLimits.lineLength + 1)
     if (text.length > 0) carriage = text.endsWith("\r")
   }
   for (;;) {
@@ -239,7 +245,7 @@ const readLines = async (
   take(decoder.end())
   // The line a final newline ends is the last; an empty file has one empty line.
   if (line !== "" || count === 0) push()
-  for (const [number, text] of tail) kept.set(number, text)
+  for (const [number, text] of trailing) kept.set(number, text)
   return { kept, count, ended: true }
 }
 
@@ -293,7 +299,7 @@ export const loadFile = async (
       stamp,
       content: {
         kind: "file",
-        path: clip(path, 4096),
+        path: tail(path, companionLimits.path),
         firstLine: window.first,
         lines,
         from: window.from,
@@ -477,7 +483,7 @@ const decodePlans = async (
 }
 
 /** A plan's text, as `content` yields it, stamped by its text. */
-export const planReady = (plan: PlanText): ItemContent => ({
+const planReady = (plan: PlanText): ItemContent => ({
   state: "ready",
   stamp: hashOf(plan.text),
   content: { kind: "plan", ...plan, writable: false, skill: false },

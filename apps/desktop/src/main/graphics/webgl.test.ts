@@ -1,0 +1,53 @@
+import { describe, expect, it } from "vitest"
+
+import { maxWebglContexts, raiseWebglContexts, webglContextsArgument } from "./webgl"
+
+describe("raising Chromium's WebGL context limit", () => {
+  const commandLine = (given?: string) => {
+    const switches = new Map<string, string>(given === undefined ? [] : [[name, given]])
+    return {
+      switches,
+      hasSwitch: (key: string) => switches.has(key),
+      getSwitchValue: (key: string) => switches.get(key) ?? "",
+      appendSwitch: (key: string, value = "") => void switches.set(key, value),
+    }
+  }
+  const name = "max-active-webgl-contexts"
+
+  it("sets the app's limit, 256, and says so", () => {
+    const line = commandLine()
+    expect(raiseWebglContexts(line)).toBe(maxWebglContexts)
+    expect(maxWebglContexts).toBe(256)
+    expect(line.switches.get(name)).toBe("256")
+  })
+
+  it("keeps a limit already given, and tells the page that one", () => {
+    const line = commandLine("40")
+    expect(raiseWebglContexts(line)).toBe(40)
+    expect(line.switches.get(name)).toBe("40")
+  })
+
+  it.each(["lots", "0x40", "1e2", " 40", "40 ", "", "-5", "4.5"])(
+    "replaces %j, which Chromium would not read as the page does, with the app's limit",
+    (given) => {
+      const line = commandLine(given)
+      expect(raiseWebglContexts(line)).toBe(256)
+      expect(line.switches.get(name)).toBe("256")
+    },
+  )
+
+  it.each([
+    ["0", 3],
+    ["2", 3],
+    ["2000", 1024],
+    ["99999999999999999999", 1024],
+  ])("clamps %s into the range the page can be told, in the switch too", (given, limit) => {
+    const line = commandLine(given)
+    expect(raiseWebglContexts(line)).toBe(limit)
+    expect(line.switches.get(name)).toBe(String(limit))
+  })
+
+  it("names the limit in the window's arguments for the preload", () => {
+    expect(webglContextsArgument(64)).toBe("--novadeck-webgl-contexts=64")
+  })
+})

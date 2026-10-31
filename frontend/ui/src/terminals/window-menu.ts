@@ -1,4 +1,4 @@
-import { titleSourceText } from "@novadeck/core/title-source"
+import { titleSourceText } from "@novadeck/core/terminals/title-source"
 import type { Tile } from "@novadeck/core/types"
 import type { ContextMenuAction } from "@novadeck/toolkit/ContextMenu"
 import { MessageSquareText } from "lucide-react"
@@ -30,10 +30,10 @@ export type AskFeedback = {
 // A window's own actions, the same in its sidebar tab's menu and its header's: who named
 // it, as a line to read rather than choose, then rename, hand a name the person gave back
 // to Novadeck, dock an undocked window back in its terminal, release a terminal from its
-// lead, and close. The project
-// window is named by its file and has no terminal to dock in: it offers Close alone. A window
-// running an agent, on a backend that takes feedback, can ask it to write some. The menu
-// takes only text for a label, so the handle is plain `@handle` there, not the chip.
+// lead, and close. The project window is named by its file and has no terminal to dock in:
+// it offers Close alone. A window running an agent, on a backend that takes feedback, can
+// ask it to write some. The menu takes only text for a label, so the handle is plain
+// `@handle` there, not the chip.
 export const windowMenu = ({
   terminal,
   onRename,

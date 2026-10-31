@@ -2,7 +2,7 @@ import { itemFixture, terminalFixture } from "@novadeck/core/testing"
 import type { AgentStatus, AgentWaiting, Tile } from "@novadeck/core/types"
 import { render } from "@novadeck/test-kit/render"
 import { Portal } from "@novadeck/toolkit/Portal"
-import { createElement } from "react"
+import { act, createElement } from "react"
 import { afterEach, beforeEach, vi } from "vitest"
 
 import { context, describe, expect, it } from "../test"
@@ -42,6 +42,20 @@ describe("terminal frame header", () => {
       expect(frame.querySelector(".terminal-title")?.textContent).toBe("Terminal")
       expect(frame.querySelector("section")?.getAttribute("aria-label")).toBe("Terminal terminal")
     })
+  })
+
+  it("shows the program's content and icon in the shared window, keeping the switcher action", () => {
+    const opened: HTMLButtonElement[] = []
+    const frame = renderFrame(terminalFixture(1, "~/project"), {
+      icon: createElement("svg", { "data-custom-icon": "" }),
+      children: createElement("article", null, "Custom process content"),
+      switcher: { onOpen: (button) => void opened.push(button) },
+    })
+    expect(frame.querySelector("article")?.textContent).toBe("Custom process content")
+    const button = frame.querySelector<HTMLButtonElement>('button[aria-label="Switch terminal"]')!
+    expect(button.querySelector("[data-custom-icon]")).not.toBeNull()
+    act(() => button.click())
+    expect(opened).toEqual([button])
   })
 })
 

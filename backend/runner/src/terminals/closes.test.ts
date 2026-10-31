@@ -35,15 +35,15 @@ describe("reading a request to close a terminal", () => {
   })
 })
 
-describe("what an agent is told about a close that waits for the user", () => {
-  it("refuses an ask while none is open to ask, or one already waits", () => {
+describe("what an agent is told about a close that waits for the person", () => {
+  it("refuses a request while none is open to ask, or one already waits", () => {
     expect(nobodyRefusal).toBe("Novadeck isn't open to ask the user, so nothing closed.")
     expect(waitingRefusal("fox")).toBe(
       "@fox is already waiting for the user's confirmation to close.",
     )
   })
 
-  it("tells the outcome of the user's answer, or of an ask that ended without it", () => {
+  it("tells the outcome of the person's answer, or of a request that ended without it", () => {
     expect(closeNotice.confirmed("fox", "api", "Codex")).toBe(
       "Novadeck: automatic notice, not from the user: The user confirmed closing @fox · api, which ran Codex, and it is closed. Messages " +
         "waiting for it never arrive.",

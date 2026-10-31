@@ -1,8 +1,8 @@
+import { subjectOf } from "@novadeck/harness-core/decode"
 import type { ActivityEvent } from "@novadeck/harness-core/events"
-import { subjectOf } from "@novadeck/harness-core/harness"
 import type { Report } from "@novadeck/harness-core/report"
 import { loadProbe } from "@novadeck/harness-core/testing/probes"
-import { agentDetail as schema } from "@novadeck/protocol"
+import { agentLimits, agentDetail as schema } from "@novadeck/protocol"
 
 import { describe, expect, it } from "../test.js"
 import { adapterFolder } from "../testing/adapters.js"
@@ -67,11 +67,15 @@ describe("what a request asks about", () => {
   it("is nothing it cannot read, and never longer than the protocol takes", () => {
     expect(subjectOf(undefined)).toEqual({ subject: null, choices: [] })
     expect(subjectOf({ command: 3 })).toEqual({ subject: null, choices: [] })
-    expect(subjectOf({ command: "x".repeat(5000) }).subject).toHaveLength(1024)
-    const options = Array.from({ length: 20 }, (_, index) => ({ label: `${index}`.repeat(300) }))
+    expect(subjectOf({ command: "x".repeat(agentLimits.subject * 5) }).subject).toHaveLength(
+      agentLimits.subject,
+    )
+    const options = Array.from({ length: agentLimits.choices + 4 }, (_, index) => ({
+      label: `${index}`.repeat(agentLimits.name + 50),
+    }))
     const { choices } = subjectOf({ questions: [{ question: "Pick", options }] })
-    expect(choices).toHaveLength(16)
-    expect(choices[0]).toHaveLength(256)
+    expect(choices).toHaveLength(agentLimits.choices)
+    expect(choices[0]).toHaveLength(agentLimits.name)
   })
 })
 
@@ -187,7 +191,7 @@ describe("an agent's detail", () => {
   it("never leaves a request unlisted when subagents fill every place", () => {
     const binding: Binding = { agent: "claude", sessionId: "s", instance: null }
     const base = { agent: "claude", sessionId: "s", instance: null, startedAt: 1 } as const
-    const running: ActivityEvent[] = Array.from({ length: 32 }, (_, index) => ({
+    const running: ActivityEvent[] = Array.from({ length: agentLimits.subagents }, (_, index) => ({
       ...base,
       type: "subagent-started",
       actor: `a${index}`,
@@ -200,14 +204,17 @@ describe("an agent's detail", () => {
         type: "attention-requested",
         requestId: "late:Bash:x",
         actor: "late",
-        toolName: "Bash",
+        toolName: "x".repeat(agentLimits.name + 50),
         kind: "permission",
         subject: null,
         choices: [],
       } satisfies ActivityEvent,
     ].reduce((state, event) => apply(state, binding, event) ?? state, started(0))
     const detail = agentDetail("t", binding, activity, null)
-    expect(detail.actors).toHaveLength(33)
+    const terminalId = "00000000-0000-4000-8000-000000000001"
+    expect(schema.safeParse({ ...detail, terminalId }).success).toBe(true)
+    expect(detail.actors).toHaveLength(agentLimits.actors)
+    expect(detail.requests[0]?.tool).toHaveLength(agentLimits.name)
     expect(detail.requests).toHaveLength(1)
     expect(detail.actors.map(({ ref }) => ref)).toContain(detail.requests[0]?.actor)
   })

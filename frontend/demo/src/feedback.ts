@@ -5,13 +5,13 @@ import type {
   FeedbackKind,
 } from "@novadeck/core/feedback"
 import type { Backend, TerminalKey } from "@novadeck/core/port"
-import { terminalKeyId } from "@novadeck/core/registry"
+import { terminalKeyId } from "@novadeck/core/terminals/registry"
 import type { Workspace } from "@novadeck/core/types"
 
+import type { DemoTurns } from "./agents/turns"
 import { demoHandle } from "./handles"
 import { chatAgent, terminalSlot } from "./samples"
-import { terminalOf } from "./terminals"
-import type { DemoTurns } from "./turns"
+import { terminalOf } from "./workspace"
 
 // The demo's feedback: what the footer's card and an agent window's "Ask @handle to write
 // feedback…" and its drafts use where the backend has one. It sends nothing anywhere.

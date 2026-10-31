@@ -11,8 +11,7 @@
   "exports": {
     ".": "./src/index.ts",
     "./server": "./src/server.ts",
-    "./http": "./src/http.ts",
-    "./app": "./src/app.ts"
+    "./http": "./src/http.ts"
   },
   "scripts": {
     "dev": "tsx watch --conditions=development src/cli.ts",

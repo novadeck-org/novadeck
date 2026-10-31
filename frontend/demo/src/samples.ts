@@ -1,6 +1,6 @@
+import { noTelemetry, setUsage, type Telemetry } from "@novadeck/core/agents/telemetry"
 import type { WorkspaceSeed } from "@novadeck/core/seed"
 import { sessionName } from "@novadeck/core/session-name"
-import { noTelemetry, setUsage, type Telemetry } from "@novadeck/core/telemetry"
 import type {
   AgentStatus,
   CanvasLayout,
@@ -29,7 +29,7 @@ const initialSession = "initial"
 // The sample transcript a demo terminal opens with, unless an agent runs in it.
 export type SampleOutput = "shell" | "server" | "tests" | "git" | "logs" | "build"
 // The agents the demo simulates, by program name.
-export const demoAgents = { claude: "Claude", codex: "Codex" } as const
+const demoAgents = { claude: "Claude", codex: "Codex" } as const
 export type DemoAgent = keyof typeof demoAgents
 
 export const demoAgent = (terminal: TerminalMetadata): DemoAgent | undefined =>
@@ -133,7 +133,7 @@ const outputs = new Map(samples.map(({ id, output }) => [id, output]))
 export const sampleOutput = (terminal: TerminalMetadata): SampleOutput =>
   outputs.get(terminalSlot(terminal.id)) ?? "shell"
 
-export const demoCanvasLayout = (projectId: string): CanvasLayout => ({
+const demoCanvasLayout = (projectId: string): CanvasLayout => ({
   geometry: Object.fromEntries(
     samples.map(({ id, x, y, height }) => [
       demoTerminalId({ projectId, workspaceSessionId: initialSession }, Number(id)),
@@ -151,7 +151,7 @@ const sample = (name: string): Project => ({ id: name, name, directory: `~/proje
 // The sample projects. In the agents demo the first two run the full set of agents; each
 // of the others has one agent in its first terminal, in a state of its own, so the
 // switcher shows every mark a project can have (see `projectAgents`); dotfiles runs none.
-export const initialProjects: Project[] = [
+const initialProjects: Project[] = [
   sample("storefront"),
   sample("api-service"),
   sample("docs-site"),
@@ -195,7 +195,7 @@ export const demoFinishes: readonly {
   },
 ]
 
-export const projectTerminals = (project: Project, withAgents = false): TerminalMetadata[] => {
+const projectTerminals = (project: Project, withAgents = false): TerminalMetadata[] => {
   const agents = withAgents && showcased.has(project.id)
   const single = withAgents ? projectAgents[project.id] : undefined
   return terminals.map((terminal) => ({
@@ -335,11 +335,11 @@ export const demoSeed = (now: number, agents = false): WorkspaceSeed => ({
   })),
 })
 
+// The command a plain demo shell stands for, which names nothing.
+const shellCommand = "zsh"
+
 // What the runner names a terminal by default (its `defaultTitle`): the program it was
 // opened to run, else "Terminal".
-// The command a plain demo shell stands for, which names nothing.
-export const shellCommand = "zsh"
-
 export const defaultName = (command?: string): string => {
   if (command === shellCommand) return "Terminal"
   const program = command?.trim().split(/\s+/)[0]?.split("/").pop()

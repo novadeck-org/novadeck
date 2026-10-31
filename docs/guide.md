@@ -111,7 +111,7 @@ name, updating as programs start and finish; the line stays empty when it is unk
 The runner reports each terminal's foreground process as its name and, on Linux, the
 process group leader's command line (`argv`); macOS reports only the name (the one the
 program was run by, not a versioned file a link points at, as Claude Code's `claude` is), and Windows
-reports none. `frontend/core/src/process.ts` turns that into a program name,
+reports none. `frontend/core/src/terminals/process.ts` turns that into a program name,
 resolving known Node CLIs from the script Node runs, so the Codex and Claude packages
 show as `codex` and `claude` while other Node programs stay `node`. Where the process
 cannot tell, as on Windows or for a Node CLI on macOS, a connected agent that reported
@@ -139,9 +139,9 @@ program starting or ending never replaces the header: a rename in progress, focu
 and the terminal switcher carry on. Claude and Codex have their own icons in
 `frontend/toolkit/src/icons/` and their own bodies beside the profiles, where
 their presentation can grow. To give another program its own look, add a profile
-entry, with its own body if needed, and a launcher entry in `frontend/core/src/process.ts` if it
+entry, with its own body if needed, and a launcher entry in `frontend/core/src/terminals/process.ts` if it
 runs as a Node script. Profiles are presentation only: per-program behaviour goes beside
-`programName` in `frontend/core/src/process.ts`, as `frontend/runner-adapter/src/resumable.ts` names the agents whose sessions resume.
+`programName` in `frontend/core/src/terminals/process.ts`, as `frontend/runner-adapter/src/terminals/resumable.ts` names the agents whose sessions resume.
 
 A terminal running an agent (Claude Code, Codex or Antigravity) has a **Chat** button in
 its window header wherever the backend reads the agents' transcripts

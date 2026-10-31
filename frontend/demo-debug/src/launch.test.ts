@@ -1,4 +1,4 @@
-import type { LaunchCues } from "@novadeck/demo/launch"
+import type { LaunchCues } from "@novadeck/demo/videos/launch"
 import { vi } from "vitest"
 
 import { launchGroups } from "./launch"
@@ -13,6 +13,8 @@ const cues = (): { [Name in keyof LaunchCues]: ReturnType<typeof fire> } => ({
   permission: fire(),
   plan: fire(),
   question: fire(),
+  command: fire(),
+  agyPlan: fire(),
   fail: fire(),
   finishOne: fire(),
   teammates: fire(),
@@ -53,6 +55,8 @@ describe("the debug panel's Launch group", () => {
       ["7 ·", "finishAll"],
       ["8a ·", "askReview"],
       ["8b ·", "showPlan"],
+      ["8c ·", "command"],
+      ["8d ·", "agyPlan"],
     ] as const
     expect(group!.actions).toHaveLength(order.length)
     const context = {} as DemoActionContext

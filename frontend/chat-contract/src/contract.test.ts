@@ -1,6 +1,8 @@
 import { readdirSync } from "node:fs"
 import { join } from "node:path"
 
+import { agentNames } from "@novadeck/protocol/harnesses"
+
 import { fixtures, type Fixture } from "./fixtures"
 import { chatItemsOf, renderChat, type Rendered } from "./pipeline"
 import { describe, expect, it } from "./test"
@@ -20,7 +22,7 @@ const run = (fixture: Fixture) => {
   const { conversations, skipped } = fixture.extract()
   const results = conversations.map((conversation): [string, Rendered] => [
     conversation.name,
-    renderChat(chatItemsOf(fixture.transcripts, conversation.lines), fixture.agent),
+    renderChat(chatItemsOf(fixture.harness, conversation.lines), fixture.harness),
   ])
   const whole = {
     golden: `${results
@@ -55,7 +57,7 @@ describe("the chat, from recorded transcripts", () => {
   })
 
   it("holds tool rows from every harness", () => {
-    for (const harness of ["claude", "codex", "agy"] as const) {
+    for (const harness of agentNames) {
       const rows = fixtures
         .filter((fixture) => fixture.harness === harness)
         .reduce((sum, fixture) => sum + run(fixture).toolRows, 0)
@@ -65,7 +67,7 @@ describe("the chat, from recorded transcripts", () => {
 
   it("keeps a golden for every fixture, and no other", () => {
     const folder = join(import.meta.dirname, "goldens")
-    const kept = (readdirSync(folder, { recursive: true }) as string[])
+    const kept = readdirSync(folder, { recursive: true, encoding: "utf8" })
       .map((file) => file.split("\\").join("/"))
       .filter((file) => file.endsWith(".txt"))
     expect(kept.toSorted()).toEqual(fixtures.map(({ golden }) => `${golden}.txt`).toSorted())

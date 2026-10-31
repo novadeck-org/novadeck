@@ -1,5 +1,6 @@
 import { transcript as transcriptOf } from "@novadeck/emulator/headless"
-import { hookShellSlackMs, type Install, type Model } from "@novadeck/harness-core/harness"
+import type { Install, Model } from "@novadeck/harness-core/harness"
+import { hookShellSlackMs } from "@novadeck/harness-core/hook-command"
 import type { AskAnswer, InboxEntry } from "@novadeck/protocol"
 import type {
   AgentDetail,
@@ -34,14 +35,15 @@ import { harnesses } from "../harnesses/registry.js"
 import { type DoorbellOptions } from "../messaging/doorbell.js"
 import { Feedback } from "../messaging/feedback.js"
 import { Inbox, type InboxRecords } from "../messaging/inbox.js"
-import { Messaging, type AgentsAnswer, type SendAnswer } from "../messaging/messaging.js"
+import { Messaging } from "../messaging/messaging.js"
 import type { MessageRecords } from "../messaging/records.js"
+import type { AgentsAnswer, SendAnswer } from "../messaging/sending.js"
 import type { Describer } from "../murmur/describer.js"
 import { inherited } from "../shell/inherited.js"
 import type { InstalledShell } from "../shell/install.js"
 import { type Ack, type Call } from "../shell/reports.js"
 import type { HintFacts } from "../voice/hint.js"
-import { type AnswerOptions } from "./answers.js"
+import { type AnswersOptions } from "./answers.js"
 import { Approvals } from "./approvals.js"
 import { Bindings } from "./binding/facts.js"
 import { Reports } from "./binding/reports.js"
@@ -53,28 +55,28 @@ import { type CloseAnswer } from "./closes.js"
 import { coalesced } from "./coalesce.js"
 import { expectedAgent } from "./commands.js"
 import { Companion } from "./companion.js"
-import { forgetPrompts, markPrompt, murmurHost } from "./describing.js"
+import { Murmur, type MurmurTimes } from "./descriptions.js"
 import { type DialogsOptions } from "./dialogs.js"
+import { agentWorking } from "./doorbell-host.js"
 import { restored } from "./interrupted.js"
 import { Launcher, startedIn, startFailed } from "./launching.js"
-import { Murmur, type MurmurTimes } from "./murmur.js"
+import { forgetPrompts, markPrompt, murmurHost } from "./murmur-host.js"
 import { Names } from "./names.js"
-import { openedWith, renamed as renamedTo, summaryTitle, unnamed, type Naming } from "./naming.js"
 import { noNudges } from "./nudges.js"
 import { OpenRequests } from "./opens.js"
-import { TerminalPeers } from "./peers.js"
+import { TerminalPeers } from "./peers-host.js"
 import type { Record } from "./record.js"
-import { hasRun, type TerminalRecords } from "./records.js"
 import { createTranscriptRedactor, type TranscriptRedactor } from "./redaction.js"
 import { restoredSeparator } from "./restored.js"
 import { cancelResume, Claims, restartedTask } from "./resumes.js"
-import { agentWorking } from "./ringing.js"
 import { Sampler, shellProcess } from "./sampling.js"
+import { hasRun, type TerminalRecords } from "./saved-terminals.js"
 import { Saves } from "./saving.js"
 import type { TranscriptSealer } from "./sealing.js"
 import { Streams } from "./streams.js"
 import { savedSummaryOf, summaryOf, type AgentSummary } from "./summary.js"
-import { transcriptChanges } from "./transcripts.js"
+import { openedWith, renamed as renamedTo, summaryTitle, unnamed, type Naming } from "./titles.js"
+import { interruptionsOf, transcriptChanges } from "./transcripts.js"
 import { Typing } from "./typing.js"
 
 export type TerminalOptions = {
@@ -162,7 +164,7 @@ export type TerminalOptions = {
   /** How interrupts wait, as in some tests. */
   interrupts?: InterruptOptions
   /** How answers the chat gives agents' dialogs are pressed, and how dialogs are read, with their waits, as in some tests. */
-  answers?: AnswerOptions & DialogsOptions
+  answers?: AnswersOptions & DialogsOptions
   /**
    * Where a harness lives on this machine, which says how it may start with a task; a
    * harness counts as having none when omitted.
@@ -231,7 +233,7 @@ const alive = (pid: string): boolean => {
 // console closes, as they do on its CTRL_CLOSE_EVENT, saving what they were writing, in
 // milliseconds: within the five seconds Windows gives them. What is left of the terminal's
 // tree then, as a hook's shell in a console of its own, is ended. Shorter as the runner
-// shuts down, which the app gives five seconds in all (host/src/main/runner.ts).
+// shuts down, which the app gives five seconds in all (apps/desktop/src/main/runner.ts).
 const treeGraceMs = 3_000
 const shutdownTreeGraceMs = 1_000
 
@@ -257,7 +259,7 @@ export class Terminals {
   private readonly pendingOwners = new Map<string, Set<{ released: boolean }>>()
   /** Agents' requests for a new terminal, on their way to the client. */
   private readonly opens = new OpenRequests()
-  /** Agents' asks to close a terminal, on their way to the client that asks the person. */
+  /** Agents' requests to close a terminal, on their way to the client that asks the person. */
   private readonly confirms = new Approvals()
   /** Samples running terminals' foreground processes. */
   private readonly sampler: Sampler<Record>
@@ -1446,7 +1448,7 @@ export class Terminals {
     this.opens.answer(answer, ownerId)
   }
 
-  /** Agents' asks to close a terminal or lead one, for the client to approve with the person. */
+  /** Agents' requests to close a terminal or lead one, for the client to approve with the person. */
   approvals(ownerId: string, signal?: AbortSignal): AsyncGenerator<Approval> {
     if (this.stopping) throw new DomainError("CLOSING")
     return this.confirms.follow(ownerId, signal)
@@ -1496,7 +1498,7 @@ export class Terminals {
     signal?.addEventListener("abort", abort, { once: true })
     if (signal?.aborted) reader.abort()
     try {
-      yield* transcriptChanges(path, source.items, reader.signal)
+      yield* transcriptChanges(path, source.items, reader.signal, interruptionsOf(record, native))
     } finally {
       signal?.removeEventListener("abort", abort)
       reader.abort()

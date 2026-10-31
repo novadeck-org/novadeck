@@ -25,12 +25,14 @@ documentation when behavior changes.
 `pnpm format` and `pnpm lint` cover the relay's Rust in `backend/relay` too, as CI
 does, and `pnpm lint` checks atlas's anchors (`pnpm --filter @novadeck/atlas check`).
 
-The budgets of `backend/runner/src/terminals/manager.ts` only go down: `scripts/ratchet/manager.test.ts`
-holds its lines and the methods of its `Terminals` class to the budgets in
-`scripts/ratchet/manager.json`. Put new behaviour in a sibling module under `terminals/`,
+The budgets of the hub files, `backend/runner/src/terminals/manager.ts` and
+`backend/runner/src/messaging/messaging.ts`, only go down: `scripts/ratchet/ratchet.test.ts`
+holds each file's lines and the methods of its class (`Terminals`, `Messaging`) to the budgets in
+`scripts/ratchet/manager.json` and `scripts/ratchet/messaging.json`. Put new behaviour in a
+sibling module of the hub, under `terminals/` or `messaging/`,
 and lower a budget when the test asks: it lets the file sit a little under its budget, and
 fails once a change, such as an extraction, leaves it well under. A change that touches neither
-`manager.ts` nor its budgets only prints what's wrong; the next change to them is held to it.
+a hub file nor its budgets only prints what's wrong; the next change to them is held to it.
 
 ## Pull Requests
 

@@ -13,15 +13,15 @@ import {
 // Unread ends by session context, then terminal id, as the app keeps them.
 type Unread = Readonly<Record<string, Readonly<Record<string, "unread" | "failed">>>>
 const noUnread: Unread = {}
-const projectStatus = (project: WorkspaceProject, unread: Unread, items: InboxRow[] = []) =>
-  statusOf(project, (session, id) => unread[session]?.[id], items, now)
-const projectStatuses = (projects: WorkspaceProject[], unread: Unread, items: InboxRow[] = []) =>
-  statusesOf(projects, (session, id) => unread[session]?.[id], items, now)
+const projectStatus = (project: WorkspaceProject, unread: Unread, rows: InboxRow[] = []) =>
+  statusOf(project, (session, id) => unread[session]?.[id], rows, now)
+const projectStatuses = (projects: WorkspaceProject[], unread: Unread, rows: InboxRow[] = []) =>
+  statusesOf(projects, (session, id) => unread[session]?.[id], rows, now)
 
 const now = 1_000_000
 
-// An item of this terminal in the Inbox, as the backend lists it.
-const itemOf = (
+// An Inbox row of this terminal, as the backend lists it.
+const rowOf = (
   projectId: string,
   terminal: TerminalMetadata,
   content: Pick<InboxRow, "kind"> & Record<string, unknown>,
@@ -44,8 +44,8 @@ const itemOf = (
     ...content,
     ...extra,
   }) as InboxRow
-const askItem = (projectId: string, terminal: TerminalMetadata, type: "text" | "action") =>
-  itemOf(projectId, terminal, {
+const askRow = (projectId: string, terminal: TerminalMetadata, type: "text" | "action") =>
+  rowOf(projectId, terminal, {
     kind: "ask",
     ask: {
       subject: "Which one?",
@@ -125,23 +125,23 @@ describe("A project's status", () => {
     it("counts the Inbox's needs as its tabs mark them: an ask a question, an action needs you", () => {
       const asking = running(1, {})
       const signing = running(2, {})
-      expect(projectStatus(project("p", [asking]), noUnread, [askItem("p", asking, "text")])).toBe(
+      expect(projectStatus(project("p", [asking]), noUnread, [askRow("p", asking, "text")])).toBe(
         "ask",
       )
       expect(
         projectStatus(project("p", [asking, signing]), noUnread, [
-          askItem("p", asking, "text"),
-          askItem("p", signing, "action"),
+          askRow("p", asking, "text"),
+          askRow("p", signing, "action"),
         ]),
       ).toBe("unblock")
       expect(
-        projectStatus(project("p", [signing]), noUnread, [askItem("p", signing, "action")]),
+        projectStatus(project("p", [signing]), noUnread, [askRow("p", signing, "action")]),
       ).toBe("unblock")
       // A need counts while the agent works on, as its tab's mark does.
       const working = running(3, { working: true })
-      expect(
-        projectStatus(project("p", [working]), noUnread, [askItem("p", working, "text")]),
-      ).toBe("ask")
+      expect(projectStatus(project("p", [working]), noUnread, [askRow("p", working, "text")])).toBe(
+        "ask",
+      )
     })
 
     it("reads each terminal as its tab does: an agent that works again is running, not failed", () => {

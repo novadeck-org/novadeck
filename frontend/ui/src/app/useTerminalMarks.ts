@@ -1,23 +1,17 @@
-import {
-  nextLimitReset,
-  noInbox,
-  type Inbox,
-  type InboxRow,
-  type TerminalAt,
-} from "@novadeck/core/inbox"
-import { inboxMarks, type InboxMarks } from "@novadeck/core/inbox-marks"
+import { nextLimitReset, noInbox, type Inbox, type InboxRow } from "@novadeck/core/inbox"
+import { inboxMarks } from "@novadeck/core/inbox/marks"
+import type { InboxMarks } from "@novadeck/core/terminals/ending"
+import type { TerminalKey } from "@novadeck/core/types"
 import { useEffect, useState } from "react"
 
 import { useStoreSelector } from "./controller/useStoreSelector"
+import { sameItems } from "./selectors"
 
-const sameItems = (a: readonly InboxRow[], b: readonly InboxRow[]): boolean =>
-  a.length === b.length && a.every((item, index) => item === b[index])
-
-// The time the limits among `items` are judged by, moved on once the next one resets (which
+// The time the limits among `rows` are judged by, moved on once the next one resets (which
 // makes its terminal an Unblock) though nothing else changes.
-export const useLimitClock = (items: readonly InboxRow[]): number => {
+export const useLimitClock = (rows: readonly InboxRow[]): number => {
   const [now, setNow] = useState(() => Date.now())
-  const resetsAt = nextLimitReset(items, now)
+  const resetsAt = nextLimitReset(rows, now)
   useEffect(() => {
     if (resetsAt === undefined) return undefined
     const timer = setTimeout(() => setNow(Date.now()), Math.max(0, resetsAt - Date.now()) + 50)
@@ -30,7 +24,7 @@ const none: readonly InboxRow[] = []
 
 // Follows the raw Inbox for one terminal: it re-renders only when that terminal's own items
 // change, and again when one of its limits resets (which makes it an Unblock).
-export const useTerminalMarks = (inbox: Inbox | undefined, at: TerminalAt): InboxMarks => {
+export const useTerminalMarks = (inbox: Inbox | undefined, at: TerminalKey): InboxMarks => {
   const { projectId, workspaceSessionId, terminalId } = at
   const items = useStoreSelector(
     (inbox ?? noInbox).state,

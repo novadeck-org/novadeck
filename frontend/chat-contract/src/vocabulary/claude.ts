@@ -1,4 +1,4 @@
-import type { Conversation } from "../fixtures"
+import type { Written } from "../fixtures"
 
 // Synthetic Claude Code records (see README.md): the JSONL lines Claude Code writes.
 
@@ -55,7 +55,7 @@ const orphan = (text: string): object => ({
 
 const novadeck = "mcp__plugin_novadeck_novadeck__"
 
-export const claude: readonly { name: string; records: readonly object[] }[] = [
+export const claudeVocabulary: readonly Written[] = [
   {
     name: "files-and-shell",
     records: [
@@ -195,9 +195,3 @@ export const claude: readonly { name: string; records: readonly object[] }[] = [
     ],
   },
 ]
-
-export const claudeVocabulary = (): Conversation[] =>
-  claude.map(({ name, records }) => ({
-    name,
-    lines: records.map((record) => JSON.stringify(record)),
-  }))

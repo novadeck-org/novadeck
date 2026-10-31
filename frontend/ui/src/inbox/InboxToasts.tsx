@@ -13,9 +13,9 @@ import { toastText, type ToastText } from "./toast-text"
 
 // What shows the Inbox's toasts: one per terminal.
 export type ToastBoard = {
-  // Shows the item's toast, replacing (in place, moved to the front) any its terminal shows.
-  readonly show: (item: InboxRow) => void
-  // Takes the terminal's toast away if it still shows that item.
+  // Shows the row's toast, replacing (in place, moved to the front) any its terminal shows.
+  readonly show: (row: InboxRow) => void
+  // Takes the terminal's toast away if it still shows that row.
   readonly close: (terminalId: string, itemId: string) => void
 }
 
@@ -35,15 +35,15 @@ export type ShowWaiting = {
 
 // What shows the toasts of what waits to open.
 export type ShowBoard = {
-  // Shows the item's toast, replacing its older one.
+  // Shows the row's toast, replacing its older one.
   readonly show: (waiting: ShowWaiting) => void
-  // Takes the item's toast away, if it still shows.
+  // Takes the row's toast away, if it still shows.
   readonly close: (itemId: string) => void
 }
 
-// A toast is an Inbox item's, or an agent's wish to show something.
+// A toast is an Inbox row's, or an agent's wish to show something.
 type Toast =
-  | { readonly kind: "inbox"; readonly item: InboxRow }
+  | { readonly kind: "inbox"; readonly row: InboxRow }
   | { readonly kind: "show"; readonly waiting: ShowWaiting }
 
 // What the pill past the shown toasts says: `count` toasts are hidden, `inbox` of them the
@@ -51,7 +51,7 @@ type Toast =
 export const moreWords = (count: number, inbox: number): string =>
   inbox > 0 ? `${inbox} more in the Inbox` : `${count} more`
 
-// The key of an item's toast, apart from the terminals' keys of the Inbox's.
+// The key of a row's toast, apart from the terminals' keys of the Inbox's.
 const showKey = (itemId: string): string => `show:${itemId}`
 
 // One toast: the type's icon in its tone; who wants what, and how long ago; the ask, a
@@ -87,15 +87,15 @@ const ToastCard = ({
   </div>
 )
 
-// An Inbox item's toast, in the Inbox's own words.
+// An Inbox row's toast, in the Inbox's own words.
 const InboxToast = ({
-  item,
+  row,
   now,
 }: {
-  readonly item: InboxRow
+  readonly row: InboxRow
   readonly now: number
 }): React.JSX.Element => {
-  const text = toastText(item, now)
+  const text = toastText(row, now)
   return <ToastCard text={text} Icon={icons[text.type]} />
 }
 
@@ -114,11 +114,11 @@ const showText = (waiting: ShowWaiting, now: number): ToastText => ({
   project: waiting.projectName,
 })
 
-// The toasts of the Inbox's items that need the person while the app has their focus: it
+// The toasts of the Inbox's rows that need the person while the app has their focus: it
 // follows the Inbox by `follow` (the app's `watchInboxToasts`), which decides what rings and
 // when on the board it's given, and draws them as a stack over the header's right end. A
-// click on one shows the Inbox on its item; the pill that counts the rest shows the Inbox.
-// Closing a toast or letting it run out leaves its item in the Inbox.
+// click on one shows the Inbox on its row; the pill that counts the rest shows the Inbox.
+// Closing a toast or letting it run out leaves its row in the Inbox.
 export const InboxToasts = ({
   follow,
   followShows,
@@ -136,12 +136,12 @@ export const InboxToasts = ({
   const { open, now } = useInboxContext()
   const toasts = useMemo(() => createToasts<Toast>(), [])
   useEffect(() => {
-    // The item each terminal's toast shows.
+    // The row each terminal's toast shows.
     const shown = new Map<string, string>()
     const board: ToastBoard = {
-      show: (item) => {
-        shown.set(item.source.terminalId, item.id)
-        toasts.show(item.source.terminalId, { kind: "inbox", item })
+      show: (row) => {
+        shown.set(row.source.terminalId, row.id)
+        toasts.show(row.source.terminalId, { kind: "inbox", row })
       },
       close: (terminalId, itemId) => {
         if (shown.get(terminalId) !== itemId) return
@@ -168,12 +168,12 @@ export const InboxToasts = ({
       onSelect={(toast, { keyboard }) => {
         if (toast.kind === "show") return showTerminal(toast.waiting.terminalId)
         showInbox()
-        open(toast.item.id)
+        open(toast.row.id)
         // From the keyboard, on to the sheet that opens, as from a row.
         if (keyboard) focusSheetSoon()
       }}
       onMore={showInbox}
-      fannedLabel={(count) => {
+      spreadLabel={(count) => {
         // What is past the shown few, the Inbox's own counted apart from what agents want to show.
         const { order, entries } = toasts.view.snapshot()
         const inbox = order
@@ -186,7 +186,7 @@ export const InboxToasts = ({
         toast.kind === "show" ? (
           <ToastCard text={showText(toast.waiting, now)} Icon={Eye} />
         ) : (
-          <InboxToast item={toast.item} now={now} />
+          <InboxToast row={toast.row} now={now} />
         )
       }
     </ToastRegion>

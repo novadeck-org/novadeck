@@ -3,6 +3,7 @@ import { connect } from "node:net"
 import { type Report } from "@novadeck/harness-core/report"
 import { vi } from "vitest"
 
+import { logs, useLogger } from "../log.js"
 import { describe, expect, it } from "../test.js"
 import { askMs } from "./hook.js"
 import {
@@ -41,7 +42,7 @@ const send = (endpoint: string, line: string, { end = true } = {}) =>
   })
 
 const token = "0123456789abcdef".repeat(3)
-const call = { type: "present", terminalId: "t", token, request: { file: { path: "a.md" } } }
+const call = { type: "show", terminalId: "t", token, request: { file: { path: "a.md" } } }
 
 // A relay's connection: its first line, then the lines it carries; resolves to every
 // line that came back by the time the endpoint closed it, or `waitMs` passed.
@@ -212,7 +213,7 @@ describe("relay sessions", () => {
       handlers({
         call: (asked) => {
           calls.push(asked)
-          if (asked.type === "present") return Promise.reject(new Error("broken"))
+          if (asked.type === "show") return Promise.reject(new Error("broken"))
           return asked.type === "open" && asked.request.command === "claude"
             ? Promise.resolve({ ok: true, terminalId: "u", cwd: "/work" })
             : new Promise(() => {})
@@ -235,7 +236,7 @@ describe("relay sessions", () => {
         told(1, "Opened a new terminal in /work.", false),
         told(2, unansweredCalls.open.reason + nudge, true),
         told(3, "Novadeck couldn't close the terminal." + nudge, true),
-        told(4, unansweredCalls.present.reason + nudge, true),
+        told(4, unansweredCalls.show.reason + nudge, true),
       ]),
     )
     const from = { terminalId: "t", token }
@@ -537,6 +538,61 @@ describe("relay hooks", () => {
     // hook began, and the runner leaves it half a second to print the answer.
     expect(asked[0]!.deadline).toBe(seq + askMs - 500)
     expect(asked[1]!.deadline).toBe(late + askMs - 500)
+  })
+
+  it("logs an answer that came after the wait, and never acknowledges it", async ({
+    resources,
+  }) => {
+    const lines: { evt: string; data?: unknown }[] = []
+    const before = logs.current()
+    const note = (evt: string, _msg?: string, detail?: { data?: unknown }) => {
+      lines.push({ evt, data: detail?.data })
+    }
+    useLogger({
+      for: () => ({ debug: note, info: note, warn: note, error: note, fatal: note }),
+      flush: () => {},
+      close: () => {},
+    })
+    resources.defer(() => useLogger(before))
+    const acked: Ack[] = []
+    const answer = { leaseId: lease, stdout: "a notice\n" }
+    const reports = await listenForReports(
+      handlers({
+        ask: () => new Promise((resolve) => setTimeout(() => resolve(answer), 300)),
+        ack: (ack) => acked.push(ack),
+      }),
+      { answerMs: 100 },
+    )
+    resources.defer(() => reports.close())
+    // The relay's acknowledgement of a lease it never heard is ignored.
+    await expect(
+      relay(reports.endpoint, [hook({ seq: Date.now() }), JSON.stringify({ ack: lease })]),
+    ).resolves.toEqual([unheard])
+    await vi.waitFor(() => expect(lines.map(({ evt }) => evt)).toEqual(["reports.hook-late"]))
+    expect(lines[0]!.data).toEqual({
+      terminalId: "t",
+      agent: "claude",
+      event: "Stop",
+      lateMs: expect.any(Number),
+      leased: true,
+    })
+    expect(acked).toEqual([])
+  })
+
+  it("keeps the connection for the acknowledgement of a lease that holds only a notice", async ({
+    resources,
+  }) => {
+    const acked: Ack[] = []
+    // A lease with no messages in it: its notice alone is what the hook prints.
+    const notice = { leaseId: lease, stdout: '{"additionalContext":"a notice"}\n' }
+    const reports = await listenForReports(
+      handlers({ ask: () => Promise.resolve(notice), ack: (ack) => acked.push(ack) }),
+    )
+    resources.defer(() => reports.close())
+    await expect(
+      relay(reports.endpoint, [hook({ seq: Date.now() }), JSON.stringify({ ack: lease })]),
+    ).resolves.toEqual([notice])
+    expect(acked).toEqual([{ terminalId: "t", token, leaseId: lease }])
   })
 })
 

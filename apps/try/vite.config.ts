@@ -9,7 +9,7 @@ import tailwindcss from "@tailwindcss/vite"
 import react from "@vitejs/plugin-react"
 import { defineConfig } from "vite"
 
-import { connect, connectSourcesPlaceholder, headerRules, hidden } from "./src/deploy"
+import { connect, headerRules, hidden } from "./src/deploy"
 
 // The visitor build, for a website: the demo without its debug panel. The mode is `try`
 // (see the scripts in package.json); how the build is deployed is src/deploy.ts.
@@ -30,7 +30,7 @@ export default defineConfig({
   plugins: [
     tailwindcss(),
     react(),
-    contentSecurityPolicy({ placeholder: connectSourcesPlaceholder, connect }),
+    contentSecurityPolicy({ connect }),
     searchVisibility({ hidden }),
     bundleChecks({
       // One utility from each folder the UI's stylesheet scans: see the build kit.
@@ -44,9 +44,4 @@ export default defineConfig({
     }),
     hostingHeaders({ rules: headerRules }),
   ],
-  resolve: {
-    alias: [
-      { find: /^react$/, replacement: resolve(import.meta.dirname, "node_modules/react/index.js") },
-    ],
-  },
 })

@@ -1,4 +1,4 @@
-import type { UpdateOffer } from "@novadeck/core/update"
+import type { UpdateOffer } from "@novadeck/core/desktop/update"
 
 import { describe, expect, it } from "../test"
 import { watchedAfter } from "./UpdateProgress"

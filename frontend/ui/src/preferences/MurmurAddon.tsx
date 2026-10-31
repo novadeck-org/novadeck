@@ -1,12 +1,12 @@
-import { refusalText, type Refusal } from "@novadeck/core/addon"
-import { formatSize, stepLabel } from "@novadeck/core/addon-format"
+import { refusalText, type Refusal } from "@novadeck/core/addons/addon"
+import { formatSize, stepLabel } from "@novadeck/core/addons/format"
 import {
   MURMUR_NAME,
   murmurChecking,
   unchecked,
   type Murmur,
   type MurmurState,
-} from "@novadeck/core/murmur"
+} from "@novadeck/core/addons/murmur"
 import { ConfirmDialog } from "@novadeck/toolkit/ConfirmDialog"
 import { Switch } from "@novadeck/toolkit/Switch"
 import { useState } from "react"

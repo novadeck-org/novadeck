@@ -10,7 +10,9 @@ import { demoVariants } from "@novadeck/demo/variants"
 import { Bug, ChevronDown, ChevronRight, ChevronUp, RotateCcw, Search, X } from "lucide-react"
 import { useEffect, useRef, useState, useSyncExternalStore, type ComponentType } from "react"
 
-import { portableGroup } from "./portable"
+import type { DemoLaunch, DemoShell } from "./debug-demo"
+import { portableGroup } from "./desktop/portable"
+import { uninstallGroup } from "./desktop/uninstall"
 import { shellGroups } from "./shell-groups"
 import {
   demoSections,
@@ -21,8 +23,6 @@ import {
   type DemoStates,
   type DemoTarget,
 } from "./types"
-import { uninstallGroup } from "./uninstall"
-import type { DemoLaunch, DemoShell } from "./with-debug"
 
 // The connection chip's tone: none while connected.
 const connectionTone = (connection: BackendConnectionState) =>
@@ -83,7 +83,7 @@ const matches = (words: readonly string[], group: DemoActionGroup, action: DemoA
 }
 
 // What the debug panel may ask of the workspace.
-export type DebugPanelProps = {
+type DebugPanelProps = {
   // Adds a terminal to the current session and returns its key.
   readonly addTerminal: () => TerminalKey
   readonly startFresh: () => void

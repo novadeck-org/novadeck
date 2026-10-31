@@ -1,15 +1,16 @@
 import { existsSync } from "node:fs"
-import { chmod, readdir, readFile, rm, stat, writeFile } from "node:fs/promises"
+import { chmod, mkdir, readdir, readFile, rm, stat, writeFile } from "node:fs/promises"
 import { join } from "node:path"
 
 import type { MurmurState } from "@novadeck/protocol"
 import { vi } from "vitest"
 
 import { ActivityTracker } from "../engines/activity.js"
-import { readManifest } from "../engines/manifest.js"
+import { readManifest, type Artifact } from "../engines/manifest.js"
 import type { Launch } from "../engines/server.js"
 import { logs, useLogger } from "../log.js"
 import { describe, expect, it } from "../test.js"
+import { fakeClock } from "../testing/clock.js"
 import {
   arc,
   fakeLaunch,
@@ -37,6 +38,8 @@ const setup = async (
   options: {
     devices?: FakeDevice[]
     behaviour?: string
+    // The model to install, in place of one made with `behaviour`.
+    model?: Artifact
     engine?: false | string | undefined
     source?: string
     store?: WorkspaceStore
@@ -58,11 +61,11 @@ const setup = async (
   const directory = options.directory ?? (await folder(resources))
   const manifest =
     options.engine === false ? undefined : (options.engine ?? (await llamaArchive(resources)))
-  const murmur = new Murmur(store, {
+  const murmur = new Murmur(store.settings, {
     engine: manifest,
     ...(options.source !== undefined && { source: options.source }),
     directory,
-    model: await modelFile(resources, options.behaviour),
+    model: options.model ?? (await modelFile(resources, options.behaviour)),
     launch: fakeLaunch(options.devices ?? [arc, nvidia, processor]),
     retryMs: 20,
     backoffMs: 60,
@@ -170,8 +173,8 @@ describe("installing murmur", () => {
       failure: null,
       check: { device: arc.name, integrated: true },
     })
-    expect(store.murmurSettings()).toEqual({ enabled: true })
-    expect(store.murmurCheck()).toMatchObject({ device: arc.name })
+    expect(store.settings.murmurSettings()).toEqual({ enabled: true })
+    expect(store.settings.murmurCheck()).toMatchObject({ device: arc.name })
   })
 
   it("fails over to the next GPU when the integrated one cannot run the model", async ({
@@ -207,8 +210,8 @@ describe("installing murmur", () => {
       wanted: true,
     })
     expect(await readdir(directory)).toEqual([])
-    expect(store.murmurCheck()).toBeNull()
-    expect(store.murmurUnsupported()?.reason).toBe(murmur.state().unsupported?.reason)
+    expect(store.settings.murmurCheck()).toBeNull()
+    expect(store.settings.murmurUnsupported()?.reason).toBe(murmur.state().unsupported?.reason)
     expect(murmur.state().unsupported?.source).toBe("check")
     await expect(murmur.describe(digest, { terminal: "t" })).resolves.toBeUndefined()
   })
@@ -229,7 +232,7 @@ describe("installing murmur", () => {
       },
     })
     expect(await readdir(directory)).toEqual([])
-    expect(store.murmurCheck()).toBeNull()
+    expect(store.settings.murmurCheck()).toBeNull()
     expect(murmur.state().installing).toBeNull()
   })
 
@@ -243,7 +246,7 @@ describe("installing murmur", () => {
 
     expect(murmur.state()).toMatchObject({ installed: true, check: null, unsupported: null })
     expect(murmur.state().failure).not.toBeNull()
-    expect(store.murmurUnsupported()).toBeNull()
+    expect(store.settings.murmurUnsupported()).toBeNull()
     expect(await readdir(join(directory, "models"))).not.toEqual([])
   })
 
@@ -255,7 +258,7 @@ describe("installing murmur", () => {
 
     expect(murmur.state()).toMatchObject({ installed: true, check: null, unsupported: null })
     expect(murmur.state().failure).not.toBeNull()
-    expect(store.murmurUnsupported()).toBeNull()
+    expect(store.settings.murmurUnsupported()).toBeNull()
 
     // The same files pass once the machine has the time.
     const calm = await setup(resources, { store, directory, engine: manifest, behaviour: "late" })
@@ -271,7 +274,7 @@ describe("installing murmur", () => {
 
     expect(murmur.state()).toMatchObject({ installed: true, check: null, unsupported: null })
     expect(murmur.state().failure).not.toBeNull()
-    expect(store.murmurUnsupported()).toBeNull()
+    expect(store.settings.murmurUnsupported()).toBeNull()
     expect(await readdir(join(directory, "models"))).not.toEqual([])
   })
 
@@ -282,14 +285,14 @@ describe("installing murmur", () => {
 
     expect(murmur.state()).toMatchObject({ installed: true, unsupported: null })
     expect(murmur.state().failure).not.toBeNull()
-    expect(store.murmurUnsupported()).toBeNull()
+    expect(store.settings.murmurUnsupported()).toBeNull()
   })
 
   it("stays retryable when the engine crashes during the check", async ({ resources }) => {
     const { murmur, store } = await installed(resources, { behaviour: "crash" })
 
     expect(murmur.state()).toMatchObject({ installed: true, unsupported: null })
-    expect(store.murmurUnsupported()).toBeNull()
+    expect(store.settings.murmurUnsupported()).toBeNull()
   })
 
   it("shows no Try again text when files stay beside a verdict, as when removing them failed", async ({
@@ -297,8 +300,8 @@ describe("installing murmur", () => {
   }) => {
     const first = await installed(resources)
     await first.murmur.close()
-    first.store.saveMurmurCheck(null)
-    first.store.saveMurmurUnsupported({
+    first.store.settings.saveMurmurCheck(null)
+    first.store.settings.saveMurmurUnsupported({
       reason: "No graphics device answered.",
       engine: (await readManifest(first.manifest))!.sha256,
     })
@@ -363,7 +366,7 @@ describe("installing murmur", () => {
       unsupported: null,
       check: { device: arc.name },
     })
-    expect(store.murmurUnsupported()).toBeNull()
+    expect(store.settings.murmurUnsupported()).toBeNull()
   })
 
   it("keeps the verdict through a Check again that is cancelled or fails, until a check passes", async ({
@@ -373,7 +376,7 @@ describe("installing murmur", () => {
       devices: [processor],
     })
     await murmur.close()
-    const verdict = store.murmurUnsupported()
+    const verdict = store.settings.murmurUnsupported()
     expect(verdict).not.toBeNull()
 
     // A Check again that cannot download: a failure to try again, the verdict standing.
@@ -381,19 +384,19 @@ describe("installing murmur", () => {
     await offline.murmur.install()
     await offline.murmur.settled()
     expect(offline.murmur.state().failure).not.toBeNull()
-    expect(store.murmurUnsupported()).toEqual(verdict)
+    expect(store.settings.murmurUnsupported()).toEqual(verdict)
     expect(offline.murmur.state().unsupported?.reason).toBe(verdict!.reason)
 
     // One cancelled as it starts.
     const cancelled = await setup(resources, { store, directory, engine: manifest, devices: [arc] })
     await cancelled.murmur.install()
     await cancelled.murmur.cancel()
-    expect(store.murmurUnsupported()).toEqual(verdict)
+    expect(store.settings.murmurUnsupported()).toEqual(verdict)
 
     // One that passes clears it.
     await cancelled.murmur.install()
     await cancelled.murmur.settled()
-    expect(store.murmurUnsupported()).toBeNull()
+    expect(store.settings.murmurUnsupported()).toBeNull()
     expect(cancelled.murmur.state()).toMatchObject({
       unsupported: null,
       check: { device: arc.name },
@@ -419,7 +422,7 @@ describe("installing murmur", () => {
     const store = new WorkspaceStore()
     resources.defer(() => store.close())
     const directory = await folder(resources)
-    const murmur = new Murmur(store, {
+    const murmur = new Murmur(store.settings, {
       engine: await llamaArchive(resources),
       directory,
       model: await modelFile(resources),
@@ -437,7 +440,7 @@ describe("installing murmur", () => {
     await expect(murmur.install()).rejects.toMatchObject({ code: "CONFLICT" })
     expect(await readdir(directory)).toEqual([])
     // Nothing is stored: an app that sees hardware next time offers it again.
-    expect(store.murmurUnsupported()).toBeNull()
+    expect(store.settings.murmurUnsupported()).toBeNull()
   })
 
   it("is not Not available while the app and the install say nothing against it", async ({
@@ -496,8 +499,8 @@ describe("installing murmur", () => {
     // A check cut short (the runner went away during it): the downloads stand, no check.
     const first = await installed(resources, { store, directory, engine: manifest })
     await first.murmur.close()
-    store.saveMurmurCheck(null)
-    store.saveMurmurSettings({ enabled: null })
+    store.settings.saveMurmurCheck(null)
+    store.settings.saveMurmurSettings({ enabled: null })
     const unchecked = await setup(resources, { store, directory, engine: manifest })
     // Unchecked, it is not turned on.
     expect(unchecked.murmur.state()).toMatchObject({
@@ -527,7 +530,7 @@ describe("installed murmur that never passed its check", () => {
     // The downloads stand, and the check was cut short by the runner going away.
     const first = await installed(resources, { store, directory, engine: manifest })
     await first.murmur.close()
-    store.saveMurmurCheck(null)
+    store.settings.saveMurmurCheck(null)
 
     const { murmur } = await setup(resources, { store, directory, engine: manifest })
 
@@ -706,7 +709,7 @@ describe("uninstalling murmur", () => {
       wanted: false,
       check: null,
     })
-    expect(store.murmurCheck()).toBeNull()
+    expect(store.settings.murmurCheck()).toBeNull()
     await expect(murmur.describe(digest, { terminal: "t" })).resolves.toBeUndefined()
     await expect(import("node:fs/promises").then((fs) => fs.readdir(directory))).resolves.toEqual(
       [],
@@ -1035,22 +1038,19 @@ describe("a digest that takes too long to redact", () => {
       let finished = false
       // Only the deadline is controlled; the worker and its main-loop acknowledgement
       // stay real, without racing the host's timer cadence against 300 ms.
-      vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] })
-      try {
-        const job = context.murmur.describe(hanging, { terminal: "a" }).then((result) => {
-          finished = true
-          return result
-        })
-        await probe.observe()
-        expect(finished).toBe(false)
-        await vi.advanceTimersByTimeAsync(299)
-        expect(finished).toBe(false)
-        await vi.advanceTimersByTimeAsync(1)
-        expect(finished).toBe(true)
-        expect(await job).toBeUndefined()
-      } finally {
-        vi.useRealTimers()
-      }
+      const clock = fakeClock(resources, ["setTimeout", "clearTimeout"])
+      const job = context.murmur.describe(hanging, { terminal: "a" }).then((result) => {
+        finished = true
+        return result
+      })
+      await probe.observe()
+      expect(finished).toBe(false)
+      await vi.advanceTimersByTimeAsync(299)
+      expect(finished).toBe(false)
+      await vi.advanceTimersByTimeAsync(1)
+      expect(finished).toBe(true)
+      expect(await job).toBeUndefined()
+      await clock.restore()
       // Only that terminal is held off; another still gets a title.
       expect(
         await context.murmur.describe({ ...digest, project: "app" }, { terminal: "b" }),
@@ -1088,7 +1088,7 @@ describe("a GPU that went missing", () => {
 
     expect(listings).toBe(1)
     // A clean listing without the checked GPU: the check is dropped, and says why.
-    expect(context.store.murmurCheck()).toBeNull()
+    expect(context.store.settings.murmurCheck()).toBeNull()
     expect(context.murmur.state().failure).toMatch(/isn't there now/)
     // Losing the GPU is not the person turning murmur off: no titles are cleared.
     expect(cleared).toBe(0)
@@ -1297,7 +1297,7 @@ describe("a GPU that is gone", () => {
 
     expect(await context.murmur.describe(digest, { terminal: "t" })).toBeUndefined()
 
-    expect(context.store.murmurCheck()).toBeNull()
+    expect(context.store.settings.murmurCheck()).toBeNull()
     expect(context.murmur.state()).toMatchObject({ installed: true, check: null })
     expect(context.murmur.state().failure).toMatch(/device murmur was checked on isn't there now/)
   })
@@ -1472,7 +1472,7 @@ describe("what a failed install says", () => {
     expect(murmur.state().unsupported?.reason).not.toMatch(/\.\./)
     if (process.platform === "linux")
       expect(murmur.state().unsupported?.reason).toMatch(/Vulkan driver/)
-    expect(store.murmurUnsupported()).not.toBeNull()
+    expect(store.settings.murmurUnsupported()).not.toBeNull()
   })
 
   it("keeps a model downloaded earlier when a retry cannot load a library, and removes the engine", async ({
@@ -1504,8 +1504,8 @@ describe("what a failed install says", () => {
       failure: null,
       unsupported: { source: "check" },
     })
-    expect(store.murmurUnsupported()).not.toBeNull()
-    expect(store.murmurCheck()).toBeNull()
+    expect(store.settings.murmurUnsupported()).not.toBeNull()
+    expect(store.settings.murmurCheck()).toBeNull()
     // Only the model stays: the engine is gone.
     expect(await readdir(directory)).toEqual(["models"])
     expect(await modelOf(directory)).toBe(model)
@@ -1546,7 +1546,7 @@ describe("what a failed install says", () => {
       check: null,
     })
     // Not on without a check: the choice is back to none, so nothing updates the engine.
-    expect(store.murmurEnabledChoice()).toBeUndefined()
+    expect(store.settings.murmurEnabledChoice()).toBeUndefined()
     expect(await readdir(directory)).toEqual(["models"])
 
     // A new build forgets the verdict, and still fetches nothing: murmur was not on.
@@ -1577,7 +1577,7 @@ describe("what a failed install says", () => {
     await murmur.settled()
 
     expect(murmur.state()).toMatchObject({ kept: true, wanted: false })
-    expect(store.murmurEnabledChoice()).toBe(false)
+    expect(store.settings.murmurEnabledChoice()).toBe(false)
   })
 
   it("does not fetch the engine by itself while a check's verdict stands for it", async ({
@@ -1588,8 +1588,8 @@ describe("what a failed install says", () => {
     await first.murmur.close()
     for (const entry of await readdir(directory))
       if (entry !== "models") await rm(join(directory, entry), { recursive: true, force: true })
-    store.saveMurmurSettings({ enabled: true })
-    store.saveMurmurUnsupported({
+    store.settings.saveMurmurSettings({ enabled: true })
+    store.settings.saveMurmurUnsupported({
       reason: "No device.",
       engine: (await readManifest(manifest))?.sha256 ?? "",
     })
@@ -1665,7 +1665,7 @@ describe("what a failed install says", () => {
     expect(murmur.state().failure).not.toMatch(/\.\./)
     if (process.platform === "linux") expect(murmur.state().failure).toMatch(/Vulkan driver/)
     expect(murmur.state().unsupported).toBeNull()
-    expect(store.murmurUnsupported()).toBeNull()
+    expect(store.settings.murmurUnsupported()).toBeNull()
   })
 
   it("keeps an answer cut off by a crash an engine failure, never a verdict", async ({
@@ -1675,7 +1675,7 @@ describe("what a failed install says", () => {
 
     expect(murmur.state()).toMatchObject({ installed: true, check: null, unsupported: null })
     expect(murmur.state().failure).not.toBeNull()
-    expect(store.murmurUnsupported()).toBeNull()
+    expect(store.settings.murmurUnsupported()).toBeNull()
   })
 
   it("fails when the worker that prepares digests cannot start", async ({ resources }) => {
@@ -1752,7 +1752,6 @@ describe("the model file", () => {
     resources,
   }) => {
     const { directory } = await setup(resources)
-    const { mkdir } = await import("node:fs/promises")
     await mkdir(join(directory, "models"), { recursive: true })
     await writeFile(join(directory, "models", "old-model.gguf"), "old")
     await writeFile(join(directory, "models", "stale.gguf.part"), "partial")
@@ -1830,8 +1829,8 @@ describe("clearing titles", () => {
     // The runner closes right after the removal turned murmur off, while it goes on.
     const removing = await installed(resources)
     removing.murmur.watchCleared(() => (cleared += 1))
-    const save = removing.store.saveMurmurSettings.bind(removing.store)
-    removing.store.saveMurmurSettings = (change) => {
+    const save = removing.store.settings.saveMurmurSettings.bind(removing.store.settings)
+    removing.store.settings.saveMurmurSettings = (change) => {
       save(change)
       if (change.enabled === false) void removing.murmur.close()
     }
@@ -1995,4 +1994,69 @@ describe("a request too big for the context", () => {
       title: expect.any(String),
     })
   })
+})
+
+describe("a failure cut to the limit", () => {
+  // Each text is emoji, so a limit falls inside a pair whether `pad` makes the words before
+  // it an even or an odd number of units long: one of the two pads splits one.
+  const pads = ["", "x"]
+  const emoji = (count: number) => "😀".repeat(count)
+
+  it.for(pads)(
+    "keeps whole characters in an install failure (pad %j)",
+    async (pad, { resources }) => {
+      // A model whose source is a missing file named in emoji makes an error that names it,
+      // longer than the 1024 units a failure may hold. Nothing is made at that path, so no
+      // system's path limit stands in the way.
+      const model = {
+        url: join(await folder(resources), `${pad}${emoji(520)}`),
+        sha256: "0".repeat(64),
+        size: 1,
+      }
+      const { murmur } = await setup(resources, { model })
+
+      await murmur.install()
+      await murmur.settled()
+
+      const failure = murmur.state().failure!
+      expect(failure.length).toBeGreaterThan(1000)
+      expect(failure.length).toBeLessThanOrEqual(1024)
+      expect(Buffer.from(failure).toString()).toBe(failure)
+    },
+  )
+
+  it.for(pads)(
+    "keeps whole characters in the cause of a device's failure (pad %j)",
+    async (pad, { resources }) => {
+      const { murmur } = await installed(resources, {
+        behaviour: `fail:Vulkan0 fail:Vulkan1 said:error:${pad}${emoji(1000)}`,
+      })
+
+      const failure = murmur.state().failure!
+      expect(failure).toContain("did not finish")
+      expect(failure.length).toBeGreaterThan(600)
+      expect(Buffer.from(failure).toString()).toBe(failure)
+    },
+  )
+
+  it.for(pads)(
+    "keeps whole characters in what listing the devices said (pad %j)",
+    async (pad, { resources }) => {
+      const listing = fakeLaunch([arc, nvidia, processor])
+      const { murmur } = await installed(resources, {
+        launch: (program, args) =>
+          args.includes("--list-devices")
+            ? {
+                command: process.execPath,
+                args: ["-e", `console.error("error:${pad}" + "😀".repeat(400)); process.exit(1)`],
+              }
+            : listing(program, args),
+      })
+
+      const said = murmur.state().failure ?? murmur.state().unsupported?.reason
+      expect(said).toContain("could not list graphics devices")
+      expect(said!.length).toBeGreaterThan(300)
+      expect(Buffer.from(said!).toString()).toBe(said!)
+    },
+  )
 })

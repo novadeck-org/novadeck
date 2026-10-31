@@ -150,7 +150,7 @@ beforeEach(() => {
 afterEach(() => void vi.useRealTimers())
 
 describe("pings for what needs the person", () => {
-  context("when a new item needs them while Novadeck is in the background", () => {
+  context("when a new row needs them while Novadeck is in the background", () => {
     it("sends one notification once the grace has passed", () => {
       const { set, shown, stop } = setup()
       set([request("a", "Bash", "pnpm test")])
@@ -168,7 +168,7 @@ describe("pings for what needs the person", () => {
       stop()
     })
 
-    it("sends none for an item that is answered or withdrawn within the grace", () => {
+    it("sends none for a row that is answered or withdrawn within the grace", () => {
       const { set, shown, stop } = setup()
       set([request("a", "Bash", "ls")])
       vi.advanceTimersByTime(1000)
@@ -217,7 +217,7 @@ describe("pings for what needs the person", () => {
       stop()
     })
 
-    it("sends one for each item, once, however often the Inbox changes meanwhile", () => {
+    it("sends one for each row, once, however often the Inbox changes meanwhile", () => {
       const { set, shown, stop } = setup()
       const first = ask("a")
       set([first])
@@ -242,7 +242,7 @@ describe("pings for what needs the person", () => {
   })
 
   context("when it starts", () => {
-    it("takes the items already there as seen, and any that began well before it", () => {
+    it("takes the rows already there as seen, and any that began well before it", () => {
       const there = ask("a")
       const { set, shown, stop } = setup({ items: [there] })
       vi.advanceTimersByTime(5000)
@@ -259,7 +259,7 @@ describe("pings for what needs the person", () => {
   })
 
   context("when it started just after a request was asked", () => {
-    it("pings for the request once its item shows", () => {
+    it("pings for the request once its row shows", () => {
       const { set, shown, stop } = setup()
       set([request("a", "Bash", "ls", 8000)])
       vi.advanceTimersByTime(2000)
@@ -268,15 +268,15 @@ describe("pings for what needs the person", () => {
     })
   })
 
-  context("when an item leaves before it pinged and comes back", () => {
+  context("when a row leaves before it pinged and comes back", () => {
     it("waits out its whole grace again", () => {
       const { set, shown, stop } = setup()
-      const item = ask("a")
-      set([item])
+      const row = ask("a")
+      set([row])
       vi.advanceTimersByTime(1000)
       set([])
       vi.advanceTimersByTime(500)
-      set([item])
+      set([row])
       vi.advanceTimersByTime(1999)
       expect(shown).toEqual([])
       vi.advanceTimersByTime(1)
@@ -285,7 +285,7 @@ describe("pings for what needs the person", () => {
     })
   })
 
-  context("when an item that pinged leaves the Inbox", () => {
+  context("when a row that pinged leaves the Inbox", () => {
     it("takes its notification back once it has stayed gone for the grace", () => {
       const { set, shown, closed, stop } = setup()
       set([ask("a")])
@@ -301,12 +301,12 @@ describe("pings for what needs the person", () => {
 
     it("keeps it for one that drops out of a recompute and comes back", () => {
       const { set, shown, closed, stop } = setup()
-      const item = ask("a")
-      set([item])
+      const row = ask("a")
+      set([row])
       vi.advanceTimersByTime(2000)
       set([])
       vi.advanceTimersByTime(500)
-      set([item])
+      set([row])
       vi.advanceTimersByTime(5000)
       expect(closed).toEqual([])
       expect(shown).toHaveLength(1)
@@ -315,13 +315,13 @@ describe("pings for what needs the person", () => {
 
     it("pings again for one that comes back after its notification went", () => {
       const { set, shown, closed, stop } = setup()
-      const item = ask("a")
-      set([item])
+      const row = ask("a")
+      set([row])
       vi.advanceTimersByTime(2000)
       set([])
       vi.advanceTimersByTime(2000)
       expect(closed).toEqual(["t1"])
-      set([item])
+      set([row])
       vi.advanceTimersByTime(2000)
       expect(shown).toHaveLength(2)
       stop()
@@ -343,7 +343,7 @@ describe("pings for what needs the person", () => {
       stop()
     })
 
-    it("treats a newer item under the same id as another", () => {
+    it("treats a newer row under the same id as another", () => {
       const { set, shown, closed, stop } = setup()
       set([ask("a", 10_000)])
       vi.advanceTimersByTime(2000)
@@ -372,14 +372,14 @@ describe("the bell's rings, which its dot rings with", () => {
   const follow = (items: InboxRow[] = []) => {
     const inbox = createStore<InboxState>({ ...emptyInbox, items })
     const ui = backgrounded()
-    // Focused, as the toast's case: the bell rings whichever doorbell takes the item.
+    // Focused, as the toast's case: the bell rings whichever doorbell takes the row.
     ui.update((state) => ({ ...state, pageFocused: true }))
     const stop = watchBellRings({ state: inbox }, ui, { graceMs: 2000 })
     const set = (next: InboxRow[]) => inbox.update((state) => ({ ...state, items: next }))
     return { set, rings: () => ui.getSnapshot().bellRings, stop }
   }
 
-  it("counts each new item that needs the person, once its grace has passed", () => {
+  it("counts each new row that needs the person, once its grace has passed", () => {
     const { set, rings, stop } = follow()
     const first = ask("a")
     set([first])
@@ -403,13 +403,13 @@ describe("the bell's rings, which its dot rings with", () => {
     stop()
   })
 
-  it("counts a new item that began before one already waiting", () => {
+  it("counts a new row that began before one already waiting", () => {
     const { set, rings, stop } = follow()
     vi.setSystemTime(300_000)
     const first = ask("a")
     set([first])
     vi.advanceTimersByTime(2000)
-    // Messages held long become an item minutes after they began waiting.
+    // Messages held long become a row minutes after they began waiting.
     set([first, ask("held", 120_000)])
     vi.advanceTimersByTime(2000)
     expect(rings()).toBe(2)
@@ -417,7 +417,7 @@ describe("the bell's rings, which its dot rings with", () => {
   })
 })
 
-describe("what a notification says of an item", () => {
+describe("what a notification says of a row", () => {
   it("leads with who it is from, in the row's own words, and gives its subject as the body", () => {
     expect(needNotice(ask("a"))).toEqual({
       id: "t1",
@@ -536,14 +536,14 @@ describe("the board of notifications", () => {
       expect(withDing(true).rung).toEqual(["t", "u", "again"])
     })
 
-    it("leaves the sound to the host where its notifications play it, keeping it to the ding's rules", () => {
+    it("leaves the sound to the desktop app where its notifications play it, keeping it to the ding's rules", () => {
       const { rung, taken, shown } = withDing(true, true)
       expect(rung).toEqual([])
       expect(taken).toEqual(["t", "u", "again"])
       expect(shown.map((notice) => notice.silent)).toEqual([false, false, true])
     })
 
-    it("names the theme's sound on a notice for a host that plays it", () => {
+    it("names the theme's sound on a notice for a desktop app that plays it", () => {
       expect(withDing(true, true).shown.map((notice) => notice.sound)).toEqual([
         "afterglow",
         "afterglow",
@@ -577,13 +577,13 @@ describe("the board of notifications", () => {
     expect(closed).toEqual(["t"])
   })
 
-  it("remembers the item of a terminal's latest notice, one board per backend", () => {
+  it("remembers the row of a terminal's latest notice, one board per backend", () => {
     const notices = { show: () => {}, close: () => {}, onClick: () => () => {} }
     noticeBoard(notices, testDing)!.show("a", { id: "t", title: "", body: "" }, "first")
     noticeBoard(notices, testDing)!.show("b", { id: "t", title: "", body: "" }, "second")
-    expect(noticeBoard(notices, testDing)!.itemOf("t")).toBe("second")
+    expect(noticeBoard(notices, testDing)!.rowIdOf("t")).toBe("second")
     noticeBoard(notices, testDing)!.close("b", "t")
-    expect(noticeBoard(notices, testDing)!.itemOf("t")).toBeUndefined()
+    expect(noticeBoard(notices, testDing)!.rowIdOf("t")).toBeUndefined()
   })
 
   it("is none where there are no notifications", () => {
@@ -610,19 +610,19 @@ describe("a click on a terminal's notification", () => {
     expect(calls).toEqual(["land a", "inbox", "open a"])
   })
 
-  it("opens that terminal's item in the Inbox when one stands", () => {
+  it("opens that terminal's row in the Inbox when one stands", () => {
     const { calls, ...handlers } = to()
     clickNotice("t1", [update("u"), ask("a")], handlers)
     expect(calls).toEqual(["land u", "inbox", "open u"])
   })
 
-  it("opens the item the notice was about, among the terminal's several", () => {
+  it("opens the row the notice was about, among the terminal's several", () => {
     const { calls, ...handlers } = to()
     clickNotice("t1", [update("u"), ask("a"), update("v")], handlers, "v")
     expect(calls).toEqual(["land v", "inbox", "open v"])
   })
 
-  it("opens the terminal's done report for a notice that names no item", () => {
+  it("opens the terminal's done report for a notice that names no row", () => {
     const { calls, ...handlers } = to()
     const finish: InboxRow = {
       ...update("f"),
@@ -633,7 +633,7 @@ describe("a click on a terminal's notification", () => {
     expect(calls).toEqual(["land f", "inbox", "open f"])
   })
 
-  it("falls back to the terminal's first item when the notice's item has left", () => {
+  it("falls back to the terminal's first row when the notice's row has left", () => {
     const { calls, ...handlers } = to()
     clickNotice("t1", [ask("a"), update("u")], handlers, "gone")
     expect(calls).toEqual(["land a", "inbox", "open a"])
@@ -653,21 +653,20 @@ describe("the app icon's image on Windows", () => {
     vi.spyOn(navigator, "platform", "get").mockReturnValue("Win32")
     const texts: string[] = []
     const drawing = new Proxy(
-      { fillText: (text: string) => void texts.push(text) },
       {
-        get: (target, key) => (target as Record<string, unknown>)[key as string] ?? (() => {}),
+        fillText: (text: string) => void texts.push(text),
+      } as Partial<CanvasRenderingContext2D> as CanvasRenderingContext2D,
+      {
+        get: (target, key) => Reflect.get(target, key) ?? (() => {}),
         set: () => true,
       },
     )
-    const canvas = {
-      width: 0,
-      height: 0,
-      getContext: () => drawing,
-      toDataURL: () => "data:image/png;base64,x",
-    }
     const create = document.createElement.bind(document)
+    const canvas = create("canvas")
+    vi.spyOn(canvas, "getContext").mockReturnValue(drawing)
+    vi.spyOn(canvas, "toDataURL").mockReturnValue("data:image/png;base64,x")
     vi.spyOn(document, "createElement").mockImplementation((tag: string) =>
-      tag === "canvas" ? (canvas as unknown as HTMLCanvasElement) : create(tag),
+      tag === "canvas" ? canvas : create(tag),
     )
     const inbox = createStore<InboxState>({
       ...emptyInbox,

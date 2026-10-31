@@ -58,7 +58,7 @@ export default defineConfig({
         test: {
           name: "behaviour",
           include: ["src/**/*.spec.tsx"],
-          exclude: ["src/motion.spec.tsx", "src/counters/**"],
+          exclude: ["src/workspace/motion.spec.tsx", "src/counters/**"],
           setupFiles: ["./src/setup.ts"],
           // Whole-app renders under CI load can take longer than the 1s default.
           expect: { poll: { timeout: 5000 } },
@@ -137,7 +137,7 @@ export default defineConfig({
         optimizeDeps: { include: optimizedUpFront },
         test: {
           name: "motion",
-          include: ["src/motion.spec.tsx"],
+          include: ["src/workspace/motion.spec.tsx"],
           setupFiles: ["./src/setup.ts"],
           expect: { poll: { timeout: 5000 } },
           // Its first spec opens the app cold too, as the behaviour project's comment says.

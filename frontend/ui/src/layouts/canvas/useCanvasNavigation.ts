@@ -9,7 +9,16 @@ import {
 } from "@xyflow/react"
 import { useEffect, useRef, type RefObject } from "react"
 
-import { centerOf, chromeScaleAt, fitOptions, terminalHeaderHeight } from "./geometry"
+import { prefersReducedMotion } from "../../interaction/reduced-motion"
+import {
+  centerOf,
+  chromeScaleAt,
+  fallbackSize,
+  fitOptions,
+  onScreen,
+  sizeOr,
+  terminalHeaderHeight,
+} from "./geometry"
 import type { CanvasProps, CanvasViewport, TerminalNode } from "./types"
 import type { createCanvasVisit } from "./visit"
 
@@ -46,7 +55,7 @@ const focusButtonInView = (
   viewport: CanvasViewport,
   container: HTMLElement,
 ): boolean => {
-  const right = (node.position.x + (node.width ?? 550)) * viewport.zoom + viewport.x
+  const right = (node.position.x + (node.width ?? fallbackSize.width)) * viewport.zoom + viewport.x
   const top = node.position.y * viewport.zoom + viewport.y
   const header = terminalHeaderHeight * chromeScaleAt(viewport.zoom) * viewport.zoom
   return (
@@ -99,29 +108,16 @@ export const useCanvasNavigation = ({
       return flyIn(selected)
     }
     visit.clear()
-    const duration = matchMedia("(prefers-reduced-motion: reduce)").matches ? 0 : 180
+    const duration = prefersReducedMotion() ? 0 : 180
     if (pointerCreated.current.delete(selected)) return
     const created = createdPositions.current.get(selected)
     if (created) {
       createdPositions.current.delete(selected)
       const viewport = getViewport()
-      const size = geometryRef.current[selected]
-      const width = size?.width ?? node.width ?? 600
-      const height = size?.height ?? node.height ?? 400
-      const margin = 24 / viewport.zoom
-      const left = -viewport.x / viewport.zoom
-      const top = -viewport.y / viewport.zoom
-      const { width: viewportWidth, height: viewportHeight } = viewportSize()
-      const right = (viewportWidth - viewport.x) / viewport.zoom
-      const bottom = (viewportHeight - viewport.y) / viewport.zoom
-      if (
-        created.x >= left + margin &&
-        created.y >= top + margin &&
-        created.x + width <= right - margin &&
-        created.y + height <= bottom - margin
-      )
-        return
-      void setCenter(created.x + width / 2, created.y + height / 2, {
+      const measured = geometryRef.current[selected]
+      const size = sizeOr(measured?.width ?? node.width, measured?.height ?? node.height)
+      if (onScreen(created, size, viewport, viewportSize())) return
+      void setCenter(created.x + size.width / 2, created.y + size.height / 2, {
         zoom: viewport.zoom,
         duration,
         interpolate: "linear",

@@ -16,7 +16,7 @@ export type DoorbellLogOptions = {
 }
 
 /** What the doorbell's log is told of each terminal. */
-export type DoorbellLog = {
+type DoorbellLog = {
   /** A line of the doorbell's trace, and the screen it read, where it read one. */
   trace(terminalId: string, line: string, screen?: ScreenText): void
   /** Why the doorbell can't ring the terminal now, whatever the reason's name; null once it can. */

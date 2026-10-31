@@ -1,26 +1,33 @@
 import { basename, dirname, extname } from "node:path"
 
-import type { Background, BackgroundJob, HarnessEvent } from "@novadeck/harness-core/events"
 import {
   absolute,
   withRequestCwd,
-  bounded,
+  planText,
   errorText,
   callId,
-  promptStart,
   replied,
   sessionId,
   sessionStart,
   subjectOf,
   text,
   withMode,
-  type WrittenPlan,
   shortName,
-} from "@novadeck/harness-core/harness"
-import { at as writtenAt, record } from "@novadeck/harness-core/items"
+} from "@novadeck/harness-core/decode"
+import type {
+  Background,
+  BackgroundJob,
+  EventBase,
+  HarnessEvent,
+  PlanSource,
+} from "@novadeck/harness-core/events"
+import { isFields } from "@novadeck/harness-core/fields"
+import { promptStart } from "@novadeck/harness-core/prompts"
 import type { Report } from "@novadeck/harness-core/report"
-import { isFields, oneLine } from "@novadeck/harness-core/tools"
+import { oneLine } from "@novadeck/harness-core/tools"
+import { agentLimits } from "@novadeck/protocol"
 
+import { statusLine } from "./status-line.js"
 import { kindOf } from "./tools.js"
 
 /**
@@ -32,14 +39,13 @@ import { kindOf } from "./tools.js"
  * Cursor. A turn starts with UserPromptSubmit, which Claude Code also sends with a task
  * notification as it starts a turn by itself, and ends with Stop, which lists background
  * tasks still running, or StopFailure on an API error; a subagent's stop ends only its
- * own work. PermissionRequest asks the person
- * about a tool call, AskUserQuestion's as a question and ExitPlanMode's as a plan to
- * review, for the root agent or a subagent;
- * the call's PostToolUse or PostToolUseFailure from that actor means it was allowed. An
+ * own work. PermissionRequest asks the person about a tool call, AskUserQuestion's as a
+ * question and ExitPlanMode's as a plan to review, for the root agent or a subagent; the
+ * call's PostToolUse or PostToolUseFailure from that actor means it was allowed. An
  * answered question's call gains its answers, and a plan may be edited in review, so
- * their results match loosely. A denial or
- * an Esc fires nothing: the next turn settles them. A prompt that timed out fires nothing
- * either, but the turn runs on: the call's result in the transcript settles the root's.
+ * their results match loosely. A denial or an Esc fires nothing: the next turn settles
+ * them. A prompt that timed out fires nothing either, but the turn runs on: the call's
+ * result in the transcript settles the root's (see `transcript-watch.ts`).
  */
 export const decode = (report: Report): readonly HarnessEvent[] =>
   withRequestCwd(withMode(decodeHook(report), report.payload), report.payload)
@@ -60,7 +66,7 @@ const atPrompt: ReadonlySet<string> = new Set(["startup", "clear", "resume", "fo
 const decodeHook = ({ event, seq, instance, env, payload }: Report): readonly HarnessEvent[] => {
   const id = sessionId(payload.session_id)
   if (!id || payload.cursor_version !== undefined || env.cursor) return []
-  const base = { agent: "claude", sessionId: id, instance, startedAt: seq } as const
+  const base: EventBase<"claude"> = { agent: "claude", sessionId: id, instance, startedAt: seq }
   const tool = text(payload.tool_name) ?? ""
   const actor = text(payload.agent_id) ?? null
   switch (event) {
@@ -82,22 +88,24 @@ const decodeHook = ({ event, seq, instance, env, payload }: Report): readonly Ha
         },
       ]
     }
-    case "UserPromptSubmit":
+    case "UserPromptSubmit": {
       // A subagent's prompt is its own work, not the root's turn; a background task's
       // result starts a turn by itself, as a task notification.
       if (actor) return []
       const prompt = text(payload.prompt) ?? ""
+      const notified = taskNotification.test(prompt)
       return [
         // The tasks it names are done before the turn it starts.
-        ...(notification.test(prompt)
+        ...(notified
           ? finished(prompt).map((task): HarnessEvent => ({
               type: "task-ended",
               ...base,
               id: task,
             }))
           : []),
-        promptStart(base, prompt, notification.test(prompt)),
+        promptStart(base, prompt, notified),
       ]
+    }
     case "Stop":
       return actor
         ? []
@@ -185,7 +193,7 @@ const decodeHook = ({ event, seq, instance, env, payload }: Report): readonly Ha
           requestId: callId(actor, name, input),
           actor,
           toolName: name,
-          subject: message?.slice(0, 1024) ?? null,
+          subject: message?.slice(0, agentLimits.subject) ?? null,
           choices: [],
           input,
           kind: "question",
@@ -249,8 +257,11 @@ const decodeHook = ({ event, seq, instance, env, payload }: Report): readonly Ha
   }
 }
 
-// The prompt of a turn Claude Code starts by itself once a background task finishes.
-const notification = /^\s*<task-notification>/
+/**
+ * The prompt of a turn Claude Code starts by itself once a background task finishes,
+ * which its transcript records in the person's place.
+ */
+export const taskNotification = /^\s*<task-notification>/
 
 // The ids of the tasks a notification names, as `<task-id>` elements.
 const finished = (prompt: string): string[] =>
@@ -259,13 +270,9 @@ const finished = (prompt: string): string[] =>
 // The most a wake-up may be set out, as ScheduleWakeup clamps it: a minute to an hour.
 const wakeDelayMs = { least: 60_000, most: 3_600_000 } as const
 
-// The longest id, description and reason the protocol takes.
-const maxJobText = 256
-const maxDescription = 512
-
 // The first line of what the agent wrote, cut to what the protocol takes; undefined if blank.
 const firstLine = (value: unknown): string | undefined => {
-  const line = oneLine(errorText(value) ?? "").slice(0, maxDescription)
+  const line = oneLine(errorText(value) ?? "").slice(0, agentLimits.description)
   return line === "" ? undefined : line
 }
 
@@ -277,7 +284,7 @@ const firstLine = (value: unknown): string | undefined => {
  * call's input stands in where a result has none.
  */
 const started = (
-  base: { agent: "claude"; sessionId: string; instance: string | null; startedAt: number },
+  base: EventBase<"claude">,
   tool: string,
   payload: Report["payload"],
 ): HarnessEvent[] => {
@@ -294,14 +301,14 @@ const started = (
           : undefined
     const reason = firstLine(fields.reason)
     // Named by its call, as a result with no id of its own is.
-    const id = shortName(payload.tool_use_id, maxJobText) ?? `${tool}:${base.startedAt}`
+    const id = shortName(payload.tool_use_id, agentLimits.name) ?? `${tool}:${base.startedAt}`
     return at === undefined
       ? []
       : [{ type: "wake-scheduled", ...base, id, at, reason: reason ?? null }]
   }
   const id =
     tool === "Bash" ? result.backgroundTaskId : tool === "Monitor" ? result.taskId : undefined
-  const named = shortName(id, maxJobText)
+  const named = shortName(id, agentLimits.name)
   if (named === undefined) return []
   const timeout = result.timeoutMs
   const persistent = result.persistent === true
@@ -337,7 +344,7 @@ const running = (tasks: unknown): Background => {
   // Each command's id, the agent's own words for it and the command, as the Stop gives them.
   const jobs = live.flatMap((task): BackgroundJob[] => {
     const { type, id, description, command } = task as Record<string, unknown>
-    const named = shortName(id, maxJobText)
+    const named = shortName(id, agentLimits.name)
     // Only a shell job carries a command; the other kinds Claude Code lists (dreaming, a
     // teammate, a workflow) have none to tell whether they end.
     if (type !== "shell" || named === undefined) return []
@@ -349,71 +356,8 @@ const running = (tasks: unknown): Background => {
   return { agents, tasks: live.length - agents, ...(jobs.length > 0 && { jobs }) }
 }
 
-const count = (value: unknown): number | undefined =>
-  typeof value === "number" && Number.isFinite(value) && value >= 0 ? value : undefined
-
-// Claude Code's rate-limit windows, by their names in its status line.
-const windows = { five_hour: 300, seven_day: 10_080 } as const
-
-/**
- * The status line Claude Code runs in Novadeck's shells hands over what no other source
- * says: the context window's size beside what it holds, the account's five-hour and
- * seven-day rate limits, used percentage and reset time in epoch seconds, and the model's
- * display name with its reasoning effort level, which it leaves out for a model without
- * one.
- */
-const statusLine = (
-  base: { agent: "claude"; sessionId: string; instance: string | null; startedAt: number },
-  payload: Report["payload"],
-): HarnessEvent[] => {
-  const window = (payload.context_window ?? {}) as Record<string, unknown>
-  const usage = (window.current_usage ?? {}) as Record<string, unknown>
-  const held = [
-    usage.input_tokens,
-    usage.cache_creation_input_tokens,
-    usage.cache_read_input_tokens,
-  ]
-    .map(count)
-    .filter((each): each is number => each !== undefined)
-  const capacity = count(window.context_window_size)
-  const limits = (payload.rate_limits ?? {}) as Record<string, unknown>
-  const model = shortName(
-    (payload.model as { display_name?: unknown } | undefined)?.display_name,
-    128,
-  )
-  const effort = shortName((payload.effort as { level?: unknown } | undefined)?.level, 32)
-  const known = Object.entries(windows).flatMap(([name, minutes]) => {
-    const { used_percentage: used, resets_at: resets } = (limits[name] ?? {}) as Record<
-      string,
-      unknown
-    >
-    const percent = count(used)
-    if (percent === undefined) return []
-    const at = count(resets)
-    return [
-      { minutes, used: Math.min(1, percent / 100), resetsAt: at !== undefined ? at * 1000 : null },
-    ]
-  })
-  return [
-    {
-      type: "telemetry-observed",
-      ...base,
-      ...(held.length > 0 && {
-        context: {
-          occupied: Math.round(held.reduce((sum, each) => sum + each, 0)),
-          capacity: capacity !== undefined && capacity >= 1 ? Math.round(capacity) : null,
-        },
-      }),
-      ...(payload.rate_limits !== undefined && { limits: known }),
-      // A model with no effort parameter has no level, so a named model clears the last.
-      ...(model !== undefined && { model, effort: effort ?? null }),
-      ...(model === undefined && effort !== undefined && { effort }),
-    },
-  ]
-}
-
-// Tools that write a file, and what their input names it by.
-const writers = new Set(["Write", "Edit", "MultiEdit"])
+// Tools that write a file their input names by `file_path`; NotebookEdit's is `notebook_path`.
+const writers: ReadonlySet<string> = new Set(["Write", "Edit", "MultiEdit"])
 
 /** A Markdown file named by an absolute path. */
 const markdown = (value: unknown): string | undefined => {
@@ -433,7 +377,7 @@ export const planFile = (value: unknown): string | undefined => {
 
 // A file a writer wrote or edited, by the absolute path its input names.
 const touched = (
-  base: { agent: "claude"; sessionId: string; instance: string | null; startedAt: number },
+  base: EventBase<"claude">,
   actor: string | null,
   tool: string,
   input: unknown,
@@ -446,7 +390,7 @@ const touched = (
 
 // A plan drafted in plan mode: the file its writer wrote.
 const drafted = (
-  base: { agent: "claude"; sessionId: string; instance: string | null; startedAt: number },
+  base: EventBase<"claude">,
   actor: string | null,
   tool: string,
   payload: Report["payload"],
@@ -456,40 +400,23 @@ const drafted = (
   return path ? [{ type: "plan-observed", ...base, actor, plan: { kind: "file", path } }] : []
 }
 
-// A plan presented for review: its file, or its text when it names none.
+/** A plan a call presents for review: its file, or its text when it names none. */
+export const presentedPlan = (tool: string, input: unknown): PlanSource | undefined => {
+  if (tool !== "ExitPlanMode") return undefined
+  const { plan, planFilePath } = (input ?? {}) as { plan?: unknown; planFilePath?: unknown }
+  // Claude Code names the file itself, replacing whatever the model passed.
+  const path = markdown(planFilePath)
+  if (path) return { kind: "file", path }
+  if (typeof plan !== "string" || !plan) return undefined
+  return { kind: "text", ...planText(plan) }
+}
+
 const presented = (
-  base: { agent: "claude"; sessionId: string; instance: string | null; startedAt: number },
+  base: EventBase<"claude">,
   actor: string | null,
   tool: string,
   input: unknown,
 ): HarnessEvent[] => {
-  if (tool !== "ExitPlanMode") return []
-  const { plan, planFilePath } = (input ?? {}) as { plan?: unknown; planFilePath?: unknown }
-  // Claude Code names the file itself, replacing whatever the model passed.
-  const path = markdown(planFilePath)
-  if (path) return [{ type: "plan-observed", ...base, actor, plan: { kind: "file", path } }]
-  if (typeof plan !== "string" || !plan) return []
-  return [{ type: "plan-observed", ...base, actor, plan: { kind: "text", ...bounded(plan) } }]
+  const plan = presentedPlan(tool, input)
+  return plan ? [{ type: "plan-observed", ...base, actor, plan }] : []
 }
-
-/**
- * The plans a transcript line presents for review, as its hooks would name them: what
- * reads back a plan presented as text, which no file holds, from its actor's transcript.
- */
-export const transcriptPlans = (line: string): readonly WrittenPlan[] => {
-  if (!line.includes('"ExitPlanMode"')) return []
-  const fields = record(line)
-  if (fields?.type !== "assistant") return []
-  const time = writtenAt(fields.timestamp)
-  const base = { agent: "claude", sessionId: "", instance: null, startedAt: time ?? 0 } as const
-  const content = (fields.message as { content?: unknown } | undefined)?.content
-  return (Array.isArray(content) ? content : []).flatMap((part) => {
-    const { type, name, input } = (part ?? {}) as Record<string, unknown>
-    if (type !== "tool_use" || typeof name !== "string") return []
-    return presented(base, null, name, input).flatMap((event) =>
-      event.type === "plan-observed" ? [{ source: event.plan, at: time }] : [],
-    )
-  })
-}
-
-export { maxPlan } from "@novadeck/harness-core/harness"

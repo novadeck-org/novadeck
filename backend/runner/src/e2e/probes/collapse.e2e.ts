@@ -16,10 +16,8 @@ import { compact } from "@novadeck/tui-input/box"
 import { setups } from "../agents/index.js"
 import { describe, e2e, supported } from "../fixture.js"
 import { start } from "../scenarios.js"
+import { sleep, paste, probing } from "./support.js"
 
-const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms))
-const paste = (words: string) => `\x1b[200~${words.replace(/\n/g, "\r")}\x1b[201~`
-const probing = process.env.NOVADECK_E2E_PROBES === "1"
 const profiles = { claude: claudeBox, codex: codexBox, agy: agyBox }
 
 for (const setup of setups) {

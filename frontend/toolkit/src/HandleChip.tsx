@@ -5,8 +5,8 @@ export const HandleChip = ({
   handle,
   className = "",
 }: {
-  handle: string | undefined
-  className?: string
+  readonly handle: string | undefined
+  readonly className?: string
 }): React.JSX.Element | null =>
   handle ? (
     <span className={`handle-chip ${className}`} data-terminal-handle={handle}>

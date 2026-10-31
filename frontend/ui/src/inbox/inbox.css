@@ -23,7 +23,7 @@
    an item, data-selected for the one whose sheet is open. A row that asks keeps its colour
    until it is answered, opened or not. While a sheet is
    open the updates step back. The header's
-   `.inbox-held` pill says items wait to join; Clear (an icon button in the panel's header) removes
+   `.inbox-held` pill says rows wait to join; Clear (an icon button in the panel's header) removes
    the settled asks; an empty panel shows `.inbox-empty`.
 
    The sheet is the sheet recipe's card holding an `.inbox-sheet` (data-type, data-tone=
@@ -57,7 +57,7 @@
    --inbox-snoozed-bg (the ink at 6%), --inbox-snoozed-bar-color (muted),
    --inbox-snoozed-icon-fg (muted): a snoozed row's wash, its dashed bar and its icons.
    --inbox-held-fg (strong), --inbox-held-bg (the strong colour at 10%),
-   --inbox-held-border-color (the strong colour at 30%): the pill of waiting items.
+   --inbox-held-border-color (the strong colour at 30%): the pill of waiting rows.
    --inbox-card-bg (the ink at 3.5% on paper): the box that holds commands, errors and the
    prompt as the terminal shows it.
    --inbox-workspace-opacity (0.55): the workspace behind an open sheet.
@@ -366,7 +366,6 @@
 .inbox-sheet {
   --_tone: var(--inbox-waiting-fg, var(--color-warning-fg));
   --_box-bg: var(--inbox-card-bg, color-mix(in srgb, var(--color-ink) 3.5%, var(--color-paper)));
-  --_muted: var(--color-muted);
   display: flex;
   flex: 1 1 auto;
   flex-direction: column;
@@ -922,17 +921,6 @@ pre.console-box {
   color: var(--color-danger-fg);
   font-family: var(--font-sans);
   font-size: var(--text-control);
-}
-.inbox-byline {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  color: var(--color-muted);
-  font-size: var(--text-control);
-  line-height: 18px;
-}
-.inbox-byline-sep {
-  opacity: 0.6;
 }
 
 @media (max-width: 700px) {

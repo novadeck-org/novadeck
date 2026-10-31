@@ -1,6 +1,7 @@
 import { execFileSync } from "node:child_process"
 import { posix } from "node:path"
 
+import { covered } from "../content/areas.ts"
 import type { Api, Area, AreaLink, Data } from "../src/atlas.ts"
 import type { Anchors } from "./anchors.ts"
 import { areaOf } from "./areas.ts"
@@ -12,7 +13,6 @@ type Exports = { prefix: string; target: string }[]
 // A package's own `imports` ("#name/*"), which only files inside its folder may use.
 type Imports = { base: string; prefix: string; target: string }[]
 
-const roots = ["apps", "backend", "contract", "frontend", "harnesses", "engines"]
 const sourcePattern = /\.(?:tsx?|rs)$/
 const skipPattern = /\.(?:test|spec|e2e)\.|\/(?:e2e|testing|test|fixtures)\/|\/testing\.tsx?$/
 const specifierPattern =
@@ -25,6 +25,13 @@ const trackedFiles = (repo: string, paths: string[]): string[] =>
   execFileSync("git", ["ls-files", ...paths], { cwd: repo, encoding: "utf8", maxBuffer: 1 << 26 })
     .split("\n")
     .filter(Boolean)
+
+// The package.json of every package under the covered folders.
+const manifests = (repo: string): string[] =>
+  trackedFiles(
+    repo,
+    covered.map((folder) => `${folder}*/package.json`),
+  )
 
 const specifiersOf = (source: string): string[] =>
   [...source.matchAll(specifierPattern)].map((match) => match[1] ?? match[2] ?? match[3] ?? "")
@@ -46,14 +53,9 @@ const exportTarget = (value: unknown): string | null => {
 // Workspace packages by name, each with its export subpaths mapped to source files.
 const workspacePackages = (repo: string, anchors: Anchors): Map<string, Exports> => {
   const packages = new Map<string, Exports>()
-  for (const file of trackedFiles(
-    repo,
-    roots.map((root) => `${root}/*/package.json`),
-  )) {
-    const text = anchors.read(file)
-    if (text === null) continue
-    const json = JSON.parse(text) as { name?: string; exports?: Record<string, unknown> }
-    if (json.name === undefined) continue
+  for (const file of manifests(repo)) {
+    const json = anchors.readJson<{ name?: string; exports?: Record<string, unknown> }>(file)
+    if (json?.name === undefined) continue
     const base = dirname(file)
     const entries = Object.entries(json.exports ?? {}).flatMap(([subpath, value]) => {
       const target = exportTarget(value)
@@ -68,13 +70,9 @@ const workspacePackages = (repo: string, anchors: Anchors): Map<string, Exports>
 
 // Every workspace package's own `imports`, with targets as repository paths.
 const packageImports = (repo: string, anchors: Anchors): Imports =>
-  trackedFiles(
-    repo,
-    roots.map((root) => `${root}/*/package.json`),
-  ).flatMap((file) => {
-    const text = anchors.read(file)
-    if (text === null) return []
-    const json = JSON.parse(text) as { imports?: Record<string, unknown> }
+  manifests(repo).flatMap((file) => {
+    const json = anchors.readJson<{ imports?: Record<string, unknown> }>(file)
+    if (json === null) return []
     const base = dirname(file)
     return Object.entries(json.imports ?? {}).flatMap(([prefix, value]) => {
       const target = exportTarget(value)
@@ -177,10 +175,9 @@ export const extractLinks = (
   owned: { api: Api; data: Data },
 ): AreaLink[] => {
   const links = new Map<string, AreaLink>()
-  const files = trackedFiles(repo, roots).filter(
-    (file) => sourcePattern.test(file) && !skipPattern.test(file),
-  )
-  const known = new Set(trackedFiles(repo, roots))
+  const tracked = trackedFiles(repo, covered)
+  const files = tracked.filter((file) => sourcePattern.test(file) && !skipPattern.test(file))
+  const known = new Set(tracked)
   const packages = workspacePackages(repo, anchors)
   const imports = packageImports(repo, anchors)
   unresolved.clear()

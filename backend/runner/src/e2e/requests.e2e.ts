@@ -50,7 +50,7 @@ const news: Rule[] = [
  * The model call that carries t2's news to t1 once the person left what hid t1's box: the
  * doorbell rings it as soon as its box shows again.
  */
-const carried = async (model: FakeModel, t1: DeckTerminal, calls: number) => {
+const carried = async (model: FakeModel, calls: number) => {
   return await model.waitFor((call) => delivered(call, "fox"), { after: calls })
 }
 
@@ -272,7 +272,7 @@ for (const setup of setups) {
             "Esc to close what Esc-Esc opened",
           )
           const next = t1.mark()
-          const carrying = await carried(run.model, t1, calls)
+          const carrying = await carried(run.model, calls)
           expect(latest(carrying)).toMatch(ring)
           await through(t1, ["ringing", "working", holds("fox", "moth", "delivered"), "settled"], {
             after: next,
@@ -363,7 +363,7 @@ for (const setup of setups) {
           "Esc to close the popup",
         )
         const next = t1.mark()
-        const carrying = await carried(run.model, t1, calls)
+        const carrying = await carried(run.model, calls)
         expect(latest(carrying)).toMatch(ring)
         expect(carrying.model).toBe(said.model)
         await t1.until("Noted the news.")

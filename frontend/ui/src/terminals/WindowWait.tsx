@@ -1,8 +1,8 @@
-import { clockTime, waitingLine, wakeFill } from "@novadeck/core/agent-waiting"
-import { minutesWaited, wakeIn } from "@novadeck/core/agent-waiting-clock"
+import { clockTime, waitingLine, wakeFill } from "@novadeck/core/terminals/waiting"
+import { minutesWaited, wakeIn } from "@novadeck/core/terminals/waiting-clock"
 import type { TerminalMetadata } from "@novadeck/core/types"
 
-import { useSecond } from "./use-second"
+import { useSecond } from "./useSecond"
 
 // What a waiting agent waits on, in its window's bar after the name: how long first, so
 // the cut keeps it, then the agent's own description cut to fit with an ellipsis ("4m ·

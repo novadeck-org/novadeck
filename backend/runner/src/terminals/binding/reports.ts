@@ -1,5 +1,6 @@
+import { firedFacts } from "@novadeck/harness-core/decode"
 import type { HarnessEvent, SessionObserved } from "@novadeck/harness-core/events"
-import { firedFacts, silentFor } from "@novadeck/harness-core/harness"
+import { silentFor } from "@novadeck/harness-core/harness"
 import type { Report } from "@novadeck/harness-core/report"
 import type { AgentName } from "@novadeck/protocol"
 import { relayMs, shellInForeground, type ProcessTrees } from "@novadeck/terminal/pty"
@@ -10,16 +11,18 @@ import { harnesses } from "../../harnesses/registry.js"
 import { unreplied, withReplies } from "../../harnesses/replies.js"
 import { followRoot, rootedIn, type RootChange } from "../../harnesses/roots.js"
 import { transcriptWaitMs, typedPromptStart } from "../../harnesses/typed-prompts.js"
+import { leaseMargin, type Answer } from "../../messaging/hook-answers.js"
 import type { Inbox } from "../../messaging/inbox.js"
 import { byteLength, maxDeliveryBytes } from "../../messaging/messages.js"
-import { leaseMargin, type Answer, type Messaging, type Person } from "../../messaging/messaging.js"
+import type { Messaging } from "../../messaging/messaging.js"
+import type { Person } from "../../messaging/withdrawals.js"
 import type { HookAnswer } from "../../shell/reports.js"
 import { sameToken } from "../callers.js"
 import { promptIn } from "../commands.js"
 import type { Companion } from "../companion.js"
+import type { Murmur } from "../descriptions.js"
 import { failed } from "../failures.js"
 import { tellInterrupted } from "../interrupted.js"
-import type { Murmur } from "../murmur.js"
 import {
   atTurnStart,
   fired,
@@ -27,7 +30,7 @@ import {
   personPrompted as promptCounted,
   sessionBegan,
 } from "../nudges.js"
-import { peerOf, type TerminalPeers } from "../peers.js"
+import { peerOf, type TerminalPeers } from "../peers-host.js"
 import type { Record } from "../record.js"
 import { boundProgram } from "../sampling.js"
 import type { Typing } from "../typing.js"
@@ -275,11 +278,12 @@ export class Reports {
       record.nudges = fired(record.nudges, "compaction")
     this.host.murmur()?.reported(report.terminalId)
     // The person's own prompt starting a root turn takes the session's open asks out of the
-    // Inbox, as delivery judges the prompt theirs, but only with the notice in an answer of
-    // the hook that can still print it (see `Messaging.withdrawn`).
+    // Inbox, as delivery judges the prompt theirs, but only once a hook acknowledges having
+    // printed the notice of it (see `Withdrawals.withdrawn`).
     const person: Person = {
       counts: ({ prompt }) => !this.byCommand(record, prompt),
-      withdraw: (before) => this.host.inbox().withdrawBefore(record.summary.id, before),
+      withdrawable: (before) => this.host.inbox().withdrawable(record.summary.id, before),
+      withdraw: (asks) => this.host.inbox().withdrawReplied(record.summary.id, asks),
       dismissed: (agent, sessionId) =>
         this.host.inbox().dismissed(record.summary.id, agent, sessionId),
       // Kept with its work, so a restart still knows the agent's done was before it.

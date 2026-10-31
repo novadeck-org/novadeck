@@ -1,12 +1,7 @@
 import { resolve as resolvePath } from "node:path"
 
-import {
-  doorbellLine,
-  quotedLine,
-  type Effort,
-  type Install,
-  type Model,
-} from "@novadeck/harness-core/harness"
+import type { Effort, Install, Model } from "@novadeck/harness-core/harness"
+import { doorbellLine, quotedLine } from "@novadeck/harness-core/prompts"
 import type { AgentName } from "@novadeck/protocol"
 import { freshNonce } from "@novadeck/tui-input"
 
@@ -14,8 +9,9 @@ import { agents, harnesses } from "../harnesses/registry.js"
 import type { Feedback } from "../messaging/feedback.js"
 import type { Inbox } from "../messaging/inbox.js"
 import { agentLabel } from "../messaging/messages.js"
-import type { AgentsAnswer, SendAnswer } from "../messaging/messaging.js"
+import type { AgentsAnswer, SendAnswer } from "../messaging/sending.js"
 import { unansweredCalls, type Call } from "../shell/reports.js"
+import { list } from "../text.js"
 import { closeWay, type ApprovalOutcome } from "./approvals.js"
 import { callerOf } from "./callers.js"
 import {
@@ -35,7 +31,6 @@ import type { Companion } from "./companion.js"
 import { mention } from "./handles.js"
 import type { Launcher } from "./launching.js"
 import { Leads, leadNotice, type LeadsHost } from "./leads.js"
-import { cleanSummary, summarized, summaryRefusal } from "./naming.js"
 import { afterSummary } from "./nudges.js"
 import {
   allowOpen,
@@ -49,16 +44,11 @@ import {
   type OpenAnswer,
   type OpenRequests,
 } from "./opens.js"
-import { peerOf } from "./peers.js"
+import { peerOf } from "./peers-host.js"
 import type { Record } from "./record.js"
 import { resumeRefusal, type Claims } from "./resumes.js"
-import { readSummarizeRequest, type SummarizeAnswer } from "./summarize.js"
-
-// "a, b and c".
-const list = (items: readonly string[], conjunction = "and"): string =>
-  items.length < 2
-    ? items.join("")
-    : `${items.slice(0, -1).join(", ")} ${conjunction} ${items.at(-1)}`
+import { readSummarizeRequest, type SummarizeAnswer } from "./summarize-request.js"
+import { cleanSummary, summarized, summaryRefusal } from "./titles.js"
 
 // A command line for the words: every word but a quoted line is a plain word, and a line
 // holds nothing a shell expands.
@@ -160,7 +150,7 @@ export class Calls {
 
   /**
    * Which chain the terminal belongs to goes, as it closes or is let go; the chain's times
-   * stay. Asks to close it, or by it, are taken back: there is nothing left to confirm.
+   * stay. Requests to close it, or by it, are taken back: there is nothing left to confirm.
    */
   forgetOpener(terminalId: string): void {
     this.openers.delete(terminalId)
@@ -255,7 +245,7 @@ export class Calls {
       )
     this.opened.set(charged, times)
     this.allOpened = all
-    const asked = await this.host.opens().ask(
+    const asked = await this.host.opens().request(
       {
         from: call.terminalId,
         sessionId: record.summary.sessionId,
@@ -371,15 +361,15 @@ export class Calls {
     choice: { readonly model?: string; readonly effort?: Effort },
     withTask: boolean,
   ): Promise<{ readonly command: string; readonly prompted: boolean; readonly nonce?: string }> {
-    const { messaging } = harnesses[agent]
+    const { launch } = harnesses[agent]
     const install = withTask ? await this.host.install(agent).catch(() => undefined) : undefined
     const nonce = freshNonce()
     const prompted = withTask
-      ? await messaging.initialPrompt(doorbellLine(nonce), { install, cwd }).catch(() => undefined)
+      ? await launch.initialPrompt(doorbellLine(nonce), { install, cwd }).catch(() => undefined)
       : undefined
-    const [program = "", ...rest] = prompted ?? messaging.start
+    const [program = "", ...rest] = prompted ?? launch.start
     // Right after the program, so before a flag like Antigravity's `-i` that takes the line.
-    const command = commandLine([program, ...messaging.choose(choice), ...rest])
+    const command = commandLine([program, ...launch.choose(choice), ...rest])
     return { command, prompted: prompted !== undefined, ...(withTask && { nonce }) }
   }
 
@@ -407,7 +397,7 @@ export class Calls {
    * still waiting for it are gone. The caller's own terminal closes a moment after the
    * answer. A teammate the caller leads, and a terminal that runs no agent, close at
    * once; any other terminal that runs an agent closes only if the person confirms (see
-   * `askToClose`). A handle not there is refused with every terminal there described. A
+   * `requestClose`). A handle not there is refused with every terminal there described. A
    * chain of terminals' agents close a few at most each minute, and all agents a few
    * more. A call without the shell's own token learns nothing more.
    */
@@ -434,7 +424,7 @@ export class Calls {
       leads: this.host.messaging().leadOf(target.terminalId) === record.summary.handle,
       agent: target.agent,
     })
-    if (way === "ask") {
+    if (way === "request") {
       const waiting = this.host.approvals().refusal(target.terminalId)
       if (waiting)
         return refused(waiting === "nobody" ? nobodyRefusal : waitingRefusal(target.handle))
@@ -448,7 +438,7 @@ export class Calls {
     this.closed.set(charged, times)
     this.allClosed = all
     const { agent } = target
-    if (way === "ask") return this.askToClose(record, closing, agent)
+    if (way === "request") return this.requestClose(record, closing, agent)
     const others = this.host.messaging().waitingFor(target.terminalId, call.terminalId)
     // The runner began to stop meanwhile: the terminal is closed all the same, but the
     // caller is going too.
@@ -502,22 +492,22 @@ export class Calls {
    * terminal that runs an agent the caller doesn't lead. The call doesn't wait for them:
    * it answers `asked` at once, and the caller hears the outcome as a notice.
    */
-  private askToClose(caller: Record, closing: Record, agent: AgentName | null): CloseAnswer {
+  private requestClose(caller: Record, closing: Record, agent: AgentName | null): CloseAnswer {
     const { id, handle, title, sessionId } = closing.summary
     const ran = agent === null ? undefined : agentLabel(agent)
     this.host
       .approvals()
-      .ask(
+      .request(
         { from: caller.summary.id, terminalId: id, sessionId, action: { type: "close" } },
         (outcome) => {
-          void this.closeAsked(caller.summary.id, closing, ran, outcome).catch(() => undefined)
+          void this.closeRequested(caller.summary.id, closing, ran, outcome).catch(() => undefined)
         },
       )
     return { ok: true, asked: true, handle, title, ...(ran !== undefined && { ran }) }
   }
 
-  /** The caller hears how its ask to close a terminal went. */
-  private async closeAsked(
+  /** The caller hears how its request to close a terminal went. */
+  private async closeRequested(
     callerId: string,
     closing: Record,
     ran: string | undefined,
@@ -540,14 +530,14 @@ export class Calls {
   /** A tool call from Novadeck's MCP server, to the operation it names. */
   call(call: Call): Promise<unknown> {
     switch (call.type) {
-      case "present":
-        return this.host.companion().present(call)
+      case "show":
+        return this.host.companion().show(call)
       case "showing":
         return Promise.resolve(this.host.companion().showing(call))
       case "look":
         return this.host.companion().look(call)
-      case "dismiss":
-        return this.host.companion().dismiss(call)
+      case "closeShown":
+        return this.host.companion().closeShown(call)
       case "open":
         return this.open(call)
       case "close":

@@ -30,15 +30,15 @@ transcripts and telemetry are fixed only after per-harness coverage probes
 
 ## Existing seams
 
-| Current code                                                                  | Responsibility to preserve                                                    | Destination                                                              |
-| ----------------------------------------------------------------------------- | ----------------------------------------------------------------------------- | ------------------------------------------------------------------------ |
-| `backend/runner/src/shell/agents.ts`                                          | Detect config, inspect plugin connection, plan install/remove commands        | `home`, `connected`, `connect`/`disconnect`; shared inspection and setup |
-| `backend/runner/src/shell/resume.ts`                                          | Build the exact resume command for an identified session                      | `resume` field                                                           |
-| `backend/runner/src/shell/scripts.ts`                                         | Provider manifests, hook configuration, Codex launch shim                     | `files` and `shims`; shared artifact writer                              |
-| `backend/runner/src/shell/hook.ts`                                            | Native payload interpretation, nested-session filtering, hook response format | Per-harness `decode.ts` in its package; one shared hook script           |
-| `backend/runner/src/shell/reports.ts`                                         | Authenticate and accept session reports                                       | Shared ingress and binding policy                                        |
-| `backend/runner/src/terminals/manager.ts`, `resumes.ts`, `saving.ts`          | PTY lifetime, resume claims, persistence, foreground ownership                | Terminal manager, using the harness service                              |
-| `frontend/core/src/process.ts` and `frontend/runner-adapter/src/resumable.ts` | Provider recognition and resume eligibility                                   | `programs` and shared recognition; UI keeps generic program presentation |
+| Current code                                                                                      | Responsibility to preserve                                                    | Destination                                                              |
+| ------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------- | ------------------------------------------------------------------------ |
+| `backend/runner/src/shell/agents.ts`                                                              | Detect config, inspect plugin connection, plan install/remove commands        | `home`, `connected`, `connect`/`disconnect`; shared inspection and setup |
+| `backend/runner/src/shell/resume.ts`                                                              | Build the exact resume command for an identified session                      | `resume` field                                                           |
+| `backend/runner/src/shell/scripts.ts`                                                             | Provider manifests, hook configuration, Codex launch shim                     | `files` and `shims`; shared artifact writer                              |
+| `backend/runner/src/shell/hook.ts`                                                                | Native payload interpretation, nested-session filtering, hook response format | Per-harness `decode.ts` in its package; one shared hook script           |
+| `backend/runner/src/shell/reports.ts`                                                             | Authenticate and accept session reports                                       | Shared ingress and binding policy                                        |
+| `backend/runner/src/terminals/manager.ts`, `resumes.ts`, `saving.ts`                              | PTY lifetime, resume claims, persistence, foreground ownership                | Terminal manager, using the harness service                              |
+| `frontend/core/src/terminals/process.ts` and `frontend/runner-adapter/src/terminals/resumable.ts` | Provider recognition and resume eligibility                                   | `programs` and shared recognition; UI keeps generic program presentation |
 
 `shell/agents.ts` and `shell/resume.ts` are named as this proposal found them: their work
 went into each adapter's `src/index.ts` when the adapters were extracted (#35). In particular,
@@ -93,20 +93,33 @@ beside it; the registry and the services that use them live in
 
 ```text
 harnesses/core/src/          # @novadeck/harness-core
-  harness.ts       # The Harness type and shared plugin helpers
+  harness.ts       # The Harness type, its messaging profile and what they take
   events.ts        # Dependency-light normalized facts
+  decode.ts        # What every decoder shares: payload checks, plain text, derived ids
+  fields.ts        # A JSON object's fields, whatever holds them
+  prompts.ts       # The doorbell line, hook continuations, and the turn a prompt starts
+  plugin.ts        # Novadeck's plugin manifest and its marketplace
   dialogs.ts       # DialogAdapter, for answering a harness's dialogs
-  hook-command.ts  # The hook command line, per shell dialect
+  hook-command.ts  # The hook command line, per shell dialect, and how long a hook may take
   follow.ts        # The shared JSONL follower
-  items.ts, report.ts, header.ts
-  testing/         # Test helpers: probes.ts (`loadProbe`), screens.ts, dialogs.ts
-harnesses/claude/src/        # @novadeck/harness-claude
-  index.ts         # claude: Harness
+  items.ts         # Transcript items, bounded as the protocol takes them
+  tools.ts         # What a tool call was, in one line, and Novadeck's own MCP tools
+  report.ts, header.ts
+  testing/         # Test helpers: probes.ts (`loadProbe`), screens.ts, dialogs.ts, reports.ts
+harnesses/<id>/src/          # @novadeck/harness-<id>, one per harness, all shaped alike:
+  index.ts         # <id>: Harness, and its messaging profile
+  plugin.ts        # Its plugin's id, hook events and files; connected, connect, disconnect
+  home.ts          # Its own folders (`claudeHome`…), wherever its environment moves them
   decode.ts        # Its hook reports, as normalized events
+  tools.ts         # What its tool calls were, and what each counts as to messaging
+  models.ts        # The models it starts with, and their efforts
   box.ts           # Its input box, as it reads off the screen (`box: BoxProfile`)
+  transcripts.ts   # Its transcripts, as the chat's items
+  dialogs.ts       # Its DialogAdapter, which hands each request to the dialog that reads it
+  *-dialog.ts      # One file per dialog: permission-dialog, question-dialog, plan-dialog…
+  dialog-screen.ts # What its dialogs share on screen: keys, rules, numbered options, waits
+  *.test-support.ts # Test helpers: dialogs.test-support.ts, report.test-support.ts
   fixtures/        # Its probes, read by the tests beside them
-harnesses/codex/src/         # @novadeck/harness-codex: same shape; its shim is in its `shims`
-harnesses/agy/src/           # @novadeck/harness-agy
 backend/runner/src/harnesses/
   registry.ts      # harnesses: Record<AgentName, Harness>
   eligibility.ts   # Availability of features such as resume, with typed reasons
@@ -114,6 +127,25 @@ backend/runner/src/harnesses/
   bindings.ts      # Pure ownership and observation transitions
   activity.ts      # Accepted state → agent activity
 ```
+
+Beside that common set, each keeps what only it has:
+
+- Claude Code (`harnesses/claude`): `status-line.ts` (its status line's report: context,
+  rate limits, model), `transcript-watch.ts` (what its transcript says beside its hooks,
+  followed live as its `watch`, and read back for plans), `form-dialog.ts` (an MCP
+  server's elicitation form), `diffs.ts` (the diff an Edit or Write permission draws) and
+  `shim.ts` (the program its shells run, which adds Novadeck's status line).
+- Codex (`harnesses/codex`): `rollout.ts` (its rollout, followed as its `watch` and
+  `watchActor`, and read back for plans), `async-question.ts` and
+  `async-question-dialog.ts` (the question it asks without waiting), `patch.ts` (the
+  files a patch names), `title.ts` (the terminal title its shim sets, and the thread lock
+  that confirms a new session), `trust.ts` (whether it runs Novadeck's hooks in a folder)
+  and `shim.ts`.
+- Antigravity (`harnesses/agy`): `status-line.ts` (its status line's report, and the
+  prompt it says shows), `call-memory.ts` (what its decoder holds of each conversation's
+  calls from one hook to the next) and `settings.ts` (its user settings: the status line
+  it takes only from them, put in place once connected, and the folders it trusts). It
+  has no `watch`: its transcripts are read only for the chat.
 
 An adapter imports only `@novadeck/harness-core`, `@novadeck/protocol`,
 `@novadeck/emulator`, `@novadeck/tui-input`, Node and its own files, never the runner's
@@ -123,7 +155,7 @@ runner and reads the adapter's fixtures from its package.
 
 Each of these packages builds to `dist`, which builds, packaging and `tsc` use. Their
 exports also name their sources under the `development` condition, which vitest, the
-runner's `pnpm dev` (`tsx --conditions=development`) and the host's `pnpm dev` (Vite's
+runner's `pnpm dev` (`tsx --conditions=development`) and the desktop app's `pnpm dev` (Vite's
 own `development` condition in electron-vite's dev build) resolve, so an edit to one
 reaches them without a build. `tsc` and the editor still read the built types: rebuild
 a package (`pnpm --filter @novadeck/harness-core build`) after changing its contract.
@@ -153,8 +185,9 @@ Adding a harness:
    `docs/harness-coverage.md`, and any variable of its hooks' environment the runner's
    `shell/hook.ts` tells nested agents apart by.
 
-Split a harness into more files (a transcript reader, say) only when its
-`index.ts` gets hard to read. `shell/` keeps shell-specific
+A concept every harness has goes in the common set's file of that name; one only a
+harness has gets a file of its own, named for it. Sources sit flat in `src/`
+(`.oxlintrc.json` refuses `../` imports there). `shell/` keeps shell-specific
 startup/quoting; it no longer assembles harness manifests. Public data types live in
 `contract/protocol`, with no imports back into provider implementations.
 
@@ -346,8 +379,8 @@ type Harness = {
   readonly files: (platform: NodeJS.Platform) => readonly File[]
   /** Programs Novadeck's shells put first on PATH while it is connected, as Codex's shim. */
   readonly shims?: (platform: NodeJS.Platform) => readonly File[]
-  /** The words that continue a session by its id. */
-  readonly resume?: (session: string) => readonly string[]
+  /** The hook environment variable naming its own process, as Claude Code's `CLAUDE_PID`. */
+  readonly pidVariable?: string
   /** What a hook report's native `source` says of the session it names. */
   readonly continuity: (source: string | undefined) => Continuity
   /** The launch that starts a fresh session with a task. */
@@ -375,6 +408,8 @@ type Harness = {
   }
   /** What it observes on this installation, feature by feature. */
   readonly coverage: (found: Found) => FeatureCoverage
+  /** How it starts: plain, on a first prompt, or continuing a session (see below). */
+  readonly launch: LaunchProfile
   /** How its hooks take agents' messages (see below). */
   readonly messaging: MessagingProfile
   /** How its input box reads off its screen (see "Screen readers"). */
@@ -468,9 +503,9 @@ hook process. The payload travels only over Novadeck's local report socket to
 the runner, which already sees the terminal's output. `decode` performs no I/O,
 and ignores events it does not use by returning none.
 
-The hook names the harness process through `CLAUDE_PID` for Claude Code, and
-otherwise through the nearest ancestor process with the harness's own name
-(`/proc` on Linux, `ps` on macOS). It reports `null` where the platform hides it.
+The hook names the harness process through the variable its adapter's `pidVariable`
+names, where it sets one (`CLAUDE_PID` for Claude Code), and otherwise through the
+nearest ancestor process with the harness's own name (`/proc` on Linux, `ps` on macOS). It reports `null` where the platform hides it.
 
 The hook answers each harness the way it needs. It prints nothing for Claude
 Code and Codex. For Antigravity it prints `{}`, or `{"decision": "ask"}` for
@@ -508,6 +543,12 @@ Besides the facts shared with the agent model, decoders give
   quotas (`telemetry.ts`).
 - `file-touched` names a file an actor wrote or edited, from its write and edit tools,
   for the folders a session works in.
+- `attention-requested` has `writes` where its harness can tell from the call which files
+  a permission asks to write: Codex's `apply_patch`, its patch's files from the directory
+  it asked in. A `file-touched` that `settles` (Codex's rollout) settles the latest
+  permission asked before it whose `writes` name the file, as no hook does for a patch
+  Codex ran through its shell. The runner's reducer compares the paths and never reads a
+  call's input itself.
 - `session-observed` has `compacted` when the harness says it compacted the session's
   context: Claude Code's and Codex's `SessionStart` with source `compact`. Antigravity
   reports no compaction. It nudges the agent to summarize its terminal again (see
@@ -577,13 +618,6 @@ type MessagingProfile = {
    * doorbell may ring it then, once its screen shows the box empty.
    */
   readonly promptsInBackground: boolean
-  /** How it starts with `line` as its first prompt; undefined where it may not here. */
-  readonly initialPrompt: (
-    line: string,
-    place: { readonly install: Install | undefined; readonly cwd: string },
-  ) => Promise<readonly string[] | undefined>
-  /** How it starts without a prompt. */
-  readonly start: readonly string[]
   /**
    * Where its hooks name no prompt (Antigravity's), what a line of its transcript
    * records as typed into its box, with its time and step: from it `typed-prompts.ts`
@@ -593,11 +627,11 @@ type MessagingProfile = {
 }
 ```
 
-| Harness     | `asks`                                                                                    | `call` | `reinjectPerCall` | `root`        | `queueKey` | `silentOnFailure` | `promptsInBackground` | `typedEntry`             | `initialPrompt`                        |
-| ----------- | ----------------------------------------------------------------------------------------- | ------ | ----------------- | ------------- | ---------- | ----------------- | --------------------- | ------------------------ | -------------------------------------- |
-| Claude Code | `Stop` (stop), `UserPromptSubmit` (prompt), `PostToolUse` and `PostToolUseFailure` (tool) | yes    | no                | `binding`     | none       | no                | yes                   | none: hooks name prompts | `claude "<line>"`                      |
-| Codex       | `Stop` (stop), `UserPromptSubmit` (prompt), `PostToolUse` (tool)                          | yes    | no                | `binding`     | Tab        | yes               | yes                   | none: hooks name prompts | `codex "<line>"`                       |
-| Antigravity | `Stop` (stop), `PreInvocation` (prompt)                                                   | none   | yes               | `status-line` | none       | no                | yes                   | `USER_INPUT` steps       | `agy -i "<line>"`, in a trusted folder |
+| Harness     | `asks`                                                                                    | `call` | `reinjectPerCall` | `root`        | `queueKey` | `silentOnFailure` | `promptsInBackground` | `typedEntry`             |
+| ----------- | ----------------------------------------------------------------------------------------- | ------ | ----------------- | ------------- | ---------- | ----------------- | --------------------- | ------------------------ |
+| Claude Code | `Stop` (stop), `UserPromptSubmit` (prompt), `PostToolUse` and `PostToolUseFailure` (tool) | yes    | no                | `binding`     | none       | no                | yes                   | none: hooks name prompts |
+| Codex       | `Stop` (stop), `UserPromptSubmit` (prompt), `PostToolUse` (tool)                          | yes    | no                | `binding`     | Tab        | yes               | yes                   | none: hooks name prompts |
+| Antigravity | `Stop` (stop), `PreInvocation` (prompt)                                                   | none   | yes               | `status-line` | none       | no                | yes                   | `USER_INPUT` steps       |
 
 `call` exists exactly when `asks` has a `tool` entry. A `tool` event fires as a root tool
 call finishes, and delivers only the lead's messages, beside the tool's result (see
@@ -614,9 +648,38 @@ says (`backend/runner/src/harnesses/roots.ts`): the bound session; or, for `stat
 session that bound, then that of the first model call after it bound, or of one
 messages wait for) until the status line names the root conversation, which alone
 names another. Messaging reads the root from there. The doorbell knows nothing of how a
-harness draws its screen, so the profile holds no screen pattern; it adds only how the
-harness starts with a first prompt (`initialPrompt`) and whether its hooks see a
-prompt's text (see [Agent messaging](agent-messaging.md#the-doorbell)).
+harness draws its screen, so the profile holds no screen pattern; it adds only whether its
+hooks see a prompt's text (see [Agent messaging](agent-messaging.md#the-doorbell)).
+
+### Launch profile
+
+Each harness's `launch` profile is how a terminal starts it, as the words a shell runs:
+the program first, then the model and effort `choose` puts right after it. A task's first
+prompt and a resumed session start the same way, so no shared code names a program:
+
+```ts
+type LaunchProfile = {
+  /** How it starts without a prompt. */
+  readonly start: readonly string[]
+  /** How it starts with `line` as its first prompt; undefined where it may not here. */
+  readonly initialPrompt: (
+    line: string,
+    place: { readonly install: Install | undefined; readonly cwd: string },
+  ) => Promise<readonly string[] | undefined>
+  /** The words that continue its session by id, with the model and effort chosen. */
+  readonly resume?: (session: string, choice?: Choice) => readonly string[]
+  /** The models it can start with on this machine, each with the efforts it takes. */
+  readonly models: (install: Install) => Promise<readonly Model[]>
+  /** The words that go right after its program to start it with this model and effort. */
+  readonly choose: (choice: Choice) => readonly string[]
+}
+```
+
+| Harness     | `start`  | `initialPrompt`                        | `resume`                  | `choose`                                    |
+| ----------- | -------- | -------------------------------------- | ------------------------- | ------------------------------------------- |
+| Claude Code | `claude` | `claude "<line>"`                      | `claude --resume <id>`    | `--model <m> --effort <e>`                  |
+| Codex       | `codex`  | `codex "<line>"`                       | `codex resume <id>`       | `--model <m> -c model_reasoning_effort=<e>` |
+| Antigravity | `agy`    | `agy -i "<line>"`, in a trusted folder | `agy --conversation <id>` | `--model <m> --effort <e>`                  |
 
 ## Screen readers
 
@@ -1071,7 +1134,7 @@ never breaks activity or resume.
 There are three different questions:
 
 1. Does this harness implement the feature? Derive it from the field
-   (`harness.resume`), never from a separate flag.
+   (`harness.launch.resume`), never from a separate flag.
 2. Can that implementation work with this installation? Inspect platform,
    executable/version evidence, plugin connection and known restrictions. Report
    unknown when evidence is absent; do not invent a version matrix.

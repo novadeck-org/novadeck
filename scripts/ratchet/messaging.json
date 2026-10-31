@@ -1,0 +1,14 @@
+{
+  "notes": [
+    "Budgets for backend/runner/src/messaging/messaging.ts: scripts/ratchet/ratchet.test.ts fails when the file grows past one, and a raise goes only as far as the file needs, never leaving headroom. Set when the Messaging class was split into its parts (2026-10-30), from 2,892 lines and 127 methods.",
+    "slack is how far under its budget the file may sit before the budget must come down. A change that removes a little passes and the test prints the number the budget could be lowered to, so everyday product work never edits this file. Past the slack, as after an extraction, the test fails until the budget is lowered (in a change that touches messaging.ts or this file; any other change only prints it, as two changes merged one after the other can leave the file past a budget neither crossed alone), so a large win is locked in. Lowering a slack needs nothing; raising one is written as a raised budget is, with why and where from.",
+    "lines counts the file's lines. methods counts every function the Messaging class defines in its body: methods, accessors, the constructor and properties set to a function or arrow expression, read from its syntax tree, so formatting never moves it.",
+    "New behaviour goes in a sibling module under backend/runner/src/messaging/, as delivery.ts, leases.ts and loops.ts do, with the class calling it. Work that can't is raised in the same pull request, written { \"budget\": n, \"reason\": \"why\", \"from\": \"#PR or commit\" }."
+  ],
+  "lines": 494,
+  "methods": 74,
+  "slack": {
+    "lines": 100,
+    "methods": 5
+  }
+}

@@ -1,23 +1,24 @@
 import type { ToolKind } from "@novadeck/harness-core/events"
+import { isFields, parseFields, type Fields } from "@novadeck/harness-core/fields"
 import {
   count,
-  isFields,
   novadeckTool,
   oneLine,
   otherRun,
-  parseFields,
   shortPath,
   sleepOnly,
   textField,
-  type Fields,
-  type ToolRun,
 } from "@novadeck/harness-core/tools"
+import type { ToolRun } from "@novadeck/protocol"
 
 // Claude Code's own name for Novadeck's MCP server, as its plugin spells the tools:
 // `mcp__plugin_novadeck_novadeck__send`.
 const novadeck = /^mcp__plugin_novadeck_novadeck__(.+)$/
 
-const known = (name: string, fields: Fields | null): ToolRun | undefined => {
+// Claude Code's own tools, by their names in lower case. Each reads every field spelling the
+// harnesses' shared table read before #351 (Antigravity's `AbsolutePath`, Codex's `cmd`), as
+// chat-contract's parity test holds each harness to that table.
+const known = (name: string, fields: Fields | undefined): ToolRun | undefined => {
   const path = (...keys: string[]): string => shortPath(textField(fields, ...keys))
   switch (name) {
     case "bash":
@@ -73,7 +74,7 @@ const known = (name: string, fields: Fields | null): ToolRun | undefined => {
     case "exitplanmode":
       return { kind: "plan", title: "Proposed a plan", detail: "" }
     case "askuserquestion": {
-      const first = Array.isArray(fields?.questions) ? (fields!.questions[0] as Fields) : null
+      const first = Array.isArray(fields?.questions) ? (fields!.questions[0] as Fields) : undefined
       return {
         kind: "plan",
         title: "Asked",

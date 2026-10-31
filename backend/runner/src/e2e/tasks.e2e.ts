@@ -97,7 +97,7 @@ for (const setup of setups) {
       )
     })
 
-    it("closes another agent's terminal once the user confirms, and tells the agent that asked", async ({
+    it("closes another agent's terminal once the person confirms, and tells the agent that asked", async ({
       e2e: run,
     }) => {
       const asks = run.deck.answerApprovals(true)
@@ -134,7 +134,7 @@ for (const setup of setups) {
       expect(run.deck.store.terminal(t2.id)).toBeUndefined()
     })
 
-    it("keeps another agent's terminal open when the user declines, and tells the agent", async ({
+    it("keeps another agent's terminal open when the person declines, and tells the agent", async ({
       e2e: run,
     }) => {
       const asks = run.deck.answerApprovals(false)
@@ -161,7 +161,7 @@ for (const setup of setups) {
       expect(run.deck.terminals.get(t2.id).exit).toBeNull()
     })
 
-    it("leads an agent already running once the user approves, sends its brief, and releases it", async ({
+    it("leads an agent already running once the person approves, sends its brief, and releases it", async ({
       e2e: run,
     }) => {
       const asks = run.deck.answerApprovals(true)
@@ -198,7 +198,7 @@ for (const setup of setups) {
         .replaceAll("&gt;", ">")
         .replaceAll("&quot;", '"')
       expect(wrapped).toMatch(/<message\b[^>]*from="moth"[^>]* lead="[0-9A-Za-z]{8}"/)
-      // And fox was told the user let moth lead it, in this delivery or the one before.
+      // And fox was told the person let moth lead it, in this delivery or the one before.
       await run.model.waitFor((call) => !call.side && notified(call, "lead you from now on"), {
         after: calls,
       })

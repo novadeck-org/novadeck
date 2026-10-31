@@ -50,16 +50,16 @@ person clicked on `novadeck:notice-click` (`onNoticeClick`). The host acts only 
 notice from the main frame of one of its own windows showing the app's own UI, as for
 appearance reports; it drops notices from any other sender, such as a page in the
 companion pane, which has no preload. A notice passes (`desktopNoticeOf` in
-`apps/desktop/src/main/notices.ts`) as a terminal id of letters, digits, `_` and `-`,
+`apps/desktop/src/main/notices/notices.ts`) as a terminal id of letters, digits, `_` and `-`,
 at most 64 long, a title of at most 256 characters and a body of at most 120, neither
 holding a control character or a bidirectional mark, override or isolate; nothing else of it,
 such as an icon or a sound, crosses, and any other value is dropped. The preload sends
 only those three fields, and the page cuts and cleans its text the same way before it
-asks (`desktopNotices` in `frontend/runner-adapter/src/desktop-host.ts`). The page can also
+asks (`desktopNotices` in `frontend/runner-adapter/src/desktop/app.ts`). The page can also
 take a notice away by its terminal id (`closeNotice`, `novadeck:notice-close`), and report the
 Inbox count for the app's icon (`setBadge`, `novadeck:badge`): a whole number from 0 to 999 and
 an image that is null or a base64 PNG data URL of at most 16384 characters, checked by
-`desktopBadgeOf` in the page, the preload and `apps/desktop/src/main/badge.ts`, each from
+`desktopBadgeOf` in the page, the preload and `apps/desktop/src/main/notices/badge.ts`, each from
 the app's own window only. The page can also ask whether its window has the system's focus
 (`onWindowFocus`, `novadeck:window-focus-request`, carrying nothing); the host answers only the
 app's own page, with a boolean, and sends it again on each change. On Linux,
@@ -77,7 +77,7 @@ What a notification shows is the start of the agent's last reply, which the runn
 from the agent's own Stop hook payload or its transcript or rollout, strips of terminal
 escapes, control characters and bidirectional marks and overrides, and cuts to 120 characters
 before it reaches any client (`replyPreview` in
-`harnesses/core/src/harness.ts`). It is the agent's words, so it may echo
+`harnesses/core/src/decode.ts`). It is the agent's words, so it may echo
 what the agent read, a secret included, onto the system's notification centre, which
 other applications and the lock screen may show; turn **Notify when an agent finishes**
 off in Preferences where that matters. A compromised UI can show no more through this
@@ -94,7 +94,7 @@ as a page in the companion pane, is told uninstalling is unavailable and nothing
 
 The only value a request carries is `keepData`, and the host deletes the person's data only
 when it is exactly `false`; anything else keeps it. The host works out the rest itself
-(`apps/desktop/src/main/uninstall.ts`): the plan from where the running app is installed,
+(`apps/desktop/src/main/install/uninstall.ts`): the plan from where the running app is installed,
 and every path to delete from the platform's own locations, never from the page. It
 refuses a path that is not absolute and normalized, holds `..` or a control character, or is a
 root, the home folder or a folder that holds it, before the shutdown, so a refusal ends no

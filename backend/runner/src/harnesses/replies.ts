@@ -1,8 +1,9 @@
 import { setTimeout as sleep } from "node:timers/promises"
 
+import { replyPreview } from "@novadeck/harness-core/decode"
 import type { HarnessEvent } from "@novadeck/harness-core/events"
 import { tailLines } from "@novadeck/harness-core/follow"
-import { replyPreview, type Harness } from "@novadeck/harness-core/harness"
+import type { Harness } from "@novadeck/harness-core/harness"
 
 /** How a harness reads one line of its transcript as items. */
 export type Items = NonNullable<Harness["transcripts"]>["items"]

@@ -1,11 +1,11 @@
-import type { BarKey } from "@novadeck/core/companion-bar"
 import type { ItemId } from "@novadeck/core/items"
+import type { BarKey } from "@novadeck/core/items/companion-bar"
 import type { WindowPlace } from "@novadeck/core/layout/window-place"
 
-// What the pane does with a terminal's bar and the items on it, as the host's commands do:
+// What the pane does with a terminal's bar and the items on it, as the app's commands do:
 // undocking an item into a window of its own and docking it back, moving items onto
 // another terminal's bar, closing one, and arranging a bar. The package declares them, and
-// the host (the app's commands, which need its selection and its pulse) implements them,
+// the app (its commands, which need its selection and its pulse) implements them,
 // declaring that it `satisfies` this. Content actions stay on `ItemStore`. Each is one change to
 // the workspace, which the backend makes so; items are named by id, terminals by id in the
 // current session.

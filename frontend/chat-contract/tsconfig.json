@@ -1,14 +1,14 @@
 {
   "compilerOptions": {
     // Workspace packages' source, as Vitest reads it: no build first (see docs/build-graph.md).
-    // `node` too, which `Bundler` resolution leaves out: the runner's and the harnesses' source,
-    // which the adapter's test runner reaches, imports Node-only subpaths. The lint keeps the
-    // UI's own code off them.
+    // `node` too, which `Bundler` resolution leaves out: the harnesses' source imports
+    // Node-only subpaths. The lint keeps the UI's own code off them.
     "customConditions": ["node", "development"],
     "target": "ES2022",
     "lib": ["ES2023", "DOM", "DOM.Iterable"],
     "module": "ESNext",
     "moduleResolution": "Bundler",
+    // No .tsx of its own, but its pipeline renders the chat's Transcript, from source.
     "jsx": "react-jsx",
     "strict": true,
     "noUncheckedIndexedAccess": true,
@@ -18,5 +18,5 @@
     "noEmit": true,
     "types": ["vite/client", "node"]
   },
-  "include": ["src/**/*.ts", "src/**/*.tsx", "vitest.config.ts"]
+  "include": ["src/**/*.ts", "vitest.config.ts"]
 }

@@ -1,4 +1,4 @@
-import type { OfferedUninstall, UninstallResult } from "@novadeck/core/uninstall"
+import type { OfferedUninstall, UninstallResult } from "@novadeck/core/desktop/uninstall"
 import { render } from "@novadeck/test-kit/render"
 import { act, createElement } from "react"
 import { vi } from "vitest"
@@ -183,7 +183,7 @@ describe("the uninstall dialog of a copy the app removes", () => {
     unmount()
   })
 
-  it("has no data choice, and keeps data, where the host has no data folder to offer", async () => {
+  it("has no data choice, and keeps data, where the desktop app has no data folder to offer", async () => {
     const run = vi.fn<(options: { keepData: boolean }) => Promise<UninstallResult>>(() =>
       Promise.resolve({ kind: "removed" }),
     )

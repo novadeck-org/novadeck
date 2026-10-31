@@ -3,11 +3,11 @@
 // shares nothing with the runner but the messages it is sent and the answers it posts.
 import { parentPort } from "node:worker_threads"
 
-import type { Input } from "./describer.js"
+import type { Digest } from "./describer.js"
 import { messages } from "./prompt.js"
 import { redactDigest } from "./redact.js"
 
-parentPort?.on("message", (job: { id: number; request: Input }) => {
+parentPort?.on("message", (job: { id: number; request: Digest }) => {
   try {
     parentPort?.postMessage({ id: job.id, result: messages(redactDigest(job.request)) })
   } catch (error) {

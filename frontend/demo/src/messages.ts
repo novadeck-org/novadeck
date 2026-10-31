@@ -1,5 +1,4 @@
 import type { AgentAsk, InboxAnswer, InboxRow } from "@novadeck/core/inbox"
-import { companionKeyId } from "@novadeck/core/items"
 import {
   noMessages,
   type AgentMessage,
@@ -12,7 +11,7 @@ import {
   type TerminalThreads,
 } from "@novadeck/core/messages"
 import { createStore } from "@novadeck/core/store"
-import type { WorkspaceTarget } from "@novadeck/core/types"
+import { type WorkspaceTarget, terminalKeyPath } from "@novadeck/core/types"
 
 import { demoTerminalId } from "./samples"
 
@@ -151,7 +150,7 @@ const stateOf = (boxes: readonly DemoSessionMessages[], paused: boolean): Messag
   terminals: Object.fromEntries(
     boxes.flatMap((box) =>
       box.terminals.map(({ terminalId, handle, agent, waits }) => [
-        companionKeyId({ ...box.target, terminalId }),
+        terminalKeyPath({ ...box.target, terminalId }),
         messagesOf(box, handle, agent, paused, waits ?? null),
       ]),
     ),
@@ -198,7 +197,7 @@ const askText = (ask: AgentAsk): string => {
 }
 
 export type DemoMessages = Messages & {
-  readonly record: (item: InboxRow, answer?: InboxAnswer, outcome?: InboxHistory) => void
+  readonly record: (row: InboxRow, answer?: InboxAnswer, outcome?: InboxHistory) => void
   // An agent's message to another of a session, by handle: queued at first, and delivered once
   // the doorbell has rung (`rungMs` later), nothing holds it (a pause, a loop hold on its
   // thread, a recipient the doorbell can't ring) and its thread wasn't stopped; `delivered`
@@ -309,10 +308,10 @@ export const createDemoMessages = (
   }
   return {
     state,
-    record: (item, answer, outcome) => {
-      if (item.kind !== "ask" && item.kind !== "update") return
+    record: (row, answer, outcome) => {
+      if (row.kind !== "ask" && row.kind !== "update") return
       if (answer && answer.kind !== "ask" && answer.kind !== "update") return
-      const { source } = item
+      const { source } = row
       const target = { projectId: source.projectId, workspaceSessionId: source.workspaceSessionId }
       const index = boxes.findIndex(
         (box) =>
@@ -320,52 +319,52 @@ export const createDemoMessages = (
           box.target.workspaceSessionId === target.workspaceSessionId,
       )
       const box: DemoSessionMessages = boxes[index] ?? { target, terminals: [], threads: [] }
-      const id = `t-${item.id.replaceAll("-", "")}`
+      const id = `t-${row.id.replaceAll("-", "")}`
       const thread = box.threads.find((each) => each.id === id)
-      const content = item.kind === "ask" ? item.ask : item.kind === "update" ? item.update : null
+      const content = row.kind === "ask" ? row.ask : row.kind === "update" ? row.update : null
       if (!content) return
       const reply = answer?.kind === "ask" ? answer.answer : null
       const option =
         reply?.type === "reply" &&
         reply.option !== null &&
-        item.kind === "ask" &&
-        item.ask.shape.type === "options"
-          ? item.ask.shape.options[reply.option]?.label
+        row.kind === "ask" &&
+        row.ask.shape.type === "options"
+          ? row.ask.shape.options[reply.option]?.label
           : undefined
       const text = reply
         ? reply.type === "done"
-          ? item.kind === "ask" && item.ask.shape.type === "action"
-            ? item.ask.shape.doneLabel
+          ? row.kind === "ask" && row.ask.shape.type === "action"
+            ? row.ask.shape.doneLabel
             : "Done."
           : [option, reply.text].filter(Boolean).join("\n\n")
-        : item.kind === "ask"
-          ? askText(item.ask)
+        : row.kind === "ask"
+          ? askText(row.ask)
           : `${content.subject}\n\n${content.body}`
-      const entry: DemoMessage = {
-        id: reply ? `answer:${item.id}` : item.id,
+      const message: DemoMessage = {
+        id: reply ? `answer:${row.id}` : row.id,
         inbox: reply
           ? "answer"
-          : item.kind === "ask"
+          : row.kind === "ask"
             ? "ask"
-            : item.kind === "update" && item.update.type === "done"
+            : row.kind === "update" && row.update.type === "done"
               ? "done"
               : "tell",
         ...(!reply ? { inboxState: outcome ?? (answer ? "read" : "open") } : {}),
         from: reply ? { kind: "person" } : partyOf(source.handle),
         to: reply ? partyOf(source.handle) : { kind: "person" },
         text,
-        sentAt: reply ? Date.now() : item.at,
-        deliveredAt: reply ? null : item.at,
+        sentAt: reply ? Date.now() : row.at,
+        deliveredAt: reply ? null : row.at,
         state: reply ? "queued" : "delivered",
         hop: (thread?.messages.length ?? 0) + 1,
       }
       const messages = [
         ...(thread?.messages ?? [])
-          .filter((each) => each.id !== entry.id)
+          .filter((each) => each.id !== message.id)
           .map((each) =>
             reply && each.inbox === "ask" ? { ...each, inboxState: "answered" as const } : each,
           ),
-        entry,
+        message,
       ]
       const updated: DemoSessionMessages = {
         ...box,
@@ -394,18 +393,18 @@ export const createDemoMessages = (
             ...each,
             threads: each.threads.map((current) => ({
               ...current,
-              messages: current.messages.map((message) =>
+              messages: current.messages.map((other) =>
                 current.id !== id
-                  ? message
-                  : message.id === entry.id
+                  ? other
+                  : other.id === message.id
                     ? {
-                        ...message,
+                        ...other,
                         state: outcome === "undelivered" ? "gone" : "delivered",
                         deliveredAt: outcome === "undelivered" ? null : Date.now(),
                       }
-                    : outcome === "undelivered" && message.inbox === "ask"
-                      ? { ...message, inboxState: "undelivered" }
-                      : message,
+                    : outcome === "undelivered" && other.inbox === "ask"
+                      ? { ...other, inboxState: "undelivered" }
+                      : other,
               ),
             })),
           }))
@@ -518,12 +517,12 @@ export const createDemoMessages = (
       }, pauseMs)
     },
     waits: (key, waits) => {
-      const id = companionKeyId(key)
+      const id = terminalKeyPath(key)
       let found = false
       boxes = boxes.map((box) => ({
         ...box,
         terminals: box.terminals.map((each) => {
-          if (companionKeyId({ ...box.target, terminalId: each.terminalId }) !== id) return each
+          if (terminalKeyPath({ ...box.target, terminalId: each.terminalId }) !== id) return each
           found = true
           return { ...each, waits }
         }),
@@ -665,8 +664,8 @@ export const checkoutMessages = (
                 ),
               ],
             },
-            // An entry: moth asked the person, who answered, as the runner keeps a thread a
-            // entry. Those still open come from the Inbox's items (`demoEntries`). The
+            // An entry: moth asked the person, who answered, as the runner keeps a thread for
+            // an entry. Those still open come from the Inbox's rows (`demoEntries`). The
             // question is a real one's length, wider than a reply's bubble, as the Messages
             // spec checks the reply's quote of it stays in the chat.
             {

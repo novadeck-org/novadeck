@@ -1,7 +1,7 @@
 import { ChatView } from "@novadeck/chat/ChatView"
 import { chatDraftOf, chatReplyOf, chatSendOf, chatShown } from "@novadeck/chat/state"
 import { useChat } from "@novadeck/chat/use-chat"
-import { agentStats } from "@novadeck/core/agent-usage"
+import { agentStats } from "@novadeck/core/agents/stats"
 import { ledTerminals, runningLeads, terminalOrigins } from "@novadeck/core/derivations"
 import { isWindow } from "@novadeck/core/roster"
 import type { CompanionWindowMeta, TerminalMetadata, Tile } from "@novadeck/core/types"
@@ -232,7 +232,7 @@ export const WorkspaceTerminal = memo(
     const messageLinks = useMessageLinks()
     const onInputFocused = useCallback(() => setKeyboardFocus(null), [setKeyboardFocus])
     const { bar, items, fresh } = useTerminalBar(terminalId)
-    const { icon: Icon, Body } = terminalProfile(terminal)
+    const { icon: Icon } = terminalProfile(terminal)
     const processWindow = presentedProgram(terminal)
     const mic = useMicButton(terminal, terminalKey)
     const frame: Omit<WindowShellProps, "children"> = {
@@ -321,7 +321,7 @@ export const WorkspaceTerminal = memo(
     // remounts as an agent starts.
     const hosted = (content: ReactNode): ReactNode => (
       <div className="terminal-host relative flex min-h-0 min-w-0 flex-1 flex-col">
-        {Body ? <Body>{content}</Body> : content}
+        {content}
         {!showChat && terminal.state === "running" && (
           <TerminalStats context={chatContext} terminalId={terminalId} />
         )}
@@ -336,7 +336,8 @@ export const WorkspaceTerminal = memo(
         )}
       </div>
     )
-    // One shell element whatever runs, so only the body around the content changes.
+    // One shell element and one content whatever runs, so a program starting or ending
+    // changes only the header and the marks.
     const renderWindow = (surface: ReactNode): ReactNode => {
       const content = withChat(surface)
       return (
@@ -346,7 +347,7 @@ export const WorkspaceTerminal = memo(
               itemStore={itemStore}
               messages={backend.messages}
               links={messageLinks}
-              companionKey={terminalKey}
+              terminalKey={terminalKey}
               view={view}
               onReveal={onReveal}
               bar={bar}

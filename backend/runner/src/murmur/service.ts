@@ -6,8 +6,9 @@ import type { MurmurCheck, MurmurInstall, MurmurSettings, MurmurState } from "@n
 import { Versioned } from "@novadeck/wire/server"
 
 import type { Activity } from "../engines/activity.js"
-import { DownloadError, download } from "../engines/download.js"
+import { download } from "../engines/download.js"
 import { aborted, engineStatus, fetchEngine, removeContents } from "../engines/install.js"
+import { explainInstall, progressMs, updateRetryMs } from "../engines/installing.js"
 import { readManifest, type Artifact, type Manifest } from "../engines/manifest.js"
 import { modelFile as modelPathOf, pruneModels } from "../engines/models.js"
 import {
@@ -18,11 +19,13 @@ import {
   type Running,
   type ServerSpec,
 } from "../engines/server.js"
-import { EngineError, engineFolder, exists, programFile } from "../engines/unpack.js"
+import { EngineError, engineFolder, programFile } from "../engines/unpack.js"
 import { DomainError } from "../errors.js"
+import { exists } from "../files.js"
 import { logs } from "../log.js"
-import type { MurmurSettingsChange, MurmurVerdict } from "../workspaces/store.js"
-import type { Description, Describer, Digest, Input } from "./describer.js"
+import { cut } from "../text.js"
+import type { MurmurSettingsChange, MurmurVerdict } from "../workspaces/settings.js"
+import type { Description, Describer, Digest } from "./describer.js"
 import { parseDescription } from "./description.js"
 import { candidates, parseDevices, type Device } from "./devices.js"
 import { parseVmStat } from "./memory.js"
@@ -30,7 +33,7 @@ import { Preparer } from "./prepare.js"
 import { formats, type Message, type Task } from "./prompt.js"
 
 /** Where the runner keeps murmur's settings. */
-export type MurmurSettingsStore = {
+type MurmurSettingsStore = {
   murmurSettings(): MurmurSettings
   saveMurmurSettings(settings: MurmurSettingsChange): void
   murmurEnabledChoice(): boolean | undefined
@@ -46,13 +49,13 @@ export type MurmurSettingsStore = {
 }
 
 /** The one model murmur uses, pinned by the commit of its repository. */
-export const pinnedModel: Artifact = {
+const pinnedModel: Artifact = {
   url: "https://huggingface.co/unsloth/Qwen3.5-2B-GGUF/resolve/f6d5376be1edb4d416d56da11e5397a961aca8ae/Qwen3.5-2B-Q4_K_M.gguf",
   sha256: "aaf42c8b7c3cab2bf3d69c355048d4a0ee9973d48f16c731c0520ee914699223",
   size: 1280835840,
 }
 
-export type MurmurOptions = {
+type MurmurOptions = {
   /** The engine's manifest, `engine.json`; without one murmur is unavailable. */
   readonly engine?: string | undefined
   /** Where the engine's archive is: an https URL ending in `/`, or a folder. Beside the manifest by default. */
@@ -122,13 +125,6 @@ const log = logs.for("murmur")
 
 const unavailable = (message: string): DomainError => new DomainError("CONFLICT", message)
 
-const explain = (error: unknown): string => {
-  if (error instanceof DownloadError || error instanceof EngineError) return error.message
-  if (error instanceof Error && "code" in error && error.code === "ENOSPC")
-    return "There is not enough disk space to install murmur."
-  return `Murmur could not be installed: ${error instanceof Error ? error.message : String(error)}`
-}
-
 // Why the worker thread gave no chat for the install check's test terminal.
 const workerFailure = {
   unavailable: "Murmur's worker could not start.",
@@ -136,9 +132,6 @@ const workerFailure = {
   failed: "Murmur's worker failed on the test terminal.",
   stopped: "Murmur's worker was stopped.",
 } as const
-
-// How long after a failed engine update the next look tries it again.
-export const updateRetryMs = 60_000
 
 // What the install check asks: a small, fixed session, the same on every machine.
 const checkDigest: Digest = {
@@ -226,9 +219,6 @@ const readVmStat = (signal: AbortSignal | undefined): Promise<number> =>
 
 // How long the model stays loaded once nothing needs it.
 const defaultIdleMs = 2 * 60 * 1000
-
-// How often install progress reaches watchers, at most.
-const progressMs = 100
 
 /**
  * Murmur: the engine and model people install, the settings, and the describing of
@@ -703,7 +693,7 @@ export class Murmur implements Describer {
         await this.giveUp(error.message, hadModel)
       // Cancelling is the person's choice, not a failure.
       else if (!signal.aborted && !aborted(error)) {
-        this.failure = explain(error).slice(0, 1024)
+        this.failure = cut(explainInstall(error, "murmur"), 1024)
         this.updateFailedAt = engineOnly ? this.clock() : undefined
         // The card shows it until the next try; the log keeps it after that.
         log.warn("murmur.install-failed", "Murmur's install failed.", {
@@ -727,7 +717,7 @@ export class Murmur implements Describer {
   // engine is not fetched again by itself: the choice is reset as installing does.
   private async giveUp(reason: string, keepModel: boolean): Promise<void> {
     this.settings.saveMurmurUnsupported({
-      reason: reason.slice(0, 1024),
+      reason: cut(reason, 1024),
       engine: this.manifest?.sha256 ?? "",
     })
     this.settings.saveMurmurCheck(null)
@@ -775,9 +765,10 @@ export class Murmur implements Describer {
     const devices = parseDevices(`${run.stdout}\n${run.stderr}`)
     if (devices.length === 0 && (run.failure !== undefined || run.code !== 0)) {
       const last = run.stderr.split(/\r?\n/).findLast((text) => text.trim() !== "")
-      const why = (last?.trim() ?? run.failure ?? `it exited with code ${run.code}`)
-        .slice(0, 300)
-        .replace(/\.+$/, "")
+      const why = cut(
+        last?.trim() ?? run.failure ?? `it exited with code ${run.code}`,
+        300,
+      ).replace(/\.+$/, "")
       // An engine that can't load a library it needs will fail the same way every time: that
       // is this computer's, with the hint. Any other failed start, or a timeout, is retried.
       if (missingLibrary(run, last))
@@ -794,7 +785,7 @@ export class Murmur implements Describer {
     chat: readonly Message[],
     signal: AbortSignal,
     task: T,
-    input?: Input,
+    input?: Digest,
     parse?: (raw: string) => Made[T] | undefined,
   ): Promise<Made[T] | undefined> {
     const running = await this.started(server, config, signal)
@@ -837,7 +828,7 @@ export class Murmur implements Describer {
     const content = body?.choices?.[0]?.message?.content
     // The model is held to what it was shown: a text that copies an example is refused. A
     // title also loses the project's name, which the person sits in already.
-    const project = input?.kind === "agent" || input?.kind === "shell" ? input.project : null
+    const project = input?.project ?? null
     if (typeof content === "string" && parse) return parse(content)
     return typeof content === "string"
       ? (parsers[task](
@@ -931,7 +922,7 @@ export class Murmur implements Describer {
         await server.close()
       }
     }
-    const cause = last instanceof Error ? ` ${last.message}`.slice(0, 700) : ""
+    const cause = last instanceof Error ? cut(` ${last.message}`, 700) : ""
     // Every device answered, wrongly: this computer can't run it. Any other end (a timeout,
     // memory, a crash) leaves it a failure to try again.
     if (unusable === devices.length)
@@ -968,7 +959,7 @@ export class Murmur implements Describer {
 
   // Waits for the turn of `task` on the line, and runs the job.
   private async write<T extends Task>(
-    input: Input,
+    input: Digest,
     task: T,
     signal: AbortSignal | undefined,
     terminal: string,
@@ -1028,7 +1019,7 @@ export class Murmur implements Describer {
   }
 
   private async job<T extends Task>(
-    input: Input,
+    input: Digest,
     task: T,
     signal: AbortSignal | undefined,
     terminal: string,
@@ -1116,9 +1107,10 @@ export class Murmur implements Describer {
         // Three in a row are shown on the card, though the check stands.
         this.engineStrikes += 1
         if (this.engineStrikes >= 3) {
-          this.runtimeFailure = (
-            error instanceof EngineError ? error.message : "Murmur's engine stopped answering."
-          ).slice(0, 1024)
+          this.runtimeFailure = cut(
+            error instanceof EngineError ? error.message : "Murmur's engine stopped answering.",
+            1024,
+          )
           this.changed()
         }
         // An engine that failed, or stopped answering, starts afresh next time.

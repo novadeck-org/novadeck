@@ -4,20 +4,20 @@ import type { Workspace } from "@novadeck/core/types"
 
 import { isDesktop, subscribeDesktop } from "../shell/desktop"
 import type { Viewing } from "../terminals/unread-state"
-import { inboxShown } from "./selectors"
+import { inboxShown, sameItems } from "./selectors"
 import { viewing, type UiState, type UiStore } from "./ui-store"
 
 // The landing rule: the Inbox the app's list, bell, toasts, OS pings and app badge consume.
-// Items for the terminal the person is looking at (see `viewing`: the selected terminal while
+// Rows for the terminal the person is looking at (see `viewing`: the selected terminal while
 // the page has their focus, in every view) don't land while they look: the agent is right
 // there, so a row would only repeat it. They land when the person looks away, if still
 // unresolved: quietly (no toast or OS ping) once they looked at it for `readDwellMs`, as they
-// saw it there, and ringing as any item does after a shorter look. An
+// saw it there, and ringing as any row does after a shorter look. An
 // update (a done report or a tell) is read once its terminal has been looked at for a moment
 // (`readDwellMs`), whether it landed or not: seeing the terminal is seeing it. A read that
 // fails lands the update instead. On a phone, while the Inbox list covers the screen, no
 // terminal is looked at. Anything else that landed
-// stays: selecting a terminal doesn't take back a row the person must still answer. An item
+// stays: selecting a terminal doesn't take back a row the person must still answer. A row
 // the person asks to open by its id (`reveal`) always lands too, as Answer in a terminal's
 // Messages does.
 //
@@ -25,13 +25,10 @@ import { viewing, type UiState, type UiStore } from "./ui-store"
 // this one.
 //
 // The WorkspaceProvider makes one landing per app (`createServices`) and starts it in an effect,
-// so everything that consumes the landed Inbox, and whatever opens an item by its id, shares
+// so everything that consumes the landed Inbox, and whatever opens a row by its id, shares
 // the one object through the workspace services.
 
-const keyOf = (item: InboxRow): string => `${item.id}@${item.at}`
-
-const sameItems = (a: readonly InboxRow[], b: readonly InboxRow[]): boolean =>
-  a.length === b.length && a.every((item, index) => item === b[index])
+const rowKey = (row: InboxRow): string => `${row.id}@${row.at}`
 
 type WorkspaceSource = Pick<Store<Workspace>, "getSnapshot" | "subscribe">
 
@@ -40,17 +37,17 @@ type WorkspaceSource = Pick<Store<Workspace>, "getSnapshot" | "subscribe">
 export const readDwellMs = 1000
 
 // The Inbox the app consumes: the raw one's, with the landing rule applied to its state and
-// the answer to which landed items arrived while their terminal was viewed and landed later,
+// the answer to which landed rows arrived while their terminal was viewed and landed later,
 // as the person looked away. They count on the bell, but the person has already seen them
 // where they happened, so no toast or OS ping rings for them.
 export type LandedInbox = Inbox & {
-  readonly landedQuietly: (item: InboxRow) => boolean
+  readonly landedQuietly: (row: InboxRow) => boolean
 }
 
-// What the landing rule decides of one raw item, from what is known of it: whether its
+// What the landing rule decides of one raw row, from what is known of it: whether its
 // terminal is viewed (`here`), whether it has landed or been kept unread while viewed, whether
 // it already landed quietly, and whether it has waited out the dwell (`ripe`).
-export type ItemFacts = {
+export type RowFacts = {
   readonly kind: InboxRow["kind"]
   readonly here: boolean
   readonly landed: boolean
@@ -59,16 +56,16 @@ export type ItemFacts = {
   readonly ripe: boolean
 }
 
-export type ItemDecision = {
-  // What looking at the item's terminal does to it: `read` an update that has been seen for
-  // the dwell, `quiet` a held item seen for the dwell (it lands quietly when it does),
+export type RowDecision = {
+  // What looking at the row's terminal does to it: `read` an update that has been seen for
+  // the dwell, `quiet` a held row seen for the dwell (it lands quietly when it does),
   // `dwell` start or keep waiting for that, or nothing.
   readonly act: "read" | "quiet" | "dwell" | "none"
-  // Whether the item is held back from the list for now.
+  // Whether the row is held back from the list for now.
   readonly hold: boolean
 }
 
-export const decideItem = ({ kind, here, landed, kept, quiet, ripe }: ItemFacts): ItemDecision => {
+export const decideRow = ({ kind, here, landed, kept, quiet, ripe }: RowFacts): RowDecision => {
   const held = !landed
   const dwellable = here && !kept && (kind === "update" || (held && !quiet))
   const act = !dwellable ? "none" : !ripe ? "dwell" : kind === "update" ? "read" : "quiet"
@@ -94,7 +91,7 @@ export const viewedTerminal = (
 
 export type Landing = {
   readonly inbox: LandedInbox
-  // Lands the raw item `id` now, even while its terminal is viewed or its read is under
+  // Lands the raw row `id` now, even while its terminal is viewed or its read is under
   // way; none that is not there, and none before `start`.
   readonly reveal: (id: string) => void
   // Follows the raw Inbox, the workspace and the UI; returns the stop.
@@ -104,7 +101,7 @@ export type Landing = {
 // The landing of `raw`, following the workspace and the UI store for what the person is
 // viewing. Its `inbox` is the one the app consumes: everything but `state` is the raw Inbox's.
 // It follows nothing until `start`, which returns the stop and may be called again after it
-// (StrictMode starts, stops and starts an effect). Until then it shows the raw items as the
+// (StrictMode starts, stops and starts an effect). Until then it shows the raw rows as the
 // rule holds them now. `desktop` says whether the window is wide enough for the sidebar beside the terminal, and
 // when that changes: on a phone the Inbox list covers the terminal, which then isn't viewed.
 export const landInbox = (
@@ -113,9 +110,9 @@ export const landInbox = (
   ui: Pick<UiStore, "getSnapshot" | "subscribe">,
   desktop: DesktopSource = pageDesktop,
 ): Landing => {
-  // The ids of the items that landed and of those kept unread while viewed (because the
-  // person asked for them or a read failed), which an item keeps through a new `at`; and by
-  // key: the updates read by being seen, which never land, the held items viewed long enough
+  // The ids of the rows that landed and of those kept unread while viewed (because the
+  // person asked for them or a read failed), which a row keeps through a new `at`; and by
+  // key: the updates read by being seen, which never land, the held rows viewed long enough
   // to land quietly, and the reads under way.
   const landed = new Set<string>()
   // The open asks the rule held back, which then settled unseen: they never land.
@@ -125,7 +122,7 @@ export const landInbox = (
   const read = new Set<string>()
   const quiet = new Set<string>()
   const reading = new Set<string>()
-  // Per item viewed in its terminal that waits on being seen for the dwell, the timer, and
+  // Per row viewed in its terminal that waits on being seen for the dwell, the timer, and
   // those that have waited it out.
   const dwelling = new Map<string, ReturnType<typeof setTimeout>>()
   const ripe = new Set<string>()
@@ -138,8 +135,8 @@ export const landInbox = (
   const compute = (): void => {
     const state = raw.state.getSnapshot()
     const looking = viewedTerminal(workspace.getSnapshot(), ui.getSnapshot(), desktop.is)
-    const standing = new Set(state.items.map(keyOf))
-    const ids = new Set(state.items.map((item) => item.id))
+    const standing = new Set(state.items.map(rowKey))
+    const ids = new Set(state.items.map((row) => row.id))
     for (const id of landed) if (!ids.has(id)) landed.delete(id)
     for (const id of held) if (!ids.has(id) || landed.has(id)) held.delete(id)
     for (const id of clearing) if (!ids.has(id)) clearing.delete(id)
@@ -151,62 +148,59 @@ export const landInbox = (
         clearTimeout(timer)
         dwelling.delete(key)
       }
-    const items: InboxRow[] = []
+    const rows: InboxRow[] = []
     const toRead: InboxRow[] = []
     const toClear: string[] = []
     const stillDwelling = new Set<string>()
-    for (const item of state.items) {
-      const key = keyOf(item)
-      const { source } = item
+    for (const row of state.items) {
+      const key = rowKey(row)
+      const { source } = row
       const here =
         looking !== null &&
         looking.id === source.terminalId &&
         looking.context === `${source.projectId}/${source.workspaceSessionId}`
-      if (!here) kept.delete(item.id)
+      if (!here) kept.delete(row.id)
       if (read.has(key)) {
-        // A read that failed, or that left the item standing once it settled, mustn't hide
+        // A read that failed, or that left the row standing once it settled, mustn't hide
         // it for good: it lands, to be read by hand.
-        if (
-          state.failed[item.id] !== undefined ||
-          (reading.has(key) && !state.answering[item.id])
-        ) {
+        if (state.failed[row.id] !== undefined || (reading.has(key) && !state.answering[row.id])) {
           read.delete(key)
           reading.delete(key)
-          kept.add(item.id)
-          landed.add(item.id)
+          kept.add(row.id)
+          landed.add(row.id)
         } else {
-          if (state.answering[item.id]) reading.add(key)
+          if (state.answering[row.id]) reading.add(key)
           continue
         }
       }
       // A settled row only stays: one held back that settled unseen is dropped, not shown as
       // news, and cleared so it doesn't come back. Any other settled row shows at once.
-      if (item.settled) {
-        if (held.has(item.id)) {
-          if (!clearing.has(item.id)) {
-            clearing.add(item.id)
-            toClear.push(item.id)
+      if (row.settled) {
+        if (held.has(row.id)) {
+          if (!clearing.has(row.id)) {
+            clearing.add(row.id)
+            toClear.push(row.id)
           }
           continue
         }
-        landed.add(item.id)
-        items.push(item)
+        landed.add(row.id)
+        rows.push(row)
         continue
       }
-      const { act, hold } = decideItem({
-        kind: item.kind,
+      const { act, hold } = decideRow({
+        kind: row.kind,
         here,
-        landed: landed.has(item.id),
-        kept: kept.has(item.id),
+        landed: landed.has(row.id),
+        kept: kept.has(row.id),
         quiet: quiet.has(key),
         ripe: ripe.has(key),
       })
       // Looking at its terminal for the dwell reads an update, landed or not, and makes a
-      // held item land quietly when it does: the person saw it there.
+      // held row land quietly when it does: the person saw it there.
       if (act === "read" || act === "quiet") ripe.delete(key)
       if (act === "read") {
         read.add(key)
-        toRead.push(item)
+        toRead.push(row)
         continue
       }
       if (act === "quiet") quiet.add(key)
@@ -223,11 +217,11 @@ export const landInbox = (
           )
       }
       if (hold) {
-        held.add(item.id)
+        held.add(row.id)
         continue
       }
-      landed.add(item.id)
-      items.push(item)
+      landed.add(row.id)
+      rows.push(row)
     }
     for (const [key, timer] of dwelling)
       if (!stillDwelling.has(key)) {
@@ -236,25 +230,25 @@ export const landInbox = (
         ripe.delete(key)
       }
     store.update((current) =>
-      sameItems(current.items, items) &&
+      sameItems(current.items, rows) &&
       current.answering === state.answering &&
       current.failed === state.failed
         ? current
-        : { ...state, items },
+        : { ...state, items: rows },
     )
     if (running && toClear.length > 0) raw.clear?.(toClear)
-    if (running) for (const item of toRead) raw.answer(item.id, { kind: "update", action: "read" })
+    if (running) for (const row of toRead) raw.answer(row.id, { kind: "update", action: "read" })
   }
   const sync = (): void => {
     if (running) compute()
   }
   const reveal = (id: string): void => {
     if (!running) return
-    const item = raw.state.getSnapshot().items.find((each) => each.id === id)
-    if (!item) return
-    // A read in flight gives way: the item shows until the read completes.
-    read.delete(keyOf(item))
-    reading.delete(keyOf(item))
+    const row = raw.state.getSnapshot().items.find((each) => each.id === id)
+    if (!row) return
+    // A read in flight gives way: the row shows until the read completes.
+    read.delete(rowKey(row))
+    reading.delete(rowKey(row))
     landed.add(id)
     kept.add(id)
     sync()
@@ -264,7 +258,7 @@ export const landInbox = (
     inbox: {
       ...raw,
       state: landedState,
-      landedQuietly: (item) => quiet.has(keyOf(item)),
+      landedQuietly: (row) => quiet.has(rowKey(row)),
     },
     reveal,
     start: () => {

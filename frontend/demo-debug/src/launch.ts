@@ -1,4 +1,4 @@
-import type { LaunchCues } from "@novadeck/demo/launch"
+import type { LaunchCues } from "@novadeck/demo/videos/launch"
 
 import type { DemoActionGroup } from "./types"
 
@@ -96,6 +96,16 @@ export const launchGroups = (cues: LaunchCues | undefined): readonly DemoActionG
               label: "8b · Agent shows its plan",
               hint: "Order emails shows its plan, ~/.claude/plans/order-emails.md, rendered in the pane beside its window",
               run: (context) => cues.showPlan(context.select),
+            },
+            {
+              label: "8c · A Codex agent asks to run a command",
+              hint: "Search index, a Codex agent, asks to run pnpm test --filter search in Codex's own words: an Unblock row. Allowed, it runs them and reports done about 2 s later: an Update row",
+              run: () => cues.command(),
+            },
+            {
+              label: "8d · An Antigravity agent asks to approve its plan",
+              hint: "Inventory sync, the deck's Antigravity agent, shows its implementation plan (Stock sync) beside its window, without opening it, and asks to approve it in Antigravity's words (1 artifact to review: Approve, Reject, Tell it what to change): an Unblock row whose sheet shows the plan. Answered, it goes on working",
+              run: () => cues.agyPlan(),
             },
           ],
         },

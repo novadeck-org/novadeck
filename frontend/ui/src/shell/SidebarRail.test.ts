@@ -3,15 +3,15 @@ import { createElement } from "react"
 import { afterEach } from "vitest"
 
 import { describe, expect, it } from "../test"
-import type { BellBadge } from "./inbox-badge"
+import type { InboxBadge } from "./inbox-badge"
 import { SidebarRail } from "./SidebarRail"
 
 const unmounts: (() => void)[] = []
 afterEach(() => unmounts.splice(0).forEach((unmount) => unmount()))
 
-const waiting: BellBadge = { count: 1, label: "Inbox, 1 waiting" }
+const waiting: InboxBadge = { count: 1, label: "Inbox, 1 waiting" }
 
-const rail = (badge: BellBadge | undefined, bellRings: number) =>
+const rail = (badge: InboxBadge | undefined, bellRings: number) =>
   createElement(SidebarRail, {
     sidebarVisible: false,
     sidebarPanel: "terminals",

@@ -9,7 +9,7 @@ const settleMs = 400
 
 const sameWires = (a: Wires, b: Wires) => JSON.stringify(a) === JSON.stringify(b)
 
-// Where a tab's name line sits, and its left edge, in the host's frame. While the tab is
+// Where a tab's name line sits, and its left edge, in the wire layer's frame. While the tab is
 // renamed its name gives way to a field, so the line is taken from the tab's top.
 const memberOf = (tab: Element, id: string, origin: DOMRect): WireMember => {
   const rect = tab.getBoundingClientRect()
@@ -20,10 +20,10 @@ const memberOf = (tab: Element, id: string, origin: DOMRect): WireMember => {
 
 // Measures the wire for `team` against the page as it is now: none while the rail isn't
 // laid out (as on a phone), the lead's tab is missing, or no worker's tab is.
-const measureWire = (host: HTMLElement, list: Element, team: Team): WireShape | undefined => {
-  const rail = host.parentElement?.querySelector(":scope > .sidebar-tools")
+const measureWire = (layer: HTMLElement, list: Element, team: Team): WireShape | undefined => {
+  const rail = layer.parentElement?.querySelector(":scope > .sidebar-tools")
   if (!rail) return undefined
-  const origin = host.getBoundingClientRect()
+  const origin = layer.getBoundingClientRect()
   const railRect = rail.getBoundingClientRect()
   const listRect = list.getBoundingClientRect()
   const tab = (id: string) => list.querySelector(`[data-terminal-tab-id="${CSS.escape(id)}"]`)
@@ -44,9 +44,9 @@ const measureWire = (host: HTMLElement, list: Element, team: Team): WireShape | 
 // Every team's wire, by its lead, in the teams' order.
 type Wires = readonly { readonly lead: string; readonly shape: WireShape }[]
 
-const measureWires = (host: HTMLElement, list: Element, teams: readonly Team[]): Wires =>
+const measureWires = (layer: HTMLElement, list: Element, teams: readonly Team[]): Wires =>
   teams.flatMap((team) => {
-    const shape = measureWire(host, list, team)
+    const shape = measureWire(layer, list, team)
     return shape ? [{ lead: team.lead, shape }] : []
   })
 
@@ -76,7 +76,7 @@ export const TeamWire = ({
   // the side pane.
   list: HTMLElement | null
 }): React.JSX.Element => {
-  const host = useRef<HTMLDivElement>(null)
+  const layer = useRef<HTMLDivElement>(null)
   const [wires, setWires] = useState<Wires>([])
   // The selection whose entrance has played. Any change of selection forgets it, so coming
   // back to a member before the timer below fires plays the entrance again.
@@ -91,7 +91,7 @@ export const TeamWire = ({
   // observers, listeners and frame loop, and its cleanup ends them all, so a change of teams
   // or of the list's visibility never leaves an earlier run measuring.
   useLayoutEffect(() => {
-    const element = host.current
+    const element = layer.current
     const body = element?.parentElement
     if (!element || !body || !list || !teams.length || !shown) return
     const measure = () => {
@@ -179,7 +179,7 @@ export const TeamWire = ({
   const lit = drawn.find((wire) => wire.lead === team?.lead)
   return (
     <div
-      ref={host}
+      ref={layer}
       className="team-wire"
       aria-hidden
       data-settled={played === selected || undefined}

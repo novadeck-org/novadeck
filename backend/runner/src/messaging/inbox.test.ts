@@ -4,11 +4,21 @@ import { tmpdir } from "node:os"
 import { join } from "node:path"
 import { DatabaseSync } from "node:sqlite"
 
-import { maxCommandLines, terminalMessages } from "@novadeck/protocol"
+import {
+  inboxEntry,
+  inboxTextLimits,
+  maxCommandLines,
+  maxTurnError,
+  maxTurnFilePath,
+  maxTurnFiles,
+  terminalMessages,
+} from "@novadeck/protocol"
 import { vi } from "vitest"
 
 import { agents, harnesses } from "../harnesses/registry.js"
+import { logs, useLogger } from "../log.js"
 import { describe, expect, it } from "../test.js"
+import { fakeClock } from "../testing/clock.js"
 import { storeWith } from "../testing/workspace.js"
 import type { WorkspaceStore } from "../workspaces/store.js"
 import {
@@ -354,6 +364,33 @@ describe("Inbox persistence and identity", () => {
     next.inbox.reconcile(identity.terminalId)
     expect(next.inbox.list()).toEqual([])
     expect(reopened.entries()[0]?.state).toBe("gone")
+  })
+
+  it("cuts a stored turn's text and files to the protocol's limits as it reads them back", () => {
+    const records = memoryInbox()
+    records.saveEntry({
+      ...identity,
+      id: randomUUID(),
+      at: 1,
+      state: "open",
+      content: {
+        kind: "turn",
+        outcome: "failed",
+        reply: null,
+        error: "x".repeat(maxTurnError + 100),
+        files: Array.from({ length: maxTurnFiles + 4 }, (_, index) =>
+          `/${index}`.padEnd(maxTurnFilePath + 100, "x"),
+        ),
+      },
+    })
+    const { inbox, stop } = setup(records)
+    const [read] = inbox.list()
+    stop()
+    expect(inboxEntry.safeParse(read).success).toBe(true)
+    if (read?.content.kind !== "turn") throw new Error("not a turn")
+    expect(read.content.error).toHaveLength(maxTurnError)
+    expect(read.content.files).toHaveLength(maxTurnFiles)
+    expect(read.content.files.every((file) => file.length === maxTurnFilePath)).toBe(true)
   })
 
   it("retains the complete choice and action instructions in history", () => {
@@ -1013,10 +1050,7 @@ describe("bounded Inbox history", () => {
   it("expires old resolved records on its timer without another create, and on startup", async ({
     resources,
   }) => {
-    vi.useFakeTimers()
-    resources.defer(() => {
-      vi.useRealTimers()
-    })
+    fakeClock(resources)
     const clock = inboxClock()
     const records = memoryInbox()
     const run = setup(records, undefined, { ...clock, sweepMs: askSweepMs })
@@ -1243,7 +1277,11 @@ describe("Inbox history outcomes and safe instructions", () => {
 
   it("refuses a folder of more than one plain line", () => {
     const { inbox } = setup()
-    for (const directory of ["/repo\n/other", "/repo\u034f", "x".repeat(1025)])
+    for (const directory of [
+      "/repo\n/other",
+      "/repo\u034f",
+      "x".repeat(inboxTextLimits.directory + 1),
+    ])
       expect(
         inbox.call(identity.terminalId, "ask", {
           subject: "Run",
@@ -1251,6 +1289,21 @@ describe("Inbox history outcomes and safe instructions", () => {
           shape: { type: "action", command: "ls", directory, done_label: "Done" },
         }).ok,
       ).toBe(false)
+  })
+
+  it("takes a folder as long as the protocol's limit for it, past a subject's", () => {
+    const { inbox } = setup()
+    const directory = `/${"x".repeat(inboxTextLimits.directory - 1)}`
+    expect(directory.length).toBeGreaterThan(inboxTextLimits.line)
+    const asked = inbox.call(identity.terminalId, "ask", {
+      subject: "Run",
+      body: "Run it",
+      shape: { type: "action", command: "ls", directory, done_label: "Done" },
+    })
+    expect(asked.ok).toBe(true)
+    const [stored] = inbox.list()
+    expect(inboxEntry.safeParse(stored).success).toBe(true)
+    expect(stored?.content.kind === "ask" && stored.content.ask.shape).toMatchObject({ directory })
   })
 
   it("cleans option summaries and code paths before storing or displaying them", ({
@@ -1399,10 +1452,7 @@ describe("the person's messages and the agent pause", () => {
   it("keeps a person reply deliverable after paused restart and a lost lease", async ({
     resources,
   }) => {
-    vi.useFakeTimers()
-    resources.defer(() => {
-      vi.useRealTimers()
-    })
+    fakeClock(resources)
     const clock = inboxClock()
     const folder = mkdtempSync(join(tmpdir(), "novadeck-paused-person-"))
     resources.defer(() => rmSync(folder, { recursive: true, force: true }))
@@ -1740,6 +1790,12 @@ describe("Inbox asks whose session does not come back after a restart", () => {
 })
 
 describe("asks the person's own prompt withdraws", () => {
+  // The notice of what the prompt would take, with those asks taken out as the agent is told.
+  const withdrawBefore = (inbox: Inbox, terminalId: string, before: number) => {
+    const found = inbox.withdrawable(terminalId, before)
+    if (found) inbox.withdrawReplied(terminalId, found.asks)
+    return found?.notice
+  }
   const clocked = () => {
     const time = { now: 1_000 }
     return { time, ...setup(memoryInbox(), undefined, { now: () => time.now }) }
@@ -1759,7 +1815,7 @@ describe("asks the person's own prompt withdraws", () => {
       error: null,
       files: [],
     })
-    const notice = inbox.withdrawBefore(identity.terminalId, 1_150)
+    const notice = withdrawBefore(inbox, identity.terminalId, 1_150)
     expect(notice).toContain('"Pick a colour"')
     expect(notice).not.toContain("Pick a font")
     expect(notice).toBe(withdrawnNotice(["Pick a colour"]))
@@ -1778,13 +1834,13 @@ describe("asks the person's own prompt withdraws", () => {
   it("keeps an ask the agent made in the new turn, and answers nothing when none was open", () => {
     const { inbox, create, time } = clocked()
     create()
-    expect(inbox.withdrawBefore(identity.terminalId, 1_000)).toBeUndefined()
+    expect(withdrawBefore(inbox, identity.terminalId, 1_000)).toBeUndefined()
     expect(inbox.list()).toHaveLength(1)
     time.now = 2_000
     create({ ...entry, subject: "Asked in the new turn" })
-    expect(inbox.withdrawBefore(identity.terminalId, 2_000)).toContain('"Pick a colour"')
-    expect(inbox.withdrawBefore("another", 9_000)).toBeUndefined()
-    expect(inbox.withdrawBefore(identity.terminalId, 2_000)).toBeUndefined()
+    expect(withdrawBefore(inbox, identity.terminalId, 2_000)).toContain('"Pick a colour"')
+    expect(withdrawBefore(inbox, "another", 9_000)).toBeUndefined()
+    expect(withdrawBefore(inbox, identity.terminalId, 2_000)).toBeUndefined()
     expect(inbox.list().filter(({ settled }) => !settled)).toHaveLength(1)
   })
 
@@ -1795,7 +1851,7 @@ describe("asks the person's own prompt withdraws", () => {
     time.now = 1_100
     create({ ...entry, subject: "Which one?" })
     time.now = 1_500
-    expect(inbox.withdrawBefore(identity.terminalId, 1_500)).toContain('"Which one?"')
+    expect(withdrawBefore(inbox, identity.terminalId, 1_500)).toContain('"Which one?"')
     expect(inbox.list()).toMatchObject([{ settled: { how: "replied" } }])
     const messages = inbox
       .history(identity.terminalId, messaging.list(identity.terminalId, identity.handle))
@@ -1804,6 +1860,84 @@ describe("asks the person's own prompt withdraws", () => {
       .filter((message) => message.inbox === "ask")
       .map(({ inboxState }) => inboxState)
     expect(states.toSorted()).toEqual(["answered", "withdrawn"])
+  })
+
+  it("changes nothing in naming what it would withdraw", () => {
+    const { inbox, create, time } = clocked()
+    const early = create({ ...entry, subject: "Pick a colour" })
+    time.now = 1_200
+    create({ ...entry, subject: "Pick a font" })
+    const before = inbox.list()
+    const found = inbox.withdrawable(identity.terminalId, 1_150)
+    expect(found).toEqual({
+      asks: [early],
+      notice: withdrawnNotice(["Pick a colour"]),
+    })
+    expect(inbox.list()).toEqual(before)
+    expect(inbox.list().filter(({ settled }) => settled)).toEqual([])
+    expect(inbox.withdrawable("another", 9_000)).toBeUndefined()
+  })
+
+  it("withdraws only the named asks still open in the session, logging counts and no subject", async () => {
+    const { inbox, create, time } = clocked()
+    const open = create({ ...entry, subject: "Secret subject one" })
+    const answered = create({ ...entry, subject: "Secret subject two" })
+    const dismissed = create({ ...entry, subject: "Secret subject three" })
+    const unnamed = create({ ...entry, subject: "Secret subject four" })
+    time.now = 2_000
+    const found = inbox.withdrawable(identity.terminalId, 1_500)!
+    expect(found.asks).toHaveLength(4)
+    // Between the notice and its acknowledgement the person answered one and dismissed another.
+    inbox.answer(answered, { type: "reply", option: 1, text: "Green" })
+    inbox.dismiss(dismissed)
+    const lines: { evt: string; data?: unknown }[] = []
+    const before = logs.current()
+    useLogger({
+      for: () => {
+        const note = (evt: string, _message?: string, detail?: { data?: unknown }) =>
+          void lines.push({ evt, data: detail?.data })
+        return { debug: note, info: note, warn: note, error: note, fatal: note }
+      },
+      flush: () => {},
+      close: () => {},
+    })
+    try {
+      inbox.withdrawReplied(identity.terminalId, [open, answered, dismissed, "no-such-ask"])
+    } finally {
+      useLogger(before)
+    }
+    const how = (id: string) => inbox.list().find((each) => each.id === id)?.settled?.how
+    expect(how(open)).toBe("replied")
+    // The answered one was not revived as withdrawn, nor the dismissed one made replied.
+    expect(inbox.list().find((each) => each.id === answered)?.settled?.how).not.toBe("replied")
+    expect(how(dismissed)).toBe("dismissed")
+    expect(how(unnamed)).toBeUndefined()
+    expect(lines).toEqual([
+      {
+        evt: "inbox.withdrawn",
+        data: { terminalId: identity.terminalId, count: 1, cause: "replied" },
+      },
+    ])
+    expect(JSON.stringify(lines)).not.toContain("Secret")
+    // Every ask the notice named, once committed, is taken: none stays to withdraw.
+    inbox.withdrawReplied(identity.terminalId, found.asks)
+    expect(how(unnamed)).toBe("replied")
+    expect(inbox.withdrawable(identity.terminalId, 9_000)).toBeUndefined()
+  })
+
+  it("leaves an ask of another terminal alone, even when named", () => {
+    const { inbox, create } = clocked()
+    const id = create()
+    inbox.withdrawReplied("another", [id])
+    expect(inbox.list().find((each) => each.id === id)?.settled).toBeUndefined()
+  })
+
+  it("leaves an ask of the terminal's earlier session alone, even when named", () => {
+    const { inbox, create, bind } = clocked()
+    const id = create()
+    bind("s-later")
+    inbox.withdrawReplied(identity.terminalId, [id])
+    expect(inbox.list().find((each) => each.id === id)?.settled?.how).not.toBe("replied")
   })
 
   it("names a few subjects in one short paragraph, as the agent's quoted words", () => {
