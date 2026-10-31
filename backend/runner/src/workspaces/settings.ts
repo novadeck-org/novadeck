@@ -2,6 +2,7 @@ import type { SQLTagStore } from "node:sqlite"
 
 import {
   murmurCheck,
+  runnerSettings,
   voiceCheck,
   voiceLanguage,
   voiceModel,
@@ -30,6 +31,17 @@ export type MurmurSettingsChange = {
 
 export type RunnerSettingsChange = {
   readonly [K in keyof RunnerSettings]?: RunnerSettings[K] | undefined
+}
+
+// Inbox rows as saved, by id, or none where they can't be read.
+const inboxRowsOf = (text: string | undefined): string[] => {
+  if (text === undefined) return []
+  try {
+    const order = runnerSettings.shape.inboxOrder.safeParse(JSON.parse(text))
+    return order.success ? order.data : []
+  } catch {
+    return []
+  }
 }
 
 /** What the person chose, kept in the store's settings table: the runner's, voice input's and murmur's. */
@@ -94,16 +106,20 @@ export class Settings {
       value: string
     }[]
     const saved = new Map(rows.map((row) => [row.key, row.value]))
-    // Transcripts are kept unless turned off; the welcome dialog waits until seen.
+    // Transcripts are kept unless turned off; the welcome dialog waits until seen; the Inbox
+    // keeps its own order until the person drags its rows, and snoozes none until they do.
     return {
       transcripts: saved.get("transcripts") !== "false",
       welcomed: saved.get("welcomed") === "true",
+      inboxOrder: inboxRowsOf(saved.get("inboxOrder")),
+      inboxSnoozed: inboxRowsOf(saved.get("inboxSnoozed")),
     }
   }
 
+  // Each as JSON, which writes a switch as `true` or `false`, as it always was.
   saveRunner(settings: RunnerSettingsChange): void {
     for (const [key, value] of Object.entries(settings))
-      if (value !== undefined) this.saveSetting(key, String(value))
+      if (value !== undefined) this.saveSetting(key, JSON.stringify(value))
   }
 
   /** Voice input's settings: off, on the lighter model, and detecting the language, until chosen. */

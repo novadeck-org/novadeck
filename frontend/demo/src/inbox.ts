@@ -3,6 +3,7 @@ import type { Conversation, Conversations } from "@novadeck/core/conversation"
 import type { AgentName } from "@novadeck/core/harnesses"
 import {
   emptyInbox,
+  rowKey,
   ordered,
   type Inbox,
   type InboxAnswer,
@@ -172,6 +173,8 @@ export const createDemoInbox = (
     })
   }
   const state = createStore<InboxState>(combine(emptyInbox))
+  // The order the person drags the rows into, kept for as long as the page is.
+  const order = createStore<readonly string[]>([])
   // The finished turns it stores, as the runner stores them (a completed one only marks its
   // tab): until read, while their terminal is there. Undefined while nothing is bound.
   const turns = createStore<readonly InboxTurn[] | undefined>(undefined)
@@ -487,6 +490,12 @@ export const createDemoInbox = (
         return
       }
       settle(id, "dismissed")
+    },
+    order,
+    // Only the rows still listed: the order forgets the gone.
+    arrange: (keys) => {
+      const listed = new Set(state.getSnapshot().items.map(rowKey))
+      order.update(() => keys.filter((key) => listed.has(key)))
     },
     clear: (ids) => {
       const gone = new Set(ids)

@@ -1,3 +1,5 @@
+import { maxSnoozes } from "@novadeck/core/inbox"
+import { maxInboxOrder } from "@novadeck/protocol"
 import { WireError } from "@novadeck/wire"
 
 import { describe, expect, it } from "./test"
@@ -79,6 +81,40 @@ describe("the agent switches", () => {
     expect(agents.welcome.getSnapshot()).toBe(false)
     await app.idle()
     expect(app.of("settings")).toEqual([{ welcomed: true }])
+    app.stop()
+  })
+})
+
+describe("the Inbox's order and snoozes", () => {
+  it("show what the runner kept, and keep each change there, as many as it takes", async () => {
+    const app = scripted({ shown: [], inboxOrder: ["b@2", "a@1"], inboxSnoozed: ["a@1", "b@2"] })
+    const inbox = app.backend.inbox!
+    expect(inbox.order?.getSnapshot()).toEqual(["b@2", "a@1"])
+    // No row is listed here: those not listed are kept while there is room, as one may be
+    // back; past it, the latest placed stay.
+    inbox.arrange?.(["a@1", "b@2"])
+    expect(inbox.order?.getSnapshot()).toEqual(["a@1", "b@2"])
+    const many = Array.from({ length: maxInboxOrder + 5 }, (_, index) => `r${index}@1`)
+    inbox.arrange?.(many)
+    expect(inbox.order?.getSnapshot()).toEqual(many.slice(5))
+    inbox.snooze?.("a", false)
+    await app.idle()
+    expect(app.of("settings")).toEqual([
+      { inboxOrder: ["a@1", "b@2"] },
+      { inboxOrder: many.slice(5) },
+      { inboxSnoozed: ["b@2"] },
+    ])
+    app.stop()
+  })
+
+  it("keep as many snoozes as the runner takes", () => {
+    expect(maxSnoozes).toBe(maxInboxOrder)
+  })
+
+  it("aren't offered where the runner keeps none", () => {
+    const app = scripted({ shown: [] })
+    expect(app.backend.inbox?.arrange).toBeUndefined()
+    expect(app.backend.inbox?.snooze).toBeUndefined()
     app.stop()
   })
 })

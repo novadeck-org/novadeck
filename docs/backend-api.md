@@ -1191,9 +1191,11 @@ one from an earlier runner.
   of those names as a plan is ever read. When another agent session binds the terminal,
   the plans its bar mirrored of the earlier one go; moved ones stay.
 
-- `settings.get()` and `settings.set({ transcripts?, welcomed? })` read and change
-  whether transcripts are kept (unless turned off; turning them off forgets every saved
-  transcript) and whether the person has seen the first-run choice of agents. `get` also
+- `settings.get()` and `settings.set({ transcripts?, welcomed?, inboxOrder?, inboxSnoozed? })`
+  read and change whether transcripts are kept (unless turned off; turning them off forgets
+  every saved transcript), whether the person has seen the first-run choice of agents, the
+  Inbox rows that ask in the order the person dragged them into, and the rows they snoozed
+  (each `<row id>@<when it began>`, at most 200 of each, and 200 characters). `get` also
   reports `transcriptsAvailable`: false once it is known there is no key to seal
   transcripts with, true when there is one and while it is still awaited (it waits about a
   second for it).

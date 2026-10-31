@@ -1,4 +1,4 @@
-import type { Inbox, InboxRow } from "@novadeck/core/inbox"
+import { rowKey, type Inbox, type InboxRow } from "@novadeck/core/inbox"
 import type { Backend, Notice } from "@novadeck/core/port"
 import { handleText } from "@novadeck/core/terminals/handle"
 
@@ -149,9 +149,6 @@ export const drawBadge = (count: number): string | null => {
   }
 }
 
-// A row by its id and when it began: a newer one under the same id is another.
-export const rowKey = (row: InboxRow): string => `${row.id}@${row.at}`
-
 const onWindows = (): boolean => navigator.platform.startsWith("Win")
 
 // Follows the Inbox for what rings the person: each new row that needs them (what the bell
@@ -187,6 +184,14 @@ export const followNeeds = (
   const timers = new Map<string, ReturnType<typeof setTimeout>>()
   const waitingKeys = (): Set<string> =>
     new Set(needing(inbox.state.getSnapshot().items).map(rowKey))
+  // What the person snoozed is no longer rung, but stays seen: brought back, it is no news.
+  const snoozedKeys = (): Set<string> =>
+    new Set(
+      inbox.state
+        .getSnapshot()
+        .items.filter((row) => row.snoozed)
+        .map(rowKey),
+    )
   const sound = (key: string): void => {
     const row = needing(inbox.state.getSnapshot().items).find((each) => rowKey(each) === key)
     if (!row || rung.has(key)) return
@@ -207,14 +212,16 @@ export const followNeeds = (
             leaving.delete(key)
             if (waitingKeys().has(key)) return
             rung.delete(key)
-            seen.delete(key)
+            if (!snoozedKeys().has(key)) seen.delete(key)
             leave(row)
           }, graceMs),
         )
     }
-    // One that left before it rang is new again if it comes back, its grace begun anew.
+    // One that left before it rang is new again if it comes back, its grace begun anew;
+    // one snoozed is still seen.
+    const sleeping = snoozedKeys()
     for (const key of seen)
-      if (!keys.has(key) && !rung.has(key)) {
+      if (!keys.has(key) && !rung.has(key) && !sleeping.has(key)) {
         seen.delete(key)
         clearTimeout(timers.get(key))
         timers.delete(key)
