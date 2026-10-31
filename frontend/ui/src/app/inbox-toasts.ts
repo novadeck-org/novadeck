@@ -1,9 +1,9 @@
-import type { InboxRow } from "@novadeck/core/inbox"
+import { rowKey, type InboxRow } from "@novadeck/core/inbox"
 
 import { needing } from "../inbox/inbox-state"
 import type { ToastBoard } from "../inbox/InboxToasts"
 import { isDesktop } from "../shell/desktop"
-import { followNeeds, rowKey, needGraceMs, type NeedsInbox } from "./inbox-pings"
+import { followNeeds, needGraceMs, type NeedsInbox } from "./inbox-pings"
 import { inboxShown, mayToast, modalOpen } from "./selectors"
 import type { UiState, UiStore } from "./ui-store"
 

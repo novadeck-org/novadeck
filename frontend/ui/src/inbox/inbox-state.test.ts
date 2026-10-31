@@ -2,15 +2,18 @@ import type { InboxRow } from "@novadeck/core/inbox"
 
 import { context, describe, expect, it } from "../test"
 import {
+  arrange,
   clearArrived,
   closeSheet,
   held,
   initialView,
   hasUpdates,
+  keptOrder,
   needing,
   needs,
   nextRow,
   openRow,
+  rearranged,
   release,
   settle,
   settledStart,
@@ -59,6 +62,11 @@ const update = (id: string, at: number): InboxRow => ({
 })
 
 const ids = (rows: readonly InboxRow[]): string[] => rows.map(({ id }) => id)
+
+// The person's order keeps rows by their key, an id and when it began: the rows below began
+// at 1, 2 and 3 (a, b, c).
+const keyed = (...names: string[]): string[] =>
+  names.map((name) => ({ a: "a@1", b: "b@2", c: "c@3" })[name] ?? name)
 
 describe("What the Inbox starts with", () => {
   it("is on the list at once, and none of it counts as having just arrived", () => {
@@ -321,5 +329,123 @@ describe("The line above the settled asks", () => {
     expect(settledStart([true, true])).toBe(-1)
     expect(settledStart([false, true, false])).toBe(-1)
     expect(settledStart([])).toBe(-1)
+  })
+})
+
+describe("The rows that ask, in the person's order", () => {
+  const items = [approve("a", 1), approve("b", 2), approve("c", 3), update("u", 0)]
+
+  it("keep the Inbox's own order until the person drags them", () => {
+    expect(ids(visible(initialView, items, {}, []))).toEqual(["a", "b", "c", "u"])
+  })
+
+  it("follow it, the updates still below them", () => {
+    expect(ids(visible(initialView, items, {}, keyed("c", "a", "b")))).toEqual(["c", "a", "b", "u"])
+  })
+
+  it("keep an ask put off below one that comes after, as urgent", () => {
+    const later = [...items, approve("d", 9)]
+
+    expect(ids(visible(initialView, later, {}, keyed("b", "c", "a")))).toEqual([
+      "d",
+      "b",
+      "c",
+      "a",
+      "u",
+    ])
+  })
+
+  it("let one that comes after go below the placed rows more urgent than it", () => {
+    // "w" waits while its agent works on: less urgent than any that stopped it.
+    const later = [...items, approve("w", 0, false)]
+
+    expect(ids(arrange(visible(initialView, later), keyed("c", "a", "b")))).toEqual([
+      "c",
+      "a",
+      "b",
+      "w",
+      "u",
+    ])
+  })
+
+  it("take a row asked again under the same id as new, not where the old one was put", () => {
+    // "a" was put last and answered; the harness asks the same again, a row under its id.
+    const again = [approve("a", 7), approve("b", 2), approve("c", 3)]
+    expect(ids(visible(initialView, again, {}, keyed("b", "c", "a")))).toEqual(["a", "b", "c"])
+  })
+
+  it("forget the rows that have gone", () => {
+    expect(ids(visible(initialView, items, {}, keyed("gone", "b", "a")))).toEqual([
+      "c",
+      "b",
+      "a",
+      "u",
+    ])
+  })
+
+  it("set what asks next", () => {
+    expect(nextRow(items, "c", { answering: {} }, keyed("c", "b", "a"))?.id).toBe("b")
+  })
+
+  it("leave a settled ask below them, and one that settled in place where it was", () => {
+    const open = [ask("a", 1), ask("b", 2), ask("c", 3)]
+    const view = settle(initialView, open, true)
+    const after = [open[0]!, ask("b", 2, { how: "dismissed", at: 9 }), open[2]!]
+
+    expect(ids(visible(settle(view, after, true), after, {}, keyed("c", "b", "a")))).toEqual([
+      "c",
+      "b",
+      "a",
+    ])
+    expect(ids(visible(settle(view, after, false), after, {}, keyed("c", "b", "a")))).toEqual([
+      "c",
+      "a",
+      "b",
+    ])
+  })
+
+  it("move in the list an open sheet holds still, in the places they had", () => {
+    const open = openRow(settle(initialView, items), "a", items)
+    const moved = rearranged(open, ["c", "b", "a"])
+
+    expect(ids(visible(moved, items))).toEqual(["c", "b", "a", "u"])
+    // With no sheet open the list follows the order itself.
+    const closed = { ...open, open: null }
+    expect(rearranged(closed, ["c", "b", "a"])).toBe(closed)
+  })
+})
+
+describe("A snoozed row", () => {
+  const snoozed = (row: InboxRow): InboxRow => ({ ...row, snoozed: true })
+  const items = [approve("a", 1), snoozed(approve("b", 2)), approve("c", 3), update("u", 0)]
+
+  it("asks nothing now: the count, the bell and the rings leave it out", () => {
+    expect(needs(items[1]!)).toBe(false)
+    expect(ids(needing(items))).toEqual(["a", "c"])
+  })
+
+  it("is never what asks next", () => {
+    expect(nextRow(items, "a", { answering: {} })?.id).toBe("c")
+    expect(nextRow([items[1]!], null, { answering: {} })).toBeUndefined()
+  })
+
+  it("keeps its place, and the person's order moves it like any row that asks", () => {
+    expect(ids(visible(initialView, items))).toEqual(["a", "b", "c", "u"])
+    expect(ids(visible(initialView, items, {}, keyed("b", "c", "a")))).toEqual(["b", "c", "a", "u"])
+  })
+})
+
+describe("The order after a drag", () => {
+  it("keeps the place of a row the list didn't show, after the rows it followed", () => {
+    // "x" was put last; it is hidden while the person looks at its terminal, and they drag
+    // "c" to the top meanwhile.
+    expect(keptOrder(["a", "b", "c", "x"], ["c", "a", "b"])).toEqual(["c", "a", "b", "x"])
+    expect(keptOrder(["x", "a", "b"], ["b", "a"])).toEqual(["x", "b", "a"])
+    expect(keptOrder(["a", "x", "b"], ["b", "a"])).toEqual(["b", "a", "x"])
+  })
+
+  it("is the drag's own order where nothing was hidden", () => {
+    expect(keptOrder(["a", "b"], ["b", "a"])).toEqual(["b", "a"])
+    expect(keptOrder([], ["b", "a"])).toEqual(["b", "a"])
   })
 })

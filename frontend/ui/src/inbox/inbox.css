@@ -13,7 +13,9 @@
    "update", how it asks in data-urgency="urgent" | "waiting" | "quiet" | "answered", data-seen,
    data-needs while it asks something of the person and isn't answered, data-updates-start on
    the row after the last that asks (the updates' line), data-dismissable while its dismiss
-   button shows, data-settled="dismissed" | "withdrawn" | "replied" on an ask that no longer
+   button shows, data-dragging="true" on a row that asks while it is dragged to a new place,
+   data-snoozable while its snooze button (`.inbox-row-snooze`, an icon button) shows,
+   data-snoozed="true" on a snoozed row, data-settled="dismissed" | "withdrawn" | "replied" on an ask that no longer
    waits (it stays, struck through unless replied, its wait time the age since it settled, and
    opens no sheet), data-settled-start on the first of the settled asks that end the list (their
    line, as the updates' line; a row that settles while the panel is on screen keeps its place
@@ -52,6 +54,8 @@
    --inbox-settled-icon-opacity (0.55): a settled ask's icon.
    --inbox-arrived-bg (the strong colour at 14%): a row that has just joined the list.
    --inbox-draft-fg (danger-fg): the word "Draft".
+   --inbox-snoozed-bg (the ink at 6%), --inbox-snoozed-bar-color (muted),
+   --inbox-snoozed-icon-fg (muted): a snoozed row's wash, its dashed bar and its icons.
    --inbox-held-fg (strong), --inbox-held-bg (the strong colour at 10%),
    --inbox-held-border-color (the strong colour at 30%): the pill of waiting rows.
    --inbox-card-bg (the ink at 3.5% on paper): the box that holds commands, errors and the
@@ -85,6 +89,13 @@
 }
 /* The open row is lifted out of the list its sheet comes from. */
 .item.inbox-row[data-selected="true"] {
+  --_shadow: var(--inbox-row-lifted-shadow, var(--shadow-panel));
+}
+/* A row carried to a new place among the rows that ask is lifted with it. */
+.item.inbox-row[data-dragging="true"] {
+  z-index: 1;
+  --_bg: var(--item-selected-bg, var(--color-paper));
+  --_border-color: var(--item-selected-border-color, var(--color-line));
   --_shadow: var(--inbox-row-lifted-shadow, var(--shadow-panel));
 }
 /* While a sheet is open only what asks nothing steps back: what still asks keeps its place
@@ -216,6 +227,57 @@
   .inbox-row[data-dismissable="true"] .inbox-row-wait {
     visibility: hidden;
   }
+}
+/* The snooze button sits at the row's other corner, under the dismiss button's place, while
+   the row is hovered or has focus; line two keeps room for it. */
+.inbox-row-snooze {
+  position: absolute;
+  right: 6px;
+  bottom: 9px;
+  z-index: 1;
+  display: none;
+}
+.inbox-row[data-snoozable="true"]:hover .inbox-row-snooze,
+.inbox-row[data-snoozable="true"]:focus-within .inbox-row-snooze {
+  display: inline-flex;
+}
+.inbox-row[data-snoozable="true"] .inbox-row-meta {
+  padding-right: 24px;
+}
+/* With both (an open Novadeck ask), each sits nearer its edge, so a one-line row (about 70 px)
+   holds both apart. */
+.inbox-row[data-dismissable="true"][data-snoozable="true"] .inbox-row-dismiss {
+  top: 5px;
+}
+.inbox-row[data-dismissable="true"][data-snoozable="true"] .inbox-row-snooze {
+  bottom: 5px;
+}
+@media (hover: none) {
+  .inbox-row[data-snoozable="true"] .inbox-row-snooze {
+    display: inline-flex;
+  }
+}
+/* A snoozed row keeps its place and height, its words as bright as any that asks: a gray
+   wash and a dashed bar where the open row's bar goes, its icons gray, a bell-off where its
+   wait shows. Open, it takes the open row's look. */
+.item.inbox-row[data-snoozed="true"]:not([data-selected="true"], :hover, :focus-within) {
+  --_bg: var(--inbox-snoozed-bg, color-mix(in srgb, var(--color-ink) 6%, transparent));
+}
+.item.inbox-row[data-snoozed="true"]:not([data-selected="true"])::before {
+  top: 18%;
+  bottom: 18%;
+  width: 0;
+  border-left: 2px dashed var(--inbox-snoozed-bar-color, var(--color-muted));
+  background: none;
+  box-shadow: none;
+  opacity: 1;
+}
+.inbox-row[data-snoozed="true"] :is(.inbox-row-icon, .inbox-row-wait) {
+  color: var(--inbox-snoozed-icon-fg, var(--color-muted));
+}
+.inbox-row[data-snoozed="true"] .inbox-row-wait svg {
+  display: block;
+  margin: 3px 0 0 auto;
 }
 /* Line two: the project, then anything extra. The project gives way first, and only when
    it is very long. */

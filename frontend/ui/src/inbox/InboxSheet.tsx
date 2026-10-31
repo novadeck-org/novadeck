@@ -2,12 +2,13 @@ import { inboxType, type InboxRow } from "@novadeck/core/inbox"
 import { HandleChip } from "@novadeck/toolkit/HandleChip"
 import { Sheet } from "@novadeck/toolkit/Sheet"
 import { Tooltip } from "@novadeck/toolkit/Tooltip"
-import { ArrowLeft, Check, Terminal, X } from "lucide-react"
+import { ArrowLeft, Bell, BellOff, Check, Terminal, X } from "lucide-react"
 import { useEffect, useRef, useState } from "react"
 
 import { ConsoleSheet, type SheetContentProps } from "./ConsoleSheet"
 import { nextRowButton, rowOf, sheetControls } from "./inbox-dom"
 import { icons } from "./inbox-icons"
+import { asks } from "./inbox-state"
 import { tagOf } from "./inbox-tag"
 import { useInboxContext, type Receipt } from "./InboxProvider"
 import { Text } from "./sheet-parts"
@@ -59,7 +60,7 @@ const ReceiptLine = ({ receipt }: { readonly receipt: Receipt }): React.JSX.Elem
 
 // One row's sheet: its head, then its page.
 const SheetBody = ({ row }: { readonly row: InboxRow }): React.JSX.Element => {
-  const { state, sent, phone, receipt, close, submit, change, reveal } = useInboxContext()
+  const { state, sent, phone, receipt, close, submit, change, reveal, snooze } = useInboxContext()
   const answered = sent[row.id]
   const failed = state.failed[row.id]
   const present = state.items.some((each) => each.id === row.id)
@@ -124,6 +125,22 @@ const SheetBody = ({ row }: { readonly row: InboxRow }): React.JSX.Element => {
         </span>
         <HandleChip handle={source.handle} />
         <span className="console-grow" />
+        {snooze && asks(row) && present && !state.answering[row.id] && !answered ? (
+          <Tooltip content={row.snoozed ? "Unsnooze · S" : "Snooze · S"}>
+            <button
+              type="button"
+              className="icon-button dim size-7"
+              aria-label={row.snoozed ? "Unsnooze" : "Snooze"}
+              onClick={() => snooze(row, !row.snoozed)}
+            >
+              {row.snoozed ? (
+                <Bell size={14} strokeWidth={1.6} />
+              ) : (
+                <BellOff size={14} strokeWidth={1.6} />
+              )}
+            </button>
+          </Tooltip>
+        ) : null}
         <Tooltip content="Show terminal">
           <button
             type="button"
@@ -154,7 +171,7 @@ const SheetBody = ({ row }: { readonly row: InboxRow }): React.JSX.Element => {
 // The open row's sheet: beside its row over the workspace, or on a screen of its own.
 // `active` is whether the Inbox is the panel the sidebar shows.
 export const InboxSheet = ({ active }: { readonly active: boolean }): React.JSX.Element | null => {
-  const { view, current, phone, close } = useInboxContext()
+  const { view, current, phone, close, shown } = useInboxContext()
   // What it last showed, which it keeps while it closes.
   const [last, setLast] = useState(current)
   if (current && current !== last) setLast(current)
@@ -204,6 +221,7 @@ export const InboxSheet = ({ active }: { readonly active: boolean }): React.JSX.
       anchor={() => rowOf(row.id)}
       boundary={workspace}
       anchorKey={row.id}
+      placeKey={String(shown.findIndex(({ id }) => id === row.id))}
       onDismiss={close}
       // A press on one of the list's buttons is the list's own: a row opens its row, or closes
       // the sheet when it is the open one. So is one on a list that scrolls, which is its
