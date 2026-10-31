@@ -1,7 +1,7 @@
 import { z } from "zod"
 
-// How many of the Inbox's rows, and how long an id, the person's order of them and their
-// snoozes keep.
+// How many of the Inbox's rows, and how long a row's key (`<id>@<at>`), the person's order
+// of them and their snoozes keep.
 export const maxInboxOrder = 200
 export const maxInboxRowIdLength = 200
 
@@ -11,8 +11,8 @@ export const runnerSettings = z.strictObject({
   transcripts: z.boolean(),
   // Whether the person has seen the first-run choice of agents to connect.
   welcomed: z.boolean(),
-  // The Inbox's rows that ask, by id, in the order the person dragged them into; empty until
-  // they do.
+  // The Inbox's rows that ask, each by its id and when it began (`<id>@<at>`), in the order
+  // the person dragged them into; empty until they do.
   inboxOrder: z.array(z.string().min(1).max(maxInboxRowIdLength)).max(maxInboxOrder),
   // The Inbox's rows the person snoozed, each by its id and when it began (`<id>@<at>`), the
   // latest last; empty until they snooze one.

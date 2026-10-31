@@ -1194,8 +1194,8 @@ one from an earlier runner.
 - `settings.get()` and `settings.set({ transcripts?, welcomed?, inboxOrder?, inboxSnoozed? })`
   read and change whether transcripts are kept (unless turned off; turning them off forgets
   every saved transcript), whether the person has seen the first-run choice of agents, the
-  Inbox rows that ask in the order the person dragged them into (row ids, at most 200), and
-  the rows they snoozed (each `<row id>@<when it began>`, the latest 200). `get` also
+  Inbox rows that ask in the order the person dragged them into, and the rows they snoozed
+  (each `<row id>@<when it began>`, at most 200 of each, and 200 characters). `get` also
   reports `transcriptsAvailable`: false once it is known there is no key to seal
   transcripts with, true when there is one and while it is still awaited (it waits about a
   second for it).
