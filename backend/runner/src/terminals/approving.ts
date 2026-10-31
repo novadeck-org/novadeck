@@ -26,7 +26,6 @@ export type ApprovingHost = {
   readonly messaging: () => Messaging
   readonly records: () => ReadonlyMap<string, Record>
   readonly projectFolder: (sessionId: string) => string | undefined
-  readonly platform: NodeJS.Platform
   readonly options: ApprovingOptions
 }
 
@@ -46,7 +45,6 @@ export class Approving {
   constructor(private readonly host: ApprovingHost) {
     // Read when a terminal starts, once its lead is registered.
     this.narrowing = new Narrowing({
-      platform: host.platform,
       grants: { launchPrograms: (id) => host.messaging().grants.launchPrograms(id) },
       verified: host.options.narrowVerified ?? (() => Promise.resolve(false)),
     })

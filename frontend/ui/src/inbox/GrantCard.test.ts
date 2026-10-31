@@ -9,7 +9,7 @@ import {
 import { createStore } from "@novadeck/core/store"
 import { nextFrame, render } from "@novadeck/test-kit/render"
 import { act, createElement } from "react"
-import { afterEach, vi } from "vitest"
+import { afterEach } from "vitest"
 
 import { context, describe, expect, it } from "../test"
 import { InboxList } from "./InboxList"
@@ -215,7 +215,7 @@ describe("The Grant card", () => {
       expect(text(".grant-who")).toBe("@moth's teammates, now and later (now: @fox, @owl)")
       expect(inbox.tick("and @moth itself").checked).toBe(false)
       expect(text("[data-grant=codex]")).toBe(
-        "@fox runs Codex, which runs allowed commands outside Codex's sandbox. On Windows the grant doesn't reach Codex's own check, so it still asks.",
+        "@fox runs Codex, which runs allowed commands outside Codex's sandbox.",
       )
       await inbox.done()
     })
@@ -224,7 +224,7 @@ describe("The Grant card", () => {
       const inbox = mount([grantRow({ covered: [{ handle: "elk", agent: "agy" }] })])
 
       expect(text("[data-grant=agy]")).toBe(
-        "@elk runs Antigravity, which only partly takes it: a teammate started before the grant still asks per command; Antigravity before 1.4.10 and on Windows never takes it.",
+        "@elk runs Antigravity, which only partly takes it: a teammate started before the grant still asks per command; Antigravity before 1.4.10 never takes it.",
       )
       expect(document.querySelector("[data-grant=codex]")).toBeNull()
       await inbox.done()
@@ -326,7 +326,7 @@ describe("The approval card", () => {
     const codex = approvalRow()
     const inbox = mount([{ ...codex, source: { ...codex.source, agent: "codex" } }])
     expect(text("[data-grant=codex]")).toBe(
-      "@fox runs Codex, which runs allowed commands outside Codex's sandbox. On Windows the grant doesn't reach Codex's own check, so it still asks.",
+      "@fox runs Codex, which runs allowed commands outside Codex's sandbox.",
     )
     await inbox.done()
   })
@@ -366,24 +366,6 @@ describe("The Grants section", () => {
       "Last allowed: git push origin a:a by @owl, 4m ago",
     )
     await inbox.done()
-  })
-
-  it("says on Windows only that Codex and Antigravity still get their own dialog", async () => {
-    const platform = vi.spyOn(navigator, "platform", "get")
-    try {
-      platform.mockReturnValue("Linux x86_64")
-      const linux = mount([], { grants: [live()], open: false })
-      expect(document.querySelector(".grant-row-windows")).toBeNull()
-      await linux.done()
-      platform.mockReturnValue("Win32")
-      const windows = mount([], { grants: [live()], open: false })
-      expect(document.querySelector(".grant-row-windows")?.textContent).toBe(
-        "On Windows, Codex and Antigravity teammates still get their own dialog per command.",
-      )
-      await windows.done()
-    } finally {
-      platform.mockRestore()
-    }
   })
 
   it("shows why a revoke failed beside its grant", async () => {

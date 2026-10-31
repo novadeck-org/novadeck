@@ -522,12 +522,13 @@ export const wrapGrants = (
   agent: AgentName,
   platform: NodeJS.Platform,
   personMark = newMark(),
+  cmdPrints = false,
 ): string =>
   grants.length === 0
     ? ""
     : [
         `<novadeck-messages note="${personNote(personMark, false, true)}${noticeNote}">`,
-        ...grants.map((each) => grantElement(each, agent, personMark, platform)),
+        ...grants.map((each) => grantElement(each, agent, personMark, platform, cmdPrints)),
         "</novadeck-messages>",
       ].join("\n")
 
@@ -537,6 +538,8 @@ export type WrapOptions = {
   readonly grants?: (id: string) => Grant | undefined
   /** The platform the runner runs on, which a grant's note tells of; this system's when omitted. */
   readonly platform?: NodeJS.Platform
+  /** Whether cmd prints text of its own before every command, which no Antigravity grant reaches past. */
+  readonly cmdPrints?: boolean
 }
 
 /**
@@ -565,6 +568,7 @@ export const wrap = (
     fromClosed = () => false,
     grants,
     platform = process.platform,
+    cmdPrints = false,
   }: {
     readonly personMark?: string
     readonly held?: Held
@@ -606,7 +610,7 @@ export const wrap = (
         shown.add(message.grantId!)
         const grant = granted(message)
         return grant
-          ? grantElement(grant, message.to.agent, personMark, platform)
+          ? grantElement(grant, message.to.agent, personMark, platform, cmdPrints)
           : grantEndedElement(message.grantId!)
       }
       if (response?.feedback) {

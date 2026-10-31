@@ -226,7 +226,29 @@ const terminalsOwn = (start: Start): Start => ({
   ],
 })
 
+// What cmd reads as it is, in a command a harness runs with or without a shell around it.
+const plainWindowsPath = /^[\w.:\\~-]+$/
+
+/**
+ * The relay's own hook command, for a harness that runs it alone as a hook (Antigravity's
+ * PreToolUse on Windows, where a narrowed terminal needs the relay to answer on every path):
+ * its paths as they stand, or undefined where one would need quoting, which `shortName`
+ * may have spared. Only on Windows.
+ */
+export const hookStart = (paths: ShellPaths, platform = process.platform): Start | undefined =>
+  platform === "win32" &&
+  plainWindowsPath.test(paths.relay) &&
+  plainWindowsPath.test(paths.relayConfig)
+    ? { command: paths.relay, args: [...relayArguments(paths).hook] }
+    : undefined
+
 const file = (path: string, content: string, mode = 0o600): ShellFile => ({ path, content, mode })
+
+/** How agents start what Novadeck installs: the MCP server, and where it can, the hook alone. */
+export const launchersOf = (paths: ShellPaths, platform = process.platform): Launchers => {
+  const hook = hookStart(paths, platform)
+  return { mcp: mcpStart(paths, platform), ...(hook !== undefined && { hook }) }
+}
 
 /**
  * Every file for this platform, with the permissions each needs. Plugins start the MCP
@@ -235,7 +257,7 @@ const file = (path: string, content: string, mode = 0o600): ShellFile => ({ path
 export const shellFiles = (
   paths: ShellPaths,
   platform = process.platform,
-  launchers: Launchers = { mcp: mcpStart(paths, platform) },
+  launchers: Launchers = launchersOf(paths, platform),
   machine: Machine = {},
 ): ShellFile[] => {
   const common = [

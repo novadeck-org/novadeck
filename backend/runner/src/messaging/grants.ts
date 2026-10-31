@@ -53,6 +53,8 @@ export type GrantsHost = {
    * which `wrap` renders from the grant itself (`Relays.grantNotice`).
    */
   readonly notify: (terminalId: string, grantId: string) => void
+  /** Whether cmd prints before every command, which no Antigravity grant reaches past. */
+  readonly cmdPrints: () => boolean
 }
 
 /** The grants' share of `MessagingOptions`. */
@@ -61,15 +63,24 @@ export type GrantOptions = {
   readonly grants?: GrantRecords
   /** How often grants past their time end, in milliseconds; 0 for never. */
   readonly grantsMs?: number
+  /**
+   * Whether cmd prints text of its own before every command (Windows, `cmdPrints` in
+   * shell/install.ts), which a grant's note tells Antigravity of; no, when omitted.
+   */
+  readonly cmdPrints?: () => boolean
 }
 
 /** The grants service for messaging's `options`, its notices going through `relays`. */
 export const grantsOf = (
-  host: Omit<GrantsHost, "notify"> & { readonly relays: Pick<Relays, "grantNotice"> },
+  host: Omit<GrantsHost, "notify" | "cmdPrints"> & { readonly relays: Pick<Relays, "grantNotice"> },
   options: GrantOptions,
 ): Grants =>
   new Grants(
-    { ...host, notify: (terminalId, grantId) => host.relays.grantNotice(terminalId, grantId) },
+    {
+      ...host,
+      notify: (terminalId, grantId) => host.relays.grantNotice(terminalId, grantId),
+      cmdPrints: options.cmdPrints ?? (() => false),
+    },
     options.grants ?? memoryGrants(),
     { sweepMs: options.grantsMs ?? 30_000 },
   )
@@ -103,6 +114,11 @@ export class Grants {
   private readonly readers = new Set<Latest<Grant[]>>()
   private readonly sweeper: ReturnType<typeof setInterval> | undefined
   private closed = false
+
+  /** Whether cmd prints before every command (`GrantOptions.cmdPrints`). */
+  cmdPrints(): boolean {
+    return this.host.cmdPrints()
+  }
 
   constructor(
     private readonly host: GrantsHost,

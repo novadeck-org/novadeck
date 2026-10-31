@@ -16,12 +16,11 @@ export type LaunchGrants = {
 }
 
 export type NarrowingOptions = {
-  readonly platform: NodeJS.Platform
   readonly grants: LaunchGrants
   /**
    * Whether Antigravity's installed plugin is verified: connected, byte for byte what this
-   * Novadeck renders, with no reinstall pending. A stale copy may still answer "ask", which
-   * under a launch grant runs a program unasked.
+   * Novadeck renders, with no reinstall pending, and on Windows the relay it runs too. A stale
+   * copy may still answer "ask", which under a launch grant runs a program unasked.
    */
   readonly verified: () => Promise<boolean>
 }
@@ -38,7 +37,7 @@ export const startsAgy = (command: string): boolean =>
  * only for a terminal started, or resumed, while a live grant covers it and the plugin is
  * verified, and the programs it allows are this terminal's launch set: kept in memory, so a
  * terminal the runner no longer knows (after a restart, while Antigravity keeps running) is
- * narrowed with an empty set, and every command asks. Never on Windows, which has no shim.
+ * narrowed with an empty set, and every command asks.
  */
 export class Narrowing {
   private readonly sets = new Map<string, ReadonlySet<string>>()
@@ -48,7 +47,7 @@ export class Narrowing {
   constructor(private readonly options: NarrowingOptions) {}
 
   private get enabled(): boolean {
-    return this.options.platform !== "win32" && this.directory !== undefined
+    return this.directory !== undefined
   }
 
   /**

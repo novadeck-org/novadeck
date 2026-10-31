@@ -32,8 +32,16 @@ type HookCall = {
    */
   readonly fallback?: string | undefined
   /**
+   * For `cmd` only: the relay's own command line (its program, then its arguments), which the
+   * hook command is, with the agent and event after it and no shell script around it. The
+   * harness runs the relay alone, and the relay answers `force_ask` on every path of a
+   * narrowed terminal itself (backend/relay/src/hook.rs). Each word is a plain path or word
+   * that cmd reads as it is, with or without the shell cmd may put around it.
+   */
+  readonly direct?: readonly string[] | undefined
+  /**
    * For a hook whose answer must never be missing or foreign in a narrowed terminal (one with
-   * NOVADECK_NARROW set; `sh` only, since a narrowed terminal is never on Windows): the
+   * NOVADECK_NARROW set; `sh` only: on Windows the relay alone is the hook, see `direct`): the
    * command captures the launcher's output and prints it only when the launcher exited 0 and
    * printed exactly one of `passes` (its line end allowed); anything else, and a launcher
    * that is missing, prints `answer`. Outside a narrowed terminal it runs as without this.
@@ -47,6 +55,10 @@ const psQuote = (value: string): string => `'${value.replaceAll("'", "''")}'`
 // What cmd's `echo` prints as written, in a parenthesised block: no quote, which the
 // harness escapes where cmd keeps the escape, and nothing cmd reads as syntax.
 const cmdSafe = /^[^"&|<>^%()\r\n]*$/
+
+// A word of a direct hook: a path or option with nothing cmd, a shell or a command line
+// parser reads as more (no quote, space, `%`, `^`, `&`, forward slash or other syntax).
+const directWord = /^[\w.:\\~-]+$/
 
 /**
  * The command a harness's plugin runs for a hook, in the harness's shell. It runs the
@@ -64,12 +76,18 @@ const cmdSafe = /^[^"&|<>^%()\r\n]*$/
  */
 export const hookCommand = (
   dialect: Dialect,
-  { agent, event, fallback, narrowed }: HookCall,
+  { agent, event, fallback, narrowed, direct }: HookCall,
 ): string => {
   if (!/^[A-Za-z]+$/.test(event)) throw new Error(`A hook event is a word: ${event}`)
   const run = `${agent} ${event}`
   if (narrowed !== undefined && dialect !== "sh")
-    throw new Error("A narrowed hook is sh's: a narrowed terminal is never on Windows")
+    throw new Error("A narrowed hook is sh's: on Windows the relay alone is the hook (`direct`)")
+  if (direct !== undefined) {
+    if (dialect !== "cmd") throw new Error("A direct hook is cmd's")
+    if (direct.length === 0 || !direct.every((word) => directWord.test(word)))
+      throw new Error(`cmd can't run this hook as written: ${direct.join(" ")}`)
+    return [...direct, run].join(" ")
+  }
   switch (dialect) {
     case "sh":
       if (narrowed !== undefined) return narrowedSh(run, fallback, narrowed)

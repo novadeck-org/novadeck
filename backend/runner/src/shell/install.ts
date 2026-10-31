@@ -7,7 +7,14 @@ import { relayPath } from "@novadeck/relay"
 
 import { logs } from "../log.js"
 import { withoutInherited } from "./inherited.js"
-import { shellFiles, shellPaths, staleShellFiles, type ShellPaths } from "./scripts.js"
+import {
+  hookStart,
+  mcpStart,
+  shellFiles,
+  shellPaths,
+  staleShellFiles,
+  type ShellPaths,
+} from "./scripts.js"
 
 const log = logs.for("shell")
 
@@ -27,6 +34,8 @@ export type InstalledShell = ShellPaths & {
    * narrowed may still run, on the plugin's hook, though this runner knows nothing of it.
    */
   readonly narrowedBefore?: boolean
+  /** Whether cmd prints something of its own before a hook's command (Windows only). */
+  readonly cmdPrints?: boolean
 }
 
 export type InstallOptions = {
@@ -73,7 +82,11 @@ export const installShellFiles = async (
       "shell.cmd-slow",
       "Novadeck: cmd took more than 5 seconds to run a command, as a slow AutoRun (HKLM or HKCU\\Software\\Microsoft\\Command Processor\\AutoRun) may on a cold start, so whether it prints anything of its own isn't known. In case it does, which would let Antigravity's tools run unasked, Novadeck registers no PreToolUse hook for it this time; Antigravity's own policy asks before each tool. It looks again at the next start.",
     )
-  for (const file of shellFiles(paths, process.platform, undefined, {
+  // Antigravity's narrowed PreToolUse on Windows runs the relay alone, by a path cmd needs
+  // no quotes for: its short name, and only once the relay is there to run.
+  const hook = relayed ? hookStart(shellPaths(await shortName(directory))) : undefined
+  const launchers = { mcp: mcpStart(paths), ...(hook !== undefined && { hook }) }
+  for (const file of shellFiles(paths, process.platform, launchers, {
     cmdPrints: prints !== undefined,
   })) {
     // eslint-disable-next-line no-await-in-loop -- A few small files, one after another.
@@ -99,6 +112,7 @@ export const installShellFiles = async (
     launcher: await shortName(paths.hook),
     mcpLauncher: process.platform !== "win32" && relayed ? paths.mcp : undefined,
     narrowedBefore,
+    cmdPrints: prints !== undefined,
   }
 }
 

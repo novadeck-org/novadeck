@@ -503,13 +503,38 @@ describe("a delivery's grants", () => {
     expect(wrapGrants([], "codex", "linux")).toBe("")
   })
 
-  it("tells Codex and Antigravity on Windows that their own dialog still asks, and Claude Code nothing", () => {
-    const on = (agent: "claude" | "codex" | "agy") => wrapGrants([granted], agent, "win32")
-    expect(on("codex")).toContain("On Windows Codex does not take this grant")
-    expect(on("agy")).toContain("On Windows Antigravity does not take this grant")
-    expect(on("codex")).toContain("still asks for each command, in the user's Inbox")
-    expect(on("claude")).not.toContain("On Windows")
-    expect(wrapGrants([granted], "codex", "linux")).not.toContain("On Windows")
+  it("tells Codex on Windows to write commands without quotes, and nothing of the sort elsewhere", () => {
+    const on = (platform: NodeJS.Platform) => wrapGrants([granted], "codex", platform)
+    expect(on("win32")).toContain("write each command without quotes")
+    expect(on("win32")).toContain("--body-file <file in the project>")
+    expect(on("win32")).toContain("gh pr create --fill")
+    expect(on("win32")).toContain("anything quoted still asks")
+    for (const platform of ["linux", "darwin"] as const)
+      expect(on(platform)).not.toContain("without quotes")
+    // The old note, that nothing reaches these harnesses on Windows, is gone for all three.
+    for (const agent of ["claude", "codex", "agy"] as const)
+      expect(wrapGrants([granted], agent, "win32")).not.toContain("does not take this grant")
+    // Codex's pr line asks for a body file there; the others keep quoting a body.
+    const pr = { ...granted, presets: ["pr" as const] }
+    expect(wrapGrants([pr], "codex", "win32")).toContain("Give a body as --body-file")
+    expect(wrapGrants([pr], "codex", "linux")).toContain("Give a body in single quotes")
+    expect(wrapGrants([pr], "claude", "win32")).toContain("Give a body in single quotes")
+  })
+
+  it("tells Antigravity plainly when cmd's AutoRun prints, and otherwise only that it takes a grant at its start", () => {
+    const agy = (platform: NodeJS.Platform, cmdPrints?: boolean) =>
+      wrapGrants([granted], "agy", platform, "PersonMk", cmdPrints)
+    const printing = agy("win32", true)
+    expect(printing).toContain("cannot reach Antigravity here")
+    expect(printing).toContain("prints text of its own before every command (an AutoRun)")
+    expect(printing).toContain("Removing that output fixes it")
+    for (const plain of [agy("win32"), agy("win32", false), agy("linux", true)]) {
+      expect(plain).not.toContain("AutoRun")
+      expect(plain).toContain("Antigravity takes this grant when it starts")
+    }
+    // The cmd note is Antigravity's alone.
+    expect(wrapGrants([granted], "codex", "win32", "PersonMk", true)).not.toContain("AutoRun")
+    expect(wrapGrants([granted], "claude", "win32", "PersonMk", true)).not.toContain("AutoRun")
   })
 
   it("says in the approval rule that a grant counts, and a lead's word does not", () => {

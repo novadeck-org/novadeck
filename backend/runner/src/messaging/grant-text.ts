@@ -37,13 +37,15 @@ const pushText = (grant: Grant, agent: AgentName): string => {
   )
 }
 
-const prText = (grant: Grant): string => {
+const prText = (grant: Grant, windowsCodex: boolean): string => {
   const repos = grant.repos.map((repo) => repo.url).join(", ")
   return (
     `Open, edit, mark ready and comment on pull requests in ${repos}: ` +
     "gh pr create --head <branch>, gh pr edit <n>, gh pr ready <n> or gh pr comment <n>, " +
     "each with -R <owner/name> and a numeric PR; no merge, close or reopen, no labels. " +
-    "Give a body in single quotes, or double quotes, never $(cat <<EOF)."
+    (windowsCodex
+      ? "Give a body as --body-file <file in the project> (no quotes), never $(cat <<EOF)."
+      : "Give a body in single quotes, or double quotes, never $(cat <<EOF).")
   )
 }
 
@@ -67,23 +69,40 @@ export const grantCommandsRefusal = (commands: readonly GrantCommand[]): string 
     : undefined
 
 /** What a grant lets the agent do, one line each, in Novadeck's fixed words. */
-export const grantLines = (grant: Grant, agent: AgentName): string[] => [
+export const grantLines = (
+  grant: Grant,
+  agent: AgentName,
+  platform: NodeJS.Platform = process.platform,
+): string[] => [
   ...(grant.presets.includes("push") ? [pushText(grant, agent)] : []),
-  ...(grant.presets.includes("pr") ? [prText(grant)] : []),
+  ...(grant.presets.includes("pr")
+    ? [prText(grant, agent === "codex" && platform === "win32")]
+    : []),
   ...grant.commands.map((command) => `Run: ${escapeText(commandText(command))}`),
 ]
 
-// Antigravity's launch grants are given when a terminal starts, so a terminal started
-// before the grant still meets its own dialog.
-// On Windows neither Codex nor Antigravity takes a grant into its own check.
-const caveat = (agent: AgentName, platform: NodeJS.Platform): string =>
-  platform === "win32" && agent !== "claude"
-    ? `On Windows ${agent === "agy" ? "Antigravity" : "Codex"} does not take this grant into its own ` +
-      "check: its dialog still asks for each command, in the user's Inbox."
-    : agent === "agy"
-      ? "Antigravity takes this grant when it starts: if yours started earlier, its own dialog " +
+// What a grant reaches in an agent's own check, which differs by harness and machine. A
+// Codex terminal on Windows is told how to write a command its matcher reads there (design A1);
+// an Antigravity where cmd prints something first is told why nothing reaches it.
+const caveat = (agent: AgentName, platform: NodeJS.Platform, cmdPrints: boolean): string => {
+  if (agent === "codex" && platform === "win32")
+    return (
+      "On Windows, write each command without quotes: Codex's shell may be PowerShell or cmd, and " +
+      "this grant covers a command only when both read it alike. For a pull request's or " +
+      "comment's body use --body-file <file in the project> or gh pr create --fill; anything " +
+      "quoted still asks in the user's Inbox. If your harness still asks, answer its dialog as usual."
+    )
+  if (agent === "agy" && platform === "win32" && cmdPrints)
+    return (
+      "This grant cannot reach Antigravity here: the user's cmd prints text of its own before every " +
+      "command (an AutoRun), which Antigravity's check cannot read past, so its own dialog asks " +
+      "for each command. Removing that output fixes it."
+    )
+  return agent === "agy"
+    ? "Antigravity takes this grant when it starts: if yours started earlier, its own dialog " +
         "still asks until you restart, and a version of Antigravity before 1.4.10 never takes it."
-      : "If your harness still asks, answer its dialog as usual."
+    : "If your harness still asks, answer its dialog as usual."
+}
 
 /**
  * The `<grant>` element for an agent: its id, this delivery's person mark, when it ends
@@ -95,12 +114,13 @@ export const grantElement = (
   agent: AgentName,
   personMark: string,
   platform: NodeJS.Platform,
+  cmdPrints = false,
 ): string =>
   `<grant id="${grant.id}" person="${personMark}" ends="${clock(grant.endsAt)}">\n` +
   `${[
     "The user granted, without asking again until it ends:",
-    ...grantLines(grant, agent),
-    caveat(agent, platform),
+    ...grantLines(grant, agent, platform),
+    caveat(agent, platform, cmdPrints),
   ].join("\n")}\n</grant>`
 
 /** The `<grant-ended>` element: the grant no longer applies, whatever it said before. */

@@ -65,7 +65,6 @@ export const ApprovalBox = ({
     {row.source.agent === "codex" && (
       <p className="grant-warn" data-grant="codex">
         @{row.source.handle} runs Codex, which runs allowed commands outside Codex&apos;s sandbox.
-        On Windows the grant doesn&apos;t reach Codex&apos;s own check, so it still asks.
       </p>
     )}
   </div>
@@ -231,8 +230,7 @@ export const GrantCard = ({
             <p className="grant-warn" data-grant="codex">
               {codex.map(({ handle: each }) => `@${each}`).join(", ")}{" "}
               {codex.length === 1 ? "runs" : "run"} Codex, which runs allowed commands outside
-              Codex&apos;s sandbox. On Windows the grant doesn&apos;t reach Codex&apos;s own check,
-              so it still asks.
+              Codex&apos;s sandbox.
             </p>
           )}
           {antigravity.length > 0 && (
@@ -240,7 +238,7 @@ export const GrantCard = ({
               {antigravity.map(({ handle: each }) => `@${each}`).join(", ")}{" "}
               {antigravity.length === 1 ? "runs" : "run"} Antigravity, which only partly takes it: a
               teammate started before the grant still asks per command; Antigravity before 1.4.10
-              and on Windows never takes it.
+              never takes it.
             </p>
           )}
         </fieldset>

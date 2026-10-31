@@ -440,6 +440,8 @@ export class Reports {
           this.host.messaging().grants.covering(report.terminalId),
           report.agent,
           this.host.platform(),
+          undefined,
+          this.host.messaging().grants.cmdPrints(),
         ),
       )
     const taken = atTurnStart(record.nudges, {

@@ -13,7 +13,7 @@ import {
 import { silentFor } from "@novadeck/harness-core/harness"
 import { hookCommand } from "@novadeck/harness-core/hook-command"
 
-import { relayConfig, shellFiles, shellPaths } from "../shell/scripts.js"
+import { hookStart, relayConfig, shellFiles, shellPaths } from "../shell/scripts.js"
 import { describe, expect, it } from "../test.js"
 
 const posix = process.platform !== "win32"
@@ -136,28 +136,75 @@ describe.runIf(posix)("Antigravity's PreToolUse command in a narrowed terminal",
 })
 
 describe("a narrowed hook command", () => {
-  it("is never given on Windows", () => {
+  it("is the relay alone on Windows, with a shim and no shell script", () => {
+    // The sh wrapper is POSIX's; asking cmd or PowerShell for one is a mistake.
+    for (const dialect of ["cmd", "powershell"] as const)
+      expect(() =>
+        hookCommand(dialect, {
+          agent: "agy",
+          event: "PreToolUse",
+          narrowed: { answer: closedAnswer, passes: narrowedAnswers },
+        }),
+      ).toThrow(/relay alone/)
     expect(agy.hook("win32", "PreToolUse")).not.toContain("NOVADECK_NARROW")
-    expect(agy.shims?.("win32")).toEqual([])
-    expect(() =>
-      hookCommand("cmd", {
-        agent: "agy",
-        event: "PreToolUse",
-        narrowed: { answer: closedAnswer, passes: narrowedAnswers },
-      }),
-    ).toThrow(/never on Windows/)
-    expect(() =>
-      hookCommand("powershell", {
-        agent: "agy",
-        event: "PreToolUse",
-        narrowed: { answer: closedAnswer, passes: narrowedAnswers },
-      }),
-    ).toThrow(/never on Windows/)
+    expect(agy.shims?.("win32").map(({ path }) => path)).toEqual(["agy.cmd"])
     const files = shellFiles(shellPaths("/shell", "win32"), "win32")
-    expect(files.some(({ path }) => path.endsWith("narrow") || path.includes("agy.cmd"))).toBe(
-      false,
+    expect(files.some(({ path }) => /bin[\\/]agy\.cmd$/.test(path))).toBe(true)
+  })
+
+  it("runs the relay directly from cmd's hook command, and only a plain path", () => {
+    const direct = [
+      String.raw`C:\PROGRA~1\Novadeck\novadeck-relay.exe`,
+      "hook",
+      "--config",
+      "r.json",
+    ]
+    expect(hookCommand("cmd", { agent: "agy", event: "PreToolUse", direct })).toBe(
+      String.raw`C:\PROGRA~1\Novadeck\novadeck-relay.exe hook --config r.json agy PreToolUse`,
     )
-    expect(files.some(({ path }) => /bin[\\/]agy/.test(path))).toBe(false)
+    for (const bad of [
+      String.raw`C:\Program Files\n.exe`,
+      String.raw`"C:\n.exe"`,
+      "C:/n.exe",
+      String.raw`C:\a&b\n.exe`,
+      String.raw`%X%\n.exe`,
+      "",
+    ])
+      expect(() =>
+        hookCommand("cmd", { agent: "agy", event: "PreToolUse", direct: [bad, "hook"] }),
+      ).toThrow(/can't run/)
+    expect(() => hookCommand("cmd", { agent: "agy", event: "PreToolUse", direct: [] })).toThrow()
+    for (const dialect of ["sh", "powershell"] as const)
+      expect(() =>
+        hookCommand(dialect, { agent: "agy", event: "PreToolUse", direct: ["x"] }),
+      ).toThrow(/cmd's/)
+  })
+
+  it("is the relay's own command line in the shell files on Windows, by paths cmd reads as they are", () => {
+    // Windows paths by hand: `join` on the host that runs this test may use other separators.
+    const at = (folder: string) => ({
+      ...shellPaths("/shell", "win32"),
+      relay: `${folder}\\novadeck-relay.exe`,
+      relayConfig: `${folder}\\relay.json`,
+    })
+    const paths = at(String.raw`C:\Users\a\AppData\Novadeck`)
+    expect(hookStart(paths, "win32")).toEqual({
+      command: paths.relay,
+      args: ["hook", "--config", paths.relayConfig],
+    })
+    expect(hookStart(paths, "linux")).toBeUndefined()
+    expect(hookStart(at(String.raw`C:\Users\Ann Lee\Novadeck`), "win32")).toBeUndefined()
+    expect(hookStart(at(String.raw`C:\Users\a&b\Novadeck`), "win32")).toBeUndefined()
+    // The shell files carry it into Antigravity's hooks, and leave it out without.
+    const registered = (shell: ReturnType<typeof at>, start = hookStart(shell, "win32")) => {
+      const file = shellFiles(shell, "win32", {
+        mcp: { command: "mcp" },
+        ...(start && { hook: start }),
+      }).find(({ path }) => /agy.*hooks\.json$/.test(path.replaceAll("\\", "/")))
+      return Object.keys((JSON.parse(file?.content ?? "{}") as { novadeck: object }).novadeck)
+    }
+    expect(registered(paths)).toContain("PreToolUse")
+    expect(registered(at(String.raw`C:\Ann Lee`))).not.toContain("PreToolUse")
   })
 
   it("is registered in Antigravity's hooks for PreToolUse on Linux and macOS", () => {
@@ -293,6 +340,115 @@ describe.runIf(posix)("Antigravity's launch shim", () => {
       ["args:x", "narrow:unset"],
     )
   })
+})
+
+describe("Antigravity's launch shim on Windows", () => {
+  const script = agy.shims?.("win32")[0]?.content ?? ""
+
+  it("reads the terminal's settings beside the shim, and passes them with the mark", () => {
+    expect(agy.shims?.("win32")[0]?.path).toBe("agy.cmd")
+    expect(script).toContain("rem Novadeck shim for agy.")
+    expect(script).toContain(
+      String.raw`set "novadeck_settings=%~dp0..\narrow\%NOVADECK_TERMINAL_ID%.json"`,
+    )
+    expect(script).toContain(String.raw`"%novadeck_real%" --settings "%novadeck_settings%" %*`)
+    // The mark is dropped first and set only for the narrowed launch, locally.
+    expect(script.indexOf("setlocal")).toBeLessThan(script.indexOf('set "NOVADECK_NARROW="'))
+    expect(script.indexOf('set "NOVADECK_NARROW="')).toBeLessThan(
+      script.indexOf('set "NOVADECK_NARROW=1"'),
+    )
+    // A terminal id of anything but plain characters is no file name.
+    expect(script).toContain("[A-Za-z0-9_-][A-Za-z0-9_-]*")
+    // Its other commands, as the first word that is no option, run as they are.
+    for (const other of ["plugin", "models", "mcp", "update"]) expect(script).toContain(other)
+    expect(script).toContain('echo " %NOVADECK_SHIMS% " | findstr /c:" agy "')
+  })
+
+  /** Runs the shim as the shell does, with a stand-in agy that prints its arguments and mark. */
+  const shim = (
+    folder: string,
+    args: readonly string[],
+    { settings = true, env = {} }: { settings?: boolean; env?: NodeJS.ProcessEnv } = {},
+  ) => {
+    const bin = join(folder, "shell", "bin")
+    const real = join(folder, "real")
+    mkdirSync(bin, { recursive: true })
+    mkdirSync(real, { recursive: true })
+    mkdirSync(join(folder, "shell", "narrow"), { recursive: true })
+    writeFileSync(join(bin, "agy.cmd"), script)
+    const recorder = join(folder, "record.cjs")
+    writeFileSync(
+      recorder,
+      "console.log(JSON.stringify({ args: process.argv.slice(2), narrow: process.env.NOVADECK_NARROW ?? null }))",
+    )
+    writeFileSync(join(real, "agy.cmd"), `@"${process.execPath}" "${recorder}" %*\r\n`)
+    const file = join(folder, "shell", "narrow", "t-1.json")
+    if (settings) writeFileSync(file, '{"permissions":{"allow":["command(git)"]}}\n')
+    const ran = spawnSync(
+      process.env.COMSPEC ?? "cmd.exe",
+      ["/d", "/c", join(bin, "agy.cmd"), ...args],
+      {
+        env: {
+          ...process.env,
+          PATH: [bin, real, process.env.PATH].join(";"),
+          NOVADECK_TERMINAL_ID: "t-1",
+          NOVADECK_SHIMS: "agy",
+          ...env,
+        },
+        encoding: "utf8",
+      },
+    )
+    return {
+      status: ran.status,
+      ...(JSON.parse(ran.stdout.trim().split("\n").at(-1) ?? "null") as {
+        args: string[]
+        narrow: string | null
+      }),
+      file,
+    }
+  }
+  const folder = (resources: { defer: (undo: () => void) => void }) => {
+    const made = mkdtempSync(join(tmpdir(), "novadeck-agy-cmd-shim-"))
+    resources.defer(() => rmSync(made, { recursive: true, force: true }))
+    return made
+  }
+
+  it.runIf(!posix)(
+    "passes the settings and the mark where the runner wrote them",
+    ({ resources }) => {
+      const ran = shim(folder(resources), ["--conversation", "abc", "a b"])
+      expect(ran.narrow).toBe("1")
+      expect(ran.args).toEqual(["--settings", ran.file, "--conversation", "abc", "a b"])
+    },
+  )
+
+  it.runIf(!posix)(
+    "runs unchanged without settings, outside Novadeck, and for Antigravity's other commands",
+    ({ resources }) => {
+      const given = folder(resources)
+      const plain = (args: string[]) => ({ args, narrow: null })
+      expect(shim(given, ["x"], { settings: false })).toMatchObject(plain(["x"]))
+      expect(shim(given, ["plugin", "list"])).toMatchObject(plain(["plugin", "list"]))
+      expect(shim(given, ["--verbose", "models"])).toMatchObject(plain(["--verbose", "models"]))
+      expect(shim(given, ["x"], { env: { NOVADECK_TERMINAL_ID: "" } })).toMatchObject(plain(["x"]))
+      expect(shim(given, ["x"], { env: { NOVADECK_SHIMS: "codex" } })).toMatchObject(plain(["x"]))
+    },
+  )
+
+  it.runIf(!posix)(
+    "drops a mark it was given, and refuses a terminal id that names another path",
+    ({ resources }) => {
+      const given = folder(resources)
+      expect(
+        shim(given, ["x"], { settings: false, env: { NOVADECK_NARROW: "1" } }).narrow,
+      ).toBeNull()
+      for (const id of ["..\\..\\elsewhere", "t-1&echo", "a b"])
+        expect(shim(given, ["x"], { env: { NOVADECK_TERMINAL_ID: id } })).toMatchObject({
+          args: ["x"],
+          narrow: null,
+        })
+    },
+  )
 })
 
 describe("Antigravity's launch grant gate", () => {

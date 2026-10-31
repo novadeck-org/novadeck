@@ -15,7 +15,7 @@ import { cmdPrints, installShellFiles } from "../shell/install.js"
 import type { ShellPaths } from "../shell/scripts.js"
 import { describe, expect, it as base } from "../test.js"
 import { WorkspaceStore } from "../workspaces/store.js"
-import { createHarnesses } from "./service.js"
+import { createHarnesses, relayVerified } from "./service.js"
 
 const windows = process.platform === "win32"
 
@@ -237,6 +237,8 @@ describe("agents Novadeck can connect", () => {
       expect(hookEvents(join(fixture.paths.plugins.agy, "hooks.json"))).not.toContain("PreToolUse")
       // Connected before cmd printed: its copy still has Antigravity ask Novadeck first.
       await agents.set("agy", true)
+      // No launch grant on such a machine, whatever the plugin and the relay.
+      expect(await agents.verified("agy")).toBe(false)
       const copy = join(fixture.home, ".gemini", "config", "plugins", "novadeck", "hooks.json")
       const asking = agy
         .files("win32", { mcp: { command: "mcp" } })
@@ -325,8 +327,7 @@ describe("agents Novadeck can connect", () => {
     ] as const) {
       const agents = fixture.agents({ FAKE_VERSION: version })
       await agents.set("agy", true)
-      // Windows gives Antigravity no launch grants, whatever its version.
-      expect(await agents.verified("agy"), version).toBe(expected && !windows)
+      expect(await agents.verified("agy"), version).toBe(expected)
     }
   })
 
@@ -338,8 +339,7 @@ describe("agents Novadeck can connect", () => {
     const agents = fixture.agents()
     expect(await agents.verified("agy")).toBe(false)
     await agents.set("agy", true)
-    // Windows gives Antigravity no launch grants, so nothing there is verified.
-    expect(await agents.verified("agy")).toBe(!windows)
+    expect(await agents.verified("agy")).toBe(true)
     const marker = `${fixture.paths.plugins.agy}.reinstalling`
     writeFileSync(marker, "")
     expect(await agents.verified("agy")).toBe(false)
@@ -349,6 +349,39 @@ describe("agents Novadeck can connect", () => {
     // A harness that keeps no copy of its plugin has nothing to verify.
     await agents.set("claude", true)
     expect(await agents.verified("claude")).toBe(false)
+  })
+
+  it("verify the relay Windows' hook runs alone, byte for byte, and never where cmd prints", async ({
+    fixture,
+    resources,
+  }) => {
+    const folder = mkdtempSync(join(tmpdir(), "novadeck-relay-verified-"))
+    resources.defer(() => rmSync(folder, { recursive: true, force: true }))
+    const shipped = join(folder, "shipped.exe")
+    const plugin = join(folder, "plugin")
+    mkdirSync(plugin)
+    const where = { env: {}, home: folder, platform: "win32", plugin } as const
+    const shell = (over: object = {}) =>
+      ({ ...fixture.paths, relay: join(folder, "installed.exe"), ...over }) as typeof fixture.paths
+    writeFileSync(shipped, "relay v1")
+    writeFileSync(join(folder, "installed.exe"), "relay v1")
+    writeFileSync(join(plugin, "hooks.json"), '{"novadeck":{"PreToolUse":[]}}')
+    expect(await relayVerified(shell(), shipped, where)).toBe(true)
+    // An installed relay that differs by a byte, or is missing, or an unreadable shipped one.
+    writeFileSync(join(folder, "installed.exe"), "relay v2")
+    expect(await relayVerified(shell(), shipped, where)).toBe(false)
+    expect(await relayVerified(shell({ relay: join(folder, "none.exe") }), shipped, where)).toBe(
+      false,
+    )
+    writeFileSync(join(folder, "installed.exe"), "relay v1")
+    expect(await relayVerified(shell(), join(folder, "none"), where)).toBe(false)
+    // cmd printing first: no hook to give a grant, even with every file as shipped.
+    expect(await relayVerified(shell({ cmdPrints: true }), shipped, where)).toBe(false)
+    // A plugin that registers no PreToolUse (no path cmd reads as it is, or cmd printed).
+    writeFileSync(join(plugin, "hooks.json"), '{"novadeck":{"Stop":[]}}')
+    expect(await relayVerified(shell(), shipped, where)).toBe(false)
+    rmSync(join(plugin, "hooks.json"))
+    expect(await relayVerified(shell(), shipped, where)).toBe(false)
   })
 
   it("never undo a disconnect asked for before the refresh looked", async ({ fixture }) => {

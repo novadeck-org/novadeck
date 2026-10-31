@@ -272,7 +272,7 @@ describe("Antigravity's PreToolUse answer", () => {
           novadeck: { [event: string]: { matcher?: string; hooks: { command: string }[] }[] }
         }
       ).novadeck
-    for (const platform of ["linux", "darwin", "win32"] as const) {
+    for (const platform of ["linux", "darwin"] as const) {
       const registered = hooks(platform)
       expect(Object.keys(registered)).toEqual([
         "PreInvocation",
@@ -293,9 +293,42 @@ describe("Antigravity's PreToolUse answer", () => {
     }
   })
 
+  it("is the relay alone on Windows where a path names it, and unregistered where none does", () => {
+    const relay = {
+      command: String.raw`C:\Users\a\AppData\Roaming\Novadeck\shell\novadeck-relay.exe`,
+      args: ["hook", "--config", String.raw`C:\Users\a\AppData\Roaming\Novadeck\shell\relay.json`],
+    }
+    const files = (launchers: Launchers, machine?: Machine) =>
+      JSON.parse(
+        agy.files("win32", launchers, machine).find(({ path }) => path === "hooks.json")!.content,
+      ) as { novadeck: { [event: string]: { hooks: { command: string; timeout: number }[] }[] } }
+    const command = `${relay.command} hook --config ${relay.args[2]} agy PreToolUse`
+    expect(agy.hook("win32", "PreToolUse", { mcp: { command: "mcp" }, hook: relay })).toBe(command)
+    const registered = files({ mcp: { command: "mcp" }, hook: relay }).novadeck
+    expect(Object.keys(registered)).toEqual(["PreInvocation", "Stop", "PreToolUse", "PostToolUse"])
+    expect(registered.PreToolUse).toMatchObject([
+      { matcher: "*", hooks: [{ command, timeout: 30 }] },
+    ])
+    // The relay is the whole command: no cmd, no quote, nothing but a path and words.
+    expect(command).not.toMatch(/cmd|["&|<>^%]/i)
+    // Its other events keep cmd's line with the fallback.
+    expect(registered.Stop?.[0]).toMatchObject({ command: agy.hook("win32", "Stop") })
+    // No path cmd reads as it is: nothing registered, as in Antigravity's own policy.
+    expect(Object.keys(files({ mcp: { command: "mcp" } }).novadeck)).toEqual([
+      "PreInvocation",
+      "Stop",
+      "PostToolUse",
+    ])
+    // Elsewhere the relay's command line plays no part.
+    expect(agy.hook("linux", "PreToolUse", { mcp: { command: "mcp" }, hook: relay })).toBe(
+      agy.hook("linux", "PreToolUse"),
+    )
+  })
+
   it("is left unregistered on Windows where cmd prints first, so Antigravity's policy asks", () => {
     // No answer after an AutoRun's output reads as JSON, which let every tool run unasked
-    // (probed 2026-10-11, 1.2.14).
+    // (probed 2026-10-11, 1.2.14), and the relay alone is no safer until a probe shows
+    // Antigravity does not wrap it in cmd.
     expect(eventsWhereCmdPrints("win32")).toEqual(["PreInvocation", "Stop", "PostToolUse"])
     // Elsewhere hooks run in sh, where cmd's AutoRun has no part.
     expect(eventsWhereCmdPrints("linux")).toContain("PreToolUse")
@@ -308,7 +341,11 @@ const eventsWhereCmdPrints = (platform: NodeJS.Platform) =>
     (
       JSON.parse(
         agy
-          .files(platform, { mcp: { command: "mcp" } }, { cmdPrints: true })
+          .files(
+            platform,
+            { mcp: { command: "mcp" }, hook: { command: String.raw`C:\r.exe`, args: ["hook"] } },
+            { cmdPrints: true },
+          )
           .find(({ path }) => path === "hooks.json")!.content,
       ) as { novadeck: object }
     ).novadeck,

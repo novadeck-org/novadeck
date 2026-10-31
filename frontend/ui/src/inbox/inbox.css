@@ -980,7 +980,6 @@ pre.console-box {
 }
 .grant-row-what,
 .grant-row-commands,
-.grant-row-windows,
 .grant-row-last {
   color: var(--color-muted);
   overflow-wrap: anywhere;

@@ -179,7 +179,9 @@ const state = async (harness: Harness, install: Install): Promise<AgentIntegrati
 
 /** The harnesses Novadeck can connect, and connecting or disconnecting each one. */
 export const createHarnesses = (
-  paths: () => Promise<(ShellPaths & { readonly narrowedBefore?: boolean }) | undefined>,
+  paths: () => Promise<
+    (ShellPaths & { readonly narrowedBefore?: boolean; readonly cmdPrints?: boolean }) | undefined
+  >,
   options: HarnessesOptions = {},
 ) => {
   const base = options.env ?? process.env
@@ -218,14 +220,24 @@ export const createHarnesses = (
     takes: (output: string) => boolean,
     where: Install,
   ): Promise<boolean> => {
-    if (grantable.has(agent) || platform === "win32") return grantable.has(agent)
-    const program = await locate(agent, harnesses[agent], where)
+    if (grantable.has(agent)) return true
+    // On Windows through cmd, as the agent installs as a .cmd file there (see `run`).
+    const program = platform === "win32" ? agent : await locate(agent, harnesses[agent], where)
     const output = await new Promise<string>((resolve) => {
       let text = ""
-      const child = spawn(program, ["--version"], {
+      const [file, args, extra] =
+        platform === "win32"
+          ? ([
+              where.env.COMSPEC || "cmd.exe",
+              ["/d", "/s", "/c", `"${cmdLine([program, "--version"])}"`],
+              { windowsVerbatimArguments: true, windowsHide: true },
+            ] as const)
+          : ([program, ["--version"], {}] as const)
+      const child = spawn(file, args, {
         env: where.env,
         stdio: ["ignore", "pipe", "ignore"],
         timeout: 5_000,
+        ...extra,
       })
       child.stdout.setEncoding("utf8")
       child.stdout.on("data", (chunk: string) => (text += chunk))
@@ -354,7 +366,8 @@ export const createHarnesses = (
     /**
      * Whether the agent's installed plugin is verified, in its turn among the changes to it:
      * connected, byte for byte what this Novadeck renders, with no reinstall pending and no
-     * disconnect asked. A terminal gets launch grants only then.
+     * disconnect asked; on Windows also with the relay its hook runs alone byte for byte what
+     * this Novadeck ships, and cmd printing nothing. A terminal gets launch grants only then.
      */
     verified: (agent: AgentName): Promise<boolean> =>
       queued(async () => {
@@ -362,6 +375,10 @@ export const createHarnesses = (
         const { installed, takesLaunchGrants } = harnesses[agent]
         if (!install || !installed || disconnecting.has(agent)) return false
         const where = install(agent)
+        if (platform === "win32" && takesLaunchGrants !== undefined) {
+          const shell = await paths()
+          if (!shell || !(await relayVerified(shell, relay, where))) return false
+        }
         return (
           (await harnesses[agent].connected(where)) &&
           !(await exists(reinstalling(where))) &&
@@ -464,6 +481,31 @@ export const createHarnesses = (
     },
   }
   return api
+}
+
+/**
+ * Whether Windows' hook of a narrowed Antigravity is what this Novadeck ships: the relay
+ * installed for agents is the `shipped` one byte for byte, as that one prints `force_ask` on
+ * every path of a narrowed terminal; the plugin registers PreToolUse, which it does not
+ * where cmd prints (`cmdPrints`: Antigravity may wrap the hook in cmd, then no answer reads
+ * as JSON) or the relay has no path cmd reads as it is; and `cmdPrints` itself is not set.
+ */
+export const relayVerified = async (
+  shell: ShellPaths & { readonly cmdPrints?: boolean },
+  shipped: string,
+  where: Install,
+): Promise<boolean> => {
+  if (shell.cmdPrints === true) return false
+  try {
+    const [ours, installed, hooks] = await Promise.all([
+      readFile(shipped),
+      readFile(shell.relay),
+      readFile(join(where.plugin, "hooks.json"), "utf8"),
+    ])
+    return hooks.includes('"PreToolUse"') && ours.equals(installed)
+  } catch {
+    return false
+  }
 }
 
 // Marks a reinstall `refresh` began, beside Novadeck's own copy of the plugin, until done.

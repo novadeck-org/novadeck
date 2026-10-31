@@ -38,7 +38,7 @@ export type LeasingHost = {
   /** Moves the terminal's delivery on (`Deliveries.step`). */
   readonly step: (live: Live, event: DeliveryEvent) => void
   /** The grants, for the grant elements a delivery renders (`Grants.get`). */
-  readonly grants: Pick<Grants, "get">
+  readonly grants: Pick<Grants, "get" | "cmdPrints">
   /**
    * The rules notes a terminal's root session holds grew, as a hook printed one in full,
    * for the terminal manager to keep with that session (`AgentReport.told`), so a restart
@@ -126,6 +126,7 @@ export class Leasing {
     // printed, escaped as the harness reads them.
     const mark = newMark()
     const grants = (id: string) => this.host.grants.get(id)
+    const cmdPrints = this.host.grants.cmdPrints()
     // A message whose sender closed since says so, as no reply reaches it.
     const fromClosed = (message: Message) => {
       const sender = senderTerminal(message.from)
@@ -136,7 +137,15 @@ export class Leasing {
     const first = queued.slice(0, 1)
     const marks =
       byteLength(
-        print(wrap(first, isFromLead, mark, { held, fromClosed, grants, platform: this.platform })),
+        print(
+          wrap(first, isFromLead, mark, {
+            held,
+            fromClosed,
+            grants,
+            platform: this.platform,
+            cmdPrints,
+          }),
+        ),
       ) <= maxDeliveryBytes
     const wrapped = (taken: readonly Message[]) =>
       wrap(taken, isFromLead, mark, {
@@ -144,6 +153,7 @@ export class Leasing {
         ...(marks && { fromClosed }),
         grants,
         platform: this.platform,
+        cmdPrints,
       })
     const prints = (taken: readonly Message[]) => byteLength(print(wrapped(taken)))
     const messages = deliveryOf(queued, (taken) => prints(taken) <= maxDeliveryBytes)

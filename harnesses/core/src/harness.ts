@@ -56,7 +56,7 @@ export type Harness = {
    * The command its plugin runs for a hook `event`, in that shell: `hookCommand`'s, with
    * what it prints without Novadeck.
    */
-  readonly hook: (platform: NodeJS.Platform, event: string) => string
+  readonly hook: (platform: NodeJS.Platform, event: string, launchers?: Launchers) => string
   /**
    * Its plugin's manifests, hook registrations and MCP server, relative to its plugin
    * directory. The MCP server starts as `launchers.mcp` says, and the hooks as `machine`
@@ -404,7 +404,14 @@ export type Start = { readonly command: string; readonly args?: readonly string[
  * How agents start what Novadeck installs for them: its MCP server, which they start
  * without a shell that could expand a variable.
  */
-export type Launchers = { readonly mcp: Start }
+export type Launchers = {
+  readonly mcp: Start
+  /**
+   * The relay's hook command, run alone as a hook where no shell script may stand around it
+   * (Antigravity's narrowed PreToolUse on Windows): absent where a path would need quoting.
+   */
+  readonly hook?: Start
+}
 
 /** What the machine does to a hook before the hook's own command runs. */
 export type Machine = {

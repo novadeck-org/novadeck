@@ -148,6 +148,9 @@ export const wire = (options: RunnerOptions) => {
   // The runner's own calls of the relay use the build's, never the copy for agents.
   const relay = options.relay === undefined ? {} : { relay: options.relay }
   const agents = createHarnesses(() => shellFiles, { ...relay, ...options.agents })
+  // Known once the shell files are written; no grant reaches Antigravity past cmd's output.
+  let cmdPrints = false
+  void shellFiles.then((written) => (cmdPrints = written?.cmdPrints === true))
   // A connected agent that keeps its own copy of the plugin gets the files just written,
   // where they differ from that copy (see `Harness.installed`).
   void shellFiles
@@ -230,6 +233,7 @@ export const wire = (options: RunnerOptions) => {
     models: (agent) => agents.models(agent),
     // Launch grants only on Antigravity's verified plugin, behind the harnesses' queue.
     narrowVerified: () => agents.verified("agy"),
+    cmdPrints: () => cmdPrints,
     transcripts: store.settings.runner().transcripts,
     projectFolder: (sessionId) => store.project(store.session(sessionId).projectId).cwd,
     // Agents message each other within a project, and their messages are kept with it.

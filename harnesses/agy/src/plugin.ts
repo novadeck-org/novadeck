@@ -1,7 +1,7 @@
 import { access } from "node:fs/promises"
 import { join } from "node:path"
 
-import type { Harness, Install } from "@novadeck/harness-core/harness"
+import type { Harness, Install, Launchers } from "@novadeck/harness-core/harness"
 import { hookSeconds, hookCommand, type Dialect } from "@novadeck/harness-core/hook-command"
 import { json, manifest } from "@novadeck/harness-core/plugin"
 
@@ -44,24 +44,34 @@ const hookFallback = (platform: NodeJS.Platform, event: string): string | undefi
   return platform === "win32" ? undefined : preToolUseAnswer
 }
 
-/** Antigravity's command for its hook `event`, in its shell's dialect, with its fallback. */
-export const hook = (platform: NodeJS.Platform, event: string): string =>
-  hookCommand(hookDialect(platform), {
+/**
+ * Antigravity's command for its hook `event`, in its shell's dialect, with its fallback. On
+ * Windows PreToolUse is the relay alone where `launchers` name it (`launchers.hook`): a
+ * narrowed terminal (NOVADECK_NARROW set) needs an answer that is one of Novadeck's three on
+ * every path, which the relay prints itself, and a plain terminal gets today's "ask" from
+ * it. Without the relay's command line the Windows command stays cmd's, and `files` leaves
+ * PreToolUse out.
+ */
+export const hook = (platform: NodeJS.Platform, event: string, launchers?: Launchers): string => {
+  const relay = platform === "win32" && event === "PreToolUse" ? launchers?.hook : undefined
+  return hookCommand(hookDialect(platform), {
     agent: "agy",
     event,
     fallback: hookFallback(platform, event),
-    // In a narrowed terminal (never on Windows) its answer is one of Novadeck's three, else
-    // closed: a hook that prints nothing lets a granted program run unasked.
+    ...(relay !== undefined && { direct: [relay.command, ...(relay.args ?? [])] }),
+    // In a narrowed terminal its answer is one of Novadeck's three, else closed: a hook that
+    // prints nothing lets a granted program run unasked.
     ...(event === "PreToolUse" &&
       platform !== "win32" && {
         narrowed: { answer: closedAnswer, passes: narrowedAnswers },
       }),
   })
+}
 
 // A handler for one of its events, with the time it may take.
-const handler = (platform: NodeJS.Platform, event: string) => ({
+const handler = (platform: NodeJS.Platform, event: string, launchers?: Launchers) => ({
   type: "command",
-  command: hook(platform, event),
+  command: hook(platform, event, launchers),
   timeout: hookSeconds(platform),
 })
 
@@ -99,7 +109,8 @@ export const disconnect: Harness["disconnect"] = [
  * status line tells, and the call a confirmation is about. Where cmd prints something
  * of its own first (`Machine.cmdPrints`), no answer can be read as JSON, and every tool
  * would run unasked, so PreToolUse goes unregistered: Antigravity's own policy asks, as
- * it does without Novadeck (probed 2026-10-11, 1.2.14, ahead of an "ask" too).
+ * it does without Novadeck (probed 2026-10-11, 1.2.14, ahead of an "ask" too). So it does
+ * where Windows has no relay command to run alone (`launchers.hook`).
  */
 export const files: Harness["files"] = (platform, launchers, machine = {}) => [
   { path: "plugin.json", content: json({ name: pluginId }) },
@@ -118,8 +129,8 @@ export const files: Harness["files"] = (platform, launchers, machine = {}) => [
         // Tool events take matcher groups: before every tool; after a tool, the ones
         // that write files (one writes artifacts, which names a plan), and the one that
         // asks the person.
-        ...(!(platform === "win32" && machine.cmdPrints) && {
-          PreToolUse: [{ matcher: "*", hooks: [handler(platform, "PreToolUse")] }],
+        ...((platform !== "win32" || (!machine.cmdPrints && launchers.hook !== undefined)) && {
+          PreToolUse: [{ matcher: "*", hooks: [handler(platform, "PreToolUse", launchers)] }],
         }),
         PostToolUse: [...writers, "ask_question"].map((matcher) => ({
           matcher,

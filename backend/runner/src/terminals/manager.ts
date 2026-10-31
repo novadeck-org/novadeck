@@ -340,7 +340,6 @@ export class Terminals {
       messaging: () => this.messaging,
       records: () => this.records,
       projectFolder: (sessionId) => this.projectFolder(sessionId),
-      platform: this.options.platform,
       options,
     })
     this.launcher = new Launcher(this.options, {
@@ -466,6 +465,7 @@ export class Terminals {
       ...(options.messages && { records: options.messages }),
       ...(options.grants && { grants: options.grants }),
       platform: this.options.platform,
+      ...(options.cmdPrints && { cmdPrints: options.cmdPrints }),
       // A message is kept while either of its terminals is, running or saved.
       exists: (id) => this.records.has(id) || this.saves.identity(id) !== undefined,
       busy: (id) => agentWorking(this.messaging, id, this.live(id)?.bound),
