@@ -2,6 +2,7 @@ import { basename, dirname, extname } from "node:path"
 
 import {
   absolute,
+  folderField,
   withRequestCwd,
   planText,
   errorText,
@@ -28,7 +29,7 @@ import { oneLine } from "@novadeck/harness-core/tools"
 import { agentLimits } from "@novadeck/protocol"
 
 import { statusLine } from "./status-line.js"
-import { kindOf } from "./tools.js"
+import { folderOf, kindOf } from "./tools.js"
 
 /**
  * Claude Code's hooks, as normalized facts. Each tool call's PostToolUse or
@@ -248,6 +249,7 @@ const decodeHook = ({ event, seq, instance, env, payload }: Report): readonly Ha
             payload.tool_input.run_in_background === true && {
               background: true as const,
             }),
+          ...folderField(folderOf(tool, payload.tool_input, payload.cwd)),
         },
       ]
     case "StatusLine":

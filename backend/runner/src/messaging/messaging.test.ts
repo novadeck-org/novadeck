@@ -1946,6 +1946,7 @@ const whereabouts = (overrides: Partial<Whereabouts> = {}): Whereabouts => ({
   titleSource: null,
   summary: null,
   folder: null,
+  startedIn: null,
   branch: null,
   plan: null,
   work: null,
@@ -2033,6 +2034,38 @@ describe("listing", () => {
     }
     expect(line(about("B"))).toMatch(/^- @fox: Codex, idle/)
     expect(line({ ...about("B")!, working: true })).toMatch(/^- @fox: Codex, busy/)
+  })
+
+  it("lists compactly past a few terminals, in full on request, or one terminal's details", () => {
+    const { messaging } = create()
+    for (const [id, handle] of [
+      ["C", "owl"],
+      ["D", "crow"],
+      ["E", "kite"],
+      ["F", "wren"],
+      ["G", "haze"],
+    ] as const)
+      messaging.register(id, here, handle, null)
+    const text = (request?: unknown) => {
+      const listed = messaging.agents("A", about, request)
+      return listed.ok ? listed.text : ""
+    }
+    // Six others: a line each, and how to see more.
+    expect(text()).toContain("Other terminals in this project and session (6). One line each")
+    expect(text()).toMatch(/^- @fox · API author: /m)
+    expect(text()).not.toMatch(/^ {2}title:/m)
+    expect(text({ full: true })).toMatch(/^ {2}title: API author$/m)
+    // One terminal's details, by its handle with or without its @.
+    for (const terminal of ["@fox", "fox"]) {
+      const one = text({ terminal })
+      expect(one).toMatch(/^- @fox: /m)
+      expect(one).toMatch(/^ {2}title: API author$/m)
+      expect(one).not.toMatch(/^- @owl/m)
+    }
+    // What it can't read asks for neither.
+    expect(text({ full: "yes", terminal: 7 })).toContain("One line each")
+    messaging.unregister("G")
+    expect(text()).toContain("Other terminals in this project and session:")
   })
 
   it("lets only terminals of one project and Novadeck session see each other", () => {

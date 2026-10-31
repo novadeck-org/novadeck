@@ -66,8 +66,8 @@ export const titleSource = z.discriminatedUnion("kind", [
 export const terminalSummary = z.strictObject({
   id,
   sessionId: id,
-  // The title the person gave the terminal; else murmur's latest, if it is on; else the
-  // one the agent that opened it gave; else the runner's default: the program the terminal
+  // The title the person gave the terminal; else the one the agent that opened it gave;
+  // else murmur's latest, if it is on; else the runner's default: the program the terminal
   // was opened to run, as "claude", or "Terminal".
   title: terminalTitle,
   // Who the title is from.

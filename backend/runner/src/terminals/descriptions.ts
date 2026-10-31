@@ -8,6 +8,7 @@ import type { Describer, Description, Digest, ShellDigest } from "../murmur/desc
 import { sharesContentWord } from "../murmur/description.js"
 import { shorten } from "../text.js"
 import type { PeerTerminal } from "./peers-host.js"
+import { titledByHand } from "./titles.js"
 
 const log = logs.for("murmur")
 
@@ -414,17 +415,22 @@ const screenKey = (
 const words = (text: string | null): string =>
   (text ?? "").toLowerCase().replace(/\s+/g, " ").trim()
 
-// Whether the terminal has no automatic title: neither murmur's nor its opening agent's.
-const untitled = ({ naming }: MurmurSubject): boolean =>
-  naming.murmur === null && naming.opener === null
+// Whether murmur hasn't titled the terminal yet.
+const untitled = ({ naming }: MurmurSubject): boolean => naming.murmur === null
+
+// Whether the person or the agent that opened the terminal titled it, which murmur never
+// replaces (see `titleOf`).
+const kept = (subject: MurmurSubject | undefined): boolean =>
+  subject !== undefined && titledByHand(subject.naming, subject.openedBy)
 
 const programKey = (program: ForegroundProcess | null): string | null =>
   program === null ? null : JSON.stringify([program.name, program.argv])
 
 /**
  * Decides when each terminal is described and what from, and hands the result to the
- * manager. Without a describer, nothing happens. A terminal the person titled is never
- * asked about; once they clear it, a summary written meanwhile names it at once.
+ * manager. Without a describer, nothing happens. A terminal the person titled, or the agent
+ * that opened it did, is never asked about; once the person clears theirs, a summary
+ * written meanwhile names it at once, unless its opener titled it.
  *
  * An agent's terminal is named from its agent's own summary alone (from `summarize`), each
  * time the agent writes one that says something new, `settleMs` after it so a burst makes
@@ -523,20 +529,19 @@ export class Murmur {
       this.check(terminalId)
   }
 
-  // Whether the agent's summary on record names nothing yet: there is one, the person gave
-  // no title, and it is not the one murmur last named the terminal from.
+  // Whether the agent's summary on record names nothing yet: there is one, neither the
+  // person nor its opener gave a title, and it is not the one murmur last named it from.
   private unnamed(subject: MurmurSubject, watch: Watch): boolean {
-    const { person, summary } = subject.naming
-    return person === null && !!summary && words(summary) !== watch.named
+    const { summary } = subject.naming
+    return !kept(subject) && !!summary && words(summary) !== watch.named
   }
 
-  // The name a summary's title would replace: murmur's title, else its opening agent's. A
-  // shell's title, which shows over the opener's, names what the shell did, not the agent's
-  // work: then there is none to weigh, and the summary's title replaces it.
+  // The name a summary's title would replace: murmur's own (an opener's title is never
+  // replaced at all). A shell's title names what the shell did, not the agent's work: then
+  // there is none to weigh, and the summary's title replaces it.
   private previousOf(subject: MurmurSubject, watch: Watch): string | undefined {
-    const { murmur, opener } = subject.naming
-    if (murmur !== null) return watch.shellTitled ? undefined : murmur.title
-    return opener?.title
+    const { murmur } = subject.naming
+    return murmur === null || watch.shellTitled ? undefined : murmur.title
   }
 
   /**
@@ -545,7 +550,7 @@ export class Murmur {
    */
   summarized(terminalId: string): void {
     const subject = this.host.subject(terminalId)
-    if (!subject?.agent || subject.naming.person !== null || !subject.naming.summary) return
+    if (!subject?.agent || kept(subject) || !subject.naming.summary) return
     const watch = this.watch(terminalId)
     if (words(subject.naming.summary) === watch.named) return
     watch.owed = true
@@ -673,7 +678,7 @@ export class Murmur {
         if (!this.usable) return undefined
         const subject = this.host.subject(terminalId)
         const summary = subject?.naming.summary
-        if (!subject?.agent || subject.naming.person !== null || !summary) return undefined
+        if (!subject?.agent || kept(subject) || !summary) return undefined
         previous = this.previousOf(subject, watch)
         const projectFolder = this.host.projectFolder(subject.summary.sessionId)
         return {
@@ -703,7 +708,7 @@ export class Murmur {
       // No digest was built: an agent that left, or a terminal the person titled, is owed
       // nothing; one that waits for murmur to be usable still is.
       const subject = this.host.subject(terminalId)
-      if (!subject?.agent || subject.naming.person !== null) watch.owed = false
+      if (!subject?.agent || kept(subject)) watch.owed = false
       return
     }
     if (outcome === undefined) {
@@ -718,7 +723,7 @@ export class Murmur {
     // The agent left, or the person titled the terminal, while the model ran: nothing is
     // named, and clearing the person's title asks again.
     const now = this.host.subject(terminalId)
-    if (!now?.agent || now.naming.person !== null) {
+    if (!now?.agent || kept(now)) {
       watch.owed = false
       return
     }
@@ -756,7 +761,7 @@ export class Murmur {
         // Nothing is built, read or serialized while murmur isn't usable.
         if (!this.usable) return undefined
         const current = this.host.subject(terminalId)
-        if (!current || current.naming.person !== null) return undefined
+        if (!current || kept(current)) return undefined
         if (current.agent || this.expectedFor(current) > 0) return undefined
         if (options.program !== undefined && programKey(current.program) !== options.program)
           return undefined
@@ -827,7 +832,7 @@ export class Murmur {
   private store(terminalId: string, title: string): boolean {
     const text = title.trim()
     if (!terminalTitle.safeParse(text).success) return false
-    if (this.host.subject(terminalId)?.naming.person) return false
+    if (kept(this.host.subject(terminalId))) return false
     this.host.described(terminalId, { title: text })
     return true
   }

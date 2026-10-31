@@ -9,6 +9,7 @@ import {
   summaryChars,
   summaryRefusal,
   titleOf,
+  titledByHand,
   unnamed,
   type Naming,
 } from "./titles.js"
@@ -18,16 +19,17 @@ const opener = { title: "Login fix" }
 const murmur = { title: "Fixing login" }
 
 describe("a terminal's title", () => {
-  it("is the person's, then murmur's, then the opening agent's, then the default", () => {
+  it("is the person's, then the opening agent's, then murmur's, then the default", () => {
     const named: Naming = { person: "Mine", opener, murmur, summary: "Fixes login." }
     expect(titleOf(named, terminal)).toEqual({ title: "Mine", source: { kind: "person" } })
+    // A lead's title outlasts a local model's later one.
     expect(titleOf({ ...named, person: null }, terminal)).toEqual({
-      title: "Fixing login",
-      source: { kind: "murmur" },
-    })
-    expect(titleOf({ ...named, person: null, murmur: null }, terminal)).toEqual({
       title: "Login fix",
       source: { kind: "agent", by: "moth" },
+    })
+    expect(titleOf({ ...named, person: null, opener: null }, terminal)).toEqual({
+      title: "Fixing login",
+      source: { kind: "murmur" },
     })
     expect(titleOf(unnamed, terminal)).toEqual({
       title: "Terminal",
@@ -38,6 +40,16 @@ describe("a terminal's title", () => {
   it("ignores an opener's title when no terminal opened it", () => {
     const named: Naming = { ...unnamed, opener }
     expect(titleOf(named, { command: null, openedBy: null }).source).toEqual({ kind: "default" })
+    expect(titleOf({ ...named, murmur }, { command: null, openedBy: null }).source).toEqual({
+      kind: "murmur",
+    })
+  })
+
+  it("is kept from murmur when the person or the agent that opened the terminal gave it", () => {
+    expect(titledByHand(unnamed, "moth")).toBe(false)
+    expect(titledByHand({ ...unnamed, person: "Mine" }, null)).toBe(true)
+    expect(titledByHand({ ...unnamed, opener }, "moth")).toBe(true)
+    expect(titledByHand({ ...unnamed, opener }, null)).toBe(false)
   })
 
   it("is never made by a summary", () => {
@@ -71,17 +83,17 @@ describe("naming a terminal", () => {
     const theirs = renamed({ ...unnamed, opener, murmur }, "Mine")
     expect(titleOf(theirs, terminal).title).toBe("Mine")
     // The other layers stay beneath theirs.
-    expect(titleOf(renamed(theirs, null), terminal).source).toEqual({ kind: "murmur" })
+    expect(titleOf(renamed(theirs, null), terminal).source).toEqual({ kind: "agent", by: "moth" })
     expect(renamed(theirs, null).opener).toEqual(opener)
   })
 
-  it("takes the title an opener asked for as that agent's, beneath murmur's and the person's", () => {
+  it("takes the title an opener asked for as that agent's, over murmur's and beneath the person's", () => {
     expect(openedWith(unnamed, "Server")).toEqual({
       ...unnamed,
       opener: { title: "Server" },
     })
     const opened = openedWith(murmured(unnamed, "Fixing login"), "Server")
-    expect(titleOf(opened, terminal).title).toBe("Fixing login")
+    expect(titleOf(opened, terminal).title).toBe("Server")
     expect(openedWith(renamed(unnamed, "Mine"), "Server").person).toBe("Mine")
   })
 
