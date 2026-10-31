@@ -106,6 +106,15 @@ describe("the lexer", () => {
   })
 })
 
+describe("the POSIX lexer's programs that run other code, for Git Bash on Windows", () => {
+  it.each(["cmd /c calc", "powershell x", "wsl ls", "start x", "mshta x", "C:/Windows/cmd.exe x"])(
+    "refuses a leading %s",
+    (command) => {
+      expect(lex(command).ok).toBe(false)
+    },
+  )
+})
+
 const windows = (command: string): readonly string[] | undefined => {
   const lexed = lexWindows(command)
   return lexed.ok ? lexed.argv : undefined
@@ -176,6 +185,28 @@ describe("the Windows Codex lexer", () => {
     ["a variable assignment", "FOO=1 gh pr ready 1"],
     ["a leading env", "env FOO=1 gh pr ready 1"],
     ["a leading path of a wrapper", "C:\\tools\\sudo.exe gh"],
+    ...[
+      "wsl",
+      "start",
+      "saps",
+      "call",
+      "iex",
+      "invoke-expression",
+      "ii",
+      "invoke-item",
+      "cscript",
+      "wscript",
+      "mshta",
+      "rundll32",
+      "regsvr32",
+      "powershell",
+      "pwsh",
+      "cmd",
+      "conhost",
+    ].map((program) => [`a leading ${program}`, `${program} x`]),
+    ["a leading CMD.EXE in capitals", "C:\\Windows\\System32\\CMD.EXE /c calc"],
+    ["a leading start.cmd", "start.cmd x"],
+    ["a leading powershell.ps1", "powershell.ps1 x"],
   ])("refuses %s", (_name, command) => {
     expect(windows(command)).toBeUndefined()
   })

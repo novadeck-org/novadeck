@@ -1,6 +1,6 @@
 // Granted commands: which may be granted at all, and whether a call is one.
 import type { GrantCommand } from "../grants.js"
-import { programName } from "./lexer.js"
+import { programName, windowsRunners } from "./lexer.js"
 
 const wrappers = new Set(["env", "sudo", "command", "exec", "xargs", "cd"])
 const interpreters = new Set([
@@ -44,7 +44,12 @@ const plain = /^[A-Za-z0-9._/:@%+,-][A-Za-z0-9._/:=@%+,-]*$/
 /** Programs that run other code: never granted, exact or with `rest`. */
 export const runsOtherCode = (word: string): boolean => {
   const program = programName(word)
-  return wrappers.has(program) || interpreters.has(program) || python.test(program)
+  return (
+    wrappers.has(program) ||
+    interpreters.has(program) ||
+    windowsRunners.has(program) ||
+    python.test(program)
+  )
 }
 
 /** Why `command` can't be granted, or undefined when it can. */

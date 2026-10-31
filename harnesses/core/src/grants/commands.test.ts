@@ -5,6 +5,26 @@ import { matchesCommand, refusesCommand } from "./commands.js"
 const exact = (...argv: string[]) => ({ argv, rest: false })
 const rest = (...argv: string[]) => ({ argv, rest: true })
 
+const runners: [string, ReturnType<typeof exact>][] = [
+  "wsl",
+  "start",
+  "saps",
+  "call",
+  "iex",
+  "invoke-expression",
+  "ii",
+  "invoke-item",
+  "cscript",
+  "wscript",
+  "mshta",
+  "rundll32",
+  "regsvr32",
+  "powershell",
+  "pwsh",
+  "cmd",
+  "conhost",
+].map((program) => [program, exact(program, "x")])
+
 describe("a command that can be granted", () => {
   it("is a bare program with words, exact or followed by anything", () => {
     expect(refusesCommand(exact("pwd"))).toBeUndefined()
@@ -31,6 +51,7 @@ describe("a command that can be granted", () => {
     ["bash.cmd", exact("bash.cmd")],
     ["python3.12", exact("python3.12", "x.py")],
     ["node", exact("node")],
+    ...runners,
     ["pnpm, exact too", exact("pnpm", "test")],
     ["make", rest("make", "build")],
     ["docker", rest("docker", "ps")],
