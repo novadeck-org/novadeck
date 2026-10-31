@@ -226,7 +226,6 @@ describe("a delivery", () => {
 })
 
 describe("a note the session holds", () => {
-  const mark = "Ab3dEf9Z"
   const lead = message({ fromLead: true })
   const note = (text: string) => text.split("\n")[0]!
 

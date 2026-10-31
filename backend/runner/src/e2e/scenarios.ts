@@ -381,10 +381,10 @@ const wrapperOf = (wrapped: string): Wrapper => ({
  * of every delivery the session was given, each as many times as it reads it.
  */
 export const wrappers = (call: Call): Wrapper[] =>
-  call.turns.flatMap((turn) => {
-    if (turn.role === "assistant") return []
-    const plain = [...turn.text.matchAll(block)].map(([wrapped]) => wrapped)
-    const rest = turn.text.replace(block, "")
+  call.turns.flatMap((entry) => {
+    if (entry.role === "assistant") return []
+    const plain = [...entry.text.matchAll(block)].map(([wrapped]) => wrapped)
+    const rest = entry.text.replace(block, "")
     const escaped = [...rest.matchAll(escapedBlock)].map(([wrapped]) => unescape(wrapped))
     return [...plain, ...escaped].map(wrapperOf)
   })

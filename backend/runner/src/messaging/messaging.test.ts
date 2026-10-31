@@ -5597,8 +5597,8 @@ describe("the rules note of a delivery", () => {
     messaging.register("W", here, "owl", "moth")
     const worker = binding("claude", "s-worker", "3")
     messaging.expect("W", "claude")
-    const deliver = (from: string, text: string) => {
-      sent(send(from, "owl", text))
+    const deliver = (from: string, body: string) => {
+      sent(send(from, "owl", body))
       const answer = prompt("W", worker)
       messaging.acknowledge("W", answer.leaseId!)
       return context(answer.stdout)
@@ -5614,7 +5614,14 @@ describe("the rules note of a delivery", () => {
   })
 
   it("gives it in full again once nothing confirmed it, to another session, and after a compaction", () => {
-    const { messaging, send, prompt, follow, claude, clock } = create(memoryMessages(), undefined, {
+    const {
+      messaging,
+      send,
+      prompt,
+      follow,
+      claude,
+      clock: time,
+    } = create(memoryMessages(), undefined, {
       leaseMs: 1_000,
     })
     vi.useFakeTimers()
@@ -5623,7 +5630,7 @@ describe("the rules note of a delivery", () => {
       prompt("A", claude)
       // Its hook never said it printed it: the lease lapses, and the note isn't held.
       vi.advanceTimersByTime(1_000)
-      clock.now += 1_000
+      time.now += 1_000
       const again = prompt("A", claude)
       expect(fullNote(context(again.stdout))).toBe(true)
       messaging.acknowledge("A", again.leaseId!)
@@ -5643,7 +5650,7 @@ describe("the rules note of a delivery", () => {
     messaging.acknowledge("A", held.leaseId!)
     // The terminal manager says the session compacted: it holds nothing any more.
     messaging.holding("A", {})
-    clock.now += 60_000
+    time.now += 60_000
     sent(send("B", "moth", "After a compaction."))
     expect(fullNote(context(prompt("A", cleared).stdout))).toBe(true)
   })
