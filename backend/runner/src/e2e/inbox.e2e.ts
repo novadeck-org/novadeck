@@ -79,6 +79,20 @@ const usable = (schema: unknown) => {
             },
             required: ["type", "command", "done_label"],
           },
+          {
+            type: "object",
+            properties: {
+              type: kind("approval"),
+              commands: {
+                type: "array",
+                items: {
+                  type: "object",
+                  properties: { argv: { type: "array" }, rest: { type: "boolean" } },
+                },
+              },
+            },
+            required: ["type", "commands"],
+          },
         ],
       },
     },
