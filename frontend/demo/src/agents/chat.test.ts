@@ -191,7 +191,11 @@ describe("demo conversations", () => {
     expect(agent("06")).toMatchObject({
       agent: { working: false, lastTurn: { outcome: "interrupted" } },
     })
-    expect(chat.conversation(key("06")).getSnapshot().items.at(-1)?.role).toBe("user")
+    // The chat shows where the person interrupted it, as each harness's does.
+    expect(chat.conversation(key("06")).getSnapshot().items.at(-1)).toMatchObject({
+      role: "user",
+      interrupted: true,
+    })
   })
 
   it("clears a pending request when the agent is stopped", async () => {

@@ -12,6 +12,7 @@ import type { Nudges } from "./nudges.js"
 import type { AgentReport, AgentTurn } from "./saved-terminals.js"
 import type { AgentSummary } from "./summary.js"
 import type { Naming } from "./titles.js"
+import type { Interruption } from "./transcripts.js"
 import type { Work } from "./work.js"
 
 /** A harness session bound to a terminal (`Record.bound`). */
@@ -91,6 +92,18 @@ export type Record = {
   recheck?: NodeJS.Timeout | undefined
   /** Waits out the harness's say on how the turn the person's Escape ended ended. */
   verdict?: NodeJS.Timeout | undefined
+  /**
+   * How long the bound session's transcript was when the person's latest Escape came, at
+   * `key`, where the transcript records no interruption (`Harness.records` false,
+   * Antigravity): once the Escape stands, `interruptions` keeps it.
+   */
+  escape?: { readonly key: number; readonly offset: Promise<number | undefined> } | undefined
+  /**
+   * Where the person interrupted turns whose transcript records no interruption, each
+   * with its session, for the chat to show among its items (`transcriptChanges`). Only in
+   * memory: a runner restart forgets them.
+   */
+  interruptions?: readonly (Interruption & { readonly sessionId: string })[]
   /** Shows the agent's prompt ready again, once an Enter there started nothing. */
   readyReturn?: NodeJS.Timeout | undefined
   /** Whether its title said a turn runs since the person's Enter at its ready prompt. */

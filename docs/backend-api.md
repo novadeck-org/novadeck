@@ -814,7 +814,11 @@ one from an earlier runner.
   without the context wrapped around it, the agent's words, each tool call and its
   result, never its reasoning or system steps). A Codex agent's transcript also holds
   the messages other agents sent it, as role `agent` with `author` naming the sender's
-  path (`/root`, `/root/<name>`). The runner reads no further ahead than it has sent, but a remote client's own
+  path (`/root`, `/root/<name>`). A user item marked `interrupted` is where the person
+  interrupted the turn: Claude Code's and Codex's records hold their own, and for
+  Antigravity, whose record holds none, the runner adds one where an Escape that stood
+  came: after the turn's last steps, before the person's next prompt written after the key.
+  It keeps them in memory, so a runner restart forgets them. The runner reads no further ahead than it has sent, but a remote client's own
   pace is not tracked: a large record on a slow link fills the socket's buffer like any
   other output.
   An actor the terminal's session does not have, or without a transcript Novadeck reads,

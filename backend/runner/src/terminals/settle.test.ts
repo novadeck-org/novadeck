@@ -60,8 +60,19 @@ describe("settling a draft kept only by doubt", () => {
       observe: (id: string, events: readonly unknown[]) => void
       keys: (id: string, kinds: readonly string[], asked: boolean) => void
       delivery: (id: string) => { state: string; epoch: number; box: { doubted: boolean } }
+      subscribe: (listener: (change: { kind: string; terminalId?: string }) => void) => unknown
     }
   }
+  // Where a call came from: the source frames of its stack, the test's own left out.
+  const caller = () =>
+    (new Error().stack ?? "")
+      .split("\n")
+      .slice(2)
+      .map((line) => line.match(/([\w./-]+\.ts):(\d+)/))
+      .filter((match) => match !== null && !match[1]!.endsWith("settle.test.ts"))
+      .slice(0, 10)
+      .map((match) => `${match![1]!.split("/src/").at(-1)}:${match![2]}`)
+      .join(" < ")
   const rule = "─".repeat(60)
   // Antigravity's screen with its box empty, or holding what the person typed.
   const boxed = (text: string) =>
@@ -88,10 +99,21 @@ describe("settling a draft kept only by doubt", () => {
     const record = inside.records.get(terminal.id)!
     record.bound = bound({ agent: "agy", sessionId: "s", instance: null })
     const { messaging } = inside
+    // Each change of its delivery and each look at its screen, and where it came from: a
+    // failure tells what moved it.
+    const history: string[] = []
+    messaging.subscribe((change) => {
+      if (change.kind !== "terminal" || change.terminalId !== terminal.id) return
+      const { state, epoch, box } = messaging.delivery(terminal.id)
+      history.push(`${Date.now()} ${state} epoch ${epoch} doubted ${box.doubted} < ${caller()}`)
+    })
     messaging.rooted(terminal.id, [root("a")])
     messaging.keys(terminal.id, ["content", "enter"], false)
     let looked = 0
-    inside.typing.screenOf = () => Promise.resolve(reads[Math.min(looked++, reads.length - 1)])
+    inside.typing.screenOf = () => {
+      history.push(`${Date.now()} read ${looked} < ${caller()}`)
+      return Promise.resolve(reads[Math.min(looked++, reads.length - 1)])
+    }
     return {
       manager,
       inside,
@@ -99,6 +121,7 @@ describe("settling a draft kept only by doubt", () => {
       id: terminal.id,
       looks: () => looked,
       state: () => messaging.delivery(terminal.id)?.state,
+      history: () => `${process.platform}, ${looked} reads:\n${history.join("\n")}`,
       start: () => {
         // Start after the fake clock and screen reader are installed: delivery changes
         // now start the manager's settling automatically, including a completed Stop.
@@ -131,7 +154,7 @@ describe("settling a draft kept only by doubt", () => {
     expect(settled.state()).toBe("ready")
     // Another read, then not empty: the first of the two reads is forgotten.
     await vi.advanceTimersByTimeAsync(1_000)
-    expect(between.state()).toBe("drafting")
+    expect(between.state(), between.history()).toBe("drafting")
   })
 
   it("automatically becomes Settled after a late prompt's completed turn and two empty reads", async ({

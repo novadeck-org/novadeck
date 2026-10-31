@@ -70,6 +70,8 @@ for (const setup of setups) {
           const stopped = /nterrupted/.test(shown) || setup.interrupted("Hold on").test(shown)
           const activity = t1.summary().activity
           const why = `${phase}, read ${read.join(", ")}:\n${shown}`
+          // Whether the chat shows the person's interruption, as each harness tells it.
+          const noted = async () => (await t1.transcript()).some((item) => item.interrupted)
           expect(activity?.state, why).toBe("idle")
           if (shown.includes("Too late.") && !stopped) {
             completed += 1
@@ -78,6 +80,7 @@ for (const setup of setups) {
               outcome: "completed",
               reply: "Too late.",
             })
+            expect(await noted(), why).toBe(false)
           } else {
             interrupted += 1
             expect(phase, why).not.toBe("reply first")
@@ -87,6 +90,12 @@ for (const setup of setups) {
             // turn completed, and the harness's interruption after it replaces that: clients
             // hold a finish for `finishGraceMs` for it.)
             if (read[0] === "interrupted") expect(read, why).not.toContain("completed")
+            if (phase === "key first")
+              await t1.poll(
+                async () => ((await noted()) ? true : undefined),
+                `the chat to show the interruption (${why})`,
+                10_000,
+              )
           }
         } finally {
           clearInterval(watching)

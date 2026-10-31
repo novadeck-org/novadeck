@@ -4,7 +4,7 @@ import { agentName, groupItems } from "@novadeck/core/conversation/turns"
 import { transcripts as agy } from "@novadeck/harness-agy/transcripts"
 import { transcripts as claude } from "@novadeck/harness-claude/transcripts"
 import { transcripts as codex } from "@novadeck/harness-codex/transcripts"
-import type { Harness } from "@novadeck/harness-core/harness"
+import type { Harness, TranscriptEntry } from "@novadeck/harness-core/harness"
 import { transcriptItem } from "@novadeck/protocol"
 import type { AgentName } from "@novadeck/protocol/harnesses"
 import { withBatch } from "@novadeck/runner-adapter/conversations"
@@ -23,8 +23,12 @@ const session = "contract"
 // The chat items of a conversation: each record line through its harness's decoder, the
 // entries given the index the runner gives them and parsed by the protocol's strict schema,
 // and mapped by the runner adapter.
-export const chatItemsOf = (harness: AgentName, lines: readonly string[]): readonly ChatItem[] => {
-  const entries = lines.flatMap((line) => transcriptsOf[harness].items(line))
+export const chatItemsOf = (harness: AgentName, lines: readonly string[]): readonly ChatItem[] =>
+  chatItemsFrom(lines.flatMap((line) => transcriptsOf[harness].items(line)))
+
+// The chat items of a transcript's entries, as the runner numbers and sends them, whether a
+// harness's decoder read them or the runner joined one of its own.
+export const chatItemsFrom = (entries: readonly TranscriptEntry[]): readonly ChatItem[] => {
   const batch = entries.map((entry, index) => transcriptItem.parse({ ...entry, index }))
   return withBatch([], session, batch)
 }
