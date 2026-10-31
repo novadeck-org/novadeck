@@ -444,8 +444,8 @@ export class Messaging {
     return this.sending.peer(terminalId, to, about)
   }
 
-  agents(terminalId: string, about?: About): AgentsAnswer {
-    return this.sending.agents(terminalId, about)
+  agents(terminalId: string, about?: About, request?: unknown): AgentsAnswer {
+    return this.sending.agents(terminalId, about, request)
   }
 
   goneFrom(terminalId: string): ReturnType<Sending["goneFrom"]> {

@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest"
 
 import {
   callId,
+  commandFolder,
   errorText,
   firedFacts,
   maxPlan,
@@ -90,6 +91,38 @@ describe("a request's directory", () => {
     expect(withRequestCwd([asked], { cwd: "work" })).toEqual([asked])
     const own = { ...asked, cwd: "/own" }
     expect(withRequestCwd([own], { cwd: "/work" })).toEqual([own])
+  })
+})
+
+describe("the folder a command runs in", () => {
+  it("is its tool's own working directory, resolved against the hook's", () => {
+    expect(commandFolder("ls", "/w", "/x/y")).toBe("/x/y")
+    expect(commandFolder("cd /a && ls", "/w", "sub")).toBe("/w/sub")
+  })
+
+  it("is where a leading cd moves it, bare or quoted, absolute or relative", () => {
+    expect(commandFolder("cd /home/me/tasks/b/repo && pnpm test", "/w")).toBe(
+      "/home/me/tasks/b/repo",
+    )
+    expect(commandFolder("cd ../b; git status", "/w/a")).toBe("/w/b")
+    expect(commandFolder('cd "/with space" && ls', "/w")).toBe("/with space")
+    expect(commandFolder("cd '/q'", "/w")).toBe("/q")
+    expect(commandFolder("  cd /x/ && ls", "/w")).toBe("/x")
+  })
+
+  it("is the hook's own directory for a command with no cd first", () => {
+    expect(commandFolder("git status && cd /x", "/w")).toBe("/w")
+    expect(commandFolder("cd /x | cat", "/w")).toBe("/w")
+    expect(commandFolder(undefined, "/w")).toBe("/w")
+  })
+
+  it("is nothing for a home, a variable or the last folder, or with nothing absolute to go by", () => {
+    expect(commandFolder("cd ~/repo && ls", "/w")).toBeUndefined()
+    expect(commandFolder("cd $REPO && ls", "/w")).toBeUndefined()
+    expect(commandFolder("cd - && ls", "/w")).toBeUndefined()
+    expect(commandFolder("cd sub && ls", "relative")).toBeUndefined()
+    expect(commandFolder("ls", undefined)).toBeUndefined()
+    expect(commandFolder("cd /abs && ls", undefined)).toBe("/abs")
   })
 })
 

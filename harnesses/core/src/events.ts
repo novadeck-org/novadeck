@@ -201,6 +201,11 @@ export type ActivityEvent = EventBase &
         readonly kind: ToolKind
         /** It started work that runs on in the background, as Claude Code's `run_in_background`. */
         readonly background?: true
+        /**
+         * The folder a shell command ran in, as an absolute path, where the call tells it
+         * (see `commandFolder`): with the files it writes, what tells where the agent works now.
+         */
+        readonly folder?: string
       }
     /**
      * A background task the agent started is known by an id a Stop's list of what runs

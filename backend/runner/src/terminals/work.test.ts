@@ -4,13 +4,16 @@ import type { Root } from "../harnesses/roots.js"
 import { describe, expect, it } from "../test.js"
 import {
   busiestFolders,
+  currentCheckout,
   firstFrom,
   freshWork,
   judgedFirst,
   keptFiles,
   keptFolders,
   lastFiles,
+  keptPlaces,
   personPrompted,
+  plainPrompt,
   promptChars,
   tallied,
   workAfter,
@@ -32,6 +35,89 @@ const touched = (path: string): HarnessEvent => ({
   ...fact,
   actor: null,
   path,
+})
+
+const ran = (folder: string, actor: string | null = null): HarnessEvent => ({
+  type: "tool-called",
+  ...fact,
+  actor,
+  toolName: "Bash",
+  kind: "work",
+  folder,
+})
+
+describe("where a root session works now", () => {
+  it("keeps the folders of its latest commands and writes, the latest first", () => {
+    const work = workAfter(
+      null,
+      root,
+      [ran("/t/a"), touched("/t/b/src/x.ts"), prompted("go"), ran("/t/b")],
+      1,
+    )
+    expect(work?.places).toEqual(["/t/b", "/t/b/src", "/t/a"])
+  })
+
+  it("counts a subagent's writes but not its commands, nor a call naming no folder", () => {
+    const work = workAfter(
+      null,
+      root,
+      [
+        ran("/elsewhere", "a1"),
+        { type: "file-touched", ...fact, actor: "a1", path: "/t/b/x.ts" },
+        { type: "tool-called", ...fact, actor: null, toolName: "Read", kind: "work" },
+      ],
+      1,
+    )
+    expect(work?.places).toEqual(["/t/b"])
+  })
+
+  it("keeps the latest few, and is the same work while the calls stay in one folder", () => {
+    const calls = Array.from({ length: keptPlaces + 3 }, () => ran("/t/a"))
+    const work = workAfter(null, root, [ran("/t/z"), ...calls], 1)
+    expect(work?.places).toEqual(Array.from({ length: keptPlaces }, () => "/t/a"))
+    expect(workAfter(work, root, [ran("/t/a")], 2)).toBe(work)
+  })
+
+  it("is the checkout most of its latest places are in, the latest on a tie", () => {
+    const checkout = (folder: string) =>
+      folder.startsWith("/tmp") ? null : `/${folder.split("/")[1]}`
+    // One look into another checkout doesn't move it.
+    expect(currentCheckout(["/s/x", "/b/1", "/b/2", "/b/3"], checkout)).toBe("/b")
+    expect(currentCheckout(["/a/x", "/b/y"], checkout)).toBe("/a")
+    // A scratchpad, outside every checkout, never counts.
+    expect(currentCheckout(["/tmp/1", "/tmp/2", "/b/x"], checkout)).toBe("/b")
+    expect(currentCheckout(["/tmp/1"], checkout)).toBeNull()
+    expect(currentCheckout([], checkout)).toBeNull()
+  })
+})
+
+describe("a prompt as others read it", () => {
+  it("drops the tags wrapping one agent's message to another, naming its sender", () => {
+    expect(
+      plainPrompt(
+        '<agent-message from="sable" id="m1">\n[Subagent hand-back] Done.\n</agent-message>',
+      ),
+    ).toBe("(a message from sable) [Subagent hand-back] Done.")
+    expect(
+      plainPrompt(
+        '<novadeck-messages note="…"><message id="m" from="fox" thread="t">Fix it</message></novadeck-messages>',
+      ),
+    ).toBe("(a message from fox) Fix it")
+  })
+
+  it("leaves a prompt with no such tags as it is, other markup too", () => {
+    expect(plainPrompt("Fix <b>bold</b> in a <div>")).toBe("Fix <b>bold</b> in a <div>")
+  })
+
+  it("is what the work keeps of the person's prompt", () => {
+    const work = workAfter(
+      null,
+      root,
+      [prompted('<agent-message from="sable">Go</agent-message>')],
+      1,
+    )
+    expect(work?.first).toBe("(a message from sable) Go")
+  })
 })
 
 describe("what a root session worked on", () => {
@@ -107,6 +193,7 @@ describe("what a root session worked on", () => {
       latest: null,
       folders: { "/w": 1 },
       files: ["/w/a.ts"],
+      places: ["/w"],
       activeAt: 4,
     })
     // Without the correction, another session starts afresh.

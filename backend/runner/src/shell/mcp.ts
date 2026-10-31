@@ -920,25 +920,43 @@ const agents: Tool<Listing> = {
   name: "agents",
   description:
     "Name your team in this Novadeck project and session, if you are in one (your lead and " +
-    "the others it leads, and the terminals you lead), then list every other terminal there, " +
-    "each with what Novadeck " +
-    "knows of it: its handle, its agent and whether that is busy, idle, or idle but " +
-    "waiting on something that wakes it by itself when that ends (a background command, " +
-    "a wake-up it set; a message still reaches it), its title (the user's, " +
-    "else Novadeck's, else the opening agent's, which it says), the summary its agent " +
-    "gave of its work, its folder and git " +
-    "branch, the user's first and latest prompts there, its plan, the folders it writes in most, and the latest " +
-    "message between you, and whether it is your lead or one you lead; whether its agent " +
-    "is waiting on the user, which only they can answer, so tell them rather than " +
-    "telling it to proceed; and your own " +
-    "messages not yet delivered. This is Novadeck's " +
+    "the others it leads, and the terminals you lead), then list every other terminal there " +
+    "with what Novadeck knows of it. With more than five others, each is one line: its " +
+    "handle and title, its agent and whether that is busy, idle, waiting on the user (and " +
+    "what for), or idle but waiting on its own job or a wake-up it set, which wakes it by " +
+    "itself (a message still reaches it), its git branch, whether it is your lead or one " +
+    "you lead, and its latest report, else its agent's summary. Give terminal (a handle, " +
+    "as \"@fox\") for that terminal's details, or full true for every terminal's (as all " +
+    "show with five or fewer): also its title's source (the user's, else the opening " +
+    "agent's, else " +
+    "Novadeck's local model's, which it says), the summary its agent gave of its work, the " +
+    "folder and git branch its agent works in now (and the folder its terminal started in, " +
+    "when that differs), the user's first and latest prompts there, its plan, the folders " +
+    "it writes in most, and the latest message between you. A terminal whose agent is " +
+    "waiting on the user can't go on until they answer, so tell them rather than telling it " +
+    "to proceed. It also lists your own messages not yet delivered. This is Novadeck's " +
     "knowledge, always current, so call it again rather than rely on what you remember. " +
     "When you mention a terminal to the user, write its handle with @ and its title, as " +
     "`@fox · api-server`. " +
     rules,
-  inputSchema: { type: "object", properties: {}, additionalProperties: false },
+  inputSchema: {
+    type: "object",
+    properties: {
+      terminal: {
+        type: "string",
+        description:
+          "A terminal's exact handle, such as @fox, as agents lists it: that terminal's " +
+          "details alone.",
+      },
+      full: {
+        type: "boolean",
+        description: "True for every terminal's details, however many there are.",
+      },
+    },
+    additionalProperties: false,
+  },
   call: "agents",
-  request: () => ({}),
+  request: (args) => picked(args, ["terminal", "full"]),
   // The runner renders the listing, as it renders a refused send's.
   said: (answer) => answer.text,
   failed: "Novadeck couldn't list the terminals.",

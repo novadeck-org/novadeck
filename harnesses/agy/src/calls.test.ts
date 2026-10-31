@@ -54,6 +54,22 @@ describe("an Antigravity tool call", () => {
     ])
   })
 
+  it("tells the folder its command ran in: its Cwd, a leading cd, or the workspace's", () => {
+    const ran = (args: object) =>
+      called("PreToolUse", {
+        workspacePaths: ["/w/a"],
+        toolCall: { name: "run_command", args },
+      })
+    expect(ran({ CommandLine: "npm test", Cwd: "/w/b" })).toMatchObject([{ folder: "/w/b" }])
+    expect(ran({ CommandLine: "cd /w/c && npm test" })).toMatchObject([{ folder: "/w/c" }])
+    expect(ran({ CommandLine: "npm test" })).toMatchObject([{ folder: "/w/a" }])
+    const viewed = called("PreToolUse", {
+      workspacePaths: ["/w/a"],
+      toolCall: { name: "view_file", args: { AbsolutePath: "/w/a/x" } },
+    })
+    expect(viewed[0]).not.toHaveProperty("folder")
+  })
+
   it("reports ask_question too, beside its question", () => {
     const events = hook("PreToolUse", {
       toolCall: {

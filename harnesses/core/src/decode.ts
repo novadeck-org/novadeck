@@ -1,5 +1,5 @@
 import { createHash } from "node:crypto"
-import { isAbsolute } from "node:path"
+import { isAbsolute, resolve } from "node:path"
 
 import { agentLimits, agentSessionId, maxTurnError, replyPreviewLength } from "@novadeck/protocol"
 
@@ -25,6 +25,40 @@ export const absolute = (value: unknown): string | undefined =>
   typeof value === "string" && value.length <= 4096 && !value.includes("\0") && isAbsolute(value)
     ? value
     : undefined
+
+// A leading `cd` and the folder it names: bare, or in single or double quotes, followed by
+// `&&`, `;` or the command's end.
+const leadingCd = /^\s*cd\s+(?:"([^"]+)"|'([^']+)'|([^\s;&|'"]+))\s*(?:&&|;|$)/
+
+/**
+ * The folder a shell command runs in, as an absolute path: its tool's own working-directory
+ * field where it takes one (Codex's `workdir`, Antigravity's `Cwd`), else the folder a
+ * leading `cd` moves it to (`cd /x && …`, `cd x; …`), else `cwd`, the directory its hook
+ * ran in. A relative folder resolves against `cwd`; one naming a variable, `~` or `-` is
+ * no folder, nor is anything where `cwd` isn't absolute to resolve it against. It tells
+ * where an agent works now, as the agents listing shows it, whichever harness runs it.
+ */
+export const commandFolder = (
+  command: string | undefined,
+  cwd: unknown,
+  workdir?: unknown,
+): string | undefined => {
+  const base = absolute(cwd)
+  const named = (folder: string): string | undefined => {
+    if (/^[~$-]/.test(folder) || folder.includes("\0") || folder.length > 4096) return undefined
+    if (isAbsolute(folder)) return resolve(folder)
+    return base === undefined ? undefined : resolve(base, folder)
+  }
+  const own = text(workdir)?.trim()
+  if (own) return named(own)
+  const cd = command === undefined ? null : leadingCd.exec(command)
+  const target = cd?.[1] ?? cd?.[2] ?? cd?.[3]
+  return target === undefined ? base : named(target)
+}
+
+/** A `tool-called` event's `folder` field where there is one, to spread into it. */
+export const folderField = (folder: string | undefined): { readonly folder?: string } =>
+  folder === undefined ? {} : { folder }
 
 /**
  * A SessionStart `source`: `startup` for a fresh session, anything else (resume, clear,

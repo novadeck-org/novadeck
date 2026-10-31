@@ -3,10 +3,13 @@ import { describe, expect, it } from "../test.js"
 import { novadeckSender, type Message } from "./messages.js"
 import {
   ago,
+  compactPast,
+  compactPeer,
   deliveredTo,
   lastBetween,
   peerOf,
   type Peer,
+  quietPath,
   renderAgents,
   renderPeer,
   standingDone,
@@ -42,6 +45,7 @@ const whereabouts = (overrides: Partial<Whereabouts> = {}): Whereabouts => ({
   titleSource: null,
   summary: null,
   folder: null,
+  startedIn: null,
   branch: null,
   plan: null,
   work: null,
@@ -515,6 +519,159 @@ describe("what agents and a refused send say", () => {
     expect(ago(now - 59 * 60_000, now)).toBe("59 min ago")
     expect(ago(now - 47 * 60 * 60_000, now)).toBe("47 h ago")
     expect(ago(now - 72 * 60 * 60_000, now)).toBe("3 days ago")
+  })
+})
+
+describe("a listing of many terminals", () => {
+  const viewer = { handle: "moth", lead: "sable" }
+  const many = (count: number) =>
+    Array.from({ length: count }, (_, at) =>
+      listing({
+        terminalId: `T${at}`,
+        handle: `t${at}`,
+        where: whereabouts({ title: `Task ${at}` }),
+      }),
+    )
+  const lines = (text: string) => text.split("\n").filter((line) => line.startsWith("- "))
+
+  it("shows a line each past a few terminals, and every block with fewer or when asked", () => {
+    const list = (peers: readonly Peer[], view?: Parameters<typeof renderAgents>[0]["view"]) =>
+      renderAgents({
+        handle: "moth",
+        lead: null,
+        peers,
+        messages: [],
+        unbound: false,
+        now,
+        ...(view && { view }),
+      })
+    const compact = list(many(compactPast + 1))
+    expect(compact).toContain(`Other terminals in this project and session (${compactPast + 1}).`)
+    expect(compact).toContain('call agents with terminal (a handle, as "@fox")')
+    expect(compact.split("\n").filter((line) => line.startsWith(" "))).toEqual([])
+    expect(lines(compact)).toHaveLength(compactPast + 1)
+    expect(list(many(compactPast))).toMatch(/^ {2}title: Task 0/m)
+    expect(list(many(compactPast + 1), { kind: "full" })).toMatch(/^ {2}title: Task 0/m)
+    // One terminal's block alone; a handle that is none says so and lists them all.
+    const one = list(many(compactPast + 1), { kind: "one", handle: "@t2" })
+    expect(lines(one)).toEqual(["- @t2: Claude Code, idle"])
+    expect(one).toContain("  title: Task 2")
+    const none = list(many(compactPast + 1), { kind: "one", handle: "@zz" })
+    expect(none).toContain('"@zz" is no other terminal\'s handle here; these are:')
+    expect(lines(none)).toHaveLength(compactPast + 1)
+  })
+
+  it("puts on one line its handle, title, state, branch, relation and latest report", () => {
+    const fox = listing({
+      busy: true,
+      lead: "moth",
+      where: whereabouts({
+        title: "ti delivery",
+        titleSource: { kind: "agent", by: "moth" },
+        branch: "task/ti-delivery",
+        summary: "Agent message delivery",
+        reports: { tell: { subject: "PR #612 opened", at: now - 15 * 60_000 }, done: null },
+        work: { ...freshWork("claude:s"), first: '<agent-message from="moth">Go</agent-message>' },
+        plan: "Delivery plan",
+      }),
+    })
+    expect(compactPeer(fox, now, viewer)).toBe(
+      "- @fox · ti delivery: Claude Code, busy, on task/ti-delivery, led by you — " +
+        "update 15 min ago: PR #612 opened",
+    )
+  })
+
+  it("always says when an agent waits on the user, or on its own job, and falls back to its summary", () => {
+    const waiting = listing({
+      busy: true,
+      lead: "sable",
+      where: whereabouts({
+        summary: "Lead tools: send to the whole team",
+        waiting: { kind: "permission", tool: "Bash", subject: null, more: 1 },
+      }),
+    })
+    expect(compactPeer(waiting, now, viewer)).toBe(
+      "- @fox: Claude Code, waiting on the user: permission to use Bash (and 1 more), " +
+        "led by @sable — described as: Lead tools: send to the whole team",
+    )
+    const job = listing({ where: whereabouts({ waitsOn: "CI on PR #612" }) })
+    expect(compactPeer(job, now, viewer)).toBe(
+      "- @fox: Claude Code, waiting on CI on PR #612, will wake by itself",
+    )
+    const lead = listing({
+      handle: "sable",
+      where: whereabouts({
+        reports: { tell: null, done: { subject: "Wave merged", at: now - 60 * 60_000 } },
+      }),
+    })
+    expect(compactPeer(lead, now, viewer)).toBe(
+      "- @sable: Claude Code, idle, your lead — done 1 h ago: Wave merged",
+    )
+    expect(compactPeer(listing({ agent: null, expecting: "codex" }), now, viewer)).toBe(
+      "- @fox: expecting Codex, not started yet",
+    )
+  })
+})
+
+describe("where a peer works", () => {
+  it("shows the folder its agent works in now, and where its terminal started when that differs", () => {
+    const moved = listing({
+      where: whereabouts({
+        folder: "tasks/fu-settle-between/novadeck",
+        startedIn: "tasks/fu-settle-hang/novadeck",
+        branch: "task/fu-settle-between",
+      }),
+    })
+    expect(renderPeer(moved, now, { handle: "moth", lead: null })).toContain(
+      "  folder: tasks/fu-settle-between/novadeck, branch task/fu-settle-between " +
+        "(its agent works here now; its terminal started in tasks/fu-settle-hang/novadeck)",
+    )
+    const stayed = listing({ where: whereabouts({ folder: ".", branch: "main" }) })
+    expect(renderPeer(stayed, now, { handle: "moth", lead: null })).toContain(
+      "  folder: ., branch main",
+    )
+  })
+
+  it("names folders outside the project by their names, never by ids", () => {
+    expect(
+      quietPath(
+        "/tmp/claude-1000/-home-me-Workspace-novadeck-tasks-x-novadeck/0b0c7a2e-1c2d-4e5f-8a9b-0123456789ab/scratchpad",
+      ),
+    ).toBe("/tmp/claude-1000/…/scratchpad")
+    expect(quietPath("~/.claude/projects/-home-me-Workspace-novadeck/memory/")).toBe(
+      "~/.claude/projects/…/memory/",
+    )
+    expect(quietPath("~/.gemini/antigravity/brain/0b0c7a2e-1c2d-4e5f-8a9b-0123456789ab/")).toBe(
+      "~/.gemini/antigravity/brain/…/",
+    )
+    expect(quietPath("backend/runner/src/messaging")).toBe("backend/runner/src/messaging")
+    expect(quietPath("tasks/fix-the-build-now/novadeck")).toBe("tasks/fix-the-build-now/novadeck")
+    const worked = listing({
+      where: whereabouts({
+        work: {
+          ...freshWork("claude:s"),
+          folders: {
+            "/tmp/claude-1000/-home-me-w-novadeck/0b0c7a2e-1c2d-4e5f-8a9b-0123456789ab/scratchpad": 6,
+          },
+        },
+      }),
+    })
+    expect(worked.worksIn).toEqual([{ folder: "/tmp/claude-1000/…/scratchpad/", edits: 6 }])
+  })
+
+  it("shows a prompt or message without the tags wrapping one agent's hand-back to another", () => {
+    const handed = listing({
+      where: whereabouts({
+        work: {
+          ...freshWork("claude:s"),
+          first: '<agent-message from="sable"> [Subagent hand-back] Merged #605',
+          latest: "next",
+        },
+      }),
+      withYou: { from: "fox", text: '<agent-message from="fox">Done</agent-message>', at: now },
+    })
+    expect(handed.startedWith).toBe("(a message from sable) [Subagent hand-back] Merged #605")
+    expect(handed.withYou?.text).toBe("(a message from fox) Done")
   })
 })
 

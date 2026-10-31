@@ -71,6 +71,18 @@ describe("a Codex tool call", () => {
     expect(events.at(-1)).toMatchObject({ actor: "a1", toolName: "apply_patch", kind: "work" })
   })
 
+  it("tells the folder its shell command ran in: its workdir, a leading cd, or the turn's", () => {
+    const ran = (tool_input: object, tool_name = "Bash") =>
+      called("PostToolUse", { tool_name, cwd: "/w/a", tool_input })
+    expect(ran({ command: "cd /w/b && cargo test" })).toMatchObject([{ folder: "/w/b" }])
+    expect(ran({ cmd: "ls", workdir: "/w/c" }, "exec_command")).toMatchObject([{ folder: "/w/c" }])
+    expect(ran({ command: ["bash", "-lc", "cd ../d && ls"] }, "shell")).toMatchObject([
+      { folder: "/w/d" },
+    ])
+    expect(ran({ command: "ls" })).toMatchObject([{ folder: "/w/a" }])
+    expect(ran({ input: "*** Update File: x.ts" }, "apply_patch")[0]).not.toHaveProperty("folder")
+  })
+
   it("is not reported by the hooks that ask for it", () => {
     for (const event of ["PermissionRequest", "PreToolUse", "Stop"])
       expect(

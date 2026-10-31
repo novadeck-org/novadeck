@@ -87,6 +87,15 @@ describe("a Claude Code tool call", () => {
     ).toEqual(["attention-resolved", "file-touched", "tool-called"])
   })
 
+  it("tells the folder its shell command ran in, from a leading cd or else its hook's", () => {
+    const ran = (command: string) =>
+      called("PostToolUse", { tool_name: "Bash", cwd: "/w/a", tool_input: { command } })
+    expect(ran("cd /w/b && pnpm test")).toMatchObject([{ folder: "/w/b" }])
+    expect(ran("pnpm test")).toMatchObject([{ folder: "/w/a" }])
+    const read = called("PostToolUse", { tool_name: "Read", cwd: "/w/a", tool_input: {} })
+    expect(read[0]).not.toHaveProperty("folder")
+  })
+
   it("is not reported by the hooks that start or ask for it", () => {
     for (const event of ["PermissionRequest", "SessionStart", "Stop", "SubagentStart"])
       expect(called(event, { tool_name: "Bash", tool_input: { command: "ls" } })).toEqual([])

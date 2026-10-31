@@ -1290,6 +1290,22 @@ describe("Novadeck's MCP server in a Novadeck terminal", () => {
     expect(listed?.result).toEqual({ content: [{ type: "text", text }], isError: false })
   })
 
+  it("asks the runner for one terminal's details, or every terminal's in full", async () => {
+    calls.length = 0
+    answer = { ok: true, text: "listed" }
+    await session(terminal(), [
+      initialize,
+      { id: 3, method: "tools/call", params: { name: "agents", arguments: { terminal: "@fox" } } },
+      { id: 4, method: "tools/call", params: { name: "agents", arguments: { full: true } } },
+    ])
+    expect(calls.map(({ request }) => request)).toEqual([{ terminal: "@fox" }, { full: true }])
+    const [, tools] = await session(terminal(), [initialize, list])
+    const agents = (tools?.result?.tools as { name: string; description: string }[]).find(
+      (tool) => tool.name === "agents",
+    )!
+    expect(agents.description).toContain("With more than five others, each is one line")
+  })
+
   it("carries the messaging rules in each messaging tool's description", async () => {
     const [, tools] = await session(terminal(), [initialize, list])
     const described = tools?.result?.tools as { name: string; description: string }[]

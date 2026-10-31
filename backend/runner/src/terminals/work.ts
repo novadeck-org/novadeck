@@ -37,15 +37,45 @@ export type Work = {
   readonly folders: { readonly [folder: string]: number }
   /** The paths of the `keptFiles` files it wrote in last, the latest first; absent until one. */
   readonly files?: readonly string[]
+  /**
+   * The folders of its latest `keptPlaces` tool calls that name one, the latest first: the
+   * folder a root's shell command ran in, and the folder of a file any of its actors wrote.
+   * What tells where it works now (see `currentFolder`); absent until one.
+   */
+  readonly places?: readonly string[]
   readonly activeAt: number | null
 }
 
 /** How long a prompt shows, in characters. */
 export const promptChars = 120
+
+// A tag that wraps what one agent hands another (Novadeck's `<novadeck-messages>` and its
+// `<message>`, or a harness's own, as `<agent-message from="…">`): its name, and its
+// attributes, of which `from` names the sender.
+const wrapper = /<\/?((?:[a-z]+-)+[a-z]+|message)(\s[^<>]*)?>/gi
+
+/**
+ * A prompt as others read it: tags wrapping a message one agent handed another dropped,
+ * with who it is from where the first names a sender, so its words show rather than the
+ * markup around them.
+ */
+export const plainPrompt = (prompt: string): string => {
+  let from: string | undefined
+  const words = prompt.replace(wrapper, (_tag, _name: string, attributes?: string) => {
+    if (from === undefined && attributes) from = /\sfrom="([^"]{1,64})"/.exec(attributes)?.[1]
+    return " "
+  })
+  if (words === prompt) return prompt
+  const text = words.replace(/\s+/g, " ").trim()
+  return from ? `(a message from ${from}) ${text}` : text
+}
+
 /** How many folders' edits are kept. */
 export const keptFolders = 20
 /** How many files' paths are kept. */
 export const keptFiles = 8
+/** How many tool calls' folders are kept. */
+export const keptPlaces = 8
 
 /**
  * Whose the root session's first prompt is: the `user`'s; the `opener`'s, in the first
@@ -94,6 +124,18 @@ export const tallied = (folders: Work["folders"], folder: string): Work["folders
 export const lastFiles = (files: Work["files"], file: string): readonly string[] =>
   [file, ...(files ?? []).filter((name) => name !== file)].slice(0, keptFiles)
 
+/**
+ * The folders of the latest tool calls with `folder` the latest, kept to `keptPlaces`: the
+ * same list when nothing changes, as for calls all in one folder, so steady work in one
+ * place saves nothing more.
+ */
+export const placed = (places: Work["places"], folder: string): readonly string[] => {
+  const next = [folder, ...(places ?? [])].slice(0, keptPlaces)
+  return places?.length === next.length && next.every((each, at) => each === places[at])
+    ? places
+    : next
+}
+
 /** The folders a session wrote in most, by edits, at most `count` of them. */
 export const busiestFolders = (
   folders: Work["folders"],
@@ -103,6 +145,27 @@ export const busiestFolders = (
     .toSorted(([a, x], [b, y]) => y - x || a.localeCompare(b))
     .slice(0, count)
     .map(([folder, edits]) => ({ folder, edits }))
+
+/**
+ * Where a session works now, from its latest `places`, as `checkout` names the git checkout
+ * each is in (null for one outside any, as a scratchpad or a memory folder): the checkout
+ * most of them are in, the latest of those on a tie; null when none is in one. A look
+ * elsewhere (a log, a search) doesn't move it; working in another worktree soon does.
+ */
+export const currentCheckout = (
+  places: readonly string[],
+  checkout: (folder: string) => string | null,
+): string | null => {
+  const counts = new Map<string, number>()
+  for (const place of places) {
+    const found = checkout(place)
+    if (found !== null) counts.set(found, (counts.get(found) ?? 0) + 1)
+  }
+  let best: string | null = null
+  // Map keeps first-seen order, which is the latest first, so a tie keeps the latest.
+  for (const [found, count] of counts) if (best === null || count > counts.get(best)!) best = found
+  return best
+}
 
 /**
  * The work of the root's session after its root `changes` and a report's facts: the same
@@ -129,7 +192,9 @@ export const workAfter = (
     if (event.type === "turn-started") {
       // Only the person's prompts say what the session works on.
       const prompt =
-        event.cause === "prompt" && event.prompt ? shorten(event.prompt, promptChars) : null
+        event.cause === "prompt" && event.prompt
+          ? shorten(plainPrompt(event.prompt), promptChars)
+          : null
       next = {
         ...next,
         ...(prompt && { first: next.first ?? prompt, latest: prompt }),
@@ -141,8 +206,15 @@ export const workAfter = (
         ...next,
         folders: tallied(next.folders, dirname(event.path)),
         files: lastFiles(next.files, event.path),
+        places: placed(next.places, dirname(event.path)),
         activeAt: now,
       }
+    // A subagent's commands look around (a search, a log) more than they say where the
+    // work is; the files any actor writes do.
+    else if (event.type === "tool-called" && event.folder !== undefined && event.actor === null) {
+      const places = placed(next.places, event.folder)
+      if (places !== next.places) next = { ...next, places }
+    }
   }
   return next
 }

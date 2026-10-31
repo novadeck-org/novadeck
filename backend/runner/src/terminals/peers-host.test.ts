@@ -1,10 +1,14 @@
+import { mkdir, writeFile } from "node:fs/promises"
+import { homedir } from "node:os"
 import { join } from "node:path"
 
 import type { TerminalSummary } from "@novadeck/protocol"
 
 import type { Request } from "../harnesses/activity.js"
 import type { Messaging } from "../messaging/messaging.js"
+import type { Whereabouts } from "../messaging/peers.js"
 import { describe, expect, it } from "../test.js"
+import { folder } from "../testing/engines.js"
 import { TerminalPeers, waitingOf, type PeerRecord, type PeerTerminal } from "./peers-host.js"
 import { freshWork } from "./work.js"
 
@@ -152,5 +156,108 @@ describe("where peers are, as an agent reads it", () => {
 
     // Outside the terminal's folder, so shown whole until cut: 111 units, its cut at a low half.
     expect(place?.(`/elsewhere/${"😀".repeat(50)}`)).toBe(`…${"😀".repeat(39)}`)
+  })
+})
+
+describe("where a peer's agent works now", () => {
+  // A project with two worktrees of one repository, each on its own branch, as uberepo
+  // tasks are, and a scratchpad outside both.
+  const project = async (root: string) => {
+    const tasks = [
+      ["a", "task/a"],
+      ["b", "task/b"],
+    ] as const
+    await Promise.all(
+      tasks.map(async ([task, branch]) => {
+        const tree = join(root, "tasks", task, "repo")
+        const git = join(root, "source", "repo", ".git", "worktrees", task)
+        await Promise.all([
+          mkdir(join(tree, "src"), { recursive: true }),
+          mkdir(git, { recursive: true }),
+        ])
+        await Promise.all([
+          writeFile(join(tree, ".git"), `gitdir: ${git}\n`),
+          writeFile(join(git, "HEAD"), `ref: refs/heads/${branch}\n`),
+        ])
+      }),
+    )
+    await mkdir(join(root, "scratchpad"))
+  }
+
+  const whereabouts = async (root: string, places: readonly string[], bound = true) => {
+    const record = {
+      summary: {
+        id: "t1",
+        cwd: join(root, "tasks", "a", "repo"),
+        sessionId: "s",
+        title: "t",
+        activity: null,
+      },
+      naming: { person: null, opener: null, murmur: null, summary: null },
+      work: { ...freshWork("claude:s1"), places },
+      openedBy: null,
+      bound: bound ? { activity: { pending: [], plans: [] } } : null,
+    } as unknown as PeerRecord
+    let where: Whereabouts | undefined
+    const peers = new TerminalPeers({
+      messaging: {
+        agents: (_terminalId: string, about: (id: string) => Whereabouts) => {
+          where = about("t1")
+          return { ok: true }
+        },
+      } as unknown as Messaging,
+      caller: () => record,
+      terminal: () => undefined,
+      running: () => [record],
+      projectFolder: () => root,
+      reports: () => ({ tell: null, done: null }),
+      stopping: () => false,
+    })
+    await peers.agents({ type: "agents", terminalId: "t1", token: "k", request: {} })
+    return where
+  }
+
+  it("is the worktree most of its latest calls are in, with its branch and where its terminal started", async ({
+    resources,
+  }) => {
+    const root = await folder(resources)
+    await project(root)
+    const b = join(root, "tasks", "b", "repo")
+    const moved = await whereabouts(root, [
+      join(root, "scratchpad"),
+      join(b, "src"),
+      b,
+      join(root, "tasks", "a", "repo"),
+      b,
+    ])
+    expect(moved).toMatchObject({
+      folder: join("tasks", "b", "repo"),
+      branch: "task/b",
+      startedIn: join("tasks", "a", "repo"),
+    })
+  })
+
+  it("is its terminal's folder while its calls stay in its worktree, or tell nothing, or no agent runs", async ({
+    resources,
+  }) => {
+    const root = await folder(resources)
+    await project(root)
+    const a = join(root, "tasks", "a", "repo")
+    const stayed = { folder: join("tasks", "a", "repo"), branch: "task/a", startedIn: null }
+    expect(await whereabouts(root, [join(a, "src"), join(root, "scratchpad")])).toMatchObject(
+      stayed,
+    )
+    expect(await whereabouts(root, [join(root, "scratchpad")])).toMatchObject(stayed)
+    expect(await whereabouts(root, [])).toMatchObject(stayed)
+    expect(await whereabouts(root, [join(root, "tasks", "b", "repo")], false)).toMatchObject(stayed)
+  })
+
+  it("names a folder in the person's home but outside the project from ~", async ({
+    resources,
+  }) => {
+    const root = await folder(resources)
+    await project(root)
+    const where = await whereabouts(root, [])
+    expect(where?.place(join(homedir(), ".claude", "x"))).toBe("~/.claude/x")
   })
 })

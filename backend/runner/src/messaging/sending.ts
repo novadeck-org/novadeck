@@ -40,6 +40,7 @@ import {
   type Thread,
 } from "./messages.js"
 import {
+  defaultView,
   deliveredTo,
   lastBetween,
   peerOf,
@@ -47,6 +48,7 @@ import {
   unknownHandle,
   type About,
   type Peer,
+  type View,
 } from "./peers.js"
 import { SendRates } from "./send-rates.js"
 import type { Sessions } from "./sessions.js"
@@ -137,6 +139,23 @@ const sendRequest = z.strictObject({
   to: z.string().min(1).max(65).transform(bareHandle),
   text: z.string().max(64 * 1024),
 })
+
+/**
+ * What `agents` may ask: one terminal's details by its handle, or every terminal in full.
+ * Anything it can't read, as from a newer relay, asks for neither.
+ */
+const agentsRequest = z.object({
+  terminal: z.string().min(1).max(65).optional().catch(undefined),
+  full: z.boolean().optional().catch(undefined),
+})
+
+/** The view an `agents` request asks for, by default compact past a few terminals. */
+const viewOf = (request: unknown, peers: readonly Peer[]): View => {
+  const parsed = agentsRequest.safeParse(request ?? {})
+  const { terminal, full } = parsed.success ? parsed.data : {}
+  if (terminal !== undefined) return { kind: "one", handle: terminal }
+  return full === true ? { kind: "full" } : defaultView(peers)
+}
 
 const refused = (reason: string) => ({ ok: false, reason }) as const
 
@@ -508,7 +527,7 @@ export class Sending {
    * Novadeck knows of it, and the caller's own messages not yet delivered or gone, as one
    * text agents read.
    */
-  agents(terminalId: string, about: About = () => undefined): AgentsAnswer {
+  agents(terminalId: string, about: About = () => undefined, request: unknown = {}): AgentsAnswer {
     const { store, holds } = this.host
     const live = this.host.sessions.get(terminalId)
     if (!live) return refused("Novadeck couldn't list the terminals.")
@@ -521,10 +540,12 @@ export class Sending {
       .toSorted((a, b) => a.sentAt - b.sentAt)
     for (const message of mine)
       if (message.state === "gone" && !message.notified) store.put({ ...message, notified: true })
+    const peers = this.peers(live, about)
     const text = renderAgents({
       handle: live.handle,
       lead: this.host.leading.leadOf(live.terminalId) ?? null,
-      peers: this.peers(live, about),
+      peers,
+      view: viewOf(request, peers),
       messages: mine.map((message) => {
         const why = holds.holdWhy(message)
         return { message, hold: store.holdOf(message), ...(why !== undefined && { why }) }
