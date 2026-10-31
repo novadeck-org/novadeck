@@ -30,7 +30,13 @@ describe("a command that can be granted", () => {
     expect(refusesCommand(exact("pwd"))).toBeUndefined()
     expect(refusesCommand(exact("git", "status"))).toBeUndefined()
     expect(refusesCommand(rest("uberepo", "ship"))).toBeUndefined()
-    expect(refusesCommand(exact("gh", "pr", "view", "--body", "a\nb"))).toBeUndefined()
+    expect(refusesCommand(exact("gh", "pr", "create", "--body", "a\nb"))).toBeUndefined()
+  })
+
+  it("names the reason for a read-only gh command", () => {
+    expect(refusesCommand(exact("gh", "pr", "view"))).toBe("read-only: it needs no grant")
+    expect(refusesCommand(exact("gh", "repo", "clone", "o/n"))).toBeUndefined()
+    expect(refusesCommand(exact("gh", "issue", "create"))).toBeUndefined()
   })
 
   it.each([
@@ -55,6 +61,15 @@ describe("a command that can be granted", () => {
     ["pnpm, exact too", exact("pnpm", "test")],
     ["make", rest("make", "build")],
     ["docker", rest("docker", "ps")],
+    ["gh pr view", exact("gh", "pr", "view", "12")],
+    ["gh pr checks", exact("gh", "pr", "checks")],
+    ["gh pr list", exact("gh", "pr", "list")],
+    ["gh pr diff", exact("gh", "pr", "diff", "12")],
+    ["gh pr status", exact("gh", "pr", "status")],
+    ["gh issue view", exact("gh", "issue", "view", "3")],
+    ["gh issue list", exact("gh", "issue", "list")],
+    ["gh issue status", exact("gh", "issue", "status")],
+    ["gh repo view", exact("gh", "repo", "view", "o/n")],
     ["rest on git", rest("git", "log")],
     ["rest on gh", rest("gh", "issue")],
     ["rest with one word", rest("uberepo")],

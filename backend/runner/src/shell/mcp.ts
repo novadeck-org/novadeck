@@ -1266,7 +1266,7 @@ const proposeGrant: Tool<{ readonly id: string }> = {
     "never main, master or the default branch, no force) and pr (gh pr create, edit, ready " +
     "and comment in a repo they pick, no merge). commands adds exact commands, such as " +
     "uberepo ship, with rest true meaning followed by anything; shells, interpreters, and " +
-    "git or gh with rest are refused. hours is 1, 8 (the default) or 24. with_lead includes " +
+    "git or gh with rest, and read-only gh commands (pr, issue view, checks, list, diff, status), are refused. hours is 1, 8 (the default) or 24. with_lead includes " +
     "yourself. reason says why, in a sentence, and is shown as your words. One proposal " +
     "waits at a time and at most 3 an hour. Returns at once: end your turn rather than wait; " +
     "the answer arrives as a message from Novadeck. A lead still gives none of the user's " +

@@ -2239,6 +2239,22 @@ describe("Inbox approvals and grants", () => {
     expect(inbox.list()).toEqual([])
   })
 
+  it("tells the agent a read-only gh command needs no grant", () => {
+    const { inbox } = setup()
+    for (const argv of [
+      ["gh", "pr", "checks"],
+      ["gh", "issue", "list"],
+      ["gh", "repo", "view"],
+    ]) {
+      const result = inbox.call(identity.terminalId, "ask", approval([{ argv }]))
+      expect(result).toMatchObject({
+        ok: false,
+        reason: expect.stringContaining("read-only: it needs no grant"),
+      })
+    }
+    expect(inbox.list()).toEqual([])
+  })
+
   it("makes a terminal grant for an hour on Approve, and replies under the person's mark", () => {
     const { inbox, messaging, create } = setup(undefined, undefined, { now: () => 5_000 })
     const id = create(approval(ship))

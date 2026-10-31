@@ -384,6 +384,14 @@ describe("the propose_grant call", () => {
     expect(reads()).toBe(0)
   })
 
+  it("tells the agent a read-only gh command needs no grant", async () => {
+    const { propose, proposals } = setup()
+    expect(
+      await propose({ ...request, commands: [{ argv: ["gh", "pr", "view", "12"] }] }),
+    ).toMatchObject({ ok: false, reason: expect.stringContaining("read-only: it needs no grant") })
+    expect(proposals).toEqual([])
+  })
+
   it("is for an agent that leads others, not a teammate with a lead of its own", async () => {
     const teammate = setup({ led: true, team: [] })
     expect(await teammate.propose(request)).toMatchObject({

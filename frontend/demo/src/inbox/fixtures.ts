@@ -48,7 +48,7 @@ const rowOf = ({ id, project, terminal, agent, minutes, stopped, content }: Fixt
 const grantProposal: GrantProposal = {
   presets: ["push", "pr"],
   commands: [
-    { argv: ["gh", "pr", "checks", "12"], rest: false },
+    { argv: ["uberepo", "doctor"], rest: false },
     { argv: ["uberepo", "ship"], rest: true },
   ],
   repos: [
@@ -829,7 +829,7 @@ export const demoLiveGrant = (now: number): Grant => ({
   workspaceSessionId: "initial",
   holder: { kind: "team", lead: sourceTerminal(1).handle, withLead: false },
   presets: ["push", "pr"],
-  commands: [{ argv: ["gh", "pr", "checks", "12"], rest: false }],
+  commands: [{ argv: ["uberepo", "doctor"], rest: false }],
   repos: grantProposal.repos.slice(0, 2).map(({ repo }) => repo),
   entryId: demoInboxIds.grant,
   proposedBy: sourceTerminal(1).handle,

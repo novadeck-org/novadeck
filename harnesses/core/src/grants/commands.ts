@@ -52,6 +52,16 @@ export const runsOtherCode = (word: string): boolean => {
   )
 }
 
+// `gh pr|issue <these>` and `gh repo view` only read, and run with no dialog: a grant for them
+// would only be asked for in vain.
+const readOnly = new Set(["view", "checks", "list", "diff", "status"])
+
+const readsOnly = ([program, noun, verb]: readonly string[]): boolean =>
+  program === "gh" &&
+  verb !== undefined &&
+  ((noun === "repo" && verb === "view") ||
+    ((noun === "pr" || noun === "issue") && readOnly.has(verb)))
+
 /** Why `command` can't be granted, or undefined when it can. */
 export const refusesCommand = (command: GrantCommand): string | undefined => {
   const [program, second] = command.argv
@@ -70,6 +80,7 @@ export const refusesCommand = (command: GrantCommand): string | undefined => {
     }
   }
   if (runsOtherCode(program)) return `${program} runs other code`
+  if (readsOnly(command.argv)) return "read-only: it needs no grant"
   if (!command.rest) return undefined
   if (program === "git" || program === "gh") return `${program} is covered by the presets`
   if (command.argv.length < 2 || second === undefined) return "followed-by-anything needs two words"
