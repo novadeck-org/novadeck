@@ -11,7 +11,10 @@
 //!
 //! A terminal whose environment has NOVADECK_NARROW set (an Antigravity started under the
 //! person's grants) must never get an answer that lets a granted program run unasked: there
-//! the PreToolUse fallback is `force_ask`, whatever the configuration says.
+//! the PreToolUse fallback is `force_ask`, whatever the configuration says, and so is the
+//! answer to a reply that is none of Novadeck's three (`permitted`) and to a panic
+//! (`guard_against_panics`). On Windows that hook is the relay alone, with no shell around
+//! it to check its output, so every path ends here in one of the three lines.
 //!
 //! What it knows of the agents comes from that configuration, `relay.json` beside it,
 //! which the runner writes: which events wait the long limit (`asks`, and `answered`, the
@@ -22,6 +25,7 @@
 
 use std::io::{self, Read, Write};
 use std::path::{Path, PathBuf};
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::thread::{self, JoinHandle};
 use std::time::{Duration, Instant};
 
@@ -89,7 +93,7 @@ impl Config {
     /// configuration is unreadable or lacks it, and `force_ask` in a `narrowed` terminal,
     /// where "ask" would let a granted program run unasked.
     fn fallback(&self, agent: &str, event: &str, narrowed: bool) -> String {
-        if narrowed && agent == "agy" && event == "PreToolUse" {
+        if closes(agent, event, narrowed) {
             return format!("{FORCE_ASK}\n");
         }
         let named = self.fallbacks.get(agent);
@@ -135,6 +139,59 @@ impl Config {
 /// one a narrowed terminal's relay prints without the runner's word.
 const FORCE_ASK: &str = "{\"decision\":\"force_ask\"}";
 
+/// The other two answers a narrowed terminal's PreToolUse may print (see
+/// harnesses/agy/src/narrow.ts, which names all three): a call of a granted program runs
+/// with no dialog, and a tool known to run no command keeps a plain ask.
+const RUN: &str = "{\"decision\":\"deny_unless_prior_grant\"}";
+const NOT_A_COMMAND: &str = "{\"decision\":\"ask\",\"reason\":\"novadeck: not a command\"}";
+
+/// Whether this is the hook a narrowed terminal's answer must be one of the three for.
+fn closes(agent: &str, event: &str, narrowed: bool) -> bool {
+    narrowed && agent == "agy" && event == "PreToolUse"
+}
+
+/// What a narrowed PreToolUse prints for the runner's `stdout`: itself where it is one of the
+/// three answers (a line end allowed), else `force_ask`, so a bad reply never runs a program
+/// unasked. Any other hook prints what it was given.
+fn permitted(agent: &str, event: &str, narrowed: bool, stdout: &str) -> String {
+    if !closes(agent, event, narrowed) {
+        return stdout.to_owned();
+    }
+    let line = stdout.strip_suffix('\n').unwrap_or(stdout);
+    if [RUN, FORCE_ASK, NOT_A_COMMAND].contains(&line) {
+        return stdout.to_owned();
+    }
+    format!("{FORCE_ASK}\n")
+}
+
+/// Set once the hook has printed anything, so a panic after that adds nothing to its answer.
+static PRINTED: AtomicBool = AtomicBool::new(false);
+
+/// What a panic prints to `out` in a narrowed PreToolUse, unless an answer already went out:
+/// `force_ask`, as anything else, or nothing, would let a granted program run unasked or fail
+/// the call. Nothing for any other hook.
+fn answer_on_panic(agent: &str, event: &str, narrowed: bool, out: &mut impl Write) {
+    if closes(agent, event, narrowed) && !PRINTED.swap(true, Ordering::SeqCst) {
+        let _ = out
+            .write_all(format!("{FORCE_ASK}\n").as_bytes())
+            .and_then(|()| out.flush());
+    }
+}
+
+/// Makes a panic anywhere in the hook, on any thread, print its closed answer and end the hook
+/// with success. A panic hook runs before an abort too (the release build aborts), so the
+/// answer does not depend on unwinding.
+fn guard_against_panics(agent: &str, event: &str, narrowed: bool) {
+    if !closes(agent, event, narrowed) {
+        return;
+    }
+    let (agent, event) = (agent.to_owned(), event.to_owned());
+    std::panic::set_hook(Box::new(move |_| {
+        answer_on_panic(&agent, &event, narrowed, &mut io::stdout());
+        std::process::exit(0);
+    }));
+}
+
 /// Whether the hook runs in a narrowed terminal: the runner started its agent under the
 /// person's grants (the shim sets NOVADECK_NARROW).
 fn narrowed() -> bool {
@@ -177,6 +234,7 @@ fn say(text: &str) {
 
 /// Prints `text`, saying whether all of it reached the agent.
 fn print(text: &str) -> bool {
+    PRINTED.store(true, Ordering::SeqCst);
     let mut stdout = io::stdout().lock();
     stdout
         .write_all(text.as_bytes())
@@ -191,6 +249,7 @@ pub fn run(agent: &str, event: &str, config: &Config) {
     let limit = config.limit(agent, event);
     let deadline = Instant::now() + limit;
     let narrowed = narrowed();
+    guard_against_panics(agent, event, narrowed);
     let fallback = || config.fallback(agent, event, narrowed);
     // The agent's payload, read whole even where it goes unused, so the agent never
     // writes into a closed pipe; within the hook's limit, as an agent may leave it open.
@@ -231,7 +290,7 @@ pub fn run(agent: &str, event: &str, config: &Config) {
         };
         // Printed: what the lease delivers has reached the agent. Otherwise the lease
         // lapses, and the runner delivers its messages again.
-        let printed = print(stdout);
+        let printed = print(&permitted(agent, event, narrowed, stdout));
         if let Some(lease) = answer.lease.as_ref().filter(|_| printed) {
             acknowledge(&mut to_runner, lease).await;
         }
@@ -407,6 +466,74 @@ mod tests {
             config().fallback("agy", "PreToolUse", false),
             "{\"decision\":\"ask\"}\n"
         );
+    }
+
+    #[test]
+    fn passes_a_narrowed_pre_tool_use_only_the_three_answers() {
+        let force_ask = format!("{FORCE_ASK}\n");
+        for answer in [RUN, FORCE_ASK, NOT_A_COMMAND] {
+            assert_eq!(permitted("agy", "PreToolUse", true, answer), answer);
+            let line = format!("{answer}\n");
+            assert_eq!(permitted("agy", "PreToolUse", true, &line), line);
+        }
+        // A bad reply, a plain "ask" and a pass-through look-alike close it.
+        for bad in [
+            "",
+            "{}",
+            "not json",
+            "{\"decision\":\"ask\"}\n",
+            "{\"decision\":\"allow\"}",
+            &format!("{RUN} "),
+            &format!("{RUN}\n{RUN}\n"),
+        ] {
+            assert_eq!(permitted("agy", "PreToolUse", true, bad), force_ask);
+        }
+        // Not narrowed, or another hook: the runner's answer as it came.
+        assert_eq!(permitted("agy", "PreToolUse", false, "{}"), "{}");
+        assert_eq!(permitted("agy", "Stop", true, "{}"), "{}");
+        assert_eq!(permitted("claude", "PreToolUse", true, "x"), "x");
+    }
+
+    #[test]
+    fn a_panic_prints_force_ask_once_in_a_narrowed_pre_tool_use_only() {
+        // The flag is process-wide: this one test sets it, ahead of the other cases.
+        let mut other = Vec::new();
+        answer_on_panic("agy", "PreToolUse", false, &mut other);
+        answer_on_panic("agy", "Stop", true, &mut other);
+        answer_on_panic("claude", "PreToolUse", true, &mut other);
+        assert!(other.is_empty());
+        let mut out = Vec::new();
+        answer_on_panic("agy", "PreToolUse", true, &mut out);
+        assert_eq!(out, format!("{FORCE_ASK}\n").into_bytes());
+        // Never a second line after an answer went out.
+        let mut again = Vec::new();
+        answer_on_panic("agy", "PreToolUse", true, &mut again);
+        assert!(again.is_empty());
+    }
+
+    // The real thing: a child process of this test binary installs the guard and panics. It
+    // must print force_ask and exit 0, and print it once only.
+    #[test]
+    fn a_real_panic_in_a_narrowed_pre_tool_use_prints_force_ask_and_succeeds() {
+        const CHILD: &str = "NOVADECK_TEST_PANIC_CHILD";
+        if std::env::var_os(CHILD).is_some() {
+            guard_against_panics("agy", "PreToolUse", true);
+            panic!("a hook that panics");
+        }
+        let me = std::env::current_exe().expect("test binary");
+        let ran = std::process::Command::new(me)
+            .args([
+                "--exact",
+                "hook::tests::a_real_panic_in_a_narrowed_pre_tool_use_prints_force_ask_and_succeeds",
+                "--nocapture",
+                "--test-threads=1",
+            ])
+            .env(CHILD, "1")
+            .output()
+            .expect("child runs");
+        assert_eq!(ran.status.code(), Some(0));
+        let stdout = String::from_utf8_lossy(&ran.stdout);
+        assert_eq!(stdout.matches(FORCE_ASK).count(), 1, "{stdout}");
     }
 
     #[test]
