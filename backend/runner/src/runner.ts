@@ -320,6 +320,7 @@ const startRunner = (options: RunnerOptions): Runner => {
         store,
         terminals,
         feedback: terminals.feedback,
+        approving: terminals.approving,
         projects,
         items,
         agents,

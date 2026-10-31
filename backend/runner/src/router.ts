@@ -17,6 +17,7 @@ import type { Harnesses } from "./harnesses/service.js"
 import { logs } from "./log.js"
 import type { Feedback } from "./messaging/feedback.js"
 import type { Murmur } from "./murmur/service.js"
+import type { Approving } from "./terminals/approving.js"
 import type { Terminals } from "./terminals/index.js"
 import type { Uploads } from "./terminals/uploads.js"
 import type { Voice } from "./voice/service.js"
@@ -54,6 +55,8 @@ export const createRouter = (options: {
   store: WorkspaceStore
   terminals: Terminals
   feedback: Feedback
+  /** The person's grants: listed and revoked here, made only from the Inbox's cards. */
+  approving: Approving
   projects: Projects
   items: CompanionItems
   agents: Harnesses
@@ -65,7 +68,8 @@ export const createRouter = (options: {
   /** Whether the runner is shutting down. */
   closing: () => boolean
 }) => {
-  const { store, terminals, feedback, projects, items, agents, uploads, voice, murmur } = options
+  const { store, terminals, feedback, approving, projects, items, agents, uploads, voice, murmur } =
+    options
   // A plan's content says whether Novadeck's plugin is installed into its agent, which the
   // companions can't know: it is looked up as the content leaves.
   const withSkill = async (content: ItemContent, agent: AgentName | undefined) =>
@@ -264,8 +268,8 @@ export const createRouter = (options: {
       ask: api.feedback.ask.handler(({ input }) => feedback.ask(input.terminalId, input.hint)),
     },
     grants: {
-      watch: api.grants.watch.handler(({ signal }) => terminals.approving.watchGrants(signal)),
-      revoke: api.grants.revoke.handler(({ input }) => terminals.approving.revokeGrant(input.id)),
+      watch: api.grants.watch.handler(({ signal }) => approving.watchGrants(signal)),
+      revoke: api.grants.revoke.handler(({ input }) => approving.revokeGrant(input.id)),
     },
     messages: {
       list: api.messages.list.handler(({ input }) => terminals.messages(input.terminalId)),

@@ -22,6 +22,7 @@ const contractFile = "harnesses/core/src/harness.ts"
 const limitFiles: Record<string, string> = {
   inboxTextLimits: "contract/protocol/src/inbox.ts",
   maxAskOptions: "contract/protocol/src/inbox.ts",
+  maxGrantCommands: "contract/protocol/src/grants.ts",
   maxCommandLines: "contract/protocol/src/text.ts",
   maxFeedbackText: "contract/protocol/src/feedback.ts",
   maxStartupCommand: "contract/protocol/src/terminals.ts",
@@ -37,6 +38,7 @@ const handlers: Record<string, { readonly file: string; readonly method: string 
   open_agent: { file: callsFile, method: "open" },
   close_terminal: { file: callsFile, method: "closePeer" },
   lead: { file: leadsFile, method: "lead" },
+  propose_grant: { file: callsFile, method: "proposeGrant" },
   release: { file: leadsFile, method: "release" },
   send: { file: managerFile, method: "send" },
   agents: { file: managerFile, method: "agents" },
