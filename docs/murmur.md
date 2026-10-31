@@ -10,7 +10,7 @@ Code: `backend/runner/src/murmur`, the engine build in `engines/murmur`.
 ## What it reads
 
 Terminals ask for a description when something worth a new one happened (see
-`terminals/murmur.ts`) and hand over a digest:
+`terminals/descriptions.ts`) and hand over a digest:
 
 - an agent terminal: the agent's own summary, alone. The person's prompts and the agent's
   replies are never read for a title: with them the model named the latest step ("Critic PR

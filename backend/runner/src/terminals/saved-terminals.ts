@@ -1,6 +1,6 @@
 import type { AgentName } from "@novadeck/protocol"
 
-import type { Naming } from "./naming.js"
+import type { Naming } from "./titles.js"
 import type { Work } from "./work.js"
 
 /**

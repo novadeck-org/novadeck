@@ -11,16 +11,18 @@ import { harnesses } from "../../harnesses/registry.js"
 import { unreplied, withReplies } from "../../harnesses/replies.js"
 import { followRoot, rootedIn, type RootChange } from "../../harnesses/roots.js"
 import { transcriptWaitMs, typedPromptStart } from "../../harnesses/typed-prompts.js"
+import { leaseMargin, type Answer } from "../../messaging/hook-answers.js"
 import type { Inbox } from "../../messaging/inbox.js"
 import { byteLength, maxDeliveryBytes } from "../../messaging/messages.js"
-import { leaseMargin, type Answer, type Messaging, type Person } from "../../messaging/messaging.js"
+import type { Messaging } from "../../messaging/messaging.js"
+import type { Person } from "../../messaging/withdrawals.js"
 import type { HookAnswer } from "../../shell/reports.js"
 import { sameToken } from "../callers.js"
 import { promptIn } from "../commands.js"
 import type { Companion } from "../companion.js"
+import type { Murmur } from "../descriptions.js"
 import { failed } from "../failures.js"
 import { tellInterrupted } from "../interrupted.js"
-import type { Murmur } from "../murmur.js"
 import {
   atTurnStart,
   fired,
@@ -28,7 +30,7 @@ import {
   personPrompted as promptCounted,
   sessionBegan,
 } from "../nudges.js"
-import { peerOf, type TerminalPeers } from "../peers.js"
+import { peerOf, type TerminalPeers } from "../peers-host.js"
 import type { Record } from "../record.js"
 import { boundProgram } from "../sampling.js"
 import type { Typing } from "../typing.js"
@@ -277,7 +279,7 @@ export class Reports {
     this.host.murmur()?.reported(report.terminalId)
     // The person's own prompt starting a root turn takes the session's open asks out of the
     // Inbox, as delivery judges the prompt theirs, but only once a hook acknowledges having
-    // printed the notice of it (see `Messaging.withdrawn`).
+    // printed the notice of it (see `Withdrawals.withdrawn`).
     const person: Person = {
       counts: ({ prompt }) => !this.byCommand(record, prompt),
       withdrawable: (before) => this.host.inbox().withdrawable(record.summary.id, before),

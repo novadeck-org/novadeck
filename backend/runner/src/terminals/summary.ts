@@ -1,8 +1,8 @@
 import type { TerminalSummary } from "@novadeck/protocol"
 import type { Terminal } from "@novadeck/terminal/host"
 
-import { summaryTitle } from "./naming.js"
-import { hasRun, type ListedTerminal } from "./records.js"
+import { hasRun, type ListedTerminal } from "./saved-terminals.js"
+import { summaryTitle } from "./titles.js"
 
 /** A terminal's summary without what its host keeps: its size, its exit and its run. */
 export type AgentSummary = Omit<TerminalSummary, "cols" | "rows" | "exit" | "run">

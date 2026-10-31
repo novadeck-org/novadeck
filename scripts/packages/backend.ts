@@ -35,7 +35,7 @@ export const kept: Kept = [
   { path: "scripts/libraries/graph.test.ts", why: "sample specs the package graph refuses" },
   // Beside its own probes for the new folders, which a rewrite would duplicate.
   { path: "scripts/libraries/fence.test.ts", why: "sample paths the fence refuses" },
-  { path: "backend/runner/src/terminals/peers.test.ts", why: "sample paths" },
+  { path: "backend/runner/src/terminals/peers-host.test.ts", why: "sample paths" },
   { path: "backend/runner/src/voice/hint.test.ts", why: "sample paths" },
   { path: "backend/runner/src/murmur/redact.test.ts", why: "sample paths" },
   { path: "backend/runner/src/murmur/description.test.ts", why: "sample paths" },

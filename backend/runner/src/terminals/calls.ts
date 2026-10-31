@@ -9,7 +9,7 @@ import { agents, harnesses } from "../harnesses/registry.js"
 import type { Feedback } from "../messaging/feedback.js"
 import type { Inbox } from "../messaging/inbox.js"
 import { agentLabel } from "../messaging/messages.js"
-import type { AgentsAnswer, SendAnswer } from "../messaging/messaging.js"
+import type { AgentsAnswer, SendAnswer } from "../messaging/sending.js"
 import { unansweredCalls, type Call } from "../shell/reports.js"
 import { list } from "../text.js"
 import { closeWay, type ApprovalOutcome } from "./approvals.js"
@@ -31,7 +31,6 @@ import type { Companion } from "./companion.js"
 import { mention } from "./handles.js"
 import type { Launcher } from "./launching.js"
 import { Leads, leadNotice, type LeadsHost } from "./leads.js"
-import { cleanSummary, summarized, summaryRefusal } from "./naming.js"
 import { afterSummary } from "./nudges.js"
 import {
   allowOpen,
@@ -45,10 +44,11 @@ import {
   type OpenAnswer,
   type OpenRequests,
 } from "./opens.js"
-import { peerOf } from "./peers.js"
+import { peerOf } from "./peers-host.js"
 import type { Record } from "./record.js"
 import { resumeRefusal, type Claims } from "./resumes.js"
-import { readSummarizeRequest, type SummarizeAnswer } from "./summarize.js"
+import { readSummarizeRequest, type SummarizeAnswer } from "./summarize-request.js"
+import { cleanSummary, summarized, summaryRefusal } from "./titles.js"
 
 // A command line for the words: every word but a quoted line is a plain word, and a line
 // holds nothing a shell expands.

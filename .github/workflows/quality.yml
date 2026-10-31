@@ -90,7 +90,7 @@ jobs:
             command: npm run build:try && npm run poster:try
     steps:
       # Two commits deep: a pull request checks out its merge commit, whose first parent is
-      # the base branch as it is now, which the manager.ts ratchet reads its budgets against.
+      # the base branch as it is now, which the ratchet (scripts/ratchet) reads its budgets against.
       - name: Check Out Repository
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:

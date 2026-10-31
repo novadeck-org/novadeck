@@ -4,8 +4,8 @@ import { dirname, join } from "node:path"
 
 import { vi } from "vitest"
 
-import type { TerminalRecords } from "../terminals/records.js"
 import { createTranscriptRedactor } from "../terminals/redaction.js"
+import type { TerminalRecords } from "../terminals/saved-terminals.js"
 import { describe, expect } from "../test.js"
 import { plainSealer, unsealed } from "../testing/sealing.js"
 import {

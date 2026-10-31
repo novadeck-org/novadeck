@@ -1965,10 +1965,10 @@ describe("saved terminals", () => {
 
   it("keep transcripts until they are turned off", ({ kept }) => {
     const workspace = kept()
-    expect(workspace.settings()).toEqual({ transcripts: true, welcomed: false })
-    workspace.saveSettings({ transcripts: false })
-    workspace.saveSettings({ welcomed: true })
-    expect(workspace.settings()).toEqual({ transcripts: false, welcomed: true })
+    expect(workspace.settings.runner()).toEqual({ transcripts: true, welcomed: false })
+    workspace.settings.saveRunner({ transcripts: false })
+    workspace.settings.saveRunner({ welcomed: true })
+    expect(workspace.settings.runner()).toEqual({ transcripts: false, welcomed: true })
   })
 })
 
@@ -2057,7 +2057,7 @@ describe("the messages", () => {
     ])
     expect(reopened.messagingPaused()).toBe(true)
     // The pause is the runner's own, not one of the client's settings.
-    expect(reopened.settings()).toEqual({ transcripts: true, welcomed: false })
+    expect(reopened.settings.runner()).toEqual({ transcripts: true, welcomed: false })
     expect(reopened.terminalIdentity("a")).toMatchObject({ handle: "moth" })
     expect(reopened.terminalIdentity("b")).toBeUndefined()
     reopened.removeMessages(["m-1"])
@@ -2283,59 +2283,62 @@ describe("murmur's settings", () => {
   it("are off until chosen, and the choice is kept or forgotten", ({ directory, store }) => {
     const path = join(directory(), "workspace.sqlite")
     const workspace = store(path)
-    expect(workspace.murmurSettings()).toEqual({ enabled: false })
-    expect(workspace.murmurEnabledChoice()).toBeUndefined()
-    workspace.saveMurmurSettings({ enabled: true })
+    expect(workspace.settings.murmurSettings()).toEqual({ enabled: false })
+    expect(workspace.settings.murmurEnabledChoice()).toBeUndefined()
+    workspace.settings.saveMurmurSettings({ enabled: true })
     workspace.close()
     const reopened = store(path)
-    expect(reopened.murmurSettings()).toEqual({ enabled: true })
-    expect(reopened.murmurEnabledChoice()).toBe(true)
-    reopened.saveMurmurSettings({ enabled: false })
-    expect(reopened.murmurEnabledChoice()).toBe(false)
+    expect(reopened.settings.murmurSettings()).toEqual({ enabled: true })
+    expect(reopened.settings.murmurEnabledChoice()).toBe(true)
+    reopened.settings.saveMurmurSettings({ enabled: false })
+    expect(reopened.settings.murmurEnabledChoice()).toBe(false)
     // Nothing given changes nothing; null forgets the choice.
-    reopened.saveMurmurSettings({})
-    expect(reopened.murmurEnabledChoice()).toBe(false)
-    reopened.saveMurmurSettings({ enabled: null })
-    expect(reopened.murmurEnabledChoice()).toBeUndefined()
+    reopened.settings.saveMurmurSettings({})
+    expect(reopened.settings.murmurEnabledChoice()).toBe(false)
+    reopened.settings.saveMurmurSettings({ enabled: null })
+    expect(reopened.settings.murmurEnabledChoice()).toBeUndefined()
   })
 
   it("keep the check the install passed, validated when read", ({ directory, store }) => {
     const path = join(directory(), "workspace.sqlite")
     const workspace = store(path)
-    expect(workspace.murmurCheck()).toBeNull()
+    expect(workspace.settings.murmurCheck()).toBeNull()
     const check = { device: "Vulkan0", integrated: true, milliseconds: 5_200 }
-    workspace.saveMurmurCheck(check)
-    expect(workspace.murmurCheck()).toEqual(check)
+    workspace.settings.saveMurmurCheck(check)
+    expect(workspace.settings.murmurCheck()).toEqual(check)
     workspace.close()
     const database = new DatabaseSync(path)
     database.exec("UPDATE settings SET value = '{\"device\":1}' WHERE key = 'murmur.check'")
     database.close()
     const reopened = store(path)
-    expect(reopened.murmurCheck()).toBeNull()
-    reopened.saveMurmurCheck(check)
-    reopened.saveMurmurCheck(null)
-    expect(reopened.murmurCheck()).toBeNull()
+    expect(reopened.settings.murmurCheck()).toBeNull()
+    reopened.settings.saveMurmurCheck(check)
+    reopened.settings.saveMurmurCheck(null)
+    expect(reopened.settings.murmurCheck()).toBeNull()
   })
 
   it("keep why this computer can't run murmur, until it is forgotten", ({ directory, store }) => {
     const path = join(directory(), "workspace.sqlite")
     const workspace = store(path)
-    expect(workspace.murmurUnsupported()).toBeNull()
-    workspace.saveMurmurUnsupported({ reason: "No graphics device answered.", engine: "abc" })
-    workspace.close()
-    const reopened = store(path)
-    expect(reopened.murmurUnsupported()).toEqual({
+    expect(workspace.settings.murmurUnsupported()).toBeNull()
+    workspace.settings.saveMurmurUnsupported({
       reason: "No graphics device answered.",
       engine: "abc",
     })
-    reopened.saveMurmurUnsupported(null)
-    expect(reopened.murmurUnsupported()).toBeNull()
+    workspace.close()
+    const reopened = store(path)
+    expect(reopened.settings.murmurUnsupported()).toEqual({
+      reason: "No graphics device answered.",
+      engine: "abc",
+    })
+    reopened.settings.saveMurmurUnsupported(null)
+    expect(reopened.settings.murmurUnsupported()).toBeNull()
   })
 
   it("reads a voice check an earlier build saved with more in it", ({ directory, store }) => {
     const path = join(directory(), "workspace.sqlite")
     const workspace = store(path)
-    expect(workspace.voiceCheck()).toBeNull()
+    expect(workspace.settings.voiceCheck()).toBeNull()
     workspace.close()
     const database = new DatabaseSync(path)
     const save = (value: string) =>
@@ -2347,9 +2350,9 @@ describe("murmur's settings", () => {
     save(JSON.stringify({ model: "turbo", milliseconds: 2300, gpu: true, recommended: "turbo" }))
     database.close()
     const reopened = store(path)
-    expect(reopened.voiceCheck()).toEqual({ model: "turbo", milliseconds: 2300 })
-    reopened.saveVoiceCheck(null)
-    expect(reopened.voiceCheck()).toBeNull()
+    expect(reopened.settings.voiceCheck()).toEqual({ model: "turbo", milliseconds: 2300 })
+    reopened.settings.saveVoiceCheck(null)
+    expect(reopened.settings.voiceCheck()).toBeNull()
   })
 })
 

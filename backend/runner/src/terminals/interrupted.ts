@@ -3,7 +3,7 @@ import type { AgentActivity, AgentName } from "@novadeck/protocol"
 import { busy } from "./busy.js"
 import { failed } from "./failures.js"
 import type { Record, Started } from "./record.js"
-import type { AgentReport, AgentTurn } from "./records.js"
+import type { AgentReport, AgentTurn } from "./saved-terminals.js"
 
 /**
  * What a turn was doing, from the activity clients see (`harnesses/activity.ts`'s

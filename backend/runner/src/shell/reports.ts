@@ -34,8 +34,8 @@ export type Ack = { readonly terminalId: string; readonly token: string; readonl
  * `terminals/opens.ts`), `close` closes another terminal of its project and session (see
  * `terminals/closes.ts`), `lead` asks the person to let it lead another terminal's agent and
  * `release` ends such a lead (see `terminals/leads.ts`), and `send` and `agents` message other terminals' agents and
- * describe them (see `messaging/messaging.ts`), and `summarize` says what the caller's own
- * terminal works on (see `terminals/summarize.ts`); the runner reads `request`, and nothing
+ * describe them (see `messaging/sending.ts`), and `summarize` says what the caller's own
+ * terminal works on (see `terminals/summarize-request.ts`); the runner reads `request`, and nothing
  * here does.
  */
 export type Call = {

@@ -1,6 +1,6 @@
 import { execFile, spawn } from "node:child_process"
-import { mkdir, writeFile } from "node:fs/promises"
-import { join } from "node:path"
+import { mkdir, open, readdir, stat, writeFile } from "node:fs/promises"
+import { join, relative } from "node:path"
 import { promisify } from "node:util"
 
 import { trustedIn } from "@novadeck/harness-codex/trust"
@@ -284,12 +284,166 @@ export const codex: AgentSetup = {
 
 type Message = { readonly id?: unknown; readonly result?: unknown; readonly error?: unknown }
 
+// The last `bytes` of a file, as text.
+const tail = async (path: string, bytes: number): Promise<string> => {
+  const file = await open(path, "r")
+  try {
+    const { size } = await file.stat()
+    const length = Math.min(size, bytes)
+    const { buffer } = await file.read(Buffer.alloc(length), 0, length, size - length)
+    return buffer.toString("utf8")
+  } finally {
+    await file.close()
+  }
+}
+
+// The program a command line runs, by its file's name: `node`, `codex.exe`.
+const program = (command: string): string =>
+  (/^"([^"]*)"/.exec(command)?.[1] ?? command.split(" ")[0] ?? "").split(/[\\/]/).at(-1)!
+
+// Why a part of a scene couldn't be read: the error, and for a command, whether it was
+// ended (as by its timeout) and what it printed to stderr.
+const why = (error: unknown): string => {
+  if (!(error instanceof Error)) return String(error)
+  const { killed, signal, stderr } = error as Error & {
+    killed?: boolean
+    signal?: string | null
+    stderr?: string
+  }
+  return [
+    error.message.split("\n")[0]!.slice(0, 200),
+    ...(killed ? [`ended${signal ? ` by ${signal}` : ""}`] : []),
+    ...(stderr?.trim() ? [`stderr: ${stderr.trim().slice(-1000)}`] : []),
+  ].join("; ")
+}
+
+// A part of a scene, named, or why it couldn't be read.
+const part = (name: string, lines: Promise<string[]>): Promise<string> =>
+  lines.then(
+    (found) => `${name}:\n${found.join("\n")}`,
+    (error: unknown) => `${name}: couldn't read (${why(error)})`,
+  )
+
+/**
+ * What the machine held when the app-server didn't answer: each process with its parent and
+ * command line, those of the sandbox, the app-server's tree and every Codex, node and relay
+ * first; and Codex's files under its CODEX_HOME, each with its size and when it last changed
+ * relative to the app-server's start, with the tail of each log (where Codex also keeps
+ * what the MCP servers it started, as Novadeck's relay, printed). Bounded, and it never
+ * fails: what it can't read, it says so.
+ */
+const scene = async (
+  env: Readonly<Record<string, string>>,
+  pid: number | undefined,
+  began: number,
+): Promise<string> => {
+  const run = promisify(execFile)
+  const processes = async (): Promise<string[]> => {
+    const rows: { pid: number; parent: number; command: string }[] =
+      process.platform === "win32"
+        ? [
+            JSON.parse(
+              (
+                await run(
+                  "powershell.exe",
+                  [
+                    "-NoProfile",
+                    "-NonInteractive",
+                    "-Command",
+                    "Get-CimInstance Win32_Process -Property ProcessId,ParentProcessId,CommandLine,Name | ForEach-Object { [pscustomobject]@{ pid = $_.ProcessId; parent = $_.ParentProcessId; command = $(if ($_.CommandLine) { $_.CommandLine } else { $_.Name }) } } | ConvertTo-Json -Compress",
+                  ],
+                  // As long as the sandbox's own lister gets: CIM is slow to start on a busy runner.
+                  { windowsHide: true, timeout: 60_000, maxBuffer: 16 * 1024 * 1024 },
+                )
+              ).stdout,
+            ) as { pid: number; parent: number; command: string }[],
+          ]
+            // One object, not an array, where it lists one process.
+            .flat()
+            .map((row) => ({ ...row, command: String(row.command) }))
+        : (await run("ps", ["-eo", "pid=,ppid=,args="], { timeout: 10_000 })).stdout
+            .split("\n")
+            .map((line) => /^\s*(\d+)\s+(\d+)\s+(.*)$/.exec(line))
+            .filter((match) => match !== null)
+            .map((match) => ({
+              pid: Number(match[1]),
+              parent: Number(match[2]),
+              command: match[3]!,
+            }))
+    const tree = new Set(pid === undefined ? [] : [pid])
+    for (let grew = true; grew;) {
+      grew = false
+      for (const row of rows)
+        if (tree.has(row.parent) && !tree.has(row.pid)) {
+          tree.add(row.pid)
+          grew = true
+        }
+    }
+    const roots = [env.HOME, env.CODEX_HOME].filter((root): root is string => Boolean(root))
+    const rank = (row: (typeof rows)[number]) =>
+      tree.has(row.pid)
+        ? 0
+        : roots.some((root) => row.command.includes(root))
+          ? 1
+          : /^(codex|node|novadeck-relay|cmd)(\.exe|\.cmd)?$/i.test(program(row.command))
+            ? 2
+            : 3
+    const shown = rows
+      .filter((row) => rank(row) < 3)
+      .toSorted((one, other) => rank(one) - rank(other))
+      .slice(0, 80)
+    return [
+      `${rows.length} processes; * the app-server's tree, then the sandbox's, then any codex, node, relay or cmd`,
+      ...shown.map(
+        (row) =>
+          `${tree.has(row.pid) ? "* " : "  "}${row.pid} (parent ${row.parent}) ${row.command.slice(0, 400)}`,
+      ),
+    ]
+  }
+  const files = async (): Promise<string[]> => {
+    const home = env.CODEX_HOME
+    if (!home) return ["no CODEX_HOME"]
+    const entries = (await readdir(home, { recursive: true, withFileTypes: true }))
+      .filter((entry) => entry.isFile())
+      .map((entry) => join(entry.parentPath, entry.name))
+    const listed = await Promise.all(
+      entries.slice(0, 200).map(async (path) => {
+        const info = await stat(path).catch(() => undefined)
+        if (!info) return `${relative(home, path)} (gone)`
+        const at = Math.round(info.mtimeMs - began)
+        return `${relative(home, path)} ${info.size} B, changed ${at >= 0 ? "+" : ""}${at} ms`
+      }),
+    )
+    const logs = entries
+      .filter((path) => /(^|[\\/])log[\\/]|\.(log|jsonl|txt)$/.test(relative(home, path)))
+      .filter((path) => !/[\\/]plugins[\\/]/.test(path))
+      .slice(0, 6)
+    const tails = await Promise.all(
+      logs.map(async (path) =>
+        [
+          `tail of ${relative(home, path)}:`,
+          await tail(path, 1500).catch((error: unknown) => `(unreadable: ${String(error)})`),
+        ].join("\n"),
+      ),
+    )
+    return [`${entries.length} files`, ...listed, ...tails]
+  }
+  return (await Promise.all([part("processes", processes()), part("CODEX_HOME", files())])).join(
+    "\n",
+  )
+}
+
 /**
  * A session with Codex's app-server over stdio, as its TUI and Novadeck talk to it: each
  * request resolves to its result, or fails with its error, after `timeoutMs`, or as soon
- * as the app-server can't answer, as it failed to start or exited.
+ * as the app-server can't answer, as it failed to start or exited. A request that times out
+ * is told with what `look` reads of the machine then (`scene`).
  */
-export const appServer = (env: Readonly<Record<string, string>>, timeoutMs = 20_000) => {
+export const appServer = (
+  env: Readonly<Record<string, string>>,
+  timeoutMs = 20_000,
+  look: typeof scene = scene,
+) => {
   const began = Date.now()
   const events: string[] = []
   const record = (text: string) => {
@@ -298,9 +452,9 @@ export const appServer = (env: Readonly<Record<string, string>>, timeoutMs = 20_
   }
   let stderr = ""
   let buffered = ""
-  const diagnostic = (message: string) =>
+  const diagnostic = (message: string, seen?: string) =>
     new Error(
-      `${message}\n${events.join("\n")}\nstderr: ${stderr || "(empty)"}\npartial stdout: ${buffered.slice(-2000) || "(empty)"}`,
+      `${message}\n${events.join("\n")}\nstderr: ${stderr || "(empty)"}\npartial stdout: ${buffered.slice(-2000) || "(empty)"}${seen ? `\n${seen}` : ""}`,
     )
   // On Windows through cmd, as npm installs it as codex.cmd, which only cmd runs.
   const child =
@@ -360,9 +514,15 @@ export const appServer = (env: Readonly<Record<string, string>>, timeoutMs = 20_
         return
       }
       const id = next++
+      // Told with what the machine held then, read while the app-server still runs; an
+      // answer that comes meanwhile shows among the events, as an unmatched id.
       const timer = setTimeout(() => {
         pending.delete(id)
-        reject(diagnostic(`Codex's app-server didn't answer ${method} in ${timeoutMs} ms`))
+        const message = `Codex's app-server didn't answer ${method} in ${timeoutMs} ms`
+        void look(env, child.pid, began).then(
+          (seen) => reject(diagnostic(message, seen)),
+          () => reject(diagnostic(message)),
+        )
       }, timeoutMs)
       pending.set(id, (message) => {
         clearTimeout(timer)

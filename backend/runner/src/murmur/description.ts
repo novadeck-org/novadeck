@@ -74,7 +74,7 @@ const chatWords = new Set(
 )
 
 // What the terminals side counts as no mission in a prompt, so that a title made of it alone
-// names nothing either (kept in step with `filler` in terminals/murmur.ts).
+// names nothing either (kept in step with `filler` in terminals/descriptions.ts).
 const moreChatWords = words(
   `hiya howdy yo greetings thx ty cheers k kk yeah yep yup nope nah fine awesome perfect lovely
   proceed pls other one an and with more next sorry lgtm done s sup hows doing u ur everyone all

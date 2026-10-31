@@ -1,9 +1,9 @@
 import { DomainError } from "../errors.js"
 import { handleOrder, nextHandle } from "./handles.js"
-import { renamed as renamedTo, summaryTitle } from "./naming.js"
 import type { SavedRecord, Saves } from "./saving.js"
 import type { Streams } from "./streams.js"
 import { savedSummaryOf } from "./summary.js"
+import { renamed as renamedTo, summaryTitle } from "./titles.js"
 
 /** What naming reads of a terminal's record, and what it changes there. */
 export type NamedRecord = SavedRecord

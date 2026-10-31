@@ -1,7 +1,8 @@
 import type { AgentName } from "@novadeck/protocol"
 import { afterEach, beforeEach, vi } from "vitest"
 
-import { Messaging, type PeerAnswer } from "../messaging/messaging.js"
+import { Messaging } from "../messaging/messaging.js"
+import type { PeerAnswer } from "../messaging/sending.js"
 import { describe, expect, it } from "../test.js"
 import { Approvals } from "./approvals.js"
 import type { Bindings } from "./binding/facts.js"
