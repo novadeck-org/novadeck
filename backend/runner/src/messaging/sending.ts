@@ -142,13 +142,9 @@ export const refusalOfText = (text: string): string | undefined => {
 export const deliveredBytes = (message: Message): number => {
   // Agent messages use the longer lead note. Person replies use their own note and nonce.
   // Its sender may close before it arrives, which marks it so.
-  const text = wrap(
-    [message],
-    () => message.response === undefined,
-    "x".repeat(markLength),
-    undefined,
-    () => message.response === undefined,
-  )
+  const text = wrap([message], () => message.response === undefined, "x".repeat(markLength), {
+    fromClosed: () => message.response === undefined,
+  })
   return Math.max(
     ...allAgents.flatMap((agent) => {
       const { messaging } = harnesses[agent]
