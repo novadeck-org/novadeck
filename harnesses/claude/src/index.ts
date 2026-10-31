@@ -16,10 +16,12 @@ import { transcripts } from "./transcripts.js"
 const context = (event: string, delivery: string): string =>
   `${JSON.stringify({ hookSpecificOutput: { hookEventName: event, additionalContext: delivery } })}\n`
 
-// A Stop's reason continues the turn, and reaches the model as the Stop hook's feedback;
-// a prompt's context is an attachment beside the prompt, never the prompt itself; a tool
-// call's context (PostToolUse, or PostToolUseFailure) is a system reminder next to the
-// tool's result, which the model reads on its next request.
+// A Stop's context continues the turn, and reaches the model once, as a system reminder
+// ("Stop hook additional context: …"). A `decision: "block"` reason would reach it twice,
+// as "Stop hook feedback" and again as a "Stop hook blocking error" (2.1.304 and 2.1.316,
+// probed 2026-10-31, #589). A prompt's context is an attachment beside the prompt, never
+// the prompt itself; a tool call's context (PostToolUse, or PostToolUseFailure) is a
+// system reminder next to the tool's result, which the model reads on its next request.
 const messaging: MessagingProfile = {
   asks: {
     Stop: "stop",
@@ -28,7 +30,7 @@ const messaging: MessagingProfile = {
     PostToolUseFailure: "tool",
   },
   silent: { "*": "" },
-  stop: (delivery) => `${JSON.stringify({ decision: "block", reason: delivery })}\n`,
+  stop: (delivery) => context("Stop", delivery),
   prompt: (delivery) => context("UserPromptSubmit", delivery),
   call: (delivery, event) => context(event, delivery),
   reinjectPerCall: false,

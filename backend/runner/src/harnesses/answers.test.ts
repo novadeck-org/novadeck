@@ -34,11 +34,19 @@ const line = (text: string): unknown => {
 const counted = (agents: number, tasks: number) => [{ background: { agents, tasks } }]
 
 describe("each harness's hook answers", () => {
-  it("continue a Claude Code or Codex Stop with a block, and add prompt-time context", () => {
+  it("continue a Claude Code or Codex Stop, and add prompt-time context", () => {
+    // Claude Code reads a Stop's context once, as a system reminder; a block's reason it
+    // reads twice, once as an error (#589). Codex reads a block's reason once.
+    expect(line(harnesses.claude.messaging.stop(delivery))).toEqual({
+      hookSpecificOutput: { hookEventName: "Stop", additionalContext: delivery },
+    })
+    expect(line(harnesses.codex.messaging.stop(delivery))).toEqual({
+      decision: "block",
+      reason: delivery,
+    })
     for (const agent of ["claude", "codex"] as const) {
       const answers = harnesses[agent].messaging
       expect(answers.asks).toMatchObject({ Stop: "stop", UserPromptSubmit: "prompt" })
-      expect(line(answers.stop(delivery))).toEqual({ decision: "block", reason: delivery })
       expect(line(answers.prompt(delivery))).toEqual({
         hookSpecificOutput: { hookEventName: "UserPromptSubmit", additionalContext: delivery },
       })

@@ -5668,8 +5668,11 @@ describe("the rules note of a delivery", () => {
       prompt(terminalId, bound)
       sent(send(from, handle, "At the turn's end."))
       const ended = stop(terminalId, bound)
-      const reason = (JSON.parse(ended.stdout!) as { reason: string }).reason
-      expect(fullNote(reason)).toBe(true)
+      const printed = JSON.parse(ended.stdout!) as {
+        reason?: string
+        hookSpecificOutput?: { additionalContext: string }
+      }
+      expect(fullNote(printed.reason ?? printed.hookSpecificOutput!.additionalContext)).toBe(true)
       messaging.acknowledge(terminalId, ended.leaseId!)
       prompt(terminalId, bound, "harness")
       stop(terminalId, bound)
