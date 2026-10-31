@@ -94,4 +94,10 @@ describe("matching a command", () => {
     expect(matchesCommand(exact("python3"), ["python3"])).toBe(false)
     expect(matchesCommand(rest("git", "log"), ["git", "log", "-1"])).toBe(false)
   })
+
+  it("grants a program only by its plain name, so GIT or git.exe can't slip past the git rules", () => {
+    for (const program of ["GIT", "Gh", "git.exe", "gh.exe", "Uberepo", "uberepo.cmd"])
+      expect(refusesCommand({ argv: [program, "push"], rest: true })).toMatch(/plain name/)
+    expect(refusesCommand({ argv: ["uberepo", "ship"], rest: true })).toBeUndefined()
+  })
 })

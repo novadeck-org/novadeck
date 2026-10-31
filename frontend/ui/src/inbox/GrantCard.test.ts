@@ -215,7 +215,7 @@ describe("The Grant card", () => {
       expect(text(".grant-who")).toBe("@moth's teammates, now and later (now: @fox, @owl)")
       expect(inbox.tick("and @moth itself").checked).toBe(false)
       expect(text("[data-grant=codex]")).toBe(
-        "@fox runs Codex, which runs allowed commands outside Codex's sandbox.",
+        "@fox runs Codex, which runs allowed commands outside Codex's sandbox. On Windows the grant doesn't reach Codex's own check, so it still asks.",
       )
       await inbox.done()
     })
@@ -326,7 +326,7 @@ describe("The approval card", () => {
     const codex = approvalRow()
     const inbox = mount([{ ...codex, source: { ...codex.source, agent: "codex" } }])
     expect(text("[data-grant=codex]")).toBe(
-      "@fox runs Codex, which runs allowed commands outside Codex's sandbox.",
+      "@fox runs Codex, which runs allowed commands outside Codex's sandbox. On Windows the grant doesn't reach Codex's own check, so it still asks.",
     )
     await inbox.done()
   })

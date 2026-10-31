@@ -52,6 +52,10 @@ export const refusesCommand = (command: GrantCommand): string | undefined => {
   const [program, second] = command.argv
   if (program === undefined) return "no words"
   if (!bare.test(program)) return "the program must be a bare name"
+  // `GIT` or `git.exe` runs git where names are case-free or take an extension, past every
+  // check below that names a program: only its plain name is granted.
+  if (programName(program) !== program)
+    return "write the program as its plain name: lower case, without .exe, .cmd or .bat"
   for (const [index, word] of command.argv.entries()) {
     const body = ["--body", "-b"].includes(command.argv[index - 1] ?? "")
     for (const ch of word) {

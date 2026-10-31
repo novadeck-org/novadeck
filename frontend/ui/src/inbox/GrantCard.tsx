@@ -65,6 +65,7 @@ export const ApprovalBox = ({
     {row.source.agent === "codex" && (
       <p className="grant-warn" data-grant="codex">
         @{row.source.handle} runs Codex, which runs allowed commands outside Codex&apos;s sandbox.
+        On Windows the grant doesn&apos;t reach Codex&apos;s own check, so it still asks.
       </p>
     )}
   </div>
@@ -230,7 +231,8 @@ export const GrantCard = ({
             <p className="grant-warn" data-grant="codex">
               {codex.map(({ handle: each }) => `@${each}`).join(", ")}{" "}
               {codex.length === 1 ? "runs" : "run"} Codex, which runs allowed commands outside
-              Codex&apos;s sandbox.
+              Codex&apos;s sandbox. On Windows the grant doesn&apos;t reach Codex&apos;s own check,
+              so it still asks.
             </p>
           )}
           {antigravity.length > 0 && (
