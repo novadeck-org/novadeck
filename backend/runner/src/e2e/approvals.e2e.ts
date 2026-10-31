@@ -432,9 +432,12 @@ describe.skipIf(!supported)("Approvals through Novadeck's runner hooks", () => {
 describe.skipIf(!supported)("Approvals: a team grant", () => {
   const kit = kits[0]!
   const it = e2e(kit.setup)
-  it("Claude Code: a lead's grant covers the teammate it opens", async ({ e2e: run }) => {
-    const world = () => worlds.get(run.sandbox.root)!
-    const counted = { calls: 0 }
+
+  /**
+   * A lead proposes the `pr` preset, the person grants it, and the lead opens a teammate whose
+   * brief has it run `steps` in turn. Returns once the teammate has run its first step.
+   */
+  const team = async (run: E2E, counted: { calls: number }, steps: readonly string[]) => {
     // The Grant card offers the GitHub repos of the git repos under the project folder.
     const repo = join(run.sandbox.project, "repo")
     mkdirSync(repo, { recursive: true })
@@ -443,7 +446,7 @@ describe.skipIf(!supported)("Approvals: a team grant", () => {
       ["remote", "add", "origin", "https://github.com/octo/repo.git"],
     ])
       spawnSync("git", args, { cwd: repo })
-    const brief = "tm-brief: mark the pull request ready, then try the merge"
+    const brief = "tm-brief: mark the pull request ready, then try the rest"
     run.model.use(
       classifies(counted),
       own((call) => {
@@ -471,9 +474,9 @@ describe.skipIf(!supported)("Approvals: a team grant", () => {
           const runs = call.turns.filter(
             (turn) => turn.role === "assistant" && turn.calls.some((one) => one.name === "Bash"),
           ).length
-          if (runs === 0) return kit.shell(granted)
-          if (runs === 1 && call.turns.at(-1)?.role === "tool") return kit.shell(merge)
-          if (call.turns.at(-1)?.role === "tool") return { text: "Teammate done." }
+          if (runs === 0) return kit.shell(steps[0]!)
+          if (call.turns.at(-1)?.role === "tool")
+            return runs < steps.length ? kit.shell(steps[runs]!) : { text: "Teammate done." }
         }
         if (call.turns.at(-1)?.role === "tool") return { text: "Done." }
         return undefined
@@ -510,6 +513,11 @@ describe.skipIf(!supported)("Approvals: a team grant", () => {
     await lead.submit("open the teammate")
     const teammate = await requests.next(60_000)
     onTestFinished(clearing(teammate))
+  }
+
+  it("Claude Code: a lead's grant covers the teammate it opens", async ({ e2e: run }) => {
+    const world = () => worlds.get(run.sandbox.root)!
+    await team(run, { calls: 0 }, [granted, merge])
     const mark = run.model.mark()
     await run.model.waitFor((call) => kit.denial!.test(result(call) ?? ""), {
       after: mark,
@@ -517,6 +525,27 @@ describe.skipIf(!supported)("Approvals: a team grant", () => {
     })
     // The ready ran, unasked; the merge was blocked and left no mark.
     expect(marks(world())).toEqual([`gh ${granted.slice(3)}`])
+    expect(existsSync(world().pwned)).toBe(false)
+  })
+
+  // The pr preset's --body-file (#615): a file inside the project is read by `gh`, so it runs
+  // unasked; one outside it is stopped.
+  it("Claude Code: --body-file inside the project runs under a pr grant, outside it is stopped", async ({
+    e2e: run,
+  }) => {
+    const world = () => worlds.get(run.sandbox.root)!
+    mkdirSync(join(run.sandbox.project, "notes"), { recursive: true })
+    writeFileSync(join(run.sandbox.project, "notes", "body.md"), "A body.\n")
+    const outside = join(run.sandbox.root, "outside.md")
+    writeFileSync(outside, "Not in the project.\n")
+    const inside = "gh pr comment 12 -R octo/repo --body-file notes/body.md"
+    await team(run, { calls: 0 }, [inside, `gh pr comment 12 -R octo/repo --body-file ${outside}`])
+    const mark = run.model.mark()
+    await run.model.waitFor((call) => kit.denial!.test(result(call) ?? ""), {
+      after: mark,
+      timeoutMs: 90_000,
+    })
+    expect(marks(world())).toEqual([inside])
     expect(existsSync(world().pwned)).toBe(false)
   })
 })

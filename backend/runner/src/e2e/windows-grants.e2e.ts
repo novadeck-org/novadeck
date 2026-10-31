@@ -9,6 +9,7 @@
 // real program sees from PowerShell's quoting. Antigravity: whether a hook that is an exe
 // alone runs, what it does with its JSON, how a misbehaving hook (nothing, non-JSON,
 // non-zero exit, timeout) fares, and how the hook is spawned.
+import { spawnSync } from "node:child_process"
 import {
   copyFileSync,
   existsSync,
@@ -28,9 +29,11 @@ import { onTestFinished } from "vitest"
 import type { AgentSetup } from "./agents/agent.js"
 import { agy } from "./agents/agy.js"
 import { codex } from "./agents/codex.js"
-import { describe, e2e, supported } from "./fixture.js"
-import { asked, type Call, type Reply } from "./model/script.js"
-import { own, prompted } from "./scenarios.js"
+import type { DeckTerminal } from "./deck.js"
+import { describe, e2e, expect, supported, type E2E } from "./fixture.js"
+import { installHarness } from "./install.js"
+import { asked, record, tool, type Call, type Reply } from "./model/script.js"
+import { own, prompted, result } from "./scenarios.js"
 
 const sleep = (ms: number) => new Promise<void>((resolve) => setTimeout(resolve, ms))
 
@@ -46,7 +49,7 @@ const probe = (what: string, value: unknown) => {
 // a program's parent chain is read on Windows: one PowerShell query of every process.
 const ancestry = `
 const { spawnSync } = require("node:child_process")
-exports.ancestry = () => {
+exports.ancestry = (start = process.pid) => {
   const ps = spawnSync("powershell.exe", ["-NoProfile", "-NonInteractive", "-Command",
     "Get-CimInstance Win32_Process | Select-Object ProcessId,ParentProcessId,Name,CommandLine | ConvertTo-Json -Compress"],
     { encoding: "utf8", timeout: 15000, maxBuffer: 64 * 1024 * 1024 })
@@ -54,7 +57,7 @@ exports.ancestry = () => {
     const all = [].concat(JSON.parse(ps.stdout))
     const byPid = new Map(all.map((p) => [p.ProcessId, p]))
     const chain = []
-    let pid = process.pid
+    let pid = start
     for (let i = 0; i < 8 && byPid.has(pid); i++) {
       const p = byPid.get(pid)
       chain.push({ pid: p.ProcessId, name: p.Name, commandLine: String(p.CommandLine).slice(0, 600) })
@@ -130,11 +133,29 @@ if (mode === "none") done(0)
 else if (mode === "oops") { say("oops"); done(0) }
 else if (mode === "exit1") done(1)
 else if (mode === "dug-exit1") { say('{"decision":"deny_unless_prior_grant"}'); done(1) }
+else if (mode === "spawn") {
+  // The answer is out already. Its pids are written at once, a detached child resolves the
+  // chain from them while this hook stays alive (its parents with it), then it ends.
+  say('{"decision":"force_ask"}')
+  const { spawn } = require("node:child_process")
+  require("node:fs").writeFileSync(dir + "/spawn-pids.json", JSON.stringify({ t: Date.now(), pid: process.pid, ppid: process.ppid }))
+  spawn(process.execPath, [__dirname + "/chain.cjs", dir, String(process.pid)], { detached: true, stdio: "ignore", windowsHide: true }).unref()
+  setTimeout(() => done(0), 8000)
+}
 else if (mode === "sleep") setTimeout(() => { log({ finished: true, slept: true }); process.exit(0) }, 6000)
 else {
   if (existsSync(out)) say(readFileSync(out, "utf8"))
   done(0)
 }
+`
+
+// Resolves the chain of a pid (the hook's) into spawn-chain.json: run detached, so a slow
+// query holds nothing.
+const chainProgram = `
+const { writeFileSync } = require("node:fs")
+const { ancestry } = require("./ancestry.cjs")
+const [dir, pid] = process.argv.slice(2)
+writeFileSync(dir + "/spawn-chain.json", JSON.stringify(ancestry(Number(pid))))
 `
 
 type Kit = {
@@ -159,6 +180,7 @@ const withKit = (setup: AgentSetup): AgentSetup => ({
     writeFileSync(join(dir, "argv.cjs"), argvProgram)
     writeFileSync(join(dir, "marker.cjs"), markerProgram)
     writeFileSync(join(dir, "hook.cjs"), hookProgram)
+    writeFileSync(join(dir, "chain.cjs"), chainProgram)
     kits.set(sandbox.root, { dir, bin })
     return { ...env, PATH: [bin, sandbox.env.PATH].join(delimiter) }
   },
@@ -196,6 +218,46 @@ const lines = (file: string): unknown[] =>
 const report = (label: string, kit: Kit) => {
   for (const event of lines(join(kit.dir, "events.jsonl"))) probe(`${label} hook`, event)
   for (const program of lines(join(kit.dir, "programs.jsonl"))) probe(`${label} program`, program)
+}
+
+/** Reads where the spawn-mode hook's chain ended: its own query's file, else a lookup here. */
+const spawnMode = async (kit: Kit) => {
+  const read = (name: string): unknown => {
+    try {
+      return JSON.parse(readFileSync(join(kit.dir, name), "utf8")) as unknown
+    } catch {
+      return null
+    }
+  }
+  const recorded = read("spawn-pids.json") as { pid: number; ppid: number } | null
+  // The query takes a while on Windows; wait for the hook's own child, then ask again here.
+  for (let i = 0; i < 60 && !existsSync(join(kit.dir, "spawn-chain.json")); i++) await sleep(2000)
+  const chain = read("spawn-chain.json") as { name?: string; commandLine?: string }[] | null
+  let late: unknown = null
+  if (recorded) {
+    const ps = spawnSync(
+      "powershell.exe",
+      [
+        "-NoProfile",
+        "-NonInteractive",
+        "-Command",
+        `Get-CimInstance Win32_Process | Where-Object { $_.ProcessId -in ${recorded.pid},${recorded.ppid} } | Select-Object ProcessId,ParentProcessId,Name,CommandLine | ConvertTo-Json -Compress`,
+      ],
+      { encoding: "utf8", timeout: 120_000 },
+    )
+    late = ps.stdout.trim() || ps.stderr.slice(0, 300)
+  }
+  const parent = chain?.[1]
+  probe("agy hook spawn", {
+    verdict: !parent
+      ? "unknown: no chain"
+      : /^cmd(\.exe)?$/i.test(String(parent.name))
+        ? "through cmd (parent is cmd.exe)"
+        : `direct (parent is ${String(parent.name)})`,
+    pids: recorded,
+    chain,
+    lateLookupFromTest: late,
+  })
 }
 
 const windows = process.platform === "win32" && supported
@@ -412,7 +474,7 @@ type AgyCase = {
   /** What PreToolUse prints (the hook's answer file), unless `mode` says otherwise. */
   readonly answer?: unknown
   /** How the hook misbehaves: see the hook program. */
-  readonly mode?: "none" | "oops" | "exit1" | "dug-exit1" | "sleep"
+  readonly mode?: "none" | "oops" | "exit1" | "dug-exit1" | "sleep" | "spawn"
   /** How the PreToolUse command is written; none registers no PreToolUse hook. */
   readonly form?: "direct" | "node" | "relay" | "cmd-direct" | "none"
   /** The programs `--settings` allows, as `command(<name>)`; none passes no settings. */
@@ -482,6 +544,8 @@ const agyCases: AgyCase[] = [
     ancestry: true,
     press: "1",
   },
+  // How agy spawns an exe-alone hook: through cmd /c, or directly (PROBE agy hook spawn).
+  { name: "z1-spawn-mode", form: "direct", grant: both, mode: "spawn", timeout: 20 },
   // Why the launch grant did not apply (n1..n3 still asked): do settings count at all, and
   // what spelling matches?
   {
@@ -652,6 +716,7 @@ describe.runIf(windows)("Antigravity on Windows (grants probe)", () => {
         })
         // A slept hook ends by itself before the deck closes.
         if (c.mode === "sleep") await sleep(6000)
+        if (c.mode === "spawn") await spawnMode(kit)
         report(`agy ${c.name}`, kit)
         // Antigravity's own settings and logs, where the grants may have been read or refused.
         const gemini = join(run.sandbox.home, ".gemini")
@@ -670,4 +735,337 @@ describe.runIf(windows)("Antigravity on Windows (grants probe)", () => {
       240_000,
     )
   }
+})
+
+// ---- The grants themselves, through Novadeck's runner hooks (as approvals.e2e.ts does on
+// Linux): a real `approval` ask the person approves, a `pr` team grant, and fake `gh` and
+// `uberepo` batch files that append their command line to a marker file.
+
+const granted = "gh pr ready 12 -R octo/repo"
+const merge = "gh pr merge 12 -R octo/repo"
+const grantedArgv = ["gh", "pr", "ready", "12", "-R", "octo/repo"]
+
+type World = { readonly marker: string; readonly readme: string }
+const worlds = new Map<string, World>()
+
+const withFakes = (setup: AgentSetup): AgentSetup => ({
+  ...setup,
+  prepare: async (sandbox, model, installed, seed) => {
+    const env = await setup.prepare(sandbox, model, installed, seed)
+    const dir = mkdtempSync(join(tmpdir(), "ndg-"))
+    const marker = join(dir, "ran.txt")
+    // A space before `>>`: an argument ending in a digit would else read as a handle.
+    for (const name of ["gh", "uberepo"])
+      writeFileSync(join(dir, `${name}.cmd`), `@echo ${name} %* >> "${marker}"\r\n`)
+    const readme = join(sandbox.project, "README.txt")
+    writeFileSync(readme, "novadeck-approvals-readme\n")
+    worlds.set(sandbox.root, { marker, readme })
+    return { ...env, PATH: [dir, sandbox.env.PATH].join(delimiter) }
+  },
+})
+
+const marksOf = (world: World): string[] =>
+  existsSync(world.marker)
+    ? readFileSync(world.marker, "utf8")
+        .split("\n")
+        .map((line) => line.trim())
+        .filter(Boolean)
+    : []
+
+type Harness = {
+  readonly setup: AgentSetup
+  readonly command: string
+  readonly shell: (command: string) => Reply
+  readonly dialog: RegExp
+  readonly refuse: string
+}
+
+const codexKit: Harness = {
+  setup: withFakes(codex),
+  command: "codex",
+  shell: (command) => ({
+    calls: [
+      {
+        name: "exec_command",
+        input: {
+          cmd: command,
+          sandbox_permissions: "require_escalated",
+          justification: "Run it outside the sandbox",
+        },
+      },
+    ],
+  }),
+  dialog: /Would you like to run the following command\?/,
+  refuse: "\x1b",
+}
+
+const agyKit: Harness = {
+  setup: withFakes(agy),
+  command: "agy",
+  shell: (command) => ({
+    calls: [
+      {
+        name: "run_command",
+        input: { CommandLine: command, WaitMsBeforeAsync: 5000, toolSummary: "Run it" },
+      },
+    ],
+  }),
+  dialog: /> 1\. Yes, run command/,
+  refuse: "4",
+}
+
+const waitScreen = async (
+  terminal: DeckTerminal,
+  what: string,
+  check: (screen: string) => boolean,
+  timeoutMs = 60_000,
+): Promise<string> => {
+  const end = Date.now() + timeoutMs
+  for (;;) {
+    const screen = await terminal.screen()
+    if (check(screen)) return screen
+    if (Date.now() > end)
+      throw new Error(`${what}: not seen in ${timeoutMs} ms; screen:\n${screen}`)
+    await sleep(250)
+  }
+}
+
+const openKit = async (run: E2E, kit: Harness): Promise<DeckTerminal> => {
+  const terminal = await run.deck.open(kit.command)
+  await terminal.reached("ready", { timeoutMs: 60_000 })
+  await prompted(terminal, kit.setup)
+  return terminal
+}
+
+const approvalAsk = (call: Call): Reply | undefined => {
+  const reading =
+    call.turns.at(-1)?.role === "tool" &&
+    call.turns
+      .findLast((entry) => entry.role === "assistant")
+      ?.calls.some(
+        (entry) => entry.name === "read_file" && /[/\\]ask\.json$/.test(String(entry.input.Path)),
+      ) === true
+  if (asked(call, "get approval") && call.tools.includes("call_mcp_tool")) {
+    const named = /directory `([^`]+)[/\\]<serverName>`/.exec(call.system)?.[1]
+    if (!named) throw new Error("Antigravity named no MCP schema folder")
+    const home = /^App Data Directory: (.+)$/m.exec(call.system)?.[1]?.trim()
+    const folder =
+      home && named.includes("<appDataDir>") ? named.replace("<appDataDir>", home) : named
+    return {
+      calls: [
+        { name: "read_file", input: { Path: join(folder, "novadeck_novadeck", "ask.json") } },
+      ],
+    }
+  }
+  if (!asked(call, "get approval") && !reading) return undefined
+  const name = tool(call, "ask")
+  if (!name) throw new Error("Novadeck's ask tool is missing")
+  return {
+    calls: [
+      {
+        name,
+        input: {
+          subject: "May I run gh pr ready?",
+          body: "I need to mark pull request 12 ready, and would like not to ask again.",
+          hard_to_undo: "It tells the reviewers.",
+          shape: { type: "approval", commands: [{ argv: grantedArgv, rest: false }] },
+        },
+      },
+    ],
+  }
+}
+
+for (const kit of [codexKit, agyKit]) {
+  const { setup } = kit
+  describe.runIf(windows)(`${setup.name} on Windows: a person's approval`, () => {
+    const it = e2e(setup)
+    it("a granted command runs unasked, and only that", async ({ e2e: run }) => {
+      const world = () => worlds.get(run.sandbox.root)!
+      const shellFor = (command: string) => kit.shell(command)
+      run.model.use(
+        own((call) => {
+          const ask = approvalAsk(call)
+          if (ask) return ask
+          if (asked(call, "run granted") || asked(call, "run again")) return shellFor(granted)
+          if (asked(call, "run merge")) return shellFor(merge)
+          if (asked(call, "run echo")) return shellFor("echo hi > hi.txt")
+          if (asked(call, "read it"))
+            return { calls: [{ name: "read_file", input: { Path: world().readme } }] }
+          if (call.turns.at(-1)?.role === "tool") return { text: "Done." }
+          return undefined
+        }),
+      )
+      const [major = 0, minor = 0, patch = 0] = (await installHarness(setup.agent)).version
+        .split(".")
+        .map(Number)
+      // Antigravity takes a grant as launch settings from 1.4.10 on.
+      const launched =
+        setup.agent !== "agy" ||
+        major > 1 ||
+        (major === 1 && (minor > 4 || (minor === 4 && patch >= 10)))
+      probe("grants setup", { agent: setup.agent, launched })
+      let terminal = await openKit(run, kit)
+      const stopped = async (label: string, before: number) => {
+        const screen = await waitScreen(terminal, label, (shown) => kit.dialog.test(shown))
+        probe("grants dialog", { label, screen: rows(screen) })
+        expect(marksOf(world()).length, label).toBe(before)
+        terminal.press(kit.refuse)
+        await sleep(2500)
+      }
+
+      await terminal.submit("run granted")
+      await stopped("without a grant", 0)
+
+      await terminal.submit("get approval")
+      const entry = await (async () => {
+        const end = Date.now() + 60_000
+        for (;;) {
+          const found = run.deck.terminals
+            .inboxEntries()
+            .find((each) => each.content.kind === "ask" && each.terminalId === terminal.id)
+          if (found) return found
+          if (Date.now() > end) throw new Error("no approval ask in the Inbox")
+          await sleep(250)
+        }
+      })()
+      expect(record(record(entry.content).ask).shape).toMatchObject({ type: "approval" })
+      run.deck.terminals.answerAsk(entry.id, { type: "approve" })
+      await sleep(2000)
+
+      // A terminal started while the grant covers it takes the launch settings.
+      if (setup.agent === "agy") {
+        await run.deck.restart()
+        terminal = await run.deck.restore(terminal, { resume: "agy" })
+        await terminal.reached("ready", { timeoutMs: 60_000 })
+        await prompted(terminal, setup)
+      }
+
+      await terminal.submit("run again")
+      const end = Date.now() + 60_000
+      while (marksOf(world()).length === 0 && Date.now() < end) await sleep(250)
+      probe("grants granted-run", {
+        marks: marksOf(world()),
+        screen: rows(await terminal.screen()),
+      })
+      expect(marksOf(world())).toEqual([granted])
+      expect(await terminal.screen()).not.toMatch(kit.dialog)
+
+      await terminal.submit("run merge")
+      await stopped("merge", 1)
+      if (setup.agent === "agy") {
+        await terminal.submit("run echo")
+        await stopped("echo", 1)
+        await terminal.submit("read it")
+        await run.model.waitFor(
+          (call) => result(call)?.includes("novadeck-approvals-readme") === true,
+        )
+        expect(await terminal.screen()).not.toMatch(kit.dialog)
+      }
+    }, 600_000)
+  })
+}
+
+// A lead's `pr` team grant, then a Codex teammate runs the preset's commands unasked
+// (quote-free, so the Windows dialect matches them), while a quoted body and a merge are asked.
+describe.runIf(windows)("Codex on Windows: a pr team grant", () => {
+  const it = e2e(codexKit.setup)
+  it("the preset's commands run unasked; a quoted body and a merge are asked", async ({
+    e2e: run,
+  }) => {
+    const world = () => worlds.get(run.sandbox.root)!
+    const repo = join(run.sandbox.project, "repo")
+    mkdirSync(repo, { recursive: true })
+    for (const args of [
+      ["init", "-q"],
+      ["remote", "add", "origin", "https://github.com/octo/repo.git"],
+    ])
+      spawnSync("git", args, { cwd: repo })
+    mkdirSync(join(run.sandbox.project, "notes"), { recursive: true })
+    writeFileSync(join(run.sandbox.project, "notes", "body.md"), "A body.\n")
+    const steps = [
+      granted,
+      "gh pr create --fill --head feat -R octo/repo",
+      "gh pr comment 12 -R octo/repo --body-file notes/body.md",
+      "gh pr comment 12 -R octo/repo --body 'two words'",
+      merge,
+    ]
+    const state = { done: false }
+    run.model.use(
+      own((call) => {
+        if (asked(call, "propose it")) {
+          const name = tool(call, "propose_grant")
+          if (!name) throw new Error("Novadeck's propose_grant tool is missing")
+          return {
+            calls: [{ name, input: { presets: ["pr"], reason: "Pull requests for octo/repo" } }],
+          }
+        }
+        if (asked(call, "open the teammate")) {
+          const name = tool(call, "open_agent")
+          if (!name) throw new Error("Novadeck's open_agent tool is missing")
+          return {
+            calls: [
+              { name, input: { agent: "codex", message: "tm-brief: run the pull requests" } },
+            ],
+          }
+        }
+        if (call.turns.some((turn) => turn.role === "user" && turn.text.includes("tm-brief"))) {
+          const runs = call.turns.filter(
+            (turn) =>
+              turn.role === "assistant" && turn.calls.some((one) => one.name === "exec_command"),
+          ).length
+          if (runs === 0) return codexKit.shell(steps[0]!)
+          if (call.turns.at(-1)?.role === "tool") {
+            if (runs < steps.length) return codexKit.shell(steps[runs]!)
+            state.done = true
+            return { text: "Teammate done." }
+          }
+        }
+        if (call.turns.at(-1)?.role === "tool") return { text: "Done." }
+        return undefined
+      }),
+    )
+    const requests = run.deck.answerRequests()
+    const lead = await openKit(run, codexKit)
+    await lead.submit("propose it")
+    const card = await (async () => {
+      const end = Date.now() + 60_000
+      for (;;) {
+        const found = run.deck.terminals
+          .inboxEntries()
+          .find((each) => each.content.kind === "grant" && each.terminalId === lead.id)
+        if (found) return found
+        if (Date.now() > end) throw new Error("no Grant card in the Inbox")
+        await sleep(250)
+      }
+    })()
+    run.deck.terminals.answerAsk(card.id, {
+      type: "grant",
+      presets: ["pr"],
+      commands: [],
+      repos: ["github.com/octo/repo"],
+      withLead: false,
+      hours: 8,
+    })
+    await sleep(2000)
+    await lead.submit("open the teammate")
+    const teammate = await requests.next(60_000)
+
+    const dialogs: string[] = []
+    const end = Date.now() + 300_000
+    while (!state.done && Date.now() < end) {
+      const screen = await teammate.screen()
+      if (codexKit.dialog.test(screen)) {
+        dialogs.push(screen)
+        probe("grants dialog", { at: marksOf(world()).length, screen: rows(screen) })
+        teammate.press(codexKit.refuse)
+        await sleep(2500)
+      }
+      await sleep(500)
+    }
+    probe("grants team run", { done: state.done, marks: marksOf(world()), dialogs: dialogs.length })
+    expect(marksOf(world())).toEqual(steps.slice(0, 3))
+    expect(dialogs.length).toBe(2)
+    expect(dialogs[0]).toMatch(/two\s+words/)
+    expect(dialogs[1]).toMatch(/merge/)
+  }, 900_000)
 })
