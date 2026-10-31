@@ -11,9 +11,12 @@ import type { MessageStore } from "./message-store.js"
 import {
   byteLength,
   deliveryOf,
+  givenIn,
   maxDeliveryBytes,
   newMark,
+  noteKinds,
   wrap,
+  type Held,
   type Message,
 } from "./messages.js"
 import type { Sessions } from "./sessions.js"
@@ -32,6 +35,8 @@ export type LeasingHost = {
   readonly now: () => number
   /** Moves the terminal's delivery on (`Deliveries.step`). */
   readonly step: (live: Live, event: DeliveryEvent) => void
+  /** The notes the terminal's root session holds grew (`Live.held`), to be kept with it. */
+  readonly held: (live: Live) => void
 }
 
 /**
@@ -69,7 +74,9 @@ export class Leasing {
    * given), as many as one delivery carries once `print` prints it as its harness reads it,
    * until the hook acknowledges them; none when none wait. `keeps` is what the turn is given
    * again on each later call once printed, where its harness's injected messages last one;
-   * `settles` is the withdrawal its notices tell of, made once it is acknowledged.
+   * `settles` is the withdrawal its notices tell of, made once it is acknowledged. Its
+   * wrapper only points to the notes the session holds, and gives the rest in full, which
+   * the session holds from then on where what this hook prints is `lasting`.
    */
   lease(
     live: Live,
@@ -82,13 +89,24 @@ export class Leasing {
       readonly keeps?: (text: string) => string
       /** Run when the hook acknowledges the lease: the withdrawal its notices tell of. */
       readonly settles?: Withdrawal | undefined
+      /** Whether what the hook prints stays in the session's context for later turns. */
+      readonly lasting?: boolean
     },
   ): Lease | undefined {
     const { store } = this.host
     // Once closed, nothing is saved, so no ack could record a delivery: the next runner
     // would deliver again what a hook printed now. Its messages wait for that runner.
     if (store.closed) return undefined
-    const { kind, background = false, print, only = () => true, keeps, settles } = options
+    const {
+      kind,
+      background = false,
+      print,
+      only = () => true,
+      keeps,
+      settles,
+      lasting = false,
+    } = options
+    const { held } = live
     const queued = [...store.messages()]
       .filter(({ state, ...message }) => state === "queued" && addressed(message, root))
       .filter((message) => message.to.terminalId === live.terminalId && only(message))
@@ -97,12 +115,14 @@ export class Leasing {
     // One mark for the delivery, which marks its lead's messages. What counts is the bytes
     // printed, escaped as the harness reads them.
     const mark = newMark()
-    const prints = (taken: readonly Message[]) => byteLength(print(wrap(taken, isFromLead, mark)))
+    const wrapped = (taken: readonly Message[]) => wrap(taken, isFromLead, mark, undefined, held)
+    const prints = (taken: readonly Message[]) => byteLength(print(wrapped(taken)))
     const messages = deliveryOf(queued, (taken) => prints(taken) <= maxDeliveryBytes)
     // The first always goes, as it fits alone; beside what the turn holds it may not.
     if (messages.length === 0 || prints(messages) > maxDeliveryBytes) return undefined
     for (const message of messages) store.put({ ...message, state: "leased" })
-    const text = wrap(messages, isFromLead, mark)
+    const text = wrapped(messages)
+    const gave: Held = lasting ? givenIn(held, noteKinds(messages, isFromLead)) : {}
     return this.leases.grant({
       terminalId: live.terminalId,
       messages: messages.map((message) => message.id),
@@ -112,6 +132,7 @@ export class Leasing {
       text,
       ...(keeps && { keeps: keeps(text) }),
       ...(settles && { settles: settles.settle, asks: settles.asks }),
+      ...(Object.keys(gave).length > 0 && { gave: { sessionId: root.sessionId, notes: gave } }),
     })
   }
 
@@ -165,6 +186,12 @@ export class Leasing {
     )
       this.leases.remember(terminalId, lease.epoch, lease.keeps)
     lease.settles?.()
+    // The notes it gave are in the session's context now, while it is the same session.
+    const live = this.host.sessions.get(terminalId)
+    if (lease.gave && live?.root?.sessionId === lease.gave.sessionId) {
+      live.held = { ...live.held, ...lease.gave.notes }
+      this.host.held(live)
+    }
   }
 
   /**

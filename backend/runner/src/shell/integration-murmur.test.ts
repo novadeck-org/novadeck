@@ -161,6 +161,68 @@ describe.skipIf(process.platform === "win32" || !existsSync(bash))(
       expect(agents()).toEqual([expect.objectContaining({ summary: "Fixes the build." })])
     })
 
+    it("tells a session resumed after a restart nothing it heard, and a compacted one all again", async ({
+      shell,
+    }) => {
+      const bin = standIn(shell.home)
+      const env = { HOME: shell.home, PS1: "$ ", PATH: `${bin}:${process.env.PATH}` }
+      const first = shell.manager({ env, describer: new FakeDescriber(), murmurTimes })
+      const terminal = await create(first, shell)
+      const peer = await create(first, shell)
+      const one = driver(shell, first)
+      await one.start(terminal.id, "claude", "s-claude")
+      await one.start(peer.id, "codex", "s-codex")
+      const prompt = async (step: typeof one.step, text: string) =>
+        context(await step(terminal.id, { hook: "UserPromptSubmit", payload: { prompt: text } }))
+      const send = (step: typeof one.step, text: string) =>
+        step(peer.id, { call: "send", request: { to: "moth", text } })
+      const pointer = "as the full note given earlier in this session"
+      await send(one.step, "First.")
+      const given = await prompt(one.step, "Fix the build")
+      expect(given).toMatch(/beside this terminal/)
+      expect(given).toContain("First.")
+      expect(given).not.toContain(pointer)
+      await one.step(terminal.id, { call: "summarize", request: { summary: "Fixes the build." } })
+      await one.step(terminal.id, { hook: "Stop", payload: {} })
+      // Kept with the session's report, which a restart reads back.
+      await expect
+        .poll(() => shell.store.terminal(terminal.id)?.agents.claude)
+        .toMatchObject({
+          sessionId: "s-claude",
+          told: { bar: true, notes: { peer: expect.any(String) } },
+        })
+      await first.shutdown()
+
+      // The same session again under a new runner, as a restart resumes it: it holds the
+      // notices and the note still, so it hears none of them again.
+      const second = shell.manager({ env, describer: new FakeDescriber(), murmurTimes })
+      await create(second, shell, { id: terminal.id, restore: true })
+      await create(second, shell, { id: peer.id, restore: true })
+      const two = driver(shell, second)
+      await two.start(terminal.id, "claude", "s-claude")
+      await two.start(peer.id, "codex", "s-codex")
+      await send(two.step, "Second.")
+      const resumed = await prompt(two.step, "go on")
+      expect(resumed).toContain("Second.")
+      expect(resumed).toContain(pointer)
+      expect(resumed).not.toMatch(/beside this terminal/)
+      await two.step(terminal.id, { hook: "Stop", payload: {} })
+
+      // Compacted, it may have lost them: all again, and the report holds nothing.
+      await two.step(terminal.id, {
+        hook: "SessionStart",
+        payload: { source: "compact", cwd: shell.home },
+      })
+      expect(shell.store.terminal(terminal.id)?.agents.claude?.told).toBeUndefined()
+      await send(two.step, "Third.")
+      const after = (await prompt(two.step, "and now?")).split("\n\n")
+      expect(after[0]).toContain("Third.")
+      expect(after[0]).not.toContain(pointer)
+      expect(after[1]).toMatch(/beside this terminal/)
+      expect(after[2]).toMatch(/the user rarely watches this terminal/)
+      await second.shutdown()
+    })
+
     it("never titles an agent from its prompts, its turns' ends or its drift", async ({
       shell,
     }) => {

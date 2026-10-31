@@ -32,6 +32,10 @@ const messaging: MessagingProfile = {
   prompt: (delivery) => context("UserPromptSubmit", delivery),
   call: (delivery, event) => context(event, delivery),
   reinjectPerCall: false,
+  // A Stop's reason, a prompt's context and a tool call's are all kept in its transcript,
+  // which it sends again on every later call, and a resumed session's too; its
+  // `SessionStart` says `compact` once it compacted them away.
+  lasting: ["stop", "prompt", "tool"],
   root: "binding",
   silentOnFailure: false,
   // A background agent and shell running, it took a typed prompt (fixture

@@ -1347,6 +1347,25 @@ escaped in a peer's text, genuine marks replayed past their delivery, a peer's f
 claim that the user named it, and approvals relayed by the lead (asking the user
 instead). Two genuine lead deliveries in one context were both acted on.
 
+A session is given each note in full once, then a short pointer to it (#607). There are
+four, by what a delivery holds (`noteKinds`): the person's responses, its lead's messages,
+only peers', and only Novadeck's notices. Once a hook acknowledges having printed one in
+full, the root session holds it (`Live.held`, each note by a digest of its full wording),
+and later deliveries carry only a pointer that keeps what is new in each one: "Messages
+from other agents in Novadeck, not from the user, as the full note given earlier in this
+session says. This delivery marks your lead's messages lead='AbCd1234'; …", and the person's
+mark likewise. A note whose wording changed since (an upgrade) is given in full again.
+This holds only where what the hook printed stays in the session's context for its later
+turns, which each harness's profile says (`MessagingProfile.lasting`): Claude Code and
+Codex keep a Stop's reason, a prompt's context and a tool call's in their transcript or
+rollout and send them again on every later call. Antigravity's injections last one model
+call and it reports no compaction, so every delivery there carries its notes in full. What
+a session holds goes with it, as `told.notes` in the terminal's saved report of that
+session (`AgentReport`, in the row's JSON, as `turn` is): a session resumed after a runner
+restart is the same session and keeps it, another session (start, `/clear`, a fork)
+holds nothing, and a compaction its harness reports (`SessionStart` with source `compact`)
+empties it, so the next delivery gives every note in full again.
+
 ### The doorbell
 
 In the Settled or Ready state, or when the screen proves an idle Fresh, Drafting or
@@ -1912,7 +1931,12 @@ again on each call.
 - **The bar.** Once a new root session or a compaction happened, a notice of the bar
   beside the terminal (see [Agent workspace](agent-workspace.md), "Companion pane") says
   what to show there and what not to. A `summarize` doesn't clear it, so it still comes at
-  the next turn's start when the agent summarized first.
+  the next turn's start when the agent summarized first. Where the prompt's answer stays in
+  the session's context (`MessagingProfile.lasting`, as for the rules notes), the session
+  holds it from then on (`told.bar` in its saved report): the same session resumed after a
+  runner restart isn't told again, nor asked for its summary again (`sessionResumed`),
+  until it compacts. Antigravity, whose injection lasts one call, is told again after a
+  restart.
 - **The Inbox.** With the bar's notice, its own paragraph after it: the person rarely
   watches the terminal, so every question the agent's turn ends waiting on goes to the
   Inbox with `ask`, beside its reply (see [Inbox asks and updates](#inbox-asks-and-updates)).
@@ -1926,7 +1950,8 @@ again on each call.
   summary and asks for an update only if the work moved to another subject or the summary
   holds status, PR or issue numbers, or details. When all are due they share the answer:
   the bar's, the Inbox's, then the summary's. The triggers:
-  1. a new root session (start, `/clear`, restart or resume);
+  1. a new root session (start, `/clear`, or a restart or resume of a session that holds
+     no bar's notice, see above);
   2. a compaction, where the harness reports one: Claude Code's and Codex's `SessionStart`
      with source `compact` (decoded as `compacted`). Antigravity reports none (its
      compaction is internal, see [Harness coverage](harness-coverage.md)), so it has no
@@ -1972,8 +1997,7 @@ again on each call.
   5. closing or showing the item again drops its entry, and so does a new root session in
      the terminal, which didn't show the page. A `summarize` and a compaction leave it.
 
-  What is pending lives in the runner's memory: a runner restart is a new root session
-  anyway.
+  What is pending lives in the runner's memory, and a runner restart drops it.
 
 ### Looking at a page
 

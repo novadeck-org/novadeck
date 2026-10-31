@@ -267,6 +267,14 @@ export type MessagingProfile = {
    * name subagents' sessions alike, the one its status line names (`status-line`).
    */
   readonly root: "binding" | "status-line"
+  /**
+   * The asks whose printed text stays in the session's context for its later turns, until
+   * a compaction its hooks report (`compacted`): there Novadeck gives the rules note of
+   * its deliveries in full once, and a short pointer after. Elsewhere, as where an
+   * injection lasts one model call (Antigravity's) or no hook tells of a compaction, every
+   * delivery carries the note in full.
+   */
+  readonly lasting: readonly ("stop" | "prompt" | "tool")[]
   /** The key that queues the person's prompt for after the turn, as Codex's Tab. */
   readonly queueKey?: string
   /** Whether a failed turn fires nothing, so its turn may only end with its next prompt. */

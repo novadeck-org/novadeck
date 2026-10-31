@@ -165,7 +165,12 @@ export class HookAnswers {
     const lease =
       time &&
       continues(live.delivery) &&
-      this.host.leasing.lease(live, root, { kind: "stop", background, print: profile.stop })
+      this.host.leasing.lease(live, root, {
+        kind: "stop",
+        background,
+        print: profile.stop,
+        lasting: profile.lasting.includes("stop"),
+      })
     // The turn goes on with what it was given, which the tracker counts as running through.
     if (lease)
       feed(this.host.loops, this.host.now, live, [
@@ -226,6 +231,7 @@ export class HookAnswers {
               only: isFromLead,
               keeps: (text) => joined(carried, text),
               settles,
+              lasting: profile.lasting.includes("prompt"),
             })
           : undefined
       if (added) return { leaseId: added.id, stdout: print(added.text) }
@@ -250,6 +256,7 @@ export class HookAnswers {
         print,
         ...(profile.reinjectPerCall && { keeps: (text: string) => noted(text, notes) }),
         settles: noticed.withdrawal,
+        lasting: profile.lasting.includes("prompt"),
       })
     if (lease) return answered(lease.id, lease.text)
     // Else a lease of the notices alone, whose acknowledgement withdraws the asks and, for a
@@ -299,6 +306,7 @@ export class HookAnswers {
       print,
       only: isFromLead,
       settles: noticed.withdrawal,
+      lasting: profile.lasting.includes("tool"),
     })
     if (lease) return { leaseId: lease.id, stdout: print(lease.text) }
     const only = leasing.noticed(live, "midturn", noticed, undefined)

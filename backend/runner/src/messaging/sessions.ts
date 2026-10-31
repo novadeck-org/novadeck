@@ -118,6 +118,8 @@ export class Sessions {
   private applyRoot(live: Live, changes: readonly RootChange[]): void {
     const { store } = this.host
     for (const change of changes) {
+      // What one session holds in its context, another doesn't.
+      live.held = {}
       if (change.type === "ended") {
         if (!live.root) continue
         live.root = null

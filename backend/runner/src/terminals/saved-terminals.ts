@@ -1,5 +1,6 @@
 import type { AgentName } from "@novadeck/protocol"
 
+import type { Held } from "../messaging/messages.js"
 import type { Naming } from "./titles.js"
 import type { Work } from "./work.js"
 
@@ -11,13 +12,25 @@ import type { Work } from "./work.js"
 export type AgentTurn = "running" | "waking"
 
 /**
+ * What Novadeck told a session once, which stays in its context until it compacts: the
+ * rules notes of deliveries it was given in full (`Held`), and whether it heard of its
+ * bar and Inbox. Kept only where its harness keeps what a hook printed for later turns.
+ */
+export type Told = {
+  readonly notes?: Held
+  readonly bar?: true
+}
+
+/**
  * An agent's latest reported session in a terminal; a larger `seq` is a later report. `turn`
- * is kept in the saved row's JSON, so rows saved without it read as having none.
+ * and `told` are kept in the saved row's JSON, so rows saved without them read as having
+ * none, and both stay with the session only while it is the same one.
  */
 export type AgentReport = {
   readonly sessionId: string
   readonly seq: number
   readonly turn?: AgentTurn
+  readonly told?: Told
 }
 
 /**

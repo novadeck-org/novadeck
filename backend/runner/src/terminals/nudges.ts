@@ -87,6 +87,16 @@ export const sessionBegan = (nudges: Nudges, at: number): Nudges => ({
   since: at,
 })
 
+/**
+ * The root session came back holding what it was told, as resumed after a restart: like
+ * `sessionBegan`, only later shows count, but it has nothing to hear again.
+ */
+export const sessionResumed = (nudges: Nudges, at: number): Nudges => ({
+  ...nudges,
+  troubles: noTroubles,
+  since: at,
+})
+
 /** The person prompted: one more toward the backstop, which fires every `backstopPrompts`. */
 export const personPrompted = (nudges: Nudges): Nudges => {
   const prompts = nudges.prompts + 1
