@@ -1,9 +1,14 @@
 import type { DialogAdapter, ScreenRequest } from "@novadeck/harness-core/dialogs"
 import { fakeAdapter, FakeTui } from "@novadeck/harness-core/testing/dialogs"
-import type { AgentName } from "@novadeck/protocol"
+import {
+  dialogTextLimits,
+  maxRawDialogText,
+  requestDialog,
+  type AgentName,
+} from "@novadeck/protocol"
 
 import { describe, expect, it } from "../test.js"
-import { Dialogs, rawText, type Waiting } from "./dialogs.js"
+import { Dialogs, identified, rawText, type Waiting } from "./dialogs.js"
 
 const request = (ref: string, command: string): Waiting => ({
   ref,
@@ -342,13 +347,83 @@ describe("requests only the screen tells", () => {
 })
 
 describe("the raw text of a screen", () => {
-  it("is its rows without trailing blanks, long blank runs shortened, and fits 4 KiB from the bottom", () => {
+  it("is its rows without trailing blanks, long blank runs shortened, and fits the protocol's limit from the bottom", () => {
     expect(rawText(["a  ", "", "", "", "b", "", ""])).toBe("a\n\nb")
     expect(rawText(["", "", "a"])).toBe("a")
     const rows = Array.from({ length: 100 }, (_, index) => `row ${index}`.padEnd(100, "."))
     const text = rawText(rows)
-    expect(text.length).toBeLessThanOrEqual(4096)
+    expect(text.length).toBeLessThanOrEqual(maxRawDialogText)
     expect(text.endsWith(rows[99]!)).toBe(true)
     expect(text.startsWith(rows[0]!)).toBe(false)
+    // A row too long on its own is cut to the limit, and the raw dialog parses.
+    const wide = rawText(["x".repeat(maxRawDialogText * 2)])
+    expect(wide).toHaveLength(maxRawDialogText)
+    expect(
+      requestDialog.safeParse({ type: "raw", text: wide, reason: "unrecognized" }).success,
+    ).toBe(true)
+  })
+})
+
+describe("the dialog as the protocol shows it", () => {
+  // Past every display limit, so each string comes back cut to exactly its own.
+  const over = (field: keyof typeof dialogTextLimits) => "x".repeat(dialogTextLimits[field] + 100)
+
+  it("cuts each display string of a questions dialog to the protocol's limit for it", () => {
+    const shown = identified({
+      type: "questions",
+      chat: null,
+      questions: [
+        {
+          id: "q",
+          header: over("header"),
+          question: over("question"),
+          options: [{ id: "o", label: over("label"), description: over("description") }],
+          multiSelect: false,
+          text: false,
+        },
+      ],
+    })
+    expect(requestDialog.safeParse(shown).success).toBe(true)
+    if (shown?.type !== "questions") throw new Error("not a questions dialog")
+    const [question] = shown.questions
+    expect(question!.header).toHaveLength(dialogTextLimits.header)
+    expect(question!.question).toHaveLength(dialogTextLimits.question)
+    expect(question!.options[0]!.label).toHaveLength(dialogTextLimits.label)
+    expect(question!.options[0]!.description).toHaveLength(dialogTextLimits.description)
+  })
+
+  it("cuts a form's message, fields and choices, and a choices dialog's title and labels", () => {
+    const form = identified({
+      type: "form",
+      message: over("message"),
+      fields: [
+        {
+          id: "f",
+          label: over("label"),
+          description: over("description"),
+          kind: "choice",
+          choices: [over("label")],
+          required: true,
+        },
+      ],
+    })
+    expect(requestDialog.safeParse(form).success).toBe(true)
+    if (form?.type !== "form") throw new Error("not a form")
+    expect(form.message).toHaveLength(dialogTextLimits.message)
+    expect(form.fields[0]!.label).toHaveLength(dialogTextLimits.label)
+    expect(form.fields[0]!.description).toHaveLength(dialogTextLimits.description)
+    expect(form.fields[0]!.choices[0]).toHaveLength(dialogTextLimits.label)
+
+    const choices = identified({
+      type: "choices",
+      title: over("title"),
+      detail: "x".repeat(dialogTextLimits.detail),
+      options: [{ id: "1", label: over("label"), text: null }],
+    })
+    expect(requestDialog.safeParse(choices).success).toBe(true)
+    if (choices?.type !== "choices") throw new Error("not a choices dialog")
+    expect(choices.title).toHaveLength(dialogTextLimits.title)
+    expect(choices.detail).toHaveLength(dialogTextLimits.detail)
+    expect(choices.options[0]!.label).toHaveLength(dialogTextLimits.label)
   })
 })

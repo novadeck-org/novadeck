@@ -8,7 +8,13 @@ import type {
   RequestFacts,
   ScreenRequest,
 } from "@novadeck/harness-core/dialogs"
-import { requestDialog, type AgentName, type RequestDialog } from "@novadeck/protocol"
+import {
+  dialogTextLimits,
+  maxRawDialogText,
+  requestDialog,
+  type AgentName,
+  type RequestDialog,
+} from "@novadeck/protocol"
 
 import { logs } from "../log.js"
 import { cut } from "../text.js"
@@ -81,15 +87,23 @@ export const identified = (
   return parsed.success && parsed.data.type !== "raw" ? parsed.data : undefined
 }
 
-// What the protocol allows of each string an adapter reads for display.
-const displayLimits: { readonly [key: string]: number } = {
-  detail: 4096,
-  message: 2048,
-  title: 1024,
-  question: 2048,
-  header: 256,
-  label: 512,
-  description: 2048,
+// What the protocol allows of each string an adapter reads for display, by field name.
+const displayLimits: { readonly [key: string]: number } = dialogTextLimits
+
+/** A read's value with its display strings, found by their field's name, cut to their limits. */
+const clamp = (value: unknown, key?: string): unknown => {
+  if (typeof value === "string") {
+    const limit = key === undefined ? undefined : displayLimits[key]
+    return limit === undefined ? value : cut(value, limit)
+  }
+  if (Array.isArray(value))
+    // A form field's choices are display strings of their own.
+    return value.map((each) => clamp(each, key === "choices" ? "label" : undefined))
+  if (typeof value === "object" && value !== null)
+    return Object.fromEntries(
+      Object.entries(value).map(([name, each]) => [name, clamp(each, name)]),
+    )
+  return value
 }
 
 /**
@@ -100,22 +114,8 @@ const displayLimits: { readonly [key: string]: number } = {
  */
 const clamped = (dialog: AnswerableDialog): AnswerableDialog | undefined => {
   // What the person approves from is never cut: a detail past its limit reads as nothing.
-  if (dialog.type === "choices" && (dialog.detail?.length ?? 0) > displayLimits.detail!)
+  if (dialog.type === "choices" && (dialog.detail?.length ?? 0) > dialogTextLimits.detail)
     return undefined
-  const clamp = (value: unknown, key?: string): unknown => {
-    if (typeof value === "string") {
-      const limit = key === undefined ? undefined : displayLimits[key]
-      return limit === undefined ? value : cut(value, limit)
-    }
-    if (Array.isArray(value))
-      // A form field's choices are display strings of their own.
-      return value.map((each) => clamp(each, key === "choices" ? "label" : undefined))
-    if (typeof value === "object" && value !== null)
-      return Object.fromEntries(
-        Object.entries(value).map(([name, each]) => [name, clamp(each, name)]),
-      )
-    return value
-  }
   return clamp(dialog) as AnswerableDialog
 }
 
@@ -132,15 +132,12 @@ export const twin = (
   JSON.stringify([a.facts.kind, a.facts.tool, a.facts.input, a.facts.cwd]) ===
     JSON.stringify([b.facts.kind, b.facts.tool, b.facts.input, b.facts.cwd])
 
-/** What the protocol carries of a raw dialog's text. */
-const rawBytes = 4096
-
 /**
  * The screen's text around a dialog no adapter recognised, the same for every harness: the
- * screen's rows without their trailing blanks, taken from the bottom up while they fit
- * in 4 KiB (a row is never cut), a run of blank rows shortened to one, and none leading.
- * Where a dialog shows it, it is at the bottom; whatever above it belongs to the
- * transcript goes with it only as far as the space allows.
+ * screen's rows without their trailing blanks, taken from the bottom up while they fit in
+ * what the protocol carries of it (`maxRawDialogText`; a row is never cut), a run of blank
+ * rows shortened to one, and none leading. Where a dialog shows it, it is at the bottom;
+ * whatever above it belongs to the transcript goes with it only as far as the space allows.
  */
 export const rawText = (rows: readonly string[]): string => {
   const lines = rows.map((row) => row.trimEnd())
@@ -151,8 +148,8 @@ export const rawText = (rows: readonly string[]): string => {
     const line = lines[index]!
     if (line === "" && kept[0] === "") continue
     // Characters are what the protocol counts; a row too long on its own is cut.
-    if (size + line.length + 1 > rawBytes) {
-      if (kept.length === 0) kept.unshift(line.slice(0, rawBytes))
+    if (size + line.length + 1 > maxRawDialogText) {
+      if (kept.length === 0) kept.unshift(line.slice(0, maxRawDialogText))
       break
     }
     kept.unshift(line)

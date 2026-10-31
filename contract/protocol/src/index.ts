@@ -33,17 +33,23 @@ export {
   agentDetail,
   type AgentDetail,
   type AgentIntegration,
+  agentLimits,
   agentName,
   agentSessionId,
   type AgentTelemetry,
   conflictReason,
   type InterruptResult,
+  maxTurnError,
+  maxTurnFilePath,
+  maxTurnFiles,
   replyPreviewLength,
+  telemetryLimits,
 } from "./agents.js"
 export {
   type ChangedFile,
   type CompanionChange,
   type CompanionItem,
+  companionLimits,
   type CompanionWindow,
   itemContent,
   type ItemContent,
@@ -60,7 +66,14 @@ export {
   type PlanUnwritable,
 } from "./companions.js"
 export { maxWebSocketMessageBytes, protocolVersion } from "./connection.js"
-export { requestAnswer, type RequestAnswer, requestDialog, type RequestDialog } from "./dialogs.js"
+export {
+  dialogTextLimits,
+  maxRawDialogText,
+  requestAnswer,
+  type RequestAnswer,
+  requestDialog,
+  type RequestDialog,
+} from "./dialogs.js"
 export { type FeedbackDraft, feedbackKind, maxFeedbackText } from "./feedback.js"
 export {
   agentAsk,
@@ -69,6 +82,8 @@ export {
   type AskAnswer,
   inboxEntry,
   type InboxEntry,
+  inboxTextLimits,
+  maxAskOptions,
 } from "./inbox.js"
 export {
   type DeliveryState,
@@ -93,6 +108,7 @@ export {
   type ApprovalAnswer,
   type ForegroundProcess,
   handle,
+  maxStartupCommand,
   maxUploadBytes,
   maxUploadPartLength,
   startupCommand,
@@ -112,4 +128,5 @@ export {
   type TranscriptChange,
   transcriptItem,
   type TranscriptItem,
+  transcriptLimits,
 } from "./transcripts.js"

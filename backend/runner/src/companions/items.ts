@@ -4,7 +4,7 @@ import { basename, dirname, isAbsolute, join, relative, resolve, sep } from "nod
 import { setTimeout as sleep } from "node:timers/promises"
 
 import type { PlanSource } from "@novadeck/harness-core/events"
-import { onThisMachine, pageKey } from "@novadeck/protocol"
+import { companionLimits, onThisMachine, pageKey } from "@novadeck/protocol"
 import type {
   AgentName,
   CompanionChange,
@@ -849,7 +849,7 @@ export class CompanionItems {
       url: null,
       lines: null,
       plan: { agent: slot.agent, session: slot.agentSession, actor: slot.actor, format },
-      name: tail(title ?? `${agentLabel(slot.agent)} plan`, 256),
+      name: tail(title ?? `${agentLabel(slot.agent)} plan`, companionLimits.name),
       detail: tail(
         format === "file" ? plan.path : `In ${agentLabel(slot.agent)}'s conversation`,
         512,
@@ -918,8 +918,8 @@ export class CompanionItems {
           url: href,
           lines: null,
           plan: null,
-          name: tail(request.title ?? host, 256),
-          detail: tail(href, 512),
+          name: tail(request.title ?? host, companionLimits.name),
+          detail: tail(href, companionLimits.detail),
           secret: false,
         },
       }
@@ -940,8 +940,8 @@ export class CompanionItems {
           url: null,
           lines: null,
           plan: null,
-          name: tail(request.title ?? name, 256),
-          detail: tail(detail, 512),
+          name: tail(request.title ?? name, companionLimits.name),
+          detail: tail(detail, companionLimits.detail),
           secret: false,
         },
       }
@@ -981,7 +981,7 @@ export class CompanionItems {
       url: null,
       lines: shown.lines ?? null,
       plan: null,
-      name: tail(name, 256),
+      name: tail(name, companionLimits.name),
       detail: this.detail(pointed, project, given, shown.lines),
       secret: pointed.secret,
     }
@@ -1038,7 +1038,7 @@ export class CompanionItems {
     }
     const shown = project && inside(project, pointed.path) ? relative(project, pointed.path) : given
     const range = lines ? ` · lines ${lines.from}–${lines.to}` : ""
-    return `${tail(shown, 512 - range.length)}${range}`
+    return `${tail(shown, companionLimits.detail - range.length)}${range}`
   }
 
   /**

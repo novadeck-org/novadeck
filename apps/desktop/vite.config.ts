@@ -1,7 +1,7 @@
 import { resolve } from "node:path"
 
 import { bundleChecks, desktopUtilities } from "@novadeck/build-kit/bundle-checks"
-import { connectSources } from "@novadeck/build-kit/connect-sources"
+import { configuredSources } from "@novadeck/build-kit/connect-sources"
 import { contentSecurityPolicy } from "@novadeck/build-kit/content-security-policy"
 import { fontsAsFiles } from "@novadeck/build-kit/fonts"
 import tailwindcss from "@tailwindcss/vite"
@@ -17,9 +17,6 @@ const page = (mode: string) =>
   mode === "web"
     ? { root: "renderer/web", outDir: "../../dist-web" }
     : { root: "renderer", outDir: "../dist" }
-
-// What index.html's connect-src holds until a build fills it.
-const connectSourcesPlaceholder = "__NOVADECK_CONNECT_SOURCES__"
 
 export default defineConfig(({ mode }) => ({
   base: "./",
@@ -44,15 +41,7 @@ export default defineConfig(({ mode }) => ({
     tailwindcss(),
     react(),
     // Every build reaches what it is configured for.
-    contentSecurityPolicy({
-      placeholder: connectSourcesPlaceholder,
-      connect: (build) =>
-        connectSources({
-          api: { url: build.env.VITE_API_URL, name: "VITE_API_URL" },
-          runner: { url: build.env.VITE_NOVADECK_RUNNER_URL, name: "VITE_NOVADECK_RUNNER_URL" },
-          development: build.command === "serve",
-        }),
-    }),
+    contentSecurityPolicy({ connect: configuredSources }),
     // The demo's and the debug panel's utilities, as every frontend build guards them, and the
     // UI's own folder's, since this config is outside it.
     bundleChecks({ utilities: desktopUtilities }),

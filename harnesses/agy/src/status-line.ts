@@ -1,6 +1,7 @@
 import { absolute, sessionId, text } from "@novadeck/harness-core/decode"
 import type { EventBase, HarnessEvent, PromptShown } from "@novadeck/harness-core/events"
 import type { Report } from "@novadeck/harness-core/report"
+import { telemetryLimits } from "@novadeck/protocol"
 
 import { abandoned, latestOf } from "./call-memory.js"
 
@@ -151,7 +152,7 @@ export const statusLine = ({
           capacity: Math.round(capacity),
         },
       }),
-    ...(limits !== undefined && { limits: limits.slice(0, 8) }),
+    ...(limits !== undefined && { limits: limits.slice(0, telemetryLimits.windows) }),
   })
   return events
 }

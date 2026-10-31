@@ -6,6 +6,7 @@ import type { Harness, TranscriptEntry } from "@novadeck/harness-core/harness"
 import { at, entry, joined, textOf } from "@novadeck/harness-core/items"
 import { shellCall } from "@novadeck/harness-core/tools"
 
+import { asyncReplyText } from "./async-question.js"
 import { describe } from "./tools.js"
 
 // Context Codex writes into the conversation as the person's message.
@@ -91,7 +92,9 @@ const interruption = (fields: Fields): readonly TranscriptEntry[] => {
  * or its output; reasoning stays out, as do developer messages and the context Codex adds
  * as the person's. A command the person ran in shell mode is one user message, which reads
  * as the person's `!command` and a Bash run with its output, and its exit code when not
- * zero. A turn the person interrupted reads as their interruption, where it ended.
+ * zero. The person's answer to an async question is a user message of Codex's own, which
+ * reads as its history shows it: `Re: ` and the question, then the answer. A turn the person
+ * interrupted reads as their interruption, where it ended.
  */
 export const transcripts: NonNullable<Harness["transcripts"]> = {
   locate: async (root, _sessionId, subagent) => {
@@ -116,6 +119,8 @@ export const transcripts: NonNullable<Harness["transcripts"]> = {
         const { role } = payload
         if (role !== "user" && role !== "assistant") return []
         const text = joined(withoutImageTags(payload.content), ["input_text", "output_text"])
+        const reply = role === "user" ? asyncReplyText(text) : undefined
+        if (reply !== undefined) return [entry("user", "text", reply, { at: time })]
         const ran = role === "user" ? shell.exec(text) : null
         if (ran) {
           const [, command = "", code = "", printed = ""] = ran

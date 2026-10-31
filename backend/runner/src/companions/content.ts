@@ -5,13 +5,19 @@ import { basename, dirname, extname, join, resolve } from "node:path"
 import { StringDecoder } from "node:string_decoder"
 
 import type { PlanSource } from "@novadeck/harness-core/events"
-import type { AgentName, ItemContent, PlanSaveResult, PlanUnwritable } from "@novadeck/protocol"
+import {
+  companionLimits,
+  type AgentName,
+  type ItemContent,
+  type PlanSaveResult,
+  type PlanUnwritable,
+} from "@novadeck/protocol"
 
 import { DomainError } from "../errors.js"
 import { harnesses } from "../harnesses/registry.js"
 import { cut, tail } from "../text.js"
 import type { ItemRecord } from "./records.js"
-import { failure, maxUrlChars, type RequestFailure } from "./request.js"
+import { failure, type RequestFailure } from "./request.js"
 import { secret } from "./secrets.js"
 
 // What is shown as an image, by extension.
@@ -35,10 +41,8 @@ const sniffBytes = 8 * 1024
 // A file this long is shown whole; a longer one, around what was pointed at.
 const wholeLines = 400
 const contextLines = 40
-// What the protocol takes of a file and a plan.
-const maxLines = 2000
-export const maxLineChars = 4096
-const maxPlanBytes = 256 * 1024
+// What the protocol takes of a plan, which a plan's file is read up to in bytes.
+const maxPlanBytes = companionLimits.plan
 
 /** What an item's content reads of a pointer: unavailable, with why, or ready. */
 type Unavailable = Extract<ItemContent, { state: "unavailable" }>
@@ -67,7 +71,7 @@ export const captureWindow = (
   if (total <= wholeLines) return { first: 1, last: total, from, to, clamped }
   if (!lines) return { first: 1, last: wholeLines, from: 1, to: wholeLines, clamped }
   const first = Math.max(1, from - contextLines)
-  const last = Math.min(total, to + contextLines, first + maxLines - 1)
+  const last = Math.min(total, to + contextLines, first + companionLimits.lines - 1)
   return { first, last, from, to: Math.min(to, last), clamped }
 }
 
@@ -120,7 +124,7 @@ export const pageAt = (
   if (url.username || url.password)
     return failure("Novadeck won't show an address with a user name or password in it.")
   // Encoding can lengthen it past what the protocol carries.
-  if (url.href.length > maxUrlChars) return failure("That address is too long.")
+  if (url.href.length > companionLimits.url) return failure("That address is too long.")
   return { ok: true, url }
 }
 
@@ -189,7 +193,9 @@ const readLines = async (
   range: { readonly from: number; readonly to: number } | null,
 ): Promise<{ kept: Map<number, string>; count: number; ended: boolean } | "binary"> => {
   const start = range ? Math.max(1, range.from - contextLines) : 1
-  const last = range ? Math.min(range.to + contextLines, start + maxLines - 1) : wholeLines
+  const last = range
+    ? Math.min(range.to + contextLines, start + companionLimits.lines - 1)
+    : wholeLines
   const keeps = (line: number) => line <= wholeLines || (line >= start && line <= last)
   const kept = new Map<number, string>()
   // The latest lines read, which a range past the file's end is pulled back to.
@@ -207,7 +213,7 @@ const readLines = async (
   const push = () => {
     count += 1
     // One unit past the limit is held, to see whether it falls inside a pair.
-    const recorded = cut(line, maxLineChars)
+    const recorded = cut(line, companionLimits.lineLength)
     if (keeps(count)) kept.set(count, recorded)
     trailing.push([count, recorded])
     if (trailing.length > contextLines + 1) trailing.shift()
@@ -218,11 +224,11 @@ const readLines = async (
     let at = carriage && text.startsWith("\n") ? 1 : 0
     breaks.lastIndex = at
     for (let found = breaks.exec(text); found; found = breaks.exec(text)) {
-      line = (line + text.slice(at, found.index)).slice(0, maxLineChars + 1)
+      line = (line + text.slice(at, found.index)).slice(0, companionLimits.lineLength + 1)
       push()
       at = breaks.lastIndex
     }
-    line = (line + text.slice(at)).slice(0, maxLineChars + 1)
+    line = (line + text.slice(at)).slice(0, companionLimits.lineLength + 1)
     if (text.length > 0) carriage = text.endsWith("\r")
   }
   for (;;) {
@@ -293,7 +299,7 @@ export const loadFile = async (
       stamp,
       content: {
         kind: "file",
-        path: tail(path, 4096),
+        path: tail(path, companionLimits.path),
         firstLine: window.first,
         lines,
         from: window.from,

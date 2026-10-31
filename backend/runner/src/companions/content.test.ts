@@ -18,6 +18,7 @@ import { tmpdir } from "node:os"
 import { join } from "node:path"
 
 import { loadProbe } from "@novadeck/harness-core/testing/probes"
+import { companionLimits } from "@novadeck/protocol"
 
 import { describe, expect, it as base } from "../test.js"
 import { adapterFolder } from "../testing/adapters.js"
@@ -119,8 +120,8 @@ describe("what a show points at", () => {
 const padded = (line: number) => `line ${line}`.padEnd(99, ".")
 
 describe("a long line as it loads", () => {
-  // A line is kept to 4096 units; the file is read 64 KiB at a time.
-  const limit = 4096
+  // A line is kept to the protocol's limit; the file is read 64 KiB at a time.
+  const limit = companionLimits.lineLength
   const chunk = 64 * 1024
   const linesOf = async (directory: string, text: string) => {
     const path = join(directory, "long.txt")
@@ -138,7 +139,8 @@ describe("a long line as it loads", () => {
   it("leaves no half of an emoji at the limit, in one chunk or across two", async ({
     directory,
   }) => {
-    // The emoji's pair spans units 4095 and 4096, so the limit falls between its halves.
+    // The emoji's pair spans the limit's last unit and the one past it, so the limit falls
+    // between its halves.
     const kept = "a".repeat(limit - 1)
     const long = `${kept}😀 and more\nnext`
     expect(await linesOf(directory, long)).toEqual([kept, "next"])

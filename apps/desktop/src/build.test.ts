@@ -1,6 +1,7 @@
 import { readFile } from "node:fs/promises"
 import { join } from "node:path"
 
+import { connectSourcesPlaceholder } from "@novadeck/build-kit/content-security-policy"
 import type { Manifest } from "vite"
 
 import { context, describe, expect, it } from "./test"
@@ -104,7 +105,7 @@ describe("compiled frontend", () => {
 
       expect(html).toContain("script-src 'self';")
       expect(html).toContain("connect-src 'self' http://127.0.0.1:*")
-      expect(html).not.toContain("__NOVADECK_CONNECT_SOURCES__")
+      expect(html).not.toContain(connectSourcesPlaceholder)
       expect(html).not.toContain("ws:")
     })
   })

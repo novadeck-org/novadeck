@@ -4,6 +4,7 @@ import { extname, isAbsolute, relative } from "node:path"
 import { absolute, errorText, shortName, sessionId, text } from "@novadeck/harness-core/decode"
 import type { BackgroundJob, EventBase, HarnessEvent } from "@novadeck/harness-core/events"
 import type { Report } from "@novadeck/harness-core/report"
+import { telemetryLimits } from "@novadeck/protocol"
 
 import { ended, forget, pending, remember, running } from "./call-memory.js"
 import { statusLine } from "./status-line.js"
@@ -65,7 +66,7 @@ const levels: ReadonlySet<string> = new Set(["minimal", "low", "medium", "high",
  * clears the last model's.
  */
 const modelOf = (name: unknown): { model: string; effort: string | null } | undefined => {
-  const whole = shortName(name, 128)
+  const whole = shortName(name, telemetryLimits.model)
   if (!whole) return undefined
   const cut = whole.lastIndexOf("-")
   const level = whole.slice(cut + 1)
