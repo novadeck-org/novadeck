@@ -66,7 +66,9 @@ exec "$novadeck_real" --settings "$novadeck_settings" "$@"
 `
 
 // The same on Windows, as Claude Code's (`harnesses/claude/src/shim.ts`): `where` lists matches in
-// PATH order, this shim included, and the first other runnable one wins. The terminal's id names
+// PATH order, this shim included, and the first other runnable one wins. `$PATH:` keeps
+// the search to PATH: a plain `where` looks in the current folder first, where a cloned
+// repo's `agy.cmd` would be taken for the real one. The terminal's id names
 // its settings file, so it is read through `set`, which prints a value without cmd reading it
 // again, and only an id of plain characters counts. Everything set here is local (`setlocal`),
 // so NOVADECK_NARROW reaches Antigravity alone.
@@ -75,7 +77,7 @@ ${header("rem", "shim for agy")}
 rem Runs the real agy, narrowed where Novadeck's runner wrote launch settings for this terminal.
 setlocal
 set "novadeck_real="
-for /f "delims=" %%i in ('where agy 2^>nul') do call :consider "%%~fi"
+for /f "delims=" %%i in ('where $PATH:agy 2^>nul') do call :consider "%%~fi"
 if not defined novadeck_real (
   echo agy: command not found 1>&2
   exit /b 9009
