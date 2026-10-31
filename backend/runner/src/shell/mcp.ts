@@ -135,12 +135,16 @@ type Posted = {
   // What a message held for release tells its sender of why.
   readonly why?: string
 }
-type Sent = Partial<Posted> & {
-  // A send to several terminals: each one's message, or why it wasn't sent.
-  readonly sent?: readonly (
-    | (Posted & { readonly ok?: true })
-    | { readonly ok: false; readonly to: string; readonly reason: string }
-  )[]
+// One terminal's message, or, for a send to several, each one's message or why it wasn't sent.
+type Sent = (
+  | Posted
+  | {
+      readonly sent: readonly (
+        | (Posted & { readonly ok?: true })
+        | { readonly ok: false; readonly to: string; readonly reason: string }
+      )[]
+    }
+) & {
   readonly gone?: readonly Gone[]
   // The runner's words on the caller's messages held long behind their recipient's hold.
   readonly holds?: readonly string[]
@@ -921,11 +925,15 @@ const send: Tool<Sent> = {
       : undefined
   },
   said: (answer) => {
-    const lines = answer.sent
-      ? answer.sent.map((each) =>
-          each.ok === false ? "Not sent to " + mention(each.to) + ": " + each.reason : posted(each),
-        )
-      : [posted(answer as Posted)]
+    // No type syntax in here: Atlas evaluates this literal as JavaScript.
+    const lines =
+      "sent" in answer
+        ? answer.sent.map((each) =>
+            each.ok === false
+              ? "Not sent to " + mention(each.to) + ": " + each.reason
+              : posted(each),
+          )
+        : [posted(answer)]
     for (const gone of answer.gone ?? [])
       lines.push("Your earlier message " + gone.id + " to " + mention(gone.to) + wontArrive(gone))
     lines.push(...(answer.holds ?? []))
