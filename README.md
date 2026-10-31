@@ -15,14 +15,31 @@
 </p>
 
 <p align="center">
-  <a href="https://try.novadeck.dev">
-    <img src="https://try.novadeck.dev/poster-dark-2560.webp" alt="Novadeck with four terminals in a project, Claude Code running in the main pane." width="100%" />
+  <a href="https://youtu.be/m3utO-zBN-k">
+    <img src="docs/assets/launch-video.webp" alt="Novadeck: a 2-minute tour, on YouTube." width="100%" />
   </a>
+  <br />
+  <a href="https://youtu.be/m3utO-zBN-k">▶ Watch the 2-minute tour</a>
 </p>
 
 Novadeck runs Claude Code, Codex and Antigravity in one window, through their own CLIs.
 When an agent needs you, its question lands in one Inbox, and agents can message each other
 to work as a team. Free, open source, no account.
+
+## What it looks like
+
+<p align="center">
+  <img src="docs/assets/screenshot-inbox.webp" alt="Claude Code's plan open in the Inbox, with Approve, Yes and auto-accept edits, and No as numbered answers." width="100%" />
+</p>
+
+Claude Code asks to approve its plan, and you answer from the Inbox without opening its terminal.
+
+<p align="center">
+  <img src="docs/assets/screenshot-grid.webp" alt="Grid view: Claude Code, Codex, a dev server and tests side by side, with the Inbox open." width="49%" />
+  <img src="docs/assets/screenshot-canvas.webp" alt="Canvas view: the same four terminals arranged freely on one board." width="49%" />
+</p>
+
+Grid puts every terminal side by side. Canvas lets you arrange them freely on one board.
 
 ## Install
 
