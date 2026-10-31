@@ -207,7 +207,18 @@ describe("the pr preset", () => {
     ["close", `gh pr close 12 ${R}`],
     ["reopen", `gh pr reopen 12 ${R}`],
     ["view", `gh pr view 12 ${R}`],
-    ["--body-file", `gh pr comment 12 ${R} --body-file x`],
+    ["--body-file on ready", `gh pr ready 12 ${R} --body-file x`],
+    ["--body-file outside the project", `gh pr comment 12 ${R} --body-file /etc/passwd`],
+    ["--body-file up and out", `gh pr comment 12 ${R} --body-file ../secret`],
+    ["--body-file with .. inside", `gh pr comment 12 ${R} --body-file docs/../../secret`],
+    [
+      "--body-file of the sibling of the project",
+      `gh pr comment 12 ${R} --body-file /work/proj2/x`,
+    ],
+    ["--body-file reading stdin", `gh pr comment 12 ${R} --body-file -`],
+    ["a repeated --body-file", `gh pr comment 12 ${R} --body-file a --body-file b`],
+    ["--body-file without a value", `gh pr comment 12 ${R} --body-file`],
+    ["--body-file with a Windows path", `gh pr comment 12 ${R} --body-file C:\\Users\\x\\n.md`],
     ["-F", `gh pr comment 12 ${R} -F x`],
     ["--editor", `gh pr comment 12 ${R} --editor`],
     ["-e", `gh pr create ${R} --head fix -e`],
@@ -233,6 +244,30 @@ describe("the pr preset", () => {
 
   it("does not need the call's folder", async () => {
     expect(await allowed(`gh pr ready 12 ${R}`, undefined, null)).toBe(true)
+  })
+
+  it.each([
+    `gh pr comment 12 ${R} --body-file note.md`,
+    `gh pr comment 12 ${R} --body-file docs/note.md`,
+    `gh pr comment 12 ${R} --body-file=./docs/note.md`,
+    `gh pr comment 12 ${R} --body-file /work/proj/docs/note.md`,
+    `gh pr comment 12 ${R} --body-file '/work/proj/a b.md'`,
+    `gh pr create ${R} --head fix --title T --body-file body.md`,
+    `gh pr edit 12 ${R} --body-file body.md`,
+  ])("takes a body file inside the project: %s", async (command) => {
+    expect(await allowed(command)).toBe(true)
+  })
+
+  it("resolves a body file against the call's folder, else the project root", async () => {
+    const command = `gh pr comment 12 ${R} --body-file note.md`
+    expect(await allowed(command, undefined, "/work/proj/sub")).toBe(true)
+    expect(await allowed(command, undefined, null)).toBe(true)
+    // An absolute path is judged where it is, whatever the folder.
+    const absolute = `gh pr comment 12 ${R} --body-file /work/proj/sub/note.md`
+    expect(await allowed(absolute, undefined, "/work/proj/other")).toBe(true)
+    expect(
+      await allowed(`gh pr comment 12 ${R} --body-file /work/elsewhere/n.md`, undefined, null),
+    ).toBe(false)
   })
 
   it("needs the pr preset", async () => {
@@ -334,5 +369,65 @@ describe("real payload commands from the probes", () => {
 
   it("let a captured gh pr ready through once it names its repo", async () => {
     expect(await allowed("gh pr ready 12 -R acme/app")).toBe(true)
+  })
+})
+
+describe("a Codex command on Windows", () => {
+  const R = "-R acme/app"
+  const windows = (command: string, scopes: readonly GrantScope[] = [scope()]) =>
+    matchCall({ command, cwd: null, dialect: "windows-codex" }, scopes, git, "C:\\work\\proj")
+  const pr = { scope: 0, match: { kind: "preset", preset: "pr" } }
+
+  it.each([
+    "gh pr create --fill --head x -R acme/app",
+    "gh  pr   ready 12 -R acme/app",
+    `gh pr comment 5 ${R} --body-file docs/note.md`,
+    `gh pr comment 5 ${R} --body-file docs\\note.md`,
+    `gh pr comment 5 ${R} --body-file C:\\work\\proj\\docs\\note.md`,
+    `gh pr comment 5 ${R} --body-file C:/work/proj/docs/note.md`,
+    `gh pr comment 5 ${R} --body-file c:\\WORK\\proj\\note.md`,
+    `gh pr create ${R} --head fix --title T --body done`,
+  ])("lets through %s", async (command) => {
+    expect(await windows(command)).toEqual(pr)
+  })
+
+  it.each([
+    ["a body file outside the project", `gh pr comment 5 ${R} --body-file C:\\work\\other\\n.md`],
+    ["a body file on another drive", `gh pr comment 5 ${R} --body-file D:\\work\\proj\\n.md`],
+    ["a body file with ..", `gh pr comment 5 ${R} --body-file docs\\..\\..\\n.md`],
+    ["a body file with / ..", `gh pr comment 5 ${R} --body-file ../n.md`],
+    ["a body file on a UNC path", `gh pr comment 5 ${R} --body-file \\\\host\\share\\n.md`],
+    ["a drive-relative body file", `gh pr comment 5 ${R} --body-file D:n.md`],
+    ["a single-quoted body", `gh pr comment 5 ${R} --body 'it is done'`],
+    ["a double-quoted body", `gh pr comment 5 ${R} --body "done"`],
+    ["a quoted word", `gh pr ready "12" ${R}`],
+    ["a POSIX remote name for push", "git push origin fix:fix"],
+  ])("refuses %s", async (_name, command) => {
+    expect(await windows(command)).toBeNull()
+  })
+
+  it("takes a push by URL like any other dialect", async () => {
+    expect(await windows("git push https://github.com/acme/app fix:fix")).toEqual({
+      scope: 0,
+      match: { kind: "preset", preset: "push" },
+    })
+  })
+
+  it("matches granted commands by their words", async () => {
+    const commands = [
+      { argv: ["ndmarker", "a.js"], rest: false },
+      { argv: ["lint", "run"], rest: true },
+    ]
+    const only = [scope({ presets: [], commands })]
+    expect(await windows("ndmarker a.js", only)).toEqual({
+      scope: 0,
+      match: { kind: "command", index: 0 },
+    })
+    expect(await windows("lint  run  src/a.ts --fix", only)).toEqual({
+      scope: 0,
+      match: { kind: "command", index: 1 },
+    })
+    expect(await windows("ndmarker 'a.js'", only)).toBeNull()
+    expect(await windows("lint run %TEMP%", only)).toBeNull()
   })
 })

@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest"
 
-import { lex } from "./lexer.js"
+import { lex, lexWindows } from "./lexer.js"
 
 const argv = (command: string): readonly string[] | undefined => {
   const lexed = lex(command)
@@ -103,5 +103,80 @@ describe("the lexer", () => {
 
   it("gives a reason", () => {
     expect(lex("a; b")).toMatchObject({ ok: false, reason: expect.stringContaining(";") })
+  })
+})
+
+const windows = (command: string): readonly string[] | undefined => {
+  const lexed = lexWindows(command)
+  return lexed.ok ? lexed.argv : undefined
+}
+
+describe("the Windows Codex lexer", () => {
+  it("splits quote-free words by spaces, as PowerShell and cmd both do", () => {
+    expect(windows("gh pr create --fill --head x -R o/n")).toEqual([
+      "gh",
+      "pr",
+      "create",
+      "--fill",
+      "--head",
+      "x",
+      "-R",
+      "o/n",
+    ])
+    expect(windows("  gh   pr  view  ")).toEqual(["gh", "pr", "view"])
+    expect(windows("git push https://github.com/o/n.git a:b")).toEqual([
+      "git",
+      "push",
+      "https://github.com/o/n.git",
+      "a:b",
+    ])
+  })
+
+  it("takes every character class of an argv both shells read alike", () => {
+    expect(windows("prog Az09._/:=@+-\\x --a=b -c a@b C:\\dir\\f.txt")).toEqual([
+      "prog",
+      "Az09._/:=@+-\\x",
+      "--a=b",
+      "-c",
+      "a@b",
+      "C:\\dir\\f.txt",
+    ])
+  })
+
+  it.each([
+    ["a percent sign, which cmd expands", "echo %PATH%"],
+    ["a dollar sign", "echo $env:X"],
+    ["a tilde", "cat ~/x"],
+    ["a comma, which makes arrays", "prog a,b"],
+    ["a backtick", "echo a`b"],
+    ["a single quote, which cmd does not take", "echo 'a b'"],
+    ["a double quote", 'echo "a b"'],
+    ["a hash", "echo a#b"],
+    ["a round bracket", "echo (a)"],
+    ["a square bracket", "echo a[0]"],
+    ["a brace", "echo {a}"],
+    ["a semicolon", "a; b"],
+    ["an ampersand", "a && b"],
+    ["a pipe", "a | b"],
+    ["an output redirect", "a > f"],
+    ["an input redirect", "a < f"],
+    ["the stop-parsing token", "prog --% x"],
+    ["a splat", "prog @args"],
+    ["a splat after a space only at a word start", "prog a @b"],
+    ["a newline", "a\nb"],
+    ["a carriage return", "a\r\nb"],
+    ["a tab", "a\tb"],
+    ["a caret", "a ^ b"],
+    ["an exclamation mark", "a !b"],
+    ["a star", "ls *.txt"],
+    ["a question mark", "ls a?"],
+    ["a non-ASCII letter", "echo é"],
+    ["an empty command", ""],
+    ["only spaces", "   "],
+    ["a variable assignment", "FOO=1 gh pr ready 1"],
+    ["a leading env", "env FOO=1 gh pr ready 1"],
+    ["a leading path of a wrapper", "C:\\tools\\sudo.exe gh"],
+  ])("refuses %s", (_name, command) => {
+    expect(windows(command)).toBeUndefined()
   })
 })

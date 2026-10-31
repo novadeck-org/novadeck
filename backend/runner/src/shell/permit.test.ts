@@ -79,8 +79,6 @@ const bash = (command: string) => ({
 const run = (command: string) => ({
   toolCall: { name: "run_command", args: { CommandLine: command } },
 })
-// Antigravity is never narrowed on Windows, nor is Codex asked for a decision there.
-const onWindows = process.platform === "win32"
 const closed = `${JSON.stringify({ decision: "force_ask" })}\n`
 
 describe("a permission hook at the report endpoint", () => {
@@ -128,69 +126,51 @@ describe("a permission hook at the report endpoint", () => {
       }),
     )
     resources.defer(() => reports.close())
-    // Claude Code's, as Codex's PermissionRequest is no permission hook on Windows.
+    // Claude Code's, whose call carries a folder.
     const line = hookLine("claude", "PreToolUse", bash("x"))
     expect((await answered(reports.endpoint, line))?.stdout).toBe("allowed\n")
     expect(reported).toEqual([])
   })
 
-  it.skipIf(onWindows)(
-    "answers a narrowed Antigravity force_ask where the decision fails or runs out of time",
-    async ({ resources }) => {
-      const reports = await listenForReports(
-        handlers({
-          permit: (_report, _permission, _deadline) => new Promise(() => {}),
-        }),
-        { answerMs: 8_000 },
-      )
-      resources.defer(() => reports.close())
-      const hanging = hookLine("agy", "PreToolUse", run("git status"), {
-        env: { NOVADECK_NARROW: "1" },
-        limitMs: 900,
-      })
-      const started = Date.now()
-      expect((await answered(reports.endpoint, hanging))?.stdout).toBe(closed)
-      expect(Date.now() - started).toBeLessThan(900)
-      // Not narrowed: today's answer, which is the harness's own.
-      const plain = hookLine("agy", "PreToolUse", run("git status"), { limitMs: 900 })
-      expect((await answered(reports.endpoint, plain))?.stdout).toBe(
-        `${JSON.stringify({ decision: "ask" })}\n`,
-      )
-      // Claude Code's silence is its own check.
-      const claude = hookLine("claude", "PreToolUse", bash("ls"), { limitMs: 900 })
-      expect((await answered(reports.endpoint, claude))?.stdout).toBeNull()
-    },
-  )
+  it("answers a narrowed Antigravity force_ask where the decision fails or runs out of time", async ({
+    resources,
+  }) => {
+    const reports = await listenForReports(
+      handlers({
+        permit: (_report, _permission, _deadline) => new Promise(() => {}),
+      }),
+      { answerMs: 8_000 },
+    )
+    resources.defer(() => reports.close())
+    const hanging = hookLine("agy", "PreToolUse", run("git status"), {
+      env: { NOVADECK_NARROW: "1" },
+      limitMs: 900,
+    })
+    const started = Date.now()
+    expect((await answered(reports.endpoint, hanging))?.stdout).toBe(closed)
+    expect(Date.now() - started).toBeLessThan(900)
+    // Not narrowed: today's answer, which is the harness's own.
+    const plain = hookLine("agy", "PreToolUse", run("git status"), { limitMs: 900 })
+    expect((await answered(reports.endpoint, plain))?.stdout).toBe(
+      `${JSON.stringify({ decision: "ask" })}\n`,
+    )
+    // Claude Code's silence is its own check.
+    const claude = hookLine("claude", "PreToolUse", bash("ls"), { limitMs: 900 })
+    expect((await answered(reports.endpoint, claude))?.stdout).toBeNull()
+  })
 
-  it.runIf(onWindows)(
-    "leaves Antigravity's own ask where the decision throws on Windows",
-    async ({ resources }) => {
-      const reports = await listenForReports(
-        handlers({ permit: () => Promise.reject(new Error("boom")) }),
-      )
-      resources.defer(() => reports.close())
-      const line = hookLine("agy", "PreToolUse", run("git status"), {
-        env: { NOVADECK_NARROW: "1" },
-      })
-      expect((await answered(reports.endpoint, line))?.stdout).toBe(
-        `${JSON.stringify({ decision: "ask" })}\n`,
-      )
-    },
-  )
-
-  it.skipIf(onWindows)(
-    "answers a narrowed Antigravity force_ask where the decision throws",
-    async ({ resources }) => {
-      const reports = await listenForReports(
-        handlers({ permit: () => Promise.reject(new Error("boom")) }),
-      )
-      resources.defer(() => reports.close())
-      const line = hookLine("agy", "PreToolUse", run("git status"), {
-        env: { NOVADECK_NARROW: "1" },
-      })
-      expect((await answered(reports.endpoint, line))?.stdout).toBe(closed)
-    },
-  )
+  it("answers a narrowed Antigravity force_ask where the decision throws", async ({
+    resources,
+  }) => {
+    const reports = await listenForReports(
+      handlers({ permit: () => Promise.reject(new Error("boom")) }),
+    )
+    resources.defer(() => reports.close())
+    const line = hookLine("agy", "PreToolUse", run("git status"), {
+      env: { NOVADECK_NARROW: "1" },
+    })
+    expect((await answered(reports.endpoint, line))?.stdout).toBe(closed)
+  })
 
   it("decides nothing for a hook whose sender or payload isn't a hook's", async ({ resources }) => {
     const permitted: unknown[] = []

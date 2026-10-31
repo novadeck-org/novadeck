@@ -682,15 +682,44 @@ describe("reading a relay's hook", () => {
     ...given,
   })
 
-  it("gives no permission decision for Codex on Windows, where PowerShell splits a,b", async () => {
+  it("reads a Codex permission request on Windows in the Windows dialect, and on Linux in POSIX's", async () => {
     const payload = JSON.stringify({
       hook_event_name: "PermissionRequest",
       tool_name: "Bash",
       tool_input: { command: "git status" },
     })
     const ask = hook({ event: "PermissionRequest", payload })
-    expect(relayHook(ask, "linux")?.permission).toBeDefined()
-    expect(relayHook(ask, "win32")?.permission).toBeUndefined()
+    expect(relayHook(ask, "linux")?.permission?.call).toEqual({ command: "git status", cwd: null })
+    expect(relayHook(ask, "win32")?.permission?.call).toEqual({
+      command: "git status",
+      cwd: null,
+      dialect: "windows-codex",
+    })
+  })
+
+  it("reads a narrowed terminal's mark on Windows too, and leaves Claude Code's call unmarked", () => {
+    const payload = JSON.stringify({
+      toolCall: { name: "run_command", args: { CommandLine: "ndmarker.exe a" } },
+    })
+    const narrowed = hook({
+      agent: "agy",
+      event: "PreToolUse",
+      payload,
+      env: { NOVADECK_NARROW: "1" },
+    })
+    expect(relayHook(narrowed, "win32")?.permission?.narrow).toBe(true)
+    expect(relayHook(narrowed, "win32")?.report.env).toMatchObject({ narrow: true })
+    expect(relayHook({ ...narrowed, env: {} }, "win32")?.permission?.narrow).toBe(false)
+    const claude = hook({
+      agent: "claude",
+      event: "PreToolUse",
+      payload: JSON.stringify({
+        cwd: "C:\\p",
+        tool_name: "Bash",
+        tool_input: { command: "ls" },
+      }),
+    })
+    expect(relayHook(claude, "win32")?.permission?.call).toEqual({ command: "ls", cwd: "C:\\p" })
   })
 
   it("names the nearest ancestor with its agent's name, and Claude Code by its own pid", async () => {

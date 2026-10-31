@@ -21,11 +21,15 @@ const fields: Record<Harness, Record<string, "string" | "number">> = {
   agy: { CommandLine: "string", WaitMsBeforeAsync: "number", toolSummary: "string" },
 }
 
-/** The `run_command` and `Bash` calls' shell command, from the harness's raw payload. */
+/**
+ * The `run_command` and `Bash` calls' shell command, from the harness's raw payload, on
+ * `platform` (the machine the harness runs on): Codex's there is marked as Windows'.
+ */
 export const callFromPayload = (
   harness: Harness,
   event: string,
   payload: unknown,
+  platform: NodeJS.Platform = process.platform,
 ): ShellCall | NotACall => {
   if (event !== events[harness]) return "unreadable"
   const body = record(payload)
@@ -52,6 +56,9 @@ export const callFromPayload = (
   if (typeof command !== "string" || command === "") return "unreadable"
   if (command.length > maxCommand) return "too-long"
 
+  // Codex on Windows runs the command in PowerShell or cmd, which its payload never names.
+  if (harness === "codex" && platform === "win32")
+    return { command, cwd: null, dialect: "windows-codex" }
   if (harness !== "claude") return { command, cwd: null }
   return typeof body["cwd"] === "string" ? { command, cwd: body["cwd"] } : "unreadable"
 }

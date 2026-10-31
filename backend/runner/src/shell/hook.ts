@@ -50,7 +50,7 @@ export type Permission = {
   readonly command: string | null
   /** Claude Code's permission mode (`plan`, `auto`…), where the payload names one. */
   readonly mode: string | null
-  /** Whether the terminal was started narrowed (NOVADECK_NARROW), never on Windows. */
+  /** Whether the terminal was started narrowed (NOVADECK_NARROW). */
   readonly narrow: boolean
 }
 
@@ -66,8 +66,9 @@ const readPermission = (
   event: string,
   payload: Fields,
   narrow: boolean,
+  platform: NodeJS.Platform,
 ): Permission => {
-  const call = callFromPayload(agent, event, payload)
+  const call = callFromPayload(agent, event, payload, platform)
   return {
     call,
     tool:
@@ -244,13 +245,13 @@ export const relayHook = (
   const named = instanceOf(agent.data, env, ancestors)
   const instance = named !== null && /^\d{1,10}$/.test(named) ? named : null
   const codexThread = text(env.CODEX_THREAD_ID, 128)
-  const narrow = platform !== "win32" && text(env.NOVADECK_NARROW, 8) === "1"
+  const narrow = text(env.NOVADECK_NARROW, 8) === "1"
   const { messaging } = harnesses[agent.data]
   // Read from the genuine payload, before `prune` cuts it.
-  // PowerShell splits a Codex call's `a,b` into arguments, so no grant is read there.
+  // A Codex call on Windows is marked as such, and read in the dialect both its shells agree on.
   const permission =
-    event === messaging.permission.event && !(agent.data === "codex" && platform === "win32")
-      ? readPermission(agent.data, event, payload, narrow)
+    event === messaging.permission.event
+      ? readPermission(agent.data, event, payload, narrow, platform)
       : undefined
   const denied = event === messaging.denied ? readDenied(payload) : undefined
   const shells = dialectPrograms[harnesses[agent.data].hookDialect(platform, event)]

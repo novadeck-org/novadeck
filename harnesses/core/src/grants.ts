@@ -27,6 +27,11 @@ export type ShellCall = {
   readonly command: string
   /** The call's own folder: Claude Code's `cwd`; null for Codex and Antigravity (unknown). */
   readonly cwd: string | null
+  /**
+   * The shell dialect the command is read in: POSIX unless it is Codex's on Windows, whose
+   * shell (PowerShell or cmd) the payload does not name (Appendix A1).
+   */
+  readonly dialect?: "windows-codex"
 }
 
 /** Why a payload is no shell call the matcher can judge. */
@@ -56,6 +61,7 @@ export {
   callFromPayload,
   isAgyNonCommandTool,
   lex,
+  lexWindows,
   matchCall,
   normalizeRepoUrl,
   refusesCommand,

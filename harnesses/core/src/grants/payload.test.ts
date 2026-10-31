@@ -89,6 +89,29 @@ describe("a Codex PermissionRequest payload", () => {
     })
   })
 
+  it("marks the call as Windows' on win32, and no other harness's", () => {
+    const input = { command: "gh pr ready 1 -R o/n" }
+    expect(callFromPayload("codex", "PermissionRequest", codex(input), "win32")).toEqual({
+      command: "gh pr ready 1 -R o/n",
+      cwd: null,
+      dialect: "windows-codex",
+    })
+    for (const platform of ["linux", "darwin"] as const)
+      expect(callFromPayload("codex", "PermissionRequest", codex(input), platform)).toEqual({
+        command: "gh pr ready 1 -R o/n",
+        cwd: null,
+      })
+    expect(callFromPayload("claude", "PreToolUse", claude(input), "win32")).toMatchObject({
+      cwd: "/tmp/novadeck-e2e-sTGnsC/project",
+    })
+    expect(callFromPayload("claude", "PreToolUse", claude(input), "win32")).not.toHaveProperty(
+      "dialect",
+    )
+    expect(
+      callFromPayload("agy", "PreToolUse", agy("run_command", { CommandLine: "ls" }), "win32"),
+    ).toEqual({ command: "ls", cwd: null })
+  })
+
   it("refuses an array command, extra fields, other tools and other events", () => {
     expect(callFromPayload("codex", "PermissionRequest", codex({ command: ["ls", "-l"] }))).toBe(
       "unreadable",

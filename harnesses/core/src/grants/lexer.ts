@@ -86,3 +86,31 @@ export const lex = (command: string): Lexed => {
   }
   return { ok: true, argv: words }
 }
+
+// A Windows Codex word (Appendix A1, "Windows Codex"): its characters give the same argv in
+// PowerShell 7, Windows PowerShell 5.1 and cmd, which Codex's hook payload never says apart.
+const windowsChar = /^[A-Za-z0-9._/:=@+\\-]+$/
+
+/**
+ * Reads a Codex command on Windows as one simple command's words, or says why it is not one.
+ * Only quote-free words of `[A-Za-z0-9._/:=@+\\-]` split by spaces are taken: cmd expands
+ * `%VAR%` and has no single quotes, PowerShell expands `$`, `~` and `"…$x"`, makes arrays of
+ * `,` and splats a word starting with `@`, so each of those, and every operator, bracket,
+ * quote, newline and tab, refuses the whole command.
+ */
+export const lexWindows = (command: string): Lexed => {
+  const words = command.split(" ").filter((word) => word !== "")
+  const first = words[0]
+  if (first === undefined) return refuse("empty command")
+  for (const word of words) {
+    if (!windowsChar.test(word)) {
+      const bad = [...word].find((ch) => !windowsChar.test(ch)) ?? ""
+      return refuse(`${JSON.stringify(bad)} in a Windows word`)
+    }
+    if (word.startsWith("@")) return refuse("a word starting with @")
+  }
+  if (assignment.test(first)) return refuse("a variable assignment before the command")
+  const program = programName(first.slice(first.lastIndexOf("\\") + 1))
+  if (wrappers.has(program)) return refuse(`a leading ${program}`)
+  return { ok: true, argv: words }
+}

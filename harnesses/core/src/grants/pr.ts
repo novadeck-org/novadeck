@@ -1,5 +1,7 @@
-// The `pr` preset (Appendix A2): gh pr create --head <b> | edit | ready | comment <n>, with -R.
 import type { GrantRepo } from "../grants.js"
+// The `pr` preset (Appendix A2): gh pr create --head <b> | edit | ready | comment <n>, with -R.
+import { flavourOf } from "../paths.js"
+import { inside } from "./inside.js"
 import { isBranchName } from "./refname.js"
 import { ghRepoKey, repoKey } from "./repo.js"
 
@@ -17,11 +19,34 @@ for (const [names, value, many] of [
   [["--assignee", "-a"], true, true],
   [["--draft", "-d"], false, false],
   [["--fill"], false, false],
+  [["--body-file"], true, false],
 ] as const)
   for (const alias of names) options.set(alias, { name: names[0], value, many })
 
-/** Whether `argv` is a pull request command the preset allows in the granted `repos`. */
-export const matchesPr = (argv: readonly string[], repos: readonly GrantRepo[]): boolean => {
+/** Where a call runs and the project it must stay in, for a body file's path. */
+export type BodyFiles = { readonly cwd: string | null; readonly root: string }
+
+/**
+ * Whether `path`, a `--body-file` value, names a file inside the project: no `..` in it, and
+ * resolved against the call's folder, else the project root, lexically inside the root. Never
+ * `-`, which reads the agent's stdin.
+ */
+const bodyFileInside = (path: string, { cwd, root }: BodyFiles): boolean => {
+  if (path === "" || path === "-" || path.split(/[\\/]+/).includes("..")) return false
+  const rules = flavourOf(path, root, cwd ?? undefined)
+  return inside(rules.resolve(cwd ?? root, path), root)
+}
+
+/**
+ * Whether `argv` is a pull request command the preset allows in the granted `repos`.
+ * `--body-file` takes a file inside the project (`files`), for create, edit and comment: a
+ * `--body` already lets any text through, so a file the agent could read adds no way out.
+ */
+export const matchesPr = (
+  argv: readonly string[],
+  repos: readonly GrantRepo[],
+  files: BodyFiles,
+): boolean => {
   const sub = argv[2]
   if (argv[0] !== "gh" || argv[1] !== "pr") return false
   if (sub !== "create" && sub !== "edit" && sub !== "ready" && sub !== "comment") return false
@@ -47,6 +72,8 @@ export const matchesPr = (argv: readonly string[], repos: readonly GrantRepo[]):
     given.set(option.name, option.many ? `${given.get(option.name) ?? ""}${value}\n` : value)
   }
 
+  const bodyFile = given.get("--body-file")
+  if (bodyFile !== undefined && (sub === "ready" || !bodyFileInside(bodyFile, files))) return false
   const repo = given.get("--repo")
   const key = repo === undefined ? undefined : ghRepoKey(repo)
   if (key === undefined || !repos.some((granted) => repoKey(granted.url) === key)) return false

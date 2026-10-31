@@ -1,5 +1,5 @@
 /* eslint-disable no-await-in-loop -- Each case is decided in turn. */
-import { mkdirSync, mkdtempSync, readFileSync, rmSync, existsSync } from "node:fs"
+import { mkdtempSync, readFileSync, rmSync, existsSync } from "node:fs"
 import { tmpdir } from "node:os"
 import { join } from "node:path"
 
@@ -82,7 +82,6 @@ const fixture = (
   const clock = { now: 10_000 }
   let launchPrograms: readonly string[] = []
   const narrowing = new Narrowing({
-    platform: "linux",
     grants: { launchPrograms: () => launchPrograms },
     verified: () => Promise.resolve(true),
   })
@@ -214,12 +213,12 @@ describe("a permission hook, read from the genuine payload", () => {
     expect(relayHook(hello("codex", "PermissionDenied", bash("ls")))?.denied).toBeUndefined()
   })
 
-  it("marks a terminal narrowed from NOVADECK_NARROW, never on Windows", () => {
+  it("marks a terminal narrowed from NOVADECK_NARROW, on Windows too", () => {
     const given = hello("agy", "PreToolUse", run("git status"), { NOVADECK_NARROW: "1" })
     expect(relayHook(given, "linux")?.permission?.narrow).toBe(true)
     expect(relayHook(given, "linux")?.report.env.narrow).toBe(true)
-    expect(relayHook(given, "win32")?.permission?.narrow).toBe(false)
-    expect(relayHook(given, "win32")?.report.env.narrow).toBeUndefined()
+    expect(relayHook(given, "win32")?.permission?.narrow).toBe(true)
+    expect(relayHook(given, "win32")?.report.env.narrow).toBe(true)
     // Any other value, and nothing, is not narrowed.
     const other = hello("agy", "PreToolUse", run("git status"), { NOVADECK_NARROW: "yes" })
     expect(relayHook(other, "linux")?.permission?.narrow).toBe(false)
@@ -570,7 +569,6 @@ describe("launch grants", () => {
     expect(tried.narrowing.launchSet("t")).toBeUndefined()
     // The plugin isn't verified.
     const unverified = new Narrowing({
-      platform: "linux",
       grants: { launchPrograms: () => ["git"] },
       verified: () => Promise.resolve(false),
     })
@@ -595,21 +593,6 @@ describe("launch grants", () => {
     await tried.launch(["git"])
     await tried.launch([])
     expect(existsSync(file)).toBe(false)
-  })
-
-  it("write nothing on Windows, whatever the grants and the plugin", async ({ resources }) => {
-    const tried = fixture(resources)
-    const windows = new Narrowing({
-      platform: "win32",
-      grants: { launchPrograms: () => ["git"] },
-      verified: () => Promise.resolve(true),
-    })
-    mkdirSync(join(tried.directory, "narrow"), { recursive: true })
-    const verified = await windows.verify(join(tried.directory, "narrow"))
-    expect(verified).toBe(false)
-    windows.launch("t", true, true)
-    expect(existsSync(join(tried.directory, "narrow", "t.json"))).toBe(false)
-    expect(windows.launchSet("t")).toBeUndefined()
   })
 
   it("write no file for an id that could leave the folder", async ({ resources }) => {
