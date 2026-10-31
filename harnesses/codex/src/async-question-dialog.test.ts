@@ -120,11 +120,29 @@ describe("Codex's async question", () => {
       "• Finished the request.",
     )
     const ended = { ...one, turnEnded: true as const }
-    // Only the hooks tell: the screen reads as the panel either way.
+    // Without the hooks' word the screen reads as the panel.
     expect(read(left, one)).toBeDefined()
     expect(read(left, ended)).toBeUndefined()
-    expect(read(panel("rui-async-panel-digit-2"), ended)).toBeUndefined()
-    expect(read(step("rui-async-panel-digit-2", "shift+left"), ended)).toBeUndefined()
+    expect(
+      read(
+        replaced(
+          step("rui-async-panel-digit-2", "shift+left"),
+          /^• Working \(\d+s • esc to interrupt\)/,
+          "• Finished the request.",
+        ),
+        ended,
+      ),
+    ).toBeUndefined()
+    // Its status row still drawn, as after an Escape that only closed the picker, which
+    // reads to Novadeck as the turn's end, the turn runs on and its panel answers: also
+    // while a hook runs.
+    expect(read(panel("rui-async-panel-digit-2"), ended)).toBeDefined()
+    expect(
+      read(
+        replaced(panel("rui-async-panel-digit-2"), /interrupt\)/, "interrupt) · Running hooks"),
+        ended,
+      ),
+    ).toBeDefined()
     // Once they have gone, the answer is the next prompt.
     expect(read(screen("rui-async-offered", "wide", newest), ended)?.prompt).toBeDefined()
   })

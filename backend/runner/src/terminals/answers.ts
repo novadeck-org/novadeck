@@ -297,7 +297,6 @@ export class Answers {
         if (refusal) throw new DomainError("PROMPT_REFUSED", refusal)
         const pressedAt = await this.run(terminalId, ref, steps, {
           adapter,
-          facts,
           id: answer.dialog,
         })
         const taken = await this.confirmed(
@@ -481,12 +480,16 @@ export class Answers {
       const settled = await this.still(terminalId)
       if (settled) {
         rows = settled
-        const read = adapter.read(rows, self.facts)
+        // The requests' facts as they are now: a turn may end while the screen settles.
+        const current = this.host.request(terminalId, ref)
+        const facts = current?.facts ?? self.facts
+        const peers = current?.others ?? others
+        const read = adapter.read(rows, facts)
         if (read && identified(read.dialog)) {
           // Twins, asking the very same of the agent and reading the same dialog, make
           // the dialog the same to answer whichever request it is.
           const id = identified(read.dialog)?.id
-          const shared = others.some((other) => {
+          const shared = peers.some((other) => {
             // An answered one is gone from the screen; one raw for good may not be.
             if (this.host.answered(terminalId, other.ref)) return false
             const theirs = adapter.read(rows, other.facts)
@@ -494,7 +497,7 @@ export class Answers {
               theirs !== undefined &&
               // Dialogs answered as prompts never clash: each prompt names its own.
               !(read.prompt && theirs.prompt) &&
-              !(twin(self, other) && identified(theirs.dialog)?.id === id)
+              !(twin({ ...self, facts }, other) && identified(theirs.dialog)?.id === id)
             )
           })
           if (shared)
@@ -525,7 +528,7 @@ export class Answers {
     terminalId: string,
     ref: string,
     steps: readonly KeyStep[],
-    check: { readonly adapter: DialogAdapter; readonly facts: RequestFacts; readonly id: string },
+    check: { readonly adapter: DialogAdapter; readonly id: string },
   ): Promise<number> {
     // Words typed into a field are checked by the adapter's own `until` right after, which
     // knows where its field shows them; an answer that would type unchecked presses nothing.
@@ -542,11 +545,12 @@ export class Answers {
       }
       // eslint-disable-next-line no-await-in-loop -- As above.
       const screen = await this.screen(terminalId, pressed)
-      if (!this.host.request(terminalId, ref))
-        throw new Failed("The request no longer waits on the person.", pressed)
-      // The screen right before the first key reads as the dialog the answer names.
+      const current = this.host.request(terminalId, ref)
+      if (!current) throw new Failed("The request no longer waits on the person.", pressed)
+      // The screen right before the first key reads as the dialog the answer names, by the
+      // request's facts as they are now: its turn may have ended since the dialog was read.
       if (!pressed) {
-        const now = check.adapter.read(screen.rows, check.facts)
+        const now = check.adapter.read(screen.rows, current.facts)
         if ((now && identified(now.dialog)?.id) !== check.id)
           throw new DomainError(
             "DIALOG_CHANGED",
