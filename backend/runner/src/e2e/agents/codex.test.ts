@@ -53,7 +53,8 @@ describe("Codex's fixture app-server", () => {
   it("retains stderr, mismatched ids and partial stdout at the original deadline", async () => {
     const process = child()
     spawn.mockReturnValue(process)
-    const server = appServer({ HOME: "/sandbox" }, 20)
+    // Without reading the machine, which can take longer than the test on Windows.
+    const server = appServer({ HOME: "/sandbox" }, 20, async () => "")
     const starting = server.start()
     process.emit("spawn")
     process.stderr.write("startup failure")

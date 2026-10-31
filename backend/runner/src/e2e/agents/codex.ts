@@ -436,9 +436,14 @@ const scene = async (
 /**
  * A session with Codex's app-server over stdio, as its TUI and Novadeck talk to it: each
  * request resolves to its result, or fails with its error, after `timeoutMs`, or as soon
- * as the app-server can't answer, as it failed to start or exited.
+ * as the app-server can't answer, as it failed to start or exited. A request that times out
+ * is told with what `look` reads of the machine then (`scene`).
  */
-export const appServer = (env: Readonly<Record<string, string>>, timeoutMs = 20_000) => {
+export const appServer = (
+  env: Readonly<Record<string, string>>,
+  timeoutMs = 20_000,
+  look: typeof scene = scene,
+) => {
   const began = Date.now()
   const events: string[] = []
   const record = (text: string) => {
@@ -514,7 +519,7 @@ export const appServer = (env: Readonly<Record<string, string>>, timeoutMs = 20_
       const timer = setTimeout(() => {
         pending.delete(id)
         const message = `Codex's app-server didn't answer ${method} in ${timeoutMs} ms`
-        void scene(env, child.pid, began).then(
+        void look(env, child.pid, began).then(
           (seen) => reject(diagnostic(message, seen)),
           () => reject(diagnostic(message)),
         )
