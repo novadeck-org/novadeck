@@ -204,6 +204,11 @@ export const asyncQuestions = (
   const [first] = questions
   const picker = pickerOf(lines)
   const panel = panelOf(lines)
+  // Codex draws its panel and picker only while the turn runs, under its status row. One
+  // without that row is a turn just ended, which drops it a moment later (0.166.0 a few
+  // hundred ms after its Stop hook, seen in CI 2026-10-31): keys pressed into it go
+  // nowhere, so nothing reads until it has gone and the answer can go as the next prompt.
+  if ((picker || panel !== undefined) && !working(lines)) return undefined
   // Where the answer goes: the panel's or picker's keys while the turn runs, a prompt after.
   let opening: readonly KeyStep[] | undefined
   if (picker) {

@@ -111,6 +111,24 @@ describe("Codex's async question", () => {
     expect(read(step("rui-async-panel-digit-2", "shift+left"), two)).toBeUndefined()
   })
 
+  it("reads no panel or picker left on screen once the turn has ended, as it is about to go", () => {
+    // Codex 0.166.0 drops them a moment after its Stop hook: until then the screen shows
+    // the turn finished with them still drawn, and keys pressed there open nothing.
+    const ended = (rows: readonly string[]): string[] =>
+      rows.flatMap((row) =>
+        /esc to interrupt/.test(row)
+          ? ["• Finished the request.", "  Worked for 1s • 9:45 AM"]
+          : [row],
+      )
+    for (const rows of [
+      panel("rui-async-panel-digit-2"),
+      step("rui-async-panel-digit-2", "shift+left"),
+    ]) {
+      expect(read(rows, one)).toBeDefined()
+      expect(read(ended(rows), one)).toBeUndefined()
+    }
+  })
+
   it("reads no picker on another question, or with another request's options", () => {
     const rows = step("rui-async-panel-digit-2", "shift+left")
     expect(read(rows, free("Which color should the button be?"))).toBeUndefined()
