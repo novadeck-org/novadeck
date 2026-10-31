@@ -64,28 +64,33 @@ describe("Codex's fixture app-server", () => {
     server.close()
   })
 
-  it("tells the machine's processes and Codex's files and logs at the deadline", async () => {
-    const home = await mkdtemp(join(tmpdir(), "novadeck-codex-scene-"))
-    try {
-      await mkdir(join(home, "log"))
-      await writeFile(join(home, "log", "codex-tui.log"), `${"x".repeat(3000)}last words\n`)
-      await writeFile(join(home, "state.sqlite"), "")
-      const process = child()
-      spawn.mockReturnValue(process)
-      const server = appServer({ HOME: home, CODEX_HOME: home }, 20)
-      const failed = server.start().catch((error: unknown) => String(error))
-      const told = await failed
-      expect(told).toMatch(/didn't answer initialize in 20 ms/)
-      expect(told).toMatch(/processes:\n/)
-      expect(told).toMatch(/CODEX_HOME:\n2 files/)
-      expect(told).toMatch(/state\.sqlite 0 B, changed [+-]?\d+ ms/)
-      expect(told).toMatch(/tail of log[\\/]codex-tui\.log:\nx*last words/)
-      expect(told).not.toContain("x".repeat(1600))
-      server.close()
-    } finally {
-      await rm(home, { recursive: true, force: true })
-    }
-  })
+  // Windows lists its processes through PowerShell, which may take seconds to start.
+  it(
+    "tells the machine's processes and Codex's files and logs at the deadline",
+    { timeout: 90_000 },
+    async () => {
+      const home = await mkdtemp(join(tmpdir(), "novadeck-codex-scene-"))
+      try {
+        await mkdir(join(home, "log"))
+        await writeFile(join(home, "log", "codex-tui.log"), `${"x".repeat(3000)}last words\n`)
+        await writeFile(join(home, "state.sqlite"), "")
+        const process = child()
+        spawn.mockReturnValue(process)
+        const server = appServer({ HOME: home, CODEX_HOME: home }, 20)
+        const failed = server.start().catch((error: unknown) => String(error))
+        const told = await failed
+        expect(told).toMatch(/didn't answer initialize in 20 ms/)
+        expect(told).toMatch(/processes:\n/)
+        expect(told).toMatch(/CODEX_HOME:\n2 files/)
+        expect(told).toMatch(/state\.sqlite 0 B, changed [+-]?\d+ ms/)
+        expect(told).toMatch(/tail of log[\\/]codex-tui\.log:\nx*last words/)
+        expect(told).not.toContain("x".repeat(1600))
+        server.close()
+      } finally {
+        await rm(home, { recursive: true, force: true })
+      }
+    },
+  )
 
   it("keeps a complete answer sent just before process close", async () => {
     const process = child()

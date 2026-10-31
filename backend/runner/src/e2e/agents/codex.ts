@@ -301,12 +301,27 @@ const tail = async (path: string, bytes: number): Promise<string> => {
 const program = (command: string): string =>
   (/^"([^"]*)"/.exec(command)?.[1] ?? command.split(" ")[0] ?? "").split(/[\\/]/).at(-1)!
 
+// Why a part of a scene couldn't be read: the error, and for a command, whether it was
+// ended (as by its timeout) and what it printed to stderr.
+const why = (error: unknown): string => {
+  if (!(error instanceof Error)) return String(error)
+  const { killed, signal, stderr } = error as Error & {
+    killed?: boolean
+    signal?: string | null
+    stderr?: string
+  }
+  return [
+    error.message.split("\n")[0]!.slice(0, 200),
+    ...(killed ? [`ended${signal ? ` by ${signal}` : ""}`] : []),
+    ...(stderr?.trim() ? [`stderr: ${stderr.trim().slice(-1000)}`] : []),
+  ].join("; ")
+}
+
 // A part of a scene, named, or why it couldn't be read.
 const part = (name: string, lines: Promise<string[]>): Promise<string> =>
   lines.then(
     (found) => `${name}:\n${found.join("\n")}`,
-    (error: unknown) =>
-      `${name}: couldn't read (${error instanceof Error ? error.message : String(error)})`,
+    (error: unknown) => `${name}: couldn't read (${why(error)})`,
   )
 
 /**
@@ -335,9 +350,10 @@ const scene = async (
                     "-NoProfile",
                     "-NonInteractive",
                     "-Command",
-                    "Get-CimInstance Win32_Process | ForEach-Object { [pscustomobject]@{ pid = $_.ProcessId; parent = $_.ParentProcessId; command = if ($_.CommandLine) { $_.CommandLine } else { $_.Name } } } | ConvertTo-Json -Compress",
+                    "Get-CimInstance Win32_Process -Property ProcessId,ParentProcessId,CommandLine,Name | ForEach-Object { [pscustomobject]@{ pid = $_.ProcessId; parent = $_.ParentProcessId; command = $(if ($_.CommandLine) { $_.CommandLine } else { $_.Name }) } } | ConvertTo-Json -Compress",
                   ],
-                  { windowsHide: true, timeout: 10_000, maxBuffer: 16 * 1024 * 1024 },
+                  // As long as the sandbox's own lister gets: CIM is slow to start on a busy runner.
+                  { windowsHide: true, timeout: 60_000, maxBuffer: 16 * 1024 * 1024 },
                 )
               ).stdout,
             ) as { pid: number; parent: number; command: string }[],
