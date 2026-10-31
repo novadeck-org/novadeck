@@ -35,11 +35,19 @@ const counted = (agents: number, tasks: number) => [{ background: { agents, task
 
 describe("each harness's hook answers", () => {
   it("continue a Claude Code or Codex Stop, and add prompt-time context", () => {
-    // Claude Code reads a Stop's context once, as a system reminder; a block's reason it
-    // reads twice, once as an error (#589). Codex reads a block's reason once.
-    expect(line(harnesses.claude.messaging.stop(delivery))).toEqual({
+    // Claude Code reads a Stop's context once, as a system reminder, where its Stop says
+    // `prompt_id` (2.1.233 on); a block's reason it reads twice by 2.1.287, once as an error
+    // (#589), but once in a version too old for the context to continue the turn.
+    const claude = harnesses.claude.messaging
+    expect(line(claude.stop(delivery, { prompt_id: "p-1", stop_hook_active: false }))).toEqual({
       hookSpecificOutput: { hookEventName: "Stop", additionalContext: delivery },
     })
+    expect(line(claude.stop(delivery, { stop_hook_active: false }))).toEqual({
+      decision: "block",
+      reason: delivery,
+    })
+    expect(line(claude.stop(delivery))).toEqual({ decision: "block", reason: delivery })
+    // Codex reads a block's reason once.
     expect(line(harnesses.codex.messaging.stop(delivery))).toEqual({
       decision: "block",
       reason: delivery,

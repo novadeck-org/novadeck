@@ -246,8 +246,11 @@ export type MessagingProfile = {
    * for any other (`*`). The relay prints the same when Novadeck can't answer.
    */
   readonly silent: { readonly "*": string; readonly [event: string]: string }
-  /** A Stop's answer that continues the turn with a delivery. */
-  readonly stop: (delivery: string) => string
+  /**
+   * A Stop's answer that continues the turn with a delivery, given what the Stop hook
+   * reported (its `payload`), where the harness reads one shape or another by its version.
+   */
+  readonly stop: (delivery: string, payload?: Report["payload"]) => string
   /** A prompt's answer that adds a delivery to what the model sees, apart from the prompt. */
   readonly prompt: (delivery: string) => string
   /**

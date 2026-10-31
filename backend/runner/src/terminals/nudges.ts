@@ -120,7 +120,8 @@ export const differs = (a: Facts, b: Facts): boolean =>
 /**
  * The facts as they stand: drift fires once they differ from those at the last
  * `summarize` and from those it last fired for, so work going back and forth between two
- * folders fires once, not at each turn. Nothing drifts before a `summarize`.
+ * folders fires once, not at each turn. Nothing drifts before a `summarize`, or before a
+ * session resumed after a restart takes the facts it is first read at (`reseed`).
  */
 export const drifted = (nudges: Nudges, facts: Facts): Nudges => {
   const { baseline, driftedTo } = nudges

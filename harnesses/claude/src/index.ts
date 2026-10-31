@@ -1,6 +1,7 @@
 import { join } from "node:path"
 
 import type { Harness, LaunchProfile, MessagingProfile } from "@novadeck/harness-core/harness"
+import type { Report } from "@novadeck/harness-core/report"
 
 import { box } from "./box.js"
 import { decode } from "./decode.js"
@@ -16,12 +17,21 @@ import { transcripts } from "./transcripts.js"
 const context = (event: string, delivery: string): string =>
   `${JSON.stringify({ hookSpecificOutput: { hookEventName: event, additionalContext: delivery } })}\n`
 
-// A Stop's context continues the turn, and reaches the model once, as a system reminder
-// ("Stop hook additional context: …"). A `decision: "block"` reason would reach it twice,
-// as "Stop hook feedback" and again as a "Stop hook blocking error" (2.1.304 and 2.1.316,
-// probed 2026-10-31, #589). A prompt's context is an attachment beside the prompt, never
-// the prompt itself; a tool call's context (PostToolUse, or PostToolUseFailure) is a
-// system reminder next to the tool's result, which the model reads on its next request.
+// What continues a Stop's turn with a delivery the model reads once, by version (probed
+// with a fake model, 2026-10-31, #589): a `decision: "block"` reason reaches it once up to
+// at least 2.1.233, but twice by 2.1.287, as "Stop hook feedback" and again as a "Stop hook
+// blocking error"; a Stop's context continues the turn, read once as a system reminder
+// ("Stop hook additional context: …"), only from 2.1.163. Its Stop reports `prompt_id`
+// from a version between 2.1.177 and 2.1.233 on, so that says the context works, and
+// without it a block reads once.
+const stop = (delivery: string, payload?: Report["payload"]): string =>
+  payload?.prompt_id !== undefined
+    ? context("Stop", delivery)
+    : `${JSON.stringify({ decision: "block", reason: delivery })}\n`
+
+// A prompt's context is an attachment beside the prompt, never the prompt itself; a tool
+// call's context (PostToolUse, or PostToolUseFailure) is a system reminder next to the
+// tool's result, which the model reads on its next request.
 const messaging: MessagingProfile = {
   asks: {
     Stop: "stop",
@@ -30,11 +40,11 @@ const messaging: MessagingProfile = {
     PostToolUseFailure: "tool",
   },
   silent: { "*": "" },
-  stop: (delivery) => context("Stop", delivery),
+  stop,
   prompt: (delivery) => context("UserPromptSubmit", delivery),
   call: (delivery, event) => context(event, delivery),
   reinjectPerCall: false,
-  // A Stop's reason, a prompt's context and a tool call's are all kept in its transcript,
+  // What a Stop, a prompt and a tool call print is all kept in its transcript,
   // which it sends again on every later call, and a resumed session's too; its
   // `SessionStart` says `compact` once it compacted them away.
   lasting: ["stop", "prompt", "tool"],

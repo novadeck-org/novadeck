@@ -315,6 +315,7 @@ export class Reports {
       events: told,
       deadline,
       person,
+      payload: report.payload,
     })
     if (stopAsk) {
       this.continued(record, told, answer)

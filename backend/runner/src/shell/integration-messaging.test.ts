@@ -91,8 +91,12 @@ describe.skipIf(process.platform === "win32" || !existsSync(bash))(
         ok: true,
         text: reaches("when its current turn ends"),
       })
-      // Its Stop goes on with the reply as context, which Claude Code reads once.
-      const stopped = context(await step(claude.id, { hook: "Stop", payload: {} }))
+      // Its Stop goes on with the reply, as context where the Stop says `prompt_id`, which
+      // Claude Code reads once, and as a block's reason where it doesn't, as in versions
+      // whose Stop takes no context.
+      const stopped = context(
+        await step(claude.id, { hook: "Stop", payload: { prompt_id: "p-1" } }),
+      )
       expect(stopped).toContain('from="fox" agent="Codex"')
       expect(stopped).toContain(">Looks good &amp; ships.</message>")
       await expect

@@ -1,5 +1,6 @@
 import type { HarnessEvent } from "@novadeck/harness-core/events"
 import { silentFor, type MessagingProfile } from "@novadeck/harness-core/harness"
+import type { Report } from "@novadeck/harness-core/report"
 import type { AgentName } from "@novadeck/protocol"
 
 import { harnesses } from "../harnesses/registry.js"
@@ -112,6 +113,8 @@ export class HookAnswers {
       readonly deadline: number
       /** Told of a root turn the person's own prompt started; the notice it answers goes to the agent. */
       readonly person?: Person
+      /** What the hook reported, which a harness's Stop answer may read (`MessagingProfile.stop`). */
+      readonly payload?: Report["payload"]
     },
   ): Answer {
     const { deliveries, withdrawals } = this.host
@@ -148,7 +151,7 @@ export class HookAnswers {
       event: report.event,
       time: report.deadline - this.host.now() >= leaseMargin,
     }
-    if (kind === "stop") return this.askStop(asked, stop)
+    if (kind === "stop") return this.askStop(asked, stop, report.payload)
     return kind === "tool" ? this.askTool(asked) : this.askPrompt(asked)
   }
 
@@ -159,8 +162,10 @@ export class HookAnswers {
   private askStop(
     { live, root, profile, silent, time }: Asked,
     stop: Extract<HarnessEvent, { type: "turn-ended" }> | undefined,
+    payload: Report["payload"] | undefined,
   ): HookAnswer {
     if (!stop) return silent
+    const print = (text: string) => profile.stop(text, payload)
     const background = runsOn(stop.background)
     const lease =
       time &&
@@ -168,7 +173,7 @@ export class HookAnswers {
       this.host.leasing.lease(live, root, {
         kind: "stop",
         background,
-        print: profile.stop,
+        print,
         lasting: profile.lasting.includes("stop"),
       })
     // The turn goes on with what it was given, which the tracker counts as running through.
@@ -189,7 +194,7 @@ export class HookAnswers {
       at: this.host.now(),
       startedAt: stop.startedAt,
     })
-    return lease ? { leaseId: lease.id, stdout: profile.stop(lease.text) } : silent
+    return lease ? { leaseId: lease.id, stdout: print(lease.text) } : silent
   }
 
   /**
