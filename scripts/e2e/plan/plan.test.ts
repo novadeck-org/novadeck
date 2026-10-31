@@ -394,7 +394,7 @@ describe("E2E rows", () => {
       {
         agents: "agy",
         name: "Antigravity",
-        files: "messaging.e2e.ts requests.e2e.ts lifecycle.e2e.ts",
+        files: "messaging.e2e.ts requests.e2e.ts lifecycle.e2e.ts windows-grants.e2e.ts",
         autorun: true,
       },
     ])

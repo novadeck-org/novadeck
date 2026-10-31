@@ -171,7 +171,12 @@ export const quirks = (selected: readonly string[]): readonly Quirk[] =>
   selected.map((id) => ({
     agents: id,
     name: nameOf(id),
-    files: id === "claude" ? `${core} windows-quirks.e2e.ts` : core,
+    files:
+      id === "claude"
+        ? `${core} windows-quirks.e2e.ts`
+        : id === "codex" || id === "agy"
+          ? `${core} windows-grants.e2e.ts`
+          : core,
     ...(id === "agy" ? { autorun: true as const } : {}),
   }))
 
