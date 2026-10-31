@@ -101,6 +101,37 @@ describe("inboxType", () => {
   it("presents an ask the person answers by doing something as an unblock", () => {
     expect(inboxType(action)).toBe("unblock")
   })
+
+  it("presents a grant card and an approval ask as unblocks, as only the person can give them", () => {
+    const approval: InboxContent = {
+      kind: "ask",
+      ask: {
+        subject: "May I?",
+        body: "",
+        details: null,
+        hardToUndo: null,
+        shape: {
+          type: "approval",
+          commands: [{ argv: ["pnpm", "build"], rest: false }],
+          hours: null,
+        },
+      },
+    }
+    const grant: InboxContent = {
+      kind: "grant",
+      proposal: {
+        presets: ["push"],
+        commands: [],
+        repos: [],
+        withLead: false,
+        hours: 8,
+        reason: "",
+        covered: [],
+      },
+    }
+    expect(inboxType(approval)).toBe("unblock")
+    expect(inboxType(grant)).toBe("unblock")
+  })
 })
 
 describe("what a terminal needs and has done", () => {

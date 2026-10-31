@@ -1,5 +1,6 @@
 import { agentWorking } from "../agents/finish"
 import type { ChatRequest } from "../conversation"
+import type { GrantProposal } from "../grants"
 import type { AgentName } from "../harnesses"
 import {
   ordered,
@@ -55,6 +56,7 @@ export type WrittenEntry = {
   readonly at: number
   readonly content:
     | { readonly kind: "ask"; readonly ask: AgentAsk }
+    | { readonly kind: "grant"; readonly proposal: GrantProposal }
     | { readonly kind: "tell"; readonly subject: string; readonly body: string }
     | { readonly kind: "done"; readonly subject: string; readonly body: string }
   // Only on an ask that is no longer open.
@@ -269,26 +271,33 @@ export const inboxRows = (inputs: InboxInputs): InboxRow[] => {
         session.id === entry.workspaceSessionId &&
         terminal.id === entry.terminalId &&
         (terminal.handle ?? "") === entry.handle &&
-        (entry.content.kind !== "ask" || entry.settled || agentOf(terminal) === entry.agent),
+        ((entry.content.kind !== "ask" && entry.content.kind !== "grant") ||
+          entry.settled ||
+          agentOf(terminal) === entry.agent),
     )
     if (!here) continue
     const { content: entryContent } = entry
     const content: InboxContent =
       entryContent.kind === "ask"
         ? { kind: "ask", ask: entryContent.ask }
-        : {
-            kind: "update",
-            update: {
-              type: entryContent.kind === "done" ? "done" : "told",
-              subject: entryContent.subject,
-              body: entryContent.body,
-            },
-          }
+        : entryContent.kind === "grant"
+          ? { kind: "grant", proposal: entryContent.proposal }
+          : {
+              kind: "update",
+              update: {
+                type: entryContent.kind === "done" ? "done" : "told",
+                subject: entryContent.subject,
+                body: entryContent.body,
+              },
+            }
     all.push({
       id: entry.id,
       source: sourceOf(here, entry.agent),
       at: entry.at,
-      stopped: entry.content.kind === "ask" && !entry.settled && !agentWorking(here.terminal),
+      stopped:
+        (entry.content.kind === "ask" || entry.content.kind === "grant") &&
+        !entry.settled &&
+        !agentWorking(here.terminal),
       seen: false,
       ...content,
       ...(entry.settled ? { settled: entry.settled } : {}),

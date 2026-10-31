@@ -14,7 +14,13 @@ import { afterEach, beforeEach, vi } from "vitest"
 import { answerMs as chatAnswerMs, answeredMs } from "./agents/chat"
 import { demoTurns } from "./agents/turns"
 import { answerMs, createDemoInbox, isDemoInbox } from "./inbox"
-import { demoInboxIds, demoInboxRows, demoInboxRowsAll } from "./inbox/fixtures"
+import {
+  demoEndingGrant,
+  demoInboxIds,
+  demoInboxRows,
+  demoInboxRowsAll,
+  demoLiveGrant,
+} from "./inbox/fixtures"
 import { plainDemo, type PlainVariant } from "./index"
 import { chatAgent, demoTerminalId } from "./samples"
 import { context, describe, expect, it } from "./test"
@@ -34,10 +40,10 @@ describe("the demo Inbox's rows", () => {
     const rows = demoInboxRowsAll(now)
     expect(new Set(rows.map(inboxType))).toEqual(new Set(["unblock", "ask", "trouble", "update"]))
     expect(new Set(rows.map((each) => each.kind))).toEqual(
-      new Set(["request", "held", "ask", "trouble", "update"]),
+      new Set(["request", "held", "ask", "grant", "trouble", "update"]),
     )
     const shapes = rows.flatMap((each) => (each.kind === "ask" ? [each.ask.shape.type] : []))
-    expect(new Set(shapes)).toEqual(new Set(["options", "action", "text"]))
+    expect(new Set(shapes)).toEqual(new Set(["options", "action", "text", "approval"]))
     const troubles = rows.flatMap((each) => (each.kind === "trouble" ? [each.trouble.type] : []))
     expect(new Set(troubles)).toEqual(new Set(["stuck", "limit", "failed", "waits"]))
     const requests = rows.flatMap((each) => (each.kind === "request" ? [each.request.kind] : []))
@@ -50,6 +56,8 @@ describe("the demo Inbox's rows", () => {
     const rows = demoInboxRowsAll(now)
     const typeOf = (id: string) => inboxType(rows.find((each) => each.id === id)!)
     expect(typeOf(demoInboxIds.login)).toBe("unblock")
+    expect(typeOf(demoInboxIds.grant)).toBe("unblock")
+    expect(typeOf(demoInboxIds.approval)).toBe("unblock")
     expect(typeOf(demoInboxIds.question)).toBe("ask")
     expect(typeOf(demoInboxIds.done)).toBe("update")
   })
@@ -838,5 +846,82 @@ describe("The demo Inbox's order", () => {
     const key = (row: typeof first) => `${row!.id}@${row!.at}`
     inbox.arrange?.([key(second), "gone@1", key(first)])
     expect(inbox.order?.getSnapshot()).toEqual([key(second), key(first)])
+  })
+})
+
+describe("the demo Inbox's grants", () => {
+  const withCards = () => createDemoInbox(now, demoInboxRowsAll(now))
+
+  it("starts with none live", () => {
+    expect(withCards().grants.state.getSnapshot()).toEqual([])
+  })
+
+  it("makes a team grant from what the Grant card kept ticked, for the hours chosen", () => {
+    const inbox = withCards()
+    inbox.answer(demoInboxIds.grant, {
+      kind: "grant",
+      answer: {
+        type: "grant",
+        presets: ["push"],
+        commands: [1],
+        repos: ["github.com/acme/storefront-ui"],
+        withLead: true,
+        hours: 24,
+      },
+    })
+    vi.advanceTimersByTime(answerMs)
+
+    expect(ids(inbox)).not.toContain(demoInboxIds.grant)
+    const [grant] = inbox.grants.state.getSnapshot()
+    expect(grant).toMatchObject({
+      holder: { kind: "team", lead: "moth", withLead: true },
+      presets: ["push"],
+      commands: [{ argv: ["uberepo", "ship"], rest: true }],
+      repos: [{ url: "github.com/acme/storefront-ui" }],
+      entryId: demoInboxIds.grant,
+    })
+    expect(grant!.endsAt - grant!.madeAt).toBe(24 * 3_600_000)
+  })
+
+  it("makes a grant for the asking terminal alone on Approve, for an hour unless the ask names more", () => {
+    const inbox = withCards()
+    inbox.answer(demoInboxIds.approval, { kind: "ask", answer: { type: "approve" } })
+    vi.advanceTimersByTime(answerMs)
+
+    const [grant] = inbox.grants.state.getSnapshot()
+    expect(grant).toMatchObject({
+      holder: { kind: "terminal", handle: "moth" },
+      presets: [],
+      repos: [],
+    })
+    expect(grant!.commands).toHaveLength(3)
+    expect(grant!.endsAt - grant!.madeAt).toBe(3_600_000)
+  })
+
+  it("makes none from a reply to an approval, nor from a dismissed Grant card, which settles", () => {
+    const inbox = withCards()
+    inbox.answer(demoInboxIds.approval, {
+      kind: "ask",
+      answer: { type: "reply", option: null, text: "No, thanks." },
+    })
+    inbox.dismiss!(demoInboxIds.grant)
+    vi.advanceTimersByTime(answerMs)
+
+    expect(inbox.grants.state.getSnapshot()).toEqual([])
+    expect(
+      inbox.state.getSnapshot().items.find((each) => each.id === demoInboxIds.grant)?.settled?.how,
+    ).toBe("dismissed")
+  })
+
+  it("drops a grant when it is revoked or ends", () => {
+    const inbox = withCards()
+    const [live, ending] = [demoLiveGrant(now), demoEndingGrant(now, 1000)]
+    inbox.grants.add(live)
+    inbox.grants.add(ending)
+    expect(inbox.grants.state.getSnapshot()).toHaveLength(2)
+    inbox.grants.revoke(live.id)
+    expect(inbox.grants.state.getSnapshot().map(({ id }) => id)).toEqual([ending.id])
+    inbox.grants.end(ending.id)
+    expect(inbox.grants.state.getSnapshot()).toEqual([])
   })
 })

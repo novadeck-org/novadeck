@@ -1,5 +1,6 @@
 import { askToFixNudge } from "@novadeck/core/agents/steps"
 import type { ChatAnswer, ChatDialogOption, ChatRequest } from "@novadeck/core/conversation"
+import { hoursWords } from "@novadeck/core/grants"
 import type { AskOption, InboxAnswer, InboxRow, Trouble } from "@novadeck/core/inbox"
 
 import {
@@ -241,6 +242,24 @@ const askMenu = (row: Extract<InboxRow, { kind: "ask" }>): Menu => {
       ],
       hard,
     }
+  if (shape.type === "approval") {
+    const hours = hoursWords(shape.hours ?? 1)
+    return {
+      rows: [
+        {
+          type: "answer",
+          label: "Approve",
+          effect: `@${source.handle} runs these without asking for ${hours}.`,
+          pick: false,
+          details: null,
+          answer: { kind: "ask", answer: { type: "approve" } },
+          receipt: `Approved @${source.handle}'s commands for ${hours}.`,
+        },
+        ownWords(row),
+      ],
+      hard,
+    }
+  }
   return {
     rows: [
       ...shape.options.map((option, index): MenuRow => {
@@ -395,6 +414,9 @@ const answersOf = (row: InboxRow, now: number): Menu => {
     }
     case "ask":
       return askMenu(row)
+    // The Grant card is its own sheet part: its ticks decide the answer (`GrantCard`).
+    case "grant":
+      return none
     case "trouble":
       return troubleMenu(row, row.trouble, now)
     case "update":

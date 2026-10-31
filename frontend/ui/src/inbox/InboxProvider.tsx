@@ -1,4 +1,5 @@
 import type { Picks } from "@novadeck/core/conversation/picks"
+import type { Grant } from "@novadeck/core/grants"
 import {
   rowKey,
   type Inbox,
@@ -105,6 +106,9 @@ export type InboxContextValue = {
   // opens, as after an answer. Absent where the backend keeps no snoozes.
   readonly snooze: ((row: InboxRow, on: boolean) => void) | undefined
   readonly reveal: (row: InboxRow) => void
+  // The person's live grants, and the way to revoke one; none where the backend makes none.
+  readonly grants: readonly Grant[]
+  readonly revoke: ((id: string) => void) | undefined
 }
 
 const InboxContext = createContext<InboxContextValue | null>(null)
@@ -130,6 +134,9 @@ const answerKey = (row: InboxRow): string => `${row.id}@${row.at}`
 // How long a freshly arrived row stays marked, and how often waits are read again.
 const arrivedMs = 1700
 const tickMs = 30_000
+
+const noGrants: readonly Grant[] = []
+const noGrantsStore = { subscribe: () => () => {}, getSnapshot: () => noGrants }
 
 const noOrder: readonly string[] = []
 const noOrderStore = { subscribe: () => () => {}, getSnapshot: () => noOrder }
@@ -164,6 +171,9 @@ export const InboxProvider = ({
   readonly children?: ReactNode
 }): React.JSX.Element => {
   const state = useSyncExternalStore(inbox.state.subscribe, inbox.state.getSnapshot)
+  const grantsStore = inbox.grants?.state ?? noGrantsStore
+  const grants = useSyncExternalStore(grantsStore.subscribe, grantsStore.getSnapshot)
+  const revoke = inbox.grants?.revoke
   const orderStore = inbox.order ?? noOrderStore
   const arranged = useSyncExternalStore(orderStore.subscribe, orderStore.getSnapshot)
   const [view, setView] = useState<InboxView>(initialView)
@@ -510,6 +520,8 @@ export const InboxProvider = ({
       arrange,
       snooze,
       reveal: revealRow,
+      grants,
+      revoke,
     }),
     [
       state,
@@ -536,6 +548,8 @@ export const InboxProvider = ({
       arrange,
       snooze,
       revealRow,
+      grants,
+      revoke,
     ],
   )
   const opener = useCallback<InboxOpener>(

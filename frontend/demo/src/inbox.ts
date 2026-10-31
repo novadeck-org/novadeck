@@ -28,6 +28,7 @@ import { terminalKeyId } from "@novadeck/core/terminals/registry"
 import type { TerminalKey, TerminalMetadata, Workspace } from "@novadeck/core/types"
 
 import { demoInboxRows } from "./inbox/fixtures"
+import { createDemoGrants, grantMadeBy, type DemoGrants } from "./inbox/grants"
 import { deliveryMs } from "./messages"
 import { terminalOf, terminalsOf } from "./workspace"
 
@@ -41,6 +42,8 @@ export const answerMs = 600
 // The Inbox with what only the demo does: a row of its own arriving or leaving, and its
 // own rows emptied (`empty` leaves what its agents wait on).
 export type DemoInbox = Inbox & {
+  // The grants the person's Grant and Approve make, and the demo's own adding and ending.
+  readonly grants: DemoGrants
   readonly add: (row: InboxRow) => void
   readonly empty: () => void
   // The next answer fails instead of taking, so the sheet shows why.
@@ -173,6 +176,7 @@ export const createDemoInbox = (
     })
   }
   const state = createStore<InboxState>(combine(emptyInbox))
+  const grants = createDemoGrants()
   // The order the person drags the rows into, kept for as long as the page is.
   const order = createStore<readonly string[]>([])
   // The finished turns it stores, as the runner stores them (a completed one only marks its
@@ -218,7 +222,7 @@ export const createDemoInbox = (
   // settled in place, or removed where its session ended.
   const settle = (id: string, how: AskSettled["how"] | "gone"): void => {
     const found = ownRow(id)
-    if (found?.kind !== "ask" || found.settled) return
+    if ((found?.kind !== "ask" && found?.kind !== "grant") || found.settled) return
     record(
       found,
       undefined,
@@ -345,6 +349,7 @@ export const createDemoInbox = (
 
   return {
     state,
+    grants,
     turns,
     readFinishes: (finishes) => {
       const read = new Set(finishes.map(({ context, terminalId }) => `${context}/${terminalId}`))
@@ -424,6 +429,8 @@ export const createDemoInbox = (
       if (undelivered) dropping = false
       setTimeout(() => {
         record(found, answer, undelivered ? "undelivered" : undefined)
+        const made = grantMadeBy(found, answer, Date.now())
+        if (made) grants.add(made)
         change((current) => ({
           items: current.items.filter((each) => each.id !== id),
           answering: withoutKey(current.answering, id) as Record<string, true>,
@@ -483,7 +490,12 @@ export const createDemoInbox = (
     resolve: (id, outcome) => settle(id, outcome),
     dismiss: (id) => {
       const found = ownRow(id)
-      if (found?.kind !== "ask" || found.settled || own.getSnapshot().answering[id]) return
+      if (
+        (found?.kind !== "ask" && found?.kind !== "grant") ||
+        found.settled ||
+        own.getSnapshot().answering[id]
+      )
+        return
       // A dismissal that fails leaves the ask as it was, with no error shown.
       if (failing) {
         failing = null
@@ -502,7 +514,8 @@ export const createDemoInbox = (
       change((current) => ({
         ...current,
         items: current.items.filter(
-          (each) => !(gone.has(each.id) && each.kind === "ask" && each.settled),
+          (each) =>
+            !(gone.has(each.id) && (each.kind === "ask" || each.kind === "grant") && each.settled),
         ),
       }))
     },

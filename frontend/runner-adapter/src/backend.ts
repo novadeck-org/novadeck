@@ -90,6 +90,7 @@ export type RunnerApi = Pick<
   | "agents"
   | "messages"
   | "inbox"
+  | "grants"
   | "feedback"
   | "voice"
   | "murmur"
@@ -1089,6 +1090,7 @@ export const runnerBackend = (
   const inbox = createRunnerInbox(
     {
       inbox: runner.inbox,
+      grants: runner.grants,
       detail: (terminalId) => runner.agents.detail(terminalId),
       answer: (key, request, answer) => conversations.answer(key, request, answer),
       send: (key, text, sending) => conversations.send(key, text, sending),

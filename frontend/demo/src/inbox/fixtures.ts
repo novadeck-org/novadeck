@@ -1,4 +1,5 @@
 import type { ChatRequest } from "@novadeck/core/conversation"
+import type { Grant, GrantProposal } from "@novadeck/core/grants"
 import type { AgentName } from "@novadeck/core/harnesses"
 import type { AskOption, InboxContent, InboxRow } from "@novadeck/core/inbox"
 
@@ -41,6 +42,49 @@ const rowOf = ({ id, project, terminal, agent, minutes, stopped, content }: Fixt
     stopped,
     seen: false,
   }) satisfies InboxRow
+
+// A lead's proposal of a team grant: push and pull requests for two of the repos under the
+// project folder, one flagged as an added remote, and two commands, one open-ended.
+const grantProposal: GrantProposal = {
+  presets: ["push", "pr"],
+  commands: [
+    { argv: ["gh", "pr", "checks", "12"], rest: false },
+    { argv: ["uberepo", "ship"], rest: true },
+  ],
+  repos: [
+    {
+      repo: { url: "github.com/acme/storefront", defaultBranch: "main", defaultFrom: "github" },
+      ticked: true,
+      flag: null,
+    },
+    {
+      repo: {
+        url: "github.com/acme/storefront-ui",
+        defaultBranch: "trunk",
+        defaultFrom: "remote-head",
+      },
+      ticked: false,
+      flag: "recent",
+    },
+    {
+      repo: {
+        url: "github.com/someone-else/storefront",
+        defaultBranch: "main",
+        defaultFrom: "guess",
+      },
+      ticked: false,
+      flag: "added-remote",
+    },
+  ],
+  withLead: false,
+  hours: 8,
+  reason:
+    "Fox and owl each finish a piece of the checkout today and I want them to push their branches and open the pull requests without stopping on a prompt every time. They run the unit tests before each push.",
+  covered: [
+    { handle: "fox", agent: "codex" },
+    { handle: "owl", agent: "claude" },
+  ],
+}
 
 // The Claude edit dialog Novadeck can't read, as it is on screen.
 const editScreen = `Edit file
@@ -263,6 +307,8 @@ export const demoInboxIds = {
   waits: "demo-waits",
   entryTell: "demo-entry-tell",
   entryAsk: "demo-entry-ask",
+  grant: "demo-grant",
+  approval: "demo-approval",
 } as const
 
 // Claude's plan dialog: the first yes sets something standing, so it is a quiet link and
@@ -344,6 +390,41 @@ export const demoPlanStates = {
 // dialog, a failure with no error, a held message whose sender has gone, and messages held
 // long behind a dialog open in the idle agent's terminal.
 const extraFixtures: readonly Fixture[] = [
+  {
+    id: demoInboxIds.grant,
+    project: "mobile-app",
+    terminal: 1,
+    agent: "claude",
+    minutes: 2,
+    stopped: true,
+    content: { kind: "grant", proposal: grantProposal },
+  },
+  {
+    id: demoInboxIds.approval,
+    project: "design-system",
+    terminal: 1,
+    agent: "claude",
+    minutes: 1,
+    stopped: false,
+    content: {
+      kind: "ask",
+      ask: {
+        subject: "May I ship the docs and check the links?",
+        body: "Both are blocked by the permission prompt on every run, and I need them after each page I port. They only read and write `dist/`.",
+        details: null,
+        hardToUndo: null,
+        shape: {
+          type: "approval",
+          commands: [
+            { argv: ["uberepo", "ship", "docs"], rest: false },
+            { argv: ["uberepo", "check", "links"], rest: true },
+            { argv: ["rm", "-rf", "dist/cache dir"], rest: false },
+          ],
+          hours: null,
+        },
+      },
+    },
+  },
   {
     id: demoInboxIds.questions,
     project: "infra",
@@ -736,3 +817,48 @@ const rowsOf = (all: readonly Fixture[], now: number): InboxRow[] =>
       now,
     ),
   )
+
+// The grants the debug panel shows beside the cards, as the runner would list them at `now`: a
+// team grant a lead's card made, used a few minutes ago, and a short one that ends by itself.
+export const demoGrantIds = { live: "demo-grant-live", ending: "demo-grant-ending" } as const
+
+const sourceTerminal = (number: number) => sourceOf("mobile-app", number, "claude")
+
+export const demoLiveGrant = (now: number): Grant => ({
+  id: demoGrantIds.live,
+  projectId: "mobile-app",
+  workspaceSessionId: "initial",
+  holder: { kind: "team", lead: sourceTerminal(1).handle, withLead: false },
+  presets: ["push", "pr"],
+  commands: [{ argv: ["gh", "pr", "checks", "12"], rest: false }],
+  repos: grantProposal.repos.slice(0, 2).map(({ repo }) => repo),
+  entryId: demoInboxIds.grant,
+  proposedBy: sourceTerminal(1).handle,
+  madeAt: now - 25 * minute,
+  endsAt: now + (8 * 60 - 25) * minute,
+  revokedAt: null,
+  lastUse: {
+    at: now - 4 * minute,
+    handle: sourceTerminal(3).handle,
+    command: "git push origin cart-summary:cart-summary",
+  },
+})
+
+export const demoEndingGrant = (now: number, ms: number): Grant => ({
+  id: demoGrantIds.ending,
+  projectId: "design-system",
+  workspaceSessionId: "initial",
+  holder: { kind: "terminal", handle: sourceOf("design-system", 1, "claude").handle },
+  presets: [],
+  commands: [
+    { argv: ["uberepo", "ship", "docs"], rest: false },
+    { argv: ["uberepo", "check", "links"], rest: true },
+  ],
+  repos: [],
+  entryId: demoInboxIds.approval,
+  proposedBy: sourceOf("design-system", 1, "claude").handle,
+  madeAt: now - 59 * minute,
+  endsAt: now + ms,
+  revokedAt: null,
+  lastUse: null,
+})

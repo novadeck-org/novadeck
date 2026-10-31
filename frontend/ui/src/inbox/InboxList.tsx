@@ -15,6 +15,7 @@ import { Tooltip } from "@novadeck/toolkit/Tooltip"
 import { Bell, BellOff, CheckCheck, CircleCheck, ListX, LoaderCircle, X } from "lucide-react"
 import { useMemo, useState } from "react"
 
+import { GrantsSection } from "./GrantsSection"
 import { focusSheet, focusSheetSoon, nextRowButton, rowOf } from "./inbox-dom"
 import { icons, typeWords } from "./inbox-icons"
 import {
@@ -106,7 +107,11 @@ const Row = ({
   const Icon = pending ? LoaderCircle : answered ? CircleCheck : icons[type]
   const current = view.open === row.id
   const dismissable =
-    dismiss !== undefined && row.kind === "ask" && !settled && !pending && !answered
+    dismiss !== undefined &&
+    (row.kind === "ask" || row.kind === "grant") &&
+    !settled &&
+    !pending &&
+    !answered
   const snoozable = snooze !== undefined && asking(row) && !answering
   const snoozed = Boolean(row.snoozed) && !answering
   const subject = subjectOf(row).replaceAll("`", "")
@@ -433,6 +438,7 @@ export const InboxList = (): React.JSX.Element => {
       className="inbox-panel flex min-h-0 min-w-0 w-full flex-1 flex-col"
       data-sheet={view.open !== null ? "open" : "closed"}
     >
+      <GrantsSection />
       {shown.length === 0 ? (
         <div className="inbox-empty">
           <NovaMark size={28} />

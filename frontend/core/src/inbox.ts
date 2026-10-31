@@ -1,4 +1,5 @@
 import type { ChatAnswer, ChatRequest } from "./conversation"
+import type { GrantAnswer, GrantHours, GrantCommand, GrantProposal, Grants } from "./grants"
 import type { AgentName } from "./harnesses"
 import type { MessageWaits } from "./messages"
 import { createStore, type Store } from "./store"
@@ -57,6 +58,13 @@ export type AskShape =
       readonly command: string
       readonly directory: string | null
       readonly doneLabel: string
+    }
+  // Approval for the asking terminal to run these commands without asking again; the person's
+  // Approve makes the grant. `hours` null where the agent names none (1 hour).
+  | {
+      readonly type: "approval"
+      readonly commands: readonly GrantCommand[]
+      readonly hours: GrantHours | null
     }
 
 // What the agent asked. `body` and `details` are Markdown; `hardToUndo` says why the
@@ -128,6 +136,8 @@ export type InboxContent =
   | { readonly kind: "request"; readonly request: ChatRequest }
   | { readonly kind: "held"; readonly held: HeldMessage }
   | { readonly kind: "ask"; readonly ask: AgentAsk }
+  // A lead's proposal of a team grant: the Grant card.
+  | { readonly kind: "grant"; readonly proposal: GrantProposal }
   | { readonly kind: "trouble"; readonly trouble: Trouble }
   | { readonly kind: "update"; readonly update: Update }
 
@@ -161,7 +171,9 @@ export type InboxType = "unblock" | "ask" | "trouble" | "update"
 export const inboxType = (row: InboxContent): InboxType => {
   if (row.kind === "request") return row.request.kind === "question" ? "ask" : "unblock"
   if (row.kind === "held") return "unblock"
-  if (row.kind === "ask" && row.ask.shape.type === "action") return "unblock"
+  if (row.kind === "ask" && (row.ask.shape.type === "action" || row.ask.shape.type === "approval"))
+    return "unblock"
+  if (row.kind === "grant") return "unblock"
   return row.kind
 }
 
@@ -177,7 +189,11 @@ export type InboxAnswer =
       readonly answer:
         | { readonly type: "reply"; readonly option: number | null; readonly text: string }
         | { readonly type: "done" }
+        // Approve on an `approval` ask.
+        | { readonly type: "approve" }
     }
+  // Grant on a lead's Grant card.
+  | { readonly kind: "grant"; readonly answer: GrantAnswer }
   | {
       readonly kind: "trouble"
       readonly action:
@@ -240,9 +256,12 @@ export type Inbox = {
   readonly see: (id: string) => void
   // Reads every update, leaving everything that waits on the person.
   readonly readAll: () => void
-  // Optional. Dismisses an agent's open ask without answering it: it stays, settled, and its
-  // agent is told. Absent where asks can't be dismissed.
+  // Optional. Dismisses an agent's open ask or Grant card without answering it: it stays, settled, and
+  // its agent is told. Absent where asks can't be dismissed.
   readonly dismiss?: (id: string) => void
+  // Optional. The person's live grants and the way to revoke one. Absent where the backend
+  // makes none.
+  readonly grants?: Grants
   // Optional. Removes these settled asks.
   readonly clear?: (ids: readonly string[]) => void
   // Optional. The rows that ask, by `rowKey`, in the order the person dragged them into, and

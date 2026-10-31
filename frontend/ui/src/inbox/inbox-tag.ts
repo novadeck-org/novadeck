@@ -11,6 +11,8 @@ export type TagWord =
   | "Tool"
   | "Plan"
   | "Your move"
+  | "Approval"
+  | "Grant"
   | "Question"
   | "Held"
   | "Error"
@@ -43,7 +45,10 @@ const wordOf = (row: InboxRow): TagWord => {
     case "held":
       return "Held"
     case "ask":
+      if (row.ask.shape.type === "approval") return "Approval"
       return row.ask.shape.type === "action" ? "Your move" : "Question"
+    case "grant":
+      return "Grant"
     case "trouble":
       if (row.trouble.type === "failed") return "Error"
       if (row.trouble.type === "limit") return "Limit"

@@ -22,6 +22,7 @@ import {
   type Menu as MenuModel,
   type MenuRow,
 } from "./console-menu"
+import { ApprovalBox, GrantCard } from "./GrantCard"
 import { rowOf } from "./inbox-dom"
 import { actionOf, agentName, limitWindow, recommended, subjectOf } from "./inbox-text"
 import { noDraft, useInboxContext, type Sent } from "./InboxProvider"
@@ -301,11 +302,22 @@ const Thing = ({ row, now }: { readonly row: InboxRow; readonly now: number }) =
     }
     case "held":
       return <Held held={row.held} />
+    case "grant":
+      return (
+        <>
+          <Heading glyph="!">
+            <Text text={subjectOf(row)} />
+          </Heading>
+          <blockquote className="console-quote" aria-label={`What @${row.source.handle} says`}>
+            {row.proposal.reason}
+          </blockquote>
+        </>
+      )
     case "ask": {
       const { ask } = row
       return (
         <>
-          <Heading glyph={ask.shape.type === "action" ? "!" : "?"}>
+          <Heading glyph={ask.shape.type === "action" || ask.shape.type === "approval" ? "!" : "?"}>
             <Text text={ask.subject} />
           </Heading>
           {ask.hardToUndo && <p className="console-hard">! Hard to undo: {ask.hardToUndo}</p>}
@@ -319,6 +331,9 @@ const Thing = ({ row, now }: { readonly row: InboxRow; readonly now: number }) =
           )}
           {ask.shape.type === "action" && (
             <CommandBox command={ask.shape.command} folder={ask.shape.directory} copy />
+          )}
+          {ask.shape.type === "approval" && (
+            <ApprovalBox row={row} commands={ask.shape.commands} hours={ask.shape.hours} />
           )}
         </>
       )
@@ -677,6 +692,8 @@ export const ConsoleSheet = (shown: SheetContentProps): React.JSX.Element => {
           handles={several}
           arrived={arrived}
         />
+      ) : row.kind === "grant" ? (
+        <GrantCard props={props} proposal={row.proposal} handle={one} arrived={arrived} />
       ) : (
         model &&
         model.rows.length > 0 && (

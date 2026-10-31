@@ -2,9 +2,12 @@ import type { InboxRow } from "@novadeck/core/inbox"
 import type { WorkspaceSeed } from "@novadeck/core/seed"
 import type { DemoInbox } from "@novadeck/demo/inbox"
 import {
+  demoEndingGrant,
+  demoGrantIds,
   demoHiddenCommand,
   demoInboxIds,
   demoInboxRowsAll,
+  demoLiveGrant,
   demoLongCommand,
   demoPlanStates,
 } from "@novadeck/demo/inbox/fixtures"
@@ -116,6 +119,16 @@ const kinds: readonly { readonly label: string; readonly name: Named; readonly h
     hint: "Trouble row saying two messages for the agent have waited long behind a dialog open in its idle terminal",
   },
   {
+    label: "Grant card",
+    name: "grant",
+    hint: "Unblock row for mobile-app's lead: the Grant card with push and pull requests, three repos (one flagged an added remote, one recent), two commands (one followed by anything), its team now and later (@fox on Codex noted), 8 h, and the lead's reason quoted; Grant makes the live grant, Decline dismisses it",
+  },
+  {
+    label: "Approval card",
+    name: "approval",
+    hint: 'Unblock row for design-system\'s first terminal: "Lets @moth run, without asking again, for 1 hour:" with three commands as code (one followed by anything); Approve makes a grant for that terminal, or reply in words',
+  },
+  {
     label: "Done report",
     name: "done",
     hint: "Update row with an agent's done report: its subject and a Markdown body",
@@ -162,6 +175,33 @@ export const inboxGroups = (
             if (row) inbox.add(row)
           },
         })),
+        {
+          label: "Live grant",
+          hint: "The Grants section tops the Inbox with a team grant of mobile-app's lead: holder, push and pull requests, two repos, 8 h less 25 min left, its last allowed command, and Revoke",
+          run: () => inbox.grants.add(demoLiveGrant(Date.now())),
+        },
+        {
+          label: "Grant ends",
+          hint: "A terminal grant for design-system's first terminal joins the Grants section and ends by its time after 4 seconds: it leaves the list with no Revoke",
+          run: () => {
+            inbox.grants.add(demoEndingGrant(Date.now(), 4000))
+            setTimeout(() => inbox.grants.end(demoGrantIds.ending), 4000)
+          },
+        },
+        {
+          label: "Revoke a grant",
+          hint: "Revokes the newest live grant as its Revoke does: it leaves the Grants section, and the section with it when it was the last",
+          run: ({ note }) => {
+            const newest = inbox.grants.state.getSnapshot().at(-1)
+            if (!newest) return note("No grant is live. Add one with Live grant or the cards.")
+            inbox.grants.revoke(newest.id)
+          },
+        },
+        {
+          label: "Clear grants",
+          hint: "Every grant leaves the Grants section",
+          run: () => inbox.grants.empty(),
+        },
         {
           label: "Command hiding lines",
           hint: "Unblock row whose command buries a line under blank lines and spaces: the card counts its lines and marks them",

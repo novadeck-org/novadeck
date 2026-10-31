@@ -923,6 +923,171 @@ pre.console-box {
   font-size: var(--text-control);
 }
 
+/* ---- Grants (#587, #588) ----
+   The Grants section at the top of the panel (`.inbox-grants`, a `.inbox-grants-title` and a
+   list of `.grant-row`s: `.grant-row-head` with holder, time left and Revoke, then what it
+   allows, its commands and the last command it allowed). The Grant card (`.grant-box`
+   data-grant="card" | "approval", inside the sheet's `.console-box`): `.grant-group`
+   fieldsets of `.grant-tick` rows (a checkbox and its words), `.grant-command` code with
+   `.grant-rest` in the warning colour, `.grant-flag`, `.grant-meta`, `.grant-who` and
+   `.grant-warn`. */
+.inbox-grants {
+  flex: none;
+  padding: 4px 4px 8px;
+  border-bottom: 1px solid var(--inbox-rule-color, var(--color-line));
+}
+.inbox-grants-title {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin: 0;
+  padding: 4px 8px;
+  color: var(--color-muted);
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+.inbox-grants-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.grant-row {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 6px 8px;
+  border-radius: var(--inbox-row-radius, var(--radius-panel));
+  background-color: color-mix(in srgb, var(--color-ink) 4%, transparent);
+}
+.grant-row-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.grant-row-holder {
+  color: var(--color-ink);
+  font-weight: 600;
+  overflow-wrap: anywhere;
+}
+.grant-row-left {
+  flex: 1;
+  color: var(--color-muted);
+  white-space: nowrap;
+}
+.grant-row-what,
+.grant-row-commands,
+.grant-row-last {
+  color: var(--color-muted);
+  overflow-wrap: anywhere;
+}
+.grant-row-commands {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 2px 6px;
+}
+.grant-row code,
+.grant-box code {
+  font-family: var(--font-mono);
+}
+
+.grant-box {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  white-space: normal;
+}
+.grant-group {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+.grant-group > legend,
+.grant-legend {
+  padding: 0;
+  color: var(--color-muted);
+  font-family: var(--font-sans);
+  font-size: var(--text-caption);
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+.grant-time {
+  flex-direction: row;
+  align-items: center;
+  gap: 10px;
+}
+.grant-tick {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  font-family: var(--font-sans);
+  font-size: var(--text-body);
+  line-height: 20px;
+  cursor: pointer;
+}
+.grant-tick > .checkbox {
+  margin-top: 2px;
+}
+.grant-repo {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 0 8px;
+}
+.grant-meta {
+  color: var(--color-muted);
+  font-size: var(--text-caption);
+}
+.grant-flag {
+  padding: 0 6px;
+  border-radius: 3px;
+  background-color: var(--color-warning);
+  color: var(--color-warning-fg);
+  font-family: var(--font-sans);
+  font-size: var(--text-caption);
+}
+.grant-command {
+  font-size: 13px;
+  overflow-wrap: anywhere;
+}
+.grant-rest {
+  padding: 0 4px;
+  border-radius: 3px;
+  background-color: var(--color-warning);
+  color: var(--color-warning-fg);
+  font-family: var(--font-sans);
+  font-size: var(--text-caption);
+}
+.grant-who,
+.grant-sentence {
+  margin: 0;
+  font-family: var(--font-sans);
+  font-size: var(--text-body);
+  line-height: 20px;
+}
+.grant-warn {
+  margin: 0;
+  color: var(--color-warning-fg);
+  font-family: var(--font-sans);
+  font-size: var(--text-control);
+}
+.grant-lines {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
 @media (max-width: 700px) {
   .console-project,
   .console-sep {

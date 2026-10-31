@@ -1,3 +1,4 @@
+import { commandText, hoursWords } from "@novadeck/core/grants"
 import type { AgentAsk, InboxAnswer, InboxRow } from "@novadeck/core/inbox"
 import {
   noMessages,
@@ -184,7 +185,12 @@ const askText = (ask: AgentAsk): string => {
           .join("\n\n")
       : shape.type === "action"
         ? [shape.command, shape.directory, shape.doneLabel].filter(Boolean).join("\n")
-        : null
+        : shape.type === "approval"
+          ? [
+              `To run, without asking again, for ${hoursWords(shape.hours ?? 1)}:`,
+              ...shape.commands.map((command) => `$ ${commandText(command)}`),
+            ].join("\n")
+          : null
   return [
     ask.subject,
     ask.body,
@@ -332,11 +338,13 @@ export const createDemoMessages = (
           ? row.ask.shape.options[reply.option]?.label
           : undefined
       const text = reply
-        ? reply.type === "done"
-          ? row.kind === "ask" && row.ask.shape.type === "action"
-            ? row.ask.shape.doneLabel
-            : "Done."
-          : [option, reply.text].filter(Boolean).join("\n\n")
+        ? reply.type === "approve"
+          ? "Approved."
+          : reply.type === "done"
+            ? row.kind === "ask" && row.ask.shape.type === "action"
+              ? row.ask.shape.doneLabel
+              : "Done."
+            : [option, reply.text].filter(Boolean).join("\n\n")
         : row.kind === "ask"
           ? askText(row.ask)
           : `${content.subject}\n\n${content.body}`

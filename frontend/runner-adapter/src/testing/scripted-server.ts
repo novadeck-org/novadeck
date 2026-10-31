@@ -290,6 +290,10 @@ export const scriptedRunner = ({
       dismiss: api.inbox.dismiss.handler(unplayed("inbox.dismiss")),
       clear: api.inbox.clear.handler(unplayed("inbox.clear")),
     },
+    grants: {
+      watch: api.grants.watch.handler(idle),
+      revoke: api.grants.revoke.handler(unplayed("grants.revoke")),
+    },
     feedback: {
       watch: api.feedback.watch.handler(idle),
       settle: api.feedback.settle.handler(unplayed("feedback.settle")),

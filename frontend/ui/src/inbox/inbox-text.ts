@@ -1,4 +1,5 @@
 import type { ChatDialog, ChatDialogOption, ChatRequest } from "@novadeck/core/conversation"
+import type { GrantProposal } from "@novadeck/core/grants"
 import { harnesses, type AgentName } from "@novadeck/core/harnesses"
 import { inboxType, type InboxRow, type InboxSource, type Trouble } from "@novadeck/core/inbox"
 import { unsaidWaits, waitsBehind } from "@novadeck/core/messages"
@@ -108,11 +109,26 @@ export const subjectOf = (row: InboxRow): string => {
       return `Release a held message to ${row.held.to.title}?`
     case "ask":
       return row.ask.subject
+    case "grant":
+      return grantSubject(row.proposal, row.source.handle)
     case "trouble":
       return troubleSubject(row.trouble, row.source)
     case "update":
       return row.update.subject
   }
+}
+
+// What a Grant card asks, as the row's subject: "Let @moth's team push and open pull requests?"
+const grantSubject = (proposal: GrantProposal, handle: string): string => {
+  const what = [
+    ...proposal.presets.map((preset) =>
+      preset === "push" ? "push branches" : "open pull requests",
+    ),
+    ...(proposal.commands.length > 0 ? ["run commands"] : []),
+  ]
+  const list =
+    what.length > 1 ? `${what.slice(0, -1).join(", ")} and ${what.at(-1)}` : (what[0] ?? "act")
+  return `Let @${handle}'s team ${list} without asking?`
 }
 
 const words = (text: string): number => text.split(/\s+/).filter(Boolean).length
@@ -157,7 +173,10 @@ export const labelOf = (row: InboxRow): string => {
     case "held":
       return "Novadeck held a message"
     case "ask":
+      if (row.ask.shape.type === "approval") return "Asks your approval"
       return row.ask.shape.type === "action" ? "Needs you" : "Asks you"
+    case "grant":
+      return "Asks you to grant its team"
     case "trouble":
       return "Novadeck noticed"
     case "update":

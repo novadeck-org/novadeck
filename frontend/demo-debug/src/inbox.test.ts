@@ -84,7 +84,7 @@ describe("the debug panel's Inbox group", () => {
     const inbox = createDemoInbox(1, [])
     const notes: string[] = []
     // Lifecycle controls and variants change or add rows rather than adding a kind.
-    const kinds = inboxGroups(inbox, seed)[0]!.actions.length - 16
+    const kinds = inboxGroups(inbox, seed)[0]!.actions.length - 20
     for (let each = 0; each < kinds; each += 1) run(inbox, "A new row arrives", notes)
     expect(inbox.state.getSnapshot().items).toHaveLength(kinds)
     run(inbox, "A new row arrives", notes)
@@ -214,5 +214,46 @@ describe("the debug panel's Inbox group", () => {
     const inbox = createDemoInbox(1)
     run(inbox, "Clear the added rows")
     expect(inbox.state.getSnapshot().items).toEqual([])
+  })
+})
+
+describe("the debug panel's grant actions", () => {
+  const withCards = () => createDemoInbox(1, [])
+
+  it("adds the Grant and approval cards", () => {
+    const inbox = withCards()
+    run(inbox, "Grant card")
+    run(inbox, "Approval card")
+    expect(
+      inbox.state
+        .getSnapshot()
+        .items.map((row) => row.id)
+        .toSorted(),
+    ).toEqual([demoInboxIds.approval, demoInboxIds.grant].toSorted())
+  })
+
+  it("lists a live grant with its last use, and revokes it", () => {
+    const inbox = withCards()
+    const notes: string[] = []
+    run(inbox, "Revoke a grant", notes)
+    expect(notes).toEqual(["No grant is live. Add one with Live grant or the cards."])
+
+    run(inbox, "Live grant")
+    expect(inbox.grants.state.getSnapshot()[0]?.lastUse).not.toBeNull()
+    run(inbox, "Revoke a grant")
+    expect(inbox.grants.state.getSnapshot()).toEqual([])
+  })
+
+  it("shows a grant that ends by its time and leaves the list", () => {
+    vi.useFakeTimers()
+    try {
+      const inbox = withCards()
+      run(inbox, "Grant ends")
+      expect(inbox.grants.state.getSnapshot()).toHaveLength(1)
+      vi.advanceTimersByTime(4000)
+      expect(inbox.grants.state.getSnapshot()).toEqual([])
+    } finally {
+      vi.useRealTimers()
+    }
   })
 })

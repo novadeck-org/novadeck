@@ -25,6 +25,7 @@ import type { TerminalKey, TerminalMetadata, Workspace } from "@novadeck/core/ty
 import { longHoldMs, type AgentDetail, type AskAnswer, type InboxEntry } from "@novadeck/protocol"
 
 import { requestOf, rootOf } from "./conversations"
+import { createRunnerGrants, type GrantStreams } from "./grants"
 
 // The runner's Inbox: what every agent terminal waits on the person for, as Inbox rows, built from what the UI already has: the terminals' statuses (a finished turn,
 // its error, a usage limit), the messages held for release, and the requests of the agents
@@ -56,6 +57,8 @@ export type InboxStreams = {
     readonly dismiss: (id: string) => Promise<void>
     readonly clear: (ids: readonly string[]) => Promise<void>
   }
+  // The person's grants; absent where the runner has none.
+  readonly grants?: GrantStreams
   readonly detail: (terminalId: string) => AsyncIterableIterator<AgentDetail, undefined>
   readonly answer: (key: TerminalKey, request: string, answer: ChatAnswer) => Promise<void>
   readonly send: (
@@ -73,6 +76,7 @@ export type RunnerInbox = Inbox & {
   readonly bind: NonNullable<Inbox["bind"]>
   readonly turns: NonNullable<Inbox["turns"]>
   readonly readFinishes: NonNullable<Inbox["readFinishes"]>
+  readonly grants: NonNullable<Inbox["grants"]>
   // Ends every stream it opened; the backend is stopping.
   readonly end: () => void
 }
@@ -134,6 +138,8 @@ export const createRunnerInbox = (
   } = {},
 ): RunnerInbox => {
   const state = createStore<InboxState>(emptyInbox)
+  const grants = createRunnerGrants(streams.grants, track)
+  let stopGrants: (() => void) | undefined
   let binding: InboxBinding | null = null
   // Asks and tells, as the runner last listed them, and its finished turns (undefined until
   // the first listing, and after the listing ended for good).
@@ -416,6 +422,16 @@ export const createRunnerInbox = (
     // A settled ask is no longer the agent's to be answered.
     if (!item || item.settled || !binding || state.getSnapshot().answering[id]) return
     const key = keyOf(item)
+    // A lead's Grant card is answered with Grant, which the runner makes the grant from.
+    if (item.kind === "grant" && given.kind === "grant")
+      return tracker.call(id, () =>
+        streams.inbox.answer(id, {
+          ...given.answer,
+          presets: [...given.answer.presets],
+          commands: [...given.answer.commands],
+          repos: [...given.answer.repos],
+        }),
+      )
     if (item.kind === "ask" && given.kind === "ask") {
       replies.delete(id)
       replies.set(id, {
@@ -450,6 +466,7 @@ export const createRunnerInbox = (
 
   return {
     state,
+    grants,
     answer,
     see: (id) => {
       if (find(id)) tracker.see(id)
@@ -471,7 +488,7 @@ export const createRunnerInbox = (
       // Only an open Novadeck ask: a harness's own question is answered in its dialog.
       if (
         !item ||
-        item.kind !== "ask" ||
+        (item.kind !== "ask" && item.kind !== "grant") ||
         item.settled ||
         !binding ||
         state.getSnapshot().answering[id]
@@ -483,7 +500,7 @@ export const createRunnerInbox = (
       const settled = new Set(
         state
           .getSnapshot()
-          .items.filter((item) => item.kind === "ask" && item.settled)
+          .items.filter((item) => (item.kind === "ask" || item.kind === "grant") && item.settled)
           .map((item) => item.id),
       )
       const wanted = ids.filter((id) => settled.has(id))
@@ -517,6 +534,8 @@ export const createRunnerInbox = (
       binding = next
       unsubscribe = [next.workspace.subscribe(recompute), messages.subscribe(recompute)]
       stopEntries()
+      stopGrants?.()
+      stopGrants = grants.start()
       const stream = streams.inbox.watch()
       entriesStream = stream
       void (async () => {
@@ -544,6 +563,8 @@ export const createRunnerInbox = (
       return () => {
         if (binding !== next) return
         stopEntries()
+        stopGrants?.()
+        stopGrants = undefined
         binding = null
         for (const stop of unsubscribe) stop()
         unsubscribe = []
@@ -557,6 +578,8 @@ export const createRunnerInbox = (
     end: () => {
       ended = true
       stopEntries()
+      stopGrants?.()
+      stopGrants = undefined
       tracker.stop()
       for (const id of readings.keys()) close(id)
     },

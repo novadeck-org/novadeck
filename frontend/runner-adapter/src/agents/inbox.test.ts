@@ -11,7 +11,7 @@ import {
 import { createTerminalState } from "@novadeck/core/state"
 import { createStore } from "@novadeck/core/store"
 import type { AgentStatus, AgentTurnEnd, TerminalMetadata, Workspace } from "@novadeck/core/types"
-import { longHoldMs, type AgentDetail, type InboxEntry } from "@novadeck/protocol"
+import { longHoldMs, type AgentDetail, type Grant, type InboxEntry } from "@novadeck/protocol"
 import { afterEach, beforeEach, expectTypeOf, vi } from "vitest"
 
 import { describe, expect, it } from "../test"
@@ -177,6 +177,7 @@ afterEach(() => vi.useRealTimers())
 const setup = (workspace: Workspace, unread: Marks = {}, messages: MessagesState = noMessages) => {
   const details: ReturnType<typeof channel<AgentDetail>>[] = []
   const feed = channel<InboxEntry[]>()
+  const grantFeed = channel<Grant[]>()
   // What the runner lists: the asks and tells a test pushes, and the turn rows its marks
   // stand for, which reading removes.
   let others: InboxEntry[] = []
@@ -203,6 +204,10 @@ const setup = (workspace: Workspace, unread: Marks = {}, messages: MessagesState
         others = others.filter((each) => !gone(each))
         publish()
       }),
+    },
+    grants: {
+      watch: vi.fn<NonNullable<InboxStreams["grants"]>["watch"]>(() => grantFeed.iterator),
+      revoke: vi.fn<NonNullable<InboxStreams["grants"]>["revoke"]>(async () => {}),
     },
     detail: vi.fn<InboxStreams["detail"]>(() => {
       const next = channel<AgentDetail>()
@@ -239,6 +244,7 @@ const setup = (workspace: Workspace, unread: Marks = {}, messages: MessagesState
     inbox,
     streams,
     details,
+    grantFeed,
     entries,
     workspaceStore,
     marks,
@@ -1519,5 +1525,125 @@ describe("Turn rows", () => {
     inbox.readAll()
     await settle()
     expect(streams.inbox.read).toHaveBeenCalledExactlyOnceWith(["old-row"])
+  })
+})
+
+describe("Grants", () => {
+  const proposalEntry = (): InboxEntry =>
+    entry({
+      id: "grant-1",
+      content: {
+        kind: "grant",
+        proposal: {
+          presets: ["push"],
+          commands: [{ argv: ["pnpm", "test"], rest: false }],
+          repos: [
+            {
+              repo: { url: "github.com/acme/shop", defaultBranch: "main", defaultFrom: "github" },
+              ticked: true,
+              flag: null,
+            },
+          ],
+          withLead: false,
+          hours: 8,
+          reason: "Ship today.",
+          covered: [{ handle: "fox", agent: "codex" }],
+        },
+      },
+    })
+
+  const live = (id = "g1"): Grant => ({
+    id,
+    projectId: "p",
+    workspaceSessionId: "s",
+    holder: { kind: "team", lead: "moth", withLead: false },
+    presets: ["push"],
+    commands: [],
+    repos: [],
+    entryId: "grant-1",
+    proposedBy: "moth",
+    madeAt: 1,
+    endsAt: 2,
+    revokedAt: null,
+    lastUse: null,
+  })
+
+  it("lists the runner's live grants while bound, and none after", async () => {
+    const { inbox, grantFeed, streams, stop } = setup(workspaceOf(agentTerminal(1)))
+    expect(streams.grants.watch).toHaveBeenCalledOnce()
+    grantFeed.push([live()])
+    await settle()
+    expect(inbox.grants.state.getSnapshot().map(({ id }) => id)).toEqual(["g1"])
+    grantFeed.push([])
+    await settle()
+    expect(inbox.grants.state.getSnapshot()).toEqual([])
+    grantFeed.push([live()])
+    await settle()
+    stop()
+    expect(inbox.grants.state.getSnapshot()).toEqual([])
+    expect(grantFeed.returned()).toBe(1)
+  })
+
+  it("revokes through the runner", async () => {
+    const { inbox, streams } = setup(workspaceOf(agentTerminal(1)))
+    inbox.grants.revoke("g1")
+    await settle()
+    expect(streams.grants.revoke).toHaveBeenCalledExactlyOnceWith("g1")
+  })
+
+  it("shows a lead's proposal as a Grant row and sends the person's Grant as it is", async () => {
+    const { entries, inbox, streams, ids } = setup(workspaceOf(agentTerminal(1)))
+    entries.push([proposalEntry()])
+    await settle()
+    expect(ids()).toEqual(["grant-1"])
+    expect(inbox.state.getSnapshot().items[0]).toMatchObject({
+      kind: "grant",
+      stopped: true,
+      proposal: { hours: 8, reason: "Ship today." },
+    })
+    const answer = {
+      type: "grant",
+      presets: ["push"],
+      commands: [0],
+      repos: ["github.com/acme/shop"],
+      withLead: true,
+      hours: 1,
+    } as const
+    inbox.answer("grant-1", { kind: "grant", answer })
+    expect(streams.inbox.answer).toHaveBeenCalledExactlyOnceWith("grant-1", answer)
+    expect(inbox.state.getSnapshot().answering).toEqual({ "grant-1": true })
+  })
+
+  it("dismisses a Grant card as it does an ask", async () => {
+    const { entries, inbox, streams } = setup(workspaceOf(agentTerminal(1)))
+    entries.push([proposalEntry()])
+    await settle()
+    inbox.dismiss!("grant-1")
+    expect(streams.inbox.dismiss).toHaveBeenCalledExactlyOnceWith("grant-1")
+  })
+
+  it("sends Approve on an approval ask like a reply", async () => {
+    const { entries, inbox, streams } = setup(workspaceOf(agentTerminal(1)))
+    entries.push([
+      entry({
+        content: {
+          kind: "ask",
+          ask: {
+            subject: "May I?",
+            body: "Build.",
+            details: null,
+            hardToUndo: null,
+            shape: {
+              type: "approval",
+              commands: [{ argv: ["pnpm", "build"], rest: false }],
+              hours: 1,
+            },
+          },
+        },
+      }),
+    ])
+    await settle()
+    inbox.answer("entry-1", { kind: "ask", answer: { type: "approve" } })
+    expect(streams.inbox.answer).toHaveBeenCalledExactlyOnceWith("entry-1", { type: "approve" })
   })
 })
