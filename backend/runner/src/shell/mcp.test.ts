@@ -534,6 +534,35 @@ describe("Novadeck's MCP server in a Novadeck terminal", () => {
     expect(one.content[0]?.text).toContain(
       "1 message another agent sent it won't arrive; Novadeck tells their senders.",
     )
+    // Its own messages to the closer, still on the way, are named, as they arrive after.
+    const coming = await said({
+      ok: true,
+      handle: "fox",
+      title: "api-server",
+      coming: [{ id: "m-7", sent: "01:48" }],
+    })
+    expect(coming.content[0]?.text).toBe(
+      "Closed @fox · api-server.\nIts message m-7 (sent 01:48) to you hadn't reached you: it " +
+        "arrives marked as from a closed terminal, and no reply reaches its sender.",
+    )
+    const two = await said({
+      ok: true,
+      handle: "fox",
+      title: "api-server",
+      coming: [
+        { id: "m-7", sent: "01:48" },
+        { id: "m-8", sent: "01:49" },
+        { id: "m-9", sent: "01:49" },
+        { id: "m-10", sent: "01:50", held: true },
+      ],
+    })
+    // Those held for the user arrive only if they let them go.
+    expect(two.content[0]?.text).toContain(
+      "Its messages m-7 (sent 01:48), m-8 (sent 01:49) and m-9 (sent 01:49) to you hadn't " +
+        "reached you: they arrive marked as from a closed terminal, and no reply reaches their " +
+        "sender. Its message m-10 (sent 01:50) to you is held by the user in Novadeck: it " +
+        "arrives only if they let it go, marked as from a closed terminal.",
+    )
     const own = await said({ ok: true, self: true, handle: "moth", title: "api-server" })
     expect(own.content[0]?.text).toBe(
       "Closing @moth · api-server, your own terminal, in a moment, which ends your session. " +
@@ -1173,6 +1202,37 @@ describe("Novadeck's MCP server in a Novadeck terminal", () => {
     expect(holds.content[0]?.text).toContain(
       "\nNovadeck: your message m-1 to @fox has not arrived since 11:41 (…).\nEnd your turn",
     )
+    // To several terminals the caller leads: a line for each, then what every answer adds.
+    const team = await said(
+      {
+        ok: true,
+        sent: [
+          { ok: true, to: "fox", id: "m-5", state: "queued", route: "ringing it now" },
+          { ok: true, to: "owl", id: "m-6", state: "held", held: "paused" },
+          { ok: false, to: "kite", reason: "@kite has no agent running there." },
+        ],
+        gone: [{ id: "m-0", to: "owl" }],
+      },
+      { to: "team", text: "Don't re-run CI." },
+    )
+    expect(calls.at(-1)).toMatchObject({ request: { to: "team", text: "Don't re-run CI." } })
+    expect(team).toEqual({
+      content: [
+        {
+          type: "text",
+          text: [
+            "Message m-5 to @fox is queued: it reaches them ringing it now.",
+            "Message m-6 to @owl is held: the user paused messaging in Novadeck, and it goes " +
+              "once they resume it.",
+            "Not sent to @kite: @kite has no agent running there.",
+            "Your earlier message m-0 to @owl won't arrive: the agent session it was for ended " +
+              "there.",
+            "End your turn rather than wait for a reply; replies arrive by themselves.",
+          ].join("\n"),
+        },
+      ],
+      isError: false,
+    })
     const refused = await said({ ok: false, reason: '"codex" is no terminal\'s handle here.' })
     expect(refused).toEqual({
       content: [{ type: "text", text: '"codex" is no terminal\'s handle here.' }],

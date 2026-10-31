@@ -22,6 +22,11 @@ export type SessionsHost = {
  */
 export class Sessions {
   private readonly live = new Map<string, Live>()
+  /**
+   * The terminals closed for good, so a message one sent that arrives after is marked so.
+   * In memory only: after a runner restart, a terminal closed before it isn't known closed.
+   */
+  private readonly closedForGood = new Set<string>()
 
   constructor(private readonly host: SessionsHost) {}
 
@@ -31,6 +36,11 @@ export class Sessions {
 
   has(terminalId: string): boolean {
     return this.live.has(terminalId)
+  }
+
+  /** Whether the terminal closed for good since this runner started. */
+  closed(terminalId: string): boolean {
+    return this.closedForGood.has(terminalId)
   }
 
   /** Every running terminal; the live view. */
@@ -55,6 +65,7 @@ export class Sessions {
    */
   register(terminalId: string, scope: Scope, handle: string, ledBy: string | null): void {
     if (this.live.has(terminalId)) return
+    this.closedForGood.delete(terminalId)
     this.live.set(terminalId, started(terminalId, scope, handle, ledBy))
   }
 
@@ -68,6 +79,7 @@ export class Sessions {
     const { store } = this.host
     // Told to those waiting on it, which stop.
     if (forGood && this.host.letBriefGo(terminalId)) store.changed(terminalId)
+    if (forGood) this.closedForGood.add(terminalId)
     const live = this.live.get(terminalId)
     if (!live) return
     this.applyRoot(live, [{ type: "ended" }])
