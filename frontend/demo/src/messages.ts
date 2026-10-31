@@ -187,7 +187,7 @@ const askText = (ask: AgentAsk): string => {
         ? [shape.command, shape.directory, shape.doneLabel].filter(Boolean).join("\n")
         : shape.type === "approval"
           ? [
-              `To run, without asking again, for ${hoursWords(shape.hours ?? 1)}:`,
+              `To run, without asking again, for ${hoursWords(1)}:`,
               ...shape.commands.map((command) => `$ ${commandText(command)}`),
             ].join("\n")
           : null

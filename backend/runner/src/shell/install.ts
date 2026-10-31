@@ -22,6 +22,11 @@ const log = logs.for("shell")
 export type InstalledShell = ShellPaths & {
   readonly launcher: string
   readonly mcpLauncher: string | undefined
+  /**
+   * Whether a previous runner left a terminal's launch settings: an Antigravity it
+   * narrowed may still run, on the plugin's hook, though this runner knows nothing of it.
+   */
+  readonly narrowedBefore?: boolean
 }
 
 export type InstallOptions = {
@@ -52,6 +57,9 @@ export const installShellFiles = async (
   await Promise.all(staleShellFiles(directory).map((stale) => rm(stale, { force: true })))
   // A terminal's launch settings belong to the runner that wrote them and the agent it
   // started: none outlives it, or a restored terminal of the same id would start narrowed.
+  const narrowedBefore = (await readdir(paths.narrow).catch(() => [] as string[])).some((name) =>
+    name.endsWith(".json"),
+  )
   await rm(paths.narrow, { recursive: true, force: true })
   // An agent that runs its hooks in cmd reads nothing they answer after cmd's own output.
   const prints = process.platform === "win32" ? await cmdPrints() : undefined
@@ -90,6 +98,7 @@ export const installShellFiles = async (
     ...paths,
     launcher: await shortName(paths.hook),
     mcpLauncher: process.platform !== "win32" && relayed ? paths.mcp : undefined,
+    narrowedBefore,
   }
 }
 

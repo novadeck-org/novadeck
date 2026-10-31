@@ -49,14 +49,12 @@ export const GrantCommandLine = ({
 export const ApprovalBox = ({
   row,
   commands,
-  hours,
 }: {
   readonly row: InboxRow
   readonly commands: readonly GrantCommand[]
-  readonly hours: GrantHours | null
 }): React.JSX.Element => (
   <div className="console-box grant-box" data-grant="approval">
-    <p className="grant-sentence">{approvalSentence(row.source.handle, hours)}</p>
+    <p className="grant-sentence">{approvalSentence(row.source.handle)}</p>
     <ul className="grant-lines" aria-label="Commands">
       {commands.map((command, index) => (
         <li key={index}>
@@ -64,6 +62,11 @@ export const ApprovalBox = ({
         </li>
       ))}
     </ul>
+    {row.source.agent === "codex" && (
+      <p className="grant-warn" data-grant="codex">
+        @{row.source.handle} runs Codex, which runs allowed commands outside Codex&apos;s sandbox.
+      </p>
+    )}
   </div>
 )
 
@@ -131,6 +134,7 @@ export const GrantCard = ({
         : "the repos ticked below"
   const problem = problemOf(presets, commands, repos)
   const codex = proposal.covered.filter(({ agent }) => agent === "codex")
+  const antigravity = proposal.covered.filter(({ agent }) => agent === "agy")
   const items: MenuItem[] = [
     {
       key: "grant",
@@ -227,6 +231,14 @@ export const GrantCard = ({
               {codex.map(({ handle: each }) => `@${each}`).join(", ")}{" "}
               {codex.length === 1 ? "runs" : "run"} Codex, which runs allowed commands outside
               Codex&apos;s sandbox.
+            </p>
+          )}
+          {antigravity.length > 0 && (
+            <p className="grant-warn" data-grant="agy">
+              {antigravity.map(({ handle: each }) => `@${each}`).join(", ")}{" "}
+              {antigravity.length === 1 ? "runs" : "run"} Antigravity, which only partly takes it: a
+              teammate started before the grant still asks per command; Antigravity before 1.4.10
+              and on Windows never takes it.
             </p>
           )}
         </fieldset>

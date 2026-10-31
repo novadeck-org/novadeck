@@ -88,3 +88,38 @@ describe.skipIf(process.platform === "win32" || !existsSync(bash))(
     })
   },
 )
+
+describe.skipIf(process.platform === "win32" || !existsSync(bash))(
+  "a grant when its terminal is closed",
+  () => {
+    it("ends with a terminal closed after its shell exited, whose live entry is gone", async ({
+      shell,
+    }) => {
+      const manager = shell.manager({ env: { HOME: shell.home, PS1: "$ " } })
+      const lead = await create(manager, shell)
+      const { handle } = manager.get(lead.id)
+      const projectId = shell.store.session(shell.sessionId).projectId
+      const { grants } = manager["messaging"]
+      for (const holder of [
+        { kind: "team" as const, lead: handle, withLead: false },
+        { kind: "terminal" as const, handle },
+      ])
+        grants.make({
+          projectId,
+          workspaceSessionId: shell.sessionId,
+          holder,
+          presets: [],
+          commands: [{ argv: ["make", "ship"], rest: false }],
+          repos: [],
+          entryId: randomUUID(),
+          proposedBy: handle,
+          hours: 8,
+        })
+      // The exit of its shell removed the live entry, as `exited` does.
+      manager["messaging"].unregister(lead.id)
+      expect(grants.list()).toHaveLength(2)
+      await manager.close({ terminalId: lead.id })
+      expect(grants.list()).toEqual([])
+    })
+  },
+)

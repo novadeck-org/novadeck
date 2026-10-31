@@ -30,14 +30,14 @@ export const maxGrantCommands = 8
 export const grantRepo = z.strictObject({
   url: z
     .string()
-    .max(256)
+    .max(160)
     .regex(/^github\.com\/[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+$/, "github.com/owner/name"),
-  defaultBranch: z.string().min(1).max(256),
+  defaultBranch: z.string().min(1).max(100),
   // Where the default branch came from: GitHub itself, the remote's HEAD ref (which an agent
   // can write), or the main/master guess.
   defaultFrom: z.enum(["github", "remote-head", "guess"]),
 })
-export const maxGrantRepos = 16
+export const maxGrantRepos = 6
 
 /** Who may use a grant. */
 export const grantHolder = z.discriminatedUnion("kind", [

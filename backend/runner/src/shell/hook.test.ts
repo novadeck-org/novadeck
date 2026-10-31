@@ -682,6 +682,17 @@ describe("reading a relay's hook", () => {
     ...given,
   })
 
+  it("gives no permission decision for Codex on Windows, where PowerShell splits a,b", async () => {
+    const payload = JSON.stringify({
+      hook_event_name: "PermissionRequest",
+      tool_name: "Bash",
+      tool_input: { command: "git status" },
+    })
+    const ask = hook({ event: "PermissionRequest", payload })
+    expect(relayHook(ask, "linux")?.permission).toBeDefined()
+    expect(relayHook(ask, "win32")?.permission).toBeUndefined()
+  })
+
   it("names the nearest ancestor with its agent's name, and Claude Code by its own pid", async () => {
     const ancestors = [
       { pid: 10, name: "sh" },

@@ -420,7 +420,6 @@ const extraFixtures: readonly Fixture[] = [
             { argv: ["uberepo", "check", "links"], rest: true },
             { argv: ["rm", "-rf", "dist/cache dir"], rest: false },
           ],
-          hours: null,
         },
       },
     },

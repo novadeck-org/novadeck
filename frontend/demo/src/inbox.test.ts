@@ -913,15 +913,17 @@ describe("the demo Inbox's grants", () => {
     ).toBe("dismissed")
   })
 
-  it("drops a grant when it is revoked or ends", () => {
+  it("drops a grant when it is revoked, and when its time is up", () => {
     const inbox = withCards()
-    const [live, ending] = [demoLiveGrant(now), demoEndingGrant(now, 1000)]
+    const [live, ending] = [demoLiveGrant(Date.now()), demoEndingGrant(Date.now(), 1000)]
     inbox.grants.add(live)
     inbox.grants.add(ending)
     expect(inbox.grants.state.getSnapshot()).toHaveLength(2)
     inbox.grants.revoke(live.id)
     expect(inbox.grants.state.getSnapshot().map(({ id }) => id)).toEqual([ending.id])
-    inbox.grants.end(ending.id)
+    vi.advanceTimersByTime(999)
+    expect(inbox.grants.state.getSnapshot()).toHaveLength(1)
+    vi.advanceTimersByTime(1)
     expect(inbox.grants.state.getSnapshot()).toEqual([])
   })
 })

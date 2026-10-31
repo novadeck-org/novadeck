@@ -674,15 +674,27 @@ lead's team, or one terminal, may run without asking again. The design is
 that match a call against a grant are in `harnesses/core/src/grants/`, and the shared shapes
 in `contract/protocol/src/grants.ts`.
 
+- **A terminal grant follows the terminal's handle**, not an agent session: it survives the
+  agent restarting in that terminal, or another harness replacing it, for as long as the
+  terminal lives in the session. It ends with its time, a Revoke, or the terminal's close (also
+  when its shell had exited before it was closed: the saved handle and session say whose
+  grants end).
+- **A grant always fits one delivery (8 KiB).** Its commands are capped at 4 KiB as they render
+  in its `<grant>` (`maxGrantCommandBytes` in `messaging/grant-text.ts`), checked when an
+  `approval` ask or a `propose_grant` is read, and the agent is told to offer fewer or shorter
+  commands. A grant reaches at most 6 repos, each url at most 160 characters with a default branch
+  of at most 100. A test prints the largest grant these allow and holds it to one delivery.
+
 - **Only the person makes one,** with a click on a card in the Inbox. `Grants.make`
   (`messaging/grants.ts`) is called only from `Inbox.answer`: for **Approve** on an `approval`
   ask, and for **Grant** on a lead's Grant card. Text an agent writes (a `send`, a summary, an
   ask's wording, a lead's relay) cannot make, widen or extend one.
-- **The `approval` ask shape** (`ask` with `shape: {type: "approval", commands, hours}`) is
+- **The `approval` ask shape** (`ask` with `shape: {type: "approval", commands}`) is
   for one terminal. Each command is `{argv, rest}`; one the matcher would refuse
   (`refusesCommand`: shells, interpreters, `git` and `gh` with `rest`, a path as program) is
   refused when asked. Approve makes a `holder: terminal` grant for the asking terminal for
-  `hours` (1 by default, 24 at most) and replies under the person mark as any answer does. A
+  1 hour (the agent can't choose the time; the person's time picker is only on the team Grant
+  card) and replies under the person mark as any answer does. A
   reply to an approval ask, or Approve on any other ask, makes nothing.
 - **`propose_grant`** (`{presets, commands?, with_lead?, hours?, reason}`, a closed schema)
   is for a lead. A terminal that has a lead of its own and leads nobody is refused, so a

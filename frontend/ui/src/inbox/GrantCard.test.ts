@@ -95,7 +95,6 @@ const approvalRow = (): InboxRow => ({
         { argv: ["pnpm", "build"], rest: false },
         { argv: ["pnpm", "run", "x y"], rest: true },
       ],
-      hours: null,
     },
   },
 })
@@ -129,6 +128,7 @@ const mount = (
 ) => {
   const state = createStore<InboxState>({ ...emptyInbox, items: rows })
   const store = createStore<readonly Grant[]>(grants)
+  const failed = createStore<Readonly<Record<string, string>>>({})
   const sent: InboxAnswer[] = []
   const dismissed: string[] = []
   const revoked: string[] = []
@@ -138,7 +138,7 @@ const mount = (
     see: () => {},
     readAll: () => {},
     dismiss: (id) => void dismissed.push(id),
-    grants: { state: store, revoke: (id) => void revoked.push(id) },
+    grants: { state: store, revoke: (id) => void revoked.push(id), failed },
   }
   const view = render(
     createElement(
@@ -163,7 +163,7 @@ const mount = (
     view.unmount()
     mounted = null
   }
-  return { view, store, sent, dismissed, revoked, option, tick, done }
+  return { view, store, failed, sent, dismissed, revoked, option, tick, done }
 }
 
 const text = (selector: string) => document.querySelector(selector)?.textContent ?? null
@@ -217,6 +217,16 @@ describe("The Grant card", () => {
       expect(text("[data-grant=codex]")).toBe(
         "@fox runs Codex, which runs allowed commands outside Codex's sandbox.",
       )
+      await inbox.done()
+    })
+
+    it("warns for Antigravity that a teammate started earlier still asks, and old versions never take it", async () => {
+      const inbox = mount([grantRow({ covered: [{ handle: "elk", agent: "agy" }] })])
+
+      expect(text("[data-grant=agy]")).toBe(
+        "@elk runs Antigravity, which only partly takes it: a teammate started before the grant still asks per command; Antigravity before 1.4.10 and on Windows never takes it.",
+      )
+      expect(document.querySelector("[data-grant=codex]")).toBeNull()
       await inbox.done()
     })
 
@@ -309,6 +319,18 @@ describe("The approval card", () => {
     await inbox.done()
   })
 
+  it("warns about Codex's sandbox only when the asking terminal runs Codex", async () => {
+    const claude = mount([approvalRow()])
+    expect(document.querySelector("[data-grant=codex]")).toBeNull()
+    await claude.done()
+    const codex = approvalRow()
+    const inbox = mount([{ ...codex, source: { ...codex.source, agent: "codex" } }])
+    expect(text("[data-grant=codex]")).toBe(
+      "@fox runs Codex, which runs allowed commands outside Codex's sandbox.",
+    )
+    await inbox.done()
+  })
+
   it("approves, or takes the person's words", async () => {
     const inbox = mount([approvalRow()])
 
@@ -343,6 +365,14 @@ describe("The Grants section", () => {
     expect(row.querySelector(".grant-row-last")?.textContent).toBe(
       "Last allowed: git push origin a:a by @owl, 4m ago",
     )
+    await inbox.done()
+  })
+
+  it("shows why a revoke failed beside its grant", async () => {
+    const inbox = mount([], { grants: [live()], open: false })
+    expect(document.querySelector(".grant-row-error")).toBeNull()
+    act(() => inbox.failed.update(() => ({ live: "The runner is away." })))
+    expect(text(".grant-row-error")).toBe("Could not revoke: The runner is away.")
     await inbox.done()
   })
 

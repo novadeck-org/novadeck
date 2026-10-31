@@ -5,7 +5,6 @@ import {
   agentAsk,
   askAnswer,
   grantCommand,
-  grantHours,
   hiddenIn,
   inboxEntry,
   inboxTextLimits,
@@ -31,6 +30,7 @@ import { DomainError } from "../errors.js"
 import type { RootChange } from "../harnesses/roots.js"
 import { logs } from "../log.js"
 import { cut, firstFew, shorten } from "../text.js"
+import { grantCommandsRefusal } from "./grant-text.js"
 import type { MakeGrant } from "./grants.js"
 import {
   allowSend,
@@ -206,8 +206,14 @@ const requestedShape = z.discriminatedUnion("type", [
   }),
   z.strictObject({
     type: z.literal("approval"),
-    commands: z.array(approvalCommand).min(1).max(maxGrantCommands),
-    hours: grantHours.nullable().optional(),
+    commands: z
+      .array(approvalCommand)
+      .min(1)
+      .max(maxGrantCommands)
+      .superRefine((commands, context) => {
+        const refusal = grantCommandsRefusal(commands)
+        if (refusal !== undefined) context.addIssue({ code: "custom", message: refusal })
+      }),
   }),
 ])
 const askRequest = z.strictObject({
@@ -509,7 +515,6 @@ export class Inbox {
                       ? {
                           type: "approval" as const,
                           commands: choice.commands,
-                          hours: choice.hours ?? null,
                         }
                       : choice.type === "action"
                         ? {
@@ -749,7 +754,7 @@ export class Inbox {
   /**
    * The grant an answer makes, and the words the agent hears it in, or undefined for an
    * answer that is none: Approve on an `approval` ask, which gives the asking terminal the
-   * commands for the hours it named (1 by default); Grant on a Grant card, which must keep to
+   * commands for 1 hour; Grant on a Grant card, which must keep to
    * what the proposal offered (its presets, commands by index, repos among its choices; `withLead`
    * is the person's to tick either way), and makes a team grant. Throws ANSWER_FAILED for an answer
    * that fits neither or reaches beyond the proposal. Only these answers make grants.
@@ -765,10 +770,9 @@ export class Inbox {
     }
     if (content.kind === "ask" && content.ask.shape.type === "approval") {
       if (answer.type !== "approve") return undefined
-      const { commands, hours } = content.ask.shape
+      const { commands } = content.ask.shape
       if (commands.some((each) => refusesCommand(each) !== undefined))
         fail("Novadeck can't grant one of these commands.")
-      const length = hours ?? 1
       return {
         grant: {
           projectId: entry.projectId,
@@ -779,9 +783,9 @@ export class Inbox {
           repos: [],
           entryId: entry.id,
           proposedBy: entry.handle,
-          hours: length,
+          hours: 1,
         },
-        text: `Approved: you may run these commands without asking again for ${length} ${length === 1 ? "hour" : "hours"}. Novadeck tells you what it allows.`,
+        text: `Approved: you may run these commands without asking again for 1 hour. Novadeck tells you what it allows.`,
       }
     }
     if (answer.type === "approve") return fail("This ask has no approval to give.")
@@ -1054,9 +1058,7 @@ export class Inbox {
       if (change.type === "corrected" && change.from !== change.root.sessionId) {
         const open = [...(this.byTerminal.get(terminalId)?.values() ?? [])].filter(
           (entry) =>
-            entry.state === "open" &&
-            entry.content.kind === "ask" &&
-            entry.agent === change.root.agent,
+            entry.state === "open" && answerable(entry) && entry.agent === change.root.agent,
         )
         // An ask dismissed under the guessed session stays quietly withdrawable by the
         // corrected one.
@@ -1064,7 +1066,7 @@ export class Inbox {
           if (
             entry.state === "withdrawn" &&
             entry.cause === "dismissed" &&
-            entry.content.kind === "ask" &&
+            answerable(entry) &&
             entry.agent === change.root.agent &&
             entry.sessionId === change.from
           )

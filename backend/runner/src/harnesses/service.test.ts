@@ -262,6 +262,24 @@ describe("agents Novadeck can connect", () => {
     expect(await agents.refresh()).toEqual(["agy"])
   })
 
+  it("leave Antigravity's plugin as it is when a previous runner left a narrowed terminal", async ({
+    fixture,
+  }) => {
+    installed(fixture.home, "agy")
+    const left = createHarnesses(
+      () => Promise.resolve({ ...fixture.paths, narrowedBefore: true }),
+      {
+        home: fixture.home,
+        env: fixture.environment(),
+      },
+    )
+    await left.set("agy", true)
+    writeFileSync(join(fixture.paths.plugins.agy, "hooks.json"), '{"novadeck":{}}')
+    const before = fixture.calls().length
+    expect(await left.refresh()).toEqual([])
+    expect(fixture.calls()).toHaveLength(before)
+  })
+
   it("refuse to disconnect Antigravity under a running terminal's grant, naming it", async ({
     fixture,
   }) => {

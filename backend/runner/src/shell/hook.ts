@@ -247,8 +247,9 @@ export const relayHook = (
   const narrow = platform !== "win32" && text(env.NOVADECK_NARROW, 8) === "1"
   const { messaging } = harnesses[agent.data]
   // Read from the genuine payload, before `prune` cuts it.
+  // PowerShell splits a Codex call's `a,b` into arguments, so no grant is read there.
   const permission =
-    event === messaging.permission.event
+    event === messaging.permission.event && !(agent.data === "codex" && platform === "win32")
       ? readPermission(agent.data, event, payload, narrow)
       : undefined
   const denied = event === messaging.denied ? readDenied(payload) : undefined

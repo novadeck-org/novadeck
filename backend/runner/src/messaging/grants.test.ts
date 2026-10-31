@@ -92,6 +92,32 @@ describe("who a grant covers", () => {
     expect(told("F")).toHaveLength(1)
   })
 
+  it("ends a lead's grants when it is closed after its shell exited, by its kept identity", () => {
+    const { messaging, make } = setup()
+    make()
+    make({
+      holder: { kind: "terminal", handle: "sable" },
+      presets: [],
+      repos: [],
+      commands: [{ argv: ["make", "ship"], rest: false }],
+    })
+    // The shell exits first: the live entry goes, the grants stay.
+    messaging.unregister("L")
+    expect(messaging.grants.list()).toHaveLength(2)
+    messaging.unregister("L", true, { sessionId, handle: "sable" })
+    expect(messaging.grants.list()).toEqual([])
+  })
+
+  it("tells a terminal the lead adopts of the grants that now cover it, at once", () => {
+    const { messaging, make, told } = setup()
+    make()
+    expect(told("O")).toHaveLength(0)
+    messaging.setLead("O", "sable")
+    expect(messaging.grants.covering("O")).toHaveLength(1)
+    expect(told("O")).toHaveLength(1)
+    expect(told("O")[0]).toMatchObject({ from: { kind: "novadeck" } })
+  })
+
   it("keeps a terminal grant to that handle", () => {
     const { messaging, make } = setup()
     make({

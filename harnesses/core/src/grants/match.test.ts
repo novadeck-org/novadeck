@@ -73,6 +73,8 @@ describe("the push preset", () => {
     ["refs/heads/main", "git push origin fix:refs/heads/main"],
     ["a refs/ destination", "git push origin fix:refs/tags/v1"],
     ["a heads/ destination", "git push origin fix:heads/fix"],
+    ["a tags/ destination", "git push origin fix:tags/v1"],
+    ["a remotes/ destination", "git push origin fix:remotes/origin/main"],
     ["an @{-1} destination", "git push origin fix:@{-1}"],
     ["an @{-1} source", "git push origin @{-1}:fix"],
     ["a quoted @{-1}", "git push origin '@{-1}:fix'"],

@@ -70,11 +70,10 @@ const askShape = z.discriminatedUnion("type", [
     doneLabel: line,
   }),
   // Approval for this terminal to run these commands without asking again: the person's
-  // Approve makes a terminal grant (see grants.ts); `hours` defaults to 1.
+  // Approve makes a terminal grant (see grants.ts) of 1 hour: the agent can't choose the time.
   z.strictObject({
     type: z.literal("approval"),
     commands: z.array(grantCommand).min(1).max(maxGrantCommands),
-    hours: grantHours.nullable(),
   }),
 ])
 
@@ -114,7 +113,7 @@ export const askAnswer = z.discriminatedUnion("type", [
           .max(maxGrantCommands - 1),
       )
       .max(maxGrantCommands),
-    repos: z.array(z.string().max(256)).max(16),
+    repos: z.array(z.string().max(160)).max(6),
     withLead: z.boolean(),
     hours: grantHours,
   }),

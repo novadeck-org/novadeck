@@ -91,6 +91,9 @@ export type GrantAnswer = {
 export type Grants = {
   readonly state: Store<readonly Grant[]>
   readonly revoke: (id: string) => void
+  // Why the last revoke of a grant failed, by grant id, until it is tried again or the grant
+  // is gone. Absent where a revoke cannot fail.
+  readonly failed?: Store<Readonly<Record<string, string>>>
 }
 
 // A word of a command as a shell would take it back: left bare where it is plain, else in
@@ -114,5 +117,5 @@ export const presetSentence = (preset: GrantPreset, repos: string): string =>
     : `Open, edit, mark ready and comment on pull requests in ${repos} (no merge commands, close or reopen; no labels)`
 
 // The line over an `approval` card's commands.
-export const approvalSentence = (handle: string, hours: GrantHours | null): string =>
-  `Lets @${handle} run, without asking again, for ${hoursWords(hours ?? 1)}:`
+export const approvalSentence = (handle: string): string =>
+  `Lets @${handle} run, without asking again, for ${hoursWords(1)}:`

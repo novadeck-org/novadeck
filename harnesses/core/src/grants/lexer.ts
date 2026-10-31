@@ -13,6 +13,13 @@ const assignment = /^[A-Za-z_][A-Za-z0-9_]*=/
 // A word that may hold newlines: the one after --body.
 const bodyFlags = new Set(["--body", "-b"])
 
+/** The program a word names: its basename, lower-cased, without an executable suffix. */
+export const programName = (word: string): string =>
+  word
+    .slice(word.lastIndexOf("/") + 1)
+    .toLowerCase()
+    .replace(/\.(exe|cmd|bat)$/, "")
+
 const refuse = (reason: string): Lexed => ({ ok: false, reason })
 
 /** Reads `command` as one simple command's words, or says why it is not one. */
@@ -31,7 +38,10 @@ export const lex = (command: string): Lexed => {
     } else if (char === "'") {
       const end = command.indexOf("'", i + 1)
       if (end < 0) return refuse("unterminated single quote")
-      word += command.slice(i + 1, end)
+      const quoted = command.slice(i + 1, end)
+      // Fish reads \' inside single quotes as an escape, so a backslash there is never literal.
+      if (quoted.includes("\\")) return refuse("a backslash in single quotes")
+      word += quoted
       open = true
       i = end + 1
     } else if (char === '"') {
@@ -60,7 +70,7 @@ export const lex = (command: string): Lexed => {
   const first = words[0]
   if (first === undefined) return refuse("empty command")
   if (assignment.test(first)) return refuse("a variable assignment before the command")
-  const program = first.slice(first.lastIndexOf("/") + 1)
+  const program = programName(first)
   if (wrappers.has(program)) return refuse(`a leading ${program}`)
   if (shells.has(program) && words.slice(1).some((arg) => /^-[A-Za-z]*c[A-Za-z]*$/.test(arg)))
     return refuse(`${program} -c`)

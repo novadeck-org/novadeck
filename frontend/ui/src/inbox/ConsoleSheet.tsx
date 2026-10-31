@@ -332,9 +332,7 @@ const Thing = ({ row, now }: { readonly row: InboxRow; readonly now: number }) =
           {ask.shape.type === "action" && (
             <CommandBox command={ask.shape.command} folder={ask.shape.directory} copy />
           )}
-          {ask.shape.type === "approval" && (
-            <ApprovalBox row={row} commands={ask.shape.commands} hours={ask.shape.hours} />
-          )}
+          {ask.shape.type === "approval" && <ApprovalBox row={row} commands={ask.shape.commands} />}
         </>
       )
     }

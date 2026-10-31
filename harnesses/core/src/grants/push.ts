@@ -13,6 +13,8 @@ const reservedDestination = (name: string, repos: readonly GrantRepo[]): boolean
     ["main", "master", "head", "@"].includes(lower) ||
     name.startsWith("refs/") ||
     name.startsWith("heads/") ||
+    name.startsWith("tags/") ||
+    name.startsWith("remotes/") ||
     repos.some((repo) => repo.defaultBranch.toLowerCase() === lower)
   )
 }

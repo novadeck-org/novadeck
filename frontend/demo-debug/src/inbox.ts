@@ -3,7 +3,6 @@ import type { WorkspaceSeed } from "@novadeck/core/seed"
 import type { DemoInbox } from "@novadeck/demo/inbox"
 import {
   demoEndingGrant,
-  demoGrantIds,
   demoHiddenCommand,
   demoInboxIds,
   demoInboxRowsAll,
@@ -183,10 +182,7 @@ export const inboxGroups = (
         {
           label: "Grant ends",
           hint: "A terminal grant for design-system's first terminal joins the Grants section and ends by its time after 4 seconds: it leaves the list with no Revoke",
-          run: () => {
-            inbox.grants.add(demoEndingGrant(Date.now(), 4000))
-            setTimeout(() => inbox.grants.end(demoGrantIds.ending), 4000)
-          },
+          run: () => inbox.grants.add(demoEndingGrant(Date.now(), 4000)),
         },
         {
           label: "Revoke a grant",

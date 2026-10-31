@@ -1591,6 +1591,25 @@ describe("Grants", () => {
     expect(streams.grants.revoke).toHaveBeenCalledExactlyOnceWith("g1")
   })
 
+  it("keeps why a revoke failed until it is tried again or the grant is gone", async () => {
+    const { inbox, grantFeed, streams } = setup(workspaceOf(agentTerminal(1)))
+    grantFeed.push([live()])
+    await settle()
+    vi.mocked(streams.grants.revoke).mockRejectedValueOnce(new Error("The runner is away."))
+    inbox.grants.revoke("g1")
+    await settle()
+    expect(inbox.grants.failed?.getSnapshot()).toEqual({ g1: "The runner is away." })
+    inbox.grants.revoke("g1")
+    await settle()
+    expect(inbox.grants.failed?.getSnapshot()).toEqual({})
+    vi.mocked(streams.grants.revoke).mockRejectedValueOnce(new Error("Gone."))
+    inbox.grants.revoke("g1")
+    await settle()
+    grantFeed.push([])
+    await settle()
+    expect(inbox.grants.failed?.getSnapshot()).toEqual({})
+  })
+
   it("shows a lead's proposal as a Grant row and sends the person's Grant as it is", async () => {
     const { entries, inbox, streams, ids } = setup(workspaceOf(agentTerminal(1)))
     entries.push([proposalEntry()])
@@ -1636,7 +1655,6 @@ describe("Grants", () => {
             shape: {
               type: "approval",
               commands: [{ argv: ["pnpm", "build"], rest: false }],
-              hours: 1,
             },
           },
         },

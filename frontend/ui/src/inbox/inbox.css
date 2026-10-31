@@ -984,6 +984,10 @@ pre.console-box {
   color: var(--color-muted);
   overflow-wrap: anywhere;
 }
+.grant-row-error {
+  color: var(--color-warning-fg);
+  overflow-wrap: anywhere;
+}
 .grant-row-commands {
   display: flex;
   flex-wrap: wrap;

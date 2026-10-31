@@ -42,6 +42,9 @@ export const memoryGrants = (): GrantRecords => {
 }
 
 /** What the Grants service asks of the rest of messaging. */
+/** A closed terminal's kept handle and session, for one whose shell exited before it closed. */
+export type SavedScope = { readonly sessionId: string; readonly handle: string }
+
 export type GrantsHost = {
   readonly sessions: Sessions
   readonly now: () => number
@@ -272,12 +275,15 @@ export class Grants {
    * alone, end with it. A restart of the agent inside a terminal keeps them.
    */
   closedFor(
-    scope: { readonly projectId: string; readonly sessionId: string },
+    scope: { readonly projectId?: string; readonly sessionId: string },
     handle: string,
   ): void {
     for (const grant of this.list()) {
       const { holder } = grant
-      if (grant.projectId !== scope.projectId || grant.workspaceSessionId !== scope.sessionId)
+      if (
+        (scope.projectId !== undefined && grant.projectId !== scope.projectId) ||
+        grant.workspaceSessionId !== scope.sessionId
+      )
         continue
       if (
         (holder.kind === "team" && holder.lead === handle) ||
@@ -287,11 +293,23 @@ export class Grants {
     }
   }
 
-  /** A terminal closed for good ends the team grants it leads, and its own; then it leaves. */
-  unregister(terminalId: string, forGood: boolean): void {
+  /**
+   * A terminal closed for good ends the team grants it leads, and its own; then it leaves.
+   * One whose shell exited first has no live entry, so `saved`, its kept identity, says
+   * its handle and session.
+   */
+  unregister(terminalId: string, forGood: boolean, saved?: SavedScope): void {
     const live = this.host.sessions.get(terminalId)
-    if (forGood && live) this.closedFor(live, live.handle)
+    if (forGood) {
+      if (live) this.closedFor(live, live.handle)
+      else if (saved) this.closedFor(saved, saved.handle)
+    }
     this.host.sessions.unregister(terminalId, forGood)
+  }
+
+  /** A terminal gained a lead while its agent runs: the grants that now cover it reach it at once. */
+  adopted(terminalId: string): void {
+    for (const grant of this.covering(terminalId)) this.host.notify(terminalId, grant.id)
   }
 
   /** Ends the grants whose time is up, telling the terminals they covered. */

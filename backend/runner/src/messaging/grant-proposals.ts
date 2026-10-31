@@ -10,6 +10,7 @@ import {
 } from "@novadeck/protocol"
 import { z } from "zod"
 
+import { grantCommandsRefusal } from "./grant-text.js"
 import { cleanInboxText } from "./messages.js"
 
 /** What an agent's `propose_grant` may say: closed, with no free-text scope. */
@@ -24,7 +25,14 @@ const command = z
 
 const request = z.strictObject({
   presets: z.array(grantPreset).max(2),
-  commands: z.array(command).max(maxGrantCommands).optional(),
+  commands: z
+    .array(command)
+    .max(maxGrantCommands)
+    .superRefine((commands, context) => {
+      const refusal = grantCommandsRefusal(commands)
+      if (refusal !== undefined) context.addIssue({ code: "custom", message: refusal })
+    })
+    .optional(),
   with_lead: z.boolean().optional(),
   hours: grantHours.optional(),
   reason: z.string().transform(cleanInboxText).pipe(z.string().trim().min(1).max(2048)),

@@ -1006,8 +1006,8 @@ const ask: Tool<{ readonly id: string; readonly withdrawn?: boolean }> = {
     "user gives that, or a <grant> element from Novadeck carrying the delivery's person mark. " +
     "When your harness itself asks permission to run a command, such as git push or gh pr create, " +
     "and the user should let you run it without asking again, use the approval shape: the commands " +
-    'as exact words (rest true for "followed by anything"), and hours (1 by default, 24 at most); ' +
-    "Approve gives this terminal those commands, and Novadeck refuses ones it can't match, such as " +
+    'as exact words (rest true for "followed by anything"); ' +
+    "Approve gives this terminal those commands for 1 hour, and Novadeck refuses ones it can't match, such as " +
     "shells or git and gh with rest. Most decisions aren't blocking: ask, keep going on what doesn't depend on the " +
     "answer, and where your pick is easy to undo and needs no approval of theirs " +
     "(reversible, local, not yet pushed or shared), go ahead with it and change course if " +
@@ -1128,7 +1128,6 @@ const ask: Tool<{ readonly id: string; readonly withdrawn?: boolean }> = {
                   additionalProperties: false,
                 },
               },
-              hours: { enum: [1, 8, 24], description: "How long it lasts; 1 by default." },
             },
             required: ["type", "commands"],
             additionalProperties: false,

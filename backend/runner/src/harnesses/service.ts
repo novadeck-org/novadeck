@@ -179,7 +179,7 @@ const state = async (harness: Harness, install: Install): Promise<AgentIntegrati
 
 /** The harnesses Novadeck can connect, and connecting or disconnecting each one. */
 export const createHarnesses = (
-  paths: () => Promise<ShellPaths | undefined>,
+  paths: () => Promise<(ShellPaths & { readonly narrowedBefore?: boolean }) | undefined>,
   options: HarnessesOptions = {},
 ) => {
   const base = options.env ?? process.env
@@ -200,8 +200,11 @@ export const createHarnesses = (
     })
   void lookUp()
   // Where each harness lives, once the shell files say where its plugin is.
+  // Set when a previous runner left a narrowed terminal: its agent may still run, unseen.
+  let narrowedBefore = false
   const installs = async (fresh = false) => {
     const shell = await paths()
+    if (shell?.narrowedBefore === true) narrowedBefore = true
     const env = fresh ? await lookUp() : (latest ?? base)
     return (
       shell &&
@@ -416,7 +419,7 @@ export const createHarnesses = (
           const done = await queued(async () => {
             if (disconnecting.has(agent)) return false
             // Not under a running terminal: its launch grants rest on the hook it has.
-            if (running(agent).length > 0) {
+            if (running(agent).length > 0 || (narrowedBefore && holdsPlugin(harnesses[agent]))) {
               log.info(
                 "harnesses.refresh-held",
                 `Novadeck left ${agent}'s plugin as it is while a terminal runs it`,

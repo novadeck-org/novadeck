@@ -1,6 +1,7 @@
-import type { Grant } from "@novadeck/protocol"
+import { maxGrantRepos, type Grant } from "@novadeck/protocol"
 
 import { describe, expect, it } from "../test.js"
+import { grantCommandsRefusal } from "./grant-text.js"
 import {
   allowSend,
   cleanText,
@@ -311,6 +312,32 @@ const novadeck = (fields: Partial<Message> = {}) =>
 
 describe("a delivery's grants", () => {
   const live = (id: string) => (id === granted.id ? granted : undefined)
+
+  it("fits the largest grant the runner accepts in one delivery, as each harness prints it", () => {
+    // Commands up to the cap, each word escaping to four bytes a character; the most repos,
+    // each as long as the protocol allows, with the longest default branch.
+    const word = "<".repeat(256)
+    const commands: Grant["commands"][number][] = []
+    while (grantCommandsRefusal([...commands, { argv: ["echo", word], rest: false }]) === undefined)
+      commands.push({ argv: ["echo", word], rest: false })
+    const repo = (n: number) => ({
+      url: `github.com/${"o".repeat(39)}/${String(n).padEnd(109, "r")}`,
+      defaultBranch: "b".repeat(100),
+      defaultFrom: "github" as const,
+    })
+    const largest: Grant = {
+      ...granted,
+      presets: ["push", "pr"],
+      commands,
+      repos: Array.from({ length: maxGrantRepos }, (_, n) => repo(n)),
+    }
+    expect(largest.repos[0]?.url.length).toBe(160)
+    const text = wrap([novadeck()], none, mark, "PersonMk", {
+      grants: (id) => (id === largest.id ? largest : undefined),
+    })
+    // Hooks print the delivery inside a JSON string, which escapes it again.
+    expect(Buffer.byteLength(JSON.stringify(text))).toBeLessThanOrEqual(maxDeliveryBytes)
+  })
 
   it("renders a live grant with this delivery's person mark, and the note that says what it means", () => {
     const text = wrap([novadeck()], none, mark, "PersonMk", { grants: live })

@@ -109,6 +109,8 @@ export type InboxContextValue = {
   // The person's live grants, and the way to revoke one; none where the backend makes none.
   readonly grants: readonly Grant[]
   readonly revoke: ((id: string) => void) | undefined
+  // Why a grant's last revoke failed, by grant id.
+  readonly revokeFailures: Readonly<Record<string, string>>
 }
 
 const InboxContext = createContext<InboxContextValue | null>(null)
@@ -136,6 +138,8 @@ const arrivedMs = 1700
 const tickMs = 30_000
 
 const noGrants: readonly Grant[] = []
+const noFailures: Readonly<Record<string, string>> = {}
+const noFailuresStore = { subscribe: () => () => {}, getSnapshot: () => noFailures }
 const noGrantsStore = { subscribe: () => () => {}, getSnapshot: () => noGrants }
 
 const noOrder: readonly string[] = []
@@ -174,6 +178,8 @@ export const InboxProvider = ({
   const grantsStore = inbox.grants?.state ?? noGrantsStore
   const grants = useSyncExternalStore(grantsStore.subscribe, grantsStore.getSnapshot)
   const revoke = inbox.grants?.revoke
+  const failuresStore = inbox.grants?.failed ?? noFailuresStore
+  const revokeFailures = useSyncExternalStore(failuresStore.subscribe, failuresStore.getSnapshot)
   const orderStore = inbox.order ?? noOrderStore
   const arranged = useSyncExternalStore(orderStore.subscribe, orderStore.getSnapshot)
   const [view, setView] = useState<InboxView>(initialView)
@@ -522,6 +528,7 @@ export const InboxProvider = ({
       reveal: revealRow,
       grants,
       revoke,
+      revokeFailures,
     }),
     [
       state,
@@ -550,6 +557,7 @@ export const InboxProvider = ({
       revealRow,
       grants,
       revoke,
+      revokeFailures,
     ],
   )
   const opener = useCallback<InboxOpener>(

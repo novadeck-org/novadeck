@@ -32,7 +32,7 @@ export const leftText = (grant: Grant, now: number): string => {
 }
 
 const Entry = ({ grant, now }: { readonly grant: Grant; readonly now: number }) => {
-  const { revoke } = useInboxContext()
+  const { revoke, revokeFailures } = useInboxContext()
   const holder = holderText(grant)
   return (
     <li className="grant-row" data-grant-id={grant.id}>
@@ -52,6 +52,11 @@ const Entry = ({ grant, now }: { readonly grant: Grant; readonly now: number }) 
           </Tooltip>
         )}
       </div>
+      {revokeFailures[grant.id] !== undefined && (
+        <div className="grant-row-error text-caption" role="alert">
+          Could not revoke: {revokeFailures[grant.id]}
+        </div>
+      )}
       <div className="grant-row-what text-caption">
         {grant.presets.map((preset) => presetWords[preset]).join(", ")}
         {grant.presets.length > 0 && grant.repos.length > 0 && (

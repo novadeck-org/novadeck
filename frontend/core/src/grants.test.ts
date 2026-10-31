@@ -33,10 +33,9 @@ describe("the card's sentences", () => {
     )
   })
 
-  it("says the time and what an approval lets the terminal do, an hour by default", () => {
+  it("says the time and what an approval lets the terminal do, always an hour", () => {
     expect(hoursWords(1)).toBe("1 hour")
     expect(hoursWords(24)).toBe("24 hours")
-    expect(approvalSentence("fox", null)).toBe("Lets @fox run, without asking again, for 1 hour:")
-    expect(approvalSentence("fox", 8)).toBe("Lets @fox run, without asking again, for 8 hours:")
+    expect(approvalSentence("fox")).toBe("Lets @fox run, without asking again, for 1 hour:")
   })
 })

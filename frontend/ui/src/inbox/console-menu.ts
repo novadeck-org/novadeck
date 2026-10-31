@@ -243,7 +243,7 @@ const askMenu = (row: Extract<InboxRow, { kind: "ask" }>): Menu => {
       hard,
     }
   if (shape.type === "approval") {
-    const hours = hoursWords(shape.hours ?? 1)
+    const hours = hoursWords(1)
     return {
       rows: [
         {

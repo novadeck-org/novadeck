@@ -1,5 +1,5 @@
 import type { ChatAnswer, ChatRequest } from "./conversation"
-import type { GrantAnswer, GrantHours, GrantCommand, GrantProposal, Grants } from "./grants"
+import type { GrantAnswer, GrantCommand, GrantProposal, Grants } from "./grants"
 import type { AgentName } from "./harnesses"
 import type { MessageWaits } from "./messages"
 import { createStore, type Store } from "./store"
@@ -60,11 +60,10 @@ export type AskShape =
       readonly doneLabel: string
     }
   // Approval for the asking terminal to run these commands without asking again; the person's
-  // Approve makes the grant. `hours` null where the agent names none (1 hour).
+  // Approve makes the grant, for 1 hour.
   | {
       readonly type: "approval"
       readonly commands: readonly GrantCommand[]
-      readonly hours: GrantHours | null
     }
 
 // What the agent asked. `body` and `details` are Markdown; `hardToUndo` says why the

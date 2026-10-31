@@ -113,7 +113,6 @@ describe("inboxType", () => {
         shape: {
           type: "approval",
           commands: [{ argv: ["pnpm", "build"], rest: false }],
-          hours: null,
         },
       },
     }

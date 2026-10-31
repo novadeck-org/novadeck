@@ -1383,7 +1383,7 @@ describe("Novadeck's MCP server in a Novadeck terminal", () => {
     const approval = shapes.find((shape) => shape.properties["type"]?.["const"] === "approval")!
     expect(approval.additionalProperties).toBe(false)
     expect(approval.properties["commands"]!["maxItems"]).toBe(maxGrantCommands)
-    expect(approval.properties["hours"]!["enum"]).toEqual([1, 8, 24])
+    expect(approval.properties["hours"]).toBeUndefined()
     const propose = described.find((tool) => tool.name === "propose_grant")!
     expect(propose.inputSchema.additionalProperties).toBe(false)
     expect(Object.keys(propose.inputSchema.properties).toSorted()).toEqual([

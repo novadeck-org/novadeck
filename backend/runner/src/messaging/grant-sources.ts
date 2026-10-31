@@ -14,6 +14,10 @@ const run = promisify(execFile)
  * proposes, so a repo made or re-pointed lately is not ticked, nor is a remote that isn't
  * `origin`; the person ticks what they mean. This is the seam tests replace, so none runs git or gh.
  */
+/** A default branch the protocol can carry (100 characters), else none: the guess stands in. */
+const fitting = (branch: string | undefined): string | undefined =>
+  branch !== undefined && branch.length <= 100 ? branch : undefined
+
 export type GrantSources = {
   /** The GitHub repos of the git repos under `root`, two levels deep, as the card offers them. */
   repos(root: string): Promise<readonly GrantRepoChoice[]>
@@ -148,7 +152,8 @@ export const findRepos = async (
     const recent = changed === undefined || now - changed < recentMs
     for (const remote of remotes) {
       const url = normalizeRepoUrl(remote.url)
-      if (url === undefined) continue
+      // The protocol holds a repo's url to 160 characters (a grant must fit one delivery).
+      if (url === undefined || url.length > 160) continue
       const isOrigin = remote.name === "origin"
       const flag: GrantRepoChoice["flag"] = !isOrigin ? "added-remote" : recent ? "recent" : null
       const earlier = found.get(url)
@@ -159,9 +164,9 @@ export const findRepos = async (
   const choices: GrantRepoChoice[] = []
   for (const [url, each] of [...found].slice(0, maxGrantRepos)) {
     // eslint-disable-next-line no-await-in-loop -- gh calls are few and bounded by their timeout.
-    const fromGithub = await io.githubDefault(url.slice("github.com/".length))
+    const fromGithub = fitting(await io.githubDefault(url.slice("github.com/".length)))
     // eslint-disable-next-line no-await-in-loop -- Read in order.
-    const fromHead = fromGithub ? undefined : await io.remoteHead(each.dir, each.remote)
+    const fromHead = fromGithub ? undefined : fitting(await io.remoteHead(each.dir, each.remote))
     choices.push({
       repo: {
         url,

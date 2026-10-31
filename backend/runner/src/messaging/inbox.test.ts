@@ -21,6 +21,8 @@ import { describe, expect, it } from "../test.js"
 import { fakeClock } from "../testing/clock.js"
 import { storeWith } from "../testing/workspace.js"
 import type { WorkspaceStore } from "../workspaces/store.js"
+import { readProposal } from "./grant-proposals.js"
+import { grantCommandsRefusal, grantElement } from "./grant-text.js"
 import {
   Inbox,
   askSweepMs,
@@ -2182,10 +2184,10 @@ describe("asks the person dismisses", () => {
 })
 
 describe("Inbox approvals and grants", () => {
-  const approval = (commands: unknown, hours?: number) => ({
+  const approval = (commands: unknown, extra: Record<string, unknown> = {}) => ({
     ...entry,
     subject: "Let me push",
-    shape: { type: "approval", commands, ...(hours !== undefined && { hours }) },
+    shape: { type: "approval", commands, ...extra },
   })
   const ship = [{ argv: ["uberepo", "ship"], rest: true }]
   const repo = (url: string) => ({
@@ -2233,7 +2235,7 @@ describe("Inbox approvals and grants", () => {
       [],
     ])
       expect(inbox.call(identity.terminalId, "ask", approval(commands)).ok).toBe(false)
-    expect(inbox.call(identity.terminalId, "ask", approval(ship, 5)).ok).toBe(false)
+    expect(inbox.call(identity.terminalId, "ask", approval(ship, { hours: 24 })).ok).toBe(false)
     expect(inbox.list()).toEqual([])
   })
 
@@ -2241,7 +2243,7 @@ describe("Inbox approvals and grants", () => {
     const { inbox, messaging, create } = setup(undefined, undefined, { now: () => 5_000 })
     const id = create(approval(ship))
     expect(inbox.list()).toMatchObject([
-      { content: { ask: { shape: { type: "approval", hours: null, commands: ship } } } },
+      { content: { ask: { shape: { type: "approval", commands: ship } } } },
     ])
     expect(messaging.grants.list()).toEqual([])
     inbox.answer(id, { type: "approve" })
@@ -2264,10 +2266,35 @@ describe("Inbox approvals and grants", () => {
     })
   })
 
-  it("takes the hours the agent named, at most a day", () => {
-    const { inbox, messaging, create } = setup(undefined, undefined, { now: () => 0 })
-    inbox.answer(create(approval(ship, 24)), { type: "approve" })
-    expect(messaging.grants.list()[0]!.endsAt).toBe(24 * 3_600_000)
+  it("refuses commands whose grant would not fit a delivery, in an ask and a proposal", () => {
+    const { inbox } = setup()
+    // Every `'` is four bytes once quoted, and every `<` four once escaped.
+    const heavy = (n: number) => ({ argv: ["echo", `'`.repeat(200), String(n)], rest: false })
+    const many = Array.from({ length: 8 }, (_, n) => heavy(n))
+    const asked = inbox.call(identity.terminalId, "ask", approval(many))
+    expect(asked.ok).toBe(false)
+    expect(asked).toMatchObject({ reason: expect.stringContaining("too long to grant") })
+    expect(
+      readProposal({ presets: ["push"], commands: many, reason: "The user said so." }),
+    ).toMatchObject({ ok: false, reason: expect.stringContaining("too long to grant") })
+  })
+
+  it("renders the largest grant it accepts well under a delivery", () => {
+    // Commands up to the cap, one word short of refused.
+    const word = "<".repeat(256)
+    const commands: { argv: string[]; rest: boolean }[] = []
+    while (grantCommandsRefusal([...commands, { argv: ["echo", word], rest: false }]) === undefined)
+      commands.push({ argv: ["echo", word], rest: false })
+    expect(commands.length).toBeGreaterThan(0)
+    const grant = {
+      id: "g",
+      presets: [],
+      commands,
+      repos: [],
+      endsAt: 0,
+    } as never
+    for (const agent of ["claude", "codex", "agy"] as const)
+      expect(Buffer.byteLength(grantElement(grant, agent, "mark-1234567890"))).toBeLessThan(7_000)
   })
 
   it("makes no grant from a reply, a plain ask, or an Approve on either", () => {
@@ -2278,6 +2305,39 @@ describe("Inbox approvals and grants", () => {
     expect(() => inbox.answer(plain, { type: "approve" })).toThrow(/approval/)
     expect(() => inbox.answer(plain, grantAnswer() as never)).toThrow()
     expect(messaging.grants.list()).toEqual([])
+  })
+
+  it("carries a Grant card made under a guessed root to the session that corrects it", ({
+    resources,
+  }) => {
+    const run = setup()
+    resources.defer(run.stop)
+    const guess = {
+      type: "new" as const,
+      root: {
+        agent: identity.agent,
+        sessionId: "tentative",
+        instance: null,
+        source: "binding" as const,
+      },
+      guess: true,
+      ready: true,
+    }
+    run.messaging.rooted(identity.terminalId, [guess])
+    run.inbox.rooted(identity.terminalId, [guess])
+    const card = proposed(run.inbox)
+    expect(run.inbox.list()).toMatchObject([{ id: card, sessionId: "tentative" }])
+    const correction = {
+      type: "corrected" as const,
+      from: "tentative",
+      root: { ...guess.root, sessionId: identity.sessionId, source: "status-line" as const },
+      confirmed: true,
+    }
+    run.messaging.rooted(identity.terminalId, [correction])
+    run.inbox.rooted(identity.terminalId, [correction])
+    expect(run.inbox.list()).toMatchObject([
+      { id: card, sessionId: identity.sessionId, content: { kind: "grant" } },
+    ])
   })
 
   it("shows a proposal as a card owned by the proposer's session", () => {

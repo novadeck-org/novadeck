@@ -47,6 +47,25 @@ const prText = (grant: Grant): string => {
   )
 }
 
+/**
+ * The most the commands of one grant may take rendered, in bytes: a delivery holds 8 KiB
+ * (`maxDeliveryBytes`), and the rest of a `<grant>` (its repos, note and mark) must fit beside them.
+ */
+export const maxGrantCommandBytes = 4096
+
+/** The bytes the commands of a grant take in its `<grant>`, escaping and quoting included. */
+export const grantCommandBytes = (commands: readonly GrantCommand[]): number =>
+  commands.reduce(
+    (total, command) => total + Buffer.byteLength(`Run: ${escapeText(commandText(command))}\n`),
+    0,
+  )
+
+/** The sentence for an agent whose commands are over `maxGrantCommandBytes`, or undefined. */
+export const grantCommandsRefusal = (commands: readonly GrantCommand[]): string | undefined =>
+  grantCommandBytes(commands) > maxGrantCommandBytes
+    ? `Those commands are too long to grant together (over ${maxGrantCommandBytes} bytes as the user would read them): offer fewer or shorter commands.`
+    : undefined
+
 /** What a grant lets the agent do, one line each, in Novadeck's fixed words. */
 export const grantLines = (grant: Grant, agent: AgentName): string[] => [
   ...(grant.presets.includes("push") ? [pushText(grant, agent)] : []),

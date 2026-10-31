@@ -1,4 +1,12 @@
-import { mkdtempSync, readFileSync, rmSync, statSync, writeFileSync } from "node:fs"
+import {
+  existsSync,
+  mkdirSync,
+  mkdtempSync,
+  readFileSync,
+  rmSync,
+  statSync,
+  writeFileSync,
+} from "node:fs"
 import { tmpdir } from "node:os"
 import { join } from "node:path"
 
@@ -149,6 +157,23 @@ describe.skipIf(process.platform === "win32")("the MCP server's launcher", () =>
     const paths = await installShellFiles(join(folder, "shell"), { relay })
     expect(paths.mcpLauncher).toBe(paths.mcp)
     expect(statSync(paths.relay).mode & 0o100).not.toBe(0)
+  })
+
+  it("reports a narrowed terminal a previous runner left, before it deletes the settings", async ({
+    resources,
+  }) => {
+    const folder = mkdtempSync(join(tmpdir(), "novadeck-narrowed-"))
+    resources.defer(() => rmSync(folder, { recursive: true, force: true }))
+    const relay = join(folder, "built")
+    writeFileSync(relay, "relay")
+    const first = await installShellFiles(join(folder, "shell"), { relay })
+    expect(first.narrowedBefore).toBe(false)
+    mkdirSync(first.narrow, { recursive: true })
+    writeFileSync(join(first.narrow, "7.json"), "{}")
+    const second = await installShellFiles(join(folder, "shell"), { relay })
+    expect(second.narrowedBefore).toBe(true)
+    expect(existsSync(second.narrow)).toBe(false)
+    expect((await installShellFiles(join(folder, "shell"), { relay })).narrowedBefore).toBe(false)
   })
 
   it("is left out when the relay can't be installed, so plugins start the connecting build's", async ({

@@ -10,7 +10,8 @@ const hour = 3_600_000
 export type DemoGrants = Grants & {
   // A grant of the demo's own appears, as one the runner made.
   readonly add: (grant: Grant) => void
-  // A grant ends by its time, with no revoke: it leaves the list.
+  // A grant ends by its time, with no revoke: it leaves the list. `add` ends one itself when
+  // its time is up; this ends one at once.
   readonly end: (id: string) => void
   // The grant's terminal ran a command it allowed.
   readonly use: (id: string, use: NonNullable<Grant["lastUse"]>) => void
@@ -18,22 +19,39 @@ export type DemoGrants = Grants & {
   readonly empty: () => void
 }
 
-export const createDemoGrants = (): DemoGrants => {
+export const createDemoGrants = (now: () => number = Date.now): DemoGrants => {
   const state = createStore<readonly Grant[]>([])
+  const timers = new Map<string, ReturnType<typeof setTimeout>>()
   const drop = (id: string): void => {
+    clearTimeout(timers.get(id))
+    timers.delete(id)
     state.update((current) => current.filter((each) => each.id !== id))
   }
   return {
     state,
-    add: (grant) =>
-      state.update((current) => [...current.filter((each) => each.id !== grant.id), grant]),
+    add: (grant) => {
+      clearTimeout(timers.get(grant.id))
+      state.update((current) => [...current.filter((each) => each.id !== grant.id), grant])
+      // Its time is up when the clock says so, as the runner's sweep ends a grant.
+      const left = grant.endsAt - now()
+      if (left <= 0) drop(grant.id)
+      else
+        timers.set(
+          grant.id,
+          setTimeout(() => drop(grant.id), left),
+        )
+    },
     end: drop,
     revoke: drop,
     use: (id, lastUse) =>
       state.update((current) =>
         current.map((each) => (each.id === id ? { ...each, lastUse } : each)),
       ),
-    empty: () => state.update(() => []),
+    empty: () => {
+      for (const timer of timers.values()) clearTimeout(timer)
+      timers.clear()
+      state.update(() => [])
+    },
   }
 }
 
@@ -76,7 +94,7 @@ export const grantMadeBy = (row: InboxRow, answer: InboxAnswer, now: number): Gr
       presets: [],
       commands: [...row.ask.shape.commands],
       repos: [],
-      endsAt: now + (row.ask.shape.hours ?? 1) * hour,
+      endsAt: now + hour,
     }
   return undefined
 }

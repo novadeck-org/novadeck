@@ -7,7 +7,7 @@ import type { Binding } from "../harnesses/bindings.js"
 import type { RootChange } from "../harnesses/roots.js"
 import { Deliveries } from "./deliveries.js"
 import type { Delivery, Waits } from "./delivery.js"
-import { grantsOf, type GrantOptions, type Grants } from "./grants.js"
+import { grantsOf, type GrantOptions, type Grants, type SavedScope } from "./grants.js"
 import { Holds } from "./holds.js"
 import { HookAnswers, type Answer } from "./hook-answers.js"
 import { Leading } from "./leading.js"
@@ -223,8 +223,8 @@ export class Messaging {
     this.sessions.register(terminalId, scope, handle, ledBy)
   }
 
-  unregister(terminalId: string, forGood = false): void {
-    this.grants.unregister(terminalId, forGood)
+  unregister(terminalId: string, forGood = false, saved?: SavedScope): void {
+    this.grants.unregister(terminalId, forGood, saved)
   }
 
   rooted(terminalId: string, changes: readonly RootChange[]): void {
@@ -404,6 +404,7 @@ export class Messaging {
 
   setLead(terminalId: string, handle: string): void {
     this.leading.setLead(terminalId, handle)
+    this.grants.adopted(terminalId)
   }
 
   sendBrief(terminalId: string, request: unknown): SendAnswer {
