@@ -21,6 +21,13 @@ export type Seed = {
    * only for some (Claude Code's cost warning, only for a billing admin).
    */
   readonly popup?: boolean
+  /**
+   * Shell commands a scenario's agent runs unasked besides its nested runs, each named
+   * whole, for a harness whose rules allow only the command they name whole (Antigravity on
+   * Windows). Elsewhere a harness's rule for its nested run allows them already, so it
+   * ignores them.
+   */
+  readonly commands?: readonly string[]
 }
 
 /**

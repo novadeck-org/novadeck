@@ -15,7 +15,7 @@ import type { Harness, Run, WrittenPlan } from "@novadeck/harness-core/harness"
 import { telemetryLimits, type AgentTelemetry } from "@novadeck/protocol"
 
 import { callOf } from "./decode.js"
-import { mcpTool } from "./tools.js"
+import { commandRanIn, mcpTool } from "./tools.js"
 import { transcripts } from "./transcripts.js"
 
 // A failed turn's `task_complete` error: its message, and `codex_error_info`, which is
@@ -125,13 +125,26 @@ export const rolloutEvents = (
         text,
         status,
         changes,
+        command,
+        cwd,
+        source,
       } = (fields.item ?? {}) as {
         type?: unknown
         text?: unknown
         status?: unknown
         changes?: unknown
+        command?: unknown
+        cwd?: unknown
+        source?: unknown
       }
       if (kind === "McpToolCall") return mcpSettled(base, fields.item as Fields)
+      // A command the agent ran, in its own folder, which its hook doesn't name (probed
+      // 2026-10-31, 0.163.0: `workdir` reaches the rollout's `cwd`, never the hook); the
+      // person's own `!` command is theirs.
+      if (kind === "CommandExecution") {
+        const folder = source === "user_shell" ? undefined : commandRanIn(command, cwd)
+        return folder === undefined ? [] : [{ type: "command-ran", ...base, folder }]
+      }
       // Files a patch changed, by absolute path, however it ran: its PostToolUse comes for
       // the apply_patch tool alone, and none for a patch the model ran through its shell
       // (`apply_patch <<EOF`; probed 2026-10-15, 0.159.3, which the fake model does).

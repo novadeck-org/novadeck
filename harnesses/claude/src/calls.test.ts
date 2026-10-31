@@ -87,6 +87,28 @@ describe("a Claude Code tool call", () => {
     ).toEqual(["attention-resolved", "file-touched", "tool-called"])
   })
 
+  it("tells the folder its shell command ran in, from a leading cd or else its hook's", () => {
+    const ran = (command: string) =>
+      called("PostToolUse", { tool_name: "Bash", cwd: "/w/a", tool_input: { command } })
+    expect(ran("cd /w/b && pnpm test")).toMatchObject([{ folder: "/w/b" }])
+    expect(ran("pnpm test")).toMatchObject([{ folder: "/w/a" }])
+    // On Windows its Bash is Git Bash, which names a drive `/d/…`, beside its hook's native folder.
+    const ranOnWindows = (command: string) =>
+      called("PostToolUse", { tool_name: "Bash", cwd: "C:\\w\\a", tool_input: { command } })
+    expect(ranOnWindows("cd /d/w/b && pnpm test")).toMatchObject([{ folder: "D:\\w\\b" }])
+    expect(ranOnWindows('cd "C:\\w\\c" && pnpm test')).toMatchObject([{ folder: "C:\\w\\c" }])
+    expect(ranOnWindows("pnpm test")).toMatchObject([{ folder: "C:\\w\\a" }])
+    // Its PowerShell tool, by PowerShell's own moves.
+    const ranInPowerShell = (command: string) =>
+      called("PostToolUse", { tool_name: "PowerShell", cwd: "C:\\w\\a", tool_input: { command } })
+    expect(ranInPowerShell("Set-Location -Path D:\\w\\b; pnpm test")).toMatchObject([
+      { folder: "D:\\w\\b" },
+    ])
+    expect(ranInPowerShell("sl ..\\c; pnpm test")).toMatchObject([{ folder: "C:\\w\\c" }])
+    const read = called("PostToolUse", { tool_name: "Read", cwd: "/w/a", tool_input: {} })
+    expect(read[0]).not.toHaveProperty("folder")
+  })
+
   it("is not reported by the hooks that start or ask for it", () => {
     for (const event of ["PermissionRequest", "SessionStart", "Stop", "SubagentStart"])
       expect(called(event, { tool_name: "Bash", tool_input: { command: "ls" } })).toEqual([])

@@ -1,3 +1,4 @@
+import { commandFolder } from "@novadeck/harness-core/decode"
 import type { ToolKind } from "@novadeck/harness-core/events"
 import { isFields, parseFields, type Fields } from "@novadeck/harness-core/fields"
 import {
@@ -111,6 +112,16 @@ const bookkeeping: ReadonlySet<string> = new Set([
   "TaskList",
   "TaskGet",
 ])
+
+/**
+ * The folder a call ran in, for its shell tool alone: a leading `cd` in its command, else
+ * the directory its hook ran in, which follows the `cd`s Claude Code keeps between calls.
+ */
+export const folderOf = (tool: string, input: unknown, cwd: unknown): string | undefined => {
+  if (tool !== "Bash" && tool !== "PowerShell") return undefined
+  const command = isFields(input) && typeof input.command === "string" ? input.command : undefined
+  return commandFolder(command, cwd)
+}
 
 /** What a tool call counts as to the messaging loop guard: see `ToolKind`. */
 export const kindOf = (tool: string, input: unknown): ToolKind => {

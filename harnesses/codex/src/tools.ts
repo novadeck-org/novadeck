@@ -1,3 +1,6 @@
+import { fileURLToPath } from "node:url"
+
+import { commandFolder } from "@novadeck/harness-core/decode"
 import type { ToolKind } from "@novadeck/harness-core/events"
 import { fieldsOf, parseFields, type Fields } from "@novadeck/harness-core/fields"
 import {
@@ -41,8 +44,13 @@ const scriptOf = (fields: Fields | undefined): string => {
   const list = fields?.command
   if (!Array.isArray(list)) return ""
   const words = list.filter((word): word is string => typeof word === "string")
-  const wrapped = words.length === 3 && /^-\w*c$/.test(words[1]!)
-  return wrapped ? words[2]! : words.join(" ")
+  // The script a shell is handed: bash's `-lc`, PowerShell's `-Command` (after any
+  // `-NoProfile`), cmd's `/c`.
+  const wrapped =
+    words.length >= 3 &&
+    /(?:^|[\\/])(?:(?:ba|da|k|z)?sh|pwsh|powershell|cmd)(?:\.exe)?$/i.test(words[0]!) &&
+    /^(?:-\w*c|-command|\/c)$/i.test(words.at(-2)!)
+  return wrapped ? words.at(-1)! : words.join(" ")
 }
 
 const commandOf = (fields: Fields | undefined): string => {
@@ -137,6 +145,30 @@ const shells: ReadonlySet<string> = new Set([
   "local_shell",
   "container.exec",
 ])
+
+/**
+ * The folder a command its rollout records ran in: a leading `cd` in its script, from the
+ * command's own directory (`cwd`, its `workdir` or else the turn's), as a path or a
+ * `file://` URL. Its hook names only the turn's directory, so this is what tells where it
+ * works (see the rollout's `command-ran`).
+ */
+export const commandRanIn = (command: unknown, cwd: unknown): string | undefined => {
+  const directory = typeof cwd === "string" && cwd.startsWith("file://") ? fromFileUrl(cwd) : cwd
+  return commandFolder(scriptOf(fieldsOf({ command })), directory)
+}
+
+/**
+ * A `file://` URL's path, or undefined for one that isn't a local file's: by Windows' rules
+ * for a drive's (`file:///C:/w`) or a share's (`file://host/share`), else POSIX's, whatever
+ * the runner runs on, as `commandFolder` reads paths.
+ */
+const fromFileUrl = (url: string): string | undefined => {
+  try {
+    return fileURLToPath(url, { windows: /^file:\/\/(?:\/[a-z]:|[^/])/i.test(url) })
+  } catch {
+    return undefined
+  }
+}
 
 /** What a tool call counts as to the messaging loop guard: see `ToolKind`. */
 export const kindOf = (tool: string, input: unknown): ToolKind => {
