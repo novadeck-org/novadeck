@@ -13,6 +13,7 @@ import {
   deliveryOf,
   maxDeliveryBytes,
   newMark,
+  senderTerminal,
   wrap,
   type Message,
 } from "./messages.js"
@@ -97,12 +98,19 @@ export class Leasing {
     // One mark for the delivery, which marks its lead's messages. What counts is the bytes
     // printed, escaped as the harness reads them.
     const mark = newMark()
-    const prints = (taken: readonly Message[]) => byteLength(print(wrap(taken, isFromLead, mark)))
+    // A message whose sender closed since says so, as no reply reaches it.
+    const fromClosed = (message: Message) => {
+      const sender = senderTerminal(message.from)
+      return sender !== undefined && this.host.sessions.closed(sender)
+    }
+    const wrapped = (taken: readonly Message[]) =>
+      wrap(taken, isFromLead, mark, undefined, fromClosed)
+    const prints = (taken: readonly Message[]) => byteLength(print(wrapped(taken)))
     const messages = deliveryOf(queued, (taken) => prints(taken) <= maxDeliveryBytes)
     // The first always goes, as it fits alone; beside what the turn holds it may not.
     if (messages.length === 0 || prints(messages) > maxDeliveryBytes) return undefined
     for (const message of messages) store.put({ ...message, state: "leased" })
-    const text = wrap(messages, isFromLead, mark)
+    const text = wrapped(messages)
     return this.leases.grant({
       terminalId: live.terminalId,
       messages: messages.map((message) => message.id),

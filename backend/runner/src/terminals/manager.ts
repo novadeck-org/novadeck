@@ -37,7 +37,7 @@ import { Feedback } from "../messaging/feedback.js"
 import { Inbox, type InboxRecords } from "../messaging/inbox.js"
 import { Messaging } from "../messaging/messaging.js"
 import type { MessageRecords } from "../messaging/records.js"
-import type { AgentsAnswer, SendAnswer } from "../messaging/sending.js"
+import type { AgentsAnswer, SendAnswer, TeamAnswer } from "../messaging/sending.js"
 import type { Describer } from "../murmur/describer.js"
 import { inherited } from "../shell/inherited.js"
 import type { InstalledShell } from "../shell/install.js"
@@ -1359,7 +1359,7 @@ export class Terminals {
   }
 
   /** Sends another terminal's agent a message, as an agent asked through Novadeck's MCP server. */
-  send(call: Call): Promise<SendAnswer> {
+  send(call: Call): Promise<SendAnswer | TeamAnswer> {
     return this.peers.send(call)
   }
 

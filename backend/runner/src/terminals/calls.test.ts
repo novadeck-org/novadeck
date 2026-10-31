@@ -154,6 +154,29 @@ describe("the open call", () => {
     expect(run.opened.startedWith).toBeUndefined()
   })
 
+  it("lets a lead open fifteen teammates a minute, from a budget that keeps other opens to five", async () => {
+    const spent = {
+      ok: false,
+      reason: "Agents opened as many terminals as they may in the last minute; try again shortly.",
+    }
+    const run = setup()
+    for (let index = 0; index < 5; index += 1)
+      // eslint-disable-next-line no-await-in-loop -- In turn, as the budget counts them.
+      expect(await run.open({})).toMatchObject({ ok: true })
+    // Five spent: a plain terminal, an agent it won't lead, or one led only for its brief wait.
+    expect(await run.open({})).toEqual(spent)
+    expect(await run.open({ agent: "codex" })).toEqual(spent)
+    expect(await run.open({ agent: "codex", message: "Fix it.", lead: false })).toEqual(spent)
+    // Teammates still open, with a brief or without, up to fifteen in all.
+    for (let index = 0; index < 10; index += 1) {
+      const teammate =
+        index % 2 === 0 ? { agent: "agy", message: "Go." } : { agent: "claude", lead: true }
+      // eslint-disable-next-line no-await-in-loop -- In turn, as the budget counts them.
+      expect(await run.open(teammate)).toMatchObject({ ok: true, led: true })
+    }
+    expect(await run.open({ agent: "claude", message: "One more." })).toEqual(spent)
+  })
+
   it("starts it with a model and effort, and unled when asked to", async () => {
     const run = setup()
     const answer = await run.open({ agent: "claude", model: "opus", effort: "low", lead: false })

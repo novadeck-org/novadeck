@@ -5,8 +5,16 @@
     "lines counts the file's lines. methods counts every function the Messaging class defines in its body: methods, accessors, the constructor and properties set to a function or arrow expression, read from its syntax tree, so formatting never moves it.",
     "New behaviour goes in a sibling module under backend/runner/src/messaging/, as delivery.ts, leases.ts and loops.ts do, with the class calling it. Work that can't is raised in the same pull request, written { \"budget\": n, \"reason\": \"why\", \"from\": \"#PR or commit\" }."
   ],
-  "lines": 494,
-  "methods": 74,
+  "lines": {
+    "budget": 508,
+    "reason": "Team send and close with messages on the way (+14): sendAny forwards an agent's MCP send, to one terminal or several it leads, beside send, which messaging's own callers keep for one; onTheWay forwards the closed terminal's undelivered messages to the closer; and the import of TeamAnswer wraps. The logic is in messaging/sending.ts.",
+    "from": "ti-lead-tools"
+  },
+  "methods": {
+    "budget": 76,
+    "reason": "Team send and close with messages on the way (+2): sendAny and onTheWay, forwards to messaging/sending.ts.",
+    "from": "ti-lead-tools"
+  },
   "slack": {
     "lines": 100,
     "methods": 5

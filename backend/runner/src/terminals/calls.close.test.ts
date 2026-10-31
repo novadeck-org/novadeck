@@ -6,7 +6,7 @@ import type { PeerAnswer } from "../messaging/sending.js"
 import { describe, expect, it } from "../test.js"
 import { Approvals } from "./approvals.js"
 import { Calls, type CallsHost } from "./calls.js"
-import { closeNotice, selfCloseMs } from "./closes.js"
+import { closeNotice, selfCloseMs, spentRefusal } from "./closes.js"
 import type { Record } from "./record.js"
 
 const token = "t".repeat(48)
@@ -31,6 +31,8 @@ const setup = (
   const approvals = new Approvals()
   const steps: string[] = []
   const notices: { to: string; text: string; always?: true }[] = []
+  // Messages on their way, by sender and recipient terminal: "id-fox>id-moth".
+  const coming = new Map<string, { id: string; sentAt: number }[]>()
   let stopping = false
   const find = (id: string) => [...records.values()].find((record) => record.summary.id === id)
   const host = {
@@ -40,6 +42,7 @@ const setup = (
       ({
         leadOf: (id: string) => leads[find(id)?.summary.handle ?? ""],
         waitingFor: () => 0,
+        onTheWay: (from: string, to: string) => coming.get(`${from}>${to}`) ?? [],
         goneFrom: () => [],
         notice: (to: string, text: string, options?: { always?: boolean }) => {
           notices.push({ to, text, ...(options?.always && { always: true }) })
@@ -82,6 +85,7 @@ const setup = (
     steps,
     notices,
     records,
+    coming,
     stop: () => (stopping = true),
   }
 }
@@ -177,6 +181,42 @@ describe("an agent closing a teammate it leads, or a terminal with no agent", ()
     expect(run.steps).toContain("removed fox")
   })
 
+  it("names the teammate's messages to it still on the way, which arrive after", async () => {
+    const run = setup({ moth: "claude", fox: "codex" }, { fox: "moth" })
+    const at = new Date(2026, 9, 31, 1, 48).getTime()
+    run.coming.set("id-fox>id-moth", [{ id: "m-7", sentAt: at }])
+    await expect(run.close("moth", "fox")).resolves.toMatchObject({
+      ok: true,
+      handle: "fox",
+      coming: [{ id: "m-7", sent: "01:48" }],
+    })
+    // None on the way: nothing said.
+    const quiet = setup({ moth: "claude", fox: "codex" }, { fox: "moth" })
+    expect(await quiet.close("moth", "fox")).not.toHaveProperty("coming")
+  })
+
+  it("lets a lead close fifteen teammates a minute, from a budget that keeps other closes to five", async () => {
+    const team = Object.fromEntries(
+      Array.from({ length: 16 }, (_, index) => [`t${index}`, "codex" as const]),
+    )
+    const run = setup(
+      { moth: "claude", ...team, x0: null, x1: null },
+      Object.fromEntries(Object.keys(team).map((handle) => [handle, "moth"])),
+    )
+    for (let index = 0; index < 5; index += 1)
+      // eslint-disable-next-line no-await-in-loop -- In turn.
+      await expect(run.close("moth", `t${index}`)).resolves.toMatchObject({ ok: true })
+    // Five spent: no other close goes, while teammates still do.
+    await expect(run.close("moth", "x0")).resolves.toEqual({ ok: false, reason: spentRefusal })
+    for (let index = 5; index < 15; index += 1)
+      // eslint-disable-next-line no-await-in-loop -- In turn.
+      await expect(run.close("moth", `t${index}`)).resolves.toMatchObject({ ok: true })
+    await expect(run.close("moth", "t15")).resolves.toEqual({ ok: false, reason: spentRefusal })
+    // A minute on, the budget is back.
+    await vi.advanceTimersByTimeAsync(60_000)
+    await expect(run.close("moth", "x1")).resolves.toMatchObject({ ok: true })
+  })
+
   it("closes a terminal that runs no agent at once, though no client could be asked", async () => {
     const run = setup({ moth: "claude", fox: null })
     const answer = await run.close("moth", "fox")
@@ -222,6 +262,24 @@ describe("an agent closing another agent's terminal", () => {
     expect(run.notices).toEqual([
       { to: "id-moth", always: true, text: closeNotice.confirmed("fox", "Terminal", "Codex") },
     ])
+  })
+
+  it("names, once the person confirms, its messages to the agent that asked still on the way", async () => {
+    const run = setup({ moth: "claude", fox: "codex" })
+    const requested = person(run.approvals)
+    await run.close("moth", "fox")
+    await settle()
+    const at = new Date(2026, 9, 31, 1, 48).getTime()
+    run.coming.set("id-fox>id-moth", [{ id: "m-7", sentAt: at }])
+    run.approvals.answer({ requestId: requested[0]!.requestId, approved: true }, "person")
+    await settle()
+    const [notice] = run.notices
+    expect(notice?.text).toBe(
+      closeNotice.confirmed("fox", "Terminal", "Codex", [{ id: "m-7", sent: "01:48" }]),
+    )
+    expect(notice?.text).toMatch(
+      /it is closed\. Messages waiting for it never arrive\. Its message m-7 \(sent 01:48\) to you hadn't reached you yet: it still arrives, after this, marked as from a closed terminal/,
+    )
   })
 
   it("keeps it open when the person declines, and tells the agent that asked", async () => {

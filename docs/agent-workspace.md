@@ -502,7 +502,9 @@ with every safety check again at that time:
   task (and optionally a `model`, `effort` or a session to `resume`), is started by
   `open_agent`, which makes the caller its lead as `lead` says (by default, when it opens
   with a task). The runner checks the token, reads the request
-  strictly, checks the folder, and lets a terminal's agents open five a minute, a
+  strictly, checks the folder, and lets a terminal's agents open five a minute, or
+  fifteen when they are teammates (agents opened led, `open_agent` with `lead`), counted
+  from the same budget, so a lead starts its team at once while other opens keep five, a
   terminal opened on request sharing the budget of the one that began the chain, and
   all agents twenty a minute across the runner, so terminals opening terminals can't
   multiply. The UI
@@ -557,9 +559,16 @@ with every safety check again at that time:
   the shell, removes the terminal and forgets it, even while a window controls it, so
   the UI drops it from the layout on `terminals.watch`'s `removed`, as for a close in
   another window. Messages still waiting for it are `gone`, their senders told as
-  always; the answer names the agent that ran there and counts them. A terminal's
-  agents close five a minute, a terminal opened on request sharing the budget of the
-  one that began the chain, and all agents twenty a minute across the runner, each
+  always; the answer names the agent that ran there and counts them. Messages the closed
+  terminal sent the caller that haven't arrived yet are named, by id and time sent, in
+  the answer, or in the notice once the person confirms: they still arrive, after it,
+  and delivery marks each `closed="its terminal closed after sending this, so no reply
+  reaches it"` on its `<message>` tag, in every harness (the one `wrap` prints them all),
+  for any message whose sender closed for good, by an agent or the person. An exited
+  terminal, which may run again, isn't marked; the closed set is in memory, so after a
+  runner restart a terminal closed before it isn't known closed. A terminal's
+  agents close five a minute, or fifteen teammates they lead, from the same budget, a
+  terminal opened on request sharing the budget of the one that began the chain, and all agents twenty a minute across the runner, each
   budget apart from the one for opening, so a runaway loop can't empty the workspace.
   A chain's times, for opening and closing alike, outlive the terminal that began it
   until they pass out of the minute, so its terminals can't start afresh by closing

@@ -1,5 +1,6 @@
 import { z } from "zod"
 
+import { clock } from "../messaging/messages.js"
 import { bareHandle, mention } from "./handles.js"
 import { allowOpen } from "./opens.js"
 
@@ -45,8 +46,32 @@ export type CloseAnswer =
       }[]
       /** Messages other terminals sent it, undelivered, which won't arrive now. */
       readonly others?: number
+      /** Its messages to the caller not yet delivered, which still arrive, marked closed. */
+      readonly coming?: readonly OnTheWay[]
     }
   | CloseFailure
+
+/** A message the closed terminal sent the caller that hasn't reached it: its id and send time. */
+export type OnTheWay = { readonly id: string; readonly sent: string }
+
+/** The messages, as a close tells of them: by id, with the time each was sent. */
+export const onTheWay = (
+  messages: readonly { readonly id: string; readonly sentAt: number }[],
+): readonly OnTheWay[] => messages.map(({ id, sentAt }) => ({ id, sent: clock(sentAt) }))
+
+/**
+ * What a close tells the caller of the messages the closed terminal sent it that hadn't
+ * reached it: they still arrive, after the close, marked so.
+ */
+export const onTheWayLine = (coming: readonly OnTheWay[]): string => {
+  const each = coming.map(({ id, sent }) => `${id} (sent ${sent})`)
+  const named = each.length === 1 ? each[0]! : `${each.slice(0, -1).join(", ")} and ${each.at(-1)!}`
+  return coming.length === 1
+    ? `Its message ${named} to you hadn't reached you yet: it still arrives, after this, ` +
+        "marked as from a closed terminal, and no reply reaches its sender."
+    : `Its messages ${named} to you hadn't reached you yet: they still arrive, after this, ` +
+        "marked as from a closed terminal, and no reply reaches their sender."
+}
 
 const refused = (reason: string): CloseFailure => ({ ok: false, reason })
 
@@ -81,10 +106,16 @@ export const notice = "Novadeck: automatic notice, not from the user: "
 
 /** What the asking agent is told once the person answered, or the request ended without them. */
 export const closeNotice = {
-  confirmed: (handle: string, title: string, ran: string | undefined): string =>
+  confirmed: (
+    handle: string,
+    title: string,
+    ran: string | undefined,
+    coming: readonly OnTheWay[] = [],
+  ): string =>
     notice +
     `The user confirmed closing ${named(handle, title, ran)}, and it is closed. Messages ` +
-    "waiting for it never arrive.",
+    "waiting for it never arrive." +
+    (coming.length > 0 ? " " + onTheWayLine(coming) : ""),
   declined: (handle: string, title: string): string =>
     notice + `The user kept ${mention(handle)} · ${title} open: it was not closed.`,
   // Another close, or its own exit, ended it first.
@@ -108,6 +139,12 @@ export const spentRefusal =
  * as many as they may open, from a budget of their own.
  */
 export const closeLimit = { count: 5, windowMs: 60_000 } as const
+
+/**
+ * How many of those may be teammates the caller leads, counted from the same budget: a lead
+ * closes its team once its work is done, while other closes keep `closeLimit`.
+ */
+export const leadCloseLimit = { count: 15, windowMs: 60_000 } as const
 
 /**
  * How many terminals agents may close across the runner within a window: a backstop for

@@ -18,7 +18,13 @@ import type { Message } from "./messages.js"
 import type { About } from "./peers.js"
 import { memoryMessages, type MessageRecords } from "./records.js"
 import { Relays, type InboxOwner } from "./relays.js"
-import { Sending, type AgentsAnswer, type PeerAnswer, type SendAnswer } from "./sending.js"
+import {
+  Sending,
+  type AgentsAnswer,
+  type PeerAnswer,
+  type SendAnswer,
+  type TeamAnswer,
+} from "./sending.js"
 import { Sessions } from "./sessions.js"
 import { LongWaits } from "./waits.js"
 import { Withdrawals, type Person } from "./withdrawals.js"
@@ -428,6 +434,10 @@ export class Messaging {
     return this.sending.send(terminalId, request, about)
   }
 
+  sendAny(terminalId: string, request: unknown, about?: About): SendAnswer | TeamAnswer {
+    return this.sending.sendAny(terminalId, request, about)
+  }
+
   agentIn(terminalId: string): Deliverable | undefined {
     return this.sending.agentIn(terminalId)
   }
@@ -450,6 +460,10 @@ export class Messaging {
 
   goneFrom(terminalId: string): ReturnType<Sending["goneFrom"]> {
     return this.sending.goneFrom(terminalId)
+  }
+
+  onTheWay(from: string, to: string): readonly Pick<Message, "id" | "sentAt">[] {
+    return this.sending.onTheWay(from, to)
   }
 
   waitingFor(terminalId: string, except: string): number {
