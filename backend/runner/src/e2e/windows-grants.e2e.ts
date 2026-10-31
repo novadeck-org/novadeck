@@ -49,7 +49,7 @@ const { spawnSync } = require("node:child_process")
 exports.ancestry = () => {
   const ps = spawnSync("powershell.exe", ["-NoProfile", "-NonInteractive", "-Command",
     "Get-CimInstance Win32_Process | Select-Object ProcessId,ParentProcessId,Name,CommandLine | ConvertTo-Json -Compress"],
-    { encoding: "utf8", timeout: 25000, maxBuffer: 64 * 1024 * 1024 })
+    { encoding: "utf8", timeout: 15000, maxBuffer: 64 * 1024 * 1024 })
   try {
     const all = [].concat(JSON.parse(ps.stdout))
     const byPid = new Map(all.map((p) => [p.ProcessId, p]))
@@ -72,9 +72,15 @@ exports.ancestry = () => {
 const argvProgram = `
 const { appendFileSync } = require("node:fs")
 const { ancestry } = require("./ancestry.cjs")
+const { existsSync, unlinkSync } = require("node:fs")
 const record = { program: "argv", argv: process.argv.slice(2), cwd: process.cwd(), execPath: process.execPath }
 console.log("ARGV " + JSON.stringify(record.argv))
-appendFileSync(__dirname + "/programs.jsonl", JSON.stringify({ ...record, ancestry: ancestry() }) + "\\n")
+appendFileSync(__dirname + "/programs.jsonl", JSON.stringify(record) + "\\n")
+// Its ancestors once, when the flag file asks (a slow query must not hold the command).
+if (existsSync(__dirname + "/ancestry")) {
+  unlinkSync(__dirname + "/ancestry")
+  appendFileSync(__dirname + "/programs.jsonl", JSON.stringify({ program: "argv", ancestry: ancestry() }) + "\\n")
+}
 `
 
 // The marker program: appends a line to the file it is given, and logs its ancestors.
@@ -82,7 +88,9 @@ const markerProgram = `
 const { appendFileSync } = require("node:fs")
 const { ancestry } = require("./ancestry.cjs")
 appendFileSync(process.argv[2], "ran " + JSON.stringify(process.argv.slice(3)) + "\\n")
-appendFileSync(__dirname + "/programs.jsonl", JSON.stringify({ program: "marker", argv: process.argv.slice(2), ancestry: ancestry() }) + "\\n")
+appendFileSync(__dirname + "/programs.jsonl", JSON.stringify({ program: "marker", argv: process.argv.slice(2) }) + "\\n")
+if (require("node:fs").existsSync(__dirname + "/ancestry-marker"))
+  appendFileSync(__dirname + "/programs.jsonl", JSON.stringify({ program: "marker", ancestry: ancestry() }) + "\\n")
 `
 
 // The hook, run as \`standin.exe hook.cjs <dir> <event>\` (or by node). It logs what it is
@@ -111,7 +119,13 @@ log({
 const mode = event === "PreToolUse" && existsSync(dir + "/mode") ? readFileSync(dir + "/mode", "utf8").trim() : ""
 const out = dir + "/" + event + ".out"
 const say = (text) => writeSync(1, text)
-const done = (code) => { log({ ancestry: ancestry(), finished: true, exit: code }); process.exit(code) }
+// The answer is out and the process ends at once; only a case that asks (the flag file) looks
+// at its ancestors, after the answer, as a query there can hang.
+const done = (code) => {
+  log({ finished: true, exit: code })
+  if (existsSync(dir + "/ancestry-hook")) log({ ancestry: ancestry() })
+  process.exit(code)
+}
 if (mode === "none") done(0)
 else if (mode === "oops") { say("oops"); done(0) }
 else if (mode === "exit1") done(1)
@@ -210,6 +224,8 @@ describe.runIf(windows)("Codex on Windows (grants probe)", () => {
     const script = join(kit.dir, "argv.cjs")
     const posix = script.replaceAll("\\", "/")
     const argv = (args: string) => `ndargv.exe ${script} ${args}`
+    const words = "plain a,b %COMSPEC% a=b -R octo/repo x:y C:\\path --title=x 'a b'"
+    const ps51 = "C:\\Windows\\System32\\WindowsPowerShell\\v1.0\\powershell.exe"
     const commands: Command[] = [
       // Which shell: PowerShell expands $PSVersionTable, bash $BASH_VERSION, cmd %COMSPEC%.
       {
@@ -256,6 +272,20 @@ describe.runIf(windows)("Codex on Windows (grants probe)", () => {
               cmd: `ndargv.exe ${posix} 'a b' "x" 'it'"'"'s'`,
             },
           ]),
+      // Which words split the same in cmd and PowerShell: one line, its argv read whole.
+      { name: "argv-words-default", cmd: argv(words) },
+      { name: "argv-words-cmd", shell: "cmd", cmd: argv(words) },
+      { name: "argv-words-pwsh", shell: "pwsh", cmd: argv(words) },
+      { name: "argv-comma-cmd", shell: "cmd", cmd: argv("a,b") },
+      { name: "argv-quoted-cmd", shell: "cmd", cmd: argv("'a''b' \"x y\"") },
+      // Windows PowerShell 5.1 by its full path.
+      {
+        name: "ps51-version",
+        shell: ps51,
+        cmd: "$PSVersionTable.PSVersion.ToString(); $PSVersionTable.PSEdition",
+      },
+      { name: "ps51-argv-comma", shell: ps51, cmd: argv("a,b") },
+      { name: "ps51-argv-sq-doubled", shell: ps51, cmd: argv("'a''b'") },
       { name: "shell-bare-bash", shell: "bash", cmd: 'echo "BASH=$BASH_VERSION|0=$0"' },
       { name: "shell-cmd", shell: "cmd", cmd: "echo %COMSPEC% & ver" },
       { name: "shell-pwsh", shell: "pwsh", cmd: "$PSVersionTable.PSVersion.ToString()" },
@@ -290,6 +320,8 @@ describe.runIf(windows)("Codex on Windows (grants probe)", () => {
         },
       }),
     )
+    // The first argv program also looks at its ancestors.
+    writeFileSync(join(kit.dir, "ancestry"), "")
     writeFileSync(
       join(kit.dir, "PermissionRequest.out"),
       JSON.stringify({
@@ -384,7 +416,17 @@ type AgyCase = {
   /** How the PreToolUse command is written; none registers no PreToolUse hook. */
   readonly form?: "direct" | "node" | "relay" | "cmd-direct" | "none"
   /** The programs `--settings` allows, as `command(<name>)`; none passes no settings. */
-  readonly grant?: readonly string[]
+  readonly grant?: readonly string[] | ((line: string) => readonly string[])
+  /** `--settings` content in place of the grant's. */
+  readonly settings?: unknown
+  /** How `--settings` is passed: a file (default), or inline JSON quoted for PowerShell or cmd. */
+  readonly pass?: "file" | "inline-ps" | "inline-cmd"
+  /** The model's command line, given the marker program's script and the file it writes. */
+  readonly line?: (script: string, marker: string) => string
+  /** A program with no arguments: a batch file of the kit that writes the marker. */
+  readonly noArgs?: boolean
+  /** The hook (and, with `marker`, the marker program) also logs its ancestors, after its answer. */
+  readonly ancestry?: boolean
   /** The program name the model's command line uses. */
   readonly program?: "ndmarker.exe" | "ndmarker"
   /** The keys pressed once the dialog shows, else the dialog is dismissed with 4. */
@@ -431,6 +473,46 @@ const agyCases: AgyCase[] = [
   { name: "h5-dug-exit1", form: "direct", grant: both, mode: "dug-exit1" },
   { name: "h6-timeout", form: "direct", grant: both, mode: "sleep", timeout: 1 },
   { name: "h1b-silent-nogrant", form: "direct", mode: "none" },
+  // How agy spawns the hook: the answer first, then the hook (and the command) look upward.
+  {
+    name: "a1-ancestry",
+    form: "direct",
+    grant: both,
+    answer: decision("force_ask"),
+    ancestry: true,
+    press: "1",
+  },
+  // Why the launch grant did not apply (n1..n3 still asked): do settings count at all, and
+  // what spelling matches?
+  {
+    name: "s1-always-proceed",
+    form: "none",
+    settings: { toolPermission: "always-proceed" },
+  },
+  { name: "s2-grant-exact-line", form: "none", grant: (line) => [`command(${line})`] },
+  {
+    name: "s3-noargs-program",
+    form: "none",
+    noArgs: true,
+    grant: ["command(ndnoarg)", "command(ndnoarg.cmd)"],
+  },
+  {
+    name: "s4-forward-slash-exact",
+    form: "none",
+    line: (script, marker) =>
+      `ndmarker.exe ${script.replaceAll("\\", "/")} ${marker.replaceAll("\\", "/")}`,
+    grant: (line) => [`command(${line})`, "command(ndmarker.exe)"],
+  },
+  {
+    name: "s4b-forward-slash-fullpath",
+    form: "none",
+    line: (script, marker) =>
+      `${script.replace(/[\\/]argv\.cjs$|[\\/]marker\.cjs$/, "").replaceAll("\\", "/")}/bin/ndmarker.exe ${script.replaceAll("\\", "/")} ${marker.replaceAll("\\", "/")}`,
+    grant: (line) => [`command(${line.split(" ")[0]})`],
+  },
+  { name: "s5-glob", form: "none", grant: ["command(ndmarker.exe *)", "command(ndmarker.exe:*)"] },
+  { name: "s6a-inline-ps", form: "none", grant: both, pass: "inline-ps" },
+  { name: "s6b-inline-cmd", form: "none", grant: both, pass: "inline-cmd" },
 ]
 const only = process.env.WINDOWS_GRANTS_CASE?.split(",")
 
@@ -498,14 +580,32 @@ describe.runIf(windows)("Antigravity on Windows (grants probe)", () => {
         writeFileSync(join(kit.dir, "PreToolUse.out"), JSON.stringify(c.answer ?? {}))
         if (c.mode) writeFileSync(join(kit.dir, "mode"), c.mode)
 
-        let flags = ""
-        if (c.grant) {
-          const file = join(kit.dir, "grant.json")
-          writeFileSync(file, JSON.stringify({ permissions: { allow: c.grant } }))
-          flags = ` --settings ${file}`
-        }
         const marker = join(kit.dir, "ran.txt")
-        const line = `${c.program ?? "ndmarker.exe"} ${join(kit.dir, "marker.cjs")} ${marker}`
+        const script = join(kit.dir, "marker.cjs")
+        if (c.noArgs) writeFileSync(join(kit.bin, "ndnoarg.cmd"), `@echo ran>>"${marker}"\r\n`)
+        const line = c.noArgs
+          ? "ndnoarg.cmd"
+          : (c.line?.(script, marker) ?? `${c.program ?? "ndmarker.exe"} ${script} ${marker}`)
+        if (c.ancestry) {
+          writeFileSync(join(kit.dir, "ancestry-hook"), "")
+          writeFileSync(join(kit.dir, "ancestry-marker"), "")
+        }
+        const grants = typeof c.grant === "function" ? c.grant(line) : c.grant
+        const settings =
+          c.settings ?? (grants === undefined ? undefined : { permissions: { allow: grants } })
+        let flags = ""
+        if (settings !== undefined) {
+          const file = join(kit.dir, "grant.json")
+          const json = JSON.stringify(settings)
+          writeFileSync(file, json)
+          flags =
+            c.pass === "inline-ps"
+              ? ` --settings '${json}'`
+              : c.pass === "inline-cmd"
+                ? ` --settings "${json.replaceAll('"', '\\"')}"`
+                : ` --settings ${file}`
+        }
+        probe("agy settings", { flags, settings: settings ?? null })
         probe("agy command", { line })
         run.model.use(
           (call: Call): Reply | undefined =>
@@ -526,7 +626,7 @@ describe.runIf(windows)("Antigravity on Windows (grants probe)", () => {
         await t.reached("ready", { timeoutMs: 60_000 })
         await prompted(t, agy)
         await t.submit("Run it")
-        await sleep(c.mode === "sleep" ? 10_000 : 8000)
+        await sleep(c.mode === "sleep" ? 14_000 : 12_000)
         const screen = await t.screen()
         const dialog = /Run this command\?|needs approval for/.test(screen)
         const ranBeforeKeys = existsSync(marker)
@@ -553,6 +653,19 @@ describe.runIf(windows)("Antigravity on Windows (grants probe)", () => {
         // A slept hook ends by itself before the deck closes.
         if (c.mode === "sleep") await sleep(6000)
         report(`agy ${c.name}`, kit)
+        // Antigravity's own settings and logs, where the grants may have been read or refused.
+        const gemini = join(run.sandbox.home, ".gemini")
+        if (existsSync(gemini))
+          for (const file of readdirSync(gemini, { recursive: true, encoding: "utf8" })) {
+            if (!/(settings\.json|\.log|\.jsonl?)$/.test(file) || /plugins|brain/.test(file))
+              continue
+            try {
+              const text = readFileSync(join(gemini, file), "utf8")
+              probe("agy home file", { case: c.name, file, tail: text.slice(-3500) })
+            } catch {
+              // A folder, or a file in use.
+            }
+          }
       },
       240_000,
     )
