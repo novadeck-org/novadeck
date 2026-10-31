@@ -7,7 +7,7 @@ import { decode } from "./decode.js"
 import { dialogs } from "./dialogs.js"
 import { antigravityHome } from "./home.js"
 import { models } from "./models.js"
-import { closedAnswer, notCommandAnswer, runAnswer } from "./narrow.js"
+import { closedAnswer, notCommandAnswer, runAnswer, takesSettings } from "./narrow.js"
 import {
   connect,
   connected,
@@ -83,6 +83,7 @@ export const agy = {
   hookDialect,
   hook,
   files,
+  takesLaunchGrants: takesSettings,
   // Novadeck's shim, which starts it narrowed where a grant covers its terminal (never on
   // Windows).
   shims: (platform) =>

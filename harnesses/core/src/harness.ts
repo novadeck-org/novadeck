@@ -89,6 +89,11 @@ export type Harness = {
     readonly apply: (install: Install) => Promise<void>
     readonly revert: (install: Install) => Promise<void>
   }
+  /**
+   * For a harness given launch grants: whether the output of `<program> --version` names one
+   * that takes the launch settings. An older or unknown version is given none.
+   */
+  readonly takesLaunchGrants?: (versionOutput: string) => boolean
   /** Programs Novadeck's shells put first on PATH while it is connected. */
   readonly shims?: (platform: NodeJS.Platform) => readonly File[]
   /**

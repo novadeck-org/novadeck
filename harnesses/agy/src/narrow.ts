@@ -13,6 +13,21 @@ export const closedAnswer = '{"decision":"force_ask"}'
 /** A tool known to run no command keeps today's plain ask. */
 export const notCommandAnswer = '{"decision":"ask","reason":"novadeck: not a command"}'
 
+/** The first Antigravity that takes `--settings` (probed 1.4.10; 1.4.3 rejects the flag and exits). */
+export const minLaunchVersion: readonly number[] = [1, 4, 10]
+
+/** Whether `agy --version`'s output names a version of at least `minLaunchVersion`; unknown is no. */
+export const takesSettings = (output: string): boolean => {
+  const found = /(\d+)\.(\d+)\.(\d+)/.exec(output)
+  if (!found) return false
+  const version = found.slice(1).map(Number)
+  for (const [index, least] of minLaunchVersion.entries()) {
+    const have = version[index] ?? 0
+    if (have !== least) return have > least
+  }
+  return true
+}
+
 /** The only answers a narrowed terminal's hook command passes on. */
 export const narrowedAnswers: readonly string[] = [runAnswer, closedAnswer, notCommandAnswer]
 

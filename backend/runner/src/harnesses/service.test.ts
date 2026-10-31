@@ -26,6 +26,10 @@ const fs = require("node:fs")
 const path = require("node:path")
 const [agent, ...args] = process.argv.slice(2)
 const home = process.env.HOME
+if (args[0] === "--version") {
+  if (process.env.FAKE_VERSION !== "none") console.log(process.env.FAKE_VERSION ?? "1.4.10")
+  process.exit(0)
+}
 fs.appendFileSync(process.env.FAKE_LOG, JSON.stringify([agent, ...args]) + "\\n")
 if (process.env.FAKE_FAIL && args.join(" ").includes(process.env.FAKE_FAIL)) {
   console.error("something went wrong")
@@ -290,6 +294,24 @@ describe("agents Novadeck can connect", () => {
     expect(await agents.connected("agy")).toBe(true)
   })
 
+  /* eslint-disable no-await-in-loop -- Each version is tried in turn. */
+  it("give Antigravity launch grants only from a version that takes --settings", async ({
+    fixture,
+  }) => {
+    installed(fixture.home, "agy")
+    for (const [version, expected] of [
+      ["1.4.3", false],
+      ["none", false],
+      ["1.4.10", true],
+      ["1.5.0", true],
+    ] as const) {
+      const agents = fixture.agents({ FAKE_VERSION: version })
+      await agents.set("agy", true)
+      expect(await agents.verified("agy"), version).toBe(expected)
+    }
+  })
+
+  /* eslint-enable no-await-in-loop */
   it("verify Antigravity's plugin only when it is connected, as rendered, and not being reinstalled", async ({
     fixture,
   }) => {

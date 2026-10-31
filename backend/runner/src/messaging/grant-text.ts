@@ -59,7 +59,7 @@ export const grantLines = (grant: Grant, agent: AgentName): string[] => [
 const caveat = (agent: AgentName): string =>
   agent === "agy"
     ? "Antigravity takes this grant when it starts: if yours started earlier, its own dialog " +
-      "still asks until you restart."
+      "still asks until you restart, and a version of Antigravity before 1.4.10 never takes it."
     : "If your harness still asks, answer its dialog as usual."
 
 /**

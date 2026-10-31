@@ -294,3 +294,13 @@ describe.runIf(posix)("Antigravity's launch shim", () => {
     )
   })
 })
+
+describe("Antigravity's launch grant gate", () => {
+  it("takes the launch settings from 1.4.10 on, and gives none to an older or unknown version", () => {
+    const takes = agy.takesLaunchGrants!
+    for (const output of ["1.4.10", "agy 1.4.10\n", "1.4.11", "1.5.0", "v2.0.0 (build 3)"])
+      expect(takes(output), output).toBe(true)
+    for (const output of ["1.4.3", "1.4.9\n", "0.9.99", "", "agy dev", "error: no such flag"])
+      expect(takes(output), output).toBe(false)
+  })
+})

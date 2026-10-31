@@ -208,6 +208,30 @@ export const createHarnesses = (
       ((agent: AgentName): Install => ({ env, home, platform, plugin: shell.plugins[agent] }))
     )
   }
+  // The agents whose installed version takes launch grants; an unknown version is retried.
+  const grantable = new Set<AgentName>()
+  const takesGrants = async (
+    agent: AgentName,
+    takes: (output: string) => boolean,
+    where: Install,
+  ): Promise<boolean> => {
+    if (grantable.has(agent) || platform === "win32") return grantable.has(agent)
+    const program = await locate(agent, harnesses[agent], where)
+    const output = await new Promise<string>((resolve) => {
+      let text = ""
+      const child = spawn(program, ["--version"], {
+        env: where.env,
+        stdio: ["ignore", "pipe", "ignore"],
+        timeout: 5_000,
+      })
+      child.stdout.setEncoding("utf8")
+      child.stdout.on("data", (chunk: string) => (text += chunk))
+      child.on("error", () => resolve(""))
+      child.on("close", () => resolve(text))
+    })
+    if (takes(output)) grantable.add(agent)
+    return grantable.has(agent)
+  }
   // One change at a time: an agent's plugin commands edit its configuration.
   let queue = Promise.resolve()
   // The agents the person asked to disconnect, until that is done.
@@ -332,13 +356,14 @@ export const createHarnesses = (
     verified: (agent: AgentName): Promise<boolean> =>
       queued(async () => {
         const install = await installs()
-        const { installed } = harnesses[agent]
+        const { installed, takesLaunchGrants } = harnesses[agent]
         if (!install || !installed || disconnecting.has(agent)) return false
         const where = install(agent)
         return (
           (await harnesses[agent].connected(where)) &&
           !(await exists(reinstalling(where))) &&
-          !(await differing(installed, where))
+          !(await differing(installed, where)) &&
+          (takesLaunchGrants === undefined || (await takesGrants(agent, takesLaunchGrants, where)))
         )
       }),
     list: async (): Promise<AgentIntegration[]> => {
