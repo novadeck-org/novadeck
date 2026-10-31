@@ -377,11 +377,12 @@ like them, only inside Novadeck's terminals.
   string as it is (a string-or-list union is the part Codex's and Antigravity's schema
   handling are least sure to keep): one handle, or, only for terminals the caller leads,
   several separated by spaces or commas (`@fox @owl`; the runner takes a JSON list too), or
-  `team` for every terminal it leads. Each recipient gets its own message, judged as a
+  `team` for every terminal it leads (not one led only until its brief is delivered,
+  whose lead marks that brief alone). Each recipient gets its own message, judged as a
   `send` to it alone is: its own thread, hop and loop count, its lead mark, the pair's
   rate, the recipient's undelivered cap, a stopped thread's block, duplicates. One
   refused there doesn't stop the others, and the answer has a line for each, then what
-  every answer adds, once. The call counts once against the sender's rate and the
+  every answer adds, once; refused for every one, the call is refused, a line each. The call counts once against the sender's rate and the
   runner's, if any recipient keeps a message. A name that is no handle there refuses the
   whole call with the listing, quoting `to` as written (an agent may have meant
   `@fox · api` as one name), and one the caller doesn't lead refuses it too ("@x isn't a

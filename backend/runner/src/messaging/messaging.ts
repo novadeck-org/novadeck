@@ -23,6 +23,7 @@ import {
   type AgentsAnswer,
   type PeerAnswer,
   type SendAnswer,
+  type OnTheWay,
   type TeamAnswer,
 } from "./sending.js"
 import { Sessions } from "./sessions.js"
@@ -462,7 +463,7 @@ export class Messaging {
     return this.sending.goneFrom(terminalId)
   }
 
-  onTheWay(from: string, to: string): readonly Pick<Message, "id" | "sentAt">[] {
+  onTheWay(from: string, to: string): readonly OnTheWay[] {
     return this.sending.onTheWay(from, to)
   }
 

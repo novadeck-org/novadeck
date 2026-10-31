@@ -32,7 +32,7 @@ const setup = (
   const steps: string[] = []
   const notices: { to: string; text: string; always?: true }[] = []
   // Messages on their way, by sender and recipient terminal: "id-fox>id-moth".
-  const coming = new Map<string, { id: string; sentAt: number }[]>()
+  const coming = new Map<string, { id: string; sentAt: number; held: boolean }[]>()
   let stopping = false
   const find = (id: string) => [...records.values()].find((record) => record.summary.id === id)
   const host = {
@@ -184,11 +184,17 @@ describe("an agent closing a teammate it leads, or a terminal with no agent", ()
   it("names the teammate's messages to it still on the way, which arrive after", async () => {
     const run = setup({ moth: "claude", fox: "codex" }, { fox: "moth" })
     const at = new Date(2026, 9, 31, 1, 48).getTime()
-    run.coming.set("id-fox>id-moth", [{ id: "m-7", sentAt: at }])
+    run.coming.set("id-fox>id-moth", [
+      { id: "m-7", sentAt: at, held: false },
+      { id: "m-8", sentAt: at, held: true },
+    ])
     await expect(run.close("moth", "fox")).resolves.toMatchObject({
       ok: true,
       handle: "fox",
-      coming: [{ id: "m-7", sent: "01:48" }],
+      coming: [
+        { id: "m-7", sent: "01:48" },
+        { id: "m-8", sent: "01:48", held: true },
+      ],
     })
     // None on the way: nothing said.
     const quiet = setup({ moth: "claude", fox: "codex" }, { fox: "moth" })
@@ -270,7 +276,7 @@ describe("an agent closing another agent's terminal", () => {
     await run.close("moth", "fox")
     await settle()
     const at = new Date(2026, 9, 31, 1, 48).getTime()
-    run.coming.set("id-fox>id-moth", [{ id: "m-7", sentAt: at }])
+    run.coming.set("id-fox>id-moth", [{ id: "m-7", sentAt: at, held: false }])
     run.approvals.answer({ requestId: requested[0]!.requestId, approved: true }, "person")
     await settle()
     const [notice] = run.notices
@@ -278,7 +284,7 @@ describe("an agent closing another agent's terminal", () => {
       closeNotice.confirmed("fox", "Terminal", "Codex", [{ id: "m-7", sent: "01:48" }]),
     )
     expect(notice?.text).toMatch(
-      /it is closed\. Messages waiting for it never arrive\. Its message m-7 \(sent 01:48\) to you hadn't reached you yet: it still arrives, after this, marked as from a closed terminal/,
+      /it is closed\. Messages waiting for it never arrive\. Its message m-7 \(sent 01:48\) to you hadn't reached you: it arrives marked as from a closed terminal/,
     )
   })
 

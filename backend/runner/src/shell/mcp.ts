@@ -898,8 +898,7 @@ const send: Tool<Sent> = {
         type: "string",
         description:
           "The terminal's exact handle, such as @fox, as agents lists it; for terminals you " +
-          "lead, several separated by spaces, such as @fox @owl, or team for all of them, " +
-          "each sent its own copy, counted once against your rate.",
+          "lead, several (@fox @owl) or team.",
       },
       text: { type: "string", description: "The message, up to 4 KB." },
     },

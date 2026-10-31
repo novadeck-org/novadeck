@@ -3,7 +3,7 @@ import { agy } from "./agents/agy.js"
 import { claude } from "./agents/claude.js"
 import { codex } from "./agents/codex.js"
 import { describe, e2e, expect, supported, type E2E } from "./fixture.js"
-import { gate, latest, text, tool, type Call } from "./model/script.js"
+import { asked, gate, latest, text, tool, type Call } from "./model/script.js"
 import { closed, deliveries, delivered, holds, own, result, sends, start } from "./scenarios.js"
 
 // A lead and its team across harnesses (docs/agent-messaging.md, "To its team", and
@@ -45,7 +45,14 @@ for (const lead of team)
       const starting = () => [
         own((call) => {
           const open = tool(call, "open_agent")
-          if (!open || !latest(call).includes("Start the team")) return undefined
+          const from = call.turns.findLastIndex(
+            (turn) => turn.role === "user" && turn.text.includes("Start the team"),
+          )
+          if (!open || from < 0) return undefined
+          // Once it answered in words, the opening is over.
+          const after = call.turns.slice(from + 1)
+          if (after.some((turn) => turn.role === "assistant" && turn.calls.length === 0))
+            return undefined
           const made = callsSince(call, "Start the team")
           if (made < team.length)
             return { calls: [{ name: open, input: { agent: team[made]!.agent, message: brief } }] }
@@ -137,8 +144,7 @@ for (const lead of team)
           ...starting(),
           own(async (call) => {
             const close = tool(call, "close_terminal")
-            if (!close || !latest(call).includes("once it reports")) return undefined
-            if (result(call) !== undefined) return undefined
+            if (!close || !asked(call, "once it reports")) return undefined
             await reported.opened
             return { calls: [{ name: close, input: { to: reporter } }] }
           }),
@@ -164,7 +170,7 @@ for (const lead of team)
 
         const after = await run.model.waitFor((call) => closed(call, reporter), { after: calls })
         expect(result(after)).toMatch(
-          /Its message m-[a-z0-9]+ \(sent \d\d:\d\d\) to you hadn't reached you yet: it still arrives, after this, marked as from a closed terminal/,
+          /Its message m-[a-z0-9]+ \(sent \d\d:\d\d\) to you hadn't reached you: it arrives marked as from a closed terminal/,
         )
         // At the end of the lead's turn, the report arrives, marked.
         const read = await run.model.waitFor(

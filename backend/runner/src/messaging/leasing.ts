@@ -103,8 +103,13 @@ export class Leasing {
       const sender = senderTerminal(message.from)
       return sender !== undefined && this.host.sessions.closed(sender)
     }
+    // A message kept before its mark was sized for may not fit with it: it goes unmarked,
+    // rather than block every message behind it.
+    const first = queued.slice(0, 1)
+    const marks =
+      byteLength(print(wrap(first, isFromLead, mark, undefined, fromClosed))) <= maxDeliveryBytes
     const wrapped = (taken: readonly Message[]) =>
-      wrap(taken, isFromLead, mark, undefined, fromClosed)
+      wrap(taken, isFromLead, mark, undefined, marks ? fromClosed : undefined)
     const prints = (taken: readonly Message[]) => byteLength(print(wrapped(taken)))
     const messages = deliveryOf(queued, (taken) => prints(taken) <= maxDeliveryBytes)
     // The first always goes, as it fits alone; beside what the turn holds it may not.

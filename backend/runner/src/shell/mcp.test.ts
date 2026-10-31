@@ -542,9 +542,8 @@ describe("Novadeck's MCP server in a Novadeck terminal", () => {
       coming: [{ id: "m-7", sent: "01:48" }],
     })
     expect(coming.content[0]?.text).toBe(
-      "Closed @fox · api-server.\nIts message m-7 (sent 01:48) to you hadn't reached you yet: " +
-        "it still arrives, after this, marked as from a closed terminal, and no reply reaches " +
-        "its sender.",
+      "Closed @fox · api-server.\nIts message m-7 (sent 01:48) to you hadn't reached you: it " +
+        "arrives marked as from a closed terminal, and no reply reaches its sender.",
     )
     const two = await said({
       ok: true,
@@ -554,12 +553,15 @@ describe("Novadeck's MCP server in a Novadeck terminal", () => {
         { id: "m-7", sent: "01:48" },
         { id: "m-8", sent: "01:49" },
         { id: "m-9", sent: "01:49" },
+        { id: "m-10", sent: "01:50", held: true },
       ],
     })
+    // Those held for the user arrive only if they let them go.
     expect(two.content[0]?.text).toContain(
       "Its messages m-7 (sent 01:48), m-8 (sent 01:49) and m-9 (sent 01:49) to you hadn't " +
-        "reached you yet: they still arrive, after this, marked as from a closed terminal, and " +
-        "no reply reaches their sender.",
+        "reached you: they arrive marked as from a closed terminal, and no reply reaches their " +
+        "sender. Its message m-10 (sent 01:50) to you is held by the user in Novadeck: it " +
+        "arrives only if they let it go, marked as from a closed terminal.",
     )
     const own = await said({ ok: true, self: true, handle: "moth", title: "api-server" })
     expect(own.content[0]?.text).toBe(

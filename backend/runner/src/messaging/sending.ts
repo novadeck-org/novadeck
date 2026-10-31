@@ -78,6 +78,9 @@ export type SendAnswer =
       readonly unbound?: true
     }
 
+/** A message on its way, as a close of its sender tells of it: whether it waits held too. */
+export type OnTheWay = Pick<Message, "id" | "sentAt"> & { readonly held: boolean }
+
 /** One recipient's part of a send to several terminals: its message, or why it wasn't sent. */
 export type RecipientAnswer =
   | Omit<Extract<SendAnswer, { ok: true }>, "gone" | "holds" | "unbound">
@@ -85,7 +88,8 @@ export type RecipientAnswer =
 
 /**
  * What a send to several terminals the caller leads answers: each recipient's own answer,
- * in the order named, and what every answer tells its sender, once.
+ * its team first with `team`, then the others in the order named, and what every answer
+ * tells its sender, once.
  */
 export type TeamAnswer = {
   readonly ok: true
@@ -194,11 +198,16 @@ const sendRequest = z.strictObject({
   text: z.string().max(64 * 1024),
 })
 
+/** Whether a word could be a handle: letters, digits and dashes, as every handle is. */
+const handleShaped = (word: string): boolean => /^[\p{L}\p{N}_-]+$/u.test(word)
+
 /** The one terminal a send names, when it names one and not the team. */
 const single = (to: Addressees): string | undefined =>
   !to.team && to.handles.length === 1 ? to.handles[0] : undefined
 
 const refused = (reason: string) => ({ ok: false, reason }) as const
+
+const oneOnly = refused("Name one terminal's handle to send it this message.")
 
 // Closed, messaging keeps nothing more, so a message then would be lost, not queued.
 const stopping = "Novadeck is stopping and couldn't keep the message; send it again once it's back."
@@ -229,10 +238,13 @@ export class Sending {
    * or why not, describing every terminal there when `to` is no current handle.
    */
   send(terminalId: string, request: unknown, about: About = () => undefined): SendAnswer {
-    const answer = this.sendAny(terminalId, request, about)
-    return "sent" in answer
-      ? refused("Name one terminal's handle to send it this message.")
-      : answer
+    // Refused before anything is sent: messaging's own callers name one terminal.
+    const parsed = sendRequest.safeParse(request)
+    const many = parsed.success && single(parsed.data.to) === undefined
+    const answer: SendAnswer | TeamAnswer = many
+      ? oneOnly
+      : this.sendAny(terminalId, request, about)
+    return "sent" in answer ? oneOnly : answer
   }
 
   /**
@@ -308,28 +320,41 @@ export class Sending {
     const named: Live[] = []
     for (const handle of to.handles) {
       const peer = scoped.find((each) => each.handle === handle)
-      // Quoted as written, as an agent may have meant it as one name, as `@fox · api`.
-      if (!peer) return refused(this.unknown(live, to.written, about))
+      // The name itself, unless `to` holds what no handle has, as `@fox · api`, which an
+      // agent may have meant as one name: then quoted as written.
+      if (!peer)
+        return refused(
+          this.unknown(live, to.handles.every(handleShaped) ? handle : to.written, about),
+        )
       named.push(peer)
     }
-    const outside = named.filter((peer) => !leads(peer, live)).map((peer) => mention(peer.handle))
+    const team = this.teammates(live)
+    const outside = named.filter((peer) => !team.includes(peer)).map((peer) => mention(peer.handle))
     if (outside.length > 0)
       return refused(
         `${outside.join(", ")} ${outside.length === 1 ? "isn't a terminal" : "aren't terminals"} ` +
           "you lead: a message to several terminals, or to your team, goes only to terminals " +
           "you lead. Send to each other terminal on its own.",
       )
-    const team = to.team ? scoped.filter((peer) => leads(peer, live)) : []
-    const recipients = [...new Set([...team, ...named])]
+    const recipients = [...new Set([...(to.team ? team : []), ...named])]
     if (recipients.length === 0)
       return refused(
-        "You lead no terminal here, so there is no team to send to; send to a terminal by its " +
-          "handle.",
+        "`team` names the terminals you lead, and you lead none here; send to your lead or a " +
+          "teammate by its handle.",
       )
     const own = this.rates.sender(live.terminalId, this.host.now(), this.senderLimit(live))
     if (!own.ok) return refused(own.reason)
     const sent = recipients.map((recipient) => this.sendTo(live, recipient, text, false))
     if (sent.some(({ kept }) => kept)) own.spend()
+    // Refused for every one: the call failed, as a send to one refused does.
+    if (sent.every(({ answer }) => !answer.ok))
+      return refused(
+        sent
+          .map(({ answer }, index) =>
+            answer.ok ? "" : `Not sent to ${mention(recipients[index]!.handle)}: ${answer.reason}`,
+          )
+          .join("\n"),
+      )
     return {
       ok: true,
       sent: sent.map(({ answer }, index) =>
@@ -344,8 +369,19 @@ export class Sending {
    * leads now.
    */
   private senderLimit(live: Live | undefined): number {
-    if (!live) return senderRate(0)
-    return senderRate(this.host.sessions.scoped(live).filter((peer) => leads(peer, live)).length)
+    return senderRate(live ? this.teammates(live).length : 0)
+  }
+
+  /**
+   * The terminals the caller leads now, its team: not one it leads only until its brief is
+   * delivered, which takes that brief and nothing more as its lead's.
+   */
+  private teammates(live: Live): Live[] {
+    return this.host.sessions
+      .scoped(live)
+      .filter(
+        (peer) => leads(peer, live) && this.host.leading.briefOf(peer.terminalId) === undefined,
+      )
   }
 
   /**
@@ -618,19 +654,20 @@ export class Sending {
   }
 
   /**
-   * The messages `from` sent `to` that are yet to arrive, oldest first: closing `from` lets
-   * them arrive after it closed, marked so.
+   * The messages `from` sent `to` that wait to arrive, oldest first, and whether each is
+   * held: closing `from` lets them arrive after it closed, marked so. One leased is left
+   * out, as its recipient's harness already has it.
    */
-  onTheWay(from: string, to: string): readonly Pick<Message, "id" | "sentAt">[] {
+  onTheWay(from: string, to: string): readonly OnTheWay[] {
     return [...this.host.store.messages()]
       .filter(
         (message) =>
           senderTerminal(message.from) === from &&
           message.to.terminalId === to &&
-          undelivered(message),
+          (message.state === "queued" || message.state === "held"),
       )
       .toSorted((a, b) => a.sentAt - b.sentAt)
-      .map(({ id, sentAt }) => ({ id, sentAt }))
+      .map(({ id, sentAt, state }) => ({ id, sentAt, held: state === "held" }))
   }
 
   /**

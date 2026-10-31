@@ -52,25 +52,50 @@ export type CloseAnswer =
   | CloseFailure
 
 /** A message the closed terminal sent the caller that hasn't reached it: its id and send time. */
-export type OnTheWay = { readonly id: string; readonly sent: string }
+export type OnTheWay = {
+  readonly id: string
+  readonly sent: string
+  /** Held for the user's release, or while they paused messaging: it arrives only then. */
+  readonly held?: true
+}
 
 /** The messages, as a close tells of them: by id, with the time each was sent. */
 export const onTheWay = (
-  messages: readonly { readonly id: string; readonly sentAt: number }[],
-): readonly OnTheWay[] => messages.map(({ id, sentAt }) => ({ id, sent: clock(sentAt) }))
+  messages: readonly { readonly id: string; readonly sentAt: number; readonly held: boolean }[],
+): readonly OnTheWay[] =>
+  messages.map(({ id, sentAt, held }) => ({ id, sent: clock(sentAt), ...(held && { held }) }))
+
+// "m-1 (sent 01:48)", "m-1 (sent 01:48) and m-2 (sent 01:49)".
+const listed = (messages: readonly OnTheWay[]): string => {
+  const each = messages.map(({ id, sent }) => `${id} (sent ${sent})`)
+  return each.length === 1 ? each[0]! : `${each.slice(0, -1).join(", ")} and ${each.at(-1)!}`
+}
 
 /**
  * What a close tells the caller of the messages the closed terminal sent it that hadn't
- * reached it: they still arrive, after the close, marked so.
+ * reached it: they arrive marked so, those held only once the user lets them go. Never
+ * "after this": a notice may reach the caller with them, or after.
  */
 export const onTheWayLine = (coming: readonly OnTheWay[]): string => {
-  const each = coming.map(({ id, sent }) => `${id} (sent ${sent})`)
-  const named = each.length === 1 ? each[0]! : `${each.slice(0, -1).join(", ")} and ${each.at(-1)!}`
-  return coming.length === 1
-    ? `Its message ${named} to you hadn't reached you yet: it still arrives, after this, ` +
-        "marked as from a closed terminal, and no reply reaches its sender."
-    : `Its messages ${named} to you hadn't reached you yet: they still arrive, after this, ` +
-        "marked as from a closed terminal, and no reply reaches their sender."
+  const waiting = coming.filter((one) => !one.held)
+  const held = coming.filter((one) => one.held)
+  const lines = []
+  if (waiting.length > 0)
+    lines.push(
+      waiting.length === 1
+        ? `Its message ${listed(waiting)} to you hadn't reached you: it arrives marked as from ` +
+            "a closed terminal, and no reply reaches its sender."
+        : `Its messages ${listed(waiting)} to you hadn't reached you: they arrive marked as ` +
+            "from a closed terminal, and no reply reaches their sender.",
+    )
+  if (held.length > 0)
+    lines.push(
+      `Its ${held.length === 1 ? "message" : "messages"} ${listed(held)} to you ` +
+        `${held.length === 1 ? "is" : "are"} held by the user in Novadeck: ` +
+        `${held.length === 1 ? "it arrives" : "they arrive"} only if they let ` +
+        `${held.length === 1 ? "it" : "them"} go, marked as from a closed terminal.`,
+    )
+  return lines.join(" ")
 }
 
 const refused = (reason: string): CloseFailure => ({ ok: false, reason })
