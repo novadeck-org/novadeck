@@ -54,9 +54,15 @@ export const installShellFiles = async (
 ): Promise<InstalledShell> => {
   const paths = shellPaths(directory)
   await mkdir(directory, { recursive: true, mode: 0o700 })
+  // A terminal's launch settings belong to the runner that wrote them and the agent it
+  // started: none outlives it, or a restored terminal of the same id would start narrowed.
+  const narrowedBefore = (await readdir(paths.narrow).catch(() => [] as string[])).some((name) =>
+    name.endsWith(".json"),
+  )
   // Without its relay an agent's hooks and MCP server can't start; shells still work, and
   // their agents' MCP server is the connecting build's, as NOVADECK_MCP is left unset.
-  const relayed = await installRelay(relay, paths.relay).then(
+  // A narrowed Antigravity may still run on the relay as its hook: that copy stays as it is.
+  const relayed = await installRelay(relay, paths.relay, { held: narrowedBefore }).then(
     () => true,
     (error: unknown) => {
       log.error("relay.unavailable", "Novadeck's relay is unavailable", { err: error })
@@ -64,11 +70,6 @@ export const installShellFiles = async (
     },
   )
   await Promise.all(staleShellFiles(directory).map((stale) => rm(stale, { force: true })))
-  // A terminal's launch settings belong to the runner that wrote them and the agent it
-  // started: none outlives it, or a restored terminal of the same id would start narrowed.
-  const narrowedBefore = (await readdir(paths.narrow).catch(() => [] as string[])).some((name) =>
-    name.endsWith(".json"),
-  )
   await rm(paths.narrow, { recursive: true, force: true })
   // An agent that runs its hooks in cmd reads nothing they answer after cmd's own output.
   const prints = process.platform === "win32" ? await cmdPrints() : undefined
@@ -120,17 +121,21 @@ export const installShellFiles = async (
  * Copies the relay to `path` when it differs. Agents run the copy for as long as their
  * sessions last, so it is replaced, never written over: where it runs, the new copy is
  * renamed over it, which POSIX allows, and Windows once the running one is moved aside;
- * copies moved aside earlier go once nothing runs them.
+ * copies moved aside earlier go once nothing runs them. An installed relay is not replaced
+ * while `held`: a narrowed terminal a previous runner left may run it.
  */
 export const installRelay = async (
   relay: string,
   path: string,
-  { platform = process.platform, files = relayFiles }: RelayInstall = {},
+  { platform = process.platform, files = relayFiles, held = false }: RelayInstall = {},
 ): Promise<void> => {
   const [binary, current] = await Promise.all([
     files.readFile(relay),
     files.readFile(path).catch(() => undefined),
   ])
+  // Held: an agent narrowed by a previous runner runs this copy as its hook, and a copy that
+  // differs might answer its calls otherwise. The next start with none left replaces it.
+  if (held && current !== undefined) return
   const folder = dirname(path)
   const aside = `${basename(path)}.old-`
   for (const name of await files.readdir(folder)) {
@@ -167,7 +172,12 @@ type RelayFiles = {
   rename(from: string, to: string): Promise<void>
 }
 
-type RelayInstall = { readonly platform?: NodeJS.Platform; readonly files?: RelayFiles }
+type RelayInstall = {
+  readonly platform?: NodeJS.Platform
+  readonly files?: RelayFiles
+  /** Leave an installed relay as it is. */
+  readonly held?: boolean
+}
 
 const relayFiles: RelayFiles = { readFile, readdir, rm, chmod, writeFile, rename }
 

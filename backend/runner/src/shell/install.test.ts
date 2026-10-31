@@ -176,6 +176,35 @@ describe.skipIf(process.platform === "win32")("the MCP server's launcher", () =>
     expect((await installShellFiles(join(folder, "shell"), { relay })).narrowedBefore).toBe(false)
   })
 
+  it("leaves the relay as it is under a narrowed terminal a previous runner left, and replaces it after", async ({
+    resources,
+  }) => {
+    const folder = mkdtempSync(join(tmpdir(), "novadeck-narrowed-relay-"))
+    resources.defer(() => rmSync(folder, { recursive: true, force: true }))
+    const relay = join(folder, "built")
+    writeFileSync(relay, "relay one")
+    const first = await installShellFiles(join(folder, "shell"), { relay })
+    mkdirSync(first.narrow, { recursive: true })
+    writeFileSync(join(first.narrow, "7.json"), "{}")
+    writeFileSync(relay, "relay two")
+    const held = await installShellFiles(join(folder, "shell"), { relay })
+    expect(held.narrowedBefore).toBe(true)
+    expect(readFileSync(held.relay, "utf8")).toBe("relay one")
+    expect(held.mcpLauncher).toBe(held.mcp)
+    await installShellFiles(join(folder, "shell"), { relay })
+    expect(readFileSync(held.relay, "utf8")).toBe("relay two")
+  })
+
+  it("installs a held relay that isn't there yet", async ({ resources }) => {
+    const folder = mkdtempSync(join(tmpdir(), "novadeck-held-relay-"))
+    resources.defer(() => rmSync(folder, { recursive: true, force: true }))
+    const relay = join(folder, "built")
+    const path = join(folder, "installed")
+    writeFileSync(relay, "relay")
+    await installRelay(relay, path, { held: true })
+    expect(readFileSync(path, "utf8")).toBe("relay")
+  })
+
   it("is left out when the relay can't be installed, so plugins start the connecting build's", async ({
     resources,
   }) => {
