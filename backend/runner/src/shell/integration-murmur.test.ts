@@ -3,6 +3,7 @@ import { chmodSync, existsSync, mkdirSync, symlinkSync, writeFileSync } from "no
 import { join } from "node:path"
 
 import { Terminals } from "../terminals/index.js"
+import { barDigest } from "../terminals/nudges.js"
 import { describe, expect } from "../test.js"
 import { FakeDescriber } from "../testing/describer.js"
 import { bash, it, create } from "./integration.test-support.js"
@@ -176,7 +177,7 @@ describe.skipIf(process.platform === "win32" || !existsSync(bash))(
         context(await step(terminal.id, { hook: "UserPromptSubmit", payload: { prompt: text } }))
       const send = (step: typeof one.step, text: string) =>
         step(peer.id, { call: "send", request: { to: "moth", text } })
-      const pointer = "as the full note given earlier in this session"
+      const pointer = "the full note given earlier in this session has the rules"
       await send(one.step, "First.")
       const given = await prompt(one.step, "Fix the build")
       expect(given).toMatch(/beside this terminal/)
@@ -189,7 +190,7 @@ describe.skipIf(process.platform === "win32" || !existsSync(bash))(
         .poll(() => shell.store.terminal(terminal.id)?.agents.claude)
         .toMatchObject({
           sessionId: "s-claude",
-          told: { bar: true, notes: { peer: expect.any(String) } },
+          told: { bar: barDigest, notes: { peer: expect.any(String) } },
         })
       await first.shutdown()
 
@@ -213,7 +214,9 @@ describe.skipIf(process.platform === "win32" || !existsSync(bash))(
         hook: "SessionStart",
         payload: { source: "compact", cwd: shell.home },
       })
-      expect(shell.store.terminal(terminal.id)?.agents.claude?.told).toBeUndefined()
+      await expect
+        .poll(() => shell.store.terminal(terminal.id)?.agents.claude?.told)
+        .toBeUndefined()
       await send(two.step, "Third.")
       const after = (await prompt(two.step, "and now?")).split("\n\n")
       expect(after[0]).toContain("Third.")

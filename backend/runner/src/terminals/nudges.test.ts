@@ -10,6 +10,7 @@ import {
   noNudges,
   noticesAt,
   sessionBegan,
+  sessionResumed,
   nudgeText,
   personPrompted,
   take,
@@ -154,6 +155,27 @@ describe("drift", () => {
       quietly(drifted(afterSummary(noNudges, { plan: null, folder: null, branch: null }), facts))
         .nudge,
     ).toBe(false)
+  })
+})
+
+describe("a session resumed after a restart", () => {
+  it("hears nothing again, and measures drift from the facts it is first read at", () => {
+    // What a summary set went with the runner: the restored terminal starts afresh.
+    const resumed = sessionResumed(noNudges, 0)
+    expect(quietly(resumed).nudge).toBe(false)
+    const seeded = drifted(resumed, facts)
+    expect(seeded.baseline).toEqual(facts)
+    expect(quietly(seeded).nudge).toBe(false)
+    // Its work moving on from there nudges, as after a summary.
+    const moved = quietly(drifted(seeded, { ...facts, folder: "/w/src/ui" }))
+    expect(moved.nudge).toBe(true)
+    expect(moved.summarize).toBe(true)
+  })
+
+  it("keeps a baseline it still has", () => {
+    const summarized = afterSummary(noNudges, facts)
+    const resumed = sessionResumed(summarized, 0)
+    expect(quietly(drifted(resumed, { ...facts, branch: "main" })).nudge).toBe(true)
   })
 })
 

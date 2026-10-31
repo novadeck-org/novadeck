@@ -35,8 +35,12 @@ export type LeasingHost = {
   readonly now: () => number
   /** Moves the terminal's delivery on (`Deliveries.step`). */
   readonly step: (live: Live, event: DeliveryEvent) => void
-  /** The notes the terminal's root session holds grew (`Live.held`), to be kept with it. */
-  readonly held: (live: Live) => void
+  /**
+   * The rules notes a terminal's root session holds grew, as a hook printed one in full,
+   * for the terminal manager to keep with that session (`AgentReport.told`), so a restart
+   * gives it no note it already holds; kept nowhere when omitted.
+   */
+  readonly held?: ((terminalId: string, root: Root, held: Held) => void) | undefined
 }
 
 /**
@@ -190,7 +194,7 @@ export class Leasing {
     const live = this.host.sessions.get(terminalId)
     if (lease.gave && live?.root?.sessionId === lease.gave.sessionId) {
       live.held = { ...live.held, ...lease.gave.notes }
-      this.host.held(live)
+      this.host.held?.(terminalId, live.root, live.held)
     }
   }
 

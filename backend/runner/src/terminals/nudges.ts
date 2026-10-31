@@ -1,3 +1,4 @@
+import { digestOf } from "../messaging/messages.js"
 import { shorten } from "../text.js"
 import { due, noTroubles, pageNotice, spend, type PageEntry, type Troubles } from "./troubles.js"
 
@@ -42,6 +43,11 @@ export type Nudges = {
   readonly troubles: Troubles
   /** When the current root session began, in milliseconds; only later shows are told of. */
   readonly since: number
+  /**
+   * Whether drift takes the facts it next reads as its baseline, with no `summarize` since
+   * the session came back (`sessionResumed`): its baseline went with the runner before.
+   */
+  readonly reseed?: boolean
 }
 
 /** How many of the person's prompts since the last `summarize` nudge as a backstop. */
@@ -95,6 +101,7 @@ export const sessionResumed = (nudges: Nudges, at: number): Nudges => ({
   ...nudges,
   troubles: noTroubles,
   since: at,
+  reseed: nudges.baseline === null,
 })
 
 /** The person prompted: one more toward the backstop, which fires every `backstopPrompts`. */
@@ -117,6 +124,8 @@ export const differs = (a: Facts, b: Facts): boolean =>
  */
 export const drifted = (nudges: Nudges, facts: Facts): Nudges => {
   const { baseline, driftedTo } = nudges
+  // A session resumed with no baseline measures drift from the facts it is first read at.
+  if (!baseline && nudges.reseed) return { ...nudges, baseline: facts, reseed: false }
   if (!baseline || !differs(baseline, facts)) return nudges
   if (driftedTo && !differs(driftedTo, facts)) return nudges
   return fired({ ...nudges, driftedTo: facts }, "drift")
@@ -312,3 +321,9 @@ export const noticesAt = (
     ...(took.summarize ? [nudgeText(current)] : []),
     ...took.pages.map(pageNotice),
   ].join("\n\n")
+
+/**
+ * The digest of the bar's and the Inbox's notices as worded now: a session told them in
+ * another wording, as before an upgrade, is told again.
+ */
+export const barDigest = digestOf(`${companionNotice}\n\n${inboxNotice}`)

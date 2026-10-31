@@ -29,6 +29,7 @@ import {
   noticesAt,
   personPrompted as promptCounted,
   sessionBegan,
+  barDigest,
   sessionResumed,
 } from "../nudges.js"
 import { peerOf, type TerminalPeers } from "../peers-host.js"
@@ -281,7 +282,7 @@ export class Reports {
     ) {
       record.nudges = fired(record.nudges, "compaction")
       record.agents = retold(record.agents, record.root, () => ({}))
-      this.host.messaging().holding(record.summary.id, {})
+      this.host.messaging().rooted(record.summary.id, [], {})
       this.host.save(record)
     }
     this.host.murmur()?.reported(report.terminalId)
@@ -418,7 +419,7 @@ export class Reports {
     // Read only for an answer that delivers nothing, so a delivery never waits on it, and
     // only with time to spare.
     const facts =
-      leaseId === null && record.nudges.baseline && inTime(driftReadMs)
+      leaseId === null && (record.nudges.baseline || record.nudges.reseed) && inTime(driftReadMs)
         ? await this.host.peers().facts(peerOf(record))
         : undefined
     const current = { summary: record.naming.summary }
@@ -438,7 +439,7 @@ export class Reports {
     // Where the prompt's answer stays in the session's context, it holds the bar's notice
     // from now on, across a restart too, until it compacts.
     if (taken.companion && record.root && messaging.lasting.includes("prompt")) {
-      record.agents = retold(record.agents, record.root, (told) => ({ ...told, bar: true }))
+      record.agents = retold(record.agents, record.root, (told) => ({ ...told, bar: barDigest }))
       this.host.save(record)
     }
     return { leaseId, stdout: adding(notices(taken)) }
@@ -490,17 +491,17 @@ export class Reports {
     // session resumed after a restart is the same session, while another holds nothing.
     const told = toldOf(record.agents, root)
     if (changes.length > 0) {
-      this.host.messaging().rooted(id, changes)
-      this.host.messaging().holding(id, told.notes ?? {})
+      this.host.messaging().rooted(id, changes, told.notes ?? {})
       this.host.inbox().rooted(id, changes)
       this.host.typing().settleBox(record)
     }
     // A new root session has yet to hear of the bar beside its terminal, unless it is one
     // that heard of it and holds that still, as resumed after a restart.
     if (changes.some((change) => change.type === "new")) {
-      record.nudges = told.bar
-        ? sessionResumed(record.nudges, Date.now())
-        : sessionBegan(record.nudges, Date.now())
+      record.nudges =
+        told.bar === barDigest
+          ? sessionResumed(record.nudges, Date.now())
+          : sessionBegan(record.nudges, Date.now())
       if (record.root)
         tellInterrupted(
           record,

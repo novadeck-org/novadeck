@@ -391,7 +391,7 @@ export const wrappers = (call: Call): Wrapper[] =>
 
 /** Whether a wrapper's note only points to the full one the session was given before. */
 export const pointsBack = (wrapper: Wrapper): boolean =>
-  wrapper.note.includes("as the full note given earlier in this session")
+  wrapper.note.includes("the full note given earlier in this session has the rules")
 
 /** Whether the call's latest user turn delivered a message from `from`. */
 export const delivered = (call: Call, from: string): boolean =>

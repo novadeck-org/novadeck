@@ -4,13 +4,13 @@ import type { AgentName, MessageState, TerminalMessages } from "@novadeck/protoc
 import type { KeyKind } from "@novadeck/tui-input"
 
 import type { Binding } from "../harnesses/bindings.js"
-import type { Root, RootChange } from "../harnesses/roots.js"
+import type { RootChange } from "../harnesses/roots.js"
 import { Deliveries } from "./deliveries.js"
 import type { Delivery, Waits } from "./delivery.js"
 import { Holds } from "./holds.js"
 import { HookAnswers, type Answer } from "./hook-answers.js"
 import { Leading } from "./leading.js"
-import { Leasing } from "./leasing.js"
+import { Leasing, type LeasingHost } from "./leasing.js"
 import type { Deliverable, Scope } from "./live.js"
 import { Loops } from "./loops.js"
 import { MessageStore, type MessagingChange } from "./message-store.js"
@@ -54,12 +54,8 @@ export type MessagingOptions = {
   readonly platform?: NodeJS.Platform
   /** What each terminal's agent did, for the loop hold; a new tracker when omitted. */
   readonly loops?: Loops
-  /**
-   * The rules notes a terminal's root session holds grew, as a hook printed one in full,
-   * for the terminal manager to keep with that session (`AgentReport.told`), so a restart
-   * gives it no note it already holds; told nowhere when omitted.
-   */
-  readonly held?: (terminalId: string, root: Root, held: Held) => void
+  /** The notes a root session holds grew, for the terminals to keep (`LeasingHost.held`). */
+  readonly held?: LeasingHost["held"]
 }
 
 /**
@@ -120,16 +116,8 @@ export class Messaging {
       letBriefGo: (terminalId) => this.leading.letBriefGo(terminalId),
     })
     this.sessions = sessions
-    this.leasing = new Leasing(options.leaseMs ?? 5_000, {
-      sessions,
-      store,
-      loops,
-      now,
-      step,
-      held: (live) => {
-        if (live.root) options.held?.(live.terminalId, live.root, live.held)
-      },
-    })
+    const leasing = { sessions, store, loops, now, step, held: options.held }
+    this.leasing = new Leasing(options.leaseMs ?? 5_000, leasing)
     this.deliveries = new Deliveries({
       sessions,
       store,
@@ -242,18 +230,8 @@ export class Messaging {
     this.sessions.unregister(terminalId, forGood)
   }
 
-  rooted(terminalId: string, changes: readonly RootChange[]): void {
-    this.sessions.rooted(terminalId, changes)
-  }
-
-  /**
-   * The rules notes the terminal's root session holds in its context, as the terminal
-   * manager kept them with that session (its root changed, as after a restart), or none
-   * after a compaction: its later deliveries point to these, and give the rest in full.
-   */
-  holding(terminalId: string, held: Held): void {
-    const live = this.sessions.get(terminalId)
-    if (live?.root) live.held = held
+  rooted(terminalId: string, changes: readonly RootChange[], held?: Held): void {
+    this.sessions.rooted(terminalId, changes, held)
   }
 
   awaits(terminalId: string, sessionId: string): boolean {

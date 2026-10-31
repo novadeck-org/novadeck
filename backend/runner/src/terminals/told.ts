@@ -22,6 +22,6 @@ export const retold = (agents: Agents, root: Root, change: (told: Told) => Told)
   if (report?.sessionId !== root.sessionId) return agents
   const { told: _, ...rest } = report
   const told = change(report.told ?? {})
-  const kept = told.bar === true || Object.keys(told.notes ?? {}).length > 0
+  const kept = told.bar !== undefined || Object.keys(told.notes ?? {}).length > 0
   return { ...agents, [root.agent]: kept ? { ...rest, told } : rest }
 }

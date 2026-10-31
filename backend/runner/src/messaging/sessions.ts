@@ -3,7 +3,7 @@ import type { DeliveryEvent } from "./delivery.js"
 import { addressed, awaiting, started, type Live, type Scope } from "./live.js"
 import type { Loops } from "./loops.js"
 import type { MessageStore } from "./message-store.js"
-import { undelivered } from "./messages.js"
+import { undelivered, type Held } from "./messages.js"
 
 /** What the running terminals ask of the rest of messaging. */
 export type SessionsHost = {
@@ -78,10 +78,17 @@ export class Sessions {
     this.host.loops.forget(terminalId)
   }
 
-  /** How the terminal's root changed, as the terminal manager follows it (`followRoot`). */
-  rooted(terminalId: string, changes: readonly RootChange[]): void {
+  /**
+   * How the terminal's root changed, as the terminal manager follows it (`followRoot`), and
+   * the rules notes its root session holds in its context, where the manager tells them:
+   * as it kept them with that session (its root changed, as after a restart), or none after
+   * a compaction. Its later deliveries point to these, and give the rest in full.
+   */
+  rooted(terminalId: string, changes: readonly RootChange[], held?: Held): void {
     const live = this.live.get(terminalId)
-    if (live) this.applyRoot(live, changes)
+    if (!live) return
+    this.applyRoot(live, changes)
+    if (held && live.root) live.held = held
   }
 
   /** Whether messages wait, or went, for that session of the terminal. */

@@ -5,7 +5,11 @@
     "lines counts the file's lines. methods counts every function the Messaging class defines in its body: methods, accessors, the constructor and properties set to a function or arrow expression, read from its syntax tree, so formatting never moves it.",
     "New behaviour goes in a sibling module under backend/runner/src/messaging/, as delivery.ts, leases.ts and loops.ts do, with the class calling it. Work that can't is raised in the same pull request, written { \"budget\": n, \"reason\": \"why\", \"from\": \"#PR or commit\" }."
   ],
-  "lines": 494,
+  "lines": {
+    "budget": 497,
+    "reason": "Notes held across restarts (+3): the held option (its doc and field), which hands the notes a root session holds to the terminal manager to keep with its AgentReport, and the Leasing host built on a line of its own to take it; rooted takes the notes the manager kept, with no new method. The logic is in leasing.ts, sessions.ts and terminals/told.ts.",
+    "from": "ti-delivery"
+  },
   "methods": 74,
   "slack": {
     "lines": 100,

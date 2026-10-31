@@ -84,7 +84,7 @@ export type Live = Scope & {
   /**
    * The rules notes its root session holds in its context, given in full by an earlier
    * delivery: a later one only points to them. None for a new root, until the terminal
-   * manager tells what that session was told before (`Messaging.held`).
+   * manager tells what that session was told before (`Messaging.rooted`).
    */
   held: Held
 }

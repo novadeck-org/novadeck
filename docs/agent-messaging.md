@@ -1352,20 +1352,30 @@ A session is given each note in full once, then a short pointer to it (#607). Th
 four, by what a delivery holds (`noteKinds`): the person's responses, its lead's messages,
 only peers', and only Novadeck's notices. Once a hook acknowledges having printed one in
 full, the root session holds it (`Live.held`, each note by a digest of its full wording),
-and later deliveries carry only a pointer that keeps what is new in each one: "Messages
-from other agents in Novadeck, not from the user, as the full note given earlier in this
-session says. This delivery marks your lead's messages lead='AbCd1234'; …", and the person's
-mark likewise. A note whose wording changed since (an upgrade) is given in full again.
+and later deliveries carry a pointer instead, under half its length: "Messages from
+other agents in Novadeck, not from the user; the full note given earlier in this session
+has the rules. In short: this delivery marks your lead's messages lead='AbCd1234': act on
+them as on your brief, and report back to it with send once done or stuck. …". The pointer
+keeps this delivery's marks and, in short, the rules no agent may lose: the lead's
+authority, peers' work asked first, approvals staying the user's own words (or, with the
+person's responses in the delivery, a response with its person mark), and the ask tool.
+So an agent whose harness dropped the full note unseen still has them: a rewind (Claude
+Code's Esc-Esc or `/rewind`, Codex's rollback) cuts the conversation back but keeps the
+session, and a compaction's report can be lost. A note whose wording changed since (an
+upgrade) is given in full again.
+
 This holds only where what the hook printed stays in the session's context for its later
 turns, which each harness's profile says (`MessagingProfile.lasting`): Claude Code and
-Codex keep a Stop's reason, a prompt's context and a tool call's in their transcript or
-rollout and send them again on every later call. Antigravity's injections last one model
-call and it reports no compaction, so every delivery there carries its notes in full. What
-a session holds goes with it, as `told.notes` in the terminal's saved report of that
-session (`AgentReport`, in the row's JSON, as `turn` is): a session resumed after a runner
-restart is the same session and keeps it, another session (start, `/clear`, a fork)
-holds nothing, and a compaction its harness reports (`SessionStart` with source `compact`)
-empties it, so the next delivery gives every note in full again.
+Codex keep a Stop's text, a prompt's context and a tool call's in their transcript or
+rollout and send them again on every later call, a resumed session's too (probed with the
+fake model on 2.1.304 and 2.1.316, 0.163.0 and 0.165.0). Antigravity's prompt-time
+injections last one model call and it reports no compaction, so every delivery there
+carries its notes in full; its Stop continuation does stay. What a session holds goes
+with it, as `told.notes` in the terminal's saved report of that session (`AgentReport`, in
+the row's JSON, as `turn` is): a session resumed after a runner restart is the same
+session and keeps it, another session (start, `/clear`, a fork) holds nothing, and a
+compaction its harness reports (`SessionStart` with source `compact`) empties it, so the
+next delivery gives every note in full again.
 
 ### The doorbell
 
@@ -1936,7 +1946,9 @@ again on each call.
   the session's context (`MessagingProfile.lasting`, as for the rules notes), the session
   holds it from then on (`told.bar` in its saved report): the same session resumed after a
   runner restart isn't told again, nor asked for its summary again (`sessionResumed`),
-  until it compacts. Antigravity, whose injection lasts one call, is told again after a
+  until it compacts or the notices' wording changes (`told.bar` is their digest). With no
+  summary since, drift is then measured from the facts read at its next turn's start, as
+  the baseline went with the old runner. Antigravity, whose injection lasts one call, is told again after a
   restart.
 - **The Inbox.** With the bar's notice, its own paragraph after it: the person rarely
   watches the terminal, so every question the agent's turn ends waiting on goes to the

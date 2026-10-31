@@ -5566,7 +5566,8 @@ describe("the loop hold on the real work tracker", () => {
 })
 
 // Whether a delivery's wrapper carries its note in full, or only points to one given before.
-const fullNote = (delivery: string) => !delivery.includes("as the full note given earlier")
+const fullNote = (delivery: string) =>
+  !delivery.includes("the full note given earlier in this session")
 
 describe("the rules note of a delivery", () => {
   it("gives a session the note in full once, then points to it with each delivery's marks", () => {
@@ -5587,7 +5588,7 @@ describe("the rules note of a delivery", () => {
     sent(send("B", "moth", "Second."))
     const second = context(prompt("A", claude).stdout)
     expect(fullNote(second)).toBe(false)
-    expect(second).not.toContain("Approvals of actions stay the user's")
+    expect(second).not.toContain("whose marked reply is theirs, always")
     expect(second).toContain('<message id="m-')
     expect(second).toContain("Second.")
   })
@@ -5649,7 +5650,7 @@ describe("the rules note of a delivery", () => {
     expect(fullNote(context(held.stdout))).toBe(false)
     messaging.acknowledge("A", held.leaseId!)
     // The terminal manager says the session compacted: it holds nothing any more.
-    messaging.holding("A", {})
+    messaging.rooted("A", [], {})
     time.now += 60_000
     sent(send("B", "moth", "After a compaction."))
     expect(fullNote(context(prompt("A", cleared).stdout))).toBe(true)
@@ -5657,11 +5658,11 @@ describe("the rules note of a delivery", () => {
 
   it("points to what a session held before a restart, as the terminal manager kept it", () => {
     const { messaging, send, prompt, claude } = create()
-    messaging.holding("A", { peer: noteDigests.peer })
+    messaging.rooted("A", [], { peer: noteDigests.peer })
     sent(send("B", "moth", "After a restart."))
     expect(fullNote(context(prompt("A", claude).stdout))).toBe(false)
     // A note whose wording changed since is given in full again.
-    messaging.holding("A", { peer: "an older wording" })
+    messaging.rooted("A", [], { peer: "an older wording" })
     sent(send("B", "moth", "After an upgrade."))
     expect(fullNote(context(prompt("A", claude).stdout))).toBe(true)
   })
