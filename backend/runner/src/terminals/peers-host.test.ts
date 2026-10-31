@@ -260,6 +260,6 @@ describe("where a peer's agent works now", () => {
     const root = await folder(resources)
     await project(root)
     const where = await whereabouts(root, [])
-    expect(where?.place(join(homedir(), ".claude", "x"))).toBe("~/.claude/x")
+    expect(where?.place(join(homedir(), ".claude", "x"))).toBe(join("~", ".claude", "x"))
   })
 })

@@ -1,6 +1,6 @@
 import { realpath } from "node:fs/promises"
 import { homedir } from "node:os"
-import { basename, isAbsolute, relative } from "node:path"
+import { basename, isAbsolute, join, relative } from "node:path"
 
 import type { CompanionItem, TerminalMessages } from "@novadeck/protocol"
 
@@ -100,11 +100,17 @@ export const waitingOf = (activity: Pick<Activity, "pending"> | null): Waiting |
 /** A folder with its links resolved, or as it is where that fails. */
 const real = (folder: string): Promise<string> => realpath(folder).catch(() => folder)
 
-/** A path inside the person's home folder as `~/…`, which names no account; others as they are. */
+/**
+ * A path inside the person's home folder from `~`, which names no account; others as they
+ * are. Native, as a folder inside the project is here (`~\\.claude\\x` on Windows); the
+ * listing writes every path with `/` (see `peerOf`).
+ */
 const homeShort = (path: string): string => {
   const home = homedir()
   const inside = relative(home, path)
-  return home && inside && !inside.startsWith("..") && !isAbsolute(inside) ? `~/${inside}` : path
+  return home && inside && !inside.startsWith("..") && !isAbsolute(inside)
+    ? join("~", inside)
+    : path
 }
 
 /** How long a folder's git branch, or its checkout, is trusted once read, in milliseconds. */

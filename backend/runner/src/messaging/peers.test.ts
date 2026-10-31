@@ -662,6 +662,23 @@ describe("where a peer works", () => {
     expect(worked.worksIn).toEqual([{ folder: "/tmp/claude-1000/…/scratchpad/", edits: 6 }])
   })
 
+  it("writes a Windows agent's folders with one separator, by their names", () => {
+    const scratch =
+      "C:\\Users\\me\\AppData\\Local\\Temp\\claude\\0b0c7a2e-1c2d-4e5f-8a9b-0123456789ab\\scratchpad"
+    const windows = listing({
+      where: whereabouts({
+        folder: "tasks\\b\\novadeck",
+        startedIn: "~\\.claude\\projects\\-C-Users-me-Workspace-novadeck\\memory",
+        work: { ...freshWork("claude:s"), folders: { [scratch]: 2 } },
+      }),
+    })
+    expect(windows).toMatchObject({
+      folder: "tasks/b/novadeck",
+      startedIn: "~/.claude/projects/…/memory",
+      worksIn: [{ folder: "C:/Users/me/AppData/Local/Temp/claude/…/scratchpad/", edits: 2 }],
+    })
+  })
+
   it("shows a prompt or message without the tags wrapping one agent's hand-back to another", () => {
     const handed = listing({
       where: whereabouts({

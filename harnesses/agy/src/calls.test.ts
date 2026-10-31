@@ -64,6 +64,19 @@ describe("an Antigravity tool call", () => {
     expect(ran({ CommandLine: "npm test", Cwd: '"/w/q"' })).toMatchObject([{ folder: "/w/q" }])
     expect(ran({ CommandLine: "cd /w/c && npm test" })).toMatchObject([{ folder: "/w/c" }])
     expect(ran({ CommandLine: "npm test" })).toMatchObject([{ folder: "/w/a" }])
+    // On Windows, its PowerShell's `cd` and its native workspace, whatever runs the runner.
+    const ranOnWindows = (args: object) =>
+      called("PreToolUse", {
+        workspacePaths: ["C:\\w\\a"],
+        toolCall: { name: "run_command", args },
+      })
+    expect(ranOnWindows({ CommandLine: "cd D:\\w\\c; npm test" })).toMatchObject([
+      { folder: "D:\\w\\c" },
+    ])
+    expect(ranOnWindows({ CommandLine: "cd ..\\b; npm test" })).toMatchObject([
+      { folder: "C:\\w\\b" },
+    ])
+    expect(ranOnWindows({ CommandLine: "npm test" })).toMatchObject([{ folder: "C:\\w\\a" }])
     const viewed = called("PreToolUse", {
       workspacePaths: ["/w/a"],
       toolCall: { name: "view_file", args: { AbsolutePath: "/w/a/x" } },

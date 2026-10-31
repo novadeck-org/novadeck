@@ -130,6 +130,35 @@ describe("the folder a command runs in", () => {
     expect(commandFolder("ls", undefined)).toBeUndefined()
     expect(commandFolder("cd /abs && ls", undefined)).toBe("/abs")
   })
+
+  it("follows a Windows agent's own paths, whichever system runs the runner", () => {
+    expect(commandFolder("ls", "C:\\w", "D:\\x\\y")).toBe("D:\\x\\y")
+    expect(commandFolder("ls", "C:\\w", "sub")).toBe("C:\\w\\sub")
+    expect(commandFolder('cd "D:\\tasks\\b\\repo" && pnpm test', "C:\\w")).toBe(
+      "D:\\tasks\\b\\repo",
+    )
+    expect(commandFolder("cd D:/tasks/b && ls", "C:\\w")).toBe("D:\\tasks\\b")
+    expect(commandFolder("cd ..\\b; git status", "C:\\w\\a")).toBe("C:\\w\\b")
+    expect(commandFolder("cd \\x && ls", "C:\\w")).toBe("C:\\x")
+    expect(commandFolder("ls", "\\\\host\\share\\w")).toBe("\\\\host\\share\\w")
+  })
+
+  it("reads Git Bash's drive folders, as Claude Code's Bash on Windows writes them", () => {
+    expect(commandFolder("cd /d/tasks/b && ls", "C:\\w")).toBe("D:\\tasks\\b")
+    expect(commandFolder("cd /c && ls", "C:\\w")).toBe("C:\\")
+  })
+
+  it("is the Windows hook's own directory where it is the cd's already, in any case", () => {
+    expect(commandFolder("cd wt/ui && ls", "C:\\p\\wt\\ui")).toBe("C:\\p\\wt\\ui")
+    expect(commandFolder("cd WT\\UI && ls", "C:\\p\\wt\\ui")).toBe("C:\\p\\wt\\ui")
+    expect(commandFolder("cd ui && ls", "C:\\p\\build-ui")).toBe("C:\\p\\build-ui\\ui")
+  })
+
+  it("is nothing on Windows for a drive's own current folder or with no drive to go by", () => {
+    expect(commandFolder("cd sub && ls", "C:w")).toBeUndefined()
+    expect(commandFolder("cd \\x && ls", undefined)).toBeUndefined()
+    expect(commandFolder("cd D:\\abs && ls", undefined)).toBe("D:\\abs")
+  })
 })
 
 describe("when a hook was fired", () => {

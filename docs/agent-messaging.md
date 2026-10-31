@@ -409,7 +409,10 @@ like them, only inside Novadeck's terminals.
      keeps the `cd`s it allows; Antigravity by a leading `cd` (or the `Cwd` its 1.2
      `run_command` took and 1.4 refuses), else its workspace; Codex by its rollout's
      `CommandExecution` items, whose `cwd` is the command's own `workdir`, which its hook
-     never names (probed 2026-10-31, 0.163.0). The last eight (`keptPlaces`) are kept
+     never names (probed 2026-10-31, 0.163.0). A folder follows the agent's own path rules,
+     Windows' for one with a drive or share, whatever system runs the runner, and reads Git
+     Bash's `/c/…` (Claude Code's Bash on Windows) as `C:\…`; the listing writes every path
+     with `/`. The last eight (`keptPlaces`) are kept
      with its work; another checkout wins once it holds more than half of them, so a few
      looks elsewhere (a teammate's log) or a fresh session's first command don't move it.
      Folders are compared with their links resolved. A folder in

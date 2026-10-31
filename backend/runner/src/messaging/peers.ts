@@ -212,8 +212,8 @@ export const peerOf = (input: {
     title: where?.title ?? null,
     titleSource: where?.title ? where.titleSource : null,
     summary: where?.summary ?? null,
-    folder: where?.folder ? quietPath(where.folder) : null,
-    startedIn: where?.startedIn ? quietPath(where.startedIn) : null,
+    folder: where?.folder ? quietPath(slashed(where.folder)) : null,
+    startedIn: where?.startedIn ? quietPath(slashed(where.startedIn)) : null,
     branch: where?.branch ?? null,
     // What an older runner kept with its wrapping tags shows without them too.
     startedWith: work?.first ? plainPrompt(work.first) : null,
@@ -224,8 +224,7 @@ export const peerOf = (input: {
     plan: agent ? (where?.plan ?? null) : null,
     worksIn: work
       ? busiestFolders(work.folders).map(({ folder, edits }) => ({
-          // One separator wherever the runner runs, as agents read it.
-          folder: `${quietPath(place(folder).replaceAll("\\", "/")).replace(/\/$/, "")}/`,
+          folder: `${quietPath(slashed(place(folder))).replace(/\/$/, "")}/`,
           edits,
         }))
       : [],
@@ -238,6 +237,12 @@ export const peerOf = (input: {
     activeAt: work?.activeAt ?? null,
   }
 }
+
+/**
+ * A path with one separator wherever the runner runs, as agents read it: a Windows agent's
+ * `C:\\w\\b` as `C:/w/b`, which its shells and tools take too.
+ */
+const slashed = (path: string): string => path.replaceAll("\\", "/")
 
 // A path's part that is an id rather than a name: a UUID, a long hex digest, or a folder
 // path a harness encoded into one name (`-home-me-work-repo`), as scratchpads, Claude Code's

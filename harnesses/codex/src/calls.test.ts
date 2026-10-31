@@ -101,6 +101,13 @@ describe("a Codex tool call", () => {
         source: "unified_exec_startup",
       }),
     ).toMatchObject([{ type: "command-ran", folder: "/w/api" }])
+    // A Windows Codex's folder, by Windows' rules whatever system runs the runner.
+    expect(
+      executed({ command: ["/bin/bash", "-lc", "cargo test"], cwd: "file:///D:/w%20x/api" }),
+    ).toMatchObject([{ type: "command-ran", folder: "D:\\w x\\api" }])
+    expect(
+      executed({ command: ["/bin/bash", "-lc", "cd ..\\b; ls"], cwd: "C:\\w\\a" }),
+    ).toMatchObject([{ type: "command-ran", folder: "C:\\w\\b" }])
     expect(executed({ command: ["/bin/bash", "-lc", "cd ../b && ls"], cwd: "/w/a" })).toMatchObject(
       [{ type: "command-ran", folder: "/w/b" }],
     )

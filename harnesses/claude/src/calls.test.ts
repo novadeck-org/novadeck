@@ -92,6 +92,12 @@ describe("a Claude Code tool call", () => {
       called("PostToolUse", { tool_name: "Bash", cwd: "/w/a", tool_input: { command } })
     expect(ran("cd /w/b && pnpm test")).toMatchObject([{ folder: "/w/b" }])
     expect(ran("pnpm test")).toMatchObject([{ folder: "/w/a" }])
+    // On Windows its Bash is Git Bash, which names a drive `/d/…`, beside its hook's native folder.
+    const ranOnWindows = (command: string) =>
+      called("PostToolUse", { tool_name: "Bash", cwd: "C:\\w\\a", tool_input: { command } })
+    expect(ranOnWindows("cd /d/w/b && pnpm test")).toMatchObject([{ folder: "D:\\w\\b" }])
+    expect(ranOnWindows('cd "C:\\w\\c" && pnpm test')).toMatchObject([{ folder: "C:\\w\\c" }])
+    expect(ranOnWindows("pnpm test")).toMatchObject([{ folder: "C:\\w\\a" }])
     const read = called("PostToolUse", { tool_name: "Read", cwd: "/w/a", tool_input: {} })
     expect(read[0]).not.toHaveProperty("folder")
   })

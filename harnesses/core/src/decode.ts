@@ -1,5 +1,5 @@
 import { createHash } from "node:crypto"
-import { isAbsolute, resolve } from "node:path"
+import { posix, win32 } from "node:path"
 
 import { agentLimits, agentSessionId, maxTurnError, replyPreviewLength } from "@novadeck/protocol"
 
@@ -20,11 +20,21 @@ export const text = (value: unknown): string | undefined =>
 export const sessionId = (value: unknown): string | undefined =>
   agentSessionId.safeParse(value).success ? (value as string) : undefined
 
-/** An absolute path here, or undefined. */
+/**
+ * An absolute path, or undefined: a POSIX one, or a Windows one from its drive (`C:\\…`,
+ * `C:/…`) or share (`\\\\host\\…`), whatever system runs the runner, as an agent's paths
+ * are its own system's.
+ */
 export const absolute = (value: unknown): string | undefined =>
-  typeof value === "string" && value.length <= 4096 && !value.includes("\0") && isAbsolute(value)
+  typeof value === "string" &&
+  value.length <= 4096 &&
+  !value.includes("\0") &&
+  (posix.isAbsolute(value) || windowsAbsolute.test(value))
     ? value
     : undefined
+
+/** The start of an absolute Windows path: a drive and its root, or a share. */
+const windowsAbsolute = /^(?:[a-z]:[\\/]|[\\/]{2}[^\\/])/i
 
 // A leading `cd` and the folder it names: bare, or in single or double quotes, followed by
 // `&&`, `;`, the end of its line or the command's end.
@@ -36,31 +46,55 @@ const leadingCd = /^\s*cd\s+(?:"([^"]+)"|'([^']+)'|([^\s;&|'"]+))[ \t]*(?:&&|;|\
  * leading `cd` moves it to (`cd /x && …`, `cd x; …`), else `cwd`, the directory its hook
  * ran in. A relative folder resolves against `cwd`, unless `cwd` already ends in it, as
  * where the harness reports its directory after the `cd` it kept; one naming a variable,
- * `~` or `-` is no folder, nor is anything where `cwd` isn't absolute to resolve it against. It tells
- * where an agent works now, as the agents listing shows it, whichever harness runs it.
+ * `~` or `-` is no folder, nor is anything where `cwd` isn't absolute to resolve it against.
+ * The paths follow the agent's own rules, Windows' or POSIX's (see `flavorOf`), so the folder
+ * comes back native: `C:\\w\\b` for a Windows agent. It tells where an agent works now, as the
+ * agents listing shows it, whichever harness runs it.
  */
 export const commandFolder = (
   command: string | undefined,
   cwd: unknown,
   workdir?: unknown,
 ): string | undefined => {
-  const base = absolute(cwd)
+  const base =
+    typeof cwd === "string" && cwd.length <= 4096 && !cwd.includes("\0") ? cwd : undefined
   const named = (folder: string): string | undefined => {
     if (/^[~$-]/.test(folder) || folder.includes("\0") || folder.length > 4096) return undefined
-    if (isAbsolute(folder)) return resolve(folder)
-    if (base === undefined) return undefined
-    const moved = resolve(base, folder)
+    const path = flavorOf(base ?? folder)
+    const target = path === win32 ? msysDrive(folder) : folder
+    if (base === undefined || !absoluteIn(path, base))
+      return absoluteIn(path, target) ? path.resolve(target) : undefined
+    const moved = path.resolve(base, target)
     // Already there: the directory the hook names is the `cd`'s own, not where it began.
-    return resolve(base).endsWith(resolve("/", folder)) && !folder.startsWith("..")
-      ? resolve(base)
-      : moved
+    const here = path.resolve(base)
+    const tail = path.sep + path.normalize(target).replace(/[\\/]+$/, "")
+    const same =
+      path === win32 ? here.toLowerCase().endsWith(tail.toLowerCase()) : here.endsWith(tail)
+    return same && !absoluteIn(path, target) && !target.startsWith("..") ? here : moved
   }
   const own = text(workdir)?.trim()
   if (own) return named(own)
   const cd = command === undefined ? null : leadingCd.exec(command)
   const target = cd?.[1] ?? cd?.[2] ?? cd?.[3]
-  return target === undefined ? base : named(target)
+  if (target !== undefined) return named(target)
+  return absolute(base)
 }
+
+/**
+ * The path rules a harness's paths follow, from one of its paths: Windows' for a drive
+ * (`C:\\…`, `C:/…`) or a share (`\\\\host\\…`), else POSIX's, whatever the runner runs on,
+ * so a Windows agent's native paths resolve as Windows paths and a test can give either.
+ */
+const flavorOf = (path: string): typeof posix =>
+  /^(?:[a-z]:|[\\/]{2}[^\\/])/i.test(path) ? win32 : posix
+
+/** Whether a folder is absolute by these rules, a Windows one only with its drive or share. */
+const absoluteIn = (path: typeof posix, folder: string): boolean =>
+  path === win32 ? windowsAbsolute.test(folder) : path.isAbsolute(folder)
+
+/** Git Bash's `/c/x` for Windows' `C:\\x`, as Claude Code's Bash on Windows writes a drive. */
+const msysDrive = (folder: string): string =>
+  folder.replace(/^\/([a-z])(?=\/|$)/i, (_, drive: string) => `${drive.toUpperCase()}:\\`)
 
 /** A `tool-called` event's `folder` field where there is one, to spread into it. */
 export const folderField = (folder: string | undefined): { readonly folder?: string } =>

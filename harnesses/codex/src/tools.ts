@@ -152,10 +152,14 @@ export const commandRanIn = (command: unknown, cwd: unknown): string | undefined
   return commandFolder(scriptOf(fieldsOf({ command })), directory)
 }
 
-/** A `file://` URL's path, or undefined for one that isn't a local file's. */
+/**
+ * A `file://` URL's path, or undefined for one that isn't a local file's: by Windows' rules
+ * for a drive's (`file:///C:/w`) or a share's (`file://host/share`), else POSIX's, whatever
+ * the runner runs on, as `commandFolder` reads paths.
+ */
 const fromFileUrl = (url: string): string | undefined => {
   try {
-    return fileURLToPath(url)
+    return fileURLToPath(url, { windows: /^file:\/\/(?:\/[a-z]:|[^/])/i.test(url) })
   } catch {
     return undefined
   }
