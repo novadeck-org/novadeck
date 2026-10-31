@@ -1584,7 +1584,7 @@ describe("person response delivery budgets", () => {
     const response = run.messaging.inboxReply(id)!
     expect(response.text).toHaveLength(4096)
     expect(response.response?.option).toBe("A choice")
-    const wrapped = wrap([response], () => false, "Lead1234", "Person99")
+    const wrapped = wrap([response], () => false, "Lead1234", { personMark: "Person99" })
     for (const agent of agents) {
       const profile = harnesses[agent].messaging
       const printed = [

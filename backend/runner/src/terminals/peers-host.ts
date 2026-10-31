@@ -8,7 +8,7 @@ import { DomainError } from "../errors.js"
 import type { Activity } from "../harnesses/activity.js"
 import type { Messaging } from "../messaging/messaging.js"
 import { waitsOnNote, type Reports, type Waiting, type Whereabouts } from "../messaging/peers.js"
-import type { AgentsAnswer, PeerAnswer, SendAnswer } from "../messaging/sending.js"
+import type { AgentsAnswer, PeerAnswer, SendAnswer, TeamAnswer } from "../messaging/sending.js"
 import { unansweredCalls, type Ack, type Call } from "../shell/reports.js"
 import { shorten } from "../text.js"
 import { tail } from "../text.js"
@@ -117,15 +117,15 @@ export class TerminalPeers {
    * server: from the terminal and its agent session, never a name the model passes. A
    * call without the shell's own token learns nothing more.
    */
-  async send(call: Call): Promise<SendAnswer> {
+  async send(call: Call): Promise<SendAnswer | TeamAnswer> {
     const { messaging } = this.options
     const caller = this.options.caller(call.terminalId, call.token)
     if (!caller) return unansweredCalls.send
     // Where `to` is a handle there, nothing needs describing: no branches or plans read.
     if (!messaging.describes(call.terminalId, call.request))
-      return messaging.send(call.terminalId, call.request)
+      return messaging.sendAny(call.terminalId, call.request)
     const about = await this.whereabouts(caller.summary.sessionId)
-    return messaging.send(call.terminalId, call.request, (id) => about.get(id))
+    return messaging.sendAny(call.terminalId, call.request, (id) => about.get(id))
   }
 
   /**

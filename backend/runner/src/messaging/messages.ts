@@ -171,8 +171,11 @@ const duplicateMs = 10_000
 /** How long a message stays once neither of its terminals exists, after its latest activity. */
 export const retentionMs = 24 * 60 * 60_000
 
-/** How many messages may be sent within a minute: by a sender, to one recipient, and by all. */
-export const rates = { sender: 10, pair: 3, all: 60, windowMs: 60_000 } as const
+/**
+ * How many messages may be sent within a minute: by a sender (two more for each terminal it
+ * leads), to one recipient, and by all.
+ */
+export const rates = { sender: 10, perTeammate: 2, pair: 3, all: 60, windowMs: 60_000 } as const
 
 /** A fresh id with a prefix, such as `m-k3f9q2x1`, unguessable enough to name a message. */
 export const freshId = (prefix: "m" | "t"): string => {
@@ -537,21 +540,36 @@ export type WrapOptions = {
 }
 
 /**
+ * What a message whose sender's terminal closed before it arrived says of it, beside it: the
+ * sender can't read a reply, so its words may be stale.
+ */
+export const closedSender = "its terminal closed after sending this, so no reply reaches it"
+
+/**
  * Messages delivered together, wrapped and attributed to their senders, so a peer's
  * words never read as the person's: each with its id, its sender's handle and harness,
  * its thread and when it was sent. A message from the recipient's lead (`isFromLead`) is
  * marked `lead="<mark>"`, a `mark` made anew for each delivery, which its note names: a
  * text written beforehand can't show it, so only these markings give authority, never a
  * message's text, which is escaped. Each note the session already holds (`held`) is only
- * pointed to, with this delivery's marks.
+ * pointed to, with this delivery's marks. A message whose sender closed for good since
+ * (`fromClosed`) says so beside it, with `closed="…"`.
  */
 export const wrap = (
   messages: readonly Message[],
   isFromLead: (message: Message) => boolean,
   mark: string,
-  personMark = newMark(),
-  held: Held = {},
-  { grants, platform = process.platform }: WrapOptions = {},
+  {
+    personMark = newMark(),
+    held = {},
+    fromClosed = () => false,
+    grants,
+    platform = process.platform,
+  }: {
+    readonly personMark?: string
+    readonly held?: Held
+    readonly fromClosed?: (message: Message) => boolean
+  } & WrapOptions = {},
 ): string => {
   while (personMark === mark) personMark = newMark()
   const responses = messages.some((message) => message.response)
@@ -620,9 +638,10 @@ export const wrap = (
       }
       const agent = from.kind === "agent" && from.agent ? ` agent="${agentLabel(from.agent)}"` : ""
       const attribute = leads[index] ? ` lead="${mark}"` : ""
+      const closed = fromClosed(messages[index]!) ? ` closed="${closedSender}"` : ""
       // The person and Novadeck are named as agents see them.
       const name = from.kind === "agent" ? from.handle : from.kind === "person" ? "you" : "novadeck"
-      return `<message id="${id}" from="${name}"${agent}${attribute} thread="${thread}" sent="${clock(sentAt)}">${escapeText(text)}</message>`
+      return `<message id="${id}" from="${name}"${agent}${attribute}${closed} thread="${thread}" sent="${clock(sentAt)}">${escapeText(text)}</message>`
     }),
     "</novadeck-messages>",
   ]

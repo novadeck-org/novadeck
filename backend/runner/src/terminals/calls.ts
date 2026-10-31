@@ -10,7 +10,7 @@ import type { Feedback } from "../messaging/feedback.js"
 import { proposalOf, readProposal } from "../messaging/grant-proposals.js"
 import type { Inbox } from "../messaging/inbox.js"
 import { agentLabel } from "../messaging/messages.js"
-import type { AgentsAnswer, SendAnswer } from "../messaging/sending.js"
+import type { AgentsAnswer, SendAnswer, TeamAnswer } from "../messaging/sending.js"
 import { unansweredCalls, type Call } from "../shell/reports.js"
 import { list } from "../text.js"
 import { closeWay, type ApprovalOutcome } from "./approvals.js"
@@ -18,6 +18,8 @@ import { callerOf } from "./callers.js"
 import {
   allowClose,
   closeLimit,
+  leadCloseLimit,
+  onTheWay,
   readCloseRequest,
   closeNotice,
   nobodyRefusal,
@@ -35,6 +37,7 @@ import { Leads, leadNotice, type LeadsHost } from "./leads.js"
 import { afterSummary } from "./nudges.js"
 import {
   allowOpen,
+  leadOpenLimit,
   openLimit,
   prune,
   runnerOpenLimit,
@@ -107,7 +110,7 @@ export type CallsHost = LeadsHost & {
   readonly save: (record: Record) => void
   /** Tells murmur the terminal's agent summarized its work. */
   readonly summarized: (terminalId: string) => void
-  readonly send: (call: Call) => Promise<SendAnswer>
+  readonly send: (call: Call) => Promise<SendAnswer | TeamAnswer>
   readonly agents: (call: Call) => Promise<AgentsAnswer>
 }
 
@@ -240,7 +243,7 @@ export class Calls {
     const now = Date.now()
     const charged = this.openers.get(call.terminalId) ?? call.terminalId
     prune(this.opened, now, openLimit.windowMs)
-    const times = allowOpen(this.opened.get(charged) ?? [], now)
+    const times = allowOpen(this.opened.get(charged) ?? [], now, leads ? leadOpenLimit : openLimit)
     const all = allowOpen(this.allOpened, now, runnerOpenLimit)
     if (!times || !all)
       return refused(
@@ -423,10 +426,8 @@ export class Calls {
     // Already on its way out, as another close ended its shell: nothing more to charge.
     if (this.host.closingNow(closing.summary.id) || closing.closed)
       return refused(`${mention(target.handle)} is already closing.`)
-    const way = closeWay({
-      leads: this.host.messaging().leadOf(target.terminalId) === record.summary.handle,
-      agent: target.agent,
-    })
+    const leadsIt = this.host.messaging().leadOf(target.terminalId) === record.summary.handle
+    const way = closeWay({ leads: leadsIt, agent: target.agent })
     if (way === "request") {
       const waiting = this.host.approvals().refusal(target.terminalId)
       if (waiting)
@@ -435,7 +436,11 @@ export class Calls {
     const now = Date.now()
     const charged = this.openers.get(call.terminalId) ?? call.terminalId
     prune(this.closed, now, closeLimit.windowMs)
-    const times = allowClose(this.closed.get(charged) ?? [], now)
+    const times = allowClose(
+      this.closed.get(charged) ?? [],
+      now,
+      leadsIt ? leadCloseLimit : closeLimit,
+    )
     const all = allowClose(this.allClosed, now, runnerCloseLimit)
     if (!times || !all) return refused(spentRefusal)
     this.closed.set(charged, times)
@@ -443,6 +448,7 @@ export class Calls {
     const { agent } = target
     if (way === "request") return this.requestClose(record, closing, agent)
     const others = this.host.messaging().waitingFor(target.terminalId, call.terminalId)
+    const coming = onTheWay(this.host.messaging().onTheWay(target.terminalId, call.terminalId))
     // The runner began to stop meanwhile: the terminal is closed all the same, but the
     // caller is going too.
     if (!(await this.end(closing))) return unansweredCalls.close
@@ -454,6 +460,7 @@ export class Calls {
       ...(agent !== null && { ran: agentLabel(agent) }),
       ...(gone.length > 0 && { gone }),
       ...(others > 0 && { others }),
+      ...(coming.length > 0 && { coming }),
     }
   }
 
@@ -526,8 +533,12 @@ export class Calls {
     // Confirmed: closed as the person's close does, unless it closed meanwhile.
     else if (this.host.records().get(id) !== closing || closing.closed || this.host.closingNow(id))
       tell(closeNotice.vanished(handle))
-    else if (await this.end(closing))
-      tell(closeNotice.confirmed(handle, closing.summary.title, ran))
+    else {
+      // Told before the close, so the notice names what still comes after it.
+      const coming = onTheWay(this.host.messaging().onTheWay(id, callerId))
+      if (await this.end(closing))
+        tell(closeNotice.confirmed(handle, closing.summary.title, ran, coming))
+    }
   }
 
   /**

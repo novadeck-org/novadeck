@@ -43,6 +43,7 @@ import {
 
 import { maxMessageBytes } from "../messaging/messages.js"
 import { unboundNote } from "../messaging/peers.js"
+import { onTheWayLine, type OnTheWay } from "../terminals/closes.js"
 import { mention } from "../terminals/handles.js"
 import { object } from "./json.js"
 import type { CallType } from "./reports.js"
@@ -123,8 +124,10 @@ type Closed = {
   readonly asked?: true
   readonly gone?: readonly Gone[]
   readonly others?: number
+  readonly coming?: readonly OnTheWay[]
 }
-type Sent = {
+// One message as sent: where it is now.
+type Posted = {
   readonly id: string
   readonly to: string
   readonly state: string
@@ -132,6 +135,17 @@ type Sent = {
   readonly held?: string
   // What a message held for release tells its sender of why.
   readonly why?: string
+}
+// One terminal's message, or, for a send to several, each one's message or why it wasn't sent.
+type Sent = (
+  | Posted
+  | {
+      readonly sent: readonly (
+        | (Posted & { readonly ok?: true })
+        | { readonly ok: false; readonly to: string; readonly reason: string }
+      )[]
+    }
+) & {
   readonly gone?: readonly Gone[]
   // The runner's words on the caller's messages held long behind their recipient's hold.
   readonly holds?: readonly string[]
@@ -729,6 +743,7 @@ const closeTerminal: Tool<Closed> = {
           : answer.others + " messages other agents sent it") +
           " won't arrive; Novadeck tells their senders.",
       )
+    if (answer.coming?.length) lines.push(onTheWayLine(answer.coming))
     return lines.join("\n")
   },
   failed: "Novadeck couldn't close the terminal.",
@@ -861,12 +876,27 @@ const rules =
   "and files; if more than one could match, ask the user rather than guess. After " +
   "sending, end your turn rather than wait or poll: replies arrive by themselves."
 
+// Where one message is, as its sender hears it.
+const posted = (answer: Posted): string => {
+  const message = "Message " + answer.id + " to " + mention(answer.to)
+  return answer.state === "queued"
+    ? message + " is queued: it reaches them " + answer.route + "."
+    : answer.state === "held"
+      ? message +
+        (answer.held === "release"
+          ? answer.why
+            ? " is held: " + answer.why
+            : " is held: it waits for the user to release its thread in Novadeck."
+          : " is held: the user paused messaging in Novadeck, and it goes once they resume it.")
+      : message + " was sent moments ago already; it is " + answer.state + "."
+}
+
 const send: Tool<Sent> = {
   name: "send",
   description:
     "Send a message to the agent in another Novadeck terminal of this project and session, by the " +
-    "terminal's exact handle as agents lists it (such as @fox); anything else is refused, with " +
-    "the terminals described. It reaches that agent by itself, wrapped as from you, and " +
+    "terminal's exact handle as agents lists it (such as @fox), or, only to terminals you lead, " +
+    "several handles or team; anything else is refused, with the terminals described. It reaches that agent by itself, wrapped as from you, and " +
     "marked as from its lead when you opened that terminal with open_agent or lead it; up to 4 KB, so put longer " +
     "content in a file and send its path. " +
     rules,
@@ -875,7 +905,9 @@ const send: Tool<Sent> = {
     properties: {
       to: {
         type: "string",
-        description: "The terminal's exact handle, such as @fox, as agents lists it.",
+        description:
+          "The terminal's exact handle, such as @fox, as agents lists it; for terminals you " +
+          "lead, several (@fox @owl) or team.",
       },
       text: { type: "string", description: "The message, up to 4 KB." },
     },
@@ -898,19 +930,15 @@ const send: Tool<Sent> = {
       : undefined
   },
   said: (answer) => {
-    const message = "Message " + answer.id + " to " + mention(answer.to)
-    const lines = [
-      answer.state === "queued"
-        ? message + " is queued: it reaches them " + answer.route + "."
-        : answer.state === "held"
-          ? message +
-            (answer.held === "release"
-              ? answer.why
-                ? " is held: " + answer.why
-                : " is held: it waits for the user to release its thread in Novadeck."
-              : " is held: the user paused messaging in Novadeck, and it goes once they resume it.")
-          : message + " was sent moments ago already; it is " + answer.state + ".",
-    ]
+    // No type syntax in here: Atlas evaluates this literal as JavaScript.
+    const lines =
+      "sent" in answer
+        ? answer.sent.map((each) =>
+            each.ok === false
+              ? "Not sent to " + mention(each.to) + ": " + each.reason
+              : posted(each),
+          )
+        : [posted(answer)]
     for (const gone of answer.gone ?? [])
       lines.push("Your earlier message " + gone.id + " to " + mention(gone.to) + wontArrive(gone))
     lines.push(...(answer.holds ?? []))

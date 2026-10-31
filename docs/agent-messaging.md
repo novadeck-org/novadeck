@@ -377,6 +377,26 @@ like them, only inside Novadeck's terminals.
   hooks untrusted) can still send; the answer, refused or not, adds that replies can't
   reach it until Novadeck's hooks are trusted there (`/hooks`).
 
+  **To its team.** `to` stays one string, as every harness's tool schema keeps a plain
+  string as it is (a string-or-list union is the part Codex's and Antigravity's schema
+  handling are least sure to keep): one handle, or, only for terminals the caller leads,
+  several separated by spaces or commas (`@fox @owl`; the runner takes a JSON list too), or
+  `team` for every terminal it leads (not one led only until its brief is delivered,
+  whose lead marks that brief alone). Each recipient gets its own message, judged as a
+  `send` to it alone is: its own thread, hop and loop count, its lead mark, the pair's
+  rate, the recipient's undelivered cap, a stopped thread's block, duplicates. One
+  refused there doesn't stop the others, and the answer has a line for each, then what
+  every answer adds, once; refused for every one, the call is refused, a line each. The call counts once against the sender's rate and the
+  runner's, if any recipient keeps a message. A name that is no handle there refuses the
+  whole call with the listing, quoting `to` as written (an agent may have meant
+  `@fox · api` as one name), and one the caller doesn't lead refuses it too ("@x isn't a
+  terminal you lead: …"), so nothing reaches only some of them; a caller that leads
+  none is told there is no team. Restricting it to the caller's team keeps a peer from
+  passing its rate by naming many terminals. Messaging's own callers (`open_agent`'s
+  task, `lead`'s brief) send to one terminal only (`Messaging.send`); the MCP call goes
+  through `sendAny`. A second tool was weighed and set aside: it would carry the
+  messaging rules again, in every agent's context.
+
 - **`agents()`** lists the other terminals in the project and session, each as one
   short block of what Novadeck infers itself; the only thing an agent claims there, its
   own summary, is marked as its agent's. The runner renders it, as it renders a refused
@@ -1839,8 +1859,11 @@ output, not that the model acted on it.
   extend the block. The listing's `stopped` is true only while the block is in force.
   Stop also marks stopped the thread's `gone` messages that could wait again, so none
   does, leaving whether their senders were told as it was. Stopping a held thread ends its hold; releasing the thread clears the stop.
-- **Rates.** A sender may send 10 messages a minute, 3 of them to any one recipient; the
-  runner allows 60 a minute in all.
+- **Rates.** A sender may send 10 messages a minute, and 2 more for each terminal it leads
+  now (a lead of 17, 44), 3 of them to any one recipient; the runner allows 60 a minute in
+  all. A send to several terminals the caller leads counts once against the sender's and
+  the runner's, and once against each pair's. A lead's runaway loop with its team is
+  still held per pair, as above, and bounded by each pair's 3.
 - **Pause.** One switch, stored so it survives restarts, pauses messaging across the
   whole runner, every project and session: waiting messages are held, and `send`
   answers `held`. Resuming lets them wait in order again.

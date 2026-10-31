@@ -1,5 +1,6 @@
 import { z } from "zod"
 
+import { clock } from "../messaging/messages.js"
 import { bareHandle, mention } from "./handles.js"
 import { allowOpen } from "./opens.js"
 
@@ -45,8 +46,57 @@ export type CloseAnswer =
       }[]
       /** Messages other terminals sent it, undelivered, which won't arrive now. */
       readonly others?: number
+      /** Its messages to the caller not yet delivered, which still arrive, marked closed. */
+      readonly coming?: readonly OnTheWay[]
     }
   | CloseFailure
+
+/** A message the closed terminal sent the caller that hasn't reached it: its id and send time. */
+export type OnTheWay = {
+  readonly id: string
+  readonly sent: string
+  /** Held for the user's release, or while they paused messaging: it arrives only then. */
+  readonly held?: true
+}
+
+/** The messages, as a close tells of them: by id, with the time each was sent. */
+export const onTheWay = (
+  messages: readonly { readonly id: string; readonly sentAt: number; readonly held: boolean }[],
+): readonly OnTheWay[] =>
+  messages.map(({ id, sentAt, held }) => ({ id, sent: clock(sentAt), ...(held && { held }) }))
+
+// "m-1 (sent 01:48)", "m-1 (sent 01:48) and m-2 (sent 01:49)".
+const listed = (messages: readonly OnTheWay[]): string => {
+  const each = messages.map(({ id, sent }) => `${id} (sent ${sent})`)
+  return each.length === 1 ? each[0]! : `${each.slice(0, -1).join(", ")} and ${each.at(-1)!}`
+}
+
+/**
+ * What a close tells the caller of the messages the closed terminal sent it that hadn't
+ * reached it: they arrive marked so, those held only once the user lets them go. Never
+ * "after this": a notice may reach the caller with them, or after.
+ */
+export const onTheWayLine = (coming: readonly OnTheWay[]): string => {
+  const waiting = coming.filter((one) => !one.held)
+  const held = coming.filter((one) => one.held)
+  const lines = []
+  if (waiting.length > 0)
+    lines.push(
+      waiting.length === 1
+        ? `Its message ${listed(waiting)} to you hadn't reached you: it arrives marked as from ` +
+            "a closed terminal, and no reply reaches its sender."
+        : `Its messages ${listed(waiting)} to you hadn't reached you: they arrive marked as ` +
+            "from a closed terminal, and no reply reaches their sender.",
+    )
+  if (held.length > 0)
+    lines.push(
+      `Its ${held.length === 1 ? "message" : "messages"} ${listed(held)} to you ` +
+        `${held.length === 1 ? "is" : "are"} held by the user in Novadeck: ` +
+        `${held.length === 1 ? "it arrives" : "they arrive"} only if they let ` +
+        `${held.length === 1 ? "it" : "them"} go, marked as from a closed terminal.`,
+    )
+  return lines.join(" ")
+}
 
 const refused = (reason: string): CloseFailure => ({ ok: false, reason })
 
@@ -81,10 +131,16 @@ export const notice = "Novadeck: automatic notice, not from the user: "
 
 /** What the asking agent is told once the person answered, or the request ended without them. */
 export const closeNotice = {
-  confirmed: (handle: string, title: string, ran: string | undefined): string =>
+  confirmed: (
+    handle: string,
+    title: string,
+    ran: string | undefined,
+    coming: readonly OnTheWay[] = [],
+  ): string =>
     notice +
     `The user confirmed closing ${named(handle, title, ran)}, and it is closed. Messages ` +
-    "waiting for it never arrive.",
+    "waiting for it never arrive." +
+    (coming.length > 0 ? " " + onTheWayLine(coming) : ""),
   declined: (handle: string, title: string): string =>
     notice + `The user kept ${mention(handle)} · ${title} open: it was not closed.`,
   // Another close, or its own exit, ended it first.
@@ -108,6 +164,12 @@ export const spentRefusal =
  * as many as they may open, from a budget of their own.
  */
 export const closeLimit = { count: 5, windowMs: 60_000 } as const
+
+/**
+ * How many of those may be teammates the caller leads, counted from the same budget: a lead
+ * closes its team once its work is done, while other closes keep `closeLimit`.
+ */
+export const leadCloseLimit = { count: 15, windowMs: 60_000 } as const
 
 /**
  * How many terminals agents may close across the runner within a window: a backstop for
