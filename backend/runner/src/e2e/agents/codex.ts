@@ -109,6 +109,7 @@ export const codex: AgentSetup = {
   dialect: responses,
   banner: "OpenAI Codex",
   bindsAtReady: false,
+  keepsHookText: true,
   steers: true,
   idleCommand: "/status",
   // Its curated-plugin sync and its startup tips (see `prepare`).

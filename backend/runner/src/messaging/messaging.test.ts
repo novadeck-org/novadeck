@@ -27,7 +27,7 @@ import { running, submitWindowMs } from "./delivery.js"
 import { holdNotice } from "./holds.js"
 import type { Loops } from "./loops.js"
 import type { MessagingChange } from "./message-store.js"
-import { clock, retentionMs, threadMs } from "./messages.js"
+import { clock, noteDigests, retentionMs, threadMs } from "./messages.js"
 import { Messaging, type MessagingOptions } from "./messaging.js"
 import type { Whereabouts } from "./peers.js"
 import { memoryMessages, type MessageRecords } from "./records.js"
@@ -5595,5 +5595,146 @@ describe("the loop hold on the real work tracker", () => {
       const answer = index % 2 === 0 ? send("A", "owl", `${index}`) : send("C", "moth", `${index}`)
       expect(sent(answer).state).toBe("queued")
     }
+  })
+})
+
+// Whether a delivery's wrapper carries its note in full, or only points to one given before.
+const fullNote = (delivery: string) =>
+  !delivery.includes("the full note given earlier in this session")
+
+describe("the rules note of a delivery", () => {
+  it("gives a session the note in full once, then points to it with each delivery's marks", () => {
+    const told: { terminalId: string; sessionId: string; held: object }[] = []
+    const { messaging, send, prompt, claude } = create(memoryMessages(), undefined, {
+      held: (terminalId, root, held) => told.push({ terminalId, sessionId: root.sessionId, held }),
+    })
+    sent(send("B", "moth", "First."))
+    const first = prompt("A", claude)
+    expect(fullNote(context(first.stdout))).toBe(true)
+    expect(context(first.stdout)).toContain("Approvals of actions stay the user's")
+    messaging.acknowledge("A", first.leaseId!)
+    // Kept with the session, for the terminal manager to save with its report.
+    expect(told).toEqual([
+      { terminalId: "A", sessionId: "s-claude", held: { peer: noteDigests.peer } },
+    ])
+
+    sent(send("B", "moth", "Second."))
+    const second = context(prompt("A", claude).stdout)
+    expect(fullNote(second)).toBe(false)
+    expect(second).not.toContain("whose marked reply is theirs, always")
+    expect(second).toContain('<message id="m-')
+    expect(second).toContain("Second.")
+  })
+
+  it("gives a note not held yet in full, and a lead's mark in the pointer", () => {
+    const { messaging, send, prompt } = create()
+    messaging.register("W", here, "owl", "moth")
+    const worker = binding("claude", "s-worker", "3")
+    messaging.expect("W", "claude")
+    const deliver = (from: string, body: string) => {
+      sent(send(from, "owl", body))
+      const answer = prompt("W", worker)
+      messaging.acknowledge("W", answer.leaseId!)
+      return context(answer.stdout)
+    }
+    // A peer's, then the lead's: each kind's note comes in full the first time.
+    expect(fullNote(deliver("B", "From fox."))).toBe(true)
+    const lead = deliver("A", "From the lead.")
+    expect(fullNote(lead)).toBe(true)
+    const again = deliver("A", "Lead again.")
+    expect(fullNote(again)).toBe(false)
+    const mark = /lead="([0-9A-Za-z]{8})"/.exec(again)![1]!
+    expect(again).toContain(`marks your lead's messages lead='${mark}'`)
+  })
+
+  it("gives it in full again once nothing confirmed it, to another session, and after a compaction", () => {
+    const {
+      messaging,
+      send,
+      prompt,
+      follow,
+      claude,
+      clock: time,
+    } = create(memoryMessages(), undefined, {
+      leaseMs: 1_000,
+    })
+    vi.useFakeTimers()
+    try {
+      sent(send("B", "moth", "Unconfirmed."))
+      prompt("A", claude)
+      // Its hook never said it printed it: the lease lapses, and the note isn't held.
+      vi.advanceTimersByTime(1_000)
+      time.now += 1_000
+      const again = prompt("A", claude)
+      expect(fullNote(context(again.stdout))).toBe(true)
+      messaging.acknowledge("A", again.leaseId!)
+    } finally {
+      vi.useRealTimers()
+    }
+    // Another session there holds nothing of the first's.
+    const cleared = binding("claude", "s-cleared", "1")
+    follow("A", cleared)
+    sent(send("B", "moth", "After a clear."))
+    const fresh = prompt("A", cleared)
+    expect(fullNote(context(fresh.stdout))).toBe(true)
+    messaging.acknowledge("A", fresh.leaseId!)
+    sent(send("B", "moth", "Held."))
+    const held = prompt("A", cleared)
+    expect(fullNote(context(held.stdout))).toBe(false)
+    messaging.acknowledge("A", held.leaseId!)
+    // The terminal manager says the session compacted: it holds nothing any more.
+    messaging.rooted("A", [], {})
+    time.now += 60_000
+    sent(send("B", "moth", "After a compaction."))
+    expect(fullNote(context(prompt("A", cleared).stdout))).toBe(true)
+  })
+
+  it("points to what a session held before a restart, as the terminal manager kept it", () => {
+    const { messaging, send, prompt, claude } = create()
+    messaging.rooted("A", [], { peer: noteDigests.peer })
+    sent(send("B", "moth", "After a restart."))
+    expect(fullNote(context(prompt("A", claude).stdout))).toBe(false)
+    // A note whose wording changed since is given in full again.
+    messaging.rooted("A", [], { peer: "an older wording" })
+    sent(send("B", "moth", "After an upgrade."))
+    expect(fullNote(context(prompt("A", claude).stdout))).toBe(true)
+  })
+
+  it("holds a Stop's note too, in Claude Code and Codex", () => {
+    const { messaging, send, prompt, stop, claude, codex } = create()
+    for (const [terminalId, handle, bound, from] of [
+      ["A", "moth", claude, "B"],
+      ["B", "fox", codex, "A"],
+    ] as const) {
+      prompt(terminalId, bound)
+      sent(send(from, handle, "At the turn's end."))
+      const ended = stop(terminalId, bound)
+      const printed = JSON.parse(ended.stdout!) as {
+        reason?: string
+        hookSpecificOutput?: { additionalContext: string }
+      }
+      expect(fullNote(printed.reason ?? printed.hookSpecificOutput!.additionalContext)).toBe(true)
+      messaging.acknowledge(terminalId, ended.leaseId!)
+      prompt(terminalId, bound, "harness")
+      stop(terminalId, bound)
+      sent(send(from, handle, "Next turn."))
+      expect(fullNote(context(prompt(terminalId, bound).stdout))).toBe(false)
+    }
+  })
+
+  it("gives Antigravity the note in full with every delivery, as its injection lasts one call", () => {
+    const { messaging, send, call } = agyWorker()
+    const root = binding("agy", "c-root", "7")
+    sent(send("B", "owl", "First."))
+    const first = call(0)
+    messaging.acknowledge("G", first.leaseId!)
+    expect(fullNote(text(first.stdout))).toBe(true)
+    // Its later calls are given the same delivery again, note and all.
+    expect(fullNote(text(call(1).stdout))).toBe(true)
+    messaging.observe("G", [stopped(root)])
+    sent(send("B", "owl", "Next turn."))
+    const next = call(0)
+    expect(text(next.stdout)).toContain("Next turn.")
+    expect(fullNote(text(next.stdout))).toBe(true)
   })
 })

@@ -121,9 +121,9 @@ for (const setup of setups) {
       expect(ask).toMatchObject({ from: t1.id, terminalId: t2.id })
       // The person's yes comes back to the agent as a message from Novadeck.
       const told = await run.model.waitFor((call) => delivered(call, "novadeck"), { after: calls })
-      // The one notice, which Claude Code's continuation quotes twice when the notice comes
-      // while the turn runs: as the Stop hook's feedback and again as its blocking error.
-      expect([...new Set(deliveries(told).map((one) => one.text))]).toEqual([
+      // The one notice, read once (#589), though it may come while the turn runs, carried by
+      // its Stop.
+      expect(deliveries(told).map((one) => one.text)).toEqual([
         expect.stringContaining("The user confirmed closing @fox"),
       ])
       await t1.until("Closed it.")
@@ -151,10 +151,9 @@ for (const setup of setups) {
 
       await asks.next()
       const told = await run.model.waitFor((call) => delivered(call, "novadeck"), { after: calls })
-      // The one notice, which Claude Code's continuation quotes twice: as the Stop hook's
-      // feedback and again as its blocking error (2.1.287). The deck answers at once, so it
-      // comes while the turn still runs, to be carried by its Stop.
-      expect([...new Set(deliveries(told).map((one) => one.text))]).toEqual([
+      // The one notice, read once (#589). The deck answers at once, so it comes while the
+      // turn still runs, to be carried by its Stop.
+      expect(deliveries(told).map((one) => one.text)).toEqual([
         expect.stringContaining("The user kept @fox"),
       ])
       await t1.until("Left it.")
