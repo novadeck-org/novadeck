@@ -506,7 +506,7 @@ describe("a delivery's grants", () => {
   it("tells Codex on Windows to write commands without quotes, and nothing of the sort elsewhere", () => {
     const on = (platform: NodeJS.Platform) => wrapGrants([granted], "codex", platform)
     expect(on("win32")).toContain("write each command without quotes")
-    expect(on("win32")).toContain("--body-file <file in the project>")
+    expect(on("win32")).toContain("--body-file <full path of a file in the project>")
     expect(on("win32")).toContain("gh pr create --fill")
     expect(on("win32")).toContain("anything quoted still asks")
     for (const platform of ["linux", "darwin"] as const)

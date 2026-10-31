@@ -258,10 +258,20 @@ describe("the pr preset", () => {
     expect(await allowed(command)).toBe(true)
   })
 
-  it("resolves a body file against the call's folder, else the project root", async () => {
+  it("resolves a body file against the call's folder, and takes only an absolute one where it is unknown", async () => {
     const command = `gh pr comment 12 ${R} --body-file note.md`
     expect(await allowed(command, undefined, "/work/proj/sub")).toBe(true)
-    expect(await allowed(command, undefined, null)).toBe(true)
+    // Codex's and Antigravity's folder isn't known: a relative path might lie anywhere.
+    expect(await allowed(command, undefined, null)).toBe(false)
+    expect(
+      await allowed(`gh pr comment 12 ${R} --body-file /work/proj/note.md`, undefined, null),
+    ).toBe(true)
+    expect(await allowed(`gh pr comment 12 ${R} --body-file sub/note.md`, undefined, null)).toBe(
+      false,
+    )
+    expect(await allowed(`gh pr comment 12 ${R} --body-file ./note.md`, undefined, null)).toBe(
+      false,
+    )
     // An absolute path is judged where it is, whatever the folder.
     const absolute = `gh pr comment 12 ${R} --body-file /work/proj/sub/note.md`
     expect(await allowed(absolute, undefined, "/work/proj/other")).toBe(true)
@@ -381,8 +391,6 @@ describe("a Codex or Antigravity command on Windows", () => {
   it.each([
     "gh pr create --fill --head x -R acme/app",
     "gh  pr   ready 12 -R acme/app",
-    `gh pr comment 5 ${R} --body-file docs/note.md`,
-    `gh pr comment 5 ${R} --body-file docs\\note.md`,
     `gh pr comment 5 ${R} --body-file C:\\work\\proj\\docs\\note.md`,
     `gh pr comment 5 ${R} --body-file C:/work/proj/docs/note.md`,
     `gh pr comment 5 ${R} --body-file c:\\WORK\\proj\\note.md`,
@@ -394,6 +402,21 @@ describe("a Codex or Antigravity command on Windows", () => {
   it.each([
     ["a body file outside the project", `gh pr comment 5 ${R} --body-file C:\\work\\other\\n.md`],
     ["a body file on another drive", `gh pr comment 5 ${R} --body-file D:\\work\\proj\\n.md`],
+    [
+      "a relative body file, as its folder is unknown",
+      `gh pr comment 5 ${R} --body-file docs/n.md`,
+    ],
+    ["a backslash relative body file", `gh pr comment 5 ${R} --body-file docs\\n.md`],
+    ["a dot-relative body file", `gh pr comment 5 ${R} --body-file .\\n.md`],
+    ["a rooted body file with no drive", `gh pr comment 5 ${R} --body-file \\work\\proj\\n.md`],
+    ["a slash-rooted body file with no drive", `gh pr comment 5 ${R} --body-file /work/proj/n.md`],
+    ["a \\\\?\\ body file", `gh pr comment 5 ${R} --body-file \\\\?\\C:\\work\\proj\\n.md`],
+    ["a \\\\.\\ body file", `gh pr comment 5 ${R} --body-file \\\\.\\C:\\work\\proj\\n.md`],
+    [
+      "a drive-relative body file in the project's drive",
+      `gh pr comment 5 ${R} --body-file C:n.md`,
+    ],
+    ["a stream of a file", `gh pr comment 5 ${R} --body-file C:\\work\\proj\\n.md:x`],
     ["a body file with ..", `gh pr comment 5 ${R} --body-file docs\\..\\..\\n.md`],
     ["a body file with / ..", `gh pr comment 5 ${R} --body-file ../n.md`],
     ["a body file on a UNC path", `gh pr comment 5 ${R} --body-file \\\\host\\share\\n.md`],
@@ -404,6 +427,26 @@ describe("a Codex or Antigravity command on Windows", () => {
     ["a POSIX remote name for push", "git push origin fix:fix"],
   ])("refuses %s", async (_name, command) => {
     expect(await windows(command)).toBeNull()
+  })
+
+  it.each(["CON", "con", "NUL", "nul.txt", "Aux.md", "PRN", "COM1", "lpt9.x.y", "COM9.txt"])(
+    "refuses the device name %s in any segment of a body file",
+    async (name) => {
+      for (const path of [
+        `C:\\work\\proj\\${name}`,
+        `C:\\work\\proj\\docs\\${name}`,
+        `C:\\work\\proj\\${name}\\n.md`,
+        `C:/work/proj/${name}`,
+      ])
+        // eslint-disable-next-line no-await-in-loop -- One path at a time.
+        expect(await windows(`gh pr comment 5 ${R} --body-file ${path}`)).toBeNull()
+    },
+  )
+
+  it("takes names that only look like devices", async () => {
+    for (const name of ["console.md", "COM10", "COM0", "lpt.md", "nulls.txt", "comm1"])
+      // eslint-disable-next-line no-await-in-loop -- One path at a time.
+      expect(await windows(`gh pr comment 5 ${R} --body-file C:\\work\\proj\\${name}`)).toEqual(pr)
   })
 
   it("refuses a body cmd would split at an ampersand, as Antigravity may run it there", async () => {

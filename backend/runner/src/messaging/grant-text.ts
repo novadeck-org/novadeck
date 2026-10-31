@@ -44,7 +44,7 @@ const prText = (grant: Grant, quoteFree: boolean): string => {
     "gh pr create --head <branch>, gh pr edit <n>, gh pr ready <n> or gh pr comment <n>, " +
     "each with -R <owner/name> and a numeric PR; no merge, close or reopen, no labels. " +
     (quoteFree
-      ? "Give a body as --body-file <file in the project> (no quotes), never $(cat <<EOF)."
+      ? "Give a body as --body-file <full path of a file in the project> (no quotes), never $(cat <<EOF)."
       : "Give a body in single quotes, or double quotes, never $(cat <<EOF).")
   )
 }
@@ -95,7 +95,7 @@ const caveat = (agent: AgentName, platform: NodeJS.Platform, cmdPrints: boolean)
     agent !== "claude" && platform === "win32"
       ? `On Windows, write each command without quotes: ${agent === "codex" ? "Codex" : "Antigravity"}'s shell may be PowerShell or cmd, and ` +
         "this grant covers a command only when both read it alike. For a pull request's or " +
-        "comment's body use --body-file <file in the project> or gh pr create --fill; anything " +
+        "comment's body use --body-file <full path of a file in the project> or gh pr create --fill; anything " +
         "quoted still asks in the user's Inbox. "
       : ""
   return (

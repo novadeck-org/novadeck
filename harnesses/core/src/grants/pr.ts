@@ -1,5 +1,7 @@
-import type { GrantRepo } from "../grants.js"
 // The `pr` preset (Appendix A2): gh pr create --head <b> | edit | ready | comment <n>, with -R.
+import { posix } from "node:path"
+
+import type { GrantRepo } from "../grants.js"
 import { flavourOf } from "../paths.js"
 import { inside } from "./inside.js"
 import { isBranchName } from "./refname.js"
@@ -26,14 +28,28 @@ for (const [names, value, many] of [
 /** Where a call runs and the project it must stay in, for a body file's path. */
 export type BodyFiles = { readonly cwd: string | null; readonly root: string }
 
+// Windows' reserved device names: `CON`, `NUL.txt` and `com1.x.y` open a device, not a file.
+const device = /^(con|prn|aux|nul|com[1-9]|lpt[1-9])$/i
+
 /**
  * Whether `path`, a `--body-file` value, names a file inside the project: no `..` in it, and
- * resolved against the call's folder, else the project root, lexically inside the root. Never
- * `-`, which reads the agent's stdin.
+ * resolved against the call's folder, lexically inside the root. Never `-`, which reads the
+ * agent's stdin. Where the folder is unknown (`cwd` null: Codex, Antigravity) only a fully
+ * qualified path counts: `X:\…` or `X:/…` on Windows, never a rooted `\x`, a drive-relative
+ * `C:x`, a UNC path or `\\?\`, and `/…` elsewhere. On Windows no segment may name a device or
+ * hold a `:` after the drive (a stream).
  */
 const bodyFileInside = (path: string, { cwd, root }: BodyFiles): boolean => {
   if (path === "" || path === "-" || path.split(/[\\/]+/).includes("..")) return false
   const rules = flavourOf(path, root, cwd ?? undefined)
+  const windows = flavourOf(root) !== posix
+  if (windows) {
+    const rest = /^[A-Za-z]:[\\/]/.test(path) ? path.slice(2) : path
+    if (rest.includes(":")) return false
+    if (rest.split(/[\\/]+/).some((segment) => device.test(segment.split(".")[0] as string)))
+      return false
+  } else if (path.includes("\\")) return false
+  if (cwd === null && !(windows ? /^[A-Za-z]:[\\/]/ : /^\//).test(path)) return false
   return inside(rules.resolve(cwd ?? root, path), root)
 }
 
