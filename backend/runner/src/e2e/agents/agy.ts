@@ -199,9 +199,12 @@ export const agy: AgentSetup = {
   // line break; its own history.jsonl keeps them apart, but the conversation holds one
   // message (probed 2026-10-26, 1.4.3).
   merges: true,
+  // A pasted image file's path is attached to the prompt, its box showing `▸ 📎 1 media
+  // attached (file, 70 B, image/png)` above it; its transcript keeps the image in the
+  // step's `media`, apart from the text, and the prompt tells the model "The user has
+  // uploaded 1 image(s)" (probed 2026-10-31, 1.4.12; 1.4.3 kept the path as text).
+  image: { shows: "1 media attached", inline: false },
   absent: {
-    image:
-      "its box keeps a pasted image file's path as text, and an @ mention picks the file as a file, not an image (probed 2026-10-26, 1.4.3)",
     forms: "it shows no MCP elicitation form to answer (probed 2026-10-06, 1.2.14)",
     "fork.picker":
       "no command line forks a conversation: its flags only resume one (`--conversation`, `--continue`), and its fork is the in-place /fork (probed 2026-10-03, 1.2.14)",
