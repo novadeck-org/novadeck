@@ -244,6 +244,71 @@ describe("agents Novadeck can connect", () => {
     },
   )
 
+  it("leave Antigravity's plugin as it is while a terminal runs it", async ({ fixture }) => {
+    installed(fixture.home, "agy")
+    const agents = fixture.agents()
+    await agents.set("agy", true)
+    // Novadeck renders its hooks otherwise now, which would reinstall the plugin.
+    writeFileSync(join(fixture.paths.plugins.agy, "hooks.json"), '{"novadeck":{}}')
+    const before = fixture.calls().length
+    agents.track({ running: () => ["@fox"], narrowed: () => [] })
+    expect(await agents.refresh()).toEqual([])
+    expect(fixture.calls()).toHaveLength(before)
+    agents.track({ running: () => [], narrowed: () => [] })
+    expect(await agents.refresh()).toEqual(["agy"])
+  })
+
+  it("refuse to disconnect Antigravity under a running terminal's grant, naming it", async ({
+    fixture,
+  }) => {
+    installed(fixture.home, "agy", "claude")
+    const agents = fixture.agents()
+    await agents.set("agy", true)
+    await agents.set("claude", true)
+    agents.track({ running: () => ["@fox", "@owl"], narrowed: () => ["@fox"] })
+    await expect(agents.set("agy", false)).rejects.toThrow(/@fox/)
+    expect(await agents.connected("agy")).toBe(true)
+    // Another harness has no launch grants to protect, and a terminal not narrowed none either.
+    await agents.set("claude", false)
+    expect(await agents.connected("claude")).toBe(false)
+    agents.track({ running: () => ["@fox"], narrowed: () => [] })
+    await agents.set("agy", false)
+    expect(await agents.connected("agy")).toBe(false)
+  })
+
+  it("refuse to install Antigravity's plugin over itself while a terminal runs it", async ({
+    fixture,
+  }) => {
+    installed(fixture.home, "agy")
+    const agents = fixture.agents()
+    agents.track({ running: () => ["@fox"], narrowed: () => [] })
+    // Not installed yet: there is no hook for a running terminal to lose.
+    await agents.set("agy", true)
+    const before = fixture.calls().length
+    await expect(agents.set("agy", true)).rejects.toThrow(/@fox/)
+    expect(fixture.calls()).toHaveLength(before)
+    expect(await agents.connected("agy")).toBe(true)
+  })
+
+  it("verify Antigravity's plugin only when it is connected, as rendered, and not being reinstalled", async ({
+    fixture,
+  }) => {
+    installed(fixture.home, "agy", "claude")
+    const agents = fixture.agents()
+    expect(await agents.verified("agy")).toBe(false)
+    await agents.set("agy", true)
+    expect(await agents.verified("agy")).toBe(true)
+    const marker = `${fixture.paths.plugins.agy}.reinstalling`
+    writeFileSync(marker, "")
+    expect(await agents.verified("agy")).toBe(false)
+    rmSync(marker)
+    writeFileSync(join(fixture.paths.plugins.agy, "hooks.json"), '{"novadeck":{}}')
+    expect(await agents.verified("agy")).toBe(false)
+    // A harness that keeps no copy of its plugin has nothing to verify.
+    await agents.set("claude", true)
+    expect(await agents.verified("claude")).toBe(false)
+  })
+
   it("never undo a disconnect asked for before the refresh looked", async ({ fixture }) => {
     installed(fixture.home, "agy")
     const agents = fixture.agents()

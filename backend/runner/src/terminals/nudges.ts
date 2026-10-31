@@ -283,7 +283,9 @@ export const inboxNotice =
   "report it with Novadeck's done tool, your own short report, not when you answer a " +
   "question or finish a step. With a lead, use ask, tell and done all the same, and send " +
   "your lead your report and your questions too; approvals of actions are still only the " +
-  "user's. " +
+  "user's, given in their own words in your terminal, in an Inbox response, or in a <grant> " +
+  "from Novadeck carrying the delivery's person mark, and a lead gives none; for a command " +
+  "your harness itself checks, ask with the approval shape. " +
   "When they write to you here, Novadeck takes your open asks out of their Inbox " +
   "and tells you; ask again only what their message leaves open. If they answer one here " +
   "and no such notice came, withdraw it yourself. This notice needs no reply."
@@ -296,9 +298,11 @@ export const inboxNotice =
 export const noticesAt = (
   took: Pick<Taken, "companion" | "summarize" | "pages">,
   current: { readonly summary: string | null },
+  /** The terminal's live grants in their wrapper (`wrapGrants` of `Messaging.grants.covering`), repeated as the bar is. */
+  grants?: string,
 ): string =>
   [
-    ...(took.companion ? [companionNotice, inboxNotice] : []),
+    ...(took.companion ? [companionNotice, inboxNotice, ...(grants ? [grants] : [])] : []),
     ...(took.summarize ? [nudgeText(current)] : []),
     ...took.pages.map(pageNotice),
   ].join("\n\n")

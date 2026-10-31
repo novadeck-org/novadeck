@@ -242,6 +242,47 @@ export type MessagingProfile = {
    */
   readonly asks: { readonly [event: string]: "stop" | "prompt" | "tool" }
   /**
+   * Its permission hook, which the runner answers at once from the person's grants (apart
+   * from `asks`: it leases no message, and gets the relay's longer limit). The decision is
+   * made from the genuine payload, before the report joins its terminal's queue.
+   * - `event`: the hook that carries the call;
+   * - `reported`: whether the harness decodes that hook's report (Codex's request is a
+   *   dialog waiting, Antigravity's call is remembered); a call a grant lets through is
+   *   never reported, as nothing waits;
+   * - `planMode`: where the harness names a permission mode in the payload, the one in which
+   *   no grant applies (an allow might step past plan mode's limits); a payload that names
+   *   no mode is then no match either;
+   * - `allow`: the whole line it prints to let a call through (a match, outside Claude
+   *   Code's plan mode); Antigravity lets none through that way;
+   * - `ask`: the line that puts the harness's own dialog back for a command it refused once
+   *   (Claude Code's path B);
+   * - `narrowed`: Antigravity's answers in a narrowed terminal, each a whole line: `run`
+   *   for a grant-matched command of the launch set, `notCommand` for a tool known to run
+   *   none, `closed` for every other call and for every path that cannot decide.
+   */
+  readonly permission: {
+    readonly event: string
+    readonly reported: boolean
+    readonly planMode?: string
+    readonly allow?: string
+    readonly ask?: string
+    readonly narrowed?: {
+      readonly run: string
+      readonly notCommand: string
+      readonly closed: string
+    }
+  }
+  /**
+   * The event that says the harness's own check refused a call (Claude Code's
+   * PermissionDenied in auto mode), after which Novadeck arms that exact command once.
+   */
+  readonly denied?: string
+  /**
+   * What a hook prints with nothing to say in a narrowed terminal (NOVADECK_NARROW set), by
+   * event, instead of `silent`'s: Antigravity's PreToolUse, which must fail closed.
+   */
+  readonly narrowed?: { readonly [event: string]: string }
+  /**
    * What a hook prints with nothing to deliver, as it does without Novadeck: by event, and
    * for any other (`*`). The relay prints the same when Novadeck can't answer.
    */
@@ -333,9 +374,12 @@ export type UserEntry = {
   readonly id: number | null
 }
 
-/** What `profile`'s hook prints for `event` with nothing to deliver. */
-export const silentFor = (profile: MessagingProfile, event: string): string =>
-  profile.silent[event] ?? profile.silent["*"]
+/**
+ * What `profile`'s hook prints for `event` with nothing to deliver; in a `narrowed` terminal,
+ * the narrowed answer where the profile has one for the event.
+ */
+export const silentFor = (profile: MessagingProfile, event: string, narrowed = false): string =>
+  (narrowed ? profile.narrowed?.[event] : undefined) ?? profile.silent[event] ?? profile.silent["*"]
 
 /** How an agent starts a program of Novadeck's: a file, by its absolute path, and arguments. */
 export type Start = { readonly command: string; readonly args?: readonly string[] }

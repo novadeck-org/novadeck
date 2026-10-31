@@ -35,6 +35,7 @@ import {
 import { requestAnswer } from "./dialogs.js"
 import { feedbackDraft, maxFeedbackText } from "./feedback.js"
 import { directory, id, name } from "./fields.js"
+import { grant } from "./grants.js"
 import { askAnswer, inboxEntry } from "./inbox.js"
 import { terminalMessages, threadId } from "./messages.js"
 import { clientState, folderListing, project, workspaceSession } from "./projects.js"
@@ -430,6 +431,14 @@ export const contract = {
     dismiss: procedure.input(z.strictObject({ id })).output(z.void()),
     // Removes settled asks. Unknown ids, and any entry that isn't a settled ask, are skipped.
     clear: procedure.input(z.strictObject({ ids: z.array(id).max(1000) })).output(z.void()),
+  },
+  // The person's grants (see grants.ts): made only from the Inbox's cards, listed and revoked here.
+  grants: {
+    // Every live grant of the runner, then again on each change; ended ones drop out.
+    watch: procedure.input(z.void()).output(eventIterator(z.array(grant))),
+    // Ends a grant at once; its terminals hear it at their next delivery. An unknown or
+    // already-ended grant is NOT_FOUND.
+    revoke: procedure.input(z.strictObject({ id })).output(z.void()),
   },
   // Agents' feedback drafts for the people building Novadeck (see `feedbackDraft`): the app
   // shows each in its feedback card for the person to send or discard.

@@ -2,6 +2,7 @@ import { z } from "zod"
 
 import { agentName, turnError, turnFiles, turnReply } from "./agents.js"
 import { id } from "./fields.js"
+import { grantCommand, grantHours, grantPreset, grantProposal, maxGrantCommands } from "./grants.js"
 import { hiddenIn, maxCommandLines } from "./text.js"
 
 // How long each text of an agent's ask, tell or done runs at most, in UTF-16 code units: a
@@ -68,6 +69,13 @@ const askShape = z.discriminatedUnion("type", [
     directory: oneLine(inboxTextLimits.directory).nullable(),
     doneLabel: line,
   }),
+  // Approval for this terminal to run these commands without asking again: the person's
+  // Approve makes a terminal grant (see grants.ts); `hours` defaults to 1.
+  z.strictObject({
+    type: z.literal("approval"),
+    commands: z.array(grantCommand).min(1).max(maxGrantCommands),
+    hours: grantHours.nullable(),
+  }),
 ])
 
 export const agentAsk = z.strictObject({
@@ -90,6 +98,26 @@ export const askAnswer = z.discriminatedUnion("type", [
     text: z.string().max(4096),
   }),
   z.strictObject({ type: z.literal("done") }),
+  // The person's Approve on an `approval` ask.
+  z.strictObject({ type: z.literal("approve") }),
+  // The person's Grant on a lead's Grant card: what they kept ticked, by index into the
+  // proposal's lists and by repo url, and the time they chose.
+  z.strictObject({
+    type: z.literal("grant"),
+    presets: z.array(grantPreset).max(2),
+    commands: z
+      .array(
+        z
+          .number()
+          .int()
+          .min(0)
+          .max(maxGrantCommands - 1),
+      )
+      .max(maxGrantCommands),
+    repos: z.array(z.string().max(256)).max(16),
+    withLead: z.boolean(),
+    hours: grantHours,
+  }),
 ])
 
 // How an ask ended without an answer from the Inbox, and when: the person dismissed it there,
@@ -111,6 +139,8 @@ export const inboxEntry = z.strictObject({
   at: z.number(),
   content: z.discriminatedUnion("kind", [
     z.strictObject({ kind: z.literal("ask"), ask: agentAsk }),
+    // A lead's proposal of a team grant: the Grant card. Answered with `grant`, or dismissed.
+    z.strictObject({ kind: z.literal("grant"), proposal: grantProposal }),
     z.strictObject({ kind: z.literal("tell"), subject: line, body: markdown }),
     // The agent's own report that the task it was given is finished.
     z.strictObject({ kind: z.literal("done"), subject: line, body: markdown }),

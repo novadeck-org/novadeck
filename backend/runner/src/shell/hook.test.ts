@@ -69,6 +69,11 @@ const it = base.extend<{ fixture: Fixture }>({
         deadlines.push({ event: report.event, seq: report.seq, deadline })
         return Promise.resolve(answer.current)
       },
+      permit: (report) => {
+        reports.push(report)
+        return Promise.resolve({ stdout: null, report: false })
+      },
+      denied: () => {},
       ack: (ack) => acks.push(ack),
       call: () => Promise.resolve(unanswered),
     })

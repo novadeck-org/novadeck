@@ -12,6 +12,7 @@ import { DomainError } from "../errors.js"
 import { exists } from "../files.js"
 import { logs } from "../log.js"
 import type { ShellPaths } from "../shell/scripts.js"
+import { list } from "../text.js"
 import { agents, harnesses } from "./registry.js"
 
 const log = logs.for("harnesses")
@@ -35,6 +36,25 @@ export type HarnessesOptions = {
    */
   readonly relay?: string
 }
+
+/**
+ * The Novadeck terminals running an agent, which the service asks before it changes a plugin
+ * under them (see `holdsPlugin`): by handle, those whose agent runs, and those of them
+ * started narrowed.
+ */
+export type RunningAgents = {
+  readonly running: (agent: AgentName) => readonly string[]
+  readonly narrowed: (agent: AgentName) => readonly string[]
+}
+
+/**
+ * Whether the harness's plugin must not change while a Novadeck terminal runs it: one whose
+ * launch grants (Antigravity's) leave only its hook between a granted program and the person.
+ * Its plugin is global, so a reinstall (which uninstalls first) would leave a running
+ * terminal with no hook, and a granted program would run unasked.
+ */
+const holdsPlugin = (harness: Harness): boolean =>
+  harness.messaging.permission.narrowed !== undefined
 
 // Windows' cmd reads an argument in double quotes as it is; a path cannot hold one.
 const cmdLine = (argv: readonly string[]): string =>
@@ -192,6 +212,10 @@ export const createHarnesses = (
   let queue = Promise.resolve()
   // The agents the person asked to disconnect, until that is done.
   const disconnecting = new Set<AgentName>()
+  // Which Novadeck terminals run which agent, once the terminals exist.
+  let terminals: RunningAgents | undefined
+  const running = (agent: AgentName): readonly string[] =>
+    holdsPlugin(harnesses[agent]) ? (terminals?.running(agent) ?? []) : []
   const queued = <T>(work: () => Promise<T>): Promise<T> => {
     const change = queue.then(work)
     queue = change.then(
@@ -210,6 +234,16 @@ export const createHarnesses = (
     const where = install(agent)
     if (!(await exists(harness.home(where))))
       throw new DomainError("AGENT_SETUP_FAILED", `${agent} is not installed here.`)
+    // Connecting an installed plugin uninstalls it first, which a running terminal of the
+    // agent must not see: its launch grants would then run unasked.
+    const held = running(agent)
+    if (connected && held.length > 0 && (await harness.connected(where)))
+      throw new DomainError(
+        "AGENT_SETUP_FAILED",
+        `Novadeck won't install its plugin into ${agent} again while ${list(held)} run${
+          held.length === 1 ? "s" : ""
+        } it: close ${held.length === 1 ? "it" : "them"} first.`,
+      )
     const settle = async (step: "apply" | "revert") => {
       try {
         await harness.settings?.[step](where)
@@ -286,6 +320,27 @@ export const createHarnesses = (
       )
       return shimmed.filter((_, index) => connected[index])
     },
+    /** Tells the service which Novadeck terminals run which agent, once they exist. */
+    track: (source: RunningAgents): void => {
+      terminals = source
+    },
+    /**
+     * Whether the agent's installed plugin is verified, in its turn among the changes to it:
+     * connected, byte for byte what this Novadeck renders, with no reinstall pending and no
+     * disconnect asked. A terminal gets launch grants only then.
+     */
+    verified: (agent: AgentName): Promise<boolean> =>
+      queued(async () => {
+        const install = await installs()
+        const { installed } = harnesses[agent]
+        if (!install || !installed || disconnecting.has(agent)) return false
+        const where = install(agent)
+        return (
+          (await harnesses[agent].connected(where)) &&
+          !(await exists(reinstalling(where))) &&
+          !(await differing(installed, where))
+        )
+      }),
     list: async (): Promise<AgentIntegration[]> => {
       const install = await installs()
       if (!install) return agents.map((agent) => ({ agent, available: false, connected: false }))
@@ -294,6 +349,17 @@ export const createHarnesses = (
     /** Installs or removes Novadeck's plugin in the agent; resolves to where it stands after. */
     set: (agent: AgentName, connected: boolean): Promise<AgentIntegration> => {
       if (connected) return queued(() => apply(agent, true))
+      // A terminal started under a grant keeps it only while Novadeck's hook is there.
+      const narrowed = holdsPlugin(harnesses[agent]) ? (terminals?.narrowed(agent) ?? []) : []
+      if (narrowed.length > 0)
+        return Promise.reject(
+          new DomainError(
+            "AGENT_SETUP_FAILED",
+            `Novadeck can't disconnect ${agent} while ${list(narrowed)} run${
+              narrowed.length === 1 ? "s" : ""
+            } it under your grant: close ${narrowed.length === 1 ? "it" : "them"} first.`,
+          ),
+        )
       // The person's disconnect stands from when it is asked for: a refresh queued ahead of
       // it leaves the agent alone, and a quit before it runs leaves no reinstall to finish.
       disconnecting.add(agent)
@@ -324,6 +390,15 @@ export const createHarnesses = (
           // eslint-disable-next-line no-await-in-loop -- One agent at a time, as `set` runs them.
           const done = await queued(async () => {
             if (disconnecting.has(agent)) return false
+            // Not under a running terminal: its launch grants rest on the hook it has.
+            if (running(agent).length > 0) {
+              log.info(
+                "harnesses.refresh-held",
+                `Novadeck left ${agent}'s plugin as it is while a terminal runs it`,
+                { data: { agent } },
+              )
+              return false
+            }
             // An agent uninstalled since keeps no unfinished reinstall, nor takes one later.
             if (!(await exists(harnesses[agent].home(where)))) {
               await rm(reinstalling(where), { force: true })

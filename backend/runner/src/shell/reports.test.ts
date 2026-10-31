@@ -20,6 +20,8 @@ import {
 const handlers = (given: Partial<ReportHandlers>): ReportHandlers => ({
   report: () => {},
   ask: () => Promise.resolve(unheard),
+  permit: () => Promise.resolve({ stdout: null, report: true }),
+  denied: () => {},
   ack: () => {},
   call: () => Promise.resolve(unanswered),
   ...given,
@@ -604,6 +606,8 @@ describe("what isn't a relay's", () => {
     const reports = await listenForReports({
       report: (report) => taken.push(report),
       ask: async (report) => (taken.push(report), { leaseId: null, stdout: "x" }),
+      permit: async (report) => (taken.push(report), { stdout: "x", report: true }),
+      denied: (report) => taken.push(report),
       ack: (ack) => taken.push(ack),
       call: async (asked) => (taken.push(asked), { ok: true }),
     })

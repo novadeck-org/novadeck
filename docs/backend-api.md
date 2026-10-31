@@ -215,10 +215,10 @@ saves nothing of its terminals either, after one last save while they still run.
 
 ```ts
 for await (const change of runner.terminals.watch()) {
-  if (change.type === "reset") startOver() // a fresh sequence follows
-  if (change.type === "changed") show(change.terminal) // includes exit and process
-  if (change.type === "removed") forget(change.terminalId)
-  if (change.type === "synced") pruneUnreported() // gone unless reported since `reset`
+  if (change.type === "reset") startOver(); // a fresh sequence follows
+  if (change.type === "changed") show(change.terminal); // includes exit and process
+  if (change.type === "removed") forget(change.terminalId);
+  if (change.type === "synced") pruneUnreported(); // gone unless reported since `reset`
 }
 ```
 
@@ -301,7 +301,11 @@ reports read:
 ```ts
 for await (const entries of runner.inbox.watch()) showInbox(entries)
 const entries = await runner.inbox.list()
-await runner.inbox.answer(askId, { type: "reply", option: null, text: "Use green" })
+await runner.inbox.answer(askId, {
+  type: "reply",
+  option: null,
+  text: "Use green",
+})
 await runner.inbox.answer(actionAskId, { type: "done" })
 await runner.inbox.read(updateIds)
 ```
@@ -317,6 +321,19 @@ answers arrive later through ordinary message delivery. `read` affects tells and
 at most 1,000 ids per call. A done report, like a tell, outlives its agent and turns into
 Messages history once read; the latest done of each terminal that still exists is kept
 past the usual day, as the report that still stands (`TerminalSummary.reported`). `watch` resubscribes with a fresh listing on reconnect.
+
+The person's grants (see "Grants" in agent-messaging.md) are made only from the Inbox: a
+lead's proposal is an entry `{ kind: "grant", proposal }` answered with
+`{ type: "grant", presets, commands, repos, withLead, hours }` (command indices into the
+proposal, repo urls among its choices; anything beyond the proposal is `ANSWER_FAILED`), and
+an `approval` ask is answered with `{ type: "approve" }`. `grants.watch()` follows the grants
+in force, then again on each change, with `lastUse`; `grants.revoke({ id })` ends one at once
+(`NOT_FOUND` for an unknown or ended grant).
+
+```ts
+for await (const grants of runner.grants.watch()) showGrants(grants)
+await runner.grants.revoke({ id })
+```
 
 The MCP `feedback` tool drafts feedback about Novadeck for the app's feedback card. Drafts
 are no Inbox entries: the runner holds them in memory only, one per terminal (a new call

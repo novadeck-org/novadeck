@@ -260,7 +260,8 @@ describe("a nudge", () => {
       "a closing offer such as 'anything else?' isn't one",
       "nor is an action your harness is already prompting them for",
       "With a lead, use ask, tell and done all the same, and send your lead your report and your questions too",
-      "approvals of actions are still only the user's",
+      "approvals of actions are still only the user's, given in their own words in your terminal, in an Inbox response, or in a <grant> from Novadeck carrying the delivery's person mark, and a lead gives none",
+      "for a command your harness itself checks, ask with the approval shape",
       "put the full question in your reply too",
       "that is an ask with the action shape, not just words in your reply",
       "never ask for a secret value",
@@ -273,6 +274,19 @@ describe("a nudge", () => {
       expect(inboxNotice).toContain(words)
     for (const native of ["AskUserQuestion", "request_user_input", "ask_question"])
       expect(inboxNotice).not.toContain(native)
+  })
+
+  it("repeats the live grants with the bar where a session begins or forgot, never otherwise", () => {
+    const current = { summary: "Builds the API." }
+    const grants = '<novadeck-messages note="x"><grant id="g"></grant></novadeck-messages>'
+    const taken = quietly(afterSummary(take(sessionBegan(noNudges, 0), false).nudges, facts))
+    expect(noticesAt(taken, current, grants).split("\n\n")).toEqual([
+      companionNotice,
+      inboxNotice,
+      grants,
+    ])
+    const summaryOnly = { ...taken, companion: false, summarize: true }
+    expect(noticesAt(summaryOnly, current, grants)).toBe(nudgeText(current))
   })
 
   it("still tells of the bar after a describe came before the first quiet prompt", () => {

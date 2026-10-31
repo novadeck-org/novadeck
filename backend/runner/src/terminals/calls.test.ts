@@ -272,3 +272,124 @@ describe("the open call", () => {
     expect(run.asked.map(({ opener }) => opener.leads)).toEqual([false, false])
   })
 })
+
+describe("the propose_grant call", () => {
+  const choice = {
+    repo: { url: "github.com/acme/shop", defaultBranch: "main", defaultFrom: "github" as const },
+    ticked: true,
+    flag: null,
+  }
+  // A lead `moth` with the team given, an Inbox that records proposals, and sources that only count.
+  const setup = ({ led = false, team = [{ handle: "fox", agent: "codex" }] } = {}) => {
+    const proposals: { terminalId: string; proposal: unknown }[] = []
+    let reads = 0
+    let limit: string | undefined
+    const host = {
+      records: () =>
+        new Map([
+          [
+            "t1",
+            {
+              terminal: { exiting: false },
+              token,
+              summary: { id: "t1", sessionId: "s", handle: "moth" },
+            },
+          ],
+        ]),
+      stopping: () => false,
+      grantRepos: () => {
+        reads += 1
+        return Promise.resolve([choice])
+      },
+      messaging: () => ({ grants: { isLed: () => led, teamOf: () => team } }),
+      inbox: () => ({
+        proposalLimit: () => limit,
+        propose: (terminalId: string, proposal: unknown) => {
+          proposals.push({ terminalId, proposal })
+          return { ok: true, id: "e1" }
+        },
+      }),
+    } as unknown as CallsHost
+    return {
+      proposals,
+      reads: () => reads,
+      limit: (reason: string) => (limit = reason),
+      propose: (request: object) =>
+        new Calls(1000, host).call({
+          type: "proposeGrant",
+          terminalId: "t1",
+          token,
+          request: request as never,
+        }),
+    }
+  }
+  const request = { presets: ["push"], reason: "The user said the team may push." }
+
+  it("puts a card in the Inbox that the runner fills with the repos it read and who is covered", async () => {
+    const { propose, proposals, reads } = setup()
+    expect(
+      await propose({ ...request, commands: [{ argv: ["uberepo", "ship"], rest: true }] }),
+    ).toEqual({ ok: true, id: "e1" })
+    expect(reads()).toBe(1)
+    expect(proposals[0]).toMatchObject({
+      terminalId: "t1",
+      proposal: {
+        presets: ["push"],
+        commands: [{ argv: ["uberepo", "ship"], rest: true }],
+        repos: [choice],
+        withLead: false,
+        hours: 8,
+        covered: [{ handle: "fox", agent: "codex" }],
+      },
+    })
+  })
+
+  it("refuses a command the matcher would refuse, an open schema and an empty offer", async () => {
+    const { propose, proposals, reads } = setup()
+    const refused = await Promise.all(
+      [
+        { ...request, commands: [{ argv: ["git", "push"], rest: true }] },
+        { ...request, commands: [{ argv: ["bash", "-c", "x"] }] },
+        { ...request, scope: "everything" },
+        { ...request, hours: 3 },
+        { presets: [], reason: "nothing" },
+        { presets: ["merge"], reason: "x" },
+      ].map((bad) => propose(bad)),
+    )
+    for (const answer of refused) expect(answer).toMatchObject({ ok: false })
+    expect(proposals).toEqual([])
+    expect(reads()).toBe(0)
+  })
+
+  it("is for an agent that leads others, not a teammate with a lead of its own", async () => {
+    const teammate = setup({ led: true, team: [] })
+    expect(await teammate.propose(request)).toMatchObject({
+      ok: false,
+      reason: expect.stringMatching(/leads others/),
+    })
+    const middle = setup({ led: true })
+    expect(await middle.propose(request)).toEqual({ ok: true, id: "e1" })
+    const free = setup({ team: [] })
+    expect(await free.propose(request)).toEqual({ ok: true, id: "e1" })
+  })
+
+  it("passes on the Inbox's limits without reading the repos", async () => {
+    const { propose, limit, reads, proposals } = setup()
+    limit("You may propose 3 grants an hour; try again later.")
+    expect(await propose(request)).toEqual({
+      ok: false,
+      reason: "You may propose 3 grants an hour; try again later.",
+    })
+    expect(reads()).toBe(0)
+    expect(proposals).toEqual([])
+  })
+
+  it("learns nothing more for a call without the terminal's own token", async () => {
+    const { propose } = setup()
+    const answer = await new Calls(1000, { records: () => new Map() } as unknown as CallsHost).call(
+      { type: "proposeGrant", terminalId: "t1", token: "b".repeat(48), request: request as never },
+    )
+    expect(answer).toMatchObject({ ok: false })
+    expect(propose).toBeDefined()
+  })
+})

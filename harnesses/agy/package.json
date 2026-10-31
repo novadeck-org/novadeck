@@ -28,6 +28,11 @@
       "types": "./dist/index.d.ts",
       "default": "./dist/index.js"
     },
+    "./narrow": {
+      "development": "./src/narrow.ts",
+      "types": "./dist/narrow.d.ts",
+      "default": "./dist/narrow.js"
+    },
     "./settings": {
       "development": "./src/settings.ts",
       "types": "./dist/settings.d.ts",

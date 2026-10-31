@@ -6,6 +6,7 @@ import { hookSeconds, hookCommand, type Dialect } from "@novadeck/harness-core/h
 import { json, manifest } from "@novadeck/harness-core/plugin"
 
 import { geminiHome } from "./home.js"
+import { closedAnswer, narrowedAnswers } from "./narrow.js"
 import { writers } from "./tools.js"
 
 /** Novadeck's plugin as Antigravity names it, in its commands and its plugins folder. */
@@ -49,6 +50,12 @@ export const hook = (platform: NodeJS.Platform, event: string): string =>
     agent: "agy",
     event,
     fallback: hookFallback(platform, event),
+    // In a narrowed terminal (never on Windows) its answer is one of Novadeck's three, else
+    // closed: a hook that prints nothing lets a granted program run unasked.
+    ...(event === "PreToolUse" &&
+      platform !== "win32" && {
+        narrowed: { answer: closedAnswer, passes: narrowedAnswers },
+      }),
   })
 
 // A handler for one of its events, with the time it may take.

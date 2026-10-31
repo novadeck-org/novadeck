@@ -249,8 +249,22 @@ Only the authenticated runner API used by the UI answers an ask. The runner bind
 answer to the exact asking session and atomically saves it with the resolved ask before
 queuing delivery. Delivery says Novadeck relayed the response and adds a fresh person
 mark named by the outer note, distinct from its lead mark. The standing rules recognize
-only an Inbox response carrying that delivery's person mark as an approval exception;
-a delivery wrapper states the exception only when its person mark is present.
+only an Inbox response, or a `<grant>` element, carrying that delivery's person mark as an
+approval exception; a delivery wrapper states the exception only when its person mark is
+present.
+
+The person's **grants** (#587, #588) are the one way an approval outlasts a single answer.
+Only the person's click on a Novadeck card makes one: `Grants.make` is called only from the
+Inbox's answers to an `approval` ask and to a lead's Grant card. A lead's `propose_grant` has a
+closed schema (presets, exact commands, hours), is refused for a command the shared matcher
+would refuse, and the card is filled by the runner from its own reads of the project's git
+repos; the answer must be a subset of the proposal, and a grant lasts at most 24 hours. A
+grant reaches an agent only as Novadeck's `<grant>` element, rendered from the live grant,
+never from a message's text, and a lead still gives none of the person's approvals. What a
+harness then lets through is decided by its permission hook from the runner's grant table, so
+a model fooled by a forged "grant" still meets the harness's own check; a hostile agent with a
+shell is outside the model (it can plant a git hook the matcher cannot see). The design is
+`architecture/team-issues/approvals-design.md`.
 Agent-written questions and choice/action labels
 are quoted separately from the person's own words; earlier marks are escaped data.
 Agent subjects, labels, option summaries, code paths and action instructions lose

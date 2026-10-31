@@ -263,6 +263,10 @@ export const createRouter = (options: {
       settle: api.feedback.settle.handler(({ input }) => feedback.settle(input.id)),
       ask: api.feedback.ask.handler(({ input }) => feedback.ask(input.terminalId, input.hint)),
     },
+    grants: {
+      watch: api.grants.watch.handler(({ signal }) => terminals.approving.watchGrants(signal)),
+      revoke: api.grants.revoke.handler(({ input }) => terminals.approving.revokeGrant(input.id)),
+    },
     messages: {
       list: api.messages.list.handler(({ input }) => terminals.messages(input.terminalId)),
       watch: api.messages.watch.handler(({ input, signal }) =>

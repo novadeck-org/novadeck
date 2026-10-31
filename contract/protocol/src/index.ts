@@ -86,6 +86,26 @@ export {
   maxAskOptions,
 } from "./inbox.js"
 export {
+  grant,
+  type Grant,
+  grantCommand,
+  type GrantCommand,
+  grantHolder,
+  type GrantHolder,
+  grantHours,
+  type GrantHours,
+  grantPreset,
+  type GrantPreset,
+  grantProposal,
+  type GrantProposal,
+  grantRepo,
+  type GrantRepo,
+  grantRepoChoice,
+  type GrantRepoChoice,
+  maxGrantCommands,
+  maxGrantRepos,
+} from "./grants.js"
+export {
   type DeliveryState,
   longHoldMs,
   type MessageParty,

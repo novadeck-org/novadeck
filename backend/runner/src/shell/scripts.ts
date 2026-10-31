@@ -37,6 +37,11 @@ export type ShellPaths = ShellScriptPaths & {
   readonly relay: string
   /** What the runner tells the relay about the agents, which the hook launcher names. */
   readonly relayConfig: string
+  /**
+   * Where the runner writes an Antigravity terminal's launch settings (`<terminal id>.json`),
+   * which the agy shim passes as `--settings` (see `shell/narrowing.ts`).
+   */
+  readonly narrow: string
 }
 
 export const shellPaths = (directory: string, platform = process.platform): ShellPaths => ({
@@ -51,6 +56,7 @@ export const shellPaths = (directory: string, platform = process.platform): Shel
   mcp: join(directory, platform === "win32" ? "mcp.cmd" : "mcp"),
   relay: join(directory, platform === "win32" ? "novadeck-relay.exe" : "novadeck-relay"),
   relayConfig: join(directory, "relay.json"),
+  narrow: join(directory, "narrow"),
 })
 
 /** What older versions wrote beside these files and nothing reads any more. */
@@ -84,7 +90,8 @@ const silentAnswers = Object.fromEntries(
 /**
  * What the relay knows of the agents, as `relay.json` holds it: which events wait the long
  * limit for the runner's answer (`asks`: a Stop, or a prompt-time hook, which may hold
- * messages for a lease), what of a hook's environment it forwards, and what each prints
+ * messages for a lease) and `answered` (a permission hook, decided from the person's grants
+ * at once), what of a hook's environment it forwards, and what each prints
  * without Novadeck. Every hook is sent to the runner and printed what it answers, so a
  * tool-call hook (which asks the runner for the lead's messages, with a deadline) is not
  * listed: it runs after every tool, is answered at once, and keeps a report's short limit,
@@ -98,6 +105,11 @@ export const relayConfig = {
         .filter(([, kind]) => kind !== "tool")
         .map(([event]) => event),
     ]),
+  ),
+  // The permission hooks the runner decides at once from the person's grants: they wait the
+  // asks' limit, and lease nothing.
+  answered: Object.fromEntries(
+    agents.map((agent) => [agent, [harnesses[agent].messaging.permission.event]]),
   ),
   env: [...hookVariables],
   fallbacks: silentAnswers,

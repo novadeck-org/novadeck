@@ -7,6 +7,7 @@ import { decode } from "./decode.js"
 import { dialogs } from "./dialogs.js"
 import { antigravityHome } from "./home.js"
 import { models } from "./models.js"
+import { closedAnswer, notCommandAnswer, runAnswer } from "./narrow.js"
 import {
   connect,
   connected,
@@ -19,6 +20,7 @@ import {
   preToolUseAnswer,
 } from "./plugin.js"
 import { statusLineLimit, statusLineSettings, trustsFolder } from "./settings.js"
+import { commands, posixShim } from "./shim.js"
 import { shown } from "./status-line.js"
 import { transcripts, typedEntry } from "./transcripts.js"
 
@@ -27,7 +29,20 @@ import { transcripts, typedEntry } from "./transcripts.js"
 // of its later calls. Every other answer is an empty object.
 const messaging: MessagingProfile = {
   asks: { Stop: "stop", PreInvocation: "prompt" },
+  // Its PreToolUse is answered at once from the person's grants, in a narrowed terminal only
+  // (see narrow.ts): without NOVADECK_NARROW it answers as it always did, "ask".
+  permission: {
+    event: "PreToolUse",
+    reported: true,
+    narrowed: {
+      run: `${runAnswer}\n`,
+      notCommand: `${notCommandAnswer}\n`,
+      closed: `${closedAnswer}\n`,
+    },
+  },
   silent: { PreToolUse: `${preToolUseAnswer}\n`, "*": "{}\n" },
+  // In a narrowed terminal the answer nothing gave is the closed one.
+  narrowed: { PreToolUse: `${closedAnswer}\n` },
   stop: (delivery) => `${JSON.stringify({ decision: "continue", reason: delivery })}\n`,
   prompt: (delivery) => `${JSON.stringify({ injectSteps: [{ ephemeralMessage: delivery }] })}\n`,
   reinjectPerCall: true,
@@ -68,6 +83,10 @@ export const agy = {
   hookDialect,
   hook,
   files,
+  // Novadeck's shim, which starts it narrowed where a grant covers its terminal (never on
+  // Windows).
+  shims: (platform) =>
+    platform === "win32" ? [] : [{ path: "agy", content: posixShim, mode: 0o700 }],
   // Its status line tells what no hook does: working or idle, a confirmation waiting on
   // the person, and its context and quotas.
   settings: statusLineSettings,
@@ -76,20 +95,7 @@ export const agy = {
   // there: it takes an argument, as `agy -v` says). Its print mode, `--print`, `-p` and
   // `--prompt`, runs it on the caller's text, so it is a session's use.
   nonSession: {
-    commands: [
-      "agent",
-      "agents",
-      "changelog",
-      "help",
-      "install",
-      "mcp",
-      "mic-serve",
-      "models",
-      "plugin",
-      "plugins",
-      "remote-control",
-      "update",
-    ],
+    commands,
     flags: ["-h", "--help", "--version"],
     print: ["-p", "--print", "--prompt"],
     takesValue: [

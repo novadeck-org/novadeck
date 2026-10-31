@@ -13,11 +13,18 @@ import { realpath, stat } from "node:fs/promises"
 import { dirname, isAbsolute, join } from "node:path"
 import { DatabaseSync, type SQLTagStore } from "node:sqlite"
 
-import type { AgentName, Project, WorkspaceSession } from "@novadeck/protocol"
+import {
+  grant as grantRecord,
+  type AgentName,
+  type Grant,
+  type Project,
+  type WorkspaceSession,
+} from "@novadeck/protocol"
 
 import type { ItemRecord, ItemRecords, Placed, WindowRecord } from "../companions/records.js"
 import { DomainError } from "../errors.js"
 import { logs } from "../log.js"
+import type { GrantRecords } from "../messaging/grants.js"
 import type { InboxRecords, StoredEntry } from "../messaging/inbox.js"
 import { novadeckSender, personSender, type Message, type Thread } from "../messaging/messages.js"
 import type { MessageRecords } from "../messaging/records.js"
@@ -53,7 +60,9 @@ const projectOf = ({ pinned, ...project }: ProjectRow): Project => ({
 // column; see the step from 6.
 // 8: a project keeps where the person put it in the switcher (`rank`) and whether they
 // pinned it; `position` stays the order it was added in.
-const schemaVersion = 8
+// 9: the person's grants (`grants`), and the message that tells a terminal of one
+// (`messages.grant_id`).
+const schemaVersion = 9
 const schema = `
   CREATE TABLE projects (
     position INTEGER PRIMARY KEY,
@@ -174,6 +183,8 @@ const schema = `
     -- Whether its recipient was its sender's lead when it was sent.
     to_lead INTEGER NOT NULL,
     response TEXT,
+    -- The grant a Novadeck message tells its recipient of, made or ended; null otherwise.
+    grant_id TEXT,
     FOREIGN KEY (thread_id, project_id) REFERENCES message_threads(id, project_id)
       ON DELETE CASCADE,
     CHECK (from_kind <> 'person' OR json_type(response, '$.askId') IS 'text'),
@@ -193,6 +204,17 @@ const schema = `
     record TEXT NOT NULL
   ) STRICT;
   CREATE INDEX inbox_entries_project ON inbox_entries(project_id);
+  -- What the person let a lead's team or one terminal run without asking again; record is the
+  -- grant as JSON. Only the Grants service writes it, and only from the person's click.
+  CREATE TABLE grants (
+    id TEXT PRIMARY KEY,
+    project_id TEXT NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
+    session_id TEXT NOT NULL REFERENCES sessions(id) ON DELETE CASCADE,
+    made_at INTEGER NOT NULL,
+    revoked_at INTEGER,
+    record TEXT NOT NULL
+  ) STRICT;
+  CREATE INDEX grants_session ON grants(session_id);
   -- What agents show and the person attaches beside a terminal: pointers, never copies.
   -- Each item is held by one terminal's bar or one window, and goes with it.
   CREATE TABLE companion_windows (
@@ -267,6 +289,19 @@ type Step = string | ((database: DatabaseSync, path: string) => void)
  * dropping it first deletes their rows through ON DELETE CASCADE.
  */
 const migrations: Readonly<Record<number, Step>> = {
+  // The person's grants: nobody has one yet.
+  8: `
+    ALTER TABLE messages ADD COLUMN grant_id TEXT;
+    CREATE TABLE grants (
+      id TEXT PRIMARY KEY,
+      project_id TEXT NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
+      session_id TEXT NOT NULL REFERENCES sessions(id) ON DELETE CASCADE,
+      made_at INTEGER NOT NULL,
+      revoked_at INTEGER,
+      record TEXT NOT NULL
+    ) STRICT;
+    CREATE INDEX grants_session ON grants(session_id);
+  `,
   // The switcher's arrangement, which the person's browser kept until now: nobody has one.
   7: `
     ALTER TABLE projects ADD COLUMN rank INTEGER;
@@ -938,6 +973,7 @@ type MessageRow = {
   from_lead: number
   to_lead: number
   response: string | null
+  grant_id: string | null
 }
 
 type ThreadRow = {
@@ -998,6 +1034,7 @@ const messageOf = (row: MessageRow): Message => ({
   ...(row.response !== null && {
     response: JSON.parse(row.response) as NonNullable<Message["response"]>,
   }),
+  ...(row.grant_id !== null && { grantId: row.grant_id }),
 })
 
 /** Whether SQLite refused a write for a row it references that is not there. */
@@ -1101,7 +1138,9 @@ const column = (rows: unknown): string[] => (rows as { handle: string }[]).map((
 // How much of a sealed-looking transcript `forgetUnsealed` matches against base64's alphabet.
 const checkedChars = 1_024
 
-export class WorkspaceStore implements TerminalRecords, MessageRecords, InboxRecords, ItemRecords {
+export class WorkspaceStore
+  implements TerminalRecords, MessageRecords, InboxRecords, GrantRecords, ItemRecords
+{
   private readonly database: DatabaseSync
   private readonly queries: SQLTagStore
   /** The person's settings, over the same queries. */
@@ -1462,6 +1501,40 @@ export class WorkspaceStore implements TerminalRecords, MessageRecords, InboxRec
     }
   }
 
+  grants(): Grant[] {
+    const rows = this.queries.all`SELECT id, record FROM grants ORDER BY made_at` as {
+      id: string
+      record: string
+    }[]
+    // One unreadable row is skipped, so it can't empty every grant.
+    return rows.flatMap(({ id, record }) => {
+      try {
+        const parsed = grantRecord.safeParse(JSON.parse(record))
+        if (parsed.success) return [parsed.data]
+        throw new Error(parsed.error.message)
+      } catch (error) {
+        log.error("grants.read-failed", `Novadeck could not read its grant ${id}`, {
+          data: { id },
+          err: error,
+        })
+        return []
+      }
+    })
+  }
+
+  saveGrant(grant: Grant): void {
+    void this.queries
+      .run`INSERT INTO grants (id, project_id, session_id, made_at, revoked_at, record)
+      VALUES (${grant.id}, ${grant.projectId}, ${grant.workspaceSessionId}, ${grant.madeAt}, ${grant.revokedAt}, ${JSON.stringify(grant)})
+      ON CONFLICT (id) DO UPDATE SET revoked_at = excluded.revoked_at, record = excluded.record`
+  }
+
+  removeGrants(ids: readonly string[]): void {
+    this.transaction(() => {
+      for (const id of ids) void this.queries.run`DELETE FROM grants WHERE id = ${id}`
+    })
+  }
+
   entries(): StoredEntry[] {
     const rows = this.queries.all`SELECT id, record FROM inbox_entries ORDER BY at` as {
       id: string
@@ -1522,14 +1595,14 @@ export class WorkspaceStore implements TerminalRecords, MessageRecords, InboxRec
     void this.queries.run`
       INSERT INTO messages (id, project_id, thread_id, hop, from_kind, from_terminal, from_handle,
         from_agent, from_agent_session, to_terminal, to_handle, to_agent, to_agent_session, text,
-        sent_at, state, delivered_at, notified, stopped, from_lead, to_lead, response)
+        sent_at, state, delivered_at, notified, stopped, from_lead, to_lead, response, grant_id)
       VALUES (${message.id}, ${message.projectId}, ${agent ? message.thread : null}, ${message.hop},
         ${kind}, ${agent ? agent.terminalId : null}, ${agent ? agent.handle : null},
         ${agent ? agent.agent : null}, ${agent ? agent.sessionId : null}, ${to.terminalId},
         ${to.handle}, ${to.agent}, ${to.sessionId}, ${message.text}, ${message.sentAt},
         ${message.state}, ${message.deliveredAt}, ${message.notified ? 1 : 0},
         ${message.stopped ? 1 : 0}, ${message.fromLead ? 1 : 0}, ${message.toLead ? 1 : 0},
-        ${message.response ? JSON.stringify(message.response) : null})
+        ${message.response ? JSON.stringify(message.response) : null}, ${message.grantId ?? null})
       ON CONFLICT (id) DO UPDATE SET to_agent_session = excluded.to_agent_session, state = excluded.state,
         delivered_at = excluded.delivered_at, notified = excluded.notified,
         stopped = excluded.stopped, response = excluded.response

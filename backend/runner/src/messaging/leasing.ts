@@ -4,6 +4,7 @@ import type { Binding } from "../harnesses/bindings.js"
 import type { Root } from "../harnesses/roots.js"
 import { logs } from "../log.js"
 import { phaseOf, type DeliveryEvent } from "./delivery.js"
+import type { Grants } from "./grants.js"
 import { Leases, type Lease } from "./leases.js"
 import { addressed, feed, type Live } from "./live.js"
 import type { Loops } from "./loops.js"
@@ -32,6 +33,8 @@ export type LeasingHost = {
   readonly now: () => number
   /** Moves the terminal's delivery on (`Deliveries.step`). */
   readonly step: (live: Live, event: DeliveryEvent) => void
+  /** The grants, for the grant elements a delivery renders (`Grants.get`). */
+  readonly grants: Pick<Grants, "get">
 }
 
 /**
@@ -97,12 +100,14 @@ export class Leasing {
     // One mark for the delivery, which marks its lead's messages. What counts is the bytes
     // printed, escaped as the harness reads them.
     const mark = newMark()
-    const prints = (taken: readonly Message[]) => byteLength(print(wrap(taken, isFromLead, mark)))
+    const wrapped = { grants: (id: string) => this.host.grants.get(id) }
+    const prints = (taken: readonly Message[]) =>
+      byteLength(print(wrap(taken, isFromLead, mark, undefined, wrapped)))
     const messages = deliveryOf(queued, (taken) => prints(taken) <= maxDeliveryBytes)
     // The first always goes, as it fits alone; beside what the turn holds it may not.
     if (messages.length === 0 || prints(messages) > maxDeliveryBytes) return undefined
     for (const message of messages) store.put({ ...message, state: "leased" })
-    const text = wrap(messages, isFromLead, mark)
+    const text = wrap(messages, isFromLead, mark, undefined, wrapped)
     return this.leases.grant({
       terminalId: live.terminalId,
       messages: messages.map((message) => message.id),

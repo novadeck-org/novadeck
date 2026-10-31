@@ -96,6 +96,8 @@ const setup = (
         messaging.personReply(id, ask, subject, text, commit, choice),
       replyState: (id) => messaging.inboxReply(id),
       forgetReplies: (ids) => messaging.forgetResponses(ids),
+      makeGrant: (input) => messaging.grants.make(input),
+      endGrant: (id) => messaging.grants.revoke(id),
       changed: () => {},
       exists: () => kept,
     },
@@ -2176,5 +2178,202 @@ describe("asks the person dismisses", () => {
     records.saveEntry({ ...stored, state: "withdrawn", settledAt: 123 })
     first.stop()
     expect(setup(records).inbox.list()).toEqual([])
+  })
+})
+
+describe("Inbox approvals and grants", () => {
+  const approval = (commands: unknown, hours?: number) => ({
+    ...entry,
+    subject: "Let me push",
+    shape: { type: "approval", commands, ...(hours !== undefined && { hours }) },
+  })
+  const ship = [{ argv: ["uberepo", "ship"], rest: true }]
+  const repo = (url: string) => ({
+    repo: { url, defaultBranch: "main", defaultFrom: "github" as const },
+    ticked: true,
+    flag: null,
+  })
+  const proposal = (fields: Record<string, unknown> = {}) => ({
+    presets: ["push", "pr"] as const,
+    commands: [
+      { argv: ["uberepo", "ship"], rest: true },
+      { argv: ["deploy", "staging"], rest: false },
+    ],
+    repos: [repo("github.com/acme/shop"), repo("github.com/acme/api")],
+    withLead: false,
+    hours: 8 as const,
+    reason: "The user said the team may push.",
+    covered: [],
+    ...fields,
+  })
+  const grantAnswer = (fields: Record<string, unknown> = {}) => ({
+    type: "grant" as const,
+    presets: ["push"],
+    commands: [0],
+    repos: ["github.com/acme/shop"],
+    withLead: false,
+    hours: 8,
+    ...fields,
+  })
+  const proposed = (inbox: Inbox, fields?: Record<string, unknown>) => {
+    const result = inbox.propose(identity.terminalId, proposal(fields) as never)
+    if (!result.ok) throw new Error(result.reason)
+    return result.id
+  }
+
+  it("refuses an approval for a command the matcher would refuse", () => {
+    const { inbox } = setup()
+    for (const commands of [
+      [{ argv: ["git", "push"], rest: true }],
+      [{ argv: ["python3", "x.py"], rest: false }],
+      [{ argv: ["bash", "-c", "x"] }],
+      [{ argv: ["./gh", "pr"] }],
+      [{ argv: ["make", "é"] }],
+      [{ argv: ["uberepo"], rest: true }],
+      [],
+    ])
+      expect(inbox.call(identity.terminalId, "ask", approval(commands)).ok).toBe(false)
+    expect(inbox.call(identity.terminalId, "ask", approval(ship, 5)).ok).toBe(false)
+    expect(inbox.list()).toEqual([])
+  })
+
+  it("makes a terminal grant for an hour on Approve, and replies under the person's mark", () => {
+    const { inbox, messaging, create } = setup(undefined, undefined, { now: () => 5_000 })
+    const id = create(approval(ship))
+    expect(inbox.list()).toMatchObject([
+      { content: { ask: { shape: { type: "approval", hours: null, commands: ship } } } },
+    ])
+    expect(messaging.grants.list()).toEqual([])
+    inbox.answer(id, { type: "approve" })
+    const [grant] = messaging.grants.list()
+    expect(grant).toMatchObject({
+      holder: { kind: "terminal", handle: "moth" },
+      commands: ship,
+      presets: [],
+      entryId: id,
+      endsAt: 5_000 + 3_600_000,
+    })
+    expect(messaging.grants.covering(identity.terminalId)).toHaveLength(1)
+    const sent = [...messaging["store"].messages()]
+    expect(sent.find((each) => each.response?.askId === id)).toMatchObject({
+      from: { kind: "person" },
+      state: "queued",
+    })
+    expect(sent.find((each) => each.grantId === grant!.id)).toMatchObject({
+      from: { kind: "novadeck" },
+    })
+  })
+
+  it("takes the hours the agent named, at most a day", () => {
+    const { inbox, messaging, create } = setup(undefined, undefined, { now: () => 0 })
+    inbox.answer(create(approval(ship, 24)), { type: "approve" })
+    expect(messaging.grants.list()[0]!.endsAt).toBe(24 * 3_600_000)
+  })
+
+  it("makes no grant from a reply, a plain ask, or an Approve on either", () => {
+    const { inbox, messaging, create } = setup()
+    const approvalId = create(approval(ship))
+    inbox.answer(approvalId, { type: "reply", option: null, text: "yes, go ahead" })
+    const plain = create()
+    expect(() => inbox.answer(plain, { type: "approve" })).toThrow(/approval/)
+    expect(() => inbox.answer(plain, grantAnswer() as never)).toThrow()
+    expect(messaging.grants.list()).toEqual([])
+  })
+
+  it("shows a proposal as a card owned by the proposer's session", () => {
+    const { inbox } = setup()
+    const id = proposed(inbox)
+    expect(inbox.list()).toMatchObject([{ id, content: { kind: "grant", proposal: { hours: 8 } } }])
+    expect(inboxEntry.safeParse(inbox.list()[0]).success).toBe(true)
+  })
+
+  it("makes a team grant from a Grant, keeping to what was ticked and offered", () => {
+    const { inbox, messaging } = setup(undefined, undefined, { now: () => 1_000 })
+    const id = proposed(inbox)
+    inbox.answer(id, grantAnswer({ presets: ["push"], commands: [1], hours: 1 }) as never)
+    const [grant] = messaging.grants.list()
+    expect(grant).toMatchObject({
+      holder: { kind: "team", lead: "moth", withLead: false },
+      presets: ["push"],
+      commands: [{ argv: ["deploy", "staging"], rest: false }],
+      repos: [{ url: "github.com/acme/shop", defaultBranch: "main" }],
+      endsAt: 1_000 + 3_600_000,
+    })
+    expect(grant!.repos).toHaveLength(1)
+    expect(inbox.list()).toEqual([])
+    const reply = [...messaging["store"].messages()].find((each) => each.response?.askId === id)
+    expect(reply?.text).toMatch(/^Granted/)
+  })
+
+  it("refuses an answer that reaches beyond the proposal, and leaves the card open", () => {
+    const { inbox, messaging } = setup()
+    const id = proposed(inbox, { presets: ["push"], withLead: false })
+    for (const answer of [
+      grantAnswer({ presets: ["pr"] }),
+      grantAnswer({ commands: [2] }),
+      grantAnswer({ commands: [0, 0, 5] }),
+      grantAnswer({ repos: ["github.com/acme/other"] }),
+      grantAnswer({ presets: [], commands: [] }),
+      grantAnswer({ presets: ["push"], repos: [] }),
+      { type: "approve" },
+      { type: "reply", option: null, text: "yes" },
+      { type: "done" },
+    ])
+      expect(() => inbox.answer(id, answer as never)).toThrow()
+    expect(messaging.grants.list()).toEqual([])
+    expect(inbox.list()).toHaveLength(1)
+    // What it offered works.
+    inbox.answer(id, grantAnswer({ commands: [], repos: ["github.com/acme/shop"] }) as never)
+    expect(messaging.grants.list()).toHaveLength(1)
+  })
+
+  it("covers the lead too only when the person ticked, whether or not the proposal asked", () => {
+    for (const asked of [true, false]) {
+      const { inbox, messaging } = setup()
+      const id = proposed(inbox, { withLead: asked })
+      inbox.answer(id, grantAnswer({ withLead: true }) as never)
+      expect(messaging.grants.list()[0]!.holder).toEqual({
+        kind: "team",
+        lead: "moth",
+        withLead: true,
+      })
+    }
+    // Unticked, the lead is out even where it asked to be in.
+    const { inbox, messaging } = setup()
+    const id = proposed(inbox, { withLead: true })
+    inbox.answer(id, grantAnswer({ withLead: false }) as never)
+    expect(messaging.grants.list()[0]!.holder).toMatchObject({ withLead: false })
+  })
+
+  it("lets a proposal be dismissed without a grant, as an ask is", () => {
+    const { inbox, messaging } = setup()
+    const id = proposed(inbox)
+    inbox.dismiss(id)
+    expect(inbox.list()).toMatchObject([{ id, settled: { how: "dismissed" } }])
+    expect(messaging.grants.list()).toEqual([])
+    expect(inbox.dismissed(identity.terminalId, identity.agent, identity.sessionId)).toMatch(
+      /grant proposal/,
+    )
+  })
+
+  it("holds one proposal at a time and three an hour", () => {
+    const clock = { at: 0 }
+    const { inbox } = setup(undefined, undefined, { now: () => clock.at })
+    const first = proposed(inbox)
+    expect(inbox.propose(identity.terminalId, proposal() as never)).toMatchObject({
+      ok: false,
+      reason: expect.stringMatching(/already have a grant proposal/),
+    })
+    inbox.dismiss(first)
+    proposed(inbox)
+    inbox.dismiss(inbox.list().find((each) => each.content.kind === "grant" && !each.settled)!.id)
+    proposed(inbox)
+    inbox.dismiss(inbox.list().find((each) => each.content.kind === "grant" && !each.settled)!.id)
+    expect(inbox.propose(identity.terminalId, proposal() as never)).toMatchObject({
+      ok: false,
+      reason: expect.stringMatching(/3 grants an hour/),
+    })
+    clock.at += 60 * 60_000
+    expect(inbox.propose(identity.terminalId, proposal() as never).ok).toBe(true)
   })
 })

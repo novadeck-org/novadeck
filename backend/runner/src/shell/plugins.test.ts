@@ -188,11 +188,17 @@ describe("agent plugins", () => {
       "SubagentStart",
       "SubagentStop",
       "PermissionRequest",
+      "PreToolUse",
+      "PermissionDenied",
       "Elicitation",
       "ElicitationResult",
       "PostToolUse",
       "PostToolUseFailure",
     ])
+    // Only Bash is asked about, and a refusal of auto mode is told for every tool.
+    const claudeHooks = read(claude, "novadeck", "hooks", "hooks.json").hooks
+    expect(claudeHooks.PreToolUse[0]).toMatchObject({ matcher: "Bash" })
+    expect(claudeHooks.PermissionDenied[0].matcher).toBeUndefined()
     expect(read(codex, "novadeck", ".codex-plugin", "plugin.json")).toMatchObject({
       name: "novadeck",
       hooks: "./hooks/hooks.json",

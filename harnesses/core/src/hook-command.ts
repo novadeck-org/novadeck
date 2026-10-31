@@ -31,6 +31,14 @@ type HookCall = {
    * Without one it prints nothing there, and exits 0 whatever the launcher did.
    */
   readonly fallback?: string | undefined
+  /**
+   * For a hook whose answer must never be missing or foreign in a narrowed terminal (one with
+   * NOVADECK_NARROW set; `sh` only, since a narrowed terminal is never on Windows): the
+   * command captures the launcher's output and prints it only when the launcher exited 0 and
+   * printed exactly one of `passes` (its line end allowed); anything else, and a launcher
+   * that is missing, prints `answer`. Outside a narrowed terminal it runs as without this.
+   */
+  readonly narrowed?: { readonly answer: string; readonly passes: readonly string[] } | undefined
 }
 
 const shQuote = (value: string): string => `'${value.replaceAll("'", `'\\''`)}'`
@@ -54,11 +62,17 @@ const cmdSafe = /^[^"&|<>^%()\r\n]*$/
  *   nothing. Antigravity's PreToolUse needs that, as an answer that isn't JSON, or a
  *   non-zero exit, let the tool run unasked, where none left it to the person's policy.
  */
-export const hookCommand = (dialect: Dialect, { agent, event, fallback }: HookCall): string => {
+export const hookCommand = (
+  dialect: Dialect,
+  { agent, event, fallback, narrowed }: HookCall,
+): string => {
   if (!/^[A-Za-z]+$/.test(event)) throw new Error(`A hook event is a word: ${event}`)
   const run = `${agent} ${event}`
+  if (narrowed !== undefined && dialect !== "sh")
+    throw new Error("A narrowed hook is sh's: a narrowed terminal is never on Windows")
   switch (dialect) {
     case "sh":
+      if (narrowed !== undefined) return narrowedSh(run, fallback, narrowed)
       return fallback === undefined
         ? `[ -n "$NOVADECK_HOOK" ] && "$NOVADECK_HOOK" ${run} || true`
         : `if [ -x "$NOVADECK_HOOK" ]; then "$NOVADECK_HOOK" ${run}; else echo ${shQuote(fallback)}; fi`
@@ -74,6 +88,25 @@ export const hookCommand = (dialect: Dialect, { agent, event, fallback }: HookCa
       return `if defined NOVADECK_HOOK (if exist %NOVADECK_HOOK% (%NOVADECK_HOOK% ${run}) else (echo ${fallback})) else (echo ${fallback})`
     }
   }
+}
+
+// The sh command of a hook with a narrowed answer. `$(...)` strips the launcher's line end, so
+// the comparison allows it; the launcher's exit is read from the same assignment.
+const narrowedSh = (
+  run: string,
+  fallback: string | undefined,
+  { answer, passes }: NonNullable<HookCall["narrowed"]>,
+): string => {
+  const cases = passes.map(shQuote).join(" | ")
+  const outside =
+    fallback === undefined
+      ? `[ -n "$NOVADECK_HOOK" ] && "$NOVADECK_HOOK" ${run} || true`
+      : `if [ -x "$NOVADECK_HOOK" ]; then "$NOVADECK_HOOK" ${run}; else echo ${shQuote(fallback)}; fi`
+  const narrow =
+    `novadeck_out=$([ -x "$NOVADECK_HOOK" ] && "$NOVADECK_HOOK" ${run}) && ` +
+    `case "$novadeck_out" in ${cases}) printf '%s\\n' "$novadeck_out"; exit 0;; esac; ` +
+    `echo ${shQuote(answer)}`
+  return `if [ -n "$NOVADECK_NARROW" ]; then ${narrow}; else ${outside}; fi`
 }
 
 /**

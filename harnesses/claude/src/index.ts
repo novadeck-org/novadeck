@@ -16,6 +16,18 @@ import { transcripts } from "./transcripts.js"
 const context = (event: string, delivery: string): string =>
   `${JSON.stringify({ hookSpecificOutput: { hookEventName: event, additionalContext: delivery } })}\n`
 
+// What its PreToolUse prints to settle a Bash call: `allow` runs it with no dialog and no
+// classifier call (probed 2.1.316), `ask` opens its own dialog, whatever else would decide.
+const preToolUse = (permissionDecision: "allow" | "ask"): string =>
+  `${JSON.stringify({
+    hookSpecificOutput: {
+      hookEventName: "PreToolUse",
+      permissionDecision,
+      permissionDecisionReason:
+        permissionDecision === "allow" ? "Allowed by your grant in Novadeck" : "Asked in Novadeck",
+    },
+  })}\n`
+
 // A Stop's reason continues the turn, and reaches the model as the Stop hook's feedback;
 // a prompt's context is an attachment beside the prompt, never the prompt itself; a tool
 // call's context (PostToolUse, or PostToolUseFailure) is a system reminder next to the
@@ -27,6 +39,15 @@ const messaging: MessagingProfile = {
     PostToolUse: "tool",
     PostToolUseFailure: "tool",
   },
+  // The grants' check, answered at once, and the call auto mode refused, which arms its command.
+  permission: {
+    event: "PreToolUse",
+    reported: false,
+    planMode: "plan",
+    allow: preToolUse("allow"),
+    ask: preToolUse("ask"),
+  },
+  denied: "PermissionDenied",
   silent: { "*": "" },
   stop: (delivery) => `${JSON.stringify({ decision: "block", reason: delivery })}\n`,
   prompt: (delivery) => context("UserPromptSubmit", delivery),

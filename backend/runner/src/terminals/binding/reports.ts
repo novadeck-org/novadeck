@@ -14,6 +14,7 @@ import { transcriptWaitMs, typedPromptStart } from "../../harnesses/typed-prompt
 import { leaseMargin, type Answer } from "../../messaging/hook-answers.js"
 import type { Inbox } from "../../messaging/inbox.js"
 import { byteLength, maxDeliveryBytes } from "../../messaging/messages.js"
+import { wrapGrants } from "../../messaging/messages.js"
 import type { Messaging } from "../../messaging/messaging.js"
 import type { Person } from "../../messaging/withdrawals.js"
 import type { HookAnswer } from "../../shell/reports.js"
@@ -106,7 +107,11 @@ export class Reports {
   queueAsk(report: Report, deadline: number): Promise<HookAnswer> {
     const silent = {
       leaseId: null,
-      stdout: silentFor(harnesses[report.agent].messaging, report.event),
+      stdout: silentFor(
+        harnesses[report.agent].messaging,
+        report.event,
+        report.env.narrow === true,
+      ),
     }
     return this.queue(report.terminalId, () => this.report(report, deadline), silent)
   }
@@ -120,7 +125,11 @@ export class Reports {
   async report(report: Report, deadline?: number): Promise<HookAnswer> {
     const silent = {
       leaseId: null,
-      stdout: silentFor(harnesses[report.agent].messaging, report.event),
+      stdout: silentFor(
+        harnesses[report.agent].messaging,
+        report.event,
+        report.env.narrow === true,
+      ),
     }
     const record = this.host.records().get(report.terminalId)
     if (!record || record.terminal.exiting || !sameToken(record.token, report.token)) return silent
@@ -414,7 +423,12 @@ export class Reports {
         ? await this.host.peers().facts(peerOf(record))
         : undefined
     const current = { summary: record.naming.summary }
-    const notices = (took: Parameters<typeof noticesAt>[0]) => noticesAt(took, current)
+    const notices = (took: Parameters<typeof noticesAt>[0]) =>
+      noticesAt(
+        took,
+        current,
+        wrapGrants(this.host.messaging().grants.covering(report.terminalId), report.agent),
+      )
     const taken = atTurnStart(record.nudges, {
       person,
       // A nudge that may miss the hook's deadline is never spent: its trigger waits.

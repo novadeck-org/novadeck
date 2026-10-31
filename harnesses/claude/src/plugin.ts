@@ -19,6 +19,11 @@ const events = [
   "SubagentStart",
   "SubagentStop",
   "PermissionRequest",
+  // The permission check Novadeck answers from the person's grants (PreToolUse, for Bash
+  // alone) and tells of a call auto mode refused (PermissionDenied); see the runner's
+  // `shell/permissions.ts`.
+  "PreToolUse",
+  "PermissionDenied",
   "Elicitation",
   "ElicitationResult",
   "PostToolUse",
@@ -86,6 +91,7 @@ export const files: Harness["files"] = (platform, launchers) => [
           event,
           [
             {
+              ...(event === "PreToolUse" && { matcher: "Bash" }),
               hooks: [
                 {
                   type: "command",

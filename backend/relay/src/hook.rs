@@ -9,8 +9,13 @@
 //! as the runner's configuration names it: Antigravity's JSON, where a PreToolUse answer
 //! must say "ask" or Antigravity denies the tool.
 //!
+//! A terminal whose environment has NOVADECK_NARROW set (an Antigravity started under the
+//! person's grants) must never get an answer that lets a granted program run unasked: there
+//! the PreToolUse fallback is `force_ask`, whatever the configuration says.
+//!
 //! What it knows of the agents comes from that configuration, `relay.json` beside it,
-//! which the runner writes: which events wait the long limit (`asks`), which variables
+//! which the runner writes: which events wait the long limit (`asks`, and `answered`, the
+//! permission hooks the runner decides at once), which variables
 //! tell agents apart, and what each agent needs printed without Novadeck. Nothing here
 //! names an agent but Claude Code, whose status line only the relay can run, and
 //! Antigravity, whose PreToolUse must say "ask" even without that configuration.
@@ -32,6 +37,7 @@ use crate::{ancestors, epoch_ms, status_line, variable};
 #[derive(Default, Debug, PartialEq)]
 pub struct Config {
     asks: Value,
+    answered: Value,
     env: Vec<String>,
     fallbacks: Value,
 }
@@ -48,6 +54,7 @@ impl Config {
         let names = value.get("env").and_then(Value::as_array);
         Config {
             asks: value.get("asks").cloned().unwrap_or(Value::Null),
+            answered: value.get("answered").cloned().unwrap_or(Value::Null),
             env: names
                 .into_iter()
                 .flatten()
@@ -67,11 +74,24 @@ impl Config {
             .is_some_and(|events| events.iter().any(|one| one.as_str() == Some(event)))
     }
 
+    /// Whether `agent`'s `event` is a permission hook the runner answers at once from the
+    /// person's grants (`answered`): it gets the long limit, like an ask, but leases nothing.
+    fn answered(&self, agent: &str, event: &str) -> bool {
+        self.answered
+            .get(agent)
+            .and_then(Value::as_array)
+            .is_some_and(|events| events.iter().any(|one| one.as_str() == Some(event)))
+    }
+
     /// What `agent`'s `event` prints when the runner gave nothing to print: the event's
     /// own, else the agent's for any event (`*`), else nothing, except that Antigravity's
     /// PreToolUse always prints "ask" (it denies a tool otherwise), even where the
-    /// configuration is unreadable or lacks it.
-    fn fallback(&self, agent: &str, event: &str) -> String {
+    /// configuration is unreadable or lacks it, and `force_ask` in a `narrowed` terminal,
+    /// where "ask" would let a granted program run unasked.
+    fn fallback(&self, agent: &str, event: &str, narrowed: bool) -> String {
+        if narrowed && agent == "agy" && event == "PreToolUse" {
+            return format!("{FORCE_ASK}\n");
+        }
         let named = self.fallbacks.get(agent);
         let text = named
             .and_then(|each| each.get(event).or_else(|| each.get("*")))
@@ -97,17 +117,28 @@ impl Config {
 
     /// How long a hook may take, from its start: Claude Code's status line the longest,
     /// as it runs the person's own; a hook in `asks` (a Stop or prompt-time one), long enough
-    /// for the runner to lease and answer by its deadline; any other, a tool-call hook
-    /// among them, the short limit of a report, as the runner answers it at once, with
-    /// messages to print or none. The relay tells the runner its deadline for every hook,
+    /// for the runner to lease and answer by its deadline, and one in `answered` (a
+    /// permission hook, decided at once from the grants, which may read git) the same; any
+    /// other, a tool-call hook among them, the short limit of a report, as the runner
+    /// answers it at once, with messages to print or none. The relay tells the runner its deadline for every hook,
     /// so the runner never leases past it.
     fn limit(&self, agent: &str, event: &str) -> Duration {
         Duration::from_millis(match (agent, event) {
             _ if claude_status_line(agent, event) => 5_000,
-            _ if self.asks(agent, event) => 4_000,
+            _ if self.asks(agent, event) || self.answered(agent, event) => 4_000,
             _ => 2_000,
         })
     }
+}
+
+/// Antigravity's answer that puts its dialog back over every other handler's, and the only
+/// one a narrowed terminal's relay prints without the runner's word.
+const FORCE_ASK: &str = "{\"decision\":\"force_ask\"}";
+
+/// Whether the hook runs in a narrowed terminal: the runner started its agent under the
+/// person's grants (the shim sets NOVADECK_NARROW).
+fn narrowed() -> bool {
+    variable("NOVADECK_NARROW").is_some()
 }
 
 /// Whether `agent`'s `event` is Claude Code's status line, which runs the person's own.
@@ -159,7 +190,8 @@ pub fn run(agent: &str, event: &str, config: &Config) {
     let started = epoch_ms().unwrap_or(0.0);
     let limit = config.limit(agent, event);
     let deadline = Instant::now() + limit;
-    let fallback = || config.fallback(agent, event);
+    let narrowed = narrowed();
+    let fallback = || config.fallback(agent, event, narrowed);
     // The agent's payload, read whole even where it goes unused, so the agent never
     // writes into a closed pipe; within the hook's limit, as an agent may leave it open.
     let payload = read_payload(deadline);
@@ -275,6 +307,7 @@ mod tests {
     fn config() -> Config {
         Config::of(&json!({
             "asks": { "claude": ["Stop", "UserPromptSubmit"], "agy": ["Stop", "PreInvocation"] },
+            "answered": { "claude": ["PreToolUse"], "codex": ["PermissionRequest"], "agy": ["PreToolUse"] },
             "env": ["CLAUDE_PID", "CODEX_THREAD_ID"],
             "fallbacks": { "agy": { "PreToolUse": "{\"decision\":\"ask\"}", "*": "{}" } },
         }))
@@ -300,27 +333,27 @@ mod tests {
     fn prints_what_each_agent_needs_without_novadeck_as_configured() {
         let config = config();
         assert_eq!(
-            config.fallback("agy", "PreToolUse"),
+            config.fallback("agy", "PreToolUse", false),
             "{\"decision\":\"ask\"}\n"
         );
-        assert_eq!(config.fallback("agy", "Stop"), "{}\n");
-        assert_eq!(config.fallback("claude", "Stop"), "");
-        assert_eq!(config.fallback("codex", "PreToolUse"), "");
+        assert_eq!(config.fallback("agy", "Stop", false), "{}\n");
+        assert_eq!(config.fallback("claude", "Stop", false), "");
+        assert_eq!(config.fallback("codex", "PreToolUse", false), "");
         // Without its configuration, it prints nothing, but for what keeps Antigravity
         // from denying every tool.
         assert_eq!(
-            Config::default().fallback("agy", "PreToolUse"),
+            Config::default().fallback("agy", "PreToolUse", false),
             "{\"decision\":\"ask\"}\n"
         );
-        assert_eq!(Config::default().fallback("agy", "Stop"), "");
+        assert_eq!(Config::default().fallback("agy", "Stop", false), "");
         // Nor does a configuration without Antigravity's entry.
         let without = Config::of(&json!({ "fallbacks": { "claude": { "*": "" } } }));
         assert_eq!(
-            without.fallback("agy", "PreToolUse"),
+            without.fallback("agy", "PreToolUse", false),
             "{\"decision\":\"ask\"}\n"
         );
-        assert_eq!(without.fallback("agy", "Stop"), "");
-        assert_eq!(Config::default().fallback("codex", "PreToolUse"), "");
+        assert_eq!(without.fallback("agy", "Stop", false), "");
+        assert_eq!(Config::default().fallback("codex", "PreToolUse", false), "");
     }
 
     #[test]
@@ -334,6 +367,46 @@ mod tests {
         assert_eq!(ms("codex", "Stop"), 2_000);
         assert_eq!(ms("claude", "PostToolUse"), 2_000);
         assert_eq!(Config::default().limit("claude", "Stop").as_millis(), 2_000);
+    }
+
+    #[test]
+    fn gives_a_permission_hook_the_asks_limit_without_listing_it_as_an_ask() {
+        let config = config();
+        let ms = |agent, event| config.limit(agent, event).as_millis();
+        assert_eq!(ms("claude", "PreToolUse"), 4_000);
+        assert_eq!(ms("codex", "PermissionRequest"), 4_000);
+        assert_eq!(ms("agy", "PreToolUse"), 4_000);
+        // Another agent's event of the same name, and a tool-call hook, keep the short limit.
+        assert_eq!(ms("codex", "PreToolUse"), 2_000);
+        assert_eq!(ms("claude", "PostToolUse"), 2_000);
+        assert!(!config.asks("claude", "PreToolUse"));
+        assert!(config.answered("claude", "PreToolUse"));
+        // Without the configuration none is answered: the short limit, as before.
+        assert_eq!(
+            Config::default().limit("claude", "PreToolUse").as_millis(),
+            2_000
+        );
+    }
+
+    #[test]
+    fn closes_antigravitys_pre_tool_use_in_a_narrowed_terminal_on_every_fallback() {
+        let force_ask = "{\"decision\":\"force_ask\"}\n";
+        // Whatever the configuration says, and without one.
+        assert_eq!(config().fallback("agy", "PreToolUse", true), force_ask);
+        assert_eq!(
+            Config::default().fallback("agy", "PreToolUse", true),
+            force_ask
+        );
+        let plain = Config::of(&json!({ "fallbacks": { "agy": { "PreToolUse": "{}" } } }));
+        assert_eq!(plain.fallback("agy", "PreToolUse", true), force_ask);
+        // Only that event of that agent is narrowed.
+        assert_eq!(config().fallback("agy", "Stop", true), "{}\n");
+        assert_eq!(config().fallback("claude", "PreToolUse", true), "");
+        // Not narrowed, today's answer.
+        assert_eq!(
+            config().fallback("agy", "PreToolUse", false),
+            "{\"decision\":\"ask\"}\n"
+        );
     }
 
     #[test]

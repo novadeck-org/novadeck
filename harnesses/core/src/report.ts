@@ -22,6 +22,11 @@ export type Report = {
   /** The agent process that ran the hook, as a pid; null where the platform hides it. */
   readonly instance: string | null
   /** What of the hook's environment tells nested agents apart. */
-  readonly env: { readonly cursor: boolean; readonly codexThread?: string }
+  readonly env: {
+    readonly cursor: boolean
+    readonly codexThread?: string
+    /** The terminal is narrowed (NOVADECK_NARROW): its launch grants need every answer closed. */
+    readonly narrow?: true
+  }
   readonly payload: { readonly [key: string]: unknown }
 }

@@ -7,6 +7,7 @@ import type { Binding } from "../harnesses/bindings.js"
 import type { RootChange } from "../harnesses/roots.js"
 import { Deliveries } from "./deliveries.js"
 import type { Delivery, Waits } from "./delivery.js"
+import { grantsOf, type GrantOptions, type Grants } from "./grants.js"
 import { Holds } from "./holds.js"
 import { HookAnswers, type Answer } from "./hook-answers.js"
 import { Leading } from "./leading.js"
@@ -20,6 +21,7 @@ import { memoryMessages, type MessageRecords } from "./records.js"
 import { Relays, type InboxOwner } from "./relays.js"
 import { Sending, type AgentsAnswer, type PeerAnswer, type SendAnswer } from "./sending.js"
 import { Sessions } from "./sessions.js"
+import { startTimers } from "./timers.js"
 import { LongWaits } from "./waits.js"
 import { Withdrawals, type Person } from "./withdrawals.js"
 
@@ -54,7 +56,7 @@ export type MessagingOptions = {
   readonly platform?: NodeJS.Platform
   /** What each terminal's agent did, for the loop hold; a new tracker when omitted. */
   readonly loops?: Loops
-}
+} & GrantOptions
 
 /**
  * Messages between the agents in Novadeck's terminals (see docs/agent-messaging.md). The
@@ -87,10 +89,9 @@ export class Messaging {
   private readonly leading: Leading
   private readonly sending: Sending
   private readonly relays: Relays
+  readonly grants: Grants
   private readonly waits: LongWaits
-  private readonly sweeper: ReturnType<typeof setInterval> | undefined
-  private readonly restoring: ReturnType<typeof setTimeout> | undefined
-  private readonly waitWatch: ReturnType<typeof setInterval> | undefined
+  private readonly stopTimers: () => void
 
   constructor(options: MessagingOptions = {}) {
     const now = options.now ?? Date.now
@@ -114,7 +115,16 @@ export class Messaging {
       letBriefGo: (terminalId) => this.leading.letBriefGo(terminalId),
     })
     this.sessions = sessions
-    this.leasing = new Leasing(options.leaseMs ?? 5_000, { sessions, store, loops, now, step })
+    this.relays = new Relays({ sessions, store, now })
+    this.grants = grantsOf({ sessions, now, relays: this.relays }, options)
+    this.leasing = new Leasing(options.leaseMs ?? 5_000, {
+      sessions,
+      store,
+      loops,
+      now,
+      step,
+      grants: this.grants,
+    })
     this.deliveries = new Deliveries({
       sessions,
       store,
@@ -138,7 +148,6 @@ export class Messaging {
       holds: this.holds,
       leading: this.leading,
     })
-    this.relays = new Relays({ sessions, store, now })
     this.hookAnswers = new HookAnswers({
       sessions,
       store,
@@ -150,19 +159,11 @@ export class Messaging {
       heldFrom: (terminalId) => this.heldFrom(terminalId),
     })
     this.waits = new LongWaits({ sessions, store, now })
-    this.sweep()
-    if (options.sweepMs !== 0) {
-      this.sweeper = setInterval(() => this.sweep(), options.sweepMs ?? 60 * 60_000)
-      this.sweeper.unref()
-    }
-    if (options.restoreMs !== 0) {
-      this.restoring = setTimeout(() => sessions.restored(), options.restoreMs ?? 120_000)
-      this.restoring.unref()
-    }
-    if (options.waitsMs !== 0) {
-      this.waitWatch = setInterval(() => this.tellWaits(), options.waitsMs ?? 60_000)
-      this.waitWatch.unref()
-    }
+    this.stopTimers = startTimers(options, {
+      sweep: () => this.sweep(),
+      restored: () => sessions.restored(),
+      waits: () => this.tellWaits(),
+    })
   }
 
   /**
@@ -171,9 +172,8 @@ export class Messaging {
    */
   close(): void {
     this.store.close()
-    clearInterval(this.sweeper)
-    clearInterval(this.waitWatch)
-    clearTimeout(this.restoring)
+    this.grants.close()
+    this.stopTimers()
     this.leasing.clear()
   }
 
@@ -224,7 +224,7 @@ export class Messaging {
   }
 
   unregister(terminalId: string, forGood = false): void {
-    this.sessions.unregister(terminalId, forGood)
+    this.grants.unregister(terminalId, forGood)
   }
 
   rooted(terminalId: string, changes: readonly RootChange[]): void {

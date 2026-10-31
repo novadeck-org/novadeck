@@ -50,6 +50,9 @@ export const installShellFiles = async (
     },
   )
   await Promise.all(staleShellFiles(directory).map((stale) => rm(stale, { force: true })))
+  // A terminal's launch settings belong to the runner that wrote them and the agent it
+  // started: none outlives it, or a restored terminal of the same id would start narrowed.
+  await rm(paths.narrow, { recursive: true, force: true })
   // An agent that runs its hooks in cmd reads nothing they answer after cmd's own output.
   const prints = process.platform === "win32" ? await cmdPrints() : undefined
   if (prints === "prints")

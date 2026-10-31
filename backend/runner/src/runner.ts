@@ -228,17 +228,25 @@ export const wire = (options: RunnerOptions) => {
     // Where each harness lives, which says how it may start with a task.
     install: (agent) => agents.install(agent),
     models: (agent) => agents.models(agent),
+    // Launch grants only on Antigravity's verified plugin, behind the harnesses' queue.
+    narrowVerified: () => agents.verified("agy"),
     transcripts: store.settings.runner().transcripts,
     projectFolder: (sessionId) => store.project(store.session(sessionId).projectId).cwd,
     // Agents message each other within a project, and their messages are kept with it.
     messages: store,
     inbox: store,
+    grants: store,
     projectOf: (sessionId) => store.session(sessionId).projectId,
     items,
     // Without an engine nothing is described, so terminals have nothing to wait for.
     ...(options.murmur?.engine !== undefined && { describer: murmur }),
     ...(scopes && { pty: { scopes } }),
     ...options.terminals,
+  })
+  // A plugin change waits for the terminals running its agent (launch grants rest on its hook).
+  agents.track({
+    running: (agent) => terminals.approving.running(agent),
+    narrowed: () => terminals.approving.narrowed(),
   })
   const projects = new Projects(store, terminals, items)
   const uploads = new Uploads(options.uploads)

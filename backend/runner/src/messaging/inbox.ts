@@ -1,13 +1,17 @@
 import { randomUUID } from "node:crypto"
 
+import { refusesCommand } from "@novadeck/harness-core/grants"
 import {
   agentAsk,
   askAnswer,
+  grantCommand,
+  grantHours,
   hiddenIn,
   inboxEntry,
   inboxTextLimits,
   maxAskOptions,
   maxCommandLines,
+  maxGrantCommands,
   maxTurnError,
   maxTurnFilePath,
   maxTurnFiles,
@@ -15,6 +19,8 @@ import {
   type AgentAsk,
   type AgentName,
   type AskAnswer,
+  type Grant,
+  type GrantProposal,
   type InboxEntry,
   type TerminalMessages,
 } from "@novadeck/protocol"
@@ -25,6 +31,7 @@ import { DomainError } from "../errors.js"
 import type { RootChange } from "../harnesses/roots.js"
 import { logs } from "../log.js"
 import { cut, firstFew, shorten } from "../text.js"
+import type { MakeGrant } from "./grants.js"
 import {
   allowSend,
   byteLength,
@@ -96,6 +103,12 @@ type Host = {
   exists(terminalId: string): boolean
   replyState(askId: string): Message | undefined
   forgetReplies(ids: readonly string[]): void
+  /**
+   * Makes the grant the person's click on a card said (`Grants.make`), and ends one whose
+   * answer then could not be saved. Absent where the runner keeps no grants.
+   */
+  makeGrant?(input: MakeGrant): Grant
+  endGrant?(id: string): void
 }
 
 const subject = z
@@ -148,6 +161,16 @@ const option = z.strictObject({
   details: markdown.nullable().optional(),
   code: z.strictObject({ path: subject, text: markdown }).nullable().optional(),
 })
+// A command an agent asks the person to let this terminal run without asking again: the
+// matcher's own refusals apply here too, so the card never offers what could not match.
+const approvalCommand = z
+  .strictObject({ argv: grantCommand.shape.argv, rest: z.boolean().optional() })
+  .transform(({ argv, rest }) => ({ argv, rest: rest ?? false }))
+  .superRefine((each, context) => {
+    const refusal = refusesCommand(each)
+    if (refusal !== undefined)
+      context.addIssue({ code: "custom", message: `${each.argv.join(" ")}: ${refusal}` })
+  })
 const requestedShape = z.discriminatedUnion("type", [
   z.strictObject({ type: z.literal("text") }),
   z.strictObject({
@@ -181,6 +204,11 @@ const requestedShape = z.discriminatedUnion("type", [
       .optional(),
     done_label: subject,
   }),
+  z.strictObject({
+    type: z.literal("approval"),
+    commands: z.array(approvalCommand).min(1).max(maxGrantCommands),
+    hours: grantHours.nullable().optional(),
+  }),
 ])
 const askRequest = z.strictObject({
   subject,
@@ -203,6 +231,9 @@ const same = (entry: InboxEntry, owner: Owner | undefined): boolean =>
   entry.agent === owner.agent &&
   entry.sessionId === owner.sessionId
 
+const commandLine = (each: { readonly argv: readonly string[]; readonly rest: boolean }): string =>
+  each.argv.join(" ") + (each.rest ? " (followed by anything)" : "")
+
 // A plain-text record of everything the person saw, retained after the sheet clears.
 const askText = (ask: AgentAsk): string => {
   const { shape } = ask
@@ -222,7 +253,9 @@ const askText = (ask: AgentAsk): string => {
           .join("\n\n")
       : shape.type === "action"
         ? [shape.command, shape.directory, shape.doneLabel].filter(Boolean).join("\n")
-        : null
+        : shape.type === "approval"
+          ? shape.commands.map(commandLine).join("\n")
+          : null
   return [
     ask.subject,
     ask.body,
@@ -232,6 +265,21 @@ const askText = (ask: AgentAsk): string => {
   ]
     .filter(Boolean)
     .join("\n\n")
+}
+
+// A plain-text record of a Grant card, as the person saw it.
+const grantText = (proposal: GrantProposal): string =>
+  [
+    `${grantSubject}: ${proposal.presets.join(", ")}`,
+    ...proposal.commands.map(commandLine),
+    ...proposal.repos.map((each) => each.repo.url),
+    proposal.reason,
+  ]
+    .filter(Boolean)
+    .join("\n")
+
+const fail = (message: string): never => {
+  throw new DomainError("ANSWER_FAILED", message)
 }
 
 const maxOpenAsks = 50
@@ -248,6 +296,9 @@ export const askSweepMs = 60_000
 const askResumeGraceMs = 120_000
 
 const isTurn = (entry: StoredEntry): boolean => entry.content.kind === "turn"
+/** Whether the entry waits on the person's answer in its agent's session: an ask or a Grant card. */
+const answerable = (entry: StoredEntry): boolean =>
+  entry.content.kind === "ask" || entry.content.kind === "grant"
 const clipped = (value: unknown, max: number): string | null =>
   typeof value === "string" && value.length > 0 ? cut(value, max) : null
 
@@ -274,6 +325,14 @@ const clampedTurn = (content: unknown): TurnContent | undefined => {
   })
   return parsed.success && parsed.data.kind === "turn" ? parsed.data : undefined
 }
+
+/** What a Grant card's agent hears it was called, when the person dismisses or answers it. */
+const grantSubject = "Your grant proposal"
+
+/** The grants a terminal may propose in an hour. */
+export const maxProposals = 3
+const recentProposals = (times: readonly number[] | undefined, now: number): readonly number[] =>
+  (times ?? []).filter((time) => now - time < 60 * 60_000)
 
 const noticedSubjects = 5
 
@@ -332,6 +391,8 @@ export class Inbox {
   private readonly open = new Map<string, StoredEntry>()
   private readonly texts = new Map<string, string>()
   private readonly sent = new Map<string, readonly number[]>()
+  /** When each terminal proposed grants lately, for `maxProposals` an hour. */
+  private readonly proposals = new Map<string, readonly number[]>()
   /** Terminals whose root is a guess, with when the guessing began. */
   private readonly guesses = new Map<string, number>()
   private readonly sweeper: ReturnType<typeof setInterval> | undefined
@@ -444,14 +505,20 @@ export class Inbox {
                           code: each.code ?? null,
                         })),
                       }
-                    : choice.type === "action"
+                    : choice.type === "approval"
                       ? {
-                          type: "action" as const,
-                          command: choice.command,
-                          directory: choice.directory ?? null,
-                          doneLabel: choice.done_label,
+                          type: "approval" as const,
+                          commands: choice.commands,
+                          hours: choice.hours ?? null,
                         }
-                      : choice
+                      : choice.type === "action"
+                        ? {
+                            type: "action" as const,
+                            command: choice.command,
+                            directory: choice.directory ?? null,
+                            doneLabel: choice.done_label,
+                          }
+                        : choice
                 return {
                   kind: "ask" as const,
                   ask: agentAsk.parse({
@@ -471,7 +538,7 @@ export class Inbox {
       // A tentative root can still be corrected back to an earlier session.
       if (!this.guesses.has(terminalId))
         for (const entry of existing?.values() ?? [])
-          if (entry.content.kind === "ask" && entry.state === "open" && !same(entry, owner))
+          if (answerable(entry) && entry.state === "open" && !same(entry, owner))
             this.put({ ...entry, state: "gone" })
       const open = [...(existing?.values() ?? [])].filter(
         (each) =>
@@ -509,7 +576,7 @@ export class Inbox {
       .filter(
         (each) =>
           each.state === "open" &&
-          (each.content.kind === "ask"
+          (answerable(each)
             ? same(each, this.host.owner(each.terminalId))
             : exists(each.terminalId)),
       )
@@ -520,7 +587,7 @@ export class Inbox {
           each.state === "withdrawn" &&
           each.cause !== undefined &&
           !each.cleared &&
-          each.content.kind === "ask" &&
+          answerable(each) &&
           exists(each.terminalId),
       )
       .map(({ state: _state, cause, settledAt, lapsed: _lapsed, cleared: _cleared, ...entry }) => ({
@@ -539,17 +606,14 @@ export class Inbox {
     if (this.closed) throw new DomainError("CLOSING")
     const entry = this.entries.get(id)
     const owner = entry ? this.host.owner(entry.terminalId) : undefined
-    if (
-      !entry ||
-      entry.state !== "open" ||
-      entry.content.kind !== "ask" ||
-      !owner ||
-      !same(entry, owner)
-    )
+    if (!entry || entry.state !== "open" || !answerable(entry) || !owner || !same(entry, owner))
       throw new DomainError("NOT_FOUND", "This ask is not open.")
     this.put({ ...entry, state: "withdrawn", cause: "dismissed" })
     const queued = this.dismissals.get(entry.terminalId)
-    const note = { subject: entry.content.ask.subject, action: entry.content.ask.shape.type }
+    const note =
+      entry.content.kind === "ask"
+        ? { subject: entry.content.ask.subject, action: entry.content.ask.shape.type }
+        : { subject: grantSubject, action: "grant" }
     if (queued && queued.agent === owner.agent && queued.sessionId === owner.sessionId)
       queued.asks.push(note)
     else
@@ -574,7 +638,7 @@ export class Inbox {
           entry?.state === "withdrawn" &&
           entry.cause !== undefined &&
           !entry.cleared &&
-          entry.content.kind === "ask",
+          answerable(entry),
       )
     if (settled.length === 0) return
     // One save and one listing for the lot, as a read of many.
@@ -608,16 +672,48 @@ export class Inbox {
     if (
       !entry ||
       entry.state !== "open" ||
-      entry.content.kind !== "ask" ||
+      !answerable(entry) ||
       !same(entry, this.host.owner(entry.terminalId))
     )
       throw new DomainError("CONFLICT", "This ask is no longer waiting in that agent session.")
     const parsed = askAnswer.safeParse(input)
     if (!parsed.success) throw new DomainError("ANSWER_FAILED", "That answer doesn't fit this ask.")
     const answer = parsed.data
+    const answered: StoredEntry = { ...entry, state: "answered", settledAt: this.now() }
+    const made = this.grantOf(entry, answer)
+    const asked = entry.content.kind === "ask" ? entry.content.ask.subject : grantSubject
+    if (made) {
+      let grant: Grant | undefined
+      this.host.reply(
+        entry.terminalId,
+        entry.id,
+        asked,
+        made.text,
+        (message) => {
+          // The grant counts before the reply is saved; one whose reply then fails is ended.
+          grant = this.host.makeGrant!(made.grant)
+          try {
+            // Atomic with the person's reply: a failure refuses the answer, retryable.
+            this.records.answerEntry(answered, message)
+          } catch (error) {
+            this.host.endGrant?.(grant.id)
+            throw error
+          }
+          this.keep(answered)
+        },
+        {},
+      )
+      this.changed(entry.terminalId)
+      this.maintain(entry.terminalId)
+      return
+    }
+    if (entry.content.kind !== "ask")
+      throw new DomainError("ANSWER_FAILED", "That answer doesn't fit this ask.")
     const { ask } = entry.content
     let text: string
     let choice: { readonly option?: string; readonly action?: string } = {}
+    if (answer.type === "approve" || answer.type === "grant")
+      throw new DomainError("ANSWER_FAILED", "That answer doesn't fit this ask.")
     if (answer.type === "done") {
       if (ask.shape.type !== "action")
         throw new DomainError("ANSWER_FAILED", "This ask has no action to mark done.")
@@ -634,7 +730,6 @@ export class Inbox {
       if (!text && !label)
         throw new DomainError("ANSWER_FAILED", "Write an answer or choose an option.")
     }
-    const answered: StoredEntry = { ...entry, state: "answered", settledAt: this.now() }
     this.host.reply(
       entry.terminalId,
       entry.id,
@@ -649,6 +744,136 @@ export class Inbox {
     )
     this.changed(entry.terminalId)
     this.maintain(entry.terminalId)
+  }
+
+  /**
+   * The grant an answer makes, and the words the agent hears it in, or undefined for an
+   * answer that is none: Approve on an `approval` ask, which gives the asking terminal the
+   * commands for the hours it named (1 by default); Grant on a Grant card, which must keep to
+   * what the proposal offered (its presets, commands by index, repos among its choices; `withLead`
+   * is the person's to tick either way), and makes a team grant. Throws ANSWER_FAILED for an answer
+   * that fits neither or reaches beyond the proposal. Only these answers make grants.
+   */
+  private grantOf(
+    entry: StoredEntry,
+    answer: AskAnswer,
+  ): { readonly grant: MakeGrant; readonly text: string } | undefined {
+    const { content } = entry
+    if (!this.host.makeGrant) {
+      if (answer.type === "approve" || answer.type === "grant") fail("Grants are unavailable.")
+      return undefined
+    }
+    if (content.kind === "ask" && content.ask.shape.type === "approval") {
+      if (answer.type !== "approve") return undefined
+      const { commands, hours } = content.ask.shape
+      if (commands.some((each) => refusesCommand(each) !== undefined))
+        fail("Novadeck can't grant one of these commands.")
+      const length = hours ?? 1
+      return {
+        grant: {
+          projectId: entry.projectId,
+          workspaceSessionId: entry.workspaceSessionId,
+          holder: { kind: "terminal", handle: entry.handle },
+          presets: [],
+          commands,
+          repos: [],
+          entryId: entry.id,
+          proposedBy: entry.handle,
+          hours: length,
+        },
+        text: `Approved: you may run these commands without asking again for ${length} ${length === 1 ? "hour" : "hours"}. Novadeck tells you what it allows.`,
+      }
+    }
+    if (answer.type === "approve") return fail("This ask has no approval to give.")
+    if (content.kind !== "grant") {
+      if (answer.type === "grant") fail("This is no Grant card.")
+      return undefined
+    }
+    if (answer.type !== "grant") return fail("Grant or dismiss this card.")
+    const { proposal } = content
+    const presets = [...new Set(answer.presets)]
+    if (presets.some((preset) => !proposal.presets.includes(preset)))
+      fail("That grant reaches beyond what was proposed.")
+    const indices = [...new Set(answer.commands)]
+    if (indices.some((index) => proposal.commands[index] === undefined))
+      fail("That grant reaches beyond what was proposed.")
+    const commands = indices.toSorted((a, b) => a - b).map((index) => proposal.commands[index]!)
+    if (commands.some((each) => refusesCommand(each) !== undefined))
+      fail("Novadeck can't grant one of these commands.")
+    const chosen = new Set(answer.repos)
+    const repos = proposal.repos
+      .filter((each) => chosen.has(each.repo.url))
+      .map((each) => each.repo)
+    if (repos.length !== chosen.size) fail("That grant reaches beyond what was proposed.")
+    if (presets.length === 0 && commands.length === 0) fail("Pick something to grant.")
+    if (presets.length > 0 && repos.length === 0) fail("Pick a repo for the push and PR grants.")
+    return {
+      grant: {
+        projectId: entry.projectId,
+        workspaceSessionId: entry.workspaceSessionId,
+        holder: { kind: "team", lead: entry.handle, withLead: answer.withLead },
+        presets,
+        commands,
+        repos: presets.length > 0 ? repos : [],
+        entryId: entry.id,
+        proposedBy: entry.handle,
+        hours: answer.hours,
+      },
+      text:
+        `Granted: your team may do what the grant says, for ${answer.hours} ${answer.hours === 1 ? "hour" : "hours"}. ` +
+        "Novadeck tells each teammate itself, and a lead gives none of the user's approvals.",
+    }
+  }
+
+  /**
+   * Puts a lead's proposal of a team grant in the Inbox as a Grant card. One proposal waits
+   * at a time for a terminal, and at most `maxProposals` come in an hour. Fails with a reason
+   * the agent is told; the card is made by the runner from its own reads, never from text.
+   */
+  propose(
+    terminalId: string,
+    proposal: GrantProposal,
+  ): { ok: true; id: string } | { ok: false; reason: string } {
+    if (this.closed) return failure(new Error("Novadeck is stopping."))
+    const owner = this.host.owner(terminalId)
+    if (!owner)
+      return failure(
+        new Error(
+          "Your agent session has not bound in this terminal yet, so an answer could not reach you.",
+        ),
+      )
+    const refusal = this.proposalLimit(terminalId, owner)
+    if (refusal) return failure(new Error(refusal))
+    const at = this.now()
+    const entry: StoredEntry = {
+      id: randomUUID(),
+      ...owner,
+      at,
+      content: { kind: "grant", proposal },
+      state: "open",
+    }
+    if (!inboxEntry.shape.content.safeParse(entry.content).success)
+      return failure(new Error("That grant doesn't fit a card."))
+    try {
+      this.put(entry, false)
+    } catch (error) {
+      return failure(error)
+    }
+    this.proposals.set(terminalId, [...recentProposals(this.proposals.get(terminalId), at), at])
+    this.maintain(terminalId)
+    return { ok: true, id: entry.id }
+  }
+
+  /** Why a terminal may not propose a grant now, or undefined when it may. */
+  proposalLimit(terminalId: string, owner = this.host.owner(terminalId)): string | undefined {
+    const pending = [...(this.byTerminal.get(terminalId)?.values() ?? [])].some(
+      (entry) => entry.state === "open" && entry.content.kind === "grant" && same(entry, owner),
+    )
+    if (pending)
+      return "You already have a grant proposal waiting for the user. Wait for their answer before proposing another."
+    if (recentProposals(this.proposals.get(terminalId), this.now()).length >= maxProposals)
+      return `You may propose ${maxProposals} grants an hour; try again later.`
+    return undefined
   }
 
   read(ids: readonly string[]): void {
@@ -901,7 +1126,7 @@ export class Inbox {
       if (
         entry.terminalId === terminalId &&
         entry.state === "open" &&
-        (entry.content.kind === "ask"
+        (answerable(entry)
           ? !same(entry, owner) && (!owner || !this.guesses.has(terminalId))
           : !exists(terminalId))
       )
@@ -923,7 +1148,11 @@ export class Inbox {
       let text = this.texts.get(entry.id)
       if (text === undefined) {
         text =
-          content.kind === "ask" ? askText(content.ask) : `${content.subject}\n\n${content.body}`
+          content.kind === "ask"
+            ? askText(content.ask)
+            : content.kind === "grant"
+              ? grantText(content.proposal)
+              : `${content.subject}\n\n${content.body}`
         this.texts.set(entry.id, text)
       }
       const reply =
@@ -946,7 +1175,7 @@ export class Inbox {
         state: "delivered" as const,
         held: null,
         deliveredAt: entry.at,
-        inbox: content.kind,
+        inbox: content.kind === "grant" ? ("ask" as const) : content.kind,
         inboxState,
       }
       const messages = [trace, ...(known?.messages ?? [])]
@@ -1078,7 +1307,7 @@ export class Inbox {
   ): void {
     for (const [terminalId, entries] of groups) {
       const asks = [...entries.values()].filter(
-        (entry) => entry.state === "open" && entry.content.kind === "ask",
+        (entry) => entry.state === "open" && answerable(entry),
       )
       if (asks.length === 0 || this.host.owner(terminalId) || this.guesses.has(terminalId)) {
         this.unbound.delete(terminalId)

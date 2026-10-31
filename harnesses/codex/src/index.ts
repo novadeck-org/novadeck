@@ -21,6 +21,14 @@ const context = (event: string, delivery: string): string =>
 // so is a PostToolUse's, which the model reads on its next request.
 const messaging: MessagingProfile = {
   asks: { Stop: "stop", UserPromptSubmit: "prompt", PostToolUse: "tool" },
+  // Its permission request, answered at once from the person's grants.
+  permission: {
+    event: "PermissionRequest",
+    reported: true,
+    allow: `${JSON.stringify({
+      hookSpecificOutput: { hookEventName: "PermissionRequest", decision: { behavior: "allow" } },
+    })}\n`,
+  },
   silent: { "*": "" },
   stop: (delivery) => `${JSON.stringify({ decision: "block", reason: delivery })}\n`,
   prompt: (delivery) => context("UserPromptSubmit", delivery),

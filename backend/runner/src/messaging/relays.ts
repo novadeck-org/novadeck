@@ -178,6 +178,39 @@ export class Relays {
   }
 
   /**
+   * Queues Novadeck's message telling the terminal's agent of a grant made or ended: it
+   * carries only the grant's id, and `wrap` renders `<grant>` or `<grant-ended>` from the
+   * grant itself when it is delivered. Like a notice it wakes an idle agent, belongs to no
+   * thread and needs no reply. False where no agent is there to tell.
+   */
+  grantNotice(terminalId: string, grantId: string): boolean {
+    const { store } = this.host
+    const live = this.host.sessions.get(terminalId)
+    if (!live || store.closed) return false
+    const agent = live.root?.agent ?? live.shown?.agent ?? live.expecting
+    if (!agent) return false
+    const id = store.freshMessageId()
+    store.put({
+      id,
+      projectId: live.projectId,
+      thread: `t-notice-${id}`,
+      hop: 1,
+      from: novadeckSender,
+      to: { terminalId, handle: live.handle, agent, sessionId: live.root?.sessionId ?? null },
+      text: `Novadeck: the user's grant ${grantId} changed.`,
+      sentAt: this.host.now(),
+      state: store.isPaused() ? "held" : "queued",
+      deliveredAt: null,
+      notified: true,
+      stopped: false,
+      fromLead: false,
+      toLead: false,
+      grantId,
+    })
+    return true
+  }
+
+  /**
    * Whether a message will be delivered to the agent at the terminal soon: queued or leased,
    * addressed to its root session or, where none is bound, to the agent about to bind. Not
    * one held for the person's release, gone, or for another session; one held only while

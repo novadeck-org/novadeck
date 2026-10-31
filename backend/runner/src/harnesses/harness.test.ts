@@ -206,8 +206,10 @@ describe("the harness registry", () => {
     expect(harnesses.codex.launch.resume?.("s", {})).toEqual(["codex", "resume", "s"])
   })
 
-  it("gives Claude Code and Codex a shim everywhere", () => {
-    expect(shimmed("linux")).toEqual(["claude", "codex"])
+  it("gives Claude Code and Codex a shim everywhere, and Antigravity's wherever it can be narrowed", () => {
+    expect(shimmed("linux")).toEqual(["claude", "codex", "agy"])
+    expect(shimmed("darwin")).toEqual(["claude", "codex", "agy"])
+    // No launch grants on Windows, so nothing for a shim to pass.
     expect(shimmed("win32")).toEqual(["claude", "codex"])
   })
 })

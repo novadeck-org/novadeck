@@ -2,11 +2,12 @@ import { resolve as resolvePath } from "node:path"
 
 import type { Effort, Install, Model } from "@novadeck/harness-core/harness"
 import { doorbellLine, quotedLine } from "@novadeck/harness-core/prompts"
-import type { AgentName } from "@novadeck/protocol"
+import type { AgentName, GrantRepoChoice } from "@novadeck/protocol"
 import { freshNonce } from "@novadeck/tui-input"
 
 import { agents, harnesses } from "../harnesses/registry.js"
 import type { Feedback } from "../messaging/feedback.js"
+import { proposalOf, readProposal } from "../messaging/grant-proposals.js"
 import type { Inbox } from "../messaging/inbox.js"
 import { agentLabel } from "../messaging/messages.js"
 import type { AgentsAnswer, SendAnswer } from "../messaging/sending.js"
@@ -84,6 +85,8 @@ const unopened = {
 // bindings, and whether a terminal is closing.
 export type CallsHost = LeadsHost & {
   readonly inbox: () => Inbox
+  /** The git repos a Grant card offers for a Novadeck session's project (`Approving.repos`). */
+  readonly grantRepos: (sessionId: string) => Promise<readonly GrantRepoChoice[]>
   readonly feedback: () => Feedback
   /** Agents' requests for a new terminal, on their way to the client. */
   readonly opens: () => OpenRequests
@@ -527,6 +530,36 @@ export class Calls {
       tell(closeNotice.confirmed(handle, closing.summary.title, ran))
   }
 
+  /**
+   * A lead's proposal of a team grant, as `propose_grant` makes it: put in the person's
+   * Inbox as a Grant card the runner fills itself (the repos it read, who it covers now),
+   * never from the agent's text. Refused for a terminal that has a lead of its own and
+   * leads nobody (a teammate's proposal would grant its peers), for a command the matcher
+   * would refuse, and past the limits (one waiting, three an hour).
+   */
+  async proposeGrant(call: Call): Promise<unknown> {
+    const record = callerOf(this.host.records(), call)
+    if (!record) return unansweredCalls.proposeGrant
+    const { messaging, inbox } = { messaging: this.host.messaging(), inbox: this.host.inbox() }
+    const terminalId = record.summary.id
+    const read = readProposal(call.request)
+    if (!read.ok) return { ok: false, reason: read.reason }
+    const team = messaging.grants.teamOf(terminalId)
+    if (messaging.grants.isLed(terminalId) && team.length === 0)
+      return {
+        ok: false,
+        reason:
+          "Only an agent that leads others can propose a grant for its team. Ask the user with the ask tool (the approval shape) for yourself.",
+      }
+    const limit = inbox.proposalLimit(terminalId)
+    if (limit) return { ok: false, reason: limit }
+    const repos =
+      read.presets.length > 0 ? await this.host.grantRepos(record.summary.sessionId) : []
+    if (this.host.stopping()) return unansweredCalls.proposeGrant
+    // The team may have changed while the repos were read.
+    return inbox.propose(terminalId, proposalOf(read, repos, messaging.grants.teamOf(terminalId)))
+  }
+
   /** A tool call from Novadeck's MCP server, to the operation it names. */
   call(call: Call): Promise<unknown> {
     switch (call.type) {
@@ -552,6 +585,8 @@ export class Calls {
         if (!callerOf(this.host.records(), call)) return Promise.resolve(unansweredCalls[call.type])
         return Promise.resolve(this.host.inbox().call(call.terminalId, call.type, call.request))
       }
+      case "proposeGrant":
+        return this.proposeGrant(call)
       case "feedback":
         if (!callerOf(this.host.records(), call)) return Promise.resolve(unansweredCalls.feedback)
         return Promise.resolve(this.host.feedback().call(call.terminalId, call.request))

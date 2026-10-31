@@ -15,6 +15,7 @@ import {
   type CompanionWindow,
   type FeedbackDraft,
   type FolderListing,
+  type Grant,
   type InboxEntry,
   type InterruptResult,
   type ItemContent,
@@ -439,6 +440,13 @@ export type Runner = {
     /** Removes settled asks; unknown ids, and any entry that isn't a settled ask, are skipped. */
     clear(ids: readonly string[]): Promise<void>
   }
+  /** The person's grants: what a lead's team or one terminal may run without asking again. */
+  readonly grants: {
+    /** Follows every live grant, then again on each change; an ended one drops out. */
+    watch(): AsyncIterableIterator<Grant[], undefined>
+    /** Ends a grant at once. Rejects with `NOT_FOUND` for an unknown or already ended one. */
+    revoke(id: string): Promise<void>
+  }
   readonly feedback: {
     /** The agents' feedback drafts waiting for the app, oldest first, then again on each change. */
     watch(): AsyncIterableIterator<FeedbackDraft[], undefined>
@@ -678,6 +686,13 @@ export const connectRunner = async (
       read: (ids) => call((client) => client.inbox.read({ ids: [...ids] })),
       dismiss: (id) => call((client) => client.inbox.dismiss({ id })),
       clear: (ids) => call((client) => client.inbox.clear({ ids: [...ids] })),
+    },
+    grants: {
+      watch: () =>
+        followRestarting(connection, (client, signal) =>
+          client.grants.watch(undefined, { signal }),
+        ),
+      revoke: (id) => call((client) => client.grants.revoke({ id })),
     },
     feedback: {
       watch: () =>

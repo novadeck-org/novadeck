@@ -5,10 +5,12 @@ import { tmpdir } from "node:os"
 import { join } from "node:path"
 import { setTimeout as sleep } from "node:timers/promises"
 
+import { silentFor } from "@novadeck/harness-core/harness"
 import type { Report } from "@novadeck/harness-core/report"
 
+import { harnesses } from "../harnesses/registry.js"
 import { logs } from "../log.js"
-import { relayHook } from "./hook.js"
+import { relayHook, type Permission } from "./hook.js"
 import { object, type Fields } from "./json.js"
 import { mcpAnswer, type McpCall } from "./mcp.js"
 
@@ -19,13 +21,30 @@ const log = logs.for("reports")
  * what it prints, exactly as its agent expects, and the lease it acknowledges once it has
  * printed it. A null `stdout` leaves the hook to print what it does without Novadeck.
  */
-export type HookAnswer = { readonly leaseId: string | null; readonly stdout: string | null }
+export type HookAnswer = {
+  readonly leaseId: string | null
+  readonly stdout: string | null
+}
 
 /** The answer to an ask that failed, took too long, or could not be read. */
 export const unheard: HookAnswer = { leaseId: null, stdout: null }
 
+/**
+ * What a permission hook hears back: the line it prints (null leaves the hook to print what
+ * it does without Novadeck), and whether its report still goes on to the terminal's queue
+ * (not for a request a grant let through: no dialog shows, so none is waiting).
+ */
+export type PermissionAnswer = {
+  readonly stdout: string | null
+  readonly report: boolean
+}
+
 /** A hook's word that it printed what a lease delivers. */
-export type Ack = { readonly terminalId: string; readonly token: string; readonly leaseId: string }
+export type Ack = {
+  readonly terminalId: string
+  readonly token: string
+  readonly leaseId: string
+}
 
 /**
  * What Novadeck's MCP server forwards: a tool call an agent made in a terminal, which
@@ -62,21 +81,31 @@ const callTypes = [
   "tell",
   "done",
   "feedback",
+  "proposeGrant",
 ] as const
 export type CallType = (typeof callTypes)[number]
 
 /** The answer to a call that failed, took too long, or could not be read. */
-export const unanswered = { ok: false, reason: "Novadeck couldn't show it." } as const
+export const unanswered = {
+  ok: false,
+  reason: "Novadeck couldn't show it.",
+} as const
 
 /** The same, for each type of call. */
 export const unansweredCalls = {
   show: unanswered,
-  showing: { ok: false, reason: "Novadeck couldn't list what is showing beside you." },
+  showing: {
+    ok: false,
+    reason: "Novadeck couldn't list what is showing beside you.",
+  },
   look: { ok: false, reason: "Novadeck couldn't picture the page." },
   closeShown: { ok: false, reason: "Novadeck couldn't close it." },
   open: { ok: false, reason: "Novadeck couldn't open the terminal." },
   close: { ok: false, reason: "Novadeck couldn't close the terminal." },
-  lead: { ok: false, reason: "Novadeck couldn't ask the user to let you lead the terminal." },
+  lead: {
+    ok: false,
+    reason: "Novadeck couldn't ask the user to let you lead the terminal.",
+  },
   release: { ok: false, reason: "Novadeck couldn't release the terminal." },
   send: { ok: false, reason: "Novadeck couldn't send the message." },
   agents: { ok: false, reason: "Novadeck couldn't list the terminals." },
@@ -84,9 +113,15 @@ export const unansweredCalls = {
   tell: { ok: false, reason: "Novadeck couldn't save the update." },
   done: { ok: false, reason: "Novadeck couldn't save the report." },
   feedback: { ok: false, reason: "Novadeck couldn't save the feedback draft." },
+  proposeGrant: {
+    ok: false,
+    reason: "Novadeck couldn't put the grant in the user's Inbox.",
+  },
   summarize: { ok: false, reason: "Novadeck couldn't summarize the terminal." },
   models: { ok: false, reason: "Novadeck couldn't list the models." },
-} as const satisfies { readonly [type in CallType]: { ok: false; reason: string } }
+} as const satisfies {
+  readonly [type in CallType]: { ok: false; reason: string }
+}
 
 /** Who sent a message: a terminal, and a token that could be the runner's. */
 const sender = (value: Fields): { terminalId: string; token: string } | undefined => {
@@ -162,7 +197,11 @@ const tooLong = (head: string, tail: string): string => {
   }
   const message =
     "The request is over 1 MiB, more than Novadeck takes; put long content in a file and pass its path."
-  return JSON.stringify({ jsonrpc: "2.0", id, error: { code: -32600, message } })
+  return JSON.stringify({
+    jsonrpc: "2.0",
+    id,
+    error: { code: -32600, message },
+  })
 }
 
 /**
@@ -276,6 +315,17 @@ export type ReportHandlers = {
   readonly report: (report: Report) => void
   /** A hook's ask, answered by `deadline` or as `unheard`. */
   readonly ask: (report: Report, deadline: number) => Promise<HookAnswer>
+  /**
+   * A permission hook, decided from the genuine payload at once, before its report joins the
+   * terminal's queue: the line to print by `deadline` (see `shell/permissions.ts`).
+   */
+  readonly permit: (
+    report: Report,
+    permission: Permission,
+    deadline: number,
+  ) => Promise<PermissionAnswer>
+  /** A refused Bash call's whole command, from Claude Code's PermissionDenied. */
+  readonly denied: (report: Report, command: string) => void
   /** A hook's acknowledgement of a lease, which gets no answer. */
   readonly ack: (ack: Ack) => void
   /** A tool call, answered within `answerMs` or as unanswered. */
@@ -372,7 +422,28 @@ export const listenForReports = async (
     let asked = false
     if (from && hook) {
       const report = { ...from, ...hook.report }
-      if (hook.deadline === undefined) {
+      if (hook.denied !== undefined) handlers.denied(report, hook.denied)
+      if (hook.permission !== undefined && hook.deadline !== undefined) {
+        // Decided here, ahead of the terminal's queue, within the relay's own limit; a
+        // decision that fails or runs late is the harness's, or a narrowed terminal's closed one.
+        const { permission, deadline } = hook
+        const ms = Math.min(answerMs, deadline - Date.now())
+        const closed: PermissionAnswer = {
+          stdout: silentFor(
+            harnesses[report.agent].messaging,
+            report.event,
+            report.env.narrow === true,
+          ),
+          report: true,
+        }
+        const decided = await within(handlers.permit(report, permission, deadline), ms, closed)
+        // Where the harness has no word of its own for it, the relay prints its fallback.
+        answer = {
+          leaseId: null,
+          stdout: decided.stdout === "" ? null : decided.stdout,
+        }
+        if (decided.report) handlers.report(report)
+      } else if (hook.deadline === undefined) {
         handlers.report(report)
       } else {
         asked = true
@@ -381,7 +452,11 @@ export const listenForReports = async (
         // Set once the wait is over: an answer after it is the late one the line is for.
         let over = false
         const raced = handlers.ask(report, hook.deadline).then((late) => {
-          if (over) lost({ lateMs: Date.now() - cutoff, leased: late.leaseId !== null })
+          if (over)
+            lost({
+              lateMs: Date.now() - cutoff,
+              leased: late.leaseId !== null,
+            })
           return late
         })
         answer = await within(raced, ms, unheard)

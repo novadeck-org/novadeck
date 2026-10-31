@@ -389,7 +389,16 @@ App:
   about; "Plan still loading" keeps that plan's box on Loading, and "Plan not found" shows no
   plan, so the box waits five seconds and the dialog's own words stand in), a failed turn, a free-text ask, a permission
   whose Deny is a plain no, messages held long behind what keeps the doorbell from an idle
-  agent, a heads-up and an agent's done report. "Several asks at once" adds four asks from four
+  agent, a heads-up, an agent's done report, mobile-app's lead's Grant card (push and pull
+  requests for three repos, one flagged an added remote and one recent, two commands one of
+  them followed by anything, its team now and later with a Codex note, 8 h, and the lead's
+  reason quoted; Grant keeps what stayed ticked and makes the live grant, Decline dismisses it)
+  and design-system's approval card ("Lets @moth run, without asking again, for 1 hour:" with
+  three commands as code; Approve makes a grant for that terminal). "Live grant" puts the
+  Grants section at the top of the Inbox with a team grant (holder, actions, repos, time left,
+  its last allowed command, Revoke); "Grant ends" adds a terminal grant that leaves the list by
+  its time after four seconds; "Revoke a grant" ends the newest as Revoke does; "Clear grants"
+  empties the section, which shows only while a grant is live. "Several asks at once" adds four asks from four
   projects together, so three toasts stack with a "+1 more" pill behind (the page needs focus
   and the Inbox panel closed, and a row from the selected terminal never lands until you look away: with
   storefront's terminal 4 selected you get three toasts and no pill). "Fail the next answer" makes

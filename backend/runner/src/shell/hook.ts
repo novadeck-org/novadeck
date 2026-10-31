@@ -1,3 +1,5 @@
+import { callFromPayload, isAgyNonCommandTool, maxCommand } from "@novadeck/harness-core/grants"
+import type { NotACall, ShellCall } from "@novadeck/harness-core/grants"
 import { hookShellSlackMs, dialectPrograms } from "@novadeck/harness-core/hook-command"
 import type { Report } from "@novadeck/harness-core/report"
 import { agentName, type AgentName } from "@novadeck/protocol"
@@ -20,8 +22,76 @@ import { object, type Fields } from "./json.js"
  */
 type RelayHook = {
   readonly report: Omit<Report, "terminalId" | "token">
-  /** An ask's deadline, in epoch milliseconds; absent for a report. */
+  /** An ask's or a permission hook's deadline, in epoch milliseconds; absent for a report. */
   readonly deadline?: number
+  /**
+   * A permission hook's call, read from the genuine payload before it is pruned (a pruned
+   * command is cut, and a cut command could match what the whole one never did). The runner
+   * answers it at once from the person's grants, apart from asks (see `shell/permissions.ts`).
+   */
+  readonly permission?: Permission
+  /** The command Claude Code's own check refused (PermissionDenied), as the whole payload gave it. */
+  readonly denied?: string
+}
+
+/** What a permission hook asked, as the payload says, for the runner to decide. */
+export type Permission = {
+  /** The shell command asked about, or why the payload is none the matcher may judge. */
+  readonly call: ShellCall | NotACall
+  /**
+   * What kind of tool it is: a `shell` command, one of Antigravity's tools known to run
+   * none (`plain`), or any other (`other`, which includes a payload that does not parse).
+   */
+  readonly tool: "shell" | "plain" | "other"
+  /**
+   * The Bash command the payload names whatever else it holds (an extra field refuses a
+   * match, not a retry of a refused command), up to the matcher's limit.
+   */
+  readonly command: string | null
+  /** Claude Code's permission mode (`plan`, `auto`…), where the payload names one. */
+  readonly mode: string | null
+  /** Whether the terminal was started narrowed (NOVADECK_NARROW), never on Windows. */
+  readonly narrow: boolean
+}
+
+/** Whether Antigravity's tool is one known to run no command (design B3): a closed list. */
+const runsNoCommand = (payload: Fields): boolean => {
+  const call = payload.toolCall
+  const name = object(call) ? call.name : undefined
+  return typeof name === "string" && isAgyNonCommandTool(name)
+}
+
+const readPermission = (
+  agent: AgentName,
+  event: string,
+  payload: Fields,
+  narrow: boolean,
+): Permission => {
+  const call = callFromPayload(agent, event, payload)
+  return {
+    call,
+    tool:
+      typeof call === "object"
+        ? "shell"
+        : agent === "agy" && runsNoCommand(payload)
+          ? "plain"
+          : "other",
+    command: agent === "agy" ? null : (readDenied(payload) ?? null),
+    mode: text(payload.permission_mode, 64) ?? null,
+    narrow,
+  }
+}
+
+/** The whole command of a refused Bash call, or undefined: nothing is armed from a cut one. */
+const readDenied = (payload: Fields): string | undefined => {
+  const input = payload.tool_input
+  const command = object(input) ? input.command : undefined
+  return payload.tool_name === "Bash" &&
+    typeof command === "string" &&
+    command !== "" &&
+    command.length <= maxCommand
+    ? command
+    : undefined
 }
 
 /**
@@ -34,7 +104,13 @@ export const askMs = 4_000
  * What of a hook's environment the relay forwards, by name: Claude Code's own pid, and
  * what tells nested agents apart. The relay reads the names from its configuration.
  */
-export const hookVariables = ["CLAUDE_PID", "CURSOR_VERSION", "CODEX_THREAD_ID"] as const
+export const hookVariables = [
+  "CLAUDE_PID",
+  "CURSOR_VERSION",
+  "CODEX_THREAD_ID",
+  // Set only by Novadeck's Antigravity shim, for a terminal started under the person's grants.
+  "NOVADECK_NARROW",
+] as const
 
 /**
  * The margin an ask leaves before its hook's limit, for the hook to print what a lease
@@ -65,7 +141,11 @@ const maxReport = 60_000
  * A process the hook runs under, nearest first, where the platform tells: its pid, name,
  * and when it started, in epoch milliseconds, where the relay could read it.
  */
-type Ancestor = { readonly pid: number; readonly name: string; readonly startedAt?: number }
+type Ancestor = {
+  readonly pid: number
+  readonly name: string
+  readonly startedAt?: number
+}
 
 const ancestorsOf = (value: unknown): Ancestor[] =>
   (Array.isArray(value) ? value : [])
@@ -164,6 +244,14 @@ export const relayHook = (
   const named = instanceOf(agent.data, env, ancestors)
   const instance = named !== null && /^\d{1,10}$/.test(named) ? named : null
   const codexThread = text(env.CODEX_THREAD_ID, 128)
+  const narrow = platform !== "win32" && text(env.NOVADECK_NARROW, 8) === "1"
+  const { messaging } = harnesses[agent.data]
+  // Read from the genuine payload, before `prune` cuts it.
+  const permission =
+    event === messaging.permission.event
+      ? readPermission(agent.data, event, payload, narrow)
+      : undefined
+  const denied = event === messaging.denied ? readDenied(payload) : undefined
   const shells = dialectPrograms[harnesses[agent.data].hookDialect(platform, event)]
   const firedAt = firedAtOf(instance, seq, ancestors, shells, platform)
   const report = {
@@ -176,6 +264,7 @@ export const relayHook = (
     env: {
       cursor: text(env.CURSOR_VERSION, 128) !== undefined,
       ...(codexThread !== undefined && { codexThread }),
+      ...(narrow && { narrow: true as const }),
     },
     payload: prune(payload, 0, 4096) as Fields,
   }
@@ -186,12 +275,11 @@ export const relayHook = (
   if (JSON.stringify(sized).length > maxReport) return undefined
   // The runner leases messages only with time left before the relay gives up to print
   // them and acknowledge the lease.
-  const { deadline } = value
+  const { deadline: given } = value
   const relayGivesUp =
-    typeof deadline === "number" && Number.isFinite(deadline)
-      ? Math.min(deadline, seq + askMs)
-      : seq + askMs
-  return event in harnesses[agent.data].messaging.asks
-    ? { report: sized, deadline: Math.round(relayGivesUp) - printMs }
-    : { report: sized }
+    typeof given === "number" && Number.isFinite(given) ? Math.min(given, seq + askMs) : seq + askMs
+  const deadline = Math.round(relayGivesUp) - printMs
+  if (permission !== undefined) return { report: sized, deadline, permission }
+  if (event in messaging.asks) return { report: sized, deadline }
+  return denied === undefined ? { report: sized } : { report: sized, denied }
 }

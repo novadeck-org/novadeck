@@ -18,10 +18,9 @@ import type {
   TerminalSummary,
   TranscriptChange,
 } from "@novadeck/protocol"
-import { relayPath } from "@novadeck/relay"
 import { createTerminalHost, type Terminal, type TerminalHost } from "@novadeck/terminal/host"
 import { Trees, type ProcessTrees, type Pty, type PtyOptions } from "@novadeck/terminal/pty"
-import { afterKeys, emptyLine, withLocale } from "@novadeck/terminal/shell"
+import { afterKeys, emptyLine } from "@novadeck/terminal/shell"
 import { keysOf } from "@novadeck/tui-input"
 import type { InterruptOptions, PromptOptions } from "@novadeck/tui-input"
 
@@ -45,6 +44,7 @@ import { type Ack, type Call } from "../shell/reports.js"
 import type { HintFacts } from "../voice/hint.js"
 import { type AnswersOptions } from "./answers.js"
 import { Approvals } from "./approvals.js"
+import { Approving, type ApprovingOptions } from "./approving.js"
 import { Bindings } from "./binding/facts.js"
 import { Reports } from "./binding/reports.js"
 import { Shown } from "./binding/shown.js"
@@ -73,6 +73,7 @@ import { Sampler, shellProcess } from "./sampling.js"
 import { hasRun, type TerminalRecords } from "./saved-terminals.js"
 import { Saves } from "./saving.js"
 import type { TranscriptSealer } from "./sealing.js"
+import { positive, settingsOf, type Settings } from "./settings.js"
 import { Streams } from "./streams.js"
 import { savedSummaryOf, summaryOf, type AgentSummary } from "./summary.js"
 import { openedWith, renamed as renamedTo, summaryTitle, unnamed, type Naming } from "./titles.js"
@@ -198,7 +199,7 @@ export type TerminalOptions = {
    * real shells run here), and the process trees a Windows terminal's programs end by.
    */
   pty?: PtyOptions & { readonly trees?: ProcessTrees }
-}
+} & ApprovingOptions
 
 type Create = {
   id: string
@@ -243,13 +244,6 @@ const shutdownTreeGraceMs = 1_000
 // and for closing the rest of the runner after.
 const shutdownTreesMs = 3_000
 
-const positive = (value: number | undefined, fallback: number): number => {
-  const result = value ?? fallback
-  if (!Number.isSafeInteger(result) || result < 1)
-    throw new RangeError("Terminal limits must be positive integers.")
-  return result
-}
-
 /**
  * Owns PTYs for one runner lifetime. Exited, unattached records are retained up to a
  * bound, and evicted oldest first beyond it or when a capped runner needs room.
@@ -284,54 +278,11 @@ export class Terminals {
   private readonly calls: Calls
   /** How terminals' shells start, and the runner's shell integration. */
   private readonly launcher: Launcher
+  /** The person's grants at the harnesses' permission hooks, and the launches under them. */
+  readonly approving: Approving
   /** Sessions given out to resume, and the terminal each went to. */
   private readonly claims: Claims
-  private readonly options: Required<
-    Omit<
-      TerminalOptions,
-      | "env"
-      | "baseEnv"
-      | "shellArgs"
-      | "shellFiles"
-      | "records"
-      | "handleOrder"
-      | "shims"
-      | "connected"
-      | "transcripts"
-      | "transcriptMs"
-      | "transcriptShutdownMs"
-      | "redactor"
-      | "sealer"
-      | "transcriptKeyMs"
-      | "projectFolder"
-      | "messages"
-      | "inbox"
-      | "projectOf"
-      | "doorbell"
-      | "prompts"
-      | "interrupts"
-      | "answers"
-      | "install"
-      | "models"
-      | "hooksTrusted"
-      | "items"
-      | "describer"
-      | "murmurTimes"
-      | "pty"
-    >
-  > & {
-    env: NodeJS.ProcessEnv
-    shellArgs: readonly string[] | undefined
-    records: TerminalRecords | undefined
-    projectFolder: ((sessionId: string) => string | undefined) | undefined
-    projectOf: ((sessionId: string) => string | undefined) | undefined
-    shims: () => Promise<readonly AgentName[]>
-    connected: (agent: AgentName) => Promise<boolean>
-    install: (agent: AgentName) => Promise<Install | undefined>
-    models: (agent: AgentName) => Promise<readonly Model[]>
-    hooksTrusted: ((agent: AgentName, cwd: string) => Promise<boolean | undefined>) | undefined
-    items: CompanionItems | undefined
-  }
+  private readonly options: Settings
   /** Windows' process trees, which a closed terminal's programs are ended by. */
   private readonly trees: ProcessTrees
   /** The terminals' hosting: their limits, close, eviction and shutdown. */
@@ -359,44 +310,7 @@ export class Terminals {
   private shutdownPromise: Promise<void> | undefined
 
   constructor(options: TerminalOptions = {}) {
-    this.options = {
-      shell:
-        options.shell ??
-        (process.platform === "win32"
-          ? (process.env.COMSPEC ?? "cmd.exe")
-          : (process.env.SHELL ?? "/bin/sh")),
-      shellArgs: options.shellArgs,
-      env: withLocale({
-        ...(options.baseEnv ?? process.env),
-        ...options.env,
-        TERM: "xterm-256color",
-      }),
-      freshPath: options.freshPath ?? options.baseEnv === undefined,
-      maxTerminals:
-        options.maxTerminals === undefined
-          ? Number.POSITIVE_INFINITY
-          : positive(options.maxTerminals, 1),
-      maxRetained: positive(options.maxRetained, 32),
-      historyBytes: positive(options.historyBytes, 1024 * 1024),
-      subscriberBytes: positive(options.subscriberBytes, 4 * 1024 * 1024),
-      snapshotBytes: positive(options.snapshotBytes, 32 * 1024 * 1024),
-      ackWindowBytes: positive(options.ackWindowBytes, 256 * 1024),
-      processPollMs: positive(options.processPollMs, 1000),
-      records: options.records,
-      shims: options.shims ?? (() => Promise.resolve([])),
-      connected: options.connected ?? (() => Promise.resolve(true)),
-      saveMs: positive(options.saveMs, 5000),
-      transcriptChars: positive(options.transcriptChars, 256 * 1024),
-      projectFolder: options.projectFolder,
-      projectOf: options.projectOf,
-      openMs: positive(options.openMs, 6_000),
-      install: options.install ?? (() => Promise.resolve(undefined)),
-      models: options.models ?? (() => Promise.resolve([])),
-      hooksTrusted: options.hooksTrusted,
-      items: options.items,
-      platform: options.platform ?? process.platform,
-      relay: options.relay ?? relayPath,
-    }
+    this.options = settingsOf(options)
     // Child programs do not need the runner's network capability, nor the identity of a
     // Novadeck terminal the runner itself was started from.
     for (const name of inherited) delete this.options.env[name]
@@ -422,11 +336,19 @@ export class Terminals {
       pty: this.pty,
     })
     this.host.on("evicted", (id, terminal) => this.evicted(id, terminal))
+    this.approving = new Approving({
+      messaging: () => this.messaging,
+      records: () => this.records,
+      projectFolder: (sessionId) => this.projectFolder(sessionId),
+      platform: this.options.platform,
+      options,
+    })
     this.launcher = new Launcher(this.options, {
       stopping: () => this.stopping,
       handlers: {
         report: (report) => this.reporting.queueReport(report),
         ask: (report, deadline) => this.reporting.queueAsk(report, deadline),
+        ...this.approving.handlers,
         ack: (ack) => this.acknowledge(ack),
         call: (call) => this.calls.call(call),
       },
@@ -542,6 +464,7 @@ export class Terminals {
     })
     this.messaging = new Messaging({
       ...(options.messages && { records: options.messages }),
+      ...(options.grants && { grants: options.grants }),
       platform: this.options.platform,
       // A message is kept while either of its terminals is, running or saved.
       exists: (id) => this.records.has(id) || this.saves.identity(id) !== undefined,
@@ -554,6 +477,8 @@ export class Terminals {
           this.messaging.personReply(id, ask, subject, text, commit, choice),
         replyState: (id) => this.messaging.inboxReply(id),
         forgetReplies: (ids) => this.messaging.forgetResponses(ids),
+        makeGrant: (input) => this.messaging.grants.make(input),
+        endGrant: (id) => this.messaging.grants.revoke(id),
         changed: (id) => {
           this.streams.messagesChanged(id)
           const record = this.records.get(id)
@@ -659,6 +584,7 @@ export class Terminals {
       stopping: () => this.stopping,
       messaging: () => this.messaging,
       inbox: () => this.inbox,
+      grantRepos: (sessionId) => this.approving.repos(sessionId),
       feedback: () => this.feedback,
       peers: () => this.peers,
       opens: () => this.opens,
@@ -715,6 +641,8 @@ export class Terminals {
       const shell = await this.launcher.executable(cwd, environment)
       const integration = await this.launcher.shellIntegration()
       const connected = await this.launcher.connected(input.resume)
+      // Whether Antigravity may start under a grant: asked before the shell starts.
+      const narrowOk = await this.approving.verify(integration?.paths.narrow)
       const env = await environment
       const opened = saved ? await this.saves.open(saved) : null
       if (this.stopping) throw new DomainError("CLOSING")
@@ -839,6 +767,8 @@ export class Terminals {
       if (unled) record.summary = { ...record.summary, ledBy: null }
       this.register(record, expectedAgent(input.command ?? task?.command, input.resume))
       if (unled) this.messaging.endLead(record.summary.id)
+      // Once the terminal is registered under its lead: the grants covering it depend on that.
+      this.approving.launch(record.summary.id, narrowOk, started.resumes && startup?.command)
       // The resumed agent shows its own history; a shell that resumes none, the transcript.
       if (opened && !started.resumes) void this.show(record, opened.text, new Date(opened.at))
       this.listen(record)
@@ -1057,6 +987,7 @@ export class Terminals {
           const shell = await this.launcher.executable(cwd, environment)
           const integration = await this.launcher.shellIntegration()
           const connected = await this.launcher.connected(input.resume)
+          const narrowOk = await this.approving.verify(integration?.paths.narrow)
           const env = await environment
           return (restart) => {
             const resume =
@@ -1080,6 +1011,11 @@ export class Terminals {
                 ? transcriptOf(record.terminal.screen, this.options.transcriptChars)
                 : null
             let shown = Promise.resolve()
+            this.approving.launch(
+              record.summary.id,
+              narrowOk,
+              started.resumes && resume?.argv.join(" "),
+            )
             try {
               // Earlier attachments ended at the exit; any still draining are dropped, and any
               // earlier cursor gets a fresh snapshot.
@@ -1232,6 +1168,7 @@ export class Terminals {
   private forget(terminalId: string, { claims = true } = {}): void {
     // Its items go first, so watchers hear of each before its record cascades them away.
     this.companion.closed(terminalId)
+    this.approving.forget(terminalId)
     this.messaging.unregister(terminalId, true)
     this.inbox.reconcile(terminalId)
     this.typing.forget(terminalId)
