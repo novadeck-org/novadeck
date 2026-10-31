@@ -111,36 +111,22 @@ describe("Codex's async question", () => {
     expect(read(step("rui-async-panel-digit-2", "shift+left"), two)).toBeUndefined()
   })
 
-  it("reads no panel or picker left on screen once the turn has ended, as it is about to go", () => {
-    // Codex 0.166.0 drops them a moment after its Stop hook: until then the screen shows
-    // the turn finished with them still drawn, and keys pressed there open nothing.
-    const ended = (rows: readonly string[]): string[] =>
-      rows.flatMap((row) =>
-        /\(\d+s • esc to interrupt\)/.test(row)
-          ? ["• Finished the request.", "  Worked for 1s • 9:45 AM"]
-          : [row],
-      )
-    // While the turn runs its status row reads however it is drawn: cut by a narrow
-    // screen, behind a hook, or headed by the model's reasoning.
-    const status = (rows: readonly string[], row: string): string[] =>
-      rows.map((each) => (/\(\d+s • esc to interrupt\)/.test(each) ? row : each))
-    for (const rows of [
+  it("reads no panel or picker left on screen once the hooks say the turn has ended", () => {
+    // 0.166.0's screen 13 ms after its Stop hook (probed 2026-10-31): the turn's last words
+    // where its status row was, the panel still under them, gone a moment later.
+    const left = replaced(
       panel("rui-async-panel-digit-2"),
-      step("rui-async-panel-digit-2", "shift+left"),
-      // An answer queued, the picker on the next question, under the queued answers.
-      step("rui-async-panel-two-questions", "1"),
-    ]) {
-      const facts = rows.some((row) => row.includes("↳ >")) ? { ...two, answered: [0] } : one
-      expect(read(rows, facts)).toBeDefined()
-      expect(read(ended(rows), facts)).toBeUndefined()
-      for (const row of [
-        "• Working (5s • esc to int",
-        "• Working",
-        "◦ Working (5s • esc to interrupt) · Running hooks",
-        "• Planning the button's color (1m 05s • esc to interrupt)",
-      ])
-        expect(read(status(rows, row), facts), row).toBeDefined()
-    }
+      /^• Working \(\d+s • esc to interrupt\)/,
+      "• Finished the request.",
+    )
+    const ended = { ...one, turnEnded: true as const }
+    // Only the hooks tell: the screen reads as the panel either way.
+    expect(read(left, one)).toBeDefined()
+    expect(read(left, ended)).toBeUndefined()
+    expect(read(panel("rui-async-panel-digit-2"), ended)).toBeUndefined()
+    expect(read(step("rui-async-panel-digit-2", "shift+left"), ended)).toBeUndefined()
+    // Once they have gone, the answer is the next prompt.
+    expect(read(screen("rui-async-offered", "wide", newest), ended)?.prompt).toBeDefined()
   })
 
   it("reads no picker on another question, or with another request's options", () => {

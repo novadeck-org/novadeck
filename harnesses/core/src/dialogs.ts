@@ -30,6 +30,12 @@ export type RequestFacts = {
    * async questions are one by one: what remains is what its dialog still asks.
    */
   readonly answered?: readonly number[]
+  /**
+   * Whether the turn that asked it has ended, as the agent's hooks tell, for a request that
+   * outlives its turn (one asked without waiting, as Codex's async questions are): what its
+   * harness still draws of it then may be a moment from going.
+   */
+  readonly turnEnded?: true
 }
 
 /**
