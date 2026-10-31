@@ -1,4 +1,4 @@
-import { Popover as ArkPopover } from "@ark-ui/react/popover"
+import { Popover as ArkPopover, usePopoverContext } from "@ark-ui/react/popover"
 import { Portal } from "@ark-ui/react/portal"
 import { useLayoutEffect, useMemo, useRef, type ReactNode } from "react"
 
@@ -11,6 +11,9 @@ export type SheetProps = {
   readonly boundary: () => HTMLElement | null
   // What the anchor is: the sheet starts over, and places itself anew, when it changes.
   readonly anchorKey: string
+  // Where the anchor stands among what is around it: the sheet moves to it, as it is, when
+  // that changes, as when its row moves in a list.
+  readonly placeKey?: string
   // A click or focus outside the sheet; `preventDefault()` keeps it open.
   readonly onInteractOutside: (event: {
     readonly target: EventTarget | null
@@ -32,6 +35,7 @@ export const Sheet = ({
   anchor,
   boundary,
   anchorKey,
+  placeKey,
   onInteractOutside,
   onDismiss,
   children,
@@ -86,6 +90,7 @@ export const Sheet = ({
       lazyMount
       unmountOnExit
     >
+      <Replaced placeKey={placeKey} />
       <ArkPopover.Anchor asChild>
         <span className="absolute size-0" aria-hidden="true" />
       </ArkPopover.Anchor>
@@ -101,4 +106,16 @@ export const Sheet = ({
       </Portal>
     </ArkPopover.Root>
   )
+}
+
+// Places the sheet again when its anchor has moved, after the move is on the page.
+const Replaced = ({ placeKey }: { placeKey: string | undefined }): null => {
+  const { reposition } = usePopoverContext()
+  const placed = useRef(placeKey)
+  useLayoutEffect(() => {
+    if (placed.current === placeKey) return
+    placed.current = placeKey
+    reposition()
+  }, [placeKey, reposition])
+  return null
 }

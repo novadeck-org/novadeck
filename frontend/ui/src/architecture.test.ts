@@ -113,6 +113,7 @@ const vendors: Record<string, readonly string[]> = {
   // and the drag the switcher hands to the pins bar.
   "@dnd-kit": [
     "terminals/",
+    "inbox/InboxList.tsx",
     "shell/SubscriptionUsage.tsx",
     "shell/SidebarRail.tsx",
     "projects/PinsBar.tsx",

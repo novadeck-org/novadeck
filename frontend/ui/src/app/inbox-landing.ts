@@ -1,4 +1,4 @@
-import { noInbox, type Inbox, type InboxRow, type InboxState } from "@novadeck/core/inbox"
+import { noInbox, rowKey, type Inbox, type InboxRow, type InboxState } from "@novadeck/core/inbox"
 import { createStore, type Store } from "@novadeck/core/store"
 import type { Workspace } from "@novadeck/core/types"
 
@@ -27,8 +27,6 @@ import { viewing, type UiState, type UiStore } from "./ui-store"
 // The WorkspaceProvider makes one landing per app (`createServices`) and starts it in an effect,
 // so everything that consumes the landed Inbox, and whatever opens a row by its id, shares
 // the one object through the workspace services.
-
-const rowKey = (row: InboxRow): string => `${row.id}@${row.at}`
 
 type WorkspaceSource = Pick<Store<Workspace>, "getSnapshot" | "subscribe">
 

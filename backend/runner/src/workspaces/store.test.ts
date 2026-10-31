@@ -1965,10 +1965,38 @@ describe("saved terminals", () => {
 
   it("keep transcripts until they are turned off", ({ kept }) => {
     const workspace = kept()
-    expect(workspace.settings.runner()).toEqual({ transcripts: true, welcomed: false })
+    expect(workspace.settings.runner()).toEqual({
+      transcripts: true,
+      welcomed: false,
+      inboxOrder: [],
+      inboxSnoozed: [],
+    })
     workspace.settings.saveRunner({ transcripts: false })
     workspace.settings.saveRunner({ welcomed: true })
-    expect(workspace.settings.runner()).toEqual({ transcripts: false, welcomed: true })
+    expect(workspace.settings.runner()).toEqual({
+      transcripts: false,
+      welcomed: true,
+      inboxOrder: [],
+      inboxSnoozed: [],
+    })
+  })
+
+  it("keep the Inbox's order the person dragged its rows into, and read a broken one as none", ({
+    kept,
+  }) => {
+    const workspace = kept()
+    workspace.settings.saveRunner({ inboxOrder: ["request:r-2", "a1b2", "held:t-1"] })
+    expect(workspace.settings.runner().inboxOrder).toEqual(["request:r-2", "a1b2", "held:t-1"])
+    // The switches are kept as they always were, so an older runner reads them.
+    workspace.settings.saveRunner({ transcripts: false })
+    const database = workspace["database"]
+    expect(database.prepare("SELECT value FROM settings WHERE key = 'transcripts'").get()).toEqual({
+      value: "false",
+    })
+    database.exec("UPDATE settings SET value = '[1,' WHERE key = 'inboxOrder'")
+    expect(workspace.settings.runner().inboxOrder).toEqual([])
+    workspace.settings.saveRunner({ inboxSnoozed: ["a1b2"] })
+    expect(workspace.settings.runner().inboxSnoozed).toEqual(["a1b2"])
   })
 })
 
@@ -2057,7 +2085,12 @@ describe("the messages", () => {
     ])
     expect(reopened.messagingPaused()).toBe(true)
     // The pause is the runner's own, not one of the client's settings.
-    expect(reopened.settings.runner()).toEqual({ transcripts: true, welcomed: false })
+    expect(reopened.settings.runner()).toEqual({
+      transcripts: true,
+      welcomed: false,
+      inboxOrder: [],
+      inboxSnoozed: [],
+    })
     expect(reopened.terminalIdentity("a")).toMatchObject({ handle: "moth" })
     expect(reopened.terminalIdentity("b")).toBeUndefined()
     reopened.removeMessages(["m-1"])

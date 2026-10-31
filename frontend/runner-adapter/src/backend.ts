@@ -1,4 +1,5 @@
 import { createTelemetryStore, dropTerminal, setUsage } from "@novadeck/core/agents/telemetry"
+import { rowKey, withSnoozes, type Inbox } from "@novadeck/core/inbox"
 import type {
   Backend,
   BackendAction,
@@ -19,14 +20,16 @@ import type {
   TitleSource,
   Workspace,
 } from "@novadeck/core/types"
-import type {
-  AgentIntegration,
-  Approval as RunnerApproval,
-  TerminalExit,
-  PageLook,
-  TerminalRequest,
-  TerminalRequestAnswer,
-  TerminalSummary,
+import {
+  maxInboxOrder,
+  maxInboxRowIdLength,
+  type AgentIntegration,
+  type Approval as RunnerApproval,
+  type TerminalExit,
+  type PageLook,
+  type TerminalRequest,
+  type TerminalRequestAnswer,
+  type TerminalSummary,
 } from "@novadeck/protocol"
 import {
   hasCode,
@@ -142,6 +145,12 @@ export type RunnerBackendOptions = {
   // choice, as it said at startup; agents are not offered when absent.
   readonly agents?: readonly AgentIntegration[]
   readonly welcomed?: boolean
+  // The order the person dragged the Inbox's rows into, as the runner said at startup; the
+  // rows keep the Inbox's own order, and can't be dragged, when absent.
+  readonly inboxOrder?: readonly string[]
+  // The Inbox's rows the person snoozed, as the runner said at startup; none can be snoozed
+  // when absent.
+  readonly inboxSnoozed?: readonly string[]
   // The page's theme, which its terminals draw in; tests pass `noTheme`.
   readonly theme: ThemeSource
 }
@@ -278,6 +287,26 @@ const revival = (): Pick<RunnerEntry, "revived" | "revive"> => {
   })
   return { revived, revive: () => resolve?.() }
 }
+
+// The person's order as the runner keeps it: every row still listed (the landing rule's hidden
+// ones among them), and of those not listed, which may be back (a waiting agent's row while it
+// works, a request while its stream reconnects), as many as room is left for, those nearest
+// the end first, where the rows put off sit; the rest, gone for good mostly, go.
+const trimmed = (keys: readonly string[], listed: ReadonlySet<string>): string[] => {
+  let room = maxInboxOrder - keys.filter((key) => listed.has(key)).length
+  const away = new Set(
+    keys
+      .filter((key) => !listed.has(key))
+      .toReversed()
+      .filter(() => room-- > 0),
+  )
+  return keys.filter((key) => listed.has(key) || away.has(key))
+}
+
+// Inbox rows as the runner keeps them: as many as it takes, from the top (the rows below
+// keep the Inbox's own order), each of an id it can take.
+const fitted = (ids: readonly string[]): string[] =>
+  ids.filter((id) => id.length > 0 && id.length <= maxInboxRowIdLength).slice(0, maxInboxOrder)
 
 // A backend over a connected runner and what it listed at startup. Creating it starts
 // nothing: I/O begins with the first commit that changes the workspace, or `start`.
@@ -1070,6 +1099,15 @@ export const runnerBackend = (
     messages.state,
     { track },
   )
+  // The person's order of the Inbox's rows and their snoozes: shown at once, kept by the
+  // runner (`fitted`).
+  const inboxOrder = options.inboxOrder && createStore(options.inboxOrder)
+  const snoozable = (shown: Inbox): Inbox =>
+    options.inboxSnoozed
+      ? withSnoozes(shown, options.inboxSnoozed, (ids) => {
+          void track(runner.settings.set({ inboxSnoozed: fitted(ids) })).catch(() => {})
+        })
+      : shown
   // The voice input addon, followed from `start` like the messages.
   const voice = createRunnerVoice(runner.voice, track)
   // Murmur, followed the same way.
@@ -1451,7 +1489,19 @@ export const runnerBackend = (
     }),
     messages,
     conversations,
-    inbox,
+    inbox: snoozable(
+      inboxOrder
+        ? {
+            ...inbox,
+            order: inboxOrder,
+            arrange: (keys) => {
+              const kept = trimmed(keys, new Set(inbox.state.getSnapshot().items.map(rowKey)))
+              inboxOrder.update(() => kept)
+              void track(runner.settings.set({ inboxOrder: fitted(kept) })).catch(() => {})
+            },
+          }
+        : inbox,
+    ),
     approvals: {
       pending: approvals,
       answer: (requestId, approved) => {
