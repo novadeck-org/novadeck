@@ -173,10 +173,14 @@ describe.skipIf(process.platform === "win32" || !existsSync(bash))(
       const one = driver(shell, first)
       await one.start(terminal.id, "claude", "s-claude")
       await one.start(peer.id, "codex", "s-codex")
+      await expect.poll(() => first.get(terminal.id).activity).not.toBeNull()
       const prompt = async (step: typeof one.step, text: string) =>
         context(await step(terminal.id, { hook: "UserPromptSubmit", payload: { prompt: text } }))
-      const send = (step: typeof one.step, text: string) =>
-        step(peer.id, { call: "send", request: { to: "moth", text } })
+      // Each message is taken, never refused, as sent once moth's session is bound.
+      const send = async (step: typeof one.step, text: string) =>
+        expect(
+          JSON.parse(await step(peer.id, { call: "send", request: { to: "moth", text } })),
+        ).toMatchObject({ ok: true })
       const pointer = "the full note given earlier in this session has the rules"
       await send(one.step, "First.")
       const given = await prompt(one.step, "Fix the build")
@@ -202,6 +206,9 @@ describe.skipIf(process.platform === "win32" || !existsSync(bash))(
       const two = driver(shell, second)
       await two.start(terminal.id, "claude", "s-claude")
       await two.start(peer.id, "codex", "s-codex")
+      // Restored without a resume, it expects no agent: a message waits for its session only
+      // once that binds, which its stand-in's ready line may come before.
+      await expect.poll(() => second.get(terminal.id).activity).not.toBeNull()
       await send(two.step, "Second.")
       const resumed = await prompt(two.step, "go on")
       expect(resumed).toContain("Second.")
