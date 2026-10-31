@@ -365,6 +365,34 @@ export const deliveries = (call: Call): Delivery[] => {
   return [...plain, ...escaped].flatMap(messagesIn)
 }
 
+/** One delivery wrapper as the model read it: its rules note, and its messages' ids. */
+export type Wrapper = { readonly note: string; readonly ids: readonly string[] }
+
+const wrapperOf = (wrapped: string): Wrapper => ({
+  note: unescape(/^<novadeck-messages note="([^"]*)"/.exec(wrapped)?.[1] ?? ""),
+  ids: [...wrapped.matchAll(message)].map(
+    ([, attributes = ""]) => /\bid="([^"]*)"/.exec(attributes)?.[1] ?? "",
+  ),
+})
+
+/**
+ * Every delivery wrapper in the call's whole conversation, oldest first, beside a prompt or
+ * a tool's result, or inside a Codex Stop hook's escaped continuation: what the model reads
+ * of every delivery the session was given, each as many times as it reads it.
+ */
+export const wrappers = (call: Call): Wrapper[] =>
+  call.turns.flatMap((turn) => {
+    if (turn.role === "assistant") return []
+    const plain = [...turn.text.matchAll(block)].map(([wrapped]) => wrapped)
+    const rest = turn.text.replace(block, "")
+    const escaped = [...rest.matchAll(escapedBlock)].map(([wrapped]) => unescape(wrapped))
+    return [...plain, ...escaped].map(wrapperOf)
+  })
+
+/** Whether a wrapper's note only points to the full one the session was given before. */
+export const pointsBack = (wrapper: Wrapper): boolean =>
+  wrapper.note.includes("as the full note given earlier in this session")
+
 /** Whether the call's latest user turn delivered a message from `from`. */
 export const delivered = (call: Call, from: string): boolean =>
   !call.side && deliveries(call).some((one) => one.from === from)

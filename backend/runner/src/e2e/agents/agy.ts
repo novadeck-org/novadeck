@@ -28,6 +28,7 @@ export const agy: AgentSetup = {
   dialect: gemini,
   banner: "Antigravity CLI",
   bindsAtReady: false,
+  keepsHookText: false,
   // Its own status screen (probed 2026-10-04, 1.2.14).
   idleCommand: "/help",
   // Its feature flags and its telemetry.
