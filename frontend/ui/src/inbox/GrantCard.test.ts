@@ -9,7 +9,7 @@ import {
 import { createStore } from "@novadeck/core/store"
 import { nextFrame, render } from "@novadeck/test-kit/render"
 import { act, createElement } from "react"
-import { afterEach } from "vitest"
+import { afterEach, vi } from "vitest"
 
 import { context, describe, expect, it } from "../test"
 import { InboxList } from "./InboxList"
@@ -366,6 +366,24 @@ describe("The Grants section", () => {
       "Last allowed: git push origin a:a by @owl, 4m ago",
     )
     await inbox.done()
+  })
+
+  it("says on Windows only that Codex and Antigravity still get their own dialog", async () => {
+    const platform = vi.spyOn(navigator, "platform", "get")
+    try {
+      platform.mockReturnValue("Linux x86_64")
+      const linux = mount([], { grants: [live()], open: false })
+      expect(document.querySelector(".grant-row-windows")).toBeNull()
+      await linux.done()
+      platform.mockReturnValue("Win32")
+      const windows = mount([], { grants: [live()], open: false })
+      expect(document.querySelector(".grant-row-windows")?.textContent).toBe(
+        "On Windows, Codex and Antigravity teammates still get their own dialog per command.",
+      )
+      await windows.done()
+    } finally {
+      platform.mockRestore()
+    }
   })
 
   it("shows why a revoke failed beside its grant", async () => {

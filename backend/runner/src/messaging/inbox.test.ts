@@ -2294,7 +2294,9 @@ describe("Inbox approvals and grants", () => {
       endsAt: 0,
     } as never
     for (const agent of ["claude", "codex", "agy"] as const)
-      expect(Buffer.byteLength(grantElement(grant, agent, "mark-1234567890"))).toBeLessThan(7_000)
+      expect(
+        Buffer.byteLength(grantElement(grant, agent, "mark-1234567890", "linux")),
+      ).toBeLessThan(7_000)
   })
 
   it("makes no grant from a reply, a plain ask, or an Approve on either", () => {

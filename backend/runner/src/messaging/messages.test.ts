@@ -521,11 +521,20 @@ describe("a delivery's grants", () => {
   })
 
   it("repeats the live grants in a wrapper of their own, with one fresh mark", () => {
-    const text = wrapGrants([granted, { ...granted, id: "other" }], "codex", "PersonMk")
+    const text = wrapGrants([granted, { ...granted, id: "other" }], "codex", "linux", "PersonMk")
     expect(text.startsWith('<novadeck-messages note="')).toBe(true)
     expect(text.match(/person="PersonMk"/g)).toHaveLength(2)
     expect(text.endsWith("</novadeck-messages>")).toBe(true)
-    expect(wrapGrants([], "codex")).toBe("")
+    expect(wrapGrants([], "codex", "linux")).toBe("")
+  })
+
+  it("tells Codex and Antigravity on Windows that their own dialog still asks, and Claude Code nothing", () => {
+    const on = (agent: "claude" | "codex" | "agy") => wrapGrants([granted], agent, "win32")
+    expect(on("codex")).toContain("On Windows Codex does not take this grant")
+    expect(on("agy")).toContain("On Windows Antigravity does not take this grant")
+    expect(on("codex")).toContain("still asks for each command, in the user's Inbox")
+    expect(on("claude")).not.toContain("On Windows")
+    expect(wrapGrants([granted], "codex", "linux")).not.toContain("On Windows")
   })
 
   it("says in the approval rule that a grant counts, and a lead's word does not", () => {

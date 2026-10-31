@@ -1,6 +1,6 @@
 import { execFile } from "node:child_process"
 import { readdir, stat } from "node:fs/promises"
-import { join } from "node:path"
+import { join, resolve } from "node:path"
 import { promisify } from "node:util"
 
 import { normalizeRepoUrl } from "@novadeck/harness-core/grants"
@@ -97,7 +97,8 @@ export const systemIo: SourceIo = {
     const path = await git(dir, ["rev-parse", "--git-path", "config"])
     if (!path) return undefined
     try {
-      return (await stat(join(dir, path))).mtimeMs
+      // Git prints a path relative to the repo, or an absolute one (a linked worktree).
+      return (await stat(resolve(dir, path))).mtimeMs
     } catch {
       return undefined
     }

@@ -436,7 +436,11 @@ export class Reports {
       noticesAt(
         took,
         current,
-        wrapGrants(this.host.messaging().grants.covering(report.terminalId), report.agent),
+        wrapGrants(
+          this.host.messaging().grants.covering(report.terminalId),
+          report.agent,
+          this.host.platform(),
+        ),
       )
     const taken = atTurnStart(record.nudges, {
       person,

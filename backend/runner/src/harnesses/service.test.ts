@@ -325,7 +325,8 @@ describe("agents Novadeck can connect", () => {
     ] as const) {
       const agents = fixture.agents({ FAKE_VERSION: version })
       await agents.set("agy", true)
-      expect(await agents.verified("agy"), version).toBe(expected)
+      // Windows gives Antigravity no launch grants, whatever its version.
+      expect(await agents.verified("agy"), version).toBe(expected && !windows)
     }
   })
 
@@ -337,7 +338,8 @@ describe("agents Novadeck can connect", () => {
     const agents = fixture.agents()
     expect(await agents.verified("agy")).toBe(false)
     await agents.set("agy", true)
-    expect(await agents.verified("agy")).toBe(true)
+    // Windows gives Antigravity no launch grants, so nothing there is verified.
+    expect(await agents.verified("agy")).toBe(!windows)
     const marker = `${fixture.paths.plugins.agy}.reinstalling`
     writeFileSync(marker, "")
     expect(await agents.verified("agy")).toBe(false)

@@ -119,7 +119,16 @@ export class Messaging {
     this.sessions = sessions
     this.relays = new Relays({ sessions, store, now })
     this.grants = grantsOf({ sessions, now, relays: this.relays }, options)
-    const leasing = { sessions, store, loops, now, step, held: options.held, grants: this.grants }
+    const leasing = {
+      sessions,
+      store,
+      loops,
+      now,
+      step,
+      platform: options.platform ?? process.platform,
+      held: options.held,
+      grants: this.grants,
+    }
     this.leasing = new Leasing(options.leaseMs ?? 5_000, leasing)
     this.deliveries = new Deliveries({
       sessions,

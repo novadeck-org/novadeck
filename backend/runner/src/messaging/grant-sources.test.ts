@@ -4,6 +4,8 @@ import { findRepos, recentMs, type SourceIo } from "./grant-sources.js"
 const now = 1_000_000_000_000
 const old = now - recentMs - 1
 // A fake disk: folders, which are repos, their remotes and when their config changed.
+// The walk joins paths with the platform's separator; the fake disk is spelled with slashes.
+const slashed = (path: string) => path.replaceAll("\\", "/")
 const world = (
   repos: Record<string, { remotes: [string, string][]; changed?: number; head?: string }>,
   github: Record<string, string> = {},
@@ -17,8 +19,9 @@ const world = (
   return {
     gh,
     now: () => now,
-    folders: (dir) =>
-      Promise.resolve(
+    folders: (given) => {
+      const dir = slashed(given)
+      return Promise.resolve(
         [...paths]
           .filter(
             (path) =>
@@ -27,16 +30,17 @@ const world = (
               !path.slice(dir.length + 1).includes("/"),
           )
           .map((path) => path.slice(dir.length + 1)),
-      ),
-    isRepo: (dir) => Promise.resolve(dir in repos),
+      )
+    },
+    isRepo: (dir) => Promise.resolve(slashed(dir) in repos),
     remotes: (dir) =>
-      Promise.resolve((repos[dir]?.remotes ?? []).map(([name, url]) => ({ name, url }))),
-    configChangedAt: (dir) => Promise.resolve(repos[dir]?.changed ?? old),
+      Promise.resolve((repos[slashed(dir)]?.remotes ?? []).map(([name, url]) => ({ name, url }))),
+    configChangedAt: (dir) => Promise.resolve(repos[slashed(dir)]?.changed ?? old),
     githubDefault: (name) => {
       gh.push(name)
       return Promise.resolve(github[name])
     },
-    remoteHead: (dir) => Promise.resolve(repos[dir]?.head),
+    remoteHead: (dir) => Promise.resolve(repos[slashed(dir)]?.head),
   }
 }
 

@@ -31,6 +31,10 @@ export const leftText = (grant: Grant, now: number): string => {
   return `${Math.floor(minutes / 60)}h${rest > 0 ? ` ${rest}m` : ""} left`
 }
 
+// A grant lists no harness of its holders, so on Windows every one carries the line: Codex
+// and Antigravity there do not take a grant into their own check.
+const onWindows = (): boolean => navigator.platform.startsWith("Win")
+
 const Entry = ({ grant, now }: { readonly grant: Grant; readonly now: number }) => {
   const { revoke, revokeFailures } = useInboxContext()
   const holder = holderText(grant)
@@ -74,6 +78,11 @@ const Entry = ({ grant, now }: { readonly grant: Grant; readonly now: number }) 
               {command.rest ? " …" : ""}
             </code>
           ))}
+        </div>
+      )}
+      {onWindows() && (
+        <div className="grant-row-windows text-caption">
+          On Windows, Codex and Antigravity teammates still get their own dialog per command.
         </div>
       )}
       {grant.lastUse && (

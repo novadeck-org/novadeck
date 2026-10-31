@@ -34,6 +34,8 @@ export type LeasingHost = {
   readonly store: MessageStore
   readonly loops: Loops
   readonly now: () => number
+  /** The platform the runner runs on, which a grant's note tells of. */
+  readonly platform: NodeJS.Platform
   /** Moves the terminal's delivery on (`Deliveries.step`). */
   readonly step: (live: Live, event: DeliveryEvent) => void
   /** The grants, for the grant elements a delivery renders (`Grants.get`). */
@@ -124,7 +126,7 @@ export class Leasing {
     const mark = newMark()
     const grants = (id: string) => this.host.grants.get(id)
     const wrapped = (taken: readonly Message[]) =>
-      wrap(taken, isFromLead, mark, undefined, held, { grants })
+      wrap(taken, isFromLead, mark, undefined, held, { grants, platform: this.host.platform })
     const prints = (taken: readonly Message[]) => byteLength(print(wrapped(taken)))
     const messages = deliveryOf(queued, (taken) => prints(taken) <= maxDeliveryBytes)
     // The first always goes, as it fits alone; beside what the turn holds it may not.

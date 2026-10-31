@@ -199,9 +199,9 @@ describe("what the covered are told", () => {
   it("is delivered with the prompt, under a person mark", () => {
     const { messaging, make } = setup()
     const grant = make()
-    const text = wrapGrants(messaging.grants.covering("F"), "claude")
+    const text = wrapGrants(messaging.grants.covering("F"), "claude", "linux")
     expect(text).toContain(`<grant id="${grant.id}" person="`)
-    expect(wrapGrants(messaging.grants.covering("O"), "claude")).toBe("")
+    expect(wrapGrants(messaging.grants.covering("O"), "claude", "linux")).toBe("")
   })
 })
 

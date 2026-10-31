@@ -75,23 +75,32 @@ export const grantLines = (grant: Grant, agent: AgentName): string[] => [
 
 // Antigravity's launch grants are given when a terminal starts, so a terminal started
 // before the grant still meets its own dialog.
-const caveat = (agent: AgentName): string =>
-  agent === "agy"
-    ? "Antigravity takes this grant when it starts: if yours started earlier, its own dialog " +
-      "still asks until you restart, and a version of Antigravity before 1.4.10 never takes it."
-    : "If your harness still asks, answer its dialog as usual."
+// On Windows neither Codex nor Antigravity takes a grant into its own check.
+const caveat = (agent: AgentName, platform: NodeJS.Platform): string =>
+  platform === "win32" && agent !== "claude"
+    ? `On Windows ${agent === "agy" ? "Antigravity" : "Codex"} does not take this grant into its own ` +
+      "check: its dialog still asks for each command, in the user's Inbox."
+    : agent === "agy"
+      ? "Antigravity takes this grant when it starts: if yours started earlier, its own dialog " +
+        "still asks until you restart, and a version of Antigravity before 1.4.10 never takes it."
+      : "If your harness still asks, answer its dialog as usual."
 
 /**
  * The `<grant>` element for an agent: its id, this delivery's person mark, when it ends
  * (the runner's clock), and what it lets through. Only this element, with the delivery's
  * mark, is the person's approval.
  */
-export const grantElement = (grant: Grant, agent: AgentName, personMark: string): string =>
+export const grantElement = (
+  grant: Grant,
+  agent: AgentName,
+  personMark: string,
+  platform: NodeJS.Platform,
+): string =>
   `<grant id="${grant.id}" person="${personMark}" ends="${clock(grant.endsAt)}">\n` +
   `${[
     "The user granted, without asking again until it ends:",
     ...grantLines(grant, agent),
-    caveat(agent),
+    caveat(agent, platform),
   ].join("\n")}\n</grant>`
 
 /** The `<grant-ended>` element: the grant no longer applies, whatever it said before. */

@@ -517,13 +517,14 @@ export const clock = (at: number): string => {
 export const wrapGrants = (
   grants: readonly Grant[],
   agent: AgentName,
+  platform: NodeJS.Platform,
   personMark = newMark(),
 ): string =>
   grants.length === 0
     ? ""
     : [
         `<novadeck-messages note="${personNote(personMark, false, true)}${noticeNote}">`,
-        ...grants.map((each) => grantElement(each, agent, personMark)),
+        ...grants.map((each) => grantElement(each, agent, personMark, platform)),
         "</novadeck-messages>",
       ].join("\n")
 
@@ -531,6 +532,8 @@ export const wrapGrants = (
 export type WrapOptions = {
   /** The grant in force with this id; none once ended. Without it a grant message is plain text. */
   readonly grants?: (id: string) => Grant | undefined
+  /** The platform the runner runs on, which a grant's note tells of; this system's when omitted. */
+  readonly platform?: NodeJS.Platform
 }
 
 /**
@@ -548,7 +551,7 @@ export const wrap = (
   mark: string,
   personMark = newMark(),
   held: Held = {},
-  { grants }: WrapOptions = {},
+  { grants, platform = process.platform }: WrapOptions = {},
 ): string => {
   while (personMark === mark) personMark = newMark()
   const responses = messages.some((message) => message.response)
@@ -585,7 +588,7 @@ export const wrap = (
         shown.add(message.grantId!)
         const grant = granted(message)
         return grant
-          ? grantElement(grant, message.to.agent, personMark)
+          ? grantElement(grant, message.to.agent, personMark, platform)
           : grantEndedElement(message.grantId!)
       }
       if (response?.feedback) {

@@ -402,7 +402,7 @@ export const listenForReports = async (
       if (text.length > maxBytes) return socket.destroy()
       if (from) take(from)
     })
-    const hook = from && relayHook(value)
+    const hook = from && relayHook(value, platform)
     let answer = unheard
     // A hook that heard its ask late or not at all says so once, in the runner's log: the
     // lease of an answer nobody printed is never acknowledged, and only this line tells.

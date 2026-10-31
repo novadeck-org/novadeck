@@ -105,7 +105,8 @@ const fixture = (
     env: object,
     given: { token?: string; terminalId?: string },
   ) => {
-    const hook = relayHook(hello(agent, event, payload, env))
+    // Read as on Linux, which the narrowing above is told too: Windows is tested apart.
+    const hook = relayHook(hello(agent, event, payload, env), "linux")
     if (!hook) throw new Error("not a hook")
     const report: Report = {
       terminalId: given.terminalId ?? "t",
