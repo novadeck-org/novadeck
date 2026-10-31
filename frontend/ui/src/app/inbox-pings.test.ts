@@ -194,6 +194,21 @@ describe("pings for what needs the person", () => {
       second.stop()
     })
 
+    it("takes back the ping of an item snoozed, and sends none when it's brought back", () => {
+      const { set, shown, closed, stop } = setup()
+      const first = ask("a")
+      set([first])
+      vi.advanceTimersByTime(2000)
+      expect(shown).toHaveLength(1)
+      set([{ ...first, snoozed: true }])
+      vi.advanceTimersByTime(5000)
+      expect(closed).toEqual(["t1"])
+      set([first])
+      vi.advanceTimersByTime(5000)
+      expect(shown).toHaveLength(1)
+      stop()
+    })
+
     it("sends none for an update, which doesn't need them", () => {
       const { set, shown, stop } = setup()
       set([update("u")])

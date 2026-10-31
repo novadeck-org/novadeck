@@ -231,18 +231,31 @@ export type InboxMarks = {
   readonly need: TerminalNeed | undefined
   readonly subject?: string | undefined
   readonly dialog?: NeedDialog | undefined
+  // What it would need the person for, all snoozed: it shows it set aside. Its live dialogs
+  // make no mark while they are no more than its snoozed requests (`snoozedRequests`),
+  // snoozed or not; one more, as a new prompt, is marked as ever.
+  readonly snoozed?: true | undefined
+  readonly snoozedRequests?: number | undefined
 }
 
 // How a terminal reads at a glance, once, for its tab, its window and its project's status, so
 // that they cannot drift apart.
 export type TerminalGlance = {
   readonly phase: TerminalPhase
-  // The mark after the program: none for an ended terminal.
+  // The mark after the program: none for an ended terminal, nor where what it needs is snoozed.
   readonly need: TerminalNeed | undefined
+  // What it needs the person for is snoozed: a bell-off takes the mark's place.
+  readonly snoozed: boolean
   // Its final outcome shows as a stopped turn rather than a report.
   readonly failed: boolean
   // A reply the person hasn't read, on an agent that rests: its program brightens.
   readonly brightened: boolean
+}
+
+// Whether a terminal's live dialogs are all its snoozed requests', which make no mark.
+const asleep = (terminal: TerminalMetadata, marks: InboxMarks): boolean => {
+  const dialogs = terminal.state === "running" ? (terminal.agent?.attention?.count ?? 0) : 0
+  return dialogs <= (marks.snoozedRequests ?? 0)
 }
 
 // `unread` is how the terminal's last turn ended while the person looked away, if it did.
@@ -255,9 +268,17 @@ export const terminalGlance = (
   const failed = unread === "failed"
   const reported = terminal.state === "running" && terminal.agent?.reported === true
   const phase = terminalPhase(terminal, reported || failed, now)
+  const quiet = asleep(terminal, marks)
+  const snoozed = phase !== "ended" && marks.snoozed === true && marks.need === undefined && quiet
   return {
     phase,
-    need: phase === "ended" ? undefined : terminalNeedMark(terminal, marks.need),
+    need:
+      phase === "ended" || snoozed
+        ? undefined
+        : quiet
+          ? marks.need
+          : terminalNeedMark(terminal, marks.need),
+    snoozed,
     failed,
     brightened: unread === "unread" && phase === "idle",
   }
@@ -273,6 +294,7 @@ export type TerminalNote = TerminalGlance & { readonly text: string | undefined 
 export const idleNote: TerminalNote = {
   phase: "idle",
   need: undefined,
+  snoozed: false,
   failed: false,
   brightened: false,
   text: undefined,
@@ -285,9 +307,17 @@ export const terminalNote = (
   now = Date.now(),
 ): TerminalNote => {
   const glance = terminalGlance(terminal, marks, unread, now)
-  const { phase, failed, brightened } = glance
+  const { phase, failed, brightened, snoozed } = glance
+  // The dialogs of snoozed requests say nothing either.
+  const heard = ((): TerminalMetadata => {
+    if (!asleep(terminal, marks) || terminal.state !== "running" || !terminal.agent) return terminal
+    const { attention: _attention, ...agent } = terminal.agent
+    return { ...terminal, agent }
+  })()
   const text = joinNote([
-    needText(terminal, marks.need, marks.subject, marks.dialog),
+    snoozed
+      ? `Snoozed${marks.subject ? `: ${marks.subject}` : ""}`
+      : needText(heard, marks.need, marks.subject, marks.dialog),
     unheardText(terminal) ??
       (phase === "paused" ? pausedText(terminal, now) : undefined) ??
       (phase === "waiting" ? waitingNote(terminal, now) : undefined) ??

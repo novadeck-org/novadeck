@@ -109,6 +109,8 @@ export const scripted = ({
   createSession = unused,
   apply = false,
   transcriptsAvailable = true,
+  inboxOrder,
+  inboxSnoozed,
   feedback,
   feedbackCalls = {},
 }: {
@@ -129,6 +131,9 @@ export const scripted = ({
   apply?: boolean
   // Whether the runner can keep transcripts encrypted.
   transcriptsAvailable?: boolean
+  // The Inbox's order and snoozes as the runner keeps them; none kept where absent.
+  inboxOrder?: readonly string[]
+  inboxSnoozed?: readonly string[]
   // The app's feedback, where it has one.
   feedback?: Backend["feedback"]
   // How the runner answers `feedback.settle` and `feedback.ask` (they take by default).
@@ -251,6 +256,8 @@ export const scripted = ({
       { agent: "agy", available: false, connected: false },
     ],
     welcomed: false,
+    ...(inboxOrder ? { inboxOrder } : {}),
+    ...(inboxSnoozed ? { inboxSnoozed } : {}),
     ...(feedback ? { feedback } : {}),
   })
   let workspace = workspaceFromSeed(created.backend.seed, {

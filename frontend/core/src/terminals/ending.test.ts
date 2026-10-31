@@ -342,10 +342,44 @@ describe("a terminal's note", () => {
     expect(terminalNote(agent(), quiet, undefined, now)).toEqual({
       phase: "idle",
       need: undefined,
+      snoozed: false,
       failed: false,
       brightened: false,
       text: undefined,
     })
+  })
+
+  it("shows what it needs, snoozed, as such: no mark, its dialog's either, and says so", () => {
+    const asking = agent({ attention: { kind: "permission", count: 1 } })
+    const snoozedRequest = {
+      need: undefined,
+      subject: "pnpm lint",
+      snoozed: true,
+      snoozedRequests: 1,
+    } as const
+    expect(terminalNote(asking, snoozedRequest, undefined, now)).toMatchObject({
+      need: undefined,
+      snoozed: true,
+      text: "Snoozed: pnpm lint",
+    })
+    // A dialog more than the snoozed requests, as a new prompt or one behind a snoozed ask
+    // that is no request, is marked at once.
+    const two = agent({ attention: { kind: "question", count: 2 } })
+    expect(terminalNote(two, snoozedRequest, undefined, now)).toMatchObject({
+      need: "ask",
+      snoozed: false,
+    })
+    expect(
+      terminalNote(asking, { ...snoozedRequest, snoozedRequests: 0 }, undefined, now),
+    ).toMatchObject({ need: "unblock", snoozed: false })
+    // Beside an ask it hasn't snoozed, the snoozed request's dialog makes no mark: the ask's.
+    expect(
+      terminalNote(asking, { need: "ask", subject: "Which?", snoozedRequests: 1 }, undefined, now),
+    ).toMatchObject({ need: "ask", snoozed: false, text: "Asks: Which?" })
+    // What it needs and hasn't snoozed is marked as ever.
+    expect(
+      terminalNote(asking, { need: "ask", subject: "Which?", snoozed: true }, undefined, now),
+    ).toMatchObject({ need: "unblock", snoozed: false })
   })
 
   it("says the need first, then what the terminal does", () => {

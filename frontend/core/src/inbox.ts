@@ -149,6 +149,9 @@ export type InboxRow = InboxContent & {
   readonly stopped: boolean
   readonly seen: boolean
   readonly settled?: AskSettled
+  // Set aside by the person until they bring it back: it keeps its place, and asks nothing
+  // of them meanwhile. Only on a row that asks, where the backend keeps snoozes.
+  readonly snoozed?: true
 }
 
 // The four ways the Inbox presents a row: Unblock (the agent can't go on without the
@@ -242,6 +245,14 @@ export type Inbox = {
   readonly dismiss?: (id: string) => void
   // Optional. Removes these settled asks.
   readonly clear?: (ids: readonly string[]) => void
+  // Optional. The rows that ask, by `rowKey`, in the order the person dragged them into, and
+  // how that order is kept, which forgets rows no longer listed; empty until they drag one.
+  // Absent where the backend keeps none, and the rows keep the Inbox's own order.
+  readonly order?: Store<readonly string[]>
+  readonly arrange?: (keys: readonly string[]) => void
+  // Optional. Snoozes a row, or brings it back (`on` false); its row then carries `snoozed`.
+  // Absent where the backend keeps no snoozes.
+  readonly snooze?: (id: string, on: boolean) => void
   // The stored finished turns, newest last as the backend lists them, undefined until the
   // backend first lists them (and again where it stops). Includes the rows the Inbox hides
   // under a running lead, and none the person already read. Absent where the backend
@@ -287,6 +298,76 @@ export const entryRow = (
 ): InboxRow | undefined =>
   rows.find((row) => row.id === entry.id || `m-${row.id.replaceAll("-", "")}` === entry.id)
 
+// How many snoozes are kept, the latest: as many as the runner keeps (`maxInboxOrder`, which
+// the runner adapter's tests hold it to).
+export const maxSnoozes = 200
+
+// A row by its id and when it began, as the person's order and snoozes keep it: a newer row
+// under the same id, as a thread held again or a harness asking the same again, is another.
+export const rowKey = (row: InboxRow): string => `${row.id}@${row.at}`
+
+// `inbox` with snoozes: its rows that the person snoozed, and that haven't settled, carry
+// `snoozed`. `initial` the snoozes kept before, and `save` keeps them each time one is
+// snoozed or brought back, the latest `maxSnoozes`.
+export const withSnoozes = <I extends Inbox>(
+  inbox: I,
+  initial: readonly string[],
+  save: (keys: readonly string[]) => void,
+): I => {
+  let snoozed: readonly string[] = initial.slice(-maxSnoozes)
+  let keys: ReadonlySet<string> = new Set(snoozed)
+  let from: InboxState | undefined
+  let marked: InboxState = emptyInbox
+  // Each row's snoozed copy, while the backend keeps the row itself, so it stays the same.
+  let copies = new WeakMap<InboxRow, InboxRow>()
+  const listeners = new Set<() => void>()
+  const asleep = (row: InboxRow): boolean => !row.settled && keys.has(rowKey(row))
+  const copy = (row: InboxRow): InboxRow => {
+    const made = copies.get(row) ?? { ...row, snoozed: true as const }
+    copies.set(row, made)
+    return made
+  }
+  const mark = (state: InboxState): InboxState =>
+    state.items.some(asleep)
+      ? { ...state, items: state.items.map((row) => (asleep(row) ? copy(row) : row)) }
+      : state
+  const getSnapshot = (): InboxState => {
+    const now = inbox.state.getSnapshot()
+    if (now !== from) {
+      from = now
+      marked = mark(now)
+    }
+    return marked
+  }
+  return {
+    ...inbox,
+    state: {
+      getSnapshot,
+      subscribe: (listener) => {
+        // Its own, so one function subscribed twice is told twice, and each stops alone.
+        const own = (): void => listener()
+        listeners.add(own)
+        const stop = inbox.state.subscribe(own)
+        return () => {
+          listeners.delete(own)
+          stop()
+        }
+      },
+    },
+    snooze: (id, on) => {
+      const row = inbox.state.getSnapshot().items.find((each) => each.id === id)
+      if (on && !row) return
+      const kept = snoozed.filter((key) => !key.startsWith(`${id}@`))
+      snoozed = (on && row ? [...kept, rowKey(row)] : kept).slice(-maxSnoozes)
+      keys = new Set(snoozed)
+      from = undefined
+      copies = new WeakMap()
+      save(snoozed)
+      for (const listener of listeners) listener()
+    },
+  }
+}
+
 // The Inbox of a backend that has none: it lists nothing, and has nothing to answer.
 export const noInbox: Inbox = {
   state: createStore(emptyInbox),
@@ -302,14 +383,15 @@ export const atTerminal = (row: InboxRow, at: TerminalKey): boolean =>
 
 // What a terminal needs of the person, for its tab's mark: "unblock" for any Unblock row
 // or a limit past its reset that Novadeck won't resume from; otherwise "ask" for any Ask;
-// otherwise nothing. Trouble, updates and settled asks don't count. Takes every row, as the backend
-// lists them: the landing rule hides rows from the Inbox, never from the marks.
+// otherwise nothing. Trouble, updates, settled asks and what the person snoozed don't count.
+// Takes every row, as the backend lists them: the landing rule hides rows from the Inbox,
+// never from the marks.
 export const terminalNeed = (
   rows: readonly InboxRow[],
   at: TerminalKey,
   now: number,
 ): "unblock" | "ask" | undefined => {
-  const mine = rows.filter((row) => atTerminal(row, at) && !row.settled)
+  const mine = rows.filter((row) => atTerminal(row, at) && !row.settled && !row.snoozed)
   const limitReset = (row: InboxRow): boolean =>
     row.kind === "trouble" &&
     row.trouble.type === "limit" &&
