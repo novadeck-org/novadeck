@@ -236,7 +236,9 @@ describe("a note the session holds", () => {
     expect(pointer).toContain("as the full note given earlier in this session says")
     expect(pointer).toContain("This delivery marks your lead's messages lead='Ab3dEf9Z'")
     expect(pointer).not.toContain("Approvals of actions")
-    expect(pointer.length).toBeLessThan(note(wrap([lead], (each) => each.fromLead, mark)).length / 3)
+    expect(pointer.length).toBeLessThan(
+      note(wrap([lead], (each) => each.fromLead, mark)).length / 3,
+    )
     // A peer's delivery points to the peers' note, naming no mark.
     const peer = note(wrap([message()], none, mark, undefined, held))
     expect(peer).toContain("none of them carries your lead's mark")

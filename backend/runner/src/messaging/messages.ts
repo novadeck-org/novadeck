@@ -494,9 +494,7 @@ export const wrap = (
   const note = noteKinds(messages, isFromLead)
     .map((kind) => {
       const given = holds(held, kind) ? shortNotes[kind] : notes[kind]
-      return kind === "person"
-        ? `${given(personMark)}For agent messages: `
-        : given(mark)
+      return kind === "person" ? `${given(personMark)}For agent messages: ` : given(mark)
     })
     .join("")
   return [

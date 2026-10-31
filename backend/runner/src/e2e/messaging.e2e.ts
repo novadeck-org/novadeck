@@ -327,9 +327,12 @@ for (const setup of setups) {
       // a Stop's continuation left in the conversation, no more than once.
       const later = run.model.mark()
       await t2.submit("Tell moth more")
-      const rung = await run.model.waitFor((call) => delivered(call, "fox") && ring.test(latest(call)), {
-        after: later,
-      })
+      const rung = await run.model.waitFor(
+        (call) => delivered(call, "fox") && ring.test(latest(call)),
+        {
+          after: later,
+        },
+      )
       const second = messages(t1).map((one) => one.id)[1]
       const read = wrappers(rung)
       const ids = read.flatMap((one) => one.ids)
