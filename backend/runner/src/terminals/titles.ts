@@ -8,9 +8,10 @@ export type { TitleSource }
 
 /**
  * What names a terminal (see docs/agent-messaging.md, "Naming"), each layer kept on its
- * own so the title follows their precedence: the person's title; murmur's latest title,
- * written by a local model; and the title the agent that opened the terminal gave through
- * `open_terminal` or `open_agent`, which shows as that terminal's (its `openedBy`). The default comes from the program the
+ * own so the title follows their precedence: the person's title; the title the agent that
+ * opened the terminal gave through `open_terminal` or `open_agent`, which shows as that
+ * terminal's (its `openedBy`) and which murmur never replaces, as it never replaces the
+ * person's; and murmur's latest title, written by a local model. The default comes from the program the
  * terminal was opened to run, never from its handle. The summary is the terminal's own
  * agent's, through `summarize`, which `agents()` lists; it is no part of the title.
  */
@@ -71,21 +72,31 @@ export const defaultTitle = (command: string | null): string => {
 const control = /[\x00-\x1f\x7f-\x9f]/g
 
 /**
- * The terminal's title and who it is from, by precedence: the person, then murmur, then
- * the opening agent's, then the default.
+ * Whether the terminal holds a title murmur never replaces: the person's, or the one the
+ * agent that opened it gave, which needs that terminal to say who it is from.
+ */
+export const titledByHand = (
+  naming: Pick<Naming, "person" | "opener">,
+  openedBy: string | null,
+): boolean => naming.person !== null || (naming.opener !== null && openedBy !== null)
+
+/**
+ * The terminal's title and who it is from, by precedence: the person, then the opening
+ * agent's, then murmur, then the default. A lead names its teammates so it and the person
+ * can tell them apart, so a local model's later title never takes that away.
  */
 export const titleOf = (
   naming: Naming,
   terminal: { readonly command: string | null; readonly openedBy: string | null },
 ): { readonly title: string; readonly source: TitleSource } => {
   if (naming.person !== null) return { title: naming.person, source: { kind: "person" } }
-  if (naming.murmur) return { title: naming.murmur.title, source: { kind: "murmur" } }
   // An opener's title needs the terminal that opened it to say who it is from.
   if (naming.opener && terminal.openedBy !== null)
     return {
       title: naming.opener.title,
       source: { kind: "agent", by: terminal.openedBy },
     }
+  if (naming.murmur) return { title: naming.murmur.title, source: { kind: "murmur" } }
   return { title: defaultTitle(terminal.command), source: { kind: "default" } }
 }
 

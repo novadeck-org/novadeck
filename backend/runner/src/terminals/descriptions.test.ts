@@ -524,7 +524,38 @@ describe("when an agent's terminal is named", () => {
     expect(made.written).toEqual([{ title: "Addons off by default" }, { title: "Invoice export" }])
   })
 
-  it("weighs its opening agent's title as the name, but not a title it had as a plain shell", async () => {
+  it("never titles a terminal its opening agent titled, an agent's or a shell's", async () => {
+    const opened = create(
+      {
+        work: work(),
+        activity: idle("ok"),
+        naming: { ...unnamed, opener: { title: "refactor ui" } },
+        openedBy: "sable",
+      },
+      new FakeDescriber({ reply: () => ({ title: "Refactor @novadeck/ui" }) }),
+    )
+    summarize(opened, summary)
+    await settle()
+    summarize(opened, "Splits the ui package into domain folders.")
+    await settle()
+    expect(opened.written).toEqual([])
+    expect(opened.describer.digests).toEqual([])
+
+    const shell = create(
+      {
+        agent: null,
+        program: { name: "bash", argv: null },
+        naming: { ...unnamed, opener: { title: "dev server" } },
+        openedBy: "sable",
+      },
+      new FakeDescriber({ reply: () => ({ title: "Vite dev" }) }),
+    )
+    shell.murmur.prompted("a")
+    await settle(shell.times.shellSettleMs + 50)
+    expect(shell.written).toEqual([])
+  })
+
+  it("weighs nothing of an opener's title no opening terminal vouches for, nor a title it had as a plain shell", async () => {
     const opened = create(
       {
         work: work(),
@@ -535,7 +566,7 @@ describe("when an agent's terminal is named", () => {
     )
     summarize(opened, summary)
     await settle()
-    expect(opened.written).toEqual([])
+    expect(opened.written).toEqual([{ title: "Addons switch" }])
 
     const shell = create(
       { agent: null, program: { name: "bash", argv: null } },
@@ -549,26 +580,6 @@ describe("when an agent's terminal is named", () => {
     summarize(shell, summary)
     await settle()
     expect(shell.written).toEqual([{ title: "Addons switch" }, { title: "Addons switch" }])
-  })
-
-  it("replaces a shell's title, which shows over its opener's, though the opener's shares a word", async () => {
-    const made = create(
-      {
-        agent: null,
-        program: { name: "bash", argv: null },
-        naming: { ...unnamed, opener: { title: "Login fix" } },
-      },
-      new FakeDescriber({
-        reply: (digest) => ({ title: digest.kind === "shell" ? "Git history" : "Login redirect" }),
-      }),
-    )
-    made.rows.current = ["$ git log", "abc123 Fix login", "$ "]
-    made.murmur.prompted("a")
-    await settle(made.times.shellSettleMs + 50)
-    made.change({ agent: "claude" })
-    summarize(made, "Fixes the login redirect.")
-    await settle()
-    expect(made.written).toEqual([{ title: "Git history" }, { title: "Login redirect" }])
   })
 
   it("still owes a summary that came while the one before it was named", async () => {
@@ -1240,6 +1251,8 @@ describe("when murmur becomes usable", () => {
     // Titled: it waits for its agent's next summary.
     agent("d", { ...unnamed, murmur: { title: "Had one" }, summary: "Fixes the login." })
     agent("e", { ...unnamed, opener: { title: "Opened" }, summary: "Fixes the logout." })
+    // Titled by the agent that opened it: never described.
+    subjects.set("e", { ...subjects.get("e")!, openedBy: "sable" })
     change({ program: { name: "bash", argv: null } })
     describer.setUsable(false)
     describer.setUsable(true)
