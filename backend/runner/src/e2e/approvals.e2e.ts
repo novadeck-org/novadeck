@@ -197,7 +197,6 @@ const approvalAsk = (call: Call): Reply | undefined => {
           shape: {
             type: "approval",
             commands: [{ argv: grantedArgv, rest: false }],
-            hours: 1,
           },
         },
       },
