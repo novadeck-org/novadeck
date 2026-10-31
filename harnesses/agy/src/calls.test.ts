@@ -61,6 +61,7 @@ describe("an Antigravity tool call", () => {
         toolCall: { name: "run_command", args },
       })
     expect(ran({ CommandLine: "npm test", Cwd: "/w/b" })).toMatchObject([{ folder: "/w/b" }])
+    expect(ran({ CommandLine: "npm test", Cwd: '"/w/q"' })).toMatchObject([{ folder: "/w/q" }])
     expect(ran({ CommandLine: "cd /w/c && npm test" })).toMatchObject([{ folder: "/w/c" }])
     expect(ran({ CommandLine: "npm test" })).toMatchObject([{ folder: "/w/a" }])
     const viewed = called("PreToolUse", {

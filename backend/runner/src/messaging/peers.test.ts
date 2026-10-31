@@ -610,6 +610,9 @@ describe("a listing of many terminals", () => {
     expect(compactPeer(listing({ agent: null, expecting: "codex" }), now, viewer)).toBe(
       "- @fox: expecting Codex, not started yet",
     )
+    expect(compactPeer(listing({ agent: null, untrusted: "codex" }), now, viewer)).toBe(
+      "- @fox: no agent",
+    )
   })
 })
 

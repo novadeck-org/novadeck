@@ -135,21 +135,27 @@ export const describe = (tool: string, input: string): ToolRun => {
 const descriptors = /(?:^|[\\/])mcp[\\/]novadeck_novadeck[\\/]/
 
 /**
- * What a tool call counts as to the messaging loop guard: see `ToolKind`. `args` is the
- * hook's own: its string values may be quoted a second time.
- */
-/**
- * The folder a call ran in, for run_command alone: its own `Cwd`, else a leading `cd` in
- * its command line, else `workspace`, the folder of the conversation's workspace.
+ * The folder a call ran in, for run_command alone: its own `Cwd` where its version takes
+ * one (1.2 did; 1.4 refuses it, probed 2026-10-31, 1.4.12), else a leading `cd` in its
+ * command line, else `workspace`, the folder of the conversation's workspace. Its string
+ * values may be quoted a second time, as `textField` reads them.
  */
 export const folderOf = (
   { name, args }: ToolCall,
   workspace: string | undefined,
 ): string | undefined =>
   name === "run_command"
-    ? commandFolder(textField(args, ...commandKeys) || undefined, workspace, args.Cwd ?? args.cwd)
+    ? commandFolder(
+        textField(args, ...commandKeys) || undefined,
+        workspace,
+        textField(args, "Cwd", "cwd") || undefined,
+      )
     : undefined
 
+/**
+ * What a tool call counts as to the messaging loop guard: see `ToolKind`. `args` is the
+ * hook's own: its string values may be quoted a second time.
+ */
 export const kindOf = (tool: string, args: Fields): ToolKind => {
   if (tool === lazy)
     return textField(args, "ServerName") === "novadeck_novadeck" ? "novadeck" : "work"

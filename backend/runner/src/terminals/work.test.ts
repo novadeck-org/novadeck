@@ -71,6 +71,16 @@ describe("where a root session works now", () => {
     expect(work?.places).toEqual(["/t/b"])
   })
 
+  it("keeps the folder of a command its harness's records tell, as Codex's rollout does", () => {
+    const work = workAfter(
+      null,
+      root,
+      [ran("/t/a"), { type: "command-ran", ...fact, folder: "/t/b" }],
+      1,
+    )
+    expect(work?.places).toEqual(["/t/b", "/t/a"])
+  })
+
   it("keeps the latest few, and is the same work while the calls stay in one folder", () => {
     const calls = Array.from({ length: keptPlaces + 3 }, () => ran("/t/a"))
     const work = workAfter(null, root, [ran("/t/z"), ...calls], 1)
@@ -78,16 +88,27 @@ describe("where a root session works now", () => {
     expect(workAfter(work, root, [ran("/t/a")], 2)).toBe(work)
   })
 
-  it("is the checkout most of its latest places are in, the latest on a tie", () => {
+  it("is another checkout once more than half its latest places are in it, the latest on a tie", () => {
     const checkout = (folder: string) =>
       folder.startsWith("/tmp") ? null : `/${folder.split("/")[1]}`
-    // One look into another checkout doesn't move it.
-    expect(currentCheckout(["/s/x", "/b/1", "/b/2", "/b/3"], checkout)).toBe("/b")
-    expect(currentCheckout(["/a/x", "/b/y"], checkout)).toBe("/a")
-    // A scratchpad, outside every checkout, never counts.
-    expect(currentCheckout(["/tmp/1", "/tmp/2", "/b/x"], checkout)).toBe("/b")
-    expect(currentCheckout(["/tmp/1"], checkout)).toBeNull()
-    expect(currentCheckout([], checkout)).toBeNull()
+    const times = (count: number, folder: string) => Array.from({ length: count }, () => folder)
+    const half = keptPlaces / 2
+    expect(
+      currentCheckout([...times(half + 1, "/b/x"), ...times(half - 1, "/a/x")], checkout, "/a"),
+    ).toBe("/b")
+    // A few looks into a teammate's checkout, or a fresh session's first command, don't move it.
+    expect(
+      currentCheckout([...times(half, "/b/x"), ...times(half, "/a/x")], checkout, "/a"),
+    ).toBeNull()
+    expect(currentCheckout(["/b/x"], checkout, "/a")).toBeNull()
+    // Its own checkout, and a scratchpad outside every checkout, never count for another.
+    expect(currentCheckout(times(keptPlaces, "/a/x"), checkout, "/a")).toBeNull()
+    expect(currentCheckout(times(keptPlaces, "/tmp/x"), checkout, "/a")).toBeNull()
+    // Between two others, the one most are in, the latest on a tie.
+    expect(
+      currentCheckout([...times(half + 1, "/c/x"), ...times(half - 1, "/b/x")], checkout, null),
+    ).toBe("/c")
+    expect(currentCheckout([], checkout, "/a")).toBeNull()
   })
 })
 
@@ -107,6 +128,13 @@ describe("a prompt as others read it", () => {
 
   it("leaves a prompt with no such tags as it is, other markup too", () => {
     expect(plainPrompt("Fix <b>bold</b> in a <div>")).toBe("Fix <b>bold</b> in a <div>")
+    expect(plainPrompt("Render <user-card> in the list")).toBe("Render <user-card> in the list")
+  })
+
+  it("drops a wrapping tag a runner before kept cut short", () => {
+    expect(plainPrompt('Done <agent-message from="sable" id="m-1" thre')).toBe(
+      "(a message from sable) Done",
+    )
   })
 
   it("is what the work keeps of the person's prompt", () => {

@@ -229,6 +229,8 @@ describe("where a peer's agent works now", () => {
       b,
       join(root, "tasks", "a", "repo"),
       b,
+      join(b, "src"),
+      b,
     ])
     expect(moved).toMatchObject({
       folder: join("tasks", "b", "repo"),

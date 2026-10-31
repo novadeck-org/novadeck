@@ -1,4 +1,4 @@
-import { readFile, stat } from "node:fs/promises"
+import { readFile, realpath, stat } from "node:fs/promises"
 import { dirname, isAbsolute, join, resolve } from "node:path"
 import { setTimeout as sleep } from "node:timers/promises"
 
@@ -73,8 +73,12 @@ export const gitBranch = (directory: string): Promise<string | null> =>
 
 /**
  * The top folder of the git checkout a directory is in, a worktree's own, found by git's
- * files rather than by running git; null outside one, for a folder that is gone, or when
- * that takes longer than a moment.
+ * files rather than by running git, its links resolved so two spellings of one folder
+ * name one checkout; for a folder that is gone, the checkout of the nearest folder above
+ * it that is there; null outside one, or when that takes longer than a moment.
  */
 export const gitCheckout = (directory: string): Promise<string | null> =>
-  quickly(async () => (await nearestGit(directory))?.top ?? null)
+  quickly(async () => {
+    const real = await realpath(directory).catch(() => directory)
+    return (await nearestGit(real))?.top ?? null
+  })

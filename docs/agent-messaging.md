@@ -385,7 +385,8 @@ like them, only inside Novadeck's terminals.
   With more than five other terminals (`compactPast`), a lead with a team calls it often
   to see who is busy, idle or waiting on the person, so each terminal is one line: its
   handle and title, its agent and its state (busy, idle, "waiting on the user:" and what
-  for, which always shows, or waiting on its own job or wake-up), its branch, how it
+  for, which always shows, or waiting on its own job or wake-up; "no agent" for a plain
+  terminal), its branch, how it
   relates to the caller, and its standing done, else its latest update, else its agent's
   summary: `- @fox · ti delivery: Claude Code, busy, on task/ti-delivery, led by you —
   update 15 min ago: PR opened`. The tool's `terminal` (a handle) gives that terminal's
@@ -403,10 +404,15 @@ like them, only inside Novadeck's terminals.
      latest tool calls are mostly in another git checkout, as an agent that moved on to
      another worktree: then that checkout and its branch, with "(its agent works here now;
      its terminal started in …)". The calls are the root's shell commands, by the folder
-     each ran in (Antigravity's `Cwd`, Codex's `workdir` where its hook gives one, a
-     leading `cd`, else the directory its hook ran in), and the files any of its actors
-     wrote: the last eight (`keptPlaces`), kept with its work, of which the checkout most
-     are in wins, the latest on a tie, so one look elsewhere doesn't move it. A folder in
+     each ran in, and the files any of its actors wrote. Each harness tells a command's
+     folder its own way: Claude Code by a leading `cd`, else its hook's directory, which
+     keeps the `cd`s it allows; Antigravity by a leading `cd` (or the `Cwd` its 1.2
+     `run_command` took and 1.4 refuses), else its workspace; Codex by its rollout's
+     `CommandExecution` items, whose `cwd` is the command's own `workdir`, which its hook
+     never names (probed 2026-10-31, 0.163.0). The last eight (`keptPlaces`) are kept
+     with its work; another checkout wins once it holds more than half of them, so a few
+     looks elsewhere (a teammate's log) or a fresh session's first command don't move it.
+     Folders are compared with their links resolved. A folder in
      no checkout (a scratchpad, a memory folder) never counts;
   5. "started with": the person's first root prompt in the bound session, about 120
      characters. In the first root session of a terminal another agent opened, a first
@@ -1891,7 +1897,7 @@ model behind a `Describer` (`murmur/`).
   keep their default titles. Agents still summarize, nudges included. A plain shell has no
   summary, with or without murmur. Prompts never title a terminal. When the person turns
   murmur off or removes it, its titles go: every running terminal loses its murmur title
-  (it shows the default, or the opener's, which murmur's never covered), kept terminals lose theirs in the store, and
+  (it shows the opener's, else the default), kept terminals lose theirs in the store, and
   what was waiting or owed is dropped. Closing the runner, a failed check or a lost GPU
   clear nothing.
 - **Whose the first prompt is.** "Started with" in `agents()` uses the person's first root

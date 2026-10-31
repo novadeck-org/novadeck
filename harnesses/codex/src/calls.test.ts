@@ -71,16 +71,44 @@ describe("a Codex tool call", () => {
     expect(events.at(-1)).toMatchObject({ actor: "a1", toolName: "apply_patch", kind: "work" })
   })
 
-  it("tells the folder its shell command ran in: its workdir, a leading cd, or the turn's", () => {
-    const ran = (tool_input: object, tool_name = "Bash") =>
-      called("PostToolUse", { tool_name, cwd: "/w/a", tool_input })
-    expect(ran({ command: "cd /w/b && cargo test" })).toMatchObject([{ folder: "/w/b" }])
-    expect(ran({ cmd: "ls", workdir: "/w/c" }, "exec_command")).toMatchObject([{ folder: "/w/c" }])
-    expect(ran({ command: ["bash", "-lc", "cd ../d && ls"] }, "shell")).toMatchObject([
-      { folder: "/w/d" },
-    ])
-    expect(ran({ command: "ls" })).toMatchObject([{ folder: "/w/a" }])
-    expect(ran({ input: "*** Update File: x.ts" }, "apply_patch")[0]).not.toHaveProperty("folder")
+  it("names no folder by its hook, which tells only the turn's directory, never its workdir", () => {
+    const [shell] = called("PostToolUse", {
+      tool_name: "Bash",
+      cwd: "/w/a",
+      tool_input: { command: "cargo test" },
+    })
+    expect(shell).not.toHaveProperty("folder")
+  })
+
+  it("tells the folder a command ran in from its rollout: its own directory, or a leading cd", () => {
+    const run = { sessionId: "s", instance: "7" }
+    const executed = (item: object) =>
+      rolloutEvents(
+        JSON.stringify({
+          timestamp: "2026-10-31T10:00:00.000Z",
+          type: "event_msg",
+          payload: {
+            type: "item_completed",
+            item: { type: "CommandExecution", status: "completed", ...item },
+          },
+        }),
+        run,
+      )
+    expect(
+      executed({
+        command: ["/bin/bash", "-lc", "cargo test"],
+        cwd: "file:///w/api",
+        source: "unified_exec_startup",
+      }),
+    ).toMatchObject([{ type: "command-ran", folder: "/w/api" }])
+    expect(executed({ command: ["/bin/bash", "-lc", "cd ../b && ls"], cwd: "/w/a" })).toMatchObject(
+      [{ type: "command-ran", folder: "/w/b" }],
+    )
+    // The person's own `!` command, and one with no folder to tell, are none of the agent's.
+    expect(
+      executed({ command: ["/bin/bash", "-lc", "ls"], cwd: "file:///w", source: "user_shell" }),
+    ).toEqual([])
+    expect(executed({ command: ["ls"], cwd: "relative" })).toEqual([])
   })
 
   it("is not reported by the hooks that ask for it", () => {

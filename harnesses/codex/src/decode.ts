@@ -1,6 +1,5 @@
 import {
   absolute,
-  folderField,
   withRequestCwd,
   callId,
   replied,
@@ -15,7 +14,7 @@ import type { Report } from "@novadeck/harness-core/report"
 
 import { asyncReplies, asyncRequestId, asyncSubject, asyncTool, quoted } from "./async-question.js"
 import { applied, patched } from "./patch.js"
-import { folderOf, kindOf } from "./tools.js"
+import { kindOf } from "./tools.js"
 
 /**
  * Codex's hooks, as normalized facts.
@@ -199,7 +198,6 @@ const decodeHook = ({ event, seq, instance, env, payload }: Report): readonly Ha
           actor,
           toolName: tool,
           kind: kindOf(tool, input),
-          ...folderField(folderOf(tool, input, payload.cwd)),
         },
       ]
     default:

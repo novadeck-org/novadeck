@@ -110,6 +110,12 @@ describe("the folder a command runs in", () => {
     expect(commandFolder("  cd /x/ && ls", "/w")).toBe("/x")
   })
 
+  it("is the cd on a script's first line, and the hook's own where it is the cd's already", () => {
+    expect(commandFolder("cd /repo\npnpm test", "/w")).toBe("/repo")
+    expect(commandFolder("cd wt/ui && ls", "/p/wt/ui")).toBe("/p/wt/ui")
+    expect(commandFolder("cd ui && ls", "/p/build-ui")).toBe("/p/build-ui/ui")
+  })
+
   it("is the hook's own directory for a command with no cd first", () => {
     expect(commandFolder("git status && cd /x", "/w")).toBe("/w")
     expect(commandFolder("cd /x | cat", "/w")).toBe("/w")

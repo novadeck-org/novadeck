@@ -27,15 +27,16 @@ export const absolute = (value: unknown): string | undefined =>
     : undefined
 
 // A leading `cd` and the folder it names: bare, or in single or double quotes, followed by
-// `&&`, `;` or the command's end.
-const leadingCd = /^\s*cd\s+(?:"([^"]+)"|'([^']+)'|([^\s;&|'"]+))\s*(?:&&|;|$)/
+// `&&`, `;`, the end of its line or the command's end.
+const leadingCd = /^\s*cd\s+(?:"([^"]+)"|'([^']+)'|([^\s;&|'"]+))[ \t]*(?:&&|;|\r?\n|$)/
 
 /**
  * The folder a shell command runs in, as an absolute path: its tool's own working-directory
  * field where it takes one (Codex's `workdir`, Antigravity's `Cwd`), else the folder a
  * leading `cd` moves it to (`cd /x && …`, `cd x; …`), else `cwd`, the directory its hook
- * ran in. A relative folder resolves against `cwd`; one naming a variable, `~` or `-` is
- * no folder, nor is anything where `cwd` isn't absolute to resolve it against. It tells
+ * ran in. A relative folder resolves against `cwd`, unless `cwd` already ends in it, as
+ * where the harness reports its directory after the `cd` it kept; one naming a variable,
+ * `~` or `-` is no folder, nor is anything where `cwd` isn't absolute to resolve it against. It tells
  * where an agent works now, as the agents listing shows it, whichever harness runs it.
  */
 export const commandFolder = (
@@ -47,7 +48,12 @@ export const commandFolder = (
   const named = (folder: string): string | undefined => {
     if (/^[~$-]/.test(folder) || folder.includes("\0") || folder.length > 4096) return undefined
     if (isAbsolute(folder)) return resolve(folder)
-    return base === undefined ? undefined : resolve(base, folder)
+    if (base === undefined) return undefined
+    const moved = resolve(base, folder)
+    // Already there: the directory the hook names is the `cd`'s own, not where it began.
+    return resolve(base).endsWith(resolve("/", folder)) && !folder.startsWith("..")
+      ? resolve(base)
+      : moved
   }
   const own = text(workdir)?.trim()
   if (own) return named(own)

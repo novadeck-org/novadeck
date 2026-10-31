@@ -1,3 +1,5 @@
+import { fileURLToPath } from "node:url"
+
 import { commandFolder } from "@novadeck/harness-core/decode"
 import type { ToolKind } from "@novadeck/harness-core/events"
 import { fieldsOf, parseFields, type Fields } from "@novadeck/harness-core/fields"
@@ -140,13 +142,23 @@ const shells: ReadonlySet<string> = new Set([
 ])
 
 /**
- * The folder a call ran in, for its shell tools alone: their own `workdir` where the call
- * gives one, else a leading `cd` in its script, else the turn's directory its hook ran in.
+ * The folder a command its rollout records ran in: a leading `cd` in its script, from the
+ * command's own directory (`cwd`, its `workdir` or else the turn's), as a path or a
+ * `file://` URL. Its hook names only the turn's directory, so this is what tells where it
+ * works (see the rollout's `command-ran`).
  */
-export const folderOf = (tool: string, input: unknown, cwd: unknown): string | undefined => {
-  if (!shells.has(tool.toLowerCase())) return undefined
-  const fields = fieldsOf(input)
-  return commandFolder(scriptOf(fields), cwd, fields?.workdir)
+export const commandRanIn = (command: unknown, cwd: unknown): string | undefined => {
+  const directory = typeof cwd === "string" && cwd.startsWith("file://") ? fromFileUrl(cwd) : cwd
+  return commandFolder(scriptOf(fieldsOf({ command })), directory)
+}
+
+/** A `file://` URL's path, or undefined for one that isn't a local file's. */
+const fromFileUrl = (url: string): string | undefined => {
+  try {
+    return fileURLToPath(url)
+  } catch {
+    return undefined
+  }
 }
 
 /** What a tool call counts as to the messaging loop guard: see `ToolKind`. */

@@ -1,3 +1,4 @@
+import { realpath } from "node:fs/promises"
 import { homedir } from "node:os"
 import { basename, isAbsolute, relative } from "node:path"
 
@@ -95,6 +96,9 @@ export const waitingOf = (activity: Pick<Activity, "pending"> | null): Waiting |
       }
     : null
 }
+
+/** A folder with its links resolved, or as it is where that fails. */
+const real = (folder: string): Promise<string> => realpath(folder).catch(() => folder)
 
 /** A path inside the person's home folder as `~/…`, which names no account; others as they are. */
 const homeShort = (path: string): string => {
@@ -206,17 +210,20 @@ export class TerminalPeers {
    */
   private async whereabouts(sessionId: string): Promise<Map<string, Whereabouts>> {
     const project = this.options.projectFolder(sessionId)
+    // The project as its links resolve too, as a checkout another folder is in is named.
+    const realProject = project === undefined ? undefined : await real(project)
     const entries = await Promise.all(
       this.options
         .running(sessionId)
         .map(peerOf)
         .map(async (terminal) => {
           const { cwd } = terminal.summary
+          const realCwd = await real(cwd)
           // Where its agent works now, when that is another checkout than its terminal's.
           const now = terminal.activity ? await this.current(terminal.work, cwd) : null
           const [branch, plan] = await Promise.all([this.branch(now ?? cwd), this.plan(terminal)])
           const place = (path: string): string => {
-            for (const base of [project, cwd]) {
+            for (const base of [project, realProject, cwd, realCwd]) {
               if (base === undefined) continue
               const inside = relative(base, path)
               if (!inside) return "."
@@ -317,8 +324,7 @@ export class TerminalPeers {
         folders.map(async (folder) => [folder, await this.checkout(folder)] as const),
       ),
     )
-    const now = currentCheckout(places, (folder) => tops.get(folder) ?? null)
-    return now !== null && now !== tops.get(cwd) ? now : null
+    return currentCheckout(places, (folder) => tops.get(folder) ?? null, tops.get(cwd) ?? null)
   }
 
   /** The top of the git checkout a folder is in, read again once a few seconds old. */

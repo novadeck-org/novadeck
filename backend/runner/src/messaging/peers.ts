@@ -212,8 +212,8 @@ export const peerOf = (input: {
     title: where?.title ?? null,
     titleSource: where?.title ? where.titleSource : null,
     summary: where?.summary ?? null,
-    folder: where?.folder ?? null,
-    startedIn: where?.startedIn ?? null,
+    folder: where?.folder ? quietPath(where.folder) : null,
+    startedIn: where?.startedIn ? quietPath(where.startedIn) : null,
     branch: where?.branch ?? null,
     // What an older runner kept with its wrapping tags shows without them too.
     startedWith: work?.first ? plainPrompt(work.first) : null,
@@ -369,7 +369,10 @@ export const compactPeer = (peer: Peer, now: number, viewer: Viewer): string => 
       : peer.lead === viewer.handle
         ? "led by you"
         : peer.lead && `led by ${mention(peer.lead)}`
-  const facts = [statusOf(peer), peer.branch && `on ${peer.branch}`, relation].filter(Boolean)
+  // A plain terminal, as a dev server's, says so shortly; why an agent there can't take a
+  // message is the block's to say.
+  const status = peer.agent || peer.expecting ? statusOf(peer) : "no agent"
+  const facts = [status, peer.branch && `on ${peer.branch}`, relation].filter(Boolean)
   const latest = peer.done
     ? `done ${ago(peer.done.at, now)}: ${peer.done.subject}`
     : peer.update

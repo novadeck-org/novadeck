@@ -40,7 +40,7 @@ export type Work = {
   /**
    * The folders of its latest `keptPlaces` tool calls that name one, the latest first: the
    * folder a root's shell command ran in, and the folder of a file any of its actors wrote.
-   * What tells where it works now (see `currentFolder`); absent until one.
+   * What tells where it works now (see `currentCheckout`); absent until one.
    */
   readonly places?: readonly string[]
   readonly activeAt: number | null
@@ -51,8 +51,9 @@ export const promptChars = 120
 
 // A tag that wraps what one agent hands another (Novadeck's `<novadeck-messages>` and its
 // `<message>`, or a harness's own, as `<agent-message from="…">`): its name, and its
-// attributes, of which `from` names the sender.
-const wrapper = /<\/?((?:[a-z]+-)+[a-z]+|message)(\s[^<>]*)?>/gi
+// attributes, of which `from` names the sender; or one cut off at the end, as a runner
+// before this kept a prompt cut short with its tags.
+const wrapper = /<\/?((?:[a-z]+-)*messages?)(\s[^<>]*)?(?:>|$)/gi
 
 /**
  * A prompt as others read it: tags wrapping a message one agent handed another dropped,
@@ -147,24 +148,27 @@ export const busiestFolders = (
     .map(([folder, edits]) => ({ folder, edits }))
 
 /**
- * Where a session works now, from its latest `places`, as `checkout` names the git checkout
- * each is in (null for one outside any, as a scratchpad or a memory folder): the checkout
- * most of them are in, the latest of those on a tie; null when none is in one. A look
- * elsewhere (a log, a search) doesn't move it; working in another worktree soon does.
+ * Where a session works now when that is another git checkout than `own`, its terminal's:
+ * of its latest `places`, as `checkout` names the checkout each is in (null for one in
+ * none, as a scratchpad or a memory folder), the other checkout most of them are in, the
+ * latest of those on a tie, once it holds more than half of the `keptPlaces` a session
+ * keeps; null otherwise. A few looks elsewhere (a teammate's log, a search) don't move it,
+ * nor does a fresh session's first command; working in another worktree soon does.
  */
 export const currentCheckout = (
   places: readonly string[],
   checkout: (folder: string) => string | null,
+  own: string | null,
 ): string | null => {
   const counts = new Map<string, number>()
   for (const place of places) {
     const found = checkout(place)
-    if (found !== null) counts.set(found, (counts.get(found) ?? 0) + 1)
+    if (found !== null && found !== own) counts.set(found, (counts.get(found) ?? 0) + 1)
   }
   let best: string | null = null
   // Map keeps first-seen order, which is the latest first, so a tie keeps the latest.
   for (const [found, count] of counts) if (best === null || count > counts.get(best)!) best = found
-  return best
+  return best !== null && counts.get(best)! * 2 > keptPlaces ? best : null
 }
 
 /**
@@ -211,9 +215,15 @@ export const workAfter = (
       }
     // A subagent's commands look around (a search, a log) more than they say where the
     // work is; the files any actor writes do.
-    else if (event.type === "tool-called" && event.folder !== undefined && event.actor === null) {
-      const places = placed(next.places, event.folder)
-      if (places !== next.places) next = { ...next, places }
+    else if (event.type === "tool-called" || event.type === "command-ran") {
+      const folder =
+        event.type === "command-ran"
+          ? event.folder
+          : event.actor === null
+            ? event.folder
+            : undefined
+      const places = folder === undefined ? undefined : placed(next.places, folder)
+      if (places !== undefined && places !== next.places) next = { ...next, places }
     }
   }
   return next
