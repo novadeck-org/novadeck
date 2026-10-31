@@ -15,6 +15,7 @@ import {
   maxDeliveryBytes,
   newMark,
   noteKinds,
+  senderTerminal,
   wrap,
   type Held,
   type Message,
@@ -119,7 +120,18 @@ export class Leasing {
     // One mark for the delivery, which marks its lead's messages. What counts is the bytes
     // printed, escaped as the harness reads them.
     const mark = newMark()
-    const wrapped = (taken: readonly Message[]) => wrap(taken, isFromLead, mark, undefined, held)
+    // A message whose sender closed since says so, as no reply reaches it.
+    const fromClosed = (message: Message) => {
+      const sender = senderTerminal(message.from)
+      return sender !== undefined && this.host.sessions.closed(sender)
+    }
+    // A message kept before its mark was sized for may not fit with it: it goes unmarked,
+    // rather than block every message behind it.
+    const first = queued.slice(0, 1)
+    const marks =
+      byteLength(print(wrap(first, isFromLead, mark, { held, fromClosed }))) <= maxDeliveryBytes
+    const wrapped = (taken: readonly Message[]) =>
+      wrap(taken, isFromLead, mark, { held, ...(marks && { fromClosed }) })
     const prints = (taken: readonly Message[]) => byteLength(print(wrapped(taken)))
     const messages = deliveryOf(queued, (taken) => prints(taken) <= maxDeliveryBytes)
     // The first always goes, as it fits alone; beside what the turn holds it may not.

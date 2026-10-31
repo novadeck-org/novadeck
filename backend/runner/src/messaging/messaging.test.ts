@@ -27,11 +27,11 @@ import { running, submitWindowMs } from "./delivery.js"
 import { holdNotice } from "./holds.js"
 import type { Loops } from "./loops.js"
 import type { MessagingChange } from "./message-store.js"
-import { clock, noteDigests, retentionMs, threadMs } from "./messages.js"
+import { clock, closedSender, noteDigests, retentionMs, threadMs } from "./messages.js"
 import { Messaging, type MessagingOptions } from "./messaging.js"
 import type { Whereabouts } from "./peers.js"
 import { memoryMessages, type MessageRecords } from "./records.js"
-import type { SendAnswer } from "./sending.js"
+import type { SendAnswer, TeamAnswer } from "./sending.js"
 import type { Person } from "./withdrawals.js"
 
 const binding = (agent: AgentName, sessionId: string, instance: string | null = "10"): Binding => ({
@@ -280,11 +280,12 @@ describe("sending", () => {
 
   it("refuses anything but a current handle, describing every terminal there", () => {
     const { messaging, send } = create()
+    // As an agent's send reads `to`, which may name several.
     for (const to of ["codex", "haze", "fo", "fox owl", "fox · Codex"])
-      expect(send("A", to, "hi")).toEqual({
+      expect(messaging.sendAny("A", { to, text: "hi" })).toEqual({
         ok: false,
         reason: [
-          `"${bareHandle(to)}" is no terminal's handle here. Send to one of these by its exact handle, ` +
+          `"${to === "fox owl" ? "owl" : bareHandle(to)}" is no terminal's handle here. Send to one of these by its exact handle, ` +
             "picking by its title, folder and work; if more than one could be meant, ask the " +
             "user rather than guess.",
           "Other terminals in this project and session:",
@@ -4416,6 +4417,329 @@ const toolCalled = (bound: Binding, actor: string | null = null): HarnessEvent =
   toolName: "Bash",
   loose: false,
   outcome: "allowed",
+})
+
+// moth (A, Claude Code) leading a team of three, one per harness: owl on Codex, kite on
+// Claude Code and crow on Antigravity, each bound and at its prompt.
+const withTeam = (options: MessagingOptions = {}) => {
+  const setup = create(undefined, undefined, options)
+  const team = {
+    owl: { id: "W1", bound: binding("codex", "s-owl", "3") },
+    kite: { id: "W2", bound: binding("claude", "s-kite", "4") },
+    crow: { id: "W3", bound: binding("agy", "c-crow", "5") },
+  }
+  for (const [handle, { id, bound }] of Object.entries(team)) {
+    setup.messaging.register(id, here, handle, "moth")
+    if (bound.agent === "agy") setup.observe(id, bound, agyStatus(bound, "idle"), true)
+    else setup.follow(id, bound)
+  }
+  const sendAny = (from: string, to: string | readonly string[], text: string) =>
+    setup.messaging.sendAny(from, { to, text })
+  // What each teammate's harness is given at its next prompt, as its agent reads it.
+  const delivered = (handle: keyof typeof team) => {
+    const { id, bound } = team[handle]
+    const { stdout } = setup.prompt(id, bound)
+    if (bound.agent !== "agy") return context(stdout)
+    return (JSON.parse(stdout!) as { injectSteps: { ephemeralMessage: string }[] }).injectSteps[0]!
+      .ephemeralMessage
+  }
+  return { ...setup, team, sendAny, delivered }
+}
+
+const teamSent = (answer: SendAnswer | TeamAnswer) => {
+  if (!answer.ok) throw new Error(answer.reason)
+  if (!("sent" in answer)) throw new Error("not a send to several terminals")
+  return answer
+}
+
+describe("a lead's message to its team", () => {
+  it("reaches each terminal it leads, in every harness, as its own lead-marked message", () => {
+    const { messaging, sendAny, delivered } = withTeam()
+    const answer = teamSent(sendAny("A", "team", "Don't re-run CI."))
+    expect(answer.sent.map(({ to }) => to)).toEqual(["owl", "kite", "crow"])
+    expect(answer.sent.every((each) => each.ok !== false && each.state === "queued")).toBe(true)
+    // fox, which moth doesn't lead, gets nothing.
+    expect(messages(messaging, "B")).toEqual([])
+    for (const handle of ["owl", "kite", "crow"] as const) {
+      const text = delivered(handle)
+      expect(text).toMatch(/<message id="m-[a-z0-9]+" from="moth" agent="Claude Code" lead="/)
+      expect(text).toContain(">Don't re-run CI.</message>")
+    }
+    // Each its own thread, as a message to that terminal alone would be.
+    const threads = messaging.list("A", "moth").threads
+    expect(threads.map(({ peer }) => peer)).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ handle: "owl" }),
+        expect.objectContaining({ handle: "kite" }),
+        expect.objectContaining({ handle: "crow" }),
+      ]),
+    )
+  })
+
+  it("reaches the ones named, written with spaces, commas or as a list", () => {
+    const { sendAny } = withTeam()
+    expect(teamSent(sendAny("A", "@owl @crow", "one")).sent.map(({ to }) => to)).toEqual([
+      "owl",
+      "crow",
+    ])
+    expect(teamSent(sendAny("A", "kite,owl, kite", "two")).sent.map(({ to }) => to)).toEqual([
+      "kite",
+      "owl",
+    ])
+    expect(teamSent(sendAny("A", ["@crow", "kite"], "three")).sent.map(({ to }) => to)).toEqual([
+      "crow",
+      "kite",
+    ])
+    // One handle is an ordinary send, to any terminal.
+    expect(sendAny("A", "fox", "four")).toMatchObject({ ok: true, to: "fox", state: "queued" })
+  })
+
+  it("goes only to terminals the sender leads, or nowhere", () => {
+    const { messaging, records, sendAny } = withTeam()
+    expect(sendAny("A", "owl fox", "hi")).toEqual({
+      ok: false,
+      reason:
+        "@fox isn't a terminal you lead: a message to several terminals, or to your team, goes " +
+        "only to terminals you lead. Send to each other terminal on its own.",
+    })
+    expect(sendAny("B", "team", "hi")).toEqual({
+      ok: false,
+      reason:
+        "`team` names the terminals you lead, and you lead none here; send to your lead or a " +
+        "teammate by its handle.",
+    })
+    // The name that is no handle, with the terminals there; quoted whole only where `to`
+    // holds what no handle has.
+    expect(sendAny("A", "@owl, @nobody", "hi")).toMatchObject({
+      ok: false,
+      reason: expect.stringMatching(/^"nobody" is no terminal's handle here\.[\s\S]*\n- @owl:/),
+    })
+    expect(sendAny("A", "@owl · Codex", "hi")).toMatchObject({
+      ok: false,
+      reason: expect.stringMatching(/^"owl · codex" is no terminal's handle here\./i),
+    })
+    expect(records.messages()).toEqual([])
+    // Messaging's own callers, opening or leading a terminal, send to one only, and nothing
+    // goes to any.
+    expect(messaging.send("A", { to: "team", text: "hi" })).toEqual({
+      ok: false,
+      reason: "Name one terminal's handle to send it this message.",
+    })
+    expect(messaging.send("A", { to: "owl kite", text: "hi" })).toMatchObject({ ok: false })
+    expect(records.messages()).toEqual([])
+  })
+
+  it("is refused as a whole when every recipient refuses it", () => {
+    const { sendAny } = withTeam()
+    for (let index = 0; index < 3; index += 1) teamSent(sendAny("A", "owl kite", `rule ${index}`))
+    const over =
+      "An agent may send 16 messages a minute, 3 of them to any one terminal (a send to " +
+      "several terminals you lead counts once); try again shortly."
+    expect(sendAny("A", "owl kite", "one more")).toEqual({
+      ok: false,
+      reason: `Not sent to @owl: ${over}\nNot sent to @kite: ${over}`,
+    })
+  })
+
+  it("leaves out a terminal led only until its brief is delivered", () => {
+    const { messaging, follow, sendAny } = withTeam()
+    messaging.register("V", here, "wren", null)
+    follow("V", binding("codex", "s-wren", "9"))
+    messaging.setLead("V", "moth")
+    messaging.sendBrief("A", { to: "wren", text: "Your task." })
+    expect(messaging.briefOf("V")).toBeDefined()
+    expect(teamSent(sendAny("A", "team", "rule")).sent.map(({ to }) => to)).toEqual([
+      "owl",
+      "kite",
+      "crow",
+    ])
+    expect(sendAny("A", "owl wren", "hi")).toMatchObject({
+      ok: false,
+      reason: expect.stringMatching(/^@wren isn't a terminal you lead/),
+    })
+  })
+
+  it("counts once against the sender's rate, which grows by two for each terminal it leads", () => {
+    const { messaging, follow, sendAny } = withTeam()
+    const others = ["C", "D", "E", "F", "G"].map((id, index) => {
+      const handle = handleWords[index + 10]!
+      messaging.register(id, here, handle, null)
+      follow(id, binding("codex", `s-${id}`, id))
+      return handle
+    })
+    // Three team sends, three messages to each of three teammates, count three of 16.
+    for (let index = 0; index < 3; index += 1) teamSent(sendAny("A", "team", `rule ${index}`))
+    // A fourth to the same three is over each pair's three: none is kept, and it counts nothing.
+    const over =
+      "An agent may send 16 messages a minute, 3 of them to any one terminal (a send to " +
+      "several terminals you lead counts once); try again shortly."
+    expect(sendAny("A", "team", "rule 3")).toEqual({
+      ok: false,
+      reason: ["owl", "kite", "crow"].map((to) => `Not sent to @${to}: ${over}`).join("\n"),
+    })
+    // Thirteen more, to terminals it doesn't lead, make sixteen; the seventeenth is refused.
+    const singles = others.flatMap((to) => [0, 1, 2].map((index) => ({ to, index }))).slice(0, 13)
+    for (const { to, index } of singles) sent(sendAny("A", to, `${to} ${index}`) as SendAnswer)
+    expect(sendAny("A", others[4]!, "seventeenth")).toMatchObject({
+      ok: false,
+      reason: expect.stringContaining("An agent may send 16 messages a minute"),
+    })
+    // A terminal leading none keeps ten.
+    for (const [index, to] of others.slice(0, 4).entries())
+      for (let each = 0; each < (index < 3 ? 3 : 1); each += 1)
+        sent(messaging.send("B", { to, text: `B ${to} ${each}` }))
+    expect(messaging.send("B", { to: "moth", text: "eleventh" })).toMatchObject({
+      ok: false,
+      reason: expect.stringContaining("An agent may send 10 messages a minute"),
+    })
+  })
+
+  it("counts once against the runner's sixty", () => {
+    const { messaging, follow, sendAny } = withTeam()
+    // Fifty-seven sends from elsewhere, one to each of ten recipients by six senders, less three.
+    const recipients = Array.from({ length: 20 }, (_, index) => {
+      const id = `R${index}`
+      messaging.register(id, here, handleWords[index + 20]!, null)
+      follow(id, binding("codex", `s-${id}`, id))
+      return handleWords[index + 20]!
+    })
+    const senders = Array.from({ length: 6 }, (_, index) => {
+      const id = `S${index}`
+      messaging.register(id, here, handleWords[index + 45]!, null)
+      return id
+    })
+    const send = (from: string, to: string) =>
+      messaging.send(from, { to, text: `${from} to ${to}` })
+    const answers = senders
+      .flatMap((from, sender) =>
+        recipients.slice((sender * 10) % 20, ((sender * 10) % 20) + 10).map((to) => [from, to]),
+      )
+      .slice(0, 57)
+      .map(([from, to]) => send(from!, to!))
+    expect(answers.filter((answer) => answer.ok)).toHaveLength(57)
+    // The team send of three is the fifty-eighth: two more go, and the next is refused.
+    expect(teamSent(sendAny("A", "team", "one more")).sent).toHaveLength(3)
+    expect(send("S5", recipients[0]!)).toMatchObject({ ok: true })
+    expect(send("S5", recipients[1]!)).toMatchObject({ ok: true })
+    expect(send("S5", recipients[2]!)).toMatchObject({
+      ok: false,
+      reason: expect.stringContaining("as many messages as they may this minute"),
+    })
+  })
+
+  it("is held per pair as a loop when the lead and its team only talk", () => {
+    const quiet = idleLoops()
+    const { messaging, sendAny, clock: time, team } = withTeam({ loops: quiet.loops })
+    const rounds = Array.from({ length: 7 }, (_, index) => {
+      time.now += 30_000
+      return teamSent(sendAny("A", "team", `any update? ${index}`))
+    })
+    // The first isn't idle; two to six are idle one to five, and the seventh, the sixth
+    // idle, starts each pair's hold.
+    for (const round of rounds.slice(0, 6))
+      expect(round.sent.every((each) => each.ok !== false && each.state === "queued")).toBe(true)
+    expect(rounds[6]!.sent).toEqual(
+      ["owl", "kite", "crow"].map((to) =>
+        expect.objectContaining({ to, state: "held", held: "release" }),
+      ),
+    )
+    for (const handle of Object.keys(team))
+      expect(
+        messaging
+          .list("A", "moth")
+          .threads.find(({ peer }) => peer.kind === "agent" && peer.handle === handle),
+      ).toMatchObject({ held: true, heldFor: "loop" })
+    // One that worked is never held.
+    const busy = idleLoops()
+    busy.working.set("W1", true)
+    const worked = withTeam({ loops: busy.loops })
+    const answers = Array.from({ length: 8 }, (_, index) => {
+      worked.clock.now += 30_000
+      return teamSent(worked.sendAny("A", "owl kite", `go on ${index}`))
+    })
+    expect(answers.at(-1)!.sent).toEqual([
+      expect.objectContaining({ to: "owl", state: "queued" }),
+      expect.objectContaining({ to: "kite", state: "held" }),
+    ])
+  })
+})
+
+describe.each(["claude", "codex", "agy"] as const)(
+  "a message from a closed terminal, delivered in %s",
+  (agent) => {
+    // The lead runs `agent`; its teammate owl, on Codex, reports to it.
+    const lead = () => {
+      const setup = create()
+      const bound =
+        agent === "claude"
+          ? setup.claude
+          : agent === "codex"
+            ? binding("codex", "s-lead", "8")
+            : binding("agy", "c-lead", "8")
+      if (agent !== "claude") {
+        setup.messaging.register("L", here, "sable", null)
+        if (agent === "agy") setup.observe("L", bound, agyStatus(bound, "idle"), true)
+        else setup.follow("L", bound)
+      }
+      const id = agent === "claude" ? "A" : "L"
+      const handle = agent === "claude" ? "moth" : "sable"
+      setup.messaging.register("W", here, "owl", handle)
+      setup.follow("W", binding("codex", "s-owl", "3"))
+      const delivered = () => {
+        const { stdout } = setup.prompt(id, bound)
+        if (agent !== "agy") return context(stdout)
+        return (JSON.parse(stdout!) as { injectSteps: { ephemeralMessage: string }[] })
+          .injectSteps[0]!.ephemeralMessage
+      }
+      return { ...setup, handle, delivered }
+    }
+
+    it("says its terminal closed, beside it, so no reply is expected to reach it", () => {
+      const { messaging, handle, send, delivered } = lead()
+      const report = sent(send("W", handle, "#605 is green, ready for you to merge."))
+      messaging.unregister("W", true)
+      const text = delivered()
+      expect(text).toContain(
+        `<message id="${report.id}" from="owl" agent="Codex" closed="${closedSender}" thread=`,
+      )
+      expect(text).toContain(">#605 is green, ready for you to merge.</message>")
+    })
+
+    it("says nothing of a sender still open, or only exited, which may run again", () => {
+      const { messaging, handle, send, delivered } = lead()
+      sent(send("W", handle, "Still on it."))
+      messaging.unregister("W")
+      expect(delivered()).not.toContain("closed=")
+    })
+  },
+)
+
+describe("a close of a terminal with messages to the closer on the way", () => {
+  it("are its undelivered messages to the closer, oldest first", () => {
+    const { messaging, send, prompt, claude, clock: time } = withWorker()
+    const first = sent(send("W", "moth", "Tests pass."))
+    time.now += 60_000
+    const second = sent(send("W", "moth", "PR is green."))
+    // A message to someone else, and one already delivered, aren't the closer's to wait for.
+    sent(send("W", "fox", "FYI"))
+    expect(messaging.onTheWay("W", "A")).toEqual([
+      { id: first.id, sentAt: 1_000_000, held: false },
+      { id: second.id, sentAt: 1_060_000, held: false },
+    ])
+    expect(messaging.onTheWay("W", "B")).toHaveLength(1)
+    expect(messaging.onTheWay("A", "W")).toEqual([])
+    // Held, it is told apart; leased, its recipient's harness already has it.
+    messaging.pause(true)
+    const third = sent(send("W", "moth", "Merged."))
+    expect(messaging.onTheWay("W", "A").at(-1)).toEqual({
+      id: third.id,
+      sentAt: 1_060_000,
+      held: true,
+    })
+    messaging.pause(false)
+    prompt("A", claude)
+    expect(messaging.onTheWay("W", "A")).toEqual([])
+  })
 })
 
 describe("a lead's message mid-turn", () => {

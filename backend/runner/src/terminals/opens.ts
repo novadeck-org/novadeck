@@ -141,6 +141,13 @@ export const readOpenRequest = (
 export const openLimit = { count: 5, windowMs: 60_000 } as const
 
 /**
+ * How many of those may be teammates, agents opened led by their opener, counted from the
+ * same budget: a lead starts or rounds out its team at once, while other opens keep
+ * `openLimit`, and the runner's own limit still bounds them all.
+ */
+export const leadOpenLimit = { count: 15, windowMs: 60_000 } as const
+
+/**
  * How many terminals agents may open across the runner within a window: a backstop for
  * a chain whose new terminal asks before its opener is known.
  */
