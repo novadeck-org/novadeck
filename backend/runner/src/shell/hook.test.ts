@@ -693,7 +693,7 @@ describe("reading a relay's hook", () => {
     expect(relayHook(ask, "win32")?.permission?.call).toEqual({
       command: "git status",
       cwd: null,
-      dialect: "windows-codex",
+      dialect: "windows-quote-free",
     })
   })
 

@@ -372,10 +372,10 @@ describe("real payload commands from the probes", () => {
   })
 })
 
-describe("a Codex command on Windows", () => {
+describe("a Codex or Antigravity command on Windows", () => {
   const R = "-R acme/app"
   const windows = (command: string, scopes: readonly GrantScope[] = [scope()]) =>
-    matchCall({ command, cwd: null, dialect: "windows-codex" }, scopes, git, "C:\\work\\proj")
+    matchCall({ command, cwd: null, dialect: "windows-quote-free" }, scopes, git, "C:\\work\\proj")
   const pr = { scope: 0, match: { kind: "preset", preset: "pr" } }
 
   it.each([
@@ -404,6 +404,14 @@ describe("a Codex command on Windows", () => {
     ["a POSIX remote name for push", "git push origin fix:fix"],
   ])("refuses %s", async (_name, command) => {
     expect(await windows(command)).toBeNull()
+  })
+
+  it("refuses a body cmd would split at an ampersand, as Antigravity may run it there", async () => {
+    // One safe word to the POSIX lexer, but cmd runs calc.
+    const body = `gh pr create ${R} --head fix --title T --body 'x & calc & '`
+    expect(await windows(body)).toBeNull()
+    expect(await run(body)).not.toBeNull()
+    expect(await windows(`gh pr create ${R} --head fix --title T --fill`)).toEqual(pr)
   })
 
   it("takes a push by URL like any other dialect", async () => {

@@ -2,7 +2,7 @@
 import type { GitLookups, GrantMatch, GrantScope, ShellCall } from "../grants.js"
 import { matchesCommand } from "./commands.js"
 import { inside } from "./inside.js"
-import { lex, lexWindows } from "./lexer.js"
+import { lexCall } from "./lexer.js"
 import { matchesPr } from "./pr.js"
 import { matchesPush } from "./push.js"
 
@@ -13,7 +13,7 @@ export const matchCall = async (
   git: GitLookups,
   projectRoot: string,
 ): Promise<{ scope: number; match: GrantMatch } | null> => {
-  const lexed = call.dialect === "windows-codex" ? lexWindows(call.command) : lex(call.command)
+  const lexed = lexCall(call)
   if (!lexed.ok) return null
   if (call.cwd !== null && !inside(call.cwd, projectRoot)) return null
   const { argv } = lexed

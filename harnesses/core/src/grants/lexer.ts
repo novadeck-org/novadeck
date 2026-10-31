@@ -1,3 +1,5 @@
+import type { ShellCall } from "../grants.js"
+
 // The strict POSIX lexer (approvals-design.md, Appendix A1): one simple command, or a refusal.
 // Anything a shell would expand, split, redirect or chain is refused, never guessed at.
 
@@ -87,12 +89,12 @@ export const lex = (command: string): Lexed => {
   return { ok: true, argv: words }
 }
 
-// A Windows Codex word (Appendix A1, "Windows Codex"): its characters give the same argv in
+// A Windows word (Appendix A1, "Windows: Codex and Antigravity"): its characters give the same argv in
 // PowerShell 7, Windows PowerShell 5.1 and cmd, which Codex's hook payload never says apart.
 const windowsChar = /^[A-Za-z0-9._/:=@+\\-]+$/
 
 /**
- * Reads a Codex command on Windows as one simple command's words, or says why it is not one.
+ * Reads a Codex or Antigravity command on Windows as one simple command's words, or says why it is not one.
  * Only quote-free words of `[A-Za-z0-9._/:=@+\\-]` split by spaces are taken: cmd expands
  * `%VAR%` and has no single quotes, PowerShell expands `$`, `~` and `"…$x"`, makes arrays of
  * `,` and splats a word starting with `@`, so each of those, and every operator, bracket,
@@ -114,3 +116,7 @@ export const lexWindows = (command: string): Lexed => {
   if (wrappers.has(program)) return refuse(`a leading ${program}`)
   return { ok: true, argv: words }
 }
+
+/** Reads `call`'s command in the dialect its harness runs it in: POSIX, or Windows' quote-free. */
+export const lexCall = (call: ShellCall): Lexed =>
+  call.dialect === "windows-quote-free" ? lexWindows(call.command) : lex(call.command)

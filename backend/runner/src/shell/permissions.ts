@@ -1,5 +1,5 @@
 import {
-  lex,
+  lexCall,
   matchCall,
   type GitLookups,
   type GrantScope,
@@ -143,7 +143,7 @@ export class Permissions {
     // Only a program the launch settings allow can run unasked, so only one in this
     // terminal's launch set is answered so; any other asks (a program the grant names
     // applies after a restart).
-    const lexed = lex(call.command)
+    const lexed = lexCall(call)
     const program = lexed.ok ? lexed.argv[0] : undefined
     if (program === undefined || !this.host.narrowing.launchSet(report.terminalId)?.has(program))
       return closed

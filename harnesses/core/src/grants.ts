@@ -28,10 +28,10 @@ export type ShellCall = {
   /** The call's own folder: Claude Code's `cwd`; null for Codex and Antigravity (unknown). */
   readonly cwd: string | null
   /**
-   * The shell dialect the command is read in: POSIX unless it is Codex's on Windows, whose
-   * shell (PowerShell or cmd) the payload does not name (Appendix A1).
+   * The shell dialect the command is read in: POSIX unless it is Codex's or Antigravity's on
+   * Windows, whose shell (PowerShell or cmd) the payload does not name (Appendix A1).
    */
-  readonly dialect?: "windows-codex"
+  readonly dialect?: "windows-quote-free"
 }
 
 /** Why a payload is no shell call the matcher can judge. */
@@ -43,6 +43,16 @@ export type NotACall =
 
 /** A command longer than this never matches. */
 export const maxCommand = 16 * 1024
+
+/** What the matcher reads of the disk; injected so the matcher stays pure. Any error is undefined. */
+export type FsLookups = {
+  /** The real path of `path` (symlinks followed) and whether it is a regular file. */
+  readonly real: (
+    path: string,
+  ) => Promise<{ readonly path: string; readonly file: boolean } | undefined>
+  /** Whether `path` exists. */
+  readonly exists: (path: string) => Promise<boolean>
+}
 
 /** What the matcher reads of git in a folder; injected so the matcher stays pure. */
 export type GitLookups = {
@@ -61,6 +71,7 @@ export {
   callFromPayload,
   isAgyNonCommandTool,
   lex,
+  lexCall,
   lexWindows,
   matchCall,
   normalizeRepoUrl,

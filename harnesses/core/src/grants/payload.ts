@@ -23,7 +23,7 @@ const fields: Record<Harness, Record<string, "string" | "number">> = {
 
 /**
  * The `run_command` and `Bash` calls' shell command, from the harness's raw payload, on
- * `platform` (the machine the harness runs on): Codex's there is marked as Windows'.
+ * `platform` (the machine the harness runs on): Codex's and Antigravity's there are marked as Windows'.
  */
 export const callFromPayload = (
   harness: Harness,
@@ -56,9 +56,10 @@ export const callFromPayload = (
   if (typeof command !== "string" || command === "") return "unreadable"
   if (command.length > maxCommand) return "too-long"
 
-  // Codex on Windows runs the command in PowerShell or cmd, which its payload never names.
-  if (harness === "codex" && platform === "win32")
-    return { command, cwd: null, dialect: "windows-codex" }
+  // Codex and Antigravity on Windows run the command in PowerShell or cmd, which their
+  // payloads never name; Claude Code's Bash tool runs Git Bash there.
+  if (harness !== "claude" && platform === "win32")
+    return { command, cwd: null, dialect: "windows-quote-free" }
   if (harness !== "claude") return { command, cwd: null }
   return typeof body["cwd"] === "string" ? { command, cwd: body["cwd"] } : "unreadable"
 }

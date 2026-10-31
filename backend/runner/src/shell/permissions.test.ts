@@ -63,7 +63,13 @@ type Fixture = {
     agent: "claude" | "codex" | "agy",
     event: string,
     payload: object | string,
-    options?: { env?: object; token?: string; terminalId?: string; deadline?: number },
+    options?: {
+      env?: object
+      token?: string
+      terminalId?: string
+      deadline?: number
+      platform?: NodeJS.Platform
+    },
   ) => Promise<{ stdout: string | null; report: boolean }>
   readonly deny: (command: string, given?: { token?: string }) => void
   /** The directory of the launch settings. */
@@ -103,9 +109,10 @@ const fixture = (
     payload: object | string,
     env: object,
     given: { token?: string; terminalId?: string },
+    platform: NodeJS.Platform = "linux",
   ) => {
-    // Read as on Linux, which the narrowing above is told too: Windows is tested apart.
-    const hook = relayHook(hello(agent, event, payload, env), "linux")
+    // Read as on Linux unless a test says otherwise, which the narrowing above is told too.
+    const hook = relayHook(hello(agent, event, payload, env), platform)
     if (!hook) throw new Error("not a hook")
     const report: Report = {
       terminalId: given.terminalId ?? "t",
@@ -120,8 +127,8 @@ const fixture = (
     used,
     clock,
     directory,
-    ask: (agent, event, payload, { env = {}, deadline, ...given } = {}) => {
-      const { report, hook } = reportOf(agent, event, payload, env, given)
+    ask: (agent, event, payload, { env = {}, deadline, platform, ...given } = {}) => {
+      const { report, hook } = reportOf(agent, event, payload, env, given, platform)
       if (!hook.permission) throw new Error("not a permission hook")
       return permissions.answer(report, hook.permission, deadline ?? clock.now + 3_000)
     },
@@ -453,6 +460,28 @@ describe("Antigravity's PreToolUse", () => {
         report: true,
       })
     expect(tried.used).toEqual([])
+  })
+
+  it("reads a command on Windows in the quote-free dialect, where cmd may split it", async ({
+    resources,
+  }) => {
+    const tried = fixture(resources)
+    await tried.launch(["uberepo"])
+    const windows = { ...narrow, platform: "win32" as const }
+    expect(await tried.ask("agy", "PreToolUse", run("uberepo ship x"), windows)).toEqual({
+      stdout: ran,
+      report: true,
+    })
+    // A plain word to the POSIX lexer, but cmd expands it.
+    const expands = run("uberepo ship %PATH%")
+    expect(await tried.ask("agy", "PreToolUse", expands, windows)).toEqual({
+      stdout: closed,
+      report: true,
+    })
+    expect(await tried.ask("agy", "PreToolUse", expands, narrow)).toEqual({
+      stdout: ran,
+      report: true,
+    })
   })
 
   it("narrows every command of a terminal the runner didn't launch, as after a restart", async ({

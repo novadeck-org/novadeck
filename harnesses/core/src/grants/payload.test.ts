@@ -89,12 +89,12 @@ describe("a Codex PermissionRequest payload", () => {
     })
   })
 
-  it("marks the call as Windows' on win32, and no other harness's", () => {
+  it("marks Codex's and Antigravity's call as Windows' on win32, and not Claude Code's", () => {
     const input = { command: "gh pr ready 1 -R o/n" }
     expect(callFromPayload("codex", "PermissionRequest", codex(input), "win32")).toEqual({
       command: "gh pr ready 1 -R o/n",
       cwd: null,
-      dialect: "windows-codex",
+      dialect: "windows-quote-free",
     })
     for (const platform of ["linux", "darwin"] as const)
       expect(callFromPayload("codex", "PermissionRequest", codex(input), platform)).toEqual({
@@ -109,6 +109,9 @@ describe("a Codex PermissionRequest payload", () => {
     )
     expect(
       callFromPayload("agy", "PreToolUse", agy("run_command", { CommandLine: "ls" }), "win32"),
+    ).toEqual({ command: "ls", cwd: null, dialect: "windows-quote-free" })
+    expect(
+      callFromPayload("agy", "PreToolUse", agy("run_command", { CommandLine: "ls" }), "linux"),
     ).toEqual({ command: "ls", cwd: null })
   })
 

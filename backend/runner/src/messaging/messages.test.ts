@@ -511,12 +511,20 @@ describe("a delivery's grants", () => {
     expect(on("win32")).toContain("anything quoted still asks")
     for (const platform of ["linux", "darwin"] as const)
       expect(on(platform)).not.toContain("without quotes")
+    // Antigravity there gets the same advice, with its own name, and still its start note.
+    const agy = wrapGrants([granted], "agy", "win32")
+    expect(agy).toContain("write each command without quotes: Antigravity's shell")
+    expect(agy).toContain("gh pr create --fill")
+    expect(agy).toContain("Antigravity takes this grant when it starts")
+    expect(wrapGrants([granted], "agy", "linux")).not.toContain("without quotes")
+    expect(wrapGrants([granted], "claude", "win32")).not.toContain("without quotes")
     // The old note, that nothing reaches these harnesses on Windows, is gone for all three.
     for (const agent of ["claude", "codex", "agy"] as const)
       expect(wrapGrants([granted], agent, "win32")).not.toContain("does not take this grant")
     // Codex's pr line asks for a body file there; the others keep quoting a body.
     const pr = { ...granted, presets: ["pr" as const] }
     expect(wrapGrants([pr], "codex", "win32")).toContain("Give a body as --body-file")
+    expect(wrapGrants([pr], "agy", "win32")).toContain("Give a body as --body-file")
     expect(wrapGrants([pr], "codex", "linux")).toContain("Give a body in single quotes")
     expect(wrapGrants([pr], "claude", "win32")).toContain("Give a body in single quotes")
   })

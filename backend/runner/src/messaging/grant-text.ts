@@ -37,13 +37,13 @@ const pushText = (grant: Grant, agent: AgentName): string => {
   )
 }
 
-const prText = (grant: Grant, windowsCodex: boolean): string => {
+const prText = (grant: Grant, quoteFree: boolean): string => {
   const repos = grant.repos.map((repo) => repo.url).join(", ")
   return (
     `Open, edit, mark ready and comment on pull requests in ${repos}: ` +
     "gh pr create --head <branch>, gh pr edit <n>, gh pr ready <n> or gh pr comment <n>, " +
     "each with -R <owner/name> and a numeric PR; no merge, close or reopen, no labels. " +
-    (windowsCodex
+    (quoteFree
       ? "Give a body as --body-file <file in the project> (no quotes), never $(cat <<EOF)."
       : "Give a body in single quotes, or double quotes, never $(cat <<EOF).")
   )
@@ -76,32 +76,35 @@ export const grantLines = (
 ): string[] => [
   ...(grant.presets.includes("push") ? [pushText(grant, agent)] : []),
   ...(grant.presets.includes("pr")
-    ? [prText(grant, agent === "codex" && platform === "win32")]
+    ? [prText(grant, agent !== "claude" && platform === "win32")]
     : []),
   ...grant.commands.map((command) => `Run: ${escapeText(commandText(command))}`),
 ]
 
 // What a grant reaches in an agent's own check, which differs by harness and machine. A
-// Codex terminal on Windows is told how to write a command its matcher reads there (design A1);
+// Codex or Antigravity terminal on Windows is told how to write a command its matcher reads there (design A1);
 // an Antigravity where cmd prints something first is told why nothing reaches it.
 const caveat = (agent: AgentName, platform: NodeJS.Platform, cmdPrints: boolean): string => {
-  if (agent === "codex" && platform === "win32")
-    return (
-      "On Windows, write each command without quotes: Codex's shell may be PowerShell or cmd, and " +
-      "this grant covers a command only when both read it alike. For a pull request's or " +
-      "comment's body use --body-file <file in the project> or gh pr create --fill; anything " +
-      "quoted still asks in the user's Inbox. If your harness still asks, answer its dialog as usual."
-    )
   if (agent === "agy" && platform === "win32" && cmdPrints)
     return (
       "This grant cannot reach Antigravity here: the user's cmd prints text of its own before every " +
       "command (an AutoRun), which Antigravity's check cannot read past, so its own dialog asks " +
       "for each command. Removing that output fixes it."
     )
-  return agent === "agy"
-    ? "Antigravity takes this grant when it starts: if yours started earlier, its own dialog " +
+  const quoteFree =
+    agent !== "claude" && platform === "win32"
+      ? `On Windows, write each command without quotes: ${agent === "codex" ? "Codex" : "Antigravity"}'s shell may be PowerShell or cmd, and ` +
+        "this grant covers a command only when both read it alike. For a pull request's or " +
+        "comment's body use --body-file <file in the project> or gh pr create --fill; anything " +
+        "quoted still asks in the user's Inbox. "
+      : ""
+  return (
+    quoteFree +
+    (agent === "agy"
+      ? "Antigravity takes this grant when it starts: if yours started earlier, its own dialog " +
         "still asks until you restart, and a version of Antigravity before 1.4.10 never takes it."
-    : "If your harness still asks, answer its dialog as usual."
+      : "If your harness still asks, answer its dialog as usual.")
+  )
 }
 
 /**
