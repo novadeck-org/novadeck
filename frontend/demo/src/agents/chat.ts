@@ -469,8 +469,11 @@ export const createDemoChat = (
       // What was sent while it worked goes with the turn.
       queues.delete(terminalKeyId(key))
       clear(key)
-    } else if (event.outcome === "interrupted") clear(key)
-    else if (event.reply) append(key, text("assistant", event.reply))
+    } else if (event.outcome === "interrupted") {
+      clear(key)
+      // As every harness's chat shows the person's interruption where the turn stopped.
+      append(key, { ...text("user", "Interrupted"), interrupted: true })
+    } else if (event.reply) append(key, text("assistant", event.reply))
   })
   const agentFor = (key: TerminalKey): Found => {
     const found = locate(key)
