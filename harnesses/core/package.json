@@ -33,6 +33,11 @@
       "types": "./dist/follow.d.ts",
       "default": "./dist/follow.js"
     },
+    "./grants": {
+      "development": "./src/grants.ts",
+      "types": "./dist/grants.d.ts",
+      "default": "./dist/grants.js"
+    },
     "./harness": {
       "development": "./src/harness.ts",
       "types": "./dist/harness.d.ts",
