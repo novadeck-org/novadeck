@@ -6,8 +6,8 @@
     "New behaviour goes in a sibling module under backend/runner/src/messaging/, as delivery.ts, leases.ts and loops.ts do, with the class calling it. Work that can't is raised in the same pull request, written { \"budget\": n, \"reason\": \"why\", \"from\": \"#PR or commit\" }."
   ],
   "lines": {
-    "budget": 508,
-    "reason": "Team send and close with messages on the way (+14): sendAny forwards an agent's MCP send, to one terminal or several it leads, beside send, which messaging's own callers keep for one; onTheWay forwards the closed terminal's undelivered messages to the closer; and the import of TeamAnswer wraps. The logic is in messaging/sending.ts.",
+    "budget": 509,
+    "reason": "Team send and close with messages on the way (+15): sendAny forwards an agent's MCP send, to one terminal or several it leads, beside send, which messaging's own callers keep for one; onTheWay forwards the closed terminal's undelivered messages to the closer; and the imports of TeamAnswer and OnTheWay wrap. The logic is in messaging/sending.ts.",
     "from": "ti-lead-tools"
   },
   "methods": {
