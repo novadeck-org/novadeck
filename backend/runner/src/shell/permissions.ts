@@ -1,6 +1,7 @@
 import {
   lexCall,
   matchCall,
+  type FsLookups,
   type GitLookups,
   type GrantScope,
   type ShellCall,
@@ -43,6 +44,7 @@ export type PermissionsHost = {
   readonly grants: PermissionGrants
   readonly narrowing: Narrowing
   readonly git: GitLookups
+  readonly fs: FsLookups
   readonly now: () => number
 }
 
@@ -174,7 +176,7 @@ export class Permissions {
   ): Promise<string | undefined> {
     const grants = this.host.grants.covering(report.terminalId)
     if (grants.length === 0 || terminal.projectFolder === undefined) return undefined
-    const found = await matchCall(call, grants, this.host.git, terminal.projectFolder)
+    const found = await matchCall(call, grants, this.host.git, terminal.projectFolder, this.host.fs)
     return found === null ? undefined : grants[found.scope]?.id
   }
 

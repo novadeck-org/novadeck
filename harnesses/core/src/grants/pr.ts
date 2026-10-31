@@ -1,7 +1,7 @@
 // The `pr` preset (Appendix A2): gh pr create --head <b> | edit | ready | comment <n>, with -R.
 import { posix } from "node:path"
 
-import type { GrantRepo } from "../grants.js"
+import type { FsLookups, GrantRepo } from "../grants.js"
 import { flavourOf } from "../paths.js"
 import { inside } from "./inside.js"
 import { isBranchName } from "./refname.js"
@@ -39,30 +39,39 @@ const device = /^(con|prn|aux|nul|com[1-9]|lpt[1-9])$/i
  * `C:x`, a UNC path or `\\?\`, and `/…` elsewhere. On Windows no segment may name a device or
  * hold a `:` after the drive (a stream).
  */
-const bodyFileInside = (path: string, { cwd, root }: BodyFiles): boolean => {
-  if (path === "" || path === "-" || path.split(/[\\/]+/).includes("..")) return false
+const bodyFilePath = (path: string, { cwd, root }: BodyFiles): string | undefined => {
+  if (path === "" || path === "-" || path.split(/[\\/]+/).includes("..")) return undefined
   const rules = flavourOf(path, root, cwd ?? undefined)
   const windows = flavourOf(root) !== posix
   if (windows) {
     const rest = /^[A-Za-z]:[\\/]/.test(path) ? path.slice(2) : path
-    if (rest.includes(":")) return false
+    if (rest.includes(":")) return undefined
     if (rest.split(/[\\/]+/).some((segment) => device.test(segment.split(".")[0] as string)))
-      return false
-  } else if (path.includes("\\")) return false
-  if (cwd === null && !(windows ? /^[A-Za-z]:[\\/]/ : /^\//).test(path)) return false
-  return inside(rules.resolve(cwd ?? root, path), root)
+      return undefined
+  } else if (path.includes("\\")) return undefined
+  if (cwd === null && !(windows ? /^[A-Za-z]:[\\/]/ : /^\//).test(path)) return undefined
+  const resolved = rules.resolve(cwd ?? root, path)
+  return inside(resolved, root) ? resolved : undefined
+}
+
+/** Whether `path` is a regular file whose real path, and the root's, still puts it inside. */
+const realFileInside = async (path: string, root: string, fs: FsLookups): Promise<boolean> => {
+  const [file, base] = await Promise.all([fs.real(path), fs.real(root)])
+  return file?.file === true && base !== undefined && inside(file.path, base.path)
 }
 
 /**
  * Whether `argv` is a pull request command the preset allows in the granted `repos`.
- * `--body-file` takes a file inside the project (`files`), for create, edit and comment: a
- * `--body` already lets any text through, so a file the agent could read adds no way out.
+ * `--body-file` takes a regular file inside the project (`files`, by real path too, read
+ * through `fs`), for create, edit and comment: a `--body` already lets any text through, so a
+ * file the agent could read adds no way out.
  */
-export const matchesPr = (
+export const matchesPr = async (
   argv: readonly string[],
   repos: readonly GrantRepo[],
   files: BodyFiles,
-): boolean => {
+  fs: FsLookups,
+): Promise<boolean> => {
   const sub = argv[2]
   if (argv[0] !== "gh" || argv[1] !== "pr") return false
   if (sub !== "create" && sub !== "edit" && sub !== "ready" && sub !== "comment") return false
@@ -89,13 +98,15 @@ export const matchesPr = (
   }
 
   const bodyFile = given.get("--body-file")
-  if (bodyFile !== undefined && (sub === "ready" || !bodyFileInside(bodyFile, files))) return false
+  const bodyPath = bodyFile === undefined ? undefined : bodyFilePath(bodyFile, files)
+  if (bodyFile !== undefined && (sub === "ready" || bodyPath === undefined)) return false
   const repo = given.get("--repo")
   const key = repo === undefined ? undefined : ghRepoKey(repo)
   if (key === undefined || !repos.some((granted) => repoKey(granted.url) === key)) return false
   if (sub === "create") {
     const head = given.get("--head")
-    return positional.length === 0 && head !== undefined && isBranchName(head)
-  }
-  return positional.length === 1 && /^[0-9]+$/.test(positional[0] as string)
+    if (positional.length !== 0 || head === undefined || !isBranchName(head)) return false
+  } else if (positional.length !== 1 || !/^[0-9]+$/.test(positional[0] as string)) return false
+  // Last, as it reads the disk: a symlink inside the project can point out of it.
+  return bodyPath === undefined || realFileInside(bodyPath, files.root, fs)
 }

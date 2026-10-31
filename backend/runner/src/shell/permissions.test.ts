@@ -100,6 +100,7 @@ const fixture = (
     },
     narrowing,
     git: { pushUrls: () => Promise.resolve(undefined) },
+    fs: { real: () => Promise.resolve(undefined), exists: () => Promise.resolve(false) },
     now: () => clock.now,
   }
   const permissions = new Permissions(host)

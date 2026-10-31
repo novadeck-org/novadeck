@@ -1,6 +1,6 @@
-import { describe, expect, it } from "vitest"
+import { beforeEach, describe, expect, it } from "vitest"
 
-import type { GitLookups, GrantRepo, GrantScope } from "../grants.js"
+import type { FsLookups, GitLookups, GrantRepo, GrantScope } from "../grants.js"
 import { matchCall } from "./match.js"
 
 const root = "/work/proj"
@@ -28,11 +28,23 @@ const git: GitLookups = {
   },
 }
 
+// The disk: every path is a regular file that is its own real path, unless a test says otherwise.
+const links = new Map<string, { path: string; file: boolean } | undefined>()
+const present = new Set<string>()
+const fs: FsLookups = {
+  real: async (path) => (links.has(path) ? links.get(path) : { path, file: true }),
+  exists: async (path) => present.has(path),
+}
+beforeEach(() => {
+  links.clear()
+  present.clear()
+})
+
 const run = (
   command: string,
   scopes: readonly GrantScope[] = [scope()],
   cwd: string | null = root,
-) => matchCall({ command, cwd }, scopes, git, root)
+) => matchCall({ command, cwd }, scopes, git, root, fs)
 
 const allowed = async (command: string, scopes?: readonly GrantScope[], cwd?: string | null) =>
   (await run(command, scopes, cwd)) !== null
@@ -154,7 +166,13 @@ describe("the push preset", () => {
     for (const lookup of lookups)
       expect(
         // eslint-disable-next-line no-await-in-loop -- One lookup at a time.
-        await matchCall({ command: "git push origin fix:fix", cwd: root }, [scope()], lookup, root),
+        await matchCall(
+          { command: "git push origin fix:fix", cwd: root },
+          [scope()],
+          lookup,
+          root,
+          fs,
+        ),
       ).toBeNull()
   })
 
@@ -280,6 +298,27 @@ describe("the pr preset", () => {
     ).toBe(false)
   })
 
+  it("refuses a body file that is a symlink out of the project, a directory, or unreadable", async () => {
+    const command = `gh pr comment 12 ${R} --body-file /work/proj/note.md`
+    expect(await allowed(command)).toBe(true)
+    links.set("/work/proj/note.md", { path: "/etc/passwd", file: true })
+    expect(await allowed(command)).toBe(false)
+    links.set("/work/proj/note.md", { path: "/work/proj/real.md", file: true })
+    expect(await allowed(command)).toBe(true)
+    links.set("/work/proj/note.md", { path: "/work/proj/dir", file: false })
+    expect(await allowed(command)).toBe(false)
+    links.set("/work/proj/note.md", undefined)
+    expect(await allowed(command)).toBe(false)
+  })
+
+  it("compares real paths, so a root that is itself a link still holds its files", async () => {
+    links.set("/work/proj", { path: "/data/proj", file: false })
+    links.set("/work/proj/note.md", { path: "/data/proj/note.md", file: true })
+    expect(await allowed(`gh pr comment 12 ${R} --body-file /work/proj/note.md`)).toBe(true)
+    links.set("/work/proj/note.md", { path: "/work/proj/note.md", file: true })
+    expect(await allowed(`gh pr comment 12 ${R} --body-file /work/proj/note.md`)).toBe(false)
+  })
+
   it("needs the pr preset", async () => {
     expect(await allowed(`gh pr ready 12 ${R}`, [scope({ presets: ["push"] })])).toBe(false)
   })
@@ -351,7 +390,8 @@ describe("the call's folder", () => {
   })
 
   it("reads Windows paths in their own rules", async () => {
-    const call = (cwd: string) => matchCall({ command: "pwd", cwd }, [pwd], git, "C:\\Work\\Proj")
+    const call = (cwd: string) =>
+      matchCall({ command: "pwd", cwd }, [pwd], git, "C:\\Work\\Proj", fs)
     expect(await call("c:\\work\\proj\\sub")).not.toBeNull()
     expect(await call("C:\\Work\\Other")).toBeNull()
     expect(await call("C:\\Work\\Proj\\..\\Other")).toBeNull()
@@ -385,7 +425,13 @@ describe("real payload commands from the probes", () => {
 describe("a Codex or Antigravity command on Windows", () => {
   const R = "-R acme/app"
   const windows = (command: string, scopes: readonly GrantScope[] = [scope()]) =>
-    matchCall({ command, cwd: null, dialect: "windows-quote-free" }, scopes, git, "C:\\work\\proj")
+    matchCall(
+      { command, cwd: null, dialect: "windows-quote-free" },
+      scopes,
+      git,
+      "C:\\work\\proj",
+      fs,
+    )
   const pr = { scope: 0, match: { kind: "preset", preset: "pr" } }
 
   it.each([
@@ -442,6 +488,40 @@ describe("a Codex or Antigravity command on Windows", () => {
         expect(await windows(`gh pr comment 5 ${R} --body-file ${path}`)).toBeNull()
     },
   )
+
+  it.each([".exe", ".com", ".bat", ".cmd", ".ps1", ".EXE"])(
+    "refuses a program that the project root holds as gh%s, which cmd runs first",
+    async (suffix) => {
+      expect(await windows("gh pr ready 12 -R acme/app")).toEqual(pr)
+      present.add(`C:\\work\\proj\\gh${suffix}`)
+      // Windows' names don't care for case.
+      if (suffix === ".EXE") present.add("C:\\work\\proj\\gh.exe")
+      expect(await windows("gh pr ready 12 -R acme/app")).toBeNull()
+    },
+  )
+
+  it("refuses a granted command and a push too when the root holds the program, and when it can't tell", async () => {
+    const only = [scope({ presets: [], commands: [{ argv: ["ndmarker"], rest: false }] })]
+    expect(await windows("ndmarker", only)).not.toBeNull()
+    present.add("C:\\work\\proj\\ndmarker.cmd")
+    expect(await windows("ndmarker", only)).toBeNull()
+    present.clear()
+    const unknown: FsLookups = { ...fs, exists: async () => undefined }
+    expect(
+      await matchCall(
+        { command: "ndmarker", cwd: null, dialect: "windows-quote-free" },
+        only,
+        git,
+        "C:\\work\\proj",
+        unknown,
+      ),
+    ).toBeNull()
+  })
+
+  it("leaves POSIX calls alone when the root holds the program", async () => {
+    present.add("/work/proj/gh.exe")
+    expect(await allowed("gh pr ready 12 -R acme/app")).toBe(true)
+  })
 
   it("takes names that only look like devices", async () => {
     for (const name of ["console.md", "COM10", "COM0", "lpt.md", "nulls.txt", "comm1"])

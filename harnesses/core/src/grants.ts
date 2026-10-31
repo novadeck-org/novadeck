@@ -50,8 +50,8 @@ export type FsLookups = {
   readonly real: (
     path: string,
   ) => Promise<{ readonly path: string; readonly file: boolean } | undefined>
-  /** Whether `path` exists. */
-  readonly exists: (path: string) => Promise<boolean>
+  /** Whether `path` exists: undefined where that couldn't be told (an error other than absence, a timeout). */
+  readonly exists: (path: string) => Promise<boolean | undefined>
 }
 
 /** What the matcher reads of git in a folder; injected so the matcher stays pure. */

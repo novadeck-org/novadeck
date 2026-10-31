@@ -4,6 +4,7 @@ import type { GrantSources } from "../messaging/grant-sources.js"
 import { systemSources } from "../messaging/grant-sources.js"
 import type { GrantOptions } from "../messaging/grants.js"
 import type { Messaging } from "../messaging/messaging.js"
+import { fsLookups } from "../shell/fs-lookups.js"
 import { gitLookups } from "../shell/git-lookups.js"
 import { Narrowing, startsAgy } from "../shell/narrowing.js"
 import { Permissions } from "../shell/permissions.js"
@@ -66,6 +67,7 @@ export class Approving {
       },
       narrowing: this.narrowing,
       git: gitLookups,
+      fs: fsLookups,
       now: () => Date.now(),
     })
     this.handlers = {
