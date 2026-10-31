@@ -5,11 +5,7 @@
     "lines counts the file's lines. methods counts every function the Messaging class defines in its body: methods, accessors, the constructor and properties set to a function or arrow expression, read from its syntax tree, so formatting never moves it.",
     "New behaviour goes in a sibling module under backend/runner/src/messaging/, as delivery.ts, leases.ts and loops.ts do, with the class calling it. Work that can't is raised in the same pull request, written { \"budget\": n, \"reason\": \"why\", \"from\": \"#PR or commit\" }."
   ],
-  "lines": {
-    "budget": 495,
-    "reason": "Grants for a newly led teammate (+1): setLead has the Grants tell the terminal of the grants that now cover it (Grants.adopted); the logic is in messaging/grants.ts.",
-    "from": "ti-approvals"
-  },
+  "lines": 491,
   "methods": 74,
   "slack": {
     "lines": 100,

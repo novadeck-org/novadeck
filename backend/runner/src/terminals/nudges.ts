@@ -1,3 +1,4 @@
+import { digestOf } from "../messaging/messages.js"
 import { shorten } from "../text.js"
 import { due, noTroubles, pageNotice, spend, type PageEntry, type Troubles } from "./troubles.js"
 
@@ -42,6 +43,11 @@ export type Nudges = {
   readonly troubles: Troubles
   /** When the current root session began, in milliseconds; only later shows are told of. */
   readonly since: number
+  /**
+   * Whether drift takes the facts it next reads as its baseline, with no `summarize` since
+   * the session came back (`sessionResumed`): its baseline went with the runner before.
+   */
+  readonly reseed?: boolean
 }
 
 /** How many of the person's prompts since the last `summarize` nudge as a backstop. */
@@ -87,6 +93,17 @@ export const sessionBegan = (nudges: Nudges, at: number): Nudges => ({
   since: at,
 })
 
+/**
+ * The root session came back holding what it was told, as resumed after a restart: like
+ * `sessionBegan`, only later shows count, but it has nothing to hear again.
+ */
+export const sessionResumed = (nudges: Nudges, at: number): Nudges => ({
+  ...nudges,
+  troubles: noTroubles,
+  since: at,
+  reseed: nudges.baseline === null,
+})
+
 /** The person prompted: one more toward the backstop, which fires every `backstopPrompts`. */
 export const personPrompted = (nudges: Nudges): Nudges => {
   const prompts = nudges.prompts + 1
@@ -103,10 +120,13 @@ export const differs = (a: Facts, b: Facts): boolean =>
 /**
  * The facts as they stand: drift fires once they differ from those at the last
  * `summarize` and from those it last fired for, so work going back and forth between two
- * folders fires once, not at each turn. Nothing drifts before a `summarize`.
+ * folders fires once, not at each turn. Nothing drifts before a `summarize`, or before a
+ * session resumed after a restart takes the facts it is first read at (`reseed`).
  */
 export const drifted = (nudges: Nudges, facts: Facts): Nudges => {
   const { baseline, driftedTo } = nudges
+  // A session resumed with no baseline measures drift from the facts it is first read at.
+  if (!baseline && nudges.reseed) return { ...nudges, baseline: facts, reseed: false }
   if (!baseline || !differs(baseline, facts)) return nudges
   if (driftedTo && !differs(driftedTo, facts)) return nudges
   return fired({ ...nudges, driftedTo: facts }, "drift")
@@ -306,3 +326,9 @@ export const noticesAt = (
     ...(took.summarize ? [nudgeText(current)] : []),
     ...took.pages.map(pageNotice),
   ].join("\n\n")
+
+/**
+ * The digest of the bar's and the Inbox's notices as worded now: a session told them in
+ * another wording, as before an upgrade, is told again.
+ */
+export const barDigest = digestOf(`${companionNotice}\n\n${inboxNotice}`)

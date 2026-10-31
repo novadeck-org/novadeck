@@ -6,7 +6,7 @@ import { rootedIn, type Root } from "../harnesses/roots.js"
 import { mention } from "../terminals/handles.js"
 import { unbound, type Delivery, type Waits } from "./delivery.js"
 import type { Loops } from "./loops.js"
-import type { Message } from "./messages.js"
+import type { Held, Message } from "./messages.js"
 import { untrustedNote } from "./peers.js"
 
 /** Which terminals see each other: those of one project and one Novadeck session. */
@@ -81,6 +81,12 @@ export type Live = Scope & {
   unconfirmed: readonly string[]
   /** Whether it is Ready because its screen showed the box empty, not a session's start. */
   viaScreen: boolean
+  /**
+   * The rules notes its root session holds in its context, given in full by an earlier
+   * delivery: a later one only points to them. None for a new root, until the terminal
+   * manager tells what that session was told before (`Messaging.rooted`).
+   */
+  held: Held
 }
 
 /** A terminal as it starts, or starts again: no session bound, nothing expected yet. */
@@ -109,6 +115,7 @@ export const started = (
   idleSince: null,
   unconfirmed: [],
   viaScreen: false,
+  held: {},
 })
 
 /**

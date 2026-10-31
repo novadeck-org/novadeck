@@ -104,11 +104,8 @@ for (const setup of setups) {
             (turn) => turn.role === "user" && turn.text.includes("Run the nested agent"),
           ),
         ).toBe(true)
-        // The one message, which Claude Code's continuation quotes twice: as the Stop hook's
-        // feedback and again as its blocking error (2.1.287).
-        expect(new Set(deliveries(got).map((one) => JSON.stringify(one)))).toEqual(
-          new Set([JSON.stringify({ from: "fox", text: "The word is heron." })]),
-        )
+        // The one message, read once (#589).
+        expect(deliveries(got)).toEqual([{ from: "fox", text: "The word is heron." }])
         await t1.until("Got fox's word.")
 
         // Its hooks got nothing: no call of the nested run carried a message, and the

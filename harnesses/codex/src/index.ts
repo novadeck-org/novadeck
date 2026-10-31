@@ -34,6 +34,10 @@ const messaging: MessagingProfile = {
   prompt: (delivery) => context("UserPromptSubmit", delivery),
   call: (delivery, event) => context(event, delivery),
   reinjectPerCall: false,
+  // A Stop's reason and a hook's context are items of its rollout, which it sends again on
+  // every later call, and a resumed session's too; its `SessionStart` says `compact` once
+  // it compacted them away.
+  lasting: ["stop", "prompt", "tool"],
   root: "binding",
   queueKey: "\t",
   silentOnFailure: true,

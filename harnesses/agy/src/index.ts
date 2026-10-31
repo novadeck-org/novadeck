@@ -46,6 +46,9 @@ const messaging: MessagingProfile = {
   stop: (delivery) => `${JSON.stringify({ decision: "continue", reason: delivery })}\n`,
   prompt: (delivery) => `${JSON.stringify({ injectSteps: [{ ephemeralMessage: delivery }] })}\n`,
   reinjectPerCall: true,
+  // Its injected messages last one model call, and no hook tells of a compaction, so
+  // every delivery carries its note in full.
+  lasting: [],
   root: "status-line",
   silentOnFailure: false,
   // A subagent running, it took a typed prompt (fixture

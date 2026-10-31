@@ -9,12 +9,11 @@ import { boundSince, started as fresh } from "../../harnesses/activity.js"
 import { observe, type Binding } from "../../harnesses/bindings.js"
 import { harnesses } from "../../harnesses/registry.js"
 import { unreplied, withReplies } from "../../harnesses/replies.js"
-import { followRoot, rootedIn, type RootChange } from "../../harnesses/roots.js"
+import { followRoot, rootedIn, type Root, type RootChange } from "../../harnesses/roots.js"
 import { transcriptWaitMs, typedPromptStart } from "../../harnesses/typed-prompts.js"
 import { leaseMargin, type Answer } from "../../messaging/hook-answers.js"
 import type { Inbox } from "../../messaging/inbox.js"
-import { byteLength, maxDeliveryBytes } from "../../messaging/messages.js"
-import { wrapGrants } from "../../messaging/messages.js"
+import { byteLength, maxDeliveryBytes, type Held, wrapGrants } from "../../messaging/messages.js"
 import type { Messaging } from "../../messaging/messaging.js"
 import type { Person } from "../../messaging/withdrawals.js"
 import type { HookAnswer } from "../../shell/reports.js"
@@ -30,10 +29,13 @@ import {
   noticesAt,
   personPrompted as promptCounted,
   sessionBegan,
+  barDigest,
+  sessionResumed,
 } from "../nudges.js"
 import { peerOf, type TerminalPeers } from "../peers-host.js"
 import type { Record } from "../record.js"
 import { boundProgram } from "../sampling.js"
+import { retold, toldOf } from "../told.js"
 import type { Typing } from "../typing.js"
 import { judgedFirst, personPrompted, workAfter } from "../work.js"
 import type { Bindings } from "./facts.js"
@@ -277,14 +279,20 @@ export class Reports {
     // What the root worked on, from its prompts as told, as Antigravity's from its
     // transcript; this terminal's later reports wait for this one.
     if (this.tallyWork(record, told, changes) || changed) this.host.save(record)
-    // The harness compacted the root session's context: it may have lost the notice of its bar.
+    // The harness compacted the root session's context: it may have lost the notice of its
+    // bar, and the rules notes of its deliveries, so each is given in full again.
     if (
+      record.root &&
       events.some(
         (event) =>
           event.type === "session-observed" && event.compacted && rootedIn(record.root, event),
       )
-    )
+    ) {
       record.nudges = fired(record.nudges, "compaction")
+      record.agents = retold(record.agents, record.root, () => ({}))
+      this.host.messaging().rooted(record.summary.id, [], {})
+      this.host.save(record)
+    }
     this.host.murmur()?.reported(report.terminalId)
     // The person's own prompt starting a root turn takes the session's open asks out of the
     // Inbox, as delivery judges the prompt theirs, but only once a hook acknowledges having
@@ -315,6 +323,7 @@ export class Reports {
       events: told,
       deadline,
       person,
+      payload: report.payload,
     })
     if (stopAsk) {
       this.continued(record, told, answer)
@@ -419,7 +428,7 @@ export class Reports {
     // Read only for an answer that delivers nothing, so a delivery never waits on it, and
     // only with time to spare.
     const facts =
-      leaseId === null && record.nudges.baseline && inTime(driftReadMs)
+      leaseId === null && (record.nudges.baseline || record.nudges.reseed) && inTime(driftReadMs)
         ? await this.host.peers().facts(peerOf(record))
         : undefined
     const current = { summary: record.naming.summary }
@@ -441,7 +450,25 @@ export class Reports {
     })
     record.nudges = taken.nudges
     if (!taken.nudge) return given
+    // Where the prompt's answer stays in the session's context, it holds the bar's notice
+    // from now on, across a restart too, until it compacts.
+    if (taken.companion && record.root && messaging.lasting.includes("prompt")) {
+      record.agents = retold(record.agents, record.root, (told) => ({ ...told, bar: barDigest }))
+      this.host.save(record)
+    }
     return { leaseId, stdout: adding(notices(taken)) }
+  }
+
+  /**
+   * The rules notes the terminal's root session holds grew, as a hook printed one in full:
+   * they are kept with its report, so the session is given them again only once it
+   * compacts or another session takes its place, not as the runner restarts.
+   */
+  held(terminalId: string, root: Root, held: Held): void {
+    const record = this.host.records().get(terminalId)
+    if (!record || !rootedIn(record.root, { ...root, instance: null })) return
+    record.agents = retold(record.agents, root, (told) => ({ ...told, notes: held }))
+    this.host.save(record)
   }
 
   /**
@@ -474,14 +501,21 @@ export class Reports {
       awaited: (sessionId) => this.host.messaging().awaits(id, sessionId),
     })
     record.root = root
+    // What the root session was told before and holds still, kept with its report: a
+    // session resumed after a restart is the same session, while another holds nothing.
+    const told = toldOf(record.agents, root)
     if (changes.length > 0) {
-      this.host.messaging().rooted(id, changes)
+      this.host.messaging().rooted(id, changes, told.notes ?? {})
       this.host.inbox().rooted(id, changes)
       this.host.typing().settleBox(record)
     }
-    // A new root session has yet to hear of the bar beside its terminal.
+    // A new root session has yet to hear of the bar beside its terminal, unless it is one
+    // that heard of it and holds that still, as resumed after a restart.
     if (changes.some((change) => change.type === "new")) {
-      record.nudges = sessionBegan(record.nudges, Date.now())
+      record.nudges =
+        told.bar === barDigest
+          ? sessionResumed(record.nudges, Date.now())
+          : sessionBegan(record.nudges, Date.now())
       if (record.root)
         tellInterrupted(
           record,

@@ -15,6 +15,8 @@ import {
   start,
   through,
   turn,
+  wrappers,
+  pointsBack,
 } from "./scenarios.js"
 
 // Novadeck restarting under its agents, the same for every harness (see messaging.e2e.ts
@@ -22,6 +24,45 @@ import {
 for (const setup of setups) {
   describe.skipIf(!supported)(setup.name, () => {
     const it = e2e(setup)
+
+    it("points a session resumed after a restart to the rules note it was given before", async ({
+      e2e: run,
+    }) => {
+      run.model.use(
+        sends("Ask moth for the word", "moth", "Which word did you remember?"),
+        own((call) =>
+          !call.side && ring.test(latest(call)) && deliveries(call).length > 0
+            ? { text: "Heron, as asked." }
+            : undefined,
+        ),
+        own((call) => (sent(call, "moth") ? { text: "Asked." } : undefined)),
+      )
+      const t1 = await start(run, setup)
+      const t2 = await start(run, setup)
+      const before = run.model.mark()
+      await t2.submit("Ask moth for the word")
+      await run.model.waitFor((call) => delivered(call, "fox"), { after: before })
+      await t1.until("Heron, as asked.")
+      await t1.reached("settled")
+
+      await run.deck.restart()
+      const resumed = await run.deck.restore(t1, { resume: setup.agent })
+      await resumed.reached("ready", { timeoutMs: 60_000 })
+      await prompted(resumed, setup)
+      const t3 = await start(run, setup)
+      const calls = run.model.mark()
+      await t3.submit("Ask moth for the word")
+
+      // Where the harness keeps what its hooks print, its conversation holds the first
+      // delivery with the note in full, and this one only points to it; elsewhere the
+      // first is gone, and this one carries the note in full.
+      const rung = await run.model.waitFor(
+        (call) => !call.side && ring.test(latest(call)) && deliveries(call).length > 0,
+        { after: calls },
+      )
+      expect(wrappers(rung).map(pointsBack)).toEqual(setup.keepsHookText ? [false, true] : [false])
+      await resumed.until("Heron, as asked.")
+    })
 
     it("resumes its session once the runner restarts, and is rung there for a message", async ({
       e2e: run,

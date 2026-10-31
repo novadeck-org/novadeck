@@ -170,14 +170,28 @@ describe("what the covered are told", () => {
       grantId: grant.id,
       state: "queued",
     })
-    const live = wrap([message!], () => false, "Ab3dEf9Z", "PersonMk", {
-      grants: (id) => messaging.grants.get(id),
-    })
+    const live = wrap(
+      [message!],
+      () => false,
+      "Ab3dEf9Z",
+      "PersonMk",
+      {},
+      {
+        grants: (id) => messaging.grants.get(id),
+      },
+    )
     expect(live).toContain(`<grant id="${grant.id}" person="PersonMk"`)
     messaging.grants.revoke(grant.id)
-    const ended = wrap([message!], () => false, "Ab3dEf9Z", "PersonMk", {
-      grants: (id) => messaging.grants.get(id),
-    })
+    const ended = wrap(
+      [message!],
+      () => false,
+      "Ab3dEf9Z",
+      "PersonMk",
+      {},
+      {
+        grants: (id) => messaging.grants.get(id),
+      },
+    )
     expect(ended).toContain(`<grant-ended id="${grant.id}">`)
     expect(told("L")).toEqual([])
   })

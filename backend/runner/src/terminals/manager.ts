@@ -469,6 +469,7 @@ export class Terminals {
       // A message is kept while either of its terminals is, running or saved.
       exists: (id) => this.records.has(id) || this.saves.identity(id) !== undefined,
       busy: (id) => agentWorking(this.messaging, id, this.live(id)?.bound),
+      held: (id, root, held) => this.reporting.held(id, root, held),
     })
     this.inbox = new Inbox(
       {

@@ -22,6 +22,7 @@ import {
   lacking,
   messages,
   own,
+  pointsBack,
   result,
   replies,
   ring,
@@ -30,6 +31,7 @@ import {
   start,
   through,
   turn,
+  wrappers,
 } from "./scenarios.js"
 
 // The JSON files under `folder`, passing over a folder a harness removes meanwhile, as
@@ -282,6 +284,65 @@ for (const setup of setups) {
         () => (t1.summary().activity?.state === "idle" ? true : undefined),
         "the agent idle",
       )
+    })
+
+    it("reads each message once, its rules note in full only until the session holds it", async ({
+      e2e: run,
+    }) => {
+      // The first message comes through t1's Stop, the second rings it at its prompt.
+      const ending = gate()
+      run.model.use(
+        sends("Tell moth the news", "moth", "The build is green."),
+        sends("Tell moth more", "moth", "The docs are green too."),
+        own((call) => (sent(call, "moth") ? { text: "Told moth." } : undefined)),
+        own((call) => (delivered(call, "fox") ? { text: "Noted." } : undefined)),
+        own(async (call) => {
+          if (call.side || !asked(call, "Hold then stop")) return undefined
+          await ending.opened
+          return { text: "First done." }
+        }),
+      )
+      const t1 = await start(run, setup)
+      const t2 = await start(run, setup)
+      const mark = t1.mark()
+      const calls = run.model.mark()
+      await t1.submit("Hold then stop")
+      await t1.reached("working", { after: mark })
+      await t2.submit("Tell moth the news")
+      await t1.reached(holds("fox", "moth", "queued"), { after: mark })
+      ending.open()
+
+      // Its Stop continues the turn with the message, which the model reads once, with
+      // the note in full.
+      const continued = await run.model.waitFor((call) => delivered(call, "fox"), {
+        after: calls,
+      })
+      const [first] = messages(t1).map((one) => one.id)
+      expect(wrappers(continued)).toEqual([{ note: expect.any(String), ids: [first] }])
+      expect(pointsBack(wrappers(continued)[0]!)).toBe(false)
+      await t1.until("Noted.")
+      await t1.reached("settled", { after: mark })
+
+      // The next message rings it: the model reads it once too, and the first one, which
+      // a Stop's continuation left in the conversation, no more than once.
+      const later = run.model.mark()
+      await t2.submit("Tell moth more")
+      const rung = await run.model.waitFor(
+        (call) => delivered(call, "fox") && ring.test(latest(call)),
+        {
+          after: later,
+        },
+      )
+      const second = messages(t1).map((one) => one.id)[1]
+      const read = wrappers(rung)
+      const ids = read.flatMap((one) => one.ids)
+      expect(ids.filter((id) => id === second)).toHaveLength(1)
+      expect(ids.filter((id) => id === first)).toHaveLength(1)
+      // Where the harness keeps what its hooks print, the note came in full once and the
+      // later delivery only points to it, with its own marks; elsewhere, as where a prompt's
+      // injection lasts one call, every delivery carries it in full.
+      expect(pointsBack(read.at(-1)!)).toBe(setup.keepsHookText)
+      await t1.until("Noted.")
     })
 
     it("ends a continuation whose own Stop hook's report never came, as its records tell", async ({
