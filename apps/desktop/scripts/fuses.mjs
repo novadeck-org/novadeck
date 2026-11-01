@@ -94,7 +94,9 @@ export const openedCopy = async (executable) => {
       execFileSync("ditto", [bundle, copy])
       const opened = join(copy, executable.slice(bundle.length + 1))
       await flipFuses(opened, open)
-      execFileSync("codesign", ["--force", "--deep", "--sign", "-", copy], { stdio: "ignore" })
+      execFileSync("codesign", ["--force", "--deep", "--sign", "-", copy], {
+        stdio: "ignore",
+      })
       return { executable: opened, root: folder, remove }
     } catch (error) {
       remove()
@@ -114,11 +116,13 @@ export const openedCopy = async (executable) => {
   return { executable: copy, root: copy, remove }
 }
 
-// The processes whose command line names `root`, as [pid, command] pairs.
-const processesUnder = (root) => {
+/** The processes whose command line names `root`, as [pid, command] pairs. */
+export const processesUnder = (root) => {
   if (process.platform === "win32") {
     const script = `Get-CimInstance Win32_Process | Where-Object { $_.ExecutablePath -like '${root.replaceAll("'", "''")}*' } | ForEach-Object { "$($_.ProcessId) $($_.CommandLine)" }`
-    const out = spawnSync("powershell", ["-NoProfile", "-Command", script], { encoding: "utf8" })
+    const out = spawnSync("powershell", ["-NoProfile", "-Command", script], {
+      encoding: "utf8",
+    })
     return lines(out.stdout)
   }
   return lines(spawnSync("ps", ["-axo", "pid=,command="], { encoding: "utf8" }).stdout).filter(

@@ -5,13 +5,15 @@ productName: Novadeck
 executableName: novadeck
 asar: true
 # Electron's fuses, flipped in the packaged binary before it is signed. Off: running the app as
-# plain Node (ELECTRON_RUN_AS_NODE), NODE_OPTIONS and --inspect, which would let anything that
-# can start the binary run code as the app; nothing in the app needs them (the runner is a
-# utility process, the relay a binary of its own). On: Electron finds the app only in app.asar,
-# which macOS and Windows check against a digest builder embeds. That check covers app.asar
-# alone: the UI in resources/ui, loaded over file://, sits outside it. Cookie encryption is left
-# as it is: turning it on can't be taken back. scripts/fuses.mjs reads these back, and the smoke
-# test asserts them.
+# plain Node (ELECTRON_RUN_AS_NODE), NODE_OPTIONS and --inspect, so that starting the binary
+# with those no longer runs code of the attacker's choosing in the app's place; nothing in the
+# app needs them (the runner is a utility process, the relay a binary of its own). Chromium's
+# own --remote-debugging-port is no fuse and stays open: it gives whoever starts the binary
+# with it access to the page and its preload bridge (the smoke test relies on it). On: Electron
+# finds the app only in app.asar, which macOS and Windows check against a digest builder embeds.
+# That check covers app.asar alone: the UI in resources/ui, loaded over file://, sits outside it.
+# Cookie encryption is left as it is: turning it on can't be taken back. scripts/fuses.mjs reads
+# these back, and the smoke test asserts them.
 electronFuses:
   runAsNode: false
   enableNodeOptionsEnvironmentVariable: false

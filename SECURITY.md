@@ -141,6 +141,17 @@ which in a dialog of the window the page is in; a cancelled or failed question c
 it. On macOS the app doesn't turn on Touch ID passkeys yet, so the person's own synced
 passkeys don't show there; a security key or a phone still can.
 
+## Packaged App Fuses
+
+The packaged binary's Electron fuses (`electronFuses` in `apps/desktop/electron-builder.yml`)
+turn off running it as Node (`ELECTRON_RUN_AS_NODE`), `NODE_OPTIONS` and `--inspect`, so
+starting the binary with them runs nothing of the starter's choosing in the app's place, and
+turn on the embedded asar integrity check (macOS and Windows) and loading the app only from
+`app.asar`. The UI in `resources/ui` is outside that check. Chromium's
+`--remote-debugging-port` is not a fuse and stays open: whoever can start the binary with it
+reaches the page and its preload bridge, which is the access that person already has as their
+own account.
+
 ## Release Verification
 
 Releases are built by the repository's `release.yml`. Every asset gets a GitHub build

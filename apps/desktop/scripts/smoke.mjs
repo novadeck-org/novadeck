@@ -10,7 +10,7 @@ import { fileURLToPath } from "node:url"
 import * as esbuild from "esbuild"
 import { chromium } from "playwright"
 
-import { closeWithin, fuseProblems, killUnder, openedCopy } from "./fuses.mjs"
+import { closeWithin, fuseProblems, killUnder, openedCopy, processesUnder } from "./fuses.mjs"
 
 const packageDir = resolve(dirname(fileURLToPath(import.meta.url)), "..")
 const release = join(packageDir, "release")
@@ -23,7 +23,10 @@ const fail = (message) => {
 const packaged = () => {
   if (process.platform === "win32") {
     const root = join(release, "win-unpacked")
-    return { executable: join(root, "novadeck.exe"), resources: join(root, "resources") }
+    return {
+      executable: join(root, "novadeck.exe"),
+      resources: join(root, "resources"),
+    }
   }
   if (process.platform === "darwin") {
     const folder = readdirSync(release).find((name) => name.startsWith("mac"))
@@ -31,10 +34,16 @@ const packaged = () => {
       folder && readdirSync(join(release, folder)).find((name) => name.endsWith(".app"))
     if (!folder || !bundle) fail("No unpacked macOS app bundle was found.")
     const root = join(release, folder, bundle, "Contents")
-    return { executable: join(root, "MacOS", "novadeck"), resources: join(root, "Resources") }
+    return {
+      executable: join(root, "MacOS", "novadeck"),
+      resources: join(root, "Resources"),
+    }
   }
   const root = join(release, "linux-unpacked")
-  return { executable: join(root, "novadeck"), resources: join(root, "resources") }
+  return {
+    executable: join(root, "novadeck"),
+    resources: join(root, "resources"),
+  }
 }
 
 const { executable, resources } = packaged()
@@ -144,7 +153,9 @@ try {
   const config = join(mkdtempSync(join(tmpdir(), "novadeck-smoke-relay-")), "relay.json")
   writeFileSync(
     config,
-    JSON.stringify({ fallbacks: { agy: { PreToolUse: '{"decision":"ask"}', "*": "{}" } } }),
+    JSON.stringify({
+      fallbacks: { agy: { PreToolUse: '{"decision":"ask"}', "*": "{}" } },
+    }),
   )
   const hook = execFileSync(relay, ["hook", "--config", config, "agy", "PreToolUse"], {
     input: "{}",
@@ -155,7 +166,9 @@ try {
   })
   if (hook.toString() !== '{"decision":"ask"}\n') throw new Error(`hook: ${hook}`)
   // It names its build, in the protocol the runner speaks.
-  const version = execFileSync(relay, ["--version"], { timeout: 10_000 }).toString()
+  const version = execFileSync(relay, ["--version"], {
+    timeout: 10_000,
+  }).toString()
   if (!/^novadeck-relay \S+ \(protocol 2\)/.test(version)) {
     throw new Error(`version: ${version}`)
   }
@@ -289,20 +302,29 @@ if (!endpoint) {
   killUnder(shippedRoot)
   fail(`The packaged app did not open its debugging port. Its output:\n${output.join("")}`)
 }
-const browser = await chromium.connectOverCDP(endpoint)
+let browser
 const app = {
   process: () => child,
-  windows: () => browser.contexts().flatMap((context) => context.pages()),
+  windows: () => browser?.contexts().flatMap((context) => context.pages()) ?? [],
   close: async () => {
-    // The browser is gone before it answers, so the command's own answer is not waited for.
-    void browser
-      .newBrowserCDPSession()
-      .then((session) => session.send("Browser.close"))
-      .catch(() => {})
+    if (!browser) throw new Error("the page was never reached")
+    if (process.platform === "darwin") {
+      // The browser is gone before it answers, so the command's own answer is not waited for.
+      // This is the path of the menu's Quit: app.quit.
+      void browser
+        .newBrowserCDPSession()
+        .then((session) => session.send("Browser.close"))
+        .catch(() => {})
+    } else {
+      // As a person quits on Linux and Windows: closing the last window, which ends the app
+      // through window-all-closed, the orderly quit that gates installing an update on quit.
+      for (const page of app.windows()) void page.close({ runBeforeUnload: false }).catch(() => {})
+    }
     await exited
   },
 }
 try {
+  browser = await chromium.connectOverCDP(endpoint)
   const context = browser.contexts()[0]
   const page = context.pages()[0] ?? (await context.waitForEvent("page", { timeout: 60_000 }))
   await page.waitForLoadState("domcontentloaded")
@@ -329,7 +351,11 @@ try {
         }
       }
       globalThis.smoke = runner
-      const project = await runner.projects.create({ id: crypto.randomUUID(), name: "Smoke", cwd })
+      const project = await runner.projects.create({
+        id: crypto.randomUUID(),
+        name: "Smoke",
+        cwd,
+      })
       const session = await runner.sessions.create({
         id: crypto.randomUUID(),
         projectId: project.id,
@@ -354,7 +380,10 @@ try {
       })()
       await terminal.write(typed)
       const timeout = new Promise((settle) => setTimeout(() => settle(false), 20_000))
-      return { answered: await Promise.race([reading, timeout]), tail: text.slice(-400) }
+      return {
+        answered: await Promise.race([reading, timeout]),
+        tail: text.slice(-400),
+      }
     },
     { cwd: work, typed: input },
   )
@@ -374,16 +403,43 @@ try {
     console.log("The terminal runs on the bundled ConPTY host (OpenConsole.exe).")
   }
 } finally {
-  const hung = await closeWithin(app, shippedRoot, output, userData)
-  killUnder(shippedRoot)
-  killUnder(opened.root)
-  if (hung) fail(hung)
-  // A quit the app made itself, not one it was killed in: its log says it ran to its end.
-  const hostLog = join(userData, "logs", "host.log")
-  const ended = existsSync(hostLog) ? readFileSync(hostLog, "utf8") : ""
-  if (!ended.includes('"evt":"app.quit"') || !/"evt":"session.end"[^\n]*"code":0/.test(ended))
-    fail(`The packaged app's log doesn't show an orderly quit:\n${ended.slice(-1500)}`)
-  rmSync(work, { recursive: true, force: true })
-  rmSync(userData, { recursive: true, force: true })
+  if (!browser) {
+    // The page was never reached: nothing to close, only the spawned app to end.
+    child.kill("SIGKILL")
+    killUnder(shippedRoot)
+    killUnder(opened.root)
+  } else {
+    const hung = await closeWithin(app, shippedRoot, output, userData)
+    // What the app left running after its main process ended is looked for after a grace, and
+    // killed only once it is named.
+    const gone = (waited) =>
+      processesUnder(shippedRoot).length === 0 || waited >= 5_000
+        ? Promise.resolve()
+        : new Promise((settle) => setTimeout(settle, 250)).then(() => gone(waited + 250))
+    await gone(0)
+    const left = processesUnder(shippedRoot)
+    killUnder(shippedRoot)
+    killUnder(opened.root)
+    if (hung) fail(hung)
+    const { code, signal } = await exited
+    if (code !== 0 || signal)
+      fail(`The packaged app ended with code ${code} and signal ${signal}, not 0 and none.`)
+    if (left.length > 0)
+      fail(
+        `The packaged app left processes running after it quit:\n${left.map(([pid, command]) => `  ${pid} ${command.slice(0, 200)}`).join("\n")}`,
+      )
+    // A quit the app made itself, not one it was killed in: its log says it ran to its end,
+    // and on Linux and Windows that it began the orderly way, as closing the window does.
+    const hostLog = join(userData, "logs", "host.log")
+    const ended = existsSync(hostLog) ? readFileSync(hostLog, "utf8") : ""
+    const orderly = process.platform === "darwin" ? "" : '[^\\n]*"orderly":true'
+    if (
+      !new RegExp(`"evt":"app\\.quit"${orderly}`).test(ended) ||
+      !/"evt":"session.end"[^\n]*"code":0/.test(ended)
+    )
+      fail(`The packaged app's log doesn't show an orderly quit:\n${ended.slice(-1500)}`)
+    rmSync(work, { recursive: true, force: true })
+    rmSync(userData, { recursive: true, force: true })
+  }
 }
 console.log("The packaged app closed cleanly.")
