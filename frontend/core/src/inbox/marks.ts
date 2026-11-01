@@ -1,3 +1,4 @@
+import { approvalTitle } from "../grants"
 import { atTerminal, inboxType, terminalNeed, type InboxRow } from "../inbox"
 import type { InboxMarks } from "../terminals/ending"
 import type { TerminalKey } from "../types"
@@ -8,7 +9,7 @@ const dialogOf = (row: InboxRow): InboxMarks["dialog"] =>
   row.kind === "request" ? row.request.kind : undefined
 
 const subjectOf = (row: InboxRow): string | undefined => {
-  if (row.kind === "ask") return row.ask.subject
+  if (row.kind === "ask") return row.ask.shape.type === "approval" ? approvalTitle : row.ask.subject
   if (row.kind === "request") return row.request.subject ?? undefined
   return undefined
 }

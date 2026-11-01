@@ -1,5 +1,5 @@
 import type { ChatDialog, ChatDialogOption, ChatRequest } from "@novadeck/core/conversation"
-import { grantTitle, type GrantProposal } from "@novadeck/core/grants"
+import { approvalTitle, grantTitle, type GrantProposal } from "@novadeck/core/grants"
 import { harnesses, type AgentName } from "@novadeck/core/harnesses"
 import { inboxType, type InboxRow, type InboxSource, type Trouble } from "@novadeck/core/inbox"
 import { unsaidWaits, waitsBehind } from "@novadeck/core/messages"
@@ -108,7 +108,8 @@ export const subjectOf = (row: InboxRow): string => {
     case "held":
       return `Release a held message to ${row.held.to.title}?`
     case "ask":
-      return row.ask.subject
+      // An approval ask is titled in Novadeck's words, never the agent's.
+      return row.ask.shape.type === "approval" ? approvalTitle : row.ask.subject
     case "grant":
       return grantSubject(row.proposal, row.source.handle)
     case "trouble":

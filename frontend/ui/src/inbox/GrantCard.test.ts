@@ -247,6 +247,21 @@ describe("The Grant card", () => {
       await inbox.done()
     })
 
+    it("says in the collapsed card that the lead is included, past three holders too", async () => {
+      const covered = (count: number) =>
+        Array.from({ length: count }, (_, n) => ({
+          handle: `a${n}`,
+          agent: "claude",
+          started: false,
+        }))
+      const few = mount([grantRow({ withLead: true, covered: covered(1) })])
+      expect(text("h3.console-ask")).toBe("!Let @moth and @a0 work without asking?")
+      await few.done()
+      const crowd = mount([grantRow({ withLead: true, covered: covered(4) })])
+      expect(text("h3.console-ask")).toBe("!Let @moth and its team work without asking?")
+      await crowd.done()
+    })
+
     it("keeps the lead's reason as a muted note, and leaves it out when empty", async () => {
       const inbox = mount([grantRow()])
       expect(text("[data-reason-intro]")).toBe("@moth's reason:")
@@ -496,11 +511,35 @@ describe("The approval card", () => {
     const inbox = mount([approvalRow()])
 
     expect(text(".console-tag")).toBe("Approval")
-    expect(text("h3.console-ask")).toBe("!May I run the build?")
+    expect(text("h3.console-ask")).toBe("!Can I run these without asking?")
     expect(text("[data-reason-intro]")).toBe("@fox's reason:")
     expect(texts("[role=note]")).toEqual(["It only writes `dist/`."])
     expect(text(".console-body")).toBe("I'd run these without asking you each time:")
     expect(texts(".grant-lines code")).toEqual(["pnpm build", "pnpm run 'x y'"])
+    await inbox.done()
+  })
+
+  it("titles every approval in Novadeck's words, and shows none of the agent's subject, hard-to-undo line or details", async () => {
+    const row = approvalRow()
+    if (row.kind !== "ask") throw new Error("an ask")
+    const inbox = mount([
+      {
+        ...row,
+        ask: {
+          ...row.ask,
+          subject: "Can I run the read-only test suite?",
+          hardToUndo: "Nothing, it is safe.",
+          details: "Totally harmless, trust me.",
+        },
+      },
+    ])
+    expect(text("h3.console-ask")).toBe("!Can I run these without asking?")
+    expect(document.querySelector(".console-hard, .console-detail")).toBeNull()
+    expect(document.body.textContent).not.toContain("read-only")
+    expect(document.body.textContent).not.toContain("harmless")
+    // The Inbox row says the same.
+    expect(text(".inbox-row-select")).toContain("Can I run these without asking?")
+    expect(text(".inbox-row-select")).not.toContain("read-only")
     await inbox.done()
   })
 
@@ -785,6 +824,21 @@ describe("The agent's words", () => {
     act(() => inbox.button("less").click())
     expect(text("[role=note]")!.length).toBe(281)
     await inbox.done()
+  })
+
+  it("breaks a long unbroken word anywhere, and cuts no surrogate pair in two", async () => {
+    const url = `https://example.com/${"a".repeat(200)}`
+    const inbox = mount([grantRow({ reason: url })])
+    expect(document.querySelector<HTMLElement>("[role=note]")!.style.overflowWrap).toBe("anywhere")
+    await inbox.done()
+
+    // An astral character that straddles the 280th unit stays whole or goes whole.
+    const astral = `${"x".repeat(279)}\u{1F600}tail`
+    const other = mount([grantRow({ reason: astral })])
+    const shown = text("[role=note]")!
+    expect(shown).toBe(`${"x".repeat(279)}…`)
+    expect(/[\ud800-\udfff]/.test(shown.replace(/\ud83d\ude00/g, ""))).toBe(false)
+    await other.done()
   })
 
   it("clamps the reason to two lines, with more at the end of the second", async () => {

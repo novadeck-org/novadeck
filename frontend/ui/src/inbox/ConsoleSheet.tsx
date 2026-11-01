@@ -8,6 +8,7 @@ import {
   write,
   type Picks,
 } from "@novadeck/core/conversation/picks"
+import { approvalTitle } from "@novadeck/core/grants"
 import type { HeldMessage, InboxAnswer, InboxRow, Trouble } from "@novadeck/core/inbox"
 import { unsaidWaits, waitsText } from "@novadeck/core/messages"
 import { HandleChip } from "@novadeck/toolkit/HandleChip"
@@ -294,18 +295,23 @@ const Thing = ({ row, now }: { readonly row: InboxRow; readonly now: number }) =
       )
     case "ask": {
       const { ask } = row
+      // An approval's title and words are Novadeck's: the agent's subject, hard-to-undo line and
+      // details never show; only its body does, as "@x's reason:".
+      if (ask.shape.type === "approval") {
+        return (
+          <>
+            <Heading glyph="!">{approvalTitle}</Heading>
+            <ApprovalWords row={row} commands={ask.shape.commands} body={ask.body} />
+          </>
+        )
+      }
       return (
         <>
-          <Heading glyph={ask.shape.type === "action" || ask.shape.type === "approval" ? "!" : "?"}>
+          <Heading glyph={ask.shape.type === "action" ? "!" : "?"}>
             <Text text={ask.subject} />
           </Heading>
           {ask.hardToUndo && <p className="console-hard">! Hard to undo: {ask.hardToUndo}</p>}
-          {ask.shape.type === "approval" ? (
-            // Novadeck's sentence and the commands first, the agent's words a muted note.
-            <ApprovalWords row={row} commands={ask.shape.commands} body={ask.body} />
-          ) : (
-            <Prose text={ask.body} />
-          )}
+          <Prose text={ask.body} />
           {ask.details && (
             <div className="console-detail">
               <Disclosure label="More detail">

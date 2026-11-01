@@ -142,9 +142,24 @@ const kinds: readonly { readonly label: string; readonly name: Named; readonly h
     hint: "The lead's reason imitates Novadeck's own words and holds a right-to-left override: it stays in the muted mono line under \"@<lead>'s reason:\", the override written out",
   },
   {
+    label: "Grant card, lead included (2)",
+    name: "grantLead2",
+    hint: 'The lead is one of two holders: the title names it, "Let @<lead> and @fox work without asking?"',
+  },
+  {
+    label: "Grant card, lead included (4)",
+    name: "grantLead4",
+    hint: 'The lead and three teammates: the title says "Let @<lead> and its team work without asking?", so the default view shows the lead is in',
+  },
+  {
+    label: "Grant card, long unbroken word",
+    name: "grantLongWord",
+    hint: "The lead's reason holds one long link with no spaces: it wraps at any letter inside two lines, with more at the end of the second",
+  },
+  {
     label: "Approval card, hostile reason",
     name: "approvalHostile",
-    hint: "The same for an approval ask's body",
+    hint: 'The same for an approval ask\'s body; its own subject ("Can I run the read-only test suite?") is never the title',
   },
   {
     label: "Approval card",

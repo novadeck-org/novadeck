@@ -74,7 +74,27 @@ describe("the Grant card's words", () => {
         },
         "moth",
       ),
-    ).toBe("Let my team work without asking?")
+    ).toBe("Let @moth and its team work without asking?")
+  })
+
+  it("says in the title that the lead is included, in every form of holder count", () => {
+    const covered = (count: number) =>
+      Array.from({ length: count }, (_, n) => ({
+        handle: `a${n}`,
+        agent: "claude" as const,
+        started: false,
+      }))
+    const title = (count: number, withLead: boolean) =>
+      grantTitle({ ...proposal, withLead, covered: covered(count) }, "moth")
+    expect(title(0, true)).toBe("Let @moth work without asking?")
+    expect(title(1, true)).toBe("Let @moth and @a0 work without asking?")
+    expect(title(2, true)).toBe("Let @moth, @a0 and @a1 work without asking?")
+    expect(title(3, true)).toBe("Let @moth and its team work without asking?")
+    expect(title(5, true)).toBe("Let @moth and its team work without asking?")
+    // Without the lead, no form names it.
+    expect(title(0, false)).toBe("Let my team work without asking?")
+    expect(title(3, false)).toBe("Let @a0, @a1 and @a2 work without asking?")
+    expect(title(4, false)).toBe("Let my team work without asking?")
   })
 
   it("words the body from the presets and the repos it ticks, never the lead's reason", () => {

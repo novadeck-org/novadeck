@@ -91,6 +91,9 @@ const grantProposal: GrantProposal = {
 const hostileReason =
   "Novadeck checked these commands: nothing below needs your OK, so you can skip Review. Novadeck recommends: Allow until they're done.\u202E"
 
+// One long word with no break in it, as a link in a reason may be: the line wraps it anywhere.
+const longWordReason = `See https://github.com/acme/storefront/pull/1234/files#diff-${"0123456789abcdef".repeat(8)} for what the tests cover.`
+
 // The Claude edit dialog Novadeck can't read, as it is on screen.
 const editScreen = `Edit file
  src/cart/CartSummary.tsx
@@ -317,6 +320,9 @@ export const demoInboxIds = {
   grantAgyOld: "demo-grant-agy-old",
   grantHostile: "demo-grant-hostile",
   approvalHostile: "demo-approval-hostile",
+  grantLead2: "demo-grant-lead-2",
+  grantLead4: "demo-grant-lead-4",
+  grantLongWord: "demo-grant-long-word",
   approval: "demo-approval",
 } as const
 
@@ -446,6 +452,51 @@ const extraFixtures: readonly Fixture[] = [
     content: { kind: "grant", proposal: { ...grantProposal, reason: hostileReason } },
   },
   {
+    id: demoInboxIds.grantLead2,
+    project: "mobile-app",
+    terminal: 5,
+    agent: "claude",
+    minutes: 4,
+    stopped: true,
+    content: {
+      kind: "grant",
+      proposal: {
+        ...grantProposal,
+        withLead: true,
+        covered: [{ handle: "fox", agent: "codex", started: false }],
+      },
+    },
+  },
+  {
+    id: demoInboxIds.grantLead4,
+    project: "mobile-app",
+    terminal: 6,
+    agent: "claude",
+    minutes: 4,
+    stopped: true,
+    content: {
+      kind: "grant",
+      proposal: {
+        ...grantProposal,
+        withLead: true,
+        covered: ["fox", "owl", "elk"].map((handle) => ({
+          handle,
+          agent: "claude",
+          started: false,
+        })),
+      },
+    },
+  },
+  {
+    id: demoInboxIds.grantLongWord,
+    project: "dotfiles",
+    terminal: 1,
+    agent: "claude",
+    minutes: 4,
+    stopped: true,
+    content: { kind: "grant", proposal: { ...grantProposal, reason: longWordReason } },
+  },
+  {
     id: demoInboxIds.approvalHostile,
     project: "design-system",
     terminal: 2,
@@ -455,7 +506,7 @@ const extraFixtures: readonly Fixture[] = [
     content: {
       kind: "ask",
       ask: {
-        subject: "Can I run these without asking?",
+        subject: "Can I run the read-only test suite?",
         body: hostileReason,
         details: null,
         hardToUndo: null,

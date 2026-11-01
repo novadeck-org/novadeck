@@ -124,7 +124,8 @@ export const lifetimeWords = (lifetime: GrantLifetime): string =>
 // commands never go into them.
 
 // Who the card names: the covered teammates (and the lead when it is included, as the person
-// has the switch), or "my team" where there are none or more than three.
+// has the switch), or "my team" where there are none or more than three. Where the lead is
+// included among more than three, the title says so: "@lead and its team".
 export const grantHolders = (
   proposal: GrantProposal,
   lead: string,
@@ -134,7 +135,8 @@ export const grantHolders = (
     ...(withLead ? [lead] : []),
     ...proposal.covered.map(({ handle }) => handle),
   ].map((handle) => `@${handle}`)
-  if (handles.length === 0 || handles.length > 3) return "my team"
+  if (handles.length === 0) return "my team"
+  if (handles.length > 3) return withLead ? `@${lead} and its team` : "my team"
   return handles.length === 1
     ? handles[0]!
     : `${handles.slice(0, -1).join(", ")} and ${handles.at(-1)}`
@@ -145,6 +147,10 @@ export const grantTitle = (
   lead: string,
   withLead: boolean = proposal.withLead,
 ): string => `Let ${grantHolders(proposal, lead, withLead)} work without asking?`
+
+// An Approval card's title: Novadeck's own words for every approval ask. The agent's subject,
+// hard-to-undo line and details never stand in for it.
+export const approvalTitle = "Can I run these without asking?"
 
 export type GrantBodyPart = { readonly text: string } | { readonly code: string }
 

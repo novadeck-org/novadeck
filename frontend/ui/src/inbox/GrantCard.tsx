@@ -45,6 +45,13 @@ const CommandCode = ({ command }: { readonly command: GrantCommand }): React.JSX
 // How much of the agent's words show before "more".
 const noteLength = 280
 
+// The first `noteLength` UTF-16 units of the words, backed off a unit where the cut would split
+// a surrogate pair.
+const clip = (text: string): string => {
+  const high = text.charCodeAt(noteLength - 1)
+  return text.slice(0, high >= 0xd800 && high <= 0xdbff ? noteLength - 1 : noteLength)
+}
+
 // The agent's own words under Novadeck's, as a muted note: plain text whatever marks it holds,
 // clamped to two lines with a toggle at the end of the second where it runs longer, and named for a screen reader as
 // what the agent says.
@@ -66,7 +73,8 @@ export const AgentNote = ({
   useLayoutEffect(() => {
     const el = note.current
     if (!el || open) return
-    const measure = (): void => setOver(el.scrollHeight > el.clientHeight + 1)
+    const measure = (): void =>
+      setOver(el.scrollHeight > el.clientHeight + 1 || el.scrollWidth > el.clientWidth + 1)
     measure()
     if (typeof ResizeObserver === "undefined") return
     const watch = new ResizeObserver(measure)
@@ -75,7 +83,12 @@ export const AgentNote = ({
   }, [open])
   if (text.trim() === "") return null
   const toggled = over || clipped || (open && shown.length > noteLength)
-  const mono = { fontFamily: "var(--font-mono)", fontSize: "var(--text-control)" }
+  // A long word with no break in it wraps at any letter, so it cannot run out of the line unseen.
+  const mono = {
+    fontFamily: "var(--font-mono)",
+    fontSize: "var(--text-control)",
+    overflowWrap: "anywhere" as const,
+  }
   return (
     <>
       {/* Novadeck's own line says whose words these are; they follow in mono, plain. */}
@@ -102,7 +115,7 @@ export const AgentNote = ({
                 }
           }
         >
-          {clipped ? `${shown.slice(0, noteLength)}…` : shown}
+          {clipped ? `${clip(shown)}…` : shown}
         </p>
         {toggled && (
           <button
