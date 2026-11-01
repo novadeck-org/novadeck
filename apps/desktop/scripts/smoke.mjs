@@ -10,7 +10,7 @@ import { fileURLToPath } from "node:url"
 import * as esbuild from "esbuild"
 import { _electron } from "playwright"
 
-import { fuseProblems, openedCopy } from "./fuses.mjs"
+import { closeWithin, fuseProblems, killUnder, openedCopy } from "./fuses.mjs"
 
 const packageDir = resolve(dirname(fileURLToPath(import.meta.url)), "..")
 const release = join(packageDir, "release")
@@ -251,6 +251,10 @@ const app = await _electron.launch({
   env: { ...process.env, NOVADECK_UPDATES: "off" },
   timeout: 60_000,
 })
+// What the app prints, kept for the report of one that won't close.
+const output = []
+for (const stream of [app.process().stdout, app.process().stderr])
+  stream?.on("data", (chunk) => output.push(String(chunk)))
 try {
   const page = await app.firstWindow()
   await page.waitForLoadState("domcontentloaded")
@@ -322,7 +326,9 @@ try {
     console.log("The terminal runs on the bundled ConPTY host (OpenConsole.exe).")
   }
 } finally {
-  await app.close()
+  const hung = await closeWithin(app, opened.root, output)
+  killUnder(opened.root)
+  if (hung) fail(hung)
   rmSync(work, { recursive: true, force: true })
   rmSync(userData, { recursive: true, force: true })
 }

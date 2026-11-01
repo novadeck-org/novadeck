@@ -2,7 +2,7 @@
 // read back from the binary, and a copy of the app with the three that keep the Node entry
 // points shut turned on, which is what launching the app under Playwright and running its
 // code as Node, both of which the smoke test and the bench do, need.
-import { execFileSync } from "node:child_process"
+import { execFileSync, spawnSync } from "node:child_process"
 import { copyFileSync, mkdtempSync, readFileSync, rmSync } from "node:fs"
 import { tmpdir } from "node:os"
 import { basename, dirname, extname, join, resolve } from "node:path"
@@ -79,7 +79,7 @@ const removing = (path) => () => {
 /**
  * A copy of the app that differs from `executable`'s only in RunAsNode, NODE_OPTIONS and the
  * inspect arguments being on, so it finds the same app.asar and runs the same code; `remove`
- * deletes it. On Linux and Windows it is the executable beside the original. On macOS the fuses
+ * deletes it, and `root` is the path every process of it runs under. On Linux and Windows it is the executable beside the original. On macOS the fuses
  * live in the bundle's framework, so the whole `.app` is copied to a folder of its own and
  * signed there ad hoc, without the hardened runtime that would refuse the changed framework;
  * the bundle that ships is left as it is.
@@ -95,7 +95,7 @@ export const openedCopy = async (executable) => {
       const opened = join(copy, executable.slice(bundle.length + 1))
       await flipFuses(opened, open)
       execFileSync("codesign", ["--force", "--deep", "--sign", "-", copy], { stdio: "ignore" })
-      return { executable: opened, remove }
+      return { executable: opened, root: folder, remove }
     } catch (error) {
       remove()
       throw error
@@ -111,5 +111,75 @@ export const openedCopy = async (executable) => {
     remove()
     throw error
   }
-  return { executable: copy, remove }
+  return { executable: copy, root: copy, remove }
+}
+
+// The processes whose command line names `root`, as [pid, command] pairs.
+const processesUnder = (root) => {
+  if (process.platform === "win32") {
+    const script = `Get-CimInstance Win32_Process | Where-Object { $_.ExecutablePath -like '${root.replaceAll("'", "''")}*' } | ForEach-Object { "$($_.ProcessId) $($_.CommandLine)" }`
+    const out = spawnSync("powershell", ["-NoProfile", "-Command", script], { encoding: "utf8" })
+    return lines(out.stdout)
+  }
+  return lines(spawnSync("ps", ["-axo", "pid=,command="], { encoding: "utf8" }).stdout).filter(
+    ([pid, command]) => command.includes(root) && Number(pid) !== process.pid,
+  )
+}
+const lines = (text = "") =>
+  text
+    .split("\n")
+    .map((line) => line.trim())
+    .filter(Boolean)
+    .map((line) => {
+      const [pid, ...rest] = line.split(" ")
+      return process.platform === "win32" ? [pid, rest.join(" ")] : [pid, rest.join(" ").trim()]
+    })
+    .filter(([pid]) => /^\d+$/.test(pid))
+
+/** Kills every process still running from `root`. */
+export const killUnder = (root) => {
+  for (const [pid] of processesUnder(root)) {
+    try {
+      if (process.platform === "win32")
+        spawnSync("taskkill", ["/PID", pid, "/T", "/F"], { stdio: "ignore" })
+      else process.kill(Number(pid), "SIGKILL")
+    } catch {}
+  }
+}
+
+/**
+ * Closes a Playwright-launched app within `ms`. One that doesn't close is described (what it
+ * printed, its windows, what still runs from `root`) and killed with everything of its,
+ * so a hang ends the run with its cause in the log instead of at the step's timeout.
+ * Returns the description of such a hang, or undefined when the app closed.
+ */
+export const closeWithin = async (app, root, output, ms = 30_000) => {
+  const closed = app.close().then(
+    () => true,
+    () => true,
+  )
+  let timer
+  const late = new Promise((settle) => (timer = setTimeout(settle, ms, false)))
+  const done = await Promise.race([closed, late])
+  clearTimeout(timer)
+  if (done) return undefined
+  const windows = await Promise.race([
+    Promise.all(
+      app.windows().map(async (page) => `${await page.title().catch(() => "?")} ${page.url()}`),
+    ),
+    new Promise((settle) => setTimeout(settle, 5_000, ["(not answered)"])),
+  ])
+  const running = processesUnder(root)
+    .map(([pid, command]) => `  ${pid} ${command.slice(0, 200)}`)
+    .join("\n")
+  killUnder(root)
+  try {
+    app.process().kill("SIGKILL")
+  } catch {}
+  return [
+    `The app did not close within ${ms / 1000} s.`,
+    `Windows: ${windows.join("; ") || "none"}`,
+    `Still running from ${root}:\n${running || "  nothing"}`,
+    `Its output:\n${output.join("").slice(-3000) || "  nothing"}`,
+  ].join("\n")
 }
