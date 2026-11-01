@@ -61,7 +61,7 @@ describe("A lead's Grant card", () => {
     await card.getByRole("button", { name: "Review" }).click()
 
     await expect.element(card).toMatchTextContent("Not included unless you tick them.")
-    await expect.element(card).toMatchTextContent("This could do more than pushing")
+    await expect.element(card).toMatchTextContent("This isn't pushing or a pull request")
     await expect.element(card).toMatchTextContent("This repo was just created or changed")
     await expect.element(card).toMatchTextContent("This remote was added recently and isn't yours")
     await expect.element(card.getByRole("checkbox")).toHaveLength(3)
@@ -111,12 +111,12 @@ describe("A lead's Grant card", () => {
 })
 
 describe("A terminal's approval card", () => {
-  it("names the commands as code, the open-ended one as a warning, and allows them for the hour until revoked", async () => {
+  it("names the commands as code, with no warning that they could be followed by anything, and allows them for the hour until revoked", async () => {
     const card = await openCard(demoInboxIds.approval, /Can I run these without asking/)
 
     await expect.element(card).toMatchTextContent("I'd run these without asking you each time:")
     await expect.element(card).toMatchTextContent("uberepo check links")
-    await expect.element(card).toMatchTextContent("could be followed by anything")
+    await expect.element(card).not.toHaveTextContent("could be followed by anything")
     await card.getByRole("menuitem", { name: /^Allow for 1 hour/ }).click()
 
     await expect.element(grants()).toMatchTextContent("@moth")

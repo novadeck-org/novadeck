@@ -21,6 +21,8 @@ const command = z
     if (refusal !== undefined)
       context.addIssue({ code: "custom", message: `${each.argv.join(" ")}: ${refusal}` })
   })
+  // Only exact commands pass (`refusesCommand` refused a `rest` one above).
+  .transform(({ argv }) => ({ argv, rest: false as const }))
 
 const request = z.strictObject({
   presets: z.array(grantPreset).max(2),

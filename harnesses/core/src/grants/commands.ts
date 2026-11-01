@@ -3,7 +3,6 @@ import type { GrantCommand } from "../grants.js"
 import { programName, runsOtherCode } from "./runners.js"
 
 const bare = /^[A-Za-z0-9][A-Za-z0-9._+-]*$/
-const plain = /^[A-Za-z0-9._/:@%+,-][A-Za-z0-9._/:=@%+,-]*$/
 
 // `gh pr|issue <these>` and `gh repo view` only read, and run with no dialog: a grant for them
 // would only be asked for in vain.
@@ -17,8 +16,12 @@ const readsOnly = ([program, noun, verb]: readonly string[]): boolean =>
 
 /** Why `command` can't be granted, or undefined when it can. */
 export const refusesCommand = (command: GrantCommand): string | undefined => {
-  const [program, second] = command.argv
+  const [program] = command.argv
   if (program === undefined) return "no words"
+  // A prefix can't be granted safely: too many programs run what follows them. Only exact
+  // commands are, and a stored `rest` command from an earlier build matches nothing.
+  if (command.rest)
+    return "'rest' (followed by anything) is not granted: list each command as exact words"
   if (!bare.test(program)) return "the program must be a bare name"
   // `GIT` or `git.exe` runs git where names are case-free or take an extension, past every
   // check below that names a program: only its plain name is granted.
@@ -34,21 +37,12 @@ export const refusesCommand = (command: GrantCommand): string | undefined => {
   }
   if (runsOtherCode(program)) return `${program} runs other code`
   if (readsOnly(command.argv)) return "read-only: it needs no grant"
-  if (!command.rest) return undefined
-  if (program === "git" || program === "gh") return `${program} is covered by the presets`
-  if (command.argv.length < 2 || second === undefined) return "followed-by-anything needs two words"
-  if (second.startsWith("-")) return "the second word must not be an option"
   return undefined
 }
 
-/** Whether the lexed `argv` is `command`'s words, or, with `rest`, those and plain words. */
+/** Whether the lexed `argv` is exactly `command`'s words. */
 export const matchesCommand = (command: GrantCommand, argv: readonly string[]): boolean => {
   if (refusesCommand(command) !== undefined) return false
   const own = command.argv
-  if (!command.rest) return argv.length === own.length && own.every((word, i) => word === argv[i])
-  return (
-    argv.length > own.length &&
-    own.every((word, i) => word === argv[i]) &&
-    argv.slice(own.length).every((word) => plain.test(word))
-  )
+  return argv.length === own.length && own.every((word, i) => word === argv[i])
 }

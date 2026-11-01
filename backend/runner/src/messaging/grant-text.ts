@@ -21,9 +21,8 @@ const clock = (at: number): string => {
 const shellWord = (word: string): string =>
   /^[\w./:=@%+,-]+$/.test(word) ? word : `'${word.replaceAll("'", "'\\''")}'`
 
-/** A granted command as the person read it on the card: shell-quoted, `rest` named. */
-export const commandText = (command: GrantCommand): string =>
-  command.argv.map(shellWord).join(" ") + (command.rest ? " followed by anything" : "")
+/** A granted command as the person read it on the card: its shell-quoted words. */
+export const commandText = (command: GrantCommand): string => command.argv.map(shellWord).join(" ")
 
 const remoteForm = (agent: AgentName, url: string): string =>
   agent === "claude" ? `origin or https://${url}` : `https://${url}`

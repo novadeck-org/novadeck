@@ -17,7 +17,7 @@ const largest = (id: string): Grant => {
   const accepts = (more: Grant["commands"][number]) =>
     commands.length < maxGrantCommands && grantCommandsRefusal([...commands, more]) === undefined
   for (let length = 256; length > 0; length -= 1) {
-    const more = { argv: ["echo", "<".repeat(length)], rest: false }
+    const more = { argv: ["echo", "<".repeat(length)], rest: false as const }
     while (accepts(more)) commands.push(more)
   }
   expect(grantCommandBytes(commands)).toBeGreaterThan(maxGrantCommandBytes - 8)

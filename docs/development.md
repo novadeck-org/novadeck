@@ -390,8 +390,7 @@ App:
   plan, so the box waits five seconds and the dialog's own words stand in), a failed turn, a free-text ask, a permission
   whose Deny is a plain no, messages held long behind what keeps the doorbell from an idle
   agent, a heads-up, an agent's done report, mobile-app's lead's Grant card (push and pull
-  requests for three repos, one flagged an added remote and one recent, two commands one of
-  them followed by anything, its team now and later with a Codex note, until done, and the lead's
+  requests for three repos, one flagged an added remote and one recent, two exact commands, its team now and later with a Codex note, until done, and the lead's
   reason quoted; Grant keeps what stayed ticked and makes the live grant, Decline dismisses it)
   and design-system's approval card ("Lets @moth run, without asking again, until it reports done or for 1 hour:" with
   three commands as code; Approve, until done or for 1 hour, makes a grant for that terminal). "Live grant" puts the

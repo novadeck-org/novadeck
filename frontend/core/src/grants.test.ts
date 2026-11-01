@@ -29,7 +29,7 @@ describe("commandText", () => {
 describe("the Grant card's words", () => {
   const proposal: GrantProposal = {
     presets: ["push", "pr"],
-    commands: [{ argv: ["uberepo", "ship"], rest: true }],
+    commands: [{ argv: ["uberepo", "ship"], rest: false }],
     repos: [
       {
         repo: { url: "github.com/acme/shop", defaultBranch: "main", defaultFrom: "github" },
@@ -92,7 +92,7 @@ describe("the Grant card's words", () => {
       }))
     const title = (count: number, withLead: boolean) =>
       grantTitle({ ...proposal, withLead, covered: covered(count) }, "moth")
-    expect(title(0, true)).toBe("Let @moth work without asking?")
+    expect(title(0, true)).toBe("Let @moth and its team work without asking?")
     expect(title(1, true)).toBe("Let @moth and @a0 work without asking?")
     expect(title(2, true)).toBe("Let @moth, @a0 and @a1 work without asking?")
     expect(title(3, true)).toBe("Let @moth and its team work without asking?")
@@ -133,7 +133,7 @@ describe("the Grant card's words", () => {
 
   it("lists every command and each unticked repo as an extra, with its reason", () => {
     expect(grantExtras(proposal)).toEqual([
-      { kind: "command", at: 0, reason: "This could do more than pushing" },
+      { kind: "command", at: 0, reason: "This isn't pushing or a pull request" },
       { kind: "repo", url: "github.com/acme/ui", reason: "This repo was just created or changed" },
       {
         kind: "repo",
@@ -152,7 +152,7 @@ describe("the Grant card's words", () => {
       text: " and 1 more without asking you each time. Merges and pushes to main still need you.",
     })
     expect(grantExtras({ ...proposal, presets: [] })).toEqual([
-      { kind: "command", at: 0, reason: "This could do more than pushing" },
+      { kind: "command", at: 0, reason: "This isn't pushing or a pull request" },
     ])
   })
 

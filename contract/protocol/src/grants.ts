@@ -27,10 +27,14 @@ const word = z
   .max(256)
   .regex(/^[\x20-\x7e]+$/, "Use printable ASCII")
 
-/** A command the person grants: exact words, or with `rest`, followed by anything. */
+/**
+ * A command the person grants: exact words. `rest` (followed by anything) stays on the wire for
+ * compatibility but only false is accepted: a record or proposal from a build that granted
+ * prefixes fails to read, and is dropped rather than widened.
+ */
 export const grantCommand = z.strictObject({
   argv: z.array(word).min(1).max(32),
-  rest: z.boolean(),
+  rest: z.literal(false),
 })
 export const maxGrantCommands = 8
 

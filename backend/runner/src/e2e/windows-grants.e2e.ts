@@ -1406,7 +1406,7 @@ describe.runIf(windows && process.env.GITHUB_ACTIONS === "true")(
                   name,
                   input: {
                     presets: [],
-                    commands: [{ argv: ["uberepo", "check"], rest: true }],
+                    commands: [{ argv: ["uberepo", "check"], rest: false }],
                     reason: "Checks for the repo",
                   },
                 },

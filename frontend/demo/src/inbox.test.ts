@@ -876,7 +876,7 @@ describe("the demo Inbox's grants", () => {
     expect(grant).toMatchObject({
       holder: { kind: "team", lead: "moth", withLead: true },
       presets: ["push"],
-      commands: [{ argv: ["uberepo", "ship"], rest: true }],
+      commands: [{ argv: ["uberepo", "ship"], rest: false }],
       repos: [{ url: "github.com/acme/storefront-ui" }],
       entryId: demoInboxIds.grant,
     })

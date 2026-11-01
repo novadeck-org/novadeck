@@ -574,14 +574,14 @@ describe("the propose_grant call", () => {
   it("puts a card in the Inbox that the runner fills with the repos it read and who is covered", async () => {
     const { propose, proposals, reads } = setup()
     expect(
-      await propose({ ...request, commands: [{ argv: ["uberepo", "ship"], rest: true }] }),
+      await propose({ ...request, commands: [{ argv: ["uberepo", "ship"], rest: false }] }),
     ).toEqual({ ok: true, id: "e1" })
     expect(reads()).toBe(1)
     expect(proposals[0]).toMatchObject({
       terminalId: "t1",
       proposal: {
         presets: ["push"],
-        commands: [{ argv: ["uberepo", "ship"], rest: true }],
+        commands: [{ argv: ["uberepo", "ship"], rest: false }],
         repos: [choice],
         withLead: false,
         lifetime: "until-done",
@@ -635,6 +635,7 @@ describe("the propose_grant call", () => {
     const refused = await Promise.all(
       [
         { ...request, commands: [{ argv: ["git", "push"], rest: true }] },
+        { ...request, commands: [{ argv: ["uberepo", "ship"], rest: true }] },
         { ...request, commands: [{ argv: ["bash", "-c", "x"] }] },
         { ...request, scope: "everything" },
         // The lead names no lifetime or hours: the person picks.

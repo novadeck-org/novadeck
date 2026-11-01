@@ -373,7 +373,7 @@ const granted: Grant = {
   workspaceSessionId: "00000000-0000-4000-8000-000000000002",
   holder: { kind: "team", lead: "sable", withLead: false },
   presets: ["push", "pr"],
-  commands: [{ argv: ["uberepo", "ship"], rest: true }],
+  commands: [{ argv: ["uberepo", "ship"], rest: false }],
   repos: [{ url: "github.com/acme/shop", defaultBranch: "main", defaultFrom: "github" }],
   entryId: "00000000-0000-4000-8000-000000000003",
   proposedBy: "sable",
@@ -430,7 +430,7 @@ describe("a delivery's grants", () => {
       while (accepts({ argv: ["echo", word], rest: false }))
         commands.push({ argv: ["echo", word], rest: false })
       for (let length = 255; length > 0; length -= 1) {
-        const last = { argv: ["echo", fill.repeat(length)], rest: false }
+        const last = { argv: ["echo", fill.repeat(length)], rest: false as const }
         if (!accepts(last)) continue
         commands.push(last)
         break
@@ -491,7 +491,7 @@ describe("a delivery's grants", () => {
     expect(element).toMatch(/^<grant id="8c0e3d5a[^"]*" person="PersonMk" ends="\d\d:\d\d">$/)
     expect(text).toContain("Push a named branch to github.com/acme/shop")
     expect(text).toContain("never to main, master or the repo's default branch")
-    expect(text).toContain("Run: uberepo ship followed by anything")
+    expect(text).toContain("Run: uberepo ship")
     expect(text).not.toContain("Novadeck: grant")
   })
 

@@ -471,7 +471,7 @@ describe("when the person's Antigravity settings can't be read", () => {
 describe("what a harness is given at launch", () => {
   it("is git for push, gh for pr, and the first word of each command", () => {
     const { messaging, make } = setup()
-    make({ presets: ["push", "pr"], commands: [{ argv: ["uberepo", "ship"], rest: true }] })
+    make({ presets: ["push", "pr"], commands: [{ argv: ["uberepo", "ship"], rest: false }] })
     expect(messaging.grants.launchPrograms("F").toSorted()).toEqual(["gh", "git", "uberepo"])
     expect(messaging.grants.launchPrograms("O")).toEqual([])
   })

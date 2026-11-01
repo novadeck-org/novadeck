@@ -8,7 +8,7 @@ import type { RolloutCall } from "./grants/rollout.js"
 /** A preset scope, matched by its allowlist (Appendix A2). */
 export type GrantPreset = "push" | "pr"
 
-/** A granted command: exact words, or with `rest`, followed by plain words. */
+/** A granted command: exact words. `rest` stays for the wire and is never true: it matches nothing. */
 export type GrantCommand = { readonly argv: readonly string[]; readonly rest: boolean }
 
 /** A repo push and pr may reach, `github.com/owner/name`, with its default branch. */
@@ -35,9 +35,8 @@ export type ShellCall = {
    */
   readonly dialect?: "windows-quote-free"
   /**
-   * The folder the harness says the session runs in, where the payload names one apart from
-   * `cwd`: Codex's top-level `cwd`. A command may run there, so on Windows it is held to the
-   * same-name check too.
+   * The folder the harness's payload names apart from `cwd`: Codex's top-level `cwd`, which is
+   * the turn's folder on 0.165 and the call's own on 0.166. The rollout says which (`FsLookups.codexCall`).
    */
   readonly sessionFolder?: string
   /**
@@ -70,17 +69,17 @@ export type FsLookups = {
     path: string,
   ) => Promise<{ readonly path: string; readonly file: boolean } | undefined>
   /**
-   * The names in the folder `path` (a folder that does not exist holds none), or undefined
-   * where that couldn't be told (an error other than absence, a timeout).
-   */
-  /**
-   * What Codex's rollout says of the call (`rolloutCall`): its `workdir` and whether its turn
-   * plans. Undefined where the rollout can't be read.
+   * What Codex's rollout says of the call (`rolloutCall`): its `workdir`, its turn's folder and
+   * whether the turn plans. Undefined where the rollout can't be read.
    */
   readonly codexCall: (
     rollout: { readonly path: string; readonly turn: string },
     command: string,
   ) => Promise<RolloutCall | undefined>
+  /**
+   * The names in the folder `path` (a folder that does not exist holds none), or undefined
+   * where that couldn't be told (an error other than absence, a timeout).
+   */
   readonly names: (path: string) => Promise<readonly string[] | undefined>
 }
 
@@ -94,13 +93,6 @@ export type GitLookups = {
    * that couldn't be told (an error, a timeout).
    */
   readonly resolve: (cwd: string, name: string) => Promise<string | null | undefined>
-  /** Whether `push.followTags` is on in `cwd`; undefined where that couldn't be told. */
-  readonly followsTags: (cwd: string) => Promise<boolean | undefined>
-  /**
-   * Whether a push in `cwd` goes on into submodules (`push.recurseSubmodules` other than no,
-   * or `submodule.recurse`); undefined where that couldn't be told.
-   */
-  readonly recursesSubmodules: (cwd: string) => Promise<boolean | undefined>
   /**
    * Every place `git push <url>` sends in `cwd`: the push URLs of a remote section named like
    * the URL, else the URL after the configuration's `pushInsteadOf` (else `insteadOf`) rewrite.

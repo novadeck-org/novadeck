@@ -71,10 +71,7 @@ const Entry = ({ grant, now }: { readonly grant: Grant; readonly now: number }) 
       {grant.commands.length > 0 && (
         <div className="grant-row-commands text-caption">
           {grant.commands.map((command, index) => (
-            <code key={index}>
-              {commandWords(command).join(" ")}
-              {command.rest ? " …" : ""}
-            </code>
+            <code key={index}>{commandWords(command).join(" ")}</code>
           ))}
         </div>
       )}

@@ -172,6 +172,8 @@ const approvalCommand = z
     if (refusal !== undefined)
       context.addIssue({ code: "custom", message: `${each.argv.join(" ")}: ${refusal}` })
   })
+  // Only exact commands pass (`refusesCommand` refused a `rest` one above).
+  .transform(({ argv }) => ({ argv, rest: false as const }))
 const requestedShape = z.discriminatedUnion("type", [
   z.strictObject({ type: z.literal("text") }),
   z.strictObject({
@@ -238,8 +240,7 @@ const same = (entry: InboxEntry, owner: Owner | undefined): boolean =>
   entry.agent === owner.agent &&
   entry.sessionId === owner.sessionId
 
-const commandLine = (each: { readonly argv: readonly string[]; readonly rest: boolean }): string =>
-  each.argv.join(" ") + (each.rest ? " (followed by anything)" : "")
+const commandLine = (each: { readonly argv: readonly string[] }): string => each.argv.join(" ")
 
 // A plain-text record of everything the person saw, retained after the sheet clears.
 const askText = (ask: AgentAsk, handle: string): string => {

@@ -1064,9 +1064,9 @@ const ask: Tool<{ readonly id: string; readonly withdrawn?: boolean }> = {
     "user gives that, or a <grant> element from Novadeck carrying the delivery's person mark. " +
     "When your harness itself asks permission to run a command, such as git push or gh pr create, " +
     "and the user should let you run it without asking again, use the approval shape: the commands " +
-    'as exact words (rest true for "followed by anything"); ' +
+    "as exact words, each with every argument it runs with, never as a prefix. " +
     "Approve gives this terminal those commands until you report done with the done tool or your agent exits (or for 1 hour, if the user picks that), and Novadeck refuses ones it can't match, such as " +
-    "shells or git and gh with rest. Most decisions aren't blocking: ask, keep going on what doesn't depend on the " +
+    "shells and interpreters. An approval card shows only body, as your reason, under Novadeck's own title and the commands; subject, details and hard_to_undo are not shown there, so put the reason in body. Most decisions aren't blocking: ask, keep going on what doesn't depend on the " +
     "answer, and where your pick is easy to undo and needs no approval of theirs " +
     "(reversible, local, not yet pushed or shared), go ahead with it and change course if " +
     "they choose otherwise. A pick that is hard to undo waits for their answer. Their answer " +
@@ -1171,16 +1171,14 @@ const ask: Tool<{ readonly id: string; readonly withdrawn?: boolean }> = {
               commands: {
                 type: "array",
                 description:
-                  "The commands to run without asking again: exact words, or with rest true, " +
-                  "those words followed by anything. Not shells, interpreters, or git and gh with " +
-                  "rest.",
+                  "The commands to run without asking again, each as its exact words. Not " +
+                  "shells or interpreters.",
                 minItems: 1,
                 maxItems: maxGrantCommands,
                 items: {
                   type: "object",
                   properties: {
                     argv: { type: "array", items: { type: "string" }, minItems: 1, maxItems: 32 },
-                    rest: { type: "boolean" },
                   },
                   required: ["argv"],
                   additionalProperties: false,
@@ -1295,8 +1293,8 @@ const proposeGrant: Tool<{ readonly id: string }> = {
     "what your team may do. Presets: push (git push of a named branch to a repo they pick, " +
     "never main, master or the default branch, no force) and pr (gh pr create, edit, ready " +
     "and comment in a repo they pick, no merge). commands adds exact commands, such as " +
-    "uberepo ship, with rest true meaning followed by anything; shells, interpreters, and " +
-    "git or gh with rest, and read-only gh commands (pr, issue view, checks, list, diff, status), are refused. The user picks how long it lasts: until each teammate reports done, is released or exits, or for 1 hour. with_lead includes " +
+    "uberepo ship, each with all its arguments; shells, interpreters, and " +
+    "read-only gh commands (pr, issue view, checks, list, diff, status), are refused. The user picks how long it lasts: until each teammate reports done, is released or exits, or for 1 hour. with_lead includes " +
     "yourself. reason says why, in a sentence, and is shown as your words. One proposal " +
     "waits at a time and at most 3 an hour. Returns at once: end your turn rather than wait; " +
     "the answer arrives as a message from Novadeck. A lead still gives none of the user's " +
@@ -1318,7 +1316,6 @@ const proposeGrant: Tool<{ readonly id: string }> = {
           type: "object",
           properties: {
             argv: { type: "array", items: { type: "string" }, minItems: 1, maxItems: 32 },
-            rest: { type: "boolean" },
           },
           required: ["argv"],
           additionalProperties: false,

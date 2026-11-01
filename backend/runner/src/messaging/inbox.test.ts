@@ -2192,7 +2192,7 @@ describe("Inbox approvals and grants", () => {
     subject: "Let me push",
     shape: { type: "approval", commands, ...extra },
   })
-  const ship = [{ argv: ["uberepo", "ship"], rest: true }]
+  const ship = [{ argv: ["uberepo", "ship"], rest: false }]
   const repo = (url: string) => ({
     repo: { url, defaultBranch: "main", defaultFrom: "github" as const },
     ticked: true,
@@ -2201,7 +2201,7 @@ describe("Inbox approvals and grants", () => {
   const proposal = (fields: Record<string, unknown> = {}) => ({
     presets: ["push", "pr"] as const,
     commands: [
-      { argv: ["uberepo", "ship"], rest: true },
+      { argv: ["uberepo", "ship"], rest: false },
       { argv: ["deploy", "staging"], rest: false },
     ],
     repos: [repo("github.com/acme/shop"), repo("github.com/acme/api")],
@@ -2242,7 +2242,7 @@ describe("Inbox approvals and grants", () => {
     ).threads[0]!.messages
     expect(first?.text).not.toMatch(/SECRET|Trust me/)
     expect(first?.text).toBe(
-      "Can I run these without asking?\n\n@moth's reason: Shipping the fix.\n\nuberepo ship (followed by anything)",
+      "Can I run these without asking?\n\n@moth's reason: Shipping the fix.\n\nuberepo ship",
     )
     messaging.close()
   })
@@ -2251,6 +2251,7 @@ describe("Inbox approvals and grants", () => {
     const { inbox } = setup()
     for (const commands of [
       [{ argv: ["git", "push"], rest: true }],
+      [{ argv: ["uberepo", "ship"], rest: true }],
       [{ argv: ["python3", "x.py"], rest: false }],
       [{ argv: ["bash", "-c", "x"] }],
       [{ argv: ["./gh", "pr"] }],
@@ -2345,7 +2346,7 @@ describe("Inbox approvals and grants", () => {
   it("renders the largest grant it accepts well under a delivery", () => {
     // Commands up to the cap, one word short of refused.
     const word = "<".repeat(256)
-    const commands: { argv: string[]; rest: boolean }[] = []
+    const commands: { argv: string[]; rest: false }[] = []
     while (grantCommandsRefusal([...commands, { argv: ["echo", word], rest: false }]) === undefined)
       commands.push({ argv: ["echo", word], rest: false })
     expect(commands.length).toBeGreaterThan(0)

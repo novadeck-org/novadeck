@@ -11,10 +11,11 @@ export type GrantPreset = "push" | "pr"
 // the default, or at most an hour. The card's menu offers these two.
 export type GrantLifetime = "until-done" | "hour"
 
-// A command that is granted: exact words, or with `rest`, followed by anything.
+// A command that is granted: exact words. `rest` (followed by anything) is on the wire for
+// compatibility and is never true.
 export type GrantCommand = {
   readonly argv: readonly string[]
-  readonly rest: boolean
+  readonly rest: false
 }
 
 // A repo `push` and `pr` may reach, with its default branch and where that came from: GitHub
@@ -127,7 +128,7 @@ export const lifetimeWords = (lifetime: GrantLifetime): string =>
 
 // Who the card names: the covered teammates (and the lead when it is included, as the person
 // has the switch), or "my team" where there are none or more than three. Where the lead is
-// included among more than three, the title says so: "@lead and its team".
+// included among more than three, or with no teammates yet, the title says so: "@lead and its team".
 export const grantHolders = (
   proposal: GrantProposal,
   lead: string,
@@ -138,6 +139,8 @@ export const grantHolders = (
     ...proposal.covered.map(({ handle }) => handle),
   ].map((handle) => `@${handle}`)
   if (handles.length === 0) return "my team"
+  // The lead with no teammates yet still covers those it opens later.
+  if (withLead && proposal.covered.length === 0) return `@${lead} and its team`
   if (handles.length > 3) return withLead ? `@${lead} and its team` : "my team"
   return handles.length === 1
     ? handles[0]!
@@ -227,9 +230,7 @@ export const grantExtras = (proposal: GrantProposal): readonly GrantExtra[] => [
   ...proposal.commands.map((command, at): GrantExtra => ({
     kind: "command",
     at,
-    reason: command.rest
-      ? "This could do more than pushing"
-      : "This isn't pushing or a pull request",
+    reason: "This isn't pushing or a pull request",
   })),
   ...(proposal.presets.length === 0 ? [] : proposal.repos)
     .filter(({ ticked }) => !ticked)
