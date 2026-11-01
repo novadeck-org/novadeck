@@ -518,14 +518,16 @@ mod tests {
         }
 
         #[test]
-        fn writes_non_ascii_text_and_a_missing_or_present_nul_exactly() {
+        fn writes_non_ascii_text_with_its_nul_exactly() {
             let (_key, path) = scratch("exact");
             let mut current = units("echo Łukasz 😀", true);
             put(&path, SZ, &current);
+            // The runner writes only text with its one terminating NUL; Windows may add a NUL
+            // to a REG_SZ written without one, so only that form is written here.
             for next in [
-                units("echo Łukasz 😀 >nul", false),
-                units("echo Łukasz 😀 >nul", true),
-                units("", false),
+                units("(echo Łukasz 😀) >nul 2>&1", true),
+                units("echo Łukasz 😀", true),
+                units("", true),
                 units("x", true),
             ] {
                 assert_eq!(run(&path, SZ, &current, &next), Swapped::Ok);

@@ -1468,8 +1468,8 @@ describe.runIf(windows && process.env.GITHUB_ACTIONS === "true")(
       })
       await sleep(2000)
       await lead.submit("open the teammate")
+      // The teammate starts on its brief at once, so it may never show ready: its run is the mark.
       const teammate = await requests.next(60_000)
-      await teammate.reached("ready", { timeoutMs: 60_000 })
       const end = Date.now() + 90_000
       while (marksOf(world()).length === 0 && Date.now() < end) await sleep(250)
       probe("autorun granted-run", {

@@ -622,16 +622,17 @@ describe("the AutoRun's plugin rewrite", () => {
 describe("the check of a value alone", () => {
   it("is clean for a cmd that prints nothing, prints for stdout or stderr, and slow past its time", async () => {
     // A stand-in for cmd that ignores its /d /s /c arguments and runs the value as a script.
+    // The value goes verbatim on Windows, so each script is one word: no spaces, never empty.
     const run = (script: string, timeoutMs = 5_000) =>
       runsClean(script, {
         program: process.execPath,
         timeoutMs,
         args: (each) => ["-e", each],
       })
-    await expect(run("")).resolves.toBe("clean")
+    await expect(run("0")).resolves.toBe("clean")
     await expect(run("process.stdout.write('x')")).resolves.toBe("prints")
     await expect(run("process.stderr.write('x')")).resolves.toBe("prints")
-    await expect(run("setTimeout(() => {}, 10_000)", 200)).resolves.toBe("slow")
+    await expect(run("setTimeout(()=>{},10000)", 200)).resolves.toBe("slow")
   })
 
   it("is an error where cmd does not start", async () => {
