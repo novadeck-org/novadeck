@@ -347,6 +347,26 @@ export const createHarnesses = (
     },
     /** Where the agent lives on this machine, once the shell files say where its plugin is. */
     install: async (agent: AgentName): Promise<Install | undefined> => (await installs())?.(agent),
+    /**
+     * Whether the agent's installed version takes launch grants (see `Harness.takesLaunchGrants`):
+     * true for one with no such gate or not installed (an unreadable version counts as old, as the gate does)
+     */
+    takesLaunchGrants: async (agent: AgentName): Promise<boolean> => {
+      const where = (await installs())?.(agent)
+      const { takesLaunchGrants } = harnesses[agent]
+      // An agent that isn't there has no version to be old.
+      return (
+        !where ||
+        takesLaunchGrants === undefined ||
+        !(await exists(harnesses[agent].home(where))) ||
+        (await takesGrants(agent, takesLaunchGrants, where))
+      )
+    },
+    /** Whether the agent's own folder exists on this machine: it is installed. */
+    present: async (agent: AgentName): Promise<boolean> => {
+      const where = (await installs())?.(agent)
+      return where !== undefined && (await exists(harnesses[agent].home(where)))
+    },
     /** Whether Novadeck's plugin is installed into the agent. */
     connected: async (agent: AgentName): Promise<boolean> => {
       const install = await installs()

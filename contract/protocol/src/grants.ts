@@ -72,6 +72,13 @@ export const grant = z.strictObject({
   // The last hook report from a terminal it covers. The runner keeps it exactly in memory and
   // saves it at most every five minutes; a day without it ends the grant.
   lastActivityAt: z.number(),
+  // Who is covered right now, as `grants.watch` sends it: the team's current direct teammates
+  // (and the lead when ticked), less those whose coverage ended and those whose agent isn't
+  // running; a terminal grant's holder while covered. The runner fills it; a stored grant has none.
+  covering: z
+    .array(z.strictObject({ terminalId: z.string(), handle: z.string() }))
+    .max(maxGrantEnded)
+    .default([]),
   // The terminals whose coverage ended, for good: the grant goes on for the others.
   ended: z
     .array(
@@ -112,7 +119,14 @@ export const grantProposal = z.strictObject({
   reason: z.string().max(2048),
   // The handles the grant covers now (later teammates are covered too), and which of them run
   // a harness the grant reaches only partly, so the card can say so.
-  covered: z.array(z.strictObject({ handle: z.string(), agent: z.string() })).max(256),
+  // `started`: its agent is already running, which for Antigravity matters (a grant reaches one
+  // started after it).
+  covered: z
+    .array(z.strictObject({ handle: z.string(), agent: z.string(), started: z.boolean() }))
+    .max(256),
+  // The installed Antigravity is older than 1.4.10, which takes no launch grant, and a covered
+  // teammate runs it.
+  agyOutdated: z.boolean(),
 })
 
 export type GrantPreset = z.infer<typeof grantPreset>

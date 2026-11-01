@@ -298,6 +298,27 @@ describe("the lead of an agent found gone", () => {
     expect(alone.ended).not.toHaveBeenCalled()
   })
 
+  it("ends the grant coverage of a terminal restored as a plain shell, led or not", () => {
+    const ledRun = led()
+    ledRun.ends.restoredPlain(ledRun.worker, true)
+    expect(ledRun.coverage).toHaveBeenCalledExactlyOnceWith("t1", "exited")
+    expect(ledRun.ended).toHaveBeenCalledExactlyOnceWith("t1")
+    const alone = led()
+    alone.ends.restoredPlain(alone.worker, false)
+    expect(alone.coverage).toHaveBeenCalledExactlyOnceWith("t1", "exited")
+    expect(alone.ended).not.toHaveBeenCalled()
+  })
+
+  it("ends the coverage of an unled terminal's agent found gone on Windows too, after a sample", () => {
+    on("win32")
+    const run = led()
+    run.worker.summary = { ...run.worker.summary, ledBy: null }
+    run.ends.endLeadGone(run.worker)
+    expect(run.coverage).not.toHaveBeenCalled()
+    vi.advanceTimersByTime(pollMs)
+    expect(run.coverage).toHaveBeenCalledExactlyOnceWith("t1", "exited")
+  })
+
   it("ends once the shell has outlived its agent for a sample's time, on Windows", () => {
     on("win32")
     const { ends, worker, ended, save } = led()

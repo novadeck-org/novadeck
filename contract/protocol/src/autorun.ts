@@ -57,10 +57,13 @@ export const autorunManualReason = z.enum([
 ])
 
 const outcome = autorunOutcome.nullable()
+// The person said not now to the Inbox's line, for the value it showed: Preferences still offers
+// the fix. A changed value offers again.
+const dismissed = z.boolean()
 
 export const autorunState = z.discriminatedUnion("state", [
   // Nothing to offer: another platform, cmd prints nothing, or the person said not now.
-  z.strictObject({ state: z.literal("none"), outcome }),
+  z.strictObject({ state: z.literal("none"), outcome, dismissed }),
   // The person's value, the exact new one, and the machine's (HKLM) value where there is one.
   z.strictObject({
     state: z.literal("offer"),
@@ -68,6 +71,7 @@ export const autorunState = z.discriminatedUnion("state", [
     next: value,
     machine: value.nullable(),
     outcome,
+    dismissed,
   }),
   z.strictObject({
     state: z.literal("manual"),
@@ -79,6 +83,7 @@ export const autorunState = z.discriminatedUnion("state", [
     // What the value could become if the person changes it, where the rewrite accepts it.
     suggested: value.nullable(),
     outcome,
+    dismissed,
   }),
   // The person's value is Novadeck's wrapper; Undo puts `restores` back exactly.
   z.strictObject({
@@ -89,6 +94,7 @@ export const autorunState = z.discriminatedUnion("state", [
     // What the machine's value could become if the person changes it, where the rewrite accepts it.
     suggested: value.nullable(),
     outcome,
+    dismissed,
   }),
 ])
 

@@ -106,7 +106,10 @@ export class Deliveries {
     live.untrusted = null
     this.step(live, { type: "shown", at, replaces, ...(firedAt !== undefined && { firedAt }) })
     // A prefix it learns later may make other messages its own.
-    if (learned) this.host.store.changed(terminalId)
+    if (learned) {
+      this.host.store.changed(terminalId)
+      this.host.sessions.touched()
+    }
   }
 
   /**
@@ -163,6 +166,7 @@ export class Deliveries {
     if (live) live.untrusted = null
     if (!live?.shown) return
     live.shown = null
+    this.host.sessions.touched()
     if (!live.root && live.delivery.state !== "unbound") this.step(live, { type: "unbound" })
   }
 

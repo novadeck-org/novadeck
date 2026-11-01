@@ -303,7 +303,11 @@ describe("the propose_grant call", () => {
     flag: null,
   }
   // A lead `moth` with the team given, an Inbox that records proposals, and sources that only count.
-  const setup = ({ led = false, team = [{ handle: "fox", agent: "codex" }] } = {}) => {
+  const setup = ({
+    led = false,
+    outdated = false,
+    team = [{ handle: "fox", agent: "codex", started: true }],
+  } = {}) => {
     const proposals: { terminalId: string; proposal: unknown }[] = []
     let reads = 0
     let limit: string | undefined
@@ -320,9 +324,9 @@ describe("the propose_grant call", () => {
           ],
         ]),
       stopping: () => false,
-      grantRepos: () => {
-        reads += 1
-        return Promise.resolve([choice])
+      grantFacts: (_session: string, repos: boolean) => {
+        if (repos) reads += 1
+        return Promise.resolve({ repos: repos ? [choice] : [], agyOutdated: outdated })
       },
       messaging: () => ({ grants: { isLed: () => led, teamOf: () => team } }),
       inbox: () => ({
@@ -362,9 +366,32 @@ describe("the propose_grant call", () => {
         repos: [choice],
         withLead: false,
         lifetime: "until-done",
-        covered: [{ handle: "fox", agent: "codex" }],
+        covered: [{ handle: "fox", agent: "codex", started: true }],
+        agyOutdated: false,
       },
     })
+  })
+
+  it("says whether a covered Antigravity teammate has started, and whether the installed one is too old", async () => {
+    const team = [
+      { handle: "fox", agent: "agy", started: true },
+      { handle: "owl", agent: "agy", started: false },
+    ]
+    const old = setup({ team, outdated: true })
+    await old.propose(request)
+    expect(old.proposals[0]).toMatchObject({
+      proposal: {
+        covered: [
+          { handle: "fox", agent: "agy", started: true },
+          { handle: "owl", agent: "agy", started: false },
+        ],
+        agyOutdated: true,
+      },
+    })
+    // An old Antigravity matters only to a team that runs it.
+    const other = setup({ outdated: true })
+    await other.propose(request)
+    expect(other.proposals[0]).toMatchObject({ proposal: { agyOutdated: false } })
   })
 
   it("refuses a command the matcher would refuse, an open schema and an empty offer", async () => {
@@ -441,13 +468,14 @@ describe("the done call", () => {
   }
   const done = { type: "done", terminalId: "t1", token, request: {} } as const
 
-  it("ends the terminal's grant coverage when the report is kept, and not when it is refused", async () => {
+  it("ends the terminal's grant coverage on any done of a known caller, kept or refused", async () => {
     const kept = reported({ ok: true })
     await kept.run.call(done)
     expect(kept.ended).toEqual([["t1", "done"]])
     const refused = reported({ ok: false })
     await refused.run.call(done)
-    expect(refused.ended).toEqual([])
+    // Narrowing is always safe, so a report the Inbox refuses still ends it.
+    expect(refused.ended).toEqual([["t1", "done"]])
     // A call with another terminal's token ends nothing.
     const stranger = reported({ ok: true })
     await stranger.run.call({ ...done, token: "b".repeat(48) })

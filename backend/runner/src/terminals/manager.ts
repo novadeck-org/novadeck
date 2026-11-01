@@ -585,7 +585,7 @@ export class Terminals {
       stopping: () => this.stopping,
       messaging: () => this.messaging,
       inbox: () => this.inbox,
-      grantRepos: (sessionId) => this.approving.repos(sessionId),
+      grantFacts: (sessionId, repos) => this.approving.facts(sessionId, repos),
       feedback: () => this.feedback,
       peers: () => this.peers,
       opens: () => this.opens,
@@ -767,7 +767,7 @@ export class Terminals {
       const unled = record.summary.ledBy !== null && !started.resumes
       if (unled) record.summary = { ...record.summary, ledBy: null }
       this.register(record, expectedAgent(input.command ?? task?.command, input.resume))
-      if (unled) this.messaging.endLead(record.summary.id)
+      if (!started.resumes) this.bindings.restoredPlain(record, unled)
       // Once the terminal is registered under its lead: the grants covering it depend on that.
       this.approving.launch(record.summary.id, narrowOk, started.resumes && startup?.command)
       // The resumed agent shows its own history; a shell that resumes none, the transcript.

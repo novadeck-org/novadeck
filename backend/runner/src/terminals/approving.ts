@@ -32,6 +32,8 @@ export type ApprovingOptions = GrantOptions & {
    * allow rules are kept in a launch grant. Without it none are read, and none are kept.
    */
   install?: (agent: AgentName) => Promise<Install | undefined>
+  /** Whether the installed Antigravity takes launch grants (version 1.4.10 or later). */
+  agyTakesGrants?: () => Promise<boolean>
   /** Where a Grant card's repos are read from; the real git and gh when omitted. */
   grantSources?: GrantSources
 }
@@ -133,6 +135,23 @@ export class Approving {
     const folder = this.host.projectFolder(sessionId)
     if (folder === undefined) return Promise.resolve([])
     return (this.host.options.grantSources ?? systemSources).repos(folder)
+  }
+
+  /**
+   * What a Grant card is made from beside the proposal: the repos when it offers push or pr, and
+   * whether the installed Antigravity is older than the first that takes a launch grant (an
+   * unknown version counts as new enough, as the gate does).
+   */
+  async facts(
+    sessionId: string,
+    repos: boolean,
+  ): Promise<{ readonly repos: readonly GrantRepoChoice[]; readonly agyOutdated: boolean }> {
+    const takes = this.host.options.agyTakesGrants
+    const [found, current] = await Promise.all([
+      repos ? this.repos(sessionId) : Promise.resolve([]),
+      takes ? takes().catch(() => true) : Promise.resolve(true),
+    ])
+    return { repos: found, agyOutdated: !current }
   }
 
   /** The grants in force, then again on each change. */

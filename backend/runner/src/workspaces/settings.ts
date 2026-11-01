@@ -67,6 +67,20 @@ export class Settings {
     void this.queries.run`DELETE FROM settings WHERE key = ${key}`
   }
 
+  /**
+   * The cmd AutoRun value (base64 bytes of HKCU's) the person dismissed the Inbox's line for;
+   * undefined when none, and a changed value is no longer the one.
+   */
+  autorunDismissed(): string | undefined {
+    return this.setting("autorun.dismissed")
+  }
+
+  /** Keeps the value the person dismissed the AutoRun line for; null forgets it. */
+  dismissAutorun(value: string | null): void {
+    if (value === null) this.forgetSetting("autorun.dismissed")
+    else this.saveSetting("autorun.dismissed", value)
+  }
+
   /** Saves a setting as JSON; `null` forgets it. */
   private saveSettingJson(key: string, value: unknown): void {
     if (value === null) this.forgetSetting(key)

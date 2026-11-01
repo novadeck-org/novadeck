@@ -174,6 +174,9 @@ export const wire = (options: RunnerOptions) => {
       refresh: async () => void (await agents.refresh()),
       stale: () => agents.stale("agy"),
       announce: () => terminals.approving.announceAgain("agy"),
+      installed: () => agents.present("agy"),
+      dismissedFor: () => store.settings.autorunDismissed(),
+      rememberDismissed: (value) => store.settings.dismissAutorun(value),
     }),
   )
   void shellFiles
@@ -282,6 +285,7 @@ export const wire = (options: RunnerOptions) => {
     // The last Antigravity terminal closing is the other time a held plugin goes in.
     agentIdle: () => void refreshPlugins(),
     cmdPrints: () => autorun.note(),
+    agyTakesGrants: () => agents.takesLaunchGrants("agy"),
     transcripts: store.settings.runner().transcripts,
     projectFolder: (sessionId) => store.project(store.session(sessionId).projectId).cwd,
     // Agents message each other within a project, and their messages are kept with it.

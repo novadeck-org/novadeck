@@ -127,6 +127,7 @@ export class Grants {
   private readonly savedAt = new Map<string, number>()
   private readonly sweeper: ReturnType<typeof setInterval> | undefined
   private closed = false
+  private readonly stopWatching: () => void
   private agyUnreadable = false
 
   /** Whether cmd prints before every command (`GrantOptions.cmdPrints`). */
@@ -167,6 +168,8 @@ export class Grants {
       this.sweeper = setInterval(() => this.sweep(), sweepMs)
       this.sweeper.unref()
     }
+    // Who is covered changes as terminals come, go, are led and start their agents.
+    this.stopWatching = host.sessions.onChange(() => this.publish())
   }
 
   /** Whether the grant is in force at `now`: not revoked, inside its hour, not idle for a day. */
@@ -250,12 +253,16 @@ export class Grants {
    * The terminals the terminal leads directly, now, with the harness each runs: who a team
    * grant it proposes would cover today. A terminal with no agent yet is left out.
    */
-  teamOf(terminalId: string): { readonly handle: string; readonly agent: AgentName }[] {
+  teamOf(
+    terminalId: string,
+  ): { readonly handle: string; readonly agent: AgentName; readonly started: boolean }[] {
     const live = this.host.sessions.get(terminalId)
     if (!live) return []
     return this.host.sessions.scoped(live).flatMap((peer) => {
       const agent = peer.root?.agent ?? peer.shown?.agent ?? peer.expecting
-      return peer.ledBy === live.handle && agent ? [{ handle: peer.handle, agent }] : []
+      // `started`: its agent already runs (bound, or its prompt shown), not one about to.
+      const started = peer.root !== null || peer.shown !== null
+      return peer.ledBy === live.handle && agent ? [{ handle: peer.handle, agent, started }] : []
     })
   }
 
@@ -357,6 +364,7 @@ export class Grants {
       lifetime: input.lifetime,
       endsAt: input.lifetime === "hour" ? madeAt + hourMs : null,
       lastActivityAt: madeAt,
+      covering: [],
       ended: [],
       revokedAt: null,
       lastUse: null,
@@ -431,11 +439,27 @@ export class Grants {
       if (grant.revokedAt === null && !this.inForce(grant, now)) this.end(grant)
   }
 
-  /** A grant in force, then again on each change; ended ones drop out. */
+  /**
+   * The terminals a grant covers now whose agent runs: a team's current direct teammates, and
+   * its lead when ticked, a terminal grant's holder, none that coverage ended for.
+   */
+  private coverageOf(grant: Grant): Grant["covering"] {
+    return this.coveredBy(grant)
+      .filter((live) => live.root !== null || live.shown !== null)
+      .slice(0, maxGrantEnded)
+      .map(({ terminalId, handle }) => ({ terminalId, handle }))
+  }
+
+  /** The grants in force with who each covers now: what `watch` sends. */
+  private listing(): Grant[] {
+    return this.list().map((grant) => ({ ...grant, covering: this.coverageOf(grant) }))
+  }
+
+  /** A grant in force, then again on each change of them or of who they cover; ended ones drop out. */
   async *watch(signal?: AbortSignal): AsyncGenerator<Grant[]> {
     const reader = new Latest<Grant[]>()
     this.readers.add(reader)
-    reader.push(this.list())
+    reader.push(this.listing())
     const abort = () => reader.finish()
     signal?.addEventListener("abort", abort, { once: true })
     if (this.closed || signal?.aborted) reader.finish()
@@ -456,6 +480,7 @@ export class Grants {
   close(): void {
     this.closed = true
     clearInterval(this.sweeper)
+    this.stopWatching()
     for (const reader of this.readers) reader.finish()
     this.readers.clear()
   }
@@ -499,8 +524,9 @@ export class Grants {
 
   private publish(): void {
     if (this.readers.size === 0) return
-    const listing = this.list()
-    const key = JSON.stringify(listing)
+    const listing = this.listing()
+    // Activity alone changes nothing a watcher shows, so it is no reason to send the list again.
+    const key = JSON.stringify(listing.map((each) => ({ ...each, lastActivityAt: 0 })))
     for (const reader of this.readers) reader.push(listing, key)
   }
 }

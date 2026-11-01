@@ -28,7 +28,21 @@ export class Sessions {
    */
   private readonly closedForGood = new Set<string>()
 
+  /** Who wants to know when the running terminals, their handles, leads or agents change. */
+  private readonly listeners = new Set<() => void>()
+
   constructor(private readonly host: SessionsHost) {}
+
+  /** Calls `listener` after any change to the running terminals; returns what stops it. */
+  onChange(listener: () => void): () => void {
+    this.listeners.add(listener)
+    return () => void this.listeners.delete(listener)
+  }
+
+  /** Tells the listeners that a running terminal changed: its lead, its agent, or that it is there. */
+  touched(): void {
+    for (const listener of this.listeners) listener()
+  }
 
   get(terminalId: string): Live | undefined {
     return this.live.get(terminalId)
@@ -67,6 +81,7 @@ export class Sessions {
     if (this.live.has(terminalId)) return
     this.closedForGood.delete(terminalId)
     this.live.set(terminalId, started(terminalId, scope, handle, ledBy))
+    this.touched()
   }
 
   /**
@@ -88,6 +103,7 @@ export class Sessions {
         store.gone(message, "terminal-closed")
     this.live.delete(terminalId)
     this.host.loops.forget(terminalId)
+    this.touched()
   }
 
   /**
@@ -101,6 +117,7 @@ export class Sessions {
     if (!live) return
     this.applyRoot(live, changes)
     if (held && live.root) live.held = held
+    this.touched()
   }
 
   /** Whether messages wait, or went, for that session of the terminal. */

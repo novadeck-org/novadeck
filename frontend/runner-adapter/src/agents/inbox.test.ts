@@ -1561,7 +1561,8 @@ describe("Grants", () => {
           withLead: false,
           lifetime: "until-done",
           reason: "Ship today.",
-          covered: [{ handle: "fox", agent: "codex" }],
+          covered: [{ handle: "fox", agent: "codex", started: true }],
+          agyOutdated: false,
         },
       },
     })
@@ -1580,6 +1581,7 @@ describe("Grants", () => {
     lifetime: "hour",
     endsAt: 2,
     lastActivityAt: 1,
+    covering: [],
     ended: [],
     revokedAt: null,
     lastUse: null,
@@ -1610,6 +1612,7 @@ describe("Grants", () => {
       next: "(chcp 65001) >nul 2>&1",
       machine: null,
       outcome: null,
+      dismissed: false,
     }
     expect(inbox.autorun.state.getSnapshot()).toEqual({ state: "none", outcome: null })
     autorunFeed.push(offer)

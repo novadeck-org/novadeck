@@ -45,6 +45,9 @@ const machine = (over: { user?: Scope; machine?: Scope } = {}) => {
     // The installed plugin differs from the written one: the refresh held.
     stale: false,
     pluginFails: false,
+    // Whether Antigravity is installed, and the value the line was dismissed for, kept across starts.
+    installed: true,
+    dismissed: undefined as string | undefined,
     // A write by somebody else between the click and the write.
     changeBeforeSwap: undefined as (() => void) | undefined,
   }
@@ -80,6 +83,9 @@ const machine = (over: { user?: Scope; machine?: Scope } = {}) => {
       return Promise.resolve()
     },
     announce: () => void calls.push("announce"),
+    installed: () => Promise.resolve(fake.installed),
+    dismissedFor: () => fake.dismissed,
+    rememberDismissed: (value) => void (fake.dismissed = value ?? undefined),
   }
   return { fake, host }
 }
@@ -107,11 +113,11 @@ describe("the AutoRun state", () => {
     const { host } = machine()
     const linux = new AutoRun({ ...host, platform: "linux" })
     await linux.started("prints")
-    expect(await stateOf(linux)).toEqual({ state: "none", outcome: null })
+    expect(await stateOf(linux)).toEqual({ state: "none", outcome: null, dismissed: false })
     const quiet = await started({}, "quiet")
     const slow = await started({}, "slow")
-    expect(await stateOf(quiet.autorun)).toEqual({ state: "none", outcome: null })
-    expect(await stateOf(slow.autorun)).toEqual({ state: "none", outcome: null })
+    expect(await stateOf(quiet.autorun)).toEqual({ state: "none", outcome: null, dismissed: false })
+    expect(await stateOf(slow.autorun)).toEqual({ state: "none", outcome: null, dismissed: false })
   })
 
   it("is an offer when the original prints alone and the rewrite does not, with the value verbatim and the machine's", async () => {
@@ -122,6 +128,7 @@ describe("the AutoRun state", () => {
       next: wrapped,
       machine: "chcp 437",
       outcome: null,
+      dismissed: false,
     })
   })
 
@@ -214,18 +221,42 @@ describe("the AutoRun state", () => {
       machine: null,
       suggested: null,
       outcome: null,
+      dismissed: false,
     })
     // A wrapper round something silenced() refuses is not ours.
     const other = await started({ user: scope("(if 1==1 (echo a)) >nul 2>&1") }, "quiet")
     expect(await stateOf(other.autorun)).toMatchObject({ state: "none" })
   })
 
-  it("hides an offer or a manual step on Not now, until the next start", async () => {
-    const { autorun } = await started()
+  it("keeps the offer on Not now, marked dismissed, across starts, for the value it was for", async () => {
+    const { fake, autorun } = await started()
+    expect(await stateOf(autorun)).toMatchObject({ state: "offer", dismissed: false })
     await autorun.dismiss()
-    expect(await stateOf(autorun)).toEqual({ state: "none", outcome: null })
+    expect(await stateOf(autorun)).toMatchObject({ state: "offer", dismissed: true })
+    // Kept: a start again still has it dismissed.
     await autorun.started("prints")
-    expect(await stateOf(autorun)).toMatchObject({ state: "offer" })
+    expect(await stateOf(autorun)).toMatchObject({ state: "offer", dismissed: true })
+    // Silencing works while dismissed, and forgets the dismissal.
+    const value = (await stateOf(autorun)) as { next: string }
+    await autorun.silence(value.next)
+    expect(fake.dismissed).toBeUndefined()
+    expect(await stateOf(autorun)).toMatchObject({ state: "silenced", dismissed: false })
+  })
+
+  it("offers again when the value changed since it was dismissed", async () => {
+    const { fake, autorun } = await started()
+    await autorun.dismiss()
+    fake.registry.user = scope("chcp 850 & echo different")
+    await autorun.started("prints")
+    expect(await stateOf(autorun)).toMatchObject({ dismissed: false })
+  })
+
+  it("offers nothing where Antigravity is not installed, though cmd prints", async () => {
+    const { fake, host } = machine()
+    fake.installed = false
+    const autorun = new AutoRun(host)
+    await autorun.started("prints")
+    expect(await stateOf(autorun)).toEqual({ state: "none", outcome: null, dismissed: false })
   })
 
   it("streams the state, then each change", async () => {

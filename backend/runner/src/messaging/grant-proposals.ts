@@ -74,7 +74,12 @@ export const readProposal = (
 export const proposalOf = (
   read: Extract<ReturnType<typeof readProposal>, { ok: true }>,
   repos: readonly GrantRepoChoice[],
-  covered: readonly { readonly handle: string; readonly agent: AgentName }[],
+  covered: readonly {
+    readonly handle: string
+    readonly agent: AgentName
+    readonly started: boolean
+  }[],
+  agyOutdated = false,
 ): GrantProposal => ({
   presets: read.presets,
   commands: read.commands,
@@ -84,5 +89,7 @@ export const proposalOf = (
   // The lead names none; the card starts on until-done and the person picks.
   lifetime: "until-done",
   reason: read.reason,
-  covered: covered.map(({ handle, agent }) => ({ handle, agent })),
+  covered: covered.map(({ handle, agent, started }) => ({ handle, agent, started })),
+  // Only a covered teammate that runs Antigravity makes an old one matter.
+  agyOutdated: agyOutdated && covered.some(({ agent }) => agent === "agy"),
 })

@@ -327,7 +327,14 @@ lead's proposal is an entry `{ kind: "grant", proposal }` answered with
 `{ type: "grant", presets, commands, repos, withLead, lifetime }` (command indices into the
 proposal, repo urls among its choices; anything beyond the proposal is `ANSWER_FAILED`), and
 an `approval` ask is answered with `{ type: "approve", lifetime }` (`lifetime` is `until-done` or `hour`). `grants.watch()` follows the grants
-in force, then again on each change, with `lastUse`; `grants.revoke({ id })` ends one at once
+in force, then again on each change, with `lastUse` and `covering`, the terminals each covers right
+now (`{terminalId, handle}`: a team's current teammates and the lead when ticked, less those whose
+coverage ended or whose agent isn't running; a terminal grant's holder); it is sent again when
+coverage changes, not on mere activity. A Grant card's proposal also carries `covered[].started`
+(the teammate's agent already runs) and `agyOutdated` (the installed Antigravity is older than
+1.4.10 and a covered teammate runs it). `autorun.watch` states carry `dismissed` (the person said
+not now for the HKCU value they show, which `autorun.dismiss` keeps across starts); the fix is
+offered only where Antigravity is installed; `grants.revoke({ id })` ends one at once
 (`NOT_FOUND` for an unknown or ended grant).
 
 ```ts

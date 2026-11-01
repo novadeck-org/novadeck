@@ -2206,6 +2206,7 @@ describe("Inbox approvals and grants", () => {
     lifetime: "until-done" as const,
     reason: "The user said the team may push.",
     covered: [],
+    agyOutdated: false,
     ...fields,
   })
   const grantAnswer = (fields: Record<string, unknown> = {}) => ({

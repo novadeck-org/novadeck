@@ -117,6 +117,18 @@ export class Bindings {
   }
 
   /**
+   * A terminal restored as a plain shell, which resumes no agent: nothing runs there for a grant
+   * to cover, so every grant stops covering it (one it holds alone ends), led or not, or it would
+   * cover the next agent started in it. A lead it had is ended in messaging, as `endLead` does;
+   * the caller already cleared it from the record.
+   */
+  restoredPlain(record: Record, wasLed: boolean): void {
+    const { messaging } = this.host
+    messaging().grants.coverageEnds(record.summary.id, "exited")
+    if (wasLed) messaging().endLead(record.summary.id)
+  }
+
+  /**
    * Ends the terminal's lead, as the agent it led exited: kept (at once, or with the
    * terminal's next save), shown to watchers, and told to messaging, so what the former
    * lead sends reads as a peer's from then on.

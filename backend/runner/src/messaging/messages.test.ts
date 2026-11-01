@@ -375,6 +375,7 @@ const granted: Grant = {
   lifetime: "hour",
   endsAt: 3_600_000,
   lastActivityAt: 0,
+  covering: [],
   ended: [],
   revokedAt: null,
   lastUse: null,

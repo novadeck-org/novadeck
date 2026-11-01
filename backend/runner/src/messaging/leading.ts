@@ -66,6 +66,7 @@ export class Leading {
     const live = this.host.sessions.get(terminalId)
     if (!live) return
     live.ledBy = null
+    this.host.sessions.touched()
     for (const message of store.messages())
       if (
         message.to.terminalId === terminalId &&
@@ -84,6 +85,7 @@ export class Leading {
   setLead(terminalId: string, handle: string): void {
     const live = this.host.sessions.get(terminalId)
     if (live) live.ledBy = handle
+    this.host.sessions.touched()
     this.briefs.delete(terminalId)
   }
 

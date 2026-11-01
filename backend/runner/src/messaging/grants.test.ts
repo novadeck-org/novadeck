@@ -364,6 +364,74 @@ describe("what the covered are told", () => {
   })
 })
 
+describe("who a grant covers now, as the grants list sends it", () => {
+  const covering = (messaging: Messaging) =>
+    messaging.grants.list().map((grant) => grant.id) &&
+    [...messaging["grants"]["listing"]()].map(({ covering: who }) =>
+      who.map(({ handle }) => handle),
+    )
+
+  it("is the lead's current teammates whose agent runs, the lead when ticked, less who ended", () => {
+    const { messaging, make, arrive } = setup()
+    // A teammate with no agent yet is not covering anything.
+    messaging.register("U", here, "ukko", "sable")
+    make({ holder: { kind: "team", lead: "sable", withLead: true } })
+    expect(covering(messaging)).toEqual([["sable", "fox"]])
+    arrive("N", "newt", "sable")
+    expect(covering(messaging)).toEqual([["sable", "fox", "newt"]])
+    messaging.grants.coverageEnds("F", "done")
+    expect(covering(messaging)).toEqual([["sable", "newt"]])
+    messaging.grants.coverageEnds("L", "done")
+    expect(covering(messaging)).toEqual([["newt"]])
+    // A terminal grant covers its holder while it runs.
+    const alone = setup()
+    alone.make({
+      holder: { kind: "terminal", handle: "owl" },
+      presets: [],
+      repos: [],
+      commands: [{ argv: ["make"], rest: false }],
+    })
+    expect(covering(alone.messaging)).toEqual([["owl"]])
+  })
+
+  it("is sent again when coverage changes, and not on mere activity", async () => {
+    const { messaging, make, arrive } = setup()
+    messaging.register("U", here, "ukko", "sable")
+    make()
+    const seen: string[][] = []
+    const abort = new AbortController()
+    const reading = (async () => {
+      for await (const listing of messaging.grants.watch(abort.signal))
+        seen.push(listing[0]!.covering.map(({ handle }) => handle))
+    })()
+    const settle = () => new Promise((resolve) => setTimeout(resolve, 10))
+    await settle()
+    expect(seen).toEqual([["fox"]])
+    // Activity: nothing new.
+    messaging.grants.activity("F")
+    await settle()
+    expect(seen).toHaveLength(1)
+    // A teammate led and started its agent, one released, one done, one that exits.
+    arrive("N", "newt", "sable")
+    await settle()
+    expect(seen.at(-1)).toEqual(["fox", "newt"])
+    messaging.setLead("O", "sable")
+    arrive("O", "owl", "sable")
+    await settle()
+    expect(seen.at(-1)).toEqual(
+      ["fox", "owl", "newt"].toSorted((a, b) => seen.at(-1)!.indexOf(a) - seen.at(-1)!.indexOf(b)),
+    )
+    messaging.grants.coverageEnds("F", "done")
+    await settle()
+    expect(seen.at(-1)).not.toContain("fox")
+    messaging.unregister("N")
+    await settle()
+    expect(seen.at(-1)).not.toContain("newt")
+    abort.abort()
+    await reading
+  })
+})
+
 describe("when the person's Antigravity settings can't be read", () => {
   it("says so in the note of a grant an Antigravity gets, until they can be", () => {
     const { messaging, make } = setup()

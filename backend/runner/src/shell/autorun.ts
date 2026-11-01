@@ -76,6 +76,12 @@ export type AutoRunHost = {
   readonly stale: () => Promise<boolean>
   /** Tells each Antigravity terminal its live grants again, with the caveat as it stands now. */
   readonly announce: () => void
+  /** Whether Antigravity is installed here: the fix is offered only where it is. */
+  readonly installed: () => Promise<boolean>
+  /** The HKCU value (base64 bytes) the person last dismissed the Inbox's line for, if any. */
+  readonly dismissedFor: () => string | undefined
+  /** Keeps the value the person dismissed the line for; null forgets it. */
+  readonly rememberDismissed: (value: string | null) => void
 }
 
 type Start = "prints" | "slow" | undefined
@@ -92,9 +98,8 @@ export class AutoRun {
   // Silenced, but Antigravity's plugin is still to be installed (a refresh held it).
   private held = false
   private eligible = false
-  private dismissed = false
   private outcome: AutoRunOutcome | null = null
-  private current: AutoRunState = { state: "none", outcome: null }
+  private current: AutoRunState = { state: "none", outcome: null, dismissed: false }
   private readonly readers = new Set<Latest<AutoRunState>>()
   private queue: Promise<unknown> = Promise.resolve()
   private closed = false
@@ -128,13 +133,13 @@ export class AutoRun {
 
   /**
    * Sets what the start's check found, then reads the registry: the offer is made only where
-   * the check returned "prints" (a "slow" one offers nothing), on Windows alone.
+   * the check returned "prints" (a "slow" one offers nothing), on Windows alone, and where
+   * Antigravity is installed, as nothing else is helped by it.
    */
   async started(check: Start): Promise<void> {
     this.prints = check !== undefined
     this.held = false
-    this.eligible = check === "prints"
-    this.dismissed = false
+    this.eligible = check === "prints" && (await this.host.installed().catch(() => false))
     this.outcome = null
     await this.reload()
   }
@@ -167,10 +172,15 @@ export class AutoRun {
     this.readers.clear()
   }
 
-  /** Hides an offer or a manual step until the next start. */
+  /**
+   * Hides the Inbox's line for the value the person has now, and keeps that across starts: a
+   * changed value offers again. The state still carries the offer, as `dismissed`, for
+   * Preferences.
+   */
   dismiss(): Promise<void> {
     return this.exclusive(async () => {
-      this.dismissed = true
+      const bytes = await this.userBytes()
+      if (bytes !== undefined) this.host.rememberDismissed(bytes)
       this.outcome = null
       await this.reload()
     })
@@ -183,7 +193,7 @@ export class AutoRun {
    */
   silence(value: string): Promise<void> {
     return this.exclusive(async () => {
-      this.dismissed = false
+      this.host.rememberDismissed(null)
       this.outcome = await this.silenceNow(value).catch((error: unknown) => {
         log.error("autorun.silence-failed", "Novadeck could not silence cmd's AutoRun", {
           err: error,
@@ -201,7 +211,7 @@ export class AutoRun {
    */
   undo(): Promise<void> {
     return this.exclusive(async () => {
-      this.dismissed = false
+      this.host.rememberDismissed(null)
       this.outcome = await this.undoNow().catch((error: unknown) => {
         log.error("autorun.undo-failed", "Novadeck could not undo silencing cmd's AutoRun", {
           err: error,
@@ -387,7 +397,7 @@ export class AutoRun {
 
   private async evaluate(): Promise<AutoRunState> {
     const outcome = this.outcome
-    if (this.host.platform !== "win32") return { state: "none", outcome: null }
+    if (this.host.platform !== "win32") return { state: "none", outcome: null, dismissed: false }
     const read = await this.host.read().catch(() => undefined)
     const found = this.candidate(read)
     const machine = text(read?.machine)
@@ -399,10 +409,12 @@ export class AutoRun {
         machine,
         suggested: suggestion(read?.machine),
         outcome,
+        dismissed: false,
       }
-    if (!this.eligible) return { state: "none", outcome }
-    if (this.dismissed) return { state: "none", outcome: null }
-    if (found.kind === "absent") return { state: "none", outcome }
+    if (!this.eligible) return { state: "none", outcome, dismissed: false }
+    // Dismissed for the value as it is now; another value is offered again.
+    const dismissed = read?.user.found === "value" && this.host.dismissedFor() === read.user.encoded
+    if (found.kind === "absent") return { state: "none", outcome, dismissed: false }
     if (found.kind === "manual")
       return {
         state: "manual",
@@ -412,6 +424,7 @@ export class AutoRun {
         machine,
         suggested: found.reason === "machine" ? suggestion(read?.machine) : null,
         outcome,
+        dismissed,
       }
     // Offerable: the isolation check decides, once for the original and once for the rewrite.
     const [before, after] = await Promise.all([
@@ -432,6 +445,7 @@ export class AutoRun {
         machine,
         suggested: machine === null ? null : suggestion(read?.machine),
         outcome,
+        dismissed,
       }
     }
     if (after !== "clean")
@@ -448,8 +462,16 @@ export class AutoRun {
         machine,
         suggested: null,
         outcome,
+        dismissed,
       }
-    return { state: "offer", current: found.user.text, next: found.next, machine, outcome }
+    return {
+      state: "offer",
+      current: found.user.text,
+      next: found.next,
+      machine,
+      outcome,
+      dismissed,
+    }
   }
 
   /** What the registry's values allow, before any check runs. */

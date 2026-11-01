@@ -89,7 +89,10 @@ const unopened = {
 export type CallsHost = LeadsHost & {
   readonly inbox: () => Inbox
   /** The git repos a Grant card offers for a Novadeck session's project (`Approving.repos`). */
-  readonly grantRepos: (sessionId: string) => Promise<readonly GrantRepoChoice[]>
+  readonly grantFacts: (
+    sessionId: string,
+    repos: boolean,
+  ) => Promise<{ readonly repos: readonly GrantRepoChoice[]; readonly agyOutdated: boolean }>
   readonly feedback: () => Feedback
   /** Agents' requests for a new terminal, on their way to the client. */
   readonly opens: () => OpenRequests
@@ -564,11 +567,13 @@ export class Calls {
       }
     const limit = inbox.proposalLimit(terminalId)
     if (limit) return { ok: false, reason: limit }
-    const repos =
-      read.presets.length > 0 ? await this.host.grantRepos(record.summary.sessionId) : []
+    const facts = await this.host.grantFacts(record.summary.sessionId, read.presets.length > 0)
     if (this.host.stopping()) return unansweredCalls.proposeGrant
     // The team may have changed while the repos were read.
-    return inbox.propose(terminalId, proposalOf(read, repos, messaging.grants.teamOf(terminalId)))
+    return inbox.propose(
+      terminalId,
+      proposalOf(read, facts.repos, messaging.grants.teamOf(terminalId), facts.agyOutdated),
+    )
   }
 
   /** A tool call from Novadeck's MCP server, to the operation it names. */
@@ -595,9 +600,9 @@ export class Calls {
       case "done": {
         if (!callerOf(this.host.records(), call)) return Promise.resolve(unansweredCalls[call.type])
         const answer = this.host.inbox().call(call.terminalId, call.type, call.request)
-        // Done only narrows: this terminal's grants stop covering it, for good.
-        if (call.type === "done" && answer.ok)
-          this.host.messaging().grants.coverageEnds(call.terminalId, "done")
+        // Done only narrows: this terminal's grants stop covering it, for good, whether or not
+        // the Inbox kept the report.
+        if (call.type === "done") this.host.messaging().grants.coverageEnds(call.terminalId, "done")
         return Promise.resolve(answer)
       }
       case "proposeGrant":
