@@ -734,11 +734,11 @@ in `contract/protocol/src/grants.ts`.
   terminal lives in the session. It ends with its time, a Revoke, or the terminal's close (also
   when its shell had exited before it was closed: the saved handle and session say whose
   grants end).
-- **A grant always fits one delivery (8 KiB).** Its commands are capped at 4 KiB as they render
+- **A grant always fits one delivery (8 KiB).** Its commands are capped at 2816 bytes as they render
   in its `<grant>` (`maxGrantCommandBytes` in `messaging/grant-text.ts`), checked when an
   `approval` ask or a `propose_grant` is read, and the agent is told to offer fewer or shorter
   commands. A grant reaches at most 6 repos, each url at most 160 characters with a default branch
-  of at most 100. A test prints the largest grant these allow and holds it to one delivery.
+  of at most 100. A test prints the largest grant these allow, for every harness on every OS, and holds it to one delivery.
 
 - **Only the person makes one,** with a click on a card in the Inbox. `Grants.make`
   (`messaging/grants.ts`) is called only from `Inbox.answer`: for **Approve** on an `approval`

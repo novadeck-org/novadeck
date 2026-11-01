@@ -44,16 +44,17 @@ const prText = (grant: Grant, quoteFree: boolean): string => {
     "gh pr create --head <branch>, gh pr edit <n>, gh pr ready <n> or gh pr comment <n>, " +
     "each with -R <owner/name> and a numeric PR; no merge, close or reopen, no labels. " +
     (quoteFree
-      ? "Give a body as --body-file <full path of a file in the project> (double quotes only around a path with a space), never $(cat <<EOF)."
+      ? "Give a body as --body-file <full path of a file in the project> (double quotes only around a path with a space) or use gh pr create --fill, never $(cat <<EOF)."
       : "Give a body in single quotes, or double quotes, never $(cat <<EOF).")
   )
 }
 
 /**
  * The most the commands of one grant may take rendered, in bytes: a delivery holds 8 KiB
- * (`maxDeliveryBytes`), and the rest of a `<grant>` (its repos, note and mark) must fit beside them.
+ * (`maxDeliveryBytes`), and the rest of a `<grant>` (its repos, note and mark) must fit beside them,
+ * with the longest note any harness gets on any OS (Codex's or Antigravity's on Windows).
  */
-export const maxGrantCommandBytes = 4096
+export const maxGrantCommandBytes = 2816
 
 /** The bytes the commands of a grant take in its `<grant>`, escaping and quoting included. */
 export const grantCommandBytes = (commands: readonly GrantCommand[]): number =>
@@ -112,9 +113,8 @@ const caveat = (agent: AgentName, platform: NodeJS.Platform, cmdPrints: CmdNote)
       ? `On Windows, write each command plainly: ${agent === "codex" ? "Codex" : "Antigravity"}'s shell may be PowerShell or cmd, and ` +
         "this grant covers a command only when both read it alike. You may wrap a path or a " +
         "single-line title in double quotes when it has a space, with no $, %, ! or backtick " +
-        "inside and no backslash before the closing quote; never single quotes. For a pull request's or " +
-        "comment's body use --body-file <full path of a file in the project> or gh pr create --fill; any " +
-        "other quoting still asks in the user's Inbox. "
+        "inside and no backslash before the closing quote; never single quotes. Any other quoting " +
+        "still asks in the user's Inbox. "
       : ""
   return (
     quoteFree +
