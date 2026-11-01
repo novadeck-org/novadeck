@@ -473,7 +473,7 @@
   line-height: 20px;
   color: var(--color-muted);
 }
-.plan-save-path code {
+.plan-save-path {
   overflow-wrap: anywhere;
   user-select: text;
 }

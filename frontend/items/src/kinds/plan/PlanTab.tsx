@@ -181,9 +181,7 @@ const PlanBody = ({
       </ArtifactMeta>
       {/* The whole path, wrapped, not shortened as the header's is: where the edits go. */}
       {!readOnly && !block && pathOf(item) !== null && (
-        <p className="plan-save-path">
-          Edits save to <code>{pathOf(item)}</code>
-        </p>
+        <p className="plan-save-path">Edits save to {pathOf(item)}</p>
       )}
       {!readOnly && block && (
         <PlanNotice
