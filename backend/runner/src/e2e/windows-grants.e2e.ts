@@ -26,6 +26,9 @@ import { delimiter, join } from "node:path"
 import { relayPath } from "@novadeck/relay"
 import { afterAll, beforeAll, onTestFinished } from "vitest"
 
+import { harnesses } from "../harnesses/registry.js"
+import { parseAutoRun } from "../shell/autorun-relay.js"
+import { encodeValue } from "../shell/autorun-value.js"
 import type { AgentSetup } from "./agents/agent.js"
 import { agy } from "./agents/agy.js"
 import { codex } from "./agents/codex.js"
@@ -259,9 +262,27 @@ const printingAutoRun = (): (() => void) => {
   const was = reg("query", autoRunKey, "/v", "AutoRun")
   const previous =
     was.status === 0 ? /AutoRun\s+REG_\w+\s+(.*)$/m.exec(was.stdout)?.[1]?.trim() : undefined
+  // The exact bytes and type it held, through the relay, as reg.exe's text would lose a
+  // trailing space or a character the console cannot show.
+  const before = previous === undefined ? undefined : userAutoRun()
   const restore = () => {
-    if (previous === undefined) reg("delete", autoRunKey, "/v", "AutoRun", "/f")
-    else reg("add", autoRunKey, "/v", "AutoRun", "/t", "REG_SZ", "/d", previous, "/f")
+    if (previous === undefined) {
+      reg("delete", autoRunKey, "/v", "AutoRun", "/f")
+      return
+    }
+    // From whatever it holds now to what it held: the relay compares and sets, same type.
+    const now = userAutoRun()
+    if (
+      before?.found === "value" &&
+      before.type !== "other" &&
+      now?.found === "value" &&
+      now.type === before.type
+    ) {
+      spawnSync(relayPath, ["autorun-set", before.type, now.encoded, before.encoded])
+      const after = userAutoRun()
+      if (after?.found === "value" && after.encoded === before.encoded) return
+    }
+    reg("add", autoRunKey, "/v", "AutoRun", "/t", "REG_SZ", "/d", previous, "/f")
   }
   const set = reg(
     "add",
@@ -281,6 +302,12 @@ const printingAutoRun = (): (() => void) => {
     throw new Error(`cmd printed nothing under the AutoRun: ${printed.stdout}`)
   }
   return restore
+}
+
+/** The person's AutoRun (HKCU) as the relay reads it: its type and raw bytes in base64. */
+const userAutoRun = () => {
+  const read = spawnSync(relayPath, ["autorun"], { encoding: "utf8" })
+  return read.status === 0 ? parseAutoRun(read.stdout)?.user : undefined
 }
 
 /** Prints what the hooks and programs logged. */
@@ -1264,11 +1291,18 @@ describe.runIf(windows)("Codex on Windows: a pr team grant", () => {
   }, 900_000)
 })
 
+/** HKCU's AutoRun as reg.exe prints it: its type and its text, or undefined where it is absent. */
+const autoRunValue = (): { readonly type: string; readonly text: string } | undefined => {
+  const found = reg("query", autoRunKey, "/v", "AutoRun")
+  const match = found.status === 0 ? /AutoRun\s+(REG_\w+)\s+(.*)$/m.exec(found.stdout) : null
+  return match ? { type: match[1]!, text: match[2]!.trim() } : undefined
+}
+
 // ---- The one-click fix for a printing AutoRun (approvals-design.md, Appendix F): under the
 // printing AutoRun the runner offers to silence it, the person's click writes exactly the
-// wrapped value, a granted command runs unasked in an Antigravity started afterwards, and
-// Undo puts the original back byte for byte. CI's runner only; the AutoRun is restored whatever
-// happens.
+// wrapped value, the plugin is installed again in the same runner, a granted command runs
+// unasked in an Antigravity opened afterwards, and Undo puts the original back byte for byte.
+// CI's runner only; the AutoRun is restored whatever happens.
 
 /** Sets the printing AutoRun before the runner starts, and has it put back as the test ends. */
 const withPrintingAutoRun = (setup: AgentSetup): AgentSetup => ({
@@ -1280,20 +1314,13 @@ const withPrintingAutoRun = (setup: AgentSetup): AgentSetup => ({
   },
 })
 
-/** HKCU's AutoRun as reg.exe prints it: its type and its text, or undefined where it is absent. */
-const autoRunValue = (): { readonly type: string; readonly text: string } | undefined => {
-  const found = reg("query", autoRunKey, "/v", "AutoRun")
-  const match = found.status === 0 ? /AutoRun\s+(REG_\w+)\s+(.*)$/m.exec(found.stdout) : null
-  return match ? { type: match[1]!, text: match[2]!.trim() } : undefined
-}
-
 /** The runner's AutoRun state once `check` holds of it. */
 const autoRunWhere = async (
   run: E2E,
   what: string,
   check: (state: { readonly state: string }) => boolean,
   timeoutMs = 60_000,
-): Promise<ReturnType<typeof stateNow>> => {
+): Promise<Awaited<ReturnType<typeof stateNow>>> => {
   const end = Date.now() + timeoutMs
   for (;;) {
     const state = await stateNow(run)
@@ -1321,7 +1348,7 @@ describe.runIf(windows && process.env.GITHUB_ACTIONS === "true")(
   "Antigravity on Windows: silencing cmd's AutoRun",
   () => {
     const it = e2e(withPrintingAutoRun(agyKit.setup))
-    it("is offered under a printing AutoRun, writes exactly the wrapped value, lets a granted command run unasked, and Undo restores the original", async ({
+    it("is offered under a printing AutoRun, writes exactly the wrapped value, installs the plugin again, lets a granted command run unasked in a new Antigravity, and Undo restores the original bytes", async ({
       e2e: run,
       skip,
     }) => {
@@ -1330,17 +1357,62 @@ describe.runIf(windows && process.env.GITHUB_ACTIONS === "true")(
       const original = "echo novadeck-ci: an AutoRun printed this"
       const wrapped = `(${original}) >nul 2>&1`
       const world = () => worlds.get(run.sandbox.root)!
-      const quiet = () => {
+      const printed = () => {
         const rem = spawnSync(process.env.COMSPEC || "cmd.exe", ["/c", "rem"], {
           encoding: "utf8",
         })
         return `${rem.stdout}${rem.stderr}`
       }
+      // The raw bytes the registry holds, from the relay.
+      const bytes = () => {
+        const user = userAutoRun()
+        return user?.found === "value" ? `${user.type} ${user.encoded}` : undefined
+      }
+      const bytesOf = (text: string) => `sz ${encodeValue(text)}`
+      // Antigravity's own copy of Novadeck's plugin, which its hooks run from.
+      const installedHooks = () =>
+        readFileSync(
+          join(
+            harnesses.agy.installed!.directory({
+              env: run.sandbox.env,
+              home: run.sandbox.home,
+              platform: process.platform,
+              plugin: run.deck.shell.plugins.agy,
+            }),
+            "hooks.json",
+          ),
+          "utf8",
+        )
+      const checked = "uberepo check one"
       run.model.use(
         own((call) => {
-          const ask = approvalAsk(call)
-          if (ask) return ask
-          if (asked(call, "run again")) return agyKit.shell(granted)
+          if (asked(call, "propose it")) {
+            const name = tool(call, "propose_grant")
+            if (!name) throw new Error("Novadeck's propose_grant tool is missing")
+            return {
+              calls: [
+                {
+                  name,
+                  input: {
+                    presets: [],
+                    commands: [{ argv: ["uberepo", "check"], rest: true }],
+                    reason: "Checks for the repo",
+                  },
+                },
+              ],
+            }
+          }
+          if (asked(call, "open the teammate")) {
+            const name = tool(call, "open_agent")
+            if (!name) throw new Error("Novadeck's open_agent tool is missing")
+            return {
+              calls: [{ name, input: { agent: "agy", message: "tm-brief: run the check" } }],
+            }
+          }
+          if (call.turns.some((turn) => turn.role === "user" && turn.text.includes("tm-brief"))) {
+            if (call.turns.at(-1)?.role === "tool") return { text: "Teammate done." }
+            return agyKit.shell(checked)
+          }
           if (call.turns.at(-1)?.role === "tool") return { text: "Done." }
           return undefined
         }),
@@ -1350,74 +1422,86 @@ describe.runIf(windows && process.env.GITHUB_ACTIONS === "true")(
       const offer = await autoRunWhere(run, "the offer", ({ state }) => state === "offer")
       probe("autorun offer", offer)
       expect(offer).toMatchObject({ state: "offer", current: original, next: wrapped })
-      expect(autoRunValue()).toEqual({ type: "REG_SZ", text: original })
-      expect(quiet()).toContain("an AutoRun printed this")
+      expect(bytes()).toBe(bytesOf(original))
+      expect(printed()).toContain("an AutoRun printed this")
+      expect(installedHooks()).not.toContain("PreToolUse")
 
       // The person's click writes exactly that, and cmd is clean.
       await run.deck.autorun.silence(wrapped)
+      expect(bytes()).toBe(bytesOf(wrapped))
       expect(autoRunValue()).toEqual({ type: "REG_SZ", text: wrapped })
-      expect(quiet()).toBe("")
+      expect(printed()).toBe("")
       expect(run.deck.autorun.printing()).toBe(false)
       const silenced = await stateNow(run)
       probe("autorun silenced", silenced)
       expect(silenced).toMatchObject({
         state: "silenced",
         restores: original,
-        outcome: { kind: "applied-clean" },
+        outcome: { kind: "applied-clean", waiting: [], restart: false },
       })
+      // Without a restart, Antigravity's installed plugin registers PreToolUse now.
+      expect(installedHooks()).toContain("PreToolUse")
 
-      // A terminal's approval, then Antigravity started under it runs the granted command
-      // unasked: its PreToolUse is registered again and the launch grant is given.
-      let terminal = await openKit(run, agyKit)
-      await terminal.submit("get approval")
-      const entry = await (async () => {
+      // A lead's team grant, then an Antigravity it opens afterwards, in the same runner,
+      // runs the granted command unasked.
+      const requests = run.deck.answerRequests()
+      const lead = await openKit(run, agyKit)
+      await lead.submit("propose it")
+      const card = await (async () => {
         const end = Date.now() + 60_000
         for (;;) {
           const found = run.deck.terminals
             .inboxEntries()
-            .find((each) => each.content.kind === "ask" && each.terminalId === terminal.id)
+            .find((each) => each.content.kind === "grant" && each.terminalId === lead.id)
           if (found) return found
-          if (Date.now() > end) throw new Error("no approval ask in the Inbox")
+          if (Date.now() > end) throw new Error("no Grant card in the Inbox")
           await sleep(250)
         }
       })()
-      run.deck.terminals.answerAsk(entry.id, { type: "approve" })
+      run.deck.terminals.answerAsk(card.id, {
+        type: "grant",
+        presets: [],
+        commands: [0],
+        repos: [],
+        withLead: false,
+        hours: 8,
+      })
       await sleep(2000)
-      await run.deck.restart()
-      terminal = await run.deck.restore(terminal, { resume: "agy" })
-      await terminal.reached("ready", { timeoutMs: 60_000 })
-      await prompted(terminal, agyKit.setup)
-      await terminal.submit("run again")
-      const end = Date.now() + 60_000
+      await lead.submit("open the teammate")
+      const teammate = await requests.next(60_000)
+      await teammate.reached("ready", { timeoutMs: 60_000 })
+      const end = Date.now() + 90_000
       while (marksOf(world()).length === 0 && Date.now() < end) await sleep(250)
       probe("autorun granted-run", {
         marks: marksOf(world()),
-        screen: rows(await terminal.screen()),
+        screen: rows(await teammate.screen()),
       })
-      expect(marksOf(world())).toEqual([granted])
-      expect(await terminal.screen()).not.toMatch(agyKit.dialog)
+      expect(marksOf(world())).toEqual([checked])
+      expect(await teammate.screen()).not.toMatch(agyKit.dialog)
 
       // Undo is refused while an Antigravity of Novadeck's runs, and the value stays.
       await run.deck.autorun.undo()
       expect(await stateNow(run)).toMatchObject({
         state: "silenced",
-        outcome: { kind: "undo-refused" },
+        outcome: { kind: "undo-refused", restart: false },
       })
-      expect(autoRunValue()).toEqual({ type: "REG_SZ", text: wrapped })
+      expect(bytes()).toBe(bytesOf(wrapped))
 
-      // Closed, Undo restores the original exactly.
-      await run.deck.terminals.close({ terminalId: terminal.id })
+      // Closed, Undo restores the original bytes exactly, and the plugin drops PreToolUse.
+      await run.deck.terminals.close({ terminalId: teammate.id })
+      await run.deck.terminals.close({ terminalId: lead.id })
       const closing = Date.now() + 30_000
       while (run.deck.terminals.approving.running("agy").length > 0 && Date.now() < closing)
         await sleep(250)
       await run.deck.autorun.undo()
-      expect(autoRunValue()).toEqual({ type: "REG_SZ", text: original })
+      expect(bytes()).toBe(bytesOf(original))
+      expect(installedHooks()).not.toContain("PreToolUse")
       expect(await stateNow(run)).toMatchObject({
         state: "offer",
         current: original,
         outcome: { kind: "undone" },
       })
       expect(run.deck.autorun.printing()).toBe(true)
-    }, 600_000)
+    }, 900_000)
   },
 )
