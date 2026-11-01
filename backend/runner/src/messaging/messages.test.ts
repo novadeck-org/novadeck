@@ -410,50 +410,54 @@ describe("a delivery's grants", () => {
   })
 
   it("fits the largest grant the runner accepts in one delivery, as each harness prints it (an hour grant, which says the most)", () => {
-    // Commands up to the cap, each word escaping to four bytes a character; the most repos,
-    // each as long as the protocol allows, with the longest default branch.
-    // Filled to the cap exactly: whole words while one fits, then the longest word that still does.
-    const word = "<".repeat(256)
-    const commands: Grant["commands"][number][] = []
-    const accepts = (more: Grant["commands"][number]) =>
-      commands.length < maxGrantCommands && grantCommandsRefusal([...commands, more]) === undefined
-    while (accepts({ argv: ["echo", word], rest: false }))
-      commands.push({ argv: ["echo", word], rest: false })
-    for (let length = 255; length > 0; length -= 1) {
-      const last = { argv: ["echo", "<".repeat(length)], rest: false }
-      if (!accepts(last)) continue
-      commands.push(last)
-      break
+    // Commands up to the cap in each of the characters that print largest: `<` escapes to four
+    // bytes, `'` to four and five in JSON, `\\` and `"` to two in JSON. The most repos, each as long
+    // as the protocol allows, with the longest default branch.
+    for (const fill of ["<", "'", "\\", '"']) {
+      // Filled to the cap exactly: whole words while one fits, then the longest word that still does.
+      const word = fill.repeat(256)
+      const commands: Grant["commands"][number][] = []
+      const accepts = (more: Grant["commands"][number]) =>
+        commands.length < maxGrantCommands &&
+        grantCommandsRefusal([...commands, more]) === undefined
+      while (accepts({ argv: ["echo", word], rest: false }))
+        commands.push({ argv: ["echo", word], rest: false })
+      for (let length = 255; length > 0; length -= 1) {
+        const last = { argv: ["echo", fill.repeat(length)], rest: false }
+        if (!accepts(last)) continue
+        commands.push(last)
+        break
+      }
+      expect(grantCommandBytes(commands), fill).toBeGreaterThan(maxGrantCommandBytes - 8)
+      const repo = (n: number) => ({
+        url: `github.com/${"o".repeat(39)}/${String(n).padEnd(109, "r")}`,
+        defaultBranch: "b".repeat(100),
+        defaultFrom: "github" as const,
+      })
+      const largest: Grant = {
+        ...granted,
+        presets: ["push", "pr"],
+        commands,
+        repos: Array.from({ length: maxGrantRepos }, (_, n) => repo(n)),
+      }
+      expect(largest.repos[0]?.url.length).toBe(160)
+      // Every harness on every OS, as the note differs by both (Windows' quoting, cmd's AutoRun).
+      for (const agent of ["claude", "codex", "agy"] as const)
+        for (const platform of ["linux", "darwin", "win32"] as const)
+          for (const cmdPrints of [false, true, "held", "unreadable"] as const) {
+            const text = wrap([novadeck({ to: { ...novadeck().to, agent } })], none, mark, {
+              personMark: "PersonMk",
+              grants: (id) => (id === largest.id ? largest : undefined),
+              platform,
+              cmdPrints,
+            })
+            // Hooks print the delivery inside a JSON string, which escapes it again.
+            expect(
+              Buffer.byteLength(JSON.stringify(text)),
+              `${fill} for ${agent} on ${platform} with cmdPrints ${String(cmdPrints)}`,
+            ).toBeLessThanOrEqual(maxDeliveryBytes)
+          }
     }
-    expect(grantCommandBytes(commands)).toBeGreaterThan(maxGrantCommandBytes - 8)
-    const repo = (n: number) => ({
-      url: `github.com/${"o".repeat(39)}/${String(n).padEnd(109, "r")}`,
-      defaultBranch: "b".repeat(100),
-      defaultFrom: "github" as const,
-    })
-    const largest: Grant = {
-      ...granted,
-      presets: ["push", "pr"],
-      commands,
-      repos: Array.from({ length: maxGrantRepos }, (_, n) => repo(n)),
-    }
-    expect(largest.repos[0]?.url.length).toBe(160)
-    // Every harness on every OS, as the note differs by both (Windows' quoting, cmd's AutoRun).
-    for (const agent of ["claude", "codex", "agy"] as const)
-      for (const platform of ["linux", "darwin", "win32"] as const)
-        for (const cmdPrints of [false, true, "held", "unreadable"] as const) {
-          const text = wrap([novadeck({ to: { ...novadeck().to, agent } })], none, mark, {
-            personMark: "PersonMk",
-            grants: (id) => (id === largest.id ? largest : undefined),
-            platform,
-            cmdPrints,
-          })
-          // Hooks print the delivery inside a JSON string, which escapes it again.
-          expect(
-            Buffer.byteLength(JSON.stringify(text)),
-            `${agent} on ${platform} with cmdPrints ${String(cmdPrints)}`,
-          ).toBeLessThanOrEqual(maxDeliveryBytes)
-        }
   })
 
   it("renders a live grant with this delivery's person mark, and the note that says what it means", () => {

@@ -56,10 +56,14 @@ const prText = (grant: Grant, quoteFree: boolean): string => {
  */
 export const maxGrantCommandBytes = 2816
 
-/** The bytes the commands of a grant take in its `<grant>`, escaping and quoting included. */
+/**
+ * The bytes the commands of a grant take in its `<grant>`, escaping and quoting included, as a
+ * hook prints them: inside a JSON string, which doubles a backslash or a quote again.
+ */
 export const grantCommandBytes = (commands: readonly GrantCommand[]): number =>
   commands.reduce(
-    (total, command) => total + Buffer.byteLength(`Run: ${escapeText(commandText(command))}\n`),
+    (total, command) =>
+      total + Buffer.byteLength(JSON.stringify(`Run: ${escapeText(commandText(command))}\n`)) - 2,
     0,
   )
 

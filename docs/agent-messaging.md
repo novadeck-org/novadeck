@@ -734,7 +734,7 @@ in `contract/protocol/src/grants.ts`.
   terminal lives in the session. It ends with its time, a Revoke, or the terminal's close (also
   when its shell had exited before it was closed: the saved handle and session say whose
   grants end).
-- **A grant always fits one delivery (8 KiB).** Its commands are capped at 2816 bytes as they render
+- **A grant always fits one delivery (8 KiB).** Its commands are capped at 2816 bytes as a hook prints them
   in its `<grant>` (`maxGrantCommandBytes` in `messaging/grant-text.ts`), checked when an
   `approval` ask or a `propose_grant` is read, and the agent is told to offer fewer or shorter
   commands. A grant reaches at most 6 repos, each url at most 160 characters with a default branch
@@ -844,8 +844,9 @@ in `contract/protocol/src/grants.ts`.
   grant still asks. Its hooks name no mode. A terminal started with `--mode plan` is given no
   launch grant (`startsAgy`), and the Grant card says so for each covered teammate
   (`covered[].plan`). Plan mode switched in a session is not seen: the grant works there as the
-  person's own allow rules do, and the agent's `<grant>` note says so. A check of the composer's
-  footer ("Plan mode: research & plan only") at the decision is not built.
+  person's own allow rules do, and the agent's `<grant>` note says so. Reading the composer's
+  footer off the screen was rejected, as an agy update could change its words unnoticed; a mode
+  field in agy's hook payload, if one comes, is the signal to use.
 - **Launch programs.** `Grants.launchPrograms(terminalId)` names the programs an Antigravity
   terminal is given launch grants for (`git` for push, `gh` for pr, the first word of each
   command).
