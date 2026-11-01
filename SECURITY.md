@@ -232,11 +232,17 @@ Each shell the runner starts can report which agent session runs in it, through 
 local endpoint: a Unix socket in a private temporary directory, or a named pipe on
 Windows. The endpoint accepts only an agent session report, for the terminal whose
 random per-shell token (`NOVADECK_REPORT_TOKEN`) the report carries; it is not a runner
-API and grants nothing else. Processes in a shell can read that shell's token, and so
+API. Processes in a shell can read that shell's token, and so
 can misreport its session, which at worst resumes another session of the same user.
 The runner builds the resume command itself, from a fixed program and arguments and a
 session id limited to letters, digits, `.`, `_` and `-`, so a report cannot make a
-shell run anything else.
+shell run anything else. The same token authorizes the agent tool calls (Novadeck's MCP
+server), so a process in a shell can make them: `open_terminal` with a command, which starts
+a new terminal that runs it, is therefore asked of the person first, with the exact command,
+the folder and the agent that asks, and opens nothing unless they approve; the agent hears
+their answer. `close_terminal` likewise asks before closing a terminal that runs another
+agent's session or a program other than its shell. A command is quoted into the shell only
+from characters no shell expands.
 The shell integration and hook live in the runner's own `shell` folder; the runner
 never writes to the user's rc files or dotfiles. Only when the person connects an agent
 does it install Novadeck's plugin into that agent, through the agent's own plugin

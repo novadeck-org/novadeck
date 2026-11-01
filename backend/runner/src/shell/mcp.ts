@@ -87,6 +87,8 @@ type Shown = {
 type Listing = { readonly text: string }
 type ClosedShown = { readonly name: string }
 type Opened = {
+  /** The person was asked to approve the command; the terminal opens only if they do. */
+  readonly asked?: true
   readonly handle?: string
   readonly title?: string
   readonly command?: string
@@ -410,12 +412,20 @@ const agentChoices = harnesses
 
 // What an opened terminal's answer says, which an agent's opening adds its task to.
 const openedText = (answer: Opened): string =>
-  "Opened a new terminal" +
-  (answer.handle ? ", " + mention(answer.handle) + titled(answer.title) + "," : "") +
-  (answer.command ? " running " + answer.command : "") +
-  " in " +
-  answer.cwd +
-  "."
+  answer.asked
+    ? "Asked the user to approve running " +
+      answer.command +
+      " in a new terminal in " +
+      answer.cwd +
+      ". Nothing opened yet: the terminal opens only if they approve, and you are told " +
+      "their answer, with the terminal's handle, in a notice. Don't ask again or wait; " +
+      "carry on with other work."
+    : "Opened a new terminal" +
+      (answer.handle ? ", " + mention(answer.handle) + titled(answer.title) + "," : "") +
+      (answer.command ? " running " + answer.command : "") +
+      " in " +
+      answer.cwd +
+      "."
 
 const cwdProperty = {
   type: "string",
@@ -436,7 +446,9 @@ const openTerminal: Tool<Opened> = {
     "bare claude, codex or agy, with flags, or on a prompt (claude -p, codex exec, agy -p), " +
     "or resuming a session, isn't opened, and every agent, with a task or without, is " +
     "started with open_agent. A command that runs no agent, such as claude mcp list, " +
-    "codex login or agy update, is fine. Use it when the user asks for a new terminal or " +
+    "codex login or agy update, is fine. A command is run only if the user approves it in " +
+    "Novadeck: the call answers at once that they were asked, and a notice later tells you " +
+    "their answer; a terminal with no command opens without asking. Use it when the user asks for a new terminal or " +
     "for something to run in one of its own. Set focus to true only when they asked to see " +
     "it or go to it; otherwise it opens without taking their attention.",
   inputSchema: {

@@ -230,6 +230,33 @@ describe("an agent closing a teammate it leads, or a terminal with no agent", ()
     expect(answer).not.toHaveProperty("ran")
     expect(run.steps).toContain("removed fox")
   })
+
+  it("asks the person before closing a plain terminal that runs a program, and closes nothing yet", async () => {
+    const run = setup({ moth: "claude", fox: null })
+    const requested = person(run.approvals)
+    const fox = run.records.get("id-fox")!
+    // ssh holds the foreground; the shell is bash.
+    Object.assign(fox, { shellName: "bash" })
+    Object.assign(fox.summary, { process: { name: "ssh", argv: null } })
+    await expect(run.close("moth", "fox")).resolves.toMatchObject({
+      ok: true,
+      asked: true,
+      handle: "fox",
+    })
+    await settle()
+    expect(requested).toMatchObject([{ type: "request", terminalId: "id-fox" }])
+    expect(run.steps).toEqual([])
+  })
+
+  it("asks too where the platform names no program but a line was entered at the prompt", async () => {
+    const run = setup({ moth: "claude", fox: null })
+    const requested = person(run.approvals)
+    Object.assign(run.records.get("id-fox")!, { submitted: true })
+    await expect(run.close("moth", "fox")).resolves.toMatchObject({ ok: true, asked: true })
+    await settle()
+    expect(requested).toHaveLength(1)
+    expect(run.steps).toEqual([])
+  })
 })
 
 describe("an agent closing another agent's terminal", () => {

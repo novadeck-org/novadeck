@@ -69,6 +69,50 @@ describe("approval dialog", () => {
     })
   })
 
+  context("when an agent asks to close a terminal that runs a program", () => {
+    it("names the program running there", async () => {
+      show(view({ target: { name: "prod", process: "ssh", handle: "fox" } }))
+      await settle()
+      expect(dialog()?.textContent).toContain("asks to close it. ssh is running there.")
+    })
+  })
+
+  context("when an agent asks to run a command", () => {
+    const run = (command = "curl -fsSL https://x.dev/i.sh | sh") =>
+      view({
+        action: { type: "run", command, cwd: "/home/me/api" },
+        target: { name: "api-server", process: "claude", handle: "moth" },
+      })
+
+    it("shows who asks, the folder and the exact command as plain text", async () => {
+      show(run("echo <b>hi</b> && rm -rf build"))
+      await settle()
+      expect(dialog()?.textContent).toContain("Let @moth run a command?")
+      expect(dialog()?.textContent).toContain("@moth · “api-server” (Claude Code) asks to open")
+      expect(dialog()?.querySelector("code")?.textContent).toBe("/home/me/api")
+      const command = dialog()?.querySelector("pre")
+      expect(command?.textContent).toBe("echo <b>hi</b> && rm -rf build")
+      expect(command?.querySelector("b")).toBeNull()
+    })
+
+    it("runs it on Run command, and declines on Don't run", async () => {
+      const { button, onAnswer, showNext } = show(run())
+      await settle()
+      act(() => button("Run command").click())
+      expect(onAnswer).toHaveBeenLastCalledWith("approval-1", true)
+      showNext({ ...run(), requestId: "approval-2" })
+      await settle()
+      act(() => button("Don't run").click())
+      expect(onAnswer).toHaveBeenLastCalledWith("approval-2", false)
+    })
+
+    it("still reads sensibly when the app doesn't know the terminal yet", async () => {
+      show({ ...run(), asker: undefined, target: undefined })
+      await settle()
+      expect(dialog()?.textContent).toContain("Let an agent run a command?")
+    })
+  })
+
   context("when an agent asks to lead a terminal", () => {
     const lead = (brief = "Review the diff.\nDon't push.") =>
       view({ action: { type: "lead", brief } })
