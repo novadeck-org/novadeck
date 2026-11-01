@@ -764,8 +764,8 @@ const moveDatabase = (from: string, to: string): void => {
 /**
  * Forgets the unsealed transcripts in a snapshot, as the live database forgets them at
  * every start (`forgetUnsealed`): a copy kept for an upgrade must not hold what was never
- * masked. The pages are overwritten (`secure_delete`) and the file rewritten, so no
- * freed page keeps them. Throws on failure, so the caller drops the copy.
+ * masked. The pages the rows held are overwritten (`secure_delete`), so none keeps them.
+ * Throws on failure, so the caller drops the copy.
  */
 const forgetUnsealedCopy = (snapshot: string): void => {
   const copy = new DatabaseSync(snapshot)
@@ -774,7 +774,6 @@ const forgetUnsealedCopy = (snapshot: string): void => {
     if (!columns.some((column) => column.name === "transcript")) return
     copy.exec("PRAGMA secure_delete = ON")
     forgetUnsealedRows(copy, sealedShape)
-    copy.exec("VACUUM")
   } finally {
     copy.close()
   }
