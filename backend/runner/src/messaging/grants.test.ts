@@ -364,6 +364,27 @@ describe("what the covered are told", () => {
   })
 })
 
+describe("when the person's Antigravity settings can't be read", () => {
+  it("says so in the note of a grant an Antigravity gets, until they can be", () => {
+    const { messaging, make } = setup()
+    const grant = make()
+    const note = () =>
+      wrapGrants(messaging.grants.covering("F"), "agy", "linux", "P", messaging.grants.cmdPrints())
+    expect(messaging.grants.cmdPrints()).toBe(false)
+    expect(note()).not.toContain("could not read")
+    messaging.grants.agySettings(false)
+    expect(messaging.grants.cmdPrints()).toBe("unreadable")
+    expect(note()).toContain(`<grant id="${grant.id}"`)
+    expect(note()).toContain("Novadeck could not read the user's Antigravity settings")
+    // Not the other harnesses'.
+    expect(
+      wrapGrants(messaging.grants.covering("F"), "claude", "linux", "P", "unreadable"),
+    ).not.toContain("could not read")
+    messaging.grants.agySettings(true)
+    expect(note()).not.toContain("could not read")
+  })
+})
+
 describe("what a harness is given at launch", () => {
   it("is git for push, gh for pr, and the first word of each command", () => {
     const { messaging, make } = setup()

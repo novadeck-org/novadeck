@@ -87,9 +87,11 @@ export const grantLines = (
 /**
  * What a grant's note says of cmd's AutoRun: true while cmd prints before every command, "held"
  * once the person silenced it but Antigravity's plugin is still to be installed (a running
- * Antigravity of Novadeck's holds it), false otherwise.
+ * Antigravity of Novadeck's holds it), false otherwise. "unreadable" (on any platform, when cmd
+ * prints nothing): the person's Antigravity settings could not be read at the last launch, so
+ * no Antigravity is started with a grant (`Narrowing.verify`).
  */
-export type CmdNote = boolean | "held"
+export type CmdNote = boolean | "held" | "unreadable"
 
 const caveat = (agent: AgentName, platform: NodeJS.Platform, cmdPrints: CmdNote): string => {
   if (agent === "agy" && platform === "win32" && cmdPrints === "held")
@@ -99,7 +101,7 @@ const caveat = (agent: AgentName, platform: NodeJS.Platform, cmdPrints: CmdNote)
       "restarted. A grant reaches an Antigravity started after that; until then its own dialog " +
       "asks for each command."
     )
-  if (agent === "agy" && platform === "win32" && cmdPrints)
+  if (agent === "agy" && platform === "win32" && cmdPrints === true)
     return (
       "This grant cannot reach Antigravity here: the user's cmd prints text of its own before every " +
       "command (an AutoRun), which Antigravity's check cannot read past, so its own dialog asks " +
@@ -118,7 +120,11 @@ const caveat = (agent: AgentName, platform: NodeJS.Platform, cmdPrints: CmdNote)
     quoteFree +
     (agent === "agy"
       ? "Antigravity takes this grant when it starts: if yours started earlier, its own dialog " +
-        "still asks until you restart, and a version of Antigravity before 1.4.10 never takes it."
+        "still asks until you restart, and a version of Antigravity before 1.4.10 never takes it." +
+        (cmdPrints === "unreadable"
+          ? " Right now none is started with this grant: Novadeck could not read the user's " +
+            "Antigravity settings, so its own dialog asks until that is fixed."
+          : "")
       : "If your harness still asks, answer its dialog as usual.")
   )
 }

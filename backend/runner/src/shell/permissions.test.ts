@@ -3,6 +3,7 @@ import { mkdtempSync, readFileSync, rmSync, existsSync } from "node:fs"
 import { tmpdir } from "node:os"
 import { join } from "node:path"
 
+import { deniedAnswer } from "@novadeck/harness-agy/narrow"
 import { maxCommand, type GrantScope } from "@novadeck/harness-core/grants"
 import type { Report } from "@novadeck/harness-core/report"
 
@@ -81,6 +82,8 @@ type Fixture = {
 const fixture = (
   resources: { defer: (undo: () => void) => void },
   covering: (terminalId: string) => ReadonlyArray<GrantScope & { id: string }> = () => [grant],
+  rules: NonNullable<ConstructorParameters<typeof Narrowing>[0]["userRules"]> = () =>
+    Promise.resolve({ ok: true, allow: [], deny: [] }),
 ): Fixture => {
   const directory = mkdtempSync(join(tmpdir(), "novadeck-permissions-"))
   resources.defer(() => rmSync(directory, { recursive: true, force: true }))
@@ -90,6 +93,7 @@ const fixture = (
   const narrowing = new Narrowing({
     grants: { launchPrograms: () => launchPrograms },
     verified: () => Promise.resolve(true),
+    userRules: rules,
   })
   const host: PermissionsHost = {
     terminal: (id) => (id === "t" ? { token, exiting: false, projectFolder: project } : undefined),
@@ -424,6 +428,7 @@ describe("Antigravity's PreToolUse", () => {
   const closed = `${JSON.stringify({ decision: "force_ask" })}\n`
   const ran = `${JSON.stringify({ decision: "deny_unless_prior_grant" })}\n`
   const notCommand = `${JSON.stringify({ decision: "ask", reason: "novadeck: not a command" })}\n`
+  const denied = `${deniedAnswer}\n`
   const narrow = { env: { NOVADECK_NARROW: "1" } }
 
   it("answers ask, as it always did, in a terminal that isn't narrowed", async ({ resources }) => {
@@ -544,6 +549,34 @@ describe("Antigravity's PreToolUse", () => {
       expect((await ask("agy", "PreToolUse", tool(name), narrow)).stdout).toBe(closed)
   })
 
+  it("refuses, not asks, a command the person's own deny rules may deny, granted or not", async ({
+    resources,
+  }) => {
+    const tried = fixture(resources, undefined, () =>
+      Promise.resolve({ ok: true, allow: [], deny: ["command(uberepo ship y)", "command(rm)"] }),
+    )
+    await tried.launch(["uberepo"])
+    // The grant would let it run, a dialog would let the person click through: neither.
+    expect((await tried.ask("agy", "PreToolUse", run("uberepo ship y"), narrow)).stdout).toBe(
+      denied,
+    )
+    expect((await tried.ask("agy", "PreToolUse", run("rm -rf x"), narrow)).stdout).toBe(denied)
+    expect((await tried.ask("agy", "PreToolUse", run("ls; rm x"), narrow)).stdout).toBe(denied)
+    // Other commands are decided as before.
+    expect((await tried.ask("agy", "PreToolUse", run("uberepo ship x"), narrow)).stdout).toBe(ran)
+    expect((await tried.ask("agy", "PreToolUse", run("ls"), narrow)).stdout).toBe(closed)
+  })
+
+  it("closes every command while the person's rules can't be read", async ({ resources }) => {
+    const tried = fixture(resources, undefined, () =>
+      Promise.resolve({ ok: false, reason: "unreadable" }),
+    )
+    await tried.launch(["uberepo"])
+    expect((await tried.ask("agy", "PreToolUse", run("uberepo ship x"), narrow)).stdout).toBe(
+      closed,
+    )
+  })
+
   it("closes a payload it can't read, or whose tool input holds a field of its own", async ({
     resources,
   }) => {
@@ -632,7 +665,7 @@ describe("launch grants", () => {
     expect(existsSync(file)).toBe(false)
     // A command that isn't Antigravity.
     await tried.launch(["git"])
-    tried.narrowing.launch("t", true, false)
+    tried.narrowing.launch("t", { allow: [] }, false)
     expect(existsSync(file)).toBe(false)
     expect(tried.narrowing.launchSet("t")).toBeUndefined()
   })
@@ -650,10 +683,48 @@ describe("launch grants", () => {
     expect(existsSync(file)).toBe(false)
   })
 
+  it("keep the person's own allow rules beside the granted programs, and read them afresh", async ({
+    resources,
+  }) => {
+    const tried = fixture(resources, undefined, () =>
+      Promise.resolve({ ok: true, allow: ["mcp(novadeck_novadeck/*)"], deny: ["command(rm)"] }),
+    )
+    await tried.launch(["git"])
+    const file = join(tried.directory, "narrow", "t.json")
+    expect(JSON.parse(readFileSync(file, "utf8"))).toEqual({
+      permissions: { allow: ["mcp(novadeck_novadeck/*)", "command(git)"] },
+    })
+  })
+
+  it("start no agent under a grant while the person's rules can't be read, and say so", async ({
+    resources,
+  }) => {
+    const readable: boolean[] = []
+    const directory = mkdtempSync(join(tmpdir(), "novadeck-narrowing-"))
+    resources.defer(() => rmSync(directory, { recursive: true, force: true }))
+    for (const [rules, shown] of [
+      [() => Promise.resolve({ ok: false as const, reason: "unreadable" }), false],
+      [() => Promise.reject(new Error("boom")), false],
+      [() => Promise.resolve({ ok: true as const, allow: [], deny: [] }), true],
+    ] as const) {
+      const narrowing = new Narrowing({
+        grants: { launchPrograms: () => ["git"] },
+        verified: () => Promise.resolve(true),
+        userRules: rules,
+        readable: (each) => readable.push(each),
+      })
+      const verified = await narrowing.verify(join(directory, "narrow"))
+      expect(verified !== false).toBe(shown)
+      narrowing.launch("t", verified, true)
+      expect(narrowing.launchSet("t") !== undefined).toBe(shown)
+    }
+    expect(readable).toEqual([false, false, true])
+  })
+
   it("write no file for an id that could leave the folder", async ({ resources }) => {
     const tried = fixture(resources)
     await tried.launch(["git"])
-    tried.narrowing.launch("../t", true, true)
+    tried.narrowing.launch("../t", { allow: [] }, true)
     expect(existsSync(join(tried.directory, "t.json"))).toBe(false)
   })
 })

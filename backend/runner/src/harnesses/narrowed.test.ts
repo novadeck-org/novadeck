@@ -6,6 +6,7 @@ import { join, normalize } from "node:path"
 import { agy } from "@novadeck/harness-agy/index"
 import {
   closedAnswer,
+  deniedAnswer,
   narrowedAnswers,
   notCommandAnswer,
   runAnswer,
@@ -235,12 +236,17 @@ describe("every answer path of a narrowed Antigravity PreToolUse", () => {
     expect(silentFor(messaging, "PreToolUse", false)).toBe('{"decision":"ask"}\n')
   })
 
-  it("lets the runner say nothing but the three answers the wrapper passes", () => {
+  it("lets the runner say nothing but the four answers the wrapper passes", () => {
     const { narrowed: answers } = agy.messaging.permission
-    const said = [answers?.run, answers?.notCommand, answers?.closed]
-    expect(said.map((line) => line?.trimEnd())).toEqual([runAnswer, notCommandAnswer, closedAnswer])
+    const said = [answers?.run, answers?.notCommand, answers?.closed, answers?.denied]
+    expect(said.map((line) => line?.trimEnd())).toEqual([
+      runAnswer,
+      notCommandAnswer,
+      closedAnswer,
+      deniedAnswer,
+    ])
     for (const line of said) expect(narrowedAnswers).toContain(line?.trimEnd())
-    expect(new Set(narrowedAnswers).size).toBe(3)
+    expect(new Set(narrowedAnswers).size).toBe(4)
   })
 
   it("leaves the relay's fallback to the relay, which closes it itself", () => {

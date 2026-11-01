@@ -127,10 +127,20 @@ export class Grants {
   private readonly savedAt = new Map<string, number>()
   private readonly sweeper: ReturnType<typeof setInterval> | undefined
   private closed = false
+  private agyUnreadable = false
 
   /** Whether cmd prints before every command (`GrantOptions.cmdPrints`). */
   cmdPrints(): CmdNote {
-    return this.host.cmdPrints()
+    const note = this.host.cmdPrints()
+    return note === false && this.agyUnreadable ? "unreadable" : note
+  }
+
+  /**
+   * Whether the person's Antigravity settings could be read at the last launch. They can't
+   * when no Antigravity was started with a grant, which the grant's note says.
+   */
+  agySettings(readable: boolean): void {
+    this.agyUnreadable = !readable
   }
 
   constructor(

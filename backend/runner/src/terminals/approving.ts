@@ -1,3 +1,5 @@
+import { userRules } from "@novadeck/harness-agy/settings"
+import type { Install } from "@novadeck/harness-core/harness"
 import type { Report } from "@novadeck/harness-core/report"
 import type { AgentName, Grant, GrantRepoChoice } from "@novadeck/protocol"
 
@@ -7,7 +9,7 @@ import type { GrantOptions } from "../messaging/grants.js"
 import type { Messaging } from "../messaging/messaging.js"
 import { fsLookups } from "../shell/fs-lookups.js"
 import { gitLookups } from "../shell/git-lookups.js"
-import { Narrowing, startsAgy } from "../shell/narrowing.js"
+import { Narrowing, startsAgy, type Launching } from "../shell/narrowing.js"
 import { Permissions } from "../shell/permissions.js"
 import { sameToken } from "./callers.js"
 import type { Record } from "./record.js"
@@ -25,6 +27,11 @@ export type ApprovingOptions = GrantOptions & {
    * change a running terminal held can go in.
    */
   agentIdle?: (agent: AgentName) => void
+  /**
+   * Where Antigravity keeps the person's settings (its install, as the plugin's): their own
+   * allow rules are kept in a launch grant. Without it none are read, and none are kept.
+   */
+  install?: (agent: AgentName) => Promise<Install | undefined>
   /** Where a Grant card's repos are read from; the real git and gh when omitted. */
   grantSources?: GrantSources
 }
@@ -55,6 +62,15 @@ export class Approving {
     this.narrowing = new Narrowing({
       grants: { launchPrograms: (id) => host.messaging().grants.launchPrograms(id) },
       verified: host.options.narrowVerified ?? (() => Promise.resolve(false)),
+      ...(host.options.install && {
+        userRules: async () => {
+          const install = await host.options.install!("agy")
+          return install
+            ? userRules(install)
+            : { ok: false as const, reason: "Antigravity has no install" }
+        },
+      }),
+      readable: (readable) => host.messaging().grants.agySettings(readable),
     })
     this.permissions = new Permissions({
       terminal: (id) => {
@@ -96,7 +112,7 @@ export class Approving {
   }
 
   /** Whether Antigravity may start under a grant; asked before the shell starts. */
-  verify(directory: string | undefined): Promise<boolean> {
+  verify(directory: string | undefined): Promise<Launching> {
     return this.narrowing.verify(directory)
   }
 
@@ -104,7 +120,7 @@ export class Approving {
    * Gives the terminal's launch grants for the `command` its shell is about to run (none, or
    * false, where it resumes no agent).
    */
-  launch(terminalId: string, verified: boolean, command: string | false | undefined): void {
+  launch(terminalId: string, verified: Launching, command: string | false | undefined): void {
     this.narrowing.launch(
       terminalId,
       verified,

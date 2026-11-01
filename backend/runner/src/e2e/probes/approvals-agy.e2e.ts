@@ -73,11 +73,144 @@ type Case = {
   cwd?: boolean
   /** No PreToolUse hook is registered at all (a baseline for the default dialog). */
   noPre?: boolean
+  /** Written over the user's settings.json `permissions` (the sandbox's own allows replaced). */
+  user?: Permissions
+  /** A project settings file to write (relative to the project folder) and its `permissions`. */
+  project?: { file: string; permissions: Permissions }
+  /** Further project settings files, all written with the same `permissions`. */
+  projectMore?: string[]
 }
+
+type Permissions = { allow?: string[]; deny?: string[]; ask?: string[] }
 
 const grant = () => ({ permissions: { allow: ["command(touch)"] } })
 const ans = (decision: string) => () => ({ decision })
+// ---- round 5 (M): do `--settings`' permissions merge with the person's, or replace them?
+// Novadeck's hooks are off (alone, no PreToolUse), so only the settings layers decide.
+// Results (2026-11-01, Antigravity 1.4.12, Linux; `touch` is the command; user = the sandbox's
+// ~/.gemini/antigravity-cli/settings.json):
+// - Within one layer deny beats allow (m16) and allow beats ask (m15); ask+deny denies (m17).
+// - `--settings` replaces the user's `permissions.allow` array when it names one: the user's
+//   `command(touch)` and the sandbox's `mcp(novadeck_novadeck/*)` allow are gone (m4, m10).
+// - It does not touch an array it doesn't name: the user's deny still denies (m5), and
+//   --settings' allow does not beat it (m7, m24). A `deny` array it does name replaces the
+//   user's (m18). Its own deny beats the user's allow (m9). A user's ask is beaten by a
+//   --settings allow of the same command (m8, m19) as by a same-layer one.
+// - No project settings file is read: `.agents/settings.json`, `.agents/settings.local.json`,
+//   `.gemini/antigravity-cli/settings.json` and seven other names changed nothing (m11-m14, m22).
+//   "Persist to settings.json" writes the user's file (m21).
+// - A PreToolUse `force_ask` puts the dialog over the user's deny (m23: click-through); `ask`
+//   leaves it denied (m25); `deny_unless_prior_grant` plus a --settings allow stays denied (m24)
+//   and runs over a user ask (m26).
+const layered = (name: string, c: Omit<Case, "name">): Case => ({
+  name,
+  alone: true,
+  noPre: true,
+  ...c,
+})
+const touch = (rule: "allow" | "deny" | "ask"): Permissions => ({ [rule]: ["command(touch)"] })
+const git = () => ({ permissions: { allow: ["command(git)"] } })
+const mCases: Case[] = [
+  layered("m0-none", {}),
+  layered("m1-user-allow", { user: touch("allow") }),
+  layered("m2-user-deny", { user: touch("deny") }),
+  layered("m3-user-ask", { user: touch("ask") }),
+  // allow: the user's touch allow with a --settings that allows only git
+  layered("m4-user-allow-settings-git", { user: touch("allow"), settings: git }),
+  // deny: does the user's deny survive a --settings that has none?
+  layered("m5-user-deny-settings-git", { user: touch("deny"), settings: git }),
+  // ask: likewise for the user's ask
+  layered("m6-user-ask-settings-git", { user: touch("ask"), settings: git }),
+  // conflicts: the same command denied (asked) by the user and allowed by --settings
+  layered("m7-user-deny-settings-allow", { user: touch("deny"), settings: grant }),
+  layered("m8-user-ask-settings-allow", { user: touch("ask"), settings: grant }),
+  // and --settings' own deny against the user's allow
+  layered("m9-user-allow-settings-deny", {
+    user: touch("allow"),
+    settings: () => ({ permissions: { deny: ["command(touch)"] } }),
+  }),
+  // the user's MCP allow (the e2e sandbox's own) with a --settings of commands only
+  layered("m10-sandbox-mcp-allow-kept-with-settings", { settings: git }),
+  // project settings files agy might read
+  layered("m11-project-agents-settings-deny", {
+    project: { file: ".agents/settings.json", permissions: touch("deny") },
+  }),
+  layered("m12-project-agents-settings-local-deny", {
+    project: { file: ".agents/settings.local.json", permissions: touch("deny") },
+  }),
+  layered("m13-project-gemini-settings-deny", {
+    project: { file: ".gemini/antigravity-cli/settings.json", permissions: touch("deny") },
+  }),
+  // within one layer: which of allow, ask and deny wins
+  layered("m15-user-allow+ask", {
+    user: { allow: ["command(touch)"], ask: ["command(touch)"] },
+  }),
+  layered("m16-user-allow+deny", {
+    user: { allow: ["command(touch)"], deny: ["command(touch)"] },
+  }),
+  layered("m17-user-ask+deny", {
+    user: { ask: ["command(touch)"], deny: ["command(touch)"] },
+  }),
+  // does a --settings array replace the user's array of the same key, and leave the others?
+  layered("m18-user-deny-settings-other-deny", {
+    user: touch("deny"),
+    settings: () => ({ permissions: { allow: ["command(git)"], deny: ["command(other)"] } }),
+  }),
+  layered("m19-user-ask-settings-other-ask", {
+    user: touch("ask"),
+    settings: () => ({ permissions: { allow: ["command(touch)"], ask: ["command(other)"] } }),
+  }),
+  layered("m20-user-allow-settings-other-allow-and-same-ask", {
+    user: touch("allow"),
+    settings: () => ({ permissions: { ask: ["command(other)"] } }),
+  }),
+  // every project settings file name that came to mind, at once: none denying means none is read
+  layered("m22-project-candidates-deny", {
+    project: { file: ".gemini/settings.json", permissions: touch("deny") },
+    projectMore: [
+      ".antigravity/settings.json",
+      ".agy/settings.json",
+      ".agents/config/settings.json",
+      ".gemini/antigravity-cli/settings.local.json",
+      "settings.json",
+      ".agents/permissions.json",
+    ],
+  }),
+  // the narrowing hook's answers against the person's deny
+  layered("m23-user-deny-hook-force-ask", {
+    noPre: false,
+    user: touch("deny"),
+    answer: ans("force_ask"),
+    settings: git,
+  }),
+  layered("m24-user-deny-hook-run-settings-allow", {
+    noPre: false,
+    user: touch("deny"),
+    answer: ans("deny_unless_prior_grant"),
+    settings: grant,
+  }),
+  layered("m25-user-deny-hook-ask", {
+    noPre: false,
+    user: touch("deny"),
+    answer: ans("ask"),
+    settings: git,
+  }),
+  layered("m26-user-ask-hook-run-settings-allow", {
+    noPre: false,
+    user: touch("ask"),
+    answer: ans("deny_unless_prior_grant"),
+    settings: grant,
+  }),
+  // where "Persist to settings.json" writes
+  layered("m21-persist-option-3", { press: "3" }),
+  layered("m14-project-agents-settings-deny-settings-allow", {
+    project: { file: ".agents/settings.json", permissions: touch("deny") },
+    settings: grant,
+  }),
+]
+
 const cases: Case[] = [
+  ...mCases,
   // ---- round 4 (J): a subagent's run_command
   {
     name: "j1-sub-grant-force-ask",
@@ -409,6 +542,24 @@ describe.skipIf(!supported)("Antigravity approvals (probe)", () => {
       if (c.mode) writeFileSync(join(dir, "mode"), c.mode)
       if (c.answer2) writeFileSync(join(dir, "answer2"), JSON.stringify(c.answer2(command)))
       if (c.answer) writeFileSync(join(dir, "answer"), JSON.stringify(c.answer(command)))
+      if (c.user) {
+        const file = join(run.sandbox.home, ".gemini", "antigravity-cli", "settings.json")
+        const user = JSON.parse(readFileSync(file, "utf8")) as { permissions?: Permissions }
+        user.permissions = { ...user.permissions, ...c.user }
+        writeFileSync(file, JSON.stringify(user))
+      }
+      if (c.project) {
+        const file = join(run.sandbox.project, c.project.file)
+        mkdirSync(join(file, ".."), { recursive: true })
+        writeFileSync(file, JSON.stringify({ permissions: c.project.permissions }))
+        for (const more of c.projectMore ?? []) {
+          mkdirSync(join(run.sandbox.project, more, ".."), { recursive: true })
+          writeFileSync(
+            join(run.sandbox.project, more),
+            JSON.stringify({ permissions: c.project.permissions }),
+          )
+        }
+      }
       let flags = ""
       if (c.settings) {
         const file = join(run.sandbox.root, "grant.json")
@@ -480,11 +631,25 @@ describe.skipIf(!supported)("Antigravity approvals (probe)", () => {
       const ranBeforeKeys = existsSync(marker)
       let afterKey: string | undefined
       let ranAfterKeys: boolean | undefined
+      let persisted: unknown
       if (dialog && c.press) {
         t.press(c.press)
         await sleep(3500)
         afterKey = await t.screen()
         ranAfterKeys = existsSync(marker)
+        persisted = {
+          user: readFileSync(
+            join(run.sandbox.home, ".gemini", "antigravity-cli", "settings.json"),
+            "utf8",
+          ),
+          newFiles: spawnSync(
+            "find",
+            [run.sandbox.root, "-newer", script, "-type", "f", "-not", "-path", "*/brain/*"],
+            { encoding: "utf8" },
+          )
+            .stdout.split("\n")
+            .filter((f) => /settings|config|rules|polic/i.test(f)),
+        }
       }
       if (dialog && !c.press) {
         t.press("4")
@@ -508,10 +673,13 @@ describe.skipIf(!supported)("Antigravity approvals (probe)", () => {
         case: c.name,
         answer: c.answer?.(command) ?? null,
         settings: c.settings?.(command) ?? null,
+        user: c.user ?? null,
+        project: c.project ?? null,
         dialogShown: dialog,
         ranBeforeKeys,
         ranAfterKeys,
         screen: screen.split("\n").filter((row) => row.trim() !== ""),
+        persisted,
         afterKey: afterKey?.split("\n").filter((row) => row.trim() !== ""),
         hooks: lines,
         pluginHooksBefore: pluginBefore,

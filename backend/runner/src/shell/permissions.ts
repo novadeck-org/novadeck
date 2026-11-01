@@ -145,6 +145,11 @@ export class Permissions {
     // Only a program the launch settings allow can run unasked, so only one in this
     // terminal's launch set is answered so; any other asks (a program the grant names
     // applies after a restart).
+    // A command the person's own rules may deny is refused: `closed` would put a dialog over
+    // their denial. Rules that can't be read close the call.
+    const denies = await this.host.narrowing.mayDeny(call.command)
+    if (denies === undefined) return closed
+    if (denies) return { stdout: answers.denied, report: true }
     const lexed = lexCall(call)
     const program = lexed.ok ? lexed.argv[0] : undefined
     if (program === undefined || !this.host.narrowing.launchSet(report.terminalId)?.has(program))

@@ -7,7 +7,7 @@ import { decode } from "./decode.js"
 import { dialogs } from "./dialogs.js"
 import { antigravityHome } from "./home.js"
 import { models } from "./models.js"
-import { closedAnswer, notCommandAnswer, runAnswer, takesSettings } from "./narrow.js"
+import { closedAnswer, deniedAnswer, notCommandAnswer, runAnswer, takesSettings } from "./narrow.js"
 import {
   connect,
   connected,
@@ -38,6 +38,7 @@ const messaging: MessagingProfile = {
       run: `${runAnswer}\n`,
       notCommand: `${notCommandAnswer}\n`,
       closed: `${closedAnswer}\n`,
+      denied: `${deniedAnswer}\n`,
     },
   },
   silent: { PreToolUse: `${preToolUseAnswer}\n`, "*": "{}\n" },

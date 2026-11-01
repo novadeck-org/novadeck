@@ -61,6 +61,41 @@ const added: Fields = { enabled: true, stack_with_default: true }
 const settingsFile = (install: Pick<Install, "home">): string =>
   join(antigravityHome(install), "settings.json")
 
+/** The `allow` and `deny` rules of the person's Antigravity settings, or why they can't be read. */
+export type UserRules =
+  | { readonly ok: true; readonly allow: readonly string[]; readonly deny: readonly string[] }
+  | { readonly ok: false; readonly reason: string }
+
+/**
+ * The person's own `permissions.allow` and `permissions.deny` rules, verbatim: a launch grant
+ * keeps the first (see `launchSettings`) and its hook leaves nothing the second denies to a
+ * dialog. A missing file or key is none; a file that can't be read or parsed, or whose rules are
+ * not lists of strings, is not read at all, so nothing is built on a guess.
+ */
+export const userRules = async (install: Pick<Install, "home">): Promise<UserRules> => {
+  const file = settingsFile(install)
+  let settings: Fields | undefined
+  try {
+    settings = await read(file)
+  } catch (error) {
+    return { ok: false, reason: `${file} can't be read: ${(error as Error).message}` }
+  }
+  if (settings === undefined) return { ok: false, reason: `${file} is not a JSON object` }
+  if (settings.permissions === undefined) return { ok: true, allow: [], deny: [] }
+  const permissions = fieldsOf(settings.permissions)
+  if (permissions === undefined)
+    return { ok: false, reason: `${file}: permissions is not an object` }
+  const lists: string[][] = []
+  for (const key of ["allow", "deny"]) {
+    const rules = permissions[key]
+    if (rules === undefined) lists.push([])
+    else if (Array.isArray(rules) && rules.every((rule) => typeof rule === "string"))
+      lists.push(rules as string[])
+    else return { ok: false, reason: `${file}: permissions.${key} is not a list of strings` }
+  }
+  return { ok: true, allow: lists[0]!, deny: lists[1]! }
+}
+
 // Settings, or undefined when the file holds something else.
 const read = async (file: string): Promise<Fields | undefined> => {
   let text: string

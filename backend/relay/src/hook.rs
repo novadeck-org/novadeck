@@ -12,9 +12,9 @@
 //! A terminal whose environment has NOVADECK_NARROW set (an Antigravity started under the
 //! person's grants) must never get an answer that lets a granted program run unasked: there
 //! the PreToolUse fallback is `force_ask`, whatever the configuration says, and so is the
-//! answer to a reply that is none of Novadeck's three (`permitted`) and to a panic
+//! answer to a reply that is none of Novadeck's four (`permitted`) and to a panic
 //! (`guard_against_panics`). On Windows that hook is the relay alone, with no shell around
-//! it to check its output, so every path ends here in one of the three lines.
+//! it to check its output, so every path ends here in one of the four lines.
 //!
 //! What it knows of the agents comes from that configuration, `relay.json` beside it,
 //! which the runner writes: which events wait the long limit (`asks`, and `answered`, the
@@ -139,26 +139,29 @@ impl Config {
 /// one a narrowed terminal's relay prints without the runner's word.
 const FORCE_ASK: &str = "{\"decision\":\"force_ask\"}";
 
-/// The other two answers a narrowed terminal's PreToolUse may print (see
-/// harnesses/agy/src/narrow.ts, which names all three): a call of a granted program runs
+/// The other answers a narrowed terminal's PreToolUse may print (see
+/// harnesses/agy/src/narrow.ts, which names them): a call of a granted program runs
 /// with no dialog, and a tool known to run no command keeps a plain ask.
 const RUN: &str = "{\"decision\":\"deny_unless_prior_grant\"}";
 const NOT_A_COMMAND: &str = "{\"decision\":\"ask\",\"reason\":\"novadeck: not a command\"}";
+/// A command the person's own Antigravity rules may deny is refused: `force_ask` would put a
+/// dialog over their `deny`.
+const DENIED: &str = "{\"decision\":\"deny\",\"reason\":\"novadeck: your own Antigravity rules may deny this command\"}";
 
-/// Whether this is the hook a narrowed terminal's answer must be one of the three for.
+/// Whether this is the hook a narrowed terminal's answer must be one of the four for.
 fn closes(agent: &str, event: &str, narrowed: bool) -> bool {
     narrowed && agent == "agy" && event == "PreToolUse"
 }
 
 /// What a narrowed PreToolUse prints for the runner's `stdout`: itself where it is one of the
-/// three answers (a line end allowed), else `force_ask`, so a bad reply never runs a program
+/// answers (a line end allowed), else `force_ask`, so a bad reply never runs a program
 /// unasked. Any other hook prints what it was given.
 fn permitted(agent: &str, event: &str, narrowed: bool, stdout: &str) -> String {
     if !closes(agent, event, narrowed) {
         return stdout.to_owned();
     }
     let line = stdout.strip_suffix('\n').unwrap_or(stdout);
-    if [RUN, FORCE_ASK, NOT_A_COMMAND].contains(&line) {
+    if [RUN, FORCE_ASK, NOT_A_COMMAND, DENIED].contains(&line) {
         return stdout.to_owned();
     }
     format!("{FORCE_ASK}\n")
@@ -469,9 +472,9 @@ mod tests {
     }
 
     #[test]
-    fn passes_a_narrowed_pre_tool_use_only_the_three_answers() {
+    fn passes_a_narrowed_pre_tool_use_only_the_four_answers() {
         let force_ask = format!("{FORCE_ASK}\n");
-        for answer in [RUN, FORCE_ASK, NOT_A_COMMAND] {
+        for answer in [RUN, FORCE_ASK, NOT_A_COMMAND, DENIED] {
             assert_eq!(permitted("agy", "PreToolUse", true, answer), answer);
             let line = format!("{answer}\n");
             assert_eq!(permitted("agy", "PreToolUse", true, &line), line);

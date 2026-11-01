@@ -58,6 +58,15 @@ const withFakes = (setup: AgentSetup): AgentSetup => ({
       const config = join(sandbox.home, ".codex", "config.toml")
       writeFileSync(config, `allow_login_shell = false\n${readFileSync(config, "utf8")}`)
     }
+    // Antigravity: the person's own rule that denies `echo`, which a narrowed terminal must keep.
+    if (setup.agent === "agy") {
+      const settings = join(sandbox.home, ".gemini", "antigravity-cli", "settings.json")
+      const kept = JSON.parse(readFileSync(settings, "utf8")) as {
+        permissions: { deny?: string[] }
+      }
+      kept.permissions.deny = ["command(echo)"]
+      writeFileSync(settings, JSON.stringify(kept))
+    }
     const readme = join(sandbox.project, "README.txt")
     writeFileSync(readme, "novadeck-approvals-readme\n")
     worlds.set(sandbox.root, { marker, pwned: join(sandbox.root, "pwned.txt"), readme })
@@ -444,12 +453,16 @@ describe.skipIf(!supported)("Approvals through Novadeck's runner hooks", () => {
       await stopped("padded", ran, markPadded)
       await dismiss()
 
-      // 5. Antigravity: another program asks as before, and a file read doesn't ask at all.
+      // 5. Antigravity: the person's own deny rule for `echo` still denies, with no dialog to click
+      // through, and a file read doesn't ask at all.
       if (setup.agent === "agy") {
         const markEcho = run.model.mark()
         await terminal.submit("run echo")
-        await stopped("echo", ran, markEcho)
-        await dismiss()
+        await run.model.waitFor((call) => (result(call) ?? "") !== "", { after: markEcho })
+        await sleep(3000)
+        expect(await terminal.screen()).not.toMatch(kit.dialog)
+        expect(existsSync(join(run.sandbox.project, "hi.txt"))).toBe(false)
+        expect(marks(world()).length).toBe(ran)
         await terminal.submit("show readme")
         await run.model.waitFor(
           (call) => result(call)?.includes("novadeck-approvals-readme") === true,
@@ -471,19 +484,11 @@ describe.skipIf(!supported)("Approvals through Novadeck's runner hooks", () => {
         expect(marks(world())).toHaveLength(ran + 1)
         const markDone = run.model.mark()
         await terminal.submit("finalize report")
-        // Antigravity started under a grant takes its launch settings alone (`--settings`), which
-        // leave out this sandbox's allowance for Novadeck's tools, so its own policy asks about
-        // `done`. Novadeck's hook leaves that to it ("not a command", not a closed answer).
-        if (setup.agent === "agy") {
-          const shown = await until(terminal, "the tool dialog", (screen) =>
-            /Allow calling this tool\?/.test(screen),
-          )
-          expect(shown).toContain("Reason: novadeck: not a command")
-          terminal.press("1")
-        }
         await run.model.waitFor((call) => /in the user's Inbox/.test(result(call) ?? ""), {
           after: markDone,
         })
+        // No dialog for done: the launch settings kept the person's own allowance of Novadeck's tools.
+        expect(await terminal.screen()).not.toMatch(/Allow calling this tool\?/)
         // Told quietly: the agent that just finished isn't woken for it.
         await sleep(4000)
         const textOf = (calls: typeof run.model.calls) =>

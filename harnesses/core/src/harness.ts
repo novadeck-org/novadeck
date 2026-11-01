@@ -274,6 +274,8 @@ export type MessagingProfile = {
     readonly narrowed?: {
       readonly run: string
       readonly notCommand: string
+      /** Refuses a command the person's own rules may deny; `closed` would put a dialog over it. */
+      readonly denied: string
       readonly closed: string
     }
   }

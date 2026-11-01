@@ -1,9 +1,12 @@
 import { mkdirSync, rmSync, writeFileSync } from "node:fs"
 import { join } from "node:path"
 
-import { isLaunchProgram, launchSettings } from "@novadeck/harness-agy/narrow"
+import { isLaunchProgram, launchSettings, mayDeny } from "@novadeck/harness-agy/narrow"
 
 import { harnesses } from "../harnesses/registry.js"
+import { logs } from "../log.js"
+
+const log = logs.for("narrowing")
 
 /**
  * What the runner needs of the grants to start Antigravity narrowed (approvals-design.md,
@@ -23,7 +26,22 @@ export type NarrowingOptions = {
    * copy may still answer "ask", which under a launch grant runs a program unasked.
    */
   readonly verified: () => Promise<boolean>
+  /**
+   * The person's own Antigravity `permissions` rules, read afresh each time. The launch
+   * settings keep their `allow` (`--settings` replaces that list), and a command their `deny`
+   * may cover is refused, not asked (`mayDeny`). Not readable means no launch grant for that
+   * start, and every command closed. None are read when omitted.
+   */
+  readonly userRules?: () => Promise<
+    | { readonly ok: true; readonly allow: readonly string[]; readonly deny: readonly string[] }
+    | { readonly ok: false; readonly reason: string }
+  >
+  /** Told after each look at them: whether launch grants can be built (see `Grants.agySettings`). */
+  readonly readable?: (readable: boolean) => void
 }
+
+/** What `verify` allows a launch: nothing (false), or the person's own rules to keep. */
+export type Launching = false | { readonly allow: readonly string[] }
 
 // A terminal's id names its settings file; anything that could leave the folder is refused.
 const safeId = /^[A-Za-z0-9_-]+$/
@@ -55,9 +73,20 @@ export class Narrowing {
    * plugin reinstall can't race it. Asked before the shell starts, with `directory`, where
    * the shell files put the launch settings (none without them).
    */
-  async verify(directory: string | undefined): Promise<boolean> {
+  async verify(directory: string | undefined): Promise<Launching> {
     this.directory = directory
-    return this.enabled && (await this.options.verified().catch(() => false))
+    if (!this.enabled || !(await this.options.verified().catch(() => false))) return false
+    // Read now, with the launch: a grant built on rules it could not read could drop the
+    // person's allowances, so it is not built.
+    const user = await this.rules()
+    this.options.readable?.(user.ok)
+    if (!user.ok) {
+      log.warn("narrowing.settings-unreadable", "Antigravity starts without a launch grant", {
+        data: { reason: user.reason },
+      })
+      return false
+    }
+    return { allow: user.allow }
   }
 
   /**
@@ -66,10 +95,10 @@ export class Narrowing {
    * started; `starts` whether the command it runs is Antigravity. Synchronous, and after the
    * terminal is registered as its lead's teammate: the grants covering it depend on that.
    */
-  launch(terminalId: string, verified: boolean, starts: boolean): void {
+  launch(terminalId: string, verified: Launching, starts: boolean): void {
     const { directory } = this
     this.forget(terminalId)
-    if (!verified || !starts || directory === undefined || !this.enabled) return
+    if (verified === false || !starts || directory === undefined || !this.enabled) return
     if (!safeId.test(terminalId)) return
     const programs = [
       ...new Set(this.options.grants.launchPrograms(terminalId).filter(isLaunchProgram)),
@@ -77,14 +106,41 @@ export class Narrowing {
     if (programs.length === 0) return
     try {
       mkdirSync(directory, { recursive: true, mode: 0o700 })
-      writeFileSync(join(directory, `${terminalId}.json`), launchSettings(programs), {
-        mode: 0o600,
-      })
+      writeFileSync(
+        join(directory, `${terminalId}.json`),
+        launchSettings(programs, verified.allow),
+        {
+          mode: 0o600,
+        },
+      )
     } catch {
       // No settings, no launch grants: the agent starts as it always did.
       return
     }
     this.sets.set(terminalId, new Set(programs))
+  }
+
+  /** The person's rules now, or why they can't be read. */
+  private async rules() {
+    const empty = {
+      ok: true as const,
+      allow: [] as readonly string[],
+      deny: [] as readonly string[],
+    }
+    if (!this.options.userRules) return empty
+    return this.options.userRules().catch((error: unknown) => ({
+      ok: false as const,
+      reason: String(error),
+    }))
+  }
+
+  /**
+   * Whether a command line may be denied by the person's own rules, read now. Undefined when
+   * the rules can't be read: the caller closes the call.
+   */
+  async mayDeny(line: string): Promise<boolean | undefined> {
+    const user = await this.rules()
+    return user.ok ? mayDeny(line, user.deny) : undefined
   }
 
   /** The programs the terminal's launch allowed; undefined for one the runner didn't narrow. */
