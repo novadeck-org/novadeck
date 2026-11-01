@@ -374,22 +374,22 @@ describe("agents Novadeck can connect", () => {
     writeFileSync(shipped, "relay v1")
     writeFileSync(join(folder, "installed.exe"), "relay v1")
     writeFileSync(join(plugin, "hooks.json"), '{"novadeck":{"PreToolUse":[]}}')
-    expect(await relayVerified(shell(), shipped, where)).toBe(true)
+    expect(await relayVerified(shell(), shipped, where, false)).toBe(true)
     // An installed relay that differs by a byte, or is missing, or an unreadable shipped one.
     writeFileSync(join(folder, "installed.exe"), "relay v2")
-    expect(await relayVerified(shell(), shipped, where)).toBe(false)
-    expect(await relayVerified(shell({ relay: join(folder, "none.exe") }), shipped, where)).toBe(
-      false,
-    )
+    expect(await relayVerified(shell(), shipped, where, false)).toBe(false)
+    expect(
+      await relayVerified(shell({ relay: join(folder, "none.exe") }), shipped, where, false),
+    ).toBe(false)
     writeFileSync(join(folder, "installed.exe"), "relay v1")
-    expect(await relayVerified(shell(), join(folder, "none"), where)).toBe(false)
+    expect(await relayVerified(shell(), join(folder, "none"), where, false)).toBe(false)
     // cmd printing first: no hook to give a grant, even with every file as shipped.
-    expect(await relayVerified(shell({ cmdPrints: true }), shipped, where)).toBe(false)
+    expect(await relayVerified(shell(), shipped, where, true)).toBe(false)
     // A plugin that registers no PreToolUse (no path cmd reads as it is, or cmd printed).
     writeFileSync(join(plugin, "hooks.json"), '{"novadeck":{"Stop":[]}}')
-    expect(await relayVerified(shell(), shipped, where)).toBe(false)
+    expect(await relayVerified(shell(), shipped, where, false)).toBe(false)
     rmSync(join(plugin, "hooks.json"))
-    expect(await relayVerified(shell(), shipped, where)).toBe(false)
+    expect(await relayVerified(shell(), shipped, where, false)).toBe(false)
   })
 
   it("never undo a disconnect asked for before the refresh looked", async ({ fixture }) => {

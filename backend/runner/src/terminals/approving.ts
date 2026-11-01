@@ -131,6 +131,23 @@ export class Approving {
       .map((record) => record.summary.handle)
   }
 
+  /**
+   * Tells each running terminal of `agent` the grants that cover it again, so the note they
+   * carry is the one that holds now (cmd's AutoRun was silenced, or put back).
+   */
+  announceAgain(agent: AgentName): void {
+    const grants = this.host.messaging().grants
+    for (const [id, record] of this.host.records()) {
+      const runs =
+        !record.closed &&
+        !record.terminal.exiting &&
+        (record.summary.agent === agent ||
+          record.bound?.binding.agent === agent ||
+          record.expecting === agent)
+      if (runs) grants.adopted(id)
+    }
+  }
+
   /** The handles of the running terminals whose Antigravity was started under a grant. */
   narrowed(): readonly string[] {
     return this.narrowing.narrowed().flatMap((id) => {

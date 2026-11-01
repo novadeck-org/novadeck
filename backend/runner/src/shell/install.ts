@@ -3,13 +3,17 @@ import { chmod, mkdir, readdir, readFile, rename, rm, writeFile } from "node:fs/
 import { basename, dirname, join } from "node:path"
 import { promisify } from "node:util"
 
+import type { Launchers } from "@novadeck/harness-core/harness"
 import { cmdShimName, relayPath } from "@novadeck/relay"
+import type { ShellFile } from "@novadeck/terminal/shell"
 
 import { logs } from "../log.js"
+import { readAutoRun, wrappedBy } from "./autorun-relay.js"
 import { withoutInherited } from "./inherited.js"
 import {
   hookStart,
   mcpStart,
+  pluginFiles,
   shellFiles,
   shellPaths,
   staleShellFiles,
@@ -41,6 +45,16 @@ export type InstalledShell = ShellPaths & {
    */
   readonly cmdPrints?: boolean
   /**
+   * What the start's check of cmd found where it prints: "prints", which the Inbox may offer
+   * to silence (Windows only), or "slow", which it does not.
+   */
+  readonly cmdCheck?: "prints" | "slow"
+  /**
+   * How the plugins were told to start what they run, kept so the Antigravity plugin can be
+   * written again alone (`installAgyPlugin`) without a new start of the whole shell integration.
+   */
+  readonly launchers?: Launchers
+  /**
    * Where cmd prints and the pass-through is installed, byte for byte what this Novadeck
    * ships: its folder by a path cmd reads unquoted, which Antigravity's shim puts first on
    * PATH in Novadeck's terminals, so their other hooks' answers are read. Absent elsewhere.
@@ -57,6 +71,11 @@ export type InstallOptions = {
   readonly cmdShim?: string
   /** How to tell whether cmd prints (Windows only); the machine's own check by default. */
   readonly prints?: typeof cmdPrints
+  /**
+   * Whether the person's AutoRun is already Novadeck's silencing wrapper (Windows only); read
+   * from the registry through the relay by default.
+   */
+  readonly silenced?: () => Promise<boolean>
   /** For tests: the platform to write the files for, and how a path is shortened. */
   readonly platform?: NodeJS.Platform
   readonly short?: (path: string) => Promise<string>
@@ -73,6 +92,7 @@ export const installShellFiles = async (
     relay = relayPath,
     cmdShim = join(dirname(relay), cmdShimName),
     prints: printing = cmdPrints,
+    silenced: wrapped = async () => wrappedBy(await readAutoRun(relay)),
     platform = process.platform,
     short = shortName,
   }: InstallOptions = {},
@@ -101,13 +121,19 @@ export const installShellFiles = async (
   // Where cmd prints, Antigravity's hooks run through Novadeck's own cmd.exe, which starts the
   // real one with /d and so skips the AutoRun: only once that is installed, verified and has a
   // path to put on PATH. Without it, today's behaviour.
-  const cmdShimDir =
-    prints === undefined ? undefined : await installCmdShim(cmdShim, paths, narrowedBefore, short)
+  // An AutoRun Novadeck silenced earlier keeps it: cmd prints nothing now, but a later change to
+  // the AutoRun must never reach the hooks Novadeck's terminals run (approvals-design.md, F4).
+  const keepsShim =
+    prints !== undefined ||
+    (platform === "win32" && relayed && (await wrapped().catch(() => false)))
+  const cmdShimDir = keepsShim
+    ? await installCmdShim(cmdShim, paths, narrowedBefore, short)
+    : undefined
   const covered = cmdShimDir !== undefined
   if (prints === "prints")
     log.warn(
       "shell.cmd-prints",
-      `Novadeck: cmd prints something of its own before every command, as an AutoRun (HKLM or HKCU\\Software\\Microsoft\\Command Processor\\AutoRun) that doesn't send its output to nul does. Antigravity can read none of its hooks' answers then outside Novadeck's terminals, so Novadeck registers no PreToolUse hook for it (the plugin is global), and installs its plugin again where it is connected; its own policy asks before each tool.${
+      `Novadeck: cmd prints something of its own before every command, as an AutoRun (HKLM or HKCU\\Software\\Microsoft\\Command Processor\\AutoRun) that doesn't send its output to nul does. Antigravity can read none of its hooks' answers then outside Novadeck's terminals, so Novadeck registers no PreToolUse hook for it (the plugin is global), and installs its plugin again where it is connected; its own policy asks before each tool. Novadeck's Inbox offers to silence that output in one click, and to undo it.${
         covered
           ? " In Novadeck's terminals its other hooks run through Novadeck's own cmd.exe, which skips the AutoRun, so messaging works there."
           : " Messaging with it won't work until that output goes."
@@ -128,10 +154,33 @@ export const installShellFiles = async (
     ? hookStart(shellPaths(await short(directory), platform), platform)
     : undefined
   const launchers = { mcp: mcpStart(paths), ...(hook !== undefined && { hook }) }
-  for (const file of shellFiles(paths, platform, launchers, {
+  await writeShellFiles(
+    shellFiles(paths, platform, launchers, {
+      cmdPrints: prints !== undefined,
+      ...(cmdShimDir !== undefined && { cmdShimDir }),
+    }),
+  )
+  // A resume command left by a runner that stopped before its shell took it is stale.
+  await rm(paths.resume, { recursive: true, force: true })
+  await mkdir(paths.resume, { recursive: true, mode: 0o700 })
+  return {
+    ...paths,
+    launcher: await short(paths.hook),
+    mcpLauncher: platform !== "win32" && relayed ? paths.mcp : undefined,
+    narrowedBefore,
     cmdPrints: prints !== undefined,
+    ...(prints !== undefined && { cmdCheck: prints }),
+    launchers,
     ...(cmdShimDir !== undefined && { cmdShimDir }),
-  })) {
+  }
+}
+
+/**
+ * Writes each file only when it changed, replacing it whole so a shell or agent reading it at
+ * that moment reads the old or the new one.
+ */
+const writeShellFiles = async (files: readonly ShellFile[]): Promise<void> => {
+  for (const file of files) {
     // eslint-disable-next-line no-await-in-loop -- A few small files, one after another.
     await mkdir(dirname(file.path), { recursive: true, mode: 0o700 })
     // eslint-disable-next-line no-await-in-loop -- Unchanged files are left alone.
@@ -147,17 +196,26 @@ export const installShellFiles = async (
     // eslint-disable-next-line no-await-in-loop -- As above; held a moment on Windows, tried again.
     await settled(() => rename(temporary, file.path))
   }
-  // A resume command left by a runner that stopped before its shell took it is stale.
-  await rm(paths.resume, { recursive: true, force: true })
-  await mkdir(paths.resume, { recursive: true, mode: 0o700 })
-  return {
-    ...paths,
-    launcher: await short(paths.hook),
-    mcpLauncher: platform !== "win32" && relayed ? paths.mcp : undefined,
-    narrowedBefore,
-    cmdPrints: prints !== undefined,
-    ...(cmdShimDir !== undefined && { cmdShimDir }),
-  }
+}
+
+/**
+ * Writes Antigravity's plugin files again, and nothing else, for cmd printing or not: the
+ * Inbox's silencing (and its undo) changes only whether its hooks register PreToolUse. The
+ * rest of `installShellFiles` is never run again, as it removes the narrowed terminals'
+ * launch settings and the resume commands that running terminals still read.
+ */
+export const installAgyPlugin = async (
+  shell: InstalledShell,
+  printing: boolean,
+  platform: NodeJS.Platform = process.platform,
+): Promise<void> => {
+  if (shell.launchers === undefined) throw new Error("The shell integration was not installed.")
+  await writeShellFiles(
+    pluginFiles(shell, "agy", platform, shell.launchers, {
+      cmdPrints: printing,
+      ...(shell.cmdShimDir !== undefined && { cmdShimDir: shell.cmdShimDir }),
+    }),
+  )
 }
 
 /** Whether the file at `path` is byte for byte the `shipped` one. */
@@ -280,7 +338,7 @@ const settled = async (move: () => Promise<void>, tries = 5): Promise<void> => {
 /**
  * Whether cmd prints something of its own before a command, as it runs a hook: `rem`,
  * which prints nothing, run without `/d`, as an agent runs it, so the machine's and the
- * person's AutoRun runs first. "prints" where anything came out, whatever cmd exited with,
+ * person's AutoRun runs first. "prints" where anything came out on stdout or stderr, whatever cmd exited with,
  * as an AutoRun that leaves an error level; "slow" where cmd ran past `timeoutMs`, which
  * may yet print; undefined where it printed nothing, or didn't start, and runs no hook
  * either. It answers once cmd's output closes, or by `timeoutMs` whatever cmd leaves
@@ -304,7 +362,7 @@ export const cmdPrints = ({
     const child = spawn(program, args, {
       env: withoutInherited(process.env),
       windowsHide: true,
-      stdio: ["ignore", "pipe", "ignore"],
+      stdio: ["ignore", "pipe", "pipe"],
     })
     const timer = setTimeout(() => {
       child.kill()
@@ -314,9 +372,11 @@ export const cmdPrints = ({
       clearTimeout(timer)
       resolve(printed ? "prints" : undefined)
     }
-    child.stdout.on("data", () => {
-      printed = true
-    })
+    // An error message is output a hook's answer would stand behind too.
+    for (const stream of [child.stdout, child.stderr])
+      stream.on("data", () => {
+        printed = true
+      })
     // Not started: no hook runs either.
     child.on("error", () => {
       clearTimeout(timer)

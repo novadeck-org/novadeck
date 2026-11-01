@@ -825,6 +825,24 @@ describe("runner client project window", () => {
   })
 })
 
+describe("runner client cmd AutoRun", () => {
+  it("reports no AutoRun off Windows, and its clicks change nothing there", async ({
+    resources,
+  }) => {
+    const app = await deployed(resources)
+    const client = await app.connect()
+    const stream = client.autorun.watch()
+    await expect(stream.next()).resolves.toEqual({
+      done: false,
+      value: { state: "none", outcome: null },
+    })
+    await expect(client.autorun.silence("(chcp 65001) >nul 2>&1")).resolves.toBeUndefined()
+    await expect(client.autorun.undo()).resolves.toBeUndefined()
+    await expect(client.autorun.dismiss()).resolves.toBeUndefined()
+    await stream.return?.()
+  })
+})
+
 describe("runner client messages", () => {
   it("lists and watches Inbox entries, rejects a stale answer, and reads tells through the authenticated API", async ({
     resources,

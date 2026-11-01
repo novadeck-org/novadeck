@@ -258,6 +258,18 @@ export const launchersOf = (paths: ShellPaths, platform = process.platform): Lau
   return { mcp: mcpStart(paths, platform), ...(hook !== undefined && { hook }) }
 }
 
+/** One agent's plugin files alone, where its plugin lives, as `shellFiles` includes them. */
+export const pluginFiles = (
+  paths: ShellPaths,
+  agent: AgentName,
+  platform: NodeJS.Platform,
+  launchers: Launchers,
+  machine: Machine,
+): ShellFile[] =>
+  harnesses[agent]
+    .files(platform, launchers, machine)
+    .map((each) => file(join(paths.plugins[agent], each.path), each.content, each.mode))
+
 /**
  * Every file for this platform, with the permissions each needs. Plugins start the MCP
  * server as `launchers.mcp` says, and register their hooks as `machine` lets them.
@@ -271,11 +283,7 @@ export const shellFiles = (
   const common = [
     file(paths.relayConfig, `${JSON.stringify(relayConfig, null, 2)}\n`),
     ...shellScripts(paths, header),
-    ...agents.flatMap((agent) =>
-      harnesses[agent]
-        .files(platform, launchers, machine)
-        .map((each) => file(join(paths.plugins[agent], each.path), each.content, each.mode)),
-    ),
+    ...agents.flatMap((agent) => pluginFiles(paths, agent, platform, launchers, machine)),
   ]
   // Every harness's shims, which the shells put first on PATH only while one is connected.
   const shims = agents.flatMap((agent) => harnesses[agent].shims?.(platform, machine) ?? [])

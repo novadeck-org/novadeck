@@ -89,7 +89,7 @@ const caveat = (agent: AgentName, platform: NodeJS.Platform, cmdPrints: boolean)
     return (
       "This grant cannot reach Antigravity here: the user's cmd prints text of its own before every " +
       "command (an AutoRun), which Antigravity's check cannot read past, so its own dialog asks " +
-      "for each command. Removing that output fixes it."
+      "for each command. The user can change this from Novadeck's Inbox; do not change cmd's AutoRun yourself."
     )
   const quoteFree =
     agent !== "claude" && platform === "win32"

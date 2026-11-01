@@ -35,6 +35,11 @@ export type HarnessesOptions = {
    * be another build's.
    */
   readonly relay?: string
+  /**
+   * Whether cmd prints before every command (Windows), as the runner knows now: no launch
+   * grant is given while it does (`relayVerified`). No, when omitted.
+   */
+  readonly cmdPrints?: () => boolean
 }
 
 /**
@@ -179,9 +184,7 @@ const state = async (harness: Harness, install: Install): Promise<AgentIntegrati
 
 /** The harnesses Novadeck can connect, and connecting or disconnecting each one. */
 export const createHarnesses = (
-  paths: () => Promise<
-    (ShellPaths & { readonly narrowedBefore?: boolean; readonly cmdPrints?: boolean }) | undefined
-  >,
+  paths: () => Promise<(ShellPaths & { readonly narrowedBefore?: boolean }) | undefined>,
   options: HarnessesOptions = {},
 ) => {
   const base = options.env ?? process.env
@@ -189,6 +192,8 @@ export const createHarnesses = (
   const platform = options.platform ?? process.platform
   const relay = options.relay ?? relayPath
   const timeoutMs = options.timeoutMs ?? 60_000
+  // Whether cmd prints before every command, as the runner knows now (`AutoRun.printing`).
+  const cmdPrints = options.cmdPrints ?? (() => false)
   // Looked up in the background from the start, and again before each change. Listing
   // and spawning shells never wait for it: until it answers they use the app's own.
   let latest: NodeJS.ProcessEnv | undefined
@@ -377,7 +382,7 @@ export const createHarnesses = (
         const where = install(agent)
         if (platform === "win32" && takesLaunchGrants !== undefined) {
           const shell = await paths()
-          if (!shell || !(await relayVerified(shell, relay, where))) return false
+          if (!shell || !(await relayVerified(shell, relay, where, cmdPrints()))) return false
         }
         return (
           (await harnesses[agent].connected(where)) &&
@@ -488,14 +493,15 @@ export const createHarnesses = (
  * installed for agents is the `shipped` one byte for byte, as that one prints `force_ask` on
  * every path of a narrowed terminal; the plugin registers PreToolUse, which it does not
  * where cmd prints (`cmdPrints`: Antigravity may wrap the hook in cmd, then no answer reads
- * as JSON) or the relay has no path cmd reads as it is; and `cmdPrints` itself is not set.
+ * as JSON) or the relay has no path cmd reads as it is; and cmd printing (`cmdPrints`, the runner's live answer) is not set.
  */
 export const relayVerified = async (
-  shell: ShellPaths & { readonly cmdPrints?: boolean },
+  shell: ShellPaths,
   shipped: string,
   where: Install,
+  cmdPrints: boolean,
 ): Promise<boolean> => {
-  if (shell.cmdPrints === true) return false
+  if (cmdPrints) return false
   try {
     const [ours, installed, hooks] = await Promise.all([
       readFile(shipped),

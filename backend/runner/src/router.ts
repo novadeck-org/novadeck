@@ -17,6 +17,7 @@ import type { Harnesses } from "./harnesses/service.js"
 import { logs } from "./log.js"
 import type { Feedback } from "./messaging/feedback.js"
 import type { Murmur } from "./murmur/service.js"
+import type { AutoRun } from "./shell/autorun.js"
 import type { Approving } from "./terminals/approving.js"
 import type { Terminals } from "./terminals/index.js"
 import type { Uploads } from "./terminals/uploads.js"
@@ -57,6 +58,8 @@ export const createRouter = (options: {
   feedback: Feedback
   /** The person's grants: listed and revoked here, made only from the Inbox's cards. */
   approving: Approving
+  /** cmd's AutoRun: its silencing is the person's click, offered by the Inbox and Preferences. */
+  autorun: AutoRun
   projects: Projects
   items: CompanionItems
   agents: Harnesses
@@ -68,8 +71,19 @@ export const createRouter = (options: {
   /** Whether the runner is shutting down. */
   closing: () => boolean
 }) => {
-  const { store, terminals, feedback, approving, projects, items, agents, uploads, voice, murmur } =
-    options
+  const {
+    store,
+    terminals,
+    feedback,
+    approving,
+    autorun,
+    projects,
+    items,
+    agents,
+    uploads,
+    voice,
+    murmur,
+  } = options
   // A plan's content says whether Novadeck's plugin is installed into its agent, which the
   // companions can't know: it is looked up as the content leaves.
   const withSkill = async (content: ItemContent, agent: AgentName | undefined) =>
@@ -270,6 +284,12 @@ export const createRouter = (options: {
     grants: {
       watch: api.grants.watch.handler(({ signal }) => approving.watchGrants(signal)),
       revoke: api.grants.revoke.handler(({ input }) => approving.revokeGrant(input.id)),
+    },
+    autorun: {
+      watch: api.autorun.watch.handler(({ signal }) => autorun.watch(signal)),
+      silence: api.autorun.silence.handler(({ input }) => autorun.silence(input.value)),
+      undo: api.autorun.undo.handler(() => autorun.undo()),
+      dismiss: api.autorun.dismiss.handler(() => autorun.dismiss()),
     },
     messages: {
       list: api.messages.list.handler(({ input }) => terminals.messages(input.terminalId)),

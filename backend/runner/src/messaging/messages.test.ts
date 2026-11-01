@@ -537,7 +537,10 @@ describe("a delivery's grants", () => {
     const printing = agy("win32", true)
     expect(printing).toContain("cannot reach Antigravity here")
     expect(printing).toContain("prints text of its own before every command (an AutoRun)")
-    expect(printing).toContain("Removing that output fixes it")
+    // The agent is told where the person can change it, and not to change it itself.
+    expect(printing).toContain("The user can change this from Novadeck's Inbox")
+    expect(printing).toContain("do not change cmd's AutoRun yourself")
+    expect(printing).not.toContain("Removing that output")
     for (const plain of [agy("win32"), agy("win32", false), agy("linux", true)]) {
       expect(plain).not.toContain("AutoRun")
       expect(plain).toContain("Antigravity takes this grant when it starts")

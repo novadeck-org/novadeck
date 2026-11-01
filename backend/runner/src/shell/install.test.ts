@@ -59,6 +59,15 @@ describe("whether cmd prints of its own before a command", () => {
     await expect(cmdPrints(node(""))).resolves.toBeUndefined()
   })
 
+  it("counts what cmd writes to stderr, as an AutoRun's error message stands before a hook's answer too", async () => {
+    await expect(
+      cmdPrints(node("process.stderr.write('The system cannot find the file')")),
+    ).resolves.toBe("prints")
+    await expect(cmdPrints(node("process.stderr.write('x'); process.exit(1)"))).resolves.toBe(
+      "prints",
+    )
+  })
+
   it("is nothing for a cmd that doesn't start, as it runs no hook either", async () => {
     await expect(cmdPrints({ program: join(tmpdir(), "no-such-cmd.exe") })).resolves.toBeUndefined()
   })
@@ -285,6 +294,30 @@ describe("the cmd.exe pass-through", () => {
     const linux = await installShellFiles(directory, options({ platform: "linux" }))
     expect(linux.cmdShimDir).toBeUndefined()
     expect(existsSync(linux.agyCmdDir)).toBe(false)
+  })
+
+  it("stays in use where the person's AutoRun is already Novadeck's silencing wrapper, though cmd prints nothing", async ({
+    resources,
+  }) => {
+    const { directory, options } = setup(resources)
+    const shell = await installShellFiles(
+      directory,
+      options({ prints: () => Promise.resolve(), silenced: () => Promise.resolve(true) }),
+    )
+    expect(shell.cmdPrints).toBe(false)
+    expect(shell.cmdCheck).toBeUndefined()
+    expect(shell.cmdShimDir).toBeDefined()
+    expect(agyShim(shell)).toContain(`set "PATH=${shell.cmdShimDir};%PATH%"`)
+    // Read from the registry only on Windows, and only where cmd printed nothing.
+    const other = await installShellFiles(
+      directory,
+      options({
+        prints: () => Promise.resolve(),
+        silenced: () => Promise.resolve(true),
+        platform: "linux",
+      }),
+    )
+    expect(other.cmdShimDir).toBeUndefined()
   })
 
   it("is held like the relay under a narrowed terminal a previous runner left, and unused if it differs", async ({

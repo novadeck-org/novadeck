@@ -3,6 +3,7 @@ import { tmpdir } from "node:os"
 import { dirname, join } from "node:path"
 
 import { errors, protocolVersion } from "@novadeck/protocol"
+import { relayPath } from "@novadeck/relay"
 import { TerminalError } from "@novadeck/terminal"
 import { userScopes } from "@novadeck/terminal/pty"
 import { createSessions, type Sessions } from "@novadeck/wire/server"
@@ -14,7 +15,8 @@ import { createHarnesses, type HarnessesOptions } from "./harnesses/service.js"
 import { logs } from "./log.js"
 import { Murmur } from "./murmur/service.js"
 import { apiError, createRouter } from "./router.js"
-import { installShellFiles } from "./shell/install.js"
+import { AutoRun, systemHost } from "./shell/autorun.js"
+import { cmdPrints, installAgyPlugin, installShellFiles } from "./shell/install.js"
 import { Terminals, type TerminalOptions } from "./terminals/index.js"
 import { createTranscriptSealer, transcriptsAvailable } from "./terminals/sealing.js"
 import { Uploads } from "./terminals/uploads.js"
@@ -147,10 +149,35 @@ export const wire = (options: RunnerOptions) => {
         })
   // The runner's own calls of the relay use the build's, never the copy for agents.
   const relay = options.relay === undefined ? {} : { relay: options.relay }
-  const agents = createHarnesses(() => shellFiles, { ...relay, ...options.agents })
-  // Known once the shell files are written; no grant reaches Antigravity past cmd's output.
-  let cmdPrints = false
-  void shellFiles.then((written) => (cmdPrints = written?.cmdPrints === true))
+  // Whether cmd prints before every command, which no grant reaches Antigravity past, is known
+  // once the shell files are written and changes only when the person silences the AutoRun (or
+  // undoes it): this is its one live answer, read by every part below.
+  const autorun = new AutoRun(
+    systemHost(options.relay ?? relayPath, {
+      recheck: () => cmdPrints(),
+      // Antigravity's plugin is global: none may be reinstalled under a terminal that runs it.
+      running: () => terminals.approving.running("agy"),
+      // Only Antigravity's plugin files again: never the whole integration, which clears the
+      // narrowed terminals' launch settings and the resume commands.
+      writePlugin: async (printing) => {
+        const written = await shellFiles
+        if (!written) throw new Error("The shell integration is not installed.")
+        await installAgyPlugin(written, printing)
+      },
+      refresh: async () => (await agents.refresh()).includes("agy"),
+      announce: () => terminals.approving.announceAgain("agy"),
+    }),
+  )
+  void shellFiles
+    .then((written) => autorun.started(written?.cmdCheck))
+    .catch((error: unknown) =>
+      log.error("autorun.start-failed", "Novadeck could not read cmd's AutoRun", { err: error }),
+    )
+  const agents = createHarnesses(() => shellFiles, {
+    ...relay,
+    cmdPrints: () => autorun.printing(),
+    ...options.agents,
+  })
   // A connected agent that keeps its own copy of the plugin gets the files just written,
   // where they differ from that copy (see `Harness.installed`).
   void shellFiles
@@ -233,7 +260,7 @@ export const wire = (options: RunnerOptions) => {
     models: (agent) => agents.models(agent),
     // Launch grants only on Antigravity's verified plugin, behind the harnesses' queue.
     narrowVerified: () => agents.verified("agy"),
-    cmdPrints: () => cmdPrints,
+    cmdPrints: () => autorun.printing(),
     transcripts: store.settings.runner().transcripts,
     projectFolder: (sessionId) => store.project(store.session(sessionId).projectId).cwd,
     // Agents message each other within a project, and their messages are kept with it.
@@ -254,7 +281,19 @@ export const wire = (options: RunnerOptions) => {
   })
   const projects = new Projects(store, terminals, items)
   const uploads = new Uploads(options.uploads)
-  return { store, shellFiles, agents, terminals, items, projects, uploads, voice, murmur, sealer }
+  return {
+    store,
+    shellFiles,
+    autorun,
+    agents,
+    terminals,
+    items,
+    projects,
+    uploads,
+    voice,
+    murmur,
+    sealer,
+  }
 }
 
 /**
@@ -314,7 +353,7 @@ const logFailure = (path: readonly string[], error: unknown): void => {
 }
 
 const startRunner = (options: RunnerOptions): Runner => {
-  const { store, terminals, items, agents, projects, uploads, voice, murmur, sealer } =
+  const { store, terminals, items, agents, autorun, projects, uploads, voice, murmur, sealer } =
     wire(options)
   let closing: Promise<void> | undefined
   return {
@@ -325,6 +364,7 @@ const startRunner = (options: RunnerOptions): Runner => {
         terminals,
         feedback: terminals.feedback,
         approving: terminals.approving,
+        autorun,
         projects,
         items,
         agents,
@@ -353,6 +393,7 @@ const startRunner = (options: RunnerOptions): Runner => {
     close() {
       closing ??= (async () => {
         try {
+          autorun.close()
           await terminals.shutdown()
         } finally {
           // Downloads and the engine use no records, but end before the store they ask;
