@@ -359,7 +359,8 @@ describe.skipIf(process.platform === "win32" || !existsSync(bash))(
         ...calls.first,
         request: { to: "crow" },
       })
-      await new Promise((resolve) => setImmediate(resolve))
+      // Past reading whether a program runs there, the close is on its way.
+      await new Promise((resolve) => setTimeout(resolve, 200))
       const stopping = manager.shutdown()
       await expect(stopped).resolves.toEqual(unansweredCalls.close)
       await stopping
@@ -423,6 +424,9 @@ describe.skipIf(process.platform === "win32" || !existsSync(bash))(
         ])
         const chained = (calls: { request: object; type: "open" | "close" }[]) =>
           show(shell, manager, opened!, calls, "client")
+        // The terminal that began the chain is back at its prompt: one still running its last
+        // command is asked about, not closed.
+        await new Promise((resolve) => setTimeout(resolve, 500))
         await expect(chained([close("moth"), close("raven")])).resolves.toEqual([closed(1), spent])
         await expect(chained(Array.from({ length: 5 }, () => open({})))).resolves.toEqual([
           ...Array.from({ length: 4 }, () => ({ ok: false, reason: "Not now." })),

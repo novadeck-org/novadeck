@@ -241,8 +241,13 @@ server), so a process in a shell can make them: `open_terminal` with a command, 
 a new terminal that runs it, is therefore asked of the person first, with the exact command,
 the folder and the agent that asks, and opens nothing unless they approve; the agent hears
 their answer. `close_terminal` likewise asks before closing a terminal that runs another
-agent's session or a program other than its shell. A command is quoted into the shell only
-from characters no shell expands.
+agent's session or a program other than its shell, or a shell with a job in the background.
+The dialog writes out characters that draw as nothing and holds the answer back until the
+person has seen the whole command. A command is quoted into the shell only from characters
+no shell expands. The approval certifies the command, not what it runs: a script it calls,
+a git filter (the `show` tool's `changes` runs `git diff` with the folder's filters on) or a
+harness's settings in a folder an agent can write can still run more, so an agent that edits
+files unattended remains a way around it.
 The shell integration and hook live in the runner's own `shell` folder; the runner
 never writes to the user's rc files or dotfiles. Only when the person connects an agent
 does it install Novadeck's plugin into that agent, through the agent's own plugin

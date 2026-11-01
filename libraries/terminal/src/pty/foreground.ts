@@ -101,6 +101,26 @@ export const processGroup = async (pid: number): Promise<number | undefined> => 
   return undefined
 }
 
+/**
+ * Whether the process has a live child, as a shell does with a job in the background
+ * (`npm run dev &`); undefined where the platform doesn't tell, as on Windows, or when the
+ * lookup fails.
+ */
+export const hasChildProcess = async (pid: number | undefined): Promise<boolean | undefined> => {
+  if (pid === undefined || !Number.isSafeInteger(pid) || pid <= 0) return undefined
+  if (process.platform !== "linux" && process.platform !== "darwin") return undefined
+  try {
+    const { stdout } = await promisify(execFile)("pgrep", ["-P", String(pid)], {
+      encoding: "utf8",
+      timeout: 2_000,
+    })
+    return stdout.trim() !== ""
+  } catch (error) {
+    // pgrep exits 1 when nothing matches; any other failure tells nothing.
+    return (error as { code?: unknown }).code === 1 ? false : undefined
+  }
+}
+
 /** A process's name as /proc/<pid>/stat holds it, in parentheses; null when unreadable. */
 export const statName = (stat: string): string | null => {
   const start = stat.indexOf("(")

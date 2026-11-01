@@ -51,9 +51,12 @@ import { peerOf } from "./peers-host.js"
 import type { Record } from "./record.js"
 import { resumeRefusal, type Claims } from "./resumes.js"
 import { nobodyToRun, runNotice, waitingToRun } from "./runs.js"
-import { shellAtPrompt } from "./sampling.js"
+import { shellBusy } from "./sampling.js"
 import { readSummarizeRequest, type SummarizeAnswer } from "./summarize-request.js"
 import { cleanSummary, summarized, summaryRefusal } from "./titles.js"
+
+// Characters that reorder how text is drawn, which a command shown for approval must not hold.
+const bidiControl = /[\u061C\u200E\u200F\u202A-\u202E\u2066-\u2069]/
 
 // A command line for the words: every word but a quoted line is a plain word, and a line
 // holds nothing a shell expands.
@@ -198,6 +201,9 @@ export class Calls {
     // Starting an agent is open_agent's: it alone says who leads the agent, and with what task.
     const session = request.command === undefined ? null : sessionLaunch(request.command)
     if (session !== null) return refused(sessionCommandRefusal(session))
+    // What the person is asked to approve must read as it runs: no direction controls.
+    if (request.command !== undefined && bidiControl.test(request.command))
+      return refused("The command holds text-direction control characters, which aren't run.")
     const starts = request.command !== undefined || request.agent !== undefined
     // Every check `send` would refuse the task for, before anything starts.
     if (request.agent !== undefined && request.message !== undefined) {
@@ -251,6 +257,11 @@ export class Calls {
     // Closed, or the runner stopped, while the folder was looked at.
     if (this.host.stopping() || this.host.records().get(call.terminalId) !== record)
       return unansweredCalls.open
+    // Another question may have been asked meanwhile, from here or about this terminal.
+    if (request.command !== undefined) {
+      const waiting = this.host.approvals().refusal(call.terminalId)
+      if (waiting) return refused(waiting === "nobody" ? nobodyToRun : waitingToRun)
+    }
     const now = Date.now()
     const charged = this.openers.get(call.terminalId) ?? call.terminalId
     prune(this.opened, now, openLimit.windowMs)
@@ -489,6 +500,10 @@ export class Calls {
       return refused(`${mention(to)} is already closing.`)
     const target = await this.host.peers().target(peerOf(record), to)
     if (!target.ok) return target
+    // A program in the shell's foreground, a line entered whose prompt hasn't come back, or a
+    // job in the background: only read for a terminal that runs no agent.
+    const closingRecord = this.host.records().get(target.terminalId)
+    const busy = target.agent === null && closingRecord ? await shellBusy(closingRecord) : false
     // Closed, or the runner stopped, while the terminals were described.
     const closing = this.host.records().get(target.terminalId)
     if (this.host.stopping() || this.host.records().get(call.terminalId) !== record || !closing)
@@ -497,9 +512,6 @@ export class Calls {
     if (this.host.closingNow(closing.summary.id) || closing.closed)
       return refused(`${mention(target.handle)} is already closing.`)
     const leadsIt = this.host.messaging().leadOf(target.terminalId) === record.summary.handle
-    // A program in the shell's foreground, or a line entered whose prompt hasn't come back
-    // (all a platform that names no foreground program tells, as Windows).
-    const busy = !shellAtPrompt(closing) || closing.submitted
     const way = closeWay({ leads: leadsIt, agent: target.agent, busy })
     if (way === "request") {
       const waiting = this.host.approvals().refusal(target.terminalId)

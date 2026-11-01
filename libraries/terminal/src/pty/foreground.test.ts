@@ -6,7 +6,13 @@ import { join } from "node:path"
 import { spawn } from "node-pty"
 import { afterAll, beforeAll, describe, expect, it, onTestFinished, vi } from "vitest"
 
-import { parseCommandLine, parseProcessStat, sampleForeground, statName } from "./foreground.js"
+import {
+  hasChildProcess,
+  parseCommandLine,
+  parseProcessStat,
+  sampleForeground,
+  statName,
+} from "./foreground.js"
 
 const cmdline = (...args: string[]): Buffer => Buffer.from(`${args.join("\0")}\0`)
 
@@ -124,4 +130,17 @@ describe.skipIf(process.platform !== "darwin")("macOS foreground naming", () => 
     },
     testMs,
   )
+})
+
+describe.skipIf(process.platform === "win32")("a process's children", () => {
+  it("tells a process with a background job from one without, and nothing for a bad pid", async () => {
+    const child = spawn("sh", ["-c", "sleep 30 & wait"], { cols: 80, rows: 24 })
+    onTestFinished(() => child.kill())
+    await vi.waitFor(async () => expect(await hasChildProcess(child.pid)).toBe(true))
+    const idle = spawn("sh", ["-c", "sleep 0.1; exit 0"], { cols: 80, rows: 24 })
+    onTestFinished(() => idle.kill())
+    await expect(hasChildProcess(undefined)).resolves.toBeUndefined()
+    await expect(hasChildProcess(0)).resolves.toBeUndefined()
+    await expect(hasChildProcess(2 ** 22 + 12345)).resolves.toBe(false)
+  })
 })

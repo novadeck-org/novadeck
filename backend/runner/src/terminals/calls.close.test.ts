@@ -15,7 +15,8 @@ const token = "t".repeat(48)
 const terminal = (id: string, handle: string, title = "Terminal"): Record =>
   ({
     summary: { id, handle, title, sessionId: "session" },
-    terminal: { exiting: false },
+    terminal: { exiting: false, pty: { pid: undefined } },
+    prompts: [],
     token,
     closed: false,
   }) as unknown as Record
@@ -248,10 +249,18 @@ describe("an agent closing a teammate it leads, or a terminal with no agent", ()
     expect(run.steps).toEqual([])
   })
 
+  it("closes at once where the shell has no integration, however many lines were entered", async () => {
+    const run = setup({ moth: "claude", fox: null })
+    Object.assign(run.records.get("id-fox")!, { submitted: true, prompts: [] })
+    await expect(run.close("moth", "fox")).resolves.toMatchObject({ ok: true, handle: "fox" })
+    expect(run.steps).toContain("removed fox")
+  })
+
   it("asks too where the platform names no program but a line was entered at the prompt", async () => {
     const run = setup({ moth: "claude", fox: null })
     const requested = person(run.approvals)
-    Object.assign(run.records.get("id-fox")!, { submitted: true })
+    // The shell's integration has reported a prompt (it reset `submitted` before).
+    Object.assign(run.records.get("id-fox")!, { submitted: true, prompts: [{}] })
     await expect(run.close("moth", "fox")).resolves.toMatchObject({ ok: true, asked: true })
     await settle()
     expect(requested).toHaveLength(1)
