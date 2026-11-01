@@ -863,7 +863,7 @@ describe("the demo Inbox's grants", () => {
       answer: {
         type: "grant",
         presets: ["push"],
-        commands: [1],
+        commands: [0],
         repos: ["github.com/acme/storefront-ui"],
         withLead: true,
         lifetime: "hour",

@@ -33,30 +33,73 @@ const openCard = async (
 }
 
 describe("A lead's Grant card", () => {
-  it("shows what it would allow and to whom, in Novadeck's words, and Grant makes the grant", async () => {
+  it("asks in a short title, says what they'd do and keeps the extras behind Review", async () => {
     const card = await openCard(demoInboxIds.grant, /Let @moth's team push branches/)
 
     await expect
-      .element(card)
-      .toMatchTextContent(/Push a named branch to acme\/storefront \(no force/)
+      .element(card.getByRole("heading", { name: /Let @fox and @owl work without asking\?/ }))
+      .toBeVisible()
     await expect
       .element(card)
-      .toMatchTextContent("@moth's teammates, now and later (now: @fox, @owl)")
-    await expect.element(card).toMatchTextContent("added remote")
-    await expect.element(card).toMatchTextContent("followed by anything")
-    await expect.element(card).toMatchTextContent("Codex's sandbox")
-    await expect.element(grants()).not.toBeInTheDocument()
+      .toMatchTextContent(
+        "They'd push their branches and open pull requests in acme/storefront without asking you each time. Merges and pushes to main still need you.",
+      )
+    await expect
+      .element(card)
+      .toMatchTextContent("Fox and owl each finish a piece of checkout today")
+    await expect.element(card).toMatchTextContent("@moth also asked for 3 more things")
+    await expect.element(card.getByRole("checkbox")).not.toBeInTheDocument()
+    await expect.element(card.getByRole("switch")).not.toBeInTheDocument()
+    await expect.element(card.getByRole("menuitem")).toHaveLength(4)
+    await expect
+      .element(card.getByRole("menuitem").first())
+      .toMatchTextContent("Allow until they're done")
+  })
 
-    // The added remote stays unticked; untick another repo and pick the hour.
-    await card.getByRole("checkbox", { name: /acme\/storefront-ui/ }).click()
-    await card.getByRole("radio", { name: "1 hour" }).click({ force: true })
-    await card.getByRole("menuitem", { name: /^Grant/ }).click()
+  it("expands Review to the extras, unticked, each with why", async () => {
+    const card = await openCard(demoInboxIds.grant, /Let @moth's team push branches/)
+    await card.getByRole("button", { name: "Review" }).click()
+
+    await expect.element(card).toMatchTextContent("Not included unless you tick them.")
+    await expect.element(card).toMatchTextContent("This could do more than pushing")
+    await expect.element(card).toMatchTextContent("This repo was just created or changed")
+    await expect.element(card).toMatchTextContent("This remote was added recently and isn't yours")
+    await expect.element(card.getByRole("checkbox")).toHaveLength(3)
+    for (const box of card.getByRole("checkbox").elements())
+      expect((box as HTMLInputElement).checked).toBe(false)
+  })
+
+  it("expands Details to who is covered, Include me and the Codex note", async () => {
+    const card = await openCard(demoInboxIds.grant, /Let @moth's team push branches/)
+    await card.getByRole("button", { name: "Details" }).click()
+
+    await expect.element(card).toMatchTextContent("Includes teammates @moth adds later.")
+    await expect.element(card.getByRole("switch", { name: "Include me (@moth) too" })).toBeVisible()
+    await expect
+      .element(card)
+      .toMatchTextContent("@fox uses Codex: allowed commands run outside Codex's sandbox.")
+  })
+
+  it("makes the grant until they're done, and the list says so", async () => {
+    const card = await openCard(demoInboxIds.grant, /Let @moth's team push branches/)
+    await expect.element(grants()).not.toBeInTheDocument()
+    await card.getByRole("menuitem", { name: /^Allow until they're done/ }).click()
 
     await expect.element(grants()).toMatchTextContent("@moth's team")
     await expect
       .element(grants())
       .toMatchTextContent("push branches, open and edit pull requests in acme/storefront")
-    await expect.element(grants()).toMatchTextContent(/(1h|\d+m) left/)
+    await expect.element(grants()).toMatchTextContent(/until done/)
+  })
+
+  it("makes a grant for 1 hour with what was ticked under Review", async () => {
+    const card = await openCard(demoInboxIds.grant, /Let @moth's team push branches/)
+    await card.getByRole("button", { name: "Review" }).click()
+    await card.getByRole("checkbox", { name: /acme\/storefront-ui/ }).click()
+    await card.getByRole("menuitem", { name: /^Allow for 1 hour/ }).click()
+
+    await expect.element(grants()).toMatchTextContent("acme/storefront, acme/storefront-ui")
+    await expect.element(grants()).toMatchTextContent(/1 hour · \d+ min left/)
   })
 
   it("dismisses on Decline and makes no grant", async () => {
@@ -68,23 +111,33 @@ describe("A lead's Grant card", () => {
 })
 
 describe("A terminal's approval card", () => {
-  it("lets the terminal run its commands for the hour once approved, until revoked", async () => {
-    const card = await openCard(demoInboxIds.approval, /May I ship the docs/)
+  it("names the commands as code, the open-ended one as a warning, and allows them for the hour until revoked", async () => {
+    const card = await openCard(demoInboxIds.approval, /Can I run these without asking/)
 
     await expect
       .element(card)
-      .toMatchTextContent(
-        "Lets @moth run, without asking again, until it reports done or for 1 hour:",
-      )
-    await expect.element(card).toMatchTextContent("uberepo check links … followed by anything")
-    await card.getByRole("menuitem", { name: /^Approve for 1 hour/ }).click()
+      .toMatchTextContent("@moth would run these without asking you each time:")
+    await expect.element(card).toMatchTextContent("uberepo check links")
+    await expect.element(card).toMatchTextContent("could be followed by anything")
+    await card.getByRole("menuitem", { name: /^Allow for 1 hour/ }).click()
 
     await expect.element(grants()).toMatchTextContent("@moth")
-    await expect.element(grants()).toMatchTextContent(/(1h( \dm)?|\d+m) left/)
+    await expect.element(grants()).toMatchTextContent(/1 hour · \d+ min left/)
 
     await grants()
       .getByRole("button", { name: /^Revoke the grant to @moth/ })
       .click()
     await expect.element(grants()).not.toBeInTheDocument()
+  })
+
+  it("offers until it's done, 1 hour, Decline and the terminal", async () => {
+    const card = await openCard(demoInboxIds.approval, /Can I run these without asking/)
+
+    await expect.element(card.getByRole("menuitem")).toHaveLength(4)
+    await expect
+      .element(card.getByRole("menuitem").first())
+      .toMatchTextContent("Allow until it's done")
+    await card.getByRole("menuitem", { name: /^Allow until it's done/ }).click()
+    await expect.element(grants()).toMatchTextContent("until done")
   })
 })

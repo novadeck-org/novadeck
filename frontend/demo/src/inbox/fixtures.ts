@@ -44,14 +44,12 @@ const rowOf = ({ id, project, terminal, agent, minutes, stopped, content }: Fixt
     seen: false,
   }) satisfies InboxRow
 
-// A lead's proposal of a team grant: push and pull requests for two of the repos under the
-// project folder, one flagged as an added remote, and two commands, one open-ended.
+// A lead's proposal of a team grant: push and pull requests in the repo it ticks, and three
+// more things behind Review: an open-ended command and two repos (one new or changed, one an
+// added remote).
 const grantProposal: GrantProposal = {
   presets: ["push", "pr"],
-  commands: [
-    { argv: ["uberepo", "doctor"], rest: false },
-    { argv: ["uberepo", "ship"], rest: true },
-  ],
+  commands: [{ argv: ["uberepo", "ship"], rest: true }],
   repos: [
     {
       repo: { url: "github.com/acme/storefront", defaultBranch: "main", defaultFrom: "github" },
@@ -80,7 +78,7 @@ const grantProposal: GrantProposal = {
   withLead: false,
   lifetime: "until-done",
   reason:
-    "Fox and owl each finish a piece of the checkout today and I want them to push their branches and open the pull requests without stopping on a prompt every time. They run the unit tests before each push.",
+    "Fox and owl each finish a piece of checkout today; they run the unit tests before every push.",
   covered: [
     { handle: "fox", agent: "codex" },
     { handle: "owl", agent: "claude" },
@@ -309,6 +307,7 @@ export const demoInboxIds = {
   entryTell: "demo-entry-tell",
   entryAsk: "demo-entry-ask",
   grant: "demo-grant",
+  grantAgy: "demo-grant-agy",
   approval: "demo-approval",
 } as const
 
@@ -401,6 +400,18 @@ const extraFixtures: readonly Fixture[] = [
     content: { kind: "grant", proposal: grantProposal },
   },
   {
+    id: demoInboxIds.grantAgy,
+    project: "mobile-app",
+    terminal: 2,
+    agent: "claude",
+    minutes: 3,
+    stopped: true,
+    content: {
+      kind: "grant",
+      proposal: { ...grantProposal, covered: [{ handle: "elk", agent: "agy" }] },
+    },
+  },
+  {
     id: demoInboxIds.approval,
     project: "design-system",
     terminal: 1,
@@ -410,7 +421,7 @@ const extraFixtures: readonly Fixture[] = [
     content: {
       kind: "ask",
       ask: {
-        subject: "May I ship the docs and check the links?",
+        subject: "Can I run these without asking?",
         body: "Both are blocked by the permission prompt on every run, and I need them after each page I port. They only read and write `dist/`.",
         details: null,
         hardToUndo: null,
@@ -826,11 +837,11 @@ const sourceTerminal = (number: number) => sourceOf("mobile-app", number, "claud
 
 export const demoLiveGrant = (now: number): Grant => ({
   id: demoGrantIds.live,
-  projectId: "mobile-app",
+  projectId: "storefront",
   workspaceSessionId: "initial",
   holder: { kind: "team", lead: sourceTerminal(1).handle, withLead: false },
   presets: ["push", "pr"],
-  commands: [{ argv: ["uberepo", "doctor"], rest: false }],
+  commands: [{ argv: ["gh", "pr", "checks", "12"], rest: false }],
   repos: grantProposal.repos.slice(0, 2).map(({ repo }) => repo),
   entryId: demoInboxIds.grant,
   proposedBy: sourceTerminal(1).handle,

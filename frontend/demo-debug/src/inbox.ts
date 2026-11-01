@@ -124,12 +124,17 @@ const kinds: readonly { readonly label: string; readonly name: Named; readonly h
   {
     label: "Grant card",
     name: "grant",
-    hint: "Unblock row for mobile-app's lead: the Grant card with push and pull requests, three repos (one flagged an added remote, one recent), two commands (one followed by anything), its team now and later (@fox on Codex noted), until done, and the lead's reason quoted; Grant makes the live grant, Decline dismisses it",
+    hint: 'Unblock row for mobile-app\'s lead: "Let @fox and @owl work without asking?" with a body from the presets and the repo it ticks, the lead\'s reason as a muted note, "@moth also asked for 3 more things · Review" (an open-ended command and two flagged repos, unticked), Details (Include me, the Codex note for @fox) and the menu: Allow until they\'re done, Allow for 1 hour, Decline; either Allow makes the live grant',
+  },
+  {
+    label: "Grant card, Antigravity",
+    name: "grantAgy",
+    hint: 'The same card for a team of one Antigravity teammate: open Details for the Antigravity note and, with an AutoRun offer shown, the line "Antigravity on this PC needs one fix to use this grant · Fix"',
   },
   {
     label: "Approval card",
     name: "approval",
-    hint: 'Unblock row for design-system\'s first terminal: "Lets @moth run, without asking again, until it reports done or for 1 hour:" with three commands as code (one followed by anything); Approve (until done, or for 1 hour) makes a grant for that terminal, or reply in words',
+    hint: "Unblock row for design-system's first terminal: \"Can I run these without asking?\", the agent's words as a muted note, Novadeck's line and three commands as code with the open-ended one as a warning line; Allow until it's done, Allow for 1 hour, Decline",
   },
   {
     label: "Done report",
@@ -180,7 +185,7 @@ export const inboxGroups = (
         })),
         {
           label: "Live grant",
-          hint: "The Grants section tops the Inbox with a team grant of mobile-app's lead: holder, push and pull requests, two repos, until done, its last allowed command, and Revoke",
+          hint: 'The Grants section tops the Inbox with a team grant of mobile-app\'s lead: holder, "until done" with the teammates at work, push and pull requests, two repos, its last allowed command, and Revoke',
           run: () => inbox.grants.add(demoLiveGrant(Date.now())),
         },
         {
@@ -199,22 +204,22 @@ export const inboxGroups = (
         },
         {
           label: "AutoRun offer",
-          hint: "The Inbox shows cmd's AutoRun card: why cmd printing matters, the current value and the exact new one, that it applies to every cmd window, Silence cmd's AutoRun output and Not now",
+          hint: 'The Inbox shows one line, "Antigravity on this PC needs one fix to use approvals · Fix" (and the Antigravity grant card\'s Details has its own): Fix opens the small confirm with Hide it and Not now and the key and values behind details',
           run: () => inbox.autorun.show(demoAutoRunOffer),
         },
         {
           label: "AutoRun manual step",
-          hint: "The AutoRun card gives the step in words, as the printing value is the machine's (HKLM): regedit as an administrator, from the value to a silenced one, with no buttons but Not now",
+          hint: "The same line, but its confirm gives the step in words, as the printing value is the machine's (HKLM): regedit as an administrator, from the value to a silenced one, with no button but Not now",
           run: () => inbox.autorun.show(demoAutoRunManual),
         },
         {
           label: "AutoRun silenced",
-          hint: "The AutoRun card says it was silenced and cmd prints nothing now, with Undo showing the exact value it restores, and Preferences lists the same row under Agents",
+          hint: "The Inbox line says Command Prompt's startup output is hidden for Antigravity with Undo, and Preferences lists the same row under Agents, with the exact value Undo restores behind Details",
           run: () => inbox.autorun.show(demoAutoRunSilenced),
         },
         {
           label: "AutoRun gone",
-          hint: "cmd prints nothing here: the AutoRun card leaves the Inbox",
+          hint: "Command Prompt prints nothing here: the line leaves the Inbox",
           run: () => inbox.autorun.show(noAutoRun),
         },
         {
