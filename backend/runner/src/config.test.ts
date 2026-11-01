@@ -91,6 +91,7 @@ describe("server configuration", () => {
     expect(
       readConfig({
         HOST: "0.0.0.0",
+        NOVADECK_ALLOW_REMOTE_HOST: "1",
         PORT: "4321",
         CORS_ORIGINS: "https://novadeck.example, https://mzpkdev.github.io",
       }),
@@ -99,6 +100,19 @@ describe("server configuration", () => {
       port: 4321,
       origins: ["https://novadeck.example", "https://mzpkdev.github.io"],
     })
+  })
+
+  it("refuses a host off this machine unless allowed", () => {
+    for (const HOST of ["0.0.0.0", "192.168.1.5", "::", "example.com"]) {
+      expect(() => readConfig({ HOST })).toThrow("NOVADECK_ALLOW_REMOTE_HOST")
+    }
+    for (const HOST of ["127.0.0.1", "127.1.2.3", "localhost", "::1", "[::1]"]) {
+      expect(readConfig({ HOST }).hostname).toBe(HOST)
+    }
+    expect(readConfig({ HOST: "0.0.0.0", NOVADECK_ALLOW_REMOTE_HOST: "true" }).hostname).toBe(
+      "0.0.0.0",
+    )
+    expect(() => readConfig({ HOST: "0.0.0.0", NOVADECK_ALLOW_REMOTE_HOST: "0" })).toThrow()
   })
 
   it("uses local defaults without environment variables", () => {

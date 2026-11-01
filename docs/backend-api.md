@@ -47,7 +47,8 @@ cp backend/runner/example.env backend/runner/.env
 ```
 
 Generate a credential with the command in `example.env`, then set `NOVADECK_TOKEN`
-in the ignored `.env` file. Leave `HOST=127.0.0.1` for local testing. Run:
+in the ignored `.env` file. Leave `HOST=127.0.0.1` for local testing: the runner refuses any HOST that isn't loopback
+(`localhost`, `127.x.x.x`, `::1`) unless `NOVADECK_ALLOW_REMOTE_HOST=1` is also set. Run:
 
 ```sh
 pnpm --filter @novadeck/runner start
