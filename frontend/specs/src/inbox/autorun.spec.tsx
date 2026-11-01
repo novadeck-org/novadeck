@@ -53,7 +53,7 @@ describe("The Command Prompt line in the Inbox", () => {
     await expect
       .element(confirm())
       .toMatchTextContent(
-        "you can undo this in Preferences once no Antigravity terminal is running",
+        "you can undo this in Preferences, except while an Antigravity terminal is running",
       )
     await expect.element(confirm()).not.toHaveTextContent("HKEY_CURRENT_USER")
     await confirm().getByRole("button", { name: "details" }).click()

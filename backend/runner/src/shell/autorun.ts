@@ -93,8 +93,7 @@ type Start = "prints" | "slow" | undefined
  * The whole registry state a dismissal is for: what HKCU and HKLM hold, or that one is absent
  * or unreadable. Another state, by either, offers the fix again.
  */
-const readKey = (read: AutoRunRead | undefined): string =>
-  read ? JSON.stringify([read.user, read.machine]) : "unread"
+const readKey = (read: AutoRunRead): string => JSON.stringify([read.user, read.machine])
 
 /**
  * cmd's AutoRun and the person's one-click silencing of its output (approvals-design.md,
@@ -108,6 +107,8 @@ export class AutoRun {
   // Silenced, but Antigravity's plugin is still to be installed (a refresh held it).
   private held = false
   private eligible = false
+  // "Not now" was pressed while the registry could not be read (this run only).
+  private unreadDismissed = false
   private outcome: AutoRunOutcome | null = null
   private current: AutoRunState = { state: "none", outcome: null, dismissed: false }
   private readonly readers = new Set<Latest<AutoRunState>>()
@@ -190,8 +191,10 @@ export class AutoRun {
   dismiss(): Promise<void> {
     return this.exclusive(async () => {
       const read = await this.host.read().catch(() => undefined)
-      // A registry that could not be read is a state too: it offers again once a read works.
-      this.host.rememberDismissed(readKey(read))
+      // Where the registry can't be read the dismissal lasts for this run only, and what was
+      // kept for an earlier state stays: it applies again once a read works.
+      this.unreadDismissed = read === undefined
+      if (read) this.host.rememberDismissed(readKey(read))
       this.outcome = null
       await this.reload()
     })
@@ -424,7 +427,7 @@ export class AutoRun {
       }
     if (!this.eligible) return { state: "none", outcome, dismissed: false }
     // Dismissed for the registry as it is now; another state is offered again.
-    const dismissed = this.host.dismissedFor() === readKey(read)
+    const dismissed = read ? this.host.dismissedFor() === readKey(read) : this.unreadDismissed
     if (found.kind === "absent") return { state: "none", outcome, dismissed: false }
     if (found.kind === "manual")
       return {

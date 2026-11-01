@@ -262,6 +262,21 @@ describe("the AutoRun state", () => {
     expect(await stateOf(autorun)).toMatchObject({ dismissed: false })
   })
 
+  it("keeps an earlier dismissal when Not now is pressed during a failed read", async () => {
+    const { fake, autorun } = await started()
+    await autorun.dismiss()
+    const kept = fake.dismissed
+    expect(kept).toBeDefined()
+    fake.readFails = true
+    await autorun.started("prints")
+    expect(await stateOf(autorun)).toMatchObject({ dismissed: false })
+    await autorun.dismiss()
+    expect(fake.dismissed).toBe(kept)
+    fake.readFails = false
+    await autorun.started("prints")
+    expect(await stateOf(autorun)).toMatchObject({ dismissed: true })
+  })
+
   it("offers again when the value changed since it was dismissed", async () => {
     const { fake, autorun } = await started()
     await autorun.dismiss()

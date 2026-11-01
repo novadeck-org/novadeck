@@ -152,6 +152,16 @@ const kinds: readonly { readonly label: string; readonly name: Named; readonly h
     hint: 'The lead and three teammates: the title says "Let @<lead> and its team work without asking?", so the default view shows the lead is in',
   },
   {
+    label: "Grant card, lead included, no teammates",
+    name: "grantLead0",
+    hint: 'The lead is included and has no teammates yet: the title says "Let @<lead> and its team work without asking?"',
+  },
+  {
+    label: "Grant card, Antigravity in plan mode",
+    name: "grantAgyPlan",
+    hint: "A running Antigravity teammate started in plan mode: Details says only that the grant doesn't reach it, not that it picks it up on its next start",
+  },
+  {
     label: "Grant card, long unbroken word",
     name: "grantLongWord",
     hint: "The lead's reason holds one long link with no spaces: it wraps at any letter inside two lines, with more at the end of the second",

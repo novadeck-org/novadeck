@@ -301,7 +301,12 @@ const Thing = ({ row, now }: { readonly row: InboxRow; readonly now: number }) =
         return (
           <>
             <Heading glyph="!">{approvalTitle}</Heading>
-            <ApprovalWords row={row} commands={ask.shape.commands} body={ask.body} />
+            <ApprovalWords
+              row={row}
+              commands={ask.shape.commands}
+              body={ask.body}
+              hardToUndo={ask.hardToUndo !== null}
+            />
           </>
         )
       }

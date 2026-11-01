@@ -38,7 +38,7 @@ const source = (handle: string): InboxRow["source"] => ({
 
 const proposal: GrantProposal = {
   presets: ["push", "pr"],
-  commands: [{ argv: ["echo", "it's here"], rest: true }],
+  commands: [{ argv: ["echo", "it's here"], rest: false }],
   repos: [
     {
       repo: { url: "github.com/acme/shop", defaultBranch: "main", defaultFrom: "github" },
@@ -92,7 +92,7 @@ const approvalRow = (): InboxRow => ({
       type: "approval",
       commands: [
         { argv: ["pnpm", "build"], rest: false },
-        { argv: ["pnpm", "run", "x y"], rest: true },
+        { argv: ["pnpm", "run", "x y"], rest: false },
       ],
     },
   },
@@ -264,6 +264,12 @@ describe("The Grant card", () => {
       await crowd.done()
     })
 
+    it("says the lead's team is included where it has no teammates yet", async () => {
+      const inbox = mount([grantRow({ withLead: true, covered: [] })])
+      expect(text("h3.console-ask")).toBe("!Let @moth and its team work without asking?")
+      await inbox.done()
+    })
+
     it("keeps the lead's reason as a muted note, and leaves it out when empty", async () => {
       const inbox = mount([grantRow()])
       expect(text("[data-reason-intro]")).toBe("@moth's reason:")
@@ -316,7 +322,7 @@ describe("The Grant card", () => {
       expect(text(".grant-group > legend")).toBe("Needs your OK")
       expect(text(".grant-group > .console-note")).toBe("Not included unless you tick them.")
       expect(texts(".grant-tick")).toEqual([
-        "Also run echo 'it'\\''s here' with any argumentsThis could do more than pushing",
+        "Also run echo 'it'\\''s here'This isn't pushing or a pull request",
         "Push to acme/shop-uiThis remote was added recently and isn't yours",
         "Push to acme/newThis repo was just created or changed",
       ])
@@ -365,6 +371,8 @@ describe("The Grant card", () => {
         "@elk was started in plan mode, so this grant doesn't reach it.",
         "@kit was started in plan mode, so this grant doesn't reach it.",
       ])
+      // A running plan-mode teammate is not also told it "picks this up the next time".
+      expect(document.querySelector("[data-grant=agy]")).toBeNull()
       await planned.done()
       const none = mount([grantRow(elk)])
       act(() => none.button("Details").click())
@@ -561,7 +569,8 @@ describe("The approval card", () => {
       },
     ])
     expect(text("h3.console-ask")).toBe("!Can I run these without asking?")
-    expect(document.querySelector(".console-hard, .console-detail")).toBeNull()
+    expect(document.querySelector(".console-detail")).toBeNull()
+    expect(text(".console-hard")).toBe("! @fox says some of this would be hard to undo.")
     expect(document.body.textContent).not.toContain("read-only")
     expect(document.body.textContent).not.toContain("harmless")
     // The Inbox row says the same.
@@ -570,10 +579,22 @@ describe("The approval card", () => {
     await inbox.done()
   })
 
-  it("marks what could be followed by anything as a warning line, not a pill", async () => {
+  it("says in Novadeck's words why a hard-to-undo approval is marked, and shows none of the agent's", async () => {
+    const row = approvalRow()
+    if (row.kind !== "ask") throw new Error("an ask")
+    const inbox = mount([
+      { ...row, ask: { ...row.ask, hardToUndo: "Deletes everything, trust me." } },
+    ])
+    expect(text("[data-grant=hard]")).toBe("! @fox says some of this would be hard to undo.")
+    expect(document.body.textContent).not.toContain("trust me")
+    await inbox.done()
+  })
+
+  it("offers exact commands only: nothing is said to be followed by anything", async () => {
     const inbox = mount([approvalRow()])
 
-    expect(text("[data-grant=rest]")).toBe("pnpm run 'x y' could be followed by anything.")
+    expect(document.querySelector("[data-grant=rest]")).toBeNull()
+    expect(document.body.textContent).not.toContain("followed by anything")
     expect(document.querySelector(".grant-rest, .grant-flag")).toBeNull()
     await inbox.done()
   })
@@ -907,15 +928,13 @@ describe("The agent's words", () => {
     await inbox.done()
   })
 
-  it("puts the approval's sentence and commands before the agent's note, then the warning", async () => {
+  it("puts the approval's sentence and commands before the agent's note", async () => {
     const inbox = mount([approvalRow()])
     const order = Array.from(
-      document.querySelectorAll(
-        ".console-body, .grant-lines, [data-reason-intro], [data-grant=rest]",
-      ),
+      document.querySelectorAll(".console-body, .grant-lines, [data-reason-intro]"),
     ).map((each) => each.className || each.getAttribute("data-grant"))
     expect(text(".console-body")).toBe("I'd run these without asking you each time:")
-    expect(order).toEqual(["console-body", "grant-lines", "console-note", "grant-warn"])
+    expect(order).toEqual(["console-body", "grant-lines", "console-note"])
     inbox.key("1")
     expect(inbox.sent).toEqual([
       { kind: "ask", answer: { type: "approve", lifetime: "until-done" } },

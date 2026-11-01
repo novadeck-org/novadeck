@@ -45,11 +45,11 @@ const rowOf = ({ id, project, terminal, agent, minutes, stopped, content }: Fixt
   }) satisfies InboxRow
 
 // A lead's proposal of a team grant: push and pull requests in the repo it ticks, and three
-// more things behind Review: an open-ended command and two repos (one new or changed, one an
+// more things behind Review: an exact command and two repos (one new or changed, one an
 // added remote).
 const grantProposal: GrantProposal = {
   presets: ["push", "pr"],
-  commands: [{ argv: ["uberepo", "ship"], rest: true }],
+  commands: [{ argv: ["uberepo", "ship"], rest: false }],
   repos: [
     {
       repo: { url: "github.com/acme/storefront", defaultBranch: "main", defaultFrom: "github" },
@@ -323,6 +323,8 @@ export const demoInboxIds = {
   grantLead2: "demo-grant-lead-2",
   grantLead4: "demo-grant-lead-4",
   grantLongWord: "demo-grant-long-word",
+  grantLead0: "demo-grant-lead-0",
+  grantAgyPlan: "demo-grant-agy-plan",
   approval: "demo-approval",
 } as const
 
@@ -492,6 +494,30 @@ const extraFixtures: readonly Fixture[] = [
     },
   },
   {
+    id: demoInboxIds.grantLead0,
+    project: "dotfiles",
+    terminal: 2,
+    agent: "claude",
+    minutes: 4,
+    stopped: true,
+    content: { kind: "grant", proposal: { ...grantProposal, withLead: true, covered: [] } },
+  },
+  {
+    id: demoInboxIds.grantAgyPlan,
+    project: "dotfiles",
+    terminal: 3,
+    agent: "claude",
+    minutes: 4,
+    stopped: true,
+    content: {
+      kind: "grant",
+      proposal: {
+        ...grantProposal,
+        covered: [{ handle: "elk", agent: "agy", started: true, plan: true }],
+      },
+    },
+  },
+  {
     id: demoInboxIds.grantLongWord,
     project: "dotfiles",
     terminal: 1,
@@ -513,12 +539,12 @@ const extraFixtures: readonly Fixture[] = [
         subject: "Can I run the read-only test suite?",
         body: hostileReason,
         details: null,
-        hardToUndo: null,
+        hardToUndo: "Deletes the build cache for good.",
         shape: {
           type: "approval",
           commands: [
             { argv: ["uberepo", "ship", "docs"], rest: false },
-            { argv: ["uberepo", "check", "links"], rest: true },
+            { argv: ["uberepo", "check", "links"], rest: false },
           ],
         },
       },
@@ -542,7 +568,7 @@ const extraFixtures: readonly Fixture[] = [
           type: "approval",
           commands: [
             { argv: ["uberepo", "ship", "docs"], rest: false },
-            { argv: ["uberepo", "check", "links"], rest: true },
+            { argv: ["uberepo", "check", "links"], rest: false },
             { argv: ["rm", "-rf", "dist/cache dir"], rest: false },
           ],
         },
@@ -987,7 +1013,7 @@ export const demoEndingGrant = (now: number, ms: number): Grant => ({
   presets: [],
   commands: [
     { argv: ["uberepo", "ship", "docs"], rest: false },
-    { argv: ["uberepo", "check", "links"], rest: true },
+    { argv: ["uberepo", "check", "links"], rest: false },
   ],
   repos: [],
   entryId: demoInboxIds.approval,

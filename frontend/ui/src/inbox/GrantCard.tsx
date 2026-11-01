@@ -180,12 +180,14 @@ export const ApprovalWords = ({
   row,
   commands,
   body,
+  hardToUndo = false,
 }: {
   readonly row: InboxRow
   readonly commands: readonly GrantCommand[]
   readonly body: string
+  // The agent called it hard to undo: Novadeck says so in its own words, not the agent's.
+  readonly hardToUndo?: boolean
 }): React.JSX.Element => {
-  const open = commands.filter(({ rest }) => rest)
   return (
     <>
       <div className="console-body">
@@ -201,15 +203,9 @@ export const ApprovalWords = ({
         ))}
       </ul>
       <AgentNote text={body} who={row.source.handle} />
-      {open.length > 0 && (
-        <p className="grant-warn" style={{ marginLeft: 16 }} data-grant="rest">
-          {open.map((command, index) => (
-            <span key={index}>
-              {index > 0 && ", "}
-              <code>{commandWords(command).join(" ")}</code>
-            </span>
-          ))}{" "}
-          could be followed by anything.
+      {hardToUndo && (
+        <p className="console-hard" data-grant="hard">
+          ! @{row.source.handle} says some of this would be hard to undo.
         </p>
       )}
       {row.source.agent === "codex" && (
@@ -255,7 +251,6 @@ const Review = ({
         >
           <span className="grant-repo">
             Also run <CommandCode command={proposal.commands[extra.at]!} />
-            {proposal.commands[extra.at]!.rest && " with any arguments"}
             <span className="grant-warn">{extra.reason}</span>
           </span>
         </Tick>
@@ -308,8 +303,9 @@ export const GrantCard = ({
   const extras = grantExtras(proposal)
   const codex = proposal.covered.filter(({ agent }) => agent === "codex")
   const antigravity = proposal.covered.filter(({ agent }) => agent === "agy")
-  // An Antigravity already running when the grant is made is not reached by it.
-  const running = antigravity.filter(({ started }) => started)
+  // An Antigravity already running when the grant is made is not reached by it, until it starts
+  // again; one started in plan mode never is, and has its own line.
+  const running = antigravity.filter(({ started, plan }) => started && !plan)
   const presets = proposal.presets.length > 0
   const problem =
     presets && repos.length === 0
