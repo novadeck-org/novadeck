@@ -22,7 +22,7 @@
   },
   "dependencies": {
     "electron-updater": "6.8.9",
-    "koffi": "3.3.3",
+    "koffi": "3.3.5",
     "node-pty": "catalog:"
   },
   "devDependencies": {
@@ -38,13 +38,13 @@
     "@novadeck/viewers": "workspace:*",
     "@novadeck/wire": "workspace:*",
     "@tailwindcss/vite": "^4.3.3",
-    "@types/node": "^26.6.5",
+    "@types/node": "^26.6.6",
     "@types/react": "^19.3.0",
     "@types/react-dom": "^19.3.0",
     "@vitejs/plugin-react": "^5.2.0",
     "concurrently": "^10.0.6",
     "electron": "catalog:",
-    "electron-builder": "^26.15.3",
+    "electron-builder": "^26.18.0",
     "electron-vite": "^6.0.0",
     "esbuild": "0.28.2",
     "playwright": "^1.64.1",

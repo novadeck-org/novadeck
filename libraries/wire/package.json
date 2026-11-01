@@ -50,7 +50,7 @@
   },
   "devDependencies": {
     "@orpc/server": "catalog:",
-    "@types/node": "^26.6.5",
+    "@types/node": "^26.6.6",
     "@types/ws": "8.18.2",
     "electron": "catalog:",
     "typescript": "^7.0.2",

@@ -31,20 +31,20 @@
   },
   "dependencies": {
     "@codemirror/state": "^6.7.6",
-    "@codemirror/view": "^6.43.14",
+    "@codemirror/view": "^6.43.15",
     "@dnd-kit/dom": "^0.5.1",
     "@dnd-kit/react": "^0.5.1",
     "@novadeck/core": "workspace:*",
     "@novadeck/toolkit": "workspace:*",
     "@novadeck/viewers": "workspace:*",
-    "lucide-react": "^1.59.0",
+    "lucide-react": "^1.64.0",
     "react": "^19.3.1",
     "react-dom": "^19.3.1"
   },
   "devDependencies": {
     "@novadeck/build-kit": "workspace:*",
     "@novadeck/test-kit": "workspace:*",
-    "@types/node": "^26.6.5",
+    "@types/node": "^26.6.6",
     "@types/react": "^19.3.0",
     "@types/react-dom": "^19.3.0",
     "jsdom": "^30.1.3",
