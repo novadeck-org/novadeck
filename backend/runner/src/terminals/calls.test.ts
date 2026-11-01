@@ -1,3 +1,5 @@
+import { resolve as resolvePath } from "node:path"
+
 import { describe, expect, it } from "vitest"
 
 import { Approvals } from "./approvals.js"
@@ -10,6 +12,8 @@ import { nobodyToRun, runNotice, waitingToRun } from "./runs.js"
 
 const token = "a".repeat(48)
 const call = { type: "models", terminalId: "t1", token, request: {} } as const
+// The folder the caller's `/work` resolves to on this platform, as the runner resolves it.
+const work = resolvePath("/work")
 const claude = [{ id: "opus", efforts: ["low", "max"] }] as const
 
 const calls = (models: CallsHost["models"]) =>
@@ -373,7 +377,7 @@ describe("the open call", () => {
       expect(await run.open({ command: "npm run dev" })).toEqual({
         ok: true,
         asked: true,
-        cwd: "/work",
+        cwd: work,
         command: "npm run dev",
       })
       await settle()
@@ -382,7 +386,7 @@ describe("the open call", () => {
         {
           from: "t1",
           terminalId: "t1",
-          action: { type: "run", command: "npm run dev", cwd: "/work" },
+          action: { type: "run", command: "npm run dev", cwd: work },
         },
       ])
       run.approvals.answer({ requestId: run.questions[0]!.requestId, approved: true }, "person")
