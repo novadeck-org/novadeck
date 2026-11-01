@@ -157,7 +157,7 @@ signed and notarized when the Apple credentials are set. Windows builds are unsi
 Azure signing is set up, so Windows shows SmartScreen's warning. The desktop app's own
 updates come from GitHub: it downloads only files under
 `https://github.com/<owner>/<repo>/releases/download/`, whatever novadeck.dev's feed says, and
-on macOS also checks the new app's code signature. Linux and Windows check the feed's SHA-512
+on macOS also checks the new app's code signature. The check allows any release under that prefix, so a compromised website could still offer an older genuine release or a prerelease. Linux and Windows check the feed's SHA-512
 of the file and nothing else, so the attestation, not the app, is where a release's origin is
 proven.
 
@@ -248,11 +248,17 @@ typed or printed may still be saved. Metadata files use owner-only permissions w
 supported (0600 in a 0700 directory); on Windows they live in the per-user application data
 folder. Before a migration changes the database, the runner copies it, plain transcripts
 included, to `snapshots/` beside it (the newest three are kept, with the same owner-only
-permissions) so an upgrade can be undone; delete that folder to remove them. The runner and
-the desktop app also write log files (`runner.log` and the main process's `host.log`, rotated by size) to the logs
-folder, with paths, URLs, account names and known secrets redacted. They hold what the app did
+permissions) so an upgrade can be undone; delete that folder to remove them. A copy keeps
+transcripts as the database held them: encrypted ones stay encrypted, and only a database
+that predates the encryption holds plain ones. Titles, summaries, commands, directories and
+Inbox content are plain text in every copy. The runner and the desktop app also write log
+files (`runner.log` and the main process's `host.log`, rotated by size) to the logs folder,
+with paths, URLs, account names and known secrets redacted. They hold what the app did
 (starts, failures, update checks), not terminal contents, though an error message can name a
-command or a folder.
+command or a folder. Started with `NOVADECK_LOGS=verbose`, for a bug report, the logs also
+hold lines that may include what a terminal's screen showed. If the app crashes, Electron
+saves a minidump (process memory, which can hold terminal text) in its local crash folder;
+it is never uploaded.
 
 Each shell the runner starts can report which agent session runs in it, through a
 local endpoint: a Unix socket in a private temporary directory, or a named pipe on
