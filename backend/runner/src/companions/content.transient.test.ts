@@ -75,7 +75,7 @@ describe("saving a plan when the disk fails", () => {
   }
   const settle = async (path: string, stamp: string) => {
     try {
-      return await savePlan(plan(path), "# Edited\n", stamp)
+      return await savePlan(plan(path), "# Edited\n", stamp, [tmpdir()])
     } catch (error) {
       return error
     } finally {

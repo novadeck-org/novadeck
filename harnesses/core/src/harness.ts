@@ -42,6 +42,12 @@ export type Harness = {
   readonly fallback?: (home: string) => string
   /** Its own home, whose presence says it is installed. */
   readonly home: (install: Install) => string
+  /**
+   * The folders under which it keeps the plans it writes as files, beside any in a
+   * project: Novadeck saves the person's edits to a plan file only there or in the
+   * project's folder. None for a harness whose plans live in its messages.
+   */
+  readonly planFolders?: (install: Install) => readonly string[]
   /** Whether its own configuration lists Novadeck's plugin as installed. */
   readonly connected: (install: Install) => Promise<boolean>
   /** Its plugin commands, run in order. */

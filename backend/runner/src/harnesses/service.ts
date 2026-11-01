@@ -269,6 +269,11 @@ export const createHarnesses = (
     },
     /** Where the agent lives on this machine, once the shell files say where its plugin is. */
     install: async (agent: AgentName): Promise<Install | undefined> => (await installs())?.(agent),
+    /** The folders the agent keeps the plans it writes as files in (see `Harness.planFolders`). */
+    planFolders: async (agent: AgentName): Promise<readonly string[]> => {
+      const install = await installs()
+      return install ? (harnesses[agent].planFolders?.(install(agent)) ?? []) : []
+    },
     /** Whether Novadeck's plugin is installed into the agent. */
     connected: async (agent: AgentName): Promise<boolean> => {
       const install = await installs()

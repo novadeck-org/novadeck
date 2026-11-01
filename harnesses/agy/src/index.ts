@@ -64,6 +64,8 @@ export const agy = {
   // Antigravity installs a plugin folder, which its name must match.
   plugin: join("agy", pluginId),
   home: antigravityHome,
+  // The folders of its conversations, where it writes the plans it asks to be reviewed.
+  planFolders: (install) => [join(antigravityHome(install), "brain")],
   connected,
   installed,
   connect,

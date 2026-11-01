@@ -73,6 +73,8 @@ const blockedText = (reason: PlanUnwritableReason, agent: string): string => {
       return "This plan is too large for Novadeck to save your edits. Your edits are kept here until you close this plan."
     case "not-a-plan":
       return "Novadeck can't write to this, since it isn't a plan file, so your edits can't be saved. Your edits are kept here until you close this plan."
+    case "outside":
+      return "Novadeck saves plans only in the project's folder or the agent's own plans folder, and this one is elsewhere, so your edits can't be saved. Your edits are kept here until you close this plan."
     case "transcript":
       return readOnlyText(agent)
   }
@@ -177,6 +179,12 @@ const PlanBody = ({
           </span>
         )}
       </ArtifactMeta>
+      {/* The whole path, wrapped, not shortened as the header's is: where the edits go. */}
+      {!readOnly && pathOf(item) !== null && (
+        <p className="plan-save-path">
+          Edits save to <code>{pathOf(item)}</code>
+        </p>
+      )}
       {!readOnly && block && (
         <PlanNotice
           text={blockedText(block, agent)}

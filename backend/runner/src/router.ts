@@ -207,7 +207,11 @@ export const createRouter = (options: {
         if (!item) throw new DomainError("NOT_FOUND", "Item not found")
         // One save of a plan at a time, each judged by the file the one before left.
         const run = async () => {
-          const result = await savePlan(item, input.text, input.basedOn)
+          const folders = [
+            store.project(store.session(item.sessionId).projectId).cwd,
+            ...(item.plan ? await agents.planFolders(item.plan.agent) : []),
+          ]
+          const result = await savePlan(item, input.text, input.basedOn, folders)
           if (result.saved) return result
           const skill = item.plan ? await agents.connected(item.plan.agent) : false
           return { ...result, current: { ...result.current, skill } }

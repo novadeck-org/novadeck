@@ -76,6 +76,7 @@ export const claude = {
   // Claude Code's local install is an alias in the person's rc file, not on PATH.
   fallback: (home) => join(home, ".claude", "local", "claude"),
   home: claudeHome,
+  planFolders: (install) => [join(claudeHome(install), "plans")],
   connected,
   connect,
   disconnect,
