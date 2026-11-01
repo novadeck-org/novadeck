@@ -17,7 +17,9 @@ import {
   phonePage,
   phoneWaitMs,
   pictureQuality,
+  holdsOffsiteFrame,
   picturePage,
+  pictureForApp,
   pictureWaitMs,
   signInTitle,
   signInWindow,
@@ -558,12 +560,10 @@ describe("the requests of a page view that fail", () => {
         },
       } as unknown as Session,
       (contentsId, failure) => told.push([contentsId, failure]),
-      (address) => new URL(address).hostname === "localhost",
     )
     return {
       told,
       forget: watching.forget,
-      framed: watching.framed,
       completed: (statusCode: number, rest: Partial<Details> = {}) =>
         completed?.({
           url: "http://localhost/a",
@@ -646,23 +646,6 @@ describe("the requests of a page view that fail", () => {
     for (let each = 0; each < maxForwardedRequests + 10; each += 1)
       errored("net::ERR_FAILED", { url: `ws://localhost/socket-${each}` })
     expect(told).toHaveLength(2 * maxForwardedRequests + 1)
-  })
-
-  it("hold a frame from off this machine against the page view until its next document", () => {
-    const { completed, framed, forget } = watched()
-    const frame = (url: string) => completed(200, { resourceType: "subFrame", url })
-    frame("http://localhost:5173/widget")
-    expect(framed(3)).toBe(false)
-    frame("https://ads.example.com/frame")
-    expect(framed(3)).toBe(true)
-    expect(framed(4)).toBe(false)
-    // A script from off this machine isn't a frame.
-    completed(200, { url: "https://cdn.example.com/lib.js" })
-    completed(200, { resourceType: "mainFrame", url: "http://localhost:5173/next" })
-    expect(framed(3)).toBe(false)
-    frame("https://ads.example.com/frame")
-    forget(3)
-    expect(framed(3)).toBe(false)
   })
 
   it("forget a page view once it's gone, as a rest of its page drops it", () => {
@@ -818,5 +801,69 @@ describe("a page view as a phone's", () => {
         vi.useRealTimers()
       }
     })
+  })
+})
+
+describe("a look's picture of a page view", () => {
+  const app = {} as WebContents
+  const local = (address: string): boolean => new URL(address).hostname === "localhost"
+  // A page view of `app` whose committed frames (the main one first) are at `urls`.
+  const page = (urls: string[] | "unreadable") => {
+    let taken = 0
+    const main = { url: "http://localhost:5173/" }
+    const contents = {
+      hostWebContents: app,
+      getType: () => "webview",
+      isDestroyed: () => false,
+      capturePage: async () => {
+        taken += 1
+        return {
+          isEmpty: () => false,
+          getSize: () => ({ width: 100, height: 100 }),
+          resize: () => undefined,
+          toJPEG: () => Buffer.from("jpeg"),
+        }
+      },
+      get mainFrame() {
+        if (urls === "unreadable") throw new Error("disposed")
+        return {
+          ...main,
+          framesInSubtree: [main, ...urls.map((url) => ({ url }))],
+        }
+      },
+    }
+    return { contents: contents as unknown as WebContents, taken: () => taken }
+  }
+  const byId = (contents: WebContents) => (id: number) => (id === 7 ? contents : undefined)
+  const jpeg = `data:image/jpeg;base64,${Buffer.from("jpeg").toString("base64")}`
+
+  it("counts a frame committed from off this machine, at any depth", () => {
+    const frames = (urls: string[]) => holdsOffsiteFrame(page(urls).contents, local)
+    expect(frames([])).toBe(false)
+    expect(frames(["http://localhost:3000/widget", "about:blank", "about:srcdoc"])).toBe(false)
+    expect(frames(["https://ads.example.com/frame"])).toBe(true)
+    expect(frames(["http://localhost:3000/", "https://example.com/nested"])).toBe(true)
+    expect(holdsOffsiteFrame(page("unreadable").contents, local)).toBe(true)
+  })
+
+  it("is refused for a look while the page holds an offsite frame, and only then", async () => {
+    const framed = page(["https://ads.example.com/frame"])
+    expect(await pictureForApp(app, 7, byId(framed.contents), 800, true, local)).toBeUndefined()
+    expect(framed.taken()).toBe(0)
+    // The person's own resting picture is taken as ever.
+    expect(await pictureForApp(app, 7, byId(framed.contents), 800, undefined, local)).toBe(jpeg)
+    expect(await pictureForApp(app, 7, byId(framed.contents), 800, "true", local)).toBe(jpeg)
+    const plain = page(["http://localhost:3000/"])
+    expect(await pictureForApp(app, 7, byId(plain.contents), 800, true, local)).toBe(jpeg)
+  })
+
+  it("is refused for a look of anything but a page view of the asking page", async () => {
+    const view = page([])
+    for (const id of [8, "7", 7.5, undefined])
+      // eslint-disable-next-line no-await-in-loop -- Each id is checked in turn.
+      expect(await pictureForApp(app, id, byId(view.contents), 800, true, local)).toBeUndefined()
+    expect(await pictureForApp(app, 7, byId(page("unreadable").contents), 800, true, local)).toBe(
+      undefined,
+    )
   })
 })

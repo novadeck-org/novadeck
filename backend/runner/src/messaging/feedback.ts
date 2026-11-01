@@ -39,11 +39,13 @@ type Host = {
 
 const draftRequest = z.strictObject({
   kind: feedbackKind,
-  // A draft is the agent's own words and may quote a terminal: what looks like a secret is masked.
+  // The length is the agent's own text; what looks like a secret is masked after, so the
+  // mask can't push a draft within the limit over it.
   text: z
     .string()
-    .transform((text) => redact(cleanInboxText(text)))
-    .pipe(z.string().trim().min(1).max(maxFeedbackText)),
+    .transform(cleanInboxText)
+    .pipe(z.string().trim().min(1).max(maxFeedbackText))
+    .transform((text) => redact(text)),
 })
 
 /**

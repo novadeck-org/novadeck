@@ -19,8 +19,6 @@ const OpenInBrowser = ({ url }: { url: string }): React.JSX.Element => (
   </a>
 )
 
-// How long troubles are gathered before they are told, so a page that logs a burst of them
-// makes one call.
 /** Whether two addresses share an origin: scheme, host and port. */
 const sameOrigin = (a: string, b: string): boolean => {
   try {
@@ -30,6 +28,8 @@ const sameOrigin = (a: string, b: string): boolean => {
   }
 }
 
+// How long troubles are gathered before they are told, so a page that logs a burst of them
+// makes one call.
 const troubleBatch = 500
 
 type Tell = ArtifactBodyProps<"page">["trouble"]

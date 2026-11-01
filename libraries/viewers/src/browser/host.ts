@@ -359,6 +359,48 @@ export const picturePage = async (
 }
 
 /**
+ * Whether the page view holds a frame, at any depth, committed from an address off this
+ * machine (`local` says which are on it). It reads the frames on screen now, so a document
+ * that never finished, a navigation that left the old one, a cached page and an
+ * `<object>` all count; `about:blank` and `srcdoc` frames, no web address, don't. A view
+ * whose frames can't be read counts as holding one.
+ */
+export const holdsOffsiteFrame = (
+  page: WebContents,
+  local: (address: string) => boolean,
+): boolean => {
+  try {
+    const { mainFrame } = page
+    return mainFrame.framesInSubtree.some(
+      (frame) => frame !== mainFrame && webAddress(frame.url) && !local(frame.url),
+    )
+  } catch {
+    return true
+  }
+}
+
+/**
+ * `picturePage` for the app's page, which says whether the picture is for an agent's look
+ * (`forLook` is exactly `true`): then none is taken while the view holds a frame from off
+ * this machine (see `holdsOffsiteFrame`), so the look falls back to a fresh load, which
+ * keeps such frames out. A resting picture for the person's own pane is taken as ever.
+ */
+export const pictureForApp = async (
+  app: WebContents,
+  id: unknown,
+  fromId: (id: number) => WebContents | undefined,
+  width: unknown,
+  forLook: unknown,
+  local: (address: string) => boolean,
+): Promise<string | undefined> => {
+  if (forLook === true) {
+    const page = pageViewOf(app, id, fromId)
+    if (!page || holdsOffsiteFrame(page, local)) return undefined
+  }
+  return picturePage(app, id, fromId, width)
+}
+
+/**
  * Tells how many sign-in windows a page view has open as each opens or closes. Electron
  * closes them when the view goes, so its app keeps the view live while any is open. A
  * view gone first, its windows closing after it, has no one left to tell.
@@ -455,18 +497,9 @@ export const maxForwardedRequests = 100
 export const watchPageRequests = (
   pages: Session,
   report: (contentsId: number, failure: PageRequestFailure) => void,
-  /** Whether an address is served from this machine; a frame from any other is held against a look. */
-  local: (address: string) => boolean = () => true,
-): {
-  readonly forget: (contentsId: number) => void
-  /** Whether the page view's current document holds a frame loaded from off this machine. */
-  readonly framed: (contentsId: number) => boolean
-} => {
+): { readonly forget: (contentsId: number) => void } => {
   // By page view, then origin.
   const told = new Map<number, Map<string, number>>()
-  // The page views whose current document has a frame from off this machine. The frames
-  // load as they ask; a look is what refuses them, as a picture of the pane would show them.
-  const framed = new Set<number>()
   const tell = (
     details: { url: string; resourceType: string; webContentsId?: number },
     status: number,
@@ -486,27 +519,11 @@ export const watchPageRequests = (
   }
   // A new main-frame request is a new document, however it ends.
   const navigating = (details: { resourceType: string; webContentsId?: number }): void => {
-    if (details.resourceType === "mainFrame" && details.webContentsId !== undefined) {
+    if (details.resourceType === "mainFrame" && details.webContentsId !== undefined)
       told.delete(details.webContentsId)
-      framed.delete(details.webContentsId)
-    }
-  }
-  const framing = (details: {
-    url: string
-    resourceType: string
-    webContentsId?: number
-  }): void => {
-    if (
-      details.resourceType === "subFrame" &&
-      details.webContentsId !== undefined &&
-      webAddress(details.url) &&
-      !local(details.url)
-    )
-      framed.add(details.webContentsId)
   }
   pages.webRequest.onCompleted((details) => {
     navigating(details)
-    framing(details)
     if (details.statusCode >= 400) tell(details, details.statusCode)
   })
   pages.webRequest.onErrorOccurred((details) => {
@@ -514,13 +531,7 @@ export const watchPageRequests = (
     if (details.error !== "net::ERR_ABORTED") tell(details, 0)
   })
   // A page view gone, as each rest of a page drops one: its counts go with it.
-  return {
-    forget: (contentsId) => {
-      told.delete(contentsId)
-      framed.delete(contentsId)
-    },
-    framed: (contentsId) => framed.has(contentsId),
-  }
+  return { forget: (contentsId) => void told.delete(contentsId) }
 }
 
 export { createLooker, type Looker, type LookResult } from "./look.js"
