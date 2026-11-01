@@ -22,6 +22,24 @@ import { agentWorking, doorbellHost, profileOf } from "./doorbell-host.js"
 import { Interrupts, Prompts } from "./prompting.js"
 import type { Record } from "./record.js"
 
+/**
+ * What the dialog adapters need of a pending request: what it asks, where (its hook's
+ * directory, else the terminal's), what of it is answered, and, for one asked without
+ * waiting, whether the agent's turn has ended since, by its activity's `state`.
+ */
+export const requestFacts = (
+  request: Activity["pending"][number],
+  cwd: string | null,
+  state: Activity["state"] | undefined,
+): RequestFacts => ({
+  kind: request.kind,
+  tool: request.toolName,
+  input: request.input,
+  cwd: request.cwd ?? cwd,
+  ...(request.answered && { answered: request.answered }),
+  ...(request.detached && state !== "working" && { turnEnded: true as const }),
+})
+
 /** How long `settleBox` looks at a screen for an empty box, in milliseconds. */
 const boxSettleMs = 5_000
 
@@ -352,13 +370,7 @@ export class Typing {
 
   /** What the dialog adapters need of a pending request: what it asks, and where. */
   private factsOf(record: Record, request: Activity["pending"][number]): RequestFacts {
-    return {
-      kind: request.kind,
-      tool: request.toolName,
-      input: request.input,
-      cwd: request.cwd ?? record.summary.cwd,
-      ...(request.answered && { answered: request.answered }),
-    }
+    return requestFacts(request, record.summary.cwd, record.bound?.activity.state)
   }
 
   /** The request of a terminal's bound agent that a ref names, with its facts. */

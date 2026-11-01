@@ -159,10 +159,11 @@ const panelOf = (lines: readonly string[]): number | undefined => {
 /**
  * Whether Codex is working: its status row, `• Working (12s • esc to interrupt)`, whose
  * bullet blinks to `◦` and back while it works, and whose word may be the header of the
- * model's reasoning instead of "Working": its time and `esc to interrupt` stay.
+ * model's reasoning instead of "Working": its time and `esc to interrupt` stay, with
+ * ` · Running hooks` after them while a hook runs.
  */
 const working = (lines: readonly string[]): boolean =>
-  lines.some((line) => /^\s*[•◦] .*\(\d[^()]*esc to interrupt\)\s*$/.test(line))
+  lines.some((line) => /^\s*[•◦] .*\(\d[^()]*esc to interrupt\)(?: · .*)?\s*$/.test(line))
 
 /**
  * Whether the screen is Codex idle at its composer, nothing queued or asked on it. Whether
@@ -204,6 +205,14 @@ export const asyncQuestions = (
   const [first] = questions
   const picker = pickerOf(lines)
   const panel = panelOf(lines)
+  // Codex drops its panel and picker when the turn ends, but 0.166.0 still draws them for a
+  // few hundred ms after its Stop hook, under the turn's last words where its status row
+  // was (probed 2026-10-31; seen in CI the same day): keys pressed there open nothing, so
+  // once the hooks say the turn has ended and its status row is gone, nothing reads until
+  // they have gone too, and the answer goes as the next prompt. Neither alone tells: a
+  // status row the width cuts reads like any line of the turn's, and the person's Escape
+  // that only closed the picker reads to Novadeck as the turn's end while it runs on.
+  if ((picker || panel !== undefined) && facts.turnEnded && !working(lines)) return undefined
   // Where the answer goes: the panel's or picker's keys while the turn runs, a prompt after.
   let opening: readonly KeyStep[] | undefined
   if (picker) {

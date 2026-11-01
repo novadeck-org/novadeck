@@ -14,8 +14,9 @@ import type { AgentName } from "@novadeck/protocol"
 type Classes = { readonly asking: readonly string[]; readonly other: readonly string[] }
 
 const lists: { readonly [agent in AgentName]: Classes } = {
-  // Recorded from Claude Code 2.1.304 (the pin) and the latest of 2026-10-29 (Monitor);
-  // on Windows it offers Glob and Grep too (seen in CI, 2026-10-29).
+  // Recorded from Claude Code 2.1.304 and the latest of 2026-10-29 (Monitor), and checked on
+  // 2.1.316 (the pin, 2026-10-31); on Windows it offers Glob and Grep too (seen in CI,
+  // 2026-10-29).
   // EnterPlanMode and EnterWorktree ask the person to approve them, through its ordinary permission prompt, which Novadeck reads for
   // every tool; they are not questions of their own.
   claude: {
@@ -49,9 +50,10 @@ const lists: { readonly [agent in AgentName]: Classes } = {
       "Write",
     ],
   },
-  // Recorded from Codex 0.163.0 (the pin), with the fake model's catalog entry as OpenAI's
-  // gives its models (agents/codex.ts). request_permissions is Codex's, offered only to a
-  // model that supports it; Novadeck handles it all the same.
+  // Recorded from Codex 0.163.0, and checked on 0.166.0 (the pin, 2026-10-31), with the fake
+  // model's catalog entry as OpenAI's gives its models (agents/codex.ts).
+  // request_permissions is Codex's, offered only to a model that supports it; Novadeck
+  // handles it all the same.
   codex: {
     asking: ["request_user_input", "request_user_input_async", "request_permissions"],
     other: [
@@ -77,7 +79,7 @@ const lists: { readonly [agent in AgentName]: Classes } = {
       "write_stdin",
     ],
   },
-  // Recorded from Antigravity 1.4.3 (the pin).
+  // Recorded from Antigravity 1.4.3, and checked on 1.4.12 (the pin, 2026-10-31).
   agy: {
     asking: ["ask_question"],
     other: [

@@ -16,9 +16,9 @@ import {
 } from "./dialogs.test-support.js"
 
 describe("Codex's async question", () => {
-  // Its screens as the newest release probed (0.165.0) drew them: the pin's own run is the
-  // same but for the version, and holds fewer of them (fixtures/ask.probe*.json).
-  const newest = load("ask.probe.0.165.0.json")
+  // Its screens as the pin (0.166.0) drew them; 0.165.0's read the same, but for the `•`
+  // that headed the question in the chat where 0.166.0 draws `?` (fixtures/ask.probe*.json).
+  const newest = load("ask.probe.0.166.0.json")
   type Steps = { readonly label: string; readonly screen: ScreenText }[]
   const panel = (name: string, source = newest): string[] => [
     ...(source.scenarios[name] as unknown as { before: ScreenText }).before.rows,
@@ -109,6 +109,42 @@ describe("Codex's async question", () => {
     expect(read(panel("rui-async-panel-two-questions"), two)).toBeDefined()
     expect(read(step("rui-async-panel-two-questions", "shift+left"), one)).toBeUndefined()
     expect(read(step("rui-async-panel-digit-2", "shift+left"), two)).toBeUndefined()
+  })
+
+  it("reads no panel or picker left on screen once the hooks say the turn has ended", () => {
+    // 0.166.0's screen 13 ms after its Stop hook (probed 2026-10-31): the turn's last words
+    // where its status row was, the panel still under them, gone a moment later.
+    const left = replaced(
+      panel("rui-async-panel-digit-2"),
+      /^• Working \(\d+s • esc to interrupt\)/,
+      "• Finished the request.",
+    )
+    const ended = { ...one, turnEnded: true as const }
+    // Without the hooks' word the screen reads as the panel.
+    expect(read(left, one)).toBeDefined()
+    expect(read(left, ended)).toBeUndefined()
+    expect(
+      read(
+        replaced(
+          step("rui-async-panel-digit-2", "shift+left"),
+          /^• Working \(\d+s • esc to interrupt\)/,
+          "• Finished the request.",
+        ),
+        ended,
+      ),
+    ).toBeUndefined()
+    // Its status row still drawn, as after an Escape that only closed the picker, which
+    // reads to Novadeck as the turn's end, the turn runs on and its panel answers: also
+    // while a hook runs.
+    expect(read(panel("rui-async-panel-digit-2"), ended)).toBeDefined()
+    expect(
+      read(
+        replaced(panel("rui-async-panel-digit-2"), /interrupt\)/, "interrupt) · Running hooks"),
+        ended,
+      ),
+    ).toBeDefined()
+    // Once they have gone, the answer is the next prompt.
+    expect(read(screen("rui-async-offered", "wide", newest), ended)?.prompt).toBeDefined()
   })
 
   it("reads no picker on another question, or with another request's options", () => {

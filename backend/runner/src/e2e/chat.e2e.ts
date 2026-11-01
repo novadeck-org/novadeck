@@ -468,8 +468,11 @@ for (const setup of setups) {
           const sent = setup.merges ? [given.join("\n")] : given
           expect(users.map((one) => one.text)).toEqual([
             "Run the tool",
-            // The image holds its place in the prompt's text, as its box showed it.
-            ...sent.map((prompt) => (image ? `${prompt} ${setup.image!.shows}` : prompt)),
+            // The image holds its place in the prompt's text, as its box showed it, or goes
+            // beside it.
+            ...sent.map((prompt) =>
+              image && setup.image!.inline ? `${prompt} ${setup.image!.shows}` : prompt,
+            ),
           ])
           const result = items.findIndex((one) => one.kind === "tool-result")
           const at = sent.map((prompt) =>
