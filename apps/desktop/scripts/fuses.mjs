@@ -3,8 +3,8 @@
 // points shut turned on, which is what launching the app under Playwright and running its
 // code as Node, both of which the smoke test and the bench do, need.
 import { execFileSync, spawnSync } from "node:child_process"
-import { copyFileSync, mkdtempSync, readFileSync, rmSync } from "node:fs"
-import { tmpdir } from "node:os"
+import { copyFileSync, mkdtempSync, readdirSync, readFileSync, rmSync, statSync } from "node:fs"
+import { homedir, tmpdir } from "node:os"
 import { basename, dirname, extname, join, resolve } from "node:path"
 
 import fuses from "@electron/fuses"
@@ -153,7 +153,7 @@ export const killUnder = (root) => {
  * so a hang ends the run with its cause in the log instead of at the step's timeout.
  * Returns the description of such a hang, or undefined when the app closed.
  */
-export const closeWithin = async (app, root, output, ms = 30_000) => {
+export const closeWithin = async (app, root, output, userData, ms = 30_000) => {
   const closed = app.close().then(
     () => true,
     () => true,
@@ -172,6 +172,11 @@ export const closeWithin = async (app, root, output, ms = 30_000) => {
   const running = processesUnder(root)
     .map(([pid, command]) => `  ${pid} ${command.slice(0, 200)}`)
     .join("\n")
+  const stuck = processesUnder(root)[0]?.[0]
+  const sampled =
+    process.platform === "darwin" && stuck !== undefined
+      ? spawnSync("sample", [stuck, "1"], { encoding: "utf8", timeout: 20_000 }).stdout
+      : ""
   killUnder(root)
   try {
     app.process().kill("SIGKILL")
@@ -181,5 +186,26 @@ export const closeWithin = async (app, root, output, ms = 30_000) => {
     `Windows: ${windows.join("; ") || "none"}`,
     `Still running from ${root}:\n${running || "  nothing"}`,
     `Its output:\n${output.join("").slice(-3000) || "  nothing"}`,
+    `Its logs:\n${[userData, join(homedir(), "Library", "Logs", "Novadeck")].map(logsUnder).join("") || "  nothing"}`,
+    ...(sampled ? [`What its main process was doing (sample):\n${sampled.slice(0, 6000)}`] : []),
   ].join("\n")
+}
+
+// The ends of the log files under `folder`, which tell how far a quit that never ended got.
+const logsUnder = (folder) => {
+  const found = []
+  const walk = (at) => {
+    for (const name of readdirSync(at)) {
+      const path = join(at, name)
+      if (statSync(path).isDirectory()) walk(path)
+      else if (/\.(log|json)$/.test(name) && /log|session/i.test(path)) found.push(path)
+    }
+  }
+  try {
+    walk(folder)
+  } catch {}
+  return found
+    .slice(0, 8)
+    .map((path) => `--- ${path}\n${readFileSync(path, "utf8").slice(-1500)}`)
+    .join("\n")
 }

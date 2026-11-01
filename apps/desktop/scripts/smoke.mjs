@@ -326,7 +326,7 @@ try {
     console.log("The terminal runs on the bundled ConPTY host (OpenConsole.exe).")
   }
 } finally {
-  const hung = await closeWithin(app, opened.root, output)
+  const hung = await closeWithin(app, opened.root, output, userData)
   killUnder(opened.root)
   if (hung) fail(hung)
   rmSync(work, { recursive: true, force: true })
