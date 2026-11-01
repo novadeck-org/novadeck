@@ -309,7 +309,12 @@ describe.skipIf(!supported)("Approvals through Novadeck's runner hooks", () => {
         setup.agent !== "agy" ||
         major > 1 ||
         (major === 1 && (minor > 4 || (minor === 4 && patch >= 10)))
-      const ran = launched ? 1 : 0
+      // The fake `gh` is a shell script. Codex's and Antigravity's own shells on macOS (a login
+      // shell that puts the system's `gh` first) and on Windows (no `sh` script runs) may not
+      // reach it, so there the marker proves nothing: the call's result reaching the model with
+      // no dialog does.
+      const marked = setup.agent === "claude" || process.platform === "linux"
+      const ran = launched && marked ? 1 : 0
       let terminal = await open(run, kit)
       if (setup.agent === "claude") onTestFinished(clearing(terminal))
       const refuse = (shown: RegExp) => until(terminal, "the call stopped", (s) => shown.test(s))
@@ -379,14 +384,21 @@ describe.skipIf(!supported)("Approvals through Novadeck's runner hooks", () => {
       // before 1.4.10 takes no launch grant: it restarts fine, its grant delivery says so, and
       // the command still gets its dialog.
       const classified = counted.calls
+      const markAgain = run.model.mark()
       await terminal.submit("run again")
       if (launched) {
-        const end = Date.now() + 45_000
-        while (marks(world()).length === 0 && Date.now() < end) {
-          // eslint-disable-next-line no-await-in-loop -- Polled in turn.
-          await sleep(250)
+        if (marked) {
+          const end = Date.now() + 45_000
+          while (marks(world()).length === 0 && Date.now() < end) {
+            // eslint-disable-next-line no-await-in-loop -- Polled in turn.
+            await sleep(250)
+          }
+          expect(marks(world())).toEqual([`gh ${granted.slice(3)}`])
+        } else {
+          await run.model.waitFor((call) => call.turns.at(-1)?.role === "tool", {
+            after: markAgain,
+          })
         }
-        expect(marks(world())).toEqual([`gh ${granted.slice(3)}`])
         expect(await terminal.screen()).not.toMatch(kit.dialog)
         expect(counted.calls, "the granted call reached the classifier").toBe(classified)
       } else {

@@ -140,6 +140,28 @@ else {
 }
 `
 
+// The ComSpec wrapper: a copy of node.exe named comspec.exe, preloaded (NODE_OPTIONS --require)
+// with this file. As comspec.exe it logs that it ran and its raw command line, then runs the
+// real cmd.exe with /d (no AutoRun) and the same arguments, and exits with its status. Any other
+// node process that preloads it does nothing.
+const comspecProgram = `
+const { appendFileSync } = require("node:fs")
+const { basename } = require("node:path")
+const { spawnSync } = require("node:child_process")
+if (basename(process.execPath).toLowerCase() === "comspec.exe") {
+  const log = (extra) => appendFileSync(__dirname + "/comspec.log", JSON.stringify({ t: Date.now(), ...extra }) + "\\n")
+  let line = ""
+  try {
+    line = spawnSync("powershell.exe", ["-NoProfile", "-Command", "(Get-CimInstance Win32_Process -Filter 'ProcessId=" + process.pid + "').CommandLine"], { encoding: "utf8" }).stdout.trim()
+  } catch {}
+  const rest = line ? /^\\s*(?:"[^"]*"|\\S+)\\s*([\\s\\S]*)$/.exec(line)?.[1] ?? "" : process.argv.slice(1).join(" ")
+  log({ ran: true, line, rest, ppid: process.ppid })
+  const done = spawnSync("C:\\\\Windows\\\\System32\\\\cmd.exe", ["/d " + rest], { stdio: "inherit", windowsVerbatimArguments: true })
+  log({ finished: true, status: done.status, error: done.error ? String(done.error) : null })
+  process.exit(done.status ?? 1)
+}
+`
+
 type Kit = {
   readonly dir: string
   /** A node.exe copy under another name, so it runs as a program of its own. */
@@ -149,7 +171,7 @@ type Kit = {
 const kits = new Map<string, Kit>()
 
 /** Writes the kit and puts its programs first on PATH. */
-const withKit = (setup: AgentSetup): AgentSetup => ({
+const withKit = (setup: AgentSetup, comspec = false): AgentSetup => ({
   ...setup,
   prepare: async (sandbox, model, installed, seed) => {
     const env = await setup.prepare(sandbox, model, installed, seed)
@@ -163,7 +185,19 @@ const withKit = (setup: AgentSetup): AgentSetup => ({
     writeFileSync(join(dir, "marker.cjs"), markerProgram)
     writeFileSync(join(dir, "hook.cjs"), hookProgram)
     kits.set(sandbox.root, { dir, bin })
-    return { ...env, PATH: [bin, sandbox.env.PATH].join(delimiter) }
+    if (!comspec) return { ...env, PATH: [bin, sandbox.env.PATH].join(delimiter) }
+    // ComSpec names the wrapper; the preload makes node.exe's copy behave as it.
+    copyFileSync(process.execPath, join(bin, "comspec.exe"))
+    writeFileSync(join(dir, "comspec.cjs"), comspecProgram)
+    const kept = Object.fromEntries(
+      Object.entries(env).filter(([name]) => name.toUpperCase() !== "COMSPEC"),
+    )
+    return {
+      ...kept,
+      PATH: [bin, sandbox.env.PATH].join(delimiter),
+      ComSpec: join(bin, "comspec.exe"),
+      NODE_OPTIONS: `--require ${join(dir, "comspec.cjs").replaceAll("\\", "/")}`,
+    }
   },
 })
 
@@ -478,6 +512,8 @@ type AgyCase = {
   readonly settings?: unknown
   /** Run under a cmd AutoRun that prints (CI's runner only), and print how the hook was spawned. */
   readonly autorun?: boolean
+  /** ComSpec names a wrapper that logs and runs the real cmd with /d: does Antigravity use it? */
+  readonly comspec?: boolean
   /** The model's command line, given the marker program's script and the file it writes. */
   readonly line?: (script: string, marker: string) => string
   /** A program with no arguments: a batch file of the kit that writes the marker. */
@@ -549,6 +585,16 @@ const agyCases: AgyCase[] = [
     answer: decision("force_ask"),
     autorun: true,
   },
+  // The lead's idea: if Antigravity finds cmd through %ComSpec%, a wrapper that adds /d skips
+  // the AutoRun, so the hook's JSON is read and force_ask's dialog shows.
+  {
+    name: "z1b-spawn-comspec",
+    form: "direct",
+    grant: both,
+    answer: decision("force_ask"),
+    autorun: true,
+    comspec: true,
+  },
   // Why the launch grant did not apply (n1..n3 still asked): do settings count at all, and
   // what spelling matches?
   {
@@ -584,13 +630,15 @@ const agyCases: AgyCase[] = [
 const only = process.env.WINDOWS_GRANTS_CASE?.split(",")
 
 describe.runIf(windows)("Antigravity on Windows (grants probe)", () => {
-  const it = e2e(withKit(agy))
+  const plain = e2e(withKit(agy))
+  const wrapped = e2e(withKit(agy, true))
 
   for (const c of agyCases) {
     if (only && !only.some((one) => c.name.startsWith(one))) continue
+    const it = c.comspec ? wrapped : plain
     it(
       c.name,
-      async ({ e2e: run }) => {
+      async ({ e2e: run, skip }) => {
         const kit = kitOf(run.sandbox.root)
         const form = c.form ?? "direct"
         const standin = join(kit.bin, "standin.exe")
@@ -668,6 +716,14 @@ describe.runIf(windows)("Antigravity on Windows (grants probe)", () => {
           flags = ` --settings ${file}`
         }
         probe("agy settings", { flags, settings: settings ?? null })
+        // Antigravity takes `--settings` from 1.4.10 on; before it, the launch prints its usage.
+        if (flags !== "") {
+          const [major = 0, minor = 0, patch = 0] = (await installHarness("agy")).version
+            .split(".")
+            .map(Number)
+          if (major === 1 && (minor < 4 || (minor === 4 && patch < 10)))
+            return skip("this Antigravity takes no --settings (before 1.4.10)")
+        }
         probe("agy command", { line })
         run.model.use(
           (call: Call): Reply | undefined =>
@@ -728,6 +784,14 @@ describe.runIf(windows)("Antigravity on Windows (grants probe)", () => {
                   : "cmd (no dialog, the call failed)"
             }`,
           )
+        if (c.comspec) {
+          const wrapper = lines(join(kit.dir, "comspec.log"))
+          probe("agy comspec wrapper log", wrapper)
+          const ran = wrapper.length > 0
+          console.log(
+            `PROBE agy comspec verdict: ${dialog ? "used" : "not used"} (wrapper ${ran ? "ran" : "never ran"}${dialog || !ran ? "" : ", yet no dialog"})`,
+          )
+        }
         report(`agy ${c.name}`, kit)
         // Antigravity's own settings and logs, where the grants may have been read or refused.
         const gemini = join(run.sandbox.home, ".gemini")
@@ -753,39 +817,55 @@ describe.runIf(windows)("Antigravity on Windows (grants probe)", () => {
 describe.runIf(windows && process.env.GITHUB_ACTIONS === "true")(
   "Antigravity on Windows under a printing AutoRun",
   () => {
-    const it = e2e(agy)
     let restore: (() => void) | undefined
     beforeAll(() => {
       restore = printingAutoRun()
     })
     afterAll(() => restore?.())
 
-    it("z2-plain-messaging", async ({ e2e: run }) => {
-      run.model.use(
-        sends("Ask fox for its colour", "fox", "What is your colour?"),
-        own((call) => (sent(call, "fox") ? { text: "Asked." } : undefined)),
-        own((call) => (delivered(call, "moth") ? { text: "Mine is teal." } : undefined)),
-      )
-      const outcome: Record<string, unknown> = {}
-      try {
-        const t1 = await start(run, agy)
-        const t2 = await start(run, agy)
-        outcome.started = true
-        await t1.submit("Ask fox for its colour")
-        outcome.delivered = await run.model
-          .waitFor((call) => delivered(call, "moth"), { timeoutMs: 45_000 })
-          .then(
-            () => true,
-            () => false,
+    // Without and with ComSpec naming the /d wrapper: is Novadeck's messaging delivered?
+    for (const comspec of [false, true]) {
+      const it = e2e(withKit(agy, comspec))
+      it(
+        comspec ? "z3-plain-messaging-comspec" : "z2-plain-messaging",
+        async ({ e2e: run }) => {
+          run.model.use(
+            sends("Ask fox for its colour", "fox", "What is your colour?"),
+            own((call) => (sent(call, "fox") ? { text: "Asked." } : undefined)),
+            own((call) => (delivered(call, "moth") ? { text: "Mine is teal." } : undefined)),
           )
-        outcome.messages = messages(t1).map((one) => [one.from, one.to, one.state])
-        outcome.t1 = rows(await t1.screen())
-        outcome.t2 = rows(await t2.screen())
-      } catch (error) {
-        outcome.error = String(error).slice(0, 1500)
-      }
-      probe("agy plain terminal under AutoRun", outcome)
-    }, 240_000)
+          const outcome: Record<string, unknown> = {}
+          try {
+            const t1 = await start(run, agy)
+            const t2 = await start(run, agy)
+            outcome.started = true
+            await t1.submit("Ask fox for its colour")
+            outcome.delivered = await run.model
+              .waitFor((call) => delivered(call, "moth"), { timeoutMs: 45_000 })
+              .then(
+                () => true,
+                () => false,
+              )
+            outcome.messages = messages(t1).map((one) => [one.from, one.to, one.state])
+            outcome.t1 = rows(await t1.screen())
+            outcome.t2 = rows(await t2.screen())
+          } catch (error) {
+            outcome.error = String(error).slice(0, 1500)
+          }
+          if (comspec) {
+            const wrapper = lines(join(kitOf(run.sandbox.root).dir, "comspec.log"))
+            outcome.wrapperRuns = wrapper.length
+          }
+          probe(
+            comspec
+              ? "agy plain terminal under AutoRun with ComSpec"
+              : "agy plain terminal under AutoRun",
+            outcome,
+          )
+        },
+        240_000,
+      )
+    }
   },
 )
 
@@ -1047,7 +1127,7 @@ describe.runIf(windows)("Codex on Windows: a pr team grant", () => {
       "gh pr comment 12 -R octo/repo --body 'two words'",
       merge,
     ]
-    const state = { done: false }
+    const state = { done: false, issued: 0 }
     run.model.use(
       own((call) => {
         if (asked(call, "propose it")) {
@@ -1067,13 +1147,14 @@ describe.runIf(windows)("Codex on Windows: a pr team grant", () => {
           }
         }
         if (call.turns.some((turn) => turn.role === "user" && turn.text.includes("tm-brief"))) {
-          const runs = call.turns.filter(
-            (turn) =>
-              turn.role === "assistant" && turn.calls.some((one) => one.name === "exec_command"),
-          ).length
-          if (runs === 0) return codexKit.shell(steps[0]!)
-          if (call.turns.at(-1)?.role === "tool") {
-            if (runs < steps.length) return codexKit.shell(steps[runs]!)
+          // Refusing a dialog ends Codex's turn with no result, so the steps are counted as they
+          // are issued, and a "go on" after each refusal asks for the next.
+          const last = call.turns.at(-1)
+          if (state.issued === 0) return codexKit.shell(steps[state.issued++]!)
+          if (last?.role === "user" && last.text.includes("go on") && state.issued < steps.length)
+            return codexKit.shell(steps[state.issued++]!)
+          if (last?.role === "tool") {
+            if (state.issued < steps.length) return codexKit.shell(steps[state.issued++]!)
             state.done = true
             return { text: "Teammate done." }
           }
@@ -1117,6 +1198,8 @@ describe.runIf(windows)("Codex on Windows: a pr team grant", () => {
         probe("grants dialog", { at: marksOf(world()).length, screen: rows(screen) })
         teammate.press(codexKit.refuse)
         await sleep(2500)
+        if (dialogs.length === 2) break
+        await teammate.submit("go on")
       }
       await sleep(500)
     }
