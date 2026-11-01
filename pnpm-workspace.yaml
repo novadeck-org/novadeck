@@ -35,12 +35,14 @@ allowBuilds:
   msw: false
   node-pty: true
 # A dependency version is accepted only once it has been published three days (the value is in
-# minutes), so a hijacked release is usually pulled before it reaches us. `pnpm install
-# --frozen-lockfile`, as CI runs it, checks every lockfile entry against it too (the current
-# lockfile passes), so a bump to a younger version fails CI. A security fix younger than that
-# is let in by its exact version in the list below (`name@version`), removed again once it is
-# old enough; `pnpm audit --fix` offers to add them. Dependabot's cooldown matches
-# (.github/dependabot.yml) and its security updates skip it.
+# minutes), so a hijacked release is usually pulled before it reaches us. Setting it also turns
+# on pnpm's strict mode (`minimumReleaseAgeStrict`), which is the gate: an install fails rather
+# than take a younger version, `pnpm install --frozen-lockfile` (CI's) checks every lockfile
+# entry against it too (the current lockfile passes), and `pnpm dlx` in a workflow run from
+# the repository reads it as well. Dependabot's cooldown matches, but its security updates skip
+# that cooldown and pnpm still refuses a fix younger than three days. For such a fix, add its
+# exact version below by hand (`name@version`; `pnpm audit --fix` offers to) and remove the line once
+# it is old enough.
 minimumReleaseAge: 4320
 minimumReleaseAgeExclude:
   - "@types/node@26.6.2"

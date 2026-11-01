@@ -13,7 +13,9 @@ updates:
       time: "09:00"
       timezone: "Europe/Warsaw"
     # The same three days pnpm's minimumReleaseAge (pnpm-workspace.yaml) holds a new version
-    # back, so an update never names one pnpm would refuse. Security updates skip it.
+    # back, so a version update never names one pnpm would refuse. Dependabot's security
+    # updates skip this cooldown, but pnpm still refuses a fix younger than three days: add
+    # its exact version to minimumReleaseAgeExclude there by hand, and remove it once it is old enough.
     cooldown:
       default-days: 3
     groups:
