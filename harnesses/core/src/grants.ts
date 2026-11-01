@@ -46,6 +46,14 @@ export type ShellCall = {
    */
   readonly folderHidden?: true
   /**
+   * A variable that redirects or extends git (`GIT_CONFIG_COUNT`, `GIT_DIR`, `GIT_SSH_COMMAND`…) is
+   * set in the agent's environment, which the runner's git does not have: the push preset reads
+   * nothing it can trust, and matches nothing.
+   */
+  readonly gitEnv?: true
+  /** The same for `gh` (`GH_HOST`, `GH_REPO`, `GH_CONFIG_DIR`…) and the pr preset. */
+  readonly ghEnv?: true
+  /**
    * Where Codex recorded the call: its rollout and the turn's id, which the permission hook
    * names. The rollout holds the call's `workdir` and its turn's mode (see `FsLookups.codexCall`).
    */

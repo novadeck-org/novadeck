@@ -54,6 +54,10 @@ export type Permission = {
   readonly narrow: boolean
   /** The PATH the agent's hook ran under, null where the relay did not give one. */
   readonly path: string | null
+  /** A variable of `gitVariables` is set in the hook's environment. */
+  readonly gitEnv: boolean
+  /** A variable of `ghVariables` is set in the hook's environment. */
+  readonly ghEnv: boolean
 }
 
 /** Whether Antigravity's tool is one known to run no command (design B3): a closed list. */
@@ -70,6 +74,7 @@ const readPermission = (
   narrow: boolean,
   platform: NodeJS.Platform,
   path: string | null,
+  env: Fields,
 ): Permission => {
   const call = callFromPayload(agent, event, payload, platform)
   return {
@@ -84,6 +89,8 @@ const readPermission = (
     mode: text(payload.permission_mode, 64) ?? null,
     narrow,
     path,
+    gitEnv: gitVariables.some((name) => text(env[name], 65_536) !== undefined),
+    ghEnv: ghVariables.some((name) => text(env[name], 65_536) !== undefined),
   }
 }
 
@@ -106,6 +113,48 @@ const readDenied = (payload: Fields): string | undefined => {
 export const askMs = 4_000
 
 /**
+ * The variables that redirect or extend a `git push` the runner reads from its own git, which
+ * can't see them: configuration, where git looks, how it connects. Set in the hook's environment,
+ * the push preset matches nothing. (`GIT_CONFIG_COUNT` stands for its numbered `_KEY_n`/`_VALUE_n`.)
+ */
+export const gitVariables = [
+  "GIT_CONFIG_COUNT",
+  "GIT_CONFIG_PARAMETERS",
+  "GIT_CONFIG_GLOBAL",
+  "GIT_CONFIG_SYSTEM",
+  "GIT_CONFIG_NOSYSTEM",
+  "GIT_DIR",
+  "GIT_WORK_TREE",
+  "GIT_COMMON_DIR",
+  "GIT_INDEX_FILE",
+  "GIT_OBJECT_DIRECTORY",
+  "GIT_ALTERNATE_OBJECT_DIRECTORIES",
+  "GIT_NAMESPACE",
+  "GIT_CEILING_DIRECTORIES",
+  "GIT_EXEC_PATH",
+  "GIT_TEMPLATE_DIR",
+  "GIT_SSH",
+  "GIT_SSH_COMMAND",
+  "GIT_PROXY_COMMAND",
+  "GIT_ASKPASS",
+] as const
+
+/**
+ * The variables that change the host, repo or configuration of a `gh` call, or a program it
+ * runs. Set in the hook's environment, the pr preset matches nothing.
+ */
+export const ghVariables = [
+  "GH_HOST",
+  "GH_REPO",
+  "GH_CONFIG_DIR",
+  "GH_ENTERPRISE_TOKEN",
+  "GITHUB_ENTERPRISE_TOKEN",
+  "GH_EDITOR",
+  "GH_PAGER",
+  "GH_BROWSER",
+] as const
+
+/**
  * What of a hook's environment the relay forwards, by name: Claude Code's own pid, and
  * what tells nested agents apart. The relay reads the names from its configuration.
  */
@@ -118,6 +167,8 @@ export const hookVariables = [
   // The agent's own PATH: a relative or empty entry lets a shell run a same-name program from the
   // call's folder, which no grant may cover (`Permissions`).
   "PATH",
+  ...gitVariables,
+  ...ghVariables,
 ] as const
 
 /**
@@ -265,6 +316,7 @@ export const relayHook = (
           narrow,
           platform,
           text(env.PATH, 65_536) ?? text(env.Path, 65_536) ?? null,
+          env,
         )
       : undefined
   const denied = event === messaging.denied ? readDenied(payload) : undefined

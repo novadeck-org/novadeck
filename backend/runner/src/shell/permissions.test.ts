@@ -10,7 +10,7 @@ import type { Report } from "@novadeck/harness-core/report"
 import { harnesses } from "../harnesses/registry.js"
 import { describe, expect, it } from "../test.js"
 import { armedMs } from "./armed.js"
-import { relayHook } from "./hook.js"
+import { hookVariables, relayHook } from "./hook.js"
 import { Narrowing } from "./narrowing.js"
 import { Permissions, type PermissionsHost } from "./permissions.js"
 
@@ -422,6 +422,69 @@ describe("Claude Code's permission check", () => {
     expect((await ask("claude", "PreToolUse", bash("uberepo ship x"))).stdout).toBe(
       allowedLine("claude"),
     )
+  })
+
+  it("holds back the push and pr presets while git's or gh's variables are set in the hook's environment", async ({
+    resources,
+  }) => {
+    const pr: GrantScope & { id: string } = {
+      id: "g-pr",
+      presets: ["pr"],
+      repos: [{ url: "github.com/acme/app", defaultBranch: "main" }],
+      commands: [{ argv: ["uberepo", "ship", "x"], rest: false }],
+    }
+    const { ask } = fixture(resources, () => [pr])
+    const ready = bash("gh pr ready 12 -R acme/app")
+    const codexReady = { ...ready, hook_event_name: "PermissionRequest" }
+    const claude = async (env: object) => (await ask("claude", "PreToolUse", ready, { env })).stdout
+    const codex = async (env: object) =>
+      (await ask("codex", "PermissionRequest", codexReady, { env })).stdout
+    expect(await claude({})).toBe(allowedLine("claude"))
+    expect(await codex({})).toBe(allowedLine("codex"))
+    for (const name of ["GH_HOST", "GH_REPO", "GH_CONFIG_DIR", "GITHUB_ENTERPRISE_TOKEN"]) {
+      // eslint-disable-next-line no-await-in-loop -- One variable at a time.
+      expect(await claude({ [name]: "x" }), name).toBe("")
+      // eslint-disable-next-line no-await-in-loop -- As above.
+      expect(await codex({ [name]: "x" }), name).toBe("")
+    }
+    // git's don't touch a pull request, and a granted command is neither's.
+    for (const name of ["GIT_DIR", "GIT_CONFIG_COUNT", "GIT_SSH_COMMAND"])
+      // eslint-disable-next-line no-await-in-loop -- As above.
+      expect(await claude({ [name]: "x" }), name).toBe(allowedLine("claude"))
+    expect(
+      (
+        await ask("claude", "PreToolUse", bash("uberepo ship x"), {
+          env: { GH_HOST: "x", GIT_DIR: "y" },
+        })
+      ).stdout,
+    ).toBe(allowedLine("claude"))
+  })
+
+  it("flags the variables the hook's environment holds, for every harness", () => {
+    const flags = (
+      agent: "claude" | "codex" | "agy",
+      event: string,
+      payload: object,
+      env: object,
+    ) => relayHook(hello(agent, event, payload, env))?.permission
+    for (const [agent, event, payload] of [
+      ["claude", "PreToolUse", bash("ls")],
+      ["codex", "PermissionRequest", { ...bash("ls"), hook_event_name: "PermissionRequest" }],
+      ["agy", "PreToolUse", run("ls")],
+    ] as const) {
+      expect(flags(agent, event, payload, {})).toMatchObject({ gitEnv: false, ghEnv: false })
+      expect(flags(agent, event, payload, { GIT_CONFIG_COUNT: "1" })).toMatchObject({
+        gitEnv: true,
+        ghEnv: false,
+      })
+      expect(flags(agent, event, payload, { GH_REPO: "o/n" })).toMatchObject({
+        gitEnv: false,
+        ghEnv: true,
+      })
+    }
+    // The relay forwards them by name, all of them.
+    for (const name of ["GIT_DIR", "GIT_CONFIG_PARAMETERS", "GH_HOST", "GH_ENTERPRISE_TOKEN"])
+      expect(hookVariables).toContain(name)
   })
 
   it("reads a Windows PATH by its own rules: drive and UNC folders, quotes allowed, relative ones not", async ({

@@ -378,6 +378,27 @@ describe("the push preset", () => {
     expect(await ready()).toBeNull()
   })
 
+  it("matches no push where git's variables are set in the agent's environment, and no pull request where gh's are", async () => {
+    const both = [scope({ commands: [{ argv: ["uberepo", "ship"], rest: false }] })]
+    const call = (command: string, over: object) =>
+      matchCall({ command: flagged(command), cwd: root, ...over }, both, git, root, fs)
+    const push = "git push origin fix:fix"
+    const ready = "gh pr ready 12 -R acme/app"
+    expect(await call(push, {})).not.toBeNull()
+    expect(await call(ready, {})).not.toBeNull()
+    // git's variables hold back the push alone.
+    expect(await call(push, { gitEnv: true })).toBeNull()
+    expect(await call(ready, { gitEnv: true })).not.toBeNull()
+    // gh's, the pull request alone.
+    expect(await call(push, { ghEnv: true })).not.toBeNull()
+    expect(await call(ready, { ghEnv: true })).toBeNull()
+    // A granted command is neither.
+    expect(await call("uberepo ship", { gitEnv: true, ghEnv: true })).toEqual({
+      scope: 0,
+      match: { kind: "command", index: 0 },
+    })
+  })
+
   it("needs every place a URL pushes to to be the granted repo", async () => {
     const url = "https://github.com/acme/app"
     rewrites.set(url, [url, "https://github.com/evil/app"])

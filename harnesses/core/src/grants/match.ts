@@ -90,12 +90,16 @@ export const matchCall = async (
   const refs = callFolder
   for (const [scope, grant] of scopes.entries()) {
     for (const preset of grant.presets) {
+      // The environment the runner can't see holds a variable that redirects what the preset
+      // reads: git's for a push, gh's for a pull request.
+      const varied = preset === "push" ? call.gitEnv === true : call.ghEnv === true
       const ok =
-        preset === "push"
+        !varied &&
+        (preset === "push"
           ? // eslint-disable-next-line no-await-in-loop -- The first entry that matches decides.
             await matchesPush(argv, grant.repos, git, refs)
           : // eslint-disable-next-line no-await-in-loop -- As above.
-            await matchesPr(argv, grant.repos, { cwd: call.cwd, root: projectRoot, gitBash }, fs)
+            await matchesPr(argv, grant.repos, { cwd: call.cwd, root: projectRoot, gitBash }, fs))
       if (ok) return { scope, match: { kind: "preset", preset } }
     }
     for (const [index, command] of grant.commands.entries())
