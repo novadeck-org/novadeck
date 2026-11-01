@@ -10,6 +10,8 @@ import { fileURLToPath } from "node:url"
 import * as esbuild from "esbuild"
 import { _electron } from "playwright"
 
+import { fuseProblems, openedCopy } from "./fuses.mjs"
+
 const packageDir = resolve(dirname(fileURLToPath(import.meta.url)), "..")
 const release = join(packageDir, "release")
 
@@ -37,6 +39,17 @@ const packaged = () => {
 
 const { executable, resources } = packaged()
 if (!existsSync(executable)) fail(`The packaged executable is missing: ${executable}`)
+
+// The shipped binary must not run as Node, take NODE_OPTIONS or the inspect arguments, and must
+// load only from a checked app.asar: its fuses are read back as they ship.
+for (const problem of await fuseProblems(executable)) fail(`A fuse is wrong: ${problem}`)
+console.log("The packaged binary's fuses are set: no RunAsNode, NODE_OPTIONS or inspect arguments.")
+
+// Everything below that needs the binary to run as Node (the worker and koffi checks) or to
+// take Playwright's inspector (the runner round trip) uses a copy of it with only those three
+// fuses turned on; it finds the same app.asar and code, so what ships is what is tested.
+const opened = await openedCopy(executable)
+process.on("exit", opened.remove)
 
 // A compiled build/Release binary would shadow the prebuilds, which carry the bundled
 // ConPTY files. node-pty's Windows install script also copies those files into
@@ -80,7 +93,7 @@ console.log((status >>> 0).toString(16))
   )
   try {
     const status = execFileSync(
-      executable,
+      opened.executable,
       [probe, join(resources, "app.asar", "out", "main", "index.js")],
       {
         env: { ...process.env, ELECTRON_RUN_AS_NODE: "1" },
@@ -175,8 +188,8 @@ for (const [name, label] of [
 }
 
 // The threads the runner redacts in (murmur's digests, saved transcripts), started as the
-// runner starts them: a worker on the script inside app.asar. The packaged executable runs the check as Node, which reads
-// asar archives the same way the app does.
+// runner starts them: a worker on the script inside app.asar. The packaged executable's open copy runs the check as Node,
+// which reads asar archives the same way the app does.
 {
   const script = join(mkdtempSync(join(tmpdir(), "novadeck-smoke-worker-")), "start-worker.mjs")
   writeFileSync(
@@ -202,7 +215,7 @@ worker.once("message", (reply) => {
     ["transcript redaction", "redactionWorker.js"],
   ]) {
     try {
-      execFileSync(executable, [script, join(resources, "app.asar", "out", "main", file)], {
+      execFileSync(opened.executable, [script, join(resources, "app.asar", "out", "main", file)], {
         env: { ...process.env, ELECTRON_RUN_AS_NODE: "1" },
         timeout: 30_000,
         stdio: ["ignore", "pipe", "pipe"],
@@ -231,7 +244,7 @@ const client = `${bundle.outputFiles[0].text};globalThis.novadeckClient = novade
 const userData = mkdtempSync(join(tmpdir(), "novadeck-smoke-data-"))
 const work = mkdtempSync(join(tmpdir(), "novadeck-smoke-work-"))
 const app = await _electron.launch({
-  executablePath: executable,
+  executablePath: opened.executable,
   // Hosted Linux runners forbid the unprivileged namespaces Chromium's sandbox needs.
   args: [`--user-data-dir=${userData}`, ...(process.platform === "linux" ? ["--no-sandbox"] : [])],
   // A release's version would otherwise let the packaged app look for updates.
