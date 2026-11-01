@@ -242,8 +242,18 @@ const commandLine = (each: { readonly argv: readonly string[]; readonly rest: bo
   each.argv.join(" ") + (each.rest ? " (followed by anything)" : "")
 
 // A plain-text record of everything the person saw, retained after the sheet clears.
-const askText = (ask: AgentAsk): string => {
+const askText = (ask: AgentAsk, handle: string): string => {
   const { shape } = ask
+  // An approval is shown under Novadeck's own title, the agent's body only as its reason, and
+  // its subject, details and hard-to-undo line not at all (the Approval card, ConsoleSheet).
+  if (shape.type === "approval")
+    return [
+      approvalTitle,
+      ask.body && `@${handle}'s reason: ${ask.body}`,
+      shape.commands.map(commandLine).join("\n"),
+    ]
+      .filter(Boolean)
+      .join("\n\n")
   const choices =
     shape.type === "options"
       ? shape.options
@@ -260,9 +270,7 @@ const askText = (ask: AgentAsk): string => {
           .join("\n\n")
       : shape.type === "action"
         ? [shape.command, shape.directory, shape.doneLabel].filter(Boolean).join("\n")
-        : shape.type === "approval"
-          ? shape.commands.map(commandLine).join("\n")
-          : null
+        : null
   return [
     ask.subject,
     ask.body,
@@ -335,6 +343,8 @@ const clampedTurn = (content: unknown): TurnContent | undefined => {
 
 /** What a Grant card's agent hears it was called, when the person dismisses or answers it. */
 const grantSubject = "Your grant proposal"
+/** The Approval card's title, as the UI words it (`approvalTitle` in frontend/core). */
+const approvalTitle = "Can I run these without asking?"
 
 /** The grants a terminal may propose in an hour. */
 export const maxProposals = 3
@@ -1155,7 +1165,7 @@ export class Inbox {
       if (text === undefined) {
         text =
           content.kind === "ask"
-            ? askText(content.ask)
+            ? askText(content.ask, entry.handle)
             : content.kind === "grant"
               ? grantText(content.proposal)
               : `${content.subject}\n\n${content.body}`

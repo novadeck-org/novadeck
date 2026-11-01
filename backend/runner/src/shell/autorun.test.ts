@@ -45,6 +45,8 @@ const machine = (over: { user?: Scope; machine?: Scope } = {}) => {
     // The installed plugin differs from the written one: the refresh held.
     stale: false,
     pluginFails: false,
+    // The relay's read of the registry fails.
+    readFails: false,
     // Whether Antigravity is installed, and the value the line was dismissed for, kept across starts.
     installed: true,
     dismissed: undefined as string | undefined,
@@ -53,7 +55,10 @@ const machine = (over: { user?: Scope; machine?: Scope } = {}) => {
   }
   const host: AutoRunHost = {
     platform: "win32",
-    read: () => Promise.resolve({ ...registry } satisfies AutoRunRead),
+    read: () =>
+      fake.readFails
+        ? Promise.reject(new Error("relay"))
+        : Promise.resolve({ ...registry } satisfies AutoRunRead),
     swap: (kind, expected, next) => {
       swaps.push({ kind, expected, next })
       fake.changeBeforeSwap?.()
@@ -241,6 +246,20 @@ describe("the AutoRun state", () => {
     await autorun.silence(value.next)
     expect(fake.dismissed).toBeUndefined()
     expect(await stateOf(autorun)).toMatchObject({ state: "silenced", dismissed: false })
+  })
+
+  it("dismisses the line while the registry can't be read, and offers again once a read works", async () => {
+    const { fake, autorun } = await started()
+    fake.readFails = true
+    await autorun.started("prints")
+    expect(await stateOf(autorun)).toMatchObject({ state: "manual", dismissed: false })
+    await autorun.dismiss()
+    expect(await stateOf(autorun)).toMatchObject({ state: "manual", dismissed: true })
+    await autorun.started("prints")
+    expect(await stateOf(autorun)).toMatchObject({ dismissed: true })
+    fake.readFails = false
+    await autorun.started("prints")
+    expect(await stateOf(autorun)).toMatchObject({ dismissed: false })
   })
 
   it("offers again when the value changed since it was dismissed", async () => {

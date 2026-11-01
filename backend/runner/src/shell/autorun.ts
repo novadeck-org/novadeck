@@ -93,7 +93,8 @@ type Start = "prints" | "slow" | undefined
  * The whole registry state a dismissal is for: what HKCU and HKLM hold, or that one is absent
  * or unreadable. Another state, by either, offers the fix again.
  */
-const readKey = (read: AutoRunRead): string => JSON.stringify([read.user, read.machine])
+const readKey = (read: AutoRunRead | undefined): string =>
+  read ? JSON.stringify([read.user, read.machine]) : "unread"
 
 /**
  * cmd's AutoRun and the person's one-click silencing of its output (approvals-design.md,
@@ -189,7 +190,8 @@ export class AutoRun {
   dismiss(): Promise<void> {
     return this.exclusive(async () => {
       const read = await this.host.read().catch(() => undefined)
-      if (read) this.host.rememberDismissed(readKey(read))
+      // A registry that could not be read is a state too: it offers again once a read works.
+      this.host.rememberDismissed(readKey(read))
       this.outcome = null
       await this.reload()
     })
@@ -422,7 +424,7 @@ export class AutoRun {
       }
     if (!this.eligible) return { state: "none", outcome, dismissed: false }
     // Dismissed for the registry as it is now; another state is offered again.
-    const dismissed = read !== undefined && this.host.dismissedFor() === readKey(read)
+    const dismissed = this.host.dismissedFor() === readKey(read)
     if (found.kind === "absent") return { state: "none", outcome, dismissed: false }
     if (found.kind === "manual")
       return {

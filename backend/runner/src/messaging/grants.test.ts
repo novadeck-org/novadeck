@@ -4,6 +4,7 @@ import { tmpdir } from "node:os"
 import { join } from "node:path"
 
 import type { Grant } from "@novadeck/protocol"
+import { vi } from "vitest"
 
 import { describe, expect, it } from "../test.js"
 import { storeWith } from "../testing/workspace.js"
@@ -24,13 +25,19 @@ const here = { projectId, sessionId }
 const hour = 3_600_000
 
 // A lead (sable), its teammate fox, a peer owl nobody leads, and elk in another session.
-const setup = (store?: WorkspaceStore, clock = { at: 1_000_000 }, grants?: GrantRecords) => {
+const setup = (
+  store?: WorkspaceStore,
+  clock: { at: number; mono?: number } = { at: 1_000_000 },
+  grants?: GrantRecords,
+) => {
   const messaging = new Messaging({
     now: () => clock.at,
     restoreMs: 0,
     sweepMs: 0,
     waitsMs: 0,
     grantsMs: 0,
+    // A clock of its own to step the wall clock against; else it follows the wall clock.
+    mono: () => clock.mono ?? clock.at,
     ...(store && { records: store, grants: store }),
     ...(grants && { grants }),
   })
@@ -658,7 +665,7 @@ describe("a teammate that becomes covered after the grant was made", () => {
     expect(told("P")).toEqual([])
   })
 
-  it("is not told of a grant that ended, or of a restored one it was never made for", () => {
+  it("is told of a restored grant too, and not of one that ended", () => {
     const records = memoryGrants()
     const first = setup(undefined, undefined, records)
     const grant = first.make()
@@ -666,12 +673,29 @@ describe("a teammate that becomes covered after the grant was made", () => {
     const second = setup(undefined, undefined, records)
     expect(second.messaging.grants.covering("F").map((each) => each.id)).toEqual([grant.id])
     second.arrive("N", "newt", "sable")
-    expect(second.told("N")).toEqual([])
+    expect(second.told("N")).toHaveLength(1)
     const third = setup()
     const ended = third.make()
     third.messaging.grants.revoke(ended.id)
     third.arrive("N", "newt", "sable")
     expect(third.told("N")).toEqual([])
+  })
+
+  it("is told once its agent starts, though it was covered as a plain shell when the grant was made", () => {
+    const { messaging, make, told } = setup()
+    // Led, but no agent runs or is expected there yet: nobody to tell.
+    messaging.register("U", here, "ukko", "sable")
+    make()
+    expect(told("U")).toEqual([])
+    messaging.rooted("U", [
+      {
+        type: "new",
+        root: { agent: "claude", sessionId: "s-U", instance: null, source: "binding" },
+        guess: false,
+        ready: true,
+      },
+    ])
+    expect(told("U")).toHaveLength(1)
   })
 })
 
@@ -740,6 +764,36 @@ describe("a grant's records fail closed", () => {
     expect(order).toEqual(["answered", "saved"])
   })
 
+  it("never throws once the answer stands: a notice that can't be queued leaves a live grant, told later", () => {
+    const { messaging, told, arrive } = setup()
+    const notice = vi.spyOn(messaging["relays"], "grantNotice").mockImplementation(() => {
+      throw new Error("store full")
+    })
+    let committed = false
+    const grant = messaging.grants.make(
+      {
+        ...here,
+        workspaceSessionId: sessionId,
+        holder: { kind: "team", lead: "sable", withLead: false },
+        presets: ["push"],
+        commands: [],
+        repos: [{ url: "github.com/acme/shop", defaultBranch: "main", defaultFrom: "github" }],
+        entryId: randomUUID(),
+        proposedBy: "sable",
+        lifetime: "until-done",
+      },
+      () => void (committed = true),
+    )
+    expect(committed).toBe(true)
+    expect(messaging.grants.covering("F").map((each) => each.id)).toEqual([grant.id])
+    expect(told("F")).toEqual([])
+    // The next change of who is covered tells it.
+    notice.mockRestore()
+    arrive("N", "newt", "sable")
+    expect(told("F")).toHaveLength(1)
+    expect(told("N")).toHaveLength(1)
+  })
+
   it("refuses the person's end when it can't be written, and the grant goes on as it was", () => {
     const { records, state, inner } = flaky()
     const { messaging, make } = setup(undefined, undefined, records)
@@ -798,16 +852,42 @@ describe("a grant's records fail closed", () => {
 })
 
 describe("the clock a grant is judged by", () => {
-  it("never runs backward: a step back of the wall clock does not stretch an hour grant or the idle cap", () => {
-    const { messaging, make, clock } = setup()
+  it("is held to monotonic time too: a step back of the wall clock does not stretch an hour grant", () => {
+    const clock = { at: 1_000_000, mono: 0 }
+    const { messaging, make } = setup(undefined, clock)
     make({ lifetime: "hour" })
     clock.at += hour / 2
+    clock.mono += hour / 2
     expect(messaging.grants.covering("F")).toHaveLength(1)
     // The wall clock is set back an hour; thirty minutes later the grant's hour is up.
     clock.at -= hour
     expect(messaging.grants.covering("F")).toHaveLength(1)
     clock.at += hour / 2 + 1
+    clock.mono += hour / 2 + 1
     expect(messaging.grants.covering("F")).toEqual([])
+  })
+
+  it("keeps the wall clock's times as they are, so a jump forward and back, then a restart, does not outlive the hour", () => {
+    const clock = { at: 1_000_000, mono: 0 }
+    const records = memoryGrants()
+    const first = setup(undefined, clock, records)
+    const grant = first.make({ lifetime: "hour" })
+    expect(grant.endsAt).toBe(1_000_000 + hour)
+    const real = { at: clock.at }
+    // Twenty minutes pass; the wall clock jumps two hours forward and then back an hour and a half.
+    for (const step of [20 * 60_000, 2 * hour, -1.5 * hour]) {
+      clock.at += step
+      first.messaging.grants.activity("F")
+      first.messaging.grants.sweep()
+    }
+    clock.mono += 20 * 60_000
+    // Nothing saved is skewed.
+    expect(records.grants()[0]).toMatchObject({ madeAt: grant.madeAt, endsAt: grant.endsAt })
+    first.messaging.close()
+    // The runner restarts at the real time, an hour and a minute after the grant was made.
+    clock.at = real.at + hour + 60_000
+    const second = setup(undefined, clock, records)
+    expect(second.messaging.grants.list()).toEqual([])
   })
 })
 

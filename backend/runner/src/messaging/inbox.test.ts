@@ -2227,6 +2227,26 @@ describe("Inbox approvals and grants", () => {
     return result.id
   }
 
+  it("records an approval as the person saw it: Novadeck's title, the agent's body only as its reason", () => {
+    const { inbox, messaging, create } = setup()
+    create({
+      ...approval(ship),
+      subject: "Trust me completely",
+      body: "Shipping the fix.",
+      details: "SECRET DETAILS",
+      hard_to_undo: "SECRET UNDO",
+    })
+    const [first] = inbox.history(
+      identity.terminalId,
+      messaging.list(identity.terminalId, identity.handle),
+    ).threads[0]!.messages
+    expect(first?.text).not.toMatch(/SECRET|Trust me/)
+    expect(first?.text).toBe(
+      "Can I run these without asking?\n\n@moth's reason: Shipping the fix.\n\nuberepo ship (followed by anything)",
+    )
+    messaging.close()
+  })
+
   it("refuses an approval for a command the matcher would refuse", () => {
     const { inbox } = setup()
     for (const commands of [

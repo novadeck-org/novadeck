@@ -57,11 +57,13 @@ export type SavedScope = { readonly sessionId: string; readonly handle: string }
 export type GrantsHost = {
   readonly sessions: Sessions
   readonly now: () => number
+  /** A clock that never steps back, in milliseconds from any start; the wall clock's steps don't move it. */
+  readonly mono: () => number
   /**
    * Tells a covered terminal of a grant made or ended: queues Novadeck's message there,
    * which `wrap` renders from the grant itself (`Relays.grantNotice`).
    */
-  readonly notify: (terminalId: string, grantId: string, quiet?: boolean) => void
+  readonly notify: (terminalId: string, grantId: string, quiet?: boolean) => boolean
   /** Whether cmd prints before every command, which no Antigravity grant reaches past. */
   readonly cmdPrints: () => CmdNote
 }
@@ -77,16 +79,21 @@ export type GrantOptions = {
    * shell/install.ts), which a grant's note tells Antigravity of; no, when omitted.
    */
   readonly cmdPrints?: () => CmdNote
+  /** The monotonic clock the hour and the idle cap are also held to (`GrantsHost.mono`); the system's when omitted. */
+  readonly mono?: () => number
 }
 
 /** The grants service for messaging's `options`, its notices going through `relays`. */
 export const grantsOf = (
-  host: Omit<GrantsHost, "notify" | "cmdPrints"> & { readonly relays: Pick<Relays, "grantNotice"> },
+  host: Omit<GrantsHost, "notify" | "cmdPrints" | "mono"> & {
+    readonly relays: Pick<Relays, "grantNotice">
+  },
   options: GrantOptions,
 ): Grants =>
   new Grants(
     {
       ...host,
+      mono: options.mono ?? (() => performance.now()),
       notify: (terminalId, grantId, quiet) => host.relays.grantNotice(terminalId, grantId, quiet),
       cmdPrints: options.cmdPrints ?? (() => false),
     },
@@ -136,20 +143,17 @@ export class Grants {
   private readonly unwritten = new Map<string, Grant>()
   /** The terminals each grant made here has told of itself, so a later one it covers is told too. */
   private readonly told = new Map<string, Set<string>>()
-  /** The latest time seen, and how far the wall clock has stepped back since (`now`). */
-  private latest = 0
-  private skew = 0
-
   /**
-   * The time grants are judged by: the host's clock, which never runs backward here. A step
-   * back of the wall clock (set by hand, or an NTP correction) would otherwise stretch an
-   * hour grant and the idle cap by the step; the time goes on from where it was instead.
+   * When each grant was made and last heard from on the monotonic clock (`GrantsHost.mono`),
+   * for the grants of this run. The wall clock can be set back, which would stretch the hour
+   * and the idle cap, so a grant also ends once that much monotonic time has passed. What is
+   * saved is only the wall clock's, and a grant restored after a restart is judged by it alone.
    */
+  private readonly madeMono = new Map<string, number>()
+  private readonly activeMono = new Map<string, number>()
+
   private now(): number {
-    const wall = this.host.now()
-    if (wall + this.skew < this.latest) this.skew = this.latest - wall
-    this.latest = wall + this.skew
-    return this.latest
+    return this.host.now()
   }
 
   /** Whether cmd prints before every command (`GrantOptions.cmdPrints`). */
@@ -183,6 +187,8 @@ export class Grants {
       else {
         this.byId.set(grant.id, grant)
         this.savedAt.set(grant.id, now)
+        // Restored, it has told nobody yet: whoever it covers is told as their agent runs.
+        this.told.set(grant.id, new Set())
       }
     }
     if (ended.length > 0) this.save(() => records.removeGrants(ended))
@@ -199,10 +205,16 @@ export class Grants {
 
   /** Whether the grant is in force at `now`: not revoked, inside its hour, not idle for a day. */
   private inForce(grant: Grant, now: number): boolean {
+    const mono = this.host.mono()
+    const made = this.madeMono.get(grant.id)
+    const active = this.activeMono.get(grant.id)
     return (
       grant.revokedAt === null &&
-      (grant.endsAt === null || grant.endsAt > now) &&
-      grant.lastActivityAt + idleGrantMs > now
+      (grant.endsAt === null ||
+        (grant.endsAt > now &&
+          (made === undefined || mono - made < grant.endsAt - grant.madeAt))) &&
+      grant.lastActivityAt + idleGrantMs > now &&
+      (active === undefined || mono - active < idleGrantMs)
     )
   }
 
@@ -335,6 +347,7 @@ export class Grants {
     const now = this.now()
     for (const grant of covering) {
       const next: Grant = { ...grant, lastActivityAt: now }
+      this.activeMono.set(grant.id, this.host.mono())
       this.byId.set(next.id, next)
       if (now - (this.savedAt.get(next.id) ?? 0) >= activitySaveMs) this.persist(next)
     }
@@ -399,15 +412,19 @@ export class Grants {
       lastUse: null,
     }
     commit?.()
-    // Written only after the answer stands. One that can't be written still counts here, and
-    // is tried again: a grant lost at a restart is the safe way to fail, one revived is not.
+    // From here nothing may throw: the answer stands, and the caller must go on to deliver it.
+    // Written only after it. One that can't be written still counts here, and is tried again:
+    // a grant lost at a restart is the safe way to fail, one revived is not.
     this.savedAt.set(grant.id, madeAt)
     if (!this.write(grant)) this.unwritten.set(grant.id, grant)
     this.byId.set(grant.id, grant)
-    const covered = this.coveredBy(grant)
-    this.told.set(grant.id, new Set(covered.map((live) => live.terminalId)))
-    for (const live of covered) this.host.notify(live.terminalId, grant.id)
-    this.publish()
+    this.madeMono.set(grant.id, this.host.mono())
+    this.activeMono.set(grant.id, this.host.mono())
+    this.told.set(grant.id, new Set())
+    // Told as far as they can be; one that can't be yet (no agent, or a failed queue) is told
+    // by `reach` once it can.
+    this.reach()
+    this.attempt(() => this.publish())
     return grant
   }
 
@@ -470,10 +487,10 @@ export class Grants {
   }
 
   /**
-   * Tells a terminal of each grant made here that now covers it and was not told of: a
-   * teammate opened after the grant, one a lead adopts, a new lead. Once its agent runs, as a
-   * grant made for it is. A grant restored from the records has told nobody: whoever it
-   * covers learns of it from the bar's notice at the start of a session.
+   * Tells a terminal of each grant that now covers it and was not told of: a teammate
+   * opened after the grant, one a lead adopts, a new lead, one whose agent only now runs, or
+   * any of them after a runner restart, as a restored grant has told nobody. A terminal is
+   * counted as told only when a notice was queued for it.
    */
   private reach(): void {
     if (this.closed) return
@@ -481,9 +498,11 @@ export class Grants {
       const seen = this.told.get(grant.id)
       if (!seen) continue
       for (const live of this.coveredBy(grant)) {
-        if ((live.root === null && live.shown === null) || seen.has(live.terminalId)) continue
-        seen.add(live.terminalId)
-        this.host.notify(live.terminalId, grant.id)
+        if (seen.has(live.terminalId)) continue
+        // Counted as told only when it was: a plain shell with no agent yet has nobody to tell.
+        this.attempt(() => {
+          if (this.host.notify(live.terminalId, grant.id)) seen.add(live.terminalId)
+        })
       }
     }
   }
@@ -565,6 +584,8 @@ export class Grants {
     }
     this.settle(ended, strict)
     this.told.delete(grant.id)
+    this.madeMono.delete(grant.id)
+    this.activeMono.delete(grant.id)
     for (const live of covered)
       this.host.notify(
         live.terminalId,
@@ -607,6 +628,15 @@ export class Grants {
       this.save(() => this.records.saveGrant(grant)) ||
       this.save(() => this.records.saveGrant(grant))
     )
+  }
+
+  /** Runs work that must not break the caller, logging a failure. */
+  private attempt(work: () => void): void {
+    try {
+      work()
+    } catch (error) {
+      log.error("grants.notify-failed", "Novadeck could not tell of a grant", { err: error })
+    }
   }
 
   /** Writes to the records; a failure is logged, and the service carries on from memory. */
