@@ -834,7 +834,7 @@ describe("runner client cmd AutoRun", () => {
     const stream = client.autorun.watch()
     await expect(stream.next()).resolves.toEqual({
       done: false,
-      value: { state: "none", outcome: null },
+      value: { state: "none", outcome: null, dismissed: false },
     })
     await expect(client.autorun.silence("(chcp 65001) >nul 2>&1")).resolves.toBeUndefined()
     await expect(client.autorun.undo()).resolves.toBeUndefined()
