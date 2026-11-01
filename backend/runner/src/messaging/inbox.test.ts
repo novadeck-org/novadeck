@@ -23,6 +23,7 @@ import { storeWith } from "../testing/workspace.js"
 import type { WorkspaceStore } from "../workspaces/store.js"
 import { readProposal } from "./grant-proposals.js"
 import { grantCommandsRefusal, grantElement } from "./grant-text.js"
+import type { GrantRecords } from "./grants.js"
 import {
   Inbox,
   askSweepMs,
@@ -62,6 +63,8 @@ const setup = (
     readonly now?: () => number
     readonly sweepMs?: number
     readonly messages?: MessageRecords
+    /** Where grants are kept; in memory by default. */
+    readonly grants?: GrantRecords
     /** Whether the terminal's agent session binds at once (default), as it does not after a restart. */
     readonly bound?: boolean
     readonly resumeGraceMs?: number
@@ -71,6 +74,7 @@ const setup = (
   const messages = store ?? options.messages
   const messaging = new Messaging({
     ...(messages && { records: messages }),
+    ...(options.grants && { grants: options.grants }),
     now: options.now ?? Date.now,
     restoreMs: 0,
     sweepMs: 0,
@@ -98,8 +102,7 @@ const setup = (
         messaging.personReply(id, ask, subject, text, commit, choice),
       replyState: (id) => messaging.inboxReply(id),
       forgetReplies: (ids) => messaging.forgetResponses(ids),
-      makeGrant: (input) => messaging.grants.make(input),
-      endGrant: (id) => messaging.grants.revoke(id),
+      makeGrant: (input, commit) => messaging.grants.make(input, commit),
       changed: () => {},
       exists: () => kept,
     },
@@ -2281,6 +2284,29 @@ describe("Inbox approvals and grants", () => {
     expect(sent.find((each) => each.grantId === grant!.id)).toMatchObject({
       from: { kind: "novadeck" },
     })
+  })
+
+  it("leaves no grant, in memory or in the store, when an approval's answer can't be saved", ({
+    resources,
+  }) => {
+    const folder = mkdtempSync(join(tmpdir(), "novadeck-inbox-"))
+    resources.defer(() => rmSync(folder, { recursive: true, force: true }))
+    const store = storeWith(join(folder, "workspace.sqlite"), parents)
+    resources.defer(() => store.close())
+    const { inbox, messaging, create } = setup(store, store, { grants: store })
+    resources.defer(() => messaging.close())
+    const id = create(approval(ship))
+    const save = vi.spyOn(store, "saveEntry").mockImplementationOnce(() => {
+      throw new Error("disk full")
+    })
+    expect(() => inbox.answer(id, { type: "approve", lifetime: "until-done" })).toThrow("disk full")
+    expect(messaging.grants.list()).toEqual([])
+    expect(store.grants()).toEqual([])
+    expect(inbox.list()).toHaveLength(1)
+    save.mockRestore()
+    inbox.answer(id, { type: "approve", lifetime: "until-done" })
+    expect(messaging.grants.list()).toHaveLength(1)
+    expect(store.grants()).toHaveLength(1)
   })
 
   it("refuses commands whose grant would not fit a delivery, in an ask and a proposal", () => {

@@ -39,6 +39,7 @@ import { retold, toldOf } from "../told.js"
 import type { Typing } from "../typing.js"
 import { judgedFirst, personPrompted, workAfter } from "../work.js"
 import type { Bindings } from "./facts.js"
+import { fitGrants } from "./grant-notice.js"
 import type { Shown } from "./shown.js"
 
 // How much time a prompt's hook must have left for drift to be read, in milliseconds:
@@ -432,18 +433,25 @@ export class Reports {
         ? await this.host.peers().facts(peerOf(record))
         : undefined
     const current = { summary: record.naming.summary }
+    const covering = this.host.messaging().grants.covering(report.terminalId)
+    // The grants go beside the bar's notice as far as the answer has room, never at its cost.
+    const grantsFor = (took: Parameters<typeof noticesAt>[0]) =>
+      took.companion
+        ? fitGrants(
+            covering,
+            (list) =>
+              wrapGrants(
+                list,
+                report.agent,
+                this.host.platform(),
+                undefined,
+                this.host.messaging().grants.cmdPrints(),
+              ),
+            (wrapped) => byteLength(adding(noticesAt(took, current, wrapped))) <= maxDeliveryBytes,
+          )
+        : { wrapped: "", left: [] }
     const notices = (took: Parameters<typeof noticesAt>[0]) =>
-      noticesAt(
-        took,
-        current,
-        wrapGrants(
-          this.host.messaging().grants.covering(report.terminalId),
-          report.agent,
-          this.host.platform(),
-          undefined,
-          this.host.messaging().grants.cmdPrints(),
-        ),
-      )
+      noticesAt(took, current, grantsFor(took).wrapped)
     const taken = atTurnStart(record.nudges, {
       person,
       // A nudge that may miss the hook's deadline is never spent: its trigger waits.
@@ -462,6 +470,8 @@ export class Reports {
       record.agents = retold(record.agents, record.root, (told) => ({ ...told, bar: barDigest }))
       this.host.save(record)
     }
+    // What the notice had no room for reaches the agent as messages of their own.
+    this.host.messaging().grants.tell(report.terminalId, grantsFor(taken).left)
     return { leaseId, stdout: adding(notices(taken)) }
   }
 

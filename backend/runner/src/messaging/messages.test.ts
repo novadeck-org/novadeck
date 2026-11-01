@@ -441,7 +441,7 @@ describe("a delivery's grants", () => {
     // Every harness on every OS, as the note differs by both (Windows' quoting, cmd's AutoRun).
     for (const agent of ["claude", "codex", "agy"] as const)
       for (const platform of ["linux", "darwin", "win32"] as const)
-        for (const cmdPrints of [false, true, "held"] as const) {
+        for (const cmdPrints of [false, true, "held", "unreadable"] as const) {
           const text = wrap([novadeck({ to: { ...novadeck().to, agent } })], none, mark, {
             personMark: "PersonMk",
             grants: (id) => (id === largest.id ? largest : undefined),
@@ -451,7 +451,7 @@ describe("a delivery's grants", () => {
           // Hooks print the delivery inside a JSON string, which escapes it again.
           expect(
             Buffer.byteLength(JSON.stringify(text)),
-            `${agent} on ${platform}${cmdPrints ? " where cmd prints" : ""}`,
+            `${agent} on ${platform} with cmdPrints ${String(cmdPrints)}`,
           ).toBeLessThanOrEqual(maxDeliveryBytes)
         }
   })

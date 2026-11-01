@@ -477,8 +477,7 @@ export class Terminals {
           this.messaging.personReply(id, ask, subject, text, commit, choice),
         replyState: (id) => this.messaging.inboxReply(id),
         forgetReplies: (ids) => this.messaging.forgetResponses(ids),
-        makeGrant: (input) => this.messaging.grants.make(input),
-        endGrant: (id) => this.messaging.grants.revoke(id),
+        makeGrant: (input, commit) => this.messaging.grants.make(input, commit),
         changed: (id) => {
           this.streams.messagesChanged(id)
           const record = this.records.get(id)

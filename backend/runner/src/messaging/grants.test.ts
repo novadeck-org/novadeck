@@ -8,7 +8,13 @@ import type { Grant } from "@novadeck/protocol"
 import { describe, expect, it } from "../test.js"
 import { storeWith } from "../testing/workspace.js"
 import type { WorkspaceStore } from "../workspaces/store.js"
-import { activitySaveMs, idleGrantMs, type MakeGrant } from "./grants.js"
+import {
+  activitySaveMs,
+  idleGrantMs,
+  memoryGrants,
+  type GrantRecords,
+  type MakeGrant,
+} from "./grants.js"
 import { isQuiet, wrap, wrapGrants } from "./messages.js"
 import { Messaging } from "./messaging.js"
 
@@ -18,7 +24,7 @@ const here = { projectId, sessionId }
 const hour = 3_600_000
 
 // A lead (sable), its teammate fox, a peer owl nobody leads, and elk in another session.
-const setup = (store?: WorkspaceStore, clock = { at: 1_000_000 }) => {
+const setup = (store?: WorkspaceStore, clock = { at: 1_000_000 }, grants?: GrantRecords) => {
   const messaging = new Messaging({
     now: () => clock.at,
     restoreMs: 0,
@@ -26,6 +32,7 @@ const setup = (store?: WorkspaceStore, clock = { at: 1_000_000 }) => {
     waitsMs: 0,
     grantsMs: 0,
     ...(store && { records: store, grants: store }),
+    ...(grants && { grants }),
   })
   const arrive = (id: string, handle: string, ledBy: string | null, scope = here) => {
     messaging.register(id, scope, handle, ledBy)
@@ -101,9 +108,10 @@ describe("who a grant covers", () => {
       repos: [],
       commands: [{ argv: ["make", "ship"], rest: false }],
     })
-    // The shell exits first: the live entry goes, the grants stay.
+    // The shell exits first: the live entry goes, and with it the grant its agent held alone;
+    // the team grant it leads stays for the team.
     messaging.unregister("L")
-    expect(messaging.grants.list()).toHaveLength(2)
+    expect(messaging.grants.list()).toHaveLength(1)
     messaging.unregister("L", true, { sessionId, handle: "sable" })
     expect(messaging.grants.list()).toEqual([])
   })
@@ -552,5 +560,268 @@ describe("grants across a restart", () => {
       store.close()
       rmSync(directory, { recursive: true, force: true })
     }
+  })
+})
+
+describe("a grant's coverage ends with the agent that had it", () => {
+  const owlOnly = {
+    holder: { kind: "terminal", handle: "owl" },
+    presets: [],
+    repos: [],
+    commands: [{ argv: ["make", "deploy"], rest: false }],
+  } satisfies Partial<MakeGrant>
+
+  it("when its shell exits, so a restart's next agent there is not covered", () => {
+    const { messaging, make } = setup()
+    const grant = make(owlOnly)
+    expect(messaging.grants.covering("O")).toHaveLength(1)
+    // Terminals.exited: the shell goes with the agent in it.
+    messaging.unregister("O")
+    // Terminals.restart as a plain shell: it ends the lead it had, then registers again.
+    messaging.grants.coverageEnds("O", "exited")
+    messaging.register("O", here, "owl", null)
+    messaging.rooted("O", [
+      {
+        type: "new",
+        root: { agent: "codex", sessionId: "s-O2", instance: null, source: "binding" },
+        guess: false,
+        ready: true,
+      },
+    ])
+    expect(messaging.grants.covering("O")).toEqual([])
+    expect(messaging.grants.list()).toEqual([])
+    expect(messaging.grants.get(grant.id)).toBeUndefined()
+  })
+
+  it("for a teammate of a team grant too, which is told it ended", () => {
+    const { messaging, make, told } = setup()
+    const grant = make()
+    messaging.unregister("F")
+    messaging.register("F", here, "fox", "sable")
+    expect(messaging.grants.covering("F")).toEqual([])
+    expect(messaging.grants.endedWhy(grant.id, "F")).toBe("exited")
+    // The others it covers are not affected.
+    expect(messaging.grants.list()).toHaveLength(1)
+    expect(told("L")).toEqual([])
+  })
+
+  it("but not as the runner stops, which is not an agent ending", () => {
+    const { messaging, make } = setup()
+    make(owlOnly)
+    messaging.grants.close()
+    messaging.unregister("O")
+    expect(messaging.grants.list()[0]).toMatchObject({ ended: [], revokedAt: null })
+  })
+
+  it("and a lead's release of a teammate that leads its own team ends only the lead's grants", () => {
+    const { messaging, make, arrive } = setup()
+    // fox is led by sable and leads owl, which it includes in the grant it asked for itself.
+    messaging.endLead("O")
+    arrive("Y", "yarrow", "fox")
+    const own = make({ holder: { kind: "team", lead: "fox", withLead: true } })
+    const sables = make()
+    expect(
+      messaging.grants
+        .covering("F")
+        .map((each) => each.id)
+        .toSorted(),
+    ).toEqual([sables.id, own.id].toSorted())
+    // Bindings.endLead(fox, true, "released"), as sable releases fox.
+    messaging.grants.coverageEnds("F", "released")
+    messaging.endLead("F")
+    expect(messaging.grants.covering("F").map((each) => each.id)).toEqual([own.id])
+    expect(messaging.grants.endedWhy(own.id, "F")).toBeUndefined()
+    expect(messaging.grants.endedWhy(sables.id, "F")).toBe("released")
+    expect(messaging.grants.covering("Y").map((each) => each.id)).toEqual([own.id])
+    // Its own done does end it.
+    messaging.grants.coverageEnds("F", "done")
+    expect(messaging.grants.covering("F")).toEqual([])
+  })
+})
+
+describe("a teammate that becomes covered after the grant was made", () => {
+  it("is told of it once its agent runs, whether opened, adopted or newly led", () => {
+    const { messaging, make, arrive, told } = setup()
+    make()
+    // Opened later: registered first, its agent comes after.
+    messaging.register("N", here, "newt", "sable")
+    expect(told("N")).toEqual([])
+    arrive("N", "newt", "sable")
+    expect(told("N")).toHaveLength(1)
+    // Adopted: a peer the lead takes on.
+    messaging.setLead("O", "sable")
+    expect(told("O")).toHaveLength(1)
+    // Heard of once, however often the sessions change.
+    arrive("P", "pike", null)
+    expect(told("N")).toHaveLength(1)
+    expect(told("O")).toHaveLength(1)
+    expect(told("P")).toEqual([])
+  })
+
+  it("is not told of a grant that ended, or of a restored one it was never made for", () => {
+    const records = memoryGrants()
+    const first = setup(undefined, undefined, records)
+    const grant = first.make()
+    first.messaging.close()
+    const second = setup(undefined, undefined, records)
+    expect(second.messaging.grants.covering("F").map((each) => each.id)).toEqual([grant.id])
+    second.arrive("N", "newt", "sable")
+    expect(second.told("N")).toEqual([])
+    const third = setup()
+    const ended = third.make()
+    third.messaging.grants.revoke(ended.id)
+    third.arrive("N", "newt", "sable")
+    expect(third.told("N")).toEqual([])
+  })
+})
+
+describe("a grant's records fail closed", () => {
+  // Records that refuse every write while `down`.
+  const flaky = () => {
+    const inner = memoryGrants()
+    const state = { down: false, writes: 0 }
+    const records: GrantRecords = {
+      grants: () => inner.grants(),
+      saveGrant(grant) {
+        if (state.down) throw new Error("disk full")
+        state.writes += 1
+        inner.saveGrant(grant)
+      },
+      removeGrants: (ids) => inner.removeGrants(ids),
+    }
+    return { records, state, inner }
+  }
+
+  it("leaves no grant, in memory or on disk, when the answer it was made for fails", () => {
+    const { records, inner } = flaky()
+    const { messaging, told } = setup(undefined, undefined, records)
+    expect(() =>
+      messaging.grants.make(
+        {
+          ...here,
+          workspaceSessionId: sessionId,
+          holder: { kind: "team", lead: "sable", withLead: false },
+          presets: [],
+          commands: [{ argv: ["make"], rest: false }],
+          repos: [],
+          entryId: randomUUID(),
+          proposedBy: "sable",
+          lifetime: "until-done",
+        },
+        () => {
+          throw new Error("answer not saved")
+        },
+      ),
+    ).toThrow(/answer not saved/)
+    expect(inner.grants()).toEqual([])
+    expect(messaging.grants.list()).toEqual([])
+    expect(told("F")).toEqual([])
+    // A grant whose answer stands is written after it.
+    const order: string[] = []
+    const kept = records.saveGrant
+    records.saveGrant = (grant) => {
+      order.push("saved")
+      kept(grant)
+    }
+    messaging.grants.make(
+      {
+        ...here,
+        workspaceSessionId: sessionId,
+        holder: { kind: "team", lead: "sable", withLead: false },
+        presets: [],
+        commands: [{ argv: ["make"], rest: false }],
+        repos: [],
+        entryId: randomUUID(),
+        proposedBy: "sable",
+        lifetime: "until-done",
+      },
+      () => order.push("answered"),
+    )
+    expect(order).toEqual(["answered", "saved"])
+  })
+
+  it("refuses the person's end when it can't be written, and the grant goes on as it was", () => {
+    const { records, state, inner } = flaky()
+    const { messaging, make } = setup(undefined, undefined, records)
+    const grant = make()
+    state.down = true
+    expect(() => messaging.grants.revoke(grant.id)).toThrow(/could not save/)
+    expect(messaging.grants.covering("F")).toHaveLength(1)
+    expect(inner.grants()[0]).toMatchObject({ revokedAt: null })
+    state.down = false
+    messaging.grants.revoke(grant.id)
+    expect(messaging.grants.covering("F")).toEqual([])
+    expect(inner.grants()[0]?.revokedAt).not.toBeNull()
+  })
+
+  it("ends in memory what it can't write at once, and writes it at the next sweep or close", () => {
+    const { records, state, inner } = flaky()
+    const { messaging, make } = setup(undefined, undefined, records)
+    const grant = make()
+    const alone = make({ lifetime: "hour" })
+    state.down = true
+    messaging.grants.coverageEnds("F", "done")
+    expect(messaging.grants.covering("F")).toEqual([])
+    expect(inner.grants().find((each) => each.id === grant.id)?.ended).toEqual([])
+    messaging.grants.sweep()
+    expect(inner.grants().find((each) => each.id === grant.id)?.ended).toEqual([])
+    state.down = false
+    messaging.grants.sweep()
+    expect(inner.grants().find((each) => each.id === grant.id)?.ended).toHaveLength(1)
+    expect(inner.grants().find((each) => each.id === alone.id)?.ended).toHaveLength(1)
+    // Written at close when no sweep came.
+    const later = make()
+    state.down = true
+    messaging.grants.coverageEnds("F", "done")
+    expect(inner.grants().find((each) => each.id === later.id)?.ended).toEqual([])
+    state.down = false
+    messaging.grants.close()
+    expect(inner.grants().find((each) => each.id === later.id)?.ended).toHaveLength(1)
+  })
+
+  it("tries a write twice before giving up", () => {
+    const { records, state } = flaky()
+    let failures = 1
+    const saveGrant = records.saveGrant
+    records.saveGrant = (grant) => {
+      if (failures-- > 0) throw new Error("busy")
+      saveGrant(grant)
+    }
+    const { messaging, make } = setup(undefined, undefined, records)
+    const grant = make()
+    expect(state.writes).toBe(1)
+    failures = 1
+    messaging.grants.revoke(grant.id)
+    expect(messaging.grants.list()).toEqual([])
+    expect(state.writes).toBe(2)
+  })
+})
+
+describe("the clock a grant is judged by", () => {
+  it("never runs backward: a step back of the wall clock does not stretch an hour grant or the idle cap", () => {
+    const { messaging, make, clock } = setup()
+    make({ lifetime: "hour" })
+    clock.at += hour / 2
+    expect(messaging.grants.covering("F")).toHaveLength(1)
+    // The wall clock is set back an hour; thirty minutes later the grant's hour is up.
+    clock.at -= hour
+    expect(messaging.grants.covering("F")).toHaveLength(1)
+    clock.at += hour / 2 + 1
+    expect(messaging.grants.covering("F")).toEqual([])
+  })
+})
+
+describe("a quiet notice that a grant ended", () => {
+  it("is no time held, as it rings nobody and waits for the next prompt", () => {
+    const { messaging, make, told, clock } = setup()
+    make()
+    // The grant's own notice is delivered; the done's quiet one is all that waits.
+    for (const notice of told("F")) messaging["store"].gone(notice, "terminal-closed")
+    messaging.grants.coverageEnds("F", "done")
+    const live = messaging["sessions"].get("F")!
+    live.idleSince = clock.at
+    clock.at += hour
+    expect(told("F").some(isQuiet)).toBe(true)
+    expect(messaging["holds"].oldestHeld(live)).toBeNull()
   })
 })

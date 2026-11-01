@@ -406,8 +406,8 @@ export class Messaging {
   }
 
   setLead(terminalId: string, handle: string): void {
+    // The grants that now cover it reach it as the sessions change (`Grants.reach`).
     this.leading.setLead(terminalId, handle)
-    this.grants.adopted(terminalId)
   }
 
   sendBrief(terminalId: string, request: unknown): SendAnswer {

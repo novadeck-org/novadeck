@@ -129,6 +129,28 @@ export class Grants {
   private closed = false
   private readonly stopWatching: () => void
   private agyUnreadable = false
+  /**
+   * Grants whose latest state could not be written to the records, by id. An end that is not
+   * on disk is tried again at each sweep and at close, so a restart does not bring it back.
+   */
+  private readonly unwritten = new Map<string, Grant>()
+  /** The terminals each grant made here has told of itself, so a later one it covers is told too. */
+  private readonly told = new Map<string, Set<string>>()
+  /** The latest time seen, and how far the wall clock has stepped back since (`now`). */
+  private latest = 0
+  private skew = 0
+
+  /**
+   * The time grants are judged by: the host's clock, which never runs backward here. A step
+   * back of the wall clock (set by hand, or an NTP correction) would otherwise stretch an
+   * hour grant and the idle cap by the step; the time goes on from where it was instead.
+   */
+  private now(): number {
+    const wall = this.host.now()
+    if (wall + this.skew < this.latest) this.skew = this.latest - wall
+    this.latest = wall + this.skew
+    return this.latest
+  }
 
   /** Whether cmd prints before every command (`GrantOptions.cmdPrints`). */
   cmdPrints(): CmdNote {
@@ -155,7 +177,7 @@ export class Grants {
     this.save(() => {
       stored = records.grants()
     })
-    const now = host.now()
+    const now = this.now()
     for (const grant of stored) {
       if (!this.inForce(grant, now)) ended.push(grant.id)
       else {
@@ -169,7 +191,10 @@ export class Grants {
       this.sweeper.unref()
     }
     // Who is covered changes as terminals come, go, are led and start their agents.
-    this.stopWatching = host.sessions.onChange(() => this.publish())
+    this.stopWatching = host.sessions.onChange(() => {
+      this.reach()
+      this.publish()
+    })
   }
 
   /** Whether the grant is in force at `now`: not revoked, inside its hour, not idle for a day. */
@@ -183,7 +208,7 @@ export class Grants {
 
   /** Whether the grant is in force now. */
   private live(grant: Grant): boolean {
-    return this.inForce(grant, this.host.now())
+    return this.inForce(grant, this.now())
   }
 
   /**
@@ -291,7 +316,7 @@ export class Grants {
     if (!grant || !live || !this.covers(grant, live)) return
     const next: Grant = {
       ...grant,
-      lastUse: { at: this.host.now(), handle: live.handle, command: command.slice(0, 512) },
+      lastUse: { at: this.now(), handle: live.handle, command: command.slice(0, 512) },
     }
     this.byId.set(next.id, next)
     this.persist(next)
@@ -307,7 +332,7 @@ export class Grants {
   activity(terminalId: string): void {
     const covering = this.covering(terminalId)
     if (covering.length === 0) return
-    const now = this.host.now()
+    const now = this.now()
     for (const grant of covering) {
       const next: Grant = { ...grant, lastActivityAt: now }
       this.byId.set(next.id, next)
@@ -325,17 +350,19 @@ export class Grants {
     const live = this.host.sessions.get(terminalId)
     if (!live || this.closed) return
     for (const grant of this.covering(terminalId)) {
-      const entry = { terminalId, handle: live.handle, at: this.host.now(), why }
-      // A lead's release is of a team's teammate; a terminal's own grant isn't its lead's.
-      if (grant.holder.kind === "terminal") {
-        if (why !== "released") this.end(grant, entry)
-      }
+      const entry = { terminalId, handle: live.handle, at: this.now(), why }
+      const { holder } = grant
+      // A lead's release is of a team's teammate; a terminal's own grant isn't its lead's,
+      // nor is the team grant a released lead holds itself (it covers that lead with
+      // `withLead`, and ends only with its own done or exit).
+      if (why === "released" && (holder.kind === "terminal" || holder.lead === live.handle))
+        continue
+      if (holder.kind === "terminal") this.end(grant, entry)
       // With no room to record it the coverage can't be ended alone, so the grant ends.
       else if (grant.ended.length >= maxGrantEnded) this.end(grant)
       else {
         const next: Grant = { ...grant, ended: [...grant.ended, entry] }
-        this.byId.set(next.id, next)
-        this.persist(next)
+        this.settle(next)
         // A done is the agent's own: it is told with its next prompt, not woken for it.
         this.host.notify(terminalId, next.id, why === "done")
         this.publish()
@@ -345,11 +372,13 @@ export class Grants {
 
   /**
    * Makes a grant, as the person's click on a card said, and tells the terminals it covers.
-   * Only the Inbox's answers call this.
+   * Only the Inbox's answers call this. `commit` is the answer that makes it the person's
+   * (the Inbox's saved reply); it runs first and may throw, and then nothing exists, in
+   * memory or in the records, so a click the person saw refused leaves no grant behind.
    */
-  make(input: MakeGrant): Grant {
+  make(input: MakeGrant, commit?: () => void): Grant {
     if (this.closed) throw new DomainError("CLOSING")
-    const madeAt = this.host.now()
+    const madeAt = this.now()
     const grant: Grant = {
       id: randomUUID(),
       projectId: input.projectId,
@@ -369,21 +398,29 @@ export class Grants {
       revokedAt: null,
       lastUse: null,
     }
-    // Saved before it counts, so a failure refuses the person's click and nothing covers.
-    this.records.saveGrant(grant)
+    commit?.()
+    // Written only after the answer stands. One that can't be written still counts here, and
+    // is tried again: a grant lost at a restart is the safe way to fail, one revived is not.
     this.savedAt.set(grant.id, madeAt)
+    if (!this.write(grant)) this.unwritten.set(grant.id, grant)
     this.byId.set(grant.id, grant)
-    for (const live of this.coveredBy(grant)) this.host.notify(live.terminalId, grant.id)
+    const covered = this.coveredBy(grant)
+    this.told.set(grant.id, new Set(covered.map((live) => live.terminalId)))
+    for (const live of covered) this.host.notify(live.terminalId, grant.id)
     this.publish()
     return grant
   }
 
-  /** The person ends a grant now. NOT_FOUND for an unknown or already ended one. */
+  /**
+   * The person ends a grant now. NOT_FOUND for an unknown or already ended one; ANSWER_FAILED
+   * when the end can't be saved, and then the grant goes on as it was, so the click is
+   * refused and not half done.
+   */
   revoke(id: string): void {
     if (this.closed) throw new DomainError("CLOSING")
     const grant = this.get(id)
     if (!grant) throw new DomainError("NOT_FOUND", "That grant has already ended.")
-    this.end(grant)
+    this.end(grant, undefined, true)
   }
 
   /**
@@ -420,12 +457,40 @@ export class Grants {
       if (live) this.closedFor(live, live.handle)
       else if (saved) this.closedFor(saved, saved.handle)
     }
+    // Its shell exited and took its agent: the next shell or agent there, the same handle
+    // again after a restart, is not the one a grant covered. (A runner that is stopping has
+    // closed its grants first, so a shutdown ends nothing.)
+    else this.coverageEnds(terminalId, "exited")
     this.host.sessions.unregister(terminalId, forGood)
   }
 
-  /** A terminal gained a lead while its agent runs: the grants that now cover it reach it at once. */
+  /** Tells the terminal again of every grant that covers it, as their note changed (`announceAgain`). */
   adopted(terminalId: string): void {
     for (const grant of this.covering(terminalId)) this.host.notify(terminalId, grant.id)
+  }
+
+  /**
+   * Tells a terminal of each grant made here that now covers it and was not told of: a
+   * teammate opened after the grant, one a lead adopts, a new lead. Once its agent runs, as a
+   * grant made for it is. A grant restored from the records has told nobody: whoever it
+   * covers learns of it from the bar's notice at the start of a session.
+   */
+  private reach(): void {
+    if (this.closed) return
+    for (const grant of this.list()) {
+      const seen = this.told.get(grant.id)
+      if (!seen) continue
+      for (const live of this.coveredBy(grant)) {
+        if ((live.root === null && live.shown === null) || seen.has(live.terminalId)) continue
+        seen.add(live.terminalId)
+        this.host.notify(live.terminalId, grant.id)
+      }
+    }
+  }
+
+  /** Tells the terminal of these grants, as messages of their own. */
+  tell(terminalId: string, grants: readonly Grant[]): void {
+    for (const grant of grants) this.host.notify(terminalId, grant.id)
   }
 
   /**
@@ -434,7 +499,8 @@ export class Grants {
    */
   sweep(): void {
     if (this.closed) return
-    const now = this.host.now()
+    this.retryWrites()
+    const now = this.now()
     for (const grant of this.byId.values())
       if (grant.revokedAt === null && !this.inForce(grant, now)) this.end(grant)
   }
@@ -478,6 +544,7 @@ export class Grants {
   }
 
   close(): void {
+    this.retryWrites()
     this.closed = true
     clearInterval(this.sweeper)
     this.stopWatching()
@@ -489,15 +556,15 @@ export class Grants {
    * Ends a grant: nothing covers from now, and those it covered are told. With `entry`, the
    * coverage of that terminal ended with it, and `<grant-ended>` tells it why.
    */
-  private end(grant: Grant, entry?: Grant["ended"][number]): void {
+  private end(grant: Grant, entry?: Grant["ended"][number], strict = false): void {
     const covered = this.coveredBy(grant)
     const ended: Grant = {
       ...grant,
       ...(entry && grant.ended.length < maxGrantEnded && { ended: [...grant.ended, entry] }),
-      revokedAt: this.host.now(),
+      revokedAt: this.now(),
     }
-    this.byId.set(ended.id, ended)
-    this.persist(ended)
+    this.settle(ended, strict)
+    this.told.delete(grant.id)
     for (const live of covered)
       this.host.notify(
         live.terminalId,
@@ -509,16 +576,47 @@ export class Grants {
 
   /** Saves a grant, noting when, for the activity that is saved only now and then. */
   private persist(grant: Grant): void {
-    this.savedAt.set(grant.id, this.host.now())
-    this.save(() => this.records.saveGrant(grant))
+    this.savedAt.set(grant.id, this.now())
+    if (this.write(grant)) this.unwritten.delete(grant.id)
+  }
+
+  /**
+   * Records a narrowing of the grant, then lets memory follow it, so a grant is never in force
+   * on disk after memory ended it. Where the records can't take it: a `strict` one (the
+   * person's click) is refused with nothing changed; any other (a done, an exit, the clock)
+   * still narrows in memory, as the agent must not keep what it lost, and is written again
+   * at each sweep until it is.
+   */
+  private settle(next: Grant, strict = false): void {
+    if (this.write(next)) this.unwritten.delete(next.id)
+    else if (strict)
+      throw new DomainError("ANSWER_FAILED", "Novadeck could not save that. Try again.")
+    else this.unwritten.set(next.id, next)
+    this.savedAt.set(next.id, this.now())
+    this.byId.set(next.id, next)
+  }
+
+  /** Writes what could not be written before. */
+  private retryWrites(): void {
+    for (const [id, grant] of this.unwritten) if (this.write(grant)) this.unwritten.delete(id)
+  }
+
+  /** Writes the grant to the records, once more if it fails; whether it was written. */
+  private write(grant: Grant): boolean {
+    return (
+      this.save(() => this.records.saveGrant(grant)) ||
+      this.save(() => this.records.saveGrant(grant))
+    )
   }
 
   /** Writes to the records; a failure is logged, and the service carries on from memory. */
-  private save(work: () => void): void {
+  private save(work: () => void): boolean {
     try {
       work()
+      return true
     } catch (error) {
       log.error("grants.save-failed", "Novadeck could not save its grants", { err: error })
+      return false
     }
   }
 

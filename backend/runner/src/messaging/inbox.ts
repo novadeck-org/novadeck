@@ -105,11 +105,11 @@ type Host = {
   replyState(askId: string): Message | undefined
   forgetReplies(ids: readonly string[]): void
   /**
-   * Makes the grant the person's click on a card said (`Grants.make`), and ends one whose
-   * answer then could not be saved. Absent where the runner keeps no grants.
+   * Makes the grant the person's click on a card said (`Grants.make`), once `commit`, the
+   * answer's save, has gone through; a commit that throws leaves no grant. Absent where the
+   * runner keeps no grants.
    */
-  makeGrant?(input: MakeGrant): Grant
-  endGrant?(id: string): void
+  makeGrant?(input: MakeGrant, commit: () => void): Grant
 }
 
 const subject = z
@@ -699,22 +699,15 @@ export class Inbox {
     const made = this.grantOf(entry, answer)
     const asked = entry.content.kind === "ask" ? entry.content.ask.subject : grantSubject
     if (made) {
-      let grant: Grant | undefined
       this.host.reply(
         entry.terminalId,
         entry.id,
         asked,
         made.text,
         (message) => {
-          // The grant counts before the reply is saved; one whose reply then fails is ended.
-          grant = this.host.makeGrant!(made.grant)
-          try {
-            // Atomic with the person's reply: a failure refuses the answer, retryable.
-            this.records.answerEntry(answered, message)
-          } catch (error) {
-            this.host.endGrant?.(grant.id)
-            throw error
-          }
+          // The grant is made once the reply is saved, so an answer that fails (and is
+          // retryable) leaves no grant, in memory or on disk.
+          this.host.makeGrant!(made.grant, () => this.records.answerEntry(answered, message))
           this.keep(answered)
         },
         {},

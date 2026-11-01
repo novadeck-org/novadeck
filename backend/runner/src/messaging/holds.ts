@@ -10,6 +10,7 @@ import {
   clock,
   idleToHold,
   isBetween,
+  isQuiet,
   senderTerminal,
   stopBlocks,
   type Message,
@@ -93,7 +94,8 @@ export class Holds {
   oldestHeld(live: Live): number | null {
     let oldest: number | null = null
     for (const message of this.host.store.messages()) {
-      if (message.to.terminalId !== live.terminalId) continue
+      // A quiet notice rings nobody and waits for the next prompt, so it is no time held.
+      if (message.to.terminalId !== live.terminalId || isQuiet(message)) continue
       const since = this.heldSince(live, message)
       if (since !== undefined && (oldest === null || since < oldest)) oldest = since
     }
