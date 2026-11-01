@@ -793,7 +793,8 @@ in `contract/protocol/src/grants.ts`.
   (`grants` table, `ON DELETE CASCADE`). `grants.watch` lists the live ones.
 - **Telling the covered.** Making or ending a grant queues a `from_kind='novadeck'` message
   with `grant_id` to each covered terminal (`Relays.grantNotice`), which wakes an idle agent
-  as a notice does. `wrap` renders it from the grant itself, never from the message's text: a
+  as a notice does, except the notice of a grant that ended at the terminal's own `done`
+  (`isQuiet`): it rings nobody, the Stop hook skips it, and it comes with the next prompt. `wrap` renders it from the grant itself, never from the message's text: a
   live grant becomes `<grant id=… person="MARK" until="done">` (an `hour` grant has
   `ends="HH:MM"` instead, and its line gives the clock time) with Novadeck's fixed words
   for each preset and command and the forms that go through for that agent's harness, and an
@@ -805,6 +806,14 @@ in `contract/protocol/src/grants.ts`.
   that says one was given." The live grants are repeated, in a wrapper of their own with one
   fresh person mark (`wrapGrants`), where context was lost: `noticesAt` takes them beside the
   bar notice at a new session, `/clear` and a compaction.
+- **Novadeck's own tools in a narrowed Antigravity.** The permission hook answers "not a
+  command" (leaving the person's own policy to decide) for Novadeck's MCP tools, matched
+  exactly: `mcp_novadeck_novadeck_<tool>`, or `call_mcp_tool` with `ServerName` `novadeck_novadeck`
+  and a `ToolName` on `novadeckMcpTools` (`harnesses/core/src/grants/payload.ts`, held to
+  `shell/mcp.ts`'s tool list by a test). A lookalike server, an unknown tool name and other
+  servers' tools stay `force_ask`. The `--settings` file of a launch grant carries only
+  `command(...)` entries, so Antigravity's own policy still asks about these tools unless
+  the person allowed them in a way the launch settings keep.
 - **Launch programs.** `Grants.launchPrograms(terminalId)` names the programs an Antigravity
   terminal is given launch grants for (`git` for push, `gh` for pr, the first word of each
   command).
