@@ -1,6 +1,6 @@
 // Launches the unpacked packaged app and runs a real shell through its bundled runner.
 // Usage (after `pnpm run package:<target>`): node scripts/smoke.mjs
-import { execFileSync } from "node:child_process"
+import { execFileSync, spawn } from "node:child_process"
 import { existsSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from "node:fs"
 import { createRequire } from "node:module"
 import { tmpdir } from "node:os"
@@ -8,7 +8,7 @@ import { dirname, join, resolve } from "node:path"
 import { fileURLToPath } from "node:url"
 
 import * as esbuild from "esbuild"
-import { _electron } from "playwright"
+import { chromium } from "playwright"
 
 import { closeWithin, fuseProblems, killUnder, openedCopy } from "./fuses.mjs"
 
@@ -45,9 +45,10 @@ if (!existsSync(executable)) fail(`The packaged executable is missing: ${executa
 for (const problem of await fuseProblems(executable)) fail(`A fuse is wrong: ${problem}`)
 console.log("The packaged binary's fuses are set: no RunAsNode, NODE_OPTIONS or inspect arguments.")
 
-// Everything below that needs the binary to run as Node (the worker and koffi checks) or to
-// take Playwright's inspector (the runner round trip) uses a copy of the app with only those three
-// fuses turned on (on macOS the whole bundle, in a scratch folder); it finds the same app.asar and code, so what ships is what is tested.
+// The checks that need the binary to run as Node (the worker and koffi checks) use a copy of
+// the app with only those three fuses turned on (on macOS the whole bundle, in a scratch
+// folder); it finds the same app.asar and code, so what ships is what is tested. The runner round
+// trip below drives the shipped app itself.
 const opened = await openedCopy(executable)
 process.on("exit", opened.remove)
 
@@ -243,20 +244,67 @@ const client = `${bundle.outputFiles[0].text};globalThis.novadeckClient = novade
 
 const userData = mkdtempSync(join(tmpdir(), "novadeck-smoke-data-"))
 const work = mkdtempSync(join(tmpdir(), "novadeck-smoke-work-"))
-const app = await _electron.launch({
-  executablePath: opened.executable,
-  // Hosted Linux runners forbid the unprivileged namespaces Chromium's sandbox needs.
-  args: [`--user-data-dir=${userData}`, ...(process.platform === "linux" ? ["--no-sandbox"] : [])],
-  // A release's version would otherwise let the packaged app look for updates.
-  env: { ...process.env, NOVADECK_UPDATES: "off" },
-  timeout: 60_000,
-})
-// What the app prints, kept for the report of one that won't close.
+// The shipped binary itself, not the open copy: Playwright's Electron driver needs the inspector
+// the fuses shut, but Chromium's remote debugging port is no Node fuse, and drives the page as
+// well. The app quits as it does for a person, by closing the browser.
 const output = []
-for (const stream of [app.process().stdout, app.process().stderr])
-  stream?.on("data", (chunk) => output.push(String(chunk)))
+const child = spawn(
+  executable,
+  [
+    "--remote-debugging-port=0",
+    `--user-data-dir=${userData}`,
+    // Hosted Linux runners forbid the unprivileged namespaces Chromium's sandbox needs.
+    ...(process.platform === "linux" ? ["--no-sandbox"] : []),
+  ],
+  // A release's version would otherwise let the packaged app look for updates.
+  {
+    env: { ...process.env, NOVADECK_UPDATES: "off" },
+    stdio: ["ignore", "pipe", "pipe"],
+    windowsHide: true,
+  },
+)
+const exited = new Promise((settle) =>
+  child.once("exit", (code, signal) => settle({ code, signal })),
+)
+const listening = new Promise((settle) => {
+  const look = (chunk) => {
+    output.push(String(chunk))
+    const found = /DevTools listening on (ws:\/\/\S+)/.exec(output.join(""))
+    if (found) settle(found[1])
+  }
+  child.stdout.on("data", look)
+  child.stderr.on("data", look)
+})
+const endpoint = await Promise.race([
+  listening,
+  exited.then(() => undefined),
+  new Promise((settle) => setTimeout(settle, 60_000, undefined)),
+])
+// Where the shipped app runs from, which a hung one is looked for under.
+const shippedRoot =
+  process.platform === "darwin"
+    ? executable.slice(0, executable.indexOf(".app") + ".app".length)
+    : executable
+if (!endpoint) {
+  killUnder(shippedRoot)
+  fail(`The packaged app did not open its debugging port. Its output:\n${output.join("")}`)
+}
+const browser = await chromium.connectOverCDP(endpoint)
+const app = {
+  process: () => child,
+  windows: () => browser.contexts().flatMap((context) => context.pages()),
+  close: async () => {
+    // The browser is gone before it answers, so the command's own answer is not waited for.
+    void browser
+      .newBrowserCDPSession()
+      .then((session) => session.send("Browser.close"))
+      .catch(() => {})
+    await exited
+  },
+}
 try {
-  const page = await app.firstWindow()
+  const context = browser.contexts()[0]
+  const page = context.pages()[0] ?? (await context.waitForEvent("page", { timeout: 60_000 }))
   await page.waitForLoadState("domcontentloaded")
   await page.evaluate(client)
   // The typed echo differs from the output, so only the shell's answer matches.
@@ -326,9 +374,15 @@ try {
     console.log("The terminal runs on the bundled ConPTY host (OpenConsole.exe).")
   }
 } finally {
-  const hung = await closeWithin(app, opened.root, output, userData)
+  const hung = await closeWithin(app, shippedRoot, output, userData)
+  killUnder(shippedRoot)
   killUnder(opened.root)
   if (hung) fail(hung)
+  // A quit the app made itself, not one it was killed in: its log says it ran to its end.
+  const hostLog = join(userData, "logs", "host.log")
+  const ended = existsSync(hostLog) ? readFileSync(hostLog, "utf8") : ""
+  if (!ended.includes('"evt":"app.quit"') || !/"evt":"session.end"[^\n]*"code":0/.test(ended))
+    fail(`The packaged app's log doesn't show an orderly quit:\n${ended.slice(-1500)}`)
   rmSync(work, { recursive: true, force: true })
   rmSync(userData, { recursive: true, force: true })
 }
