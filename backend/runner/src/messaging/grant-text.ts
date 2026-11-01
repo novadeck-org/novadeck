@@ -31,8 +31,9 @@ const pushText = (grant: Grant, agent: AgentName): string => {
   const repos = grant.repos.map((repo) => repo.url).join(", ")
   const form = grant.repos.map((repo) => remoteForm(agent, repo.url)).join(" or ")
   return (
-    `Push a named branch to ${repos}: git push ${form} <src>:<dst>, always with the ` +
-    "destination spelled out, no force, never to main, master or the repo's default branch."
+    `Push a named branch to ${repos}: git push --no-follow-tags --recurse-submodules=no ${form} ` +
+    "<src>:<dst>, always with both flags and the destination spelled out, no force, never to " +
+    "main, master or the repo's default branch."
   )
 }
 
@@ -55,7 +56,7 @@ const prText = (grant: Grant, quoteFree: boolean): string => {
  * the commands, with the longest note any harness gets on any OS, and `grantMarginBytes` to
  * spare (messages.test.ts measures the largest grant that way).
  */
-export const maxGrantCommandBytes = 2500
+export const maxGrantCommandBytes = 2440
 
 /** How far under a delivery's limit the largest grant must print in any harness, so that a longer note never overflows it unseen. */
 export const grantMarginBytes = 256

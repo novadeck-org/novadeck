@@ -544,8 +544,12 @@ describe("a delivery's grants", () => {
       personMark: "P",
       grants: live,
     })
-    expect(claude).toContain("git push origin or https://github.com/acme/shop <src>:<dst>")
-    expect(codex).toContain("git push https://github.com/acme/shop <src>:<dst>")
+    expect(claude).toContain(
+      "git push --no-follow-tags --recurse-submodules=no origin or https://github.com/acme/shop <src>:<dst>",
+    )
+    expect(codex).toContain(
+      "git push --no-follow-tags --recurse-submodules=no https://github.com/acme/shop <src>:<dst>",
+    )
     expect(codex).not.toContain("origin")
     expect(agy).toContain("takes this grant when it starts")
     expect(codex).not.toContain("takes this grant when it starts")
