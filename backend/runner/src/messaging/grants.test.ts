@@ -674,6 +674,13 @@ describe("a teammate that becomes covered after the grant was made", () => {
     expect(second.messaging.grants.covering("F").map((each) => each.id)).toEqual([grant.id])
     second.arrive("N", "newt", "sable")
     expect(second.told("N")).toHaveLength(1)
+    // Quiet: it rings nobody, so a restart wakes no idle agent; the grant made now does ring.
+    expect(second.told("N").map(isQuiet)).toEqual([true])
+    expect(second.told("F").every(isQuiet)).toBe(true)
+    const fresh = second.make()
+    expect(fresh.id).not.toBe(grant.id)
+    second.arrive("P", "pike", "sable")
+    expect(second.told("P").map(isQuiet)).toEqual([true, false])
     const third = setup()
     const ended = third.make()
     third.messaging.grants.revoke(ended.id)

@@ -143,6 +143,8 @@ export class Grants {
   private readonly unwritten = new Map<string, Grant>()
   /** The terminals each grant made here has told of itself, so a later one it covers is told too. */
   private readonly told = new Map<string, Set<string>>()
+  /** The grants loaded from the records: their notices are quiet, so a restart wakes no idle agent. */
+  private readonly restored = new Set<string>()
   /**
    * When each grant was made and last heard from on the monotonic clock (`GrantsHost.mono`),
    * for the grants of this run. The wall clock can be set back, which would stretch the hour
@@ -189,6 +191,7 @@ export class Grants {
         this.savedAt.set(grant.id, now)
         // Restored, it has told nobody yet: whoever it covers is told as their agent runs.
         this.told.set(grant.id, new Set())
+        this.restored.add(grant.id)
       }
     }
     if (ended.length > 0) this.save(() => records.removeGrants(ended))
@@ -490,7 +493,8 @@ export class Grants {
    * Tells a terminal of each grant that now covers it and was not told of: a teammate
    * opened after the grant, one a lead adopts, a new lead, one whose agent only now runs, or
    * any of them after a runner restart, as a restored grant has told nobody. A terminal is
-   * counted as told only when a notice was queued for it.
+   * counted as told only when a notice was queued for it. A restored grant's notice is quiet:
+   * it waits for the terminal's next prompt, which the bar's notice may carry it in anyway.
    */
   private reach(): void {
     if (this.closed) return
@@ -501,7 +505,8 @@ export class Grants {
         if (seen.has(live.terminalId)) continue
         // Counted as told only when it was: a plain shell with no agent yet has nobody to tell.
         this.attempt(() => {
-          if (this.host.notify(live.terminalId, grant.id)) seen.add(live.terminalId)
+          if (this.host.notify(live.terminalId, grant.id, this.restored.has(grant.id)))
+            seen.add(live.terminalId)
         })
       }
     }
