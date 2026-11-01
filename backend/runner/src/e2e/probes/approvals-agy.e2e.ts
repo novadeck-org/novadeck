@@ -77,6 +77,10 @@ type Case = {
   user?: Permissions
   /** A project settings file to write (relative to the project folder) and its `permissions`. */
   project?: { file: string; permissions: Permissions }
+  /** Top-level keys merged into the user's settings.json. */
+  extraUser?: object
+  /** Files to write under the sandbox's home (path relative to it) with their text. */
+  homeFiles?: Record<string, string>
   /** Further project settings files, all written with the same `permissions`. */
   projectMore?: string[]
 }
@@ -99,6 +103,17 @@ const ans = (decision: string) => () => ({ decision })
 // - No project settings file is read: `.agents/settings.json`, `.agents/settings.local.json`,
 //   `.gemini/antigravity-cli/settings.json` and seven other names changed nothing (m11-m14, m22).
 //   "Persist to settings.json" writes the user's file (m21).
+// - What a `command(...)` rule matches (n-cases): the literal words a command starts with,
+//   case-sensitive; `command(*)` alone matches everything; `touch *`, `*ran.txt*`, `t*ch`, `tou?h`,
+//   `*ouch` and an empty rule match nothing (n1-n7). Double spaces and tabs are seen through
+//   (n8, n9); `/usr/bin/touch` is not matched by `command(touch)` (n10). It finds the command
+//   after `env FOO=1`, `FOO=1`, `&&`, `;`, `if ...; then`, a subshell, `time` and `nohup`
+//   (n11-n16, n18, n19) but not after `xargs`, `command`, `sudo -n`, or in quotes (n17, n21-n23).
+//   A rule `command(TOUCH)` does not match `touch` (n20).
+// - Other places for the person's rules: `excludeTools`, `tools.exclude`, `coreTools` in the
+//   user's settings, `~/.gemini/settings.json`, `~/.gemini/config/settings.json` and a Gemini CLI
+//   policy TOML did not change the decision (s1-s6). No system or admin file was tried (it
+//   needs root), and the binary's strings name none.
 // - A PreToolUse `force_ask` puts the dialog over the user's deny (m23: click-through); `ask`
 //   leaves it denied (m25); `deny_unless_prior_grant` plus a --settings allow stays denied (m24)
 //   and runs over a user ask (m26).
@@ -110,7 +125,90 @@ const layered = (name: string, c: Omit<Case, "name">): Case => ({
 })
 const touch = (rule: "allow" | "deny" | "ask"): Permissions => ({ [rule]: ["command(touch)"] })
 const git = () => ({ permissions: { allow: ["command(git)"] } })
+const denyTouch = (...rules: string[]): Permissions => ({ deny: rules })
+const touchAs = (shape: (marker: string) => string) => ({ cmd: (marker: string) => shape(marker) })
 const mCases: Case[] = [
+  // ---- round 6 (G): what a `command(...)` deny rule matches
+  layered("n1-glob-star-all", { user: denyTouch("command(*)") }),
+  layered("n2-glob-star-args", { user: denyTouch("command(touch *)") }),
+  layered("n3-glob-star-both-ends", { user: denyTouch("command(*ran.txt*)") }),
+  layered("n4-glob-inside-word", { user: denyTouch("command(t*ch)") }),
+  layered("n5-glob-question", { user: denyTouch("command(tou?h)") }),
+  layered("n6-glob-leading-star-word", { user: denyTouch("command(*ouch)") }),
+  layered("n7-empty-rule", { user: denyTouch("command()") }),
+  // the forms a plain `command(touch)` deny may or may not see
+  layered("n8-double-space", {
+    user: denyTouch("command(touch)"),
+    ...touchAs((m) => `touch  ${m}`),
+  }),
+  layered("n9-tab", { user: denyTouch("command(touch)"), ...touchAs((m) => `touch\t${m}`) }),
+  layered("n10-abs-path", {
+    user: denyTouch("command(touch)"),
+    ...touchAs((m) => `/usr/bin/touch ${m}`),
+  }),
+  layered("n11-env-prefix", {
+    user: denyTouch("command(touch)"),
+    ...touchAs((m) => `env FOO=1 touch ${m}`),
+  }),
+  layered("n12-assignment-prefix", {
+    user: denyTouch("command(touch)"),
+    ...touchAs((m) => `FOO=1 touch ${m}`),
+  }),
+  layered("n13-after-and", {
+    user: denyTouch("command(touch)"),
+    ...touchAs((m) => `true && touch ${m}`),
+  }),
+  layered("n14-after-semicolon", {
+    user: denyTouch("command(touch)"),
+    ...touchAs((m) => `true; touch ${m}`),
+  }),
+  layered("n15-in-if", {
+    user: denyTouch("command(touch)"),
+    ...touchAs((m) => `if true; then touch ${m}; fi`),
+  }),
+  layered("n16-subshell", { user: denyTouch("command(touch)"), ...touchAs((m) => `(touch ${m})`) }),
+  layered("n17-xargs", {
+    user: denyTouch("command(touch)"),
+    ...touchAs((m) => `echo ${m} | xargs touch`),
+  }),
+  layered("n18-time", { user: denyTouch("command(touch)"), ...touchAs((m) => `time touch ${m}`) }),
+  layered("n19-nohup", {
+    user: denyTouch("command(touch)"),
+    ...touchAs((m) => `nohup touch ${m}`),
+  }),
+  layered("n20-uppercase-rule", { user: denyTouch("command(TOUCH)") }),
+  layered("n21-command-builtin", {
+    user: denyTouch("command(touch)"),
+    ...touchAs((m) => `command touch ${m}`),
+  }),
+  layered("n22-sudo-n", {
+    user: denyTouch("command(touch)"),
+    ...touchAs((m) => `sudo -n touch ${m}`),
+  }),
+  layered("n23-quoted-program", {
+    user: denyTouch("command(touch)"),
+    ...touchAs((m) => `"touch" ${m}`),
+  }),
+  // ---- round 6 (S): other places the person's rules might live
+  layered("s1-excludeTools", { extraUser: { excludeTools: ["run_command"] } }),
+  layered("s2-tools-exclude", { extraUser: { tools: { exclude: ["run_command"] } } }),
+  layered("s3-coreTools", { extraUser: { coreTools: ["read_file"] } }),
+  layered("s4-gemini-settings-deny", {
+    homeFiles: {
+      ".gemini/settings.json": JSON.stringify({ permissions: { deny: ["command(touch)"] } }),
+    },
+  }),
+  layered("s5-policy-toml", {
+    homeFiles: {
+      ".gemini/policies/x.toml":
+        '[[rule]]\ntoolName = "run_command"\ncommandPrefix = ["touch"]\ndecision = "deny"\npriority = 900\n',
+    },
+  }),
+  layered("s6-config-dir-settings", {
+    homeFiles: {
+      ".gemini/config/settings.json": JSON.stringify({ permissions: { deny: ["command(touch)"] } }),
+    },
+  }),
   layered("m0-none", {}),
   layered("m1-user-allow", { user: touch("allow") }),
   layered("m2-user-deny", { user: touch("deny") }),
@@ -547,6 +645,18 @@ describe.skipIf(!supported)("Antigravity approvals (probe)", () => {
         const user = JSON.parse(readFileSync(file, "utf8")) as { permissions?: Permissions }
         user.permissions = { ...user.permissions, ...c.user }
         writeFileSync(file, JSON.stringify(user))
+      }
+      if (c.extraUser) {
+        const file = join(run.sandbox.home, ".gemini", "antigravity-cli", "settings.json")
+        writeFileSync(
+          file,
+          JSON.stringify({ ...(JSON.parse(readFileSync(file, "utf8")) as object), ...c.extraUser }),
+        )
+      }
+      for (const [relative, text] of Object.entries(c.homeFiles ?? {})) {
+        const file = join(run.sandbox.home, relative)
+        mkdirSync(join(file, ".."), { recursive: true })
+        writeFileSync(file, text)
       }
       if (c.project) {
         const file = join(run.sandbox.project, c.project.file)

@@ -140,7 +140,7 @@ export class Narrowing {
    */
   async mayDeny(line: string): Promise<boolean | undefined> {
     const user = await this.rules()
-    return user.ok ? mayDeny(line, user.deny) : undefined
+    return user.ok ? mayDeny(line, user.deny, process.platform === "win32") : undefined
   }
 
   /** The programs the terminal's launch allowed; undefined for one the runner didn't narrow. */

@@ -567,14 +567,37 @@ describe("Antigravity's PreToolUse", () => {
     expect((await tried.ask("agy", "PreToolUse", run("ls"), narrow)).stdout).toBe(closed)
   })
 
-  it("closes every command while the person's rules can't be read", async ({ resources }) => {
+  it("refuses every command while the person's rules can't be read, as a denial may be among them", async ({
+    resources,
+  }) => {
     const tried = fixture(resources, undefined, () =>
       Promise.resolve({ ok: false, reason: "unreadable" }),
     )
     await tried.launch(["uberepo"])
     expect((await tried.ask("agy", "PreToolUse", run("uberepo ship x"), narrow)).stdout).toBe(
+      denied,
+    )
+  })
+
+  it("lets nothing run on a grant whose coverage ended while the call was matched", async ({
+    resources,
+  }) => {
+    // The first look at the terminal's grants finds it covered; by the time the lookups are
+    // through (a done, a release or an exit meanwhile) the second does not.
+    let looks = 0
+    const tried = fixture(resources, (): ReadonlyArray<GrantScope & { id: string }> => {
+      looks += 1
+      return looks === 1 ? [grant] : []
+    })
+    await tried.launch(["uberepo"])
+    expect((await tried.ask("agy", "PreToolUse", run("uberepo ship x"), narrow)).stdout).toBe(
       closed,
     )
+    expect(tried.used).toEqual([])
+    // Claude Code and Codex are answered by the same match.
+    looks = 0
+    const claude = await tried.ask("claude", "PreToolUse", bash("uberepo ship x"), { env: {} })
+    expect(claude.stdout).not.toContain("allow")
   })
 
   it("closes a payload it can't read, or whose tool input holds a field of its own", async ({

@@ -50,11 +50,53 @@ describe("whether the person's deny rules may deny a command line", () => {
     expect(mayDeny("rm x", [])).toBe(false)
   })
 
-  it("takes a rule with a wildcard by what comes before it", () => {
-    expect(mayDeny("git push --force-with-lease", ["command(git push --force*)"])).toBe(true)
-    expect(mayDeny("git status", ["command(git push --force*)"])).toBe(false)
+  it("takes `command(*)` for every command, and any other glob, or an empty rule, literally, as Antigravity does", () => {
     expect(mayDeny("anything at all", ["command(*)"])).toBe(true)
-    expect(mayDeny("curl x", ["command(cu?l)"])).toBe(true)
+    expect(mayDeny("touch /tmp/x", ["command(touch *)"])).toBe(false)
+    expect(mayDeny("curl x", ["command(cu?l)"])).toBe(false)
+    expect(mayDeny("git push --force-with-lease", ["command(git push --force*)"])).toBe(false)
+    expect(mayDeny("anything", ["command()"])).toBe(false)
+    expect(mayDeny("anything", ["command(   )"])).toBe(false)
+  })
+
+  it("sees what Antigravity's own matching sees, and a little more", () => {
+    const rm = ["command(rm)"]
+    for (const line of [
+      "rm  -rf   x",
+      "rm\t-rf x",
+      "true && rm x",
+      "true; rm x",
+      "if true; then rm x; fi",
+      "while true; do rm x; done",
+      "(rm x)",
+      "{ rm x; }",
+      "! rm x",
+      "env FOO=1 rm x",
+      "FOO=1 BAR=2 rm x",
+      "time rm x",
+      "nohup rm x",
+      "sudo rm x",
+      "sudo -n rm x",
+      "sudo -u root rm x",
+      "xargs rm",
+      "echo x | xargs -n1 rm",
+      "exec rm x",
+      "command rm x",
+      "builtin rm x",
+      "/usr/bin/rm x",
+      '"rm" x',
+      "'rm' x",
+    ])
+      expect(mayDeny(line, rm), line).toBe(true)
+    for (const line of ["rmdir x", "echo rm", "echo x | wc", "sudo ls", "env FOO=1 ls"])
+      expect(mayDeny(line, rm), line).toBe(false)
+  })
+
+  it("compares rules case-sensitively, the program's case only on Windows", () => {
+    expect(mayDeny("RM x", ["command(rm)"])).toBe(false)
+    expect(mayDeny("rm x", ["command(RM)"])).toBe(false)
+    expect(mayDeny("RM x", ["command(rm)"], true)).toBe(true)
+    expect(mayDeny("C:\\Tools\\RM.exe x", ["command(rm.exe)"], true)).toBe(true)
   })
 })
 

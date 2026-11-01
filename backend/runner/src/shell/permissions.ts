@@ -147,9 +147,9 @@ export class Permissions {
     // applies after a restart).
     // A command the person's own rules may deny is refused: `closed` would put a dialog over
     // their denial. Rules that can't be read close the call.
+    // Rules that can't be read are refused too: the person's denials may be among them.
     const denies = await this.host.narrowing.mayDeny(call.command)
-    if (denies === undefined) return closed
-    if (denies) return { stdout: answers.denied, report: true }
+    if (denies !== false) return { stdout: answers.denied, report: true }
     const lexed = lexCall(call)
     const program = lexed.ok ? lexed.argv[0] : undefined
     if (program === undefined || !this.host.narrowing.launchSet(report.terminalId)?.has(program))
@@ -182,7 +182,13 @@ export class Permissions {
     const grants = this.host.grants.covering(report.terminalId)
     if (grants.length === 0 || terminal.projectFolder === undefined) return undefined
     const found = await matchCall(call, grants, this.host.git, terminal.projectFolder, this.host.fs)
-    return found === null ? undefined : grants[found.scope]?.id
+    const id = found === null ? undefined : grants[found.scope]?.id
+    // The matching awaited the git and file lookups: a done, release or exit meanwhile ended the
+    // coverage, so the grant must still cover the terminal now, right before it lets a call run.
+    return id !== undefined &&
+      this.host.grants.covering(report.terminalId).some((each) => each.id === id)
+      ? id
+      : undefined
   }
 
   private use(report: Report, grantId: string, command: string): void {

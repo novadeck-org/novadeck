@@ -810,8 +810,11 @@ in `contract/protocol/src/grants.ts`.
   command" (leaving the person's own policy to decide) for Novadeck's MCP tools, matched
   exactly: `mcp_novadeck_novadeck_<tool>`, or `call_mcp_tool` with `ServerName` `novadeck_novadeck`
   and a `ToolName` on `novadeckMcpTools` (`harnesses/core/src/grants/payload.ts`, held to
-  `shell/mcp.ts`'s tool list by a test). A lookalike server, an unknown tool name and other
-  servers' tools stay `force_ask`.
+  `shell/mcp.ts`'s tool list by a test, with `novadeckCommandTools`). A lookalike server, an
+  unknown tool name, other servers' tools and `open_terminal` (it runs its `command` argument in
+  a new shell) stay `force_ask`. A `call_mcp_tool` whose arguments hold a key that differs from
+  `ServerName` or `ToolName` only by case is none of these, as Antigravity reads keys without
+  regard to case.
 - **The person's own Antigravity rules in a narrowed terminal** (probed 2026-11-01, 1.4.12,
   `e2e/probes/approvals-agy.e2e.ts` m-cases). `--settings` replaces the person's
   `permissions.allow` when it names one, but keeps their `deny` and `ask` when it names none, so
@@ -820,9 +823,20 @@ in `contract/protocol/src/grants.ts`.
   Settings that can't be read or parsed mean no launch grant for that start (logged, and the
   grant's note tells the agent). A PreToolUse `force_ask` would put a dialog over the person's
   `deny` (m23), so before it the hook reads their rules afresh and refuses (`deny`, the fourth
-  answer the relay passes) any command a `deny` rule may cover (`mayDeny`: wide on purpose, any
-  segment of a compound line, a wildcard rule by what precedes it). No project settings file is
-  read by Antigravity.
+  answer the relay passes) any command a `deny` rule may cover (`mayDeny`). Antigravity matches a
+  `command(<words>)` rule as the literal words a command starts with (case-sensitive, spaces and
+  tabs alike); `command(*)` alone matches everything, and any other glob, or an empty rule,
+  matches nothing (n1-n7). It finds the command after `&&`, `;`, `if`, a subshell, `env`, `time`,
+  `nohup` and an assignment, but not after `sudo`, `xargs` or `command`, nor with a folder in
+  front or quotes round the program (n8-n23). `mayDeny` is at least that wide: every segment
+  of a compound line, keywords and wrapper programs skipped, quotes and folders ignored, the
+  program's case ignored on Windows only. Rules that can't be read are refused the same way.
+  Antigravity reads only `~/.gemini/antigravity-cli/settings.json` and `--settings` for
+  permissions: no project file, no `excludeTools`/`tools.exclude`/`coreTools`, no
+  `~/.gemini/settings.json`, `~/.gemini/config` or `~/.gemini/policies` file changed its
+  decisions (m11-m22, s1-s6). A system or administrator settings file was not probed (no
+  privilege in the sandbox, and the binary names none): if Antigravity reads one, its `deny` is
+  not seen here.
 - **Launch programs.** `Grants.launchPrograms(terminalId)` names the programs an Antigravity
   terminal is given launch grants for (`git` for push, `gh` for pr, the first word of each
   command).
