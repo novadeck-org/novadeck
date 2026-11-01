@@ -1081,20 +1081,31 @@ for (const kit of [codexKit, agyKit]) {
       }
 
       await terminal.submit("run again")
-      const end = Date.now() + 60_000
-      while (marksOf(world()).length === 0 && Date.now() < end) await sleep(250)
-      probe("grants granted-run", {
-        marks: marksOf(world()),
-        screen: rows(await terminal.screen()),
-      })
-      expect(marksOf(world())).toEqual([granted])
-      expect(await terminal.screen()).not.toMatch(kit.dialog)
+      if (launched) {
+        const end = Date.now() + 60_000
+        while (marksOf(world()).length === 0 && Date.now() < end) await sleep(250)
+        probe("grants granted-run", {
+          marks: marksOf(world()),
+          screen: rows(await terminal.screen()),
+        })
+        expect(marksOf(world())).toEqual([granted])
+        expect(await terminal.screen()).not.toMatch(kit.dialog)
+      } else {
+        // Before 1.4.10 it restarts fine, its grant delivery says so, and the command still asks.
+        await stopped("a grant it cannot take", 0)
+        const text = run.model.calls
+          .flatMap((call) => call.turns.map((turn) => turn.text))
+          .join("\n")
+        expect(text).toContain("<grant")
+        expect(text).toContain("before 1.4.10 never takes it")
+      }
+      const ran = launched ? 1 : 0
 
       await terminal.submit("run merge")
-      await stopped("merge", 1)
+      await stopped("merge", ran)
       if (setup.agent === "agy") {
         await terminal.submit("run echo")
-        await stopped("echo", 1)
+        await stopped("echo", ran)
         await terminal.submit("show readme")
         await run.model.waitFor(
           (call) => result(call)?.includes("novadeck-approvals-readme") === true,
