@@ -114,10 +114,11 @@ type Scenario = {
   /** A relative XDG_DATA_HOME, which counts as unset. */
   relativeXdg?: string
   /**
-   * A GitHub CLI on the PATH: `ok` verifies attestations, `invalid` rejects them,
-   * `signed-out` is not signed in, `old` lacks `gh attestation`.
+   * A GitHub CLI on the PATH: `ok` verifies attestations, `invalid` finds none for the file,
+   * `unreachable` can't reach GitHub, `signed-out` is not signed in, `old` lacks
+   * `gh attestation`.
    */
-  gh?: "ok" | "invalid" | "signed-out" | "old"
+  gh?: "ok" | "invalid" | "unreachable" | "signed-out" | "old"
   /** Tools present on the PATH, such as fusermount3. */
   extra?: string[]
   /** Tools present only in the system folders a user's PATH lacks. */
@@ -296,8 +297,15 @@ cp "${served}/\${url##*/}" "$out"`,
       "gh",
       `echo "gh $*" >> "${log}"
 case "$1 $2" in
-"auth status") [ "${scenario.gh}" != signed-out ] ;;
-"attestation verify") [ "${scenario.gh}" != old ] && { [ "$3" = --help ] || [ "${scenario.gh}" = ok ]; } ;;
+"auth status") [ "${scenario.gh}" != signed-out ] && case "$*" in *"--hostname github.com"*) ;; *) exit 1 ;; esac ;;
+"attestation verify")
+  [ "${scenario.gh}" != old ] || exit 1
+  [ "$3" = --help ] && exit 0
+  case "$*" in *"--hostname github.com"*"--signer-workflow acme/novadeck/.github/workflows/release.yml"*) ;; *) exit 1 ;; esac
+  case "${scenario.gh}" in
+  invalid) echo "Error: verification failed: no attestations found for subject $3" >&2; exit 1 ;;
+  unreachable) echo "Error: failed to fetch attestations: dial tcp: lookup api.github.com: no such host" >&2; exit 1 ;;
+  esac ;;
 *) exit 1 ;;
 esac`,
     )
@@ -412,7 +420,9 @@ describe.skipIf(!linux)("install.sh", () => {
       it("verifies the download against the repository when gh is signed in", () => {
         const result = run({ gh: "ok" })
         expect(result.status).toBe(0)
-        expect(result.commands).toContain(`gh attestation verify ${download} --repo acme/novadeck`)
+        expect(result.commands).toContain(
+          `gh attestation verify ${download} --repo acme/novadeck --hostname github.com --signer-workflow acme/novadeck/.github/workflows/release.yml`,
+        )
         expect(result.stdout).toContain("its build attestation from acme/novadeck")
       })
 
@@ -421,6 +431,19 @@ describe.skipIf(!linux)("install.sh", () => {
         expect(result.status).not.toBe(0)
         expect(result.stderr).toContain("no valid build attestation")
         expect(existsSync(join(result.data, "novadeck", image))).toBe(false)
+      })
+
+      it("goes on with the checksums, and says so, when gh cannot reach GitHub", () => {
+        const result = run({ gh: "unreachable" })
+        expect(result.status).toBe(0)
+        expect(result.stderr).toContain("no such host")
+        expect(result.stdout).toContain("Could not verify the build attestation")
+        expect(existsSync(join(result.data, "novadeck", image))).toBe(true)
+      })
+
+      it("shows what gh said when the attestation does not hold", () => {
+        const result = run({ gh: "invalid" })
+        expect(result.stderr).toContain("no attestations found")
       })
 
       it("falls back to checksums when gh is signed out or too old to attest", () => {
