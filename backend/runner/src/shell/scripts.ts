@@ -42,6 +42,12 @@ export type ShellPaths = ShellScriptPaths & {
    * which the agy shim passes as `--settings` (see `shell/narrowing.ts`).
    */
   readonly narrow: string
+  /**
+   * The folder holding the cmd.exe pass-through alone (Windows), which Antigravity's shim puts
+   * first on PATH where cmd's AutoRun prints, and the pass-through in it, named `cmd.exe`.
+   */
+  readonly agyCmdDir: string
+  readonly agyCmd: string
 }
 
 export const shellPaths = (directory: string, platform = process.platform): ShellPaths => ({
@@ -57,6 +63,8 @@ export const shellPaths = (directory: string, platform = process.platform): Shel
   relay: join(directory, platform === "win32" ? "novadeck-relay.exe" : "novadeck-relay"),
   relayConfig: join(directory, "relay.json"),
   narrow: join(directory, "narrow"),
+  agyCmdDir: join(directory, "agy-cmd"),
+  agyCmd: join(directory, "agy-cmd", "cmd.exe"),
 })
 
 /** What older versions wrote beside these files and nothing reads any more. */
@@ -270,7 +278,7 @@ export const shellFiles = (
     ),
   ]
   // Every harness's shims, which the shells put first on PATH only while one is connected.
-  const shims = agents.flatMap((agent) => harnesses[agent].shims?.(platform) ?? [])
+  const shims = agents.flatMap((agent) => harnesses[agent].shims?.(platform, machine) ?? [])
   const bin = shims.map((each) => file(join(paths.bin, each.path), each.content, each.mode))
   return platform === "win32"
     ? [

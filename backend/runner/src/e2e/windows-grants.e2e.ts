@@ -23,7 +23,7 @@ import {
 import { tmpdir } from "node:os"
 import { delimiter, join } from "node:path"
 
-import { cmdShimPath, relayPath } from "@novadeck/relay"
+import { relayPath } from "@novadeck/relay"
 import { afterAll, beforeAll, onTestFinished } from "vitest"
 
 import type { AgentSetup } from "./agents/agent.js"
@@ -148,7 +148,7 @@ type Kit = {
 
 const kits = new Map<string, Kit>()
 
-/** The file (in the kit) the PATH cmd wrapper appends the line it passed on to. */
+/** The file (in the kit) Novadeck's cmd.exe pass-through appends the line it passed on to. */
 const wrapperLog = "cmd-wrapper.log"
 
 /** Writes the kit and puts its programs first on PATH. */
@@ -165,27 +165,19 @@ const withKit = (setup: AgentSetup, pathcmd = false): AgentSetup => ({
     writeFileSync(join(dir, "argv.cjs"), argvProgram)
     writeFileSync(join(dir, "marker.cjs"), markerProgram)
     writeFileSync(join(dir, "hook.cjs"), hookProgram)
-    kits.set(sandbox.root, { dir, bin })
     const path = [bin, sandbox.env.PATH].join(delimiter)
-    if (!pathcmd) return { ...env, PATH: path }
-    // Novadeck's cmd.exe pass-through (novadeck-cmd.exe, named cmd.exe) is first on PATH for
-    // Antigravity alone: an `agy.cmd` ahead of the real one sets that PATH and calls the real
-    // agy, which Novadeck's shim finds as the first other `agy`. The runner and the terminal's
-    // shell keep theirs. NOVADECK_CMD_LOG makes it append the command line it passed on.
-    const wrap = join(dir, "wrap")
-    mkdirSync(wrap)
-    copyFileSync(cmdShimPath, join(wrap, "cmd.exe"))
-    const real = join((await installHarness("agy")).bin, "agy")
-    writeFileSync(
-      join(bin, "agy.cmd"),
-      [
-        `@set "PATH=${wrap};%PATH%"`,
-        `@set "NOVADECK_CMD_LOG=${join(dir, wrapperLog)}"`,
-        `@call "${real}" %*`,
-        "",
-      ].join("\r\n"),
-    )
-    return { ...env, PATH: path }
+    if (!pathcmd) {
+      kits.set(sandbox.root, { dir, bin })
+      return { ...env, PATH: path }
+    }
+    // Novadeck's own cmd.exe pass-through, through the product path: the runner starts under
+    // a printing AutoRun (set before it does), installs the shipped novadeck-cmd.exe as
+    // agy-cmd\cmd.exe in its shell folder, verifies it, and its agy shim puts that folder first
+    // on PATH for Antigravity alone. NOVADECK_CMD_LOG makes the pass-through append the command
+    // line it passed on, which a test reads back.
+    kits.set(sandbox.root, { dir, bin })
+    if (process.env.GITHUB_ACTIONS === "true") onTestFinished(printingAutoRun())
+    return { ...env, PATH: path, NOVADECK_CMD_LOG: join(dir, wrapperLog) }
   },
 })
 
@@ -544,7 +536,7 @@ type AgyCase = {
   readonly settings?: unknown
   /** Run under a cmd AutoRun that prints (CI's runner only), and print how the hook was spawned. */
   readonly autorun?: boolean
-  /** A cmd.exe wrapper first on Antigravity's PATH logs and runs the real cmd with /d first. */
+  /** Under Novadeck's own cmd.exe pass-through, installed by the runner, which logs and runs the real cmd with /d. */
   readonly pathcmd?: boolean
   /** The model's command line, given the marker program's script and the file it writes. */
   readonly line?: (script: string, marker: string) => string
@@ -769,7 +761,7 @@ describe.runIf(windows)("Antigravity on Windows (grants probe)", () => {
           own((call) => (call.turns.at(-1)?.role === "tool" ? { text: "Made it." } : undefined)),
         )
 
-        if (c.autorun) onTestFinished(printingAutoRun())
+        if (c.autorun && !c.pathcmd) onTestFinished(printingAutoRun())
         const t = await run.deck.open(`agy${flags}`)
         try {
           await t.reached("ready", { timeoutMs: 60_000 })
@@ -828,6 +820,11 @@ describe.runIf(windows)("Antigravity on Windows (grants probe)", () => {
             `PROBE agy pathcmd verdict: ${ran ? (dialog ? "works" : "wrapper ran but no dialog") : "wrapper never ran"}`,
           )
           console.log(`PROBE agy pathcmd run_command via wrapper: ${viaWrapper}`)
+          // The product path works: the hook's force_ask was read (its dialog shows, the command
+          // did not run unasked), and the pass-through Novadeck installed ran hooks.
+          expect(dialog, "force_ask's dialog shows").toBe(true)
+          expect(ranBeforeKeys, "the command ran with no dialog").toBe(false)
+          expect(wrapper.length, "the pass-through's log").toBeGreaterThan(0)
         }
         report(`agy ${c.name}`, kit)
         // Antigravity's own settings and logs, where the grants may have been read or refused.
@@ -897,10 +894,16 @@ describe.runIf(windows && process.env.GITHUB_ACTIONS === "true")(
           }
           probe(
             pathcmd
-              ? "agy plain terminal under AutoRun with a PATH cmd wrapper"
+              ? "agy plain terminal under AutoRun with Novadeck's cmd.exe pass-through"
               : "agy plain terminal under AutoRun",
             outcome,
           )
+          // With the pass-through, Novadeck's messaging is delivered and its log is not empty.
+          if (pathcmd) {
+            expect(outcome.error).toBeUndefined()
+            expect(outcome.delivered, "the message was delivered").toBe(true)
+            expect(outcome.wrapperRuns, "the pass-through's log").toBeGreaterThan(0)
+          }
         },
         240_000,
       )

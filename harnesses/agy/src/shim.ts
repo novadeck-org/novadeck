@@ -71,8 +71,12 @@ exec "$novadeck_real" --settings "$novadeck_settings" "$@"
 // repo's `agy.cmd` would be taken for the real one. The terminal's id names
 // its settings file, so it is read through `set`, which prints a value without cmd reading it
 // again, and only an id of plain characters counts. Everything set here is local (`setlocal`),
-// so NOVADECK_NARROW reaches Antigravity alone.
-export const cmdShim = `@echo off
+// so NOVADECK_NARROW reaches Antigravity alone, and so does the PATH given to `cmdShimDir`: where
+// cmd's AutoRun prints, Novadeck's cmd.exe pass-through (a folder holding it as "cmd.exe", see
+// backend/relay) goes first on PATH there, so Antigravity's hooks, which it runs as "cmd /c" through
+// whatever "cmd" PATH names first, skip the AutoRun. Its own "run_command" does not take that
+// "cmd", so the person's commands run as they always did; the terminal's shell keeps its PATH.
+export const makeCmdShim = (cmdShimDir?: string): string => `@echo off
 ${header("rem", "shim for agy")}
 rem Runs the real agy, narrowed where Novadeck's runner wrote launch settings for this terminal.
 setlocal
@@ -89,7 +93,7 @@ rem Only while Antigravity is connected: Novadeck's shells name the harnesses wh
 echo " %NOVADECK_SHIMS% " | findstr /c:" agy " >nul || goto plain
 set NOVADECK_TERMINAL_ID | findstr /r /x /c:"NOVADECK_TERMINAL_ID=[A-Za-z0-9_-][A-Za-z0-9_-]*" >nul || goto plain
 set "novadeck_settings=%~dp0..\\narrow\\%NOVADECK_TERMINAL_ID%.json"
-if not exist "%novadeck_settings%" goto plain
+${cmdShimDir === undefined ? "" : `set "PATH=${cmdShimDir};%PATH%"\n`}if not exist "%novadeck_settings%" goto plain
 call :command %* && goto plain
 set "NOVADECK_NARROW=1"
 "%novadeck_real%" --settings "%novadeck_settings%" %*
@@ -117,3 +121,6 @@ if "%novadeck_arg:~0,1%"=="-" (
 for %%c in (${commands.join(" ")}) do if /i "%novadeck_arg%"=="%%c" exit /b 0
 exit /b 1
 `
+
+/** The shim as it is without the cmd.exe pass-through. */
+export const cmdShim = makeCmdShim()

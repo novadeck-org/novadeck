@@ -149,6 +149,19 @@ try {
   fail(`The relay didn't answer as an MCP server and hook: ${error}`)
 }
 
+// On Windows the cmd.exe pass-through ships beside the relay, and runs a command through the
+// real cmd.
+if (process.platform === "win32") {
+  const shim = join(resources, "relay", "novadeck-cmd.exe")
+  if (!existsSync(shim)) fail(`The cmd.exe pass-through is missing: ${shim}`)
+  try {
+    const out = execFileSync(shim, ["/c", "echo", "novadeck-smoke"], { timeout: 10_000 })
+    if (!out.toString().includes("novadeck-smoke")) throw new Error(out.toString())
+  } catch (error) {
+    fail(`The cmd.exe pass-through didn't run a command: ${error}`)
+  }
+}
+
 // An engine's manifest, when the build ships one, names the archive it downloads.
 for (const [name, label] of [
   ["voice", "voice engine"],

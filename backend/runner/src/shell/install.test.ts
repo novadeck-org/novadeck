@@ -2,6 +2,7 @@ import {
   existsSync,
   mkdirSync,
   mkdtempSync,
+  readdirSync,
   readFileSync,
   rmSync,
   statSync,
@@ -215,5 +216,94 @@ describe.skipIf(process.platform === "win32")("the MCP server's launcher", () =>
     const paths = await installShellFiles(join(folder, "shell"), { relay: join(folder, "gone") })
     expect(paths.mcpLauncher).toBeUndefined()
     expect(logged).toHaveBeenCalledWith("Novadeck's relay is unavailable:", expect.anything())
+  })
+})
+
+describe("the cmd.exe pass-through", () => {
+  // A Windows machine whose cmd prints, written to a folder of this machine.
+  const setup = (resources: { defer: (undo: () => void) => void }) => {
+    const folder = mkdtempSync(join(tmpdir(), "novadeck-cmd-shim-"))
+    resources.defer(() => rmSync(folder, { recursive: true, force: true }))
+    const relay = join(folder, "novadeck-relay.exe")
+    const shim = join(folder, "novadeck-cmd.exe")
+    writeFileSync(relay, "relay")
+    writeFileSync(shim, "shim one")
+    const options = (over: object = {}) => ({
+      relay,
+      cmdShim: shim,
+      platform: "win32" as const,
+      prints: () => Promise.resolve("prints" as const),
+      short: (path: string) => Promise.resolve(path.replaceAll("/", "\\").replace(/^\\/, "C:\\")),
+      ...over,
+    })
+    return { folder, shim, directory: join(folder, "shell"), options }
+  }
+  const agyShim = (shell: { bin: string }) => readFileSync(join(shell.bin, "agy.cmd"), "utf8")
+
+  it("is installed as cmd.exe in a folder of its own and verified, where cmd prints", async ({
+    resources,
+  }) => {
+    const { directory, options } = setup(resources)
+    const shell = await installShellFiles(directory, options())
+    expect(readFileSync(shell.agyCmd, "utf8")).toBe("shim one")
+    expect(readdirSync(shell.agyCmdDir)).toEqual(["cmd.exe"])
+    expect(shell.cmdShimDir).toBeDefined()
+    // Covered: not cmdPrints (so no caveat, and the plugin may register PreToolUse), and the agy shim puts it first on PATH.
+    expect(shell.cmdPrints).toBe(false)
+    expect(agyShim(shell)).toContain(`set "PATH=${shell.cmdShimDir};%PATH%"`)
+  })
+
+  it("puts nothing on PATH, and stays cmdPrints, where it is missing or can't be verified", async ({
+    resources,
+  }) => {
+    const { directory, folder, options } = setup(resources)
+    const logged = vi.spyOn(console, "warn").mockImplementation(() => {})
+    resources.defer(() => logged.mockRestore())
+    const missingShim = await installShellFiles(
+      directory,
+      options({ cmdShim: join(folder, "none.exe") }),
+    )
+    expect(missingShim.cmdShimDir).toBeUndefined()
+    expect(missingShim.cmdPrints).toBe(true)
+    expect(agyShim(missingShim)).not.toContain('set "PATH=')
+    // A folder whose path still needs quoting (no short name) is not put on PATH.
+    const spaced = await installShellFiles(
+      directory,
+      options({ short: (path: string) => Promise.resolve(`${path} with space`) }),
+    )
+    expect(spaced.cmdShimDir).toBeUndefined()
+    expect(spaced.cmdPrints).toBe(true)
+  })
+
+  it("is not used where cmd prints nothing, and not on another platform", async ({ resources }) => {
+    const { directory, options } = setup(resources)
+    const quiet = await installShellFiles(directory, options({ prints: () => Promise.resolve() }))
+    expect(quiet.cmdShimDir).toBeUndefined()
+    expect(quiet.cmdPrints).toBe(false)
+    expect(existsSync(quiet.agyCmdDir)).toBe(false)
+    expect(agyShim(quiet)).not.toContain('set "PATH=')
+    const linux = await installShellFiles(directory, options({ platform: "linux" }))
+    expect(linux.cmdShimDir).toBeUndefined()
+    expect(existsSync(linux.agyCmdDir)).toBe(false)
+  })
+
+  it("is held like the relay under a narrowed terminal a previous runner left, and unused if it differs", async ({
+    resources,
+  }) => {
+    const { directory, shim, options } = setup(resources)
+    const first = await installShellFiles(directory, options())
+    mkdirSync(first.narrow, { recursive: true })
+    writeFileSync(join(first.narrow, "7.json"), "{}")
+    writeFileSync(shim, "shim two")
+    const held = await installShellFiles(directory, options())
+    expect(held.narrowedBefore).toBe(true)
+    expect(readFileSync(held.agyCmd, "utf8")).toBe("shim one")
+    // It differs from the shipped one: no wrapper, today's behaviour.
+    expect(held.cmdShimDir).toBeUndefined()
+    expect(held.cmdPrints).toBe(true)
+    // Nothing left to hold: replaced, verified and used.
+    const after = await installShellFiles(directory, options())
+    expect(readFileSync(after.agyCmd, "utf8")).toBe("shim two")
+    expect(after.cmdShimDir).toBeDefined()
   })
 })

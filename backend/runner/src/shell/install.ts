@@ -3,7 +3,7 @@ import { chmod, mkdir, readdir, readFile, rename, rm, writeFile } from "node:fs/
 import { basename, dirname, join } from "node:path"
 import { promisify } from "node:util"
 
-import { relayPath } from "@novadeck/relay"
+import { cmdShimName, relayPath } from "@novadeck/relay"
 
 import { logs } from "../log.js"
 import { withoutInherited } from "./inherited.js"
@@ -34,15 +34,32 @@ export type InstalledShell = ShellPaths & {
    * narrowed may still run, on the plugin's hook, though this runner knows nothing of it.
    */
   readonly narrowedBefore?: boolean
-  /** Whether cmd prints something of its own before a hook's command (Windows only). */
+  /**
+   * Whether cmd prints something of its own before a hook's command (Windows only) and
+   * Novadeck's cmd.exe pass-through is not there to skip it: Antigravity's hooks then read
+   * no answer, so it gets no PreToolUse hook and no launch grant.
+   */
   readonly cmdPrints?: boolean
+  /**
+   * Where cmd prints and the pass-through is installed, byte for byte what this Novadeck
+   * ships: its folder by a path cmd reads unquoted, which Antigravity's shim puts first on
+   * PATH. Absent everywhere else.
+   */
+  readonly cmdShimDir?: string
 }
 
 export type InstallOptions = {
   /** The relay to copy in for the launchers; the one `@novadeck/relay` built by default. */
   readonly relay?: string
+  /**
+   * The cmd.exe pass-through to install (Windows only); the one beside the relay by default.
+   */
+  readonly cmdShim?: string
   /** How to tell whether cmd prints (Windows only); the machine's own check by default. */
   readonly prints?: typeof cmdPrints
+  /** For tests: the platform to write the files for, and how a path is shortened. */
+  readonly platform?: NodeJS.Platform
+  readonly short?: (path: string) => Promise<string>
 }
 
 /**
@@ -52,9 +69,15 @@ export type InstallOptions = {
  */
 export const installShellFiles = async (
   directory: string,
-  { relay = relayPath, prints: printing = cmdPrints }: InstallOptions = {},
+  {
+    relay = relayPath,
+    cmdShim = join(dirname(relay), cmdShimName),
+    prints: printing = cmdPrints,
+    platform = process.platform,
+    short = shortName,
+  }: InstallOptions = {},
 ): Promise<InstalledShell> => {
-  const paths = shellPaths(directory)
+  const paths = shellPaths(directory, platform)
   await mkdir(directory, { recursive: true, mode: 0o700 })
   // A terminal's launch settings belong to the runner that wrote them and the agent it
   // started: none outlives it, or a restored terminal of the same id would start narrowed.
@@ -74,23 +97,37 @@ export const installShellFiles = async (
   await Promise.all(staleShellFiles(directory).map((stale) => rm(stale, { force: true })))
   await rm(paths.narrow, { recursive: true, force: true })
   // An agent that runs its hooks in cmd reads nothing they answer after cmd's own output.
-  const prints = process.platform === "win32" ? await printing() : undefined
-  if (prints === "prints")
+  const prints = platform === "win32" ? await printing() : undefined
+  // Where cmd prints, Antigravity's hooks run through Novadeck's own cmd.exe, which starts the
+  // real one with /d and so skips the AutoRun: only once that is installed, verified and has a
+  // path to put on PATH. Without it, today's behaviour.
+  const cmdShimDir =
+    prints === undefined ? undefined : await installCmdShim(cmdShim, paths, narrowedBefore, short)
+  const uncovered = prints !== undefined && cmdShimDir === undefined
+  if (prints === "prints" && uncovered)
     log.warn(
       "shell.cmd-prints",
       "Novadeck: cmd prints something of its own before every command, as an AutoRun (HKLM or HKCU\\Software\\Microsoft\\Command Processor\\AutoRun) that doesn't send its output to nul does. Antigravity can read none of its hooks' answers then, so Novadeck registers no PreToolUse hook for it, and installs its plugin again where it is connected; its own policy asks before each tool, and messaging with it won't work until that output goes.",
     )
-  if (prints === "slow")
+  if (prints === "slow" && uncovered)
     log.warn(
       "shell.cmd-slow",
       "Novadeck: cmd took more than 5 seconds to run a command, as a slow AutoRun (HKLM or HKCU\\Software\\Microsoft\\Command Processor\\AutoRun) may on a cold start, so whether it prints anything of its own isn't known. In case it does, which would let Antigravity's tools run unasked, Novadeck registers no PreToolUse hook for it this time; Antigravity's own policy asks before each tool. It looks again at the next start.",
     )
+  if (prints !== undefined && !uncovered)
+    log.info(
+      "shell.cmd-covered",
+      "Novadeck: cmd prints something of its own before commands (or is slow to), as an AutoRun does, so Antigravity's hooks run through Novadeck's own cmd.exe, which skips the AutoRun for them; the agent's own commands are not affected.",
+    )
   // Antigravity's narrowed PreToolUse on Windows runs the relay alone, by a path cmd needs
   // no quotes for: its short name, and only once the relay is there to run.
-  const hook = relayed ? hookStart(shellPaths(await shortName(directory))) : undefined
+  const hook = relayed
+    ? hookStart(shellPaths(await short(directory), platform), platform)
+    : undefined
   const launchers = { mcp: mcpStart(paths), ...(hook !== undefined && { hook }) }
-  for (const file of shellFiles(paths, process.platform, launchers, {
-    cmdPrints: prints !== undefined,
+  for (const file of shellFiles(paths, platform, launchers, {
+    cmdPrints: uncovered,
+    ...(cmdShimDir !== undefined && { cmdShimDir }),
   })) {
     // eslint-disable-next-line no-await-in-loop -- A few small files, one after another.
     await mkdir(dirname(file.path), { recursive: true, mode: 0o700 })
@@ -112,10 +149,51 @@ export const installShellFiles = async (
   await mkdir(paths.resume, { recursive: true, mode: 0o700 })
   return {
     ...paths,
-    launcher: await shortName(paths.hook),
-    mcpLauncher: process.platform !== "win32" && relayed ? paths.mcp : undefined,
+    launcher: await short(paths.hook),
+    mcpLauncher: platform !== "win32" && relayed ? paths.mcp : undefined,
     narrowedBefore,
-    cmdPrints: prints !== undefined,
+    cmdPrints: uncovered,
+    ...(cmdShimDir !== undefined && { cmdShimDir }),
+  }
+}
+
+/** Whether the file at `path` is byte for byte the `shipped` one. */
+export const sameFile = async (shipped: string, path: string): Promise<boolean> => {
+  try {
+    const [ours, theirs] = await Promise.all([readFile(shipped), readFile(path)])
+    return ours.equals(theirs)
+  } catch {
+    return false
+  }
+}
+
+/**
+ * Installs the cmd.exe pass-through as `cmd.exe` in a folder of its own, as the relay is
+ * (held while a previous runner's narrowed terminals may run it), and returns that folder by
+ * a path cmd reads unquoted when the installed copy is the shipped one byte for byte; else
+ * undefined, and Antigravity's hooks run as they did. The folder holds nothing else, so
+ * putting it first on PATH shadows no other program.
+ */
+const installCmdShim = async (
+  shipped: string,
+  paths: ShellPaths,
+  held: boolean,
+  short: (path: string) => Promise<string>,
+): Promise<string | undefined> => {
+  try {
+    await mkdir(paths.agyCmdDir, { recursive: true, mode: 0o700 })
+    await installRelay(shipped, paths.agyCmd, { held })
+    if (!(await sameFile(shipped, paths.agyCmd))) {
+      log.warn("shell.cmd-shim-differs", "Novadeck's cmd.exe pass-through is not the shipped one")
+      return undefined
+    }
+    const folder = await short(paths.agyCmdDir)
+    return /^[\w.:\\~-]+$/.test(folder) ? folder : undefined
+  } catch (error) {
+    log.warn("shell.cmd-shim-unavailable", "Novadeck's cmd.exe pass-through is unavailable", {
+      err: error,
+    })
+    return undefined
   }
 }
 

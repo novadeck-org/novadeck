@@ -107,8 +107,9 @@ export const disconnect: Harness["disconnect"] = [
  * once (never held: a waiting hook hides a confirmation's dialog), so the person's own
  * policy still decides every call; it reports ask_question, which shows a dialog no
  * status line tells, and the call a confirmation is about. Where cmd prints something
- * of its own first (`Machine.cmdPrints`), no answer can be read as JSON, and every tool
- * would run unasked, so PreToolUse goes unregistered: Antigravity's own policy asks, as
+ * of its own first and Novadeck's cmd.exe pass-through is not there to skip it
+ * (`Machine.cmdPrints`, set only without the pass-through), no answer can be read as JSON,
+ * and every tool would run unasked, so PreToolUse goes unregistered: Antigravity's own policy asks, as
  * it does without Novadeck (probed 2026-10-11, 1.2.14, ahead of an "ask" too). So it does
  * where Windows has no relay command to run alone (`launchers.hook`).
  */

@@ -1,16 +1,17 @@
 import { spawn } from "node:child_process"
 import { readFile, rm, writeFile } from "node:fs/promises"
 import { homedir } from "node:os"
-import { delimiter, join } from "node:path"
+import { delimiter, dirname, join } from "node:path"
 
 import type { Harness, Install, Model } from "@novadeck/harness-core/harness"
 import type { AgentIntegration, AgentName } from "@novadeck/protocol"
-import { relayPath } from "@novadeck/relay"
+import { cmdShimName, relayPath } from "@novadeck/relay"
 import { refreshPath } from "@novadeck/terminal/shell"
 
 import { DomainError } from "../errors.js"
 import { exists } from "../files.js"
 import { logs } from "../log.js"
+import { sameFile } from "../shell/install.js"
 import type { ShellPaths } from "../shell/scripts.js"
 import { list } from "../text.js"
 import { agents, harnesses } from "./registry.js"
@@ -35,6 +36,11 @@ export type HarnessesOptions = {
    * be another build's.
    */
   readonly relay?: string
+  /**
+   * The cmd.exe pass-through the installed one is verified against (Windows only); the one
+   * beside the relay when omitted.
+   */
+  readonly cmdShim?: string
 }
 
 /**
@@ -180,7 +186,12 @@ const state = async (harness: Harness, install: Install): Promise<AgentIntegrati
 /** The harnesses Novadeck can connect, and connecting or disconnecting each one. */
 export const createHarnesses = (
   paths: () => Promise<
-    (ShellPaths & { readonly narrowedBefore?: boolean; readonly cmdPrints?: boolean }) | undefined
+    | (ShellPaths & {
+        readonly narrowedBefore?: boolean
+        readonly cmdPrints?: boolean
+        readonly cmdShimDir?: string
+      })
+    | undefined
   >,
   options: HarnessesOptions = {},
 ) => {
@@ -188,6 +199,7 @@ export const createHarnesses = (
   const home = options.home ?? base.HOME ?? homedir()
   const platform = options.platform ?? process.platform
   const relay = options.relay ?? relayPath
+  const cmdShim = options.cmdShim ?? join(dirname(relay), cmdShimName)
   const timeoutMs = options.timeoutMs ?? 60_000
   // Looked up in the background from the start, and again before each change. Listing
   // and spawning shells never wait for it: until it answers they use the app's own.
@@ -367,7 +379,8 @@ export const createHarnesses = (
      * Whether the agent's installed plugin is verified, in its turn among the changes to it:
      * connected, byte for byte what this Novadeck renders, with no reinstall pending and no
      * disconnect asked; on Windows also with the relay its hook runs alone byte for byte what
-     * this Novadeck ships, and cmd printing nothing. A terminal gets launch grants only then.
+     * this Novadeck ships, and cmd printing nothing, or, where it prints, the cmd.exe
+     * pass-through in use, byte for byte what this Novadeck ships. A terminal gets launch grants only then.
      */
     verified: (agent: AgentName): Promise<boolean> =>
       queued(async () => {
@@ -377,7 +390,7 @@ export const createHarnesses = (
         const where = install(agent)
         if (platform === "win32" && takesLaunchGrants !== undefined) {
           const shell = await paths()
-          if (!shell || !(await relayVerified(shell, relay, where))) return false
+          if (!shell || !(await relayVerified(shell, relay, where, cmdShim))) return false
         }
         return (
           (await harnesses[agent].connected(where)) &&
@@ -487,15 +500,24 @@ export const createHarnesses = (
  * Whether Windows' hook of a narrowed Antigravity is what this Novadeck ships: the relay
  * installed for agents is the `shipped` one byte for byte, as that one prints `force_ask` on
  * every path of a narrowed terminal; the plugin registers PreToolUse, which it does not
- * where cmd prints (`cmdPrints`: Antigravity may wrap the hook in cmd, then no answer reads
- * as JSON) or the relay has no path cmd reads as it is; and `cmdPrints` itself is not set.
+ * where cmd prints and nothing skips that (`cmdPrints`: Antigravity may wrap the hook in
+ * cmd, then no answer reads as JSON) or the relay has no path cmd reads as it is; and
+ * `cmdPrints` itself is not set. Where cmd prints and the cmd.exe pass-through covers it
+ * (`cmdShimDir`), the installed pass-through must also be the `shippedCmd` one byte for
+ * byte, as the shim puts its folder on PATH.
  */
 export const relayVerified = async (
-  shell: ShellPaths & { readonly cmdPrints?: boolean },
+  shell: ShellPaths & { readonly cmdPrints?: boolean; readonly cmdShimDir?: string },
   shipped: string,
   where: Install,
+  shippedCmd?: string,
 ): Promise<boolean> => {
   if (shell.cmdPrints === true) return false
+  if (
+    shell.cmdShimDir !== undefined &&
+    (shippedCmd === undefined || !(await sameFile(shippedCmd, shell.agyCmd)))
+  )
+    return false
   try {
     const [ours, installed, hooks] = await Promise.all([
       readFile(shipped),

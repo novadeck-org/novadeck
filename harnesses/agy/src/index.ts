@@ -20,7 +20,7 @@ import {
   preToolUseAnswer,
 } from "./plugin.js"
 import { statusLineLimit, statusLineSettings, trustsFolder } from "./settings.js"
-import { cmdShim, commands, posixShim } from "./shim.js"
+import { commands, makeCmdShim, posixShim } from "./shim.js"
 import { shown } from "./status-line.js"
 import { transcripts, typedEntry } from "./transcripts.js"
 
@@ -88,9 +88,9 @@ export const agy = {
   files,
   takesLaunchGrants: takesSettings,
   // Novadeck's shim, which starts it narrowed where a grant covers its terminal.
-  shims: (platform) =>
+  shims: (platform, machine = {}) =>
     platform === "win32"
-      ? [{ path: "agy.cmd", content: cmdShim }]
+      ? [{ path: "agy.cmd", content: makeCmdShim(machine.cmdShimDir) }]
       : [{ path: "agy", content: posixShim, mode: 0o700 }],
   // Its status line tells what no hook does: working or idle, a confirmation waiting on
   // the person, and its context and quotas.

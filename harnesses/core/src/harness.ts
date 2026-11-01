@@ -95,7 +95,7 @@ export type Harness = {
    */
   readonly takesLaunchGrants?: (versionOutput: string) => boolean
   /** Programs Novadeck's shells put first on PATH while it is connected. */
-  readonly shims?: (platform: NodeJS.Platform) => readonly File[]
+  readonly shims?: (platform: NodeJS.Platform, machine?: Machine) => readonly File[]
   /**
    * What shows a command starts no interactive session (see the runner's
    * `terminals/commands.ts`): its `commands` other than a session, as the first word that is
@@ -423,6 +423,14 @@ export type Machine = {
    * answer, which a harness that reads it as JSON then can't.
    */
   readonly cmdPrints?: boolean
+  /**
+   * For a harness that runs its hooks through the `cmd` it finds on PATH: the folder (a path
+   * cmd reads unquoted) holding Novadeck's `cmd.exe` pass-through, which runs the real cmd with
+   * `/d` so the AutoRun does not run for the hooks. Its shim puts the folder first on PATH for
+   * the agent alone. Set only where the pass-through is installed and verified; `cmdPrints` is
+   * then not set, as the hooks' answers are read.
+   */
+  readonly cmdShimDir?: string
 }
 
 /** A plan a transcript or rollout line records, and when it was written where it says. */

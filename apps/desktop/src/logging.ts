@@ -76,6 +76,7 @@ const appReadableNames: readonly string[] = [
   "whisper-cli",
   "novadeck",
   "novadeck-relay",
+  "novadeck-cmd",
   ".claude",
   ".codex",
   ".gemini",

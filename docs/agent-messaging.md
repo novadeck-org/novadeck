@@ -1350,6 +1350,20 @@ the runner, over the same endpoint and token `show` uses, and print what it retu
    what the notice stands for (the person's prompt withdrawing the agent's asks), and
    a lapse leaves that undone, to be offered again at the turn's next hook.
 
+### Antigravity on a machine whose cmd AutoRun prints
+
+Antigravity on Windows runs its hooks as `cmd /c "<command>"` through the `cmd` it finds on
+PATH, and whatever the machine's or the person's `cmd` AutoRun prints first stands before the
+hook's answer, which Antigravity then cannot read as JSON. So on such a machine Novadeck runs
+Antigravity's hooks through its own `cmd.exe /d`: the AutoRun is skipped for hooks only, not for
+the agent's commands. Antigravity's own `run_command` does not take that `cmd`, so the person's
+AutoRun still applies to them. Novadeck installs `novadeck-cmd.exe` (built with the relay) as
+`cmd.exe` in a folder of its own, verifies it byte for byte, and its `agy` shim puts that folder
+first on PATH for Antigravity's environment alone, never the terminal's shell. Where it is
+missing or differs, Antigravity gets no PreToolUse hook and no launch grant, and the grant text
+says why (silencing the AutoRun fixes it). Set `NOVADECK_CMD_LOG` to a file to make the
+pass-through append the command line it passed on.
+
 ### A turn the runner's stop cut short
 
 Nothing a harness keeps of a session says its turn was cut when Novadeck stops: Claude Code,
