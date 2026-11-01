@@ -9,6 +9,7 @@ import {
   maxUndelivered,
   novadeckSender,
   personSender,
+  quietGrantText,
   undelivered,
   type Message,
 } from "./messages.js"
@@ -181,9 +182,11 @@ export class Relays {
    * Queues Novadeck's message telling the terminal's agent of a grant made or ended: it
    * carries only the grant's id, and `wrap` renders `<grant>` or `<grant-ended>` from the
    * grant itself when it is delivered. Like a notice it wakes an idle agent, belongs to no
-   * thread and needs no reply. False where no agent is there to tell.
+   * thread and needs no reply. A `quiet` one (the agent just reported done) rings nobody and
+   * ends no turn: it waits for the terminal's next prompt (`isQuiet`). False where no agent is
+   * there to tell.
    */
-  grantNotice(terminalId: string, grantId: string): boolean {
+  grantNotice(terminalId: string, grantId: string, quiet = false): boolean {
     const { store } = this.host
     const live = this.host.sessions.get(terminalId)
     if (!live || store.closed) return false
@@ -197,7 +200,7 @@ export class Relays {
       hop: 1,
       from: novadeckSender,
       to: { terminalId, handle: live.handle, agent, sessionId: live.root?.sessionId ?? null },
-      text: `Novadeck: the user's grant ${grantId} changed.`,
+      text: quiet ? quietGrantText(grantId) : `Novadeck: the user's grant ${grantId} changed.`,
       sentAt: this.host.now(),
       state: store.isPaused() ? "held" : "queued",
       deliveredAt: null,

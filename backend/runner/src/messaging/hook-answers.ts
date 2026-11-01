@@ -14,7 +14,7 @@ import { isFromLead } from "./leasing.js"
 import { addressed, feed, type Live } from "./live.js"
 import type { Loops } from "./loops.js"
 import type { MessageStore } from "./message-store.js"
-import { undelivered } from "./messages.js"
+import { isQuiet, undelivered } from "./messages.js"
 import type { Sessions } from "./sessions.js"
 import type { Person, Withdrawals } from "./withdrawals.js"
 
@@ -174,6 +174,8 @@ export class HookAnswers {
         kind: "stop",
         background,
         print,
+        // A quiet notice never continues a turn that ended: it waits for the next prompt.
+        only: (message) => !isQuiet(message),
         lasting: profile.lasting.includes("stop"),
       })
     // The turn goes on with what it was given, which the tracker counts as running through.

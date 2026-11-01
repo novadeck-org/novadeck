@@ -199,6 +199,22 @@ export const cleanInboxText = (text: string): string =>
 
 export const byteLength = (text: string): number => Buffer.byteLength(text, "utf8")
 
+// The text of Novadeck's notice that a grant ended for a terminal because its agent reported
+// done. It is never shown (`wrap` renders the grant itself), so it only marks the notice quiet.
+const quietGrantPrefix = "Novadeck: the user's grant ended at this terminal's done: "
+export const quietGrantText = (grantId: string): string => `${quietGrantPrefix}${grantId}`
+
+/**
+ * Whether the message is Novadeck's notice of a grant that ended at its recipient's own done:
+ * it rings nobody and ends no turn, so the agent that just finished isn't woken to be told. It
+ * is delivered with the terminal's next prompt, however that comes. Only Novadeck makes one:
+ * an agent's message names its sender as an agent.
+ */
+export const isQuiet = (message: Message): boolean =>
+  message.from.kind === "novadeck" &&
+  message.grantId !== undefined &&
+  message.text.startsWith(quietGrantPrefix)
+
 /** Whether a message still waits for its recipient: not yet delivered, nor gone. */
 export const undelivered = (message: Message): boolean =>
   message.state === "queued" || message.state === "leased" || message.state === "held"

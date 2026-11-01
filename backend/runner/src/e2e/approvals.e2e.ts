@@ -471,26 +471,34 @@ describe.skipIf(!supported)("Approvals through Novadeck's runner hooks", () => {
         expect(marks(world())).toHaveLength(ran + 1)
         const markDone = run.model.mark()
         await terminal.submit("finalize report")
-        // Antigravity started under a grant asks before it calls any of Novadeck's tools.
+        // Antigravity started under a grant takes its launch settings alone (`--settings`), which
+        // leave out this sandbox's allowance for Novadeck's tools, so its own policy asks about
+        // `done`. Novadeck's hook leaves that to it ("not a command", not a closed answer).
         if (setup.agent === "agy") {
-          await until(terminal, "the tool dialog", (shown) =>
-            /Allow calling this tool\?/.test(shown),
+          const shown = await until(terminal, "the tool dialog", (screen) =>
+            /Allow calling this tool\?/.test(screen),
           )
+          expect(shown).toContain("Reason: novadeck: not a command")
           terminal.press("1")
         }
         await run.model.waitFor((call) => /in the user's Inbox/.test(result(call) ?? ""), {
           after: markDone,
         })
+        // Told quietly: the agent that just finished isn't woken for it.
+        await sleep(4000)
+        const textOf = (calls: typeof run.model.calls) =>
+          calls
+            .flatMap((call) => call.turns.map((turn) => turn.text))
+            .join("\n")
+            // Codex prints a hook's text escaped.
+            .replaceAll("&lt;", "<")
+            .replaceAll("&gt;", ">")
+        expect(textOf(run.model.calls), "woken by the grant's end").not.toContain("<grant-ended")
         const markAfter = run.model.mark()
         await terminal.submit("run after done")
         await stopped("after done", ran + 1, markAfter)
         await dismiss()
-        // Codex prints a hook's text escaped.
-        const text = run.model.calls
-          .flatMap((call) => call.turns.map((turn) => turn.text))
-          .join("\n")
-          .replaceAll("&lt;", "<")
-          .replaceAll("&gt;", ">")
+        const text = textOf(run.model.calls)
         expect(text).toContain(
           'why="done">Your grant ended when you reported done; ask again if you continue.</grant-ended>',
         )

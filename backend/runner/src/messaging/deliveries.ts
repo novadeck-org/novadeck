@@ -20,6 +20,7 @@ import {
 import { addressed, awaiting, feed, promptsInBackground, type Live } from "./live.js"
 import type { Loops } from "./loops.js"
 import type { MessageStore } from "./message-store.js"
+import { isQuiet } from "./messages.js"
 import type { Sessions } from "./sessions.js"
 
 /**
@@ -268,6 +269,7 @@ export class Deliveries {
     for (const message of this.host.store.messages())
       if (
         message.state === "queued" &&
+        !isQuiet(message) &&
         message.to.terminalId === terminalId &&
         (root ? addressed(message, root) : awaiting(live, message))
       )

@@ -9,7 +9,7 @@ import { describe, expect, it } from "../test.js"
 import { storeWith } from "../testing/workspace.js"
 import type { WorkspaceStore } from "../workspaces/store.js"
 import { activitySaveMs, idleGrantMs, type MakeGrant } from "./grants.js"
-import { wrap, wrapGrants } from "./messages.js"
+import { isQuiet, wrap, wrapGrants } from "./messages.js"
 import { Messaging } from "./messaging.js"
 
 const projectId = randomUUID()
@@ -278,6 +278,33 @@ describe("when a terminal's coverage ends", () => {
       messaging.grants.coverageEnds(`T${each}`, "done")
     }
     expect(messaging.grants.list()).toEqual([])
+  })
+
+  it("tells a done quietly, so the doorbell doesn't wake the agent that finished, and the rest as before", () => {
+    const { messaging, make, arrive, told } = setup()
+    arrive("G", "gull", "sable")
+    arrive("H", "hare", "sable")
+    make()
+    messaging.grants.coverageEnds("F", "done")
+    messaging.grants.coverageEnds("G", "released")
+    messaging.grants.coverageEnds("H", "exited")
+    // The grant made, then its end: only the done's end is quiet.
+    expect(told("F").map(isQuiet)).toEqual([false, true])
+    expect(told("G").map(isQuiet)).toEqual([false, false])
+    expect(told("H").map(isQuiet)).toEqual([false, false])
+    // A terminal-held grant ends with its holder's done just as quietly.
+    const alone = setup()
+    alone.make({
+      holder: { kind: "terminal", handle: "sable" },
+      presets: [],
+      repos: [],
+      commands: [{ argv: ["make", "ship"], rest: false }],
+    })
+    alone.messaging.grants.coverageEnds("L", "done")
+    expect(alone.told("L").map(isQuiet)).toEqual([false, true])
+    // Only Novadeck's own notice is quiet, whatever an agent's message says.
+    const [notice] = told("F")
+    expect(isQuiet({ ...notice!, from: { kind: "agent", handle: "fox", terminalId: "F" } as never })).toBe(false)
   })
 
   it("is told to the terminal in the words of why, at its next delivery", () => {

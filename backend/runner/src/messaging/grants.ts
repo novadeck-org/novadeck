@@ -61,7 +61,7 @@ export type GrantsHost = {
    * Tells a covered terminal of a grant made or ended: queues Novadeck's message there,
    * which `wrap` renders from the grant itself (`Relays.grantNotice`).
    */
-  readonly notify: (terminalId: string, grantId: string) => void
+  readonly notify: (terminalId: string, grantId: string, quiet?: boolean) => void
   /** Whether cmd prints before every command, which no Antigravity grant reaches past. */
   readonly cmdPrints: () => CmdNote
 }
@@ -87,7 +87,7 @@ export const grantsOf = (
   new Grants(
     {
       ...host,
-      notify: (terminalId, grantId) => host.relays.grantNotice(terminalId, grantId),
+      notify: (terminalId, grantId, quiet) => host.relays.grantNotice(terminalId, grantId, quiet),
       cmdPrints: options.cmdPrints ?? (() => false),
     },
     options.grants ?? memoryGrants(),
@@ -319,7 +319,8 @@ export class Grants {
         const next: Grant = { ...grant, ended: [...grant.ended, entry] }
         this.byId.set(next.id, next)
         this.persist(next)
-        this.host.notify(terminalId, next.id)
+        // A done is the agent's own: it is told with its next prompt, not woken for it.
+        this.host.notify(terminalId, next.id, why === "done")
         this.publish()
       }
     }
@@ -462,7 +463,12 @@ export class Grants {
     }
     this.byId.set(ended.id, ended)
     this.persist(ended)
-    for (const live of covered) this.host.notify(live.terminalId, grant.id)
+    for (const live of covered)
+      this.host.notify(
+        live.terminalId,
+        grant.id,
+        entry?.why === "done" && entry.terminalId === live.terminalId,
+      )
     this.publish()
   }
 
