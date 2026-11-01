@@ -127,6 +127,7 @@ const fixture = (
     fs: {
       real: () => Promise.resolve(undefined),
       names: (folder) => Promise.resolve(folders.get(folder) ?? []),
+      workdir: () => Promise.resolve(undefined),
     },
     now: () => clock.now,
   }

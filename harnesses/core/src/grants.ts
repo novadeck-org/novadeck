@@ -44,6 +44,11 @@ export type ShellCall = {
    * (refs, remotes, URL rewrites, configuration) is then no answer for this command.
    */
   readonly folderHidden?: true
+  /**
+   * Where Codex recorded the call: its rollout and the turn's id, which the permission hook
+   * names. The rollout holds the call's `workdir` (see `FsLookups.workdir`).
+   */
+  readonly rollout?: { readonly path: string; readonly turn: string }
 }
 
 /** Why a payload is no shell call the matcher can judge. */
@@ -66,6 +71,15 @@ export type FsLookups = {
    * The names in the folder `path` (a folder that does not exist holds none), or undefined
    * where that couldn't be told (an error other than absence, a timeout).
    */
+  /**
+   * The `workdir` Codex's rollout records for the one pending exec call of the turn with this
+   * command (`rolloutWorkdir`): null where the call names none, undefined where that can't be
+   * told (unreadable, not on disk, ambiguous).
+   */
+  readonly workdir: (
+    rollout: { readonly path: string; readonly turn: string },
+    command: string,
+  ) => Promise<string | null | undefined>
   readonly names: (path: string) => Promise<readonly string[] | undefined>
 }
 
@@ -104,6 +118,7 @@ export {
   lexWindows,
   matchCall,
   normalizeRepoUrl,
+  rolloutWorkdir,
   refusesCommand,
   type Lexed,
 } from "./grants/index.js"

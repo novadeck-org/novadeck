@@ -22,11 +22,14 @@ const claude = (input: object, extra: object = {}) => ({
 const codex = (input: object) => ({
   session_id: "s",
   cwd: "/tmp/novadeck-e2e-eGUNd8/project",
+  turn_id: "01a198d1-eb71",
+  transcript_path: "/h/.codex/sessions/2026/10/31/rollout-2026-10-31T18-52-12-01a1.jsonl",
   hook_event_name: "PermissionRequest",
   permission_mode: "default",
   tool_name: "Bash",
   tool_input: input,
 })
+const codexRollout = "/h/.codex/sessions/2026/10/31/rollout-2026-10-31T18-52-12-01a1.jsonl"
 const agy = (name: string, args: object) => ({
   conversationId: "8511b2e7-8928-436a-9819-541356cc5878",
   stepIdx: 2,
@@ -93,6 +96,7 @@ describe("a Codex PermissionRequest payload", () => {
       cwd: null,
       sessionFolder: "/tmp/novadeck-e2e-eGUNd8/project",
       folderHidden: true,
+      rollout: { path: codexRollout, turn: "01a198d1-eb71" },
     })
   })
 
@@ -103,6 +107,7 @@ describe("a Codex PermissionRequest payload", () => {
       command: "ls",
       cwd: null,
       folderHidden: true,
+      rollout: { path: codexRollout, turn: "01a198d1-eb71" },
     })
     expect(callFromPayload("codex", "PermissionRequest", { ...unnamed, cwd: 3 }, "win32")).toBe(
       "unreadable",
@@ -117,6 +122,7 @@ describe("a Codex PermissionRequest payload", () => {
       dialect: "windows-quote-free",
       sessionFolder: "/tmp/novadeck-e2e-eGUNd8/project",
       folderHidden: true,
+      rollout: { path: codexRollout, turn: "01a198d1-eb71" },
     })
     for (const platform of ["linux", "darwin"] as const)
       expect(callFromPayload("codex", "PermissionRequest", codex(input), platform)).toEqual({
@@ -124,6 +130,7 @@ describe("a Codex PermissionRequest payload", () => {
         cwd: null,
         sessionFolder: "/tmp/novadeck-e2e-eGUNd8/project",
         folderHidden: true,
+        rollout: { path: codexRollout, turn: "01a198d1-eb71" },
       })
     expect(callFromPayload("claude", "PreToolUse", claude(input), "win32")).toMatchObject({
       cwd: "/tmp/novadeck-e2e-sTGnsC/project",

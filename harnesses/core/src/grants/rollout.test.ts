@@ -1,0 +1,83 @@
+import { describe, expect, it } from "vitest"
+
+import { rolloutWorkdir } from "./rollout.js"
+
+const turn = "01a198d1-eb71-7e73-bc08-b87341b034be"
+const command = "touch /tmp/x/ran.txt"
+
+// A rollout's lines as Codex 0.165.0 wrote them (probe, approvals-probes/captures/codexrollout-*).
+const call = (id: string, args: object, over: { turn?: string; name?: string } = {}) =>
+  JSON.stringify({
+    timestamp: "2026-11-01T20:34:16.747Z",
+    ordinal: 10,
+    type: "response_item",
+    payload: {
+      type: "function_call",
+      status: "completed",
+      id: `fc_${id}`,
+      name: over.name ?? "exec_command",
+      arguments: JSON.stringify(args),
+      call_id: id,
+      internal_chat_message_metadata_passthrough: { turn_id: over.turn ?? turn },
+    },
+    metadata: { client_authored: false, user_input_order: 1 },
+  })
+const output = (id: string) =>
+  JSON.stringify({
+    type: "response_item",
+    payload: { type: "function_call_output", id: `fco_${id}`, call_id: id, output: "x" },
+  })
+const text = (...lines: string[]) => `${lines.join("\n")}\n`
+const args = { cmd: command, sandbox_permissions: "require_escalated" }
+
+describe("the folder Codex's rollout gives a call", () => {
+  it("is the workdir the model passed, as written", () => {
+    expect(
+      rolloutWorkdir(text(call("a", { ...args, workdir: "/tmp/x/elsewhere" })), turn, command),
+    ).toBe("/tmp/x/elsewhere")
+    expect(rolloutWorkdir(text(call("a", { ...args, workdir: "sub/pkg" })), turn, command)).toBe(
+      "sub/pkg",
+    )
+  })
+
+  it("is null where the call names none", () => {
+    expect(rolloutWorkdir(text(call("a", args)), turn, command)).toBeNull()
+    expect(rolloutWorkdir(text(call("a", { ...args, workdir: null })), turn, command)).toBeNull()
+    expect(rolloutWorkdir(text(call("a", { ...args, workdir: "" })), turn, command)).toBeNull()
+  })
+
+  it("is undefined where the call is not on disk, or not that turn's, command's or tool's", () => {
+    expect(rolloutWorkdir("", turn, command)).toBeUndefined()
+    expect(rolloutWorkdir(text(call("a", args, { turn: "other" })), turn, command)).toBeUndefined()
+    expect(
+      rolloutWorkdir(text(call("a", { ...args, cmd: "touch /y" })), turn, command),
+    ).toBeUndefined()
+    expect(rolloutWorkdir(text(call("a", args, { name: "shell" })), turn, command)).toBeUndefined()
+  })
+
+  it("is undefined where more than one call could be it, but an earlier one with output is not", () => {
+    expect(
+      rolloutWorkdir(text(call("a", args), call("b", { ...args, workdir: "/e" })), turn, command),
+    ).toBeUndefined()
+    expect(
+      rolloutWorkdir(
+        text(call("a", args), output("a"), call("b", { ...args, workdir: "/e" })),
+        turn,
+        command,
+      ),
+    ).toBe("/e")
+    expect(rolloutWorkdir(text(call("a", args), output("a")), turn, command)).toBeUndefined()
+  })
+
+  it("is undefined for a workdir that is no text, and skips a cut or foreign line", () => {
+    expect(rolloutWorkdir(text(call("a", { ...args, workdir: 3 })), turn, command)).toBeUndefined()
+    const cut = call("z", args).slice(40)
+    expect(
+      rolloutWorkdir(
+        text(cut, "not json function_call", call("a", { ...args, workdir: "/w" })),
+        turn,
+        command,
+      ),
+    ).toBe("/w")
+  })
+})

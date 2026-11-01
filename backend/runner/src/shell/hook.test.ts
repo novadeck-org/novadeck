@@ -686,6 +686,8 @@ describe("reading a relay's hook", () => {
     const payload = JSON.stringify({
       hook_event_name: "PermissionRequest",
       cwd: "/work/project",
+      turn_id: "t-1",
+      transcript_path: "/h/rollout-1.jsonl",
       tool_name: "Bash",
       tool_input: { command: "git status" },
     })
@@ -695,6 +697,7 @@ describe("reading a relay's hook", () => {
       cwd: null,
       sessionFolder: "/work/project",
       folderHidden: true,
+      rollout: { path: "/h/rollout-1.jsonl", turn: "t-1" },
     })
     expect(relayHook(ask, "win32")?.permission?.call).toEqual({
       command: "git status",
@@ -702,6 +705,7 @@ describe("reading a relay's hook", () => {
       dialect: "windows-quote-free",
       sessionFolder: "/work/project",
       folderHidden: true,
+      rollout: { path: "/h/rollout-1.jsonl", turn: "t-1" },
     })
     // cmd runs a program from the folder it is in, so on Windows one that isn't named is no call.
     const { cwd: _cwd, ...unnamed } = JSON.parse(payload) as Record<string, unknown>

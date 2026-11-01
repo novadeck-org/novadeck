@@ -59,6 +59,38 @@ describe("the disk lookups", () => {
     }
   })
 
+  it("read the workdir Codex's rollout records for a call, and read no other file", async () => {
+    const { root, done } = folder()
+    try {
+      const line = (id: string, cmd: string, workdir: string) =>
+        JSON.stringify({
+          type: "response_item",
+          payload: {
+            type: "function_call",
+            name: "exec_command",
+            arguments: JSON.stringify({ cmd, workdir }),
+            call_id: id,
+            internal_chat_message_metadata_passthrough: { turn_id: "t-1" },
+          },
+        })
+      const body = `${line("a", "git status", "/w/a")}\n${line("b", "touch x", "/w/b")}\n`
+      const rollout = join(root, "rollout-2026-11-01T20-34-16-abc.jsonl")
+      writeFileSync(rollout, body)
+      writeFileSync(join(root, "notes.jsonl"), body)
+      expect(await fsLookups.workdir({ path: rollout, turn: "t-1" }, "touch x")).toBe("/w/b")
+      expect(await fsLookups.workdir({ path: rollout, turn: "t-2" }, "touch x")).toBeUndefined()
+      expect(await fsLookups.workdir({ path: rollout, turn: "t-1" }, "other")).toBeUndefined()
+      expect(
+        await fsLookups.workdir({ path: join(root, "notes.jsonl"), turn: "t-1" }, "touch x"),
+      ).toBeUndefined()
+      expect(
+        await fsLookups.workdir({ path: join(root, "rollout-gone.jsonl"), turn: "t-1" }, "touch x"),
+      ).toBeUndefined()
+    } finally {
+      done()
+    }
+  })
+
   it("keep a pull request's body file from being a symlink inside the project that points outside", async ({
     skip,
   }) => {

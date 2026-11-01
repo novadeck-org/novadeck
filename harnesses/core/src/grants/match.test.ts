@@ -44,10 +44,12 @@ const broken = new Set<string>()
 const tags: Record<string, string> = { "v1.0.0": "refs/tags/v1.0.0", "tags/v1": "refs/tags/v1" }
 
 // The disk: every path is a regular file that is its own real path, unless a test says otherwise.
+const workdirs = new Map<string, string | null | undefined>()
 const links = new Map<string, { path: string; file: boolean } | undefined>()
 const present = new Set<string>()
 const fs: FsLookups = {
   real: async (path) => (links.has(path) ? links.get(path) : { path, file: true }),
+  workdir: async (_rollout, command) => workdirs.get(command),
   names: async (folder) =>
     [...present]
       .filter((path) => path.slice(0, path.search(/[\\/][^\\/]*$/)) === folder)
@@ -59,6 +61,7 @@ beforeEach(() => {
   resolved.length = 0
   broken.clear()
   rewrites.clear()
+  workdirs.clear()
   follows.value = false
   head.value = "refs/heads/fix"
 })
@@ -234,6 +237,64 @@ describe("the push preset", () => {
         fs,
       ),
     ).toBeNull()
+  })
+
+  it("asks git in the folder Codex's rollout gives the call: its workdir, else the session's", async () => {
+    const command = "git push https://github.com/acme/app fix:fix"
+    const push = (rollout: boolean = true) =>
+      matchCall(
+        {
+          command,
+          cwd: null,
+          sessionFolder: "/work/proj",
+          folderHidden: true,
+          ...(rollout && { rollout: { path: "/h/rollout-1.jsonl", turn: "t" } }),
+        },
+        [scope()],
+        git,
+        root,
+        fs,
+        "/work/proj/terminal",
+      )
+    // The rollout can't say, or the payload names none: no folder, no push.
+    expect(await push()).toBeNull()
+    expect(await push(false)).toBeNull()
+    workdirs.set(command, null)
+    expect(await push()).not.toBeNull()
+    expect(resolved[0]).toBe("/work/proj fix")
+    workdirs.set(command, "pkg/sub")
+    resolved.length = 0
+    expect(await push()).not.toBeNull()
+    expect(resolved[0]).toBe("/work/proj/pkg/sub fix")
+    expect(await push(false)).toBeNull()
+    // Outside the project, or a rollout that fails, is no match.
+    workdirs.set(command, "/elsewhere")
+    expect(await push()).toBeNull()
+    workdirs.set(command, "../other")
+    expect(await push()).toBeNull()
+  })
+
+  it("holds Codex's workdir to the same-name check on Windows", async () => {
+    const command = "gh pr ready 12 -R acme/app"
+    const ready = () =>
+      matchCall(
+        {
+          command,
+          cwd: null,
+          dialect: "windows-quote-free",
+          sessionFolder: "C:\\work\\proj",
+          folderHidden: true,
+          rollout: { path: "C:\\h\\rollout-1.jsonl", turn: "t" },
+        },
+        [scope()],
+        git,
+        "C:\\work\\proj",
+        fs,
+      )
+    workdirs.set(command, "pkg")
+    expect(await ready()).not.toBeNull()
+    present.add("C:\\work\\proj\\pkg\\gh.js")
+    expect(await ready()).toBeNull()
   })
 
   it("refuses any push where no folder is known to ask git in, HEAD and a URL too", async () => {

@@ -64,9 +64,16 @@ export const callFromPayload = (
   // Codex and Antigravity on Windows run the command in PowerShell or cmd, which their
   // payloads never name; Claude Code's Bash tool runs Git Bash there. cmd runs a program of
   // the command's name from the folder it runs in, so a folder that isn't known is no match.
+  const transcript = body["transcript_path"]
+  const turn = body["turn_id"]
+  const rollout =
+    harness === "codex" && typeof transcript === "string" && typeof turn === "string"
+      ? { path: transcript, turn }
+      : undefined
   const folders = {
     ...(session !== undefined && { sessionFolder: session }),
     ...(harness === "codex" && { folderHidden: true as const }),
+    ...(rollout !== undefined && { rollout }),
   }
   if (platform === "win32") {
     if (harness === "codex" && session === undefined) return "unreadable"

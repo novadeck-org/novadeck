@@ -46,17 +46,35 @@ export const matchCall = async (
   if (!lexed.ok) return null
   if (call.cwd !== null && !inside(call.cwd, projectRoot)) return null
   const { argv } = lexed
-  // Where the command may run: the project folder, the session's, the terminal's.
+  // Codex's call folder is in its rollout, not its hook: the call's `workdir`, else the session's.
+  let callFolder = call.cwd
+  if (callFolder === null && call.rollout !== undefined && call.sessionFolder !== undefined) {
+    const workdir = await Promise.resolve()
+      .then(() => fs.workdir(call.rollout!, call.command))
+      .catch(() => undefined)
+    if (workdir !== undefined) {
+      callFolder =
+        workdir === null
+          ? call.sessionFolder
+          : flavourOf(call.sessionFolder, workdir).resolve(call.sessionFolder, workdir)
+      if (!inside(callFolder, projectRoot)) return null
+    }
+  }
+  // Where the command may run: the project folder, the session's, the call's, the terminal's.
   const folders = [
-    ...new Set([projectRoot, call.sessionFolder, terminalFolder].filter((f) => f !== undefined)),
-  ]
+    ...new Set(
+      [projectRoot, call.sessionFolder, callFolder, terminalFolder].filter(
+        (f) => f !== undefined && f !== null,
+      ),
+    ),
+  ] as string[]
   if (call.dialect === "windows-quote-free" && (await runsFromFolders(argv[0], folders, fs)))
     return null
   // Claude Code's Bash tool on Windows (a POSIX dialect over a Windows project) is Git Bash.
   const gitBash = call.dialect === undefined && flavourOf(projectRoot) !== posix
   // The folder git is asked in: the call's own, else the terminal's, unless the command may
-  // run elsewhere (Codex's `workdir`).
-  const refs = call.cwd ?? (call.folderHidden === true ? null : (terminalFolder ?? null))
+  // run in a folder nothing shows (Codex's `workdir`, where its rollout doesn't say).
+  const refs = callFolder ?? (call.folderHidden === true ? null : (terminalFolder ?? null))
   for (const [scope, grant] of scopes.entries()) {
     for (const preset of grant.presets) {
       const ok =
