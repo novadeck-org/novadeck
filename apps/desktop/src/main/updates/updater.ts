@@ -17,7 +17,7 @@ import {
   updateOfferChannel,
   updateRequestChannel,
 } from "../../bridge.js"
-import type { ReleaseRepository } from "../releases/repository.js"
+import { releaseDownloadsUrl, type ReleaseRepository } from "../releases/repository.js"
 import { localOrigin, novadeckSite } from "../releases/site.js"
 import { isNewerVersion } from "../releases/versions.js"
 
@@ -70,6 +70,40 @@ export type UpdateFeed = {
 export const feedUrl = (channel: UpdateChannel, site?: string): string => {
   const origin = (site !== undefined && localOrigin(site)) || novadeckSite
   return `${origin}/update/${channel}/`
+}
+
+/**
+ * Whether every file an update names is a GitHub release download of the repository: an
+ * address under `https://github.com/<owner>/<repo>/releases/download/`, once relative
+ * ones are resolved against where the answer came from (`base`). The website rewrites the
+ * feed's addresses to GitHub's and the hashes come from the same file, so this is what stops
+ * the website alone from shipping code: Linux and Windows check nothing else of a download.
+ * `site` is the replacement for the website `NOVADECK_UPDATE_URL` gives for testing; files on
+ * that computer's own address are let through when the answer came from it. An answer that
+ * names no file is refused.
+ */
+export const filesFromGitHub = (
+  info: { readonly files?: unknown },
+  repository: ReleaseRepository,
+  base: string,
+  site?: string,
+): boolean => {
+  const { files } = info
+  if (!Array.isArray(files) || files.length === 0) return false
+  const prefix = `https://github.com/${repository.owner}/${repository.repo}/releases/download/`
+  const local = site === undefined ? undefined : localOrigin(site)
+  return files.every((file: unknown) => {
+    const raw = (file as { readonly url?: unknown } | null)?.url
+    if (typeof raw !== "string") return false
+    try {
+      const url = new URL(raw, base)
+      if (url.username !== "" || url.password !== "") return false
+      if (url.href.startsWith(prefix)) return true
+      return local !== undefined && base.startsWith(local) && url.origin === local
+    } catch {
+      return false
+    }
+  })
 }
 
 // A header value only when it is short printable ASCII, so nothing odd reaches the wire.
@@ -368,7 +402,10 @@ export type Updater = {
     warn(message?: unknown): void
     error(message?: unknown): void
   } | null
-  on(event: "update-available", listener: (info: { readonly version: string }) => void): unknown
+  on(
+    event: "update-available",
+    listener: (info: { readonly version: string; readonly files?: unknown }) => void,
+  ): unknown
   on(
     event: "update-downloaded",
     listener: (info: { readonly version: string; readonly downloadedFile?: string }) => void,
@@ -634,6 +671,19 @@ export const checkForUpdates = (
       return
     }
     const { version } = info
+    // Where the answer came from decides what its relative addresses mean, and nothing it
+    // names may lie off GitHub's release downloads; see `filesFromGitHub`.
+    if (feed !== undefined) {
+      const base =
+        via === "novadeck"
+          ? feedUrl(following, feed.site)
+          : (releaseDownloadsUrl(feed.repository, version) ?? "")
+      if (!filesFromGitHub(info, feed.repository, base, via === "novadeck" ? feed.site : undefined)) {
+        log(`The update to ${version} names a file outside GitHub's release downloads.`, undefined)
+        if (downloaded === undefined) offer({ kind: "available", version })
+        return
+      }
+    }
     held = { version, channel: following, at: performance.now() }
     // The headers describe the check; the download of what it found carries none.
     updater.requestHeaders = null

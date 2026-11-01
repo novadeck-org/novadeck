@@ -468,6 +468,20 @@ describe("quitting as the system ends the session", () => {
 
 class FakeUpdater extends EventEmitter implements Pick<Updater, "checkForUpdates"> {
   downloads: (() => Promise<unknown>)[] = []
+  /** An update found without files names GitHub's, as the website's rewritten answer does. */
+  override emit(event: string | symbol, ...args: unknown[]): boolean {
+    const [info] = args
+    if (event === "update-available" && typeof info === "object" && info !== null) {
+      const found = info as { version: string; files?: unknown }
+      if (!("files" in found))
+        found.files = [
+          {
+            url: `https://github.com/novadeck-org/novadeck/releases/download/v${found.version}/novadeck-linux-x86_64.AppImage`,
+          },
+        ]
+    }
+    return super.emit(event, ...args)
+  }
   downloadResult: (() => Promise<unknown>) | undefined
   downloadUpdate(): Promise<unknown> {
     this.downloads.push(() => Promise.resolve())
@@ -1455,6 +1469,7 @@ describe("checking through novadeck.dev", () => {
       mode?: UpdateMode
       build?: CheckFacts["build"]
       failedVersion?: string
+      site?: string
     } = {},
   ) => {
     const updater = new FakeUpdater()
@@ -1463,7 +1478,11 @@ describe("checking through novadeck.dev", () => {
     const checks = checkForUpdates(updater as unknown as Updater, {
       mode: options.mode ?? "install",
       channel: options.channel ?? "stable",
-      feed: { repository, facts: { ...facts, build: options.build ?? "installed" } },
+      feed: {
+        repository,
+        facts: { ...facts, build: options.build ?? "installed" },
+        site: options.site,
+      },
       failedVersion: options.failedVersion,
       offer: (offer) => void offered.push(`${offer.kind} ${offer.version}`),
       installFailed: () => {},
@@ -1481,6 +1500,75 @@ describe("checking through novadeck.dev", () => {
         headers: expect.objectContaining({ "x-novadeck-check": "launch" }),
       },
     ])
+  })
+
+  context("the files an update names", () => {
+    const github = "https://github.com/novadeck-org/novadeck/releases/download/v1.5.0/"
+    const found = async (files: unknown, options: { site?: string } = {}) => {
+      const run = checking(options)
+      await vi.advanceTimersByTimeAsync(firstCheckMs)
+      run.updater.emit("update-available", { version: "1.5.0", files })
+      return run
+    }
+
+    it("downloads files at GitHub's release downloads", async () => {
+      const { updater, logged } = await found([
+        { url: `${github}novadeck-linux-x86_64.AppImage` },
+        { url: `${github}novadeck-win-x64-setup.exe` },
+      ])
+      expect(updater.downloads).toHaveLength(1)
+      expect(logged).toEqual([])
+    })
+
+    it("refuses a file anywhere else, and offers the release page instead", async () => {
+      for (const url of [
+        "https://novadeck.dev/update/stable/novadeck.AppImage",
+        "novadeck-linux-x86_64.AppImage",
+        "https://github.com/evil/novadeck/releases/download/v1.5.0/x.AppImage",
+        "https://github.com/novadeck-org/novadeck/releases/latest/download/x.AppImage",
+        "https://github.com.evil.test/novadeck-org/novadeck/releases/download/v1/x",
+        "http://github.com/novadeck-org/novadeck/releases/download/v1.5.0/x",
+        "https://github.com/novadeck-org/novadeck/releases/download/../../../evil/x",
+        "https://user@github.com/novadeck-org/novadeck/releases/download/v1.5.0/x",
+      ]) {
+        const { updater, offered, logged } = await found([{ url: `${github}ok.exe` }, { url }])
+        expect(updater.downloads, url).toHaveLength(0)
+        expect(offered, url).toEqual(["available 1.5.0"])
+        expect(logged, url).toEqual([
+          "The update to 1.5.0 names a file outside GitHub's release downloads.",
+        ])
+      }
+    })
+
+    it("refuses an answer that names no usable file", async () => {
+      for (const files of [[], undefined, "x", [{}], [{ url: 3 }], [null]]) {
+        const run = checking()
+        await vi.advanceTimersByTimeAsync(firstCheckMs)
+        // The fake adds GitHub's file to an answer without a `files` key only.
+        run.updater.emit("update-available", { version: "1.5.0", files })
+        expect(run.updater.downloads, JSON.stringify(files)).toHaveLength(0)
+      }
+    })
+
+    it("takes a file at the address of NOVADECK_UPDATE_URL only on this computer", async () => {
+      const site = "http://127.0.0.1:8787"
+      const local = [{ url: "http://127.0.0.1:8787/update/stable/novadeck.AppImage" }]
+      expect((await found(local, { site })).updater.downloads).toHaveLength(1)
+      expect((await found(local)).updater.downloads).toHaveLength(0)
+      const offsite = [{ url: "https://example.test/novadeck.AppImage" }]
+      expect((await found(offsite, { site })).updater.downloads).toHaveLength(0)
+    })
+
+    it("resolves a bare name against the release when GitHub answered", async () => {
+      const run = checking()
+      run.updater.failFeed = (feed) => feed?.provider === "generic"
+      await vi.advanceTimersByTimeAsync(firstCheckMs)
+      run.updater.emit("update-available", {
+        version: "1.5.0",
+        files: [{ url: "novadeck-linux-x86_64.AppImage" }],
+      })
+      expect(run.updater.downloads).toHaveLength(1)
+    })
   })
 
   it("names the trigger of each check: launch, schedule and channel switch", async () => {
