@@ -1,5 +1,5 @@
-import { describe, expect, it } from "../test"
 import { outcomeText, visibleText } from "./autorun-text"
+import { describe, expect, it } from "./test"
 
 describe("an AutoRun value as the person reads it", () => {
   it("is verbatim, spaces and quotes included", () => {

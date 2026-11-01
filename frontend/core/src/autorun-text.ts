@@ -1,4 +1,4 @@
-import type { AutoRunManualReason, AutoRunOutcome } from "@novadeck/core/autorun"
+import type { AutoRunManualReason, AutoRunOutcome } from "./autorun"
 
 // What the AutoRun card and Preferences say, in Novadeck's own words. Values the runner read
 // are shown as code by the caller, never put into a sentence here.

@@ -1,7 +1,6 @@
 import type { AutoRunState } from "@novadeck/core/autorun"
+import { outcomeText, visibleText } from "@novadeck/core/autorun-text"
 
-import { outcomeText } from "../inbox/autorun-text"
-import { AutoRunValue } from "../inbox/AutoRunValue"
 import { settingRowClasses, settingsCardClasses } from "./settings"
 
 // What Preferences lists of cmd's AutoRun: only while Novadeck's silencing holds, with Undo and
@@ -23,7 +22,13 @@ export const AutoRunRow = ({
         <div className="flex min-w-0 flex-col gap-1">
           <span id="autorun-label">cmd&apos;s AutoRun output is silenced</span>
           <span className="settings-note text-control leading-5">
-            Undo restores <AutoRunValue value={state.restores} kind="restores" />
+            Undo restores{" "}
+            <code
+              data-autorun-value="restores"
+              style={{ whiteSpace: "pre-wrap", overflowWrap: "anywhere" }}
+            >
+              {visibleText(state.restores)}
+            </code>
           </span>
           {outcome !== null && (outcome.kind === "undo-refused" || outcome.kind === "failed") && (
             <span className="settings-note text-control leading-5" data-tone="danger" role="alert">

@@ -1,6 +1,6 @@
+import { autoRunEverywhere, autoRunWhy, manualWhy, outcomeText } from "@novadeck/core/autorun-text"
 import { Terminal } from "lucide-react"
 
-import { autoRunEverywhere, autoRunWhy, manualWhy, outcomeText } from "./autorun-text"
 import { AutoRunValue, RegeditStep } from "./AutoRunValue"
 import { useInboxContext } from "./InboxProvider"
 
