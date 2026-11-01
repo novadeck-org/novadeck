@@ -39,7 +39,7 @@ import { Messaging } from "../messaging/messaging.js"
 import type { MessageRecords } from "../messaging/records.js"
 import type { AgentsAnswer, SendAnswer, TeamAnswer } from "../messaging/sending.js"
 import type { Describer } from "../murmur/describer.js"
-import { inherited } from "../shell/inherited.js"
+import { stripInherited } from "../shell/inherited.js"
 import type { InstalledShell } from "../shell/install.js"
 import { type Ack, type Call } from "../shell/reports.js"
 import type { HintFacts } from "../voice/hint.js"
@@ -399,7 +399,7 @@ export class Terminals {
     }
     // Child programs do not need the runner's network capability, nor the identity of a
     // Novadeck terminal the runner itself was started from.
-    for (const name of inherited) delete this.options.env[name]
+    stripInherited(this.options.env, this.options.platform)
     this.trees = options.pty?.trees ?? new Trees(async () => this.options.relay)
     this.pty = {
       ...(options.pty?.native && { native: options.pty.native }),
