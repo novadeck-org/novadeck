@@ -748,7 +748,7 @@ describe("The agent's words", () => {
     expect(note.textContent).toBe(mimic)
     expect(note.querySelector("code, strong, b")).toBeNull()
     expect(note.getAttribute("aria-label")).toBe("What @moth says")
-    expect((note as HTMLElement).style.webkitLineClamp).toBe("1")
+    expect((note as HTMLElement).style.webkitLineClamp).toBe("2")
     expect(text(".console-body")).not.toContain("Novadeck")
     expect(text("h3.console-ask")).not.toContain("safe")
     await inbox.done()
@@ -787,7 +787,21 @@ describe("The agent's words", () => {
     await inbox.done()
   })
 
-  it("offers more where one line overflows", async () => {
+  it("clamps the reason to two lines, with more at the end of the second", async () => {
+    const long = "word ".repeat(400).trim()
+    const inbox = mount([grantRow({ reason: long })])
+    const note = document.querySelector<HTMLElement>("[role=note]")!
+    expect(note.style.webkitLineClamp).toBe("2")
+    const more = inbox.button("more")
+    // Inside the note's own box, placed over its last line's end, not on a line of its own.
+    expect(note.parentElement?.contains(more)).toBe(true)
+    expect(more.style.position).toBe("absolute")
+    expect(more.style.bottom).toBe("0px")
+    expect(more.style.right).toBe("0px")
+    await inbox.done()
+  })
+
+  it("offers more where two lines overflow", async () => {
     const was = Object.getOwnPropertyDescriptor(HTMLElement.prototype, "scrollHeight")
     Object.defineProperty(HTMLElement.prototype, "scrollHeight", {
       configurable: true,

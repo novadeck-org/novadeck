@@ -46,7 +46,7 @@ const CommandCode = ({ command }: { readonly command: GrantCommand }): React.JSX
 const noteLength = 280
 
 // The agent's own words under Novadeck's, as a muted note: plain text whatever marks it holds,
-// clamped to one line with a toggle where it runs longer, and named for a screen reader as
+// clamped to two lines with a toggle at the end of the second where it runs longer, and named for a screen reader as
 // what the agent says.
 export const AgentNote = ({
   text,
@@ -74,6 +74,7 @@ export const AgentNote = ({
     return () => watch.disconnect()
   }, [open])
   if (text.trim() === "") return null
+  const toggled = over || clipped || (open && shown.length > noteLength)
   const mono = { fontFamily: "var(--font-mono)", fontSize: "var(--text-control)" }
   return (
     <>
@@ -81,39 +82,52 @@ export const AgentNote = ({
       <p className="console-note" data-reason-intro="">
         @{who}&apos;s reason:
       </p>
-      <p
-        ref={note}
-        id={id}
-        className="console-note"
-        role="note"
-        aria-label={`What @${who} says`}
-        style={
-          open
-            ? { ...mono, marginTop: -8 }
-            : {
-                ...mono,
-                marginTop: -8,
-                display: "-webkit-box",
-                WebkitLineClamp: 1,
-                WebkitBoxOrient: "vertical",
-                overflow: "hidden",
-              }
-        }
-      >
-        {clipped ? `${shown.slice(0, noteLength)}…` : shown}
-      </p>
-      {(over || clipped || (open && shown.length > noteLength)) && (
-        <button
-          type="button"
-          className="button link inbox-link text-control"
-          style={{ marginLeft: 16, marginTop: -6, alignSelf: "flex-start" }}
-          aria-expanded={open}
-          aria-controls={id}
-          onClick={() => setOpen(!open)}
+      {/* The words wrap to two lines before they clip; "more" sits at the end of the second. */}
+      <div style={{ position: "relative", marginTop: -8 }}>
+        <p
+          ref={note}
+          id={id}
+          className="console-note"
+          role="note"
+          aria-label={`What @${who} says`}
+          style={
+            open
+              ? mono
+              : {
+                  ...mono,
+                  display: "-webkit-box",
+                  WebkitLineClamp: 2,
+                  WebkitBoxOrient: "vertical",
+                  overflow: "hidden",
+                }
+          }
         >
-          {open ? "less" : "more"}
-        </button>
-      )}
+          {clipped ? `${shown.slice(0, noteLength)}…` : shown}
+        </p>
+        {toggled && (
+          <button
+            type="button"
+            className="button link inbox-link text-control"
+            style={
+              open
+                ? { marginLeft: 16, marginTop: 2 }
+                : {
+                    position: "absolute",
+                    right: 0,
+                    bottom: 0,
+                    paddingLeft: 10,
+                    backgroundColor: "var(--color-paper)",
+                    boxShadow: "-10px 0 8px var(--color-paper)",
+                  }
+            }
+            aria-expanded={open}
+            aria-controls={id}
+            onClick={() => setOpen(!open)}
+          >
+            {open ? "less" : "more"}
+          </button>
+        )}
+      </div>
     </>
   )
 }
