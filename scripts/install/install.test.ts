@@ -113,6 +113,11 @@ type Scenario = {
   configHome?: string
   /** A relative XDG_DATA_HOME, which counts as unset. */
   relativeXdg?: string
+  /**
+   * A GitHub CLI on the PATH: `ok` verifies attestations, `invalid` rejects them,
+   * `signed-out` is not signed in, `old` lacks `gh attestation`.
+   */
+  gh?: "ok" | "invalid" | "signed-out" | "old"
   /** Tools present on the PATH, such as fusermount3. */
   extra?: string[]
   /** Tools present only in the system folders a user's PATH lacks. */
@@ -285,6 +290,17 @@ case "$2" in */previous.app) for signal in INT HUP QUIT TERM; do kill -s $signal
 echo "curl $url" >> "${log}"
 cp "${served}/\${url##*/}" "$out"`,
   )
+  if (scenario.gh)
+    shim(
+      bin,
+      "gh",
+      `echo "gh $*" >> "${log}"
+case "$1 $2" in
+"auth status") [ "${scenario.gh}" != signed-out ] ;;
+"attestation verify") [ "${scenario.gh}" != old ] && { [ "$3" = --help ] || [ "${scenario.gh}" = ok ]; } ;;
+*) exit 1 ;;
+esac`,
+    )
   const sudo = scenario.sudo ?? true
   if (sudo === "denied") shim(bin, "sudo", `echo "sudo denied" >> "${log}"; exit 1`)
   else if (sudo === "no-copy") shim(bin, "sudo", `[ "$1" = cp ] && exit 1\nSUDO=sudo "$@"`)
@@ -386,6 +402,37 @@ esac`,
 
 describe.skipIf(!linux)("install.sh", () => {
   context("on any Linux system", () => {
+    context("the build attestation", () => {
+      it("says plainly that only checksums were checked without gh", () => {
+        const result = run()
+        expect(result.status).toBe(0)
+        expect(result.stdout).toContain(`Checked ${download} against the release's checksums only`)
+      })
+
+      it("verifies the download against the repository when gh is signed in", () => {
+        const result = run({ gh: "ok" })
+        expect(result.status).toBe(0)
+        expect(result.commands).toContain(`gh attestation verify ${download} --repo acme/novadeck`)
+        expect(result.stdout).toContain("its build attestation from acme/novadeck")
+      })
+
+      it("installs nothing when the attestation does not hold", () => {
+        const result = run({ gh: "invalid" })
+        expect(result.status).not.toBe(0)
+        expect(result.stderr).toContain("no valid build attestation")
+        expect(existsSync(join(result.data, "novadeck", image))).toBe(false)
+      })
+
+      it("falls back to checksums when gh is signed out or too old to attest", () => {
+        for (const gh of ["signed-out", "old"] as const) {
+          const result = run({ gh })
+          expect(result.status, gh).toBe(0)
+          expect(result.stdout, gh).toContain("checksums only")
+          expect(result.commands.join("\n"), gh).not.toMatch(/attestation verify \S+ --repo/)
+        }
+      })
+    })
+
     it("installs the AppImage with a menu entry, an icon and a command after checking its checksum", () => {
       const result = run()
       const target = join(result.data, "novadeck", image)

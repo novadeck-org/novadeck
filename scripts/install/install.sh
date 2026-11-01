@@ -6,7 +6,8 @@
 # On Linux it puts the AppImage in ~/.local/share/novadeck with a menu entry and a
 # `novadeck` command. On macOS it puts the app in /Applications, or in ~/Applications when
 # this account cannot write to /Applications, and replaces a copy already in either.
-# Every download is checked against the release's SHA256SUMS first. Running it again
+# Every download is checked against the release's SHA256SUMS first, and against its build
+# attestation too when the GitHub CLI (gh) is installed and signed in. Running it again
 # upgrades or repairs the install; installed apps update themselves after that, except an
 # unsigned macOS build, which only tells of new versions.
 #
@@ -136,12 +137,31 @@ verify() {
   [ "$expected" = "$actual" ] || fail "$name does not match its checksum in SHA256SUMS; try again, and report it if it persists."
 }
 
+# Checks the file's build attestation with the GitHub CLI when it is installed, signed in
+# and new enough to have `gh attestation`, and fails when the attestation does not hold. The
+# checksums come from the same release as the file, so they show a download came whole, not
+# that this repository built it; the attestation does. Without gh it says plainly that only
+# the checksums were checked.
+attest() {
+  if ! has gh; then
+    say "Checked $1 against the release's checksums only; install the GitHub CLI (gh) to check its build attestation too."
+  elif ! gh attestation verify --help > /dev/null 2>&1; then
+    say "Checked $1 against the release's checksums only; this version of gh has no 'gh attestation'."
+  elif ! gh auth status > /dev/null 2>&1; then
+    say "Checked $1 against the release's checksums only; sign in with 'gh auth login' to check its build attestation too."
+  else
+    gh attestation verify "$1" --repo "$repository" > /dev/null 2>&1 || fail "$1 has no valid build attestation from $repository; do not use it, and report it if it persists."
+    say "Checked $1: its checksum and its build attestation from $repository."
+  fi
+}
+
 fetch() {
   base="$1"
   name="$2"
   say "Downloading $name"
   download "$base/$name" "$name"
   verify "$name"
+  attest "$name"
 }
 
 # Runs a command as root, through sudo unless this already is root. It fails, quietly, when
