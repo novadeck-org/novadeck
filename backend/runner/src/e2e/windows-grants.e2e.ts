@@ -917,9 +917,10 @@ for (const kit of [codexKit, agyKit]) {
           if (ask) return ask
           if (asked(call, "run granted") || asked(call, "run again")) return shellFor(granted)
           if (asked(call, "run merge")) return shellFor(merge)
-          // Only Antigravity has a file-read tool and a launch-grant boundary to probe.
+          // Only Antigravity has a file-read tool and a launch-grant boundary to probe. Its prompt
+          // avoids "read it", which the grant notice holds ("both read it alike").
           if (setup.agent === "agy" && asked(call, "run echo")) return shellFor("echo hi > hi.txt")
-          if (setup.agent === "agy" && asked(call, "read it"))
+          if (setup.agent === "agy" && asked(call, "show readme"))
             return { calls: [{ name: "read_file", input: { Path: world().readme } }] }
           if (call.turns.at(-1)?.role === "tool") return { text: "Done." }
           return undefined
@@ -985,7 +986,7 @@ for (const kit of [codexKit, agyKit]) {
       if (setup.agent === "agy") {
         await terminal.submit("run echo")
         await stopped("echo", 1)
-        await terminal.submit("read it")
+        await terminal.submit("show readme")
         await run.model.waitFor(
           (call) => result(call)?.includes("novadeck-approvals-readme") === true,
         )

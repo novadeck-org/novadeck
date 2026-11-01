@@ -216,7 +216,8 @@ const rules = (counted: { calls: number }, world: () => World): Rule[] => [
     if (asked(call, "run padded"))
       return shellFor(call, `${granted}${" ".repeat(4100)}; touch ${pwned}`)
     if (asked(call, "run echo")) return shellFor(call, "echo hi > hi.txt")
-    if (asked(call, "read it")) return { calls: [{ name: "read_file", input: { Path: readme } }] }
+    if (asked(call, "show readme"))
+      return { calls: [{ name: "read_file", input: { Path: readme } }] }
     if (call.turns.at(-1)?.role === "tool") return { text: "Done." }
     return undefined
   }),
@@ -417,7 +418,7 @@ describe.skipIf(!supported)("Approvals through Novadeck's runner hooks", () => {
         await terminal.submit("run echo")
         await stopped("echo", ran, markEcho)
         await dismiss()
-        await terminal.submit("read it")
+        await terminal.submit("show readme")
         await run.model.waitFor(
           (call) => result(call)?.includes("novadeck-approvals-readme") === true,
         )
