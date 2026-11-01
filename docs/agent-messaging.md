@@ -811,9 +811,18 @@ in `contract/protocol/src/grants.ts`.
   exactly: `mcp_novadeck_novadeck_<tool>`, or `call_mcp_tool` with `ServerName` `novadeck_novadeck`
   and a `ToolName` on `novadeckMcpTools` (`harnesses/core/src/grants/payload.ts`, held to
   `shell/mcp.ts`'s tool list by a test). A lookalike server, an unknown tool name and other
-  servers' tools stay `force_ask`. The `--settings` file of a launch grant carries only
-  `command(...)` entries, so Antigravity's own policy still asks about these tools unless
-  the person allowed them in a way the launch settings keep.
+  servers' tools stay `force_ask`.
+- **The person's own Antigravity rules in a narrowed terminal** (probed 2026-11-01, 1.4.12,
+  `e2e/probes/approvals-agy.e2e.ts` m-cases). `--settings` replaces the person's
+  `permissions.allow` when it names one, but keeps their `deny` and `ask` when it names none, so
+  the launch settings hold the person's own `allow` rules verbatim, read from their settings at
+  the launch, plus `command(<program>)` for the granted programs, and no `deny` or `ask`.
+  Settings that can't be read or parsed mean no launch grant for that start (logged, and the
+  grant's note tells the agent). A PreToolUse `force_ask` would put a dialog over the person's
+  `deny` (m23), so before it the hook reads their rules afresh and refuses (`deny`, the fourth
+  answer the relay passes) any command a `deny` rule may cover (`mayDeny`: wide on purpose, any
+  segment of a compound line, a wildcard rule by what precedes it). No project settings file is
+  read by Antigravity.
 - **Launch programs.** `Grants.launchPrograms(terminalId)` names the programs an Antigravity
   terminal is given launch grants for (`git` for push, `gh` for pr, the first word of each
   command).
