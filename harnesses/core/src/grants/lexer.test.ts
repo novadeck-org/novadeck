@@ -239,6 +239,22 @@ describe("the Windows Codex lexer", () => {
   })
 })
 
+describe("the Windows lexer's program with an extension", () => {
+  it.each(["deploy.js", "x.py", "git.vbs", "tool.wsf", "C:\\proj\\run.PY", "./run.rb", "git.cmd"])(
+    "refuses %s, which cmd runs through its file association",
+    (program) => {
+      expect(windows(`${program} a`)).toBeUndefined()
+    },
+  )
+
+  it.each(["git", "gh.exe", "C:\\tools\\gh.EXE", "tool.com", "C:\\a.b\\prog", "./sub.d/prog"])(
+    "takes %s",
+    (program) => {
+      expect(windows(`${program} a`)).toEqual([program, "a"])
+    },
+  )
+})
+
 describe("the Windows lexer's whole-word double quotes", () => {
   it.each([
     ['echo "C:\\Users\\Jan Kowalski\\note.md"', ["echo", "C:\\Users\\Jan Kowalski\\note.md"]],

@@ -694,12 +694,14 @@ describe("reading a relay's hook", () => {
       command: "git status",
       cwd: null,
       sessionFolder: "/work/project",
+      folderHidden: true,
     })
     expect(relayHook(ask, "win32")?.permission?.call).toEqual({
       command: "git status",
       cwd: null,
       dialect: "windows-quote-free",
       sessionFolder: "/work/project",
+      folderHidden: true,
     })
     // cmd runs a program from the folder it is in, so on Windows one that isn't named is no call.
     const { cwd: _cwd, ...unnamed } = JSON.parse(payload) as Record<string, unknown>

@@ -35,9 +35,15 @@ export type ShellCall = {
   /**
    * The folder the harness says the session runs in, where the payload names one apart from
    * `cwd`: Codex's top-level `cwd`. A command may run there, so on Windows it is held to the
-   * same-name check too; and it is where a ref is resolved when `cwd` is null.
+   * same-name check too.
    */
   readonly sessionFolder?: string
+  /**
+   * The command may run in a folder the payload doesn't show: Codex's exec tool takes a
+   * `workdir` that neither of its hooks carries (probed, 0.165.0). What git says of a folder
+   * (refs, remotes, URL rewrites, configuration) is then no answer for this command.
+   */
+  readonly folderHidden?: true
 }
 
 /** Why a payload is no shell call the matcher can judge. */
@@ -73,6 +79,13 @@ export type GitLookups = {
    * that couldn't be told (an error, a timeout).
    */
   readonly resolve: (cwd: string, name: string) => Promise<string | null | undefined>
+  /** Whether `push.followTags` is on in `cwd`; undefined where that couldn't be told. */
+  readonly followsTags: (cwd: string) => Promise<boolean | undefined>
+  /**
+   * Where `git push <url>` sends in `cwd`: `url` after the configuration's `pushInsteadOf`
+   * (else `insteadOf`) rewrite. Undefined where that couldn't be told.
+   */
+  readonly pushTarget: (cwd: string, url: string) => Promise<string | undefined>
 }
 
 /** A match: which grant entry let it through, for the use line. */

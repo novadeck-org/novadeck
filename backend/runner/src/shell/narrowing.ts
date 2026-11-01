@@ -46,9 +46,18 @@ export type Launching = false | { readonly allow: readonly string[] }
 // A terminal's id names its settings file; anything that could leave the folder is refused.
 const safeId = /^[A-Za-z0-9_-]+$/
 
-/** Whether a command line starts Antigravity: its first word is the program it launches as. */
-export const startsAgy = (command: string): boolean =>
-  command.trim().split(/\s+/)[0] === harnesses.agy.launch.start[0]
+/**
+ * Whether a command line starts Antigravity where a launch grant may apply: its first word is
+ * the program it launches as, and it is not started in plan mode (`--mode plan`), where
+ * commands must not run. Its hooks name no mode, so a mode set in the session is not seen.
+ */
+export const startsAgy = (command: string): boolean => {
+  const words = command.replaceAll(/["']/g, "").trim().split(/\s+/)
+  const plan = words.some(
+    (word, at) => word === "--mode=plan" || (word === "--mode" && words[at + 1] === "plan"),
+  )
+  return words[0] === harnesses.agy.launch.start[0] && !plan
+}
 
 /**
  * Antigravity terminals started under a grant. The settings file the agy shim reads exists

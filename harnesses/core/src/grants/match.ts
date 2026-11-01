@@ -54,13 +54,15 @@ export const matchCall = async (
     return null
   // Claude Code's Bash tool on Windows (a POSIX dialect over a Windows project) is Git Bash.
   const gitBash = call.dialect === undefined && flavourOf(projectRoot) !== posix
-  const refs = call.cwd ?? call.sessionFolder ?? terminalFolder ?? null
+  // The folder git is asked in: the call's own, else the terminal's, unless the command may
+  // run elsewhere (Codex's `workdir`).
+  const refs = call.cwd ?? (call.folderHidden === true ? null : (terminalFolder ?? null))
   for (const [scope, grant] of scopes.entries()) {
     for (const preset of grant.presets) {
       const ok =
         preset === "push"
           ? // eslint-disable-next-line no-await-in-loop -- The first entry that matches decides.
-            await matchesPush(argv, grant.repos, git, call.cwd, refs)
+            await matchesPush(argv, grant.repos, git, refs)
           : // eslint-disable-next-line no-await-in-loop -- As above.
             await matchesPr(argv, grant.repos, { cwd: call.cwd, root: projectRoot, gitBash }, fs)
       if (ok) return { scope, match: { kind: "preset", preset } }

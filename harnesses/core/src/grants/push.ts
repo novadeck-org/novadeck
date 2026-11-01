@@ -5,7 +5,7 @@ import { normalizeRepoUrl, repoKey } from "./repo.js"
 
 const lookupLimit = 1000
 const remoteName = /^[A-Za-z0-9][A-Za-z0-9._-]*$/
-const options = new Set(["-u", "--set-upstream", "-q"])
+const options = new Set(["-u", "--set-upstream", "-q", "--no-follow-tags"])
 
 const reservedDestination = (name: string, repos: readonly GrantRepo[]): boolean => {
   const lower = name.toLowerCase()
@@ -39,20 +39,23 @@ const limited = async <T>(work: () => Promise<T>): Promise<T | undefined> => {
   }
 }
 
-// The granted repos a remote argument reaches: its own URL, or every push URL of a named remote.
+// The granted repos a remote argument reaches: its own URL as git reads it (after the
+// folder's `insteadOf` and `pushInsteadOf` rewrites), or every push URL of a named remote.
 const reached = async (
   remote: string,
   repos: readonly GrantRepo[],
   git: GitLookups,
-  cwd: string | null,
+  where: string | null,
 ): Promise<readonly GrantRepo[] | undefined> => {
-  const own = normalizeRepoUrl(remote)
-  if (own !== undefined) {
-    const repo = granted(own.toLowerCase(), repos)
+  if (where === null) return undefined
+  if (normalizeRepoUrl(remote) !== undefined) {
+    const url = await limited(() => git.pushTarget(where, remote))
+    const key = url === undefined ? undefined : normalizeRepoUrl(url)?.toLowerCase()
+    const repo = key === undefined ? undefined : granted(key, repos)
     return repo && [repo]
   }
-  if (cwd === null || !remoteName.test(remote)) return undefined
-  const urls = await limited(() => git.pushUrls(cwd, remote))
+  if (!remoteName.test(remote)) return undefined
+  const urls = await limited(() => git.pushUrls(where, remote))
   if (urls === undefined || urls.length === 0) return undefined
   const found: GrantRepo[] = []
   for (const url of urls) {
@@ -69,36 +72,33 @@ const heads = "refs/heads/"
 /**
  * Whether the push's names are branches in `refs`, the folder git resolves them in. Git
  * takes a destination's namespace from its source, and a source that is a tag (`v1:v2`,
- * `tags/v1:v2`) creates a remote tag, which release workflows run on: so a source other than
- * `HEAD` must resolve to `refs/heads/…` here, and a destination must not resolve to anything
- * else (a tag of that name). Where git can't say, they aren't.
+ * `tags/v1:v2`) creates a remote tag, which release workflows run on: so the source, `HEAD`
+ * too (an agent can point it at a tag), must resolve to `refs/heads/…` here, and a
+ * destination must not resolve to anything else (a tag of that name). Where git can't say,
+ * they aren't.
  */
 const branchesOnly = async (
   git: GitLookups,
-  refs: string | null,
+  refs: string,
   source: string,
   destination: string,
 ): Promise<boolean> => {
-  if (refs === null) return source === "HEAD"
-  if (source !== "HEAD") {
-    const from = await limited(() => git.resolve(refs, source))
-    if (typeof from !== "string" || !from.startsWith(heads)) return false
-  }
+  const from = await limited(() => git.resolve(refs, source))
+  if (typeof from !== "string" || !from.startsWith(heads)) return false
   const to = await limited(() => git.resolve(refs, destination))
   return to === null || (typeof to === "string" && to.startsWith(heads))
 }
 
 /**
- * Whether `argv` is a push the preset allows to the granted `repos`: of branches only. `cwd`
- * is the call's own folder (null when the harness doesn't say), `refs` the folder its names are
- * resolved in.
+ * Whether `argv` is a push the preset allows to the granted `repos`: of branches only, in
+ * `refs`, the folder git reads its names, remotes, URL rewrites and configuration in (the
+ * call's own, else the session's or the terminal's; null when none is known).
  */
 export const matchesPush = async (
   argv: readonly string[],
   repos: readonly GrantRepo[],
   git: GitLookups,
-  cwd: string | null,
-  refs: string | null = cwd,
+  refs: string | null,
 ): Promise<boolean> => {
   if (argv[0] !== "git" || argv[1] !== "push" || argv.length < 4) return false
   const flags = argv.slice(2, -2)
@@ -114,7 +114,12 @@ export const matchesPush = async (
     return false
   if (source !== "HEAD" && !isBranchName(source)) return false
   if (!isBranchName(destination)) return false
-  const targets = await reached(remote, repos, git, cwd)
+  // Everything below reads the folder's git: none known, nothing is certain.
+  if (refs === null) return false
+  // A push also sends the annotated tags its commits reach where `push.followTags` is on.
+  if (!flags.includes("--no-follow-tags") && (await limited(() => git.followsTags(refs))) !== false)
+    return false
+  const targets = await reached(remote, repos, git, refs)
   if (targets === undefined) return false
   if (reservedDestination(destination, targets)) return false
   return branchesOnly(git, refs, source, destination)

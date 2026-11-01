@@ -76,7 +76,7 @@ type Fixture = {
   /** What each folder holds, by path; a folder not named holds nothing. */
   readonly folders: Map<string, string[]>
   /** The folder the terminal's shell is in. */
-  readonly shell: { folder: string }
+  readonly shell: { folder: string; planning: boolean }
   /** The directory of the launch settings. */
   readonly directory: string
   /** Starts the terminal's Antigravity narrowed with `programs`, as a launch does. */
@@ -100,11 +100,17 @@ const fixture = (
     userRules: rules,
   })
   const folders = new Map<string, string[]>()
-  const shell = { folder: project }
+  const shell = { folder: project, planning: false }
   const host: PermissionsHost = {
     terminal: (id) =>
       id === "t"
-        ? { token, exiting: false, projectFolder: project, folder: shell.folder }
+        ? {
+            token,
+            exiting: false,
+            projectFolder: project,
+            folder: shell.folder,
+            planning: shell.planning,
+          }
         : undefined,
     sameToken: (a, b) => a === b,
     grants: {
@@ -112,7 +118,12 @@ const fixture = (
       recordUse: (id, terminalId, command) => used.push(`${id} ${terminalId} ${command}`),
     },
     narrowing,
-    git: { pushUrls: () => Promise.resolve(undefined), resolve: () => Promise.resolve(null) },
+    git: {
+      pushUrls: () => Promise.resolve(undefined),
+      resolve: () => Promise.resolve(null),
+      followsTags: () => Promise.resolve(false),
+      pushTarget: (_cwd, url) => Promise.resolve(url),
+    },
     fs: {
       real: () => Promise.resolve(undefined),
       names: (folder) => Promise.resolve(folders.get(folder) ?? []),
@@ -328,6 +339,25 @@ describe("Claude Code's permission check", () => {
       allowedLine("codex"),
     )
     expect(used).toHaveLength(3)
+  })
+
+  it("allows nothing while the agent plans, as Codex's rollout says and its hooks don't", async ({
+    resources,
+  }) => {
+    const { ask, used, shell } = fixture(resources)
+    const codex = {
+      session_id: "s",
+      cwd: project,
+      hook_event_name: "PermissionRequest",
+      permission_mode: "default",
+      tool_name: "Bash",
+      tool_input: { command: "uberepo ship x", description: "Ship" },
+    }
+    expect((await ask("codex", "PermissionRequest", codex)).stdout).toBe(allowedLine("codex"))
+    shell.planning = true
+    expect((await ask("codex", "PermissionRequest", codex)).stdout).toBe("")
+    expect((await ask("claude", "PreToolUse", bash("uberepo ship x"))).stdout).toBe("")
+    expect(used).toHaveLength(1)
   })
 
   it("allows nothing when the payload holds a field it doesn't know", async ({ resources }) => {

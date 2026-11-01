@@ -142,6 +142,11 @@ export const lexWindows = (command: string): Lexed => {
   if (assignment.test(first)) return refuse("a variable assignment before the command")
   const program = programName(first.slice(first.lastIndexOf("\\") + 1))
   if (runsOtherCode(program)) return refuse(`a leading ${program}`)
+  // cmd runs `deploy.js` or `x.py` through the file's association: only a program (.exe, .com)
+  // or a name with no extension is one.
+  const extension = /\.([^.\\/]+)$/.exec(first)?.[1]?.toLowerCase()
+  if (extension !== undefined && extension !== "exe" && extension !== "com")
+    return refuse(`a program with a .${extension} extension`)
   return { ok: true, argv: words }
 }
 

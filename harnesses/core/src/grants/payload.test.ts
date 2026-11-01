@@ -92,6 +92,7 @@ describe("a Codex PermissionRequest payload", () => {
       command: "touch /x/ran.txt",
       cwd: null,
       sessionFolder: "/tmp/novadeck-e2e-eGUNd8/project",
+      folderHidden: true,
     })
   })
 
@@ -101,6 +102,7 @@ describe("a Codex PermissionRequest payload", () => {
     expect(callFromPayload("codex", "PermissionRequest", unnamed, "linux")).toEqual({
       command: "ls",
       cwd: null,
+      folderHidden: true,
     })
     expect(callFromPayload("codex", "PermissionRequest", { ...unnamed, cwd: 3 }, "win32")).toBe(
       "unreadable",
@@ -114,12 +116,14 @@ describe("a Codex PermissionRequest payload", () => {
       cwd: null,
       dialect: "windows-quote-free",
       sessionFolder: "/tmp/novadeck-e2e-eGUNd8/project",
+      folderHidden: true,
     })
     for (const platform of ["linux", "darwin"] as const)
       expect(callFromPayload("codex", "PermissionRequest", codex(input), platform)).toEqual({
         command: "gh pr ready 1 -R o/n",
         cwd: null,
         sessionFolder: "/tmp/novadeck-e2e-eGUNd8/project",
+        folderHidden: true,
       })
     expect(callFromPayload("claude", "PreToolUse", claude(input), "win32")).toMatchObject({
       cwd: "/tmp/novadeck-e2e-sTGnsC/project",

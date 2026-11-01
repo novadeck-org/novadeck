@@ -37,6 +37,8 @@ export type PermissionTerminal = {
   readonly projectFolder: string | undefined
   /** The folder the terminal's shell is in: where a command it starts runs, for the same-name check. */
   readonly folder?: string | undefined
+  /** Its agent is planning (Codex's Plan Mode, which its hooks don't name): no grant applies. */
+  readonly planning?: boolean
 }
 
 export type PermissionsHost = {
@@ -113,6 +115,8 @@ export class Permissions {
     // Plan mode takes no grant, where an allow might step past its limits; a mode the
     // payload doesn't name, where it should, is none either.
     if (planMode !== undefined && (mode === null || mode === planMode)) return unsaid
+    // Codex's hooks say `default` even in Plan Mode: its rollout says whether it plans.
+    if (terminal.planning === true) return unsaid
     if (typeof call === "object" && allow !== undefined) {
       const grant = await this.match(report, call, terminal)
       if (grant !== undefined && this.live(deadline)) {

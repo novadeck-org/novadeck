@@ -7,7 +7,7 @@ import { matchCall, type GitLookups, type GrantScope } from "@novadeck/harness-c
 import { describe, expect, it } from "vitest"
 
 import { fsLookups } from "./fs-lookups.js"
-import { gitLookups } from "./git-lookups.js"
+import { gitLookups, rewrittenPushUrl } from "./git-lookups.js"
 import { programPath } from "./programs.js"
 
 const granted = "https://github.com/acme/app"
@@ -82,7 +82,7 @@ describe("the git lookups", () => {
   // scratch repo, so what git would create is what is held up against what the matcher let by.
   describe("the push preset, against a real push", () => {
     const grantedRemote = (local: string): GitLookups => ({
-      resolve: gitLookups.resolve,
+      ...gitLookups,
       pushUrls: async (cwd, remote) =>
         cwd === local && remote === "origin" ? [granted] : undefined,
     })
@@ -123,6 +123,72 @@ describe("the git lookups", () => {
         done()
       }
     })
+
+    const matcher = (local: string, command: string) =>
+      matchCall({ command, cwd: local }, [scope], grantedRemote(local), local, fsLookups)
+
+    it("refuses a HEAD that points at a tag, which would create one", async () => {
+      const { local, git, remoteRefs, done } = scratch()
+      try {
+        expect(await matcher(local, "git push origin HEAD:v9")).not.toBeNull()
+        // The agent writes `ref: refs/tags/v1.0.0` into .git/HEAD.
+        git(local, "symbolic-ref", "HEAD", "refs/tags/v1.0.0")
+        expect(await gitLookups.resolve(local, "HEAD")).toBe("refs/tags/v1.0.0")
+        expect(await matcher(local, "git push origin HEAD:v9")).toBeNull()
+        // The control: git makes a tag of it.
+        git(local, "push", "-q", "origin", "HEAD:v9")
+        expect(remoteRefs()).toEqual(["refs/tags/v9"])
+      } finally {
+        done()
+      }
+    })
+
+    it("sends no tag along: push.followTags needs --no-follow-tags", async () => {
+      const { local, git, remoteRefs, done } = scratch()
+      try {
+        git(local, "tag", "-a", "-m", "release", "rel-1", "fix")
+        expect(await matcher(local, "git push origin fix:feat-a")).not.toBeNull()
+        git(local, "config", "push.followTags", "true")
+        expect(await gitLookups.followsTags(local)).toBe(true)
+        expect(await matcher(local, "git push origin fix:feat-a")).toBeNull()
+        expect(await matcher(local, "git push --no-follow-tags origin fix:feat-a")).not.toBeNull()
+        // The flag keeps the annotated tag at home; without it git sends it with the branch.
+        git(local, "push", "-q", "--no-follow-tags", "origin", "fix:feat-a")
+        expect(remoteRefs()).toEqual(["refs/heads/feat-a"])
+        git(local, "push", "-q", "origin", "fix:feat-b")
+        expect(remoteRefs()).toEqual(["refs/heads/feat-a", "refs/heads/feat-b", "refs/tags/rel-1"])
+      } finally {
+        done()
+      }
+    })
+
+    it("reads a URL as the folder's insteadOf and pushInsteadOf rewrite it", async () => {
+      const { local, base, git, remoteRefs, done } = scratch()
+      try {
+        const bare = join(base, "remote.git")
+        const push = `git push ${granted} fix:feat-a`
+        expect(await gitLookups.pushTarget(local, granted)).toBe(granted)
+        expect(await matcher(local, push)).not.toBeNull()
+        // The granted URL now reaches another repository: git pushes to the scratch one.
+        git(local, "config", `url.${bare}.insteadOf`, granted)
+        expect(await gitLookups.pushTarget(local, granted)).toBe(bare)
+        expect(await matcher(local, push)).toBeNull()
+        git(local, "push", "-q", granted, "fix:feat-a")
+        expect(remoteRefs()).toEqual(["refs/heads/feat-a"])
+        // pushInsteadOf wins for a push, and a longer prefix wins over a shorter.
+        git(local, "config", "--unset", `url.${bare}.insteadOf`)
+        git(
+          local,
+          "config",
+          "url.https://github.com/evil/.pushInsteadOf",
+          "https://github.com/acme/",
+        )
+        expect(await gitLookups.pushTarget(local, granted)).toBe("https://github.com/evil/app")
+        expect(await matcher(local, push)).toBeNull()
+      } finally {
+        done()
+      }
+    })
   })
 })
 
@@ -148,5 +214,47 @@ describe("the program lookup", () => {
       process.env.PATH = saved
       rmSync(base, { recursive: true, force: true })
     }
+  })
+})
+
+describe("a URL as git push reads it", () => {
+  const entries = (...pairs: [string, string][]) => pairs.map(([k, v]) => `${k}\n${v}\0`).join("")
+
+  it("is the URL itself without a rule, and an unrelated rule changes nothing", () => {
+    expect(rewrittenPushUrl("https://github.com/a/b", "")).toBe("https://github.com/a/b")
+    expect(
+      rewrittenPushUrl(
+        "https://github.com/a/b",
+        entries(["url.git@x:.insteadof", "https://gitlab.com/"]),
+      ),
+    ).toBe("https://github.com/a/b")
+  })
+
+  it("takes the longest matching prefix, and pushInsteadOf before insteadOf", () => {
+    const url = "https://github.com/acme/app"
+    expect(
+      rewrittenPushUrl(
+        url,
+        entries(
+          ["url.A/.insteadof", "https://github.com/"],
+          ["url.B/.insteadof", "https://github.com/acme/"],
+        ),
+      ),
+    ).toBe("B/app")
+    expect(
+      rewrittenPushUrl(
+        url,
+        entries(
+          ["url.B/.insteadof", "https://github.com/acme/"],
+          ["url.P/.pushinsteadof", "https://"],
+        ),
+      ),
+    ).toBe("P/github.com/acme/app")
+  })
+
+  it("keeps a base that holds dots", () => {
+    expect(rewrittenPushUrl("gh:a/b", entries(["url.https://github.com/.insteadof", "gh:"]))).toBe(
+      "https://github.com/a/b",
+    )
   })
 })

@@ -31,13 +31,14 @@ const git: GitLookups = {
     resolved.push(`${cwd} ${name}`)
     if (broken.has(name)) return undefined
     if (name in tags) return tags[name]
-    return name === "HEAD"
-      ? "refs/heads/fix"
-      : name.startsWith("new-")
-        ? null
-        : `refs/heads/${name}`
+    return name === "HEAD" ? head.value : name.startsWith("new-") ? null : `refs/heads/${name}`
   },
+  followsTags: async () => follows.value,
+  pushTarget: async (_cwd, url) => rewrites.get(url) ?? url,
 }
+const follows: { value: boolean | undefined } = { value: false }
+const rewrites = new Map<string, string>()
+const head = { value: "refs/heads/fix" as string | null }
 const resolved: string[] = []
 const broken = new Set<string>()
 const tags: Record<string, string> = { "v1.0.0": "refs/tags/v1.0.0", "tags/v1": "refs/tags/v1" }
@@ -57,6 +58,9 @@ beforeEach(() => {
   present.clear()
   resolved.length = 0
   broken.clear()
+  rewrites.clear()
+  follows.value = false
+  head.value = "refs/heads/fix"
 })
 
 const run = (
@@ -167,11 +171,11 @@ describe("the push preset", () => {
     expect(resolved).toEqual([`${root} fix`, `${root} new-x`])
     resolved.length = 0
     expect(await allowed("git push origin HEAD:new-x")).toBe(true)
-    expect(resolved).toEqual([`${root} new-x`])
+    expect(resolved).toEqual([`${root} HEAD`, `${root} new-x`])
   })
 
-  it("resolves in the session's or the terminal's folder where the call has none", async () => {
-    const push = (call: { sessionFolder?: string }, terminal?: string) =>
+  it("resolves in the call's folder, else the terminal's; never where the command may run elsewhere", async () => {
+    const push = (call: object, terminal?: string) =>
       matchCall(
         { command: "git push https://github.com/acme/app fix:fix", cwd: null, ...call },
         [scope()],
@@ -183,24 +187,59 @@ describe("the push preset", () => {
     expect(await push({})).toBeNull()
     expect(await push({}, "/work/proj/sub")).not.toBeNull()
     expect(resolved[0]).toBe("/work/proj/sub fix")
-    resolved.length = 0
+    // Codex's `workdir` shows in neither hook: the session's or the terminal's folder is no answer.
+    const hidden = { sessionFolder: "/work/proj/pkg", folderHidden: true }
+    expect(await push(hidden, "/work/proj/sub")).toBeNull()
     expect(await push({ sessionFolder: "/work/proj/pkg" }, "/work/proj/sub")).not.toBeNull()
-    expect(resolved[0]).toBe("/work/proj/pkg fix")
-    // With no folder at all only HEAD is a branch for certain.
-    const head = await matchCall(
-      { command: "git push https://github.com/acme/app HEAD:fix", cwd: null },
-      [scope()],
-      git,
-      root,
-      fs,
-    )
-    expect(head).not.toBeNull()
   })
 
-  it("refuses a remote name where the call's folder is unknown, but takes a URL", async () => {
+  it("resolves HEAD like any source: one pointed at a tag, or at nothing, is no branch", async () => {
+    expect(await allowed("git push origin HEAD:new-x")).toBe(true)
+    for (const value of ["refs/tags/v1", "HEAD", null]) {
+      head.value = value
+      // eslint-disable-next-line no-await-in-loop -- One value at a time.
+      expect(await allowed("git push origin HEAD:new-x"), String(value)).toBe(false)
+    }
+  })
+
+  it("takes --no-follow-tags, and otherwise only where push.followTags is off", async () => {
+    expect(await allowed("git push origin fix:new-x")).toBe(true)
+    expect(await allowed("git push --no-follow-tags origin fix:new-x")).toBe(true)
+    expect(await allowed("git push -u --no-follow-tags origin fix:new-x")).toBe(true)
+    for (const value of [true, undefined]) {
+      follows.value = value
+      // eslint-disable-next-line no-await-in-loop -- One value at a time.
+      expect(await allowed("git push origin fix:new-x"), String(value)).toBe(false)
+      // eslint-disable-next-line no-await-in-loop -- As above.
+      expect(await allowed("git push --no-follow-tags origin fix:new-x")).toBe(true)
+    }
+    expect(await allowed("git push --follow-tags origin fix:new-x")).toBe(false)
+    expect(await allowed("git push --no-follow-tags --no-follow-tags origin fix:new-x")).toBe(false)
+  })
+
+  it("reads a URL as git rewrites it in the folder, and refuses one it can't", async () => {
+    const url = "https://github.com/acme/app"
+    rewrites.set(url, "https://github.com/evil/app")
+    expect(await allowed(`git push ${url} fix:fix`)).toBe(false)
+    // A form that is not a GitHub URL as typed is none, whatever it would be rewritten to.
+    rewrites.set("gh:acme/app", url)
+    expect(await allowed("git push gh:acme/app fix:fix")).toBe(false)
+    const unknown: GitLookups = { ...git, pushTarget: async () => undefined }
+    expect(
+      await matchCall(
+        { command: `git push ${url} fix:fix`, cwd: root },
+        [scope()],
+        unknown,
+        root,
+        fs,
+      ),
+    ).toBeNull()
+  })
+
+  it("refuses any push where no folder is known to ask git in, HEAD and a URL too", async () => {
     expect(await allowed("git push origin fix:fix", undefined, null)).toBe(false)
     expect(await allowed("git push https://github.com/acme/app HEAD:fix", undefined, null)).toBe(
-      true,
+      false,
     )
   })
 
@@ -218,7 +257,7 @@ describe("the push preset", () => {
   })
 
   it("is no match when the lookup throws, finds nothing or takes over a second", async () => {
-    const fine = { resolve: git.resolve }
+    const fine = { ...git }
     const lookups: GitLookups[] = [
       { ...fine, pushUrls: async () => Promise.reject(new Error("no git")) },
       { ...fine, pushUrls: async () => undefined },
@@ -231,14 +270,18 @@ describe("the push preset", () => {
       },
       { ...fine, pushUrls: () => new Promise(() => undefined) },
       // A ref that can't be told is no branch.
-      { pushUrls: git.pushUrls, resolve: async () => Promise.reject(new Error("no git")) },
+      { ...fine, resolve: async () => Promise.reject(new Error("no git")) },
       {
-        pushUrls: git.pushUrls,
+        ...fine,
         resolve: () => {
           throw new Error("sync")
         },
       },
-      { pushUrls: git.pushUrls, resolve: () => new Promise(() => undefined) },
+      { ...fine, resolve: () => new Promise(() => undefined) },
+      // Tags followed where that can't be told, or is on.
+      { ...fine, followsTags: async () => undefined },
+      { ...fine, followsTags: async () => true },
+      { ...fine, followsTags: () => new Promise(() => undefined) },
     ]
     for (const lookup of lookups)
       expect(
@@ -731,11 +774,25 @@ describe("a Codex or Antigravity command on Windows", () => {
     expect(await windows(`gh pr create ${R} --head fix --title T --fill`)).toEqual(pr)
   })
 
-  it("takes a push by URL like any other dialect", async () => {
-    expect(await windows("git push https://github.com/acme/app HEAD:fix")).toEqual({
-      scope: 0,
-      match: { kind: "preset", preset: "push" },
-    })
+  it("takes a push by URL like any other dialect, asking git in the terminal's folder", async () => {
+    const push = (call: object) =>
+      matchCall(
+        {
+          command: "git push https://github.com/acme/app HEAD:fix",
+          cwd: null,
+          dialect: "windows-quote-free",
+          ...call,
+        },
+        [scope()],
+        git,
+        "C:\\work\\proj",
+        fs,
+        "C:\\work\\proj",
+      )
+    expect(await push({})).toEqual({ scope: 0, match: { kind: "preset", preset: "push" } })
+    // Codex's command may run in a `workdir` no hook shows.
+    expect(await push({ folderHidden: true, sessionFolder: "C:\\work\\proj" })).toBeNull()
+    expect(await windows("git push https://github.com/acme/app HEAD:fix")).toBeNull()
   })
 
   it("matches granted commands by their words", async () => {

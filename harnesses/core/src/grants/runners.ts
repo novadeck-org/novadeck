@@ -38,6 +38,9 @@ const wrappers = [
   "busybox",
   "sg",
   "newgrp",
+  "pkexec",
+  "run0",
+  "runas",
   // Launchers.
   "open",
   "xdg-open",
@@ -46,6 +49,7 @@ const wrappers = [
   "gio",
   "osascript",
   "explorer",
+  "wt",
   // Remote shells and terminal multiplexers.
   "ssh",
   "mosh",
@@ -141,12 +145,35 @@ const interpreters = [
   "just",
   "docker",
   "podman",
+  "uvx",
+  "pipx",
+  "conda",
+  "poetry",
+  "pdm",
+  "hatch",
+  "tox",
+  "nox",
+  "msbuild",
   // Tools with a command of their own: database shells and debuggers.
   "sqlite3",
   "psql",
   "mysql",
   "gdb",
   "lldb",
+  // Tools that run a program named in an option (`--to-command=`, `--rsh=`, `--use-compress-program=`,
+  // `--checkpoint-action=`, `--pager=`) or have a command of their own, and editors with shell escapes.
+  "tar",
+  "rsync",
+  "sort",
+  "zip",
+  "man",
+  "less",
+  "vim",
+  "nvim",
+  "emacs",
+  "reg",
+  "sc",
+  "bitsadmin",
 ]
 
 /**
@@ -192,7 +219,8 @@ export const windowsRunners: ReadonlySet<string> = new Set([
 ])
 
 const others: ReadonlySet<string> = new Set([...wrappers, ...interpreters])
-const python = /^(?:i|pt)?python[0-9.]*$|^pypy[0-9.]*$/
+// `python3.12`, `pythonw`, `ipython`, `pypy3` and the Windows launcher `py`.
+const python = /^(?:(?:i|pt)?python[0-9.]*w?|pypy[0-9.]*|pyw?)$/
 
 /** The program a word names: its basename, lower-cased, without an executable suffix. */
 export const programName = (word: string): string =>

@@ -83,6 +83,7 @@ export class Approving {
             exiting: record.terminal.exiting,
             projectFolder: host.projectFolder(record.summary.sessionId),
             folder: record.summary.cwd,
+            planning: record.bound?.activity.planning === true,
           }
         )
       },
