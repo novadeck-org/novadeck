@@ -33,22 +33,28 @@ fn after_program(line: &[u16]) -> &[u16] {
     &rest[rest.iter().take_while(|unit| blank(unit)).count()..]
 }
 
-/// Whether `rest` (the arguments `cmd` was given) is one of Novadeck's hook commands, which
-/// the Antigravity plugin writes as `if defined NOVADECK_HOOK (...)`; Antigravity runs it as
+/// Whether `rest` (the arguments `cmd` was given) is one of Novadeck's hook commands. The
+/// Antigravity plugin writes its hooks as `if defined NOVADECK_HOOK (...)`, and a narrowed
+/// terminal's PreToolUse as the relay alone, `<folder>\novadeck-relay.exe hook --config ...`
+/// (only its folder is ever shortened, never the file's name). Antigravity runs either as
 /// `cmd /c <that>`, with or without quotes round it. cmd's own case rules apply to the names.
 #[cfg(any(windows, test))]
 fn is_hook(rest: &[u16]) -> bool {
-    let marker: Vec<u16> = "if defined novadeck_hook".encode_utf16().collect();
     let lower = |unit: u16| match u8::try_from(unit) {
         Ok(byte) => u16::from(byte.to_ascii_lowercase()),
         Err(_) => unit,
     };
-    rest.windows(marker.len()).any(|window| {
-        window
-            .iter()
-            .zip(&marker)
-            .all(|(unit, want)| lower(*unit) == *want)
-    })
+    ["if defined novadeck_hook", "\\novadeck-relay.exe hook "]
+        .iter()
+        .any(|marker| {
+            let marker: Vec<u16> = marker.encode_utf16().collect();
+            rest.windows(marker.len()).any(|window| {
+                window
+                    .iter()
+                    .zip(&marker)
+                    .all(|(unit, want)| lower(*unit) == *want)
+            })
+        })
 }
 
 /// The arguments the real `cmd.exe` gets: `rest` as it is, with `/d ` before it for a hook.
@@ -215,6 +221,13 @@ mod tests {
         assert_eq!(passed(hook), format!("/d {hook}"));
         // Unquoted, and in any case.
         assert!(is_hook(&wide("/c IF DEFINED novadeck_hook (echo {})")));
+        // A narrowed terminal's PreToolUse: the relay alone, by its shortened folder.
+        let narrowed = r#"/c "C:\Users\RUNNER~1\AppData\Roaming\NOVADE~1\shell\novadeck-relay.exe hook --config C:\Users\RUNNER~1\AppData\Roaming\NOVADE~1\shell\relay.json""#;
+        assert!(is_hook(&wide(narrowed)));
+        assert_eq!(passed(narrowed), format!("/d {narrowed}"));
+        assert!(is_hook(&wide(
+            r"/c C:\X\NOVADECK-RELAY.EXE HOOK --config y"
+        )));
     }
 
     #[test]
@@ -223,6 +236,9 @@ mod tests {
             r#"/c "echo hi""#,
             r#"/s /c "node C:\a\marker.cjs""#,
             "/c echo %NOVADECK_HOOK%",
+            // The relay in any other mode, or a file merely named like it, is not a hook.
+            r"/c C:\X\novadeck-relay.exe mcp --config y",
+            r"/c type C:\X\novadeck-relay.exe.hook",
             "",
             "/k",
         ] {
