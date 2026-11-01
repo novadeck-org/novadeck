@@ -34,6 +34,14 @@ allowBuilds:
   koffi: false
   msw: false
   node-pty: true
+# A dependency version is accepted only once it has been published three days (the value is in
+# minutes), so a hijacked release is usually pulled before it reaches us. `pnpm install
+# --frozen-lockfile`, as CI runs it, checks every lockfile entry against it too (the current
+# lockfile passes), so a bump to a younger version fails CI. A security fix younger than that
+# is let in by its exact version in the list below (`name@version`), removed again once it is
+# old enough; `pnpm audit --fix` offers to add them. Dependabot's cooldown matches
+# (.github/dependabot.yml) and its security updates skip it.
+minimumReleaseAge: 4320
 minimumReleaseAgeExclude:
   - "@types/node@26.6.2"
 patchedDependencies:

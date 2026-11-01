@@ -12,6 +12,10 @@ updates:
       interval: "monthly"
       time: "09:00"
       timezone: "Europe/Warsaw"
+    # The same three days pnpm's minimumReleaseAge (pnpm-workspace.yaml) holds a new version
+    # back, so an update never names one pnpm would refuse. Security updates skip it.
+    cooldown:
+      default-days: 3
     groups:
       npm:
         patterns:
