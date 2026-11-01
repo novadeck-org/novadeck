@@ -4,7 +4,7 @@ import { tmpdir } from "node:os"
 import { join } from "node:path"
 
 import { deniedAnswer } from "@novadeck/harness-agy/narrow"
-import { maxCommand, type GrantScope } from "@novadeck/harness-core/grants"
+import { maxCommand, type GrantScope, type RolloutCall } from "@novadeck/harness-core/grants"
 import type { Report } from "@novadeck/harness-core/report"
 
 import { harnesses } from "../harnesses/registry.js"
@@ -42,6 +42,8 @@ const bash = (command: string, extra: object = {}) => ({
   session_id: "s",
   cwd: project,
   permission_mode: "default",
+  turn_id: "turn-1",
+  transcript_path: "/h/.codex/sessions/rollout-1.jsonl",
   hook_event_name: "PreToolUse",
   tool_name: "Bash",
   tool_input: { command, description: "Run it" },
@@ -75,6 +77,8 @@ type Fixture = {
   readonly deny: (command: string, given?: { token?: string }) => void
   /** What each folder holds, by path; a folder not named holds nothing. */
   readonly folders: Map<string, string[]>
+  /** What Codex's rollout says of the call. */
+  readonly rollout: { value: RolloutCall | undefined }
   /** The folder the terminal's shell is in. */
   readonly shell: { folder: string; planning: boolean }
   /** The directory of the launch settings. */
@@ -99,6 +103,7 @@ const fixture = (
     verified: () => Promise.resolve(true),
     userRules: rules,
   })
+  const rollout: { value: RolloutCall | undefined } = { value: { workdir: null, planning: false } }
   const folders = new Map<string, string[]>()
   const shell = { folder: project, planning: false }
   const host: PermissionsHost = {
@@ -122,12 +127,13 @@ const fixture = (
       pushUrls: () => Promise.resolve(undefined),
       resolve: () => Promise.resolve(null),
       followsTags: () => Promise.resolve(false),
-      pushTarget: (_cwd, url) => Promise.resolve(url),
+      recursesSubmodules: () => Promise.resolve(false),
+      pushTarget: (_cwd, url) => Promise.resolve([url]),
     },
     fs: {
       real: () => Promise.resolve(undefined),
       names: (folder) => Promise.resolve(folders.get(folder) ?? []),
-      workdir: () => Promise.resolve(undefined),
+      codexCall: () => Promise.resolve(rollout.value),
     },
     now: () => clock.now,
   }
@@ -155,6 +161,7 @@ const fixture = (
     narrowing,
     used,
     clock,
+    rollout,
     folders,
     shell,
     directory,
@@ -320,6 +327,8 @@ describe("Claude Code's permission check", () => {
       cwd,
       hook_event_name: "PermissionRequest",
       permission_mode: "default",
+      turn_id: "turn-1",
+      transcript_path: "/h/.codex/sessions/rollout-1.jsonl",
       tool_name: "Bash",
       tool_input: { command: "uberepo ship x", description: "Ship" },
     })
@@ -345,20 +354,32 @@ describe("Claude Code's permission check", () => {
   it("allows nothing while the agent plans, as Codex's rollout says and its hooks don't", async ({
     resources,
   }) => {
-    const { ask, used, shell } = fixture(resources)
+    const { ask, used, shell, rollout } = fixture(resources)
     const codex = {
       session_id: "s",
       cwd: project,
       hook_event_name: "PermissionRequest",
       permission_mode: "default",
+      turn_id: "turn-1",
+      transcript_path: "/h/.codex/sessions/rollout-1.jsonl",
       tool_name: "Bash",
       tool_input: { command: "uberepo ship x", description: "Ship" },
     }
     expect((await ask("codex", "PermissionRequest", codex)).stdout).toBe(allowedLine("codex"))
+    // Its rollout says the turn plans, or doesn't say: no grant either way.
+    rollout.value = { workdir: null, planning: true }
+    expect((await ask("codex", "PermissionRequest", codex)).stdout).toBe("")
+    rollout.value = { workdir: null, planning: undefined }
+    expect((await ask("codex", "PermissionRequest", codex)).stdout).toBe("")
+    rollout.value = undefined
+    expect((await ask("codex", "PermissionRequest", codex)).stdout).toBe("")
+    rollout.value = { workdir: null, planning: false }
+    expect((await ask("codex", "PermissionRequest", codex)).stdout).toBe(allowedLine("codex"))
+    // Or Novadeck's own activity says it plans.
     shell.planning = true
     expect((await ask("codex", "PermissionRequest", codex)).stdout).toBe("")
     expect((await ask("claude", "PreToolUse", bash("uberepo ship x"))).stdout).toBe("")
-    expect(used).toHaveLength(1)
+    expect(used).toHaveLength(2)
   })
 
   it("allows nothing when the payload holds a field it doesn't know", async ({ resources }) => {

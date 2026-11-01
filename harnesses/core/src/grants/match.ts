@@ -46,17 +46,21 @@ export const matchCall = async (
   if (!lexed.ok) return null
   if (call.cwd !== null && !inside(call.cwd, projectRoot)) return null
   const { argv } = lexed
-  // Codex's call folder is in its rollout, not its hook: the call's `workdir`, else the session's.
+  // Codex's hooks name neither the call's `workdir` nor its mode: its rollout does. A call whose
+  // rollout can't be read, or whose turn plans or is not known not to, is no match.
   let callFolder = call.cwd
-  if (callFolder === null && call.rollout !== undefined && call.sessionFolder !== undefined) {
-    const workdir = await Promise.resolve()
-      .then(() => fs.workdir(call.rollout!, call.command))
+  if (call.folderHidden === true) {
+    if (call.rollout === undefined) return null
+    const rollout = call.rollout
+    const said = await Promise.resolve()
+      .then(() => fs.codexCall(rollout, call.command))
       .catch(() => undefined)
-    if (workdir !== undefined) {
+    if (said === undefined || said.planning !== false) return null
+    if (said.workdir !== undefined && call.sessionFolder !== undefined) {
       callFolder =
-        workdir === null
+        said.workdir === null
           ? call.sessionFolder
-          : flavourOf(call.sessionFolder, workdir).resolve(call.sessionFolder, workdir)
+          : flavourOf(call.sessionFolder, said.workdir).resolve(call.sessionFolder, said.workdir)
       if (!inside(callFolder, projectRoot)) return null
     }
   }

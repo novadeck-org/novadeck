@@ -41,21 +41,23 @@ const lines = (out: string): string[] => out.split("\n").filter((line) => line !
  * `url` as `git push <url>` reads it: the configuration's `url.<base>.pushInsteadOf` rewrites
  * it when one of its values starts it, else `url.<base>.insteadOf` does; the longest matching
  * value wins, as in git's own `alias_url`. `entries` is `git config --null --get-regexp` of
- * those keys: `key\nvalue\0` each.
+ * those keys: `key\nvalue\0` each. Undefined for a rule git reads as matching every URL (an
+ * empty value) or without a value, which are not modelled: the caller refuses.
  */
-export const rewrittenPushUrl = (url: string, entries: string): string => {
+export const rewrittenPushUrl = (url: string, entries: string): string | undefined => {
   const best = { push: { length: -1, base: "" }, fetch: { length: -1, base: "" } }
   for (const entry of entries.split("\0")) {
+    if (entry === "") continue
     const newline = entry.indexOf("\n")
-    if (newline < 0) continue
-    const key = entry.slice(0, newline)
-    const prefix = entry.slice(newline + 1)
+    const key = newline < 0 ? entry : entry.slice(0, newline)
+    const prefix = newline < 0 ? "" : entry.slice(newline + 1)
     const dot = key.lastIndexOf(".")
     if (!key.toLowerCase().startsWith("url.") || dot <= 3) continue
+    if (prefix === "") return undefined
     const kind = key.slice(dot + 1).toLowerCase()
     const found =
       kind === "pushinsteadof" ? best.push : kind === "insteadof" ? best.fetch : undefined
-    if (found && prefix !== "" && url.startsWith(prefix) && prefix.length > found.length) {
+    if (found && url.startsWith(prefix) && prefix.length > found.length) {
       found.length = prefix.length
       found.base = key.slice(4, dot)
     }
@@ -91,14 +93,30 @@ export const gitLookups: GitLookups = {
     if ("out" in run) return run.out.trim() === "true"
     return run.code === 1 ? false : undefined
   },
+  // A remote section named like the URL (`remote.<url>.url`/`.pushurl`) is what `git push <url>`
+  // pushes to; with none (exit 2) the URL goes through the configuration's rewrites.
   pushTarget: async (cwd, url) => {
+    if (url === "" || url.startsWith("-")) return undefined
+    const named = await git(cwd, ["remote", "get-url", "--push", "--all", url])
+    if ("out" in named) return lines(named.out)
+    if (named.code !== 2) return undefined
     const run = await git(cwd, [
       "config",
       "--null",
       "--get-regexp",
       "^url\\..*\\.(insteadof|pushinsteadof)$",
     ])
-    if ("out" in run) return rewrittenPushUrl(url, run.out)
-    return run.code === 1 ? url : undefined
+    const target = "out" in run ? rewrittenPushUrl(url, run.out) : run.code === 1 ? url : undefined
+    return target === undefined ? undefined : [target]
+  },
+  // `push.recurseSubmodules` (anything but no/false) and `submodule.recurse` make a push go
+  // on into the submodules' own remotes. Unset exits 1.
+  recursesSubmodules: async (cwd) => {
+    const push = await git(cwd, ["config", "--get", "push.recurseSubmodules"])
+    if ("out" in push && !/^(no|false|off|0)$/i.test(push.out.trim())) return true
+    if (!("out" in push) && push.code !== 1) return undefined
+    const sub = await git(cwd, ["config", "--bool", "--get", "submodule.recurse"])
+    if ("out" in sub) return sub.out.trim() === "true"
+    return sub.code === 1 ? false : undefined
   },
 }

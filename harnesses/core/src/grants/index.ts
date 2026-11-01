@@ -8,4 +8,4 @@ export {
   novadeckMcpTools,
 } from "./payload.js"
 export { normalizeRepoUrl } from "./repo.js"
-export { rolloutWorkdir } from "./rollout.js"
+export { rolloutCall, type RolloutCall } from "./rollout.js"

@@ -167,11 +167,11 @@ describe("the git lookups", () => {
       try {
         const bare = join(base, "remote.git")
         const push = `git push ${granted} fix:feat-a`
-        expect(await gitLookups.pushTarget(local, granted)).toBe(granted)
+        expect(await gitLookups.pushTarget(local, granted)).toEqual([granted])
         expect(await matcher(local, push)).not.toBeNull()
         // The granted URL now reaches another repository: git pushes to the scratch one.
         git(local, "config", `url.${bare}.insteadOf`, granted)
-        expect(await gitLookups.pushTarget(local, granted)).toBe(bare)
+        expect(await gitLookups.pushTarget(local, granted)).toEqual([bare])
         expect(await matcher(local, push)).toBeNull()
         git(local, "push", "-q", granted, "fix:feat-a")
         expect(remoteRefs()).toEqual(["refs/heads/feat-a"])
@@ -183,8 +183,113 @@ describe("the git lookups", () => {
           "url.https://github.com/evil/.pushInsteadOf",
           "https://github.com/acme/",
         )
-        expect(await gitLookups.pushTarget(local, granted)).toBe("https://github.com/evil/app")
+        expect(await gitLookups.pushTarget(local, granted)).toEqual(["https://github.com/evil/app"])
         expect(await matcher(local, push)).toBeNull()
+      } finally {
+        done()
+      }
+    })
+
+    it("reads a remote section named like the URL, which git pushes to instead", async () => {
+      const { local, base, git, remoteRefs, done } = scratch()
+      try {
+        const bare = join(base, "remote.git")
+        const push = `git push ${granted} fix:feat-a`
+        expect(await matcher(local, push)).not.toBeNull()
+        git(local, "config", `remote.${granted}.url`, bare)
+        expect(await gitLookups.pushTarget(local, granted)).toEqual([bare])
+        expect(await matcher(local, push)).toBeNull()
+        // A pushurl of the section wins, and is checked like any push URL.
+        git(local, "config", `remote.${granted}.url`, granted)
+        git(local, "config", `remote.${granted}.pushurl`, bare)
+        expect(await gitLookups.pushTarget(local, granted)).toEqual([bare])
+        expect(await matcher(local, push)).toBeNull()
+        // The control: git sends the branch to the section's URL.
+        git(local, "push", "-q", granted, "fix:feat-a")
+        expect(remoteRefs()).toEqual(["refs/heads/feat-a"])
+        git(local, "config", "--unset", `remote.${granted}.pushurl`)
+        expect(await matcher(local, push)).not.toBeNull()
+      } finally {
+        done()
+      }
+    })
+
+    it("refuses an empty insteadOf or pushInsteadOf, which git reads as matching every URL", async () => {
+      const { local, base, git, remoteRefs, done } = scratch()
+      try {
+        const bare = join(base, "remote.git")
+        const push = `git push ${granted} fix:feat-a`
+        git(local, "config", `url.${bare}.pushInsteadOf`, "")
+        expect(await gitLookups.pushTarget(local, granted)).toBeUndefined()
+        expect(await matcher(local, push)).toBeNull()
+        git(local, "config", "--unset-all", `url.${bare}.pushInsteadOf`)
+        git(local, "config", `url.${bare}.insteadOf`, "")
+        expect(await matcher(local, push)).toBeNull()
+        // The control: git pushes the granted URL's branch to the base, a path with it appended.
+        expect(() => git(local, "push", "-q", granted, "fix:feat-a")).toThrow(/not supported/)
+        expect(remoteRefs()).toEqual([])
+      } finally {
+        done()
+      }
+    })
+
+    it("pushes on into a submodule's own remote only when recursion is off", async () => {
+      const { local, base, git, remoteRefs, done } = scratch()
+      try {
+        const sub = join(base, "sub.git")
+        const seed = join(base, "seed")
+        mkdirSync(sub)
+        git(sub, "init", "--bare", "-q", "-b", "main")
+        mkdirSync(seed)
+        git(seed, "init", "-q", "-b", "main")
+        git(seed, "commit", "-q", "--allow-empty", "-m", "s1")
+        git(seed, "push", "-q", sub, "main")
+        git(local, "-c", "protocol.file.allow=always", "submodule", "add", "-q", sub, "inner")
+        git(local, "commit", "-q", "-m", "add the submodule")
+        const inner = join(local, "inner")
+        const subRefs = () =>
+          git(sub, "for-each-ref", "--format=%(refname) %(objectname)").split("\n").filter(Boolean)
+        const commitInner = (name: string) => {
+          git(inner, "checkout", "-q", "-B", "main")
+          git(inner, "commit", "-q", "--allow-empty", "-m", name)
+          // A recursive push repeats the refspec in the submodule: it needs a branch of that name.
+          git(inner, "branch", "-f", "fix", "HEAD")
+          git(local, "commit", "-q", "-a", "-m", name)
+        }
+        const push = (flags = "") => `git push ${flags}origin fix:feat-a`
+        const before = subRefs()
+        git(local, "branch", "-f", "fix", "HEAD")
+        expect(await matcher(local, push())).not.toBeNull()
+        for (const [key, value] of [
+          ["push.recurseSubmodules", "on-demand"],
+          ["push.recurseSubmodules", "check"],
+          ["submodule.recurse", "true"],
+        ] as const) {
+          git(local, "config", key, value)
+          // eslint-disable-next-line no-await-in-loop -- One setting at a time.
+          expect(await gitLookups.recursesSubmodules(local), `${key}=${value}`).toBe(true)
+          // eslint-disable-next-line no-await-in-loop -- As above.
+          expect(await matcher(local, push()), `${key}=${value}`).toBeNull()
+          // eslint-disable-next-line no-await-in-loop -- As above.
+          expect(await matcher(local, push("--recurse-submodules=no ")), key).not.toBeNull()
+          git(local, "config", "--unset", key)
+        }
+        git(local, "config", "push.recurseSubmodules", "no")
+        expect(await gitLookups.recursesSubmodules(local)).toBe(false)
+        git(local, "config", "--unset", "push.recurseSubmodules")
+        expect(await gitLookups.recursesSubmodules(local)).toBe(false)
+        // The control: with recursion on, git pushes the submodule's new commit to its remote;
+        // with the flag it doesn't.
+        git(local, "config", "push.recurseSubmodules", "on-demand")
+        commitInner("one")
+        git(local, "branch", "-f", "fix", "HEAD")
+        git(local, "push", "-q", "--recurse-submodules=no", "origin", "fix:feat-a")
+        expect(subRefs()).toEqual(before)
+        commitInner("two")
+        git(local, "branch", "-f", "fix", "HEAD")
+        git(local, "push", "-q", "origin", "fix:feat-b")
+        expect(subRefs()).not.toEqual(before)
+        expect(remoteRefs()).toContain("refs/heads/feat-b")
       } finally {
         done()
       }
@@ -219,6 +324,13 @@ describe("the program lookup", () => {
 
 describe("a URL as git push reads it", () => {
   const entries = (...pairs: [string, string][]) => pairs.map(([k, v]) => `${k}\n${v}\0`).join("")
+
+  it("is no URL at all for a rule git reads as matching every URL, or one without a value", () => {
+    const url = "https://github.com/a/b"
+    expect(rewrittenPushUrl(url, entries(["url.X/.insteadof", ""]))).toBeUndefined()
+    expect(rewrittenPushUrl(url, entries(["url.X/.pushinsteadof", ""]))).toBeUndefined()
+    expect(rewrittenPushUrl(url, "url.X/.insteadof\0")).toBeUndefined()
+  })
 
   it("is the URL itself without a rule, and an unrelated rule changes nothing", () => {
     expect(rewrittenPushUrl("https://github.com/a/b", "")).toBe("https://github.com/a/b")

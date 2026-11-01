@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it } from "vitest"
 
-import type { FsLookups, GitLookups, GrantRepo, GrantScope } from "../grants.js"
+import type { FsLookups, GitLookups, GrantRepo, GrantScope, RolloutCall } from "../grants.js"
 import { matchCall } from "./match.js"
 
 const root = "/work/proj"
@@ -34,22 +34,26 @@ const git: GitLookups = {
     return name === "HEAD" ? head.value : name.startsWith("new-") ? null : `refs/heads/${name}`
   },
   followsTags: async () => follows.value,
-  pushTarget: async (_cwd, url) => rewrites.get(url) ?? url,
+  recursesSubmodules: async () => recurses.value,
+  pushTarget: async (_cwd, url) => rewrites.get(url) ?? [url],
 }
 const follows: { value: boolean | undefined } = { value: false }
-const rewrites = new Map<string, string>()
+const rewrites = new Map<string, readonly string[]>()
+const recurses: { value: boolean | undefined } = { value: false }
 const head = { value: "refs/heads/fix" as string | null }
 const resolved: string[] = []
 const broken = new Set<string>()
 const tags: Record<string, string> = { "v1.0.0": "refs/tags/v1.0.0", "tags/v1": "refs/tags/v1" }
 
 // The disk: every path is a regular file that is its own real path, unless a test says otherwise.
-const workdirs = new Map<string, string | null | undefined>()
+const codex = new Map<string, RolloutCall | undefined>()
+const said = (command: string, workdir: string | null | undefined, planning = false) =>
+  codex.set(command, { workdir, planning })
 const links = new Map<string, { path: string; file: boolean } | undefined>()
 const present = new Set<string>()
 const fs: FsLookups = {
   real: async (path) => (links.has(path) ? links.get(path) : { path, file: true }),
-  workdir: async (_rollout, command) => workdirs.get(command),
+  codexCall: async (_rollout, command) => codex.get(command),
   names: async (folder) =>
     [...present]
       .filter((path) => path.slice(0, path.search(/[\\/][^\\/]*$/)) === folder)
@@ -61,7 +65,8 @@ beforeEach(() => {
   resolved.length = 0
   broken.clear()
   rewrites.clear()
-  workdirs.clear()
+  codex.clear()
+  recurses.value = false
   follows.value = false
   head.value = "refs/heads/fix"
 })
@@ -222,10 +227,10 @@ describe("the push preset", () => {
 
   it("reads a URL as git rewrites it in the folder, and refuses one it can't", async () => {
     const url = "https://github.com/acme/app"
-    rewrites.set(url, "https://github.com/evil/app")
+    rewrites.set(url, ["https://github.com/evil/app"])
     expect(await allowed(`git push ${url} fix:fix`)).toBe(false)
     // A form that is not a GitHub URL as typed is none, whatever it would be rewritten to.
-    rewrites.set("gh:acme/app", url)
+    rewrites.set("gh:acme/app", [url])
     expect(await allowed("git push gh:acme/app fix:fix")).toBe(false)
     const unknown: GitLookups = { ...git, pushTarget: async () => undefined }
     expect(
@@ -259,18 +264,18 @@ describe("the push preset", () => {
     // The rollout can't say, or the payload names none: no folder, no push.
     expect(await push()).toBeNull()
     expect(await push(false)).toBeNull()
-    workdirs.set(command, null)
+    said(command, null)
     expect(await push()).not.toBeNull()
     expect(resolved[0]).toBe("/work/proj fix")
-    workdirs.set(command, "pkg/sub")
+    said(command, "pkg/sub")
     resolved.length = 0
     expect(await push()).not.toBeNull()
     expect(resolved[0]).toBe("/work/proj/pkg/sub fix")
     expect(await push(false)).toBeNull()
     // Outside the project, or a rollout that fails, is no match.
-    workdirs.set(command, "/elsewhere")
+    said(command, "/elsewhere")
     expect(await push()).toBeNull()
-    workdirs.set(command, "../other")
+    said(command, "../other")
     expect(await push()).toBeNull()
   })
 
@@ -291,10 +296,71 @@ describe("the push preset", () => {
         "C:\\work\\proj",
         fs,
       )
-    workdirs.set(command, "pkg")
+    said(command, "pkg")
     expect(await ready()).not.toBeNull()
     present.add("C:\\work\\proj\\pkg\\gh.js")
     expect(await ready()).toBeNull()
+  })
+
+  it("pushes on into submodules' own remotes only with them switched off", async () => {
+    expect(await allowed("git push origin fix:new-x")).toBe(true)
+    recurses.value = true
+    expect(await allowed("git push origin fix:new-x")).toBe(false)
+    expect(await allowed("git push --recurse-submodules=no origin fix:new-x")).toBe(true)
+    expect(await allowed("git push --no-recurse-submodules origin fix:new-x")).toBe(true)
+    recurses.value = undefined
+    expect(await allowed("git push origin fix:new-x")).toBe(false)
+    expect(await allowed("git push --recurse-submodules=no origin fix:new-x")).toBe(true)
+    for (const flag of [
+      "--recurse-submodules",
+      "--recurse-submodules=on-demand",
+      "--recurse-submodules=check",
+    ])
+      // eslint-disable-next-line no-await-in-loop -- One flag at a time.
+      expect(await allowed(`git push ${flag} origin fix:new-x`), flag).toBe(false)
+  })
+
+  it("needs every place a URL pushes to to be the granted repo", async () => {
+    const url = "https://github.com/acme/app"
+    rewrites.set(url, [url, "https://github.com/evil/app"])
+    expect(await allowed(`git push ${url} fix:fix`)).toBe(false)
+    rewrites.set(url, [])
+    expect(await allowed(`git push ${url} fix:fix`)).toBe(false)
+    rewrites.set(url, [url, "git@github.com:acme/app.git"])
+    expect(await allowed(`git push ${url} fix:fix`)).toBe(true)
+  })
+
+  it("takes nothing from a Codex turn that plans, or whose mode its rollout doesn't say", async () => {
+    const command = "gh pr ready 12 -R acme/app"
+    const call = (over: object = {}) =>
+      matchCall(
+        {
+          command,
+          cwd: null,
+          sessionFolder: "/work/proj",
+          folderHidden: true,
+          rollout: { path: "/h/rollout-1.jsonl", turn: "t" },
+          ...over,
+        },
+        [
+          scope({
+            commands: [{ argv: ["gh", "pr", "ready", "12", "-R", "acme/app"], rest: false }],
+          }),
+        ],
+        git,
+        root,
+        fs,
+      )
+    said(command, undefined)
+    expect(await call()).not.toBeNull()
+    said(command, undefined, true)
+    expect(await call()).toBeNull()
+    codex.set(command, { workdir: undefined, planning: undefined })
+    expect(await call()).toBeNull()
+    codex.delete(command)
+    expect(await call()).toBeNull()
+    said(command, undefined)
+    expect(await call({ rollout: undefined })).toBeNull()
   })
 
   it("refuses any push where no folder is known to ask git in, HEAD and a URL too", async () => {
@@ -341,6 +407,8 @@ describe("the push preset", () => {
       { ...fine, resolve: () => new Promise(() => undefined) },
       // Tags followed where that can't be told, or is on.
       { ...fine, followsTags: async () => undefined },
+      { ...fine, recursesSubmodules: async () => undefined },
+      { ...fine, recursesSubmodules: async () => true },
       { ...fine, followsTags: async () => true },
       { ...fine, followsTags: () => new Promise(() => undefined) },
     ]

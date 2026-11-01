@@ -1,7 +1,7 @@
 import { open, readdir, realpath, stat } from "node:fs/promises"
 import { basename } from "node:path"
 
-import { rolloutWorkdir, type FsLookups } from "@novadeck/harness-core/grants"
+import { rolloutCall, type FsLookups } from "@novadeck/harness-core/grants"
 
 /** The longest the disk may take to answer one lookup; past it the call matches nothing. */
 export const fsMs = 1_000
@@ -23,7 +23,7 @@ const capped = <T>(work: Promise<T>): Promise<T | undefined> =>
   })
 
 // The most of a rollout's end read for a call: the call is among its latest lines.
-const rolloutTail = 8 * 1024 * 1024
+const rolloutTail = 16 * 1024 * 1024
 
 // Codex's rollouts are `rollout-<time>-<session>.jsonl`; no other file is read for a call.
 const isRollout = (path: string): boolean => /^rollout-.+\.jsonl$/.test(basename(path))
@@ -43,7 +43,7 @@ const tail = async (path: string): Promise<string> => {
 
 /**
  * What the matcher reads of the disk: a path's real path (symlinks followed) and whether it
- * is a regular file, the names in a folder, and the folder a Codex call runs in. An error or a timeout is undefined, and the
+ * is a regular file, the names in a folder, and what Codex's rollout says of a call (its folder and its turn's mode). An error or a timeout is undefined, and the
  * matcher then lets nothing through.
  */
 export const fsLookups: FsLookups = {
@@ -51,9 +51,9 @@ export const fsLookups: FsLookups = {
     capped(
       realpath(path).then(async (real) => ({ path: real, file: (await stat(real)).isFile() })),
     ),
-  workdir: ({ path, turn }, command) =>
+  codexCall: ({ path, turn }, command) =>
     isRollout(path)
-      ? capped(tail(path).then((text) => rolloutWorkdir(text, turn, command)))
+      ? capped(tail(path).then((text) => rolloutCall(text, turn, command)))
       : Promise.resolve(undefined),
   names: (path) =>
     capped(

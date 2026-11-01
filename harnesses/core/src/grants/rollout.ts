@@ -7,22 +7,32 @@ const record = (value: unknown): Record<string, unknown> | undefined =>
     ? (value as Record<string, unknown>)
     : undefined
 
+/** What Codex's rollout says of one exec call: where it runs, and whether its turn is planning. */
+export type RolloutCall = {
+  /** The call's `workdir` as written, null where it names none; undefined where it can't be told. */
+  readonly workdir: string | null | undefined
+  /** Whether the turn is in Plan Mode; undefined where the rollout doesn't say. */
+  readonly planning: boolean | undefined
+}
+
 /**
- * The `workdir` of the one `exec_command` call of `turn` whose `cmd` is `command` and that has
- * no output yet, from the rollout's `text`: the folder as the model wrote it, null where the
- * call names none (it runs in the session's folder). Undefined where it can't be told: no such
- * call on disk yet, more than one, or a `workdir` that isn't text. Lines that aren't whole
- * (the cut start of a tail) are skipped.
+ * What the rollout's `text` says of the `exec_command` call of `turn` whose `cmd` is `command`.
+ * - `workdir`: that of the one such call with no output yet, which must also be the turn's last
+ *   `exec_command` on disk (the call being asked about is the newest). Undefined where there is
+ *   none, more than one, an older call is the pending one, or the `workdir` isn't text.
+ * - `planning`: the turn's `task_started` (`collaboration_mode_kind`) and `turn_context`
+ *   (`collaboration_mode.mode`) name its mode: planning if either says `plan`, not planning if
+ *   one says another mode, undefined if neither is on disk.
+ * Lines that aren't whole (the cut start of a tail) are skipped.
  */
-export const rolloutWorkdir = (
-  text: string,
-  turn: string,
-  command: string,
-): string | null | undefined => {
+export const rolloutCall = (text: string, turn: string, command: string): RolloutCall => {
   const pending = new Map<string, unknown>()
   const done = new Set<string>()
+  const modes: boolean[] = []
+  let last: string | undefined
   for (const line of text.split("\n")) {
-    if (!line.includes("function_call")) continue
+    const calls = line.includes("function_call")
+    if (!calls && !line.includes("task_started") && !line.includes("turn_context")) continue
     let item: Record<string, unknown> | undefined
     try {
       item = record(JSON.parse(line))
@@ -30,13 +40,25 @@ export const rolloutWorkdir = (
       continue
     }
     const payload = record(item?.["payload"])
-    if (item?.["type"] !== "response_item" || payload === undefined) continue
+    if (payload === undefined) continue
+    if (item?.["type"] === "event_msg" && payload["type"] === "task_started") {
+      if (payload["turn_id"] === turn && typeof payload["collaboration_mode_kind"] === "string")
+        modes.push(payload["collaboration_mode_kind"] === "plan")
+      continue
+    }
+    if (item?.["type"] === "turn_context") {
+      const mode = record(payload["collaboration_mode"])?.["mode"]
+      if (payload["turn_id"] === turn && typeof mode === "string") modes.push(mode === "plan")
+      continue
+    }
+    if (item?.["type"] !== "response_item") continue
     const id = payload["call_id"]
     if (typeof id !== "string") continue
     if (payload["type"] === "function_call_output") done.add(id)
     if (payload["type"] !== "function_call" || payload["name"] !== "exec_command") continue
     if (record(payload["internal_chat_message_metadata_passthrough"])?.["turn_id"] !== turn)
       continue
+    last = id
     let args: Record<string, unknown> | undefined
     try {
       args = record(JSON.parse(String(payload["arguments"])))
@@ -45,9 +67,11 @@ export const rolloutWorkdir = (
     }
     if (args?.["cmd"] === command) pending.set(id, args["workdir"] ?? null)
   }
+  const planning = modes.length === 0 ? undefined : modes.includes(true)
   const open = [...pending].filter(([id]) => !done.has(id))
-  if (open.length !== 1) return undefined
-  const workdir = (open[0] as [string, unknown])[1]
-  if (workdir === null || workdir === "") return null
-  return typeof workdir === "string" ? workdir : undefined
+  if (open.length !== 1) return { workdir: undefined, planning }
+  const [id, workdir] = open[0] as [string, unknown]
+  if (id !== last) return { workdir: undefined, planning }
+  if (workdir === null || workdir === "") return { workdir: null, planning }
+  return { workdir: typeof workdir === "string" ? workdir : undefined, planning }
 }

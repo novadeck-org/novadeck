@@ -59,7 +59,7 @@ describe("the disk lookups", () => {
     }
   })
 
-  it("read the workdir Codex's rollout records for a call, and read no other file", async () => {
+  it("read what Codex's rollout records of a call: its workdir and its turn's mode, and read no other file", async () => {
     const { root, done } = folder()
     try {
       const line = (id: string, cmd: string, workdir: string) =>
@@ -73,18 +73,36 @@ describe("the disk lookups", () => {
             internal_chat_message_metadata_passthrough: { turn_id: "t-1" },
           },
         })
-      const body = `${line("a", "git status", "/w/a")}\n${line("b", "touch x", "/w/b")}\n`
+      const started = JSON.stringify({
+        type: "event_msg",
+        payload: { type: "task_started", turn_id: "t-1", collaboration_mode_kind: "default" },
+      })
+      const body = `${started}\n${line("a", "git status", "/w/a")}\n${line("b", "touch x", "/w/b")}\n`
       const rollout = join(root, "rollout-2026-11-01T20-34-16-abc.jsonl")
       writeFileSync(rollout, body)
       writeFileSync(join(root, "notes.jsonl"), body)
-      expect(await fsLookups.workdir({ path: rollout, turn: "t-1" }, "touch x")).toBe("/w/b")
-      expect(await fsLookups.workdir({ path: rollout, turn: "t-2" }, "touch x")).toBeUndefined()
-      expect(await fsLookups.workdir({ path: rollout, turn: "t-1" }, "other")).toBeUndefined()
+      expect(await fsLookups.codexCall({ path: rollout, turn: "t-1" }, "touch x")).toEqual({
+        workdir: "/w/b",
+        planning: false,
+      })
+      // The older call isn't the newest, and another turn has no mode on disk.
+      expect(await fsLookups.codexCall({ path: rollout, turn: "t-1" }, "git status")).toMatchObject(
+        {
+          workdir: undefined,
+        },
+      )
+      expect(await fsLookups.codexCall({ path: rollout, turn: "t-2" }, "touch x")).toEqual({
+        workdir: undefined,
+        planning: undefined,
+      })
       expect(
-        await fsLookups.workdir({ path: join(root, "notes.jsonl"), turn: "t-1" }, "touch x"),
+        await fsLookups.codexCall({ path: join(root, "notes.jsonl"), turn: "t-1" }, "touch x"),
       ).toBeUndefined()
       expect(
-        await fsLookups.workdir({ path: join(root, "rollout-gone.jsonl"), turn: "t-1" }, "touch x"),
+        await fsLookups.codexCall(
+          { path: join(root, "rollout-gone.jsonl"), turn: "t-1" },
+          "touch x",
+        ),
       ).toBeUndefined()
     } finally {
       done()

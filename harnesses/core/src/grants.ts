@@ -3,6 +3,8 @@
 // this one matcher; anything it can't read with certainty doesn't match, so the harness's own
 // check decides.
 
+import type { RolloutCall } from "./grants/rollout.js"
+
 /** A preset scope, matched by its allowlist (Appendix A2). */
 export type GrantPreset = "push" | "pr"
 
@@ -46,7 +48,7 @@ export type ShellCall = {
   readonly folderHidden?: true
   /**
    * Where Codex recorded the call: its rollout and the turn's id, which the permission hook
-   * names. The rollout holds the call's `workdir` (see `FsLookups.workdir`).
+   * names. The rollout holds the call's `workdir` and its turn's mode (see `FsLookups.codexCall`).
    */
   readonly rollout?: { readonly path: string; readonly turn: string }
 }
@@ -72,14 +74,13 @@ export type FsLookups = {
    * where that couldn't be told (an error other than absence, a timeout).
    */
   /**
-   * The `workdir` Codex's rollout records for the one pending exec call of the turn with this
-   * command (`rolloutWorkdir`): null where the call names none, undefined where that can't be
-   * told (unreadable, not on disk, ambiguous).
+   * What Codex's rollout says of the call (`rolloutCall`): its `workdir` and whether its turn
+   * plans. Undefined where the rollout can't be read.
    */
-  readonly workdir: (
+  readonly codexCall: (
     rollout: { readonly path: string; readonly turn: string },
     command: string,
-  ) => Promise<string | null | undefined>
+  ) => Promise<RolloutCall | undefined>
   readonly names: (path: string) => Promise<readonly string[] | undefined>
 }
 
@@ -96,10 +97,16 @@ export type GitLookups = {
   /** Whether `push.followTags` is on in `cwd`; undefined where that couldn't be told. */
   readonly followsTags: (cwd: string) => Promise<boolean | undefined>
   /**
-   * Where `git push <url>` sends in `cwd`: `url` after the configuration's `pushInsteadOf`
-   * (else `insteadOf`) rewrite. Undefined where that couldn't be told.
+   * Whether a push in `cwd` goes on into submodules (`push.recurseSubmodules` other than no,
+   * or `submodule.recurse`); undefined where that couldn't be told.
    */
-  readonly pushTarget: (cwd: string, url: string) => Promise<string | undefined>
+  readonly recursesSubmodules: (cwd: string) => Promise<boolean | undefined>
+  /**
+   * Every place `git push <url>` sends in `cwd`: the push URLs of a remote section named like
+   * the URL, else the URL after the configuration's `pushInsteadOf` (else `insteadOf`) rewrite.
+   * Undefined where that couldn't be told or git's rewrite isn't modelled.
+   */
+  readonly pushTarget: (cwd: string, url: string) => Promise<readonly string[] | undefined>
 }
 
 /** A match: which grant entry let it through, for the use line. */
@@ -118,7 +125,8 @@ export {
   lexWindows,
   matchCall,
   normalizeRepoUrl,
-  rolloutWorkdir,
+  rolloutCall,
+  type RolloutCall,
   refusesCommand,
   type Lexed,
 } from "./grants/index.js"

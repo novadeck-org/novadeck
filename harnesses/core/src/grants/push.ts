@@ -5,7 +5,14 @@ import { normalizeRepoUrl, repoKey } from "./repo.js"
 
 const lookupLimit = 1000
 const remoteName = /^[A-Za-z0-9][A-Za-z0-9._-]*$/
-const options = new Set(["-u", "--set-upstream", "-q", "--no-follow-tags"])
+const options = new Set([
+  "-u",
+  "--set-upstream",
+  "-q",
+  "--no-follow-tags",
+  "--recurse-submodules=no",
+  "--no-recurse-submodules",
+])
 
 const reservedDestination = (name: string, repos: readonly GrantRepo[]): boolean => {
   const lower = name.toLowerCase()
@@ -39,6 +46,22 @@ const limited = async <T>(work: () => Promise<T>): Promise<T | undefined> => {
   }
 }
 
+// The granted repos `urls` are, one each, or undefined unless every one is a granted repo.
+const granting = (
+  urls: readonly string[] | undefined,
+  repos: readonly GrantRepo[],
+): readonly GrantRepo[] | undefined => {
+  if (urls === undefined || urls.length === 0) return undefined
+  const found: GrantRepo[] = []
+  for (const url of urls) {
+    const key = normalizeRepoUrl(url)?.toLowerCase()
+    const repo = key === undefined ? undefined : granted(key, repos)
+    if (repo === undefined) return undefined
+    found.push(repo)
+  }
+  return found
+}
+
 // The granted repos a remote argument reaches: its own URL as git reads it (after the
 // folder's `insteadOf` and `pushInsteadOf` rewrites), or every push URL of a named remote.
 const reached = async (
@@ -49,22 +72,11 @@ const reached = async (
 ): Promise<readonly GrantRepo[] | undefined> => {
   if (where === null) return undefined
   if (normalizeRepoUrl(remote) !== undefined) {
-    const url = await limited(() => git.pushTarget(where, remote))
-    const key = url === undefined ? undefined : normalizeRepoUrl(url)?.toLowerCase()
-    const repo = key === undefined ? undefined : granted(key, repos)
-    return repo && [repo]
+    const urls = await limited(() => git.pushTarget(where, remote))
+    return granting(urls, repos)
   }
   if (!remoteName.test(remote)) return undefined
-  const urls = await limited(() => git.pushUrls(where, remote))
-  if (urls === undefined || urls.length === 0) return undefined
-  const found: GrantRepo[] = []
-  for (const url of urls) {
-    const key = normalizeRepoUrl(url)?.toLowerCase()
-    const repo = key === undefined ? undefined : granted(key, repos)
-    if (repo === undefined) return undefined
-    found.push(repo)
-  }
-  return found
+  return granting(await limited(() => git.pushUrls(where, remote)), repos)
 }
 
 const heads = "refs/heads/"
@@ -116,8 +128,15 @@ export const matchesPush = async (
   if (!isBranchName(destination)) return false
   // Everything below reads the folder's git: none known, nothing is certain.
   if (refs === null) return false
-  // A push also sends the annotated tags its commits reach where `push.followTags` is on.
+  // A push also sends the annotated tags its commits reach where `push.followTags` is on, and
+  // goes on into the submodules' own remotes where they are recursed into.
   if (!flags.includes("--no-follow-tags") && (await limited(() => git.followsTags(refs))) !== false)
+    return false
+  if (
+    !flags.includes("--recurse-submodules=no") &&
+    !flags.includes("--no-recurse-submodules") &&
+    (await limited(() => git.recursesSubmodules(refs))) !== false
+  )
     return false
   const targets = await reached(remote, repos, git, refs)
   if (targets === undefined) return false

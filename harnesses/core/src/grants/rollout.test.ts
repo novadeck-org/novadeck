@@ -1,6 +1,9 @@
 import { describe, expect, it } from "vitest"
 
-import { rolloutWorkdir } from "./rollout.js"
+import { rolloutCall } from "./rollout.js"
+
+const rolloutWorkdir = (text: string, turn: string, command: string) =>
+  rolloutCall(text, turn, command).workdir
 
 const turn = "01a198d1-eb71-7e73-bc08-b87341b034be"
 const command = "touch /tmp/x/ran.txt"
@@ -79,5 +82,52 @@ describe("the folder Codex's rollout gives a call", () => {
         command,
       ),
     ).toBe("/w")
+  })
+})
+
+describe("the call must be the turn's newest exec_command", () => {
+  it("is undefined when a later exec_command of the turn is on disk", () => {
+    const later = call("b", { cmd: "ls" })
+    expect(rolloutCall(text(call("a", args), later), turn, command).workdir).toBeUndefined()
+    // Another turn's later call doesn't count.
+    expect(
+      rolloutCall(text(call("a", args), call("b", { cmd: "ls" }, { turn: "other" })), turn, command)
+        .workdir,
+    ).toBeNull()
+  })
+})
+
+const started = (id: string, kind: string) =>
+  JSON.stringify({
+    type: "event_msg",
+    payload: { type: "task_started", turn_id: id, collaboration_mode_kind: kind },
+  })
+const context = (id: string, mode: string) =>
+  JSON.stringify({
+    type: "turn_context",
+    payload: { turn_id: id, collaboration_mode: { mode, settings: {} } },
+  })
+
+describe("the turn's mode, from Codex's rollout", () => {
+  const planning = (...lines: string[]) =>
+    rolloutCall(text(...lines, call("a", args)), turn, command).planning
+
+  it("is planning where the turn's start or its context says plan", () => {
+    expect(planning(started(turn, "plan"))).toBe(true)
+    expect(planning(context(turn, "plan"))).toBe(true)
+    expect(planning(started(turn, "default"), context(turn, "plan"))).toBe(true)
+  })
+
+  it("is not planning where the turn's records name another mode", () => {
+    expect(planning(started(turn, "default"))).toBe(false)
+    expect(planning(context(turn, "default"))).toBe(false)
+    expect(planning(started(turn, "default"), context(turn, "default"))).toBe(false)
+  })
+
+  it("is undefined where the turn's mode isn't on disk, whatever other turns say", () => {
+    expect(planning()).toBeUndefined()
+    expect(planning(started("other", "default"), context("other", "default"))).toBeUndefined()
+    expect(planning(started(turn, "plan").slice(10))).toBeUndefined()
+    expect(planning(started("other", "plan"))).toBeUndefined()
   })
 })
