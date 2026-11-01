@@ -1181,7 +1181,15 @@ The [release workflow](../.github/workflows/release.yml) publishes immutable Git
 prereleases from qualifying changes on `main`, with notes, checksums, and native
 packages. It smoke-tests each packaged application before upload, installs the AppImage and
 the macOS app through `install.sh` served from a local copy of the release, and fails when
-the installed AppImage runs without Electron's sandbox. The workflow feeds
+the installed AppImage runs without Electron's sandbox. The packaged binary's Electron fuses
+(`electronFuses` in `apps/desktop/electron-builder.yml`) turn off running it as Node,
+`NODE_OPTIONS` and the inspect arguments, and turn on the asar integrity check and loading the app only
+from `app.asar` (the UI in `resources/ui` is outside that check); the smoke test reads them back. The smoke test drives the shipped binary itself over Chromium's
+remote debugging port (no fuse covers it) and quits it as a person does. What needs the app to
+run as Node or under Playwright's inspector (the smoke test's worker and koffi checks,
+`scripts/bench/profile`) uses `openedCopy` from `apps/desktop/scripts/fuses.mjs`: a copy of the
+app with only those three turned on (beside the executable on Linux and Windows; on macOS the
+whole bundle, copied to a scratch folder and signed ad hoc there). The workflow feeds
 its own repository into the update feed baked into each app and into `install.sh`, so
 moving the repository needs no edit. Conventional
 Commits determine release eligibility; versions are currently limited to patch

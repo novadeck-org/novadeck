@@ -26,6 +26,7 @@
     "node-pty": "catalog:"
   },
   "devDependencies": {
+    "@electron/fuses": "1.8.0",
     "@novadeck/build-kit": "workspace:*",
     "@novadeck/core": "workspace:*",
     "@novadeck/log": "workspace:*",
