@@ -5,9 +5,11 @@
 //! for as long as an agent runs and for every hook it runs.
 //!
 //! On Windows it also reads for the runner what it would otherwise start PowerShell or
-//! taskkill for: the registry's environment, and a terminal's process tree, which it ends.
+//! taskkill for: the registry's environment and cmd's AutoRun, and a terminal's process tree, which it ends.
 
 mod ancestors;
+#[cfg(any(windows, test))]
+mod autorun;
 mod endpoint;
 mod hook;
 mod idle;
@@ -45,6 +47,8 @@ const USAGE: &str = "usage: novadeck-relay mcp <server-version> <protocol-versio
        novadeck-relay hook [--config <relay.json>] [--<option> <value>]... <agent> [event]
        novadeck-relay --version
        novadeck-relay environment                    (Windows)
+       novadeck-relay autorun                        (Windows)
+       novadeck-relay autorun-set <sz|expand> <expected-b64> <new-b64>   (Windows)
        novadeck-relay tree <pid>[:<started-ms>]...   (Windows)
        novadeck-relay end <pid>:<started-ms>...      (Windows)";
 
@@ -96,6 +100,16 @@ fn main() -> ExitCode {
             registry::print();
             ExitCode::SUCCESS
         }
+        #[cfg(windows)]
+        Some((mode, _)) if mode == "autorun" => {
+            autorun::print();
+            ExitCode::SUCCESS
+        }
+        #[cfg(windows)]
+        Some((mode, rest)) if mode == "autorun-set" => match autorun::parse_swap(rest) {
+            Some(wanted) => autorun::set(&wanted),
+            None => usage(),
+        },
         #[cfg(windows)]
         Some((mode, rest)) if mode == "tree" => match roots(rest) {
             Some(roots) if processes::print_trees(&roots) => ExitCode::SUCCESS,
