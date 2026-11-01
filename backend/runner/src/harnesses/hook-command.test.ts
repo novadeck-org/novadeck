@@ -99,6 +99,34 @@ describe("a hook command", () => {
       }
     })
 
+  it("starts cmd with /d in PowerShell, as the launcher is a batch file and a printing AutoRun would stand before its JSON", () => {
+    for (const [agent, event] of [
+      ["claude", "Stop"],
+      ["codex", "UserPromptSubmit"],
+    ] as const) {
+      const command = hookCommand("powershell", { agent, event })
+      expect(command).toBe(
+        `if ($env:NOVADECK_HOOK -and (Test-Path -LiteralPath $env:NOVADECK_HOOK)) { & $(if ($env:ComSpec) { $env:ComSpec } else { 'cmd.exe' }) /d /c $env:NOVADECK_HOOK ${agent} ${event} }`,
+      )
+      // The launcher's path stays an argument read from the environment, so a space, `&` or
+      // an 8.3 name (C:\Users\RUNNER~1\...) in it is quoted by PowerShell, never spliced.
+      expect(command).not.toContain("RUNNER~1")
+    }
+  })
+
+  it.runIf(windows)(
+    "reaches the launcher through a cmd started with /d in PowerShell",
+    ({ resources }) => {
+      const folder = mkdtempSync(join(tmpdir(), "novadeck-hook-command-"))
+      resources.defer(() => rmSync(folder, { recursive: true, force: true }))
+      const hook = join(folder, "hook.cmd")
+      writeFileSync(hook, "@echo off\r\necho %cmdcmdline%\r\n")
+      const command = hookCommand("powershell", { agent: "claude", event: "Stop" })
+      const { stdout } = run("powershell", command, { NOVADECK_HOOK: hook })
+      expect(stdout).toMatch(/ \/d \/c /i)
+    },
+  )
+
   it("echoes in cmd only a fallback cmd prints as written", () => {
     expect(() => hookCommand("cmd", { agent: "agy", event: "Stop", fallback: '{"a":1}' })).toThrow()
     expect(() => hookCommand("cmd", { agent: "agy", event: "Stop", fallback: "a & b" })).toThrow()

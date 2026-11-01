@@ -161,11 +161,14 @@ export const setups = (selected: readonly string[], ids: readonly string[]): rea
 
 const core = "messaging.e2e.ts requests.e2e.ts lifecycle.e2e.ts"
 
+// Every harness: a message crossing under a cmd AutoRun that prints (the file sets it, on CI only).
+const autorunFile = "windows-autorun.e2e.ts"
+
 /**
  * The rows of the `quirks` job, one per selected harness. Each runs the core scenarios;
  * Claude Code's job also runs the registry's PATH, which needs no harness and so runs in
- * one job. Antigravity's runs its own AutoRun test (the file sets the AutoRun itself, on CI
- * only, and puts it back) and, last, the cmd AutoRun, as that turns Antigravity's messaging
+ * one job. Each also runs `windows-autorun.e2e.ts`, a message crossing under a printing AutoRun
+ * (the file sets it itself, on CI only, and puts it back). Antigravity's runs, last, the cmd AutoRun, as that turns Antigravity's messaging
  * off outside Novadeck's terminals by design.
  */
 export const quirks = (selected: readonly string[]): readonly Quirk[] =>
@@ -173,11 +176,7 @@ export const quirks = (selected: readonly string[]): readonly Quirk[] =>
     agents: id,
     name: nameOf(id),
     files:
-      id === "claude"
-        ? `${core} windows-quirks.e2e.ts`
-        : id === "agy"
-          ? `${core} windows-autorun.e2e.ts`
-          : core,
+      id === "claude" ? `${core} windows-quirks.e2e.ts ${autorunFile}` : `${core} ${autorunFile}`,
     ...(id === "agy" ? { autorun: true as const } : {}),
   }))
 

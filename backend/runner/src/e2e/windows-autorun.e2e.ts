@@ -1,9 +1,12 @@
-// WINDOWS, CI'S QUIRKS JOB FOR ANTIGRAVITY: Novadeck's messaging under a cmd AutoRun that
-// prints. Antigravity runs its hooks as `cmd /c <command>` through the `cmd` it finds on PATH,
-// without `/d`, so the person's AutoRun runs first and what it prints stands before the
-// hook's JSON. Where cmd prints, Novadeck puts its own `cmd.exe` pass-through (novadeck-cmd.exe,
-// backend/relay) first on PATH for Antigravity in its terminals; it adds `/d` to Novadeck's own
-// hook commands alone (docs/agent-messaging.md, "Antigravity on Windows").
+// WINDOWS, EACH HARNESS'S QUIRKS JOB: Novadeck's messaging under a cmd AutoRun that prints.
+// Whatever the AutoRun prints stands before a hook's JSON, which the harness then cannot read.
+// Antigravity runs its hooks as `cmd /c <command>` through the `cmd` it finds on PATH, without
+// `/d`; where cmd prints, Novadeck puts its own `cmd.exe` pass-through (novadeck-cmd.exe,
+// backend/relay) first on PATH for Antigravity in its terminals, adding `/d` to Novadeck's own
+// hook commands alone. Claude Code and Codex run their hooks in PowerShell, whose line starts
+// the launcher (a batch file) in a cmd with `/d` itself (`hookCommand`). A message crossing
+// between two agents needs a hook's JSON answer read (a Stop or prompt hook delivers it), so
+// each harness's round-trip shows the AutoRun did not spoil it.
 import { spawnSync } from "node:child_process"
 import { existsSync, mkdtempSync, readFileSync, rmSync } from "node:fs"
 import { tmpdir } from "node:os"
@@ -12,8 +15,8 @@ import { join } from "node:path"
 import { onTestFinished } from "vitest"
 
 import type { AgentSetup } from "./agents/agent.js"
-import { agy } from "./agents/agy.js"
-import { describe, e2e, expect, supported } from "./fixture.js"
+import { setups } from "./agents/index.js"
+import { describe, e2e, expect, selected, supported } from "./fixture.js"
 import { delivered, own, sends, sent, start } from "./scenarios.js"
 
 const windows = process.platform === "win32" && supported && process.env.GITHUB_ACTIONS === "true"
@@ -80,34 +83,36 @@ const underAutoRun = (setup: AgentSetup): AgentSetup => ({
 // novadeck-cmd.rs tells them.
 const isNovadeckHook = (entry: string): boolean => /if defined novadeck_hook/i.test(entry)
 
-describe.runIf(windows)("Antigravity on Windows under a printing AutoRun", () => {
-  const it = e2e(underAutoRun(agy))
+for (const setup of setups.filter(selected)) {
+  describe.runIf(windows)(`${setup.name} on Windows under a printing AutoRun`, () => {
+    const it = e2e(underAutoRun(setup))
 
-  it("delivers a message between two agents, through Novadeck's cmd.exe pass-through", async ({
-    e2e: run,
-  }) => {
-    run.model.use(
-      sends("Ask fox for its colour", "fox", "What is your colour?"),
-      own((call) => (sent(call, "fox") ? { text: "Asked." } : undefined)),
-      own((call) => (delivered(call, "moth") ? { text: "Mine is teal." } : undefined)),
-    )
-    const first = await start(run, agy)
-    await start(run, agy)
-    await first.submit("Ask fox for its colour")
-    await run.model.waitFor((call) => delivered(call, "moth"), { timeoutMs: 45_000 })
+    it("delivers a message between two agents", async ({ e2e: run }) => {
+      run.model.use(
+        sends("Ask fox for its colour", "fox", "What is your colour?"),
+        own((call) => (sent(call, "fox") ? { text: "Asked." } : undefined)),
+        own((call) => (delivered(call, "moth") ? { text: "Mine is teal." } : undefined)),
+      )
+      const first = await start(run, setup)
+      await start(run, setup)
+      await first.submit("Ask fox for its colour")
+      await run.model.waitFor((call) => delivered(call, "moth"), { timeoutMs: 60_000 })
 
-    const log = logs.get(run.sandbox.root)!
-    const passed = existsSync(log) ? readFileSync(log, "utf8").split("\n").filter(Boolean) : []
-    const hooks = passed.filter(isNovadeckHook)
-    expect(hooks.length, "Novadeck's hooks went through the pass-through").toBeGreaterThan(0)
-    expect(
-      hooks.every((one) => one.startsWith("/d ")),
-      "every Novadeck hook got /d",
-    ).toBe(true)
-    // The agent's own commands keep the person's AutoRun.
-    expect(
-      passed.filter((one) => !isNovadeckHook(one)).some((one) => one.startsWith("/d ")),
-      "no other cmd got /d",
-    ).toBe(false)
-  }, 240_000)
-})
+      // Antigravity only: its hooks went through Novadeck's cmd.exe pass-through, and /d
+      // went to Novadeck's own hooks alone. The others' cmd runs the launcher with /d itself.
+      if (setup.agent !== "agy") return
+      const log = logs.get(run.sandbox.root)!
+      const passed = existsSync(log) ? readFileSync(log, "utf8").split("\n").filter(Boolean) : []
+      const hooks = passed.filter(isNovadeckHook)
+      expect(hooks.length, "Novadeck's hooks went through the pass-through").toBeGreaterThan(0)
+      expect(
+        hooks.every((one) => one.startsWith("/d ")),
+        "every Novadeck hook got /d",
+      ).toBe(true)
+      expect(
+        passed.filter((one) => !isNovadeckHook(one)).some((one) => one.startsWith("/d ")),
+        "no other cmd got /d",
+      ).toBe(false)
+    }, 240_000)
+  })
+}

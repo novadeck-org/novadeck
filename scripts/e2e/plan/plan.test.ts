@@ -389,7 +389,8 @@ describe("E2E rows", () => {
       {
         agents: "claude",
         name: "Claude Code",
-        files: "messaging.e2e.ts requests.e2e.ts lifecycle.e2e.ts windows-quirks.e2e.ts",
+        files:
+          "messaging.e2e.ts requests.e2e.ts lifecycle.e2e.ts windows-quirks.e2e.ts windows-autorun.e2e.ts",
       },
       {
         agents: "agy",

@@ -1275,6 +1275,22 @@ the runner, over the same endpoint and token `show` uses, and print what it retu
    what the notice stands for (the person's prompt withdrawing the agent's asks), and
    a lapse leaves that undone, to be offered again at the turn's next hook.
 
+### Windows hooks on a machine whose cmd AutoRun prints
+
+Whatever a cmd AutoRun prints stands before a hook's JSON answer, which a harness then cannot
+read. Each harness reaches cmd differently, so each has its own guard:
+
+- **Claude Code and Codex** run their hooks in PowerShell. The launcher `NOVADECK_HOOK` is a
+  batch file (`hook.cmd`), which Windows starts through `cmd /c` with no `/d`, so the AutoRun
+  ran first. Their hook line (`hookCommand`, PowerShell dialect) now starts that cmd itself:
+  `& $(if ($env:ComSpec) { $env:ComSpec } else { 'cmd.exe' }) /d /c $env:NOVADECK_HOOK <agent> <event>`.
+  The path stays an argument PowerShell quotes, so a space or an 8.3 name in it is safe; only
+  Novadeck's hook line changes, never the agent's own commands. Because Codex trusts a hook by
+  its definition, people who connected Codex on Windows review the changed hook once. Claude
+  Code's status line runs in Git Bash (`sh`) and is not changed: an AutoRun's text could show
+  in the line it prints, and no JSON is read from it.
+- **Antigravity** runs its hooks itself as `cmd /c`, so it gets the pass-through below.
+
 ### Antigravity on a machine whose cmd AutoRun prints
 
 Antigravity on Windows runs its hooks as `cmd /c "<command>"` through the `cmd` it finds on
