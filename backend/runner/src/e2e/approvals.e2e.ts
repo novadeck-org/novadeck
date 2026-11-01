@@ -44,6 +44,19 @@ const withFakes = (setup: AgentSetup): AgentSetup => ({
         `#!/bin/sh\n[ "$1" = repo ] || echo "${name} $*" >> '${marker}'\n`,
       )
       chmodSync(join(bin, name), 0o755)
+      // Codex's and Antigravity's shells on Windows (PowerShell, cmd) run a batch file, not a
+      // script. A space before `>>`: an argument ending in a digit would else read as a handle.
+      if (process.platform === "win32")
+        writeFileSync(
+          join(bin, `${name}.cmd`),
+          `@if "%1"=="repo" exit /b 0\r\n@echo ${name} %* >> "${marker}"\r\n`,
+        )
+    }
+    // Codex runs a command in a login shell by default, and macOS's reorders PATH there (a
+    // profile puts the system's `gh` first); with it off, the fakes stay first on PATH.
+    if (setup.agent === "codex") {
+      const config = join(sandbox.home, ".codex", "config.toml")
+      writeFileSync(config, `allow_login_shell = false\n${readFileSync(config, "utf8")}`)
     }
     const readme = join(sandbox.project, "README.txt")
     writeFileSync(readme, "novadeck-approvals-readme\n")
@@ -230,7 +243,12 @@ const shellFor = (call: Call, command: string): Reply =>
   kits.find((kit) => kit.setup.agent === agentOf(call))!.shell(command)
 
 const marks = (world: World): string[] =>
-  existsSync(world.marker) ? readFileSync(world.marker, "utf8").split("\n").filter(Boolean) : []
+  existsSync(world.marker)
+    ? readFileSync(world.marker, "utf8")
+        .split("\n")
+        .map((line) => line.trim())
+        .filter(Boolean)
+    : []
 
 /** Waits until `check` holds, clearing Claude Code's gateway notice, which waits on Enter. */
 const until = async (
@@ -309,12 +327,7 @@ describe.skipIf(!supported)("Approvals through Novadeck's runner hooks", () => {
         setup.agent !== "agy" ||
         major > 1 ||
         (major === 1 && (minor > 4 || (minor === 4 && patch >= 10)))
-      // The fake `gh` is a shell script. Codex's and Antigravity's own shells on macOS (a login
-      // shell that puts the system's `gh` first) and on Windows (no `sh` script runs) may not
-      // reach it, so there the marker proves nothing: the call's result reaching the model with
-      // no dialog does.
-      const marked = setup.agent === "claude" || process.platform === "linux"
-      const ran = launched && marked ? 1 : 0
+      const ran = launched ? 1 : 0
       let terminal = await open(run, kit)
       if (setup.agent === "claude") onTestFinished(clearing(terminal))
       const refuse = (shown: RegExp) => until(terminal, "the call stopped", (s) => shown.test(s))
@@ -384,21 +397,14 @@ describe.skipIf(!supported)("Approvals through Novadeck's runner hooks", () => {
       // before 1.4.10 takes no launch grant: it restarts fine, its grant delivery says so, and
       // the command still gets its dialog.
       const classified = counted.calls
-      const markAgain = run.model.mark()
       await terminal.submit("run again")
       if (launched) {
-        if (marked) {
-          const end = Date.now() + 45_000
-          while (marks(world()).length === 0 && Date.now() < end) {
-            // eslint-disable-next-line no-await-in-loop -- Polled in turn.
-            await sleep(250)
-          }
-          expect(marks(world())).toEqual([`gh ${granted.slice(3)}`])
-        } else {
-          await run.model.waitFor((call) => call.turns.at(-1)?.role === "tool", {
-            after: markAgain,
-          })
+        const end = Date.now() + 45_000
+        while (marks(world()).length === 0 && Date.now() < end) {
+          // eslint-disable-next-line no-await-in-loop -- Polled in turn.
+          await sleep(250)
         }
+        expect(marks(world())).toEqual([`gh ${granted.slice(3)}`])
         expect(await terminal.screen()).not.toMatch(kit.dialog)
         expect(counted.calls, "the granted call reached the classifier").toBe(classified)
       } else {

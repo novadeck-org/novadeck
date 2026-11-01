@@ -83,7 +83,7 @@ describe("a Claude Code PreToolUse payload", () => {
 describe("a Codex PermissionRequest payload", () => {
   it("reads the command, with no known folder", () => {
     const input = { command: "touch /x/ran.txt", description: "Touch a file outside the sandbox" }
-    expect(callFromPayload("codex", "PermissionRequest", codex(input))).toEqual({
+    expect(callFromPayload("codex", "PermissionRequest", codex(input), "linux")).toEqual({
       command: "touch /x/ran.txt",
       cwd: null,
     })
@@ -139,7 +139,7 @@ describe("an Antigravity PreToolUse payload", () => {
       WaitMsBeforeAsync: 5000,
       toolSummary: "Touch",
     }
-    expect(callFromPayload("agy", "PreToolUse", agy("run_command", args))).toEqual({
+    expect(callFromPayload("agy", "PreToolUse", agy("run_command", args), "linux")).toEqual({
       command: "touch /tmp/ran.txt",
       cwd: null,
     })

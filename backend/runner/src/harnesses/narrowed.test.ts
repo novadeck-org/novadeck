@@ -1,7 +1,7 @@
 import { spawnSync } from "node:child_process"
 import { chmodSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs"
 import { tmpdir } from "node:os"
-import { join } from "node:path"
+import { join, normalize } from "node:path"
 
 import { agy } from "@novadeck/harness-agy/index"
 import {
@@ -418,7 +418,14 @@ describe("Antigravity's launch shim on Windows", () => {
     ({ resources }) => {
       const ran = shim(folder(resources), ["--conversation", "abc", "a b"])
       expect(ran.narrow).toBe("1")
-      expect(ran.args).toEqual(["--settings", ran.file, "--conversation", "abc", "a b"])
+      // The shim names the file through its own `bin\..`, which is the same file.
+      expect(ran.args.map((arg) => (arg === ran.args[1] ? normalize(arg) : arg))).toEqual([
+        "--settings",
+        normalize(ran.file),
+        "--conversation",
+        "abc",
+        "a b",
+      ])
     },
   )
 

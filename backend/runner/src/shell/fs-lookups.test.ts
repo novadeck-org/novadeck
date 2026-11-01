@@ -55,6 +55,8 @@ describe("the disk lookups", () => {
           {
             command: `gh pr comment 5 -R acme/app --body-file ${join(root, file)}`,
             cwd: null,
+            // Windows paths have backslashes, which only its dialect reads whole.
+            ...(process.platform === "win32" && { dialect: "windows-quote-free" as const }),
           },
           [scope],
           gitLookups,
