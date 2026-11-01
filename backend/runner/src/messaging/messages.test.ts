@@ -503,21 +503,23 @@ describe("a delivery's grants", () => {
     expect(wrapGrants([], "codex", "linux")).toBe("")
   })
 
-  it("tells Codex on Windows to write commands without quotes, and nothing of the sort elsewhere", () => {
+  it("tells Codex on Windows to quote only a path or title in double quotes, and nothing of the sort elsewhere", () => {
     const on = (platform: NodeJS.Platform) => wrapGrants([granted], "codex", platform)
-    expect(on("win32")).toContain("write each command without quotes")
+    expect(on("win32")).toContain("write each command plainly")
     expect(on("win32")).toContain("--body-file <full path of a file in the project>")
     expect(on("win32")).toContain("gh pr create --fill")
-    expect(on("win32")).toContain("anything quoted still asks")
+    expect(on("win32")).toContain("any other quoting still asks")
+    expect(on("win32")).toContain("double quotes when it has a space")
+    expect(on("win32")).toContain("never single quotes")
     for (const platform of ["linux", "darwin"] as const)
-      expect(on(platform)).not.toContain("without quotes")
+      expect(on(platform)).not.toContain("write each command plainly")
     // Antigravity there gets the same advice, with its own name, and still its start note.
     const agy = wrapGrants([granted], "agy", "win32")
-    expect(agy).toContain("write each command without quotes: Antigravity's shell")
+    expect(agy).toContain("write each command plainly: Antigravity's shell")
     expect(agy).toContain("gh pr create --fill")
     expect(agy).toContain("Antigravity takes this grant when it starts")
-    expect(wrapGrants([granted], "agy", "linux")).not.toContain("without quotes")
-    expect(wrapGrants([granted], "claude", "win32")).not.toContain("without quotes")
+    expect(wrapGrants([granted], "agy", "linux")).not.toContain("write each command plainly")
+    expect(wrapGrants([granted], "claude", "win32")).not.toContain("write each command plainly")
     // The old note, that nothing reaches these harnesses on Windows, is gone for all three.
     for (const agent of ["claude", "codex", "agy"] as const)
       expect(wrapGrants([granted], agent, "win32")).not.toContain("does not take this grant")

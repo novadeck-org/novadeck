@@ -159,7 +159,34 @@ describe("the Windows Codex lexer", () => {
     ["a comma, which makes arrays", "prog a,b"],
     ["a backtick", "echo a`b"],
     ["a single quote, which cmd does not take", "echo 'a b'"],
-    ["a double quote", 'echo "a b"'],
+    ["a double quote that opens inside a word", 'echo a"b c"'],
+    ["a double quote that closes before the word ends", 'echo "a"b'],
+    ["a double quote in the middle of a quoted word", 'echo "a"b"'],
+    ["an unterminated double quote", 'echo "a b'],
+    ["an empty double quote", 'echo ""'],
+    ["a quoted program", '"gh" pr view'],
+    ["a quoted word ending in a backslash", 'echo "C:\\Users\\Jan Kowalski\\"'],
+    ["a percent sign inside quotes", 'echo "100%"'],
+    ["a variable inside quotes", 'echo "$env:X a"'],
+    ["a backtick inside quotes", 'echo "a`b c"'],
+    ["an exclamation mark inside quotes", 'echo "hi there!"'],
+    ["a caret inside quotes", 'echo "a ^ b"'],
+    ["an ampersand inside quotes", 'echo "a & b"'],
+    ["a pipe inside quotes", 'echo "a | b"'],
+    ["a redirect inside quotes", 'echo "a > b"'],
+    ["a round bracket inside quotes", 'echo "f (x)"'],
+    ["a square bracket inside quotes", 'echo "a [0]"'],
+    ["a brace inside quotes", 'echo "{a b}"'],
+    ["a semicolon inside quotes", 'echo "a; b"'],
+    ["a hash inside quotes", 'echo "a #b"'],
+    ["a tilde inside quotes", 'echo "~ a"'],
+    ["a star inside quotes", 'echo "*.txt a"'],
+    ["a question mark inside quotes", 'echo "why a?"'],
+    ["a tab inside quotes", 'echo "a\tb"'],
+    ["a newline inside quotes", 'echo "a\nb"'],
+    ["a quoted word starting with @", 'echo "@args a"'],
+    ["a quoted word starting with --%", 'echo "--% a"'],
+    ["a single-quoted word with a space", "echo 'a b'"],
     ["a hash", "echo a#b"],
     ["a round bracket", "echo (a)"],
     ["a square bracket", "echo a[0]"],
@@ -209,5 +236,27 @@ describe("the Windows Codex lexer", () => {
     ["a leading powershell.ps1", "powershell.ps1 x"],
   ])("refuses %s", (_name, command) => {
     expect(windows(command)).toBeUndefined()
+  })
+})
+
+describe("the Windows lexer's whole-word double quotes", () => {
+  it.each([
+    ['echo "C:\\Users\\Jan Kowalski\\note.md"', ["echo", "C:\\Users\\Jan Kowalski\\note.md"]],
+    ['gh pr create --title "Fix the bug"', ["gh", "pr", "create", "--title", "Fix the bug"]],
+    ['prog "it\'s, fine"', ["prog", "it's, fine"]],
+    ['prog "plain"', ["prog", "plain"]],
+    ['prog "a b" c "d e"', ["prog", "a b", "c", "d e"]],
+    ['prog   "a b"   ', ["prog", "a b"]],
+    ['prog "C:\\dir\\a b\\x" "--k=v w"', ["prog", "C:\\dir\\a b\\x", "--k=v w"]],
+    ['prog "a\\b c"', ["prog", "a\\b c"]],
+  ])("reads %s as its content", (command, expected) => {
+    expect(windows(command)).toEqual(expected)
+  })
+
+  it("leaves the POSIX lexer unchanged", () => {
+    expect(lex("echo 'a b' \"c d\"")).toEqual({ ok: true, argv: ["echo", "a b", "c d"] })
+    expect(lex('echo "a\\b"').ok).toBe(false)
+    expect(lex("echo 100%")).toEqual({ ok: true, argv: ["echo", "100%"] })
+    expect(lex('echo "a$b"').ok).toBe(false)
   })
 })

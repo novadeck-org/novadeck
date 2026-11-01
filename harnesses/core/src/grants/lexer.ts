@@ -116,25 +116,61 @@ export const lex = (command: string): Lexed => {
 // A Windows word (Appendix A1, "Windows: Codex and Antigravity"): its characters give the same argv in
 // PowerShell 7, Windows PowerShell 5.1 and cmd, which Codex's hook payload never says apart.
 const windowsChar = /^[A-Za-z0-9._/:=@+\\-]+$/
+// What may sit between a whole-word pair of double quotes: the bare characters, a space, `'` and `,`.
+const windowsQuotedChar = /^[A-Za-z0-9._/:=@+\\ ',-]+$/
 
 /**
  * Reads a Codex or Antigravity command on Windows as one simple command's words, or says why it is not one.
- * Only quote-free words of `[A-Za-z0-9._/:=@+\\-]` split by spaces are taken: cmd expands
+ * Words are split by spaces. A bare word holds only `[A-Za-z0-9._/:=@+\\-]`: cmd expands
  * `%VAR%` and has no single quotes, PowerShell expands `$`, `~` and `"…$x"`, makes arrays of
  * `,` and splats a word starting with `@`, so each of those, and every operator, bracket,
- * quote, newline and tab, refuses the whole command.
+ * newline and tab, refuses the whole command. A word may instead be wholly `"…"` (never the
+ * program): its content is non-empty, holds those characters plus space, `'` and `,`, and does
+ * not end in a backslash, which the program's own parser would read with the closing quote as
+ * an escaped one. Its value is the content. Single quotes and a quote inside a word stay refused.
  */
 export const lexWindows = (command: string): Lexed => {
-  const words = command.split(" ").filter((word) => word !== "")
+  const words: string[] = []
+  const quoted: boolean[] = []
+  let i = 0
+  while (i < command.length) {
+    if (command[i] === " ") {
+      i += 1
+    } else if (command[i] === '"') {
+      const end = command.indexOf('"', i + 1)
+      if (end < 0) return refuse("an unterminated double quote")
+      if (end + 1 < command.length && command[end + 1] !== " ")
+        return refuse("a double quote that does not cover the whole word")
+      const content = command.slice(i + 1, end)
+      if (content === "") return refuse("an empty double quote")
+      if (!windowsQuotedChar.test(content)) {
+        const bad = [...content].find((ch) => !windowsQuotedChar.test(ch)) ?? ""
+        return refuse(`${JSON.stringify(bad)} inside double quotes`)
+      }
+      if (content.endsWith("\\")) return refuse("a backslash before the closing double quote")
+      if (content.startsWith("@")) return refuse("a word starting with @")
+      if (content.startsWith("--%")) return refuse("the stop-parsing token")
+      words.push(content)
+      quoted.push(true)
+      i = end + 1
+    } else {
+      let end = command.indexOf(" ", i)
+      if (end < 0) end = command.length
+      const word = command.slice(i, end)
+      if (!windowsChar.test(word)) {
+        const bad = [...word].find((ch) => !windowsChar.test(ch)) ?? ""
+        return refuse(`${JSON.stringify(bad)} in a Windows word`)
+      }
+      if (word.startsWith("@")) return refuse("a word starting with @")
+      words.push(word)
+      quoted.push(false)
+      i = end
+    }
+  }
   const first = words[0]
   if (first === undefined) return refuse("empty command")
-  for (const word of words) {
-    if (!windowsChar.test(word)) {
-      const bad = [...word].find((ch) => !windowsChar.test(ch)) ?? ""
-      return refuse(`${JSON.stringify(bad)} in a Windows word`)
-    }
-    if (word.startsWith("@")) return refuse("a word starting with @")
-  }
+  // PowerShell reads a leading string as an expression, not a program.
+  if (quoted[0]) return refuse("a quoted program")
   if (assignment.test(first)) return refuse("a variable assignment before the command")
   const program = programName(first.slice(first.lastIndexOf("\\") + 1))
   if (wrappers.has(program) || windowsRunners.has(program)) return refuse(`a leading ${program}`)

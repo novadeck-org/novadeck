@@ -257,6 +257,16 @@ const gitBash = [
   "C:\\Program Files\\Git\\usr\\bin\\bash.exe",
 ].find((path) => existsSync(path))
 
+// Whole-word double quotes the lexer accepts: [name, the text after the program].
+const quotedForms: readonly (readonly [string, string])[] = [
+  ["spaced-path", '"C:\\Users\\Jan Kowalski\\note.md"'],
+  ["title", '"Fix the bug"'],
+  ["apostrophe-comma", `"it's, fine"`],
+  ["adjacent-bare", '"a b" c'],
+  ["flag-then-quoted", '--title "Fix the bug" --body-file "C:\\Users\\Jan Kowalski\\note.md"'],
+  ["trailing-backslash", '"C:\\Users\\Jan Kowalski\\" next'],
+]
+
 describe.runIf(windows)("Codex on Windows (grants probe)", () => {
   const it = e2e(withKit(codex))
 
@@ -319,6 +329,12 @@ describe.runIf(windows)("Codex on Windows (grants probe)", () => {
       { name: "argv-words-pwsh", shell: "pwsh", cmd: argv(words) },
       { name: "argv-comma-cmd", shell: "cmd", cmd: argv("a,b") },
       { name: "argv-quoted-cmd", shell: "cmd", cmd: argv("'a''b' \"x y\"") },
+      // The whole-word double-quoted forms the Windows dialect takes (design A1): each must
+      // arrive as one argv entry, under Codex's default shell and under cmd.
+      ...quotedForms.flatMap(([name, text]) => [
+        { name: `argv-quoted-${name}`, cmd: argv(text) },
+        { name: `argv-quoted-${name}-cmd`, shell: "cmd", cmd: argv(text) },
+      ]),
       // Windows PowerShell 5.1 by its full path.
       {
         name: "ps51-version",
@@ -1004,10 +1020,10 @@ for (const kit of [codexKit, agyKit]) {
 }
 
 // A lead's `pr` team grant, then a Codex teammate runs the preset's commands unasked
-// (quote-free, so the Windows dialect matches them), while a quoted body and a merge are asked.
+// (the Windows dialect matches them, a spaced path in double quotes too), while a quoted body and a merge are asked.
 describe.runIf(windows)("Codex on Windows: a pr team grant", () => {
   const it = e2e(codexKit.setup)
-  it("the preset's commands run unasked; a quoted body and a merge are asked", async ({
+  it("the preset's commands run unasked, a spaced body-file path in double quotes too; a quoted body and a merge are asked", async ({
     e2e: run,
   }) => {
     const world = () => worlds.get(run.sandbox.root)!
@@ -1022,7 +1038,7 @@ describe.runIf(windows)("Codex on Windows: a pr team grant", () => {
     const body = join(run.sandbox.project, "notes", "body.md")
     writeFileSync(body, "A body.\n")
     // Codex's folder is unknown to the matcher, so a body file is a full path; and a project
-    // path with a space (CI's is spaced) takes quotes, which the Windows dialect never matches.
+    // path with a space (CI's is spaced) goes in whole-word double quotes, which the dialect takes.
     const spaced = /\s/.test(body)
     const steps = [
       granted,
@@ -1105,9 +1121,8 @@ describe.runIf(windows)("Codex on Windows: a pr team grant", () => {
       await sleep(500)
     }
     probe("grants team run", { done: state.done, marks: marksOf(world()), dialogs: dialogs.length })
-    expect(marksOf(world())).toEqual(steps.slice(0, spaced ? 2 : 3))
-    expect(dialogs.length).toBe(spaced ? 3 : 2)
-    if (spaced) expect(dialogs[0]).toMatch(/--body-file/)
+    expect(marksOf(world())).toEqual(steps.slice(0, 3))
+    expect(dialogs.length).toBe(2)
     expect(dialogs.at(-2)).toMatch(/two\s+words/)
     expect(dialogs.at(-1)).toMatch(/merge/)
   }, 900_000)

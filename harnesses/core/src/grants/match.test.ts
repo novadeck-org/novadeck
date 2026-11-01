@@ -468,11 +468,42 @@ describe("a Codex or Antigravity command on Windows", () => {
     ["a body file on a UNC path", `gh pr comment 5 ${R} --body-file \\\\host\\share\\n.md`],
     ["a drive-relative body file", `gh pr comment 5 ${R} --body-file D:n.md`],
     ["a single-quoted body", `gh pr comment 5 ${R} --body 'it is done'`],
-    ["a double-quoted body", `gh pr comment 5 ${R} --body "done"`],
-    ["a quoted word", `gh pr ready "12" ${R}`],
+    ["a double-quoted body with a dollar sign", `gh pr comment 5 ${R} --body "$done"`],
+    [
+      "a quoted body file ending in a backslash",
+      `gh pr comment 5 ${R} --body-file "C:\\work\\proj\\"`,
+    ],
+    [
+      "a quoted body file outside the project",
+      `gh pr comment 5 ${R} --body-file "C:\\work\\other dir\\n.md"`,
+    ],
     ["a POSIX remote name for push", "git push origin fix:fix"],
   ])("refuses %s", async (_name, command) => {
     expect(await windows(command)).toBeNull()
+  })
+
+  it("takes a spaced absolute body file and a spaced title in double quotes, inside a project whose path has a space", async () => {
+    const spaced = (command: string) =>
+      matchCall(
+        { command, cwd: null, dialect: "windows-quote-free" },
+        [scope()],
+        git,
+        "C:\\Users\\Jan Kowalski\\proj",
+        fs,
+      )
+    expect(
+      await spaced(
+        `gh pr comment 5 ${R} --body-file "C:\\Users\\Jan Kowalski\\proj\\my notes\\n.md"`,
+      ),
+    ).toEqual(pr)
+    expect(
+      await spaced(
+        `gh pr create ${R} --head fix --title "Fix the bug" --body-file "C:/Users/Jan Kowalski/proj/n.md"`,
+      ),
+    ).toEqual(pr)
+    expect(
+      await spaced(`gh pr comment 5 ${R} --body-file "C:\\Users\\Jan Kowalski\\other\\n.md"`),
+    ).toBeNull()
   })
 
   it.each(["CON", "con", "NUL", "nul.txt", "Aux.md", "PRN", "COM1", "lpt9.x.y", "COM9.txt"])(
