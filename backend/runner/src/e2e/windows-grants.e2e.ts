@@ -140,23 +140,24 @@ else {
 }
 `
 
-// The ComSpec wrapper: a copy of node.exe named comspec.exe, preloaded (NODE_OPTIONS --require)
-// with this file. As comspec.exe it logs that it ran and its raw command line, then runs the
+// The PATH wrapper: a copy of node.exe named cmd.exe, preloaded (NODE_OPTIONS --require)
+// with this file. As cmd.exe it logs that it ran and its raw command line, then runs the
 // real cmd.exe with /d (no AutoRun) and the same arguments, and exits with its status. Any other
 // node process that preloads it does nothing.
-const comspecProgram = `
+const pathcmdProgram = `
 const { appendFileSync } = require("node:fs")
 const { basename } = require("node:path")
 const { spawnSync } = require("node:child_process")
-if (basename(process.execPath).toLowerCase() === "comspec.exe") {
-  const log = (extra) => appendFileSync(__dirname + "/comspec.log", JSON.stringify({ t: Date.now(), ...extra }) + "\\n")
+if (basename(process.execPath).toLowerCase() === "cmd.exe") {
+  const log = (extra) => appendFileSync(__dirname + "/pathcmd.log", JSON.stringify({ t: Date.now(), ...extra }) + "\\n")
   let line = ""
   try {
     line = spawnSync("powershell.exe", ["-NoProfile", "-Command", "(Get-CimInstance Win32_Process -Filter 'ProcessId=" + process.pid + "').CommandLine"], { encoding: "utf8" }).stdout.trim()
   } catch {}
   const rest = line ? /^\\s*(?:"[^"]*"|\\S+)\\s*([\\s\\S]*)$/.exec(line)?.[1] ?? "" : process.argv.slice(1).join(" ")
-  log({ ran: true, line, rest, ppid: process.ppid })
-  const done = spawnSync("C:\\\\Windows\\\\System32\\\\cmd.exe", ["/d " + rest], { stdio: "inherit", windowsVerbatimArguments: true })
+  const rebuilt = "/d " + rest
+  log({ ran: true, line, rest, rebuilt, ppid: process.ppid })
+  const done = spawnSync("C:\\\\Windows\\\\System32\\\\cmd.exe", [rebuilt], { stdio: "inherit", windowsVerbatimArguments: true })
   log({ finished: true, status: done.status, error: done.error ? String(done.error) : null })
   process.exit(done.status ?? 1)
 }
@@ -171,7 +172,7 @@ type Kit = {
 const kits = new Map<string, Kit>()
 
 /** Writes the kit and puts its programs first on PATH. */
-const withKit = (setup: AgentSetup, comspec = false): AgentSetup => ({
+const withKit = (setup: AgentSetup, pathcmd = false): AgentSetup => ({
   ...setup,
   prepare: async (sandbox, model, installed, seed) => {
     const env = await setup.prepare(sandbox, model, installed, seed)
@@ -186,19 +187,21 @@ const withKit = (setup: AgentSetup, comspec = false): AgentSetup => ({
     writeFileSync(join(dir, "hook.cjs"), hookProgram)
     kits.set(sandbox.root, { dir, bin })
     const path = [bin, sandbox.env.PATH].join(delimiter)
-    if (!comspec) return { ...env, PATH: path }
-    // ComSpec names the wrapper (the preload makes node.exe's copy behave as it) for Antigravity
-    // alone: an `agy.cmd` ahead of the real one on PATH sets it and calls the real agy, which
-    // Novadeck's shim finds as the first other `agy`. The runner and the terminal's shell keep
-    // theirs.
-    copyFileSync(process.execPath, join(bin, "comspec.exe"))
-    writeFileSync(join(dir, "comspec.cjs"), comspecProgram)
+    if (!pathcmd) return { ...env, PATH: path }
+    // A cmd.exe wrapper (the preload makes node.exe's copy behave as it) is first on PATH for
+    // Antigravity alone: an `agy.cmd` ahead of the real one sets that PATH and calls the real
+    // agy, which Novadeck's shim finds as the first other `agy`. The runner and the terminal's
+    // shell keep theirs.
+    const wrap = join(dir, "wrap")
+    mkdirSync(wrap)
+    copyFileSync(process.execPath, join(wrap, "cmd.exe"))
+    writeFileSync(join(dir, "pathcmd.cjs"), pathcmdProgram)
     const real = join((await installHarness("agy")).bin, "agy")
     writeFileSync(
       join(bin, "agy.cmd"),
       [
-        `@set "ComSpec=${join(bin, "comspec.exe")}"`,
-        `@set "NODE_OPTIONS=--require ${join(dir, "comspec.cjs").replaceAll("\\", "/")}"`,
+        `@set "PATH=${wrap};%PATH%"`,
+        `@set "NODE_OPTIONS=--require ${join(dir, "pathcmd.cjs").replaceAll("\\", "/")}"`,
         `@call "${real}" %*`,
         "",
       ].join("\r\n"),
@@ -280,6 +283,14 @@ const report = (label: string, kit: Kit) => {
 }
 
 const windows = process.platform === "win32" && supported
+
+/** Whether this Antigravity takes launch settings, from 1.4.10 on; before it, `--settings` prints usage. */
+const takesSettings = async (): Promise<boolean> => {
+  const [major = 0, minor = 0, patch = 0] = (await installHarness("agy")).version
+    .split(".")
+    .map(Number)
+  return major > 1 || (major === 1 && (minor > 4 || (minor === 4 && patch >= 10)))
+}
 const rows = (screen: string) => screen.split("\n").filter((row) => row.trim() !== "")
 
 // ---- Codex
@@ -518,8 +529,8 @@ type AgyCase = {
   readonly settings?: unknown
   /** Run under a cmd AutoRun that prints (CI's runner only), and print how the hook was spawned. */
   readonly autorun?: boolean
-  /** ComSpec names a wrapper that logs and runs the real cmd with /d: does Antigravity use it? */
-  readonly comspec?: boolean
+  /** A cmd.exe wrapper first on Antigravity's PATH logs and runs the real cmd with /d first. */
+  readonly pathcmd?: boolean
   /** The model's command line, given the marker program's script and the file it writes. */
   readonly line?: (script: string, marker: string) => string
   /** A program with no arguments: a batch file of the kit that writes the marker. */
@@ -591,15 +602,15 @@ const agyCases: AgyCase[] = [
     answer: decision("force_ask"),
     autorun: true,
   },
-  // The lead's idea: if Antigravity finds cmd through %ComSpec%, a wrapper that adds /d skips
+  // If Antigravity finds cmd through PATH (Go does not read ComSpec), a wrapper that adds /d skips
   // the AutoRun, so the hook's JSON is read and force_ask's dialog shows.
   {
-    name: "z1b-spawn-comspec",
+    name: "z1c-spawn-pathcmd",
     form: "direct",
     grant: both,
     answer: decision("force_ask"),
     autorun: true,
-    comspec: true,
+    pathcmd: true,
   },
   // Why the launch grant did not apply (n1..n3 still asked): do settings count at all, and
   // what spelling matches?
@@ -641,7 +652,7 @@ describe.runIf(windows)("Antigravity on Windows (grants probe)", () => {
 
   for (const c of agyCases) {
     if (only && !only.some((one) => c.name.startsWith(one))) continue
-    const it = c.comspec ? wrapped : plain
+    const it = c.pathcmd ? wrapped : plain
     it(
       c.name,
       async ({ e2e: run, skip }) => {
@@ -723,13 +734,10 @@ describe.runIf(windows)("Antigravity on Windows (grants probe)", () => {
         }
         probe("agy settings", { flags, settings: settings ?? null })
         // Antigravity takes `--settings` from 1.4.10 on; before it, the launch prints its usage.
-        if (flags !== "") {
-          const [major = 0, minor = 0, patch = 0] = (await installHarness("agy")).version
-            .split(".")
-            .map(Number)
-          if (major === 1 && (minor < 4 || (minor === 4 && patch < 10)))
-            return skip("this Antigravity takes no --settings (before 1.4.10)")
-        }
+        if (flags !== "" && !(await takesSettings()))
+          return skip("this Antigravity takes no --settings (before 1.4.10)")
+        if (c.pathcmd && process.env.GITHUB_ACTIONS !== "true")
+          return skip("the PATH cmd wrapper runs on CI's runner only")
         probe("agy command", { line })
         run.model.use(
           (call: Call): Reply | undefined =>
@@ -790,13 +798,18 @@ describe.runIf(windows)("Antigravity on Windows (grants probe)", () => {
                   : "cmd (no dialog, the call failed)"
             }`,
           )
-        if (c.comspec) {
-          const wrapper = lines(join(kit.dir, "comspec.log"))
-          probe("agy comspec wrapper log", wrapper)
-          const ran = wrapper.length > 0
-          console.log(
-            `PROBE agy comspec verdict: ${dialog ? "used" : "not used"} (wrapper ${ran ? "ran" : "never ran"}${dialog || !ran ? "" : ", yet no dialog"})`,
+        if (c.pathcmd) {
+          const wrapper = lines(join(kit.dir, "pathcmd.log"))
+          probe("agy pathcmd wrapper log", wrapper)
+          const ran = wrapper.some((one) => record(one).ran === true)
+          // Whether run_command went through it: the marker program's line is in a wrapper entry.
+          const viaWrapper = wrapper.some((one) =>
+            String(record(one).line ?? "").includes("marker.cjs"),
           )
+          console.log(
+            `PROBE agy pathcmd verdict: ${ran ? (dialog ? "works" : "wrapper ran but no dialog") : "wrapper never ran"}`,
+          )
+          console.log(`PROBE agy pathcmd run_command via wrapper: ${viaWrapper}`)
         }
         report(`agy ${c.name}`, kit)
         // Antigravity's own settings and logs, where the grants may have been read or refused.
@@ -829,12 +842,13 @@ describe.runIf(windows && process.env.GITHUB_ACTIONS === "true")(
     })
     afterAll(() => restore?.())
 
-    // Without and with ComSpec naming the /d wrapper: is Novadeck's messaging delivered?
-    for (const comspec of [false, true]) {
-      const it = e2e(withKit(agy, comspec))
+    // Without and with the /d cmd wrapper first on PATH: is Novadeck's messaging delivered?
+    for (const pathcmd of [false, true]) {
+      const it = e2e(withKit(agy, pathcmd))
       it(
-        comspec ? "z3-plain-messaging-comspec" : "z2-plain-messaging",
-        async ({ e2e: run }) => {
+        pathcmd ? "z3-plain-messaging-pathcmd" : "z2-plain-messaging",
+        async ({ e2e: run, skip }) => {
+          if (pathcmd && !(await takesSettings())) return skip("the wrapper probes run on 1.4.10+")
           run.model.use(
             sends("Ask fox for its colour", "fox", "What is your colour?"),
             own((call) => (sent(call, "fox") ? { text: "Asked." } : undefined)),
@@ -858,13 +872,13 @@ describe.runIf(windows && process.env.GITHUB_ACTIONS === "true")(
           } catch (error) {
             outcome.error = String(error).slice(0, 1500)
           }
-          if (comspec) {
-            const wrapper = lines(join(kitOf(run.sandbox.root).dir, "comspec.log"))
-            outcome.wrapperRuns = wrapper.length
+          if (pathcmd) {
+            const wrapper = lines(join(kitOf(run.sandbox.root).dir, "pathcmd.log"))
+            outcome.wrapperRuns = wrapper.filter((one) => record(one).ran === true).length
           }
           probe(
-            comspec
-              ? "agy plain terminal under AutoRun with ComSpec"
+            pathcmd
+              ? "agy plain terminal under AutoRun with a PATH cmd wrapper"
               : "agy plain terminal under AutoRun",
             outcome,
           )
