@@ -399,7 +399,7 @@ export class Terminals {
     }
     // Child programs do not need the runner's network capability, nor the identity of a
     // Novadeck terminal the runner itself was started from.
-    stripInherited(this.options.env, this.options.platform)
+    stripInherited(this.options.env, options.pty?.platform)
     this.trees = options.pty?.trees ?? new Trees(async () => this.options.relay)
     this.pty = {
       ...(options.pty?.native && { native: options.pty.native }),
