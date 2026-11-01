@@ -304,7 +304,9 @@ describe("when a terminal's coverage ends", () => {
     expect(alone.told("L").map(isQuiet)).toEqual([false, true])
     // Only Novadeck's own notice is quiet, whatever an agent's message says.
     const [notice] = told("F")
-    expect(isQuiet({ ...notice!, from: { kind: "agent", handle: "fox", terminalId: "F" } as never })).toBe(false)
+    expect(
+      isQuiet({ ...notice!, from: { kind: "agent", handle: "fox", terminalId: "F" } as never }),
+    ).toBe(false)
   })
 
   it("is told to the terminal in the words of why, at its next delivery", () => {
