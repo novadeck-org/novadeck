@@ -41,6 +41,8 @@ export type InstalledShell = ShellPaths & {
 export type InstallOptions = {
   /** The relay to copy in for the launchers; the one `@novadeck/relay` built by default. */
   readonly relay?: string
+  /** How to tell whether cmd prints (Windows only); the machine's own check by default. */
+  readonly prints?: typeof cmdPrints
 }
 
 /**
@@ -50,7 +52,7 @@ export type InstallOptions = {
  */
 export const installShellFiles = async (
   directory: string,
-  { relay = relayPath }: InstallOptions = {},
+  { relay = relayPath, prints: printing = cmdPrints }: InstallOptions = {},
 ): Promise<InstalledShell> => {
   const paths = shellPaths(directory)
   await mkdir(directory, { recursive: true, mode: 0o700 })
@@ -72,7 +74,7 @@ export const installShellFiles = async (
   await Promise.all(staleShellFiles(directory).map((stale) => rm(stale, { force: true })))
   await rm(paths.narrow, { recursive: true, force: true })
   // An agent that runs its hooks in cmd reads nothing they answer after cmd's own output.
-  const prints = process.platform === "win32" ? await cmdPrints() : undefined
+  const prints = process.platform === "win32" ? await printing() : undefined
   if (prints === "prints")
     log.warn(
       "shell.cmd-prints",

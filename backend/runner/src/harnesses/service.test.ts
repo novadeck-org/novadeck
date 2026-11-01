@@ -97,7 +97,10 @@ const it = base.extend<{ fixture: Fixture }>({
           { mode: 0o755 },
         )
     const log = join(root, "calls.log")
-    const paths = await installShellFiles(join(root, "shell"))
+    // Whatever the machine's cmd prints (the quirks lane sets an AutoRun that does).
+    const paths = await installShellFiles(join(root, "shell"), {
+      prints: () => Promise.resolve(undefined),
+    })
     const environment = (env: NodeJS.ProcessEnv = {}): NodeJS.ProcessEnv => ({
       ...process.env,
       HOME: home,
@@ -233,15 +236,20 @@ describe("agents Novadeck can connect", () => {
     async ({ fixture }) => {
       expect(await cmdPrints()).toBe("prints")
       installed(fixture.home, "agy")
-      const agents = fixture.agents()
-      expect(hookEvents(join(fixture.paths.plugins.agy, "hooks.json"))).not.toContain("PreToolUse")
+      // Shell files written as this machine's cmd has it.
+      const printing = await installShellFiles(join(fixture.root, "shell-printing"))
+      const agents = createHarnesses(() => Promise.resolve(printing), {
+        home: fixture.home,
+        env: fixture.environment(),
+      })
+      expect(hookEvents(join(printing.plugins.agy, "hooks.json"))).not.toContain("PreToolUse")
       // Connected before cmd printed: its copy still has Antigravity ask Novadeck first.
       await agents.set("agy", true)
       // No launch grant on such a machine, whatever the plugin and the relay.
       expect(await agents.verified("agy")).toBe(false)
       const copy = join(fixture.home, ".gemini", "config", "plugins", "novadeck", "hooks.json")
       const asking = agy
-        .files("win32", { mcp: { command: "mcp" } })
+        .files("win32", { mcp: { command: "mcp" }, hook: { command: "relay" } })
         .find(({ path }) => path === "hooks.json")!.content
       writeFileSync(copy, asking)
       expect(hookEvents(copy)).toContain("PreToolUse")
