@@ -174,17 +174,24 @@ const classifies = (counted: { calls: number }): Rule => {
   }
 }
 
-// The ask tool with an `approval` shape. Antigravity loads an MCP tool's schema lazily, which
-// the model reads first (see inbox.e2e.ts).
-const approvalAsk = (call: Call): Reply | undefined => {
+// A Novadeck tool the model calls when the prompt says `phrase`. Antigravity loads an MCP tool's
+// schema lazily, which the model reads first (see inbox.e2e.ts).
+const novadeckCall = (
+  call: Call,
+  phrase: string,
+  name: string,
+  input: Record<string, unknown>,
+): Reply | undefined => {
   const reading =
     call.turns.at(-1)?.role === "tool" &&
     call.turns
       .findLast((entry) => entry.role === "assistant")
       ?.calls.some(
-        (entry) => entry.name === "read_file" && /[/\\]ask\.json$/.test(String(entry.input.Path)),
+        (entry) =>
+          entry.name === "read_file" &&
+          new RegExp(`[/\\\\]${name}\\.json$`).test(String(entry.input.Path)),
       ) === true
-  if (asked(call, "get approval") && call.tools.includes("call_mcp_tool")) {
+  if (asked(call, phrase) && call.tools.includes("call_mcp_tool")) {
     const named = /directory `([^`]+)[/\\]<serverName>`/.exec(call.system)?.[1]
     if (!named) throw new Error("Antigravity named no MCP schema folder")
     const home = /^App Data Directory: (.+)$/m.exec(call.system)?.[1]?.trim()
@@ -192,39 +199,46 @@ const approvalAsk = (call: Call): Reply | undefined => {
       home && named.includes("<appDataDir>") ? named.replace("<appDataDir>", home) : named
     return {
       calls: [
-        { name: "read_file", input: { Path: join(folder, "novadeck_novadeck", "ask.json") } },
+        { name: "read_file", input: { Path: join(folder, "novadeck_novadeck", `${name}.json`) } },
       ],
     }
   }
-  if (!asked(call, "get approval") && !reading) return undefined
-  const name = tool(call, "ask")
-  if (!name) throw new Error("Novadeck's ask tool is missing")
-  return {
-    calls: [
-      {
-        name,
-        input: {
-          subject: "May I run gh pr ready?",
-          body: "I need to mark pull request 12 ready, and would like not to ask again.",
-          hard_to_undo: "It tells the reviewers.",
-          shape: {
-            type: "approval",
-            commands: [{ argv: grantedArgv, rest: false }],
-          },
-        },
-      },
-    ],
-  }
+  if (!asked(call, phrase) && !reading) return undefined
+  const tooled = tool(call, name)
+  if (!tooled) throw new Error(`Novadeck's ${name} tool is missing`)
+  return { calls: [{ name: tooled, input }] }
 }
+
+// The ask tool with an `approval` shape.
+const approvalAsk = (call: Call): Reply | undefined =>
+  novadeckCall(call, "get approval", "ask", {
+    subject: "May I run gh pr ready?",
+    body: "I need to mark pull request 12 ready, and would like not to ask again.",
+    hard_to_undo: "It tells the reviewers.",
+    shape: {
+      type: "approval",
+      commands: [{ argv: grantedArgv, rest: false }],
+    },
+  })
+
+// The done tool: the agent's report that its task is finished, which ends its grant. The
+// prompt's words are none that a delivery's grant text holds.
+const doneReport = (call: Call): Reply | undefined =>
+  novadeckCall(call, "finalize report", "done", {
+    subject: "The pull request is ready",
+    body: "I marked pull request 12 ready.",
+  })
 
 const rules = (counted: { calls: number }, world: () => World): Rule[] => [
   classifies(counted),
   own((call) => {
-    const ask = approvalAsk(call)
+    const ask = approvalAsk(call) ?? doneReport(call)
     if (ask) return ask
     const { pwned, readme } = world()
     if (asked(call, "run granted")) return shellFor(call, granted)
     if (asked(call, "run again")) return shellFor(call, granted)
+    if (asked(call, "run once more") || asked(call, "run after done"))
+      return shellFor(call, granted)
     if (asked(call, "run merge")) return shellFor(call, merge)
     if (asked(call, "run padded"))
       return shellFor(call, `${granted}${" ".repeat(4100)}; touch ${pwned}`)
@@ -382,7 +396,7 @@ describe.skipIf(!supported)("Approvals through Novadeck's runner hooks", () => {
         }
       })()
       expect(record(record(entry.content).ask).shape).toMatchObject({ type: "approval" })
-      run.deck.terminals.answerAsk(entry.id, { type: "approve" })
+      run.deck.terminals.answerAsk(entry.id, { type: "approve", lifetime: "until-done" })
       await sleep(2000)
 
       // Antigravity takes a grant as launch settings, so its terminal starts again.
@@ -441,6 +455,45 @@ describe.skipIf(!supported)("Approvals through Novadeck's runner hooks", () => {
           (call) => result(call)?.includes("novadeck-approvals-readme") === true,
         )
         expect(await terminal.screen()).not.toMatch(kit.dialog)
+      }
+
+      // 6. The agent reports done: its grant ends with that, and the same command asks again, as
+      // it did before the grant. It is told so in a <grant-ended> of its own. The command runs
+      // once more first, under prompts of its own, so Claude Code's classifier hasn't blocked three in a row, which would
+      // open its own dialog in place of its refusal.
+      if (launched) {
+        await terminal.submit("run once more")
+        const end = Date.now() + 45_000
+        while (marks(world()).length < ran + 1 && Date.now() < end) {
+          // eslint-disable-next-line no-await-in-loop -- Polled in turn.
+          await sleep(250)
+        }
+        expect(marks(world())).toHaveLength(ran + 1)
+        const markDone = run.model.mark()
+        await terminal.submit("finalize report")
+        // Antigravity started under a grant asks before it calls any of Novadeck's tools.
+        if (setup.agent === "agy") {
+          await until(terminal, "the tool dialog", (shown) =>
+            /Allow calling this tool\?/.test(shown),
+          )
+          terminal.press("1")
+        }
+        await run.model.waitFor((call) => /in the user's Inbox/.test(result(call) ?? ""), {
+          after: markDone,
+        })
+        const markAfter = run.model.mark()
+        await terminal.submit("run after done")
+        await stopped("after done", ran + 1, markAfter)
+        await dismiss()
+        // Codex prints a hook's text escaped.
+        const text = run.model.calls
+          .flatMap((call) => call.turns.map((turn) => turn.text))
+          .join("\n")
+          .replaceAll("&lt;", "<")
+          .replaceAll("&gt;", ">")
+        expect(text).toContain(
+          'why="done">Your grant ended when you reported done; ask again if you continue.</grant-ended>',
+        )
       }
     })
   }
@@ -525,7 +578,7 @@ describe.skipIf(!supported)("Approvals: a team grant", () => {
       commands: [],
       repos: ["github.com/octo/repo"],
       withLead: false,
-      hours: 8,
+      lifetime: "until-done",
     })
     await sleep(2000)
 

@@ -1132,7 +1132,7 @@ for (const kit of [codexKit, agyKit]) {
         }
       })()
       expect(record(record(entry.content).ask).shape).toMatchObject({ type: "approval" })
-      run.deck.terminals.answerAsk(entry.id, { type: "approve" })
+      run.deck.terminals.answerAsk(entry.id, { type: "approve", lifetime: "until-done" })
       await sleep(2000)
 
       // A terminal started while the grant covers it takes the launch settings.
@@ -1263,7 +1263,7 @@ describe.runIf(windows)("Codex on Windows: a pr team grant", () => {
       commands: [],
       repos: ["github.com/octo/repo"],
       withLead: false,
-      hours: 8,
+      lifetime: "until-done",
     })
     await sleep(2000)
     await lead.submit("open the teammate")
@@ -1464,7 +1464,7 @@ describe.runIf(windows && process.env.GITHUB_ACTIONS === "true")(
         commands: [0],
         repos: [],
         withLead: false,
-        hours: 8,
+        lifetime: "until-done",
       })
       await sleep(2000)
       await lead.submit("open the teammate")
