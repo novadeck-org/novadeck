@@ -168,6 +168,7 @@ jobs:
       # The relay's tests compile here, alone, before the tests run in parallel: compiled cold
       # beside them they took the CPU the native PTY tests wait on (Windows, 1/3).
       - name: Build Relay Tests
+        id: relay-build
         if: matrix.shard == 1 || matrix.command == 'npm run test'
         shell: bash
         working-directory: backend/relay
@@ -185,10 +186,11 @@ jobs:
           # the last line before a hang names the file that hung.
           TURBO_LOG_ORDER: stream
 
-      # Saved even when a test failed, as the build itself is sound; skipped when the exact key
-      # was restored, since a key is never replaced.
+      # Saved even when a test failed, as the build itself is sound, but not when the run was
+      # cancelled or the build failed: a partial target would sit under a key that is never
+      # replaced. Skipped when the exact key was restored, for the same reason.
       - name: Save Rust Builds
-        if: always() && (matrix.shard == 1 || matrix.command == 'npm run test') && steps.rust-cache.outputs.cache-hit != 'true'
+        if: ${{ !cancelled() && steps.relay-build.outcome == 'success' && steps.rust-cache.outputs.cache-hit != 'true' }}
         uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: |
