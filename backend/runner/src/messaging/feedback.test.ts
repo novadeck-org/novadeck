@@ -101,6 +101,16 @@ describe("feedback drafts", () => {
     stop()
   })
 
+  it("masks what looks like a secret in a draft", () => {
+    const { feedback, stop } = setup()
+    const key = "ghp_abcdefghijklmnopqrstuvwxyz0123456789"
+    draft(feedback, `The tell tool failed with API_KEY=${key} in its output.`)
+    const [kept] = feedback.list()
+    expect(kept?.text).not.toContain(key)
+    expect(kept?.text).toContain("The tell tool failed")
+    stop()
+  })
+
   it("marks a draft asked only once the person's request reached the agent", () => {
     const run = setup()
     const { feedback, messaging, stop } = run

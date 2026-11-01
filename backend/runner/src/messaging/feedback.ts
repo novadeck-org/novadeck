@@ -6,6 +6,7 @@ import {
   type AgentName,
   type FeedbackDraft,
 } from "@novadeck/protocol"
+import { redact } from "@novadeck/secrets"
 import { Latest } from "@novadeck/wire/server"
 import { z } from "zod"
 
@@ -38,7 +39,11 @@ type Host = {
 
 const draftRequest = z.strictObject({
   kind: feedbackKind,
-  text: z.string().transform(cleanInboxText).pipe(z.string().trim().min(1).max(maxFeedbackText)),
+  // A draft is the agent's own words and may quote a terminal: what looks like a secret is masked.
+  text: z
+    .string()
+    .transform((text) => redact(cleanInboxText(text)))
+    .pipe(z.string().trim().min(1).max(maxFeedbackText)),
 })
 
 /**
