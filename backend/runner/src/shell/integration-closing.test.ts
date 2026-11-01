@@ -342,11 +342,27 @@ describe.skipIf(process.platform === "win32" || !existsSync(bash))(
         // eslint-disable-next-line no-await-in-loop -- Each is readied in turn.
         await shell.until(manager, id, /^trapped$/m)
       }
+      // Past reading whether a program runs there, a close is under way once the terminal
+      // takes no more input.
+      const underWay = (terminalId: string) =>
+        expect
+          .poll(
+            () => {
+              try {
+                manager.write({ terminalId, data: " " }, "owner")
+                return false
+              } catch (error) {
+                return (error as { code?: string }).code === "TERMINAL_EXITED"
+              }
+            },
+            { timeout: 10_000 },
+          )
+          .toBe(true)
       const closing = manager.closePeer({
         ...calls.first,
         request: { to: "owl" },
       })
-      await new Promise((resolve) => setImmediate(resolve))
+      await underWay(target!.id)
       await expect(manager.closePeer({ ...calls.second, request: { to: "owl" } })).resolves.toEqual(
         {
           ok: false,
@@ -359,21 +375,7 @@ describe.skipIf(process.platform === "win32" || !existsSync(bash))(
         ...calls.first,
         request: { to: "crow" },
       })
-      // Past reading whether a program runs there, the close is under way: the terminal takes
-      // no more input.
-      await expect
-        .poll(
-          () => {
-            try {
-              manager.write({ terminalId: last!.id, data: " " }, "owner")
-              return false
-            } catch (error) {
-              return (error as { code?: string }).code === "TERMINAL_EXITED"
-            }
-          },
-          { timeout: 10_000 },
-        )
-        .toBe(true)
+      await underWay(last!.id)
       const stopping = manager.shutdown()
       await expect(stopped).resolves.toEqual(unansweredCalls.close)
       await stopping

@@ -3,18 +3,22 @@ import { terminalFixture, workspaceFixture } from "@novadeck/core/testing"
 import type { Workspace } from "@novadeck/core/types"
 import { render, type Rendered } from "@novadeck/test-kit/render"
 import { act, createElement } from "react"
-import { afterEach, onTestFinished, vi } from "vitest"
+import { afterEach, beforeEach, onTestFinished, vi } from "vitest"
 
 import { context, describe, expect, it } from "../test"
 import { ApprovalDialog, approvalView, sameApprovalView, type ApprovalView } from "./ApprovalDialog"
 
 const mounted: Rendered[] = []
-afterEach(() => mounted.splice(0).forEach((page) => page.unmount()))
+beforeEach(() => void vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] }))
+afterEach(() => {
+  mounted.splice(0).forEach((page) => page.unmount())
+  vi.useRealTimers()
+})
 
 const dialog = () => document.querySelector<HTMLElement>("[role=alertdialog]")
-const settle = () => act(() => new Promise((resolve) => setTimeout(resolve, 50)))
+const settle = () => act(() => vi.advanceTimersByTimeAsync(50))
 // Past the delay before confirming works.
-const armed = () => act(() => new Promise((resolve) => setTimeout(resolve, 1050)))
+const armed = () => act(() => vi.advanceTimersByTimeAsync(1050))
 
 const view = (fields: Partial<ApprovalView> = {}): ApprovalView => ({
   requestId: "approval-1",
@@ -137,6 +141,54 @@ describe("approval dialog", () => {
       expect(onAnswer).toHaveBeenCalledExactlyOnceWith("approval-1", true)
     })
 
+    it("lets Run be used once the window grows until the command fits", async () => {
+      const sizes = { scrollHeight: 1000, clientHeight: 240 }
+      vi.spyOn(HTMLElement.prototype, "scrollHeight", "get").mockImplementation(
+        () => sizes.scrollHeight,
+      )
+      vi.spyOn(HTMLElement.prototype, "clientHeight", "get").mockImplementation(
+        () => sizes.clientHeight,
+      )
+      let resized: () => void = () => {}
+      vi.stubGlobal(
+        "ResizeObserver",
+        class {
+          constructor(callback: () => void) {
+            resized = callback
+          }
+          observe() {}
+          disconnect() {}
+        },
+      )
+      onTestFinished(() => {
+        vi.restoreAllMocks()
+        vi.unstubAllGlobals()
+      })
+      const { button } = show(run("echo hi"))
+      await settle()
+      await armed()
+      expect(button("Run command").disabled).toBe(true)
+      sizes.clientHeight = 1000
+      act(() => resized())
+      expect(button("Run command").disabled).toBe(false)
+    })
+
+    it("writes out what only draws as nothing in the folder, and runs of combining marks", async () => {
+      show({
+        ...run("echo a\u0301\u0302\u0303\u0304 \u034F\u17B4"),
+        action: {
+          type: "run",
+          command: "echo a\u0301\u0302\u0303\u0304 \u034F\u17B4",
+          cwd: "/x\u2800/y",
+        },
+      })
+      await settle()
+      expect(dialog()?.querySelector("pre")?.textContent).toBe(
+        "echo a\\u{301}\\u{302}\\u{303}\\u{304} \\u{34F}\\u{17B4}",
+      )
+      expect(dialog()?.querySelector("code")?.textContent).toBe("/x\\u{2800}/y")
+    })
+
     it("runs it on Run command, and declines on Don't run", async () => {
       const { button, onAnswer, showNext } = show(run())
       await settle()
@@ -153,6 +205,14 @@ describe("approval dialog", () => {
       show({ ...run(), asker: undefined, target: undefined })
       await settle()
       expect(dialog()?.textContent).toContain("Let an agent run a command?")
+    })
+  })
+
+  context("when the program running there has a hidden name", () => {
+    it("writes the hidden characters out", async () => {
+      show(view({ target: { name: "prod", process: "ss\u200Bh", handle: "fox" } }))
+      await settle()
+      expect(dialog()?.textContent).toContain("ss\\u{200B}h is running there.")
     })
   })
 
@@ -270,10 +330,12 @@ describe("approval dialog", () => {
 
   context("when the approval goes away", () => {
     it("closes without an answer", async () => {
+      // The dialog's exit is timed by the browser's animation frames, which fake timers hold.
+      vi.useRealTimers()
       const { showNext, onAnswer } = show(view())
-      await settle()
+      await act(() => new Promise((resolve) => setTimeout(resolve, 50)))
       showNext(null)
-      await settle()
+      await act(() => new Promise((resolve) => setTimeout(resolve, 50)))
       expect(dialog()).toBeNull()
       expect(onAnswer).not.toHaveBeenCalled()
     })

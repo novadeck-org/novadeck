@@ -4,7 +4,7 @@ import { handleText } from "@novadeck/core/terminals/handle"
 import { isAgentProgram } from "@novadeck/core/terminals/process"
 import type { TerminalMetadata, Workspace } from "@novadeck/core/types"
 import { ConfirmDialog } from "@novadeck/toolkit/ConfirmDialog"
-import { useCallback, useLayoutEffect, useRef, useState } from "react"
+import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react"
 
 import { clipped, visibleText } from "./visible-text"
 
@@ -94,8 +94,15 @@ const CommandView = ({
     const el = pre.current
     if (el && el.scrollTop + el.clientHeight >= el.scrollHeight - 2) onSeen()
   }, [onSeen])
-  // A command that fits needs no scrolling.
+  // A command that fits needs no scrolling, as when the window grows until it does.
   useLayoutEffect(check, [check])
+  useEffect(() => {
+    const el = pre.current
+    if (!el || typeof ResizeObserver === "undefined") return undefined
+    const observer = new ResizeObserver(check)
+    observer.observe(el)
+    return () => observer.disconnect()
+  }, [check])
   const lines = command.split("\n").length
   return (
     <>
@@ -139,7 +146,7 @@ const descriptionOf = (
       </>
     )
   const agent = target && agentOf(target)
-  const running = agent ?? (target?.process ? target.process : undefined)
+  const running = agent ?? (target?.process ? clipped(target.process, 40) : undefined)
   if (action.type === "close")
     return `${askerOf(asker)} asks to close ${target ? "it" : "a terminal"}.${running ? ` ${running} is running there.` : ""}`
   return (

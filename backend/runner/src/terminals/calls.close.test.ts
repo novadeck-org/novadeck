@@ -59,6 +59,7 @@ const setup = (
       },
     }),
     approvals: () => approvals,
+    trees: () => ({ read: async () => undefined }),
     closingNow: () => false,
     closeForGood: (record: Record) => {
       record.closed = true

@@ -667,6 +667,7 @@ export class Terminals {
       bindings: () => this.bindings,
       companion: () => this.companion,
       launcher: () => this.launcher,
+      trees: () => this.trees,
       claims: () => this.claims,
       install: (agent) => this.options.install(agent),
       models: (agent) => this.options.models(agent),

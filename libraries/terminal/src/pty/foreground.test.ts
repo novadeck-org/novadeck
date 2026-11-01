@@ -8,8 +8,10 @@ import { afterAll, beforeAll, describe, expect, it, onTestFinished, vi } from "v
 
 import {
   hasChildProcess,
+  hasTerminalChild,
   parseCommandLine,
   parseProcessStat,
+  parsePsRows,
   sampleForeground,
   statName,
 } from "./foreground.js"
@@ -133,15 +135,55 @@ describe.skipIf(process.platform !== "darwin")("macOS foreground naming", () => 
 })
 
 describe.skipIf(process.platform === "win32")("a process's children", () => {
-  it("tells a process with a background job from one without, and nothing for a bad pid", async () => {
-    const child = spawn("sh", ["-c", "sleep 30 & wait"], { cols: 80, rows: 24 })
-    onTestFinished(() => child.kill())
-    await vi.waitFor(async () => expect(await hasChildProcess(child.pid)).toBe(true))
-    const idle = spawn("sh", ["-c", "sleep 0.1; exit 0"], { cols: 80, rows: 24 })
+  it("tells a shell with a background job from an idle one, and nothing for a bad pid", async () => {
+    const job = spawn("sh", ["-c", "sleep 30 & wait"], { cols: 80, rows: 24 })
+    onTestFinished(() => job.kill())
+    await vi.waitFor(async () => expect(await hasChildProcess(job.pid)).toBe(true))
+    const idle = spawn("sh", [], { cols: 80, rows: 24 })
     onTestFinished(() => idle.kill())
+    await vi.waitFor(async () => expect(await hasChildProcess(idle.pid)).toBe(false))
     await expect(hasChildProcess(undefined)).resolves.toBeUndefined()
     await expect(hasChildProcess(0)).resolves.toBeUndefined()
-    await expect(hasChildProcess(2 ** 22 + 12345)).resolves.toBe(false)
+    await expect(hasChildProcess(2 ** 22 + 12345)).resolves.toBeUndefined()
+  })
+})
+
+describe("children on a Unix shell's terminal", () => {
+  const rows = (text: string) => parsePsRows(text)
+
+  it("reads ps rows, program names with spaces included", () => {
+    expect(
+      rows("  10     1 pts/3    zsh\n  11    10 pts/3    /usr/bin/my prog\nnot a row\n"),
+    ).toEqual([
+      { pid: 10, ppid: 1, tty: "pts/3", comm: "zsh" },
+      { pid: 11, ppid: 10, tty: "pts/3", comm: "/usr/bin/my prog" },
+    ])
+  })
+
+  it("counts a job on the shell's own terminal", () => {
+    expect(hasTerminalChild(rows("10 1 pts/3 zsh\n11 10 pts/3 npm\n"), 10)).toBe(true)
+  })
+
+  it("ignores a prompt worker on a terminal of its own, as zsh-async's zpty keeps", () => {
+    expect(hasTerminalChild(rows("10 1 pts/3 zsh\n11 10 pts/9 zsh\n12 11 pts/9 git\n"), 10)).toBe(
+      false,
+    )
+  })
+
+  it("ignores gitstatusd, powerlevel10k's helper, on the shell's terminal too", () => {
+    expect(
+      hasTerminalChild(
+        rows("10 1 ttys003 zsh\n11 10 ttys003 /home/me/.cache/gitstatus/gitstatusd-darwin-arm64\n"),
+        10,
+      ),
+    ).toBe(false)
+  })
+
+  it("is idle with no child, and tells nothing for a shell with no terminal or none listed", () => {
+    expect(hasTerminalChild(rows("10 1 pts/3 zsh\n"), 10)).toBe(false)
+    expect(hasTerminalChild(rows("10 1 ? zsh\n11 10 ? sleep\n"), 10)).toBeUndefined()
+    expect(hasTerminalChild(rows("10 1 ?? zsh\n"), 10)).toBeUndefined()
+    expect(hasTerminalChild(rows("11 10 pts/3 sleep\n"), 10)).toBeUndefined()
   })
 })
 
@@ -151,22 +193,35 @@ describe("a Windows shell's children, from the relay's tree", () => {
     Object.defineProperty(process, "platform", { value: "win32" })
     onTestFinished(() => void Object.defineProperty(process, "platform", platform))
   }
-  const tree = (members: number[] | undefined) => ({
-    read: vi.fn<(root: number) => Promise<{ pid: number; startedAt: number }[] | undefined>>(
-      async () => members?.map((pid) => ({ pid, startedAt: 1 })),
-    ),
+  type Row = { pid: number; startedAt: number; name?: string }
+  const tree = (members: Row[] | undefined) => ({
+    read: vi.fn<(root: number) => Promise<Row[] | undefined>>(async () => members),
+  })
+  const at = (pid: number, name?: string): Row => ({ pid, startedAt: 1, ...(name && { name }) })
+
+  it("is busy when a program runs under the shell, as a Start-Job or start /b leaves", async () => {
+    onWindows()
+    await expect(
+      hasChildProcess(10, tree([at(10, "pwsh.exe"), at(11, "pwsh.exe"), at(12, "node.exe")])),
+    ).resolves.toBe(true)
   })
 
-  it("is busy when any process runs under the shell, as a Start-Job or start /b leaves", async () => {
+  it("is idle when the tree holds only the shell, its console host, or its own launcher", async () => {
     onWindows()
-    await expect(hasChildProcess(10, tree([10, 11]))).resolves.toBe(true)
-  })
-
-  it("is idle when the tree holds only the shell", async () => {
-    onWindows()
-    const trees = tree([10])
+    const trees = tree([
+      at(10, "bash.exe"),
+      at(11, "bash.exe"),
+      at(12, "conhost.exe"),
+      at(13, "OpenConsole.exe"),
+    ])
     await expect(hasChildProcess(10, trees)).resolves.toBe(false)
     expect(trees.read).toHaveBeenCalledWith(10)
+  })
+
+  it("counts any other process when the relay names none", async () => {
+    onWindows()
+    await expect(hasChildProcess(10, tree([at(10), at(11)]))).resolves.toBe(true)
+    await expect(hasChildProcess(10, tree([at(10)]))).resolves.toBe(false)
   })
 
   it("tells nothing where the relay can't read the tree, or none is given", async () => {

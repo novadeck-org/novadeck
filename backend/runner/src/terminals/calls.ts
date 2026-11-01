@@ -3,7 +3,7 @@ import { resolve as resolvePath } from "node:path"
 import type { Effort, Install, Model } from "@novadeck/harness-core/harness"
 import { doorbellLine, quotedLine } from "@novadeck/harness-core/prompts"
 import type { AgentName } from "@novadeck/protocol"
-import { Trees } from "@novadeck/terminal/pty"
+import type { Trees } from "@novadeck/terminal/pty"
 import { freshNonce } from "@novadeck/tui-input"
 
 import { agents, harnesses } from "../harnesses/registry.js"
@@ -98,6 +98,8 @@ export type CallsHost = LeadsHost & {
   readonly opens: () => OpenRequests
   readonly companion: () => Companion
   readonly launcher: () => Launcher
+  /** Windows' process trees, which tell whether a shell has a job under it. */
+  readonly trees: () => Pick<Trees, "read">
   /** The sessions given out to resume, one to a terminal. */
   readonly claims: () => Claims
   /** Where a harness lives on this machine, which says how it may start with a task. */
@@ -155,12 +157,6 @@ export class Calls {
     readonly host: CallsHost,
   ) {
     this.leads = new Leads(host)
-  }
-
-  /** The relay's process trees, which tell on Windows whether a shell has a job under it. */
-  private treesRead: Trees | undefined
-  private trees(): Trees {
-    return (this.treesRead ??= new Trees(async () => this.host.launcher().relay))
   }
 
   /**
@@ -511,7 +507,9 @@ export class Calls {
     // job in the background: only read for a terminal that runs no agent.
     const closingRecord = this.host.records().get(target.terminalId)
     const busy =
-      target.agent === null && closingRecord ? await shellBusy(closingRecord, this.trees()) : false
+      target.agent === null && closingRecord
+        ? await shellBusy(closingRecord, this.host.trees())
+        : false
     // Closed, or the runner stopped, while the terminals were described.
     const closing = this.host.records().get(target.terminalId)
     if (this.host.stopping() || this.host.records().get(call.terminalId) !== record || !closing)

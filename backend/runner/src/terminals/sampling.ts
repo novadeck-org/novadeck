@@ -1,7 +1,7 @@
 import { basename } from "node:path"
 
 import type { AgentName, ForegroundProcess } from "@novadeck/protocol"
-import { hasChildProcess, sampleForeground } from "@novadeck/terminal/pty"
+import { hasChildProcess, sampleForeground, terminalForeground } from "@novadeck/terminal/pty"
 
 import type { Record } from "./record.js"
 
@@ -66,7 +66,10 @@ export const shellBusy = async (
   >,
   trees?: Parameters<typeof hasChildProcess>[1],
 ): Promise<boolean> => {
-  if (!shellAtPrompt(record)) return true
+  // The foreground read now, where the platform tells it: the last sample may predate a
+  // program that has ended since.
+  const group = await terminalForeground(record.terminal.pty.pid)
+  if (group !== undefined ? group !== record.terminal.pty.pid : !shellAtPrompt(record)) return true
   if (record.prompts.length > 0 && record.submitted) return true
   return (await hasChildProcess(record.terminal.pty.pid, trees)) === true
 }

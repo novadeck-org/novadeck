@@ -1,4 +1,10 @@
-import { afterEach, beforeEach, vi } from "vitest"
+import { afterEach, beforeEach, onTestFinished, vi } from "vitest"
+
+const fresh = vi.hoisted(() => ({ group: undefined as number | undefined }))
+vi.mock("@novadeck/terminal/pty", async (original) => ({
+  ...(await original<typeof import("@novadeck/terminal/pty")>()),
+  terminalForeground: async () => fresh.group,
+}))
 
 import { describe, expect, it } from "../test.js"
 import type { Record } from "./record.js"
@@ -109,6 +115,19 @@ describe("whether a shell may be running a program", () => {
       submitted: false,
       ...fields,
     }) as unknown as Parameters<typeof shellBusy>[0]
+
+  it("reads the foreground anew, so a program that has ended since the last sample is idle", async () => {
+    fresh.group = 7
+    onTestFinished(() => void (fresh.group = undefined))
+    const record = shell({
+      foreground: { group: 999 },
+      terminal: { pty: { pid: 7 } },
+      summary: { process: { name: "ssh", argv: null } },
+    })
+    expect(await shellBusy(record)).toBe(false)
+    fresh.group = 999
+    expect(await shellBusy(record)).toBe(true)
+  })
 
   it("is idle at its prompt", async () => {
     expect(await shellBusy(shell())).toBe(false)
