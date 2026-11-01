@@ -207,7 +207,8 @@ as an Electron window with context isolation, and never forward it to web conten
 The desktop host answers port requests only from the main frame of its own windows,
 which cannot navigate away from the packaged UI.
 
-Bind to loopback by default. Remote access requires a trusted HTTPS/WSS reverse
+Bind to loopback by default: the runner refuses to start on any other `HOST` unless
+`NOVADECK_ALLOW_REMOTE_HOST=1` is set. Remote access requires a trusted HTTPS/WSS reverse
 proxy (or a private encrypted network), explicit browser origins in
 `CORS_ORIGINS`, and firewall rules preventing direct public access to the plaintext
 listener. Requests without an Origin header are permitted for native clients but

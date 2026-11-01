@@ -276,7 +276,7 @@ describe("the runner's companion content", () => {
 
   it("says why a plan can't be written, and leaves any other failure as it is", async () => {
     const app = following()
-    for (const reason of ["gone", "folder", "transcript", "too-large", "not-a-plan"]) {
+    for (const reason of ["gone", "folder", "transcript", "too-large", "not-a-plan", "outside"]) {
       app.saveFails(new WireError("PLAN_UNWRITABLE", "no", { data: { reason } }))
       // eslint-disable-next-line no-await-in-loop -- Each step waits for the one before.
       const rejected = await app.companions.save(target, hero, "# New\n", "a1").catch((e) => e)

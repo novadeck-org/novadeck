@@ -267,7 +267,13 @@ export type PlanSaved =
 // Why a plan can't be written, which saving it again won't change until the plan or its
 // folder does: its file is gone, Novadeck may not write in its folder or file, it lives in
 // an agent's messages, it is past what Novadeck writes, or the item is no plan.
-export type PlanUnwritableReason = "gone" | "folder" | "transcript" | "too-large" | "not-a-plan"
+export type PlanUnwritableReason =
+  | "gone"
+  | "folder"
+  | "transcript"
+  | "too-large"
+  | "not-a-plan"
+  | "outside"
 
 // What `save` rejects with when the plan can't be written for good. Any other rejection
 // is a failure that may pass, which the pane tries again.
