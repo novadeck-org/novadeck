@@ -74,8 +74,10 @@ exec "$novadeck_real" --settings "$novadeck_settings" "$@"
 // so NOVADECK_NARROW reaches Antigravity alone, and so does the PATH given to `cmdShimDir`: where
 // cmd's AutoRun prints, Novadeck's cmd.exe pass-through (a folder holding it as "cmd.exe", see
 // backend/relay) goes first on PATH there, so Antigravity's hooks, which it runs as "cmd /c" through
-// whatever "cmd" PATH names first, skip the AutoRun. Its own "run_command" does not take that
-// "cmd", so the person's commands run as they always did; the terminal's shell keeps its PATH.
+// whatever "cmd" PATH names first, skip the AutoRun. That folder reaches everything Antigravity
+// starts, so the pass-through adds "/d" only to Novadeck's own hook command ("if defined
+// NOVADECK_HOOK ..."); any other "cmd" it runs with the arguments it got, AutoRun included, as
+// the person's commands always did. The terminal's shell keeps its PATH.
 export const makeCmdShim = (cmdShimDir?: string): string => `@echo off
 ${header("rem", "shim for agy")}
 rem Runs the real agy, narrowed where Novadeck's runner wrote launch settings for this terminal.

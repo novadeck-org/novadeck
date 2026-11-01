@@ -1,12 +1,15 @@
 //! A pass-through for Windows' `cmd.exe`, for the programs that find `cmd` through PATH and
 //! run their hooks as `cmd /c "<command>"` (Antigravity's Go does). It starts the real
 //! `cmd.exe` with `/d`, which skips the machine's AutoRun, so AutoRun's output cannot break
-//! a hook's answer. The command line it passes on is the one it was given, untouched.
+//! a hook's answer. Only for Novadeck's own hook commands (`is_hook`): its folder is on the
+//! PATH of everything Antigravity starts, and any other `cmd` (the agent's tools') must still
+//! run the person's AutoRun, so that one is passed on with the arguments it was given. The
+//! command line it passes on is the one it was given, untouched, with `/d ` before it for a hook.
 //!
 //! It finds the real `cmd.exe` in the system directory Windows reports
 //! (`GetSystemDirectoryW`), never through PATH, which would find itself, nor through
 //! `%SystemRoot%`, which the environment of the process that started it can set.
-//! With `NOVADECK_CMD_LOG` set to a file, it appends the command line it passes on there
+//! With `NOVADECK_CMD_LOG` set to a file, it appends the arguments it passes on there
 //! (for tests; nothing in Novadeck sets it).
 //!
 //! Windows only: elsewhere there is no cmd, and the program does nothing.
@@ -28,6 +31,36 @@ fn after_program(line: &[u16]) -> &[u16] {
     };
     let rest = &line[name_end..];
     &rest[rest.iter().take_while(|unit| blank(unit)).count()..]
+}
+
+/// Whether `rest` (the arguments `cmd` was given) is one of Novadeck's hook commands, which
+/// the Antigravity plugin writes as `if defined NOVADECK_HOOK (...)`; Antigravity runs it as
+/// `cmd /c <that>`, with or without quotes round it. cmd's own case rules apply to the names.
+#[cfg(any(windows, test))]
+fn is_hook(rest: &[u16]) -> bool {
+    let marker: Vec<u16> = "if defined novadeck_hook".encode_utf16().collect();
+    let lower = |unit: u16| match u8::try_from(unit) {
+        Ok(byte) => u16::from(byte.to_ascii_lowercase()),
+        Err(_) => unit,
+    };
+    rest.windows(marker.len()).any(|window| {
+        window
+            .iter()
+            .zip(&marker)
+            .all(|(unit, want)| lower(*unit) == *want)
+    })
+}
+
+/// The arguments the real `cmd.exe` gets: `rest` as it is, with `/d ` before it for a hook.
+#[cfg(any(windows, test))]
+fn passed_on(rest: &[u16]) -> Vec<u16> {
+    let mut arguments: Vec<u16> = if is_hook(rest) {
+        "/d ".encode_utf16().collect()
+    } else {
+        Vec::new()
+    };
+    arguments.extend_from_slice(rest);
+    arguments
 }
 
 /// The system directory as Windows fills it in: `call` is `GetSystemDirectoryW` over the
@@ -66,7 +99,7 @@ fn append_log(path: &std::path::Path, rest: &str) {
 #[cfg(windows)]
 fn main() {
     use std::ffi::OsString;
-    use std::os::windows::ffi::{OsStrExt, OsStringExt};
+    use std::os::windows::ffi::OsStringExt;
     use std::os::windows::process::CommandExt;
     use std::path::PathBuf;
     use std::process::Command;
@@ -87,10 +120,13 @@ fn main() {
         }
         std::slice::from_raw_parts(start, length)
     };
-    let rest = OsString::from_wide(after_program(line));
+    let arguments = passed_on(after_program(line));
 
     if let Some(path) = std::env::var_os("NOVADECK_CMD_LOG").filter(|path| !path.is_empty()) {
-        append_log(&PathBuf::from(path), &rest.to_string_lossy());
+        append_log(
+            &PathBuf::from(path),
+            &OsString::from_wide(&arguments).to_string_lossy(),
+        );
     }
 
     // SAFETY: the buffer is valid for the size passed with it.
@@ -102,9 +138,6 @@ fn main() {
         |wide| PathBuf::from(OsString::from_wide(&wide)),
     );
     let cmd = system.join("cmd.exe");
-    let mut arguments: Vec<u16> = "/d ".encode_utf16().collect();
-    arguments.extend(rest.encode_wide());
-
     let code = match Command::new(&cmd)
         .raw_arg(OsString::from_wide(&arguments))
         .status()
@@ -123,7 +156,7 @@ fn main() {}
 
 #[cfg(test)]
 mod tests {
-    use super::{after_program, append_log, system_directory};
+    use super::{after_program, append_log, is_hook, passed_on, system_directory};
 
     fn rest(line: &str) -> String {
         let wide: Vec<u16> = line.encode_utf16().collect();
@@ -169,6 +202,33 @@ mod tests {
 
     fn wide(text: &str) -> Vec<u16> {
         text.encode_utf16().collect()
+    }
+
+    fn passed(rest: &str) -> String {
+        String::from_utf16(&passed_on(&wide(rest))).unwrap()
+    }
+
+    #[test]
+    fn a_hook_command_gets_d_and_is_otherwise_untouched() {
+        let hook = r#"/c "if defined NOVADECK_HOOK (if exist %NOVADECK_HOOK% (%NOVADECK_HOOK% agy Stop) else (echo {})) else (echo {})""#;
+        assert!(is_hook(&wide(hook)));
+        assert_eq!(passed(hook), format!("/d {hook}"));
+        // Unquoted, and in any case.
+        assert!(is_hook(&wide("/c IF DEFINED novadeck_hook (echo {})")));
+    }
+
+    #[test]
+    fn any_other_command_runs_the_persons_autorun_with_its_arguments_unchanged() {
+        for rest in [
+            r#"/c "echo hi""#,
+            r#"/s /c "node C:\a\marker.cjs""#,
+            "/c echo %NOVADECK_HOOK%",
+            "",
+            "/k",
+        ] {
+            assert!(!is_hook(&wide(rest)), "{rest}");
+            assert_eq!(passed(rest), rest);
+        }
     }
 
     #[test]

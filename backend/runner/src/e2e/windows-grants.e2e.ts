@@ -852,6 +852,17 @@ describe.runIf(windows)("Antigravity on Windows (grants probe)", () => {
           expect(dialog, "force_ask's dialog shows").toBe(true)
           expect(ranBeforeKeys, "the command ran with no dialog").toBe(false)
           expect(wrapper.length, "the pass-through's log").toBeGreaterThan(0)
+          // /d only for Novadeck's own hooks: the agent's tools' cmd keeps the person's AutoRun.
+          const hooks = wrapper.filter((one) => /if defined novadeck_hook/i.test(one))
+          expect(hooks.length, "hooks went through the pass-through").toBeGreaterThan(0)
+          expect(
+            hooks.every((one) => one.startsWith("/d ")),
+            "every hook got /d",
+          ).toBe(true)
+          expect(
+            wrapper.filter((one) => !hooks.includes(one)).some((one) => one.startsWith("/d ")),
+            "no other cmd got /d",
+          ).toBe(false)
         }
         report(`agy ${c.name}`, kit)
         // Antigravity's own settings and logs, where the grants may have been read or refused.

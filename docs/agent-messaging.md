@@ -1410,7 +1410,10 @@ Antigravity's hooks through its own `cmd.exe /d`: the AutoRun is skipped for hoo
 the agent's commands. Antigravity's own `run_command` does not take that `cmd`, so the person's
 AutoRun still applies to them. Novadeck installs `novadeck-cmd.exe` (built with the relay) as
 `cmd.exe` in a folder of its own, verifies it byte for byte, and its `agy` shim puts that folder
-first on PATH for Antigravity's environment alone, never the terminal's shell. Where it is
+first on PATH for Antigravity's environment alone, never the terminal's shell. That folder
+reaches every `cmd` Antigravity's tools start by name, so the pass-through adds `/d` only to
+Novadeck's own hook command (it holds `if defined NOVADECK_HOOK`); any other `cmd` runs the
+person's AutoRun with the arguments it was given. Where it is
 missing or differs, messaging with Antigravity does not work there until the AutoRun's output goes.
 The grant text says why no launch grant reaches it and that the user can change this from
 Novadeck's Inbox. The pass-through fixes messaging only: Antigravity's PreToolUse hook is global,
