@@ -24,7 +24,7 @@ import { tmpdir } from "node:os"
 import { delimiter, join } from "node:path"
 
 import { relayPath } from "@novadeck/relay"
-import { onTestFinished } from "vitest"
+import { afterAll, beforeAll, onTestFinished } from "vitest"
 
 import type { AgentSetup } from "./agents/agent.js"
 import { agy } from "./agents/agy.js"
@@ -33,7 +33,7 @@ import type { DeckTerminal } from "./deck.js"
 import { describe, e2e, expect, supported, type E2E } from "./fixture.js"
 import { installHarness } from "./install.js"
 import { asked, record, tool, type Call, type Reply } from "./model/script.js"
-import { own, prompted, result } from "./scenarios.js"
+import { delivered, messages, own, prompted, result, sends, sent, start } from "./scenarios.js"
 
 const sleep = (ms: number) => new Promise<void>((resolve) => setTimeout(resolve, ms))
 
@@ -133,29 +133,11 @@ if (mode === "none") done(0)
 else if (mode === "oops") { say("oops"); done(0) }
 else if (mode === "exit1") done(1)
 else if (mode === "dug-exit1") { say('{"decision":"deny_unless_prior_grant"}'); done(1) }
-else if (mode === "spawn") {
-  // The answer is out already. Its pids are written at once, a detached child resolves the
-  // chain from them while this hook stays alive (its parents with it), then it ends.
-  say('{"decision":"force_ask"}')
-  const { spawn } = require("node:child_process")
-  require("node:fs").writeFileSync(dir + "/spawn-pids.json", JSON.stringify({ t: Date.now(), pid: process.pid, ppid: process.ppid }))
-  spawn(process.execPath, [__dirname + "/chain.cjs", dir, String(process.pid)], { detached: true, stdio: "ignore", windowsHide: true }).unref()
-  setTimeout(() => done(0), 8000)
-}
 else if (mode === "sleep") setTimeout(() => { log({ finished: true, slept: true }); process.exit(0) }, 6000)
 else {
   if (existsSync(out)) say(readFileSync(out, "utf8"))
   done(0)
 }
-`
-
-// Resolves the chain of a pid (the hook's) into spawn-chain.json: run detached, so a slow
-// query holds nothing.
-const chainProgram = `
-const { writeFileSync } = require("node:fs")
-const { ancestry } = require("./ancestry.cjs")
-const [dir, pid] = process.argv.slice(2)
-writeFileSync(dir + "/spawn-chain.json", JSON.stringify(ancestry(Number(pid))))
 `
 
 type Kit = {
@@ -180,7 +162,6 @@ const withKit = (setup: AgentSetup): AgentSetup => ({
     writeFileSync(join(dir, "argv.cjs"), argvProgram)
     writeFileSync(join(dir, "marker.cjs"), markerProgram)
     writeFileSync(join(dir, "hook.cjs"), hookProgram)
-    writeFileSync(join(dir, "chain.cjs"), chainProgram)
     kits.set(sandbox.root, { dir, bin })
     return { ...env, PATH: [bin, sandbox.env.PATH].join(delimiter) }
   },
@@ -214,50 +195,48 @@ const lines = (file: string): unknown[] =>
         })
     : []
 
+const autoRunKey = "HKCU\\Software\\Microsoft\\Command Processor"
+const reg = (...args: string[]) => spawnSync("reg.exe", args, { encoding: "utf8" })
+
+/**
+ * Makes cmd print a marker before every command it runs, and returns what puts the registry
+ * back. It changes the runner's own registry, which no test may on a developer's machine:
+ * only CI's runner.
+ */
+const printingAutoRun = (): (() => void) => {
+  if (process.env.GITHUB_ACTIONS !== "true")
+    throw new Error("an AutoRun is set on CI's runner only")
+  const was = reg("query", autoRunKey, "/v", "AutoRun")
+  const previous =
+    was.status === 0 ? /AutoRun\s+REG_\w+\s+(.*)$/m.exec(was.stdout)?.[1]?.trim() : undefined
+  const restore = () => {
+    if (previous === undefined) reg("delete", autoRunKey, "/v", "AutoRun", "/f")
+    else reg("add", autoRunKey, "/v", "AutoRun", "/t", "REG_SZ", "/d", previous, "/f")
+  }
+  const set = reg(
+    "add",
+    autoRunKey,
+    "/v",
+    "AutoRun",
+    "/t",
+    "REG_SZ",
+    "/d",
+    "echo novadeck-ci: an AutoRun printed this",
+    "/f",
+  )
+  if (set.status !== 0) throw new Error(`AutoRun not set: ${set.stderr}`)
+  const printed = spawnSync(process.env.COMSPEC || "cmd.exe", ["/c", "rem"], { encoding: "utf8" })
+  if (!printed.stdout.includes("an AutoRun printed this")) {
+    restore()
+    throw new Error(`cmd printed nothing under the AutoRun: ${printed.stdout}`)
+  }
+  return restore
+}
+
 /** Prints what the hooks and programs logged. */
 const report = (label: string, kit: Kit) => {
   for (const event of lines(join(kit.dir, "events.jsonl"))) probe(`${label} hook`, event)
   for (const program of lines(join(kit.dir, "programs.jsonl"))) probe(`${label} program`, program)
-}
-
-/** Reads where the spawn-mode hook's chain ended: its own query's file, else a lookup here. */
-const spawnMode = async (kit: Kit) => {
-  const read = (name: string): unknown => {
-    try {
-      return JSON.parse(readFileSync(join(kit.dir, name), "utf8")) as unknown
-    } catch {
-      return null
-    }
-  }
-  const recorded = read("spawn-pids.json") as { pid: number; ppid: number } | null
-  // The query takes a while on Windows; wait for the hook's own child, then ask again here.
-  for (let i = 0; i < 60 && !existsSync(join(kit.dir, "spawn-chain.json")); i++) await sleep(2000)
-  const chain = read("spawn-chain.json") as { name?: string; commandLine?: string }[] | null
-  let late: unknown = null
-  if (recorded) {
-    const ps = spawnSync(
-      "powershell.exe",
-      [
-        "-NoProfile",
-        "-NonInteractive",
-        "-Command",
-        `Get-CimInstance Win32_Process | Where-Object { $_.ProcessId -in ${recorded.pid},${recorded.ppid} } | Select-Object ProcessId,ParentProcessId,Name,CommandLine | ConvertTo-Json -Compress`,
-      ],
-      { encoding: "utf8", timeout: 120_000 },
-    )
-    late = ps.stdout.trim() || ps.stderr.slice(0, 300)
-  }
-  const parent = chain?.[1]
-  probe("agy hook spawn", {
-    verdict: !parent
-      ? "unknown: no chain"
-      : /^cmd(\.exe)?$/i.test(String(parent.name))
-        ? "through cmd (parent is cmd.exe)"
-        : `direct (parent is ${String(parent.name)})`,
-    pids: recorded,
-    chain,
-    lateLookupFromTest: late,
-  })
 }
 
 const windows = process.platform === "win32" && supported
@@ -474,15 +453,15 @@ type AgyCase = {
   /** What PreToolUse prints (the hook's answer file), unless `mode` says otherwise. */
   readonly answer?: unknown
   /** How the hook misbehaves: see the hook program. */
-  readonly mode?: "none" | "oops" | "exit1" | "dug-exit1" | "sleep" | "spawn"
+  readonly mode?: "none" | "oops" | "exit1" | "dug-exit1" | "sleep"
   /** How the PreToolUse command is written; none registers no PreToolUse hook. */
   readonly form?: "direct" | "node" | "relay" | "cmd-direct" | "none"
   /** The programs `--settings` allows, as `command(<name>)`; none passes no settings. */
   readonly grant?: readonly string[] | ((line: string) => readonly string[])
   /** `--settings` content in place of the grant's. */
   readonly settings?: unknown
-  /** How `--settings` is passed: a file (default), or inline JSON quoted for PowerShell or cmd. */
-  readonly pass?: "file" | "inline-ps" | "inline-cmd"
+  /** Run under a cmd AutoRun that prints (CI's runner only), and print how the hook was spawned. */
+  readonly autorun?: boolean
   /** The model's command line, given the marker program's script and the file it writes. */
   readonly line?: (script: string, marker: string) => string
   /** A program with no arguments: a batch file of the kit that writes the marker. */
@@ -544,8 +523,16 @@ const agyCases: AgyCase[] = [
     ancestry: true,
     press: "1",
   },
-  // How agy spawns an exe-alone hook: through cmd /c, or directly (PROBE agy hook spawn).
-  { name: "z1-spawn-mode", form: "direct", grant: both, mode: "spawn", timeout: 20 },
+  // How agy spawns an exe-alone hook: through cmd, whose AutoRun output then breaks the
+  // hook's JSON, or directly. The hook answers force_ask and the launch grant covers the
+  // command: a dialog shows only where the answer was read (PROBE agy hook spawn verdict).
+  {
+    name: "z1-spawn-autorun",
+    form: "direct",
+    grant: both,
+    answer: decision("force_ask"),
+    autorun: true,
+  },
   // Why the launch grant did not apply (n1..n3 still asked): do settings count at all, and
   // what spelling matches?
   {
@@ -575,8 +562,8 @@ const agyCases: AgyCase[] = [
     grant: (line) => [`command(${line.split(" ")[0]})`],
   },
   { name: "s5-glob", form: "none", grant: ["command(ndmarker.exe *)", "command(ndmarker.exe:*)"] },
-  { name: "s6a-inline-ps", form: "none", grant: both, pass: "inline-ps" },
-  { name: "s6b-inline-cmd", form: "none", grant: both, pass: "inline-cmd" },
+  // Probed 2026-11-01 (1.4.12): `--settings` takes a file path alone. Inline JSON, quoted for
+  // PowerShell or cmd, fails to start ("reading --settings file: open '{permissions:...}'").
 ]
 const only = process.env.WINDOWS_GRANTS_CASE?.split(",")
 
@@ -662,12 +649,7 @@ describe.runIf(windows)("Antigravity on Windows (grants probe)", () => {
           const file = join(kit.dir, "grant.json")
           const json = JSON.stringify(settings)
           writeFileSync(file, json)
-          flags =
-            c.pass === "inline-ps"
-              ? ` --settings '${json}'`
-              : c.pass === "inline-cmd"
-                ? ` --settings "${json.replaceAll('"', '\\"')}"`
-                : ` --settings ${file}`
+          flags = ` --settings ${file}`
         }
         probe("agy settings", { flags, settings: settings ?? null })
         probe("agy command", { line })
@@ -686,6 +668,7 @@ describe.runIf(windows)("Antigravity on Windows (grants probe)", () => {
           own((call) => (call.turns.at(-1)?.role === "tool" ? { text: "Made it." } : undefined)),
         )
 
+        if (c.autorun) onTestFinished(printingAutoRun())
         const t = await run.deck.open(`agy${flags}`)
         await t.reached("ready", { timeoutMs: 60_000 })
         await prompted(t, agy)
@@ -716,7 +699,12 @@ describe.runIf(windows)("Antigravity on Windows (grants probe)", () => {
         })
         // A slept hook ends by itself before the deck closes.
         if (c.mode === "sleep") await sleep(6000)
-        if (c.mode === "spawn") await spawnMode(kit)
+        if (c.autorun)
+          console.log(
+            `PROBE agy hook spawn verdict: ${
+              dialog ? "direct" : ranBeforeKeys ? "cmd" : "unclear (no dialog, and it did not run)"
+            }`,
+          )
         report(`agy ${c.name}`, kit)
         // Antigravity's own settings and logs, where the grants may have been read or refused.
         const gemini = join(run.sandbox.home, ".gemini")
@@ -736,6 +724,47 @@ describe.runIf(windows)("Antigravity on Windows (grants probe)", () => {
     )
   }
 })
+
+// Novadeck started under an AutoRun that prints, with a plain Antigravity (no launch grant):
+// what its messaging does there today, as Novadeck's own hooks and relay are installed.
+describe.runIf(windows && process.env.GITHUB_ACTIONS === "true")(
+  "Antigravity on Windows under a printing AutoRun",
+  () => {
+    const it = e2e(agy)
+    let restore: (() => void) | undefined
+    beforeAll(() => {
+      restore = printingAutoRun()
+    })
+    afterAll(() => restore?.())
+
+    it("z2-plain-messaging", async ({ e2e: run }) => {
+      run.model.use(
+        sends("Ask fox for its colour", "fox", "What is your colour?"),
+        own((call) => (sent(call, "fox") ? { text: "Asked." } : undefined)),
+        own((call) => (delivered(call, "moth") ? { text: "Mine is teal." } : undefined)),
+      )
+      const outcome: Record<string, unknown> = {}
+      try {
+        const t1 = await start(run, agy)
+        const t2 = await start(run, agy)
+        outcome.started = true
+        await t1.submit("Ask fox for its colour")
+        outcome.delivered = await run.model
+          .waitFor((call) => delivered(call, "moth"), { timeoutMs: 45_000 })
+          .then(
+            () => true,
+            () => false,
+          )
+        outcome.messages = messages(t1).map((one) => [one.from, one.to, one.state])
+        outcome.t1 = rows(await t1.screen())
+        outcome.t2 = rows(await t2.screen())
+      } catch (error) {
+        outcome.error = String(error).slice(0, 1500)
+      }
+      probe("agy plain terminal under AutoRun", outcome)
+    }, 240_000)
+  },
+)
 
 // ---- The grants themselves, through Novadeck's runner hooks (as approvals.e2e.ts does on
 // Linux): a real `approval` ask the person approves, a `pr` team grant, and fake `gh` and
@@ -888,8 +917,9 @@ for (const kit of [codexKit, agyKit]) {
           if (ask) return ask
           if (asked(call, "run granted") || asked(call, "run again")) return shellFor(granted)
           if (asked(call, "run merge")) return shellFor(merge)
-          if (asked(call, "run echo")) return shellFor("echo hi > hi.txt")
-          if (asked(call, "read it"))
+          // Only Antigravity has a file-read tool and a launch-grant boundary to probe.
+          if (setup.agent === "agy" && asked(call, "run echo")) return shellFor("echo hi > hi.txt")
+          if (setup.agent === "agy" && asked(call, "read it"))
             return { calls: [{ name: "read_file", input: { Path: world().readme } }] }
           if (call.turns.at(-1)?.role === "tool") return { text: "Done." }
           return undefined
@@ -981,11 +1011,15 @@ describe.runIf(windows)("Codex on Windows: a pr team grant", () => {
     ])
       spawnSync("git", args, { cwd: repo })
     mkdirSync(join(run.sandbox.project, "notes"), { recursive: true })
-    writeFileSync(join(run.sandbox.project, "notes", "body.md"), "A body.\n")
+    const body = join(run.sandbox.project, "notes", "body.md")
+    writeFileSync(body, "A body.\n")
+    // Codex's folder is unknown to the matcher, so a body file is a full path; and a project
+    // path with a space (CI's is spaced) takes quotes, which the Windows dialect never matches.
+    const spaced = /\s/.test(body)
     const steps = [
       granted,
       "gh pr create --fill --head feat -R octo/repo",
-      "gh pr comment 12 -R octo/repo --body-file notes/body.md",
+      `gh pr comment 12 -R octo/repo --body-file ${spaced ? `"${body}"` : body}`,
       "gh pr comment 12 -R octo/repo --body 'two words'",
       merge,
     ]
@@ -1063,9 +1097,10 @@ describe.runIf(windows)("Codex on Windows: a pr team grant", () => {
       await sleep(500)
     }
     probe("grants team run", { done: state.done, marks: marksOf(world()), dialogs: dialogs.length })
-    expect(marksOf(world())).toEqual(steps.slice(0, 3))
-    expect(dialogs.length).toBe(2)
-    expect(dialogs[0]).toMatch(/two\s+words/)
-    expect(dialogs[1]).toMatch(/merge/)
+    expect(marksOf(world())).toEqual(steps.slice(0, spaced ? 2 : 3))
+    expect(dialogs.length).toBe(spaced ? 3 : 2)
+    if (spaced) expect(dialogs[0]).toMatch(/--body-file/)
+    expect(dialogs.at(-2)).toMatch(/two\s+words/)
+    expect(dialogs.at(-1)).toMatch(/merge/)
   }, 900_000)
 })
