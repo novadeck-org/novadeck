@@ -1613,7 +1613,9 @@ describe("Grants", () => {
     await settle()
     expect(inbox.autorun.state.getSnapshot()).toEqual(offer)
     inbox.autorun.silence(offer.next)
+    await settle()
     inbox.autorun.undo()
+    await settle()
     inbox.autorun.dismiss()
     await settle()
     expect(streams.autorun.silence).toHaveBeenCalledExactlyOnceWith(offer.next)
@@ -1633,6 +1635,22 @@ describe("Grants", () => {
     inbox.autorun.undo()
     await settle()
     expect(inbox.autorun.failed?.getSnapshot()).toBeNull()
+  })
+
+  it("is busy while a call of the AutoRun is on its way, and a second click repeats nothing", async () => {
+    const { inbox, streams } = setup(workspaceOf(agentTerminal(1)))
+    let finish: () => void = () => {}
+    vi.mocked(streams.autorun.undo).mockImplementationOnce(
+      () => new Promise<void>((resolve) => (finish = resolve)),
+    )
+    inbox.autorun.undo()
+    inbox.autorun.undo()
+    await settle()
+    expect(inbox.autorun.busy?.getSnapshot()).toBe(true)
+    expect(streams.autorun.undo).toHaveBeenCalledOnce()
+    finish()
+    await settle()
+    expect(inbox.autorun.busy?.getSnapshot()).toBe(false)
   })
 
   it("revokes through the runner", async () => {

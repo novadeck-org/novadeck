@@ -50,6 +50,26 @@ describe("cmd's AutoRun card", () => {
     await expect.element(autorun().getByRole("button", { name: "Undo" })).toBeVisible()
   })
 
+  it("says that redirecting the output also hides what the AutoRun shows in a cmd window", async () => {
+    await openInbox()
+    desktopWindow.autorun(demoAutoRunOffer)
+
+    await expect.element(autorun()).toMatchTextContent("prompts, colours, messages")
+  })
+
+  it("writes out a character nothing shows, so a value can't hide one", async () => {
+    await openInbox()
+    desktopWindow.autorun({
+      state: "offer",
+      current: "chcp\u200B 65001",
+      next: "(chcp\u200B 65001) >nul 2>&1",
+      machine: null,
+      outcome: null,
+    })
+
+    await expect.element(autorun()).toMatchTextContent("chcp\\u{200B} 65001")
+  })
+
   it("goes away on Not now", async () => {
     await openInbox()
     desktopWindow.autorun(demoAutoRunOffer)
@@ -71,6 +91,24 @@ describe("cmd's AutoRun card", () => {
       .element(autorun().getByRole("button", { name: "Silence cmd's AutoRun output" }))
       .not.toBeInTheDocument()
     await expect.element(autorun()).not.toHaveTextContent("reg add")
+  })
+
+  it("gives the machine's step too once silenced, where the machine's AutoRun holds a value", async () => {
+    await openInbox()
+    desktopWindow.autorun({
+      state: "silenced",
+      current: "(chcp 65001) >nul 2>&1",
+      restores: "chcp 65001",
+      machine: "chcp 437",
+      suggested: "(chcp 437) >nul 2>&1",
+      outcome: { kind: "applied-still-prints-hklm" },
+    })
+
+    await expect
+      .element(autorun())
+      .toMatchTextContent("cmd still prints: the machine's AutoRun does")
+    await expect.element(autorun()).toMatchTextContent("in regedit, as an administrator")
+    await expect.element(autorun()).toMatchTextContent("from chcp 437 to (chcp 437) >nul 2>&1")
   })
 
   it("shows the exact value Undo restores, and Undo offers the fix again", async () => {

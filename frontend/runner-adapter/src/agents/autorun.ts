@@ -24,16 +24,26 @@ export const createRunnerAutoRun = (
 ): RunnerAutoRun => {
   const state = createStore<AutoRunState>(noAutoRun)
   const failed = createStore<string | null>(null)
-  // A call that fails to reach the runner says so; the state says what the runner did.
+  const busy = createStore<boolean>(false)
+  let inFlight = 0
+  // A call that fails to reach the runner says so; the state says what the runner did. One at
+  // a time shows as busy, so the buttons wait and a second click can't repeat it.
   const call = (work: (live: AutoRunStreams) => Promise<void>): void => {
+    if (inFlight > 0) return
+    inFlight += 1
+    busy.update(() => true)
     failed.update(() => null)
-    track(Promise.resolve().then(() => (streams ? work(streams) : undefined))).catch(
-      (error: unknown) => failed.update(() => answerFailure(error)),
-    )
+    void track(Promise.resolve().then(() => (streams ? work(streams) : undefined)))
+      .catch((error: unknown) => failed.update(() => answerFailure(error)))
+      .finally(() => {
+        inFlight -= 1
+        busy.update(() => false)
+      })
   }
   return {
     state,
     failed,
+    busy,
     silence: (value) => call((live) => live.silence(value)),
     undo: () => call((live) => live.undo()),
     dismiss: () => call((live) => live.dismiss()),

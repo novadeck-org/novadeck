@@ -1375,7 +1375,12 @@ plugin's files are written again with PreToolUse registered (Antigravity's plugi
 `refresh` installs them, and each Antigravity terminal's grants are announced again; not clean,
 and with no machine (HKLM) value to blame, the change is put back. The state is read from the
 registry itself, so Preferences offer Undo whenever the value is Novadeck's wrapper; Undo only
-unwraps, and is refused while any Novadeck Antigravity terminal runs. The pass-through stays on
+unwraps, and is refused while any Novadeck Antigravity terminal runs. Antigravity's plugin is global, so a refresh does not replace it under a running Antigravity of
+Novadeck's (nor, until Novadeck restarts, under a previous run's narrowed terminals): the
+replacement is tried again when an Antigravity is about to launch with none running and when the
+last one closes, and the grants' note says "installed once every Antigravity is closed" until it
+is. Undo is refused up front in those cases. Every unquoted `^` makes a value refused, since an
+escape can spell `rem` or a label. The pass-through stays on
 Antigravity's PATH on a machine where cmd printed. Nothing an agent supplies reaches these
 procedures (`autorun.watch`, `silence`, `undo`, `dismiss` are the UI's alone); see
 `architecture/team-issues/approvals-design.md`, Appendix F. The caveat an agent reads says only

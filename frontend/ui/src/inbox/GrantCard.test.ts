@@ -258,6 +258,7 @@ describe("The Grant card", () => {
           current: offer.next,
           restores: offer.current,
           machine: null,
+          suggested: null,
           outcome: null,
         },
       })

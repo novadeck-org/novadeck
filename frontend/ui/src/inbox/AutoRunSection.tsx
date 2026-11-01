@@ -1,6 +1,7 @@
 import { Terminal } from "lucide-react"
 
 import { autoRunEverywhere, autoRunWhy, manualWhy, outcomeText } from "./autorun-text"
+import { AutoRunValue, RegeditStep } from "./AutoRunValue"
 import { useInboxContext } from "./InboxProvider"
 
 // cmd's AutoRun, at the top of the Inbox beside the grants, where it prints: the person's value
@@ -8,7 +9,8 @@ import { useInboxContext } from "./InboxProvider"
 // Nothing here is an agent's text; the runner reads the values, and only a click changes them.
 
 export const AutoRunSection = (): React.JSX.Element | null => {
-  const { autorun, silenceAutoRun, undoAutoRun, dismissAutoRun, autorunFailure } = useInboxContext()
+  const { autorun, silenceAutoRun, undoAutoRun, dismissAutoRun, autorunFailure, autorunBusy } =
+    useInboxContext()
   if (autorun.state === "none" && autorun.outcome === null) return null
   const outcome = autorun.outcome
   return (
@@ -24,23 +26,24 @@ export const AutoRunSection = (): React.JSX.Element | null => {
               <div className="grant-row-what text-caption">{autoRunWhy}</div>
               <div className="grant-row-what text-caption">Now:</div>
               <div className="grant-row-commands text-caption">
-                <code data-autorun-value="current">{autorun.current}</code>
+                <AutoRunValue value={autorun.current} kind="current" />
               </div>
               <div className="grant-row-what text-caption">Novadeck would change it to:</div>
               <div className="grant-row-commands text-caption">
-                <code data-autorun-value="next">{autorun.next}</code>
+                <AutoRunValue value={autorun.next} kind="next" />
               </div>
               <div className="grant-row-what text-caption">{autoRunEverywhere}</div>
               {autorun.machine !== null && (
                 <div className="grant-row-what text-caption">
                   The machine&apos;s AutoRun (HKLM) holds a value too, which Novadeck doesn&apos;t
-                  change: <code data-autorun-value="machine">{autorun.machine}</code>
+                  change: <AutoRunValue value={autorun.machine} kind="machine" />
                 </div>
               )}
               <div className="grant-row-head">
                 {silenceAutoRun && (
                   <button
                     type="button"
+                    disabled={autorunBusy}
                     className="button min-h-6 shrink-0 px-2 text-caption"
                     onClick={() => silenceAutoRun(autorun.next)}
                   >
@@ -50,6 +53,7 @@ export const AutoRunSection = (): React.JSX.Element | null => {
                 {dismissAutoRun && (
                   <button
                     type="button"
+                    disabled={autorunBusy}
                     className="button min-h-6 shrink-0 px-2 text-caption"
                     onClick={dismissAutoRun}
                   >
@@ -67,39 +71,24 @@ export const AutoRunSection = (): React.JSX.Element | null => {
               </div>
               {autorun.current !== null && (
                 <div className="grant-row-commands text-caption">
-                  <code data-autorun-value="current">{autorun.current}</code>
+                  <AutoRunValue value={autorun.current} kind="current" />
                 </div>
               )}
               {autorun.machine !== null && (
                 <div className="grant-row-commands text-caption">
-                  <code data-autorun-value="machine">{autorun.machine}</code>
+                  <AutoRunValue value={autorun.machine} kind="machine" />
                 </div>
               )}
-              <div className="grant-row-what text-caption" data-autorun-step="">
-                To change it yourself: open{" "}
-                <code>HKEY_{autorun.reason === "machine" ? "LOCAL_MACHINE" : "CURRENT_USER"}</code>
-                {"\\Software\\Microsoft\\Command Processor in regedit"}
-                {autorun.reason === "machine" && ", as an administrator"}, and change AutoRun
-                {(autorun.machine ?? autorun.current) !== null && (
-                  <>
-                    {" from "}
-                    <code>{autorun.machine ?? autorun.current}</code>
-                  </>
-                )}
-                {autorun.suggested === null ? (
-                  " so that it sends its output to nul."
-                ) : (
-                  <>
-                    {" to "}
-                    <code data-autorun-value="suggested">{autorun.suggested}</code>
-                    {", or send its output to nul."}
-                  </>
-                )}
-              </div>
+              <RegeditStep
+                machine={autorun.reason === "machine"}
+                from={autorun.reason === "machine" ? autorun.machine : autorun.current}
+                to={autorun.suggested}
+              />
               <div className="grant-row-head">
                 {dismissAutoRun && (
                   <button
                     type="button"
+                    disabled={autorunBusy}
                     className="button min-h-6 shrink-0 px-2 text-caption"
                     onClick={dismissAutoRun}
                   >
@@ -115,18 +104,22 @@ export const AutoRunSection = (): React.JSX.Element | null => {
                 cmd&apos;s AutoRun is silenced. Undo puts this value back exactly:
               </div>
               <div className="grant-row-commands text-caption">
-                <code data-autorun-value="restores">{autorun.restores}</code>
+                <AutoRunValue value={autorun.restores} kind="restores" />
               </div>
               {autorun.machine !== null && (
                 <div className="grant-row-what text-caption">
                   The machine&apos;s AutoRun (HKLM) holds a value, which Novadeck doesn&apos;t
-                  change: <code data-autorun-value="machine">{autorun.machine}</code>
+                  change: <AutoRunValue value={autorun.machine} kind="machine" />
                 </div>
+              )}
+              {autorun.machine !== null && (
+                <RegeditStep machine from={autorun.machine} to={autorun.suggested} />
               )}
               <div className="grant-row-head">
                 {undoAutoRun && (
                   <button
                     type="button"
+                    disabled={autorunBusy}
                     className="button min-h-6 shrink-0 px-2 text-caption"
                     onClick={undoAutoRun}
                   >

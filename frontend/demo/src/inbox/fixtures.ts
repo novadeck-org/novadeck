@@ -890,5 +890,6 @@ export const demoAutoRunSilenced: AutoRunState = {
   current: autoRunWrapped,
   restores: autoRunOriginal,
   machine: null,
-  outcome: { kind: "applied-clean", waiting: [] },
+  suggested: null,
+  outcome: { kind: "applied-clean", waiting: [], restart: false },
 }

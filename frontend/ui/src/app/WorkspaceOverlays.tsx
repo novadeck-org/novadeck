@@ -101,7 +101,11 @@ const useAutoRun = (inbox: Backend["inbox"]) => {
     autorun?.state.subscribe ?? always,
     () => autorun?.state.getSnapshot() ?? noAutoRun,
   )
-  return autorun && { state, undo: autorun.undo }
+  const busy = useSyncExternalStore(
+    autorun?.busy?.subscribe ?? always,
+    () => autorun?.busy?.getSnapshot() ?? false,
+  )
+  return autorun && { state, undo: autorun.undo, busy }
 }
 
 const noAgents: readonly never[] = []

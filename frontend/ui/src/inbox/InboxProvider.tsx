@@ -120,6 +120,8 @@ export type InboxContextValue = {
   readonly dismissAutoRun: (() => void) | undefined
   // Why the last of those calls did not reach the runner.
   readonly autorunFailure: string | null
+  // Whether one of those calls is on its way: the buttons wait for it.
+  readonly autorunBusy: boolean
 }
 
 const InboxContext = createContext<InboxContextValue | null>(null)
@@ -153,6 +155,7 @@ const noGrantsStore = { subscribe: () => () => {}, getSnapshot: () => noGrants }
 
 const noAutoRunStore = { subscribe: () => () => {}, getSnapshot: () => noAutoRun }
 const noAutoRunFailureStore = { subscribe: () => () => {}, getSnapshot: () => null }
+const noAutoRunBusyStore = { subscribe: () => () => {}, getSnapshot: () => false }
 
 const noOrder: readonly string[] = []
 const noOrderStore = { subscribe: () => () => {}, getSnapshot: () => noOrder }
@@ -199,6 +202,8 @@ export const InboxProvider = ({
     autorunFailureStore.subscribe,
     autorunFailureStore.getSnapshot,
   )
+  const autorunBusyStore = inbox.autorun?.busy ?? noAutoRunBusyStore
+  const autorunBusy = useSyncExternalStore(autorunBusyStore.subscribe, autorunBusyStore.getSnapshot)
   const silenceAutoRun = inbox.autorun?.silence
   const undoAutoRun = inbox.autorun?.undo
   const dismissAutoRun = inbox.autorun?.dismiss
@@ -556,6 +561,7 @@ export const InboxProvider = ({
       undoAutoRun,
       dismissAutoRun,
       autorunFailure,
+      autorunBusy,
     }),
     [
       state,
@@ -590,6 +596,7 @@ export const InboxProvider = ({
       undoAutoRun,
       dismissAutoRun,
       autorunFailure,
+      autorunBusy,
     ],
   )
   const opener = useCallback<InboxOpener>(

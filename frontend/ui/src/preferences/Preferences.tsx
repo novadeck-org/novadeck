@@ -151,6 +151,7 @@ export const Preferences = ({
   autorun?: {
     readonly state: AutoRunState
     readonly undo: () => void
+    readonly busy: boolean
   }
   // Voice input, as the backend has it; absent where it has none.
   voice?: VoiceAddon
@@ -535,7 +536,9 @@ export const Preferences = ({
             {agents && (
               <Section title="Agents" description={agentsExplanation}>
                 <AgentSwitches agents={agents.list} onChange={agents.onChange} />
-                {autorun && <AutoRunRow state={autorun.state} onUndo={autorun.undo} />}
+                {autorun && (
+                  <AutoRunRow state={autorun.state} onUndo={autorun.undo} busy={autorun.busy} />
+                )}
               </Section>
             )}
           </TabPanel>

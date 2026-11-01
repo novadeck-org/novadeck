@@ -7,13 +7,21 @@ import type { Store } from "./store"
 
 // What the person's last click came to, shown on the card until the next.
 export type AutoRunOutcome =
-  | { readonly kind: "applied-clean"; readonly waiting: readonly string[] }
+  | {
+      readonly kind: "applied-clean"
+      readonly waiting: readonly string[]
+      readonly restart: boolean
+    }
   | { readonly kind: "applied-still-prints-hklm" }
   | { readonly kind: "rolled-back" }
   | { readonly kind: "conflict" }
   | { readonly kind: "failed"; readonly message: string }
   | { readonly kind: "undone" }
-  | { readonly kind: "undo-refused"; readonly terminals: readonly string[] }
+  | {
+      readonly kind: "undo-refused"
+      readonly terminals: readonly string[]
+      readonly restart: boolean
+    }
 
 // Why Novadeck gives the step in words instead of doing the change.
 export type AutoRunManualReason = "machine" | "refused" | "form" | "quiet" | "unchecked"
@@ -44,6 +52,7 @@ export type AutoRunState =
       readonly current: string
       readonly restores: string
       readonly machine: string | null
+      readonly suggested: string | null
       readonly outcome: AutoRunOutcome | null
     }
 
@@ -59,6 +68,8 @@ export type AutoRun = {
   readonly dismiss: () => void
   // Why the last call failed to reach the runner, until the next; the state says the rest.
   readonly failed?: Store<string | null>
+  // Whether a call is on its way: its buttons wait, so a second click can't repeat it.
+  readonly busy?: Store<boolean>
 }
 
 // Whether cmd's AutoRun is known to print: the Grant card's Antigravity line names the fix then.
