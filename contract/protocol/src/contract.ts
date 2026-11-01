@@ -346,7 +346,7 @@ export const contract = {
     // the plan as it now stands comes back. A plan kept in an agent's transcript can't be
     // written, and nor can one past 256 KiB, a file that is gone, one in a folder the
     // runner may not write to, or an item that is no plan: PLAN_UNWRITABLE, saying why
-    // (`gone`, `folder`, `transcript`, `too-large`, `not-a-plan`). An unknown item is NOT_FOUND.
+    // (`gone`, `folder`, `transcript`, `too-large`, `not-a-plan`, `outside`). An unknown item is NOT_FOUND.
     save: procedure
       .input(
         z.strictObject({

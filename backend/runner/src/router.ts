@@ -12,6 +12,7 @@ import { implement, ORPCError } from "@orpc/server"
 
 import { savePlan } from "./companions/content.js"
 import type { CompanionItems } from "./companions/items.js"
+import { planSaveFolders } from "./companions/plan-folders.js"
 import { DomainError } from "./errors.js"
 import type { Harnesses } from "./harnesses/service.js"
 import { logs } from "./log.js"
@@ -225,7 +226,12 @@ export const createRouter = (options: {
         if (!item) throw new DomainError("NOT_FOUND", "Item not found")
         // One save of a plan at a time, each judged by the file the one before left.
         const run = async () => {
-          const result = await savePlan(item, input.text, input.basedOn)
+          const folders = await planSaveFolders(item, {
+            projectFolder: (sessionId) => store.project(store.session(sessionId).projectId).cwd,
+            place: (terminalId) => terminals.place(terminalId),
+            planFolders: (agent) => agents.planFolders(agent),
+          })
+          const result = await savePlan(item, input.text, input.basedOn, folders)
           if (result.saved) return result
           const skill = item.plan ? await agents.connected(item.plan.agent) : false
           return { ...result, current: { ...result.current, skill } }

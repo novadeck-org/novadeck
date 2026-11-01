@@ -1078,7 +1078,7 @@ cp backend/runner/example.env backend/runner/.env
   > token in its JavaScript. Anyone who can load that bundle can run shells on the
   > runner as its user. Keep such builds private: never deploy or share them.
 
-- Runner: `HOST`, `PORT`, and `CORS_ORIGINS` control the listener and allowed frontend origins.
+- Runner: `HOST`, `PORT`, and `CORS_ORIGINS` control the listener and allowed frontend origins; a `HOST` that isn't loopback is refused unless `NOVADECK_ALLOW_REMOTE_HOST=1`.
 - Terminal API: `NOVADECK_TOKEN` enables authenticated WebSocket RPC;
   `NOVADECK_DATABASE` optionally selects the SQLite metadata file. Without a token,
   only the existing HTTP status API is available.

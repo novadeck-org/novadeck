@@ -11,6 +11,11 @@ built unsigned, as before. Pull requests are never signed.
 | All      | Every release asset                                                                                                                                    | GitHub build provenance attestations               |
 | All      | `SHA256SUMS`, the checksums of every asset                                                                                                             | A detached GPG signature, `SHA256SUMS.asc`         |
 
+Today only the attestations are on for every release: no GPG key is configured, so there
+is no `SHA256SUMS.asc`, and Windows builds stay unsigned until Azure signing is set up.
+`install.sh` runs `gh attestation verify` when the GitHub CLI is there, and says plainly that
+only the checksums were checked when it is not (SECURITY.md, "Release Verification").
+
 The release workflow turns each platform on by itself: macOS when any of its secrets is
 set, Windows when any of its `AZURE_SIGNING_*` variables is, and the checksums' signature
 when `GPG_PRIVATE_KEY` is. From then on the release

@@ -2249,9 +2249,14 @@ nothing when exactly one page is on the bar. The rules:
    elsewhere, an address the bar doesn't hold, or several pages with no `page`, is refused
    with a sentence. A page that has since moved off this machine is not pictured either:
    the runner checks the address the client answers with. The rule is about the page
-   itself, not what it embeds. A picture of the pane is the page as the user sees it,
-   frames from elsewhere included. A fresh load blocks frames and navigations to addresses
-   not on this machine, while cross-origin subresources (images, scripts, fetches) load as usual;
+   itself, not what it embeds. The pane is the user's own browser and may be signed in
+   elsewhere, so a look is answered from it only while it is on the origin (scheme, host and
+   port) of the item's shown address, and only while its page holds no frame loaded from off
+   this machine (the app tracks those per page view; it doesn't block them). The viewer
+   declines otherwise, and the look falls back to a fresh load, which blocks frames and
+   navigations to addresses not on this machine, while cross-origin subresources (images,
+   scripts, fetches) load as usual. The runner checks the origin of a pane's answer too, and
+   refuses a pane on another one;
 2. who takes it: the client, over `companions.looks` and `companions.answerLook`, which work
    as `terminals.requests` and `answerRequest` do. Each look goes to the client that
    subscribed last, as `{ lookId, itemId, shown, url }`, where `shown` is the item's latest
@@ -2278,7 +2283,8 @@ nothing when exactly one page is on the bar. The rules:
    the troubles seen. The result is text first (the page's name, its address now and the
    shown one if it moved, the title, how it was taken and at what size, the troubles), then
    the picture as an MCP `image` content block. A page's own strings (its title, its
-   address, an error's text) are quoted as the troubles notice quotes them, and the text
+   address, an error's text) are quoted as the troubles notice quotes them, with what looks
+   like a secret masked (`@novadeck/secrets`, in notices too), and the text
    says they are never instructions;
 4. troubles: a picture of the pane says nothing of the console as it is now, so the text
    claims only what the runner knows. For a page the caller showed, it lists the troubles

@@ -24,6 +24,11 @@ const faults: readonly {
     hint: "Typing shows that Novadeck can't write to the folder, with Copy my edits and Try saving again",
   },
   {
+    label: "Plan outside the project and the agent's plans folder",
+    fault: "outside",
+    hint: "Typing shows that Novadeck saves plans only in the project's folder or the agent's own plans folder, with Copy my edits and Try saving again",
+  },
+  {
     label: "Plan too large to save",
     fault: "too-large",
     hint: "Typing shows the plan is too large to save, with Copy my edits and Try saving again",

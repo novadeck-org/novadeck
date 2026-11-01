@@ -1,7 +1,7 @@
 import { createHash } from "node:crypto"
 import { constants, type Stats } from "node:fs"
 import { lstat, open, realpath, rename, stat, unlink, type FileHandle } from "node:fs/promises"
-import { basename, dirname, extname, join, resolve } from "node:path"
+import { basename, dirname, extname, isAbsolute, join, relative, resolve, sep } from "node:path"
 import { StringDecoder } from "node:string_decoder"
 
 import type { PlanSource } from "@novadeck/harness-core/events"
@@ -547,6 +547,18 @@ const renameSettled = async (from: string, to: string): Promise<void> => {
 const unwritable = (reason: PlanUnwritable["reason"], message: string) =>
   new DomainError("PLAN_UNWRITABLE", message, { reason })
 
+/** Whether the real path `path` is under one of `folders`, which are resolved too; the ones missing hold nothing. */
+const inside = async (path: string, folders: readonly string[]): Promise<boolean> => {
+  for (const folder of folders) {
+    // eslint-disable-next-line no-await-in-loop -- A few folders, one after the other.
+    const real = await realpath(folder).catch(() => undefined)
+    if (real === undefined) continue
+    const way = relative(real, path)
+    if (way !== "" && way !== ".." && !way.startsWith(`..${sep}`) && !isAbsolute(way)) return true
+  }
+  return false
+}
+
 /**
  * Writes the person's edit to a plan kept in a file, unless the file is no longer as it
  * was at stamp `basedOn`: then nothing is written and `current` is what it holds now. The
@@ -554,7 +566,9 @@ const unwritable = (reason: PlanUnwritable["reason"], message: string) =>
  * sees the old plan or the new, never a part. Only the plan's own regular file is written.
  * What can never succeed is refused as PLAN_UNWRITABLE, saying why: a plan in an agent's
  * transcript, a file that is gone or no longer a plain file, a text or file past 256 KiB,
- * a folder the runner may not write to, an item that is no plan. Any other failure, such as
+ * a folder the runner may not write to, an item that is no plan, a file outside `folders`
+ * (the project's folder and the agent's own plans folders, compared as the real paths they
+ * are, so a link out of them gets nothing). Any other failure, such as
  * a full disk, is not classified: it may pass, so it is raised as it is. The rewritten file
  * keeps its permissions, and no temporary file is left behind.
  */
@@ -562,6 +576,7 @@ export const savePlan = async (
   item: Pick<ItemRecord, "path" | "plan">,
   text: string,
   basedOn: string,
+  folders: readonly string[],
 ): Promise<SavedPlan> => {
   if (item.plan === null || item.path === null) throw unwritable("not-a-plan", "That isn't a plan.")
   if (item.plan.format !== "file")
@@ -573,6 +588,11 @@ export const savePlan = async (
     if (isMissing(error)) return undefined
     throw error
   })
+  if (path !== undefined && !(await inside(path, folders)))
+    throw unwritable(
+      "outside",
+      "Novadeck saves plans only in the project's folder or the agent's own plans folder.",
+    )
   const before = path === undefined ? undefined : await readPlanFile(path)
   if (path === undefined || before === undefined)
     throw unwritable("gone", "The plan's file is gone.")

@@ -143,7 +143,11 @@ describe("how a build updates", () => {
 
     it("only tells for a copy the installer did not make, and never installs", () => {
       const zip = build({ platform: "win32", windowsInstalled: false })
-      expect(updatePlan(zip)).toEqual({ kind: "nsis", mode: "tell", allow: false })
+      expect(updatePlan(zip)).toEqual({
+        kind: "nsis",
+        mode: "tell",
+        allow: false,
+      })
       expect(updatePlan({ ...zip, signed: true })?.mode).toBe("tell")
     })
 
@@ -196,7 +200,12 @@ describe("how a build updates", () => {
       for (const signed of [true, false])
         expect(
           updatePlan(
-            build({ platform: "darwin", signed, inApplications: false, bundleSwap: "whole" }),
+            build({
+              platform: "darwin",
+              signed,
+              inApplications: false,
+              bundleSwap: "whole",
+            }),
           ),
         ).toEqual({
           kind: "mac",
@@ -320,7 +329,11 @@ describe("telling pages of an update", () => {
     offers.offer({ kind: "downloading", version: "1.2.3", percent: 0 })
     offers.offer({ kind: "downloading", version: "1.2.3", percent: 7 })
     offers.offer({ kind: "downloading", version: "1.2.3", percent: 7 })
-    offers.offer({ kind: "ready", version: "1.2.3", percent: 100 } as UpdateOffer)
+    offers.offer({
+      kind: "ready",
+      version: "1.2.3",
+      percent: 100,
+    } as UpdateOffer)
     expect(open.sent.map(([, offer]) => offer)).toEqual([
       { kind: "downloading", version: "1.2.3", percent: 0 },
       { kind: "downloading", version: "1.2.3", percent: 7 },
@@ -429,7 +442,10 @@ describe("taking the page's requests about updates", () => {
 
 // A promise and what settles it, as the host's lib has no Promise.withResolvers.
 const deferred = <T>() => {
-  const settle: { resolve?: (value: T) => void; reject?: (error: unknown) => void } = {}
+  const settle: {
+    resolve?: (value: T) => void
+    reject?: (error: unknown) => void
+  } = {}
   const promise = new Promise<T>((resolve, reject) => Object.assign(settle, { resolve, reject }))
   return {
     promise,
@@ -468,6 +484,20 @@ describe("quitting as the system ends the session", () => {
 
 class FakeUpdater extends EventEmitter implements Pick<Updater, "checkForUpdates"> {
   downloads: (() => Promise<unknown>)[] = []
+  /** An update found without files names GitHub's, as the website's rewritten answer does. */
+  override emit(event: string | symbol, ...args: unknown[]): boolean {
+    const [info] = args
+    if (event === "update-available" && typeof info === "object" && info !== null) {
+      const found = info as { version: string; files?: unknown }
+      if (!("files" in found))
+        found.files = [
+          {
+            url: `https://github.com/novadeck-org/novadeck/releases/download/v${found.version}/novadeck-linux-x86_64.AppImage`,
+          },
+        ]
+    }
+    return super.emit(event, ...args)
+  }
   downloadResult: (() => Promise<unknown>) | undefined
   downloadUpdate(): Promise<unknown> {
     this.downloads.push(() => Promise.resolve())
@@ -496,7 +526,10 @@ class FakeUpdater extends EventEmitter implements Pick<Updater, "checkForUpdates
   failing = false
   feed: Parameters<Updater["setFeedURL"]>[0] | undefined
   /** The feed and headers each check was made with. */
-  seen: { feed: Parameters<Updater["setFeedURL"]>[0] | undefined; headers: unknown }[] = []
+  seen: {
+    feed: Parameters<Updater["setFeedURL"]>[0] | undefined
+    headers: unknown
+  }[] = []
   /** Whether a check on this feed fails, as when the network or the website is down. */
   failFeed: (feed: Parameters<Updater["setFeedURL"]>[0] | undefined) => boolean = () => false
   /** Whether a check that finds no release says so, as electron-updater's does. */
@@ -509,7 +542,10 @@ class FakeUpdater extends EventEmitter implements Pick<Updater, "checkForUpdates
   }
   checkForUpdates(): Promise<unknown> {
     this.checks += 1
-    this.seen.push({ feed: this.feed, headers: this.requestHeaders && { ...this.requestHeaders } })
+    this.seen.push({
+      feed: this.feed,
+      headers: this.requestHeaders && { ...this.requestHeaders },
+    })
     if (this.failFeed(this.feed)) {
       const error = new Error("unreachable")
       this.emit("error", error)
@@ -573,7 +609,11 @@ describe("checking for updates", () => {
 
   // A macOS `prepare` the test settles, which hears each download it is given.
   const preparing = () => {
-    const given: { version: string; file: string; settle: ReturnType<typeof deferred<void>> }[] = []
+    const given: {
+      version: string
+      file: string
+      settle: ReturnType<typeof deferred<void>>
+    }[] = []
     return {
       given,
       prepare: (update: { readonly version: string; readonly file: string }) => {
@@ -649,7 +689,10 @@ describe("checking for updates", () => {
     })
 
     context("on macOS, where the app puts the update in place itself", () => {
-      const downloaded = { version: "1.2.3", downloadedFile: "/cache/update.zip" }
+      const downloaded = {
+        version: "1.2.3",
+        downloadedFile: "/cache/update.zip",
+      }
 
       it("hands no download to Squirrel.Mac, which installs only while this is on", () => {
         expect(checking({ prepare: preparing().prepare }).updater.autoInstallOnAppQuit).toBe(false)
@@ -694,7 +737,10 @@ describe("checking for updates", () => {
 
       it("tries a download it could not prepare for another reason again, marking nothing", async () => {
         const { given, prepare } = preparing()
-        const { updater, offered, failed } = checking({ prepare, rejected: () => false })
+        const { updater, offered, failed } = checking({
+          prepare,
+          rejected: () => false,
+        })
         await vi.advanceTimersByTimeAsync(firstCheckMs)
         updater.emit("update-available", { version: "1.2.3" })
         updater.emit("update-downloaded", downloaded)
@@ -735,7 +781,10 @@ describe("checking for updates", () => {
         const { given, prepare } = preparing()
         const { updater, offered } = checking({ prepare })
         updater.emit("update-downloaded", downloaded)
-        updater.emit("update-downloaded", { version: "1.3.0", downloadedFile: "/cache/update.zip" })
+        updater.emit("update-downloaded", {
+          version: "1.3.0",
+          downloadedFile: "/cache/update.zip",
+        })
         given[0]?.settle.resolve()
         given[1]?.settle.resolve()
         await vi.advanceTimersByTimeAsync(0)
@@ -1242,7 +1291,10 @@ describe("quitting by a signal", () => {
 // What the download folder test uses of electron-updater's internals.
 type DownloadHelper = { readonly file: string | null; clear(): Promise<void> }
 type Download = {
-  readonly fileInfo: { readonly url: URL; readonly info: { url: string; sha512: string } }
+  readonly fileInfo: {
+    readonly url: URL
+    readonly info: { url: string; sha512: string }
+  }
   readonly fileExtension: string
   readonly downloadUpdateOptions: unknown
   readonly task: (temp: string) => Promise<void>
@@ -1261,7 +1313,9 @@ describe("electron-updater's download folder", () => {
     const out = dirname(require.resolve("electron-updater"))
     const { AppUpdater } = require(join(out, "AppUpdater.js")) as {
       AppUpdater: {
-        prototype: { executeDownload(this: unknown, download: Download): Promise<unknown> }
+        prototype: {
+          executeDownload(this: unknown, download: Download): Promise<unknown>
+        }
       }
     }
     const { DownloadedUpdateHelper } = require(join(out, "DownloadedUpdateHelper.js")) as {
@@ -1275,7 +1329,10 @@ describe("electron-updater's download folder", () => {
     const clear = helper.clear.bind(helper)
     helper.clear = () => {
       const cleared = clear()
-      clearing.push({ file: helper.file, there: waiting !== null && existsSync(waiting) })
+      clearing.push({
+        file: helper.file,
+        there: waiting !== null && existsSync(waiting),
+      })
       return cleared
     }
     const updater = {
@@ -1307,7 +1364,10 @@ describe("electron-updater's download folder", () => {
       waiting = helper.file
       const during: { file: string | null; content: string }[] = []
       const newer = run("1.3.0", async (temp) => {
-        during.push({ file: helper.file, content: await readFile(waiting!, "utf8") })
+        during.push({
+          file: helper.file,
+          content: await readFile(waiting!, "utf8"),
+        })
         await writeFile(temp, "1.3.0")
         if (fails) throw new Error("download failed")
       })
@@ -1368,7 +1428,11 @@ const repository = { owner: "novadeck-org", repo: "novadeck" }
 const github = { provider: "github", ...repository }
 // How a check through novadeck.dev is set up: no multipart ranges, as the website sends the
 // files on to GitHub, which does not serve them.
-const generic = (url: string) => ({ provider: "generic", url, useMultipleRangeRequest: false })
+const generic = (url: string) => ({
+  provider: "generic",
+  url,
+  useMultipleRangeRequest: false,
+})
 
 describe("the update feed", () => {
   it("is the channel's address on novadeck.dev, or on the site NOVADECK_UPDATE_URL names", () => {
@@ -1425,7 +1489,9 @@ describe("the update feed", () => {
       await AppUpdater.prototype.getUpdateInfoAndProvider.call({
         app: { whenReady: () => Promise.resolve() },
         clientPromise: Promise.resolve(client),
-        stagingUserIdPromise: { value: Promise.resolve("6c1f5e1e-1111-4222-8333-944455556666") },
+        stagingUserIdPromise: {
+          value: Promise.resolve("6c1f5e1e-1111-4222-8333-944455556666"),
+        },
         computeFinalHeaders: AppUpdater.prototype.computeFinalHeaders,
         requestHeaders,
       })
@@ -1435,9 +1501,10 @@ describe("the update feed", () => {
     expect(await sent(checkHeaders("launch", facts))).toEqual(checkHeaders("launch", facts))
     expect(await sent(null)).toEqual({})
     // Nor does the header appear anywhere else in the library, to be sent by another path.
-    const files = readdirSync(out, { recursive: true, encoding: "utf8" }).filter((file) =>
-      file.endsWith(".js"),
-    )
+    const files = readdirSync(out, {
+      recursive: true,
+      encoding: "utf8",
+    }).filter((file) => file.endsWith(".js"))
     expect(files.length).toBeGreaterThan(0)
     for (const file of files) {
       expect(readFileSync(join(out, file), "utf8"), file).not.toContain("x-user-staging-id")
@@ -1455,6 +1522,7 @@ describe("checking through novadeck.dev", () => {
       mode?: UpdateMode
       build?: CheckFacts["build"]
       failedVersion?: string
+      site?: string
     } = {},
   ) => {
     const updater = new FakeUpdater()
@@ -1463,7 +1531,11 @@ describe("checking through novadeck.dev", () => {
     const checks = checkForUpdates(updater as unknown as Updater, {
       mode: options.mode ?? "install",
       channel: options.channel ?? "stable",
-      feed: { repository, facts: { ...facts, build: options.build ?? "installed" } },
+      feed: {
+        repository,
+        facts: { ...facts, build: options.build ?? "installed" },
+        site: options.site,
+      },
       failedVersion: options.failedVersion,
       offer: (offer) => void offered.push(`${offer.kind} ${offer.version}`),
       installFailed: () => {},
@@ -1481,6 +1553,118 @@ describe("checking through novadeck.dev", () => {
         headers: expect.objectContaining({ "x-novadeck-check": "launch" }),
       },
     ])
+  })
+
+  context("the files an update names", () => {
+    const downloads = "https://github.com/novadeck-org/novadeck/releases/download/v1.5.0/"
+    // Both the website and GitHub answer a check with these files.
+    const found = async (files: unknown, options: { site?: string } = {}) => {
+      const run = checking(options)
+      run.updater.newest = () => "1.5.0"
+      const emit = run.updater.emit.bind(run.updater)
+      run.updater.emit = (event: string | symbol, ...args: unknown[]) =>
+        emit(event, ...(event === "update-available" ? [{ version: "1.5.0", files }] : args))
+      await vi.advanceTimersByTimeAsync(firstCheckMs)
+      return run
+    }
+
+    it("downloads files at GitHub's release downloads", async () => {
+      const { updater, logged } = await found([
+        { url: `${downloads}novadeck-linux-x86_64.AppImage` },
+        { url: `${downloads}novadeck-win-x64-setup.exe` },
+      ])
+      expect(updater.downloads).toHaveLength(1)
+      expect(logged).toEqual([])
+    })
+
+    it("refuses a file anywhere else, and offers the release page instead", async () => {
+      const urls = [
+        "https://novadeck.dev/update/stable/novadeck.AppImage",
+        "https://github.com/evil/novadeck/releases/download/v1.5.0/x.AppImage",
+        "https://github.com/novadeck-org/novadeck/releases/latest/download/x.AppImage",
+        "https://github.com.evil.test/novadeck-org/novadeck/releases/download/v1/x",
+        "http://github.com/novadeck-org/novadeck/releases/download/v1.5.0/x",
+        "https://github.com/novadeck-org/novadeck/releases/download/../../../evil/x",
+        "https://user@github.com/novadeck-org/novadeck/releases/download/v1.5.0/x",
+      ]
+      await Promise.all(
+        urls.map(async (url) => {
+          const { updater, offered, logged } = await found([{ url: `${downloads}ok.exe` }, { url }])
+          expect(updater.downloads, url).toHaveLength(0)
+          expect(offered, url).toEqual(["available 1.5.0"])
+          expect(logged, url).toContain(
+            "The update to 1.5.0 names a file outside GitHub's release downloads.",
+          )
+        }),
+      )
+    })
+
+    it("refuses an answer that names no usable file", async () => {
+      // The fake adds GitHub's file to an answer without a `files` key only.
+      await Promise.all(
+        [[], undefined, "x", [{}], [{ url: 3 }], [null]].map(async (files) => {
+          const run = await found(files)
+          expect(run.updater.downloads, JSON.stringify(files)).toHaveLength(0)
+        }),
+      )
+    })
+
+    it("asks GitHub itself at once when the website's answer is refused", async () => {
+      const run = checking()
+      run.updater.newest = () => "1.5.0"
+      // The website's answer names a relative file; GitHub's is the default, on its own.
+      const emit = run.updater.emit.bind(run.updater)
+      run.updater.emit = (event: string | symbol, ...args: unknown[]) =>
+        emit(
+          event,
+          ...(run.updater.feed?.provider === "generic" && event === "update-available"
+            ? [{ version: "1.5.0", files: [{ url: "novadeck.AppImage" }] }]
+            : args),
+        )
+      await vi.advanceTimersByTimeAsync(firstCheckMs)
+      expect(run.updater.seen.map(({ feed }) => feed?.provider)).toEqual(["generic", "github"])
+      expect(run.updater.downloads).toHaveLength(1)
+      expect(run.offered).toEqual([])
+    })
+
+    it("offers the release page when GitHub's answer is refused too", async () => {
+      const run = checking()
+      run.updater.newest = () => "1.5.0"
+      const emit = run.updater.emit.bind(run.updater)
+      run.updater.emit = (event: string | symbol) =>
+        emit(event, { version: "1.5.0", files: [{ url: "https://example.test/x.AppImage" }] })
+      await vi.advanceTimersByTimeAsync(firstCheckMs)
+      expect(run.updater.seen.map(({ feed }) => feed?.provider)).toEqual(["generic", "github"])
+      expect(run.updater.downloads).toHaveLength(0)
+      expect(run.offered).toEqual(["available 1.5.0"])
+    })
+
+    it("compares the owner and repository without regard to case", async () => {
+      const run = await found([
+        { url: "https://github.com/Novadeck-Org/NovaDeck/releases/download/v1.5.0/x.AppImage" },
+      ])
+      expect(run.updater.downloads).toHaveLength(1)
+    })
+
+    it("takes a file at the address of NOVADECK_UPDATE_URL only on this computer", async () => {
+      const site = "http://127.0.0.1:8787"
+      const local = [{ url: "http://127.0.0.1:8787/update/stable/novadeck.AppImage" }]
+      expect((await found(local, { site })).updater.downloads).toHaveLength(1)
+      expect((await found(local)).updater.downloads).toHaveLength(0)
+      const offsite = [{ url: "https://example.test/novadeck.AppImage" }]
+      expect((await found(offsite, { site })).updater.downloads).toHaveLength(0)
+    })
+
+    it("resolves a bare name against the release when GitHub answered", async () => {
+      const run = checking()
+      run.updater.failFeed = (feed) => feed?.provider === "generic"
+      await vi.advanceTimersByTimeAsync(firstCheckMs)
+      run.updater.emit("update-available", {
+        version: "1.5.0",
+        files: [{ url: "novadeck-linux-x86_64.AppImage" }],
+      })
+      expect(run.updater.downloads).toHaveLength(1)
+    })
   })
 
   it("names the trigger of each check: launch, schedule and channel switch", async () => {
@@ -1572,13 +1756,18 @@ describe("checking through novadeck.dev", () => {
   })
 
   it("checks the new channel at once when it was switched to during a check", async () => {
-    const { updater, offered, setChannel } = checking({ mode: "tell", channel: "stable" })
+    const { updater, offered, setChannel } = checking({
+      mode: "tell",
+      channel: "stable",
+    })
     updater.checkForUpdates = () => {
       updater.checks += 1
       const experimental = updater.allowPrerelease
       return new Promise((resolve) =>
         setTimeout(() => {
-          updater.emit("update-available", { version: experimental ? "1.6.0" : "1.5.0" })
+          updater.emit("update-available", {
+            version: experimental ? "1.6.0" : "1.5.0",
+          })
           resolve(undefined)
         }, 3000),
       )
@@ -1622,7 +1811,10 @@ describe("checking through novadeck.dev", () => {
     })
 
     it("does not offer the older release again in tell mode", async () => {
-      const { updater, offered } = checking({ mode: "tell", channel: "experimental" })
+      const { updater, offered } = checking({
+        mode: "tell",
+        channel: "experimental",
+      })
       updater.newest = lagging
       updater.failFeed = (feed) => feed?.provider === "generic" && updater.checks === 1
       await vi.advanceTimersByTimeAsync(firstCheckMs)
@@ -1695,13 +1887,18 @@ describe("checking through novadeck.dev", () => {
     })
 
     it("drops the answer of a check made for a channel left meanwhile", async () => {
-      const { updater, offered, setChannel } = checking({ mode: "tell", channel: "experimental" })
+      const { updater, offered, setChannel } = checking({
+        mode: "tell",
+        channel: "experimental",
+      })
       updater.checkForUpdates = () => {
         updater.checks += 1
         const experimental = updater.allowPrerelease
         return new Promise((resolve) =>
           setTimeout(() => {
-            updater.emit("update-available", { version: experimental ? "1.6.0" : "1.5.0" })
+            updater.emit("update-available", {
+              version: experimental ? "1.6.0" : "1.5.0",
+            })
             resolve(undefined)
           }, 1000),
         )
@@ -1741,7 +1938,10 @@ describe("checking through novadeck.dev", () => {
       log: () => {},
     })
     await vi.advanceTimersByTimeAsync(firstCheckMs)
-    updater.emit("update-downloaded", { version: "1.5.0", downloadedFile: "/tmp/update.zip" })
+    updater.emit("update-downloaded", {
+      version: "1.5.0",
+      downloadedFile: "/tmp/update.zip",
+    })
     await vi.advanceTimersByTimeAsync(retryCheckMs)
     expect(updater.seen.at(-1)?.feed).toEqual(generic("https://novadeck.dev/update/stable/"))
     expect(updater.seen.at(-1)?.headers).toEqual(

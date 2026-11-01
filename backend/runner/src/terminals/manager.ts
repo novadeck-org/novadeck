@@ -20,9 +20,8 @@ import type {
 } from "@novadeck/protocol"
 import { createTerminalHost, type Terminal, type TerminalHost } from "@novadeck/terminal/host"
 import { Trees, type ProcessTrees, type Pty, type PtyOptions } from "@novadeck/terminal/pty"
-import { afterKeys, emptyLine } from "@novadeck/terminal/shell"
-import { keysOf } from "@novadeck/tui-input"
-import type { InterruptOptions, PromptOptions } from "@novadeck/tui-input"
+import { afterKeys, emptyLine, withLocale } from "@novadeck/terminal/shell"
+import { keysOf, type InterruptOptions, type PromptOptions } from "@novadeck/tui-input"
 
 import type { PlanText } from "../companions/content.js"
 import type { CompanionItems, TerminalPlace } from "../companions/items.js"
@@ -38,7 +37,7 @@ import { Messaging } from "../messaging/messaging.js"
 import type { MessageRecords } from "../messaging/records.js"
 import type { AgentsAnswer, SendAnswer, TeamAnswer } from "../messaging/sending.js"
 import type { Describer } from "../murmur/describer.js"
-import { inherited } from "../shell/inherited.js"
+import { stripInherited } from "../shell/inherited.js"
 import type { InstalledShell } from "../shell/install.js"
 import { type Ack, type Call } from "../shell/reports.js"
 import type { HintFacts } from "../voice/hint.js"
@@ -313,7 +312,7 @@ export class Terminals {
     this.options = settingsOf(options)
     // Child programs do not need the runner's network capability, nor the identity of a
     // Novadeck terminal the runner itself was started from.
-    for (const name of inherited) delete this.options.env[name]
+    stripInherited(this.options.env, options.pty?.platform)
     this.trees = options.pty?.trees ?? new Trees(async () => this.options.relay)
     this.pty = {
       ...(options.pty?.native && { native: options.pty.native }),
@@ -593,6 +592,7 @@ export class Terminals {
       bindings: () => this.bindings,
       companion: () => this.companion,
       launcher: () => this.launcher,
+      trees: () => this.trees,
       claims: () => this.claims,
       install: (agent) => this.options.install(agent),
       models: (agent) => this.options.models(agent),

@@ -13,7 +13,7 @@ import {
   pagesSession,
   passkeyLabels,
   phonePage,
-  picturePage,
+  pictureForApp,
   pickPasskeys,
   watchPageRequests,
 } from "@novadeck/viewers/browser/host"
@@ -137,9 +137,16 @@ export const livePages = () => {
      * `fromApp` tells a request of the app's own page from any other.
      */
     registerIpc: (fromApp: (event: IpcMainInvokeEvent) => boolean): void => {
-      ipcMain.handle(pagePictureChannel, (event, id: unknown, width: unknown) =>
+      ipcMain.handle(pagePictureChannel, (event, id: unknown, width: unknown, forLook: unknown) =>
         fromApp(event)
-          ? picturePage(event.sender, id, (page) => webContents.fromId(page), width)
+          ? pictureForApp(
+              event.sender,
+              id,
+              (page) => webContents.fromId(page),
+              width,
+              forLook,
+              onThisMachine,
+            )
           : undefined,
       )
       // Loaded afresh, out of sight, and pictured.

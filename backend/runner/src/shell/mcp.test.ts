@@ -220,6 +220,25 @@ describe("Novadeck's MCP server in a Novadeck terminal", () => {
       ],
       isError: false,
     })
+    answer = { ok: true, asked: true, cwd: "/work", command: "make" }
+    const [, waiting] = await session(terminal(), [
+      initialize,
+      {
+        id: 3,
+        method: "tools/call",
+        params: { name: "open_terminal", arguments: { command: "make" } },
+      },
+    ])
+    expect(waiting?.result).toMatchObject({
+      content: [
+        {
+          text: expect.stringMatching(
+            /^Asked the user to approve running make in a new terminal in \/work\. Nothing opened yet/,
+          ),
+        },
+      ],
+      isError: false,
+    })
     answer = { ok: true, terminalId: "t", cwd: "/work" }
     const [, plain] = await session(terminal(), [
       initialize,

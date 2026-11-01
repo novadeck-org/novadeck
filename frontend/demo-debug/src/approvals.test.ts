@@ -87,6 +87,22 @@ describe("demo approvals", () => {
     ])
   })
 
+  it("asks to run a command for the selected terminal, and opens nothing in the demo", () => {
+    const { controls, dispatched, run } = setup()
+    run("Ask to run a command")
+    expect(controls.approvals.pending.getSnapshot()).toMatchObject([
+      {
+        requestId: "approval-1",
+        from: "a",
+        terminalId: "a",
+        action: { type: "run", cwd: "~/projects/billing" },
+      },
+    ])
+    controls.approvals.answer("approval-1", true)
+    expect(dispatched).toEqual([])
+    expect(controls.approvals.pending.getSnapshot()).toEqual([])
+  })
+
   it("ends a lead when the person releases the terminal", () => {
     const { controls, dispatched } = setup()
     controls.release(key("a"))

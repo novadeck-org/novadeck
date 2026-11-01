@@ -51,6 +51,9 @@ Before changing, reviewing or explaining a part of the code, run
 `backend/runner/terminals`, a procedure, a UI action or a table (no subject: the index). Name
 areas by those tokens when you report or plan. See [tools/atlas/AGENTS.md](tools/atlas/AGENTS.md).
 
+`atlas:brief` runs the checked-out branch's own code. On a branch you don't trust (a stranger's PR, a
+fork), read the code instead of running it.
+
 <!-- BEGIN:turborepo-agent-rules -->
 
 # This is NOT the Turborepo you know

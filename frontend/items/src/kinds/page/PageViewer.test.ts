@@ -359,6 +359,20 @@ describe("a page beside a terminal", () => {
       expect(await sight!(1280, 1)).toBeDefined()
     })
 
+    it("declines the pane once it is on another origin than the one shown, signed in or not", async () => {
+      const { rendered } = withPictures([shot, shot, shot])
+      const [sight] = pageSights.of(item.id)
+      const page = pageOf(rendered.container)
+      // Same origin, another path: still the page the agent showed.
+      expect(await sight!(1280, 1)).toBeDefined()
+      // Another port of the same host, and another host altogether: the person's own pane.
+      for (const elsewhere of ["http://localhost:3000/account", "http://127.0.0.1:5173/work"]) {
+        Object.assign(page, { getURL: () => elsewhere })
+        // eslint-disable-next-line no-await-in-loop -- Each origin is checked in turn.
+        expect(await sight!(1280, 1)).toBeUndefined()
+      }
+    })
+
     it("declines a picture taken as the page went elsewhere, or to rest", async () => {
       const { rendered } = withPictures([shot, shot])
       const [sight] = pageSights.of(item.id)
