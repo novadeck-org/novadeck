@@ -324,9 +324,9 @@ past the usual day, as the report that still stands (`TerminalSummary.reported`)
 
 The person's grants (see "Grants" in agent-messaging.md) are made only from the Inbox: a
 lead's proposal is an entry `{ kind: "grant", proposal }` answered with
-`{ type: "grant", presets, commands, repos, withLead, hours }` (command indices into the
+`{ type: "grant", presets, commands, repos, withLead, lifetime }` (command indices into the
 proposal, repo urls among its choices; anything beyond the proposal is `ANSWER_FAILED`), and
-an `approval` ask is answered with `{ type: "approve" }`. `grants.watch()` follows the grants
+an `approval` ask is answered with `{ type: "approve", lifetime }` (`lifetime` is `until-done` or `hour`). `grants.watch()` follows the grants
 in force, then again on each change, with `lastUse`; `grants.revoke({ id })` ends one at once
 (`NOT_FOUND` for an unknown or ended grant).
 

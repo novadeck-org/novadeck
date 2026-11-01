@@ -391,10 +391,10 @@ App:
   whose Deny is a plain no, messages held long behind what keeps the doorbell from an idle
   agent, a heads-up, an agent's done report, mobile-app's lead's Grant card (push and pull
   requests for three repos, one flagged an added remote and one recent, two commands one of
-  them followed by anything, its team now and later with a Codex note, 8 h, and the lead's
+  them followed by anything, its team now and later with a Codex note, until done, and the lead's
   reason quoted; Grant keeps what stayed ticked and makes the live grant, Decline dismisses it)
-  and design-system's approval card ("Lets @moth run, without asking again, for 1 hour:" with
-  three commands as code; Approve makes a grant for that terminal). "Live grant" puts the
+  and design-system's approval card ("Lets @moth run, without asking again, until it reports done or for 1 hour:" with
+  three commands as code; Approve, until done or for 1 hour, makes a grant for that terminal). "Live grant" puts the
   Grants section at the top of the Inbox with a team grant (holder, actions, repos, time left,
   its last allowed command, Revoke); "Grant ends" adds a terminal grant that leaves the list by
   its time after four seconds; "Revoke a grant" ends the newest as Revoke does; "Clear grants"
