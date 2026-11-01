@@ -82,6 +82,8 @@ type Fixture = {
   /** What Codex's configuration sets, and what the runner asked of it. */
   readonly policy: { value: CodexPolicy; fails: boolean }
   readonly policyAsked: CodexLayers[]
+  /** The runner's own environment, which the hook's values are compared with. */
+  readonly own: NodeJS.ProcessEnv
   /** What Codex's rollout says of the call. */
   readonly rollout: { value: RolloutCall | undefined }
   /** The folder the terminal's shell is in. */
@@ -110,10 +112,11 @@ const fixture = (
   })
   // What Codex's configuration sets for its commands, as the fixture's disk says.
   const policy: { value: CodexPolicy; fails: boolean } = {
-    value: { git: false, gh: false },
+    value: { git: false, gh: false, path: false },
     fails: false,
   }
   const policyAsked: CodexLayers[] = []
+  const own: NodeJS.ProcessEnv = {}
   // The machine the PATH below is read as (the hooks' platform).
   let pathPlatform: NodeJS.Platform = "linux"
   const rollout: { value: RolloutCall | undefined } = {
@@ -153,6 +156,9 @@ const fixture = (
     get platform() {
       return pathPlatform
     },
+    get env() {
+      return own
+    },
     codexPolicy: (layers) => {
       policyAsked.push(layers)
       return policy.fails ? Promise.reject(new Error("unreadable")) : Promise.resolve(policy.value)
@@ -187,6 +193,7 @@ const fixture = (
     clock,
     policy,
     policyAsked,
+    own,
     rollout,
     folders,
     shell,
@@ -477,6 +484,49 @@ describe("Claude Code's permission check", () => {
     ).toBe(allowedLine("claude"))
   })
 
+  it("counts HOME, proxies, tokens and the like only where the hook's value differs from the runner's own", async ({
+    resources,
+  }) => {
+    const pr: GrantScope & { id: string } = {
+      id: "g-pr",
+      presets: ["pr"],
+      repos: [{ url: "github.com/acme/app", defaultBranch: "main" }],
+      commands: [{ argv: ["uberepo", "ship", "x"], rest: false }],
+    }
+    const { ask, own } = fixture(resources, () => [pr])
+    own.HOME = "/home/person"
+    own.https_proxy = "http://proxy:3128"
+    const ready = bash("gh pr ready 12 -R acme/app")
+    const claude = async (env: object) => (await ask("claude", "PreToolUse", ready, { env })).stdout
+    const allowed = allowedLine("claude")
+    // The same as the runner's own: the system-wide setting every shell has.
+    expect(await claude({ HOME: "/home/person", https_proxy: "http://proxy:3128" })).toBe(allowed)
+    for (const [name, value] of [
+      ["HOME", "/tmp/agent-home"],
+      ["XDG_CONFIG_HOME", "/tmp/xdg"],
+      ["APPDATA", "C:\\x"],
+      ["https_proxy", "http://other:1"],
+      ["HTTPS_PROXY", "http://other:1"],
+      ["GH_TOKEN", "t"],
+      ["GITHUB_TOKEN", "t"],
+      ["EDITOR", "vim"],
+    ])
+      // eslint-disable-next-line no-await-in-loop -- One variable at a time.
+      expect(await claude({ [name as string]: value }), name).toBe("")
+    // A gh-only variable leaves the push alone: the git ones are another list, GIT_SSL_NO_VERIFY...
+    own.EDITOR = "nano"
+    expect(await claude({ EDITOR: "nano" })).toBe(allowed)
+    expect(await claude({ EDITOR: "vim" })).toBe("")
+    // A granted command is neither's.
+    expect(
+      (
+        await ask("claude", "PreToolUse", bash("uberepo ship x"), {
+          env: { HOME: "/tmp/agent-home", GH_TOKEN: "t" },
+        })
+      ).stdout,
+    ).toBe(allowed)
+  })
+
   it("holds Codex's presets back for what its configuration sets for its commands", async ({
     resources,
   }) => {
@@ -504,17 +554,23 @@ describe("Claude Code's permission check", () => {
       folder: project,
       command: "codex --profile work",
     })
-    policy.value = { git: false, gh: true }
+    policy.value = { git: false, gh: true, path: false }
     expect(await codex(ready)).toBe("")
-    policy.value = { git: true, gh: false }
+    policy.value = { git: true, gh: false, path: false }
     expect(await codex(ready)).toBe(allowedLine("codex"))
     // A layer that can't be read: both kinds, and a failing read is no better.
-    policy.value = { git: true, gh: true }
+    policy.value = { git: true, gh: true, path: false }
     expect(await codex(ready)).toBe("")
     policy.fails = true
     expect(await codex(ready)).toBe("")
     // A granted command is neither's.
+    policy.fails = false
+    policy.value = { git: true, gh: true, path: false }
     expect(await codex(request("uberepo ship x"))).toBe(allowedLine("codex"))
+    // A PATH its configuration sets is not the hook's: nothing is known, commands included.
+    policy.value = { git: false, gh: false, path: true }
+    expect(await codex(request("uberepo ship x"))).toBe("")
+    expect(await codex(ready)).toBe("")
     // Only Codex's configuration is Codex's: Claude Code is not asked.
     const before = policyAsked.length
     expect((await ask("claude", "PreToolUse", bash("gh pr ready 12 -R acme/app"))).stdout).toBe(
@@ -562,12 +618,13 @@ describe("Claude Code's permission check", () => {
           ...(path !== undefined && { env: { PATH: path } }),
         })
       ).stdout
+    // An empty entry is the current folder, which cmd searches anyway and the same-name check holds.
+    expect(await asks("C:\\Windows;")).toBe(allowedLine("codex"))
     expect(await asks('C:\\Windows;"C:\\Program Files\\Git\\cmd";\\\\srv\\share')).toBe(
       allowedLine("codex"),
     )
     for (const path of [
       "C:\\Windows;.",
-      "C:\\Windows;",
       "C:\\Windows;bin",
       "C:\\Windows;\\bin",
       "C:\\Windows;C:bin",

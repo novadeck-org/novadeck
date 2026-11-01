@@ -58,6 +58,11 @@ export type Permission = {
   readonly gitEnv: boolean
   /** A variable of `ghVariables` is set in the hook's environment. */
   readonly ghEnv: boolean
+  /**
+   * The values the hook's environment holds of `gitComparedVariables` and `ghComparedVariables`:
+   * each counts only where it differs from the runner's own (`Permissions`).
+   */
+  readonly compared: { readonly [name: string]: string }
   /** Codex's `CODEX_HOME` in the hook's environment, null where it is not set. */
   readonly codexHome: string | null
 }
@@ -93,6 +98,12 @@ const readPermission = (
     path,
     gitEnv: gitVariables.some((name) => text(env[name], 65_536) !== undefined),
     ghEnv: ghVariables.some((name) => text(env[name], 65_536) !== undefined),
+    compared: Object.fromEntries(
+      [...new Set([...gitComparedVariables, ...ghComparedVariables])].flatMap((name) => {
+        const value = text(env[name], 65_536)
+        return value === undefined ? [] : [[name, value]]
+      }),
+    ),
     codexHome: text(env.CODEX_HOME, 4096) ?? null,
   }
 }
@@ -157,6 +168,59 @@ export const ghVariables = [
   "GH_BROWSER",
 ] as const
 
+// Proxies: git and gh both go through them, so a different one is a different route to the repo.
+const proxyVariables = [
+  "http_proxy",
+  "https_proxy",
+  "HTTP_PROXY",
+  "HTTPS_PROXY",
+  "ALL_PROXY",
+  "all_proxy",
+] as const
+
+/**
+ * The variables that change where git reads its configuration from or how it connects, but that
+ * are commonly set system-wide: they count only when the hook's value differs from the runner's
+ * own (`HOME` and the XDG folder move `~/.gitconfig` and `~/.config/git/config`; the rest add a
+ * proxy, a certificate, tracing or a password program).
+ */
+export const gitComparedVariables = [
+  "HOME",
+  "XDG_CONFIG_HOME",
+  "USERPROFILE",
+  "GIT_SSL_NO_VERIFY",
+  "GIT_SSL_CAINFO",
+  "GIT_SSL_CAPATH",
+  "GIT_SSL_CERT",
+  "GIT_SSL_KEY",
+  "GIT_HTTP_PROXY_AUTHMETHOD",
+  ...proxyVariables,
+  "GIT_TRACE",
+  "GIT_TRACE_CURL",
+  "GIT_TRACE_PACKET",
+  "GIT_TRACE_SETUP",
+  "GIT_TRACE_PERFORMANCE",
+  "GIT_TRACE2",
+  "GIT_TRACE2_EVENT",
+  "GIT_TRACE2_PERF",
+  "GIT_TRACE_REDACT",
+  "SSH_ASKPASS",
+  "SSH_ASKPASS_REQUIRE",
+] as const
+
+/** The same for `gh`: where it reads its configuration, which account it uses, what it opens. */
+export const ghComparedVariables = [
+  "HOME",
+  "XDG_CONFIG_HOME",
+  "USERPROFILE",
+  "APPDATA",
+  ...proxyVariables,
+  "GH_TOKEN",
+  "GITHUB_TOKEN",
+  "EDITOR",
+  "VISUAL",
+] as const
+
 /**
  * What of a hook's environment the relay forwards, by name: Claude Code's own pid, and
  * what tells nested agents apart. The relay reads the names from its configuration.
@@ -172,6 +236,7 @@ export const hookVariables = [
   "PATH",
   ...gitVariables,
   ...ghVariables,
+  ...new Set([...gitComparedVariables, ...ghComparedVariables]),
   // Where Codex keeps its configuration, whose `shell_environment_policy` the hooks don't see.
   "CODEX_HOME",
 ] as const

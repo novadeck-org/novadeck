@@ -15,7 +15,7 @@ import { harnesses } from "../harnesses/registry.js"
 import { cut } from "../text.js"
 import { Armed } from "./armed.js"
 import { codexPolicy, type CodexLayers, type CodexPolicy } from "./codex-policy.js"
-import type { Permission } from "./hook.js"
+import { ghComparedVariables, gitComparedVariables, type Permission } from "./hook.js"
 import type { Narrowing } from "./narrowing.js"
 import type { PermissionAnswer } from "./reports.js"
 
@@ -44,10 +44,15 @@ export const pathIsAbsolute = (
 ): boolean => {
   if (path === null) return false
   if (platform !== "win32") return path.split(":").every((entry) => posix.isAbsolute(entry))
-  return path.split(";").every((entry) => {
-    const folder = entry.replace(/^"(.*)"$/, "$1")
-    return /^(?:[A-Za-z]:[\\/]|\\\\)/.test(folder) && win32.isAbsolute(folder)
-  })
+  // An empty entry on Windows is the current folder, which cmd searches anyway and the
+  // same-name check covers.
+  return path
+    .split(";")
+    .filter((entry) => entry !== "")
+    .every((entry) => {
+      const folder = entry.replace(/^"(.*)"$/, "$1")
+      return /^(?:[A-Za-z]:[\\/]|\\\\)/.test(folder) && win32.isAbsolute(folder)
+    })
 }
 
 /** The terminal a permission hook came from, as the runner keeps it. */
@@ -75,6 +80,8 @@ export type PermissionsHost = {
   readonly now: () => number
   /** What Codex's configuration sets for its commands (`codexPolicy`, read from disk when omitted). */
   readonly codexPolicy?: (layers: CodexLayers) => Promise<CodexPolicy>
+  /** The environment a terminal starts with, which the hook's values are compared with (the process's when omitted). */
+  readonly env?: NodeJS.ProcessEnv
   /** The machine the runner runs on, for how a PATH reads; the process's when omitted. */
   readonly platform?: NodeJS.Platform
 }
@@ -133,7 +140,7 @@ export class Permissions {
   // Claude Code and Codex: a match is allowed, at once, with no dialog.
   private async allowing(
     report: Report,
-    { call, command, mode, path, gitEnv, ghEnv, codexHome }: Permission,
+    { call, command, mode, path, gitEnv, ghEnv, compared, codexHome }: Permission,
     terminal: PermissionTerminal,
     deadline: number,
     unsaid: PermissionAnswer,
@@ -145,7 +152,12 @@ export class Permissions {
     // Codex's hooks say `default` even in Plan Mode: its rollout says whether it plans.
     if (terminal.planning === true) return unsaid
     if (typeof call === "object" && allow !== undefined) {
-      const grant = await this.match(report, call, terminal, path, { gitEnv, ghEnv, codexHome })
+      const grant = await this.match(report, call, terminal, path, {
+        gitEnv,
+        ghEnv,
+        compared,
+        codexHome,
+      })
       if (grant !== undefined && this.live(deadline)) {
         this.use(report, grant, call.command)
         // Nothing waits on a dialog once a grant lets the call through.
@@ -166,7 +178,7 @@ export class Permissions {
   // Antigravity started narrowed (design B2): one handler decides, and fails closed.
   private async narrowed(
     report: Report,
-    { call, tool, path, gitEnv, ghEnv, codexHome }: Permission,
+    { call, tool, path, gitEnv, ghEnv, compared, codexHome }: Permission,
     terminal: PermissionTerminal,
     deadline: number,
     answers: NarrowedAnswers,
@@ -187,7 +199,12 @@ export class Permissions {
     const program = lexed.ok ? lexed.argv[0] : undefined
     if (program === undefined || !this.host.narrowing.launchSet(report.terminalId)?.has(program))
       return closed
-    const grant = await this.match(report, call, terminal, path, { gitEnv, ghEnv, codexHome })
+    const grant = await this.match(report, call, terminal, path, {
+      gitEnv,
+      ghEnv,
+      compared,
+      codexHome,
+    })
     if (grant === undefined || !this.live(deadline)) return closed
     this.use(report, grant, call.command)
     return { stdout: answers.run, report: true }
@@ -212,14 +229,20 @@ export class Permissions {
     call: ShellCall,
     terminal: PermissionTerminal,
     path: string | null,
-    env: { readonly gitEnv: boolean; readonly ghEnv: boolean; readonly codexHome: string | null },
+    env: Pick<Permission, "gitEnv" | "ghEnv" | "compared" | "codexHome">,
   ): Promise<string | undefined> {
     const grants = this.host.grants.covering(report.terminalId)
     if (grants.length === 0 || terminal.projectFolder === undefined) return undefined
     // A PATH that can search the call's folder runs a same-name program the agent wrote there.
     if (!pathIsAbsolute(path, this.host.platform)) return undefined
     // Codex's configuration sets variables for its commands that its hooks never see.
-    let { gitEnv, ghEnv } = env
+    // What the command's own git and gh read from the agent's environment, which the runner's
+    // doesn't have: a variable set where the runner's differs.
+    const own = this.host.env ?? process.env
+    const differs = (names: readonly string[]) =>
+      names.some((name) => env.compared[name] !== undefined && env.compared[name] !== own[name])
+    let gitEnv = env.gitEnv || differs(gitComparedVariables)
+    let ghEnv = env.ghEnv || differs(ghComparedVariables)
     if (report.agent === "codex") {
       const read = this.host.codexPolicy ?? codexPolicy
       const policy = await Promise.resolve()
@@ -231,9 +254,11 @@ export class Permissions {
             command: terminal.command,
           }),
         )
-        .catch((): CodexPolicy => ({ git: true, gh: true }))
+        .catch((): CodexPolicy => ({ git: true, gh: true, path: true }))
       gitEnv ||= policy.git
       ghEnv ||= policy.gh
+      // A PATH Codex sets for its commands is not the one the hook ran under: nothing is known.
+      if (policy.path) return undefined
     }
     const found = await matchCall(
       // Variables the runner can't see in the command's environment: git's or gh's own, which

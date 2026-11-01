@@ -37,7 +37,9 @@ const safeArguments = (args: Record<string, unknown>): boolean =>
       case "max_output_tokens":
         return value === null || typeof value === "number"
       case "tty":
-        return typeof value === "boolean"
+        // A tty session stays open for `write_stdin`, which types into the escalated process
+        // (an editor a granted command opens, then a shell escape) with no request of its own.
+        return value === false
       default:
         return false
     }
@@ -57,6 +59,7 @@ const safeArguments = (args: Record<string, unknown>): boolean =>
  */
 export const rolloutCall = (text: string, turn: string, command: string): RolloutCall => {
   const pending = new Map<string, Record<string, unknown>>()
+  const others = new Set<string>()
   let cwd: string | undefined
   const done = new Set<string>()
   const modes: boolean[] = []
@@ -87,9 +90,10 @@ export const rolloutCall = (text: string, turn: string, command: string): Rollou
     const id = payload["call_id"]
     if (typeof id !== "string") continue
     if (payload["type"] === "function_call_output") done.add(id)
-    if (payload["type"] !== "function_call" || payload["name"] !== "exec_command") continue
+    if (payload["type"] !== "function_call") continue
     if (record(payload["internal_chat_message_metadata_passthrough"])?.["turn_id"] !== turn)
       continue
+    // Every tool call of the turn counts as the newest, not only the `exec_command` ones.
     last = id
     let args: Record<string, unknown> | undefined
     try {
@@ -97,12 +101,18 @@ export const rolloutCall = (text: string, turn: string, command: string): Rollou
     } catch {
       continue
     }
-    if (args?.["cmd"] === command) pending.set(id, args)
+    if (payload["name"] === "exec_command") {
+      if (args?.["cmd"] === command) pending.set(id, args)
+    } else if (Object.values(args ?? {}).includes(command)) {
+      // Another tool (`shell_command`…) asked for the same text: which one is being asked about
+      // can't be told.
+      others.add(id)
+    }
   }
   const planning = modes.length === 0 ? undefined : modes.includes(true)
   const open = [...pending].filter(([id]) => !done.has(id))
   const unknown = { workdir: undefined, planning, cwd }
-  if (open.length !== 1) return unknown
+  if (open.length !== 1 || [...others].some((id) => !done.has(id))) return unknown
   const [id, args] = open[0] as [string, Record<string, unknown>]
   if (id !== last || !safeArguments(args)) return unknown
   const workdir = args["workdir"]

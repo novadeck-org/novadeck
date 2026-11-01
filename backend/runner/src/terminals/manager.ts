@@ -339,6 +339,7 @@ export class Terminals {
       messaging: () => this.messaging,
       records: () => this.records,
       projectFolder: (sessionId) => this.projectFolder(sessionId),
+      env: () => this.options.env,
       options,
     })
     this.launcher = new Launcher(this.options, {

@@ -42,6 +42,8 @@ export type ApprovingHost = {
   readonly messaging: () => Messaging
   readonly records: () => ReadonlyMap<string, Record>
   readonly projectFolder: (sessionId: string) => string | undefined
+  /** The environment a new terminal starts with: what the hooks' variables are compared with. */
+  readonly env: () => NodeJS.ProcessEnv
   readonly options: ApprovingOptions
 }
 
@@ -97,6 +99,9 @@ export class Approving {
       git: gitLookups,
       fs: fsLookups,
       now: () => Date.now(),
+      get env() {
+        return host.env()
+      },
     })
     this.handlers = {
       permit: (report, permission, deadline) =>

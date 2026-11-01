@@ -159,6 +159,7 @@ describe("the arguments a call may carry", () => {
     ["the older escalation field", { with_escalated_permissions: true }],
     ["a key it doesn't know", { env: { PATH: "." } }],
     ["a workdir that is no text", { workdir: 3 }],
+    ["a tty, which write_stdin types into", { tty: true }],
   ])("refuse a call with %s", (_name, extra) => {
     expect(workdirOf(extra)).toBeUndefined()
   })
@@ -193,5 +194,22 @@ describe("a relative workdir, as Codex 0.166 recorded it", () => {
       workdir: "sub",
       cwd: "/tmp/novadeck-e2e-qRV0Ia/project",
     })
+  })
+})
+
+describe("calls of other tools in the same turn", () => {
+  const other = (id: string, given: object, name = "shell_command") => call(id, given, { name })
+
+  it("are the newest, or hold the same text, and then nothing is pinned", () => {
+    const pinned = (...lines: string[]) => rolloutCall(text(...lines), turn, command).workdir
+    expect(pinned(call("a", args))).toBeNull()
+    // A later call of any tool is the newest, not this one.
+    expect(pinned(call("a", args), other("b", { command: "ls" }))).toBeUndefined()
+    // The same text asked of another tool, pending, in either order.
+    expect(pinned(other("b", { command, workdir: "/e" }), call("a", args))).toBeUndefined()
+    expect(pinned(call("a", args), other("b", { command, workdir: "/e" }))).toBeUndefined()
+    // Once the other has its output it is not in question; this call must still be the newest.
+    expect(pinned(other("b", { command }), call("a", args))).toBeUndefined()
+    expect(pinned(other("b", { command }), output("b"), call("a", args))).toBeNull()
   })
 })
