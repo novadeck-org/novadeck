@@ -1,4 +1,4 @@
-import { mkdirSync, mkdtempSync, rmSync, symlinkSync, writeFileSync } from "node:fs"
+import { mkdirSync, mkdtempSync, realpathSync, rmSync, symlinkSync, writeFileSync } from "node:fs"
 import { tmpdir } from "node:os"
 import { join } from "node:path"
 
@@ -15,7 +15,9 @@ const scope: GrantScope = {
 }
 
 const folder = (): { root: string; outside: string; done: () => void } => {
-  const base = mkdtempSync(join(tmpdir(), "novadeck-fs-lookups-"))
+  // The real long path: a Windows runner's temp folder is an 8.3 name (`RUNNER~1`), which the
+  // dialect refuses for its `~`.
+  const base = realpathSync.native(mkdtempSync(join(tmpdir(), "novadeck-fs-lookups-")))
   const root = join(base, "project")
   const outside = join(base, "outside")
   mkdirSync(root)
@@ -23,13 +25,25 @@ const folder = (): { root: string; outside: string; done: () => void } => {
   return { root, outside, done: () => rmSync(base, { recursive: true, force: true }) }
 }
 
+// Windows makes a symlink only for a user allowed to; without that the test has nothing to read.
+const makeLink = (target: string, path: string, skip: (reason: string) => never): void => {
+  try {
+    symlinkSync(target, path)
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code === "EPERM") skip("this user may not create symlinks")
+    throw error
+  }
+}
+
 describe("the disk lookups", () => {
-  it("tell a regular file from a directory, and follow a symlink to its real path", async () => {
+  it("tell a regular file from a directory, and follow a symlink to its real path", async ({
+    skip,
+  }) => {
     const { root, outside, done } = folder()
     try {
       writeFileSync(join(outside, "secret.md"), "x")
       writeFileSync(join(root, "note.md"), "x")
-      symlinkSync(join(outside, "secret.md"), join(root, "link.md"))
+      makeLink(join(outside, "secret.md"), join(root, "link.md"), skip)
       expect((await fsLookups.real(join(root, "note.md")))?.file).toBe(true)
       expect((await fsLookups.real(root))?.file).toBe(false)
       const link = await fsLookups.real(join(root, "link.md"))
@@ -44,12 +58,14 @@ describe("the disk lookups", () => {
     }
   })
 
-  it("keep a pull request's body file from being a symlink inside the project that points outside", async () => {
+  it("keep a pull request's body file from being a symlink inside the project that points outside", async ({
+    skip,
+  }) => {
     const { root, outside, done } = folder()
     try {
       writeFileSync(join(outside, "secret.md"), "x")
       writeFileSync(join(root, "note.md"), "x")
-      symlinkSync(join(outside, "secret.md"), join(root, "link.md"))
+      makeLink(join(outside, "secret.md"), join(root, "link.md"), skip)
       const ask = (file: string) =>
         matchCall(
           {

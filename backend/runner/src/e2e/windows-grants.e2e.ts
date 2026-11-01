@@ -185,19 +185,25 @@ const withKit = (setup: AgentSetup, comspec = false): AgentSetup => ({
     writeFileSync(join(dir, "marker.cjs"), markerProgram)
     writeFileSync(join(dir, "hook.cjs"), hookProgram)
     kits.set(sandbox.root, { dir, bin })
-    if (!comspec) return { ...env, PATH: [bin, sandbox.env.PATH].join(delimiter) }
-    // ComSpec names the wrapper; the preload makes node.exe's copy behave as it.
+    const path = [bin, sandbox.env.PATH].join(delimiter)
+    if (!comspec) return { ...env, PATH: path }
+    // ComSpec names the wrapper (the preload makes node.exe's copy behave as it) for Antigravity
+    // alone: an `agy.cmd` ahead of the real one on PATH sets it and calls the real agy, which
+    // Novadeck's shim finds as the first other `agy`. The runner and the terminal's shell keep
+    // theirs.
     copyFileSync(process.execPath, join(bin, "comspec.exe"))
     writeFileSync(join(dir, "comspec.cjs"), comspecProgram)
-    const kept = Object.fromEntries(
-      Object.entries(env).filter(([name]) => name.toUpperCase() !== "COMSPEC"),
+    const real = join((await installHarness("agy")).bin, "agy")
+    writeFileSync(
+      join(bin, "agy.cmd"),
+      [
+        `@set "ComSpec=${join(bin, "comspec.exe")}"`,
+        `@set "NODE_OPTIONS=--require ${join(dir, "comspec.cjs").replaceAll("\\", "/")}"`,
+        `@call "${real}" %*`,
+        "",
+      ].join("\r\n"),
     )
-    return {
-      ...kept,
-      PATH: [bin, sandbox.env.PATH].join(delimiter),
-      ComSpec: join(bin, "comspec.exe"),
-      NODE_OPTIONS: `--require ${join(dir, "comspec.cjs").replaceAll("\\", "/")}`,
-    }
+    return { ...env, PATH: path }
   },
 })
 
