@@ -15,6 +15,7 @@ import {
   type CompanionWindow,
   type FeedbackDraft,
   type FolderListing,
+  type AutoRunState,
   type Grant,
   type InboxEntry,
   type InterruptResult,
@@ -447,6 +448,17 @@ export type Runner = {
     /** Ends a grant at once. Rejects with `NOT_FOUND` for an unknown or already ended one. */
     revoke(id: string): Promise<void>
   }
+  /** cmd's AutoRun on Windows and the person's one-click silencing of its output. */
+  readonly autorun: {
+    /** Follows the state: now, then again on each change; always "none" off Windows. */
+    watch(): AsyncIterableIterator<AutoRunState, undefined>
+    /** Rewrites the AutoRun to `value`, the new value the card showed; the outcome is in the state. */
+    silence(value: string): Promise<void>
+    /** Puts the value back that the silencing wrapped. */
+    undo(): Promise<void>
+    /** Hides an offer or a manual step until the next start. */
+    dismiss(): Promise<void>
+  }
   readonly feedback: {
     /** The agents' feedback drafts waiting for the app, oldest first, then again on each change. */
     watch(): AsyncIterableIterator<FeedbackDraft[], undefined>
@@ -693,6 +705,15 @@ export const connectRunner = async (
           client.grants.watch(undefined, { signal }),
         ),
       revoke: (id) => call((client) => client.grants.revoke({ id })),
+    },
+    autorun: {
+      watch: () =>
+        followRestarting(connection, (client, signal) =>
+          client.autorun.watch(undefined, { signal }),
+        ),
+      silence: (value) => call((client) => client.autorun.silence({ value })),
+      undo: () => call((client) => client.autorun.undo()),
+      dismiss: () => call((client) => client.autorun.dismiss()),
     },
     feedback: {
       watch: () =>

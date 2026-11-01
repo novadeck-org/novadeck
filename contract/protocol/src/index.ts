@@ -86,6 +86,16 @@ export {
   maxAskOptions,
 } from "./inbox.js"
 export {
+  autorunManualReason,
+  type AutoRunManualReason,
+  autorunOutcome,
+  type AutoRunOutcome,
+  autorunState,
+  type AutoRunState,
+  maxAutoRunShown,
+  maxAutoRunValue,
+} from "./autorun.js"
+export {
   grant,
   type Grant,
   grantCommand,

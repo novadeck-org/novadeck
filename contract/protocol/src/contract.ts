@@ -20,6 +20,7 @@ import {
   conflictReason,
   interruptResult,
 } from "./agents.js"
+import { autorunState, maxAutoRunShown } from "./autorun.js"
 import {
   companionChange,
   companionItem,
@@ -439,6 +440,22 @@ export const contract = {
     // Ends a grant at once; its terminals hear it at their next delivery. An unknown or
     // already-ended grant is NOT_FOUND.
     revoke: procedure.input(z.strictObject({ id })).output(z.void()),
+  },
+  // cmd's AutoRun on Windows (see autorun.ts): the person's one-click silencing of its output,
+  // which Antigravity's hooks need. UI procedures only, as grants are: no tool or report of an
+  // agent reaches them, and nothing an agent supplies reaches the registry.
+  autorun: {
+    // The state now, then again on each change; always "none" off Windows.
+    watch: procedure.input(z.void()).output(eventIterator(autorunState)),
+    // Rewrites the person's AutoRun to `value`, the exact new value the card showed. The state
+    // that follows, with the outcome, arrives through `watch`.
+    silence: procedure
+      .input(z.strictObject({ value: z.string().max(maxAutoRunShown) }))
+      .output(z.void()),
+    // Puts the value back that the silencing wrapped, only while Novadeck's wrapper is there.
+    undo: procedure.input(z.void()).output(z.void()),
+    // Hides an offer or a manual step until the next start.
+    dismiss: procedure.input(z.void()).output(z.void()),
   },
   // Agents' feedback drafts for the people building Novadeck (see `feedbackDraft`): the app
   // shows each in its feedback card for the person to send or discard.
