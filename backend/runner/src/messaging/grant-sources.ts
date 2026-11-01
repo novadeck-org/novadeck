@@ -6,6 +6,8 @@ import { promisify } from "node:util"
 import { normalizeRepoUrl } from "@novadeck/harness-core/grants"
 import { maxGrantRepos, type GrantRepoChoice } from "@novadeck/protocol"
 
+import { programPath } from "../shell/programs.js"
+
 const run = promisify(execFile)
 
 /**
@@ -49,8 +51,11 @@ const maxFolders = 200
 const depth = 2
 
 const git = async (dir: string, args: readonly string[]): Promise<string | undefined> => {
+  // By its full path from the PATH, never a git of the same name in a folder an agent wrote.
+  const program = programPath("git")
+  if (program === undefined) return undefined
   try {
-    const { stdout } = await run("git", ["-C", dir, ...args], {
+    const { stdout } = await run(program, ["-C", dir, ...args], {
       timeout: gitMs,
       windowsHide: true,
       env: { ...process.env, GIT_TERMINAL_PROMPT: "0", GIT_OPTIONAL_LOCKS: "0" },
@@ -104,9 +109,11 @@ export const systemIo: SourceIo = {
     }
   },
   githubDefault: async (nameWithOwner) => {
+    const program = programPath("gh")
+    if (program === undefined) return undefined
     try {
       const { stdout } = await run(
-        "gh",
+        program,
         ["repo", "view", nameWithOwner, "--json", "defaultBranchRef"],
         { timeout: ghMs, windowsHide: true },
       )

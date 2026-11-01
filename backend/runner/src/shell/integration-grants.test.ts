@@ -115,9 +115,10 @@ describe.skipIf(process.platform === "win32" || !existsSync(bash))(
           proposedBy: handle,
           lifetime: "until-done",
         })
-      // The exit of its shell removed the live entry, as `exited` does.
+      // The exit of its shell removed the live entry, as `exited` does: the grant its own agent
+      // held ends with that agent, and the team's stays until the terminal is closed.
       manager["messaging"].unregister(lead.id)
-      expect(grants.list()).toHaveLength(2)
+      expect(grants.list().map((grant) => grant.holder.kind)).toEqual(["team"])
       await manager.close({ terminalId: lead.id })
       expect(grants.list()).toEqual([])
     })

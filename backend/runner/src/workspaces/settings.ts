@@ -68,14 +68,14 @@ export class Settings {
   }
 
   /**
-   * The cmd AutoRun value (base64 bytes of HKCU's) the person dismissed the Inbox's line for;
-   * undefined when none, and a changed value is no longer the one.
+   * The cmd AutoRun state (HKCU's and HKLM's values or their absence) the person dismissed the
+   * Inbox's line for; undefined when none, and a changed state is no longer the one.
    */
   autorunDismissed(): string | undefined {
     return this.setting("autorun.dismissed")
   }
 
-  /** Keeps the value the person dismissed the AutoRun line for; null forgets it. */
+  /** Keeps the AutoRun state the person dismissed the line for; null forgets it. */
   dismissAutorun(value: string | null): void {
     if (value === null) this.forgetSetting("autorun.dismissed")
     else this.saveSetting("autorun.dismissed", value)
