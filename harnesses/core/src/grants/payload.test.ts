@@ -1,7 +1,12 @@
 import { describe, expect, it } from "vitest"
 
 import { maxCommand } from "../grants.js"
-import { agyNonCommandTools, callFromPayload, isAgyNonCommandTool } from "./payload.js"
+import {
+  agyNonCommandTools,
+  callFromPayload,
+  isAgyNonCommandTool,
+  novadeckMcpTools,
+} from "./payload.js"
 
 // Payload shapes as the probes captured them (approvals-probes/captures).
 const claude = (input: object, extra: object = {}) => ({
@@ -186,5 +191,42 @@ describe("Antigravity's tools known not to run commands", () => {
       "",
     ])
       expect(isAgyNonCommandTool(name)).toBe(false)
+  })
+
+  it("take Novadeck's own MCP tools by the server's exact name and a closed list of tool names", () => {
+    for (const tool of novadeckMcpTools) {
+      expect(isAgyNonCommandTool(`mcp_novadeck_novadeck_${tool}`), tool).toBe(true)
+      expect(
+        isAgyNonCommandTool("call_mcp_tool", { ServerName: "novadeck_novadeck", ToolName: tool }),
+        tool,
+      ).toBe(true)
+    }
+    // A lookalike server, an unknown tool of the right server, and other servers' tools.
+    for (const name of [
+      "mcp_novadeck_novadeck2_done",
+      "mcp_novadeck_novadeck_",
+      "mcp_novadeck_novadeck_unknown",
+      "mcp_novadeck_novadeck_done2",
+      "mcp_novadeck_novadeck__done",
+      "mcp_other_server_done",
+      "mcp_novadeck_other_done",
+      "MCP_NOVADECK_NOVADECK_DONE",
+    ])
+      expect(isAgyNonCommandTool(name), name).toBe(false)
+    const via = (args: unknown) => isAgyNonCommandTool("call_mcp_tool", args)
+    expect(via({ ServerName: "novadeck_novadeck2", ToolName: "done" })).toBe(false)
+    expect(via({ ServerName: "novadeck_novadeck/", ToolName: "done" })).toBe(false)
+    expect(via({ ServerName: "other", ToolName: "done" })).toBe(false)
+    expect(via({ ServerName: "novadeck_novadeck", ToolName: "unknown" })).toBe(false)
+    expect(via({ ServerName: "novadeck_novadeck", ToolName: "" })).toBe(false)
+    expect(via({ ServerName: "novadeck_novadeck" })).toBe(false)
+    expect(via({ ToolName: "done" })).toBe(false)
+    expect(via({ ServerName: ["novadeck_novadeck"], ToolName: "done" })).toBe(false)
+    expect(via(undefined)).toBe(false)
+    expect(via(null)).toBe(false)
+    // Only call_mcp_tool names its target in its arguments.
+    expect(
+      isAgyNonCommandTool("run_command", { ServerName: "novadeck_novadeck", ToolName: "done" }),
+    ).toBe(false)
   })
 })

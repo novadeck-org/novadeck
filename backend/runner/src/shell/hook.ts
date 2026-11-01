@@ -58,7 +58,7 @@ export type Permission = {
 const runsNoCommand = (payload: Fields): boolean => {
   const call = payload.toolCall
   const name = object(call) ? call.name : undefined
-  return typeof name === "string" && isAgyNonCommandTool(name)
+  return typeof name === "string" && isAgyNonCommandTool(name, object(call) ? call.args : undefined)
 }
 
 const readPermission = (

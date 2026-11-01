@@ -495,7 +495,12 @@ describe("Antigravity's PreToolUse", () => {
 
   it("keeps a plain ask only for the tools known to run no command", async ({ resources }) => {
     const { ask } = fixture(resources)
-    const tool = (name: string) => ({ conversationId: "c", toolCall: { name, args: {} } })
+    const tool = (name: string, args: object = {}) => ({
+      conversationId: "c",
+      toolCall: { name, args },
+    })
+    const viaServer = (ServerName: string, ToolName: string) =>
+      tool("call_mcp_tool", { ServerName, ToolName, Arguments: {} })
     for (const name of [
       "read_file",
       "write_file",
@@ -508,6 +513,26 @@ describe("Antigravity's PreToolUse", () => {
       "mcp_novadeck_novadeck_ask",
     ])
       expect((await ask("agy", "PreToolUse", tool(name), narrow)).stdout).toBe(notCommand)
+    // Novadeck's own MCP tools, as a function of their own or through call_mcp_tool: the
+    // person's own policy decides, as for any tool that runs no command.
+    for (const name of ["send", "done", "ask", "propose_grant"]) {
+      expect(
+        (await ask("agy", "PreToolUse", tool(`mcp_novadeck_novadeck_${name}`), narrow)).stdout,
+      ).toBe(notCommand)
+      expect(
+        (await ask("agy", "PreToolUse", viaServer("novadeck_novadeck", name), narrow)).stdout,
+      ).toBe(notCommand)
+    }
+    // A lookalike server, a name Novadeck has no tool of, and other servers stay closed.
+    for (const payload of [
+      tool("mcp_novadeck_novadeck2_done"),
+      tool("mcp_novadeck_novadeck_"),
+      tool("mcp_novadeck_novadeck_unknown"),
+      viaServer("novadeck_novadeck2", "done"),
+      viaServer("other_server", "done"),
+      viaServer("novadeck_novadeck", "unknown"),
+    ])
+      expect((await ask("agy", "PreToolUse", payload, narrow)).stdout).toBe(closed)
     for (const name of [
       "manage_task",
       "schedule",

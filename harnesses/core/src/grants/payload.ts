@@ -76,8 +76,51 @@ export const agyNonCommandTools: ReadonlySet<string> = new Set([
   "send_message",
 ])
 
-const novadeckPrefix = "mcp_novadeck_novadeck_"
+/**
+ * Novadeck's own MCP tools (the runner's `shell/mcp.ts` lists the same names, and a test holds
+ * the two together). They run no shell command: they speak to Novadeck, which asks the person
+ * where it must.
+ */
+export const novadeckMcpTools: ReadonlySet<string> = new Set([
+  "ask",
+  "tell",
+  "done",
+  "show",
+  "showing",
+  "look",
+  "close",
+  "open_terminal",
+  "open_agent",
+  "close_terminal",
+  "lead",
+  "release",
+  "send",
+  "agents",
+  "summarize",
+  "feedback",
+  "propose_grant",
+])
 
-/** Whether an Antigravity tool is on the closed list, or is one of Novadeck's own MCP tools. */
-export const isAgyNonCommandTool = (name: string): boolean =>
-  agyNonCommandTools.has(name) || name.startsWith(novadeckPrefix)
+// Antigravity names the server of Novadeck's plugin `novadeck_novadeck`. It calls one of its tools
+// either as a function of its own, `mcp_<server>_<tool>`, or through `call_mcp_tool`, whose
+// arguments name the server and the tool.
+const novadeckServer = "novadeck_novadeck"
+const novadeckPrefix = `mcp_${novadeckServer}_`
+
+/**
+ * Whether an Antigravity tool call is on the closed list of tools known to run no command, or is
+ * one of Novadeck's own MCP tools: matched whole, by the server's exact name and a tool on
+ * `novadeckMcpTools`. A lookalike server, another server's tool and a Novadeck name not on the
+ * list are none. `args` is the call's arguments, which `call_mcp_tool` names its target in.
+ */
+export const isAgyNonCommandTool = (name: string, args?: unknown): boolean => {
+  if (agyNonCommandTools.has(name)) return true
+  if (name.startsWith(novadeckPrefix))
+    return novadeckMcpTools.has(name.slice(novadeckPrefix.length))
+  if (name !== "call_mcp_tool" || typeof args !== "object" || args === null) return false
+  const { ServerName: server, ToolName: tool } = args as {
+    ServerName?: unknown
+    ToolName?: unknown
+  }
+  return server === novadeckServer && typeof tool === "string" && novadeckMcpTools.has(tool)
+}

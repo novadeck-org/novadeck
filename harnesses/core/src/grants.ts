@@ -70,6 +70,7 @@ export {
   agyNonCommandTools,
   callFromPayload,
   isAgyNonCommandTool,
+  novadeckMcpTools,
   lex,
   lexCall,
   lexWindows,
