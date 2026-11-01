@@ -251,6 +251,26 @@ describe("the AutoRun state", () => {
     expect(await stateOf(autorun)).toMatchObject({ dismissed: false })
   })
 
+  const dismissWithoutHkcu = async (user: Scope): Promise<void> => {
+    const { fake, autorun } = await started({ user, machine: scope(printing) })
+    expect(await stateOf(autorun)).toMatchObject({ state: "manual", dismissed: false })
+    await autorun.dismiss()
+    expect(await stateOf(autorun)).toMatchObject({ state: "manual", dismissed: true })
+    // Kept across a start.
+    await autorun.started("prints")
+    expect(await stateOf(autorun)).toMatchObject({ dismissed: true })
+    // Another machine value is another state, offered again.
+    fake.registry.machine = scope("chcp 850 & echo other")
+    await autorun.started("prints")
+    expect(await stateOf(autorun)).toMatchObject({ dismissed: false })
+  }
+
+  it("lets Not now dismiss the fix where HKCU is absent, until either hive changes", () =>
+    dismissWithoutHkcu(absent))
+
+  it("lets Not now dismiss the fix where HKCU is unreadable, until either hive changes", () =>
+    dismissWithoutHkcu({ found: "unreadable" }))
+
   it("offers nothing where Antigravity is not installed, though cmd prints", async () => {
     const { fake, host } = machine()
     fake.installed = false

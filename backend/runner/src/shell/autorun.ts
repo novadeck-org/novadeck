@@ -78,13 +78,22 @@ export type AutoRunHost = {
   readonly announce: () => void
   /** Whether Antigravity is installed here: the fix is offered only where it is. */
   readonly installed: () => Promise<boolean>
-  /** The HKCU value (base64 bytes) the person last dismissed the Inbox's line for, if any. */
+  /**
+   * The registry state (`readKey`) the person last dismissed the Inbox's line for, if any:
+   * the value of HKCU and of HKLM, or their absence.
+   */
   readonly dismissedFor: () => string | undefined
-  /** Keeps the value the person dismissed the line for; null forgets it. */
+  /** Keeps the registry state the person dismissed the line for; null forgets it. */
   readonly rememberDismissed: (value: string | null) => void
 }
 
 type Start = "prints" | "slow" | undefined
+
+/**
+ * The whole registry state a dismissal is for: what HKCU and HKLM hold, or that one is absent
+ * or unreadable. Another state, by either, offers the fix again.
+ */
+const readKey = (read: AutoRunRead): string => JSON.stringify([read.user, read.machine])
 
 /**
  * cmd's AutoRun and the person's one-click silencing of its output (approvals-design.md,
@@ -173,14 +182,14 @@ export class AutoRun {
   }
 
   /**
-   * Hides the Inbox's line for the value the person has now, and keeps that across starts: a
-   * changed value offers again. The state still carries the offer, as `dismissed`, for
+   * Hides the Inbox's line for the registry state the person has now (both values, or their
+   * absence), and keeps that across starts: a changed state offers again. The state still carries the offer, as `dismissed`, for
    * Preferences.
    */
   dismiss(): Promise<void> {
     return this.exclusive(async () => {
-      const bytes = await this.userBytes()
-      if (bytes !== undefined) this.host.rememberDismissed(bytes)
+      const read = await this.host.read().catch(() => undefined)
+      if (read) this.host.rememberDismissed(readKey(read))
       this.outcome = null
       await this.reload()
     })
@@ -412,8 +421,8 @@ export class AutoRun {
         dismissed: false,
       }
     if (!this.eligible) return { state: "none", outcome, dismissed: false }
-    // Dismissed for the value as it is now; another value is offered again.
-    const dismissed = read?.user.found === "value" && this.host.dismissedFor() === read.user.encoded
+    // Dismissed for the registry as it is now; another state is offered again.
+    const dismissed = read !== undefined && this.host.dismissedFor() === readKey(read)
     if (found.kind === "absent") return { state: "none", outcome, dismissed: false }
     if (found.kind === "manual")
       return {
@@ -545,6 +554,6 @@ export const systemHost = (
   platform,
   read: () => readAutoRun(relay),
   swap: (kind, expected, next) => swapAutoRun(relay, kind, expected, next),
-  isolated: (value) => runsClean(value),
+  isolated: (value) => runsClean(value, { relay }),
   ...rest,
 })
