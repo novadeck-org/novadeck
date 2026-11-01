@@ -1,4 +1,5 @@
 import { MURMUR_NAME } from "@novadeck/core/addons/murmur"
+import type { AutoRunState } from "@novadeck/core/autorun"
 import type { NoticeSound } from "@novadeck/core/sounds"
 import { viewModes } from "@novadeck/core/state"
 import type { PreferencesValue } from "@novadeck/core/types"
@@ -19,6 +20,7 @@ import { themes, type ThemeEntry, type ThemeId } from "../theme/themes"
 import { AddonRow } from "./addon-parts"
 import { agentsExplanation, type AgentSwitch } from "./agent-switches"
 import { AgentSwitches } from "./AgentSwitches"
+import { AutoRunRow } from "./AutoRunRow"
 import { murmurDescription } from "./murmur-addon"
 import { MurmurAddon, type MurmurAddonValue } from "./MurmurAddon"
 import {
@@ -104,6 +106,7 @@ export const Preferences = ({
   onTabChange,
   transcripts,
   agents,
+  autorun,
   voice,
   murmur,
   experimental,
@@ -143,6 +146,11 @@ export const Preferences = ({
   agents?: {
     readonly list: readonly AgentSwitch[]
     readonly onChange: (agent: AgentSwitch["agent"], connected: boolean) => void
+  }
+  // cmd's AutoRun (Windows), as the runner reports it; listed only while silenced, with Undo.
+  autorun?: {
+    readonly state: AutoRunState
+    readonly undo: () => void
   }
   // Voice input, as the backend has it; absent where it has none.
   voice?: VoiceAddon
@@ -527,6 +535,7 @@ export const Preferences = ({
             {agents && (
               <Section title="Agents" description={agentsExplanation}>
                 <AgentSwitches agents={agents.list} onChange={agents.onChange} />
+                {autorun && <AutoRunRow state={autorun.state} onUndo={autorun.undo} />}
               </Section>
             )}
           </TabPanel>

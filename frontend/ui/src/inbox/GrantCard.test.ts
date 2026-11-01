@@ -1,3 +1,4 @@
+import { type AutoRunState, noAutoRun } from "@novadeck/core/autorun"
 import type { Grant, GrantProposal } from "@novadeck/core/grants"
 import {
   emptyInbox,
@@ -124,7 +125,7 @@ afterEach(() => {
 
 const mount = (
   rows: readonly InboxRow[],
-  { grants = [] as readonly Grant[], open = true } = {},
+  { grants = [] as readonly Grant[], open = true, autorun = noAutoRun as AutoRunState } = {},
 ) => {
   const state = createStore<InboxState>({ ...emptyInbox, items: rows })
   const store = createStore<readonly Grant[]>(grants)
@@ -139,6 +140,12 @@ const mount = (
     readAll: () => {},
     dismiss: (id) => void dismissed.push(id),
     grants: { state: store, revoke: (id) => void revoked.push(id), failed },
+    autorun: {
+      state: createStore<AutoRunState>(autorun),
+      silence: () => {},
+      undo: () => {},
+      dismiss: () => {},
+    },
   }
   const view = render(
     createElement(
@@ -228,6 +235,34 @@ describe("The Grant card", () => {
       )
       expect(document.querySelector("[data-grant=codex]")).toBeNull()
       await inbox.done()
+    })
+
+    it("names the fix for Antigravity while cmd's AutoRun prints, and drops the line once it doesn't", async () => {
+      const offer: AutoRunState = {
+        state: "offer",
+        current: "chcp 65001",
+        next: "(chcp 65001) >nul 2>&1",
+        machine: null,
+        outcome: null,
+      }
+      const printing = mount([grantRow({ covered: [{ handle: "elk", agent: "agy" }] })], {
+        autorun: offer,
+      })
+      expect(text("[data-grant=agy]")).toBe(
+        "@elk runs Antigravity, which only partly takes it: a teammate started before the grant still asks per command; Antigravity before 1.4.10 never takes it. cmd's AutoRun prints here, so Antigravity asks for each command: Silence it in the Inbox (one click, undoable).",
+      )
+      await printing.done()
+      const silenced = mount([grantRow({ covered: [{ handle: "elk", agent: "agy" }] })], {
+        autorun: {
+          state: "silenced",
+          current: offer.next,
+          restores: offer.current,
+          machine: null,
+          outcome: null,
+        },
+      })
+      expect(text("[data-grant=agy]")).not.toContain("AutoRun")
+      await silenced.done()
     })
 
     it("quotes the lead's reason and offers 1, 8 and 24 hours with 8 chosen", async () => {

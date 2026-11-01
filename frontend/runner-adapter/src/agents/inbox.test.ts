@@ -11,7 +11,13 @@ import {
 import { createTerminalState } from "@novadeck/core/state"
 import { createStore } from "@novadeck/core/store"
 import type { AgentStatus, AgentTurnEnd, TerminalMetadata, Workspace } from "@novadeck/core/types"
-import { longHoldMs, type AgentDetail, type Grant, type InboxEntry } from "@novadeck/protocol"
+import {
+  longHoldMs,
+  type AgentDetail,
+  type AutoRunState,
+  type Grant,
+  type InboxEntry,
+} from "@novadeck/protocol"
 import { afterEach, beforeEach, expectTypeOf, vi } from "vitest"
 
 import { describe, expect, it } from "../test"
@@ -178,6 +184,7 @@ const setup = (workspace: Workspace, unread: Marks = {}, messages: MessagesState
   const details: ReturnType<typeof channel<AgentDetail>>[] = []
   const feed = channel<InboxEntry[]>()
   const grantFeed = channel<Grant[]>()
+  const autorunFeed = channel<AutoRunState>()
   // What the runner lists: the asks and tells a test pushes, and the turn rows its marks
   // stand for, which reading removes.
   let others: InboxEntry[] = []
@@ -208,6 +215,12 @@ const setup = (workspace: Workspace, unread: Marks = {}, messages: MessagesState
     grants: {
       watch: vi.fn<NonNullable<InboxStreams["grants"]>["watch"]>(() => grantFeed.iterator),
       revoke: vi.fn<NonNullable<InboxStreams["grants"]>["revoke"]>(async () => {}),
+    },
+    autorun: {
+      watch: vi.fn<NonNullable<InboxStreams["autorun"]>["watch"]>(() => autorunFeed.iterator),
+      silence: vi.fn<NonNullable<InboxStreams["autorun"]>["silence"]>(async () => {}),
+      undo: vi.fn<NonNullable<InboxStreams["autorun"]>["undo"]>(async () => {}),
+      dismiss: vi.fn<NonNullable<InboxStreams["autorun"]>["dismiss"]>(async () => {}),
     },
     detail: vi.fn<InboxStreams["detail"]>(() => {
       const next = channel<AgentDetail>()
@@ -245,6 +258,7 @@ const setup = (workspace: Workspace, unread: Marks = {}, messages: MessagesState
     streams,
     details,
     grantFeed,
+    autorunFeed,
     entries,
     workspaceStore,
     marks,
@@ -1582,6 +1596,43 @@ describe("Grants", () => {
     stop()
     expect(inbox.grants.state.getSnapshot()).toEqual([])
     expect(grantFeed.returned()).toBe(1)
+  })
+
+  it("follows cmd's AutoRun while bound, and clicks reach the runner", async () => {
+    const { inbox, autorunFeed, streams, stop } = setup(workspaceOf(agentTerminal(1)))
+    expect(streams.autorun.watch).toHaveBeenCalledOnce()
+    const offer: AutoRunState = {
+      state: "offer",
+      current: "chcp 65001",
+      next: "(chcp 65001) >nul 2>&1",
+      machine: null,
+      outcome: null,
+    }
+    expect(inbox.autorun.state.getSnapshot()).toEqual({ state: "none", outcome: null })
+    autorunFeed.push(offer)
+    await settle()
+    expect(inbox.autorun.state.getSnapshot()).toEqual(offer)
+    inbox.autorun.silence(offer.next)
+    inbox.autorun.undo()
+    inbox.autorun.dismiss()
+    await settle()
+    expect(streams.autorun.silence).toHaveBeenCalledExactlyOnceWith(offer.next)
+    expect(streams.autorun.undo).toHaveBeenCalledOnce()
+    expect(streams.autorun.dismiss).toHaveBeenCalledOnce()
+    stop()
+    expect(inbox.autorun.state.getSnapshot()).toEqual({ state: "none", outcome: null })
+    expect(autorunFeed.returned()).toBe(1)
+  })
+
+  it("says why a call of the AutoRun did not reach the runner, until the next one", async () => {
+    const { inbox, streams } = setup(workspaceOf(agentTerminal(1)))
+    vi.mocked(streams.autorun.undo).mockRejectedValueOnce(new Error("The runner is away."))
+    inbox.autorun.undo()
+    await settle()
+    expect(inbox.autorun.failed?.getSnapshot()).toBe("The runner is away.")
+    inbox.autorun.undo()
+    await settle()
+    expect(inbox.autorun.failed?.getSnapshot()).toBeNull()
   })
 
   it("revokes through the runner", async () => {

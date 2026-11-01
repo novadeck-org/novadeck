@@ -15,6 +15,7 @@ import { Tooltip } from "@novadeck/toolkit/Tooltip"
 import { Bell, BellOff, CheckCheck, CircleCheck, ListX, LoaderCircle, X } from "lucide-react"
 import { useMemo, useState } from "react"
 
+import { AutoRunSection } from "./AutoRunSection"
 import { GrantsSection } from "./GrantsSection"
 import { focusSheet, focusSheetSoon, nextRowButton, rowOf } from "./inbox-dom"
 import { icons, typeWords } from "./inbox-icons"
@@ -438,6 +439,7 @@ export const InboxList = (): React.JSX.Element => {
       className="inbox-panel flex min-h-0 min-w-0 w-full flex-1 flex-col"
       data-sheet={view.open !== null ? "open" : "closed"}
     >
+      <AutoRunSection />
       <GrantsSection />
       {shown.length === 0 ? (
         <div className="inbox-empty">

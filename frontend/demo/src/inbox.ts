@@ -27,6 +27,7 @@ import { createStore, type Store } from "@novadeck/core/store"
 import { terminalKeyId } from "@novadeck/core/terminals/registry"
 import type { TerminalKey, TerminalMetadata, Workspace } from "@novadeck/core/types"
 
+import { createDemoAutoRun, type DemoAutoRun } from "./inbox/autorun"
 import { demoInboxRows } from "./inbox/fixtures"
 import { createDemoGrants, grantMadeBy, type DemoGrants } from "./inbox/grants"
 import { deliveryMs } from "./messages"
@@ -44,6 +45,8 @@ export const answerMs = 600
 export type DemoInbox = Inbox & {
   // The grants the person's Grant and Approve make, and the demo's own adding and ending.
   readonly grants: DemoGrants
+  // cmd's AutoRun card, which the debug panel puts on screen.
+  readonly autorun: DemoAutoRun
   readonly add: (row: InboxRow) => void
   readonly empty: () => void
   // The next answer fails instead of taking, so the sheet shows why.
@@ -177,6 +180,7 @@ export const createDemoInbox = (
   }
   const state = createStore<InboxState>(combine(emptyInbox))
   const grants = createDemoGrants()
+  const autorun = createDemoAutoRun()
   // The order the person drags the rows into, kept for as long as the page is.
   const order = createStore<readonly string[]>([])
   // The finished turns it stores, as the runner stores them (a completed one only marks its
@@ -350,6 +354,7 @@ export const createDemoInbox = (
   return {
     state,
     grants,
+    autorun,
     turns,
     readFinishes: (finishes) => {
       const read = new Set(finishes.map(({ context, terminalId }) => `${context}/${terminalId}`))

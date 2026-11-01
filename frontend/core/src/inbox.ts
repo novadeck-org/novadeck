@@ -1,3 +1,4 @@
+import type { AutoRun } from "./autorun"
 import type { ChatAnswer, ChatRequest } from "./conversation"
 import type { GrantAnswer, GrantCommand, GrantProposal, Grants } from "./grants"
 import type { AgentName } from "./harnesses"
@@ -261,6 +262,9 @@ export type Inbox = {
   // Optional. The person's live grants and the way to revoke one. Absent where the backend
   // makes none.
   readonly grants?: Grants
+  // Optional. cmd's AutoRun on Windows and the person's one-click silencing of its output.
+  // Absent where the backend has none.
+  readonly autorun?: AutoRun
   // Optional. Removes these settled asks.
   readonly clear?: (ids: readonly string[]) => void
   // Optional. The rows that ask, by `rowKey`, in the order the person dragged them into, and

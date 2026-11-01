@@ -1,3 +1,4 @@
+import type { AutoRunState } from "@novadeck/core/autorun"
 import type { PortableInstall } from "@novadeck/core/desktop/portable"
 import type { SandboxState } from "@novadeck/core/desktop/sandbox"
 import type { InboxRow } from "@novadeck/core/inbox"
@@ -269,6 +270,11 @@ export const desktopWindow = {
       }
     }
   },
+  /** cmd's AutoRun state the runner would report, as the debug panel's AutoRun actions put it. */
+  autorun: (state: AutoRunState): void =>
+    desktops.forEach((each) =>
+      isDemoInbox(each.inbox) ? each.inbox.autorun.show(state) : undefined,
+    ),
   /** The ids of the rows the page's backend Inbox holds, whether or not it lists them (the
    * first window is the page's: StrictMode's second is dropped and never answered). */
   rowIds: (): string[] => desktops[0]?.inbox?.state.getSnapshot().items.map((row) => row.id) ?? [],

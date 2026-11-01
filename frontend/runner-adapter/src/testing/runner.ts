@@ -184,6 +184,7 @@ export const recordingRunner = (runner: Runner, io: string[]): RunnerApi => {
     },
     inbox: runner.inbox,
     grants: runner.grants,
+    autorun: runner.autorun,
     feedback: runner.feedback,
     messages: {
       list: (terminalId) => runner.messages.list(terminalId),

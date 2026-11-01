@@ -1,4 +1,5 @@
 /* oxlint-disable react/no-array-index-key -- Commands have no ids; the lists never reorder. */
+import { autoRunPrints } from "@novadeck/core/autorun"
 import {
   commandWords,
   defaultGrantHours,
@@ -114,7 +115,7 @@ export const GrantCard = ({
   readonly arrived: boolean
 }): React.JSX.Element => {
   const { row, answering, submit, reveal } = props
-  const { dismiss } = useInboxContext()
+  const { dismiss, autorun } = useInboxContext()
   const lead = row.source.handle
   const [presets, setPresets] = useState<readonly GrantPreset[]>(proposal.presets)
   const [commands, setCommands] = useState<readonly number[]>(proposal.commands.map((_, at) => at))
@@ -239,6 +240,8 @@ export const GrantCard = ({
               {antigravity.length === 1 ? "runs" : "run"} Antigravity, which only partly takes it: a
               teammate started before the grant still asks per command; Antigravity before 1.4.10
               never takes it.
+              {autoRunPrints(autorun) &&
+                " cmd's AutoRun prints here, so Antigravity asks for each command: Silence it in the Inbox (one click, undoable)."}
             </p>
           )}
         </fieldset>

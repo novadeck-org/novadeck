@@ -1,3 +1,4 @@
+import type { AutoRunState } from "@novadeck/core/autorun"
 import type { ChatRequest } from "@novadeck/core/conversation"
 import type { Grant, GrantProposal } from "@novadeck/core/grants"
 import type { AgentName } from "@novadeck/core/harnesses"
@@ -861,3 +862,33 @@ export const demoEndingGrant = (now: number, ms: number): Grant => ({
   revokedAt: null,
   lastUse: null,
 })
+
+// cmd's AutoRun, as the debug panel puts it on screen: the printing value of a typical machine, and what silencing it makes.
+const autoRunOriginal = "chcp 65001"
+const autoRunWrapped = `(${autoRunOriginal}) >nul 2>&1`
+
+export const demoAutoRunOffer: AutoRunState = {
+  state: "offer",
+  current: autoRunOriginal,
+  next: autoRunWrapped,
+  machine: null,
+  outcome: null,
+}
+
+export const demoAutoRunManual: AutoRunState = {
+  state: "manual",
+  reason: "machine",
+  rule: null,
+  current: null,
+  machine: "chcp 65001",
+  suggested: autoRunWrapped,
+  outcome: null,
+}
+
+export const demoAutoRunSilenced: AutoRunState = {
+  state: "silenced",
+  current: autoRunWrapped,
+  restores: autoRunOriginal,
+  machine: null,
+  outcome: { kind: "applied-clean", waiting: [] },
+}

@@ -398,7 +398,12 @@ App:
   Grants section at the top of the Inbox with a team grant (holder, actions, repos, time left,
   its last allowed command, Revoke); "Grant ends" adds a terminal grant that leaves the list by
   its time after four seconds; "Revoke a grant" ends the newest as Revoke does; "Clear grants"
-  empties the section, which shows only while a grant is live. "Several asks at once" adds four asks from four
+  empties the section, which shows only while a grant is live. "AutoRun offer", "AutoRun manual
+  step", "AutoRun silenced" and "AutoRun gone" put cmd's AutoRun card (Windows) at the top of the
+  Inbox: the offer (why, the value now, the exact new one, "every cmd window", Silence and Not
+  now; Silence moves it to silenced), the step in words where the machine's AutoRun prints, and the
+  silenced state with Undo and the exact value it restores, which Preferences lists under Agents
+  too. "Several asks at once" adds four asks from four
   projects together, so three toasts stack with a "+1 more" pill behind (the page needs focus
   and the Inbox panel closed, and a row from the selected terminal never lands until you look away: with
   storefront's terminal 4 selected you get three toasts and no pill). "Fail the next answer" makes

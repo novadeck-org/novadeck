@@ -294,6 +294,12 @@ export const scriptedRunner = ({
       watch: api.grants.watch.handler(idle),
       revoke: api.grants.revoke.handler(unplayed("grants.revoke")),
     },
+    autorun: {
+      watch: api.autorun.watch.handler(idle),
+      silence: api.autorun.silence.handler(unplayed("autorun.silence")),
+      undo: api.autorun.undo.handler(unplayed("autorun.undo")),
+      dismiss: api.autorun.dismiss.handler(unplayed("autorun.dismiss")),
+    },
     feedback: {
       watch: api.feedback.watch.handler(idle),
       settle: api.feedback.settle.handler(unplayed("feedback.settle")),

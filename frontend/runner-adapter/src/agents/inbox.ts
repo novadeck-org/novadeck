@@ -24,6 +24,7 @@ import { createStore, type Store } from "@novadeck/core/store"
 import type { TerminalKey, TerminalMetadata, Workspace } from "@novadeck/core/types"
 import { longHoldMs, type AgentDetail, type AskAnswer, type InboxEntry } from "@novadeck/protocol"
 
+import { createRunnerAutoRun, type AutoRunStreams } from "./autorun"
 import { requestOf, rootOf } from "./conversations"
 import { createRunnerGrants, type GrantStreams } from "./grants"
 
@@ -59,6 +60,8 @@ export type InboxStreams = {
   }
   // The person's grants; absent where the runner has none.
   readonly grants?: GrantStreams
+  // cmd's AutoRun; absent where the runner has none.
+  readonly autorun?: AutoRunStreams
   readonly detail: (terminalId: string) => AsyncIterableIterator<AgentDetail, undefined>
   readonly answer: (key: TerminalKey, request: string, answer: ChatAnswer) => Promise<void>
   readonly send: (
@@ -77,6 +80,7 @@ export type RunnerInbox = Inbox & {
   readonly turns: NonNullable<Inbox["turns"]>
   readonly readFinishes: NonNullable<Inbox["readFinishes"]>
   readonly grants: NonNullable<Inbox["grants"]>
+  readonly autorun: NonNullable<Inbox["autorun"]>
   // Ends every stream it opened; the backend is stopping.
   readonly end: () => void
 }
@@ -140,6 +144,8 @@ export const createRunnerInbox = (
   const state = createStore<InboxState>(emptyInbox)
   const grants = createRunnerGrants(streams.grants, track)
   let stopGrants: (() => void) | undefined
+  const autorun = createRunnerAutoRun(streams.autorun, track)
+  let stopAutoRun: (() => void) | undefined
   let binding: InboxBinding | null = null
   // Asks and tells, as the runner last listed them, and its finished turns (undefined until
   // the first listing, and after the listing ended for good).
@@ -467,6 +473,7 @@ export const createRunnerInbox = (
   return {
     state,
     grants,
+    autorun,
     answer,
     see: (id) => {
       if (find(id)) tracker.see(id)
@@ -536,6 +543,8 @@ export const createRunnerInbox = (
       stopEntries()
       stopGrants?.()
       stopGrants = grants.start()
+      stopAutoRun?.()
+      stopAutoRun = autorun.start()
       const stream = streams.inbox.watch()
       entriesStream = stream
       void (async () => {
@@ -565,6 +574,8 @@ export const createRunnerInbox = (
         stopEntries()
         stopGrants?.()
         stopGrants = undefined
+        stopAutoRun?.()
+        stopAutoRun = undefined
         binding = null
         for (const stop of unsubscribe) stop()
         unsubscribe = []
@@ -580,6 +591,8 @@ export const createRunnerInbox = (
       stopEntries()
       stopGrants?.()
       stopGrants = undefined
+      stopAutoRun?.()
+      stopAutoRun = undefined
       tracker.stop()
       for (const id of readings.keys()) close(id)
     },

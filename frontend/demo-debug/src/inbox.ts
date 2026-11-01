@@ -1,7 +1,11 @@
+import { noAutoRun } from "@novadeck/core/autorun"
 import type { InboxRow } from "@novadeck/core/inbox"
 import type { WorkspaceSeed } from "@novadeck/core/seed"
 import type { DemoInbox } from "@novadeck/demo/inbox"
 import {
+  demoAutoRunManual,
+  demoAutoRunOffer,
+  demoAutoRunSilenced,
   demoEndingGrant,
   demoHiddenCommand,
   demoInboxIds,
@@ -192,6 +196,26 @@ export const inboxGroups = (
             if (!newest) return note("No grant is live. Add one with Live grant or the cards.")
             inbox.grants.revoke(newest.id)
           },
+        },
+        {
+          label: "AutoRun offer",
+          hint: "The Inbox shows cmd's AutoRun card: why cmd printing matters, the current value and the exact new one, that it applies to every cmd window, Silence cmd's AutoRun output and Not now",
+          run: () => inbox.autorun.show(demoAutoRunOffer),
+        },
+        {
+          label: "AutoRun manual step",
+          hint: "The AutoRun card gives the step in words, as the printing value is the machine's (HKLM): regedit as an administrator, from the value to a silenced one, with no buttons but Not now",
+          run: () => inbox.autorun.show(demoAutoRunManual),
+        },
+        {
+          label: "AutoRun silenced",
+          hint: "The AutoRun card says it was silenced and cmd prints nothing now, with Undo showing the exact value it restores, and Preferences lists the same row under Agents",
+          run: () => inbox.autorun.show(demoAutoRunSilenced),
+        },
+        {
+          label: "AutoRun gone",
+          hint: "cmd prints nothing here: the AutoRun card leaves the Inbox",
+          run: () => inbox.autorun.show(noAutoRun),
         },
         {
           label: "Clear grants",

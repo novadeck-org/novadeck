@@ -1,3 +1,4 @@
+import { noAutoRun } from "@novadeck/core/autorun"
 import type { OfferedUninstall } from "@novadeck/core/desktop/uninstall"
 import type { AgentName } from "@novadeck/core/harnesses"
 import type { Backend } from "@novadeck/core/port"
@@ -91,6 +92,16 @@ const useApproval = (approvals: Backend["approvals"]): ApprovalView | null => {
     (workspace) => (first ? approvalView(first, workspace) : null),
     sameApprovalView,
   )
+}
+
+// The backend's cmd AutoRun state for Preferences; undefined where it has none.
+const useAutoRun = (inbox: Backend["inbox"]) => {
+  const autorun = inbox?.autorun
+  const state = useSyncExternalStore(
+    autorun?.state.subscribe ?? always,
+    () => autorun?.state.getSnapshot() ?? noAutoRun,
+  )
+  return autorun && { state, undo: autorun.undo }
 }
 
 const noAgents: readonly never[] = []
@@ -239,6 +250,7 @@ export const WorkspaceOverlays = memo((): React.JSX.Element => {
   const { backend, commands, navigation, ui } = useWorkspaceServices()
   const transcripts = useTranscripts(backend.transcripts)
   const agents = useAgents(backend.agents)
+  const autorun = useAutoRun(backend.inbox)
   const approval = useApproval(backend.approvals)
   const voice = useVoice(backend.voice)
   const murmur = useMurmur(backend.murmur)
@@ -358,6 +370,7 @@ export const WorkspaceOverlays = memo((): React.JSX.Element => {
           chat={backend.conversations !== undefined}
           {...(voice ? { voice } : {})}
           {...(murmur ? { murmur } : {})}
+          {...(autorun ? { autorun } : {})}
           {...(experimental ? { experimental } : {})}
           {...(version ? { version } : {})}
           {...(backend.openLogs ? { logs: backend.openLogs } : {})}

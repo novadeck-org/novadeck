@@ -1,3 +1,4 @@
+import { type AutoRunState, noAutoRun } from "@novadeck/core/autorun"
 import type { Picks } from "@novadeck/core/conversation/picks"
 import type { Grant } from "@novadeck/core/grants"
 import {
@@ -111,6 +112,14 @@ export type InboxContextValue = {
   readonly revoke: ((id: string) => void) | undefined
   // Why a grant's last revoke failed, by grant id.
   readonly revokeFailures: Readonly<Record<string, string>>
+  // cmd's AutoRun (Windows) and the person's clicks on it: silence it, undo that, or say not now.
+  // The state is "none" where the backend has none, and the clicks are then absent.
+  readonly autorun: AutoRunState
+  readonly silenceAutoRun: ((value: string) => void) | undefined
+  readonly undoAutoRun: (() => void) | undefined
+  readonly dismissAutoRun: (() => void) | undefined
+  // Why the last of those calls did not reach the runner.
+  readonly autorunFailure: string | null
 }
 
 const InboxContext = createContext<InboxContextValue | null>(null)
@@ -141,6 +150,9 @@ const noGrants: readonly Grant[] = []
 const noFailures: Readonly<Record<string, string>> = {}
 const noFailuresStore = { subscribe: () => () => {}, getSnapshot: () => noFailures }
 const noGrantsStore = { subscribe: () => () => {}, getSnapshot: () => noGrants }
+
+const noAutoRunStore = { subscribe: () => () => {}, getSnapshot: () => noAutoRun }
+const noAutoRunFailureStore = { subscribe: () => () => {}, getSnapshot: () => null }
 
 const noOrder: readonly string[] = []
 const noOrderStore = { subscribe: () => () => {}, getSnapshot: () => noOrder }
@@ -180,6 +192,16 @@ export const InboxProvider = ({
   const revoke = inbox.grants?.revoke
   const failuresStore = inbox.grants?.failed ?? noFailuresStore
   const revokeFailures = useSyncExternalStore(failuresStore.subscribe, failuresStore.getSnapshot)
+  const autorunStore = inbox.autorun?.state ?? noAutoRunStore
+  const autorun = useSyncExternalStore(autorunStore.subscribe, autorunStore.getSnapshot)
+  const autorunFailureStore = inbox.autorun?.failed ?? noAutoRunFailureStore
+  const autorunFailure = useSyncExternalStore(
+    autorunFailureStore.subscribe,
+    autorunFailureStore.getSnapshot,
+  )
+  const silenceAutoRun = inbox.autorun?.silence
+  const undoAutoRun = inbox.autorun?.undo
+  const dismissAutoRun = inbox.autorun?.dismiss
   const orderStore = inbox.order ?? noOrderStore
   const arranged = useSyncExternalStore(orderStore.subscribe, orderStore.getSnapshot)
   const [view, setView] = useState<InboxView>(initialView)
@@ -529,6 +551,11 @@ export const InboxProvider = ({
       grants,
       revoke,
       revokeFailures,
+      autorun,
+      silenceAutoRun,
+      undoAutoRun,
+      dismissAutoRun,
+      autorunFailure,
     }),
     [
       state,
@@ -558,6 +585,11 @@ export const InboxProvider = ({
       grants,
       revoke,
       revokeFailures,
+      autorun,
+      silenceAutoRun,
+      undoAutoRun,
+      dismissAutoRun,
+      autorunFailure,
     ],
   )
   const opener = useCallback<InboxOpener>(
