@@ -78,6 +78,8 @@ export type GrantProposal = {
     readonly agent: string
     // Its agent is already running (an Antigravity started after the grant is the one it reaches).
     readonly started: boolean
+    // Its Antigravity was started in plan mode, which no grant reaches.
+    readonly plan: boolean
   }[]
   // The installed Antigravity is older than 1.4.10, which takes no launch grant, and a covered
   // teammate runs it.

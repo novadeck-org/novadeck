@@ -78,6 +78,8 @@ export const proposalOf = (
     readonly handle: string
     readonly agent: AgentName
     readonly started: boolean
+    /** Its Antigravity was started in plan mode. */
+    readonly plan: boolean
   }[],
   agyOutdated = false,
 ): GrantProposal => ({
@@ -89,7 +91,7 @@ export const proposalOf = (
   // The lead names none; the card starts on until-done and the person picks.
   lifetime: "until-done",
   reason: read.reason,
-  covered: covered.map(({ handle, agent, started }) => ({ handle, agent, started })),
+  covered: covered.map(({ handle, agent, started, plan }) => ({ handle, agent, started, plan })),
   // Only a covered teammate that runs Antigravity makes an old one matter.
   agyOutdated: agyOutdated && covered.some(({ agent }) => agent === "agy"),
 })

@@ -520,7 +520,8 @@ describe("the propose_grant call", () => {
   const setup = ({
     led = false,
     outdated = false,
-    team = [{ handle: "fox", agent: "codex", started: true }],
+    planned = [] as string[],
+    team = [{ terminalId: "t2", handle: "fox", agent: "codex", started: true }],
   } = {}) => {
     const proposals: { terminalId: string; proposal: unknown }[] = []
     let reads = 0
@@ -540,7 +541,11 @@ describe("the propose_grant call", () => {
       stopping: () => false,
       grantFacts: (_session: string, repos: boolean) => {
         if (repos) reads += 1
-        return Promise.resolve({ repos: repos ? [choice] : [], agyOutdated: outdated })
+        return Promise.resolve({
+          repos: repos ? [choice] : [],
+          agyOutdated: outdated,
+          startedInPlan: (id: string) => planned.includes(id),
+        })
       },
       messaging: () => ({ grants: { isLed: () => led, teamOf: () => team } }),
       inbox: () => ({
@@ -580,16 +585,33 @@ describe("the propose_grant call", () => {
         repos: [choice],
         withLead: false,
         lifetime: "until-done",
-        covered: [{ handle: "fox", agent: "codex", started: true }],
+        covered: [{ handle: "fox", agent: "codex", started: true, plan: false }],
         agyOutdated: false,
+      },
+    })
+  })
+
+  it("marks a covered Antigravity teammate that was started in plan mode", async () => {
+    const team = [
+      { terminalId: "t2", handle: "fox", agent: "agy", started: true },
+      { terminalId: "t3", handle: "owl", agent: "agy", started: false },
+    ]
+    const { propose, proposals } = setup({ team, planned: ["t3"] })
+    await propose(request)
+    expect(proposals[0]).toMatchObject({
+      proposal: {
+        covered: [
+          { handle: "fox", agent: "agy", started: true, plan: false },
+          { handle: "owl", agent: "agy", started: false, plan: true },
+        ],
       },
     })
   })
 
   it("says whether a covered Antigravity teammate has started, and whether the installed one is too old", async () => {
     const team = [
-      { handle: "fox", agent: "agy", started: true },
-      { handle: "owl", agent: "agy", started: false },
+      { terminalId: "t2", handle: "fox", agent: "agy", started: true },
+      { terminalId: "t3", handle: "owl", agent: "agy", started: false },
     ]
     const old = setup({ team, outdated: true })
     await old.propose(request)

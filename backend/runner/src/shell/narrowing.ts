@@ -46,18 +46,24 @@ export type Launching = false | { readonly allow: readonly string[] }
 // A terminal's id names its settings file; anything that could leave the folder is refused.
 const safeId = /^[A-Za-z0-9_-]+$/
 
-/**
- * Whether a command line starts Antigravity where a launch grant may apply: its first word is
- * the program it launches as, and it is not started in plan mode (`--mode plan`), where
- * commands must not run. Its hooks name no mode, so a mode set in the session is not seen.
- */
-export const startsAgy = (command: string): boolean => {
+const startsAgyAs = (command: string): "agy" | "plan" | undefined => {
   const words = command.replaceAll(/["']/g, "").trim().split(/\s+/)
+  if (words[0] !== harnesses.agy.launch.start[0]) return undefined
   const plan = words.some(
     (word, at) => word === "--mode=plan" || (word === "--mode" && words[at + 1] === "plan"),
   )
-  return words[0] === harnesses.agy.launch.start[0] && !plan
+  return plan ? "plan" : "agy"
 }
+
+/**
+ * Whether a command line starts Antigravity where a launch grant may apply: its first word is
+ * the program it launches as, and it is not started in plan mode (`--mode plan`), which a grant
+ * doesn't reach. Its hooks name no mode, so a mode switched in the session is not seen.
+ */
+export const startsAgy = (command: string): boolean => startsAgyAs(command) === "agy"
+
+/** Whether a command line starts Antigravity in plan mode (`--mode plan`). */
+export const startsAgyInPlan = (command: string): boolean => startsAgyAs(command) === "plan"
 
 /**
  * Antigravity terminals started under a grant. The settings file the agy shim reads exists
@@ -68,6 +74,8 @@ export const startsAgy = (command: string): boolean => {
  */
 export class Narrowing {
   private readonly sets = new Map<string, ReadonlySet<string>>()
+  /** The terminals whose Antigravity was started in plan mode, which takes no launch grant. */
+  private readonly planned = new Set<string>()
   /** Where the launch settings go (`ShellPaths.narrow`), once the shell files say. */
   private directory: string | undefined
 
@@ -104,9 +112,10 @@ export class Narrowing {
    * started; `starts` whether the command it runs is Antigravity. Synchronous, and after the
    * terminal is registered as its lead's teammate: the grants covering it depend on that.
    */
-  launch(terminalId: string, verified: Launching, starts: boolean): void {
+  launch(terminalId: string, verified: Launching, starts: boolean, plan = false): void {
     const { directory } = this
     this.forget(terminalId)
+    if (plan) this.planned.add(terminalId)
     if (verified === false || !starts || directory === undefined || !this.enabled) return
     if (!safeId.test(terminalId)) return
     const programs = [
@@ -157,6 +166,11 @@ export class Narrowing {
     return this.sets.get(terminalId)
   }
 
+  /** Whether the terminal's Antigravity was started in plan mode: no grant reaches it. */
+  startedInPlan(terminalId: string): boolean {
+    return this.planned.has(terminalId)
+  }
+
   /** The terminals whose agent was started narrowed. */
   narrowed(): readonly string[] {
     return [...this.sets.keys()]
@@ -165,6 +179,7 @@ export class Narrowing {
   /** Drops the terminal's launch settings and set, as it closes or starts again. */
   forget(terminalId: string): void {
     this.sets.delete(terminalId)
+    this.planned.delete(terminalId)
     const { directory } = this
     if (directory !== undefined && safeId.test(terminalId))
       rmSync(join(directory, `${terminalId}.json`), { force: true })

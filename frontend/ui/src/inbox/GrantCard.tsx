@@ -435,6 +435,13 @@ export const GrantCard = ({
                 it starts.
               </p>
             )}
+            {antigravity
+              .filter(({ plan }) => plan)
+              .map(({ handle: planned }) => (
+                <p className="grant-warn" data-grant="agy-plan" key={planned}>
+                  @{planned} was started in plan mode, so this grant doesn&apos;t reach it.
+                </p>
+              ))}
             {proposal.agyOutdated && (
               <p className="grant-warn" data-grant="agy-old">
                 Antigravity needs updating to 1.4.10 to use this.

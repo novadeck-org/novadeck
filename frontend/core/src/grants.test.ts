@@ -52,8 +52,8 @@ describe("the Grant card's words", () => {
     reason: "ignored `here`",
     agyOutdated: false,
     covered: [
-      { handle: "fox", agent: "codex", started: false },
-      { handle: "owl", agent: "claude", started: false },
+      { handle: "fox", agent: "codex", started: false, plan: false },
+      { handle: "owl", agent: "claude", started: false, plan: false },
     ],
   }
 
@@ -70,7 +70,12 @@ describe("the Grant card's words", () => {
         {
           ...proposal,
           withLead: true,
-          covered: [1, 2, 3].map((n) => ({ handle: `a${n}`, agent: "claude", started: false })),
+          covered: [1, 2, 3].map((n) => ({
+            handle: `a${n}`,
+            agent: "claude",
+            started: false,
+            plan: false,
+          })),
         },
         "moth",
       ),
@@ -83,6 +88,7 @@ describe("the Grant card's words", () => {
         handle: `a${n}`,
         agent: "claude" as const,
         started: false,
+        plan: false,
       }))
     const title = (count: number, withLead: boolean) =>
       grantTitle({ ...proposal, withLead, covered: covered(count) }, "moth")

@@ -1561,7 +1561,7 @@ describe("Grants", () => {
           withLead: false,
           lifetime: "until-done",
           reason: "Ship today.",
-          covered: [{ handle: "fox", agent: "codex", started: true }],
+          covered: [{ handle: "fox", agent: "codex", started: true, plan: false }],
           agyOutdated: false,
         },
       },

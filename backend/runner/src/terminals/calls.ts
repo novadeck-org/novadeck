@@ -98,7 +98,11 @@ export type CallsHost = LeadsHost & {
   readonly grantFacts: (
     sessionId: string,
     repos: boolean,
-  ) => Promise<{ readonly repos: readonly GrantRepoChoice[]; readonly agyOutdated: boolean }>
+  ) => Promise<{
+    readonly repos: readonly GrantRepoChoice[]
+    readonly agyOutdated: boolean
+    readonly startedInPlan: (terminalId: string) => boolean
+  }>
   readonly feedback: () => Feedback
   /** Agents' requests for a new terminal, on their way to the client. */
   readonly opens: () => OpenRequests
@@ -666,7 +670,14 @@ export class Calls {
     // The team may have changed while the repos were read.
     return inbox.propose(
       terminalId,
-      proposalOf(read, facts.repos, messaging.grants.teamOf(terminalId), facts.agyOutdated),
+      proposalOf(
+        read,
+        facts.repos,
+        messaging.grants
+          .teamOf(terminalId)
+          .map((peer) => ({ ...peer, plan: facts.startedInPlan(peer.terminalId) })),
+        facts.agyOutdated,
+      ),
     )
   }
 

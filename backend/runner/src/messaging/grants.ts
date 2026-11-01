@@ -293,16 +293,21 @@ export class Grants {
    * The terminals the terminal leads directly, now, with the harness each runs: who a team
    * grant it proposes would cover today. A terminal with no agent yet is left out.
    */
-  teamOf(
-    terminalId: string,
-  ): { readonly handle: string; readonly agent: AgentName; readonly started: boolean }[] {
+  teamOf(terminalId: string): {
+    readonly terminalId: string
+    readonly handle: string
+    readonly agent: AgentName
+    readonly started: boolean
+  }[] {
     const live = this.host.sessions.get(terminalId)
     if (!live) return []
     return this.host.sessions.scoped(live).flatMap((peer) => {
       const agent = peer.root?.agent ?? peer.shown?.agent ?? peer.expecting
       // `started`: its agent already runs (bound, or its prompt shown), not one about to.
       const started = peer.root !== null || peer.shown !== null
-      return peer.ledBy === live.handle && agent ? [{ handle: peer.handle, agent, started }] : []
+      return peer.ledBy === live.handle && agent
+        ? [{ terminalId: peer.terminalId, handle: peer.handle, agent, started }]
+        : []
     })
   }
 

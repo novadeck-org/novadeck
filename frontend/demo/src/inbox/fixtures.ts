@@ -80,8 +80,8 @@ const grantProposal: GrantProposal = {
   reason:
     "Fox and owl each finish a piece of checkout today; they run the unit tests before every push.",
   covered: [
-    { handle: "fox", agent: "codex", started: false },
-    { handle: "owl", agent: "claude", started: false },
+    { handle: "fox", agent: "codex", started: false, plan: false },
+    { handle: "owl", agent: "claude", started: false, plan: false },
   ],
   agyOutdated: false,
 }
@@ -423,7 +423,10 @@ const extraFixtures: readonly Fixture[] = [
     stopped: true,
     content: {
       kind: "grant",
-      proposal: { ...grantProposal, covered: [{ handle: "elk", agent: "agy", started: true }] },
+      proposal: {
+        ...grantProposal,
+        covered: [{ handle: "elk", agent: "agy", started: true, plan: false }],
+      },
     },
   },
   {
@@ -437,7 +440,7 @@ const extraFixtures: readonly Fixture[] = [
       kind: "grant",
       proposal: {
         ...grantProposal,
-        covered: [{ handle: "elk", agent: "agy", started: false }],
+        covered: [{ handle: "elk", agent: "agy", started: false, plan: false }],
         agyOutdated: true,
       },
     },
@@ -463,7 +466,7 @@ const extraFixtures: readonly Fixture[] = [
       proposal: {
         ...grantProposal,
         withLead: true,
-        covered: [{ handle: "fox", agent: "codex", started: false }],
+        covered: [{ handle: "fox", agent: "codex", started: false, plan: false }],
       },
     },
   },
@@ -483,6 +486,7 @@ const extraFixtures: readonly Fixture[] = [
           handle,
           agent: "claude",
           started: false,
+          plan: false,
         })),
       },
     },

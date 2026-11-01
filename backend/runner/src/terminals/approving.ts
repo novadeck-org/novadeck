@@ -9,7 +9,7 @@ import type { GrantOptions } from "../messaging/grants.js"
 import type { Messaging } from "../messaging/messaging.js"
 import { fsLookups } from "../shell/fs-lookups.js"
 import { gitLookups } from "../shell/git-lookups.js"
-import { Narrowing, startsAgy, type Launching } from "../shell/narrowing.js"
+import { Narrowing, startsAgy, startsAgyInPlan, type Launching } from "../shell/narrowing.js"
 import { Permissions } from "../shell/permissions.js"
 import { sameToken } from "./callers.js"
 import type { Record } from "./record.js"
@@ -129,6 +129,7 @@ export class Approving {
       terminalId,
       verified,
       command !== undefined && command !== false && startsAgy(command),
+      command !== undefined && command !== false && startsAgyInPlan(command),
     )
   }
 
@@ -147,13 +148,22 @@ export class Approving {
   async facts(
     sessionId: string,
     repos: boolean,
-  ): Promise<{ readonly repos: readonly GrantRepoChoice[]; readonly agyOutdated: boolean }> {
+  ): Promise<{
+    readonly repos: readonly GrantRepoChoice[]
+    readonly agyOutdated: boolean
+    /** Whether the terminal's Antigravity was started in plan mode. */
+    readonly startedInPlan: (terminalId: string) => boolean
+  }> {
     const takes = this.host.options.agyTakesGrants
     const [found, current] = await Promise.all([
       repos ? this.repos(sessionId) : Promise.resolve([]),
       takes ? takes().catch(() => true) : Promise.resolve(true),
     ])
-    return { repos: found, agyOutdated: !current }
+    return {
+      repos: found,
+      agyOutdated: !current,
+      startedInPlan: (terminalId) => this.narrowing.startedInPlan(terminalId),
+    }
   }
 
   /** The grants in force, then again on each change. */

@@ -120,7 +120,9 @@ const caveat = (agent: AgentName, platform: NodeJS.Platform, cmdPrints: CmdNote)
     quoteFree +
     (agent === "agy"
       ? "Antigravity takes this grant when it starts: if yours started earlier, its own dialog " +
-        "still asks until you restart, and a version of Antigravity before 1.4.10 never takes it." +
+        "still asks until you restart, and a version of Antigravity before 1.4.10 never takes it. " +
+        "In Antigravity's plan mode this grant, like the user's own allow rules, still runs " +
+        "allowed commands." +
         (cmdPrints === "unreadable"
           ? " Right now none is started with this grant: Novadeck could not read the user's " +
             "Antigravity settings, so its own dialog asks until that is fixed."

@@ -120,9 +120,16 @@ export const grantProposal = z.strictObject({
   // The handles the grant covers now (later teammates are covered too), and which of them run
   // a harness the grant reaches only partly, so the card can say so.
   // `started`: its agent is already running, which for Antigravity matters (a grant reaches one
-  // started after it).
+  // started after it). `plan`: its Antigravity was started in plan mode, which no grant reaches.
   covered: z
-    .array(z.strictObject({ handle: z.string(), agent: z.string(), started: z.boolean() }))
+    .array(
+      z.strictObject({
+        handle: z.string(),
+        agent: z.string(),
+        started: z.boolean(),
+        plan: z.boolean().default(false),
+      }),
+    )
     .max(256),
   // The installed Antigravity is older than 1.4.10, which takes no launch grant, and a covered
   // teammate runs it.

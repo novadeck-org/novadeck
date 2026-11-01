@@ -838,6 +838,14 @@ in `contract/protocol/src/grants.ts`.
   decisions (m11-m22, s1-s6). A system or administrator settings file was not probed (no
   privilege in the sandbox, and the binary names none): if Antigravity reads one, its `deny` is
   not seen here.
+- **Plan mode** (probed 2026-11-01, 1.4.12, `agymode-q*` captures). Antigravity's plan mode
+  (`--mode plan`, or shift+tab in the session) does not stop an allowed command: a launch grant
+  runs unasked in it, as the person's own `command(…)` allow rules do, and a command with no
+  grant still asks. Its hooks name no mode. A terminal started with `--mode plan` is given no
+  launch grant (`startsAgy`), and the Grant card says so for each covered teammate
+  (`covered[].plan`). Plan mode switched in a session is not seen: the grant works there as the
+  person's own allow rules do, and the agent's `<grant>` note says so. A check of the composer's
+  footer ("Plan mode: research & plan only") at the decision is not built.
 - **Launch programs.** `Grants.launchPrograms(terminalId)` names the programs an Antigravity
   terminal is given launch grants for (`git` for push, `gh` for pr, the first word of each
   command).

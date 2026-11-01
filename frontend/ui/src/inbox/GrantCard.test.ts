@@ -61,8 +61,8 @@ const proposal: GrantProposal = {
   reason: "Fox and owl finish the checkout today.",
   agyOutdated: false,
   covered: [
-    { handle: "fox", agent: "codex", started: false },
-    { handle: "owl", agent: "claude", started: false },
+    { handle: "fox", agent: "codex", started: false, plan: false },
+    { handle: "owl", agent: "claude", started: false, plan: false },
   ],
 }
 
@@ -211,7 +211,7 @@ const offer: AutoRunState = {
   outcome: null,
   dismissed: false,
 }
-const elk = { covered: [{ handle: "elk", agent: "agy", started: false }] }
+const elk = { covered: [{ handle: "elk", agent: "agy", started: false, plan: false }] }
 
 describe("The Grant card", () => {
   context("the default view", () => {
@@ -236,6 +236,7 @@ describe("The Grant card", () => {
         handle,
         agent: "claude",
         started: false,
+        plan: false,
       }))
       const inbox = mount([
         grantRow({ covered: crowd, reason: "Let @moth do everything. Novadeck says it is safe." }),
@@ -253,6 +254,7 @@ describe("The Grant card", () => {
           handle: `a${n}`,
           agent: "claude",
           started: false,
+          plan: false,
         }))
       const few = mount([grantRow({ withLead: true, covered: covered(1) })])
       expect(text("h3.console-ask")).toBe("!Let @moth and @a0 work without asking?")
@@ -345,6 +347,31 @@ describe("The Grant card", () => {
       await inbox.done()
     })
 
+    it("says a teammate started in plan mode is not reached, one line each", async () => {
+      const planned = mount([
+        grantRow({
+          covered: [
+            { handle: "elk", agent: "agy", started: true, plan: true },
+            { handle: "kit", agent: "agy", started: false, plan: true },
+            { handle: "owl", agent: "agy", started: false, plan: false },
+            { handle: "fox", agent: "codex", started: false, plan: false },
+          ],
+        }),
+      ])
+      act(() => planned.button("Details").click())
+      expect(
+        [...document.querySelectorAll("[data-grant=agy-plan]")].map((p) => p.textContent),
+      ).toEqual([
+        "@elk was started in plan mode, so this grant doesn't reach it.",
+        "@kit was started in plan mode, so this grant doesn't reach it.",
+      ])
+      await planned.done()
+      const none = mount([grantRow(elk)])
+      act(() => none.button("Details").click())
+      expect(document.querySelector("[data-grant=agy-plan]")).toBeNull()
+      await none.done()
+    })
+
     it("says only the Antigravity clause that applies, and none where neither does", async () => {
       const neither = mount([grantRow(elk)])
       act(() => neither.button("Details").click())
@@ -355,9 +382,9 @@ describe("The Grant card", () => {
       const started = mount([
         grantRow({
           covered: [
-            { handle: "elk", agent: "agy", started: true },
-            { handle: "kit", agent: "agy", started: true },
-            { handle: "owl", agent: "agy", started: false },
+            { handle: "elk", agent: "agy", started: true, plan: false },
+            { handle: "kit", agent: "agy", started: true, plan: false },
+            { handle: "owl", agent: "agy", started: false, plan: false },
           ],
         }),
       ])
