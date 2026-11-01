@@ -127,7 +127,10 @@ Antigravity's job, a cmd AutoRun that prints. With `NOVADECK_E2E_SPACED=1` its s
 and so the home and Novadeck's launcher, is named with a space, which cmd reads by its
 short name. It runs `messaging`, `requests` and `lifecycle` for its harness;
 `windows-quirks.e2e.ts` (Claude Code's job) opens a terminal whose PATH is read from the
-registry, as the app's are, and runs the marker; and with the AutoRun set, a test in
+registry, as the app's are, and runs the marker; `windows-autorun.e2e.ts` (Antigravity's job)
+sets the printing AutoRun itself, starts the runner under it, and delivers a message between two
+Antigravity agents through Novadeck's cmd.exe pass-through (`NOVADECK_CMD_LOG` shows it added
+`/d` to Novadeck's hooks alone), putting the AutoRun back after; and with the AutoRun set, a test in
 `backend/runner/src/harnesses/service.test.ts` (`NOVADECK_TEST_CMD_AUTORUN=1`) checks that Antigravity's
 PreToolUse goes unregistered, and that a connected copy that still has it is installed
 again without it. These tests skip anywhere else. Its traces upload as

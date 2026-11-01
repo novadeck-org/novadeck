@@ -1159,7 +1159,9 @@ which releases upload so installed apps can update themselves; see
 [docs/auto-update.md](auto-update.md).
 
 Each package ships the relay agents start for Novadeck's MCP server and hooks, built
-from source with the rest of the app.
+from source with the rest of the app; the Windows packages also ship `novadeck-cmd.exe`, the
+`cmd.exe` pass-through Antigravity's hooks run through where cmd's AutoRun prints (see
+[agent messaging](agent-messaging.md)), beside it in `relay`.
 
 The [release workflow](../.github/workflows/release.yml) publishes immutable GitHub
 prereleases from qualifying changes on `main`, with notes, checksums, and native
