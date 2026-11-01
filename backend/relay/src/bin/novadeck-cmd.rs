@@ -3,6 +3,12 @@
 //! `cmd.exe` with `/d`, which skips the machine's AutoRun, so AutoRun's output cannot break
 //! a hook's answer. The command line it passes on is the one it was given, untouched.
 //!
+//! It finds the real `cmd.exe` in the system directory Windows reports
+//! (`GetSystemDirectoryW`), never through PATH, which would find itself, nor through
+//! `%SystemRoot%`, which the environment of the process that started it can set.
+//! With `NOVADECK_CMD_LOG` set to a file, it appends the command line it passes on there
+//! (for tests; nothing in Novadeck sets it).
+//!
 //! Windows only: elsewhere there is no cmd, and the program does nothing.
 
 /// What follows the program name in a raw Windows command line, as the C runtime reads
@@ -24,10 +30,42 @@ fn after_program(line: &[u16]) -> &[u16] {
     &rest[rest.iter().take_while(|unit| blank(unit)).count()..]
 }
 
+/// The system directory as Windows fills it in: `call` is `GetSystemDirectoryW` over the
+/// buffer it gets, and returns the length written without the final NUL, or, when the buffer
+/// is too small, the length needed with it; 0 means failure. Tries again with a larger buffer.
+#[cfg(any(windows, test))]
+fn system_directory(mut call: impl FnMut(&mut [u16]) -> u32) -> Option<Vec<u16>> {
+    let mut buffer = vec![0u16; 260];
+    for _ in 0..2 {
+        let length = call(&mut buffer) as usize;
+        if length == 0 {
+            return None;
+        }
+        if length < buffer.len() {
+            buffer.truncate(length);
+            return Some(buffer);
+        }
+        buffer = vec![0u16; length + 1];
+    }
+    None
+}
+
+/// Appends `rest` and a newline to the file at `path`, when it can.
+#[cfg(any(windows, test))]
+fn append_log(path: &std::path::Path, rest: &str) {
+    use std::io::Write;
+    if let Ok(mut file) = std::fs::OpenOptions::new()
+        .create(true)
+        .append(true)
+        .open(path)
+    {
+        let _ = file.write_all(format!("{rest}\n").as_bytes());
+    }
+}
+
 #[cfg(windows)]
 fn main() {
     use std::ffi::OsString;
-    use std::io::Write;
     use std::os::windows::ffi::{OsStrExt, OsStringExt};
     use std::os::windows::process::CommandExt;
     use std::path::PathBuf;
@@ -36,6 +74,7 @@ fn main() {
     #[link(name = "kernel32")]
     unsafe extern "system" {
         fn GetCommandLineW() -> *const u16;
+        fn GetSystemDirectoryW(buffer: *mut u16, size: u32) -> u32;
     }
 
     // SAFETY: GetCommandLineW returns this process's command line, a NUL-terminated string
@@ -51,19 +90,18 @@ fn main() {
     let rest = OsString::from_wide(after_program(line));
 
     if let Some(path) = std::env::var_os("NOVADECK_CMD_LOG").filter(|path| !path.is_empty()) {
-        let mut text = rest.to_string_lossy().into_owned();
-        text.push('\n');
-        if let Ok(mut file) = std::fs::OpenOptions::new()
-            .create(true)
-            .append(true)
-            .open(path)
-        {
-            let _ = file.write_all(text.as_bytes());
-        }
+        append_log(&PathBuf::from(path), &rest.to_string_lossy());
     }
 
-    let root = std::env::var_os("SystemRoot").unwrap_or_else(|| OsString::from(r"C:\Windows"));
-    let cmd = PathBuf::from(root).join("System32").join("cmd.exe");
+    // SAFETY: the buffer is valid for the size passed with it.
+    let system = system_directory(|buffer| unsafe {
+        GetSystemDirectoryW(buffer.as_mut_ptr(), buffer.len() as u32)
+    })
+    .map_or_else(
+        || PathBuf::from(r"C:\Windows\System32"),
+        |wide| PathBuf::from(OsString::from_wide(&wide)),
+    );
+    let cmd = system.join("cmd.exe");
     let mut arguments: Vec<u16> = "/d ".encode_utf16().collect();
     arguments.extend(rest.encode_wide());
 
@@ -85,7 +123,7 @@ fn main() {}
 
 #[cfg(test)]
 mod tests {
-    use super::after_program;
+    use super::{after_program, append_log, system_directory};
 
     fn rest(line: &str) -> String {
         let wide: Vec<u16> = line.encode_utf16().collect();
@@ -127,5 +165,54 @@ mod tests {
     #[test]
     fn an_unclosed_quote_takes_the_whole_line_as_the_name() {
         assert_eq!(rest(r#""cmd /c x"#), "");
+    }
+
+    fn wide(text: &str) -> Vec<u16> {
+        text.encode_utf16().collect()
+    }
+
+    #[test]
+    fn the_system_directory_is_what_the_call_wrote() {
+        let path = wide(r"C:\Windows\System32");
+        let found = system_directory(|buffer| {
+            buffer[..path.len()].copy_from_slice(&path);
+            path.len() as u32
+        });
+        assert_eq!(found, Some(path));
+    }
+
+    #[test]
+    fn a_buffer_too_small_is_asked_again_larger() {
+        let path = wide(&format!(r"C:\{}", "a".repeat(300)));
+        let mut sizes = Vec::new();
+        let found = system_directory(|buffer| {
+            sizes.push(buffer.len());
+            if buffer.len() <= path.len() {
+                return path.len() as u32 + 1;
+            }
+            buffer[..path.len()].copy_from_slice(&path);
+            path.len() as u32
+        });
+        assert_eq!(found, Some(path.clone()));
+        assert_eq!(sizes, vec![260, path.len() + 2]);
+    }
+
+    #[test]
+    fn a_failing_call_gives_nothing() {
+        assert_eq!(system_directory(|_| 0), None);
+    }
+
+    #[test]
+    fn the_log_gets_one_line_per_run() {
+        let dir = std::env::temp_dir().join(format!("novadeck-cmd-test-{}", std::process::id()));
+        std::fs::create_dir_all(&dir).unwrap();
+        let log = dir.join("log.txt");
+        append_log(&log, r#"/c "a  b""#);
+        append_log(&log, "/c x");
+        assert_eq!(
+            std::fs::read_to_string(&log).unwrap(),
+            "/c \"a  b\"\n/c x\n"
+        );
+        std::fs::remove_dir_all(&dir).unwrap();
     }
 }
