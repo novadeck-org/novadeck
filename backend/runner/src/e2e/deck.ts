@@ -155,6 +155,8 @@ export type Deck = {
   readonly store: WorkspaceStore
   /** What agents show beside the terminals, as the runner wired now keeps them. */
   readonly items: ReturnType<typeof wire>["items"]
+  /** cmd's AutoRun, as the runner wired now reports it and the person's clicks change it. */
+  readonly autorun: ReturnType<typeof wire>["autorun"]
   readonly sessionId: string
   /** Novadeck's shell files, as its shells read them: the same across restarts. */
   readonly shell: ShellPaths
@@ -546,6 +548,7 @@ type Runner = {
   readonly agents: ReturnType<typeof wire>["agents"]
   readonly terminals: Terminals
   readonly items: ReturnType<typeof wire>["items"]
+  readonly autorun: ReturnType<typeof wire>["autorun"]
   /** Aborts as the runner closes, ending every watch of it. */
   readonly closing: AbortController
 }
@@ -614,7 +617,7 @@ const now = async <T>(stream: (signal: AbortSignal) => AsyncGenerator<T>): Promi
 export const createDeck = async (options: DeckOptions): Promise<Deck> => {
   const shellFolder = join(options.data, "shell")
   const start = async (): Promise<Runner> => {
-    const { store, shellFiles, agents, terminals, items } = wire({
+    const { store, shellFiles, agents, terminals, items, autorun } = wire({
       database: join(options.data, "workspace.sqlite"),
       shell: shellFolder,
       // Plugin commands run with the sandbox's environment as it is: a login shell's
@@ -636,7 +639,7 @@ export const createDeck = async (options: DeckOptions): Promise<Deck> => {
       store.close()
       throw new Error("Novadeck's shell files could not be written")
     }
-    return { store, agents, terminals, items, closing: new AbortController() }
+    return { store, agents, terminals, items, autorun, closing: new AbortController() }
   }
 
   let runner = await start()
@@ -921,6 +924,9 @@ export const createDeck = async (options: DeckOptions): Promise<Deck> => {
     },
     get items() {
       return runner.items
+    },
+    get autorun() {
+      return runner.autorun
     },
     sessionId: session.id,
     shell: shellPaths(shellFolder),

@@ -1263,3 +1263,161 @@ describe.runIf(windows)("Codex on Windows: a pr team grant", () => {
     expect(dialogs.at(-1)).toMatch(/merge/)
   }, 900_000)
 })
+
+// ---- The one-click fix for a printing AutoRun (approvals-design.md, Appendix F): under the
+// printing AutoRun the runner offers to silence it, the person's click writes exactly the
+// wrapped value, a granted command runs unasked in an Antigravity started afterwards, and
+// Undo puts the original back byte for byte. CI's runner only; the AutoRun is restored whatever
+// happens.
+
+/** Sets the printing AutoRun before the runner starts, and has it put back as the test ends. */
+const withPrintingAutoRun = (setup: AgentSetup): AgentSetup => ({
+  ...setup,
+  prepare: async (sandbox, model, installed, seed) => {
+    const env = await setup.prepare(sandbox, model, installed, seed)
+    onTestFinished(printingAutoRun())
+    return env
+  },
+})
+
+/** HKCU's AutoRun as reg.exe prints it: its type and its text, or undefined where it is absent. */
+const autoRunValue = (): { readonly type: string; readonly text: string } | undefined => {
+  const found = reg("query", autoRunKey, "/v", "AutoRun")
+  const match = found.status === 0 ? /AutoRun\s+(REG_\w+)\s+(.*)$/m.exec(found.stdout) : null
+  return match ? { type: match[1]!, text: match[2]!.trim() } : undefined
+}
+
+/** The runner's AutoRun state once `check` holds of it. */
+const autoRunWhere = async (
+  run: E2E,
+  what: string,
+  check: (state: { readonly state: string }) => boolean,
+  timeoutMs = 60_000,
+): Promise<ReturnType<typeof stateNow>> => {
+  const end = Date.now() + timeoutMs
+  for (;;) {
+    const state = await stateNow(run)
+    if (check(state)) return state
+    if (Date.now() > end)
+      throw new Error(`${what}: not seen in ${timeoutMs} ms; state: ${JSON.stringify(state)}`)
+    await sleep(500)
+  }
+}
+
+const stateNow = async (run: E2E) => {
+  const controller = new AbortController()
+  const stream = run.deck.autorun.watch(controller.signal)
+  try {
+    const first = await stream.next()
+    if (first.done) throw new Error("the AutoRun's watch ended")
+    return first.value
+  } finally {
+    controller.abort()
+    await stream.return(undefined)
+  }
+}
+
+describe.runIf(windows && process.env.GITHUB_ACTIONS === "true")(
+  "Antigravity on Windows: silencing cmd's AutoRun",
+  () => {
+    const it = e2e(withPrintingAutoRun(agyKit.setup))
+    it("is offered under a printing AutoRun, writes exactly the wrapped value, lets a granted command run unasked, and Undo restores the original", async ({
+      e2e: run,
+      skip,
+    }) => {
+      if (!(await takesSettings()))
+        return skip("this Antigravity takes no --settings (before 1.4.10)")
+      const original = "echo novadeck-ci: an AutoRun printed this"
+      const wrapped = `(${original}) >nul 2>&1`
+      const world = () => worlds.get(run.sandbox.root)!
+      const quiet = () => {
+        const rem = spawnSync(process.env.COMSPEC || "cmd.exe", ["/c", "rem"], {
+          encoding: "utf8",
+        })
+        return `${rem.stdout}${rem.stderr}`
+      }
+      run.model.use(
+        own((call) => {
+          const ask = approvalAsk(call)
+          if (ask) return ask
+          if (asked(call, "run again")) return agyKit.shell(granted)
+          if (call.turns.at(-1)?.role === "tool") return { text: "Done." }
+          return undefined
+        }),
+      )
+
+      // The offer: the original prints, the wrapped value does not.
+      const offer = await autoRunWhere(run, "the offer", ({ state }) => state === "offer")
+      probe("autorun offer", offer)
+      expect(offer).toMatchObject({ state: "offer", current: original, next: wrapped })
+      expect(autoRunValue()).toEqual({ type: "REG_SZ", text: original })
+      expect(quiet()).toContain("an AutoRun printed this")
+
+      // The person's click writes exactly that, and cmd is clean.
+      await run.deck.autorun.silence(wrapped)
+      expect(autoRunValue()).toEqual({ type: "REG_SZ", text: wrapped })
+      expect(quiet()).toBe("")
+      expect(run.deck.autorun.printing()).toBe(false)
+      const silenced = await stateNow(run)
+      probe("autorun silenced", silenced)
+      expect(silenced).toMatchObject({
+        state: "silenced",
+        restores: original,
+        outcome: { kind: "applied-clean" },
+      })
+
+      // A terminal's approval, then Antigravity started under it runs the granted command
+      // unasked: its PreToolUse is registered again and the launch grant is given.
+      let terminal = await openKit(run, agyKit)
+      await terminal.submit("get approval")
+      const entry = await (async () => {
+        const end = Date.now() + 60_000
+        for (;;) {
+          const found = run.deck.terminals
+            .inboxEntries()
+            .find((each) => each.content.kind === "ask" && each.terminalId === terminal.id)
+          if (found) return found
+          if (Date.now() > end) throw new Error("no approval ask in the Inbox")
+          await sleep(250)
+        }
+      })()
+      run.deck.terminals.answerAsk(entry.id, { type: "approve" })
+      await sleep(2000)
+      await run.deck.restart()
+      terminal = await run.deck.restore(terminal, { resume: "agy" })
+      await terminal.reached("ready", { timeoutMs: 60_000 })
+      await prompted(terminal, agyKit.setup)
+      await terminal.submit("run again")
+      const end = Date.now() + 60_000
+      while (marksOf(world()).length === 0 && Date.now() < end) await sleep(250)
+      probe("autorun granted-run", {
+        marks: marksOf(world()),
+        screen: rows(await terminal.screen()),
+      })
+      expect(marksOf(world())).toEqual([granted])
+      expect(await terminal.screen()).not.toMatch(agyKit.dialog)
+
+      // Undo is refused while an Antigravity of Novadeck's runs, and the value stays.
+      await run.deck.autorun.undo()
+      expect(await stateNow(run)).toMatchObject({
+        state: "silenced",
+        outcome: { kind: "undo-refused" },
+      })
+      expect(autoRunValue()).toEqual({ type: "REG_SZ", text: wrapped })
+
+      // Closed, Undo restores the original exactly.
+      await run.deck.terminals.close({ terminalId: terminal.id })
+      const closing = Date.now() + 30_000
+      while (run.deck.terminals.approving.running("agy").length > 0 && Date.now() < closing)
+        await sleep(250)
+      await run.deck.autorun.undo()
+      expect(autoRunValue()).toEqual({ type: "REG_SZ", text: original })
+      expect(await stateNow(run)).toMatchObject({
+        state: "offer",
+        current: original,
+        outcome: { kind: "undone" },
+      })
+      expect(run.deck.autorun.printing()).toBe(true)
+    }, 600_000)
+  },
+)

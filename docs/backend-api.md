@@ -725,6 +725,16 @@ or taskkill for:
   `Environment` key, `machine` or `user`, its name and its value, each in base64 of
   its UTF-8. A new terminal's PATH is built from them, as Windows builds a new
   console's. Where the relay can't run, Windows PowerShell prints the same lines.
+- `novadeck-relay autorun` prints a line for each scope that holds cmd's `AutoRun` value:
+  `user` (HKCU) or `machine` (HKLM, the 64-bit view cmd reads), its type (`sz`, `expand` or
+  `other`) and the raw bytes in base64; `user unreadable` or `machine unreadable` where the
+  key can't be read, nothing where it holds nothing.
+- `novadeck-relay autorun-set <sz|expand> <expected base64> <new base64>` compares HKCU's
+  `AutoRun` with the expected type and bytes, sets the new ones and reads them back. It
+  creates and deletes nothing, and no argument names another key or value. Exit 0 `ok`, 3
+  `changed` (absent, or not as expected), 4 `unverified` (the read-back differed), 5 a failed
+  open, read or write, 2 a usage error. Only the UI's `autorun.silence` and `autorun.undo`
+  reach it, on the person's click (see "Antigravity on a machine whose cmd AutoRun prints" in agent-messaging.md).
 - `novadeck-relay tree <pid>...` prints, a JSON line per pid,
   `{"root":<pid>,"processes":[{"pid","startedAt"},...]}`: the process and every one
   under it, counting a process as a child only if it started no earlier than its

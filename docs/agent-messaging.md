@@ -1361,8 +1361,25 @@ AutoRun still applies to them. Novadeck installs `novadeck-cmd.exe` (built with 
 `cmd.exe` in a folder of its own, verifies it byte for byte, and its `agy` shim puts that folder
 first on PATH for Antigravity's environment alone, never the terminal's shell. Where it is
 missing or differs, messaging with Antigravity does not work there until the AutoRun's output goes.
-The grant text says why no launch grant reaches it (silencing the AutoRun fixes it). It fixes messaging only: Antigravity's PreToolUse hook is global, so it stays unregistered there and
-no launch grant is given. Set `NOVADECK_CMD_LOG` to a file to make the
+The grant text says why no launch grant reaches it and that the user can change this from
+Novadeck's Inbox. The pass-through fixes messaging only: Antigravity's PreToolUse hook is global,
+so it stays unregistered there and no launch grant is given, until the person silences the AutoRun.
+
+**One-click silence.** Where the start's check found that cmd prints, the Inbox shows the person
+the AutoRun's value, the exact new value `(<value>) >nul 2>&1` and that it applies to every cmd
+window, and rewrites only the person's own (HKCU) value, on their click. `silenced()` refuses any
+value whose end the wrapper's `)` could move (a block, an unquoted `%`, a `>`, `rem`, `::`), and
+two isolation runs of `cmd /d /s /c "<value>"` must show that the original prints and the
+rewrite does not. After the write the real cmd is run again, stdout and stderr: clean, and the
+plugin's files are written again with PreToolUse registered (Antigravity's plugin files alone),
+`refresh` installs them, and each Antigravity terminal's grants are announced again; not clean,
+and with no machine (HKLM) value to blame, the change is put back. The state is read from the
+registry itself, so Preferences offer Undo whenever the value is Novadeck's wrapper; Undo only
+unwraps, and is refused while any Novadeck Antigravity terminal runs. The pass-through stays on
+Antigravity's PATH on a machine where cmd printed. Nothing an agent supplies reaches these
+procedures (`autorun.watch`, `silence`, `undo`, `dismiss` are the UI's alone); see
+`architecture/team-issues/approvals-design.md`, Appendix F. The caveat an agent reads says only
+that the user can change this from the Inbox and that it must not change cmd's AutoRun itself. Set `NOVADECK_CMD_LOG` to a file to make the
 pass-through append the command line it passed on.
 
 ### A turn the runner's stop cut short
