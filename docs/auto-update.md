@@ -209,7 +209,7 @@ said it was ready again. electron-updater still downloads the zip; with
 - **A copy the person can't write** only tells. When it is signed and installed, the offer
   says an administrator can allow it (`allow`), and the footer chip reads "Allow updates":
   it asks for an administrator's password once (`osascript … with administrator
-  privileges`) to hand the bundle to the person, and the copy then checks again as one that
+privileges`) to hand the bundle to the person, and the copy then checks again as one that
   installs. Turned down, as by a person with no administrator to ask, the chip becomes
   "Update available" for the rest of the run and opens the release page.
 - The schedule goes on once an update is ready, and a newer release replaces it, as on the
@@ -646,7 +646,7 @@ keeps the workspace.
   macro carries builder's old check. With PowerShell passing its two availability tests it
   stops processes by a plain path prefix with no separator, so a portable in a sibling
   folder such as `...\Programs\novadeck-portable` dies; without it, `taskkill /IM
-  novadeck.exe` stops any portable. The installer therefore writes a `RunningCheck` value
+novadeck.exe` stops any portable. The installer therefore writes a `RunningCheck` value
   next to `InstallLocation` (`HKCU\Software\<guid>`, from `customInstall`); builder's
   uninstaller deletes that whole key. The app treats an install as legacy
   (`readLegacyUninstaller`) when the registry records one, an `UninstallString` or an
