@@ -124,12 +124,12 @@ const kinds: readonly { readonly label: string; readonly name: Named; readonly h
   {
     label: "Grant card",
     name: "grant",
-    hint: "Unblock row for mobile-app's lead: the Grant card with push and pull requests, three repos (one flagged an added remote, one recent), two commands (one followed by anything), its team now and later (@fox on Codex noted), 8 h, and the lead's reason quoted; Grant makes the live grant, Decline dismisses it",
+    hint: "Unblock row for mobile-app's lead: the Grant card with push and pull requests, three repos (one flagged an added remote, one recent), two commands (one followed by anything), its team now and later (@fox on Codex noted), until done, and the lead's reason quoted; Grant makes the live grant, Decline dismisses it",
   },
   {
     label: "Approval card",
     name: "approval",
-    hint: 'Unblock row for design-system\'s first terminal: "Lets @moth run, without asking again, for 1 hour:" with three commands as code (one followed by anything); Approve makes a grant for that terminal, or reply in words',
+    hint: 'Unblock row for design-system\'s first terminal: "Lets @moth run, without asking again, until it reports done or for 1 hour:" with three commands as code (one followed by anything); Approve (until done, or for 1 hour) makes a grant for that terminal, or reply in words',
   },
   {
     label: "Done report",
@@ -180,7 +180,7 @@ export const inboxGroups = (
         })),
         {
           label: "Live grant",
-          hint: "The Grants section tops the Inbox with a team grant of mobile-app's lead: holder, push and pull requests, two repos, 8 h less 25 min left, its last allowed command, and Revoke",
+          hint: "The Grants section tops the Inbox with a team grant of mobile-app's lead: holder, push and pull requests, two repos, until done, its last allowed command, and Revoke",
           run: () => inbox.grants.add(demoLiveGrant(Date.now())),
         },
         {

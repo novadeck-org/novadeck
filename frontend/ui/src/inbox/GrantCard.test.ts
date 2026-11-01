@@ -60,7 +60,7 @@ const proposal: GrantProposal = {
     },
   ],
   withLead: false,
-  hours: 8,
+  lifetime: "until-done",
   reason: "Fox and owl finish the checkout today.",
   covered: [
     { handle: "fox", agent: "codex" },
@@ -111,6 +111,7 @@ const live = (more: Partial<Grant> = {}): Grant => ({
   entryId: "g",
   proposedBy: "moth",
   madeAt: 0,
+  lifetime: "hour",
   endsAt: Date.now() + 90 * 60_000 - 1000,
   revokedAt: null,
   lastUse: null,
@@ -266,13 +267,18 @@ describe("The Grant card", () => {
       await silenced.done()
     })
 
-    it("quotes the lead's reason and offers 1, 8 and 24 hours with 8 chosen", async () => {
+    it("quotes the lead's reason and offers until done and 1 hour with until done chosen", async () => {
       const inbox = mount([grantRow()])
 
       expect(text("blockquote.console-quote")).toBe("Fox and owl finish the checkout today.")
-      const hours = Array.from(document.querySelectorAll<HTMLInputElement>(".segment input"))
-      expect(hours.map((each) => each.getAttribute("aria-label"))).toEqual(["1 h", "8 h", "24 h"])
-      expect(hours.find((each) => each.checked)?.getAttribute("aria-label")).toBe("8 h")
+      const choices = Array.from(document.querySelectorAll<HTMLInputElement>(".segment input"))
+      expect(choices.map((each) => each.getAttribute("aria-label"))).toEqual([
+        "Until it's done",
+        "1 hour",
+      ])
+      expect(choices.find((each) => each.checked)?.getAttribute("aria-label")).toBe(
+        "Until it's done",
+      )
       await inbox.done()
     })
   })
@@ -295,7 +301,7 @@ describe("The Grant card", () => {
             commands: [0],
             repos: ["github.com/acme/shop", "github.com/acme/shop-ui"],
             withLead: true,
-            hours: 8,
+            lifetime: "until-done",
           },
         },
       ])
@@ -315,7 +321,7 @@ describe("The Grant card", () => {
             commands: [0, 1],
             repos: ["github.com/acme/shop"],
             withLead: false,
-            hours: 8,
+            lifetime: "until-done",
           },
         },
       ])
@@ -348,7 +354,9 @@ describe("The approval card", () => {
     const inbox = mount([approvalRow()])
 
     expect(text(".console-tag")).toBe("Approval")
-    expect(text(".grant-sentence")).toBe("Lets @fox run, without asking again, for 1 hour:")
+    expect(text(".grant-sentence")).toBe(
+      "Lets @fox run, without asking again, until it reports done or for 1 hour:",
+    )
     expect(
       Array.from(document.querySelectorAll(".grant-command")).map((each) => each.textContent),
     ).toEqual(["$ pnpm build", "$ pnpm run 'x y' … followed by anything"])
@@ -374,9 +382,9 @@ describe("The approval card", () => {
       Array.from(document.querySelectorAll(".console-option .console-t")).map(
         (each) => each.textContent,
       ),
-    ).toEqual(["Approve", "Reply in your own words", "Go to terminal"])
-    act(() => inbox.option("Approve").click())
-    expect(inbox.sent).toEqual([{ kind: "ask", answer: { type: "approve" } }])
+    ).toEqual(["Approve", "Approve for 1 hour", "Reply in your own words", "Go to terminal"])
+    act(() => inbox.option("Approve for 1 hour").click())
+    expect(inbox.sent).toEqual([{ kind: "ask", answer: { type: "approve", lifetime: "hour" } }])
     await inbox.done()
   })
 })
@@ -401,6 +409,15 @@ describe("The Grants section", () => {
     expect(row.querySelector(".grant-row-last")?.textContent).toBe(
       "Last allowed: git push origin a:a by @owl, 4m ago",
     )
+    await inbox.done()
+  })
+
+  it("says until done for a grant with no clock", async () => {
+    const inbox = mount([], {
+      grants: [live({ lifetime: "until-done", endsAt: null })],
+      open: false,
+    })
+    expect(document.querySelector(".grant-row-left")?.textContent).toBe("until done")
     await inbox.done()
   })
 

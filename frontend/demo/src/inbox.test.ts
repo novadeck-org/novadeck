@@ -856,7 +856,7 @@ describe("the demo Inbox's grants", () => {
     expect(withCards().grants.state.getSnapshot()).toEqual([])
   })
 
-  it("makes a team grant from what the Grant card kept ticked, for the hours chosen", () => {
+  it("makes a team grant from what the Grant card kept ticked, for the lifetime chosen", () => {
     const inbox = withCards()
     inbox.answer(demoInboxIds.grant, {
       kind: "grant",
@@ -866,7 +866,7 @@ describe("the demo Inbox's grants", () => {
         commands: [1],
         repos: ["github.com/acme/storefront-ui"],
         withLead: true,
-        hours: 24,
+        lifetime: "hour",
       },
     })
     vi.advanceTimersByTime(answerMs)
@@ -880,12 +880,15 @@ describe("the demo Inbox's grants", () => {
       repos: [{ url: "github.com/acme/storefront-ui" }],
       entryId: demoInboxIds.grant,
     })
-    expect(grant!.endsAt - grant!.madeAt).toBe(24 * 3_600_000)
+    expect(grant!.endsAt! - grant!.madeAt).toBe(3_600_000)
   })
 
-  it("makes a grant for the asking terminal alone on Approve, for an hour unless the ask names more", () => {
+  it("makes a grant for the asking terminal alone on Approve, until done or for the hour chosen", () => {
     const inbox = withCards()
-    inbox.answer(demoInboxIds.approval, { kind: "ask", answer: { type: "approve" } })
+    inbox.answer(demoInboxIds.approval, {
+      kind: "ask",
+      answer: { type: "approve", lifetime: "until-done" },
+    })
     vi.advanceTimersByTime(answerMs)
 
     const [grant] = inbox.grants.state.getSnapshot()
@@ -895,7 +898,7 @@ describe("the demo Inbox's grants", () => {
       repos: [],
     })
     expect(grant!.commands).toHaveLength(3)
-    expect(grant!.endsAt - grant!.madeAt).toBe(3_600_000)
+    expect(grant).toMatchObject({ lifetime: "until-done", endsAt: null })
   })
 
   it("makes none from a reply to an approval, nor from a dismissed Grant card, which settles", () => {

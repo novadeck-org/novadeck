@@ -47,16 +47,16 @@ describe("A lead's Grant card", () => {
     await expect.element(card).toMatchTextContent("Codex's sandbox")
     await expect.element(grants()).not.toBeInTheDocument()
 
-    // The added remote stays unticked; untick another repo and pick a day.
+    // The added remote stays unticked; untick another repo and pick the hour.
     await card.getByRole("checkbox", { name: /acme\/storefront-ui/ }).click()
-    await card.getByRole("radio", { name: "24 h" }).click({ force: true })
+    await card.getByRole("radio", { name: "1 hour" }).click({ force: true })
     await card.getByRole("menuitem", { name: /^Grant/ }).click()
 
     await expect.element(grants()).toMatchTextContent("@moth's team")
     await expect
       .element(grants())
       .toMatchTextContent("push branches, open and edit pull requests in acme/storefront")
-    await expect.element(grants()).toMatchTextContent(/(24h|23h \d+m) left/)
+    await expect.element(grants()).toMatchTextContent(/(1h|\d+m) left/)
   })
 
   it("dismisses on Decline and makes no grant", async () => {
@@ -68,14 +68,16 @@ describe("A lead's Grant card", () => {
 })
 
 describe("A terminal's approval card", () => {
-  it("lets the terminal run its commands for an hour once approved, until revoked", async () => {
+  it("lets the terminal run its commands for the hour once approved, until revoked", async () => {
     const card = await openCard(demoInboxIds.approval, /May I ship the docs/)
 
     await expect
       .element(card)
-      .toMatchTextContent("Lets @moth run, without asking again, for 1 hour:")
+      .toMatchTextContent(
+        "Lets @moth run, without asking again, until it reports done or for 1 hour:",
+      )
     await expect.element(card).toMatchTextContent("uberepo check links … followed by anything")
-    await card.getByRole("menuitem", { name: /^Approve/ }).click()
+    await card.getByRole("menuitem", { name: /^Approve for 1 hour/ }).click()
 
     await expect.element(grants()).toMatchTextContent("@moth")
     await expect.element(grants()).toMatchTextContent(/(1h( \dm)?|\d+m) left/)

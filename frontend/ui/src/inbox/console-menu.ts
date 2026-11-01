@@ -1,6 +1,6 @@
 import { askToFixNudge } from "@novadeck/core/agents/steps"
 import type { ChatAnswer, ChatDialogOption, ChatRequest } from "@novadeck/core/conversation"
-import { hoursWords } from "@novadeck/core/grants"
+import { lifetimeWords, type GrantLifetime } from "@novadeck/core/grants"
 import type { AskOption, InboxAnswer, InboxRow, Trouble } from "@novadeck/core/inbox"
 
 import {
@@ -243,18 +243,19 @@ const askMenu = (row: Extract<InboxRow, { kind: "ask" }>): Menu => {
       hard,
     }
   if (shape.type === "approval") {
-    const hours = hoursWords(1)
+    const approve = (label: string, lifetime: GrantLifetime): MenuRow => ({
+      type: "answer",
+      label,
+      effect: `@${source.handle} runs these without asking ${lifetimeWords(lifetime)}.`,
+      pick: false,
+      details: null,
+      answer: { kind: "ask", answer: { type: "approve", lifetime } },
+      receipt: `Approved @${source.handle}'s commands ${lifetimeWords(lifetime)}.`,
+    })
     return {
       rows: [
-        {
-          type: "answer",
-          label: "Approve",
-          effect: `@${source.handle} runs these without asking for ${hours}.`,
-          pick: false,
-          details: null,
-          answer: { kind: "ask", answer: { type: "approve" } },
-          receipt: `Approved @${source.handle}'s commands for ${hours}.`,
-        },
+        approve("Approve", "until-done"),
+        approve("Approve for 1 hour", "hour"),
         ownWords(row),
       ],
       hard,

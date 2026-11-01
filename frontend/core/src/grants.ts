@@ -7,10 +7,11 @@ import type { Store } from "./store"
 // The fixed scopes the Grant card words itself.
 export type GrantPreset = "push" | "pr"
 
-// How long a grant lasts, in hours: the card offers these, and 24 is the most.
-export type GrantHours = 1 | 8 | 24
-export const grantHoursChoices: readonly GrantHours[] = [1, 8, 24]
-export const defaultGrantHours: GrantHours = 8
+// How long a grant lasts: until the agent reports done (or is released, or exits), which is
+// the default, or at most an hour. The card offers these two.
+export type GrantLifetime = "until-done" | "hour"
+export const grantLifetimeChoices: readonly GrantLifetime[] = ["until-done", "hour"]
+export const defaultGrantLifetime: GrantLifetime = "until-done"
 
 // A command that is granted: exact words, or with `rest`, followed by anything.
 export type GrantCommand = {
@@ -43,7 +44,9 @@ export type Grant = {
   readonly entryId: string
   readonly proposedBy: string
   readonly madeAt: number
-  readonly endsAt: number
+  readonly lifetime: GrantLifetime
+  // The clock time an hour grant ends; null for one that lasts until done.
+  readonly endsAt: number | null
   readonly revokedAt: number | null
   readonly lastUse: {
     readonly at: number
@@ -67,7 +70,7 @@ export type GrantProposal = {
   readonly commands: readonly GrantCommand[]
   readonly repos: readonly GrantRepoChoice[]
   readonly withLead: boolean
-  readonly hours: GrantHours
+  readonly lifetime: GrantLifetime
   // The lead's own words, shown as quoted agent text.
   readonly reason: string
   readonly covered: readonly {
@@ -77,14 +80,14 @@ export type GrantProposal = {
 }
 
 // The person's Grant on a card: what stayed ticked (commands by index into the proposal's,
-// repos by url) and the time they chose.
+// repos by url) and the lifetime they chose.
 export type GrantAnswer = {
   readonly type: "grant"
   readonly presets: readonly GrantPreset[]
   readonly commands: readonly number[]
   readonly repos: readonly string[]
   readonly withLead: boolean
-  readonly hours: GrantHours
+  readonly lifetime: GrantLifetime
 }
 
 // The live grants, and the way to end one at once. Absent from a backend that has none.
@@ -107,7 +110,13 @@ export const commandWords = (command: GrantCommand): string[] => command.argv.ma
 
 export const commandText = (command: GrantCommand): string => commandWords(command).join(" ")
 
-export const hoursWords = (hours: GrantHours): string => (hours === 1 ? "1 hour" : `${hours} hours`)
+// A lifetime as the card's options and receipts word it.
+export const lifetimeLabel = (lifetime: GrantLifetime): string =>
+  lifetime === "hour" ? "1 hour" : "Until it's done"
+
+// A lifetime inside a sentence: "until it's done" or "for 1 hour".
+export const lifetimeWords = (lifetime: GrantLifetime): string =>
+  lifetime === "hour" ? "for 1 hour" : "until it's done"
 
 // What the Grant card says each preset allows, in Novadeck's own words. `repos` names where:
 // the one repo ticked, or the repos ticked below.
@@ -118,4 +127,4 @@ export const presetSentence = (preset: GrantPreset, repos: string): string =>
 
 // The line over an `approval` card's commands.
 export const approvalSentence = (handle: string): string =>
-  `Lets @${handle} run, without asking again, for ${hoursWords(1)}:`
+  `Lets @${handle} run, without asking again, until it reports done or for 1 hour:`

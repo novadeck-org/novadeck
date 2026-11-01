@@ -1,6 +1,6 @@
 import type { AutoRun } from "./autorun"
 import type { ChatAnswer, ChatRequest } from "./conversation"
-import type { GrantAnswer, GrantCommand, GrantProposal, Grants } from "./grants"
+import type { GrantAnswer, GrantCommand, GrantLifetime, GrantProposal, Grants } from "./grants"
 import type { AgentName } from "./harnesses"
 import type { MessageWaits } from "./messages"
 import { createStore, type Store } from "./store"
@@ -61,7 +61,7 @@ export type AskShape =
       readonly doneLabel: string
     }
   // Approval for the asking terminal to run these commands without asking again; the person's
-  // Approve makes the grant, for 1 hour.
+  // Approve makes the grant, until done or for the hour the person picks.
   | {
       readonly type: "approval"
       readonly commands: readonly GrantCommand[]
@@ -190,7 +190,7 @@ export type InboxAnswer =
         | { readonly type: "reply"; readonly option: number | null; readonly text: string }
         | { readonly type: "done" }
         // Approve on an `approval` ask.
-        | { readonly type: "approve" }
+        | { readonly type: "approve"; readonly lifetime: GrantLifetime }
     }
   // Grant on a lead's Grant card.
   | { readonly kind: "grant"; readonly answer: GrantAnswer }

@@ -32,7 +32,9 @@ export const createDemoGrants = (now: () => number = Date.now): DemoGrants => {
     add: (grant) => {
       clearTimeout(timers.get(grant.id))
       state.update((current) => [...current.filter((each) => each.id !== grant.id), grant])
-      // Its time is up when the clock says so, as the runner's sweep ends a grant.
+      // An hour grant's time is up when the clock says so, as the runner's sweep ends it; one
+      // that lasts until done stays until it is revoked.
+      if (grant.endsAt === null) return
       const left = grant.endsAt - now()
       if (left <= 0) drop(grant.id)
       else
@@ -79,7 +81,8 @@ export const grantMadeBy = (row: InboxRow, answer: InboxAnswer, now: number): Gr
       presets: [...picked.presets],
       commands: picked.commands.flatMap((at) => proposal.commands[at] ?? []),
       repos: proposal.repos.flatMap(({ repo }) => (picked.repos.includes(repo.url) ? [repo] : [])),
-      endsAt: now + picked.hours * hour,
+      lifetime: picked.lifetime,
+      endsAt: picked.lifetime === "hour" ? now + hour : null,
     }
   }
   if (
@@ -90,11 +93,12 @@ export const grantMadeBy = (row: InboxRow, answer: InboxAnswer, now: number): Gr
   )
     return {
       ...base,
+      lifetime: answer.answer.lifetime,
+      endsAt: answer.answer.lifetime === "hour" ? now + hour : null,
       holder: { kind: "terminal", handle: source.handle },
       presets: [],
       commands: [...row.ask.shape.commands],
       repos: [],
-      endsAt: now + hour,
     }
   return undefined
 }

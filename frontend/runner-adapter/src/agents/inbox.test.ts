@@ -1559,7 +1559,7 @@ describe("Grants", () => {
             },
           ],
           withLead: false,
-          hours: 8,
+          lifetime: "until-done",
           reason: "Ship today.",
           covered: [{ handle: "fox", agent: "codex" }],
         },
@@ -1577,7 +1577,10 @@ describe("Grants", () => {
     entryId: "grant-1",
     proposedBy: "moth",
     madeAt: 1,
+    lifetime: "hour",
     endsAt: 2,
+    lastActivityAt: 1,
+    ended: [],
     revokedAt: null,
     lastUse: null,
   })
@@ -1687,7 +1690,7 @@ describe("Grants", () => {
     expect(inbox.state.getSnapshot().items[0]).toMatchObject({
       kind: "grant",
       stopped: true,
-      proposal: { hours: 8, reason: "Ship today." },
+      proposal: { lifetime: "until-done", reason: "Ship today." },
     })
     const answer = {
       type: "grant",
@@ -1695,7 +1698,7 @@ describe("Grants", () => {
       commands: [0],
       repos: ["github.com/acme/shop"],
       withLead: true,
-      hours: 1,
+      lifetime: "hour",
     } as const
     inbox.answer("grant-1", { kind: "grant", answer })
     expect(streams.inbox.answer).toHaveBeenCalledExactlyOnceWith("grant-1", answer)
@@ -1730,7 +1733,10 @@ describe("Grants", () => {
       }),
     ])
     await settle()
-    inbox.answer("entry-1", { kind: "ask", answer: { type: "approve" } })
-    expect(streams.inbox.answer).toHaveBeenCalledExactlyOnceWith("entry-1", { type: "approve" })
+    inbox.answer("entry-1", { kind: "ask", answer: { type: "approve", lifetime: "until-done" } })
+    expect(streams.inbox.answer).toHaveBeenCalledExactlyOnceWith("entry-1", {
+      type: "approve",
+      lifetime: "until-done",
+    })
   })
 })

@@ -1,4 +1,4 @@
-import { commandText, hoursWords } from "@novadeck/core/grants"
+import { commandText, lifetimeWords } from "@novadeck/core/grants"
 import type { AgentAsk, InboxAnswer, InboxRow } from "@novadeck/core/inbox"
 import {
   noMessages,
@@ -187,7 +187,7 @@ const askText = (ask: AgentAsk): string => {
         ? [shape.command, shape.directory, shape.doneLabel].filter(Boolean).join("\n")
         : shape.type === "approval"
           ? [
-              `To run, without asking again, for ${hoursWords(1)}:`,
+              `To run, without asking again, for ${lifetimeWords("until-done")}:`,
               ...shape.commands.map((command) => `$ ${commandText(command)}`),
             ].join("\n")
           : null

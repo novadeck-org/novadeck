@@ -2,13 +2,14 @@
 import { autoRunPrints } from "@novadeck/core/autorun"
 import {
   commandWords,
-  defaultGrantHours,
-  grantHoursChoices,
-  hoursWords,
+  defaultGrantLifetime,
+  grantLifetimeChoices,
+  lifetimeLabel,
+  lifetimeWords,
   presetSentence,
   approvalSentence,
   type GrantCommand,
-  type GrantHours,
+  type GrantLifetime,
   type GrantPreset,
   type GrantProposal,
   type GrantRepoChoice,
@@ -123,8 +124,8 @@ export const GrantCard = ({
     proposal.repos.filter(({ ticked }) => ticked).map(({ repo }) => repo.url),
   )
   const [withLead, setWithLead] = useState(proposal.withLead)
-  const [hours, setHours] = useState<GrantHours>(
-    grantHoursChoices.includes(proposal.hours) ? proposal.hours : defaultGrantHours,
+  const [lifetime, setLifetime] = useState<GrantLifetime>(
+    grantLifetimeChoices.includes(proposal.lifetime) ? proposal.lifetime : defaultGrantLifetime,
   )
   const [pressed, setPressed] = useState<number | null>(null)
   const where =
@@ -140,7 +141,7 @@ export const GrantCard = ({
     {
       key: "grant",
       label: "Grant",
-      effect: problem ?? `For ${hoursWords(hours)}, as ticked.`,
+      effect: problem ?? `Lasts ${lifetimeWords(lifetime)}, as ticked.`,
     },
     ...(dismiss ? [{ key: "decline", label: "Decline", effect: null }] : []),
     { key: "terminal", label: "Go to terminal", effect: null, away: true },
@@ -160,10 +161,10 @@ export const GrantCard = ({
             commands: commands.toSorted((a, b) => a - b),
             repos: picked,
             withLead,
-            hours,
+            lifetime,
           },
         },
-        `Granted @${lead}'s team for ${hoursWords(hours)}.`,
+        `Granted @${lead}'s team ${lifetimeWords(lifetime)}.`,
       )
     } else dismiss?.(row.id)
   }
@@ -249,15 +250,15 @@ export const GrantCard = ({
           <span className="grant-legend">For</span>
           <SegmentGroup
             label="How long"
-            items={grantHoursChoices.map((each) => ({
-              value: String(each),
-              label: `${each} h`,
+            items={grantLifetimeChoices.map((each) => ({
+              value: each,
+              label: lifetimeLabel(each),
             }))}
-            value={String(hours)}
+            value={lifetime}
             disabled={answering}
             onValueChange={(next) => {
-              const chosen = grantHoursChoices.find((each) => String(each) === next)
-              if (chosen) setHours(chosen)
+              const chosen = grantLifetimeChoices.find((each) => each === next)
+              if (chosen) setLifetime(chosen)
             }}
             className="flex shrink-0 gap-1"
             itemClassName="flex h-7 min-w-12 items-center justify-center px-2.5 text-control"

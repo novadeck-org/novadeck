@@ -1,7 +1,8 @@
 import {
   approvalSentence,
   commandText,
-  hoursWords,
+  lifetimeLabel,
+  lifetimeWords,
   presetSentence,
   type GrantCommand,
 } from "./grants"
@@ -33,9 +34,13 @@ describe("the card's sentences", () => {
     )
   })
 
-  it("says the time and what an approval lets the terminal do, always an hour", () => {
-    expect(hoursWords(1)).toBe("1 hour")
-    expect(hoursWords(24)).toBe("24 hours")
-    expect(approvalSentence("fox")).toBe("Lets @fox run, without asking again, for 1 hour:")
+  it("says the lifetime and what an approval lets the terminal do", () => {
+    expect(lifetimeLabel("until-done")).toBe("Until it's done")
+    expect(lifetimeLabel("hour")).toBe("1 hour")
+    expect(lifetimeWords("until-done")).toBe("until it's done")
+    expect(lifetimeWords("hour")).toBe("for 1 hour")
+    expect(approvalSentence("fox")).toBe(
+      "Lets @fox run, without asking again, until it reports done or for 1 hour:",
+    )
   })
 })

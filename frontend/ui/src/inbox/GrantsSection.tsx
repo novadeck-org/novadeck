@@ -19,9 +19,10 @@ export const holderText = (grant: Grant): string =>
     ? `@${grant.holder.lead}'s team${grant.holder.withLead ? ` and @${grant.holder.lead}` : ""}`
     : `@${grant.holder.handle}`
 
-// The time left on a grant: "1h 12m left", "24h left" (a grant lasts at most a day, so never
-// days), or "under a minute left".
+// The time left on a grant: "until done" for one that lasts so long, else "1h 12m left" (an
+// hour grant is never more) or "under a minute left".
 export const leftText = (grant: Grant, now: number): string => {
+  if (grant.endsAt === null) return "until done"
   // The Inbox's clock ticks every half minute, so a grant just made can be ahead of it.
   const left = Math.min(grant.endsAt - now, grant.endsAt - grant.madeAt)
   const minutes = Math.ceil(Math.max(0, left) / 60_000)

@@ -78,7 +78,7 @@ const grantProposal: GrantProposal = {
     },
   ],
   withLead: false,
-  hours: 8,
+  lifetime: "until-done",
   reason:
     "Fox and owl each finish a piece of the checkout today and I want them to push their branches and open the pull requests without stopping on a prompt every time. They run the unit tests before each push.",
   covered: [
@@ -835,7 +835,8 @@ export const demoLiveGrant = (now: number): Grant => ({
   entryId: demoInboxIds.grant,
   proposedBy: sourceTerminal(1).handle,
   madeAt: now - 25 * minute,
-  endsAt: now + (8 * 60 - 25) * minute,
+  lifetime: "until-done",
+  endsAt: null,
   revokedAt: null,
   lastUse: {
     at: now - 4 * minute,
@@ -858,6 +859,7 @@ export const demoEndingGrant = (now: number, ms: number): Grant => ({
   entryId: demoInboxIds.approval,
   proposedBy: sourceOf("design-system", 1, "claude").handle,
   madeAt: now - 59 * minute,
+  lifetime: "hour",
   endsAt: now + ms,
   revokedAt: null,
   lastUse: null,

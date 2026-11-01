@@ -123,7 +123,7 @@ describe("inboxType", () => {
         commands: [],
         repos: [],
         withLead: false,
-        hours: 8,
+        lifetime: "until-done",
         reason: "",
         covered: [],
       },
