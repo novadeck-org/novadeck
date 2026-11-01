@@ -263,16 +263,25 @@ it is never uploaded.
 
 Each shell the runner starts can report which agent session runs in it, through a
 local endpoint: a Unix socket in a private temporary directory, or a named pipe on
-Windows. The endpoint accepts only an agent session report, for the terminal whose
-random per-shell token (`NOVADECK_REPORT_TOKEN`) the report carries. That token also
-authorizes every agent tool call the terminal's agent makes (asks, tells, messages to other
-agents, and opening a terminal that runs a command), so a process that reads a shell's token
+Windows. The endpoint accepts an agent session report, and the agent's tool calls to
+Novadeck's MCP server, each for the terminal whose random per-shell token
+(`NOVADECK_REPORT_TOKEN`) it carries. So that token authorizes every agent tool call the
+terminal's agent makes (asks, tells, messages to other agents, and opening a terminal that
+runs a command), and a process that reads a shell's token
 can act as that shell's agent, with everything its agent may do. Processes in a shell can read
 that shell's token, and so can misreport its session, which at worst resumes another session of
 the same user. The runner builds the resume command itself, from a fixed program and arguments
 and a session id limited to letters, digits, `.`, `_` and `-`, so a report cannot change what
-the resume command runs; a process holding the token can still run commands through the agent
-tools, as that user could in the shell already.
+the resume command runs. `open_terminal` with a command, which starts a new terminal that runs
+it, is asked of the person first, with the exact command, the folder and the agent that asks,
+and opens nothing unless they approve; the agent hears their answer. `close_terminal` likewise
+asks before closing a terminal that runs another agent's session or a program other than its
+shell, or a shell with a job in the background. The dialog writes out characters that draw as
+nothing and holds the answer back until the person has seen the whole command. A command is
+quoted into the shell only from characters no shell expands. The approval certifies the
+command, not what it runs: a script it calls, a git filter (the `show` tool's `changes` runs
+`git diff` with the folder's filters on) or a harness's settings in a folder an agent can write
+can still run more, so an agent that edits files unattended remains a way around it.
 The shell integration and hook live in the runner's own `shell` folder; the runner
 never writes to the user's rc files or dotfiles. Only when the person connects an agent
 does it install Novadeck's plugin into that agent, through the agent's own plugin

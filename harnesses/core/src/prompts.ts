@@ -31,8 +31,22 @@ export const withoutDoorbell = (prompt: string): string =>
     .replace(/[ \t]{2,}/g, " ")
     .trim()
 
-/** Quotes a doorbell line for any shell Novadeck starts: it holds no character they expand. */
-export const quotedLine = (line: string): string => `"${line}"`
+/**
+ * The characters a quoted line may hold: none that sh, zsh, fish, PowerShell or cmd expand
+ * or end a double-quoted word at (`$`, a backtick, `\\`, `"`, `!`, `%`, `^`, `&`, `;`, a
+ * newline), so one quoting works in all of them.
+ */
+const quotable = /^[A-Za-z0-9 ,.:/_[\]=@+-]*$/
+
+/**
+ * Quotes a line for any shell Novadeck starts as one word. It refuses (throws) a line
+ * holding a character a shell might expand, rather than trusting the quotes to hold it.
+ */
+export const quotedLine = (line: string): string => {
+  if (!quotable.test(line))
+    throw new RangeError("The line holds a character no shell quotes safely.")
+  return `"${line}"`
+}
 
 /**
  * Whether a prompt is a delivery of agents' messages rather than the person's, in any

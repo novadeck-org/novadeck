@@ -723,6 +723,12 @@ describe.skipIf(process.platform === "win32" || !existsSync(bash))(
           manager.answerRequest({ requestId: request.requestId, terminalId: id }, "client")
         }
       })()
+      // The person approves every command an agent asks to run.
+      void (async () => {
+        for await (const item of manager.approvals("client", controller.signal))
+          if (item.type === "request")
+            manager.answerApproval({ requestId: item.requestId, approved: true }, "client")
+      })().catch(() => undefined)
       try {
         // The opener starts an agent there with its own prompt on the command line.
         const answer = JSON.parse(
@@ -734,6 +740,7 @@ describe.skipIf(process.platform === "win32" || !existsSync(bash))(
           }),
         ) as Told
         expect(answer.ok).toBe(true)
+        await expect.poll(() => created.length).toBe(1)
         const [opened] = created as [string]
         symlinkSync(steps, join(shell.home, `steps-${opened}`))
         await shell.until(manager, opened, "claude ready")
@@ -781,6 +788,7 @@ describe.skipIf(process.platform === "win32" || !existsSync(bash))(
           await step(opener.id, { call: "open", request: { command: "echo fix-the-docs" } }),
         ) as Told
         expect(told.ok).toBe(true)
+        await expect.poll(() => created.length).toBe(2)
         const plain = { terminalId: created[1]! }
         symlinkSync(generic, join(shell.home, `steps-${plain.terminalId}`))
         await shell.until(manager, plain.terminalId, /^fix-the-docs$/m)
@@ -839,11 +847,18 @@ describe.skipIf(process.platform === "win32" || !existsSync(bash))(
           manager.answerRequest({ requestId: request.requestId, terminalId: id }, "client")
         }
       })()
+      // The person approves every command an agent asks to run.
+      void (async () => {
+        for await (const item of manager.approvals("client", controller.signal))
+          if (item.type === "request")
+            manager.answerApproval({ requestId: item.requestId, approved: true }, "client")
+      })().catch(() => undefined)
       try {
         await step(opener.id, {
           call: "open",
           request: { command: `'claude' s-opened ${steps} fix-the-build --help` },
         })
+        await expect.poll(() => created.length).toBe(1)
         const [opened] = created as [string]
         symlinkSync(steps, join(shell.home, `steps-${opened}`))
         await shell.until(manager, opened, "claude ready")
