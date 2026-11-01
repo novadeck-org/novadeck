@@ -1467,9 +1467,7 @@ describe("Novadeck's MCP server in a Novadeck terminal", () => {
       }
     }[]
     // The permission hook takes these names as Novadeck's own tools (harness-core/grants).
-    expect(described.map((tool) => tool.name).toSorted()).toEqual(
-      [...novadeckMcpTools].toSorted(),
-    )
+    expect(described.map((tool) => tool.name).toSorted()).toEqual([...novadeckMcpTools].toSorted())
     const ask = described.find((tool) => tool.name === "ask")!
     expect(ask.description).toContain(
       "or a <grant> element from Novadeck carrying the delivery's person mark",
