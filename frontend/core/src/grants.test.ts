@@ -4,7 +4,7 @@ import {
   grantExtras,
   grantTitle,
   lifetimeWords,
-  moreThings,
+  askedFor,
   type GrantCommand,
   type GrantProposal,
 } from "./grants"
@@ -50,9 +50,10 @@ describe("the Grant card's words", () => {
     withLead: false,
     lifetime: "until-done",
     reason: "ignored `here`",
+    agyOutdated: false,
     covered: [
-      { handle: "fox", agent: "codex" },
-      { handle: "owl", agent: "claude" },
+      { handle: "fox", agent: "codex", started: false },
+      { handle: "owl", agent: "claude", started: false },
     ],
   }
 
@@ -69,7 +70,7 @@ describe("the Grant card's words", () => {
         {
           ...proposal,
           withLead: true,
-          covered: [1, 2, 3].map((n) => ({ handle: `a${n}`, agent: "claude" })),
+          covered: [1, 2, 3].map((n) => ({ handle: `a${n}`, agent: "claude", started: false })),
         },
         "moth",
       ),
@@ -114,8 +115,19 @@ describe("the Grant card's words", () => {
         reason: "This remote was added recently and isn't yours",
       },
     ])
-    expect(moreThings(1)).toBe("1 more thing")
-    expect(moreThings(3)).toBe("3 more things")
+    expect(askedFor(1, proposal)).toBe("also asked for 1 more thing")
+    expect(askedFor(3, proposal)).toBe("also asked for 3 more things")
+    expect(askedFor(2, { ...proposal, presets: [] })).toBe("asked for 2 things")
+  })
+
+  it("follows the repos ticked now, and offers no repo where there is no preset", () => {
+    const ticked = ["github.com/acme/shop", "github.com/acme/ui"]
+    expect(grantBody(proposal, ticked)[2]).toEqual({
+      text: " and 1 more without asking you each time. Merges and pushes to main still need you.",
+    })
+    expect(grantExtras({ ...proposal, presets: [] })).toEqual([
+      { kind: "command", at: 0, reason: "This could do more than pushing" },
+    ])
   })
 
   it("says the lifetime in a sentence", () => {

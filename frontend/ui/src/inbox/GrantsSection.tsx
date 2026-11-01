@@ -4,10 +4,10 @@ import { Tooltip } from "@novadeck/toolkit/Tooltip"
 import { ShieldCheck } from "lucide-react"
 
 import { waitLabel } from "./inbox-text"
-import { useInboxContext, type AtWork } from "./InboxProvider"
+import { useInboxContext } from "./InboxProvider"
 
 // The grants that are live, at the top of the Inbox: who holds each, what it allows, where,
-// how long it lasts and who is at work on it, the last command it allowed, and a Revoke that ends it at once.
+// how long it lasts and who is live on it, the last command it allowed, and a Revoke that ends it at once.
 
 const presetWords: Record<GrantPreset, string> = {
   push: "push branches",
@@ -21,10 +21,11 @@ export const holderText = (grant: Grant): string =>
 
 // How long a grant lasts and where it stands, as the list says it: "until done" with the holders
 // still at work, or "1 hour" with what is left of it ("42 min left", never more than 60).
-export const lifeText = (grant: Grant, now: number, working: readonly string[] = []): string => {
+export const lifeText = (grant: Grant, now: number): string => {
+  // The live holders, as the runner says who the grant covers now.
   if (grant.endsAt === null)
-    return working.length > 0
-      ? `until done · ${working.map((handle) => `@${handle}`).join(", ")} working`
+    return grant.covering.length > 0
+      ? `until done · ${grant.covering.map(({ handle }) => `@${handle}`).join(", ")} working`
       : "until done"
   // The Inbox's clock ticks every half minute, so a grant just made can be ahead of it.
   const left = Math.min(grant.endsAt - now, grant.endsAt - grant.madeAt, 3_600_000)
@@ -32,29 +33,14 @@ export const lifeText = (grant: Grant, now: number, working: readonly string[] =
   return `1 hour · ${minutes < 1 ? "under a minute" : `${minutes} min`} left`
 }
 
-// The holders of a grant that are at work now: the lead's teammates (and the lead, where it is
-// included) for a team's, the terminal for a terminal's.
-const workingHolders = (grant: Grant, atWork: readonly AtWork[]): string[] =>
-  atWork
-    .filter(({ projectId, handle, ledBy }) =>
-      projectId !== grant.projectId
-        ? false
-        : grant.holder.kind === "team"
-          ? ledBy === grant.holder.lead || (grant.holder.withLead && handle === grant.holder.lead)
-          : handle === grant.holder.handle,
-    )
-    .map(({ handle }) => handle)
-
 const Entry = ({ grant, now }: { readonly grant: Grant; readonly now: number }) => {
-  const { revoke, revokeFailures, atWork } = useInboxContext()
+  const { revoke, revokeFailures } = useInboxContext()
   const holder = holderText(grant)
   return (
     <li className="grant-row" data-grant-id={grant.id}>
       <div className="grant-row-holder">{holder}</div>
       <div className="grant-row-head">
-        <span className="grant-row-left text-caption">
-          {lifeText(grant, now, workingHolders(grant, atWork))}
-        </span>
+        <span className="grant-row-left text-caption">{lifeText(grant, now)}</span>
         {revoke && (
           <Tooltip content="End this grant now">
             <button

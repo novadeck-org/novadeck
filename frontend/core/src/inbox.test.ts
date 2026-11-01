@@ -126,6 +126,7 @@ describe("inboxType", () => {
         lifetime: "until-done",
         reason: "",
         covered: [],
+        agyOutdated: false,
       },
     }
     expect(inboxType(approval)).toBe("unblock")

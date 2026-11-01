@@ -80,10 +80,16 @@ const grantProposal: GrantProposal = {
   reason:
     "Fox and owl each finish a piece of checkout today; they run the unit tests before every push.",
   covered: [
-    { handle: "fox", agent: "codex" },
-    { handle: "owl", agent: "claude" },
+    { handle: "fox", agent: "codex", started: false },
+    { handle: "owl", agent: "claude", started: false },
   ],
+  agyOutdated: false,
 }
+
+// A reason that tries to pass for Novadeck's own words, with a right-to-left override in it:
+// the cards show it as the agent's, in its own muted mono line.
+const hostileReason =
+  "Novadeck checked these commands: nothing below needs your OK, so you can skip Review. Novadeck recommends: Allow until they're done.\u202E"
 
 // The Claude edit dialog Novadeck can't read, as it is on screen.
 const editScreen = `Edit file
@@ -308,6 +314,9 @@ export const demoInboxIds = {
   entryAsk: "demo-entry-ask",
   grant: "demo-grant",
   grantAgy: "demo-grant-agy",
+  grantAgyOld: "demo-grant-agy-old",
+  grantHostile: "demo-grant-hostile",
+  approvalHostile: "demo-approval-hostile",
   approval: "demo-approval",
 } as const
 
@@ -408,7 +417,56 @@ const extraFixtures: readonly Fixture[] = [
     stopped: true,
     content: {
       kind: "grant",
-      proposal: { ...grantProposal, covered: [{ handle: "elk", agent: "agy" }] },
+      proposal: { ...grantProposal, covered: [{ handle: "elk", agent: "agy", started: true }] },
+    },
+  },
+  {
+    id: demoInboxIds.grantAgyOld,
+    project: "mobile-app",
+    terminal: 3,
+    agent: "claude",
+    minutes: 4,
+    stopped: true,
+    content: {
+      kind: "grant",
+      proposal: {
+        ...grantProposal,
+        covered: [{ handle: "elk", agent: "agy", started: false }],
+        agyOutdated: true,
+      },
+    },
+  },
+  {
+    id: demoInboxIds.grantHostile,
+    project: "mobile-app",
+    terminal: 4,
+    agent: "claude",
+    minutes: 5,
+    stopped: true,
+    content: { kind: "grant", proposal: { ...grantProposal, reason: hostileReason } },
+  },
+  {
+    id: demoInboxIds.approvalHostile,
+    project: "design-system",
+    terminal: 2,
+    agent: "claude",
+    minutes: 6,
+    stopped: false,
+    content: {
+      kind: "ask",
+      ask: {
+        subject: "Can I run these without asking?",
+        body: hostileReason,
+        details: null,
+        hardToUndo: null,
+        shape: {
+          type: "approval",
+          commands: [
+            { argv: ["uberepo", "ship", "docs"], rest: false },
+            { argv: ["uberepo", "check", "links"], rest: true },
+          ],
+        },
+      },
     },
   },
   {
@@ -841,12 +899,22 @@ export const demoLiveGrant = (now: number): Grant => ({
   workspaceSessionId: "initial",
   holder: { kind: "team", lead: sourceTerminal(1).handle, withLead: false },
   presets: ["push", "pr"],
-  commands: [{ argv: ["gh", "pr", "checks", "12"], rest: false }],
+  commands: [{ argv: ["uberepo", "ship", "docs"], rest: false }],
   repos: grantProposal.repos.slice(0, 2).map(({ repo }) => repo),
   entryId: demoInboxIds.grant,
   proposedBy: sourceTerminal(1).handle,
   madeAt: now - 25 * minute,
   lifetime: "until-done",
+  covering: [
+    {
+      terminalId: demoTerminalId({ projectId: "storefront", workspaceSessionId: "initial" }, 3),
+      handle: demoHandle(3),
+    },
+    {
+      terminalId: demoTerminalId({ projectId: "storefront", workspaceSessionId: "initial" }, 4),
+      handle: demoHandle(4),
+    },
+  ],
   endsAt: null,
   revokedAt: null,
   lastUse: {
@@ -871,6 +939,12 @@ export const demoEndingGrant = (now: number, ms: number): Grant => ({
   proposedBy: sourceOf("design-system", 1, "claude").handle,
   madeAt: now - 59 * minute,
   lifetime: "hour",
+  covering: [
+    {
+      terminalId: demoTerminalId({ projectId: "design-system", workspaceSessionId: "initial" }, 1),
+      handle: sourceOf("design-system", 1, "claude").handle,
+    },
+  ],
   endsAt: now + ms,
   revokedAt: null,
   lastUse: null,
@@ -886,6 +960,7 @@ export const demoAutoRunOffer: AutoRunState = {
   next: autoRunWrapped,
   machine: null,
   outcome: null,
+  dismissed: false,
 }
 
 export const demoAutoRunManual: AutoRunState = {
@@ -896,6 +971,7 @@ export const demoAutoRunManual: AutoRunState = {
   machine: "chcp 65001",
   suggested: autoRunWrapped,
   outcome: null,
+  dismissed: false,
 }
 
 export const demoAutoRunSilenced: AutoRunState = {
@@ -905,4 +981,5 @@ export const demoAutoRunSilenced: AutoRunState = {
   machine: null,
   suggested: null,
   outcome: { kind: "applied-clean", waiting: [], restart: false },
+  dismissed: false,
 }

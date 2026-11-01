@@ -16,6 +16,7 @@ import {
 } from "react"
 
 import { AskAgent } from "../feedback/AskAgent"
+import { AutoRunFixLink } from "../inbox/AutoRunFix"
 import { terminalElement } from "../interaction/dom"
 import type { MurmurAddonValue } from "../preferences/MurmurAddon"
 import { disconnectAgent, runUninstall } from "../preferences/uninstall"
@@ -105,7 +106,7 @@ const useAutoRun = (inbox: Backend["inbox"]) => {
     autorun?.busy?.subscribe ?? always,
     () => autorun?.busy?.getSnapshot() ?? false,
   )
-  return autorun && { state, undo: autorun.undo, busy }
+  return autorun && { state, undo: autorun.undo, busy, fix: <AutoRunFixLink /> }
 }
 
 const noAgents: readonly never[] = []

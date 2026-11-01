@@ -45,6 +45,8 @@ export type Grant = {
   readonly lifetime: GrantLifetime
   // The clock time an hour grant ends; null for one that lasts until done.
   readonly endsAt: number | null
+  // Who the grant covers right now, as the runner sends it: the live holders only.
+  readonly covering: readonly { readonly terminalId: string; readonly handle: string }[]
   readonly revokedAt: number | null
   readonly lastUse: {
     readonly at: number
@@ -74,7 +76,12 @@ export type GrantProposal = {
   readonly covered: readonly {
     readonly handle: string
     readonly agent: string
+    // Its agent is already running (an Antigravity started after the grant is the one it reaches).
+    readonly started: boolean
   }[]
+  // The installed Antigravity is older than 1.4.10, which takes no launch grant, and a covered
+  // teammate runs it.
+  readonly agyOutdated: boolean
 }
 
 // The person's Grant on a card: what stayed ticked (commands by index into the proposal's,
@@ -116,11 +123,15 @@ export const lifetimeWords = (lifetime: GrantLifetime): string =>
 // its presets, repos and the teammates it covers. The lead's own words (`reason`) and the
 // commands never go into them.
 
-// Who the card names: the covered teammates (and the lead when it asks to be included), or
-// "my team" where there are none or more than three.
-export const grantHolders = (proposal: GrantProposal, lead: string): string => {
+// Who the card names: the covered teammates (and the lead when it is included, as the person
+// has the switch), or "my team" where there are none or more than three.
+export const grantHolders = (
+  proposal: GrantProposal,
+  lead: string,
+  withLead: boolean = proposal.withLead,
+): string => {
   const handles = [
-    ...(proposal.withLead ? [lead] : []),
+    ...(withLead ? [lead] : []),
     ...proposal.covered.map(({ handle }) => handle),
   ].map((handle) => `@${handle}`)
   if (handles.length === 0 || handles.length > 3) return "my team"
@@ -129,19 +140,26 @@ export const grantHolders = (proposal: GrantProposal, lead: string): string => {
     : `${handles.slice(0, -1).join(", ")} and ${handles.at(-1)}`
 }
 
-export const grantTitle = (proposal: GrantProposal, lead: string): string =>
-  `Let ${grantHolders(proposal, lead)} work without asking?`
+export const grantTitle = (
+  proposal: GrantProposal,
+  lead: string,
+  withLead: boolean = proposal.withLead,
+): string => `Let ${grantHolders(proposal, lead, withLead)} work without asking?`
 
 export type GrantBodyPart = { readonly text: string } | { readonly code: string }
 
 const repoName = (url: string): string => url.replace(/^github\.com\//, "")
 
-// The repos the card grants as proposed: the ones it ticks.
-export const proposedRepos = (proposal: GrantProposal): readonly GrantRepo[] =>
-  proposal.repos.filter(({ ticked }) => ticked).map(({ repo }) => repo)
+// The repos the card ticks as proposed, by url.
+export const proposedRepos = (proposal: GrantProposal): readonly string[] =>
+  proposal.repos.filter(({ ticked }) => ticked).map(({ repo }) => repo.url)
 
-// What they'd do, where, and what still needs the person.
-export const grantBody = (proposal: GrantProposal): readonly GrantBodyPart[] => {
+// What they'd do, where, and what still needs the person: `ticked` the repos as the person has
+// them ticked now (the proposed ones to start with).
+export const grantBody = (
+  proposal: GrantProposal,
+  ticked: readonly string[] = proposedRepos(proposal),
+): readonly GrantBodyPart[] => {
   const push = proposal.presets.includes("push")
   const pr = proposal.presets.includes("pr")
   const what =
@@ -152,14 +170,14 @@ export const grantBody = (proposal: GrantProposal): readonly GrantBodyPart[] => 
         : pr
           ? "open and edit pull requests"
           : "run a few commands"
-  const repos = proposedRepos(proposal)
+  const repos = proposal.repos.map(({ repo }) => repo.url).filter((url) => ticked.includes(url))
   const where: GrantBodyPart[] =
     push || pr
       ? repos.length === 0
         ? [{ text: " in a repo you tick under Review" }]
         : [
             { text: " in " },
-            { code: repoName(repos[0]!.url) },
+            { code: repoName(repos[0]!) },
             ...(repos.length > 1 ? [{ text: ` and ${repos.length - 1} more` }] : []),
           ]
       : []
@@ -186,7 +204,8 @@ export const grantBody = (proposal: GrantProposal): readonly GrantBodyPart[] => 
 }
 
 // What the lead asked for beyond the presets and the repos that it ticks: every command, and
-// each repo it leaves unticked. They stay unticked until the person ticks them.
+// each repo it leaves unticked (where there are presets for a repo to matter). They stay
+// unticked until the person ticks them.
 export type GrantExtra =
   | { readonly kind: "command"; readonly at: number; readonly reason: string }
   | { readonly kind: "repo"; readonly url: string; readonly reason: string }
@@ -204,7 +223,7 @@ export const grantExtras = (proposal: GrantProposal): readonly GrantExtra[] => [
       ? "This could do more than pushing"
       : "This isn't pushing or a pull request",
   })),
-  ...proposal.repos
+  ...(proposal.presets.length === 0 ? [] : proposal.repos)
     .filter(({ ticked }) => !ticked)
     .map(({ repo, flag }): GrantExtra => ({
       kind: "repo",
@@ -213,6 +232,9 @@ export const grantExtras = (proposal: GrantProposal): readonly GrantExtra[] => [
     })),
 ]
 
-// "1 more thing" or "3 more things".
-export const moreThings = (count: number): string =>
-  `${count} more ${count === 1 ? "thing" : "things"}`
+// What the extras line says: "also asked for 3 more things", or with no presets to add to,
+// "asked for 3 things".
+export const askedFor = (count: number, proposal: GrantProposal): string => {
+  const more = proposal.presets.length > 0
+  return `${more ? "also " : ""}asked for ${count}${more ? " more" : ""} ${count === 1 ? "thing" : "things"}`
+}

@@ -132,6 +132,21 @@ const kinds: readonly { readonly label: string; readonly name: Named; readonly h
     hint: 'The same card for a team of one Antigravity teammate: open Details for the Antigravity note and, with an AutoRun offer shown, the line "Antigravity on this PC needs one fix to use this grant · Fix"',
   },
   {
+    label: "Grant card, old Antigravity",
+    name: "grantAgyOld",
+    hint: 'The same card where the installed Antigravity is older than 1.4.10: open Details for "Antigravity needs updating to 1.4.10 to use this."',
+  },
+  {
+    label: "Grant card, hostile reason",
+    name: "grantHostile",
+    hint: "The lead's reason imitates Novadeck's own words and holds a right-to-left override: it stays in the muted mono line under \"@<lead>'s reason:\", the override written out",
+  },
+  {
+    label: "Approval card, hostile reason",
+    name: "approvalHostile",
+    hint: "The same for an approval ask's body",
+  },
+  {
     label: "Approval card",
     name: "approval",
     hint: "Unblock row for design-system's first terminal: \"Can I run these without asking?\", the agent's words as a muted note, Novadeck's line and three commands as code with the open-ended one as a warning line; Allow until it's done, Allow for 1 hour, Decline",

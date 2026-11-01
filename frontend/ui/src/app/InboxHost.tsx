@@ -6,7 +6,7 @@ import { InboxSheet } from "../inbox/InboxSheet"
 import { InboxToasts, type ShowBoard, type ToastBoard } from "../inbox/InboxToasts"
 import { PlanTextProvider } from "../inbox/plan-text"
 import { focusTerminalInput } from "../interaction/dom"
-import { agentsAtWork, anyAgentWorking } from "../projects/project-status"
+import { anyAgentWorking } from "../projects/project-status"
 import { useDesktop } from "../shell/desktop"
 import { useWorkspaceServices, useWorkspaceState } from "./controller/context"
 import { dingOf } from "./ding"
@@ -62,18 +62,6 @@ export const InboxHost = ({
   const { inbox } = landing
   // Whether an agent is at work in any project, for the empty Inbox to say.
   const working = useWorkspaceState((state) => anyAgentWorking(state.projects))
-  // Who is at work, for the Grants list to say what a grant's holders are doing.
-  const atWork = useWorkspaceState(
-    (state) => agentsAtWork(state.projects),
-    (a, b) =>
-      a.length === b.length &&
-      a.every(
-        (each, at) =>
-          each.projectId === b[at]?.projectId &&
-          each.handle === b[at]?.handle &&
-          each.ledBy === b[at]?.ledBy,
-      ),
-  )
   const { hideSidebar, toggleSidebar, reveal, select, showInbox } = commands
   const phone = useMemo(
     () => (desktop ? undefined : { hideList: hideSidebar, showList: () => toggleSidebar("inbox") }),
@@ -119,7 +107,6 @@ export const InboxHost = ({
         reveal={revealItem}
         phone={phone}
         working={working}
-        atWork={atWork}
         active={active}
       >
         {children}

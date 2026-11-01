@@ -232,6 +232,25 @@ describe("the debug panel's grant actions", () => {
     ).toEqual([demoInboxIds.approval, demoInboxIds.grant].toSorted())
   })
 
+  it("adds the Antigravity cards, one with a running teammate and one with an old Antigravity", () => {
+    const inbox = withCards()
+    run(inbox, "Grant card, Antigravity")
+    run(inbox, "Grant card, old Antigravity")
+    const proposals = inbox.state
+      .getSnapshot()
+      .items.flatMap((row) => (row.kind === "grant" ? [row.proposal] : []))
+    expect(proposals.map((each) => each.covered.map(({ agent }) => agent))).toEqual([
+      ["agy"],
+      ["agy"],
+    ])
+    expect(
+      proposals.map((each) => [each.covered[0]?.started, each.agyOutdated]).toSorted(),
+    ).toEqual([
+      [false, true],
+      [true, false],
+    ])
+  })
+
   it("lists a live grant with its last use, and revokes it", () => {
     const inbox = withCards()
     const notes: string[] = []

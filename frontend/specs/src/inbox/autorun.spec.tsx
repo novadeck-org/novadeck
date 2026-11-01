@@ -68,6 +68,7 @@ describe("The Command Prompt line in the Inbox", () => {
       next: "(chcp\u200B 65001) >nul 2>&1",
       machine: null,
       outcome: null,
+      dismissed: false,
     })
     await line().getByRole("button", { name: "Fix" }).click()
     await confirm().getByRole("button", { name: "details" }).click()
@@ -89,11 +90,27 @@ describe("The Command Prompt line in the Inbox", () => {
     await expect.element(line().getByRole("button", { name: "Undo" })).toBeVisible()
   })
 
-  it("goes away on Not now", async () => {
+  it("goes away on Not now, and Preferences still offers the fix", async () => {
     await openInbox()
     desktopWindow.autorun(demoAutoRunOffer)
     await line().getByRole("button", { name: "Fix" }).click()
     await confirm().getByRole("button", { name: "Not now" }).click()
+
+    await expect.element(line()).not.toBeInTheDocument()
+    await openPreferences()
+    const row = preferencesDialog().getByRole("list", { name: "Command Prompt startup output" })
+    await expect
+      .element(row)
+      .toMatchTextContent("Antigravity on this PC needs one fix to use approvals")
+    await row.getByRole("button", { name: "Fix" }).click()
+    await expect
+      .element(confirm())
+      .toMatchTextContent("Antigravity can't use your approvals on this computer")
+  })
+
+  it("is not shown where the person already said not now to the value", async () => {
+    await openInbox()
+    desktopWindow.autorun({ ...demoAutoRunOffer, dismissed: true })
 
     await expect.element(line()).not.toBeInTheDocument()
   })
@@ -122,6 +139,7 @@ describe("The Command Prompt line in the Inbox", () => {
       machine: "chcp 437",
       suggested: "(chcp 437) >nul 2>&1",
       outcome: { kind: "applied-still-prints-hklm" },
+      dismissed: false,
     })
 
     await expect
@@ -152,7 +170,7 @@ describe("An Antigravity team's Grant card", () => {
     desktopWindow.autorun(demoAutoRunOffer)
     await page
       .getByRole("list", { name: "Messages from your agents" })
-      .getByRole("button", { name: /Let @fox's team push branches/ })
+      .getByRole("button", { name: /Let @elk work without asking/ })
       .click()
     const card = page.getByRole("dialog")
     await card.getByRole("button", { name: "Details" }).click()
@@ -160,7 +178,7 @@ describe("An Antigravity team's Grant card", () => {
     await expect
       .element(card)
       .toMatchTextContent("Antigravity on this PC needs one fix to use this grant")
-    await expect.element(card).toMatchTextContent("@elk uses Antigravity")
+    await expect.element(card).toMatchTextContent("@elk picks this up the next time it starts.")
     await card.getByRole("button", { name: "Fix" }).click()
     await expect
       .element(confirm())
@@ -182,7 +200,9 @@ describe("Preferences' Command Prompt row", () => {
     await expect.element(row).toMatchTextContent("chcp 65001")
     await row.getByRole("button", { name: "Undo" }).click()
 
-    await expect.element(row).not.toBeInTheDocument()
+    // Undone, the fix is on offer again.
+    await expect.element(row).toMatchTextContent("needs one fix to use approvals")
+    await expect.element(row.getByRole("button", { name: "Undo" })).not.toBeInTheDocument()
     await closePreferences()
   })
 })

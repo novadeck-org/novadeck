@@ -147,11 +147,13 @@ export const Preferences = ({
     readonly list: readonly AgentSwitch[]
     readonly onChange: (agent: AgentSwitch["agent"], connected: boolean) => void
   }
-  // cmd's AutoRun (Windows), as the runner reports it; listed only while silenced, with Undo.
+  // Command Prompt's startup script (Windows), as the runner reports it: a row with Undo while
+  // it is silenced, and one with the link to the fix (`fix`) while it needs one.
   autorun?: {
     readonly state: AutoRunState
     readonly undo: () => void
     readonly busy: boolean
+    readonly fix?: React.ReactNode
   }
   // Voice input, as the backend has it; absent where it has none.
   voice?: VoiceAddon
@@ -537,7 +539,12 @@ export const Preferences = ({
               <Section title="Agents" description={agentsExplanation}>
                 <AgentSwitches agents={agents.list} onChange={agents.onChange} />
                 {autorun && (
-                  <AutoRunRow state={autorun.state} onUndo={autorun.undo} busy={autorun.busy} />
+                  <AutoRunRow
+                    state={autorun.state}
+                    onUndo={autorun.undo}
+                    busy={autorun.busy}
+                    fix={autorun.fix}
+                  />
                 )}
               </Section>
             )}

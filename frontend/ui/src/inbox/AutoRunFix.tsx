@@ -181,6 +181,25 @@ const AutoRunDialog = ({
   )
 }
 
+const linkClasses = "button link inbox-link text-control"
+
+// A link that opens the confirm: the one Preferences offers too.
+export const AutoRunFixLink = ({
+  label = "Fix",
+}: {
+  readonly label?: string
+}): React.JSX.Element => {
+  const [open, setOpen] = useState(false)
+  return (
+    <>
+      <button type="button" className={linkClasses} onClick={() => setOpen(true)}>
+        {label}
+      </button>
+      <AutoRunDialog open={open} onClose={() => setOpen(false)} />
+    </>
+  )
+}
+
 const classes = {
   // In the Grant card's Details.
   card: { line: "grant-warn", good: "grant-who", bad: "grant-warn" },
@@ -202,12 +221,11 @@ export const AutoRunNote = ({
   readonly where: keyof typeof classes
 }): React.JSX.Element | null => {
   const { autorun, autorunFailure, undoAutoRun, autorunBusy } = useInboxContext()
-  const [open, setOpen] = useState(false)
   const fix = fixOf(autorun)
   const { outcome } = autorun
   const as = classes[where]
   if (fix === null && outcome === null && autorunFailure === null) return null
-  const link = "button link inbox-link text-control"
+  const link = linkClasses
   return (
     <>
       {fix !== null && (
@@ -220,10 +238,11 @@ export const AutoRunNote = ({
           {fix === "fix"
             ? line
             : "Command Prompt still prints at startup: the machine's script does"}
-          {" · "}
-          <button type="button" className={link} onClick={() => setOpen(true)}>
-            {fix === "fix" ? "Fix" : "See how"}
-          </button>
+          {/* The link keeps to its dot, whatever the width. */}
+          <span style={{ display: "inline-flex", gap: 4, whiteSpace: "nowrap" }}>
+            <span>{" · "}</span>
+            <AutoRunFixLink label={fix === "fix" ? "Fix" : "See how"} />
+          </span>
         </p>
       )}
       {where === "panel" && autorun.state === "silenced" && undoAutoRun && (
@@ -250,7 +269,6 @@ export const AutoRunNote = ({
           Could not reach Novadeck&apos;s runner: {autorunFailure}
         </p>
       )}
-      <AutoRunDialog open={open} onClose={() => setOpen(false)} />
     </>
   )
 }

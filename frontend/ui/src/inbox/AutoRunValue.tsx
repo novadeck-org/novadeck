@@ -1,4 +1,4 @@
-import { visibleText } from "@novadeck/core/autorun-text"
+import { visibleText } from "@novadeck/core/visible-text"
 
 // An AutoRun value as the runner read it: verbatim, wrapping at its own spaces and anywhere
 // else it must, with the characters nothing shows written out (`visibleText`).

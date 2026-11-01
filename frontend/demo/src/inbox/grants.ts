@@ -81,6 +81,7 @@ export const grantMadeBy = (row: InboxRow, answer: InboxAnswer, now: number): Gr
       presets: [...picked.presets],
       commands: picked.commands.flatMap((at) => proposal.commands[at] ?? []),
       repos: proposal.repos.flatMap(({ repo }) => (picked.repos.includes(repo.url) ? [repo] : [])),
+      covering: [],
       lifetime: picked.lifetime,
       endsAt: picked.lifetime === "hour" ? now + hour : null,
     }
@@ -96,6 +97,7 @@ export const grantMadeBy = (row: InboxRow, answer: InboxAnswer, now: number): Gr
       lifetime: answer.answer.lifetime,
       endsAt: answer.answer.lifetime === "hour" ? now + hour : null,
       holder: { kind: "terminal", handle: source.handle },
+      covering: [{ terminalId: source.terminalId, handle: source.handle }],
       presets: [],
       commands: [...row.ask.shape.commands],
       repos: [],

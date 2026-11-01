@@ -5,8 +5,9 @@ import { useInboxContext } from "./InboxProvider"
 // grants, so the fix is within reach with no Grant card open: where it needs fixing, what the
 // last click came to, and Undo while it is hidden. The words and the confirm are `AutoRunFix`'s.
 export const AutoRunSection = (): React.JSX.Element | null => {
-  const { autorun, autorunFailure } = useInboxContext()
-  if (autorun.state === "none" && autorun.outcome === null && autorunFailure === null) return null
+  const { autorun } = useInboxContext()
+  // Not now is kept: the line stays away until the value changes, and Preferences still offers it.
+  if (autorun.state === "none" || autorun.dismissed) return null
   return (
     <section
       className="inbox-grants"

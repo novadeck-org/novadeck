@@ -21,6 +21,22 @@ export const Text = ({ text }: { readonly text: string }): React.JSX.Element => 
   </>
 )
 
+// A question or a statement, set in the sheet's sans, with its glyph in the gutter.
+export const Heading = ({
+  glyph = "?",
+  children,
+}: {
+  readonly glyph?: string
+  readonly children: ReactNode
+}): React.JSX.Element => (
+  <h3 className="console-ask">
+    <span className="console-q" aria-hidden="true">
+      {glyph}
+    </span>
+    <span>{children}</span>
+  </h3>
+)
+
 // More under a line of text, behind a toggle.
 export const Disclosure = ({
   label,

@@ -1,25 +1,27 @@
 /* oxlint-disable react/no-array-index-key -- Commands have no ids; the lists never reorder. */
 import {
+  askedFor,
   commandWords,
   grantBody,
   grantExtras,
+  grantTitle,
   lifetimeWords,
-  moreThings,
   proposedRepos,
   type GrantCommand,
   type GrantLifetime,
   type GrantProposal,
 } from "@novadeck/core/grants"
 import type { InboxRow } from "@novadeck/core/inbox"
+import { visibleText } from "@novadeck/core/visible-text"
 import { Checkbox } from "@novadeck/toolkit/Checkbox"
 import { Switch } from "@novadeck/toolkit/Switch"
-import { useId, useState } from "react"
+import { useId, useLayoutEffect, useRef, useState } from "react"
 
 import { AutoRunNote } from "./AutoRunFix"
 import type { SheetContentProps } from "./ConsoleSheet"
 import { useInboxContext } from "./InboxProvider"
 import { Menu, type MenuHandle, type MenuItem } from "./Menu"
-import { Disclosure } from "./sheet-parts"
+import { Disclosure, Heading } from "./sheet-parts"
 
 // The cards that make a grant (#587, #588), in Novadeck's own words, composed from the fixed
 // parts of what is asked: the presets, the repos, the commands and who is covered. The agent's
@@ -40,44 +42,128 @@ const CommandCode = ({ command }: { readonly command: GrantCommand }): React.JSX
   <code>{commandWords(command).join(" ")}</code>
 )
 
-// What the Grant card says under its title: what they'd do and where, and the lead's reason,
-// muted, as the agent's own words.
-export const GrantWords = ({
+// How much of the agent's words show before "more".
+const noteLength = 280
+
+// The agent's own words under Novadeck's, as a muted note: plain text whatever marks it holds,
+// clamped to one line with a toggle where it runs longer, and named for a screen reader as
+// what the agent says.
+export const AgentNote = ({
+  text,
+  who,
+}: {
+  readonly text: string
+  readonly who: string
+}): React.JSX.Element | null => {
+  const [open, setOpen] = useState(false)
+  const [over, setOver] = useState(false)
+  const note = useRef<HTMLParagraphElement>(null)
+  const id = useId()
+  // The words as they read, with what nothing shows written out; about 280 characters of them
+  // until "more".
+  const shown = visibleText(text)
+  const clipped = !open && shown.length > noteLength
+  useLayoutEffect(() => {
+    const el = note.current
+    if (!el || open) return
+    const measure = (): void => setOver(el.scrollHeight > el.clientHeight + 1)
+    measure()
+    if (typeof ResizeObserver === "undefined") return
+    const watch = new ResizeObserver(measure)
+    watch.observe(el)
+    return () => watch.disconnect()
+  }, [open])
+  if (text.trim() === "") return null
+  const mono = { fontFamily: "var(--font-mono)", fontSize: "var(--text-control)" }
+  return (
+    <>
+      {/* Novadeck's own line says whose words these are; they follow in mono, plain. */}
+      <p className="console-note" data-reason-intro="">
+        @{who}&apos;s reason:
+      </p>
+      <p
+        ref={note}
+        id={id}
+        className="console-note"
+        role="note"
+        aria-label={`What @${who} says`}
+        style={
+          open
+            ? { ...mono, marginTop: -8 }
+            : {
+                ...mono,
+                marginTop: -8,
+                display: "-webkit-box",
+                WebkitLineClamp: 1,
+                WebkitBoxOrient: "vertical",
+                overflow: "hidden",
+              }
+        }
+      >
+        {clipped ? `${shown.slice(0, noteLength)}…` : shown}
+      </p>
+      {(over || clipped || (open && shown.length > noteLength)) && (
+        <button
+          type="button"
+          className="button link inbox-link text-control"
+          style={{ marginLeft: 16, marginTop: -6, alignSelf: "flex-start" }}
+          aria-expanded={open}
+          aria-controls={id}
+          onClick={() => setOpen(!open)}
+        >
+          {open ? "less" : "more"}
+        </button>
+      )}
+    </>
+  )
+}
+
+// A Grant card's title, what they'd do and the lead's reason. The person's switch and ticks
+// change who and where, so the title and body follow them.
+export const GrantTop = ({
   proposal,
+  lead,
+  withLead = proposal.withLead,
+  ticked = proposedRepos(proposal),
 }: {
   readonly proposal: GrantProposal
+  readonly lead: string
+  readonly withLead?: boolean
+  readonly ticked?: readonly string[]
 }): React.JSX.Element => (
   <>
+    <Heading glyph="!">{grantTitle(proposal, lead, withLead)}</Heading>
     <div className="console-body">
       <div className="markdown">
         <p style={{ margin: 0 }}>
-          {grantBody(proposal).map((part, index) =>
+          {grantBody(proposal, ticked).map((part, index) =>
             "code" in part ? <code key={index}>{part.code}</code> : part.text,
           )}
         </p>
       </div>
     </div>
-    {proposal.reason.trim() !== "" && <p className="console-note">{proposal.reason}</p>}
+    <AgentNote text={proposal.reason} who={lead} />
   </>
 )
 
-// An approval ask's commands under Novadeck's sentence for them, as code lines. What is open
-// ended, or runs outside a sandbox, is a line in warning text.
+// An approval ask's commands under Novadeck's sentence for them, as code lines, then the
+// agent's own words as a muted note. What is open ended, or runs outside a sandbox, is a line
+// in warning text.
 export const ApprovalWords = ({
   row,
   commands,
+  body,
 }: {
   readonly row: InboxRow
   readonly commands: readonly GrantCommand[]
+  readonly body: string
 }): React.JSX.Element => {
   const open = commands.filter(({ rest }) => rest)
   return (
     <>
       <div className="console-body">
         <div className="markdown">
-          <p style={{ margin: 0 }}>
-            @{row.source.handle} would run these without asking you each time:
-          </p>
+          <p style={{ margin: 0 }}>I&apos;d run these without asking you each time:</p>
         </div>
       </div>
       <ul className="grant-lines" aria-label="Commands" style={{ marginLeft: 16 }}>
@@ -87,6 +173,7 @@ export const ApprovalWords = ({
           </li>
         ))}
       </ul>
+      <AgentNote text={body} who={row.source.handle} />
       {open.length > 0 && (
         <p className="grant-warn" style={{ marginLeft: 16 }} data-grant="rest">
           {open.map((command, index) => (
@@ -110,6 +197,7 @@ export const ApprovalWords = ({
 // The things the lead asked for beyond the presets, behind Review: each unticked, with why it
 // needs the person's OK in warning text.
 const Review = ({
+  id,
   proposal,
   commands,
   repos,
@@ -117,6 +205,7 @@ const Review = ({
   onCommand,
   onRepo,
 }: {
+  readonly id: string
   readonly proposal: GrantProposal
   readonly commands: readonly number[]
   readonly repos: readonly string[]
@@ -124,7 +213,7 @@ const Review = ({
   readonly onCommand: (at: number, on: boolean) => void
   readonly onRepo: (url: string, on: boolean) => void
 }): React.JSX.Element => (
-  <fieldset className="grant-group">
+  <fieldset className="grant-group" id={id}>
     <legend>Needs your OK</legend>
     <p className="console-note" style={{ marginLeft: 0 }}>
       Not included unless you tick them.
@@ -138,10 +227,8 @@ const Review = ({
           onChange={(on) => onCommand(extra.at, on)}
         >
           <span className="grant-repo">
-            <span>
-              Also run <CommandCode command={proposal.commands[extra.at]!} />
-              {proposal.commands[extra.at]!.rest && " with any arguments"}
-            </span>
+            Also run <CommandCode command={proposal.commands[extra.at]!} />
+            {proposal.commands[extra.at]!.rest && " with any arguments"}
             <span className="grant-warn">{extra.reason}</span>
           </span>
         </Tick>
@@ -153,9 +240,7 @@ const Review = ({
           onChange={(on) => onRepo(extra.url, on)}
         >
           <span className="grant-repo">
-            <span>
-              Push to <code>{repoName(extra.url)}</code>
-            </span>
+            Push to <code>{repoName(extra.url)}</code>
             <span className="grant-warn">{extra.reason}</span>
           </span>
         </Tick>
@@ -188,19 +273,21 @@ export const GrantCard = ({
   const [reviewing, setReviewing] = useState(false)
   // Nothing the lead asked for beyond the proposed repos is ticked until the person ticks it.
   const [commands, setCommands] = useState<readonly number[]>([])
-  const [repos, setRepos] = useState<readonly string[]>(
-    proposedRepos(proposal).map(({ url }) => url),
-  )
+  const [repos, setRepos] = useState<readonly string[]>(proposedRepos(proposal))
   const [withLead, setWithLead] = useState(proposal.withLead)
   const [pressed, setPressed] = useState<number | null>(null)
   const me = useId()
+  const review = useId()
   const extras = grantExtras(proposal)
   const codex = proposal.covered.filter(({ agent }) => agent === "codex")
   const antigravity = proposal.covered.filter(({ agent }) => agent === "agy")
+  // An Antigravity already running when the grant is made is not reached by it.
+  const running = antigravity.filter(({ started }) => started)
+  const presets = proposal.presets.length > 0
   const problem =
-    proposal.presets.length > 0 && repos.length === 0
+    presets && repos.length === 0
       ? "Tick a repo under Review for the pushes and pull requests."
-      : proposal.presets.length === 0 && commands.length === 0
+      : !presets && commands.length === 0
         ? "Tick something under Review to grant."
         : null
   const answers: { readonly key: Answer; readonly item: MenuItem }[] = [
@@ -240,27 +327,32 @@ export const GrantCard = ({
           type: "grant",
           presets: proposal.presets,
           commands: commands.toSorted((a, b) => a - b),
-          repos: repos.filter((url) => proposal.repos.some(({ repo }) => repo.url === url)),
+          // Repos grant nothing without a preset to use them with.
+          repos: presets
+            ? repos.filter((url) => proposal.repos.some(({ repo }) => repo.url === url))
+            : [],
           withLead,
           lifetime,
         },
       },
-      `Granted @${lead}'s team ${lifetimeWords(lifetime)}.`,
+      `Granted @${lead}'s team${withLead ? ` and @${lead}` : ""} ${lifetimeWords(lifetime)}.`,
     )
   }
   return (
     <>
+      <GrantTop proposal={proposal} lead={lead} withLead={withLead} ticked={repos} />
       {extras.length > 0 && (
         <>
           <p
             className="grant-warn"
             style={{ marginLeft: 16, display: "flex", alignItems: "baseline", gap: 6 }}
           >
-            @{lead} also asked for {moreThings(extras.length)} ·{" "}
+            @{lead} {askedFor(extras.length, proposal)} ·{" "}
             <button
               type="button"
               className="button link inbox-link text-control"
               aria-expanded={reviewing}
+              aria-controls={review}
               onClick={() => setReviewing(!reviewing)}
             >
               Review
@@ -268,6 +360,7 @@ export const GrantCard = ({
           </p>
           {reviewing && (
             <Review
+              id={review}
               proposal={proposal}
               commands={commands}
               repos={repos}
@@ -282,7 +375,9 @@ export const GrantCard = ({
         <Disclosure label="Details" openLabel="Hide details">
           <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
             <p className="grant-who">Includes teammates @{lead} adds later.</p>
-            {repos.length > 1 && <p className="grant-who">In {repos.map(repoName).join(", ")}.</p>}
+            {presets && repos.length > 1 && (
+              <p className="grant-who">In {repos.map(repoName).join(", ")}.</p>
+            )}
             <div
               style={{
                 display: "flex",
@@ -307,18 +402,22 @@ export const GrantCard = ({
                 outside Codex&apos;s sandbox.
               </p>
             )}
+            {running.length > 0 && (
+              <p className="grant-warn" data-grant="agy">
+                {handlesOf(running)} {running.length === 1 ? "picks" : "pick"} this up the next time
+                it starts.
+              </p>
+            )}
+            {proposal.agyOutdated && (
+              <p className="grant-warn" data-grant="agy-old">
+                Antigravity needs updating to 1.4.10 to use this.
+              </p>
+            )}
             {antigravity.length > 0 && (
-              <>
-                <p className="grant-warn" data-grant="agy">
-                  {handlesOf(antigravity)} {antigravity.length === 1 ? "uses" : "use"} Antigravity,
-                  which only partly takes a grant: a teammate started before it still asks per
-                  command, and Antigravity before 1.4.10 never takes it.
-                </p>
-                <AutoRunNote
-                  where="card"
-                  line="Antigravity on this PC needs one fix to use this grant"
-                />
-              </>
+              <AutoRunNote
+                where="card"
+                line="Antigravity on this PC needs one fix to use this grant"
+              />
             )}
           </div>
         </Disclosure>

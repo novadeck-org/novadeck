@@ -26,6 +26,7 @@ export const createDemoAutoRun = (): DemoAutoRun => {
       )
     },
     undo: () => state.update(() => ({ ...demoAutoRunOffer, outcome: { kind: "undone" } })),
-    dismiss: () => state.update(() => noAutoRun),
+    // As the runner keeps it: the Inbox's line goes, Preferences still offers the fix.
+    dismiss: () => state.update((current) => ({ ...current, dismissed: true })),
   }
 }

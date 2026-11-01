@@ -1,5 +1,5 @@
 import type { ChatDialog, ChatDialogOption, ChatRequest } from "@novadeck/core/conversation"
-import type { GrantProposal } from "@novadeck/core/grants"
+import { grantTitle, type GrantProposal } from "@novadeck/core/grants"
 import { harnesses, type AgentName } from "@novadeck/core/harnesses"
 import { inboxType, type InboxRow, type InboxSource, type Trouble } from "@novadeck/core/inbox"
 import { unsaidWaits, waitsBehind } from "@novadeck/core/messages"
@@ -118,18 +118,9 @@ export const subjectOf = (row: InboxRow): string => {
   }
 }
 
-// What a Grant card asks, as the row's subject: "Let @moth's team push and open pull requests?"
-const grantSubject = (proposal: GrantProposal, handle: string): string => {
-  const what = [
-    ...proposal.presets.map((preset) =>
-      preset === "push" ? "push branches" : "open pull requests",
-    ),
-    ...(proposal.commands.length > 0 ? ["run commands"] : []),
-  ]
-  const list =
-    what.length > 1 ? `${what.slice(0, -1).join(", ")} and ${what.at(-1)}` : (what[0] ?? "act")
-  return `Let @${handle}'s team ${list} without asking?`
-}
+// What a Grant card asks, as the row's subject: the card's own title.
+const grantSubject = (proposal: GrantProposal, handle: string): string =>
+  grantTitle(proposal, handle)
 
 const words = (text: string): number => text.split(/\s+/).filter(Boolean).length
 

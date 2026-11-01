@@ -1614,7 +1614,11 @@ describe("Grants", () => {
       outcome: null,
       dismissed: false,
     }
-    expect(inbox.autorun.state.getSnapshot()).toEqual({ state: "none", outcome: null })
+    expect(inbox.autorun.state.getSnapshot()).toEqual({
+      state: "none",
+      outcome: null,
+      dismissed: false,
+    })
     autorunFeed.push(offer)
     await settle()
     expect(inbox.autorun.state.getSnapshot()).toEqual(offer)
@@ -1628,7 +1632,11 @@ describe("Grants", () => {
     expect(streams.autorun.undo).toHaveBeenCalledOnce()
     expect(streams.autorun.dismiss).toHaveBeenCalledOnce()
     stop()
-    expect(inbox.autorun.state.getSnapshot()).toEqual({ state: "none", outcome: null })
+    expect(inbox.autorun.state.getSnapshot()).toEqual({
+      state: "none",
+      outcome: null,
+      dismissed: false,
+    })
     expect(autorunFeed.returned()).toBe(1)
   })
 

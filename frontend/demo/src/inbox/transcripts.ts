@@ -68,10 +68,6 @@ const inboxLead = {
   brief: "measure ping lag across 40 runs and plot it",
 } as const
 
-// The storefront's first terminal leads two of its agents, so the Grants list can say which
-// of a team the grant's holders are at work.
-const storefrontCrew = { projectId: "storefront", lead: 1, workers: [3, 4] } as const
-
 const leadDrafts: readonly DemoDraft[] = [
   user("[Novadeck: automatic notice, agent messages waiting, Q7mT2c]"),
   bash("toolu_i61", "pnpm bench ping-lag --runs 40"),
@@ -199,47 +195,27 @@ export const inboxTranscripts = (now: number): Readonly<Record<string, DemoTrans
 export const withInboxLead = (seed: WorkspaceSeed): WorkspaceSeed => ({
   ...seed,
   projects: seed.projects.map((project) =>
-    project.id === storefrontCrew.projectId
-      ? {
+    project.id !== inboxLead.projectId
+      ? project
+      : {
           ...project,
           sessions: project.sessions.map((each) => ({
             ...each,
             terminals: each.terminals.map((terminal) =>
-              storefrontCrew.workers.some(
-                (number) =>
-                  terminal.id ===
-                  demoTerminalId({ projectId: project.id, workspaceSessionId: each.id }, number),
+              terminal.id ===
+              demoTerminalId(
+                { projectId: project.id, workspaceSessionId: each.id },
+                inboxLead.worker,
               )
                 ? {
                     ...terminal,
-                    ledBy: demoHandle(storefrontCrew.lead),
-                    openedBy: demoHandle(storefrontCrew.lead),
+                    ledBy: demoHandle(inboxLead.lead),
+                    openedBy: demoHandle(inboxLead.lead),
                   }
                 : terminal,
             ),
           })),
-        }
-      : project.id !== inboxLead.projectId
-        ? project
-        : {
-            ...project,
-            sessions: project.sessions.map((each) => ({
-              ...each,
-              terminals: each.terminals.map((terminal) =>
-                terminal.id ===
-                demoTerminalId(
-                  { projectId: project.id, workspaceSessionId: each.id },
-                  inboxLead.worker,
-                )
-                  ? {
-                      ...terminal,
-                      ledBy: demoHandle(inboxLead.lead),
-                      openedBy: demoHandle(inboxLead.lead),
-                    }
-                  : terminal,
-              ),
-            })),
-          },
+        },
   ),
 })
 

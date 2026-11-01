@@ -8,7 +8,6 @@ import {
   write,
   type Picks,
 } from "@novadeck/core/conversation/picks"
-import { grantTitle } from "@novadeck/core/grants"
 import type { HeldMessage, InboxAnswer, InboxRow, Trouble } from "@novadeck/core/inbox"
 import { unsaidWaits, waitsText } from "@novadeck/core/messages"
 import { HandleChip } from "@novadeck/toolkit/HandleChip"
@@ -23,13 +22,13 @@ import {
   type Menu as MenuModel,
   type MenuRow,
 } from "./console-menu"
-import { ApprovalWords, GrantCard, GrantWords } from "./GrantCard"
+import { ApprovalWords, GrantCard, GrantTop } from "./GrantCard"
 import { rowOf } from "./inbox-dom"
 import { actionOf, agentName, limitWindow, recommended, subjectOf } from "./inbox-text"
 import { noDraft, useInboxContext, type Sent } from "./InboxProvider"
 import { Menu, wordsLimit, type MenuHandle, type MenuItem } from "./Menu"
 import { usePlanAnswered, usePlanText } from "./plan-text"
-import { CommandBox, Disclosure, Failure, Text } from "./sheet-parts"
+import { CommandBox, Disclosure, Failure, Heading, Text } from "./sheet-parts"
 
 // The Console sheet: one layout for every kind. The person's last words to the agent and the
 // few steps it took since; the thing it asks about, word for word; and a numbered menu that
@@ -121,22 +120,6 @@ const Step = ({ step }: { readonly step: AgentStep }): React.JSX.Element => (
       <Result step={step} />
     </span>
   </div>
-)
-
-// A question or a statement, set in the sheet's sans, with its glyph in the gutter.
-const Heading = ({
-  glyph = "?",
-  children,
-}: {
-  readonly glyph?: string
-  readonly children: ReactNode
-}): React.JSX.Element => (
-  <h3 className="console-ask">
-    <span className="console-q" aria-hidden="true">
-      {glyph}
-    </span>
-    <span>{children}</span>
-  </h3>
 )
 
 const Prose = ({ text }: { readonly text: string }): React.JSX.Element | null =>
@@ -306,8 +289,7 @@ const Thing = ({ row, now }: { readonly row: InboxRow; readonly now: number }) =
     case "grant":
       return (
         <>
-          <Heading glyph="!">{grantTitle(row.proposal, row.source.handle)}</Heading>
-          <GrantWords proposal={row.proposal} />
+          <GrantTop proposal={row.proposal} lead={row.source.handle} />
         </>
       )
     case "ask": {
@@ -319,12 +301,8 @@ const Thing = ({ row, now }: { readonly row: InboxRow; readonly now: number }) =
           </Heading>
           {ask.hardToUndo && <p className="console-hard">! Hard to undo: {ask.hardToUndo}</p>}
           {ask.shape.type === "approval" ? (
-            // The agent's own words stay a muted note: Novadeck's sentence is the one under it.
-            ask.body.trim() !== "" && (
-              <p className="console-note">
-                <Text text={ask.body} />
-              </p>
-            )
+            // Novadeck's sentence and the commands first, the agent's words a muted note.
+            <ApprovalWords row={row} commands={ask.shape.commands} body={ask.body} />
           ) : (
             <Prose text={ask.body} />
           )}
@@ -337,9 +315,6 @@ const Thing = ({ row, now }: { readonly row: InboxRow; readonly now: number }) =
           )}
           {ask.shape.type === "action" && (
             <CommandBox command={ask.shape.command} folder={ask.shape.directory} copy />
-          )}
-          {ask.shape.type === "approval" && (
-            <ApprovalWords row={row} commands={ask.shape.commands} />
           )}
         </>
       )
@@ -692,7 +667,8 @@ export const ConsoleSheet = (shown: SheetContentProps): React.JSX.Element => {
   return (
     <div className="inbox-sheet-scroll console-page">
       <Context row={row} />
-      <Thing row={row} now={now} />
+      {/* An open Grant card is its own: its title and words follow what the person ticks. */}
+      {row.kind === "grant" && !settled ? null : <Thing row={row} now={now} />}
       {settled ? (
         <p className="console-settled" role="status">
           {settled}

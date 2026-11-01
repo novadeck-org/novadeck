@@ -1,5 +1,6 @@
 import type { AutoRunState } from "@novadeck/core/autorun"
-import { outcomeText, visibleText } from "@novadeck/core/autorun-text"
+import { outcomeText } from "@novadeck/core/autorun-text"
+import { visibleText } from "@novadeck/core/visible-text"
 
 import { addonNoteClasses } from "./addon-parts"
 import { settingRowClasses, settingsCardClasses } from "./settings"
@@ -15,12 +16,24 @@ const value = (kind: string, text: string): React.JSX.Element => (
 export const AutoRunRow = ({
   state,
   onUndo,
+  fix,
   busy = false,
 }: {
   readonly state: AutoRunState
   readonly onUndo: () => void
+  // The link that opens the confirm, which the app makes for the Inbox's own line too.
+  readonly fix?: React.ReactNode
   readonly busy?: boolean
 }): React.JSX.Element | null => {
+  if ((state.state === "offer" || state.state === "manual") && fix)
+    return (
+      <ul className={`m-0 p-0 ${settingsCardClasses}`} aria-label="Command Prompt startup output">
+        <li className={settingRowClasses}>
+          <span>Antigravity on this PC needs one fix to use approvals</span>
+          <span style={{ whiteSpace: "nowrap" }}>{fix}</span>
+        </li>
+      </ul>
+    )
   if (state.state !== "silenced") return null
   const { outcome } = state
   return (

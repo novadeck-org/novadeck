@@ -28,7 +28,7 @@ export type AutoRunManualReason = "machine" | "refused" | "form" | "quiet" | "un
 
 export type AutoRunState =
   // Nothing to offer: another platform, cmd prints nothing, or the person said not now.
-  | { readonly state: "none"; readonly outcome: AutoRunOutcome | null }
+  | { readonly state: "none"; readonly outcome: AutoRunOutcome | null; readonly dismissed: boolean }
   // The person's value, the exact new one, and the machine's (HKLM) value where there is one.
   | {
       readonly state: "offer"
@@ -36,6 +36,8 @@ export type AutoRunState =
       readonly next: string
       readonly machine: string | null
       readonly outcome: AutoRunOutcome | null
+      // The person said not now to the Inbox's line for this value: Preferences still offers it.
+      readonly dismissed: boolean
     }
   | {
       readonly state: "manual"
@@ -45,6 +47,8 @@ export type AutoRunState =
       readonly machine: string | null
       readonly suggested: string | null
       readonly outcome: AutoRunOutcome | null
+      // The person said not now to the Inbox's line for this value: Preferences still offers it.
+      readonly dismissed: boolean
     }
   // The person's value is Novadeck's wrapper; Undo puts `restores` back exactly.
   | {
@@ -54,9 +58,11 @@ export type AutoRunState =
       readonly machine: string | null
       readonly suggested: string | null
       readonly outcome: AutoRunOutcome | null
+      // The person said not now to the Inbox's line for this value: Preferences still offers it.
+      readonly dismissed: boolean
     }
 
-export const noAutoRun: AutoRunState = { state: "none", outcome: null }
+export const noAutoRun: AutoRunState = { state: "none", outcome: null, dismissed: false }
 
 // The state and the person's three clicks. Absent from a backend whose runner has none.
 export type AutoRun = {
