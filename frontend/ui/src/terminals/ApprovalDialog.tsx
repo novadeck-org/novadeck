@@ -3,10 +3,9 @@ import type { Approval, ApprovalAction } from "@novadeck/core/port"
 import { handleText } from "@novadeck/core/terminals/handle"
 import { isAgentProgram } from "@novadeck/core/terminals/process"
 import type { TerminalMetadata, Workspace } from "@novadeck/core/types"
+import { clipped, visibleText } from "@novadeck/core/visible-text"
 import { ConfirmDialog } from "@novadeck/toolkit/ConfirmDialog"
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react"
-
-import { clipped, visibleText } from "./visible-text"
 
 type Party = Pick<TerminalMetadata, "name" | "process" | "handle">
 

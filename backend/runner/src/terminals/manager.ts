@@ -20,7 +20,7 @@ import type {
 } from "@novadeck/protocol"
 import { createTerminalHost, type Terminal, type TerminalHost } from "@novadeck/terminal/host"
 import { Trees, type ProcessTrees, type Pty, type PtyOptions } from "@novadeck/terminal/pty"
-import { afterKeys, emptyLine, withLocale } from "@novadeck/terminal/shell"
+import { afterKeys, emptyLine } from "@novadeck/terminal/shell"
 import { keysOf, type InterruptOptions, type PromptOptions } from "@novadeck/tui-input"
 
 import type { PlanText } from "../companions/content.js"
