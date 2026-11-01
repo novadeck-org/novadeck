@@ -103,11 +103,21 @@ export const processGroup = async (pid: number): Promise<number | undefined> => 
 
 /**
  * Whether the process has a live child, as a shell does with a job in the background
- * (`npm run dev &`); undefined where the platform doesn't tell, as on Windows, or when the
- * lookup fails.
+ * (`npm run dev &`, a PowerShell `Start-Job`); undefined when the lookup can't tell: `pgrep`
+ * missing, or on Windows no `trees` or a relay that can't run. On Windows the relay's tree
+ * names no process, so any process under the root counts, not only a program.
  */
-export const hasChildProcess = async (pid: number | undefined): Promise<boolean | undefined> => {
+export const hasChildProcess = async (
+  pid: number | undefined,
+  trees?: {
+    readonly read: (root: number) => Promise<readonly { readonly pid: number }[] | undefined>
+  },
+): Promise<boolean | undefined> => {
   if (pid === undefined || !Number.isSafeInteger(pid) || pid <= 0) return undefined
+  if (process.platform === "win32") {
+    const tree = await trees?.read(pid)
+    return tree === undefined ? undefined : tree.some((member) => member.pid !== pid)
+  }
   if (process.platform !== "linux" && process.platform !== "darwin") return undefined
   try {
     const { stdout } = await promisify(execFile)("pgrep", ["-P", String(pid)], {

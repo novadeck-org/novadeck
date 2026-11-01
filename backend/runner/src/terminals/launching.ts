@@ -75,6 +75,11 @@ export class Launcher {
     readonly host: LauncherHost,
   ) {}
 
+  /** The runner's own relay, which on Windows also reads a shell's process tree. */
+  get relay(): string {
+    return this.options.relay
+  }
+
   /** Listens for agent reports once the shell files are written; shells start plainly without. */
   integrate(shellFiles: Promise<InstalledShell | undefined> | undefined): void {
     this.integration = this.listen(shellFiles)

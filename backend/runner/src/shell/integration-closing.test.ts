@@ -359,8 +359,21 @@ describe.skipIf(process.platform === "win32" || !existsSync(bash))(
         ...calls.first,
         request: { to: "crow" },
       })
-      // Past reading whether a program runs there, the close is on its way.
-      await new Promise((resolve) => setTimeout(resolve, 200))
+      // Past reading whether a program runs there, the close is under way: the terminal takes
+      // no more input.
+      await expect
+        .poll(
+          () => {
+            try {
+              manager.write({ terminalId: last!.id, data: " " }, "owner")
+              return false
+            } catch (error) {
+              return (error as { code?: string }).code === "TERMINAL_EXITED"
+            }
+          },
+          { timeout: 10_000 },
+        )
+        .toBe(true)
       const stopping = manager.shutdown()
       await expect(stopped).resolves.toEqual(unansweredCalls.close)
       await stopping
@@ -426,7 +439,7 @@ describe.skipIf(process.platform === "win32" || !existsSync(bash))(
           show(shell, manager, opened!, calls, "client")
         // The terminal that began the chain is back at its prompt: one still running its last
         // command is asked about, not closed.
-        await new Promise((resolve) => setTimeout(resolve, 500))
+        await shell.until(manager, terminals[0]!.id, /\$ [^\n$]{0,12}$/)
         await expect(chained([close("moth"), close("raven")])).resolves.toEqual([closed(1), spent])
         await expect(chained(Array.from({ length: 5 }, () => open({})))).resolves.toEqual([
           ...Array.from({ length: 4 }, () => ({ ok: false, reason: "Not now." })),

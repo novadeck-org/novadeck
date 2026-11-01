@@ -144,3 +144,34 @@ describe.skipIf(process.platform === "win32")("a process's children", () => {
     await expect(hasChildProcess(2 ** 22 + 12345)).resolves.toBe(false)
   })
 })
+
+describe("a Windows shell's children, from the relay's tree", () => {
+  const platform = Object.getOwnPropertyDescriptor(process, "platform")!
+  const onWindows = () => {
+    Object.defineProperty(process, "platform", { value: "win32" })
+    onTestFinished(() => void Object.defineProperty(process, "platform", platform))
+  }
+  const tree = (members: number[] | undefined) => ({
+    read: vi.fn<(root: number) => Promise<{ pid: number; startedAt: number }[] | undefined>>(
+      async () => members?.map((pid) => ({ pid, startedAt: 1 })),
+    ),
+  })
+
+  it("is busy when any process runs under the shell, as a Start-Job or start /b leaves", async () => {
+    onWindows()
+    await expect(hasChildProcess(10, tree([10, 11]))).resolves.toBe(true)
+  })
+
+  it("is idle when the tree holds only the shell", async () => {
+    onWindows()
+    const trees = tree([10])
+    await expect(hasChildProcess(10, trees)).resolves.toBe(false)
+    expect(trees.read).toHaveBeenCalledWith(10)
+  })
+
+  it("tells nothing where the relay can't read the tree, or none is given", async () => {
+    onWindows()
+    await expect(hasChildProcess(10, tree(undefined))).resolves.toBeUndefined()
+    await expect(hasChildProcess(10)).resolves.toBeUndefined()
+  })
+})

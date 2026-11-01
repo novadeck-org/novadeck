@@ -64,10 +64,11 @@ export const shellBusy = async (
     Record,
     "foreground" | "terminal" | "summary" | "shellName" | "prompts" | "submitted"
   >,
+  trees?: Parameters<typeof hasChildProcess>[1],
 ): Promise<boolean> => {
   if (!shellAtPrompt(record)) return true
   if (record.prompts.length > 0 && record.submitted) return true
-  return (await hasChildProcess(record.terminal.pty.pid)) === true
+  return (await hasChildProcess(record.terminal.pty.pid, trees)) === true
 }
 
 /** The shell until the first sample, which may add its command line; Windows reports none. */
