@@ -1,5 +1,6 @@
 import { randomUUID } from "node:crypto"
 
+import { maxFeedbackText } from "@novadeck/protocol"
 import { vi } from "vitest"
 
 import { describe, expect, it } from "../test.js"
@@ -98,6 +99,26 @@ describe("feedback drafts", () => {
     ])
     draft(feedback, "More detail.", "idea")
     expect(feedback.list()).toMatchObject([{ kind: "idea", text: "More detail." }])
+    stop()
+  })
+
+  it("masks what looks like a secret in a draft", () => {
+    const { feedback, stop } = setup()
+    const key = "ghp_abcdefghijklmnopqrstuvwxyz0123456789"
+    draft(feedback, `The tell tool failed with API_KEY=${key} in its output.`)
+    const [kept] = feedback.list()
+    expect(kept?.text).not.toContain(key)
+    expect(kept?.text).toContain("The tell tool failed")
+    stop()
+  })
+
+  it("masks after checking the length, so a draft within the limit is kept", () => {
+    const { feedback, stop } = setup()
+    const key = "ghp_abcdefghijklmnopqrstuvwxyz0123456789"
+    const text = `API_KEY=${key} `.repeat(Math.floor(maxFeedbackText / 56))
+    expect(text.length).toBeLessThanOrEqual(maxFeedbackText)
+    expect(draft(feedback, text)).toMatchObject({ ok: true })
+    expect(feedback.list()[0]?.text).not.toContain(key)
     stop()
   })
 

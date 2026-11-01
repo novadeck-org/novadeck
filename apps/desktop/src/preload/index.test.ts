@@ -269,7 +269,13 @@ describe("a picture of a live page", () => {
   it("is asked for by the page's view id, and comes back as a JPEG address", async () => {
     electron.answer = "data:image/jpeg;base64,AAAA"
     expect(await electron.exposed.pagePicture?.(7, 800)).toBe("data:image/jpeg;base64,AAAA")
-    expect(electron.messages).toEqual([[pagePictureChannel, 7, 800]])
+    expect(electron.messages).toEqual([[pagePictureChannel, 7, 800, false]])
+  })
+
+  it("says when it is for an agent's look, so the main process can refuse a framed page", async () => {
+    electron.answer = "data:image/jpeg;base64,AAAA"
+    await electron.exposed.pagePicture?.(7, 800, true)
+    expect(electron.messages).toEqual([[pagePictureChannel, 7, 800, true]])
   })
 
   it("is nothing for anything else the main process answers", async () => {

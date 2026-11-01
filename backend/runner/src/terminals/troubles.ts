@@ -1,4 +1,5 @@
 import { hiddenCharacter, type PageTrouble } from "@novadeck/protocol"
+import { redact } from "@novadeck/secrets"
 
 import { byteLength } from "../messaging/messages.js"
 
@@ -133,9 +134,11 @@ export const spend = (
   return { pages, troubles: after }
 }
 
-// What a page supplies is its own text: one line, without control or invisible characters.
+// What a page supplies is its own text: one line, without control or invisible characters,
+// and without what looks like a secret (a page logs tokens, and its address may carry one).
 const hidden = new RegExp(hiddenCharacter.source, "gu")
-const line = (text: string): string => text.replaceAll(hidden, " ").replaceAll(/\s+/g, " ").trim()
+const line = (text: string): string =>
+  redact(text).replaceAll(hidden, " ").replaceAll(/\s+/g, " ").trim()
 
 /** The text cut to at most `max` bytes of UTF-8, whole characters, with an ellipsis. */
 const clip = (text: string, max: number): string => {
