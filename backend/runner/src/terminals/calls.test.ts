@@ -75,6 +75,7 @@ describe("the open call", () => {
       startedWith?: string
       summary: { id: string; ledBy: string | null }
     }
+    let looked = 0
     const approvals = new Approvals()
     const host = {
       records: () => records,
@@ -101,6 +102,13 @@ describe("the open call", () => {
         },
       }),
       messaging: () => ({
+        // A grant is never looked at for an open: the person is asked, whoever holds one.
+        grants: {
+          covering: () => {
+            looked += 1
+            return [{ id: "g" }]
+          },
+        },
         refusal: () => undefined,
         send: (_from: string, request: { to: string; text: string }) => {
           sent.push(request)
@@ -149,6 +157,7 @@ describe("the open call", () => {
     }
     return {
       approvals,
+      looked: () => looked,
       person,
       questions,
       asked,
@@ -394,6 +403,18 @@ describe("the open call", () => {
       expect(run.asked.map(({ command }) => command)).toEqual(["npm run dev"])
       expect(run.asked[0]!.opener).toMatchObject({ by: "moth", leads: false })
       expect(run.notices).toEqual([{ to: "t1", text: runNotice.opened("fox", "npm run dev") }])
+    })
+
+    it("is asked of the person whatever grants cover the asking terminal, and none is consulted", async () => {
+      const run = setup()
+      run.person()
+      await run.open({ command: "npm run dev" })
+      await settle()
+      expect(run.asked).toEqual([])
+      expect(run.questions).toHaveLength(1)
+      run.approvals.answer({ requestId: run.questions[0]!.requestId, approved: true }, "person")
+      await settle()
+      expect(run.looked()).toBe(0)
     })
 
     it("opens nothing and says so when the person declines", async () => {

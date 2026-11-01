@@ -5,7 +5,6 @@ import {
   agyNonCommandTools,
   callFromPayload,
   isAgyNonCommandTool,
-  novadeckCommandTools,
   novadeckMcpTools,
 } from "./payload.js"
 
@@ -225,16 +224,16 @@ describe("Antigravity's tools known not to run commands", () => {
     expect(via({ ServerName: ["novadeck_novadeck"], ToolName: "done" })).toBe(false)
     expect(via(undefined)).toBe(false)
     expect(via(null)).toBe(false)
-    // open_terminal runs its command in a new shell: it is no "not a command" in either form.
-    expect([...novadeckCommandTools]).toEqual(["open_terminal"])
-    expect(novadeckMcpTools.has("open_terminal")).toBe(false)
-    expect(isAgyNonCommandTool("mcp_novadeck_novadeck_open_terminal")).toBe(false)
+    // open_terminal asks the person itself when it carries a command (the runner's approval), so
+    // it is one of Novadeck's tools in either form.
+    expect(novadeckMcpTools.has("open_terminal")).toBe(true)
+    expect(isAgyNonCommandTool("mcp_novadeck_novadeck_open_terminal")).toBe(true)
     expect(
       isAgyNonCommandTool("call_mcp_tool", {
         ServerName: "novadeck_novadeck",
         ToolName: "open_terminal",
       }),
-    ).toBe(false)
+    ).toBe(true)
     // Antigravity reads the argument keys without regard to case: a variant is no match.
     for (const args of [
       { ServerName: "novadeck_novadeck", ToolName: "done", toolname: "open_terminal" },

@@ -810,9 +810,10 @@ in `contract/protocol/src/grants.ts`.
   command" (leaving the person's own policy to decide) for Novadeck's MCP tools, matched
   exactly: `mcp_novadeck_novadeck_<tool>`, or `call_mcp_tool` with `ServerName` `novadeck_novadeck`
   and a `ToolName` on `novadeckMcpTools` (`harnesses/core/src/grants/payload.ts`, held to
-  `shell/mcp.ts`'s tool list by a test, with `novadeckCommandTools`). A lookalike server, an
-  unknown tool name, other servers' tools and `open_terminal` (it runs its `command` argument in
-  a new shell) stay `force_ask`. A `call_mcp_tool` whose arguments hold a key that differs from
+  `shell/mcp.ts`'s tool list by a test). A lookalike server, an
+  unknown tool name and other servers' tools stay `force_ask`. `open_terminal` is one of the
+  tools: with a command it runs in a new shell, and the runner asks the person itself before it
+  opens (`terminals/approvals.ts`), which no grant can cover. A `call_mcp_tool` whose arguments hold a key that differs from
   `ServerName` or `ToolName` only by case is none of these, as Antigravity reads keys without
   regard to case.
 - **The person's own Antigravity rules in a narrowed terminal** (probed 2026-11-01, 1.4.12,
