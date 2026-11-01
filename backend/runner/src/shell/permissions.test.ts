@@ -73,6 +73,10 @@ type Fixture = {
     },
   ) => Promise<{ stdout: string | null; report: boolean }>
   readonly deny: (command: string, given?: { token?: string }) => void
+  /** What each folder holds, by path; a folder not named holds nothing. */
+  readonly folders: Map<string, string[]>
+  /** The folder the terminal's shell is in. */
+  readonly shell: { folder: string }
   /** The directory of the launch settings. */
   readonly directory: string
   /** Starts the terminal's Antigravity narrowed with `programs`, as a launch does. */
@@ -95,16 +99,24 @@ const fixture = (
     verified: () => Promise.resolve(true),
     userRules: rules,
   })
+  const folders = new Map<string, string[]>()
+  const shell = { folder: project }
   const host: PermissionsHost = {
-    terminal: (id) => (id === "t" ? { token, exiting: false, projectFolder: project } : undefined),
+    terminal: (id) =>
+      id === "t"
+        ? { token, exiting: false, projectFolder: project, folder: shell.folder }
+        : undefined,
     sameToken: (a, b) => a === b,
     grants: {
       covering: (id) => covering(id),
       recordUse: (id, terminalId, command) => used.push(`${id} ${terminalId} ${command}`),
     },
     narrowing,
-    git: { pushUrls: () => Promise.resolve(undefined) },
-    fs: { real: () => Promise.resolve(undefined), exists: () => Promise.resolve(false) },
+    git: { pushUrls: () => Promise.resolve(undefined), resolve: () => Promise.resolve(null) },
+    fs: {
+      real: () => Promise.resolve(undefined),
+      names: (folder) => Promise.resolve(folders.get(folder) ?? []),
+    },
     now: () => clock.now,
   }
   const permissions = new Permissions(host)
@@ -131,6 +143,8 @@ const fixture = (
     narrowing,
     used,
     clock,
+    folders,
+    shell,
     directory,
     ask: (agent, event, payload, { env = {}, deadline, platform, ...given } = {}) => {
       const { report, hook } = reportOf(agent, event, payload, env, given, platform)
@@ -282,6 +296,38 @@ describe("Claude Code's permission check", () => {
         (await ask("claude", "PreToolUse", bash("uberepo ship x", { permission_mode: mode })))
           .stdout,
       ).toBe(allowedLine("claude"))
+  })
+
+  it("on Windows holds Codex's session folder and the terminal's folder to the same-name check", async ({
+    resources,
+  }) => {
+    const { ask, used, folders, shell } = fixture(resources)
+    const session = `${project}/pkg`
+    const codex = (cwd: string) => ({
+      session_id: "s",
+      cwd,
+      hook_event_name: "PermissionRequest",
+      permission_mode: "default",
+      tool_name: "Bash",
+      tool_input: { command: "uberepo ship x", description: "Ship" },
+    })
+    const shipped = async () =>
+      (await ask("codex", "PermissionRequest", codex(session), { platform: "win32" })).stdout
+    expect(await shipped()).toBe(allowedLine("codex"))
+    // A program of the command's name in the session's folder, with any extension.
+    folders.set(session, ["uberepo.vbs"])
+    expect(await shipped()).toBe("")
+    folders.clear()
+    // Or in the folder the terminal's shell is in.
+    shell.folder = `${project}/elsewhere`
+    expect(await shipped()).toBe(allowedLine("codex"))
+    folders.set(shell.folder, ["uberepo"])
+    expect(await shipped()).toBe("")
+    // Not on Linux, where no shell looks in the current folder.
+    expect((await ask("codex", "PermissionRequest", codex(session))).stdout).toBe(
+      allowedLine("codex"),
+    )
+    expect(used).toHaveLength(3)
   })
 
   it("allows nothing when the payload holds a field it doesn't know", async ({ resources }) => {

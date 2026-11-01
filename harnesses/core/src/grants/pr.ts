@@ -26,7 +26,16 @@ for (const [names, value, many] of [
   for (const alias of names) options.set(alias, { name: names[0], value, many })
 
 /** Where a call runs and the project it must stay in, for a body file's path. */
-export type BodyFiles = { readonly cwd: string | null; readonly root: string }
+export type BodyFiles = {
+  readonly cwd: string | null
+  readonly root: string
+  /**
+   * The command runs in Git Bash on Windows (Claude Code's Bash tool): the shell rewrites an
+   * argument that looks like a POSIX path before gh sees it, so gh would open another file than
+   * the one checked.
+   */
+  readonly gitBash?: boolean
+}
 
 // Windows' reserved device names: `CON`, `NUL.txt` and `com1.x.y` open a device, not a file.
 const device = /^(con|prn|aux|nul|com[1-9]|lpt[1-9])$/i
@@ -39,8 +48,12 @@ const device = /^(con|prn|aux|nul|com[1-9]|lpt[1-9])$/i
  * `C:x`, a UNC path or `\\?\`, and `/…` elsewhere. On Windows no segment may name a device or
  * hold a `:` after the drive (a stream).
  */
-const bodyFilePath = (path: string, { cwd, root }: BodyFiles): string | undefined => {
+const bodyFilePath = (path: string, { cwd, root, gitBash }: BodyFiles): string | undefined => {
   if (path === "" || path === "-" || path.split(/[\\/]+/).includes("..")) return undefined
+  // MSYS path conversion turns `/x` into a path under Git's own root, `a:/b` and `a:b` into
+  // path lists, and so reads another file than the one resolved here.
+  if (gitBash === true && (path.startsWith("/") || /^(?![A-Za-z]:\/).*:/.test(path)))
+    return undefined
   const rules = flavourOf(path, root, cwd ?? undefined)
   const windows = flavourOf(root) !== posix
   if (windows) {

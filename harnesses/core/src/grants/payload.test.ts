@@ -86,12 +86,25 @@ describe("a Claude Code PreToolUse payload", () => {
 })
 
 describe("a Codex PermissionRequest payload", () => {
-  it("reads the command, with no known folder", () => {
+  it("reads the command, with no known folder but the session's", () => {
     const input = { command: "touch /x/ran.txt", description: "Touch a file outside the sandbox" }
     expect(callFromPayload("codex", "PermissionRequest", codex(input), "linux")).toEqual({
       command: "touch /x/ran.txt",
       cwd: null,
+      sessionFolder: "/tmp/novadeck-e2e-eGUNd8/project",
     })
+  })
+
+  it("is unreadable on Windows without the session's folder, which cmd runs programs from", () => {
+    const { cwd: _cwd, ...unnamed } = codex({ command: "ls" })
+    expect(callFromPayload("codex", "PermissionRequest", unnamed, "win32")).toBe("unreadable")
+    expect(callFromPayload("codex", "PermissionRequest", unnamed, "linux")).toEqual({
+      command: "ls",
+      cwd: null,
+    })
+    expect(callFromPayload("codex", "PermissionRequest", { ...unnamed, cwd: 3 }, "win32")).toBe(
+      "unreadable",
+    )
   })
 
   it("marks Codex's and Antigravity's call as Windows' on win32, and not Claude Code's", () => {
@@ -100,11 +113,13 @@ describe("a Codex PermissionRequest payload", () => {
       command: "gh pr ready 1 -R o/n",
       cwd: null,
       dialect: "windows-quote-free",
+      sessionFolder: "/tmp/novadeck-e2e-eGUNd8/project",
     })
     for (const platform of ["linux", "darwin"] as const)
       expect(callFromPayload("codex", "PermissionRequest", codex(input), platform)).toEqual({
         command: "gh pr ready 1 -R o/n",
         cwd: null,
+        sessionFolder: "/tmp/novadeck-e2e-eGUNd8/project",
       })
     expect(callFromPayload("claude", "PreToolUse", claude(input), "win32")).toMatchObject({
       cwd: "/tmp/novadeck-e2e-sTGnsC/project",

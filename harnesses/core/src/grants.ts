@@ -32,6 +32,12 @@ export type ShellCall = {
    * Windows, whose shell (PowerShell or cmd) the payload does not name (Appendix A1).
    */
   readonly dialect?: "windows-quote-free"
+  /**
+   * The folder the harness says the session runs in, where the payload names one apart from
+   * `cwd`: Codex's top-level `cwd`. A command may run there, so on Windows it is held to the
+   * same-name check too; and it is where a ref is resolved when `cwd` is null.
+   */
+  readonly sessionFolder?: string
 }
 
 /** Why a payload is no shell call the matcher can judge. */
@@ -50,14 +56,23 @@ export type FsLookups = {
   readonly real: (
     path: string,
   ) => Promise<{ readonly path: string; readonly file: boolean } | undefined>
-  /** Whether `path` exists: undefined where that couldn't be told (an error other than absence, a timeout). */
-  readonly exists: (path: string) => Promise<boolean | undefined>
+  /**
+   * The names in the folder `path` (a folder that does not exist holds none), or undefined
+   * where that couldn't be told (an error other than absence, a timeout).
+   */
+  readonly names: (path: string) => Promise<readonly string[] | undefined>
 }
 
 /** What the matcher reads of git in a folder; injected so the matcher stays pure. */
 export type GitLookups = {
   /** Every push URL of `remote` in `cwd` (`git remote get-url --push --all`), or undefined. */
   readonly pushUrls: (cwd: string, remote: string) => Promise<readonly string[] | undefined>
+  /**
+   * The full name `name` resolves to in `cwd` (`git rev-parse --symbolic-full-name`, as
+   * `refs/heads/x` or `refs/tags/x`), null for a name that is no ref there, undefined where
+   * that couldn't be told (an error, a timeout).
+   */
+  readonly resolve: (cwd: string, name: string) => Promise<string | null | undefined>
 }
 
 /** A match: which grant entry let it through, for the use line. */

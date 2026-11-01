@@ -1,4 +1,5 @@
 import type { ShellCall } from "../grants.js"
+import { programName, runsOtherCode } from "./runners.js"
 
 // The strict POSIX lexer (approvals-design.md, Appendix A1): one simple command, or a refusal.
 // Anything a shell would expand, split, redirect or chain is refused, never guessed at.
@@ -8,43 +9,10 @@ export type Lexed =
   | { readonly ok: false; readonly reason: string }
 
 const safeChar = /[A-Za-z0-9._/:=@%+,-]/
-// Programs that run what follows them, or change where it runs; refused as the first word.
-const wrappers = new Set(["env", "sudo", "command", "exec", "xargs", "cd"])
 const shells = new Set(["sh", "bash", "zsh", "dash", "ksh", "fish", "csh", "tcsh"])
-/**
- * Windows programs that run what follows them, or other code: a shell, WSL, the script hosts,
- * `start`, `call`, and PowerShell's aliases and cmdlets that run a string or a file. Refused as
- * the first word, and never granted.
- */
-export const windowsRunners: ReadonlySet<string> = new Set([
-  "wsl",
-  "start",
-  "saps",
-  "call",
-  "iex",
-  "invoke-expression",
-  "ii",
-  "invoke-item",
-  "cscript",
-  "wscript",
-  "mshta",
-  "rundll32",
-  "regsvr32",
-  "powershell",
-  "pwsh",
-  "cmd",
-  "conhost",
-])
 const assignment = /^[A-Za-z_][A-Za-z0-9_]*=/
 // A word that may hold newlines: the one after --body.
 const bodyFlags = new Set(["--body", "-b"])
-
-/** The program a word names: its basename, lower-cased, without an executable suffix. */
-export const programName = (word: string): string =>
-  word
-    .slice(word.lastIndexOf("/") + 1)
-    .toLowerCase()
-    .replace(/\.(exe|cmd|bat|com|ps1)$/, "")
 
 const refuse = (reason: string): Lexed => ({ ok: false, reason })
 
@@ -97,7 +65,7 @@ export const lex = (command: string): Lexed => {
   if (first === undefined) return refuse("empty command")
   if (assignment.test(first)) return refuse("a variable assignment before the command")
   const program = programName(first)
-  if (wrappers.has(program) || windowsRunners.has(program)) return refuse(`a leading ${program}`)
+  if (runsOtherCode(program)) return refuse(`a leading ${program}`)
   if (shells.has(program) && words.slice(1).some((arg) => /^-[A-Za-z]*c[A-Za-z]*$/.test(arg)))
     return refuse(`${program} -c`)
 
@@ -173,7 +141,7 @@ export const lexWindows = (command: string): Lexed => {
   if (quoted[0]) return refuse("a quoted program")
   if (assignment.test(first)) return refuse("a variable assignment before the command")
   const program = programName(first.slice(first.lastIndexOf("\\") + 1))
-  if (wrappers.has(program) || windowsRunners.has(program)) return refuse(`a leading ${program}`)
+  if (runsOtherCode(program)) return refuse(`a leading ${program}`)
   return { ok: true, argv: words }
 }
 

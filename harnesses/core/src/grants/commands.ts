@@ -1,56 +1,9 @@
 // Granted commands: which may be granted at all, and whether a call is one.
 import type { GrantCommand } from "../grants.js"
-import { programName, windowsRunners } from "./lexer.js"
+import { programName, runsOtherCode } from "./runners.js"
 
-const wrappers = new Set(["env", "sudo", "command", "exec", "xargs", "cd"])
-const interpreters = new Set([
-  "sh",
-  "bash",
-  "zsh",
-  "dash",
-  "ksh",
-  "fish",
-  "csh",
-  "tcsh",
-  "pwsh",
-  "powershell",
-  "cmd",
-  "node",
-  "bun",
-  "deno",
-  "perl",
-  "ruby",
-  "npx",
-  "npm",
-  "pnpm",
-  "yarn",
-  "make",
-  "cargo",
-  "uv",
-  "docker",
-  "podman",
-  "nohup",
-  "nice",
-  "time",
-  "timeout",
-  "eval",
-  "source",
-  "busybox",
-])
-const python = /^python[0-9.]*$/
 const bare = /^[A-Za-z0-9][A-Za-z0-9._+-]*$/
 const plain = /^[A-Za-z0-9._/:@%+,-][A-Za-z0-9._/:=@%+,-]*$/
-
-/** Programs that run other code: never granted, exact or with `rest`. */
-export const runsOtherCode = (word: string): boolean => {
-  const program = programName(word)
-  return (
-    wrappers.has(program) ||
-    interpreters.has(program) ||
-    windowsRunners.has(program) ||
-    python.test(program)
-  )
-}
 
 // `gh pr|issue <these>` and `gh repo view` only read, and run with no dialog: a grant for them
 // would only be asked for in vain.

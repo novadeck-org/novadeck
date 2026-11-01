@@ -1,0 +1,208 @@
+// Programs that run other code, by what they are: a grant for one (exact, or followed by
+// anything) would let the agent run whatever it feeds it, and a call that starts with one is
+// no single command. The lexer refuses them as a first word, and a command can never name one.
+
+// Run what follows them, or change where, as whom or when it runs: wrappers, launchers that
+// hand a file or a string to the system, remote shells, and job and scheduler tools.
+const wrappers = [
+  // Wrappers.
+  "env",
+  "sudo",
+  "doas",
+  "su",
+  "runuser",
+  "command",
+  "exec",
+  "xargs",
+  "cd",
+  "nohup",
+  "nice",
+  "ionice",
+  "time",
+  "timeout",
+  "setsid",
+  "stdbuf",
+  "watch",
+  "script",
+  "flock",
+  "parallel",
+  "strace",
+  "ltrace",
+  "chroot",
+  "unshare",
+  "nsenter",
+  "taskset",
+  "chrt",
+  "eval",
+  "source",
+  "busybox",
+  "sg",
+  "newgrp",
+  // Launchers.
+  "open",
+  "xdg-open",
+  "gnome-open",
+  "kde-open",
+  "gio",
+  "osascript",
+  "explorer",
+  // Remote shells and terminal multiplexers.
+  "ssh",
+  "mosh",
+  "telnet",
+  "rsh",
+  "rlogin",
+  "nc",
+  "ncat",
+  "socat",
+  "expect",
+  "screen",
+  "tmux",
+  // Job and scheduler tools.
+  "at",
+  "batch",
+  "crontab",
+  "systemd-run",
+  "launchctl",
+]
+
+// Interpreters, shells and REPLs, the tools that take a script or a string, and build tools.
+const interpreters = [
+  // Shells.
+  "sh",
+  "bash",
+  "zsh",
+  "dash",
+  "ksh",
+  "fish",
+  "csh",
+  "tcsh",
+  "ash",
+  "mksh",
+  "yash",
+  "xonsh",
+  "nu",
+  "elvish",
+  "pwsh",
+  "powershell",
+  "cmd",
+  // Language interpreters and REPLs.
+  "node",
+  "nodejs",
+  "bun",
+  "deno",
+  "tsx",
+  "ts-node",
+  "perl",
+  "ruby",
+  "irb",
+  "php",
+  "lua",
+  "luajit",
+  "tclsh",
+  "wish",
+  "rscript",
+  "r",
+  "java",
+  "jshell",
+  "go",
+  "dotnet",
+  "swift",
+  "kotlin",
+  "scala",
+  "groovy",
+  "ghc",
+  "runghc",
+  "ocaml",
+  "julia",
+  "elixir",
+  "erl",
+  "racket",
+  "awk",
+  "gawk",
+  "mawk",
+  "nawk",
+  "sed",
+  // Package runners and build tools.
+  "npx",
+  "bunx",
+  "pnpx",
+  "corepack",
+  "npm",
+  "pnpm",
+  "yarn",
+  "make",
+  "cargo",
+  "uv",
+  "gradle",
+  "mvn",
+  "rake",
+  "bundle",
+  "just",
+  "docker",
+  "podman",
+  // Tools with a command of their own: database shells and debuggers.
+  "sqlite3",
+  "psql",
+  "mysql",
+  "gdb",
+  "lldb",
+]
+
+/**
+ * Windows programs that run what follows them, or other code: a shell, WSL, the script hosts,
+ * `start`, `call`, and PowerShell's aliases and cmdlets that run a string, a file, a job or a
+ * remote command, and the tools that schedule or start a process.
+ */
+export const windowsRunners: ReadonlySet<string> = new Set([
+  "wsl",
+  "start",
+  "start-process",
+  "saps",
+  "call",
+  "iex",
+  "invoke-expression",
+  "ii",
+  "invoke-item",
+  "icm",
+  "invoke-command",
+  "ipmo",
+  "import-module",
+  "sajb",
+  "start-job",
+  "invoke-wmimethod",
+  "invoke-cimmethod",
+  "register-scheduledtask",
+  "forfiles",
+  "schtasks",
+  "wmic",
+  "winrs",
+  "psexec",
+  "msiexec",
+  "pcalua",
+  "cscript",
+  "wscript",
+  "mshta",
+  "rundll32",
+  "regsvr32",
+  "powershell",
+  "pwsh",
+  "cmd",
+  "conhost",
+])
+
+const others: ReadonlySet<string> = new Set([...wrappers, ...interpreters])
+const python = /^(?:i|pt)?python[0-9.]*$|^pypy[0-9.]*$/
+
+/** The program a word names: its basename, lower-cased, without an executable suffix. */
+export const programName = (word: string): string =>
+  word
+    .slice(Math.max(word.lastIndexOf("/"), word.lastIndexOf("\\")) + 1)
+    .toLowerCase()
+    .replace(/\.(exe|cmd|bat|com|ps1)$/, "")
+
+/** Whether `word` names a program that runs other code, in any dialect. */
+export const runsOtherCode = (word: string): boolean => {
+  const program = programName(word)
+  return others.has(program) || windowsRunners.has(program) || python.test(program)
+}

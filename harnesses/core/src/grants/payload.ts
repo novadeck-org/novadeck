@@ -56,12 +56,24 @@ export const callFromPayload = (
   if (typeof command !== "string" || command === "") return "unreadable"
   if (command.length > maxCommand) return "too-long"
 
+  if (harness === "claude")
+    return typeof body["cwd"] === "string" ? { command, cwd: body["cwd"] } : "unreadable"
+  // Codex's payload names the session's folder, not necessarily the command's: it is the
+  // folder to look in for a program of the command's name, and to resolve its refs in.
+  const session = harness === "codex" && typeof body["cwd"] === "string" ? body["cwd"] : undefined
   // Codex and Antigravity on Windows run the command in PowerShell or cmd, which their
-  // payloads never name; Claude Code's Bash tool runs Git Bash there.
-  if (harness !== "claude" && platform === "win32")
-    return { command, cwd: null, dialect: "windows-quote-free" }
-  if (harness !== "claude") return { command, cwd: null }
-  return typeof body["cwd"] === "string" ? { command, cwd: body["cwd"] } : "unreadable"
+  // payloads never name; Claude Code's Bash tool runs Git Bash there. cmd runs a program of
+  // the command's name from the folder it runs in, so a folder that isn't known is no match.
+  if (platform === "win32") {
+    if (harness === "codex" && session === undefined) return "unreadable"
+    return {
+      command,
+      cwd: null,
+      dialect: "windows-quote-free",
+      ...(session !== undefined && { sessionFolder: session }),
+    }
+  }
+  return { command, cwd: null, ...(session !== undefined && { sessionFolder: session }) }
 }
 
 /** Antigravity's tools known not to run commands (1.4.10, design B3): closed, by exact name. */

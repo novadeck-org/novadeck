@@ -685,16 +685,26 @@ describe("reading a relay's hook", () => {
   it("reads a Codex permission request on Windows in the Windows dialect, and on Linux in POSIX's", async () => {
     const payload = JSON.stringify({
       hook_event_name: "PermissionRequest",
+      cwd: "/work/project",
       tool_name: "Bash",
       tool_input: { command: "git status" },
     })
     const ask = hook({ event: "PermissionRequest", payload })
-    expect(relayHook(ask, "linux")?.permission?.call).toEqual({ command: "git status", cwd: null })
+    expect(relayHook(ask, "linux")?.permission?.call).toEqual({
+      command: "git status",
+      cwd: null,
+      sessionFolder: "/work/project",
+    })
     expect(relayHook(ask, "win32")?.permission?.call).toEqual({
       command: "git status",
       cwd: null,
       dialect: "windows-quote-free",
+      sessionFolder: "/work/project",
     })
+    // cmd runs a program from the folder it is in, so on Windows one that isn't named is no call.
+    const { cwd: _cwd, ...unnamed } = JSON.parse(payload) as Record<string, unknown>
+    const bare = hook({ event: "PermissionRequest", payload: JSON.stringify(unnamed) })
+    expect(relayHook(bare, "win32")?.permission?.call).toBe("unreadable")
   })
 
   it("reads a narrowed terminal's mark on Windows too, and leaves Claude Code's call unmarked", () => {

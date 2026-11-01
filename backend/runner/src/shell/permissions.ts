@@ -35,6 +35,8 @@ export type PermissionTerminal = {
   readonly exiting: boolean
   /** The project folder it lies in; a call's folder must lie inside it. */
   readonly projectFolder: string | undefined
+  /** The folder the terminal's shell is in: where a command it starts runs, for the same-name check. */
+  readonly folder?: string | undefined
 }
 
 export type PermissionsHost = {
@@ -181,7 +183,14 @@ export class Permissions {
   ): Promise<string | undefined> {
     const grants = this.host.grants.covering(report.terminalId)
     if (grants.length === 0 || terminal.projectFolder === undefined) return undefined
-    const found = await matchCall(call, grants, this.host.git, terminal.projectFolder, this.host.fs)
+    const found = await matchCall(
+      call,
+      grants,
+      this.host.git,
+      terminal.projectFolder,
+      this.host.fs,
+      terminal.folder,
+    )
     const id = found === null ? undefined : grants[found.scope]?.id
     // The matching awaited the git and file lookups: a done, release or exit meanwhile ended the
     // coverage, so the grant must still cover the terminal now, right before it lets a call run.

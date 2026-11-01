@@ -23,15 +23,11 @@ const granted = (key: string, repos: readonly GrantRepo[]): GrantRepo | undefine
   repos.find((repo) => repoKey(repo.url) === key)
 
 // A lookup that throws or is slow is a lookup that found nothing.
-const lookup = async (
-  git: GitLookups,
-  cwd: string,
-  remote: string,
-): Promise<readonly string[] | undefined> => {
+const limited = async <T>(work: () => Promise<T>): Promise<T | undefined> => {
   let timer: ReturnType<typeof setTimeout> | undefined
   try {
     return await Promise.race([
-      git.pushUrls(cwd, remote),
+      work(),
       new Promise<undefined>((resolve) => {
         timer = setTimeout(() => resolve(undefined), lookupLimit)
       }),
@@ -56,7 +52,7 @@ const reached = async (
     return repo && [repo]
   }
   if (cwd === null || !remoteName.test(remote)) return undefined
-  const urls = await lookup(git, cwd, remote)
+  const urls = await limited(() => git.pushUrls(cwd, remote))
   if (urls === undefined || urls.length === 0) return undefined
   const found: GrantRepo[] = []
   for (const url of urls) {
@@ -68,12 +64,41 @@ const reached = async (
   return found
 }
 
-/** Whether `argv` is a push the preset allows to the granted `repos`. */
+const heads = "refs/heads/"
+
+/**
+ * Whether the push's names are branches in `refs`, the folder git resolves them in. Git
+ * takes a destination's namespace from its source, and a source that is a tag (`v1:v2`,
+ * `tags/v1:v2`) creates a remote tag, which release workflows run on: so a source other than
+ * `HEAD` must resolve to `refs/heads/…` here, and a destination must not resolve to anything
+ * else (a tag of that name). Where git can't say, they aren't.
+ */
+const branchesOnly = async (
+  git: GitLookups,
+  refs: string | null,
+  source: string,
+  destination: string,
+): Promise<boolean> => {
+  if (refs === null) return source === "HEAD"
+  if (source !== "HEAD") {
+    const from = await limited(() => git.resolve(refs, source))
+    if (typeof from !== "string" || !from.startsWith(heads)) return false
+  }
+  const to = await limited(() => git.resolve(refs, destination))
+  return to === null || (typeof to === "string" && to.startsWith(heads))
+}
+
+/**
+ * Whether `argv` is a push the preset allows to the granted `repos`: of branches only. `cwd`
+ * is the call's own folder (null when the harness doesn't say), `refs` the folder its names are
+ * resolved in.
+ */
 export const matchesPush = async (
   argv: readonly string[],
   repos: readonly GrantRepo[],
   git: GitLookups,
   cwd: string | null,
+  refs: string | null = cwd,
 ): Promise<boolean> => {
   if (argv[0] !== "git" || argv[1] !== "push" || argv.length < 4) return false
   const flags = argv.slice(2, -2)
@@ -91,5 +116,6 @@ export const matchesPush = async (
   if (!isBranchName(destination)) return false
   const targets = await reached(remote, repos, git, cwd)
   if (targets === undefined) return false
-  return !reservedDestination(destination, targets)
+  if (reservedDestination(destination, targets)) return false
+  return branchesOnly(git, refs, source, destination)
 }

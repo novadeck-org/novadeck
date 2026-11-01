@@ -1,4 +1,4 @@
-import { access, realpath, stat } from "node:fs/promises"
+import { readdir, realpath, stat } from "node:fs/promises"
 
 import type { FsLookups } from "@novadeck/harness-core/grants"
 
@@ -23,7 +23,7 @@ const capped = <T>(work: Promise<T>): Promise<T | undefined> =>
 
 /**
  * What the matcher reads of the disk: a path's real path (symlinks followed) and whether it
- * is a regular file, and whether a path exists. An error or a timeout is undefined, and the
+ * is a regular file, and the names in a folder. An error or a timeout is undefined, and the
  * matcher then lets nothing through.
  */
 export const fsLookups: FsLookups = {
@@ -31,15 +31,12 @@ export const fsLookups: FsLookups = {
     capped(
       realpath(path).then(async (real) => ({ path: real, file: (await stat(real)).isFile() })),
     ),
-  exists: (path) =>
+  names: (path) =>
     capped(
-      access(path).then(
-        () => true,
-        (error: NodeJS.ErrnoException) => {
-          // Absent is an answer; any other failure is not.
-          if (error.code === "ENOENT" || error.code === "ENOTDIR") return false
-          throw error
-        },
-      ),
+      readdir(path).catch((error: NodeJS.ErrnoException) => {
+        // Absent is an answer; any other failure is not.
+        if (error.code === "ENOENT" || error.code === "ENOTDIR") return []
+        throw error
+      }),
     ),
 }

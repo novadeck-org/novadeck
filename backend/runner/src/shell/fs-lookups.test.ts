@@ -51,8 +51,9 @@ describe("the disk lookups", () => {
       expect(link?.path.startsWith(root)).toBe(false)
       expect(link?.path.endsWith("secret.md")).toBe(true)
       expect(await fsLookups.real(join(root, "missing.md"))).toBeUndefined()
-      expect(await fsLookups.exists(join(root, "note.md"))).toBe(true)
-      expect(await fsLookups.exists(join(root, "missing.md"))).toBe(false)
+      expect(await fsLookups.names(root)).toEqual(["link.md", "note.md"])
+      expect(await fsLookups.names(join(root, "missing"))).toEqual([])
+      expect(await fsLookups.names(join(root, "note.md"))).toEqual([])
     } finally {
       done()
     }

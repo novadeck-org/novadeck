@@ -82,6 +82,7 @@ export class Approving {
             token: record.token,
             exiting: record.terminal.exiting,
             projectFolder: host.projectFolder(record.summary.sessionId),
+            folder: record.summary.cwd,
           }
         )
       },

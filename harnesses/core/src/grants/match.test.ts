@@ -26,18 +26,37 @@ const git: GitLookups = {
     calls.push(`${cwd} ${remote}`)
     return remotes[remote]
   },
+  // A tag is a tag in the working folder; a name in `broken` can't be told; any other is a branch.
+  resolve: async (cwd, name) => {
+    resolved.push(`${cwd} ${name}`)
+    if (broken.has(name)) return undefined
+    if (name in tags) return tags[name]
+    return name === "HEAD"
+      ? "refs/heads/fix"
+      : name.startsWith("new-")
+        ? null
+        : `refs/heads/${name}`
+  },
 }
+const resolved: string[] = []
+const broken = new Set<string>()
+const tags: Record<string, string> = { "v1.0.0": "refs/tags/v1.0.0", "tags/v1": "refs/tags/v1" }
 
 // The disk: every path is a regular file that is its own real path, unless a test says otherwise.
 const links = new Map<string, { path: string; file: boolean } | undefined>()
 const present = new Set<string>()
 const fs: FsLookups = {
   real: async (path) => (links.has(path) ? links.get(path) : { path, file: true }),
-  exists: async (path) => present.has(path),
+  names: async (folder) =>
+    [...present]
+      .filter((path) => path.slice(0, path.search(/[\\/][^\\/]*$/)) === folder)
+      .map((path) => path.slice(path.search(/[\\/][^\\/]*$/) + 1)),
 }
 beforeEach(() => {
   links.clear()
   present.clear()
+  resolved.length = 0
+  broken.clear()
 })
 
 const run = (
@@ -131,9 +150,56 @@ describe("the push preset", () => {
     expect(await run(command)).toBeNull()
   })
 
+  it.each([
+    ["a tag as the source", "git push origin v1.0.0:v9.9.9"],
+    ["a tags/ source", "git push https://github.com/acme/app tags/v1:release-v2"],
+    ["a branch name that is a local tag as the destination", "git push origin fix:v1.0.0"],
+    ["a source that is no ref", "git push origin new-x:fix"],
+    ["a source git can't resolve", "git push origin lost:fix"],
+    ["a destination git can't resolve", "git push origin fix:lost"],
+  ])("pushes branches only: refuses %s", async (_name, command) => {
+    broken.add("lost")
+    expect(await run(command)).toBeNull()
+  })
+
+  it("resolves the names in the call's folder, and takes HEAD and a new destination", async () => {
+    expect(await allowed("git push origin fix:new-x")).toBe(true)
+    expect(resolved).toEqual([`${root} fix`, `${root} new-x`])
+    resolved.length = 0
+    expect(await allowed("git push origin HEAD:new-x")).toBe(true)
+    expect(resolved).toEqual([`${root} new-x`])
+  })
+
+  it("resolves in the session's or the terminal's folder where the call has none", async () => {
+    const push = (call: { sessionFolder?: string }, terminal?: string) =>
+      matchCall(
+        { command: "git push https://github.com/acme/app fix:fix", cwd: null, ...call },
+        [scope()],
+        git,
+        root,
+        fs,
+        terminal,
+      )
+    expect(await push({})).toBeNull()
+    expect(await push({}, "/work/proj/sub")).not.toBeNull()
+    expect(resolved[0]).toBe("/work/proj/sub fix")
+    resolved.length = 0
+    expect(await push({ sessionFolder: "/work/proj/pkg" }, "/work/proj/sub")).not.toBeNull()
+    expect(resolved[0]).toBe("/work/proj/pkg fix")
+    // With no folder at all only HEAD is a branch for certain.
+    const head = await matchCall(
+      { command: "git push https://github.com/acme/app HEAD:fix", cwd: null },
+      [scope()],
+      git,
+      root,
+      fs,
+    )
+    expect(head).not.toBeNull()
+  })
+
   it("refuses a remote name where the call's folder is unknown, but takes a URL", async () => {
     expect(await allowed("git push origin fix:fix", undefined, null)).toBe(false)
-    expect(await allowed("git push https://github.com/acme/app fix:fix", undefined, null)).toBe(
+    expect(await allowed("git push https://github.com/acme/app HEAD:fix", undefined, null)).toBe(
       true,
     )
   })
@@ -152,16 +218,27 @@ describe("the push preset", () => {
   })
 
   it("is no match when the lookup throws, finds nothing or takes over a second", async () => {
+    const fine = { resolve: git.resolve }
     const lookups: GitLookups[] = [
-      { pushUrls: async () => Promise.reject(new Error("no git")) },
-      { pushUrls: async () => undefined },
-      { pushUrls: async () => [] },
+      { ...fine, pushUrls: async () => Promise.reject(new Error("no git")) },
+      { ...fine, pushUrls: async () => undefined },
+      { ...fine, pushUrls: async () => [] },
       {
+        ...fine,
         pushUrls: () => {
           throw new Error("sync")
         },
       },
-      { pushUrls: () => new Promise(() => undefined) },
+      { ...fine, pushUrls: () => new Promise(() => undefined) },
+      // A ref that can't be told is no branch.
+      { pushUrls: git.pushUrls, resolve: async () => Promise.reject(new Error("no git")) },
+      {
+        pushUrls: git.pushUrls,
+        resolve: () => {
+          throw new Error("sync")
+        },
+      },
+      { pushUrls: git.pushUrls, resolve: () => new Promise(() => undefined) },
     ]
     for (const lookup of lookups)
       expect(
@@ -537,7 +614,7 @@ describe("a Codex or Antigravity command on Windows", () => {
     present.add("C:\\work\\proj\\ndmarker.cmd")
     expect(await windows("ndmarker", only)).toBeNull()
     present.clear()
-    const unknown: FsLookups = { ...fs, exists: async () => undefined }
+    const unknown: FsLookups = { ...fs, names: async () => undefined }
     expect(
       await matchCall(
         { command: "ndmarker", cwd: null, dialect: "windows-quote-free" },
@@ -549,9 +626,95 @@ describe("a Codex or Antigravity command on Windows", () => {
     ).toBeNull()
   })
 
+  it.each(["gh.js", "gh.vbs", "gh.wsf", "gh.py", "gh", "GH.JSE", "gh.anything.else"])(
+    "refuses a program that the project root holds as %s, whatever its extension",
+    async (name) => {
+      present.add(`C:\\work\\proj\\${name}`)
+      expect(await windows("gh pr ready 12 -R acme/app")).toBeNull()
+    },
+  )
+
+  it("takes names that only start like the program", async () => {
+    present.add("C:\\work\\proj\\ghost.exe")
+    present.add("C:\\work\\proj\\gh-pages")
+    expect(await windows("gh pr ready 12 -R acme/app")).toEqual(pr)
+  })
+
+  it("holds the session's folder and the terminal's to the same check", async () => {
+    const ready = (call: { sessionFolder?: string }, terminal?: string) =>
+      matchCall(
+        {
+          command: "gh pr ready 12 -R acme/app",
+          cwd: null,
+          dialect: "windows-quote-free",
+          ...call,
+        },
+        [scope()],
+        git,
+        "C:\\work\\proj",
+        fs,
+        terminal,
+      )
+    const session = "C:\\work\\proj\\pkg"
+    const terminal = "C:\\work\\proj\\sub"
+    expect(await ready({ sessionFolder: session }, terminal)).not.toBeNull()
+    present.add(`${session}\\gh.js`)
+    expect(await ready({ sessionFolder: session }, terminal)).toBeNull()
+    expect(await ready({}, terminal)).not.toBeNull()
+    present.clear()
+    present.add(`${terminal}\\gh.cmd`)
+    expect(await ready({ sessionFolder: session }, terminal)).toBeNull()
+    expect(await ready({ sessionFolder: session })).not.toBeNull()
+  })
+
   it("leaves POSIX calls alone when the root holds the program", async () => {
     present.add("/work/proj/gh.exe")
     expect(await allowed("gh pr ready 12 -R acme/app")).toBe(true)
+  })
+
+  describe("Claude Code's Git Bash", () => {
+    // A POSIX dialect over a Windows project: Claude Code's Bash tool on Windows.
+    const bash = (path: string, cwd: string | null = "C:\\work\\proj") =>
+      matchCall(
+        { command: `gh pr comment 5 ${R} --body-file ${path}`, cwd },
+        [scope()],
+        git,
+        "C:\\work\\proj",
+        fs,
+      )
+
+    it.each([
+      "/work/proj/n.md",
+      "/tmp/n.md",
+      "//work/proj/n.md",
+      "/c/work/proj/n.md",
+      "a:/b",
+      "docs:/n.md",
+      "x:y/n.md",
+    ])("refuses %s, which MSYS rewrites to another file", async (path) => {
+      expect(await bash(path)).toBeNull()
+      // The value after an equals sign is converted too.
+      expect(
+        await matchCall(
+          { command: `gh pr comment 5 ${R} --body-file=${path}`, cwd: "C:\\work\\proj" },
+          [scope()],
+          git,
+          "C:\\work\\proj",
+          fs,
+        ),
+      ).toBeNull()
+    })
+
+    it.each(["n.md", "docs/n.md", "./n.md", "C:/work/proj/n.md"])("takes %s", async (path) => {
+      expect(await bash(path)).toEqual(pr)
+    })
+
+    it("leaves a POSIX project, and Codex's and Antigravity's own dialect, alone", async () => {
+      expect(await allowed(`gh pr comment 12 ${R} --body-file /work/proj/note.md`)).toBe(true)
+      expect(
+        await windows(`gh pr comment 5 ${R} --body-file C:\\work\\proj\\docs\\note.md`),
+      ).toEqual(pr)
+    })
   })
 
   it("takes names that only look like devices", async () => {
@@ -569,7 +732,7 @@ describe("a Codex or Antigravity command on Windows", () => {
   })
 
   it("takes a push by URL like any other dialect", async () => {
-    expect(await windows("git push https://github.com/acme/app fix:fix")).toEqual({
+    expect(await windows("git push https://github.com/acme/app HEAD:fix")).toEqual({
       scope: 0,
       match: { kind: "preset", preset: "push" },
     })
