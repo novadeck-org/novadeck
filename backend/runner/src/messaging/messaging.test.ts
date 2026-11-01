@@ -2358,6 +2358,67 @@ describe("ringing", () => {
     return setup
   }
 
+  it("is not asked by the quiet notice of a grant that ended at the terminal's own done", () => {
+    const { messaging, prompt, stop, ask, claude, clock: time } = create()
+    prompt("A", claude)
+    stop("A", claude)
+    time.now += 6_000
+    const grant = messaging.grants.make({
+      ...here,
+      workspaceSessionId: here.sessionId,
+      holder: { kind: "terminal", handle: "moth" },
+      presets: [],
+      commands: [{ argv: ["make", "ship"], rest: false }],
+      repos: [],
+      entryId: "e",
+      proposedBy: "moth",
+      lifetime: "until-done",
+    })
+    // The grant made rings, as any notice does; a prompt delivers it.
+    expect(messaging.ringable("A")).toBe(true)
+    expect(messaging.ring("A", "n1")).toBe(true)
+    ask("A", claude, "UserPromptSubmit", [doorbellStarted(claude, "n1")])
+    // The turn that follows reports done, and its Stop is not given the notice to go on with.
+    stop("A", claude)
+    prompt("A", claude)
+    messaging.grants.coverageEnds("A", "done")
+    expect(stop("A", claude).leaseId).toBeNull()
+    time.now += 6_000
+    expect(messaging.ringable("A")).toBe(false)
+    // The next prompt carries it, why and all.
+    const next = prompt("A", claude)
+    expect(context(next.stdout)).toContain(`<grant-ended id="${grant.id}" why="done">`)
+    expect(next.leaseId).toEqual(expect.any(String))
+  })
+
+  it("still rings for the notice of a grant that ended by the terminal's exit, and a Stop delivers it", () => {
+    const own = () => {
+      const run = create()
+      run.messaging.grants.make({
+        ...here,
+        workspaceSessionId: here.sessionId,
+        holder: { kind: "terminal", handle: "moth" },
+        presets: [],
+        commands: [{ argv: ["make", "ship"], rest: false }],
+        repos: [],
+        entryId: "e",
+        proposedBy: "moth",
+        lifetime: "until-done",
+      })
+      // The grant made reaches the prompt; the end then is a notice like any other.
+      expect(context(run.prompt("A", run.claude).stdout)).toContain("<grant ")
+      return run
+    }
+    const mid = own()
+    mid.messaging.grants.coverageEnds("A", "exited")
+    expect(mid.stop("A", mid.claude).leaseId).toEqual(expect.any(String))
+    const idle = own()
+    idle.stop("A", idle.claude)
+    idle.clock.now += 6_000
+    idle.messaging.grants.coverageEnds("A", "exited")
+    expect(idle.messaging.ringable("A")).toBe(true)
+  })
+
   it("is allowed once per Settled period, with messages waiting for the root session", () => {
     const { messaging, prompt, stop, send, codex, clock: time } = create()
     prompt("B", codex)
