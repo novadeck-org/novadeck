@@ -4,11 +4,12 @@ import { chmod, mkdir, rename, writeFile } from "node:fs/promises"
 import { join } from "node:path"
 import { fileURLToPath } from "node:url"
 
-import { relayName } from "../index.js"
+import { cmdShimName, relayName } from "../index.js"
 
 // The relay's build, with Rust as rust-toolchain.toml names it:
 //
-//   node scripts/build.ts                 builds dist/novadeck-relay[.exe]
+//   node scripts/build.ts                 builds dist/novadeck-relay[.exe], and on Windows
+//                                         dist/novadeck-cmd.exe beside it
 //   node scripts/build.ts --test          runs its tests
 //   node scripts/build.ts --lint          runs clippy, in CI for every platform it ships for
 //   node scripts/build.ts --format        formats its Rust; --format-check checks it
@@ -81,8 +82,8 @@ const compile = (): Buffer => {
 }
 
 // Replaced whole, so a runner reading it meanwhile sees the old binary or the new one.
-const place = async (data: Uint8Array): Promise<void> => {
-  const output = join(root, "dist", relayName)
+const place = async (name: string, data: Uint8Array): Promise<void> => {
+  const output = join(root, "dist", name)
   await mkdir(join(root, "dist"), { recursive: true })
   const temporary = `${output}.${process.pid}.tmp`
   await writeFile(temporary, data, { mode: 0o755 })
@@ -120,7 +121,11 @@ export const main = async (args: readonly string[]): Promise<void> => {
   if (mode === "--lint") return lint()
   if (mode === "--format") return run("cargo", ["fmt"])
   if (mode === "--format-check") return run("cargo", ["fmt", "--check"])
-  await place(compile())
+  await place(relayName, compile())
+  // The cmd.exe pass-through is built by the same cargo run, on Windows alone.
+  if (process.platform === "win32") {
+    await place(cmdShimName, readFileSync(join(root, "target", "release", cmdShimName)))
+  }
 }
 
 if (import.meta.main) {

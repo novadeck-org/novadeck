@@ -7,6 +7,15 @@ description = "Carries an agent's MCP messages and hooks between it and its Nova
 license = "GPL-3.0-or-later"
 publish = false
 
+[[bin]]
+name = "novadeck-relay"
+path = "src/main.rs"
+
+# Windows only (elsewhere it is empty): a pass-through for cmd.exe; see its source.
+[[bin]]
+name = "novadeck-cmd"
+path = "src/bin/novadeck-cmd.rs"
+
 [dependencies]
 serde_json = { version = "1", features = ["preserve_order"] }
 tokio = { version = "1", default-features = false, features = [

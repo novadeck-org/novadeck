@@ -23,7 +23,7 @@ import {
 import { tmpdir } from "node:os"
 import { delimiter, join } from "node:path"
 
-import { relayPath } from "@novadeck/relay"
+import { cmdShimPath, relayPath } from "@novadeck/relay"
 import { afterAll, beforeAll, onTestFinished } from "vitest"
 
 import type { AgentSetup } from "./agents/agent.js"
@@ -140,29 +140,6 @@ else {
 }
 `
 
-// The PATH wrapper: a copy of node.exe named cmd.exe, preloaded (NODE_OPTIONS --require)
-// with this file. As cmd.exe it logs that it ran and its raw command line, then runs the
-// real cmd.exe with /d (no AutoRun) and the same arguments, and exits with its status. Any other
-// node process that preloads it does nothing.
-const pathcmdProgram = `
-const { appendFileSync } = require("node:fs")
-const { basename } = require("node:path")
-const { spawnSync } = require("node:child_process")
-if (basename(process.execPath).toLowerCase() === "cmd.exe") {
-  const log = (extra) => appendFileSync(__dirname + "/pathcmd.log", JSON.stringify({ t: Date.now(), ...extra }) + "\\n")
-  let line = ""
-  try {
-    line = spawnSync("powershell.exe", ["-NoProfile", "-Command", "(Get-CimInstance Win32_Process -Filter 'ProcessId=" + process.pid + "').CommandLine"], { encoding: "utf8" }).stdout.trim()
-  } catch {}
-  const rest = line ? /^\\s*(?:"[^"]*"|\\S+)\\s*([\\s\\S]*)$/.exec(line)?.[1] ?? "" : process.argv.slice(1).join(" ")
-  const rebuilt = "/d " + rest
-  log({ ran: true, line, rest, rebuilt, ppid: process.ppid })
-  const done = spawnSync("C:\\\\Windows\\\\System32\\\\cmd.exe", [rebuilt], { stdio: "inherit", windowsVerbatimArguments: true })
-  log({ finished: true, status: done.status, error: done.error ? String(done.error) : null })
-  process.exit(done.status ?? 1)
-}
-`
-
 type Kit = {
   readonly dir: string
   /** A node.exe copy under another name, so it runs as a program of its own. */
@@ -170,6 +147,9 @@ type Kit = {
 }
 
 const kits = new Map<string, Kit>()
+
+/** The file (in the kit) the PATH cmd wrapper appends the line it passed on to. */
+const wrapperLog = "cmd-wrapper.log"
 
 /** Writes the kit and puts its programs first on PATH. */
 const withKit = (setup: AgentSetup, pathcmd = false): AgentSetup => ({
@@ -188,20 +168,19 @@ const withKit = (setup: AgentSetup, pathcmd = false): AgentSetup => ({
     kits.set(sandbox.root, { dir, bin })
     const path = [bin, sandbox.env.PATH].join(delimiter)
     if (!pathcmd) return { ...env, PATH: path }
-    // A cmd.exe wrapper (the preload makes node.exe's copy behave as it) is first on PATH for
+    // Novadeck's cmd.exe pass-through (novadeck-cmd.exe, named cmd.exe) is first on PATH for
     // Antigravity alone: an `agy.cmd` ahead of the real one sets that PATH and calls the real
     // agy, which Novadeck's shim finds as the first other `agy`. The runner and the terminal's
-    // shell keep theirs.
+    // shell keep theirs. NOVADECK_CMD_LOG makes it append the command line it passed on.
     const wrap = join(dir, "wrap")
     mkdirSync(wrap)
-    copyFileSync(process.execPath, join(wrap, "cmd.exe"))
-    writeFileSync(join(dir, "pathcmd.cjs"), pathcmdProgram)
+    copyFileSync(cmdShimPath, join(wrap, "cmd.exe"))
     const real = join((await installHarness("agy")).bin, "agy")
     writeFileSync(
       join(bin, "agy.cmd"),
       [
         `@set "PATH=${wrap};%PATH%"`,
-        `@set "NODE_OPTIONS=--require ${join(dir, "pathcmd.cjs").replaceAll("\\", "/")}"`,
+        `@set "NOVADECK_CMD_LOG=${join(dir, wrapperLog)}"`,
         `@call "${real}" %*`,
         "",
       ].join("\r\n"),
@@ -237,6 +216,42 @@ const lines = (file: string): unknown[] =>
           }
         })
     : []
+
+/** What the PATH cmd wrapper passed on, one command line per run. */
+const passedOn = (kit: Kit): string[] => {
+  const file = join(kit.dir, wrapperLog)
+  return existsSync(file) ? readFileSync(file, "utf8").split("\n").filter(Boolean) : []
+}
+
+/**
+ * Antigravity did not get ready: prints what the wrapper passed on, the screen, and its own
+ * logs, where the status line's error would be, so the next run says why.
+ */
+const notReady = async (
+  label: string,
+  kit: Kit,
+  home: string,
+  terminal: DeckTerminal | undefined,
+): Promise<void> => {
+  probe(`${label} wrapper log`, passedOn(kit))
+  if (terminal) probe(`${label} not ready screen`, rows(await terminal.screen()))
+  const gemini = join(home, ".gemini")
+  if (!existsSync(gemini)) return
+  for (const file of readdirSync(gemini, { recursive: true, encoding: "utf8" })) {
+    if (!/(\.log|\.jsonl?)$/.test(file) || /plugins|brain/.test(file)) continue
+    try {
+      const text = readFileSync(join(gemini, file), "utf8")
+      const errors = text.split("\n").filter((row) => /status.?line/i.test(row))
+      probe(`${label} status line error`, {
+        file,
+        errors: errors.slice(-10),
+        tail: text.slice(-2000),
+      })
+    } catch {
+      // A folder, or a file in use.
+    }
+  }
+}
 
 const autoRunKey = "HKCU\\Software\\Microsoft\\Command Processor"
 const reg = (...args: string[]) => spawnSync("reg.exe", args, { encoding: "utf8" })
@@ -756,7 +771,12 @@ describe.runIf(windows)("Antigravity on Windows (grants probe)", () => {
 
         if (c.autorun) onTestFinished(printingAutoRun())
         const t = await run.deck.open(`agy${flags}`)
-        await t.reached("ready", { timeoutMs: 60_000 })
+        try {
+          await t.reached("ready", { timeoutMs: 60_000 })
+        } catch (error) {
+          await notReady("agy pathcmd", kit, run.sandbox.home, t)
+          throw error
+        }
         await prompted(t, agy)
         await t.submit("Run it")
         await sleep(c.mode === "sleep" ? 14_000 : 12_000)
@@ -799,13 +819,11 @@ describe.runIf(windows)("Antigravity on Windows (grants probe)", () => {
             }`,
           )
         if (c.pathcmd) {
-          const wrapper = lines(join(kit.dir, "pathcmd.log"))
-          probe("agy pathcmd wrapper log", wrapper)
-          const ran = wrapper.some((one) => record(one).ran === true)
+          const wrapper = passedOn(kit)
+          probe("agy pathcmd wrapper log", wrapper.slice(0, 10))
+          const ran = wrapper.length > 0
           // Whether run_command went through it: the marker program's line is in a wrapper entry.
-          const viaWrapper = wrapper.some((one) =>
-            String(record(one).line ?? "").includes("marker.cjs"),
-          )
+          const viaWrapper = wrapper.some((one) => one.includes("marker.cjs"))
           console.log(
             `PROBE agy pathcmd verdict: ${ran ? (dialog ? "works" : "wrapper ran but no dialog") : "wrapper never ran"}`,
           )
@@ -871,10 +889,11 @@ describe.runIf(windows && process.env.GITHUB_ACTIONS === "true")(
             outcome.t2 = rows(await t2.screen())
           } catch (error) {
             outcome.error = String(error).slice(0, 1500)
+            if (pathcmd)
+              await notReady("agy pathcmd", kitOf(run.sandbox.root), run.sandbox.home, undefined)
           }
           if (pathcmd) {
-            const wrapper = lines(join(kitOf(run.sandbox.root).dir, "pathcmd.log"))
-            outcome.wrapperRuns = wrapper.filter((one) => record(one).ran === true).length
+            outcome.wrapperRuns = passedOn(kitOf(run.sandbox.root)).length
           }
           probe(
             pathcmd
