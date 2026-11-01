@@ -52,6 +52,8 @@ export type Permission = {
   readonly mode: string | null
   /** Whether the terminal was started narrowed (NOVADECK_NARROW). */
   readonly narrow: boolean
+  /** The PATH the agent's hook ran under, null where the relay did not give one. */
+  readonly path: string | null
 }
 
 /** Whether Antigravity's tool is one known to run no command (design B3): a closed list. */
@@ -67,6 +69,7 @@ const readPermission = (
   payload: Fields,
   narrow: boolean,
   platform: NodeJS.Platform,
+  path: string | null,
 ): Permission => {
   const call = callFromPayload(agent, event, payload, platform)
   return {
@@ -80,6 +83,7 @@ const readPermission = (
     command: agent === "agy" ? null : (readDenied(payload) ?? null),
     mode: text(payload.permission_mode, 64) ?? null,
     narrow,
+    path,
   }
 }
 
@@ -111,6 +115,9 @@ export const hookVariables = [
   "CODEX_THREAD_ID",
   // Set only by Novadeck's Antigravity shim, for a terminal started under the person's grants.
   "NOVADECK_NARROW",
+  // The agent's own PATH: a relative or empty entry lets a shell run a same-name program from the
+  // call's folder, which no grant may cover (`Permissions`).
+  "PATH",
 ] as const
 
 /**
@@ -251,7 +258,14 @@ export const relayHook = (
   // A Codex call on Windows is marked as such, and read in the dialect both its shells agree on.
   const permission =
     event === messaging.permission.event
-      ? readPermission(agent.data, event, payload, narrow, platform)
+      ? readPermission(
+          agent.data,
+          event,
+          payload,
+          narrow,
+          platform,
+          text(env.PATH, 65_536) ?? text(env.Path, 65_536) ?? null,
+        )
       : undefined
   const denied = event === messaging.denied ? readDenied(payload) : undefined
   const shells = dialectPrograms[harnesses[agent.data].hookDialect(platform, event)]

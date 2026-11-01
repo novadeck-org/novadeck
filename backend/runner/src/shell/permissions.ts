@@ -1,3 +1,5 @@
+import { posix, win32 } from "node:path"
+
 import {
   lexCall,
   matchCall,
@@ -29,6 +31,24 @@ export type PermissionGrants = {
   readonly recordUse: (grantId: string, terminalId: string, command: string) => void
 }
 
+/**
+ * Whether every entry of the agent's PATH is an absolute folder: a relative or empty entry (`.`,
+ * `./node_modules/.bin`, `::`) lets its shell run a program of the name a grant covers from the
+ * call's own folder, which the agent may have written there. A PATH the hook did not give is no
+ * answer. `;` separates entries on Windows, `:` elsewhere.
+ */
+export const pathIsAbsolute = (
+  path: string | null,
+  platform: NodeJS.Platform = process.platform,
+): boolean => {
+  if (path === null) return false
+  if (platform !== "win32") return path.split(":").every((entry) => posix.isAbsolute(entry))
+  return path.split(";").every((entry) => {
+    const folder = entry.replace(/^"(.*)"$/, "$1")
+    return /^(?:[A-Za-z]:[\\/]|\\\\)/.test(folder) && win32.isAbsolute(folder)
+  })
+}
+
 /** The terminal a permission hook came from, as the runner keeps it. */
 export type PermissionTerminal = {
   readonly token: string
@@ -50,6 +70,8 @@ export type PermissionsHost = {
   readonly git: GitLookups
   readonly fs: FsLookups
   readonly now: () => number
+  /** The machine the runner runs on, for how a PATH reads; the process's when omitted. */
+  readonly platform?: NodeJS.Platform
 }
 
 // The most of a command a use keeps: the grant's last use is one short line.
@@ -106,7 +128,7 @@ export class Permissions {
   // Claude Code and Codex: a match is allowed, at once, with no dialog.
   private async allowing(
     report: Report,
-    { call, command, mode }: Permission,
+    { call, command, mode, path }: Permission,
     terminal: PermissionTerminal,
     deadline: number,
     unsaid: PermissionAnswer,
@@ -118,7 +140,7 @@ export class Permissions {
     // Codex's hooks say `default` even in Plan Mode: its rollout says whether it plans.
     if (terminal.planning === true) return unsaid
     if (typeof call === "object" && allow !== undefined) {
-      const grant = await this.match(report, call, terminal)
+      const grant = await this.match(report, call, terminal, path)
       if (grant !== undefined && this.live(deadline)) {
         this.use(report, grant, call.command)
         // Nothing waits on a dialog once a grant lets the call through.
@@ -139,7 +161,7 @@ export class Permissions {
   // Antigravity started narrowed (design B2): one handler decides, and fails closed.
   private async narrowed(
     report: Report,
-    { call, tool }: Permission,
+    { call, tool, path }: Permission,
     terminal: PermissionTerminal,
     deadline: number,
     answers: NarrowedAnswers,
@@ -160,7 +182,7 @@ export class Permissions {
     const program = lexed.ok ? lexed.argv[0] : undefined
     if (program === undefined || !this.host.narrowing.launchSet(report.terminalId)?.has(program))
       return closed
-    const grant = await this.match(report, call, terminal)
+    const grant = await this.match(report, call, terminal, path)
     if (grant === undefined || !this.live(deadline)) return closed
     this.use(report, grant, call.command)
     return { stdout: answers.run, report: true }
@@ -184,9 +206,12 @@ export class Permissions {
     report: Report,
     call: ShellCall,
     terminal: PermissionTerminal,
+    path: string | null,
   ): Promise<string | undefined> {
     const grants = this.host.grants.covering(report.terminalId)
     if (grants.length === 0 || terminal.projectFolder === undefined) return undefined
+    // A PATH that can search the call's folder runs a same-name program the agent wrote there.
+    if (!pathIsAbsolute(path, this.host.platform)) return undefined
     const found = await matchCall(
       call,
       grants,

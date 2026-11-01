@@ -46,6 +46,7 @@ const scratch = () => {
   return {
     base,
     local,
+    env,
     git,
     remoteRefs,
     done: () => rmSync(base, { recursive: true, force: true }),
@@ -92,7 +93,10 @@ describe("the git lookups", () => {
       try {
         const matched = (refspec: string) =>
           matchCall(
-            { command: `git push origin ${refspec}`, cwd: local },
+            {
+              command: `git push --no-follow-tags --recurse-submodules=no origin ${refspec}`,
+              cwd: local,
+            },
             [scope],
             grantedRemote(local),
             local,
@@ -124,8 +128,16 @@ describe("the git lookups", () => {
       }
     })
 
-    const matcher = (local: string, command: string) =>
-      matchCall({ command, cwd: local }, [scope], grantedRemote(local), local, fsLookups)
+    // A push the preset reads carries both flags; `bare` leaves them off.
+    const flagged = "git push --no-follow-tags --recurse-submodules=no "
+    const matcher = (local: string, command: string, bare = false) =>
+      matchCall(
+        { command: bare ? command : command.replace("git push ", flagged), cwd: local },
+        [scope],
+        grantedRemote(local),
+        local,
+        fsLookups,
+      )
 
     it("refuses a HEAD that points at a tag, which would create one", async () => {
       const { local, git, remoteRefs, done } = scratch()
@@ -143,20 +155,43 @@ describe("the git lookups", () => {
       }
     })
 
-    it("sends no tag along: push.followTags needs --no-follow-tags", async () => {
-      const { local, git, remoteRefs, done } = scratch()
+    it("needs --no-follow-tags and --recurse-submodules=no in the call: the agent's own configuration is unseen", async () => {
+      const { local, env, git, remoteRefs, done } = scratch()
       try {
         git(local, "tag", "-a", "-m", "release", "rel-1", "fix")
-        expect(await matcher(local, "git push origin fix:feat-a")).not.toBeNull()
-        git(local, "config", "push.followTags", "true")
-        expect(await gitLookups.followsTags(local)).toBe(true)
-        expect(await matcher(local, "git push origin fix:feat-a")).toBeNull()
-        expect(await matcher(local, "git push --no-follow-tags origin fix:feat-a")).not.toBeNull()
-        // The flag keeps the annotated tag at home; without it git sends it with the branch.
-        git(local, "push", "-q", "--no-follow-tags", "origin", "fix:feat-a")
-        expect(remoteRefs()).toEqual(["refs/heads/feat-a"])
-        git(local, "push", "-q", "origin", "fix:feat-b")
-        expect(remoteRefs()).toEqual(["refs/heads/feat-a", "refs/heads/feat-b", "refs/tags/rel-1"])
+        const plain = "git push origin fix:feat-a"
+        expect(await matcher(local, plain)).not.toBeNull()
+        for (const command of [
+          plain,
+          "git push --no-follow-tags origin fix:feat-a",
+          "git push --recurse-submodules=no origin fix:feat-a",
+          "git push --follow-tags --recurse-submodules=no origin fix:feat-a",
+        ])
+          // eslint-disable-next-line no-await-in-loop -- One call at a time.
+          expect(await matcher(local, command, true), command).toBeNull()
+        expect(
+          await matcher(
+            local,
+            "git push --no-follow-tags --no-recurse-submodules origin fix:feat-a",
+            true,
+          ),
+        ).not.toBeNull()
+        // The agent's environment sets push.followTags where the runner's git can't see it.
+        const sneaky = {
+          ...env,
+          GIT_CONFIG_COUNT: "1",
+          GIT_CONFIG_KEY_0: "push.followTags",
+          GIT_CONFIG_VALUE_0: "true",
+        }
+        const push = (...args: string[]) =>
+          execFileSync("git", ["push", "-q", ...args], { cwd: local, env: sneaky })
+        // The control: without the flag git sends the annotated tag with the branch.
+        push("origin", "fix:feat-b")
+        expect(remoteRefs()).toEqual(["refs/heads/feat-b", "refs/tags/rel-1"])
+        git(local, "push", "-q", "origin", ":refs/tags/rel-1")
+        // With the flag the call's own word wins over any configuration.
+        push("--no-follow-tags", "--recurse-submodules=no", "origin", "fix:feat-a")
+        expect(remoteRefs()).toEqual(["refs/heads/feat-a", "refs/heads/feat-b"])
       } finally {
         done()
       }
@@ -233,7 +268,7 @@ describe("the git lookups", () => {
       }
     })
 
-    it("pushes on into a submodule's own remote only when recursion is off", async () => {
+    it("keeps a push out of a submodule's own remote only with --recurse-submodules=no in the call", async () => {
       const { local, base, git, remoteRefs, done } = scratch()
       try {
         const sub = join(base, "sub.git")
@@ -255,39 +290,29 @@ describe("the git lookups", () => {
           // A recursive push repeats the refspec in the submodule: it needs a branch of that name.
           git(inner, "branch", "-f", "fix", "HEAD")
           git(local, "commit", "-q", "-a", "-m", name)
+          git(local, "branch", "-f", "fix", "HEAD")
         }
-        const push = (flags = "") => `git push ${flags}origin fix:feat-a`
         const before = subRefs()
         git(local, "branch", "-f", "fix", "HEAD")
-        expect(await matcher(local, push())).not.toBeNull()
-        for (const [key, value] of [
-          ["push.recurseSubmodules", "on-demand"],
-          ["push.recurseSubmodules", "check"],
-          ["submodule.recurse", "true"],
-        ] as const) {
-          git(local, "config", key, value)
-          // eslint-disable-next-line no-await-in-loop -- One setting at a time.
-          expect(await gitLookups.recursesSubmodules(local), `${key}=${value}`).toBe(true)
-          // eslint-disable-next-line no-await-in-loop -- As above.
-          expect(await matcher(local, push()), `${key}=${value}`).toBeNull()
-          // eslint-disable-next-line no-await-in-loop -- As above.
-          expect(await matcher(local, push("--recurse-submodules=no ")), key).not.toBeNull()
-          git(local, "config", "--unset", key)
-        }
-        git(local, "config", "push.recurseSubmodules", "no")
-        expect(await gitLookups.recursesSubmodules(local)).toBe(false)
-        git(local, "config", "--unset", "push.recurseSubmodules")
-        expect(await gitLookups.recursesSubmodules(local)).toBe(false)
-        // The control: with recursion on, git pushes the submodule's new commit to its remote;
-        // with the flag it doesn't.
         git(local, "config", "push.recurseSubmodules", "on-demand")
+        const ok = "git push --no-follow-tags --recurse-submodules=no origin fix:feat-a"
+        expect(await matcher(local, ok, true)).not.toBeNull()
+        expect(await matcher(local, "git push --no-follow-tags origin fix:feat-a", true)).toBeNull()
+        // The control: with recursion on in the configuration, git pushes the submodule's new commit
+        // to its remote; the flag in the call keeps it home.
         commitInner("one")
-        git(local, "branch", "-f", "fix", "HEAD")
-        git(local, "push", "-q", "--recurse-submodules=no", "origin", "fix:feat-a")
+        git(
+          local,
+          "push",
+          "-q",
+          "--no-follow-tags",
+          "--recurse-submodules=no",
+          "origin",
+          "fix:feat-a",
+        )
         expect(subRefs()).toEqual(before)
         commitInner("two")
-        git(local, "branch", "-f", "fix", "HEAD")
-        git(local, "push", "-q", "origin", "fix:feat-b")
+        git(local, "push", "-q", "--no-follow-tags", "origin", "fix:feat-b")
         expect(subRefs()).not.toEqual(before)
         expect(remoteRefs()).toContain("refs/heads/feat-b")
       } finally {

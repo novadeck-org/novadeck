@@ -60,7 +60,17 @@ export const callFromPayload = (
     return typeof body["cwd"] === "string" ? { command, cwd: body["cwd"] } : "unreadable"
   // Codex's payload names the session's folder, not necessarily the command's (its `workdir`
   // is in neither hook): a folder to look in for a program of the command's name, no more.
-  const session = harness === "codex" && typeof body["cwd"] === "string" ? body["cwd"] : undefined
+  // Antigravity's names its workspace, the folder it was started in, which it runs commands in
+  // and the terminal's own title or escape codes can't move (the terminal's folder follows OSC 7).
+  const workspaces = body["workspacePaths"]
+  const session =
+    harness === "codex"
+      ? typeof body["cwd"] === "string"
+        ? body["cwd"]
+        : undefined
+      : Array.isArray(workspaces) && workspaces.length === 1 && typeof workspaces[0] === "string"
+        ? workspaces[0]
+        : undefined
   // Codex and Antigravity on Windows run the command in PowerShell or cmd, which their
   // payloads never name; Claude Code's Bash tool runs Git Bash there. cmd runs a program of
   // the command's name from the folder it runs in, so a folder that isn't known is no match.

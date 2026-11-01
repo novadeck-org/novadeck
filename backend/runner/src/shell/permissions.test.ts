@@ -17,13 +17,14 @@ import { Permissions, type PermissionsHost } from "./permissions.js"
 const token = "0123456789abcdef".repeat(3)
 const project = "/work/project"
 
-/** A grant that lets `uberepo ship` followed by anything, and `touch marker` exactly, through. */
+/** A grant that lets `uberepo ship x`, and `touch marker` exactly, through. */
 const grant: GrantScope & { id: string } = {
   id: "g-1",
   presets: [],
   repos: [],
   commands: [
-    { argv: ["uberepo", "ship"], rest: true },
+    { argv: ["uberepo", "ship", "x"], rest: false },
+    { argv: ["uberepo", "ship", "%PATH%"], rest: false },
     { argv: ["uberepo", "doctor"], rest: false },
   ],
 }
@@ -103,7 +104,11 @@ const fixture = (
     verified: () => Promise.resolve(true),
     userRules: rules,
   })
-  const rollout: { value: RolloutCall | undefined } = { value: { workdir: null, planning: false } }
+  // The machine the PATH below is read as (the hooks' platform).
+  let pathPlatform: NodeJS.Platform = "linux"
+  const rollout: { value: RolloutCall | undefined } = {
+    value: { workdir: null, planning: false, cwd: project },
+  }
   const folders = new Map<string, string[]>()
   const shell = { folder: project, planning: false }
   const host: PermissionsHost = {
@@ -126,8 +131,6 @@ const fixture = (
     git: {
       pushUrls: () => Promise.resolve(undefined),
       resolve: () => Promise.resolve(null),
-      followsTags: () => Promise.resolve(false),
-      recursesSubmodules: () => Promise.resolve(false),
       pushTarget: (_cwd, url) => Promise.resolve([url]),
     },
     fs: {
@@ -136,6 +139,9 @@ const fixture = (
       codexCall: () => Promise.resolve(rollout.value),
     },
     now: () => clock.now,
+    get platform() {
+      return pathPlatform
+    },
   }
   const permissions = new Permissions(host)
   const reportOf = (
@@ -147,7 +153,10 @@ const fixture = (
     platform: NodeJS.Platform = "linux",
   ) => {
     // Read as on Linux unless a test says otherwise, which the narrowing above is told too.
-    const hook = relayHook(hello(agent, event, payload, env), platform)
+    pathPlatform = platform
+    const path =
+      platform === "win32" ? "C:\\Windows\\System32;C:\\Windows" : "/usr/local/bin:/usr/bin:/bin"
+    const hook = relayHook(hello(agent, event, payload, { PATH: path, ...env }), platform)
     if (!hook) throw new Error("not a hook")
     const report: Report = {
       terminalId: given.terminalId ?? "t",
@@ -276,17 +285,23 @@ describe("Claude Code's permission check", () => {
     resources,
   }) => {
     const { ask, used } = fixture(resources)
-    const answer = await ask("claude", "PreToolUse", bash("uberepo ship feature"))
+    const answer = await ask("claude", "PreToolUse", bash("uberepo ship x"))
     expect(answer).toEqual({ stdout: allowedLine("claude"), report: false })
     expect(JSON.parse(answer.stdout ?? "")).toMatchObject({
       hookSpecificOutput: { hookEventName: "PreToolUse", permissionDecision: "allow" },
     })
-    expect(used).toEqual(["g-1 t uberepo ship feature"])
+    expect(used).toEqual(["g-1 t uberepo ship x"])
   })
 
   it("leaves a call no grant matches to its own check", async ({ resources }) => {
     const { ask, used } = fixture(resources)
-    for (const command of ["uberepo merge", "uberepo ship", "ls", "uberepo ship x; rm -rf /"])
+    for (const command of [
+      "uberepo merge",
+      "uberepo ship",
+      "uberepo ship feature",
+      "ls",
+      "uberepo ship x; rm -rf /",
+    ])
       expect(await ask("claude", "PreToolUse", bash(command))).toEqual({
         stdout: "",
         report: false,
@@ -320,8 +335,10 @@ describe("Claude Code's permission check", () => {
   it("on Windows holds Codex's session folder and the terminal's folder to the same-name check", async ({
     resources,
   }) => {
-    const { ask, used, folders, shell } = fixture(resources)
+    const { ask, used, folders, shell, rollout } = fixture(resources)
     const session = `${project}/pkg`
+    // Codex 0.166's hook names the call's own folder; the rollout says it is `pkg` of the turn's.
+    rollout.value = { workdir: "pkg", planning: false, cwd: project }
     const codex = (cwd: string) => ({
       session_id: "s",
       cwd,
@@ -367,19 +384,85 @@ describe("Claude Code's permission check", () => {
     }
     expect((await ask("codex", "PermissionRequest", codex)).stdout).toBe(allowedLine("codex"))
     // Its rollout says the turn plans, or doesn't say: no grant either way.
-    rollout.value = { workdir: null, planning: true }
+    rollout.value = { workdir: null, planning: true, cwd: project }
     expect((await ask("codex", "PermissionRequest", codex)).stdout).toBe("")
-    rollout.value = { workdir: null, planning: undefined }
+    rollout.value = { workdir: null, planning: undefined, cwd: project }
     expect((await ask("codex", "PermissionRequest", codex)).stdout).toBe("")
     rollout.value = undefined
     expect((await ask("codex", "PermissionRequest", codex)).stdout).toBe("")
-    rollout.value = { workdir: null, planning: false }
+    rollout.value = { workdir: null, planning: false, cwd: project }
     expect((await ask("codex", "PermissionRequest", codex)).stdout).toBe(allowedLine("codex"))
     // Or Novadeck's own activity says it plans.
     shell.planning = true
     expect((await ask("codex", "PermissionRequest", codex)).stdout).toBe("")
     expect((await ask("claude", "PreToolUse", bash("uberepo ship x"))).stdout).toBe("")
     expect(used).toHaveLength(2)
+  })
+
+  it("allows nothing when the agent's PATH holds a dot, an empty or relative entry, or is missing", async ({
+    resources,
+  }) => {
+    const { ask, used } = fixture(resources)
+    const codexRequest = { ...bash("uberepo ship x"), hook_event_name: "PermissionRequest" }
+    for (const path of [
+      "/usr/bin:.:/bin",
+      "/usr/bin::/bin",
+      "/usr/bin:",
+      "/usr/bin:./node_modules/.bin",
+      "~/bin:/usr/bin",
+      "",
+    ]) {
+      // The hook leaves out an empty PATH, as a missing one.
+      const env = { env: { PATH: path } }
+      expect((await ask("claude", "PreToolUse", bash("uberepo ship x"), env)).stdout, path).toBe("")
+      expect((await ask("codex", "PermissionRequest", codexRequest, env)).stdout, path).toBe("")
+    }
+    expect(used).toEqual([])
+    // The same grant with a PATH of absolute folders is allowed.
+    expect((await ask("claude", "PreToolUse", bash("uberepo ship x"))).stdout).toBe(
+      allowedLine("claude"),
+    )
+  })
+
+  it("reads a Windows PATH by its own rules: drive and UNC folders, quotes allowed, relative ones not", async ({
+    resources,
+  }) => {
+    const { ask } = fixture(resources)
+    const codexRequest = { ...bash("uberepo ship x"), hook_event_name: "PermissionRequest" }
+    const asks = async (path: string | undefined) =>
+      (
+        await ask("codex", "PermissionRequest", codexRequest, {
+          platform: "win32",
+          ...(path !== undefined && { env: { PATH: path } }),
+        })
+      ).stdout
+    expect(await asks('C:\\Windows;"C:\\Program Files\\Git\\cmd";\\\\srv\\share')).toBe(
+      allowedLine("codex"),
+    )
+    for (const path of [
+      "C:\\Windows;.",
+      "C:\\Windows;",
+      "C:\\Windows;bin",
+      "C:\\Windows;\\bin",
+      "C:\\Windows;C:bin",
+    ])
+      // eslint-disable-next-line no-await-in-loop -- One PATH at a time.
+      expect(await asks(path), path).toBe("")
+  })
+
+  it("answers an Antigravity call closed when the PATH can search the folder", async ({
+    resources,
+  }) => {
+    const { ask, launch } = fixture(resources)
+    await launch(["uberepo"])
+    const narrow = { env: { NOVADECK_NARROW: "1" } }
+    const call = run("uberepo doctor")
+    const open = await ask("agy", "PreToolUse", call, narrow)
+    expect(open.stdout).toContain("deny_unless_prior_grant")
+    const dotted = await ask("agy", "PreToolUse", call, {
+      env: { NOVADECK_NARROW: "1", PATH: ".:/usr/bin" },
+    })
+    expect(dotted.stdout).not.toContain("deny_unless_prior_grant")
   })
 
   it("allows nothing when the payload holds a field it doesn't know", async ({ resources }) => {

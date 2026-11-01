@@ -128,14 +128,13 @@ export const matchesPush = async (
   if (!isBranchName(destination)) return false
   // Everything below reads the folder's git: none known, nothing is certain.
   if (refs === null) return false
-  // A push also sends the annotated tags its commits reach where `push.followTags` is on, and
-  // goes on into the submodules' own remotes where they are recursed into.
-  if (!flags.includes("--no-follow-tags") && (await limited(() => git.followsTags(refs))) !== false)
-    return false
+  // The runner can't see the agent's own environment (`GIT_CONFIG_*`, a global configuration), so
+  // it can't know that a push sends the annotated tags its commits reach (`push.followTags`) or goes
+  // on into the submodules' own remotes (`push.recurseSubmodules`, `submodule.recurse`): the call
+  // itself must switch both off.
   if (
-    !flags.includes("--recurse-submodules=no") &&
-    !flags.includes("--no-recurse-submodules") &&
-    (await limited(() => git.recursesSubmodules(refs))) !== false
+    !flags.includes("--no-follow-tags") ||
+    !(flags.includes("--recurse-submodules=no") || flags.includes("--no-recurse-submodules"))
   )
     return false
   const targets = await reached(remote, repos, git, refs)

@@ -176,6 +176,24 @@ describe("an Antigravity PreToolUse payload", () => {
     })
   })
 
+  it("takes its one workspace as the folder its commands run in", () => {
+    const call = (paths: unknown) => ({
+      ...agy("run_command", { CommandLine: "ls" }),
+      workspacePaths: paths,
+    })
+    expect(callFromPayload("agy", "PreToolUse", call(["/w/a"]), "linux")).toEqual({
+      command: "ls",
+      cwd: null,
+      sessionFolder: "/w/a",
+    })
+    // Several, none or something else name no one folder.
+    for (const paths of [["/w/a", "/w/b"], [], "/w/a", [3]])
+      expect(callFromPayload("agy", "PreToolUse", call(paths), "linux")).toEqual({
+        command: "ls",
+        cwd: null,
+      })
+  })
+
   it("refuses IsDaemon and any other argument", () => {
     for (const extra of [{ IsDaemon: true }, { IsDaemon: false }, { Cwd: "/" }])
       expect(

@@ -33,13 +33,9 @@ const git: GitLookups = {
     if (name in tags) return tags[name]
     return name === "HEAD" ? head.value : name.startsWith("new-") ? null : `refs/heads/${name}`
   },
-  followsTags: async () => follows.value,
-  recursesSubmodules: async () => recurses.value,
   pushTarget: async (_cwd, url) => rewrites.get(url) ?? [url],
 }
-const follows: { value: boolean | undefined } = { value: false }
 const rewrites = new Map<string, readonly string[]>()
-const recurses: { value: boolean | undefined } = { value: false }
 const head = { value: "refs/heads/fix" as string | null }
 const resolved: string[] = []
 const broken = new Set<string>()
@@ -47,8 +43,17 @@ const tags: Record<string, string> = { "v1.0.0": "refs/tags/v1.0.0", "tags/v1": 
 
 // The disk: every path is a regular file that is its own real path, unless a test says otherwise.
 const codex = new Map<string, RolloutCall | undefined>()
-const said = (command: string, workdir: string | null | undefined, planning = false) =>
-  codex.set(command, { workdir, planning })
+const said = (
+  command: string,
+  workdir: string | null | undefined,
+  planning: boolean | "unsaid" = false,
+  cwd: string | "none" = "/work/proj",
+) =>
+  codex.set(command, {
+    workdir,
+    planning: planning === "unsaid" ? undefined : planning,
+    cwd: cwd === "none" ? undefined : cwd,
+  })
 const links = new Map<string, { path: string; file: boolean } | undefined>()
 const present = new Set<string>()
 const fs: FsLookups = {
@@ -66,16 +71,21 @@ beforeEach(() => {
   broken.clear()
   rewrites.clear()
   codex.clear()
-  recurses.value = false
-  follows.value = false
   head.value = "refs/heads/fix"
 })
+
+// A push the preset reads names both switches off itself (the agent's own configuration is unseen
+// to the runner); these tests add them unless a call already says something about them.
+const flagged = (command: string): string =>
+  /--(no-)?(follow-tags|recurse-submodules)|--no-recurse/.test(command)
+    ? command
+    : command.replace(/^git push /, "git push --no-follow-tags --recurse-submodules=no ")
 
 const run = (
   command: string,
   scopes: readonly GrantScope[] = [scope()],
   cwd: string | null = root,
-) => matchCall({ command, cwd }, scopes, git, root, fs)
+) => matchCall({ command: flagged(command), cwd }, scopes, git, root, fs)
 
 const allowed = async (command: string, scopes?: readonly GrantScope[], cwd?: string | null) =>
   (await run(command, scopes, cwd)) !== null
@@ -182,23 +192,23 @@ describe("the push preset", () => {
     expect(resolved).toEqual([`${root} HEAD`, `${root} new-x`])
   })
 
-  it("resolves in the call's folder, else the terminal's; never where the command may run elsewhere", async () => {
+  it("asks git in the call's folder or Antigravity's workspace, never the terminal's", async () => {
     const push = (call: object, terminal?: string) =>
       matchCall(
-        { command: "git push https://github.com/acme/app fix:fix", cwd: null, ...call },
+        { command: flagged("git push https://github.com/acme/app fix:fix"), cwd: null, ...call },
         [scope()],
         git,
         root,
         fs,
         terminal,
       )
+    // The terminal's folder follows what a program prints (OSC 7): it is no place to ask git.
     expect(await push({})).toBeNull()
-    expect(await push({}, "/work/proj/sub")).not.toBeNull()
-    expect(resolved[0]).toBe("/work/proj/sub fix")
-    // Codex's `workdir` shows in neither hook: the session's or the terminal's folder is no answer.
-    const hidden = { sessionFolder: "/work/proj/pkg", folderHidden: true }
-    expect(await push(hidden, "/work/proj/sub")).toBeNull()
+    expect(await push({}, "/work/proj/sub")).toBeNull()
     expect(await push({ sessionFolder: "/work/proj/pkg" }, "/work/proj/sub")).not.toBeNull()
+    expect(resolved[0]).toBe("/work/proj/pkg fix")
+    // A workspace outside the project matches nothing.
+    expect(await push({ sessionFolder: "/elsewhere" })).toBeNull()
   })
 
   it("resolves HEAD like any source: one pointed at a tag, or at nothing, is no branch", async () => {
@@ -210,19 +220,24 @@ describe("the push preset", () => {
     }
   })
 
-  it("takes --no-follow-tags, and otherwise only where push.followTags is off", async () => {
-    expect(await allowed("git push origin fix:new-x")).toBe(true)
-    expect(await allowed("git push --no-follow-tags origin fix:new-x")).toBe(true)
-    expect(await allowed("git push -u --no-follow-tags origin fix:new-x")).toBe(true)
-    for (const value of [true, undefined]) {
-      follows.value = value
-      // eslint-disable-next-line no-await-in-loop -- One value at a time.
-      expect(await allowed("git push origin fix:new-x"), String(value)).toBe(false)
-      // eslint-disable-next-line no-await-in-loop -- As above.
-      expect(await allowed("git push --no-follow-tags origin fix:new-x")).toBe(true)
-    }
-    expect(await allowed("git push --follow-tags origin fix:new-x")).toBe(false)
-    expect(await allowed("git push --no-follow-tags --no-follow-tags origin fix:new-x")).toBe(false)
+  it("needs --no-follow-tags and --recurse-submodules=no (or --no-recurse-submodules) in the call", async () => {
+    const both = "git push --no-follow-tags --recurse-submodules=no origin fix:new-x"
+    expect(await allowed(both)).toBe(true)
+    expect(
+      await allowed("git push -u --no-follow-tags --no-recurse-submodules origin fix:new-x"),
+    ).toBe(true)
+    for (const command of [
+      "git push --no-follow-tags origin fix:new-x",
+      "git push --recurse-submodules=no origin fix:new-x",
+      "git push --no-recurse-submodules origin fix:new-x",
+      "git push --follow-tags --recurse-submodules=no origin fix:new-x",
+      "git push --no-follow-tags --recurse-submodules=on-demand origin fix:new-x",
+      "git push --no-follow-tags --recurse-submodules=check origin fix:new-x",
+      "git push --no-follow-tags --recurse-submodules origin fix:new-x",
+      "git push --no-follow-tags --no-follow-tags --recurse-submodules=no origin fix:new-x",
+    ])
+      // eslint-disable-next-line no-await-in-loop -- One call at a time.
+      expect(await allowed(command), command).toBe(false)
   })
 
   it("reads a URL as git rewrites it in the folder, and refuses one it can't", async () => {
@@ -244,14 +259,14 @@ describe("the push preset", () => {
     ).toBeNull()
   })
 
-  it("asks git in the folder Codex's rollout gives the call: its workdir, else the session's", async () => {
-    const command = "git push https://github.com/acme/app fix:fix"
-    const push = (rollout: boolean = true) =>
+  describe("Codex's call folder", () => {
+    const command = flagged("git push https://github.com/acme/app fix:fix")
+    const push = (reported: string | null = "/work/proj", rollout = true) =>
       matchCall(
         {
           command,
           cwd: null,
-          sessionFolder: "/work/proj",
+          ...(reported !== null && { sessionFolder: reported }),
           folderHidden: true,
           ...(rollout && { rollout: { path: "/h/rollout-1.jsonl", turn: "t" } }),
         },
@@ -261,22 +276,83 @@ describe("the push preset", () => {
         fs,
         "/work/proj/terminal",
       )
-    // The rollout can't say, or the payload names none: no folder, no push.
-    expect(await push()).toBeNull()
-    expect(await push(false)).toBeNull()
-    said(command, null)
-    expect(await push()).not.toBeNull()
-    expect(resolved[0]).toBe("/work/proj fix")
-    said(command, "pkg/sub")
-    resolved.length = 0
-    expect(await push()).not.toBeNull()
-    expect(resolved[0]).toBe("/work/proj/pkg/sub fix")
-    expect(await push(false)).toBeNull()
-    // Outside the project, or a rollout that fails, is no match.
-    said(command, "/elsewhere")
-    expect(await push()).toBeNull()
-    said(command, "../other")
-    expect(await push()).toBeNull()
+
+    it("is the rollout's workdir against the turn's folder, else the turn's", async () => {
+      // The rollout can't say, or the payload names no rollout: no folder, no match.
+      expect(await push()).toBeNull()
+      said(command, null)
+      expect(await push("/work/proj", false)).toBeNull()
+      expect(await push()).not.toBeNull()
+      expect(resolved[0]).toBe("/work/proj fix")
+      said(command, "pkg/sub")
+      resolved.length = 0
+      expect(await push()).not.toBeNull()
+      expect(resolved[0]).toBe("/work/proj/pkg/sub fix")
+      said(command, "/work/proj/abs")
+      resolved.length = 0
+      expect(await push("/work/proj/abs")).not.toBeNull()
+      expect(resolved[0]).toBe("/work/proj/abs fix")
+    })
+
+    it("takes the payload's folder as the turn's (0.165) or as the call's (0.166), or nothing", async () => {
+      said(command, "sub")
+      // 0.165: the session's folder. 0.166: the call's, already resolved once.
+      expect(await push("/work/proj")).not.toBeNull()
+      resolved.length = 0
+      expect(await push("/work/proj/sub")).not.toBeNull()
+      // Git is asked in the call's folder, not in `sub/sub`.
+      expect(resolved[0]).toBe("/work/proj/sub fix")
+      // Neither: the payload and the rollout disagree.
+      expect(await push("/work/proj/other")).toBeNull()
+      expect(await push("/work/proj/sub/sub")).toBeNull()
+      expect(await push(null)).toBeNull()
+    })
+
+    it("is outside the project when the workdir, the turn's folder or the payload's is", async () => {
+      said(command, "/elsewhere")
+      expect(await push("/elsewhere")).toBeNull()
+      said(command, "../other")
+      expect(await push()).toBeNull()
+      said(command, null, false, "/elsewhere")
+      expect(await push("/elsewhere")).toBeNull()
+      said(command, null)
+      expect(await push("/elsewhere")).toBeNull()
+    })
+
+    it("matches nothing, preset or command, where the rollout can't pin the workdir or the turn's folder", async () => {
+      const ready = "gh pr ready 12 -R acme/app"
+      const call = (over: object = {}) =>
+        matchCall(
+          {
+            command: ready,
+            cwd: null,
+            sessionFolder: "/work/proj",
+            folderHidden: true,
+            rollout: { path: "/h/rollout-1.jsonl", turn: "t" },
+            ...over,
+          },
+          [
+            scope({
+              commands: [{ argv: ["gh", "pr", "ready", "12", "-R", "acme/app"], rest: false }],
+            }),
+            scope({
+              presets: [],
+              commands: [{ argv: ["gh", "pr", "ready", "12", "-R", "acme/app"], rest: false }],
+            }),
+          ],
+          git,
+          root,
+          fs,
+        )
+      said(ready, null)
+      expect(await call()).not.toBeNull()
+      // Two pending calls, a shell_command, or an unreadable rollout: workdir undefined.
+      said(ready, undefined)
+      expect(await call()).toBeNull()
+      // No turn folder on disk.
+      said(ready, null, false, "none")
+      expect(await call()).toBeNull()
+    })
   })
 
   it("holds Codex's workdir to the same-name check on Windows", async () => {
@@ -296,28 +372,10 @@ describe("the push preset", () => {
         "C:\\work\\proj",
         fs,
       )
-    said(command, "pkg")
+    said(command, "pkg", false, "C:\\work\\proj")
     expect(await ready()).not.toBeNull()
     present.add("C:\\work\\proj\\pkg\\gh.js")
     expect(await ready()).toBeNull()
-  })
-
-  it("pushes on into submodules' own remotes only with them switched off", async () => {
-    expect(await allowed("git push origin fix:new-x")).toBe(true)
-    recurses.value = true
-    expect(await allowed("git push origin fix:new-x")).toBe(false)
-    expect(await allowed("git push --recurse-submodules=no origin fix:new-x")).toBe(true)
-    expect(await allowed("git push --no-recurse-submodules origin fix:new-x")).toBe(true)
-    recurses.value = undefined
-    expect(await allowed("git push origin fix:new-x")).toBe(false)
-    expect(await allowed("git push --recurse-submodules=no origin fix:new-x")).toBe(true)
-    for (const flag of [
-      "--recurse-submodules",
-      "--recurse-submodules=on-demand",
-      "--recurse-submodules=check",
-    ])
-      // eslint-disable-next-line no-await-in-loop -- One flag at a time.
-      expect(await allowed(`git push ${flag} origin fix:new-x`), flag).toBe(false)
   })
 
   it("needs every place a URL pushes to to be the granted repo", async () => {
@@ -351,15 +409,15 @@ describe("the push preset", () => {
         root,
         fs,
       )
-    said(command, undefined)
+    said(command, null)
     expect(await call()).not.toBeNull()
-    said(command, undefined, true)
+    said(command, null, true)
     expect(await call()).toBeNull()
-    codex.set(command, { workdir: undefined, planning: undefined })
+    said(command, null, "unsaid")
     expect(await call()).toBeNull()
     codex.delete(command)
     expect(await call()).toBeNull()
-    said(command, undefined)
+    said(command, null)
     expect(await call({ rollout: undefined })).toBeNull()
   })
 
@@ -405,12 +463,6 @@ describe("the push preset", () => {
         },
       },
       { ...fine, resolve: () => new Promise(() => undefined) },
-      // Tags followed where that can't be told, or is on.
-      { ...fine, followsTags: async () => undefined },
-      { ...fine, recursesSubmodules: async () => undefined },
-      { ...fine, recursesSubmodules: async () => true },
-      { ...fine, followsTags: async () => true },
-      { ...fine, followsTags: () => new Promise(() => undefined) },
     ]
     for (const lookup of lookups)
       expect(
@@ -575,15 +627,15 @@ describe("the pr preset", () => {
 
 describe("granted commands", () => {
   const commands = [
-    { argv: ["uberepo", "ship"], rest: true },
+    { argv: ["uberepo", "ship"], rest: false },
     { argv: ["pwd"], rest: false },
     { argv: ["git", "status"], rest: false },
   ]
   const granted = scope({ presets: [], commands })
 
-  it("match exact words and a rest command's plain words, saying which entry", async () => {
+  it("match exact words, saying which entry", async () => {
     expect(await run("pwd", [granted])).toEqual({ scope: 0, match: { kind: "command", index: 1 } })
-    expect(await run("uberepo ship task/x --force-pr", [granted])).toEqual({
+    expect(await run("uberepo ship", [granted])).toEqual({
       scope: 0,
       match: { kind: "command", index: 0 },
     })
@@ -595,16 +647,25 @@ describe("granted commands", () => {
 
   it.each([
     ["more words than an exact command", "pwd -P"],
-    ["a rest command without a word", "uberepo ship"],
+    ["words after an exact command", "uberepo ship task/x --force-pr"],
     ["a path to the program", "/usr/bin/git status"],
     ["a variable prefix", "FOO=1 git status"],
     ["a chained command", "git status && curl x"],
-    ["a quoted rest word", "uberepo ship 'a b'"],
-    ["a rest substitution", "uberepo ship $(id)"],
-    ["a rest redirect", "uberepo ship x > /etc/passwd"],
+    ["a quoted word", "uberepo ship 'a b'"],
+    ["a substitution", "uberepo ship $(id)"],
+    ["a redirect", "uberepo ship > /etc/passwd"],
     ["git -C", "git -C / status"],
   ])("do not match %s", async (_name, command) => {
     expect(await run(command, [granted])).toBeNull()
+  })
+
+  it("never match a stored followed-by-anything command", async () => {
+    const stored = scope({
+      presets: [],
+      commands: [{ argv: ["uberepo", "ship"], rest: true } as never],
+    })
+    expect(await run("uberepo ship", [stored])).toBeNull()
+    expect(await run("uberepo ship x", [stored])).toBeNull()
   })
 
   it("never match a refused grant", async () => {
@@ -903,20 +964,20 @@ describe("a Codex or Antigravity command on Windows", () => {
     expect(await windows(`gh pr create ${R} --head fix --title T --fill`)).toEqual(pr)
   })
 
-  it("takes a push by URL like any other dialect, asking git in the terminal's folder", async () => {
+  it("takes a push by URL like any other dialect, asking git in the workspace", async () => {
     const push = (call: object) =>
       matchCall(
         {
-          command: "git push https://github.com/acme/app HEAD:fix",
+          command: flagged("git push https://github.com/acme/app HEAD:fix"),
           cwd: null,
           dialect: "windows-quote-free",
+          sessionFolder: "C:\\work\\proj",
           ...call,
         },
         [scope()],
         git,
         "C:\\work\\proj",
         fs,
-        "C:\\work\\proj",
       )
     expect(await push({})).toEqual({ scope: 0, match: { kind: "preset", preset: "push" } })
     // Codex's command may run in a `workdir` no hook shows.
@@ -927,14 +988,14 @@ describe("a Codex or Antigravity command on Windows", () => {
   it("matches granted commands by their words", async () => {
     const commands = [
       { argv: ["ndmarker", "a.js"], rest: false },
-      { argv: ["lint", "run"], rest: true },
+      { argv: ["lint", "run", "src/a.ts"], rest: false },
     ]
     const only = [scope({ presets: [], commands })]
     expect(await windows("ndmarker a.js", only)).toEqual({
       scope: 0,
       match: { kind: "command", index: 0 },
     })
-    expect(await windows("lint  run  src/a.ts --fix", only)).toEqual({
+    expect(await windows("lint  run  src/a.ts", only)).toEqual({
       scope: 0,
       match: { kind: "command", index: 1 },
     })

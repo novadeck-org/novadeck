@@ -69,8 +69,8 @@ export const rewrittenPushUrl = (url: string, entries: string): string | undefin
 /**
  * What the matcher reads of git, in the call's own folder: every push URL of a remote
  * (`git remote get-url --push --all`) and the full name a ref resolves to
- * (`git rev-parse --symbolic-full-name`; null for a name that is no ref), whether pushes
- * follow tags, and where a URL pushes to. A failure, a missing folder or a timeout is
+ * (`git rev-parse --symbolic-full-name`; null for a name that is no ref), and where a URL
+ * pushes to. A failure, a missing folder or a timeout is
  * undefined, and the matcher then lets nothing through.
  */
 export const gitLookups: GitLookups = {
@@ -87,12 +87,6 @@ export const gitLookups: GitLookups = {
     if ("out" in run) return lines(run.out).length === 1 ? lines(run.out)[0] : undefined
     return run.code === 1 ? null : undefined
   },
-  // Unset exits 1: that is off.
-  followsTags: async (cwd) => {
-    const run = await git(cwd, ["config", "--bool", "--get", "push.followTags"])
-    if ("out" in run) return run.out.trim() === "true"
-    return run.code === 1 ? false : undefined
-  },
   // A remote section named like the URL (`remote.<url>.url`/`.pushurl`) is what `git push <url>`
   // pushes to; with none (exit 2) the URL goes through the configuration's rewrites.
   pushTarget: async (cwd, url) => {
@@ -108,15 +102,5 @@ export const gitLookups: GitLookups = {
     ])
     const target = "out" in run ? rewrittenPushUrl(url, run.out) : run.code === 1 ? url : undefined
     return target === undefined ? undefined : [target]
-  },
-  // `push.recurseSubmodules` (anything but no/false) and `submodule.recurse` make a push go
-  // on into the submodules' own remotes. Unset exits 1.
-  recursesSubmodules: async (cwd) => {
-    const push = await git(cwd, ["config", "--get", "push.recurseSubmodules"])
-    if ("out" in push && !/^(no|false|off|0)$/i.test(push.out.trim())) return true
-    if (!("out" in push) && push.code !== 1) return undefined
-    const sub = await git(cwd, ["config", "--bool", "--get", "submodule.recurse"])
-    if ("out" in sub) return sub.out.trim() === "true"
-    return sub.code === 1 ? false : undefined
   },
 }

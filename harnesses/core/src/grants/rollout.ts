@@ -1,6 +1,6 @@
-// Codex's rollout, read for the folder of one exec call: its permission hook names the session's
-// folder but not the call's `workdir`, which the rollout records with the call's arguments
-// before any hook of the call runs (probed, 0.165.0).
+// Codex's rollout, read for one exec call: its permission hook carries the command alone, but the
+// rollout records the call's arguments (its `workdir`, a `shell` to launch, extra permissions) and
+// its turn's folder and mode before any hook of the call runs (probed, 0.165.0 and 0.166.0).
 
 const record = (value: unknown): Record<string, unknown> | undefined =>
   typeof value === "object" && value !== null && !Array.isArray(value)
@@ -13,20 +13,51 @@ export type RolloutCall = {
   readonly workdir: string | null | undefined
   /** Whether the turn is in Plan Mode; undefined where the rollout doesn't say. */
   readonly planning: boolean | undefined
+  /** The folder the turn runs in (its `turn_context`'s `cwd`), which a relative `workdir` is taken against. */
+  readonly cwd: string | undefined
 }
+
+// The arguments of an `exec_command` that change nothing about what the hook was asked: the
+// command, where it runs, how long to wait and how much to read back, and that it asks to run
+// outside the sandbox (the permission request this is). Anything else (`shell`, `login`,
+// `additional_permissions`, `prefix_rule`, a key unknown to this list) may make the call more
+// than its `cmd`, so no grant covers it.
+const safeArguments = (args: Record<string, unknown>): boolean =>
+  Object.entries(args).every(([key, value]) => {
+    switch (key) {
+      case "cmd":
+        return typeof value === "string"
+      case "workdir":
+        return value === null || typeof value === "string"
+      case "sandbox_permissions":
+        return value === "use_default" || value === "require_escalated"
+      case "justification":
+        return value === null || typeof value === "string"
+      case "yield_time_ms":
+      case "max_output_tokens":
+        return value === null || typeof value === "number"
+      case "tty":
+        return typeof value === "boolean"
+      default:
+        return false
+    }
+  })
 
 /**
  * What the rollout's `text` says of the `exec_command` call of `turn` whose `cmd` is `command`.
  * - `workdir`: that of the one such call with no output yet, which must also be the turn's last
  *   `exec_command` on disk (the call being asked about is the newest). Undefined where there is
- *   none, more than one, an older call is the pending one, or the `workdir` isn't text.
+ *   none, more than one, an older call is the pending one, the `workdir` isn't text, or the call
+ *   holds an argument outside `safeArguments`.
+ * - `cwd`: the turn's folder, from its `turn_context`.
  * - `planning`: the turn's `task_started` (`collaboration_mode_kind`) and `turn_context`
  *   (`collaboration_mode.mode`) name its mode: planning if either says `plan`, not planning if
  *   one says another mode, undefined if neither is on disk.
  * Lines that aren't whole (the cut start of a tail) are skipped.
  */
 export const rolloutCall = (text: string, turn: string, command: string): RolloutCall => {
-  const pending = new Map<string, unknown>()
+  const pending = new Map<string, Record<string, unknown>>()
+  let cwd: string | undefined
   const done = new Set<string>()
   const modes: boolean[] = []
   let last: string | undefined
@@ -49,6 +80,7 @@ export const rolloutCall = (text: string, turn: string, command: string): Rollou
     if (item?.["type"] === "turn_context") {
       const mode = record(payload["collaboration_mode"])?.["mode"]
       if (payload["turn_id"] === turn && typeof mode === "string") modes.push(mode === "plan")
+      if (payload["turn_id"] === turn && typeof payload["cwd"] === "string") cwd = payload["cwd"]
       continue
     }
     if (item?.["type"] !== "response_item") continue
@@ -65,13 +97,19 @@ export const rolloutCall = (text: string, turn: string, command: string): Rollou
     } catch {
       continue
     }
-    if (args?.["cmd"] === command) pending.set(id, args["workdir"] ?? null)
+    if (args?.["cmd"] === command) pending.set(id, args)
   }
   const planning = modes.length === 0 ? undefined : modes.includes(true)
   const open = [...pending].filter(([id]) => !done.has(id))
-  if (open.length !== 1) return { workdir: undefined, planning }
-  const [id, workdir] = open[0] as [string, unknown]
-  if (id !== last) return { workdir: undefined, planning }
-  if (workdir === null || workdir === "") return { workdir: null, planning }
-  return { workdir: typeof workdir === "string" ? workdir : undefined, planning }
+  const unknown = { workdir: undefined, planning, cwd }
+  if (open.length !== 1) return unknown
+  const [id, args] = open[0] as [string, Record<string, unknown>]
+  if (id !== last || !safeArguments(args)) return unknown
+  const workdir = args["workdir"]
+  return {
+    workdir:
+      workdir === undefined || workdir === null || workdir === "" ? null : (workdir as string),
+    planning,
+    cwd,
+  }
 }

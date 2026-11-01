@@ -131,3 +131,67 @@ describe("the turn's mode, from Codex's rollout", () => {
     expect(planning(started("other", "plan"))).toBeUndefined()
   })
 })
+
+describe("the arguments a call may carry", () => {
+  const workdirOf = (extra: object) =>
+    rolloutCall(text(call("a", { ...args, ...extra })), turn, command).workdir
+
+  it("are the command, where it runs and how it waits, and that it asks to leave the sandbox", () => {
+    expect(
+      workdirOf({
+        workdir: "/w",
+        justification: "Touch a file",
+        yield_time_ms: 1000,
+        max_output_tokens: 2000,
+        tty: false,
+        sandbox_permissions: "require_escalated",
+      }),
+    ).toBe("/w")
+    expect(workdirOf({ sandbox_permissions: "use_default" })).toBeNull()
+  })
+
+  it.each([
+    ["a shell to launch", { shell: "/work/proj/tools/bash" }],
+    ["a login shell", { login: true }],
+    ["additional permissions", { additional_permissions: { file_system: { write: ["/"] } } }],
+    ["asking for additional permissions", { sandbox_permissions: "with_additional_permissions" }],
+    ["a prefix rule", { prefix_rule: ["git", "pull"] }],
+    ["the older escalation field", { with_escalated_permissions: true }],
+    ["a key it doesn't know", { env: { PATH: "." } }],
+    ["a workdir that is no text", { workdir: 3 }],
+  ])("refuse a call with %s", (_name, extra) => {
+    expect(workdirOf(extra)).toBeUndefined()
+  })
+})
+
+describe("the turn's folder", () => {
+  it("is the turn_context's cwd of that turn", () => {
+    const folderOf = (id: string, cwd: string) =>
+      JSON.stringify({ type: "turn_context", payload: { turn_id: id, cwd } })
+    expect(rolloutCall(text(folderOf(turn, "/p/a"), call("a", args)), turn, command).cwd).toBe(
+      "/p/a",
+    )
+    expect(
+      rolloutCall(text(folderOf("other", "/p/b"), call("a", args)), turn, command).cwd,
+    ).toBeUndefined()
+    expect(rolloutCall(text(call("a", args)), turn, command).cwd).toBeUndefined()
+  })
+})
+
+// Codex 0.166.0, a call with a relative workdir (probe, approvals-probes/captures/codexargs-x1d):
+// its hooks gave `cwd` as `<project>/sub`, the call's folder, while the turn ran in `<project>`.
+describe("a relative workdir, as Codex 0.166 recorded it", () => {
+  const rollout = [
+    '{"type":"turn_context","payload":{"turn_id":"01a1991b-3366","cwd":"/tmp/novadeck-e2e-qRV0Ia/project"}}',
+    '{"timestamp":"2026-11-01T21:54:19.531Z","ordinal":10,"type":"response_item","payload":{"type":"function_call","status":"completed","id":"fc_0db1","name":"exec_command","arguments":"{\\"cmd\\":\\"touch /tmp/novadeck-e2e-qRV0Ia/ran.txt\\",\\"workdir\\":\\"sub\\",\\"sandbox_permissions\\":\\"require_escalated\\",\\"justification\\":\\"j\\"}","call_id":"call_df44","internal_chat_message_metadata_passthrough":{"turn_id":"01a1991b-3366"}},"metadata":{"client_authored":false,"user_input_order":1}}',
+  ].join("\n")
+
+  it("keeps the workdir as written and the turn's folder apart", () => {
+    expect(
+      rolloutCall(rollout, "01a1991b-3366", "touch /tmp/novadeck-e2e-qRV0Ia/ran.txt"),
+    ).toMatchObject({
+      workdir: "sub",
+      cwd: "/tmp/novadeck-e2e-qRV0Ia/project",
+    })
+  })
+})
