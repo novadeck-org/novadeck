@@ -84,6 +84,7 @@ export class Approving {
             projectFolder: host.projectFolder(record.summary.sessionId),
             folder: record.summary.cwd,
             planning: record.bound?.activity.planning === true,
+            command: record.summary.command ?? undefined,
           }
         )
       },

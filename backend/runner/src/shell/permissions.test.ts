@@ -10,6 +10,7 @@ import type { Report } from "@novadeck/harness-core/report"
 import { harnesses } from "../harnesses/registry.js"
 import { describe, expect, it } from "../test.js"
 import { armedMs } from "./armed.js"
+import type { CodexLayers, CodexPolicy } from "./codex-policy.js"
 import { hookVariables, relayHook } from "./hook.js"
 import { Narrowing } from "./narrowing.js"
 import { Permissions, type PermissionsHost } from "./permissions.js"
@@ -78,10 +79,13 @@ type Fixture = {
   readonly deny: (command: string, given?: { token?: string }) => void
   /** What each folder holds, by path; a folder not named holds nothing. */
   readonly folders: Map<string, string[]>
+  /** What Codex's configuration sets, and what the runner asked of it. */
+  readonly policy: { value: CodexPolicy; fails: boolean }
+  readonly policyAsked: CodexLayers[]
   /** What Codex's rollout says of the call. */
   readonly rollout: { value: RolloutCall | undefined }
   /** The folder the terminal's shell is in. */
-  readonly shell: { folder: string; planning: boolean }
+  readonly shell: { folder: string; planning: boolean; command: string | undefined }
   /** The directory of the launch settings. */
   readonly directory: string
   /** Starts the terminal's Antigravity narrowed with `programs`, as a launch does. */
@@ -104,13 +108,19 @@ const fixture = (
     verified: () => Promise.resolve(true),
     userRules: rules,
   })
+  // What Codex's configuration sets for its commands, as the fixture's disk says.
+  const policy: { value: CodexPolicy; fails: boolean } = {
+    value: { git: false, gh: false },
+    fails: false,
+  }
+  const policyAsked: CodexLayers[] = []
   // The machine the PATH below is read as (the hooks' platform).
   let pathPlatform: NodeJS.Platform = "linux"
   const rollout: { value: RolloutCall | undefined } = {
     value: { workdir: null, planning: false, cwd: project },
   }
   const folders = new Map<string, string[]>()
-  const shell = { folder: project, planning: false }
+  const shell = { folder: project, planning: false, command: undefined as string | undefined }
   const host: PermissionsHost = {
     terminal: (id) =>
       id === "t"
@@ -120,6 +130,7 @@ const fixture = (
             projectFolder: project,
             folder: shell.folder,
             planning: shell.planning,
+            command: shell.command,
           }
         : undefined,
     sameToken: (a, b) => a === b,
@@ -141,6 +152,10 @@ const fixture = (
     now: () => clock.now,
     get platform() {
       return pathPlatform
+    },
+    codexPolicy: (layers) => {
+      policyAsked.push(layers)
+      return policy.fails ? Promise.reject(new Error("unreadable")) : Promise.resolve(policy.value)
     },
   }
   const permissions = new Permissions(host)
@@ -170,6 +185,8 @@ const fixture = (
     narrowing,
     used,
     clock,
+    policy,
+    policyAsked,
     rollout,
     folders,
     shell,
@@ -458,6 +475,52 @@ describe("Claude Code's permission check", () => {
         })
       ).stdout,
     ).toBe(allowedLine("claude"))
+  })
+
+  it("holds Codex's presets back for what its configuration sets for its commands", async ({
+    resources,
+  }) => {
+    const pr: GrantScope & { id: string } = {
+      id: "g-pr",
+      presets: ["pr"],
+      repos: [{ url: "github.com/acme/app", defaultBranch: "main" }],
+      commands: [{ argv: ["uberepo", "ship", "x"], rest: false }],
+    }
+    const { ask, policy, policyAsked, shell } = fixture(resources, () => [pr])
+    shell.command = "codex --profile work"
+    const request = (command: string) => ({
+      ...bash(command),
+      hook_event_name: "PermissionRequest",
+    })
+    const ready = request("gh pr ready 12 -R acme/app")
+    const codex = async (payload: object, env: object = {}) =>
+      (await ask("codex", "PermissionRequest", payload, { env })).stdout
+    expect(await codex(ready)).toBe(allowedLine("codex"))
+    // It asked for the user's layer by the hook's CODEX_HOME, and the project's folders.
+    await codex(ready, { CODEX_HOME: "/h/.codex" })
+    expect(policyAsked.at(-1)).toMatchObject({
+      home: "/h/.codex",
+      project,
+      folder: project,
+      command: "codex --profile work",
+    })
+    policy.value = { git: false, gh: true }
+    expect(await codex(ready)).toBe("")
+    policy.value = { git: true, gh: false }
+    expect(await codex(ready)).toBe(allowedLine("codex"))
+    // A layer that can't be read: both kinds, and a failing read is no better.
+    policy.value = { git: true, gh: true }
+    expect(await codex(ready)).toBe("")
+    policy.fails = true
+    expect(await codex(ready)).toBe("")
+    // A granted command is neither's.
+    expect(await codex(request("uberepo ship x"))).toBe(allowedLine("codex"))
+    // Only Codex's configuration is Codex's: Claude Code is not asked.
+    const before = policyAsked.length
+    expect((await ask("claude", "PreToolUse", bash("gh pr ready 12 -R acme/app"))).stdout).toBe(
+      allowedLine("claude"),
+    )
+    expect(policyAsked.length).toBe(before)
   })
 
   it("flags the variables the hook's environment holds, for every harness", () => {

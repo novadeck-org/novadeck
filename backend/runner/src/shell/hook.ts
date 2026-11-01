@@ -58,6 +58,8 @@ export type Permission = {
   readonly gitEnv: boolean
   /** A variable of `ghVariables` is set in the hook's environment. */
   readonly ghEnv: boolean
+  /** Codex's `CODEX_HOME` in the hook's environment, null where it is not set. */
+  readonly codexHome: string | null
 }
 
 /** Whether Antigravity's tool is one known to run no command (design B3): a closed list. */
@@ -91,6 +93,7 @@ const readPermission = (
     path,
     gitEnv: gitVariables.some((name) => text(env[name], 65_536) !== undefined),
     ghEnv: ghVariables.some((name) => text(env[name], 65_536) !== undefined),
+    codexHome: text(env.CODEX_HOME, 4096) ?? null,
   }
 }
 
@@ -169,6 +172,8 @@ export const hookVariables = [
   "PATH",
   ...gitVariables,
   ...ghVariables,
+  // Where Codex keeps its configuration, whose `shell_environment_policy` the hooks don't see.
+  "CODEX_HOME",
 ] as const
 
 /**
