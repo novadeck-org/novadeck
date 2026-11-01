@@ -702,7 +702,14 @@ describe.runIf(windows)("Antigravity on Windows (grants probe)", () => {
         if (c.autorun)
           console.log(
             `PROBE agy hook spawn verdict: ${
-              dialog ? "direct" : ranBeforeKeys ? "cmd" : "unclear (no dialog, and it did not run)"
+              // Read: force_ask's dialog. Through cmd: AutoRun's output breaks the JSON, and a
+              // non-JSON answer fails the call (h3). A run with no dialog would be the hook
+              // ignored under a launch grant: fail-open, to be raised at once.
+              dialog
+                ? "direct"
+                : ranBeforeKeys
+                  ? "FAIL-OPEN: ran with no dialog"
+                  : "cmd (no dialog, the call failed)"
             }`,
           )
         report(`agy ${c.name}`, kit)
