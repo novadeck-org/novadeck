@@ -1,3 +1,4 @@
+import type { Report } from "@novadeck/harness-core/report"
 import type { AgentName, Grant, GrantRepoChoice } from "@novadeck/protocol"
 
 import type { GrantSources } from "../messaging/grant-sources.js"
@@ -46,6 +47,7 @@ export class Approving {
   readonly handlers: {
     readonly permit: Permissions["answer"]
     readonly denied: Permissions["denied"]
+    readonly activity: (report: Report) => void
   }
 
   constructor(private readonly host: ApprovingHost) {
@@ -79,7 +81,18 @@ export class Approving {
       permit: (report, permission, deadline) =>
         this.permissions.answer(report, permission, deadline),
       denied: (report, command) => this.permissions.denied(report, command),
+      activity: (report) => this.heard(report),
     }
+  }
+
+  /**
+   * A hook was heard from a terminal: its grants count the activity, if its token is the
+   * terminal's own, so a stranger can't keep a grant alive.
+   */
+  private heard(report: Report): void {
+    const record = this.host.records().get(report.terminalId)
+    if (record && !record.terminal.exiting && sameToken(record.token, report.token))
+      this.host.messaging().grants.activity(report.terminalId)
   }
 
   /** Whether Antigravity may start under a grant; asked before the shell starts. */

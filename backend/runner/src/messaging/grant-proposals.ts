@@ -1,7 +1,6 @@
 import { refusesCommand } from "@novadeck/harness-core/grants"
 import {
   grantCommand,
-  grantHours,
   grantPreset,
   maxGrantCommands,
   type AgentName,
@@ -34,12 +33,8 @@ const request = z.strictObject({
     })
     .optional(),
   with_lead: z.boolean().optional(),
-  hours: grantHours.optional(),
   reason: z.string().transform(cleanInboxText).pipe(z.string().trim().min(1).max(2048)),
 })
-
-/** The default time of a team grant, in hours. */
-export const defaultTeamHours = 8
 
 /**
  * Reads a `propose_grant` call. Fails with a sentence for the agent: for a command the
@@ -53,7 +48,6 @@ export const readProposal = (
       readonly presets: GrantProposal["presets"]
       readonly commands: GrantProposal["commands"]
       readonly withLead: boolean
-      readonly hours: GrantProposal["hours"]
       readonly reason: string
     }
   | { readonly ok: false; readonly reason: string } => {
@@ -72,7 +66,6 @@ export const readProposal = (
     presets,
     commands,
     withLead: read.data.with_lead ?? false,
-    hours: read.data.hours ?? defaultTeamHours,
     reason: read.data.reason,
   }
 }
@@ -88,7 +81,8 @@ export const proposalOf = (
   // Repos matter only to push and pr.
   repos: read.presets.length > 0 ? [...repos] : [],
   withLead: read.withLead,
-  hours: read.hours,
+  // The lead names none; the card starts on until-done and the person picks.
+  lifetime: "until-done",
   reason: read.reason,
   covered: covered.map(({ handle, agent }) => ({ handle, agent })),
 })

@@ -2203,7 +2203,7 @@ describe("Inbox approvals and grants", () => {
     ],
     repos: [repo("github.com/acme/shop"), repo("github.com/acme/api")],
     withLead: false,
-    hours: 8 as const,
+    lifetime: "until-done" as const,
     reason: "The user said the team may push.",
     covered: [],
     ...fields,
@@ -2214,7 +2214,7 @@ describe("Inbox approvals and grants", () => {
     commands: [0],
     repos: ["github.com/acme/shop"],
     withLead: false,
-    hours: 8,
+    lifetime: "until-done",
     ...fields,
   })
   const proposed = (inbox: Inbox, fields?: Record<string, unknown>) => {
@@ -2262,7 +2262,7 @@ describe("Inbox approvals and grants", () => {
       { content: { ask: { shape: { type: "approval", commands: ship } } } },
     ])
     expect(messaging.grants.list()).toEqual([])
-    inbox.answer(id, { type: "approve" })
+    inbox.answer(id, { type: "approve", lifetime: "hour" })
     const [grant] = messaging.grants.list()
     expect(grant).toMatchObject({
       holder: { kind: "terminal", handle: "moth" },
@@ -2307,7 +2307,9 @@ describe("Inbox approvals and grants", () => {
       presets: [],
       commands,
       repos: [],
+      lifetime: "hour",
       endsAt: 0,
+      holder: { kind: "team", lead: "sable", withLead: false },
     } as never
     for (const agent of ["claude", "codex", "agy"] as const)
       expect(
@@ -2320,7 +2322,9 @@ describe("Inbox approvals and grants", () => {
     const approvalId = create(approval(ship))
     inbox.answer(approvalId, { type: "reply", option: null, text: "yes, go ahead" })
     const plain = create()
-    expect(() => inbox.answer(plain, { type: "approve" })).toThrow(/approval/)
+    expect(() => inbox.answer(plain, { type: "approve", lifetime: "until-done" })).toThrow(
+      /approval/,
+    )
     expect(() => inbox.answer(plain, grantAnswer() as never)).toThrow()
     expect(messaging.grants.list()).toEqual([])
   })
@@ -2361,14 +2365,16 @@ describe("Inbox approvals and grants", () => {
   it("shows a proposal as a card owned by the proposer's session", () => {
     const { inbox } = setup()
     const id = proposed(inbox)
-    expect(inbox.list()).toMatchObject([{ id, content: { kind: "grant", proposal: { hours: 8 } } }])
+    expect(inbox.list()).toMatchObject([
+      { id, content: { kind: "grant", proposal: { lifetime: "until-done" } } },
+    ])
     expect(inboxEntry.safeParse(inbox.list()[0]).success).toBe(true)
   })
 
   it("makes a team grant from a Grant, keeping to what was ticked and offered", () => {
     const { inbox, messaging } = setup(undefined, undefined, { now: () => 1_000 })
     const id = proposed(inbox)
-    inbox.answer(id, grantAnswer({ presets: ["push"], commands: [1], hours: 1 }) as never)
+    inbox.answer(id, grantAnswer({ presets: ["push"], commands: [1], lifetime: "hour" }) as never)
     const [grant] = messaging.grants.list()
     expect(grant).toMatchObject({
       holder: { kind: "team", lead: "moth", withLead: false },
@@ -2393,7 +2399,7 @@ describe("Inbox approvals and grants", () => {
       grantAnswer({ repos: ["github.com/acme/other"] }),
       grantAnswer({ presets: [], commands: [] }),
       grantAnswer({ presets: ["push"], repos: [] }),
-      { type: "approve" },
+      { type: "approve", lifetime: "hour" },
       { type: "reply", option: null, text: "yes" },
       { type: "done" },
     ])

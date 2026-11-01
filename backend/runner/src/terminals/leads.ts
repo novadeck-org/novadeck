@@ -387,7 +387,7 @@ export class Leads {
           : `Only the lead of ${mention(target.handle)} can release it, and that is ` +
               `${mention(lead)}, not you.`,
       )
-    host.bindings().endLead(led)
+    host.bindings().endLead(led, true, "released")
     host.messaging().notice(led.summary.id, leadNotice.released(caller.summary.handle), {
       always: true,
     })
@@ -420,7 +420,7 @@ export class Leads {
       queueMicrotask(() => {
         const now = host.records().get(ledId)
         if (host.stopping() || !pending || !now || now.summary.ledBy !== lead) return
-        host.bindings().endLead(now)
+        host.bindings().endLead(now, true, "released")
         if (seen) host.messaging().notice(ledId, leadNotice.briefDone(lead), { always: true })
       })
     })
@@ -441,7 +441,7 @@ export class Leads {
     const lead = this.byHandle(led.summary.sessionId, handle)
     // First, so the lead hears the person released it, not that a session ended.
     host.messaging().dropLeadMessages(terminalId)
-    host.bindings().endLead(led)
+    host.bindings().endLead(led, true, "released")
     host.messaging().notice(terminalId, leadNotice.personReleased(handle), { always: true })
     if (lead)
       host

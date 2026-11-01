@@ -361,7 +361,7 @@ describe("the propose_grant call", () => {
         commands: [{ argv: ["uberepo", "ship"], rest: true }],
         repos: [choice],
         withLead: false,
-        hours: 8,
+        lifetime: "until-done",
         covered: [{ handle: "fox", agent: "codex" }],
       },
     })
@@ -374,7 +374,9 @@ describe("the propose_grant call", () => {
         { ...request, commands: [{ argv: ["git", "push"], rest: true }] },
         { ...request, commands: [{ argv: ["bash", "-c", "x"] }] },
         { ...request, scope: "everything" },
+        // The lead names no lifetime or hours: the person picks.
         { ...request, hours: 3 },
+        { ...request, lifetime: "hour" },
         { presets: [], reason: "nothing" },
         { presets: ["merge"], reason: "x" },
       ].map((bad) => propose(bad)),
@@ -422,5 +424,33 @@ describe("the propose_grant call", () => {
     )
     expect(answer).toMatchObject({ ok: false })
     expect(propose).toBeDefined()
+  })
+})
+
+describe("the done call", () => {
+  const reported = (answer: { ok: boolean }) => {
+    const ended: [string, string][] = []
+    const run = new Calls(1000, {
+      records: () => new Map([["t1", { terminal: { exiting: false }, token }]]),
+      inbox: () => ({ call: () => answer }),
+      messaging: () => ({
+        grants: { coverageEnds: (...end: [string, string]) => ended.push(end) },
+      }),
+    } as unknown as CallsHost)
+    return { ended, run }
+  }
+  const done = { type: "done", terminalId: "t1", token, request: {} } as const
+
+  it("ends the terminal's grant coverage when the report is kept, and not when it is refused", async () => {
+    const kept = reported({ ok: true })
+    await kept.run.call(done)
+    expect(kept.ended).toEqual([["t1", "done"]])
+    const refused = reported({ ok: false })
+    await refused.run.call(done)
+    expect(refused.ended).toEqual([])
+    // A call with another terminal's token ends nothing.
+    const stranger = reported({ ok: true })
+    await stranger.run.call({ ...done, token: "b".repeat(48) })
+    expect(stranger.ended).toEqual([])
   })
 })

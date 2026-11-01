@@ -121,7 +121,10 @@ export class Bindings {
    * terminal's next save), shown to watchers, and told to messaging, so what the former
    * lead sends reads as a peer's from then on.
    */
-  endLead(record: Record, now = true): void {
+  endLead(record: Record, now = true, why: "released" | "exited" = "exited"): void {
+    // First, while it is still led: the team grants covering it stop, and a grant it holds
+    // alone ends with its agent, led or not.
+    this.host.messaging().grants.coverageEnds(record.summary.id, why)
     if (record.summary.ledBy === null) return
     record.summary = { ...record.summary, ledBy: null }
     record.suspended = null

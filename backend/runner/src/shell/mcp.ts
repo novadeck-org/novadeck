@@ -1053,7 +1053,7 @@ const ask: Tool<{ readonly id: string; readonly withdrawn?: boolean }> = {
     "When your harness itself asks permission to run a command, such as git push or gh pr create, " +
     "and the user should let you run it without asking again, use the approval shape: the commands " +
     'as exact words (rest true for "followed by anything"); ' +
-    "Approve gives this terminal those commands for 1 hour, and Novadeck refuses ones it can't match, such as " +
+    "Approve gives this terminal those commands until you report done with the done tool or your agent exits (or for 1 hour, if the user picks that), and Novadeck refuses ones it can't match, such as " +
     "shells or git and gh with rest. Most decisions aren't blocking: ask, keep going on what doesn't depend on the " +
     "answer, and where your pick is easy to undo and needs no approval of theirs " +
     "(reversible, local, not yet pushed or shared), go ahead with it and change course if " +
@@ -1284,7 +1284,7 @@ const proposeGrant: Tool<{ readonly id: string }> = {
     "never main, master or the default branch, no force) and pr (gh pr create, edit, ready " +
     "and comment in a repo they pick, no merge). commands adds exact commands, such as " +
     "uberepo ship, with rest true meaning followed by anything; shells, interpreters, and " +
-    "git or gh with rest, and read-only gh commands (pr, issue view, checks, list, diff, status), are refused. hours is 1, 8 (the default) or 24. with_lead includes " +
+    "git or gh with rest, and read-only gh commands (pr, issue view, checks, list, diff, status), are refused. The user picks how long it lasts: until each teammate reports done, is released or exits, or for 1 hour. with_lead includes " +
     "yourself. reason says why, in a sentence, and is shown as your words. One proposal " +
     "waits at a time and at most 3 an hour. Returns at once: end your turn rather than wait; " +
     "the answer arrives as a message from Novadeck. A lead still gives none of the user's " +
@@ -1313,14 +1313,13 @@ const proposeGrant: Tool<{ readonly id: string }> = {
         },
       },
       with_lead: { type: "boolean", description: "Whether the grant covers you too." },
-      hours: { enum: [1, 8, 24], description: "How long it lasts; 8 by default." },
       reason: { type: "string", maxLength: 2048, description: "Why, in your words." },
     },
     required: ["presets", "reason"],
     additionalProperties: false,
   },
   call: "proposeGrant",
-  request: (args) => picked(args, ["presets", "commands", "with_lead", "hours", "reason"]),
+  request: (args) => picked(args, ["presets", "commands", "with_lead", "reason"]),
   said: (answer) =>
     `Grant proposal ${answer.id} is in the user's Inbox. Nothing is allowed until they click Grant; ` +
     "their answer arrives later as a message. End your turn rather than wait.",

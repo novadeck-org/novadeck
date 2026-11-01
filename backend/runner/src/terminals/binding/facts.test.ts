@@ -243,10 +243,12 @@ describe("the lead of an agent found gone", () => {
   /** Bindings whose host counts the leads it tells messaging ended, and a led terminal. */
   const led = (stopping = () => false) => {
     const ended = vi.fn<(terminalId: string) => void>()
+    const coverage = vi.fn<(terminalId: string, why: string) => void>()
     const save = vi.fn<(record: Record) => void>()
     const host = {
       messaging: () => ({
         endLead: ended,
+        grants: { coverageEnds: coverage },
         shownAgent: () => undefined,
         inboxOwner: () => undefined,
         deliveredAt: () => null,
@@ -268,7 +270,7 @@ describe("the lead of an agent found gone", () => {
       closed: false,
       terminal: { pty: { pid: 1 }, exit: null, exiting: false },
     })
-    return { ends: new Bindings(host), worker, ended, save }
+    return { ends: new Bindings(host), worker, ended, coverage, save }
   }
 
   it("ends at once where the platform shuts its shells down with their agents", () => {
@@ -278,6 +280,22 @@ describe("the lead of an agent found gone", () => {
     expect(worker.summary.ledBy).toBeNull()
     expect(ended).toHaveBeenCalledWith("t1")
     expect(save).toHaveBeenCalledWith(worker)
+  })
+
+  it("ends the terminal's grant coverage first, as exited, or as released by a release", () => {
+    on("linux")
+    const exited = led()
+    exited.ends.endLeadGone(exited.worker)
+    expect(exited.coverage).toHaveBeenCalledExactlyOnceWith("t1", "exited")
+    const released = led()
+    released.ends.endLead(released.worker, true, "released")
+    expect(released.coverage).toHaveBeenCalledExactlyOnceWith("t1", "released")
+    // A terminal nobody leads: a grant it holds alone still ends with its agent.
+    const alone = led()
+    alone.worker.summary = { ...alone.worker.summary, ledBy: null }
+    alone.ends.endLeadGone(alone.worker)
+    expect(alone.coverage).toHaveBeenCalledExactlyOnceWith("t1", "exited")
+    expect(alone.ended).not.toHaveBeenCalled()
   })
 
   it("ends once the shell has outlived its agent for a sample's time, on Windows", () => {

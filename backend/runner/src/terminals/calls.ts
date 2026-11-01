@@ -322,7 +322,7 @@ export class Calls {
     const { id } = led.summary
     if (task?.ok && this.host.messaging().briefOf(id) === task.id)
       this.leads.releaseAfterBrief(id, lead.summary.handle, task.id)
-    else this.host.bindings().endLead(led)
+    else this.host.bindings().endLead(led, true, "released")
   }
 
   /**
@@ -594,7 +594,11 @@ export class Calls {
       case "tell":
       case "done": {
         if (!callerOf(this.host.records(), call)) return Promise.resolve(unansweredCalls[call.type])
-        return Promise.resolve(this.host.inbox().call(call.terminalId, call.type, call.request))
+        const answer = this.host.inbox().call(call.terminalId, call.type, call.request)
+        // Done only narrows: this terminal's grants stop covering it, for good.
+        if (call.type === "done" && answer.ok)
+          this.host.messaging().grants.coverageEnds(call.terminalId, "done")
+        return Promise.resolve(answer)
       }
       case "proposeGrant":
         return this.proposeGrant(call)

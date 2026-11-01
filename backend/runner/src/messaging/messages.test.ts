@@ -372,7 +372,10 @@ const granted: Grant = {
   entryId: "00000000-0000-4000-8000-000000000003",
   proposedBy: "sable",
   madeAt: 0,
-  endsAt: 8 * 3_600_000,
+  lifetime: "hour",
+  endsAt: 3_600_000,
+  lastActivityAt: 0,
+  ended: [],
   revokedAt: null,
   lastUse: null,
 }
@@ -405,7 +408,7 @@ describe("a delivery's grants", () => {
     expect(noteKinds([novadeck()], none)).not.toContain("person")
   })
 
-  it("fits the largest grant the runner accepts in one delivery, as each harness prints it", () => {
+  it("fits the largest grant the runner accepts in one delivery, as each harness prints it (an hour grant, which says the most)", () => {
     // Commands up to the cap, each word escaping to four bytes a character; the most repos,
     // each as long as the protocol allows, with the longest default branch.
     const word = "<".repeat(256)
@@ -444,6 +447,42 @@ describe("a delivery's grants", () => {
     expect(text).toContain("never to main, master or the repo's default branch")
     expect(text).toContain("Run: uberepo ship followed by anything")
     expect(text).not.toContain("Novadeck: grant")
+  })
+
+  it("says an until-done grant ends at done, release or exit, with no clock; an hour grant adds its time", () => {
+    const open: Grant = { ...granted, lifetime: "until-done", endsAt: null }
+    const text = wrap([novadeck()], none, mark, {
+      personMark: "PersonMk",
+      grants: () => open,
+    })
+    expect(text).toMatch(/<grant id="8c0e3d5a[^"]*" person="PersonMk" until="done">/)
+    expect(text).not.toContain("ends=")
+    expect(text).toContain(
+      "until you report done with Novadeck's done tool, your lead releases you or your agent exits (the user can end it sooner). After done, ask again:",
+    )
+    const hourly = wrap([novadeck()], none, mark, { personMark: "PersonMk", grants: live })
+    expect(hourly).toMatch(/ends="\d\d:\d\d"/)
+    expect(hourly).toMatch(
+      /granted, without asking again, until \d\d:\d\d or sooner: until you report done/,
+    )
+    const alone: Grant = { ...open, holder: { kind: "terminal", handle: "sable" } }
+    expect(wrap([novadeck()], none, mark, { personMark: "P", grants: () => alone })).not.toContain(
+      "lead releases",
+    )
+  })
+
+  it("words <grant-ended> by why the terminal's coverage ended", () => {
+    for (const [why, words] of [
+      ["done", "Your grant ended when you reported done; ask again if you continue."],
+      ["released", "Your grant ended when your lead released you"],
+      ["exited", "Your grant ended when your agent exited"],
+    ] as const) {
+      const text = wrap([novadeck()], none, mark, { grants: () => undefined, endedWhy: () => why })
+      expect(text).toContain(`<grant-ended id="${granted.id}" why="${why}">${words}`)
+    }
+    expect(wrap([novadeck()], none, mark, { grants: () => undefined })).toContain(
+      `<grant-ended id="${granted.id}">The user's grant has ended`,
+    )
   })
 
   it("names the form each harness takes, and Antigravity's launch caveat", () => {

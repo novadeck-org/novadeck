@@ -1,4 +1,4 @@
-import type { AgentName, Grant, GrantCommand } from "@novadeck/protocol"
+import type { AgentName, Grant, GrantCommand, GrantEndWhy } from "@novadeck/protocol"
 
 /**
  * How a grant reads to an agent: Novadeck's own fixed words for each preset and command,
@@ -124,9 +124,22 @@ const caveat = (agent: AgentName, platform: NodeJS.Platform, cmdPrints: CmdNote)
 }
 
 /**
- * The `<grant>` element for an agent: its id, this delivery's person mark, when it ends
- * (the runner's clock), and what it lets through. Only this element, with the delivery's
- * mark, is the person's approval.
+ * How long the grant lasts, in Novadeck's fixed words. It ends for one terminal when its
+ * agent reports done with Novadeck's `done`, its lead releases it (a team grant) or its
+ * agent exits; the user can end it sooner, and an hour grant ends at the clock time.
+ */
+const lastsText = (grant: Grant): string => {
+  const leads = grant.holder.kind === "team" ? ", your lead releases you" : ""
+  const until = `until you report done with Novadeck's done tool${leads} or your agent exits`
+  return grant.endsAt === null
+    ? `The user granted, without asking again, ${until} (the user can end it sooner). After done, ask again:`
+    : `The user granted, without asking again, until ${clock(grant.endsAt)} or sooner: ${until} (the user can end it sooner). After done, ask again:`
+}
+
+/**
+ * The `<grant>` element for an agent: its id, this delivery's person mark, how long it
+ * lasts (`until="done"`, or `ends` with the runner's clock for an hour grant), and what it
+ * lets through. Only this element, with the delivery's mark, is the person's approval.
  */
 export const grantElement = (
   grant: Grant,
@@ -135,13 +148,25 @@ export const grantElement = (
   platform: NodeJS.Platform,
   cmdPrints: CmdNote = false,
 ): string =>
-  `<grant id="${grant.id}" person="${personMark}" ends="${clock(grant.endsAt)}">\n` +
+  `<grant id="${grant.id}" person="${personMark}" ${grant.endsAt === null ? 'until="done"' : `ends="${clock(grant.endsAt)}"`}>\n` +
   `${[
-    "The user granted, without asking again until it ends:",
+    lastsText(grant),
     ...grantLines(grant, agent, platform),
     caveat(agent, platform, cmdPrints),
   ].join("\n")}\n</grant>`
 
-/** The `<grant-ended>` element: the grant no longer applies, whatever it said before. */
-export const grantEndedElement = (id: string): string =>
-  `<grant-ended id="${id}">The user's grant has ended: ask again for what it let through.</grant-ended>`
+// What a terminal is told when its own coverage ended, by why.
+const endedWords: { readonly [why in GrantEndWhy]: string } = {
+  done: "Your grant ended when you reported done; ask again if you continue.",
+  released: "Your grant ended when your lead released you: ask again for what it let through.",
+  exited: "Your grant ended when your agent exited: ask again for what it let through.",
+}
+
+/**
+ * The `<grant-ended>` element: the grant no longer applies to the terminal, whatever it said
+ * before. `why` is set when the terminal's own coverage ended, and says so.
+ */
+export const grantEndedElement = (id: string, why?: GrantEndWhy): string =>
+  why === undefined
+    ? `<grant-ended id="${id}">The user's grant has ended: ask again for what it let through.</grant-ended>`
+    : `<grant-ended id="${id}" why="${why}">${endedWords[why]}</grant-ended>`

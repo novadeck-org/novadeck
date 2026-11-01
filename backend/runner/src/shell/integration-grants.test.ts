@@ -45,7 +45,7 @@ describe.skipIf(process.platform === "win32" || !existsSync(bash))(
         repos: [{ url: "github.com/acme/shop", defaultBranch: "main", defaultFrom: "github" }],
         entryId: randomUUID(),
         proposedBy: handle,
-        hours: 8,
+        lifetime: "until-done",
       })
       const controller = new AbortController()
       const created: string[] = []
@@ -113,7 +113,7 @@ describe.skipIf(process.platform === "win32" || !existsSync(bash))(
           repos: [],
           entryId: randomUUID(),
           proposedBy: handle,
-          hours: 8,
+          lifetime: "until-done",
         })
       // The exit of its shell removed the live entry, as `exited` does.
       manager["messaging"].unregister(lead.id)

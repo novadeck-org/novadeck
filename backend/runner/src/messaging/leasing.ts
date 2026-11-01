@@ -38,7 +38,7 @@ export type LeasingHost = {
   /** Moves the terminal's delivery on (`Deliveries.step`). */
   readonly step: (live: Live, event: DeliveryEvent) => void
   /** The grants, for the grant elements a delivery renders (`Grants.get`). */
-  readonly grants: Pick<Grants, "get" | "cmdPrints">
+  readonly grants: Pick<Grants, "get" | "endedWhy" | "cmdPrints">
   /**
    * The rules notes a terminal's root session holds grew, as a hook printed one in full,
    * for the terminal manager to keep with that session (`AgentReport.told`), so a restart
@@ -125,7 +125,8 @@ export class Leasing {
     // One mark for the delivery, which marks its lead's messages. What counts is the bytes
     // printed, escaped as the harness reads them.
     const mark = newMark()
-    const grants = (id: string) => this.host.grants.get(id)
+    const grants = (id: string) => this.host.grants.get(id, live.terminalId)
+    const endedWhy = (id: string) => this.host.grants.endedWhy(id, live.terminalId)
     const cmdPrints = this.host.grants.cmdPrints()
     // A message whose sender closed since says so, as no reply reaches it.
     const fromClosed = (message: Message) => {
@@ -142,6 +143,7 @@ export class Leasing {
             held,
             fromClosed,
             grants,
+            endedWhy,
             platform: this.platform,
             cmdPrints,
           }),
@@ -152,6 +154,7 @@ export class Leasing {
         held,
         ...(marks && { fromClosed }),
         grants,
+        endedWhy,
         platform: this.platform,
         cmdPrints,
       })

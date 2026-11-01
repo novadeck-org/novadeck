@@ -6,6 +6,7 @@ import {
   type AgentName,
   type MessageParty,
   type Grant,
+  type GrantEndWhy,
   type MessageRecipient,
   type MessageState,
 } from "@novadeck/protocol"
@@ -536,6 +537,8 @@ export const wrapGrants = (
 export type WrapOptions = {
   /** The grant in force with this id; none once ended. Without it a grant message is plain text. */
   readonly grants?: (id: string) => Grant | undefined
+  /** Why a grant ended for the recipient, when its coverage of it did: `<grant-ended>` says. */
+  readonly endedWhy?: (id: string) => GrantEndWhy | undefined
   /** The platform the runner runs on, which a grant's note tells of; this system's when omitted. */
   readonly platform?: NodeJS.Platform
   /** Whether cmd prints text of its own before every command, which no Antigravity grant reaches past. */
@@ -567,6 +570,7 @@ export const wrap = (
     held = {},
     fromClosed = () => false,
     grants,
+    endedWhy,
     platform = process.platform,
     cmdPrints = false,
   }: {
@@ -611,7 +615,7 @@ export const wrap = (
         const grant = granted(message)
         return grant
           ? grantElement(grant, message.to.agent, personMark, platform, cmdPrints)
-          : grantEndedElement(message.grantId!)
+          : grantEndedElement(message.grantId!, endedWhy?.(message.grantId!))
       }
       if (response?.feedback) {
         const context = [

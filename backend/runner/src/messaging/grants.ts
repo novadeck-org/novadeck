@@ -1,12 +1,15 @@
 import { randomUUID } from "node:crypto"
 
-import type {
-  AgentName,
-  Grant,
-  GrantCommand,
-  GrantHolder,
-  GrantPreset,
-  GrantRepo,
+import {
+  maxGrantEnded,
+  type AgentName,
+  type Grant,
+  type GrantCommand,
+  type GrantEndWhy,
+  type GrantHolder,
+  type GrantLifetime,
+  type GrantPreset,
+  type GrantRepo,
 } from "@novadeck/protocol"
 import { Latest } from "@novadeck/wire/server"
 
@@ -19,9 +22,14 @@ import type { Sessions } from "./sessions.js"
 
 const log = logs.for("grants")
 
-/** A grant lasts at most this long, whatever the card said: a day, in milliseconds. */
-export const maxGrantMs = 24 * 60 * 60_000
+/**
+ * A grant ends when no terminal it covers has been heard from for this long: a day, in
+ * milliseconds. It keeps an abandoned lead from holding a grant for days.
+ */
+export const idleGrantMs = 24 * 60 * 60_000
 const hourMs = 60 * 60_000
+/** How seldom activity is written to the records; memory holds it exactly. */
+export const activitySaveMs = 5 * 60_000
 
 /** Where grants are kept: the workspace's store, so a restart keeps them as it keeps leads. */
 export type GrantRecords = {
@@ -96,7 +104,7 @@ export type MakeGrant = {
   readonly repos: readonly GrantRepo[]
   readonly entryId: string
   readonly proposedBy: string
-  readonly hours: number
+  readonly lifetime: GrantLifetime
 }
 
 /** The programs a harness may be given a launch grant for: `git` for push, `gh` for pr. */
@@ -105,7 +113,9 @@ const presetPrograms: { readonly [preset in GrantPreset]: string } = { push: "gi
 /**
  * The person's grants (docs/agent-messaging.md, "Grants"): what a lead's team, or one
  * terminal, may run without asking again. A grant is made only by `make`, which only the
- * Inbox's answers to a Grant card or an approval ask call, and lives at most a day. This
+ * Inbox's answers to a Grant card or an approval ask call. It lasts until the agent it
+ * covers reports done, its lead releases it or it exits (each ends the coverage of that
+ * terminal only), or, for an hour grant, the hour; a day without activity ends any. This
  * service keeps them, tells who they cover, and tells the covered terminals when one is
  * made or ends; the harnesses' permission hooks read `covering` and match the call against
  * it (`@novadeck/harness-core/grants`).
@@ -113,6 +123,8 @@ const presetPrograms: { readonly [preset in GrantPreset]: string } = { push: "gi
 export class Grants {
   private readonly byId = new Map<string, Grant>()
   private readonly readers = new Set<Latest<Grant[]>>()
+  /** When each grant was last written, for the activity that is saved only now and then. */
+  private readonly savedAt = new Map<string, number>()
   private readonly sweeper: ReturnType<typeof setInterval> | undefined
   private closed = false
 
@@ -126,7 +138,7 @@ export class Grants {
     private readonly records: GrantRecords = memoryGrants(),
     { sweepMs = 30_000 }: { readonly sweepMs?: number } = {},
   ) {
-    // An ended grant is dropped at load, and one stored with more than a day is cut to it.
+    // A grant past its hour, or idle for a day, is dropped at load, as a revoked one is.
     const ended: string[] = []
     let stored: readonly Grant[] = []
     this.save(() => {
@@ -134,8 +146,11 @@ export class Grants {
     })
     const now = host.now()
     for (const grant of stored) {
-      if (grant.revokedAt !== null || grant.endsAt <= now) ended.push(grant.id)
-      else this.byId.set(grant.id, this.capped(grant))
+      if (!this.inForce(grant, now)) ended.push(grant.id)
+      else {
+        this.byId.set(grant.id, grant)
+        this.savedAt.set(grant.id, now)
+      }
     }
     if (ended.length > 0) this.save(() => records.removeGrants(ended))
     if (sweepMs > 0) {
@@ -144,20 +159,35 @@ export class Grants {
     }
   }
 
+  /** Whether the grant is in force at `now`: not revoked, inside its hour, not idle for a day. */
+  private inForce(grant: Grant, now: number): boolean {
+    return (
+      grant.revokedAt === null &&
+      (grant.endsAt === null || grant.endsAt > now) &&
+      grant.lastActivityAt + idleGrantMs > now
+    )
+  }
+
   /** Whether the grant is in force now. */
   private live(grant: Grant): boolean {
-    return grant.revokedAt === null && grant.endsAt > this.host.now()
+    return this.inForce(grant, this.host.now())
   }
 
-  private capped(grant: Grant): Grant {
-    const latest = grant.madeAt + maxGrantMs
-    return grant.endsAt > latest ? { ...grant, endsAt: latest } : grant
-  }
-
-  /** The grant if it is in force: what `wrap` renders as `<grant>`, never an ended one. */
-  get(id: string): Grant | undefined {
+  /**
+   * The grant if it is in force: what `wrap` renders as `<grant>`, never an ended one. With a
+   * terminal, only if the grant still covers it: one whose coverage ended is no grant to it.
+   */
+  get(id: string, terminalId?: string): Grant | undefined {
     const grant = this.byId.get(id)
-    return grant && this.live(grant) ? grant : undefined
+    if (!grant || !this.live(grant)) return undefined
+    if (terminalId === undefined) return grant
+    const live = this.host.sessions.get(terminalId)
+    return live && this.covers(grant, live) ? grant : undefined
+  }
+
+  /** Why the grant's coverage of the terminal ended, if it did: `<grant-ended>` says so. */
+  endedWhy(id: string, terminalId: string): GrantEndWhy | undefined {
+    return this.byId.get(id)?.ended.find((each) => each.terminalId === terminalId)?.why
   }
 
   /** Every grant in force, oldest first. */
@@ -174,6 +204,8 @@ export class Grants {
   private covers(grant: Grant, live: Live): boolean {
     if (live.projectId !== grant.projectId || live.sessionId !== grant.workspaceSessionId)
       return false
+    // Coverage that ended is gone for good, whoever leads the terminal later.
+    if (grant.ended.some((each) => each.terminalId === live.terminalId)) return false
     const { holder } = grant
     if (holder.kind === "terminal") return live.handle === holder.handle
     if (holder.withLead && live.handle === holder.lead) return true
@@ -245,13 +277,57 @@ export class Grants {
       lastUse: { at: this.host.now(), handle: live.handle, command: command.slice(0, 512) },
     }
     this.byId.set(next.id, next)
-    this.save(() => this.records.saveGrant(next))
+    this.persist(next)
     this.publish()
   }
 
   /**
+   * A covered terminal's agent was heard from (any hook report): each grant covering it
+   * counts the activity. Kept exactly in memory and written at most every five minutes, so
+   * a restart can end the idle cap that much early. Only a terminal the grant covers
+   * renews it, so an agent the grant doesn't reach can't keep it alive.
+   */
+  activity(terminalId: string): void {
+    const covering = this.covering(terminalId)
+    if (covering.length === 0) return
+    const now = this.host.now()
+    for (const grant of covering) {
+      const next: Grant = { ...grant, lastActivityAt: now }
+      this.byId.set(next.id, next)
+      if (now - (this.savedAt.get(next.id) ?? 0) >= activitySaveMs) this.persist(next)
+    }
+  }
+
+  /**
+   * The terminal's agent reported done, its lead released it, or its agent exited: every
+   * grant covering it stops covering it, for good, and it is told with `<grant-ended>`.
+   * The grants go on for the others, except a grant held by that terminal alone, which
+   * ends with its holder. Only narrows: nothing here makes or widens a grant.
+   */
+  coverageEnds(terminalId: string, why: GrantEndWhy): void {
+    const live = this.host.sessions.get(terminalId)
+    if (!live || this.closed) return
+    for (const grant of this.covering(terminalId)) {
+      const entry = { terminalId, handle: live.handle, at: this.host.now(), why }
+      // A lead's release is of a team's teammate; a terminal's own grant isn't its lead's.
+      if (grant.holder.kind === "terminal") {
+        if (why !== "released") this.end(grant, entry)
+      }
+      // With no room to record it the coverage can't be ended alone, so the grant ends.
+      else if (grant.ended.length >= maxGrantEnded) this.end(grant)
+      else {
+        const next: Grant = { ...grant, ended: [...grant.ended, entry] }
+        this.byId.set(next.id, next)
+        this.persist(next)
+        this.host.notify(terminalId, next.id)
+        this.publish()
+      }
+    }
+  }
+
+  /**
    * Makes a grant, as the person's click on a card said, and tells the terminals it covers.
-   * Only the Inbox's answers call this; `hours` is cut to a day.
+   * Only the Inbox's answers call this.
    */
   make(input: MakeGrant): Grant {
     if (this.closed) throw new DomainError("CLOSING")
@@ -267,12 +343,16 @@ export class Grants {
       entryId: input.entryId,
       proposedBy: input.proposedBy,
       madeAt,
-      endsAt: madeAt + Math.min(Math.max(input.hours, 0), 24) * hourMs,
+      lifetime: input.lifetime,
+      endsAt: input.lifetime === "hour" ? madeAt + hourMs : null,
+      lastActivityAt: madeAt,
+      ended: [],
       revokedAt: null,
       lastUse: null,
     }
     // Saved before it counts, so a failure refuses the person's click and nothing covers.
     this.records.saveGrant(grant)
+    this.savedAt.set(grant.id, madeAt)
     this.byId.set(grant.id, grant)
     for (const live of this.coveredBy(grant)) this.host.notify(live.terminalId, grant.id)
     this.publish()
@@ -329,12 +409,15 @@ export class Grants {
     for (const grant of this.covering(terminalId)) this.host.notify(terminalId, grant.id)
   }
 
-  /** Ends the grants whose time is up, telling the terminals they covered. */
+  /**
+   * Ends the grants whose hour is up or that were idle for a day, telling the terminals they
+   * covered. Each looks at the grant's own clocks, so activity re-arms the idle cap.
+   */
   sweep(): void {
     if (this.closed) return
     const now = this.host.now()
     for (const grant of this.byId.values())
-      if (grant.revokedAt === null && grant.endsAt <= now) this.end(grant)
+      if (grant.revokedAt === null && !this.inForce(grant, now)) this.end(grant)
   }
 
   /** A grant in force, then again on each change; ended ones drop out. */
@@ -366,14 +449,27 @@ export class Grants {
     this.readers.clear()
   }
 
-  /** Ends a grant: nothing covers from now, and those it covered are told. */
-  private end(grant: Grant): void {
+  /**
+   * Ends a grant: nothing covers from now, and those it covered are told. With `entry`, the
+   * coverage of that terminal ended with it, and `<grant-ended>` tells it why.
+   */
+  private end(grant: Grant, entry?: Grant["ended"][number]): void {
     const covered = this.coveredBy(grant)
-    const ended = { ...grant, revokedAt: this.host.now() }
+    const ended: Grant = {
+      ...grant,
+      ...(entry && grant.ended.length < maxGrantEnded && { ended: [...grant.ended, entry] }),
+      revokedAt: this.host.now(),
+    }
     this.byId.set(ended.id, ended)
-    this.save(() => this.records.saveGrant(ended))
+    this.persist(ended)
     for (const live of covered) this.host.notify(live.terminalId, grant.id)
     this.publish()
+  }
+
+  /** Saves a grant, noting when, for the activity that is saved only now and then. */
+  private persist(grant: Grant): void {
+    this.savedAt.set(grant.id, this.host.now())
+    this.save(() => this.records.saveGrant(grant))
   }
 
   /** Writes to the records; a failure is logged, and the service carries on from memory. */

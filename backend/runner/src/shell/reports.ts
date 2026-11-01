@@ -324,6 +324,11 @@ export type ReportHandlers = {
     permission: Permission,
     deadline: number,
   ) => Promise<PermissionAnswer>
+  /**
+   * Any hook heard from a terminal's agent, whatever it reports: a sign of life that keeps a
+   * grant it is covered by from going idle.
+   */
+  readonly activity?: (report: Report) => void
   /** A refused Bash call's whole command, from Claude Code's PermissionDenied. */
   readonly denied: (report: Report, command: string) => void
   /** A hook's acknowledgement of a lease, which gets no answer. */
@@ -422,6 +427,7 @@ export const listenForReports = async (
     let asked = false
     if (from && hook) {
       const report = { ...from, ...hook.report }
+      handlers.activity?.(report)
       if (hook.denied !== undefined) handlers.denied(report, hook.denied)
       if (hook.permission !== undefined && hook.deadline !== undefined) {
         // Decided here, ahead of the terminal's queue, within the relay's own limit; a

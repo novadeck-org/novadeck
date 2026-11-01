@@ -9,8 +9,16 @@ import { id } from "./fields.js"
 /** The fixed scopes, each matched by an allowlist in `@novadeck/harness-core/grants`. */
 export const grantPreset = z.enum(["push", "pr"])
 
-/** How long a grant lasts, in hours: the card offers these, and 24 is the most. */
-export const grantHours = z.union([z.literal(1), z.literal(8), z.literal(24)])
+/**
+ * How long a grant lasts, as the person chooses on the card or the approval: until the
+ * agent reports done (and in any case until its lead releases it or its agent exits), or
+ * at most an hour. Either way a day without activity ends it.
+ */
+export const grantLifetime = z.enum(["until-done", "hour"])
+
+/** Why a terminal's coverage by a grant ended; the grant itself may go on for others. */
+export const grantEndWhy = z.enum(["done", "released", "exited"])
+export const maxGrantEnded = 256
 
 // One word of a granted command: printable ASCII, as the matcher's lexer reads it.
 const word = z
@@ -58,7 +66,23 @@ export const grant = z.strictObject({
   entryId: id,
   proposedBy: z.string(),
   madeAt: z.number(),
-  endsAt: z.number(),
+  lifetime: grantLifetime,
+  // The clock time an `hour` grant ends; null for `until-done`.
+  endsAt: z.number().nullable(),
+  // The last hook report from a terminal it covers. The runner keeps it exactly in memory and
+  // saves it at most every five minutes; a day without it ends the grant.
+  lastActivityAt: z.number(),
+  // The terminals whose coverage ended, for good: the grant goes on for the others.
+  ended: z
+    .array(
+      z.strictObject({
+        terminalId: z.string(),
+        handle: z.string(),
+        at: z.number(),
+        why: grantEndWhy,
+      }),
+    )
+    .max(maxGrantEnded),
   revokedAt: z.number().nullable(),
   // The last command it allowed, for the grants list.
   lastUse: z
@@ -82,7 +106,8 @@ export const grantProposal = z.strictObject({
   commands: z.array(grantCommand).max(maxGrantCommands),
   repos: z.array(grantRepoChoice).max(maxGrantRepos),
   withLead: z.boolean(),
-  hours: grantHours,
+  // What the card starts on; the lead names none, and the person picks.
+  lifetime: grantLifetime,
   // The lead's own words, shown as quoted agent text.
   reason: z.string().max(2048),
   // The handles the grant covers now (later teammates are covered too), and which of them run
@@ -91,7 +116,8 @@ export const grantProposal = z.strictObject({
 })
 
 export type GrantPreset = z.infer<typeof grantPreset>
-export type GrantHours = z.infer<typeof grantHours>
+export type GrantLifetime = z.infer<typeof grantLifetime>
+export type GrantEndWhy = z.infer<typeof grantEndWhy>
 export type GrantCommand = z.infer<typeof grantCommand>
 export type GrantRepo = z.infer<typeof grantRepo>
 export type GrantHolder = z.infer<typeof grantHolder>

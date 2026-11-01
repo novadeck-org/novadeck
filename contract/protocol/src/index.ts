@@ -102,8 +102,10 @@ export {
   type GrantCommand,
   grantHolder,
   type GrantHolder,
-  grantHours,
-  type GrantHours,
+  grantEndWhy,
+  type GrantEndWhy,
+  grantLifetime,
+  type GrantLifetime,
   grantPreset,
   type GrantPreset,
   grantProposal,
@@ -113,6 +115,7 @@ export {
   grantRepoChoice,
   type GrantRepoChoice,
   maxGrantCommands,
+  maxGrantEnded,
   maxGrantRepos,
 } from "./grants.js"
 export {

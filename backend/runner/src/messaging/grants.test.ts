@@ -8,7 +8,7 @@ import type { Grant } from "@novadeck/protocol"
 import { describe, expect, it } from "../test.js"
 import { storeWith } from "../testing/workspace.js"
 import type { WorkspaceStore } from "../workspaces/store.js"
-import { maxGrantMs, type MakeGrant } from "./grants.js"
+import { activitySaveMs, idleGrantMs, type MakeGrant } from "./grants.js"
 import { wrap, wrapGrants } from "./messages.js"
 import { Messaging } from "./messaging.js"
 
@@ -52,7 +52,7 @@ const setup = (store?: WorkspaceStore, clock = { at: 1_000_000 }) => {
       repos: [{ url: "github.com/acme/shop", defaultBranch: "main", defaultFrom: "github" }],
       entryId: randomUUID(),
       proposedBy: "sable",
-      hours: 8,
+      lifetime: "until-done",
       ...fields,
     })
   const told = (terminalId: string) =>
@@ -132,20 +132,53 @@ describe("who a grant covers", () => {
 })
 
 describe("how long a grant lasts", () => {
-  it("is cut to a day, and over when its time is up", () => {
+  it("has no clock until done, and an hour has one", () => {
+    const { make } = setup()
+    const open = make()
+    expect(open).toMatchObject({
+      lifetime: "until-done",
+      endsAt: null,
+      lastActivityAt: open.madeAt,
+    })
+    expect(open.ended).toEqual([])
+    const hourly = make({ lifetime: "hour" })
+    expect(hourly.endsAt).toBe(hourly.madeAt + hour)
+  })
+
+  it("ends an hour grant at its hour, and an until-done grant not at all by the clock", () => {
     const { messaging, make, clock } = setup()
-    const grant = make({ hours: 100 })
-    expect(grant.endsAt - grant.madeAt).toBe(maxGrantMs)
-    clock.at += maxGrantMs - 1
+    make({ lifetime: "hour" })
+    const open = make()
+    clock.at += hour - 1
+    // Heard from, so the idle cap is far off either way.
+    messaging.grants.activity("F")
+    expect(messaging.grants.covering("F")).toHaveLength(2)
+    clock.at += 1
+    expect(messaging.grants.covering("F").map(({ id }) => id)).toEqual([open.id])
+  })
+
+  it("ends after a day without activity, and any activity of a covered terminal renews it", () => {
+    const { messaging, make, clock, told } = setup()
+    const grant = make()
+    clock.at += idleGrantMs - 1
+    messaging.grants.activity("F")
+    clock.at += idleGrantMs - 1
+    messaging.grants.sweep()
     expect(messaging.grants.covering("F")).toHaveLength(1)
+    // A terminal it doesn't cover renews nothing.
+    messaging.grants.activity("O")
+    messaging.grants.activity("L")
     clock.at += 1
     expect(messaging.grants.covering("F")).toEqual([])
+    messaging.grants.sweep()
     expect(messaging.grants.list()).toEqual([])
+    expect(told("F")).toHaveLength(2)
+    expect(() => messaging.grants.revoke(grant.id)).toThrow(/ended/)
   })
 
   it("tells the covered terminals when it ends by time, once, and by revoke", () => {
     const { messaging, make, told, clock } = setup()
-    const first = make({ hours: 1 })
+    const first = make({ lifetime: "hour" })
     expect(told("F")).toHaveLength(1)
     clock.at += hour
     messaging.grants.sweep()
@@ -157,6 +190,115 @@ describe("how long a grant lasts", () => {
     expect(told("F")).toHaveLength(4)
     expect(() => messaging.grants.revoke(second.id)).toThrow(/ended/)
     expect(() => messaging.grants.revoke(first.id)).toThrow(/ended/)
+  })
+})
+
+describe("when a terminal's coverage ends", () => {
+  const ended = (messaging: Messaging, grantId: string, terminalId: string) =>
+    messaging.grants.endedWhy(grantId, terminalId)
+
+  it("ends with one teammate's done, for it and for good, and not the others'", () => {
+    const { messaging, make, arrive, told } = setup()
+    arrive("G", "gull", "sable")
+    const grant = make()
+    messaging.grants.coverageEnds("F", "done")
+    expect(messaging.grants.covering("F")).toEqual([])
+    expect(messaging.grants.covering("G")).toHaveLength(1)
+    expect(ended(messaging, grant.id, "F")).toBe("done")
+    expect(messaging.grants.list()).toHaveLength(1)
+    expect(told("F")).toHaveLength(2)
+    expect(told("G")).toHaveLength(1)
+    // Led again by the same lead, it stays out: it asks the lead for a new grant.
+    messaging.setLead("F", "sable")
+    expect(messaging.grants.covering("F")).toEqual([])
+    expect(messaging.grants.get(grant.id, "F")).toBeUndefined()
+    expect(messaging.grants.get(grant.id, "G")).toBeDefined()
+  })
+
+  it("still covers a teammate opened later", () => {
+    const { messaging, make, arrive } = setup()
+    make()
+    messaging.grants.coverageEnds("F", "done")
+    arrive("N", "newt", "sable")
+    expect(messaging.grants.covering("N")).toHaveLength(1)
+  })
+
+  it("ends when the lead releases the teammate, and when its agent exits", () => {
+    const { messaging, make, arrive } = setup()
+    arrive("G", "gull", "sable")
+    const grant = make()
+    // As the terminal manager does: the grants first, then the lead.
+    messaging.grants.coverageEnds("F", "released")
+    messaging.endLead("F")
+    messaging.grants.coverageEnds("G", "exited")
+    messaging.endLead("G")
+    expect(messaging.grants.covering("F")).toEqual([])
+    expect(messaging.grants.covering("G")).toEqual([])
+    expect(ended(messaging, grant.id, "F")).toBe("released")
+    expect(ended(messaging, grant.id, "G")).toBe("exited")
+    expect(messaging.grants.list()[0]!.ended.map(({ handle }) => handle)).toEqual(["fox", "gull"])
+  })
+
+  it("ends only the lead's own coverage on the lead's own done, leaving its teammates covered", () => {
+    const { messaging, make } = setup()
+    make({ holder: { kind: "team", lead: "sable", withLead: true } })
+    expect(messaging.grants.covering("L")).toHaveLength(1)
+    messaging.grants.coverageEnds("L", "done")
+    expect(messaging.grants.covering("L")).toEqual([])
+    expect(messaging.grants.covering("F")).toHaveLength(1)
+    messaging.grants.coverageEnds("L", "exited")
+    expect(messaging.grants.list()[0]!.ended).toHaveLength(1)
+  })
+
+  it("ends a grant held by one terminal with its holder's done or exit, not with a release", () => {
+    for (const why of ["done", "exited"] as const) {
+      const { messaging, make, told } = setup()
+      const grant = make({
+        holder: { kind: "terminal", handle: "sable" },
+        presets: [],
+        repos: [],
+        commands: [{ argv: ["make", "ship"], rest: false }],
+      })
+      messaging.grants.coverageEnds("O", "done")
+      messaging.grants.coverageEnds("L", "released")
+      expect(messaging.grants.list()).toHaveLength(1)
+      messaging.grants.coverageEnds("L", why)
+      expect(messaging.grants.list()).toEqual([])
+      expect(messaging.grants.covering("L")).toEqual([])
+      expect(ended(messaging, grant.id, "L")).toBe(why)
+      expect(told("L")).toHaveLength(2)
+    }
+  })
+
+  it("ends the whole grant when the record of ended terminals is full", () => {
+    const { messaging, make, arrive } = setup()
+    make()
+    for (let each = 0; each < 257; each += 1) {
+      arrive(`T${each}`, `t${each}`, "sable")
+      messaging.grants.coverageEnds(`T${each}`, "done")
+    }
+    expect(messaging.grants.list()).toEqual([])
+  })
+
+  it("is told to the terminal in the words of why, at its next delivery", () => {
+    const { messaging, make } = setup()
+    const grant = make()
+    const send = (terminalId: string) => {
+      const message = [...messaging["store"].messages()].filter(
+        (each) => each.to.terminalId === terminalId && each.grantId === grant.id,
+      )
+      return wrap(message, () => false, "m", {
+        grants: (id) => messaging.grants.get(id, terminalId),
+        endedWhy: (id) => messaging.grants.endedWhy(id, terminalId),
+      })
+    }
+    expect(send("F")).toContain("<grant ")
+    messaging.grants.coverageEnds("F", "done")
+    const text = send("F")
+    expect(text).toContain(
+      `<grant-ended id="${grant.id}" why="done">Your grant ended when you reported done; ask again if you continue.</grant-ended>`,
+    )
+    expect(text).not.toContain("<grant ")
   })
 })
 
@@ -221,9 +363,9 @@ describe("grants across a restart", () => {
     try {
       const clock = { at: 1_000_000 }
       const first = setup(store, clock)
-      const kept = first.make({ hours: 8 })
+      const kept = first.make()
       const revoked = first.make()
-      const lapsed = first.make({ hours: 1 })
+      const lapsed = first.make({ lifetime: "hour" })
       first.messaging.grants.revoke(revoked.id)
       first.messaging.close()
       clock.at += 2 * hour
@@ -233,6 +375,45 @@ describe("grants across a restart", () => {
       expect(store.grants().map(({ id }) => id)).toEqual([kept.id])
       expect(store.grants().some(({ id }) => id === lapsed.id)).toBe(false)
       second.messaging.close()
+    } finally {
+      store.close()
+      rmSync(directory, { recursive: true, force: true })
+    }
+  })
+
+  it("keep who stopped being covered, and last activity written at most every five minutes", () => {
+    const directory = mkdtempSync(join(tmpdir(), "novadeck-grants-"))
+    const store = storeWith(join(directory, "workspace.sqlite"), here)
+    try {
+      const clock = { at: 1_000_000 }
+      const first = setup(store, clock)
+      const grant = first.make()
+      first.messaging.grants.coverageEnds("F", "done")
+      clock.at += activitySaveMs - 1
+      first.arrive("G", "gull", "sable")
+      first.messaging.grants.activity("G")
+      // Exact in memory, not yet written.
+      expect(first.messaging.grants.list()[0]!.lastActivityAt).toBe(clock.at)
+      expect(store.grants()[0]!.lastActivityAt).toBe(grant.madeAt)
+      clock.at += 1
+      first.messaging.grants.activity("G")
+      expect(store.grants()[0]!.lastActivityAt).toBe(clock.at)
+      first.messaging.close()
+      const second = setup(store, clock)
+      second.arrive("G", "gull", "sable")
+      expect(second.messaging.grants.covering("F")).toEqual([])
+      expect(second.messaging.grants.covering("G")).toHaveLength(1)
+      expect(second.messaging.grants.list()[0]).toMatchObject({
+        lastActivityAt: clock.at,
+        ended: [{ terminalId: "F", handle: "fox", why: "done" }],
+      })
+      // A grant idle for a day while the runner was away is dropped at load.
+      second.messaging.close()
+      clock.at += idleGrantMs
+      const third = setup(store, clock)
+      expect(third.messaging.grants.list()).toEqual([])
+      expect(store.grants()).toEqual([])
+      third.messaging.close()
     } finally {
       store.close()
       rmSync(directory, { recursive: true, force: true })

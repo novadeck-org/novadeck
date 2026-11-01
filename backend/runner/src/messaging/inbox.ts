@@ -19,6 +19,7 @@ import {
   type AgentName,
   type AskAnswer,
   type Grant,
+  type GrantLifetime,
   type GrantProposal,
   type InboxEntry,
   type TerminalMessages,
@@ -392,6 +393,16 @@ export const dismissedNotice = (
   )
 }
 
+/**
+ * How long a grant lasts, as the agent is told of the person's choice: `team` for a lead's
+ * team grant, otherwise the one terminal that asked.
+ */
+const lifetimeWords = (lifetime: GrantLifetime, team: boolean): string =>
+  (lifetime === "hour" ? "for 1 hour, or sooner: " : "") +
+  (team
+    ? "until each of you reports done with the done tool, your lead releases you or your agent exits"
+    : "until you report done with the done tool or your agent exits")
+
 export class Inbox {
   private readonly byTerminal = new Map<string, Map<string, StoredEntry>>()
   private readonly open = new Map<string, StoredEntry>()
@@ -754,7 +765,7 @@ export class Inbox {
   /**
    * The grant an answer makes, and the words the agent hears it in, or undefined for an
    * answer that is none: Approve on an `approval` ask, which gives the asking terminal the
-   * commands for 1 hour; Grant on a Grant card, which must keep to
+   * commands for the lifetime the person chose; Grant on a Grant card, which must keep to
    * what the proposal offered (its presets, commands by index, repos among its choices; `withLead`
    * is the person's to tick either way), and makes a team grant. Throws ANSWER_FAILED for an answer
    * that fits neither or reaches beyond the proposal. Only these answers make grants.
@@ -783,9 +794,9 @@ export class Inbox {
           repos: [],
           entryId: entry.id,
           proposedBy: entry.handle,
-          hours: 1,
+          lifetime: answer.lifetime,
         },
-        text: `Approved: you may run these commands without asking again for 1 hour. Novadeck tells you what it allows.`,
+        text: `Approved: you may run these commands without asking again ${lifetimeWords(answer.lifetime, false)}. Novadeck tells you what it allows.`,
       }
     }
     if (answer.type === "approve") return fail("This ask has no approval to give.")
@@ -821,10 +832,10 @@ export class Inbox {
         repos: presets.length > 0 ? repos : [],
         entryId: entry.id,
         proposedBy: entry.handle,
-        hours: answer.hours,
+        lifetime: answer.lifetime,
       },
       text:
-        `Granted: your team may do what the grant says, for ${answer.hours} ${answer.hours === 1 ? "hour" : "hours"}. ` +
+        `Granted: your team may do what the grant says, ${lifetimeWords(answer.lifetime, true)}. ` +
         "Novadeck tells each teammate itself, and a lead gives none of the user's approvals.",
     }
   }

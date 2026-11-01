@@ -2,7 +2,13 @@ import { z } from "zod"
 
 import { agentName, turnError, turnFiles, turnReply } from "./agents.js"
 import { id } from "./fields.js"
-import { grantCommand, grantHours, grantPreset, grantProposal, maxGrantCommands } from "./grants.js"
+import {
+  grantCommand,
+  grantLifetime,
+  grantPreset,
+  grantProposal,
+  maxGrantCommands,
+} from "./grants.js"
 import { hiddenIn, maxCommandLines } from "./text.js"
 
 // How long each text of an agent's ask, tell or done runs at most, in UTF-16 code units: a
@@ -70,7 +76,7 @@ const askShape = z.discriminatedUnion("type", [
     doneLabel: line,
   }),
   // Approval for this terminal to run these commands without asking again: the person's
-  // Approve makes a terminal grant (see grants.ts) of 1 hour: the agent can't choose the time.
+  // Approve makes a terminal grant (see grants.ts) for the lifetime the person picks: the agent can't choose it.
   z.strictObject({
     type: z.literal("approval"),
     commands: z.array(grantCommand).min(1).max(maxGrantCommands),
@@ -98,9 +104,9 @@ export const askAnswer = z.discriminatedUnion("type", [
   }),
   z.strictObject({ type: z.literal("done") }),
   // The person's Approve on an `approval` ask.
-  z.strictObject({ type: z.literal("approve") }),
+  z.strictObject({ type: z.literal("approve"), lifetime: grantLifetime }),
   // The person's Grant on a lead's Grant card: what they kept ticked, by index into the
-  // proposal's lists and by repo url, and the time they chose.
+  // proposal's lists and by repo url, and the lifetime they chose.
   z.strictObject({
     type: z.literal("grant"),
     presets: z.array(grantPreset).max(2),
@@ -115,7 +121,7 @@ export const askAnswer = z.discriminatedUnion("type", [
       .max(maxGrantCommands),
     repos: z.array(z.string().max(160)).max(6),
     withLead: z.boolean(),
-    hours: grantHours,
+    lifetime: grantLifetime,
   }),
 ])
 
