@@ -16,7 +16,7 @@ import { harnesses } from "../harnesses/registry.js"
 import { unanswered, unansweredCalls, type Call } from "../shell/reports.js"
 import type { HintFacts } from "../voice/hint.js"
 import { callerOf } from "./callers.js"
-import { lookText, lookTroubles, pictureAllowed } from "./looks.js"
+import { lookText, lookTroubles, pictureAllowed, sameOrigin } from "./looks.js"
 import { peerOf, type TerminalPeers } from "./peers-host.js"
 import type { Record } from "./record.js"
 import type { SavedTerminal } from "./saved-terminals.js"
@@ -143,6 +143,15 @@ export class Companion {
         reason:
           "The page moved on to an address not served from this machine, and look only " +
           "pictures pages you serve here.",
+      }
+    // The pane is the person's own: signed in, it may sit on another origin than the one the
+    // agent showed, and then it is not what the agent may see.
+    if (answer.taken === "pane" && !sameOrigin(answer.url, item.url ?? ""))
+      return {
+        ok: false,
+        reason:
+          "The user's pane is no longer on the origin you showed, and look only pictures " +
+          "that origin; show the page again.",
       }
     const entry = record.nudges.troubles.get(item.id)
     const held = entry?.version === item.version && !entry.told ? entry : undefined

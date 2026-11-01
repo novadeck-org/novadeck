@@ -21,6 +21,15 @@ const OpenInBrowser = ({ url }: { url: string }): React.JSX.Element => (
 
 // How long troubles are gathered before they are told, so a page that logs a burst of them
 // makes one call.
+/** Whether two addresses share an origin: scheme, host and port. */
+const sameOrigin = (a: string, b: string): boolean => {
+  try {
+    return new URL(a).origin === new URL(b).origin
+  } catch {
+    return false
+  }
+}
+
 const troubleBatch = 500
 
 type Tell = ArtifactBodyProps<"page">["trouble"]
@@ -80,7 +89,9 @@ const ShownPage = ({
   content: PageContent
   trouble: ArtifactBodyProps<"page">["trouble"]
   actions: ReactNode
-  picture: ((page: number, width?: number) => Promise<string | undefined>) | undefined
+  picture:
+    | ((page: number, width?: number, forLook?: boolean) => Promise<string | undefined>)
+    | undefined
   phone: ((page: number, phone: boolean) => Promise<boolean>) | undefined
 }): React.JSX.Element => {
   const collect = useTroubles(trouble)
@@ -129,7 +140,11 @@ const ShownPage = ({
       if (page.shown < looked) return undefined
       const seen = viewer.seen()
       if (!seen) return undefined
-      const src = await picture(seen.page, width)
+      // Only the page the agent showed: the pane signed in elsewhere, or on another origin
+      // than the item's, is the person's own, and the look falls back to a fresh load.
+      if (!sameOrigin(seen.url, page.url)) return undefined
+      // The main process refuses a picture while the page holds a frame from off this machine.
+      const src = await picture(seen.page, width, true)
       // Gone to rest, off screen or elsewhere while the picture was taken: it is of what it was then.
       const now = viewer.seen()
       if (!src || now?.page !== seen.page || now.url !== seen.url) return undefined
@@ -140,7 +155,7 @@ const ShownPage = ({
         size: { width: seen.width, height: seen.height },
       }
     })
-  }, [viewer, picture, page.live, page.shown, id])
+  }, [viewer, picture, page.live, page.shown, page.url, id])
   // On screen with no picture to rest as, it wakes for a while, to be pictured as it
   // rests; shown again by its agent, as soon as it's on screen, to show what changed.
   const show = useRef(page.shown)

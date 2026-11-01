@@ -342,7 +342,11 @@ export type Companions = {
   // `width` device pixels, which the pane shows in its place while the person isn't at it;
   // undefined when there's none to take. Absent where pages don't load live, or the app
   // can't picture them: they stay live.
-  readonly picture?: (page: number, width?: number) => Promise<string | undefined>
+  readonly picture?: (
+    page: number,
+    width?: number,
+    forLook?: boolean,
+  ) => Promise<string | undefined>
   // Makes a live page's view act as a phone's, by its web contents id, or as itself again:
   // touched, with a phone's screen and browser; false when it can't. Absent where pages
   // don't load live, or the app can't: a page at a phone's size is then only as narrow.

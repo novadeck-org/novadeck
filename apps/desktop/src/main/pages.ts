@@ -37,6 +37,8 @@ import { pageLookChannel, pagePhoneChannel, pagePictureChannel } from "../bridge
 export const livePages = () => {
   // What a look's failed requests keep by view, set once the pages' session is watched.
   let forgetPageRequests: ((contentsId: number) => void) | undefined
+  // Whether a page view holds a frame from off this machine, set with it.
+  let pageFramed: ((contentsId: number) => boolean) | undefined
 
   // Looks at pages for agents, out of sight, in the pages' session; see `createLooker`.
   // Only pages on this machine, as the runner checks too.
@@ -83,23 +85,28 @@ export const livePages = () => {
         return accounts[response]?.credentialId
       })
       // The app's page hears of the requests a page in its view sees fail, to tell the agent.
-      const pageRequests = watchPageRequests(pages, (contentsId, failure) => {
-        // A look's own window, out of sight, hears its failures itself.
-        if (looker.failed(contentsId, failure)) return
-        const embedder = webContents.fromId(contentsId)?.hostWebContents
-        if (!embedder || embedder.isDestroyed()) return
-        // A window closing or reloading meanwhile must not throw into the main process.
-        try {
-          embedder.send(pageRequestChannel, contentsId, failure)
-        } catch (error) {
-          log.warn(
-            "pages.request-send-failed",
-            "A failed page request was not sent to its window.",
-            { err: error },
-          )
-        }
-      })
+      const pageRequests = watchPageRequests(
+        pages,
+        (contentsId, failure) => {
+          // A look's own window, out of sight, hears its failures itself.
+          if (looker.failed(contentsId, failure)) return
+          const embedder = webContents.fromId(contentsId)?.hostWebContents
+          if (!embedder || embedder.isDestroyed()) return
+          // A window closing or reloading meanwhile must not throw into the main process.
+          try {
+            embedder.send(pageRequestChannel, contentsId, failure)
+          } catch (error) {
+            log.warn(
+              "pages.request-send-failed",
+              "A failed page request was not sent to its window.",
+              { err: error },
+            )
+          }
+        },
+        onThisMachine,
+      )
       forgetPageRequests = pageRequests.forget
+      pageFramed = pageRequests.framed
       app.on("web-contents-created", (_event, contents) => {
         if (contents.getType() === "webview") {
           guardPage(contents, (url) => shell.openExternal(url), pagesPartition)
@@ -137,11 +144,14 @@ export const livePages = () => {
      * `fromApp` tells a request of the app's own page from any other.
      */
     registerIpc: (fromApp: (event: IpcMainInvokeEvent) => boolean): void => {
-      ipcMain.handle(pagePictureChannel, (event, id: unknown, width: unknown) =>
-        fromApp(event)
-          ? picturePage(event.sender, id, (page) => webContents.fromId(page), width)
-          : undefined,
-      )
+      ipcMain.handle(pagePictureChannel, (event, id: unknown, width: unknown, forLook: unknown) => {
+        if (!fromApp(event)) return undefined
+        // An agent's look refuses a page holding a frame from off this machine; the
+        // fresh load it falls back to keeps such frames out.
+        if (forLook === true && (typeof id !== "number" || pageFramed?.(id) !== false))
+          return undefined
+        return picturePage(event.sender, id, (page) => webContents.fromId(page), width)
+      })
       // Loaded afresh, out of sight, and pictured.
       ipcMain.handle(pageLookChannel, (event, request: unknown) => {
         if (!fromApp(event)) return { reason: "Not from the app's own page." }

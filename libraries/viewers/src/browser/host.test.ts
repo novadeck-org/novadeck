@@ -558,10 +558,12 @@ describe("the requests of a page view that fail", () => {
         },
       } as unknown as Session,
       (contentsId, failure) => told.push([contentsId, failure]),
+      (address) => new URL(address).hostname === "localhost",
     )
     return {
       told,
       forget: watching.forget,
+      framed: watching.framed,
       completed: (statusCode: number, rest: Partial<Details> = {}) =>
         completed?.({
           url: "http://localhost/a",
@@ -644,6 +646,23 @@ describe("the requests of a page view that fail", () => {
     for (let each = 0; each < maxForwardedRequests + 10; each += 1)
       errored("net::ERR_FAILED", { url: `ws://localhost/socket-${each}` })
     expect(told).toHaveLength(2 * maxForwardedRequests + 1)
+  })
+
+  it("hold a frame from off this machine against the page view until its next document", () => {
+    const { completed, framed, forget } = watched()
+    const frame = (url: string) => completed(200, { resourceType: "subFrame", url })
+    frame("http://localhost:5173/widget")
+    expect(framed(3)).toBe(false)
+    frame("https://ads.example.com/frame")
+    expect(framed(3)).toBe(true)
+    expect(framed(4)).toBe(false)
+    // A script from off this machine isn't a frame.
+    completed(200, { url: "https://cdn.example.com/lib.js" })
+    completed(200, { resourceType: "mainFrame", url: "http://localhost:5173/next" })
+    expect(framed(3)).toBe(false)
+    frame("https://ads.example.com/frame")
+    forget(3)
+    expect(framed(3)).toBe(false)
   })
 
   it("forget a page view once it's gone, as a rest of its page drops it", () => {

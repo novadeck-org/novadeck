@@ -455,9 +455,18 @@ export const maxForwardedRequests = 100
 export const watchPageRequests = (
   pages: Session,
   report: (contentsId: number, failure: PageRequestFailure) => void,
-): { readonly forget: (contentsId: number) => void } => {
+  /** Whether an address is served from this machine; a frame from any other is held against a look. */
+  local: (address: string) => boolean = () => true,
+): {
+  readonly forget: (contentsId: number) => void
+  /** Whether the page view's current document holds a frame loaded from off this machine. */
+  readonly framed: (contentsId: number) => boolean
+} => {
   // By page view, then origin.
   const told = new Map<number, Map<string, number>>()
+  // The page views whose current document has a frame from off this machine. The frames
+  // load as they ask; a look is what refuses them, as a picture of the pane would show them.
+  const framed = new Set<number>()
   const tell = (
     details: { url: string; resourceType: string; webContentsId?: number },
     status: number,
@@ -477,11 +486,27 @@ export const watchPageRequests = (
   }
   // A new main-frame request is a new document, however it ends.
   const navigating = (details: { resourceType: string; webContentsId?: number }): void => {
-    if (details.resourceType === "mainFrame" && details.webContentsId !== undefined)
+    if (details.resourceType === "mainFrame" && details.webContentsId !== undefined) {
       told.delete(details.webContentsId)
+      framed.delete(details.webContentsId)
+    }
+  }
+  const framing = (details: {
+    url: string
+    resourceType: string
+    webContentsId?: number
+  }): void => {
+    if (
+      details.resourceType === "subFrame" &&
+      details.webContentsId !== undefined &&
+      webAddress(details.url) &&
+      !local(details.url)
+    )
+      framed.add(details.webContentsId)
   }
   pages.webRequest.onCompleted((details) => {
     navigating(details)
+    framing(details)
     if (details.statusCode >= 400) tell(details, details.statusCode)
   })
   pages.webRequest.onErrorOccurred((details) => {
@@ -489,7 +514,13 @@ export const watchPageRequests = (
     if (details.error !== "net::ERR_ABORTED") tell(details, 0)
   })
   // A page view gone, as each rest of a page drops one: its counts go with it.
-  return { forget: (contentsId) => void told.delete(contentsId) }
+  return {
+    forget: (contentsId) => {
+      told.delete(contentsId)
+      framed.delete(contentsId)
+    },
+    framed: (contentsId) => framed.has(contentsId),
+  }
 }
 
 export { createLooker, type Looker, type LookResult } from "./look.js"
