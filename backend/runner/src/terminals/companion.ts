@@ -180,6 +180,7 @@ export class Companion {
       handle: terminal.handle,
       cwd: terminal.cwd,
       project: this.host.projectFolder(terminal.sessionId),
+      transcript: live?.transcript ?? null,
     }
   }
 

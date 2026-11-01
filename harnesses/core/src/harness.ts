@@ -48,6 +48,13 @@ export type Harness = {
    * project's folder. None for a harness whose plans live in its messages.
    */
   readonly planFolders?: (install: Install) => readonly string[]
+  /**
+   * The same folders for one session, from the path of its transcript, which the session
+   * itself reported: a terminal whose agent was started with another home (as a second
+   * account's) keeps its plans there, which the runner's own install cannot tell.
+   * Empty where the path says nothing.
+   */
+  readonly planFoldersOf?: (transcript: string) => readonly string[]
   /** Whether its own configuration lists Novadeck's plugin as installed. */
   readonly connected: (install: Install) => Promise<boolean>
   /** Its plugin commands, run in order. */

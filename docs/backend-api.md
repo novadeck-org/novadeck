@@ -48,7 +48,8 @@ cp backend/runner/example.env backend/runner/.env
 
 Generate a credential with the command in `example.env`, then set `NOVADECK_TOKEN`
 in the ignored `.env` file. Leave `HOST=127.0.0.1` for local testing: the runner refuses any HOST that isn't loopback
-(`localhost`, `127.x.x.x`, `::1`) unless `NOVADECK_ALLOW_REMOTE_HOST=1` is also set. Run:
+(`localhost`, `127.x.x.x`, `::1`) unless `NOVADECK_ALLOW_REMOTE_HOST=1` is also set. A project created without a folder uses the home folder, so plan saves are
+bounded only by the home folder there. Run:
 
 ```sh
 pnpm --filter @novadeck/runner start

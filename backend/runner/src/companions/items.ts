@@ -67,6 +67,8 @@ export type TerminalPlace = {
   readonly cwd: string
   /** The folder of its session's project, which names the files shown from it. */
   readonly project: string | undefined
+  /** The transcript of the agent session it runs, where its hooks named one. */
+  readonly transcript?: string | null
 }
 
 /** Whose plan a plan item mirrors: an agent session's root, or one of its subagents. */

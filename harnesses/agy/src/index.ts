@@ -1,6 +1,7 @@
 import { join } from "node:path"
 
 import type { Harness, LaunchProfile, MessagingProfile } from "@novadeck/harness-core/harness"
+import { beside } from "@novadeck/harness-core/paths"
 
 import { box } from "./box.js"
 import { decode } from "./decode.js"
@@ -66,6 +67,7 @@ export const agy = {
   home: antigravityHome,
   // The folders of its conversations, where it writes the plans it asks to be reviewed.
   planFolders: (install) => [join(antigravityHome(install), "brain")],
+  planFoldersOf: (transcript) => beside(transcript, "brain", "brain"),
   connected,
   installed,
   connect,
