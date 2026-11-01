@@ -96,6 +96,11 @@ const terminal = (
     settleMs?: number
     /** Runs after each write, as the TUI redraws. */
     after?: (tui: FakeTui) => void
+    /**
+     * The request's turn ends once the driver has asked for it this many times, its facts
+     * saying so from then on, and its dialog then reads as nothing, as a harness's leftover.
+     */
+    turnEndsAfter?: number
   } = {},
 ) => {
   const tui = new FakeTui()
@@ -105,8 +110,11 @@ const terminal = (
   let busy = 0
   let holds = 0
   let settled = 0
+  let asked = 0
   const adapter = (): DialogAdapter => {
     const plain = fakeAdapter()
+    if (options.turnEndsAfter !== undefined)
+      return { read: (rows, each) => (each.turnEnded ? undefined : plain.read(rows, each)) }
     if (options.byPrompt)
       return {
         read: (rows, each) => {
@@ -238,7 +246,10 @@ const terminal = (
           : { facts, actor: null, adapter: adapter(), others: [] }
         : ref === "r1" && (options.waiting?.() ?? true)
           ? {
-              facts,
+              facts:
+                options.turnEndsAfter !== undefined && ++asked > options.turnEndsAfter
+                  ? { ...facts, turnEnded: true as const }
+                  : facts,
               actor: null,
               adapter: options.adapter === false ? undefined : adapter(),
               others: (
@@ -831,6 +842,22 @@ describe("answering a request through its dialog", () => {
       await fails(answers.answer("t", "r1", { dialog: id, type: "choice", option: "1" })),
     ).toBe("DIALOG_CHANGED")
     expect(tui.written).toEqual([])
+  })
+
+  it("reads the request's facts afresh as it reads the dialog and before the first key", async () => {
+    // Its turn ends as the driver begins, after it has the request: the dialog it then
+    // reads by the facts as they are now is no longer there to answer.
+    const early = terminal({ turnEndsAfter: 2 })
+    expect(await fails(give(early.tui, early.answers, { type: "choice", option: "1" }))).toBe(
+      "CONFLICT",
+    )
+    expect(early.tui.written).toEqual([])
+    // Its turn ends once the dialog has been read, before the first key.
+    const late = terminal({ turnEndsAfter: 3 })
+    expect(await fails(give(late.tui, late.answers, { type: "choice", option: "1" }))).toBe(
+      "DIALOG_CHANGED",
+    )
+    expect(late.tui.written).toEqual([])
   })
 
   it("refuses words that hold control characters, pressing nothing", async () => {
