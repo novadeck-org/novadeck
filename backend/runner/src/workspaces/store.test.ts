@@ -2464,6 +2464,35 @@ describe("the snapshot taken before a migration", () => {
     }
   })
 
+  it("forgets the unsealed transcripts, keeping the sealed ones", ({ directory }) => {
+    const path = join(directory(), "workspace.sqlite")
+    writeOld(path)
+    const old = new DatabaseSync(path)
+    old.exec(`INSERT INTO sessions (position, id, project_id, name) VALUES (1, 's', 'p', 'Main');
+      INSERT INTO terminals (id, session_id, handle, cwd, agents, transcript, updated_at) VALUES
+        ('plain', 's', 'moth', '/shop', '{}', 'secret-token-in-the-screen', 1),
+        ('sealed', 's', 'fox', '/shop', '{}', 'v1.${"A".repeat(48)}', 1);`)
+    old.close()
+    new WorkspaceStore(path).close()
+    const [name] = snapshots(path)
+    const file = join(path, "..", "snapshots", name ?? "")
+    const copy = new DatabaseSync(file, { readOnly: true })
+    try {
+      expect(
+        copy
+          .prepare("SELECT id, transcript FROM terminals ORDER BY id")
+          .all()
+          .map((row) => [row.id, row.transcript]),
+      ).toEqual([
+        ["plain", null],
+        ["sealed", `v1.${"A".repeat(48)}`],
+      ])
+    } finally {
+      copy.close()
+    }
+    expect(readFileSync(file).includes("secret-token-in-the-screen")).toBe(false)
+  })
+
   it("is not taken for a current or a new database", ({ directory }) => {
     const path = join(directory(), "workspace.sqlite")
     new WorkspaceStore(path).close()

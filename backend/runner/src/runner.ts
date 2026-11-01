@@ -242,6 +242,7 @@ export const wire = (options: RunnerOptions) => {
   })
   const projects = new Projects(store, terminals, items)
   const uploads = new Uploads(options.uploads)
+  void uploads.sweepOld()
   return { store, shellFiles, agents, terminals, items, projects, uploads, voice, murmur, sealer }
 }
 

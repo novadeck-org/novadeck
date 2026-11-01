@@ -6,7 +6,8 @@
 # On Linux it puts the AppImage in ~/.local/share/novadeck with a menu entry and a
 # `novadeck` command. On macOS it puts the app in /Applications, or in ~/Applications when
 # this account cannot write to /Applications, and replaces a copy already in either.
-# Every download is checked against the release's SHA256SUMS first. Running it again
+# Every download is checked against the release's SHA256SUMS first, and against its build
+# attestation too when the GitHub CLI (gh) is installed and signed in. Running it again
 # upgrades or repairs the install; installed apps update themselves after that, except an
 # unsigned macOS build, which only tells of new versions.
 #
@@ -136,12 +137,40 @@ verify() {
   [ "$expected" = "$actual" ] || fail "$name does not match its checksum in SHA256SUMS; try again, and report it if it persists."
 }
 
+# Checks the file's build attestation with the GitHub CLI when it is installed, signed in to
+# github.com and new enough to have `gh attestation`. The checksums come from the same release
+# as the file, so they show a download came whole, not that this repository's release workflow
+# built it; the attestation does. It fails only when gh reports that the attestation does not
+# hold (none for this file, or a signature, digest or signer that does not match); when gh
+# cannot tell, as with no network or a proxy in the way, it says so and goes on with the
+# checksums. Without gh it says plainly that only the checksums were checked.
+attest() {
+  if ! has gh; then
+    say "Checked $1 against the release's checksums only; install the GitHub CLI (gh) to check its build attestation too."
+  elif ! gh attestation verify --help > /dev/null 2>&1; then
+    say "Checked $1 against the release's checksums only; this version of gh has no 'gh attestation'."
+  elif ! gh auth status --hostname github.com > /dev/null 2>&1; then
+    say "Checked $1 against the release's checksums only; sign in with 'gh auth login' to check its build attestation too."
+  else
+    if output="$(gh attestation verify "$1" --repo "$repository" --hostname github.com --signer-workflow "$repository/.github/workflows/release.yml" 2>&1)"; then
+      say "Checked $1: its checksum and its build attestation from $repository."
+    elif printf '%s\n' "$output" | grep -Eiq 'no attestations? found|no matching attestation|verifying with issuer|verification failed|failed to verify|digest|signature|mismatch|does not match'; then
+      printf '%s\n' "$output" >&2
+      fail "$1 has no valid build attestation from $repository; do not use it, and report it if it persists."
+    else
+      printf '%s\n' "$output" >&2
+      say "Could not verify the build attestation of $1 (gh could not check it, see above); it was checked against the release's checksums only."
+    fi
+  fi
+}
+
 fetch() {
   base="$1"
   name="$2"
   say "Downloading $name"
   download "$base/$name" "$name"
   verify "$name"
+  attest "$name"
 }
 
 # Runs a command as root, through sudo unless this already is root. It fails, quietly, when

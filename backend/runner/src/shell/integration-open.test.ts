@@ -3,6 +3,7 @@ import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs"
 import { join } from "node:path"
 
 import type { AgentName, TerminalRequest } from "@novadeck/protocol"
+import { vi } from "vitest"
 
 import { Terminals } from "../terminals/index.js"
 import { sessionCommandRefusal } from "../terminals/opens.js"
@@ -46,6 +47,15 @@ describe.skipIf(process.platform === "win32" || !existsSync(bash))(
       const controller = new AbortController()
       const requests: TerminalRequest[] = []
       const created: string[] = []
+      // The person approves every command an agent asks to run, and sees what was asked.
+      const approved: object[] = []
+      const person = (async () => {
+        for await (const item of manager.approvals("client", controller.signal))
+          if (item.type === "request") {
+            approved.push(item.action)
+            manager.answerApproval({ requestId: item.requestId, approved: true }, "client")
+          }
+      })().catch(() => undefined)
       const client = (async () => {
         for await (const request of manager.requests("client", controller.signal)) {
           requests.push(request)
@@ -89,7 +99,9 @@ describe.skipIf(process.platform === "win32" || !existsSync(bash))(
           // Its handle, which agents message it by.
           {
             ok: true,
-            text: `Opened a new terminal, @fox · Agent, running claude --version in ${project}.`,
+            text: expect.stringContaining(
+              `Asked the user to approve running claude --version in a new terminal in ${project}.`,
+            ),
           },
           { ok: false, reason: "Not now." },
           { ok: false, reason: "nowhere isn't a folder a terminal can open in." },
@@ -98,6 +110,9 @@ describe.skipIf(process.platform === "win32" || !existsSync(bash))(
           { ok: false, reason: sessionCommandRefusal("codex") },
           unansweredCalls.open,
         ])
+        // The terminal for a command opens only once the person approved it.
+        await vi.waitFor(() => expect(created).toHaveLength(1))
+        expect(approved).toEqual([{ type: "run", command: "claude --version", cwd: project }])
         const asked = {
           requestId: expect.any(String),
           from: terminal.id,
@@ -158,6 +173,7 @@ describe.skipIf(process.platform === "win32" || !existsSync(bash))(
       } finally {
         controller.abort()
         await client
+        await person
       }
     })
   },

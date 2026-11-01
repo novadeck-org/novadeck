@@ -113,6 +113,12 @@ type Scenario = {
   configHome?: string
   /** A relative XDG_DATA_HOME, which counts as unset. */
   relativeXdg?: string
+  /**
+   * A GitHub CLI on the PATH: `ok` verifies attestations, `invalid` finds none for the file,
+   * `unreachable` can't reach GitHub, `signed-out` is not signed in, `old` lacks
+   * `gh attestation`.
+   */
+  gh?: "ok" | "invalid" | "unreachable" | "signed-out" | "old"
   /** Tools present on the PATH, such as fusermount3. */
   extra?: string[]
   /** Tools present only in the system folders a user's PATH lacks. */
@@ -285,6 +291,24 @@ case "$2" in */previous.app) for signal in INT HUP QUIT TERM; do kill -s $signal
 echo "curl $url" >> "${log}"
 cp "${served}/\${url##*/}" "$out"`,
   )
+  if (scenario.gh)
+    shim(
+      bin,
+      "gh",
+      `echo "gh $*" >> "${log}"
+case "$1 $2" in
+"auth status") [ "${scenario.gh}" != signed-out ] && case "$*" in *"--hostname github.com"*) ;; *) exit 1 ;; esac ;;
+"attestation verify")
+  [ "${scenario.gh}" != old ] || exit 1
+  [ "$3" = --help ] && exit 0
+  case "$*" in *"--hostname github.com"*"--signer-workflow acme/novadeck/.github/workflows/release.yml"*) ;; *) exit 1 ;; esac
+  case "${scenario.gh}" in
+  invalid) echo "Error: verification failed: no attestations found for subject $3" >&2; exit 1 ;;
+  unreachable) echo "Error: failed to fetch attestations: dial tcp: lookup api.github.com: no such host" >&2; exit 1 ;;
+  esac ;;
+*) exit 1 ;;
+esac`,
+    )
   const sudo = scenario.sudo ?? true
   if (sudo === "denied") shim(bin, "sudo", `echo "sudo denied" >> "${log}"; exit 1`)
   else if (sudo === "no-copy") shim(bin, "sudo", `[ "$1" = cp ] && exit 1\nSUDO=sudo "$@"`)
@@ -386,6 +410,52 @@ esac`,
 
 describe.skipIf(!linux)("install.sh", () => {
   context("on any Linux system", () => {
+    context("the build attestation", () => {
+      it("says plainly that only checksums were checked without gh", () => {
+        const result = run()
+        expect(result.status).toBe(0)
+        expect(result.stdout).toContain(`Checked ${download} against the release's checksums only`)
+      })
+
+      it("verifies the download against the repository when gh is signed in", () => {
+        const result = run({ gh: "ok" })
+        expect(result.status).toBe(0)
+        expect(result.commands).toContain(
+          `gh attestation verify ${download} --repo acme/novadeck --hostname github.com --signer-workflow acme/novadeck/.github/workflows/release.yml`,
+        )
+        expect(result.stdout).toContain("its build attestation from acme/novadeck")
+      })
+
+      it("installs nothing when the attestation does not hold", () => {
+        const result = run({ gh: "invalid" })
+        expect(result.status).not.toBe(0)
+        expect(result.stderr).toContain("no valid build attestation")
+        expect(existsSync(join(result.data, "novadeck", image))).toBe(false)
+      })
+
+      it("goes on with the checksums, and says so, when gh cannot reach GitHub", () => {
+        const result = run({ gh: "unreachable" })
+        expect(result.status).toBe(0)
+        expect(result.stderr).toContain("no such host")
+        expect(result.stdout).toContain("Could not verify the build attestation")
+        expect(existsSync(join(result.data, "novadeck", image))).toBe(true)
+      })
+
+      it("shows what gh said when the attestation does not hold", () => {
+        const result = run({ gh: "invalid" })
+        expect(result.stderr).toContain("no attestations found")
+      })
+
+      it("falls back to checksums when gh is signed out or too old to attest", () => {
+        for (const gh of ["signed-out", "old"] as const) {
+          const result = run({ gh })
+          expect(result.status, gh).toBe(0)
+          expect(result.stdout, gh).toContain("checksums only")
+          expect(result.commands.join("\n"), gh).not.toMatch(/attestation verify \S+ --repo/)
+        }
+      })
+    })
+
     it("installs the AppImage with a menu entry, an icon and a command after checking its checksum", () => {
       const result = run()
       const target = join(result.data, "novadeck", image)

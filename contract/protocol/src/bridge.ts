@@ -222,10 +222,11 @@ export type DesktopBridge = {
    * A picture of what a live page shows now, as a JPEG `data:` address, for the page's
    * viewer to show in its place while it rests: the page by its view's `getWebContentsId()`,
    * scaled down to `width` pixels where it's wider. Undefined for anything but a page view
-   * of the asking page, and for one that draws nothing yet. Absent from apps that came
+   * of the asking page, for one that draws nothing yet, and, with `forLook`, for one that holds a
+   * frame from off this machine. Absent from apps that came
    * before it.
    */
-  pagePicture?(page: number, width?: number): Promise<string | undefined>
+  pagePicture?(page: number, width?: number, forLook?: boolean): Promise<string | undefined>
   /**
    * Loads a page afresh, out of sight, in the pages' session, laid out as a `desktop`'s
    * window (1280 wide) or a `phone`'s screen, and takes a JPEG picture of it, for an agent's

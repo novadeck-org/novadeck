@@ -342,11 +342,27 @@ describe.skipIf(process.platform === "win32" || !existsSync(bash))(
         // eslint-disable-next-line no-await-in-loop -- Each is readied in turn.
         await shell.until(manager, id, /^trapped$/m)
       }
+      // Past reading whether a program runs there, a close is under way once the terminal
+      // takes no more input.
+      const underWay = (terminalId: string) =>
+        expect
+          .poll(
+            () => {
+              try {
+                manager.write({ terminalId, data: " " }, "owner")
+                return false
+              } catch (error) {
+                return (error as { code?: string }).code === "TERMINAL_EXITED"
+              }
+            },
+            { timeout: 10_000 },
+          )
+          .toBe(true)
       const closing = manager.closePeer({
         ...calls.first,
         request: { to: "owl" },
       })
-      await new Promise((resolve) => setImmediate(resolve))
+      await underWay(target!.id)
       await expect(manager.closePeer({ ...calls.second, request: { to: "owl" } })).resolves.toEqual(
         {
           ok: false,
@@ -359,7 +375,7 @@ describe.skipIf(process.platform === "win32" || !existsSync(bash))(
         ...calls.first,
         request: { to: "crow" },
       })
-      await new Promise((resolve) => setImmediate(resolve))
+      await underWay(last!.id)
       const stopping = manager.shutdown()
       await expect(stopped).resolves.toEqual(unansweredCalls.close)
       await stopping
@@ -423,6 +439,9 @@ describe.skipIf(process.platform === "win32" || !existsSync(bash))(
         ])
         const chained = (calls: { request: object; type: "open" | "close" }[]) =>
           show(shell, manager, opened!, calls, "client")
+        // The terminal that began the chain is back at its prompt: one still running its last
+        // command is asked about, not closed.
+        await shell.until(manager, terminals[0]!.id, /\$ [^\n$]{0,12}$/)
         await expect(chained([close("moth"), close("raven")])).resolves.toEqual([closed(1), spent])
         await expect(chained(Array.from({ length: 5 }, () => open({})))).resolves.toEqual([
           ...Array.from({ length: 4 }, () => ({ ok: false, reason: "Not now." })),

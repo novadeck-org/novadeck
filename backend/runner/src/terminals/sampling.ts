@@ -1,7 +1,7 @@
 import { basename } from "node:path"
 
 import type { AgentName, ForegroundProcess } from "@novadeck/protocol"
-import { sampleForeground } from "@novadeck/terminal/pty"
+import { hasChildProcess, sampleForeground, terminalForeground } from "@novadeck/terminal/pty"
 
 import type { Record } from "./record.js"
 
@@ -50,6 +50,28 @@ export const shellAtPrompt = (
   if (group !== undefined && group !== null) return group === record.terminal.pty.pid
   const name = record.summary.process?.name
   return name === undefined || record.shellName === undefined || name === record.shellName
+}
+
+/**
+ * Whether a program may be running in the terminal's shell, for a close that must not end
+ * work unasked: one holds the foreground; or, where the shell's integration reported a
+ * prompt, a line was entered whose prompt hasn't come back (what Windows, which names no
+ * foreground program, tells); or the shell has a live child, as a job in the background.
+ * Without integration `submitted` never resets, so it counts for nothing there.
+ */
+export const shellBusy = async (
+  record: Pick<
+    Record,
+    "foreground" | "terminal" | "summary" | "shellName" | "prompts" | "submitted"
+  >,
+  trees?: Parameters<typeof hasChildProcess>[1],
+): Promise<boolean> => {
+  // The foreground read now, where the platform tells it: the last sample may predate a
+  // program that has ended since.
+  const group = await terminalForeground(record.terminal.pty.pid)
+  if (group !== undefined ? group !== record.terminal.pty.pid : !shellAtPrompt(record)) return true
+  if (record.prompts.length > 0 && record.submitted) return true
+  return (await hasChildProcess(record.terminal.pty.pid, trees)) === true
 }
 
 /** The shell until the first sample, which may add its command line; Windows reports none. */

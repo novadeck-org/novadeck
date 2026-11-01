@@ -1,4 +1,13 @@
-import { closeSync, fstatSync, mkdirSync, openSync, renameSync, rmSync, writeSync } from "node:fs"
+import {
+  chmodSync,
+  closeSync,
+  fstatSync,
+  mkdirSync,
+  openSync,
+  renameSync,
+  rmSync,
+  writeSync,
+} from "node:fs"
 import { join } from "node:path"
 
 export type LogFileOptions = {
@@ -34,6 +43,26 @@ export const logPath = (folder: string, name: string, index = 0): string =>
   join(folder, index === 0 ? `${name}.log` : `${name}.${index}.log`)
 
 /**
+ * Makes the folder readable by its owner only, and the log files too, those made before
+ * this as well: the modes given when creating leave an existing one as it was. Windows
+ * has no such modes, and a failure leaves the log as it is.
+ */
+const tighten = (folder: string, paths: readonly string[]): void => {
+  if (process.platform === "win32") return
+  const targets: (readonly [string, number])[] = [
+    [folder, 0o700],
+    ...paths.map((path): readonly [string, number] => [path, 0o600]),
+  ]
+  for (const [target, mode] of targets) {
+    try {
+      chmodSync(target, mode)
+    } catch {
+      // Not ours to change: logging goes on.
+    }
+  }
+}
+
+/**
  * Opens a log file: `name.log` in `folder`, appended to. Once a line would take it past
  * `maxBytes` it becomes `name.1.log`, the one before that `name.2.log`, and so on, and the
  * oldest past `keep` is removed, so the files never take more than about `keep` × `maxBytes`.
@@ -54,9 +83,13 @@ export const openLogFile = (options: LogFileOptions): LogFile => {
     if (fd !== undefined) return fd
     if (openFailedAt !== undefined && now() - openFailedAt < retryMs) return undefined
     try {
-      mkdirSync(folder, { recursive: true })
-      fd = openSync(path, "a")
+      mkdirSync(folder, { recursive: true, mode: 0o700 })
+      fd = openSync(path, "a", 0o600)
       size = fstatSync(fd).size
+      tighten(
+        folder,
+        Array.from({ length: keep }, (_, index) => logPath(folder, name, index)),
+      )
       openFailedAt = undefined
       return fd
     } catch {

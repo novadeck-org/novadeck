@@ -29,6 +29,7 @@ import type {
   TerminalRecords,
   TerminalToSave,
 } from "../terminals/saved-terminals.js"
+import { sealedShape } from "../terminals/sealing.js"
 import type { Naming } from "../terminals/titles.js"
 import type { Work } from "../terminals/work.js"
 import { Settings } from "./settings.js"
@@ -760,6 +761,24 @@ const moveDatabase = (from: string, to: string): void => {
     if (existsSync(`${from}${suffix}`)) renameSync(`${from}${suffix}`, `${to}${suffix}`)
 }
 
+/**
+ * Forgets the unsealed transcripts in a snapshot, as the live database forgets them at
+ * every start (`forgetUnsealed`): a copy kept for an upgrade must not hold what was never
+ * masked. The pages the rows held are overwritten (`secure_delete`), so none keeps them.
+ * Throws on failure, so the caller drops the copy.
+ */
+const forgetUnsealedCopy = (snapshot: string): void => {
+  const copy = new DatabaseSync(snapshot)
+  try {
+    const columns = copy.prepare("PRAGMA table_info(terminals)").all()
+    if (!columns.some((column) => column.name === "transcript")) return
+    copy.exec("PRAGMA secure_delete = ON")
+    forgetUnsealedRows(copy, sealedShape)
+  } finally {
+    copy.close()
+  }
+}
+
 /** How many snapshots of the database from before a migration are kept. */
 const snapshotsKept = 3
 
@@ -790,6 +809,7 @@ const snapshotWorkspace = (
     closeSync(openSync(snapshot, "wx", 0o600))
     try {
       database.exec(`VACUUM INTO '${snapshot.replaceAll("'", "''")}'`)
+      forgetUnsealedCopy(snapshot)
     } catch (error) {
       rmSync(snapshot, { force: true })
       throw error
@@ -1100,6 +1120,30 @@ const column = (rows: unknown): string[] => (rows as { handle: string }[]).map((
 
 // How much of a sealed-looking transcript `forgetUnsealed` matches against base64's alphabet.
 const checkedChars = 1_024
+
+// Empties every transcript in `database` that is not shaped as a sealed one; see `forgetUnsealed`.
+const forgetUnsealedRows = (
+  database: DatabaseSync,
+  { prefix, minChars }: { readonly prefix: string; readonly minChars: number },
+) =>
+  database
+    .prepare(
+      `UPDATE terminals SET transcript = NULL
+      WHERE transcript IS NOT NULL AND NOT (
+        substr(transcript, 1, ?) = ?
+        AND length(transcript) >= ?
+        AND (length(transcript) - ?) % 4 = 0
+        AND substr(transcript, ?, ?) NOT GLOB '*[^A-Za-z0-9+/=]*'
+      )`,
+    )
+    .run(
+      prefix.length,
+      prefix,
+      prefix.length + minChars,
+      prefix.length,
+      prefix.length + 1,
+      checkedChars,
+    )
 
 export class WorkspaceStore implements TerminalRecords, MessageRecords, InboxRecords, ItemRecords {
   private readonly database: DatabaseSync
@@ -1417,15 +1461,7 @@ export class WorkspaceStore implements TerminalRecords, MessageRecords, InboxRec
     readonly prefix: string
     readonly minChars: number
   }): void {
-    const result = this.queries.run`
-      UPDATE terminals SET transcript = NULL
-      WHERE transcript IS NOT NULL AND NOT (
-        substr(transcript, 1, ${prefix.length}) = ${prefix}
-        AND length(transcript) >= ${prefix.length + minChars}
-        AND (length(transcript) - ${prefix.length}) % 4 = 0
-        AND substr(transcript, ${prefix.length + 1}, ${checkedChars}) NOT GLOB '*[^A-Za-z0-9+/=]*'
-      )
-    `
+    const result = forgetUnsealedRows(this.database, { prefix, minChars })
     if (result.changes > 0) this.scrub()
   }
 

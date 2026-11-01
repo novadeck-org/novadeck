@@ -356,7 +356,9 @@ export const desktopOptions = (
     ...(portable ? { portable } : {}),
     ...(uninstall ? { uninstall } : {}),
     livePages: app?.livePages === true,
-    ...(pagePicture ? { pagePicture: (page, width) => pagePicture(page, width) } : {}),
+    ...(pagePicture
+      ? { pagePicture: (page, width, forLook) => pagePicture(page, width, forLook) }
+      : {}),
     ...(pageLook ? { pageLook: (request) => pageLook(request) } : {}),
     ...(pagePhone ? { pagePhone: (page, phone) => pagePhone(page, phone) } : {}),
   }
