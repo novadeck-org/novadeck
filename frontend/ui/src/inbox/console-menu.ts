@@ -252,7 +252,7 @@ const askMenu = (row: Extract<InboxRow, { kind: "ask" }>): Menu => {
       effect:
         lifetime === "hour"
           ? null
-          : `Ends when @${source.handle} reports done or is released. Revoke anytime from the Inbox.`,
+          : `Ends when @${source.handle} reports done or its agent exits. Revoke anytime from the Inbox.`,
       pick: false,
       details: null,
       answer: { kind: "ask", answer: { type: "approve", lifetime } },
