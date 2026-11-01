@@ -50,11 +50,16 @@ const prText = (grant: Grant, quoteFree: boolean): string => {
 }
 
 /**
- * The most the commands of one grant may take rendered, in bytes: a delivery holds 8 KiB
- * (`maxDeliveryBytes`), and the rest of a `<grant>` (its repos, note and mark) must fit beside them,
- * with the longest note any harness gets on any OS (Codex's or Antigravity's on Windows).
+ * The most the commands of one grant may take rendered, in bytes. A delivery holds 8 KiB
+ * (`maxDeliveryBytes`), counted as leasing counts it: what each harness's prompt, stop and
+ * tool-call hooks print. The rest of a `<grant>` (its repos, note and mark) must fit beside
+ * the commands, with the longest note any harness gets on any OS, and `grantMarginBytes` to
+ * spare (messages.test.ts measures the largest grant that way).
  */
-export const maxGrantCommandBytes = 2816
+export const maxGrantCommandBytes = 2500
+
+/** How far under a delivery's limit the largest grant must print in any harness, so that a longer note never overflows it unseen. */
+export const grantMarginBytes = 256
 
 /**
  * The bytes the commands of a grant take in its `<grant>`, escaping and quoting included, as a

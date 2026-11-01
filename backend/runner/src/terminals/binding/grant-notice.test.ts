@@ -1,7 +1,11 @@
 import { maxGrantCommands, maxGrantRepos, type Grant } from "@novadeck/protocol"
 
 import { harnesses } from "../../harnesses/registry.js"
-import { grantCommandBytes, grantCommandsRefusal } from "../../messaging/grant-text.js"
+import {
+  grantCommandBytes,
+  grantCommandsRefusal,
+  maxGrantCommandBytes,
+} from "../../messaging/grant-text.js"
 import { byteLength, maxDeliveryBytes, wrapGrants } from "../../messaging/messages.js"
 import { describe, expect, it } from "../../test.js"
 import { noticesAt } from "../nudges.js"
@@ -16,7 +20,7 @@ const largest = (id: string): Grant => {
     const more = { argv: ["echo", "<".repeat(length)], rest: false }
     while (accepts(more)) commands.push(more)
   }
-  expect(grantCommandBytes(commands)).toBeGreaterThan(2800)
+  expect(grantCommandBytes(commands)).toBeGreaterThan(maxGrantCommandBytes - 8)
   return {
     id,
     projectId: "00000000-0000-4000-8000-000000000001",

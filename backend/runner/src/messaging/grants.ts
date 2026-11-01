@@ -28,6 +28,9 @@ const log = logs.for("grants")
  */
 export const idleGrantMs = 24 * 60 * 60_000
 const hourMs = 60 * 60_000
+/** How soon a state the records would not take is tried again, doubling up to the longer wait. */
+const retryWriteMs = 1_000
+const retryWriteMaxMs = 30_000
 /** How seldom activity is written to the records; memory holds it exactly. */
 export const activitySaveMs = 5 * 60_000
 
@@ -64,6 +67,8 @@ export type GrantsHost = {
    * which `wrap` renders from the grant itself (`Relays.grantNotice`).
    */
   readonly notify: (terminalId: string, grantId: string, quiet?: boolean) => boolean
+  /** Whether a notice of the grant already waits for the terminal. */
+  readonly queued: (terminalId: string, grantId: string) => boolean
   /** Whether cmd prints before every command, which no Antigravity grant reaches past. */
   readonly cmdPrints: () => CmdNote
 }
@@ -85,14 +90,15 @@ export type GrantOptions = {
 
 /** The grants service for messaging's `options`, its notices going through `relays`. */
 export const grantsOf = (
-  host: Omit<GrantsHost, "notify" | "cmdPrints" | "mono"> & {
-    readonly relays: Pick<Relays, "grantNotice">
+  host: Omit<GrantsHost, "notify" | "queued" | "cmdPrints" | "mono"> & {
+    readonly relays: Pick<Relays, "grantNotice" | "grantQueued">
   },
   options: GrantOptions,
 ): Grants =>
   new Grants(
     {
       ...host,
+      queued: (terminalId, grantId) => host.relays.grantQueued(terminalId, grantId),
       mono: options.mono ?? (() => performance.now()),
       notify: (terminalId, grantId, quiet) => host.relays.grantNotice(terminalId, grantId, quiet),
       cmdPrints: options.cmdPrints ?? (() => false),
@@ -141,6 +147,10 @@ export class Grants {
    * on disk is tried again at each sweep and at close, so a restart does not bring it back.
    */
   private readonly unwritten = new Map<string, Grant>()
+  /** The terminals whose Antigravity was started in plan mode, which no grant reaches. */
+  private readonly planning = new Set<string>()
+  private retrying: ReturnType<typeof setTimeout> | undefined
+  private failures = 0
   /** The terminals each grant made here has told of itself, so a later one it covers is told too. */
   private readonly told = new Map<string, Set<string>>()
   /** The grants loaded from the records: their notices are quiet, so a restart wakes no idle agent. */
@@ -192,6 +202,10 @@ export class Grants {
         // Restored, it has told nobody yet: whoever it covers is told as their agent runs.
         this.told.set(grant.id, new Set())
         this.restored.add(grant.id)
+        // Its hour and idle cap run on from what the wall clock says is left of them.
+        const mono = host.mono()
+        this.madeMono.set(grant.id, mono - Math.max(0, now - grant.madeAt))
+        this.activeMono.set(grant.id, mono - Math.max(0, now - grant.lastActivityAt))
       }
     }
     if (ended.length > 0) this.save(() => records.removeGrants(ended))
@@ -257,6 +271,9 @@ export class Grants {
   private covers(grant: Grant, live: Live): boolean {
     if (live.projectId !== grant.projectId || live.sessionId !== grant.workspaceSessionId)
       return false
+    // A plan-mode Antigravity takes no grant (its plan policy asks for everything): it is
+    // covered, told and counted only once relaunched without the plan.
+    if (this.planning.has(live.terminalId)) return false
     // Coverage that ended is gone for good, whoever leads the terminal later.
     if (grant.ended.some((each) => each.terminalId === live.terminalId)) return false
     const { holder } = grant
@@ -424,7 +441,7 @@ export class Grants {
     // Written only after it. One that can't be written still counts here, and is tried again:
     // a grant lost at a restart is the safe way to fail, one revived is not.
     this.savedAt.set(grant.id, madeAt)
-    if (!this.write(grant)) this.unwritten.set(grant.id, grant)
+    if (!this.write(grant)) this.unwrite(grant)
     this.byId.set(grant.id, grant)
     this.madeMono.set(grant.id, this.host.mono())
     this.activeMono.set(grant.id, this.host.mono())
@@ -489,6 +506,15 @@ export class Grants {
     this.host.sessions.unregister(terminalId, forGood)
   }
 
+  /** Notes whether the terminal's Antigravity was started in plan mode, as it starts. */
+  planned(terminalId: string, plan: boolean): void {
+    if (this.planning.has(terminalId) === plan) return
+    if (plan) this.planning.add(terminalId)
+    else this.planning.delete(terminalId)
+    this.reach()
+    this.publish()
+  }
+
   /** Tells the terminal again of every grant that covers it, as their note changed (`announceAgain`). */
   adopted(terminalId: string): void {
     for (const grant of this.covering(terminalId)) this.host.notify(terminalId, grant.id)
@@ -517,9 +543,15 @@ export class Grants {
     }
   }
 
-  /** Tells the terminal of these grants, as messages of their own. */
+  /** Whether a notice of the grant already waits for the terminal, which will deliver it. */
+  queued(terminalId: string, grantId: string): boolean {
+    return this.host.queued(terminalId, grantId)
+  }
+
+  /** Tells the terminal of these grants, as messages of their own, unless one waits already. */
   tell(terminalId: string, grants: readonly Grant[]): void {
-    for (const grant of grants) this.host.notify(terminalId, grant.id)
+    for (const grant of grants)
+      if (!this.host.queued(terminalId, grant.id)) this.host.notify(terminalId, grant.id)
   }
 
   /**
@@ -575,6 +607,7 @@ export class Grants {
   close(): void {
     this.retryWrites()
     this.closed = true
+    clearTimeout(this.retrying)
     clearInterval(this.sweeper)
     this.stopWatching()
     for (const reader of this.readers) reader.finish()
@@ -622,22 +655,43 @@ export class Grants {
     if (this.write(next)) this.unwritten.delete(next.id)
     else if (strict)
       throw new DomainError("ANSWER_FAILED", "Novadeck could not save that. Try again.")
-    else this.unwritten.set(next.id, next)
+    else this.unwrite(next)
     this.savedAt.set(next.id, this.now())
     this.byId.set(next.id, next)
+  }
+
+  /** Parks a state the records would not take, and tries it again soon rather than at the next sweep. */
+  private unwrite(grant: Grant): void {
+    this.unwritten.set(grant.id, grant)
+    if (this.retrying || this.closed) return
+    const wait = Math.min(retryWriteMs * 2 ** this.failures, retryWriteMaxMs)
+    this.failures += 1
+    this.retrying = setTimeout(() => {
+      this.retrying = undefined
+      this.retryWrites()
+    }, wait)
+    this.retrying.unref()
   }
 
   /** Writes what could not be written before. */
   private retryWrites(): void {
     for (const [id, grant] of this.unwritten) if (this.write(grant)) this.unwritten.delete(id)
+    if (this.unwritten.size === 0) this.failures = 0
+    else if (!this.closed) {
+      const [pending] = this.unwritten.values()
+      if (pending) this.unwrite(pending)
+    }
   }
 
-  /** Writes the grant to the records, once more if it fails; whether it was written. */
+  /**
+   * Writes the grant to the records, once more if it fails; whether it was written. A grant
+   * that ended and can't be written has its row removed instead, which also keeps a restart
+   * from bringing it back, and may work where the write does not.
+   */
   private write(grant: Grant): boolean {
-    return (
-      this.save(() => this.records.saveGrant(grant)) ||
-      this.save(() => this.records.saveGrant(grant))
-    )
+    const saved = () => this.save(() => this.records.saveGrant(grant))
+    if (saved() || saved()) return true
+    return grant.revokedAt !== null && this.save(() => this.records.removeGrants([grant.id]))
   }
 
   /** Runs work that must not break the caller, logging a failure. */

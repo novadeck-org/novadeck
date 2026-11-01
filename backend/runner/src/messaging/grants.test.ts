@@ -718,7 +718,10 @@ describe("a grant's records fail closed", () => {
         state.writes += 1
         inner.saveGrant(grant)
       },
-      removeGrants: (ids) => inner.removeGrants(ids),
+      removeGrants(ids) {
+        if (state.down) throw new Error("disk full")
+        inner.removeGrants(ids)
+      },
     }
     return { records, state, inner }
   }
@@ -910,5 +913,136 @@ describe("a quiet notice that a grant ended", () => {
     clock.at += hour
     expect(told("F").some(isQuiet)).toBe(true)
     expect(messaging["holds"].oldestHeld(live)).toBeNull()
+  })
+})
+
+describe("ends are saved when they happen", () => {
+  const flaky = () => {
+    const inner = memoryGrants()
+    const state = { down: false, removeDown: false }
+    const records: GrantRecords = {
+      grants: () => inner.grants(),
+      saveGrant(grant) {
+        if (state.down) throw new Error("disk full")
+        inner.saveGrant(grant)
+      },
+      removeGrants(ids) {
+        if (state.removeDown) throw new Error("disk full")
+        inner.removeGrants(ids)
+      },
+    }
+    return { records, state, inner }
+  }
+
+  it("at once, so a quit right after a done, an exit or a release restores no live grant", () => {
+    for (const why of ["done", "exited", "released"] as const) {
+      const { records } = flaky()
+      const first = setup(undefined, undefined, records)
+      const grant = first.make()
+      first.messaging.grants.coverageEnds("F", why)
+      // No sweep, and no close: the process dies here.
+      const second = setup(undefined, undefined, records)
+      second.arrive("F", "fox", "sable")
+      expect(second.messaging.grants.endedWhy(grant.id, "F"), why).toBe(why)
+      expect(second.messaging.grants.covering("F"), why).toEqual([])
+    }
+  })
+
+  it("again within a second when the records refused them, not at the next sweep", () => {
+    vi.useFakeTimers()
+    try {
+      const { records, state, inner } = flaky()
+      const { messaging, make } = setup(undefined, undefined, records)
+      const grant = make()
+      state.down = true
+      messaging.grants.coverageEnds("F", "done")
+      expect(inner.grants().find((each) => each.id === grant.id)?.ended).toEqual([])
+      state.down = false
+      vi.advanceTimersByTime(1_000)
+      expect(inner.grants().find((each) => each.id === grant.id)?.ended).toHaveLength(1)
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
+  it("by removing the row of a grant that ended, where only the write fails", () => {
+    const { records, state, inner } = flaky()
+    const { messaging, make, clock } = setup(undefined, undefined, records)
+    const expiring = make({ lifetime: "hour" })
+    const revoked = make()
+    state.down = true
+    clock.at += hour
+    messaging.grants.sweep()
+    messaging.grants.revoke(revoked.id)
+    expect(inner.grants()).toEqual([])
+    expect(inner.grants().some((each) => [expiring.id, revoked.id].includes(each.id))).toBe(false)
+  })
+
+  it("up to close, when neither the write nor the removal works until then", () => {
+    const { records, state, inner } = flaky()
+    state.removeDown = true
+    const { messaging, make } = setup(undefined, undefined, records)
+    const grant = make()
+    state.down = true
+    messaging.grants.coverageEnds("F", "done")
+    expect(inner.grants().find((each) => each.id === grant.id)?.ended).toEqual([])
+    state.down = false
+    state.removeDown = false
+    messaging.close()
+    expect(inner.grants().find((each) => each.id === grant.id)?.ended).toHaveLength(1)
+  })
+})
+
+describe("a plan-mode Antigravity", () => {
+  it("is covered by no grant, is not told of one, and is once relaunched without the plan", () => {
+    const { messaging, make, told, arrive } = setup()
+    arrive("A", "agate", "sable")
+    messaging.grants.planned("A", true)
+    make()
+    expect(messaging.grants.covering("A")).toEqual([])
+    expect(messaging.grants.launchPrograms("A")).toEqual([])
+    expect(told("A")).toEqual([])
+    expect(messaging.grants.get(messaging.grants.list()[0]!.id, "A")).toBeUndefined()
+    expect(messaging.grants.covering("F")).toHaveLength(1)
+    messaging.grants.planned("A", false)
+    expect(messaging.grants.covering("A")).toHaveLength(1)
+    expect(told("A")).toHaveLength(1)
+  })
+})
+
+describe("a restored hour grant", () => {
+  it("runs out on monotonic time too, from what was left of its hour at the restore", () => {
+    const clock = { at: 1_000_000, mono: 0 }
+    const records = memoryGrants()
+    const first = setup(undefined, clock, records)
+    first.make({ lifetime: "hour" })
+    first.messaging.close()
+    // The runner restarts forty minutes later.
+    clock.at += 40 * 60_000
+    clock.mono += 40 * 60_000
+    const second = setup(undefined, clock, records)
+    expect(second.messaging.grants.covering("F")).toHaveLength(1)
+    // The wall clock is set back an hour; twenty minutes later the hour is up all the same.
+    clock.at -= hour
+    clock.at += 21 * 60_000
+    clock.mono += 21 * 60_000
+    expect(second.messaging.grants.covering("F")).toEqual([])
+  })
+})
+
+describe("a later teammate's notice", () => {
+  it("is queued once, whether it comes from the session change, the bar's notice or a leftover", () => {
+    const { messaging, make, told, arrive } = setup()
+    const grant = make()
+    arrive("N", "newt", "sable")
+    expect(told("N")).toHaveLength(1)
+    expect(messaging.grants.queued("N", grant.id)).toBe(true)
+    messaging.grants.tell("N", [grant])
+    expect(told("N")).toHaveLength(1)
+    // Once it has been delivered, a tell queues it again (the bar's leftovers of a new session).
+    for (const notice of told("N")) messaging["store"].put({ ...notice, state: "delivered" })
+    expect(messaging.grants.queued("N", grant.id)).toBe(false)
+    messaging.grants.tell("N", [grant])
+    expect(told("N")).toHaveLength(2)
   })
 })

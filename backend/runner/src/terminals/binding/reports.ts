@@ -433,7 +433,11 @@ export class Reports {
         ? await this.host.peers().facts(peerOf(record))
         : undefined
     const current = { summary: record.naming.summary }
-    const covering = this.host.messaging().grants.covering(report.terminalId)
+    // Those whose notice already waits for the terminal arrive with this turn's delivery.
+    const { grants } = this.host.messaging()
+    const covering = grants
+      .covering(report.terminalId)
+      .filter((each) => !grants.queued(report.terminalId, each.id))
     // The grants go beside the bar's notice as far as the answer has room, never at its cost.
     const grantsFor = (took: Parameters<typeof noticesAt>[0]) =>
       took.companion

@@ -125,11 +125,14 @@ export class Approving {
    * false, where it resumes no agent).
    */
   launch(terminalId: string, verified: Launching, command: string | false | undefined): void {
+    const plan = command !== undefined && command !== false && startsAgyInPlan(command)
+    // First: the grants covering the terminal, and so its launch grant, depend on it.
+    this.host.messaging().grants.planned(terminalId, plan)
     this.narrowing.launch(
       terminalId,
       verified,
       command !== undefined && command !== false && startsAgy(command),
-      command !== undefined && command !== false && startsAgyInPlan(command),
+      plan,
     )
   }
 
@@ -178,6 +181,7 @@ export class Approving {
 
   /** Forgets what is kept of a terminal, as it closes. */
   forget(terminalId: string): void {
+    this.host.messaging().grants.planned(terminalId, false)
     this.narrowing.forget(terminalId)
     this.permissions.forget(terminalId)
     // The terminal may still be listed, closed or on its way out: it is not running anything.

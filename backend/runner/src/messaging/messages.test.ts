@@ -1,7 +1,13 @@
 import { maxGrantCommands, maxGrantRepos, type Grant } from "@novadeck/protocol"
 
+import { harnesses } from "../harnesses/registry.js"
 import { describe, expect, it } from "../test.js"
-import { grantCommandBytes, grantCommandsRefusal, maxGrantCommandBytes } from "./grant-text.js"
+import {
+  grantCommandBytes,
+  grantCommandsRefusal,
+  grantMarginBytes,
+  maxGrantCommandBytes,
+} from "./grant-text.js"
 import {
   allowSend,
   cleanText,
@@ -413,6 +419,7 @@ describe("a delivery's grants", () => {
     // Commands up to the cap in each of the characters that print largest: `<` escapes to four
     // bytes, `'` to four and five in JSON, `\\` and `"` to two in JSON. The most repos, each as long
     // as the protocol allows, with the longest default branch.
+    let worst = { bytes: 0, where: "" }
     for (const fill of ["<", "'", "\\", '"']) {
       // Filled to the cap exactly: whole words while one fits, then the longest word that still does.
       const word = fill.repeat(256)
@@ -451,13 +458,27 @@ describe("a delivery's grants", () => {
               platform,
               cmdPrints,
             })
-            // Hooks print the delivery inside a JSON string, which escapes it again.
-            expect(
-              Buffer.byteLength(JSON.stringify(text)),
-              `${fill} for ${agent} on ${platform} with cmdPrints ${String(cmdPrints)}`,
-            ).toBeLessThanOrEqual(maxDeliveryBytes)
+            // What leasing counts: the whole stdout of the harness's prompt, stop and tool-call
+            // hooks, which escape the delivery as their own format needs.
+            const { messaging } = harnesses[agent]
+            const printed = [
+              messaging.prompt(text),
+              messaging.stop(text),
+              ...Object.entries(messaging.asks)
+                .filter(([, kind]) => kind === "tool")
+                .map(([event]) => messaging.call?.(text, event) ?? ""),
+            ].map((each) => Buffer.byteLength(each))
+            const bytes = Math.max(...printed)
+            if (bytes > worst.bytes)
+              worst = {
+                bytes,
+                where: `${fill} for ${agent} on ${platform} with cmdPrints ${String(cmdPrints)}`,
+              }
           }
     }
+    // A real margin under the limit, so a longer note can't overflow a delivery unseen.
+    expect(worst.where).toBeTruthy()
+    expect(worst.bytes, worst.where).toBeLessThanOrEqual(maxDeliveryBytes - grantMarginBytes)
   })
 
   it("renders a live grant with this delivery's person mark, and the note that says what it means", () => {

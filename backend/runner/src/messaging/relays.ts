@@ -178,6 +178,14 @@ export class Relays {
     return true
   }
 
+  /** Whether a notice of the grant waits for the terminal's agent, to arrive with its next delivery. */
+  grantQueued(terminalId: string, grantId: string): boolean {
+    return [...this.host.store.messages()].some(
+      (message) =>
+        message.to.terminalId === terminalId && message.grantId === grantId && undelivered(message),
+    )
+  }
+
   /**
    * Queues Novadeck's message telling the terminal's agent of a grant made or ended: it
    * carries only the grant's id, and `wrap` renders `<grant>` or `<grant-ended>` from the
