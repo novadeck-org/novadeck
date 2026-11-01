@@ -141,6 +141,26 @@ which in a dialog of the window the page is in; a cancelled or failed question c
 it. On macOS the app doesn't turn on Touch ID passkeys yet, so the person's own synced
 passkeys don't show there; a security key or a phone still can.
 
+## Release Verification
+
+Releases are built by the repository's `release.yml`. Every asset gets a GitHub build
+provenance attestation, which proves this repository's workflow built it. `SHA256SUMS` lists
+the assets' checksums. `install.sh` checks each download against it and, when the GitHub CLI
+is installed and signed in, runs `gh attestation verify <file> --repo novadeck-org/novadeck`
+too; otherwise it says plainly that only the checksums were checked. The checksums come from
+the same release as the files, so alone they show a download arrived whole, not who built it.
+To check by hand: `gh attestation verify <file> --repo novadeck-org/novadeck`.
+
+There is no GPG signature today: the workflow signs `SHA256SUMS` as `SHA256SUMS.asc` only once
+a release key is configured (`docs/release-signing.md`), and none exists yet. macOS builds are
+signed and notarized when the Apple credentials are set. Windows builds are unsigned until
+Azure signing is set up, so Windows shows SmartScreen's warning. The desktop app's own
+updates come from GitHub: it downloads only files under
+`https://github.com/<owner>/<repo>/releases/download/`, whatever novadeck.dev's feed says, and
+on macOS also checks the new app's code signature. The check allows any release under that prefix, so a compromised website could still offer an older genuine release or a prerelease. Linux and Windows check the feed's SHA-512
+of the file and nothing else, so the attestation, not the app, is where a release's origin is
+proven.
+
 ## Pasted Files
 
 The desktop preload's `pathForFile` hands the page the path of a `File` it already
@@ -226,32 +246,49 @@ plain text there. It does not protect against a process of your own user, which 
 and Linux can ask the system to unwrap the key as the app does. Anything else that was
 typed or printed may still be saved. Metadata files use owner-only permissions where
 supported (0600 in a 0700 directory); on Windows they live in the per-user application data
-folder. Nothing is logged.
+folder. Before a migration changes the database, the runner copies it, plain transcripts
+included, to `snapshots/` beside it (the newest three are kept, with the same owner-only
+permissions) so an upgrade can be undone; delete that folder to remove them. A copy keeps
+transcripts as the database held them: encrypted ones stay encrypted, and only a database
+that predates the encryption holds plain ones. Titles, summaries, commands, directories and
+Inbox content are plain text in every copy. The runner and the desktop app also write log
+files (`runner.log` and the main process's `host.log`, rotated by size) to the logs folder,
+with paths, URLs, account names and known secrets redacted. They hold what the app did
+(starts, failures, update checks), not terminal contents, though an error message can name a
+command or a folder. Started with `NOVADECK_LOGS=verbose`, for a bug report, the logs also
+hold lines that may include what a terminal's screen showed. If the app crashes, Electron
+saves a minidump (process memory, which can hold terminal text) in its local crash folder;
+it is never uploaded.
 
 Each shell the runner starts can report which agent session runs in it, through a
 local endpoint: a Unix socket in a private temporary directory, or a named pipe on
-Windows. The endpoint accepts only an agent session report, for the terminal whose
-random per-shell token (`NOVADECK_REPORT_TOKEN`) the report carries; it is not a runner
-API. Processes in a shell can read that shell's token, and so
-can misreport its session, which at worst resumes another session of the same user.
-The runner builds the resume command itself, from a fixed program and arguments and a
-session id limited to letters, digits, `.`, `_` and `-`, so a report cannot make a
-shell run anything else. The same token authorizes the agent tool calls (Novadeck's MCP
-server), so a process in a shell can make them: `open_terminal` with a command, which starts
-a new terminal that runs it, is therefore asked of the person first, with the exact command,
-the folder and the agent that asks, and opens nothing unless they approve; the agent hears
-their answer. `close_terminal` likewise asks before closing a terminal that runs another
-agent's session or a program other than its shell, or a shell with a job in the background.
-The dialog writes out characters that draw as nothing and holds the answer back until the
-person has seen the whole command. A command is quoted into the shell only from characters
-no shell expands. The approval certifies the command, not what it runs: a script it calls,
-a git filter (the `show` tool's `changes` runs `git diff` with the folder's filters on) or a
-harness's settings in a folder an agent can write can still run more, so an agent that edits
-files unattended remains a way around it.
+Windows. The endpoint accepts an agent session report, and the agent's tool calls to
+Novadeck's MCP server, each for the terminal whose random per-shell token
+(`NOVADECK_REPORT_TOKEN`) it carries. So that token authorizes every agent tool call the
+terminal's agent makes (asks, tells, messages to other agents, and opening a terminal that
+runs a command), and a process that reads a shell's token
+can act as that shell's agent, with everything its agent may do. Processes in a shell can read
+that shell's token, and so can misreport its session, which at worst resumes another session of
+the same user. The runner builds the resume command itself, from a fixed program and arguments
+and a session id limited to letters, digits, `.`, `_` and `-`, so a report cannot change what
+the resume command runs. `open_terminal` with a command, which starts a new terminal that runs
+it, is asked of the person first, with the exact command, the folder and the agent that asks,
+and opens nothing unless they approve; the agent hears their answer. `close_terminal` likewise
+asks before closing a terminal that runs another agent's session or a program other than its
+shell, or a shell with a job in the background. The dialog writes out characters that draw as
+nothing and holds the answer back until the person has seen the whole command. A command is
+quoted into the shell only from characters no shell expands. The approval certifies the
+command, not what it runs: a script it calls, a git filter (the `show` tool's `changes` runs
+`git diff` with the folder's filters on) or a harness's settings in a folder an agent can write
+can still run more, so an agent that edits files unattended remains a way around it.
 The shell integration and hook live in the runner's own `shell` folder; the runner
 never writes to the user's rc files or dotfiles. Only when the person connects an agent
 does it install Novadeck's plugin into that agent, through the agent's own plugin
-commands, and disconnecting removes it. The plugin's hook does nothing outside
+commands, and disconnecting removes it. Connecting Antigravity also edits the `statusLine` entry of its `settings.json` (in its
+home folder, the one file outside Novadeck's own folders it writes): the entry reports the
+session to Novadeck's hook and then runs the person's own status line, which it names;
+on Windows it only reports, and is added only where the person has no line of their own.
+Disconnecting puts the person's line back. The plugin's hook does nothing outside
 Novadeck's shells. On Linux and macOS its MCP server starts the launcher the terminal names in `NOVADECK_MCP`, as its hook starts `NOVADECK_HOOK`'s, and otherwise the launcher of the Novadeck that connected the agent; both are the user's own environment, so a process that changes them runs nothing it couldn't run already.
 
 Inbox asks and tells are authenticated terminal operations: an agent can create or
