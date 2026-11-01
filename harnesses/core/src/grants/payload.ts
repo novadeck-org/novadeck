@@ -77,9 +77,9 @@ export const agyNonCommandTools: ReadonlySet<string> = new Set([
 ])
 
 /**
- * Novadeck's own MCP tools (the runner's `shell/mcp.ts` lists the same names, and a test holds
- * the two together). They run no shell command: they speak to Novadeck, which asks the person
- * where it must.
+ * Novadeck's own MCP tools that run no shell command: they speak to Novadeck, which asks the
+ * person where it must. With `novadeckCommandTools` they are the runner's `shell/mcp.ts` list,
+ * and a test holds the two together.
  */
 export const novadeckMcpTools: ReadonlySet<string> = new Set([
   "ask",
@@ -89,7 +89,6 @@ export const novadeckMcpTools: ReadonlySet<string> = new Set([
   "showing",
   "look",
   "close",
-  "open_terminal",
   "open_agent",
   "close_terminal",
   "lead",
@@ -100,6 +99,12 @@ export const novadeckMcpTools: ReadonlySet<string> = new Set([
   "feedback",
   "propose_grant",
 ])
+
+/**
+ * Novadeck's MCP tools that run a command: `open_terminal` runs its `command` in a new shell.
+ * They are not "not a command", so a narrowed Antigravity treats them as it does an unknown tool.
+ */
+export const novadeckCommandTools: ReadonlySet<string> = new Set(["open_terminal"])
 
 // Antigravity names the server of Novadeck's plugin `novadeck_novadeck`. It calls one of its tools
 // either as a function of its own, `mcp_<server>_<tool>`, or through `call_mcp_tool`, whose
@@ -118,6 +123,18 @@ export const isAgyNonCommandTool = (name: string, args?: unknown): boolean => {
   if (name.startsWith(novadeckPrefix))
     return novadeckMcpTools.has(name.slice(novadeckPrefix.length))
   if (name !== "call_mcp_tool" || typeof args !== "object" || args === null) return false
+  // Antigravity reads these keys without regard to case, so a key that differs only by case
+  // may be the one it uses: no such call is taken for Novadeck's. (Two copies of one exact key are
+  // read as the last, by Antigravity and by JSON.parse alike.)
+  const keys = Object.keys(args)
+  if (
+    keys.some(
+      (key) =>
+        (key.toLowerCase() === "servername" && key !== "ServerName") ||
+        (key.toLowerCase() === "toolname" && key !== "ToolName"),
+    )
+  )
+    return false
   const { ServerName: server, ToolName: tool } = args as {
     ServerName?: unknown
     ToolName?: unknown

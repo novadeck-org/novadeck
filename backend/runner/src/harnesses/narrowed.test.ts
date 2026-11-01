@@ -249,6 +249,14 @@ describe("every answer path of a narrowed Antigravity PreToolUse", () => {
     expect(new Set(narrowedAnswers).size).toBe(4)
   })
 
+  it("names the same four answers as the relay's own constants", () => {
+    const rust = readFileSync(new URL("../../../relay/src/hook.rs", import.meta.url), "utf8")
+    const constants = [...rust.matchAll(/^const [A-Z_]+: &str = "((?:[^"\\]|\\.)*)";$/gm)].map(
+      (found) => found[1]!.replaceAll('\\"', '"'),
+    )
+    expect(constants.toSorted()).toEqual([...narrowedAnswers].toSorted())
+  })
+
   it("leaves the relay's fallback to the relay, which closes it itself", () => {
     // The relay prints force_ask by its own code in a narrowed terminal, whatever relay.json
     // says (backend/relay/src/hook.rs); this only pins that relay.json names the event.

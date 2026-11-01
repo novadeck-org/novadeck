@@ -5,6 +5,7 @@ export {
   agyNonCommandTools,
   callFromPayload,
   isAgyNonCommandTool,
+  novadeckCommandTools,
   novadeckMcpTools,
 } from "./payload.js"
 export { normalizeRepoUrl } from "./repo.js"

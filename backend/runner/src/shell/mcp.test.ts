@@ -4,7 +4,7 @@ import { createServer } from "node:net"
 import { tmpdir } from "node:os"
 import { join } from "node:path"
 
-import { novadeckMcpTools } from "@novadeck/harness-core/grants"
+import { novadeckCommandTools, novadeckMcpTools } from "@novadeck/harness-core/grants"
 import { manifest } from "@novadeck/harness-core/plugin"
 import {
   agentAsk,
@@ -1448,7 +1448,9 @@ describe("Novadeck's MCP server in a Novadeck terminal", () => {
       }
     }[]
     // The permission hook takes these names as Novadeck's own tools (harness-core/grants).
-    expect(described.map((tool) => tool.name).toSorted()).toEqual([...novadeckMcpTools].toSorted())
+    expect(described.map((tool) => tool.name).toSorted()).toEqual(
+      [...novadeckMcpTools, ...novadeckCommandTools].toSorted(),
+    )
     const ask = described.find((tool) => tool.name === "ask")!
     expect(ask.description).toContain(
       "or a <grant> element from Novadeck carrying the delivery's person mark",
