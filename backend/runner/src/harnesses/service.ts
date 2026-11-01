@@ -391,6 +391,33 @@ export const createHarnesses = (
           (takesLaunchGrants === undefined || (await takesGrants(agent, takesLaunchGrants, where)))
         )
       }),
+    /**
+     * Why `refresh` would leave the agent's plugin as it is right now: "running" while a
+     * Novadeck terminal runs the agent (their handles are `running`), "restart" while a
+     * previous runner's narrowed terminal may (known from this start's shell files); else
+     * undefined.
+     */
+    held: (
+      agent: AgentName,
+    ):
+      | { readonly why: "running" | "restart"; readonly terminals: readonly string[] }
+      | undefined => {
+      const terminalsNow = running(agent)
+      if (terminalsNow.length > 0) return { why: "running", terminals: terminalsNow }
+      if (narrowedBefore && holdsPlugin(harnesses[agent])) return { why: "restart", terminals: [] }
+      return undefined
+    },
+    /**
+     * Whether the agent is connected and its installed copy of Novadeck's plugin differs from
+     * what this Novadeck renders: a change is waiting to be installed.
+     */
+    stale: async (agent: AgentName): Promise<boolean> => {
+      const install = await installs()
+      const { installed } = harnesses[agent]
+      if (!install || !installed) return false
+      const where = install(agent)
+      return (await harnesses[agent].connected(where)) && (await differing(installed, where))
+    },
     list: async (): Promise<AgentIntegration[]> => {
       const install = await installs()
       if (!install) return agents.map((agent) => ({ agent, available: false, connected: false }))

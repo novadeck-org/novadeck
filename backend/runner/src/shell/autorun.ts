@@ -1,5 +1,3 @@
-import { spawn } from "node:child_process"
-
 import { maxAutoRunValue, type AutoRunOutcome, type AutoRunState } from "@novadeck/protocol"
 import { Latest } from "@novadeck/wire/server"
 
@@ -19,57 +17,35 @@ import {
   unwrapped,
   type AutoRunValue,
 } from "./autorun-value.js"
-import { withoutInherited } from "./inherited.js"
+import { type CmdOutput, cmdOutput } from "./cmd-output.js"
 
 const log = logs.for("autorun")
 
-/** How much of cmd's output a check saw: nothing, something, or cmd ran too long to say. */
-export type Printing = "clean" | "prints" | "slow"
+/** What a check of cmd found (`CmdOutput`). */
+export type Printing = CmdOutput
 
 /**
  * Runs the person's AutoRun value alone, as `cmd /d /s /c "<value>"` (`/d` keeps every AutoRun
  * out, so only the value runs), with the runner's child environment, and tells whether it
- * printed on stdout or stderr. Five seconds, or a cmd that doesn't start, is "slow": not clean.
+ * printed on stdout or stderr. Five seconds, or a cmd that doesn't start, is not clean.
  */
 export const runsClean = (
   value: string,
   {
     program = process.env.COMSPEC || "cmd.exe",
     timeoutMs = 5_000,
+    relay,
     args = (each: string) => ["/d", "/s", "/c", `"${each}"`],
   }: {
     readonly program?: string
     readonly timeoutMs?: number
+    readonly relay?: string
     /** For tests: the arguments the program is started with. */
     readonly args?: (value: string) => string[]
   } = {},
 ): Promise<Printing> =>
-  new Promise((resolve) => {
-    let printed = false
-    // Verbatim, as Node would escape the quotes in a way cmd does not read.
-    const child = spawn(program, args(value), {
-      env: withoutInherited(process.env),
-      windowsHide: true,
-      windowsVerbatimArguments: true,
-      stdio: ["ignore", "pipe", "pipe"],
-    })
-    const timer = setTimeout(() => {
-      child.kill()
-      resolve(printed ? "prints" : "slow")
-    }, timeoutMs)
-    for (const stream of [child.stdout, child.stderr])
-      stream.on("data", () => {
-        printed = true
-      })
-    child.on("error", () => {
-      clearTimeout(timer)
-      resolve("slow")
-    })
-    child.on("close", () => {
-      clearTimeout(timer)
-      resolve(printed ? "prints" : "clean")
-    })
-  })
+  // Verbatim, as Node would escape the quotes in a way cmd does not read.
+  cmdOutput({ program, args: args(value), timeoutMs, relay, verbatim: true })
 
 /** What the state machine asks of the rest of the runner; tests give it fakes. */
 export type AutoRunHost = {
@@ -80,14 +56,24 @@ export type AutoRunHost = {
   readonly swap: (kind: "sz" | "expand", expected: string, next: string) => Promise<Swap>
   /** The isolation check of one value (`runsClean`). */
   readonly isolated: (value: string) => Promise<Printing>
-  /** The check of the real thing: `cmd /c rem` with every AutoRun, stdout and stderr. */
-  readonly recheck: () => Promise<"prints" | "slow" | undefined>
-  /** The handles of the Novadeck terminals running Antigravity. */
-  readonly running: () => readonly string[]
+  /**
+   * The check of the real thing: `cmd /c rem` with every AutoRun, stdout and stderr. Only
+   * "clean" is clean: a cmd that did not start, or ran too long, is not.
+   */
+  readonly recheck: () => Promise<CmdOutput>
+  /**
+   * Why Antigravity's installed plugin would not be replaced now (`Harnesses.held`): the
+   * Novadeck terminals running it, or a previous runner's narrowed terminals.
+   */
+  readonly held: () =>
+    | { readonly why: "running" | "restart"; readonly terminals: readonly string[] }
+    | undefined
   /** Writes Antigravity's plugin files again (alone), registering PreToolUse unless `printing`. */
   readonly writePlugin: (printing: boolean) => Promise<void>
-  /** Installs the written plugin into Antigravity under the refresh rules; resolves to whether it did. */
-  readonly refresh: () => Promise<boolean>
+  /** Installs the written plugin into Antigravity under the refresh rules (which may hold it). */
+  readonly refresh: () => Promise<void>
+  /** Whether Antigravity is connected with an installed plugin that differs from the one written. */
+  readonly stale: () => Promise<boolean>
   /** Tells each Antigravity terminal its live grants again, with the caveat as it stands now. */
   readonly announce: () => void
 }
@@ -103,6 +89,8 @@ type Start = "prints" | "slow" | undefined
  */
 export class AutoRun {
   private prints = false
+  // Silenced, but Antigravity's plugin is still to be installed (a refresh held it).
+  private held = false
   private eligible = false
   private dismissed = false
   private outcome: AutoRunOutcome | null = null
@@ -119,11 +107,32 @@ export class AutoRun {
   }
 
   /**
+   * What a grant's note says of cmd: true while it prints, "held" once it doesn't but
+   * Antigravity's plugin is still to be installed, false otherwise. `printing` is the former
+   * alone, the gate of everything that acts.
+   */
+  note(): boolean | "held" {
+    return this.prints || (this.held ? "held" : false)
+  }
+
+  /**
+   * A refresh ran: if the plugin held after a silence is installed now, the grants are told
+   * again, with a note that is true.
+   */
+  async refreshed(): Promise<void> {
+    if (!this.held || this.host.held() !== undefined) return
+    if (await this.host.stale().catch(() => true)) return
+    this.held = false
+    this.host.announce()
+  }
+
+  /**
    * Sets what the start's check found, then reads the registry: the offer is made only where
    * the check returned "prints" (a "slow" one offers nothing), on Windows alone.
    */
   async started(check: Start): Promise<void> {
     this.prints = check !== undefined
+    this.held = false
     this.eligible = check === "prints"
     this.dismissed = false
     this.outcome = null
@@ -212,8 +221,13 @@ export class AutoRun {
     return done
   }
 
-  private async silenceNow(value: string): Promise<AutoRunOutcome> {
+  private async silenceNow(value: string): Promise<AutoRunOutcome | null> {
     const read = await this.host.read()
+    // A second click, or another window's, on a change already made: the earlier outcome stands.
+    if (read?.user.found === "value") {
+      const now = decodeValue(read.user.type, read.user.encoded)
+      if (now?.text === value && unwrapped(value) !== undefined) return this.outcome
+    }
     const found = this.candidate(read)
     if (!this.eligible || found.kind !== "offerable" || found.next !== value) {
       log.info("autorun.conflict", "The AutoRun is not what the card showed; nothing was written.")
@@ -227,32 +241,44 @@ export class AutoRun {
     ])
     if (before !== "prints" || after !== "clean") {
       log.warn("autorun.isolation-changed", "The isolation check no longer shows the rewrite works")
-      return failed("It no longer showed that the new value would print nothing.")
+      return failed(
+        after === "slow" || before === "slow"
+          ? "A check of the new value didn't finish within 5 seconds."
+          : after === "error" || before === "error"
+            ? "cmd could not run the check of the new value."
+            : "It no longer showed that the new value would print nothing.",
+      )
     }
     const was = encodeValue(user.text)
     const will = encodeValue(next)
     const swapped = await this.host.swap(user.kind, was, will)
     if (swapped === "changed") return { kind: "conflict" }
     if (swapped !== "ok") {
+      // A timeout or a failed read-back may have written it all the same: the registry decides
+      // the message, so it and the state agree.
       log.warn("autorun.swap-failed", `Writing the AutoRun ended ${swapped}`)
-      return failed(
-        swapped === "unverified"
-          ? "The value read back differently after the write; it was left as it is."
-          : "Windows would not let Novadeck write it.",
-      )
+      const now = await this.userBytes()
+      if (now === was) return failed("Windows did not write it; the value is as it was.")
+      if (now !== will) return failed("The value is now something else; it was left as it is.")
     }
     const again = await this.host.read()
     if (!(again?.user.found === "value" && again.user.encoded === will)) {
       return failed("The value changed again while it was written; it was left as it is.")
     }
     const check = await this.host.recheck()
-    if (check === undefined) {
+    if (check === "clean") {
       this.prints = false
+      const held = this.host.held()
       const unplugged = await this.plugin(false)
       if (unplugged !== undefined) return unplugged
+      this.held = held !== undefined || (await this.host.stale().catch(() => true))
       this.host.announce()
       log.info("autorun.silenced", "cmd's AutoRun was silenced; cmd prints nothing now")
-      return { kind: "applied-clean", waiting: this.host.running().slice(0, 256) }
+      return {
+        kind: "applied-clean",
+        waiting: held?.why === "running" ? held.terminals.slice(0, 256) : [],
+        restart: held?.why === "restart",
+      }
     }
     if (machine !== null) {
       log.info("autorun.hklm", "cmd still prints, and the machine's AutoRun holds a value")
@@ -260,7 +286,7 @@ export class AutoRun {
     }
     // Nothing else holds a value: it did not silence it, so it is put back.
     const back = await this.host.swap(user.kind, will, was)
-    if (back !== "ok") {
+    if (back !== "ok" && (await this.userBytes()) !== was) {
       log.error("autorun.rollback-failed", `Putting the AutoRun back ended ${back}`)
       return failed("It did not silence cmd, and Novadeck could not put the value back.")
     }
@@ -268,37 +294,68 @@ export class AutoRun {
     return { kind: "rolled-back" }
   }
 
-  private async undoNow(): Promise<AutoRunOutcome> {
+  private async undoNow(): Promise<AutoRunOutcome | null> {
     const read = await this.host.read()
     const user = read?.user
     const value = user?.found === "value" ? decodeValue(user.type, user.encoded) : undefined
     const inner = value === undefined ? undefined : unwrapped(value.text)
     if (value === undefined || inner === undefined) {
+      // A second click, or another window's, on an Undo already done: the outcome stands.
+      if (this.outcome?.kind === "undone") return this.outcome
       log.info("autorun.not-silenced", "The AutoRun is not Novadeck's wrapper; nothing to undo")
       return { kind: "conflict" }
     }
-    const terminals = this.host.running()
-    if (terminals.length > 0) return { kind: "undo-refused", terminals: [...terminals] }
+    // Before any write: a refresh that would hold leaves the old plugin, which registers
+    // PreToolUse, under an AutoRun that prints again.
+    const held = this.host.held()
+    if (held)
+      return {
+        kind: "undo-refused",
+        terminals: [...held.terminals],
+        restart: held.why === "restart",
+      }
     // The plugin without PreToolUse and cmd printing again, before the registry says so.
     this.prints = true
     const unplugged = await this.plugin(true)
     if (unplugged !== undefined) return unplugged
+    if (await this.host.stale().catch(() => true)) {
+      // Still the old plugin: nothing may say cmd prints while it registers PreToolUse. The
+      // registry was not touched.
+      log.warn("autorun.undo-held", "Antigravity's plugin was not replaced; the AutoRun is left")
+      await this.restore()
+      return failed("Antigravity's plugin could not be replaced, so the AutoRun was left as it is.")
+    }
     const swapped = await this.host.swap(value.kind, encodeValue(value.text), encodeValue(inner))
-    if (swapped === "ok") {
+    const now = swapped === "ok" ? undefined : await this.userBytes()
+    if (swapped === "ok" || now === encodeValue(inner)) {
       this.eligible = true
+      this.held = false
       this.host.announce()
       log.info("autorun.undone", "cmd's AutoRun was put back as it was")
       return { kind: "undone" }
     }
     // The wrapper stays: if cmd is quiet still, the plugin goes back to registering PreToolUse.
     log.warn("autorun.undo-swap-failed", `Putting the AutoRun back ended ${swapped}`)
-    if ((await this.host.recheck()) === undefined) {
-      this.prints = false
-      if ((await this.plugin(false)) === undefined) this.host.announce()
-    }
-    return swapped === "changed"
+    await this.restore()
+    return swapped === "changed" || now !== encodeValue(value.text)
       ? { kind: "conflict" }
       : failed("Windows would not let Novadeck put the value back.")
+  }
+
+  /** HKCU's AutoRun bytes now, in base64, or undefined where it holds none or can't be read. */
+  private async userBytes(): Promise<string | undefined> {
+    const now = (await this.host.read().catch(() => undefined))?.user
+    return now?.found === "value" ? now.encoded : undefined
+  }
+
+  /**
+   * After an Undo that went no further: if cmd is clean, Antigravity's plugin goes back to
+   * registering PreToolUse and cmd is counted as quiet again.
+   */
+  private async restore(): Promise<void> {
+    if ((await this.host.recheck()) !== "clean") return
+    this.prints = false
+    if ((await this.plugin(false)) === undefined) this.host.announce()
   }
 
   /**
@@ -340,6 +397,7 @@ export class AutoRun {
         current: found.current,
         restores: found.restores,
         machine,
+        suggested: suggestion(read?.machine),
         outcome,
       }
     if (!this.eligible) return { state: "none", outcome }
@@ -363,7 +421,12 @@ export class AutoRun {
     if (before !== "prints") {
       return {
         state: "manual",
-        reason: before === "slow" ? "unchecked" : machine === null ? "quiet" : "machine",
+        reason:
+          before === "slow" || before === "error"
+            ? "unchecked"
+            : machine === null
+              ? "quiet"
+              : "machine",
         rule: null,
         current: found.user.text,
         machine,
@@ -375,7 +438,12 @@ export class AutoRun {
       return {
         state: "manual",
         reason: "refused",
-        rule: "the new value still printed when tried",
+        rule:
+          after === "slow"
+            ? "trying the new value didn't finish within 5 seconds"
+            : after === "error"
+              ? "cmd could not run the new value to try it"
+              : "the new value still printed when tried",
         current: found.user.text,
         machine,
         suggested: null,

@@ -16,7 +16,8 @@ import { logs } from "./log.js"
 import { Murmur } from "./murmur/service.js"
 import { apiError, createRouter } from "./router.js"
 import { AutoRun, systemHost } from "./shell/autorun.js"
-import { cmdPrints, installAgyPlugin, installShellFiles } from "./shell/install.js"
+import { cmdOutput } from "./shell/cmd-output.js"
+import { installAgyPlugin, installShellFiles } from "./shell/install.js"
 import { Terminals, type TerminalOptions } from "./terminals/index.js"
 import { createTranscriptSealer, transcriptsAvailable } from "./terminals/sealing.js"
 import { Uploads } from "./terminals/uploads.js"
@@ -154,9 +155,15 @@ export const wire = (options: RunnerOptions) => {
   // undoes it): this is its one live answer, read by every part below.
   const autorun = new AutoRun(
     systemHost(options.relay ?? relayPath, {
-      recheck: () => cmdPrints(),
+      recheck: () =>
+        cmdOutput({
+          program: process.env.COMSPEC || "cmd.exe",
+          args: ["/c", "rem"],
+          timeoutMs: 5_000,
+          relay: options.relay ?? relayPath,
+        }),
       // Antigravity's plugin is global: none may be reinstalled under a terminal that runs it.
-      running: () => terminals.approving.running("agy"),
+      held: () => agents.held("agy"),
       // Only Antigravity's plugin files again: never the whole integration, which clears the
       // narrowed terminals' launch settings and the resume commands.
       writePlugin: async (printing) => {
@@ -164,7 +171,8 @@ export const wire = (options: RunnerOptions) => {
         if (!written) throw new Error("The shell integration is not installed.")
         await installAgyPlugin(written, printing)
       },
-      refresh: async () => (await agents.refresh()).includes("agy"),
+      refresh: async () => void (await agents.refresh()),
+      stale: () => agents.stale("agy"),
       announce: () => terminals.approving.announceAgain("agy"),
     }),
   )
@@ -173,6 +181,12 @@ export const wire = (options: RunnerOptions) => {
     .catch((error: unknown) =>
       log.error("autorun.start-failed", "Novadeck could not read cmd's AutoRun", { err: error }),
     )
+  // Installs the plugins that changed where nothing holds them, and tells the AutoRun, which
+  // waits for Antigravity's after a silence. Failures are logged by the refresh itself.
+  const refreshPlugins = async (): Promise<void> => {
+    await agents.refresh().catch(() => [])
+    await autorun.refreshed().catch(() => {})
+  }
   const agents = createHarnesses(() => shellFiles, {
     ...relay,
     cmdPrints: () => autorun.printing(),
@@ -259,8 +273,15 @@ export const wire = (options: RunnerOptions) => {
     install: (agent) => agents.install(agent),
     models: (agent) => agents.models(agent),
     // Launch grants only on Antigravity's verified plugin, behind the harnesses' queue.
-    narrowVerified: () => agents.verified("agy"),
-    cmdPrints: () => autorun.printing(),
+    narrowVerified: async () => {
+      // A silenced AutoRun's plugin that a refresh held waits for the last terminal to close;
+      // a launch with none running installs it before its grants are given.
+      if (terminals.approving.running("agy").length === 0) await refreshPlugins()
+      return agents.verified("agy")
+    },
+    // The last Antigravity terminal closing is the other time a held plugin goes in.
+    agentIdle: () => void refreshPlugins(),
+    cmdPrints: () => autorun.note(),
     transcripts: store.settings.runner().transcripts,
     projectFolder: (sessionId) => store.project(store.session(sessionId).projectId).cwd,
     // Agents message each other within a project, and their messages are kept with it.

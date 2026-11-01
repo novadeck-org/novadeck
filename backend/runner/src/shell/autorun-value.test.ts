@@ -15,21 +15,45 @@ describe("the rewrite that silences an AutoRun", () => {
   })
 
   it("keeps the commands a value joins with &, &&, || and |", () => {
-    for (const value of ["a & b", "a && b", "a || b", "a | b", "a ^& b"])
+    for (const value of ["a & b", "a && b", "a || b", "a | b"])
       expect(silenced(value)).toEqual({ value: `(${value}) >nul 2>&1` })
   })
 
-  it("reads quotes as cmd does: a quote holds anything, and ^ escapes one outside quotes only", () => {
+  it("reads quotes as cmd does: a quote holds anything, and ^ is an ordinary character inside one", () => {
     // A parenthesis, a >, a % and a rem inside quotes can't move the wrapper's end.
-    expect(silenced('echo "a (b) > c %NAME% rem d"')).toEqual({
-      value: '(echo "a (b) > c %NAME% rem d") >nul 2>&1',
+    expect(silenced('echo "a (b) > c %NAME% rem d ^ e"')).toEqual({
+      value: '(echo "a (b) > c %NAME% rem d ^ e") >nul 2>&1',
     })
-    // ^" outside quotes is a plain quote, so the parenthesis after it is outside quotes.
-    expect(refusal('echo ^"(x)')).toContain("parenthesis")
-    // Inside quotes ^ is an ordinary character, so the next quote closes them.
-    expect(refusal('echo "a^"(x)')).toContain("parenthesis")
-    // An escaped parenthesis outside quotes is just a character.
-    expect(silenced("echo ^(x^)")).toEqual({ value: "(echo ^(x^)) >nul 2>&1" })
+    // A quote that is closed again leaves what follows outside quotes.
+    expect(refusal('echo "a"(x)')).toContain("parenthesis")
+  })
+
+  it("refuses every ^ outside quotes, as an escape can spell rem or a label out of other letters", () => {
+    for (const value of [
+      "echo hi & r^em x",
+      "^rem x",
+      "^:label",
+      "echo ^(x^)",
+      'echo ^"(x)',
+      "echo a ^& b",
+      "echo a ^",
+      "echo ^%PATH^%",
+    ])
+      expect([value, refusal(value)]).toEqual([value, expect.stringContaining("^")])
+  })
+
+  it("skips the delimiters cmd skips before a command's word when it looks for rem or a label", () => {
+    for (const value of [
+      ";:label",
+      ",:x",
+      "=:x",
+      " ;, :x",
+      "echo a & ;:x",
+      "@:x",
+      ";rem x",
+      ",rem x",
+    ])
+      expect(refusal(value), value).toBeDefined()
   })
 
   it("refuses a parenthesis outside quotes, so every block and 'title Dev (x64)'", () => {
@@ -42,7 +66,6 @@ describe("the rewrite that silences an AutoRun", () => {
   it("refuses a % outside quotes, escaped or not, and keeps one inside quotes", () => {
     expect(refusal("set PATH=%PATH%;x")).toContain("%")
     expect(refusal("echo %ProgramFiles(x86)%")).toBeDefined()
-    expect(refusal("echo ^%PATH^%")).toContain("%")
     expect(silenced('echo "%NAME%"')).toEqual({ value: '(echo "%NAME%") >nul 2>&1' })
   })
 

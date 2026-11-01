@@ -17,9 +17,14 @@ const sentence = z.string().max(400)
 
 /** What the person's last click came to, shown on the card until the next one. */
 export const autorunOutcome = z.discriminatedUnion("kind", [
-  // Rewritten, and cmd prints nothing now. `waiting` names the Antigravity terminals still
-  // running: the plugin they run is installed again once none does (a new start).
-  z.strictObject({ kind: z.literal("applied-clean"), waiting: z.array(z.string()).max(256) }),
+  // Rewritten, and cmd prints nothing now. Antigravity's plugin is installed again once the
+  // `waiting` terminals (Antigravity running in Novadeck) are closed, and where `restart` is
+  // set, once Novadeck has started again after a previous run's narrowed terminals are gone.
+  z.strictObject({
+    kind: z.literal("applied-clean"),
+    waiting: z.array(z.string()).max(256),
+    restart: z.boolean(),
+  }),
   // Rewritten, but cmd still prints: the machine's AutoRun (HKLM) does, which Novadeck doesn't change.
   z.strictObject({ kind: z.literal("applied-still-prints-hklm") }),
   // Rewritten, but cmd still printed and nothing else was to blame, so it was put back.
@@ -28,8 +33,13 @@ export const autorunOutcome = z.discriminatedUnion("kind", [
   z.strictObject({ kind: z.literal("conflict") }),
   z.strictObject({ kind: z.literal("failed"), message: sentence }),
   z.strictObject({ kind: z.literal("undone") }),
-  // Undo waits for every Antigravity terminal of Novadeck to close.
-  z.strictObject({ kind: z.literal("undo-refused"), terminals: z.array(z.string()).max(256) }),
+  // Undo waits for every Antigravity terminal of Novadeck to close; `restart` where the terminals
+  // are a previous Novadeck's, which only a start of Novadeck again settles.
+  z.strictObject({
+    kind: z.literal("undo-refused"),
+    terminals: z.array(z.string()).max(256),
+    restart: z.boolean(),
+  }),
 ])
 
 /** Why Novadeck can't do the change itself and gives the person the step instead. */
@@ -76,6 +86,8 @@ export const autorunState = z.discriminatedUnion("state", [
     current: value,
     restores: value,
     machine: value.nullable(),
+    // What the machine's value could become if the person changes it, where the rewrite accepts it.
+    suggested: value.nullable(),
     outcome,
   }),
 ])

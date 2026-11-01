@@ -1,4 +1,4 @@
-import { execFile, spawn } from "node:child_process"
+import { execFile } from "node:child_process"
 import { chmod, mkdir, readdir, readFile, rename, rm, writeFile } from "node:fs/promises"
 import { basename, dirname, join } from "node:path"
 import { promisify } from "node:util"
@@ -9,7 +9,7 @@ import type { ShellFile } from "@novadeck/terminal/shell"
 
 import { logs } from "../log.js"
 import { readAutoRun, wrappedBy } from "./autorun-relay.js"
-import { withoutInherited } from "./inherited.js"
+import { cmdOutput } from "./cmd-output.js"
 import {
   hookStart,
   mcpStart,
@@ -117,7 +117,7 @@ export const installShellFiles = async (
   await Promise.all(staleShellFiles(directory).map((stale) => rm(stale, { force: true })))
   await rm(paths.narrow, { recursive: true, force: true })
   // An agent that runs its hooks in cmd reads nothing they answer after cmd's own output.
-  const prints = platform === "win32" ? await printing() : undefined
+  const prints = platform === "win32" ? await printing({ relay }) : undefined
   // Where cmd prints, Antigravity's hooks run through Novadeck's own cmd.exe, which starts the
   // real one with /d and so skips the AutoRun: only once that is installed, verified and has a
   // path to put on PATH. Without it, today's behaviour.
@@ -348,42 +348,22 @@ const settled = async (move: () => Promise<void>, tries = 5): Promise<void> => {
  * children never inherit, as the AutoRun is the person's own code. `program` and `args`
  * are for tests.
  */
-export const cmdPrints = ({
+export const cmdPrints = async ({
   program = process.env.COMSPEC || "cmd.exe",
   args = ["/c", "rem"],
   timeoutMs = 5_000,
+  relay,
 }: {
   readonly program?: string
   readonly args?: readonly string[]
   readonly timeoutMs?: number
-} = {}): Promise<"prints" | "slow" | undefined> =>
-  new Promise((resolve) => {
-    let printed = false
-    const child = spawn(program, args, {
-      env: withoutInherited(process.env),
-      windowsHide: true,
-      stdio: ["ignore", "pipe", "pipe"],
-    })
-    const timer = setTimeout(() => {
-      child.kill()
-      resolve(printed ? "prints" : "slow")
-    }, timeoutMs)
-    const done = () => {
-      clearTimeout(timer)
-      resolve(printed ? "prints" : undefined)
-    }
-    // An error message is output a hook's answer would stand behind too.
-    for (const stream of [child.stdout, child.stderr])
-      stream.on("data", () => {
-        printed = true
-      })
-    // Not started: no hook runs either.
-    child.on("error", () => {
-      clearTimeout(timer)
-      resolve(undefined)
-    })
-    child.on("close", done)
-  })
+  /** Ends the whole tree at the limit (see `cmdOutput`). */
+  readonly relay?: string
+} = {}): Promise<"prints" | "slow" | undefined> => {
+  const found = await cmdOutput({ program, args, timeoutMs, relay })
+  // Not started (or printed nothing): no hook runs either.
+  return found === "prints" || found === "slow" ? found : undefined
+}
 
 // cmd's `for` gives a path's short name, as Windows keeps one on most volumes; a path
 // that still needs quoting stays as it is.

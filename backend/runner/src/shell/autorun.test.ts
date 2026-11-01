@@ -8,6 +8,7 @@ import { describe, expect, it } from "../test.js"
 import type { AutoRunRead, Scope, Swap } from "./autorun-relay.js"
 import { encodeValue } from "./autorun-value.js"
 import { AutoRun, type AutoRunHost, type Printing, runsClean } from "./autorun.js"
+import type { CmdOutput } from "./cmd-output.js"
 import { installAgyPlugin, installShellFiles } from "./install.js"
 
 const scope = (text: string, type: "sz" | "expand" | "other" = "sz"): Scope => ({
@@ -34,12 +35,15 @@ const machine = (over: { user?: Scope; machine?: Scope } = {}) => {
     swaps,
     // What a value prints alone, and what the real cmd prints with every AutoRun.
     isolation: (text: string): Printing => (text.includes(">nul") ? "clean" : "prints"),
-    recheck: (): "prints" | "slow" | undefined =>
-      registry.machine.found === "value" ? "prints" : undefined,
+    recheck: (): CmdOutput => (registry.machine.found === "value" ? "prints" : "clean"),
     swap: "ok" as Swap,
     // The result of the nth write, where one is to differ from `swap`.
     swapAt: undefined as ((count: number) => Swap | undefined) | undefined,
     running: [] as string[],
+    // A previous runner's narrowed terminals, which only a start of Novadeck settles.
+    restart: false,
+    // The installed plugin differs from the written one: the refresh held.
+    stale: false,
     pluginFails: false,
     // A write by somebody else between the click and the write.
     changeBeforeSwap: undefined as (() => void) | undefined,
@@ -60,14 +64,20 @@ const machine = (over: { user?: Scope; machine?: Scope } = {}) => {
     },
     isolated: (text) => Promise.resolve(fake.isolation(text)),
     recheck: () => Promise.resolve(fake.recheck()),
-    running: () => fake.running,
+    held: () =>
+      fake.running.length > 0
+        ? { why: "running", terminals: fake.running }
+        : fake.restart
+          ? { why: "restart", terminals: [] }
+          : undefined,
+    stale: () => Promise.resolve(fake.stale),
     writePlugin: (flag) => {
       calls.push(`plugin ${flag ? "printing" : "quiet"}`)
       return fake.pluginFails ? Promise.reject(new Error("disk")) : Promise.resolve()
     },
     refresh: () => {
       calls.push("refresh")
-      return Promise.resolve(true)
+      return Promise.resolve()
     },
     announce: () => void calls.push("announce"),
   }
@@ -202,6 +212,7 @@ describe("the AutoRun state", () => {
       current: wrapped,
       restores: printing,
       machine: null,
+      suggested: null,
       outcome: null,
     })
     // A wrapper round something silenced() refuses is not ours.
@@ -242,7 +253,7 @@ describe("silencing", () => {
       state: "silenced",
       current: wrapped,
       restores: printing,
-      outcome: { kind: "applied-clean", waiting: [] },
+      outcome: { kind: "applied-clean", waiting: [], restart: false },
     })
   })
 
@@ -251,7 +262,7 @@ describe("silencing", () => {
     fake.running = ["fox"]
     await autorun.silence(wrapped)
     expect(await stateOf(autorun)).toMatchObject({
-      outcome: { kind: "applied-clean", waiting: ["fox"] },
+      outcome: { kind: "applied-clean", waiting: ["fox"], restart: false },
     })
   })
 
@@ -376,7 +387,126 @@ describe("silencing", () => {
   })
 })
 
+describe("silencing, twice or with trouble", () => {
+  it("keeps the earlier outcome for a second click on the change already made", async () => {
+    const { fake, autorun } = await started()
+    await autorun.silence(wrapped)
+    await autorun.silence(wrapped)
+    expect(fake.swaps).toHaveLength(1)
+    expect(await stateOf(autorun)).toMatchObject({
+      state: "silenced",
+      outcome: { kind: "applied-clean" },
+    })
+  })
+
+  it("counts a cmd that did not start in the recheck as not clean", async () => {
+    const { fake, autorun } = await started()
+    fake.recheck = () => "error"
+    await autorun.silence(wrapped)
+    expect(fake.registry.user).toEqual(scope(printing))
+    expect(autorun.printing()).toBe(true)
+  })
+
+  it("reads the registry again after a write that timed out, and goes on if it landed", async () => {
+    const { fake, autorun } = await started()
+    // The write happens, but the relay's answer is lost.
+    fake.swapAt = (count) => {
+      if (count !== 1) return undefined
+      fake.registry.user = scope(wrapped)
+      return "failed"
+    }
+    await autorun.silence(wrapped)
+    expect(await stateOf(autorun)).toMatchObject({
+      state: "silenced",
+      outcome: { kind: "applied-clean" },
+    })
+  })
+
+  it("says the value is as it was when a failed write changed nothing", async () => {
+    const { fake, autorun } = await started()
+    fake.swap = "unverified"
+    await autorun.silence(wrapped)
+    const state = await stateOf(autorun)
+    expect(state).toMatchObject({ state: "offer", outcome: { kind: "failed" } })
+    expect(JSON.stringify(state)).toContain("is as it was")
+  })
+
+  it("names the wait for a previous run's terminals, which only a restart settles", async () => {
+    const { fake, autorun } = await started()
+    fake.restart = true
+    fake.stale = true
+    await autorun.silence(wrapped)
+    expect(await stateOf(autorun)).toMatchObject({
+      outcome: { kind: "applied-clean", waiting: [], restart: true },
+    })
+    // Quiet, but the plugin is still to be installed: a grant's note says so.
+    expect(autorun.printing()).toBe(false)
+    expect(autorun.note()).toBe("held")
+  })
+
+  it("tells the grants again, with the note dropped, once a later refresh installed the plugin", async () => {
+    const { fake, autorun } = await started()
+    fake.running = ["fox"]
+    fake.stale = true
+    await autorun.silence(wrapped)
+    expect(autorun.note()).toBe("held")
+    fake.calls.length = 0
+    await autorun.refreshed()
+    expect(fake.calls).toEqual([])
+    fake.running = []
+    fake.stale = false
+    await autorun.refreshed()
+    expect(fake.calls).toEqual(["announce"])
+    expect(autorun.note()).toBe(false)
+  })
+
+  it("shows the machine's value, and what it could become, once silenced", async () => {
+    const { autorun } = await started({ user: scope(wrapped), machine: scope("chcp 437") }, "quiet")
+    expect(await stateOf(autorun)).toMatchObject({
+      state: "silenced",
+      machine: "chcp 437",
+      suggested: "(chcp 437) >nul 2>&1",
+    })
+  })
+})
+
 describe("undoing", () => {
+  it("is refused for a previous runner's narrowed terminals, saying a restart settles it", async () => {
+    const { fake, autorun } = await started({ user: scope(wrapped) }, "quiet")
+    fake.restart = true
+    await autorun.undo()
+    expect(fake.swaps).toEqual([])
+    expect(fake.calls).toEqual([])
+    expect(await stateOf(autorun)).toMatchObject({
+      outcome: { kind: "undo-refused", terminals: [], restart: true },
+    })
+  })
+
+  it("leaves the registry alone and renders PreToolUse again if the plugin could not be replaced", async () => {
+    const { fake, autorun } = await started({ user: scope(wrapped) }, "quiet")
+    fake.stale = true
+    await autorun.undo()
+    expect(fake.swaps).toEqual([])
+    expect(fake.registry.user).toEqual(scope(wrapped))
+    expect(autorun.printing()).toBe(false)
+    expect(fake.calls).toEqual([
+      "plugin printing",
+      "refresh",
+      "plugin quiet",
+      "refresh",
+      "announce",
+    ])
+    expect(await stateOf(autorun)).toMatchObject({ state: "silenced", outcome: { kind: "failed" } })
+  })
+
+  it("keeps the outcome for a second Undo on a change already made", async () => {
+    const { fake, autorun } = await started({ user: scope(wrapped) }, "quiet")
+    await autorun.undo()
+    await autorun.undo()
+    expect(fake.swaps).toHaveLength(1)
+    expect(await stateOf(autorun)).toMatchObject({ outcome: { kind: "undone" } })
+  })
+
   it("renders the plugin without PreToolUse and installs it before the registry changes, then restores the exact value", async () => {
     const { fake, autorun } = await started({ user: scope(wrapped, "expand") }, "quiet")
     let order: string[] = []
@@ -407,7 +537,7 @@ describe("undoing", () => {
     expect(autorun.printing()).toBe(false)
     expect(await stateOf(autorun)).toMatchObject({
       state: "silenced",
-      outcome: { kind: "undo-refused", terminals: ["fox", "owl"] },
+      outcome: { kind: "undo-refused", terminals: ["fox", "owl"], restart: false },
     })
   })
 
@@ -504,9 +634,9 @@ describe("the check of a value alone", () => {
     await expect(run("setTimeout(() => {}, 10_000)", 200)).resolves.toBe("slow")
   })
 
-  it("is slow where cmd does not start", async () => {
+  it("is an error where cmd does not start", async () => {
     await expect(
       runsClean("x", { program: join(tmpdir(), "no-such-cmd.exe"), args: (each) => [each] }),
-    ).resolves.toBe("slow")
+    ).resolves.toBe("error")
   })
 })

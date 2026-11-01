@@ -12,6 +12,7 @@ import { Latest } from "@novadeck/wire/server"
 
 import { DomainError } from "../errors.js"
 import { logs } from "../log.js"
+import type { CmdNote } from "./grant-text.js"
 import type { Live } from "./live.js"
 import type { Relays } from "./relays.js"
 import type { Sessions } from "./sessions.js"
@@ -54,7 +55,7 @@ export type GrantsHost = {
    */
   readonly notify: (terminalId: string, grantId: string) => void
   /** Whether cmd prints before every command, which no Antigravity grant reaches past. */
-  readonly cmdPrints: () => boolean
+  readonly cmdPrints: () => CmdNote
 }
 
 /** The grants' share of `MessagingOptions`. */
@@ -67,7 +68,7 @@ export type GrantOptions = {
    * Whether cmd prints text of its own before every command (Windows, `cmdPrints` in
    * shell/install.ts), which a grant's note tells Antigravity of; no, when omitted.
    */
-  readonly cmdPrints?: () => boolean
+  readonly cmdPrints?: () => CmdNote
 }
 
 /** The grants service for messaging's `options`, its notices going through `relays`. */
@@ -116,7 +117,7 @@ export class Grants {
   private closed = false
 
   /** Whether cmd prints before every command (`GrantOptions.cmdPrints`). */
-  cmdPrints(): boolean {
+  cmdPrints(): CmdNote {
     return this.host.cmdPrints()
   }
 

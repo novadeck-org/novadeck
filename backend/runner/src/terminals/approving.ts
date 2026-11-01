@@ -19,6 +19,11 @@ export type ApprovingOptions = GrantOptions & {
    * started under a grant (approvals-design.md, B1). Never verified when omitted.
    */
   narrowVerified?: () => Promise<boolean>
+  /**
+   * Told when no Novadeck terminal runs `agent` any more, as the last one closes: a plugin
+   * change a running terminal held can go in.
+   */
+  agentIdle?: (agent: AgentName) => void
   /** Where a Grant card's repos are read from; the real git and gh when omitted. */
   grantSources?: GrantSources
 }
@@ -115,6 +120,14 @@ export class Approving {
   forget(terminalId: string): void {
     this.narrowing.forget(terminalId)
     this.permissions.forget(terminalId)
+    // The terminal may still be listed, closed or on its way out: it is not running anything.
+    const record = this.host.records().get(terminalId)
+    const wasAgy =
+      record === undefined ||
+      record.summary.agent === "agy" ||
+      record.bound?.binding.agent === "agy" ||
+      record.expecting === "agy"
+    if (wasAgy && this.running("agy").length === 0) this.host.options.agentIdle?.("agy")
   }
 
   /** The handles of the running terminals whose agent is `agent`: showing, bound or expected. */

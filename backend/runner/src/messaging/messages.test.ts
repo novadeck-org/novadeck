@@ -541,6 +541,13 @@ describe("a delivery's grants", () => {
     expect(printing).toContain("The user can change this from Novadeck's Inbox")
     expect(printing).toContain("do not change cmd's AutoRun yourself")
     expect(printing).not.toContain("Removing that output")
+    // Silenced, but the plugin waits for the Antigravity terminals running in Novadeck.
+    const held = wrapGrants([granted], "agy", "win32", "PersonMk", "held")
+    expect(held).toContain("no longer prints text of its own")
+    expect(held).toContain(
+      "every Antigravity running in Novadeck is closed, or Novadeck is restarted",
+    )
+    expect(held).not.toContain("cannot reach Antigravity here")
     for (const plain of [agy("win32"), agy("win32", false), agy("linux", true)]) {
       expect(plain).not.toContain("AutoRun")
       expect(plain).toContain("Antigravity takes this grant when it starts")

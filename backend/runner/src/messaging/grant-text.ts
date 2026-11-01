@@ -84,7 +84,21 @@ export const grantLines = (
 // What a grant reaches in an agent's own check, which differs by harness and machine. A
 // Codex or Antigravity terminal on Windows is told how to write a command its matcher reads there (design A1);
 // an Antigravity where cmd prints something first is told why nothing reaches it.
-const caveat = (agent: AgentName, platform: NodeJS.Platform, cmdPrints: boolean): string => {
+/**
+ * What a grant's note says of cmd's AutoRun: true while cmd prints before every command, "held"
+ * once the person silenced it but Antigravity's plugin is still to be installed (a running
+ * Antigravity of Novadeck's holds it), false otherwise.
+ */
+export type CmdNote = boolean | "held"
+
+const caveat = (agent: AgentName, platform: NodeJS.Platform, cmdPrints: CmdNote): string => {
+  if (agent === "agy" && platform === "win32" && cmdPrints === "held")
+    return (
+      "The user's cmd no longer prints text of its own, but Antigravity's Novadeck plugin is " +
+      "installed only once every Antigravity running in Novadeck is closed, or Novadeck is " +
+      "restarted. A grant reaches an Antigravity started after that; until then its own dialog " +
+      "asks for each command."
+    )
   if (agent === "agy" && platform === "win32" && cmdPrints)
     return (
       "This grant cannot reach Antigravity here: the user's cmd prints text of its own before every " +
@@ -119,7 +133,7 @@ export const grantElement = (
   agent: AgentName,
   personMark: string,
   platform: NodeJS.Platform,
-  cmdPrints = false,
+  cmdPrints: CmdNote = false,
 ): string =>
   `<grant id="${grant.id}" person="${personMark}" ends="${clock(grant.endsAt)}">\n` +
   `${[

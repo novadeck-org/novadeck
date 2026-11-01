@@ -10,7 +10,7 @@ import {
   type MessageState,
 } from "@novadeck/protocol"
 
-import { grantElement, grantEndedElement } from "./grant-text.js"
+import { type CmdNote, grantElement, grantEndedElement } from "./grant-text.js"
 
 /**
  * The message rules, as pure functions over its records (see docs/agent-messaging.md,
@@ -522,7 +522,7 @@ export const wrapGrants = (
   agent: AgentName,
   platform: NodeJS.Platform,
   personMark = newMark(),
-  cmdPrints = false,
+  cmdPrints: CmdNote = false,
 ): string =>
   grants.length === 0
     ? ""
@@ -539,7 +539,7 @@ export type WrapOptions = {
   /** The platform the runner runs on, which a grant's note tells of; this system's when omitted. */
   readonly platform?: NodeJS.Platform
   /** Whether cmd prints text of its own before every command, which no Antigravity grant reaches past. */
-  readonly cmdPrints?: boolean
+  readonly cmdPrints?: CmdNote
 }
 
 /**

@@ -14,8 +14,9 @@ const suffix = " >nul 2>&1"
  * wrapper's `)`: then the rule that refuses it, in a sentence the person can read.
  *
  * The scanner follows what cmd does with a command line after its percent expansion
- * (phase 2): outside quotes `^` escapes the next character, a quote included, and inside
- * quotes `^` is an ordinary character; a `"` that isn't escaped starts or ends a quote.
+ * (phase 2): a `"` starts or ends a quote, inside which every character is ordinary. Outside
+ * quotes `^` would escape the next character, a quote included, and is refused outright, as
+ * the escape can spell `rem` or a label out of other letters.
  * Only simple commands pass, as `&`, `&&`, `||` and `|` join them but a parenthesis would
  * open a block the wrapper's could close early. A value that holds a percent sign outside
  * quotes is refused too: cmd expands it before it reads any parenthesis, so a variable
@@ -41,22 +42,16 @@ export const silenced = (value: string): Silenced => {
       continue
     }
     if (quoted) continue
-    if (char === "^") {
-      const next = value[at + 1]
-      if (next === undefined) return { refusal: "it ends in a `^`" }
-      // The percent sign is expanded before `^` is read, so an escape doesn't spare it.
-      if (next === "%") return { refusal: "it holds a `%` outside quotes" }
-      bare += "_"
-      first = false
-      at += 1
-      continue
-    }
+    // An escape could build `rem` or a label out of what looks like another word (`r^em`,
+    // `^:x`), and it spares nothing from the percent expansion: none is read outside quotes.
+    if (char === "^") return { refusal: "it holds a `^` outside quotes" }
     if (char === "(" || char === ")")
       return { refusal: "it holds a parenthesis outside quotes, which would open a block" }
     if (char === "%") return { refusal: "it holds a `%` outside quotes" }
     if (char === ">") return { refusal: "it holds a `>` outside quotes, a redirection of its own" }
     if (first && char === ":") return { refusal: "its first word is a label (it starts with `:`)" }
-    if (!/\s/.test(char)) first = false
+    // cmd skips spaces, commas, semicolons and equals signs (and `@`) before a command's word.
+    if (!/[\s,;=@]/.test(char)) first = false
     // After a separator the next word starts a command again.
     if (char === "&" || char === "|") first = true
     bare += char
