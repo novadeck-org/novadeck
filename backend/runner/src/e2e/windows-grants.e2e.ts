@@ -212,6 +212,10 @@ const lines = (file: string): unknown[] =>
         })
     : []
 
+// A pass-through log entry for one of Novadeck's own hook commands, as novadeck-cmd.rs tells them.
+const isNovadeckHook = (entry: string): boolean =>
+  /if defined novadeck_hook|\\novadeck-relay\.exe hook /i.test(entry)
+
 /** What the PATH cmd wrapper passed on, one command line per run. */
 const passedOn = (kit: Kit): string[] => {
   const file = join(kit.dir, wrapperLog)
@@ -847,20 +851,19 @@ describe.runIf(windows)("Antigravity on Windows (grants probe)", () => {
             `PROBE agy pathcmd verdict: ${ran ? (dialog ? "works" : "wrapper ran but no dialog") : "wrapper never ran"}`,
           )
           console.log(`PROBE agy pathcmd run_command via wrapper: ${viaWrapper}`)
-          // The product path works: the hook's force_ask was read (its dialog shows, the command
-          // did not run unasked), and the pass-through Novadeck installed ran hooks.
-          expect(dialog, "force_ask's dialog shows").toBe(true)
+          // The pass-through adds /d to Novadeck's own hooks alone (`if defined NOVADECK_HOOK`, or
+          // the relay run as `…\novadeck-relay.exe hook`). This case's PreToolUse is a stand-in
+          // in a form Novadeck never writes, so it keeps the person's AutoRun like any other cmd:
+          // its answer can't be read and the call fails, never running unasked.
           expect(ranBeforeKeys, "the command ran with no dialog").toBe(false)
-          expect(wrapper.length, "the pass-through's log").toBeGreaterThan(0)
-          // /d only for Novadeck's own hooks: the agent's tools' cmd keeps the person's AutoRun.
-          const hooks = wrapper.filter((one) => /if defined novadeck_hook/i.test(one))
-          expect(hooks.length, "hooks went through the pass-through").toBeGreaterThan(0)
           expect(
-            hooks.every((one) => one.startsWith("/d ")),
-            "every hook got /d",
+            wrapper.some((one) => one.includes("standin.exe") && !one.startsWith("/d ")),
+            "the stand-in hook kept the AutoRun",
           ).toBe(true)
+          expect(wrapper.length, "the pass-through's log").toBeGreaterThan(0)
+          // /d only for Novadeck's own hooks: nothing else that ran through it got /d.
           expect(
-            wrapper.filter((one) => !hooks.includes(one)).some((one) => one.startsWith("/d ")),
+            wrapper.filter((one) => !isNovadeckHook(one)).some((one) => one.startsWith("/d ")),
             "no other cmd got /d",
           ).toBe(false)
         }
@@ -928,7 +931,15 @@ describe.runIf(windows && process.env.GITHUB_ACTIONS === "true")(
               await notReady("agy pathcmd", kitOf(run.sandbox.root), run.sandbox.home, undefined)
           }
           if (pathcmd) {
-            outcome.wrapperRuns = passedOn(kitOf(run.sandbox.root)).length
+            const wrapper = passedOn(kitOf(run.sandbox.root))
+            outcome.wrapperRuns = wrapper.length
+            outcome.hookRuns = wrapper.filter(isNovadeckHook).length
+            outcome.hooksWithD = wrapper
+              .filter(isNovadeckHook)
+              .every((one) => one.startsWith("/d "))
+            outcome.othersWithD = wrapper
+              .filter((one) => !isNovadeckHook(one))
+              .some((one) => one.startsWith("/d "))
           }
           probe(
             pathcmd
@@ -941,6 +952,13 @@ describe.runIf(windows && process.env.GITHUB_ACTIONS === "true")(
             expect(outcome.error).toBeUndefined()
             expect(outcome.delivered, "the message was delivered").toBe(true)
             expect(outcome.wrapperRuns, "the pass-through's log").toBeGreaterThan(0)
+            // /d only for Novadeck's own hooks: the agent's tools' cmd keeps the person's AutoRun.
+            expect(
+              outcome.hookRuns,
+              "Novadeck's hooks went through the pass-through",
+            ).toBeGreaterThan(0)
+            expect(outcome.hooksWithD, "every Novadeck hook got /d").toBe(true)
+            expect(outcome.othersWithD, "no other cmd got /d").toBe(false)
           }
         },
         240_000,
