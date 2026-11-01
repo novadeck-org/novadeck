@@ -8,7 +8,7 @@ import type { AutoRunManualReason, AutoRunOutcome } from "./autorun"
 export const autoRunTitle = "Antigravity can't use your approvals on this computer"
 
 export const autoRunBody =
-  "A startup script for Windows' Command Prompt prints text each time it runs, and that text garbles Novadeck's answers to Antigravity. Novadeck can hide that script's output. The script still runs, and you can undo this anytime."
+  "A startup script for Windows' Command Prompt prints text each time it runs, and that text garbles Novadeck's answers to Antigravity. Novadeck can hide that script's output. The script still runs, and you can undo this in Preferences once no Antigravity terminal is running."
 
 export const autoRunEverywhere =
   "This applies to every Command Prompt window, not only Antigravity's. Hiding the output also hides what the script shows in a window (prompts, colours, messages)."

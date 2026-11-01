@@ -50,7 +50,11 @@ describe("The Command Prompt line in the Inbox", () => {
       .element(confirm())
       .toMatchTextContent("Antigravity can't use your approvals on this computer")
     await expect.element(confirm()).toMatchTextContent("Novadeck can hide that script's output")
-    await expect.element(confirm()).toMatchTextContent("you can undo this anytime")
+    await expect
+      .element(confirm())
+      .toMatchTextContent(
+        "you can undo this in Preferences once no Antigravity terminal is running",
+      )
     await expect.element(confirm()).not.toHaveTextContent("HKEY_CURRENT_USER")
     await confirm().getByRole("button", { name: "details" }).click()
     await expect.element(confirm()).toMatchTextContent("HKEY_CURRENT_USER")
