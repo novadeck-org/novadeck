@@ -96,7 +96,7 @@ export const openApp = (executable = packaged().executable): AppRun => {
   let launching: Promise<unknown> | undefined
   let stopped: Promise<readonly string[]> | undefined
   // The package ships with Node's inspector shut, which Playwright's driver needs: the app
-  // runs from a copy of its executable with only that fuse (and RunAsNode, NODE_OPTIONS) open.
+  // runs from a copy of the app with only RunAsNode, NODE_OPTIONS and the inspector open.
   let opened: Awaited<ReturnType<typeof openedCopy>> | undefined
   const stop = () =>
     (stopped ??= (async () => {

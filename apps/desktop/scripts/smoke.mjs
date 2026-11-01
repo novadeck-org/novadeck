@@ -46,8 +46,8 @@ for (const problem of await fuseProblems(executable)) fail(`A fuse is wrong: ${p
 console.log("The packaged binary's fuses are set: no RunAsNode, NODE_OPTIONS or inspect arguments.")
 
 // Everything below that needs the binary to run as Node (the worker and koffi checks) or to
-// take Playwright's inspector (the runner round trip) uses a copy of it with only those three
-// fuses turned on; it finds the same app.asar and code, so what ships is what is tested.
+// take Playwright's inspector (the runner round trip) uses a copy of the app with only those three
+// fuses turned on (on macOS the whole bundle, in a scratch folder); it finds the same app.asar and code, so what ships is what is tested.
 const opened = await openedCopy(executable)
 process.on("exit", opened.remove)
 
@@ -188,7 +188,7 @@ for (const [name, label] of [
 }
 
 // The threads the runner redacts in (murmur's digests, saved transcripts), started as the
-// runner starts them: a worker on the script inside app.asar. The packaged executable's open copy runs the check as Node,
+// runner starts them: a worker on the script inside app.asar. The app's open copy runs the check as Node,
 // which reads asar archives the same way the app does.
 {
   const script = join(mkdtempSync(join(tmpdir(), "novadeck-smoke-worker-")), "start-worker.mjs")
