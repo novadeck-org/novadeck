@@ -149,8 +149,8 @@ starting the binary with them runs nothing of the starter's choosing in the app'
 turn on the embedded asar integrity check (macOS and Windows) and loading the app only from
 `app.asar`. The UI in `resources/ui` is outside that check. Chromium's
 `--remote-debugging-port` is not a fuse and stays open: whoever can start the binary with it
-reaches the page and its preload bridge, which is the access that person already has as their
-own account.
+reaches the page and its preload bridge, and through them can run shells as the app, with the
+permissions macOS has granted it (such as access to protected folders).
 
 ## Release Verification
 
