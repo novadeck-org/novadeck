@@ -678,7 +678,9 @@ export const checkForUpdates = (
         via === "novadeck"
           ? feedUrl(following, feed.site)
           : (releaseDownloadsUrl(feed.repository, version) ?? "")
-      if (!filesFromGitHub(info, feed.repository, base, via === "novadeck" ? feed.site : undefined)) {
+      if (
+        !filesFromGitHub(info, feed.repository, base, via === "novadeck" ? feed.site : undefined)
+      ) {
         log(`The update to ${version} names a file outside GitHub's release downloads.`, undefined)
         if (downloaded === undefined) offer({ kind: "available", version })
         return
