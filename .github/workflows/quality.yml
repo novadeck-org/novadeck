@@ -125,14 +125,20 @@ jobs:
         working-directory: backend/relay
         run: rustup toolchain install
 
-      - name: Cache Rust Builds
-        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+      # Every job restores the relay's build; a key it lacks falls back to the newest entry of
+      # this platform, so a changed crate graph rebuilds only what changed. Only the jobs that
+      # build the relay's tests save (below): a key is never replaced, and an entry saved by a
+      # job that built no tests left the tests' job compiling them cold beside the PTY tests.
+      - name: Restore Rust Builds
+        id: rust-cache
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: |
             ~/.cargo/registry
             ~/.cargo/git
             backend/relay/target
-          key: relay-${{ runner.os }}-${{ hashFiles('backend/relay/Cargo.lock', 'backend/relay/rust-toolchain.toml') }}
+          key: relay-${{ runner.os }}-${{ hashFiles('backend/relay/Cargo.lock', 'backend/relay/Cargo.toml', 'backend/relay/rust-toolchain.toml') }}
+          restore-keys: relay-${{ runner.os }}-
 
       - name: Locate Test Browser
         if: matrix.browser
@@ -159,6 +165,15 @@ jobs:
         if: matrix.browser && steps.browser-cache.outputs.cache-hit == 'true' && runner.os == 'Linux'
         run: pnpm --filter @novadeck/specs exec playwright install-deps chromium
 
+      # The relay's tests compile here, alone, before the tests run in parallel: compiled cold
+      # beside them they took the CPU the native PTY tests wait on (Windows, 1/3).
+      - name: Build Relay Tests
+        id: relay-build
+        if: matrix.shard == 1 || matrix.command == 'npm run test'
+        shell: bash
+        working-directory: backend/relay
+        run: cargo test --locked --no-run
+
       # Three minutes inside the job's own limit, so a hung test ends this step and the
       # failures' upload below still runs, rather than the whole job being cancelled.
       - name: Run ${{ matrix.name }}
@@ -170,6 +185,19 @@ jobs:
           # Each test file's line as it finishes, not a package's whole log once it ends, so
           # the last line before a hang names the file that hung.
           TURBO_LOG_ORDER: stream
+
+      # Saved even when a test failed, as the build itself is sound, but not when the run was
+      # cancelled or the build failed: a partial target would sit under a key that is never
+      # replaced. Skipped when the exact key was restored, for the same reason.
+      - name: Save Rust Builds
+        if: ${{ !cancelled() && steps.relay-build.outcome == 'success' && steps.rust-cache.outputs.cache-hit != 'true' }}
+        uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            backend/relay/target
+          key: relay-${{ runner.os }}-${{ hashFiles('backend/relay/Cargo.lock', 'backend/relay/Cargo.toml', 'backend/relay/rust-toolchain.toml') }}
 
       # A failed UI spec leaves its screenshot, and its trace when one was recorded.
       - name: Upload UI Test Failures
