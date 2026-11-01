@@ -427,8 +427,8 @@ export type Machine = {
    * For a harness that runs its hooks through the `cmd` it finds on PATH: the folder (a path
    * cmd reads unquoted) holding Novadeck's `cmd.exe` pass-through, which runs the real cmd with
    * `/d` so the AutoRun does not run for the hooks. Its shim puts the folder first on PATH for
-   * the agent alone. Set only where the pass-through is installed and verified; `cmdPrints` is
-   * then not set, as the hooks' answers are read.
+   * the agent alone. Set only where the pass-through is installed and verified. It covers the
+   * agent's terminals in Novadeck only, so `cmdPrints` stays set.
    */
   readonly cmdShimDir?: string
 }

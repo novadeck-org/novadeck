@@ -248,12 +248,12 @@ describe("the cmd.exe pass-through", () => {
     expect(readFileSync(shell.agyCmd, "utf8")).toBe("shim one")
     expect(readdirSync(shell.agyCmdDir)).toEqual(["cmd.exe"])
     expect(shell.cmdShimDir).toBeDefined()
-    // Covered: not cmdPrints (so no caveat, and the plugin may register PreToolUse), and the agy shim puts it first on PATH.
-    expect(shell.cmdPrints).toBe(false)
+    // The plugin is global, so cmdPrints stays (no PreToolUse, no launch grant); the agy shim puts it first on PATH.
+    expect(shell.cmdPrints).toBe(true)
     expect(agyShim(shell)).toContain(`set "PATH=${shell.cmdShimDir};%PATH%"`)
   })
 
-  it("puts nothing on PATH, and stays cmdPrints, where it is missing or can't be verified", async ({
+  it("puts nothing on PATH, and has no folder, where it is missing or can't be verified", async ({
     resources,
   }) => {
     const { directory, folder, options } = setup(resources)

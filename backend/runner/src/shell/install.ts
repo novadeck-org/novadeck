@@ -35,15 +35,15 @@ export type InstalledShell = ShellPaths & {
    */
   readonly narrowedBefore?: boolean
   /**
-   * Whether cmd prints something of its own before a hook's command (Windows only) and
-   * Novadeck's cmd.exe pass-through is not there to skip it: Antigravity's hooks then read
-   * no answer, so it gets no PreToolUse hook and no launch grant.
+   * Whether cmd prints something of its own before a hook's command (Windows only): an
+   * Antigravity outside Novadeck's terminals then reads no hook's answer, so the global
+   * plugin registers no PreToolUse hook.
    */
   readonly cmdPrints?: boolean
   /**
    * Where cmd prints and the pass-through is installed, byte for byte what this Novadeck
    * ships: its folder by a path cmd reads unquoted, which Antigravity's shim puts first on
-   * PATH. Absent everywhere else.
+   * PATH in Novadeck's terminals, so their other hooks' answers are read. Absent elsewhere.
    */
   readonly cmdShimDir?: string
 }
@@ -103,21 +103,24 @@ export const installShellFiles = async (
   // path to put on PATH. Without it, today's behaviour.
   const cmdShimDir =
     prints === undefined ? undefined : await installCmdShim(cmdShim, paths, narrowedBefore, short)
-  const uncovered = prints !== undefined && cmdShimDir === undefined
-  if (prints === "prints" && uncovered)
+  const covered = cmdShimDir !== undefined
+  if (prints === "prints")
     log.warn(
       "shell.cmd-prints",
-      "Novadeck: cmd prints something of its own before every command, as an AutoRun (HKLM or HKCU\\Software\\Microsoft\\Command Processor\\AutoRun) that doesn't send its output to nul does. Antigravity can read none of its hooks' answers then, so Novadeck registers no PreToolUse hook for it, and installs its plugin again where it is connected; its own policy asks before each tool, and messaging with it won't work until that output goes.",
+      `Novadeck: cmd prints something of its own before every command, as an AutoRun (HKLM or HKCU\\Software\\Microsoft\\Command Processor\\AutoRun) that doesn't send its output to nul does. Antigravity can read none of its hooks' answers then outside Novadeck's terminals, so Novadeck registers no PreToolUse hook for it (the plugin is global), and installs its plugin again where it is connected; its own policy asks before each tool.${
+        covered
+          ? " In Novadeck's terminals its other hooks run through Novadeck's own cmd.exe, which skips the AutoRun, so messaging works there."
+          : " Messaging with it won't work until that output goes."
+      }`,
     )
-  if (prints === "slow" && uncovered)
+  if (prints === "slow")
     log.warn(
       "shell.cmd-slow",
-      "Novadeck: cmd took more than 5 seconds to run a command, as a slow AutoRun (HKLM or HKCU\\Software\\Microsoft\\Command Processor\\AutoRun) may on a cold start, so whether it prints anything of its own isn't known. In case it does, which would let Antigravity's tools run unasked, Novadeck registers no PreToolUse hook for it this time; Antigravity's own policy asks before each tool. It looks again at the next start.",
-    )
-  if (prints !== undefined && !uncovered)
-    log.info(
-      "shell.cmd-covered",
-      "Novadeck: cmd prints something of its own before commands (or is slow to), as an AutoRun does, so Antigravity's hooks run through Novadeck's own cmd.exe, which skips the AutoRun for them; the agent's own commands are not affected.",
+      `Novadeck: cmd took more than 5 seconds to run a command, as a slow AutoRun (HKLM or HKCU\\Software\\Microsoft\\Command Processor\\AutoRun) may on a cold start, so whether it prints anything of its own isn't known. In case it does, which would let Antigravity's tools run unasked, Novadeck registers no PreToolUse hook for it this time; Antigravity's own policy asks before each tool.${
+        covered
+          ? " In Novadeck's terminals its other hooks run through Novadeck's own cmd.exe."
+          : ""
+      } It looks again at the next start.`,
     )
   // Antigravity's narrowed PreToolUse on Windows runs the relay alone, by a path cmd needs
   // no quotes for: its short name, and only once the relay is there to run.
@@ -126,7 +129,7 @@ export const installShellFiles = async (
     : undefined
   const launchers = { mcp: mcpStart(paths), ...(hook !== undefined && { hook }) }
   for (const file of shellFiles(paths, platform, launchers, {
-    cmdPrints: uncovered,
+    cmdPrints: prints !== undefined,
     ...(cmdShimDir !== undefined && { cmdShimDir }),
   })) {
     // eslint-disable-next-line no-await-in-loop -- A few small files, one after another.
@@ -152,13 +155,13 @@ export const installShellFiles = async (
     launcher: await short(paths.hook),
     mcpLauncher: platform !== "win32" && relayed ? paths.mcp : undefined,
     narrowedBefore,
-    cmdPrints: uncovered,
+    cmdPrints: prints !== undefined,
     ...(cmdShimDir !== undefined && { cmdShimDir }),
   }
 }
 
 /** Whether the file at `path` is byte for byte the `shipped` one. */
-export const sameFile = async (shipped: string, path: string): Promise<boolean> => {
+const sameFile = async (shipped: string, path: string): Promise<boolean> => {
   try {
     const [ours, theirs] = await Promise.all([readFile(shipped), readFile(path)])
     return ours.equals(theirs)

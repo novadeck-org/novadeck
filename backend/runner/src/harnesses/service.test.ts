@@ -392,37 +392,6 @@ describe("agents Novadeck can connect", () => {
     expect(await relayVerified(shell(), shipped, where)).toBe(false)
   })
 
-  it("verify the cmd.exe pass-through byte for byte where it covers a cmd that prints", async ({
-    fixture,
-    resources,
-  }) => {
-    const folder = mkdtempSync(join(tmpdir(), "novadeck-cmd-verified-"))
-    resources.defer(() => rmSync(folder, { recursive: true, force: true }))
-    const plugin = join(folder, "plugin")
-    mkdirSync(plugin)
-    writeFileSync(join(plugin, "hooks.json"), '{"novadeck":{"PreToolUse":[]}}')
-    const relay = join(folder, "relay.exe")
-    const cmd = join(folder, "cmd.exe")
-    const shipped = join(folder, "novadeck-cmd.exe")
-    writeFileSync(relay, "relay")
-    writeFileSync(cmd, "shim")
-    writeFileSync(shipped, "shim")
-    const where = { env: {}, home: folder, platform: "win32", plugin } as const
-    const shell = { ...fixture.paths, relay, agyCmd: cmd, cmdShimDir: folder }
-    expect(await relayVerified(shell, relay, where, shipped)).toBe(true)
-    // A copy that differs, a missing one, or no shipped one to compare with.
-    writeFileSync(cmd, "shim 2")
-    expect(await relayVerified(shell, relay, where, shipped)).toBe(false)
-    writeFileSync(cmd, "shim")
-    expect(await relayVerified(shell, relay, where)).toBe(false)
-    expect(await relayVerified(shell, relay, where, join(folder, "none.exe"))).toBe(false)
-    // Without the pass-through in use (cmdShimDir unset), nothing to compare.
-    const { cmdShimDir: _unused, ...unused } = shell
-    expect(await relayVerified(unused, relay, where)).toBe(true)
-    // Where it did not cover (cmd prints still), no grant, whatever the files.
-    expect(await relayVerified({ ...unused, cmdPrints: true }, relay, where)).toBe(false)
-  })
-
   it("never undo a disconnect asked for before the refresh looked", async ({ fixture }) => {
     installed(fixture.home, "agy")
     const agents = fixture.agents()

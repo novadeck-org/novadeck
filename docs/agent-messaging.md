@@ -1360,8 +1360,9 @@ the agent's commands. Antigravity's own `run_command` does not take that `cmd`, 
 AutoRun still applies to them. Novadeck installs `novadeck-cmd.exe` (built with the relay) as
 `cmd.exe` in a folder of its own, verifies it byte for byte, and its `agy` shim puts that folder
 first on PATH for Antigravity's environment alone, never the terminal's shell. Where it is
-missing or differs, Antigravity gets no PreToolUse hook and no launch grant, and the grant text
-says why (silencing the AutoRun fixes it). Set `NOVADECK_CMD_LOG` to a file to make the
+missing or differs, messaging with Antigravity does not work there until the AutoRun's output goes.
+The grant text says why no launch grant reaches it (silencing the AutoRun fixes it). It fixes messaging only: Antigravity's PreToolUse hook is global, so it stays unregistered there and
+no launch grant is given. Set `NOVADECK_CMD_LOG` to a file to make the
 pass-through append the command line it passed on.
 
 ### A turn the runner's stop cut short
