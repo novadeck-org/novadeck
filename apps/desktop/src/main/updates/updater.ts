@@ -90,7 +90,9 @@ export const filesFromGitHub = (
 ): boolean => {
   const { files } = info
   if (!Array.isArray(files) || files.length === 0) return false
-  const prefix = `https://github.com/${repository.owner}/${repository.repo}/releases/download/`
+  // GitHub's names don't depend on case, and the page the feed rewrites to may differ in it.
+  const prefix =
+    `https://github.com/${repository.owner}/${repository.repo}/releases/download/`.toLowerCase()
   const local = site === undefined ? undefined : localOrigin(site)
   return files.every((file: unknown) => {
     const raw = (file as { readonly url?: unknown } | null)?.url
@@ -98,7 +100,7 @@ export const filesFromGitHub = (
     try {
       const url = new URL(raw, base)
       if (url.username !== "" || url.password !== "") return false
-      if (url.href.startsWith(prefix)) return true
+      if (url.href.toLowerCase().startsWith(prefix)) return true
       return local !== undefined && base.startsWith(local) && url.origin === local
     } catch {
       return false
@@ -682,7 +684,10 @@ export const checkForUpdates = (
         !filesFromGitHub(info, feed.repository, base, via === "novadeck" ? feed.site : undefined)
       ) {
         log(`The update to ${version} names a file outside GitHub's release downloads.`, undefined)
-        if (downloaded === undefined) offer({ kind: "available", version })
+        // The website's answer is set aside for GitHub's own, which the check that got it
+        // asks for next; GitHub's refused answer is the person's to fetch by hand.
+        if (via === "novadeck") siteRefused = true
+        else if (downloaded === undefined) offer({ kind: "available", version })
         return
       }
     }
@@ -779,6 +784,9 @@ export const checkForUpdates = (
   let via: "novadeck" | "github" = "github"
   // Whether the next check skips novadeck.dev, as a download failed and is tried again.
   let githubOnly = false
+  // Whether novadeck.dev's answer to the check in flight named files off GitHub, which the
+  // check then repeats against GitHub itself, as it does when novadeck.dev fails.
+  let siteRefused = false
   let checking = false
   const checkThroughFeed = async (reason: CheckReason, from: UpdateFeed): Promise<void> => {
     if (!githubOnly) {
@@ -791,9 +799,15 @@ export const checkForUpdates = (
         useMultipleRangeRequest: false,
       })
       updater.requestHeaders = checkHeaders(reason, from.facts)
+      siteRefused = false
       try {
         await updater.checkForUpdates()
-        return
+        if (!siteRefused) return
+        siteRefused = false
+        log(
+          "The update check through novadeck.dev named files off GitHub; trying GitHub.",
+          undefined,
+        )
       } catch (error) {
         // A quit ends the schedule; no new request starts after it.
         if (ended) throw error

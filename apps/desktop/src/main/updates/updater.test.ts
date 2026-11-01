@@ -1557,10 +1557,14 @@ describe("checking through novadeck.dev", () => {
 
   context("the files an update names", () => {
     const downloads = "https://github.com/novadeck-org/novadeck/releases/download/v1.5.0/"
+    // Both the website and GitHub answer a check with these files.
     const found = async (files: unknown, options: { site?: string } = {}) => {
       const run = checking(options)
+      run.updater.newest = () => "1.5.0"
+      const emit = run.updater.emit.bind(run.updater)
+      run.updater.emit = (event: string | symbol, ...args: unknown[]) =>
+        emit(event, ...(event === "update-available" ? [{ version: "1.5.0", files }] : args))
       await vi.advanceTimersByTimeAsync(firstCheckMs)
-      run.updater.emit("update-available", { version: "1.5.0", files })
       return run
     }
 
@@ -1576,7 +1580,6 @@ describe("checking through novadeck.dev", () => {
     it("refuses a file anywhere else, and offers the release page instead", async () => {
       const urls = [
         "https://novadeck.dev/update/stable/novadeck.AppImage",
-        "novadeck-linux-x86_64.AppImage",
         "https://github.com/evil/novadeck/releases/download/v1.5.0/x.AppImage",
         "https://github.com/novadeck-org/novadeck/releases/latest/download/x.AppImage",
         "https://github.com.evil.test/novadeck-org/novadeck/releases/download/v1/x",
@@ -1589,9 +1592,9 @@ describe("checking through novadeck.dev", () => {
           const { updater, offered, logged } = await found([{ url: `${downloads}ok.exe` }, { url }])
           expect(updater.downloads, url).toHaveLength(0)
           expect(offered, url).toEqual(["available 1.5.0"])
-          expect(logged, url).toEqual([
+          expect(logged, url).toContain(
             "The update to 1.5.0 names a file outside GitHub's release downloads.",
-          ])
+          )
         }),
       )
     })
@@ -1604,6 +1607,43 @@ describe("checking through novadeck.dev", () => {
           expect(run.updater.downloads, JSON.stringify(files)).toHaveLength(0)
         }),
       )
+    })
+
+    it("asks GitHub itself at once when the website's answer is refused", async () => {
+      const run = checking()
+      run.updater.newest = () => "1.5.0"
+      // The website's answer names a relative file; GitHub's is the default, on its own.
+      const emit = run.updater.emit.bind(run.updater)
+      run.updater.emit = (event: string | symbol, ...args: unknown[]) =>
+        emit(
+          event,
+          ...(run.updater.feed?.provider === "generic" && event === "update-available"
+            ? [{ version: "1.5.0", files: [{ url: "novadeck.AppImage" }] }]
+            : args),
+        )
+      await vi.advanceTimersByTimeAsync(firstCheckMs)
+      expect(run.updater.seen.map(({ feed }) => feed?.provider)).toEqual(["generic", "github"])
+      expect(run.updater.downloads).toHaveLength(1)
+      expect(run.offered).toEqual([])
+    })
+
+    it("offers the release page when GitHub's answer is refused too", async () => {
+      const run = checking()
+      run.updater.newest = () => "1.5.0"
+      const emit = run.updater.emit.bind(run.updater)
+      run.updater.emit = (event: string | symbol) =>
+        emit(event, { version: "1.5.0", files: [{ url: "https://example.test/x.AppImage" }] })
+      await vi.advanceTimersByTimeAsync(firstCheckMs)
+      expect(run.updater.seen.map(({ feed }) => feed?.provider)).toEqual(["generic", "github"])
+      expect(run.updater.downloads).toHaveLength(0)
+      expect(run.offered).toEqual(["available 1.5.0"])
+    })
+
+    it("compares the owner and repository without regard to case", async () => {
+      const run = await found([
+        { url: "https://github.com/Novadeck-Org/NovaDeck/releases/download/v1.5.0/x.AppImage" },
+      ])
+      expect(run.updater.downloads).toHaveLength(1)
     })
 
     it("takes a file at the address of NOVADECK_UPDATE_URL only on this computer", async () => {
