@@ -78,6 +78,25 @@ export const anyAgentWorking = (projects: readonly WorkspaceProject[]): boolean 
     history.some(({ state }) => state.roster.terminals.some(agentWorking)),
   )
 
+// The agents at work in any of the projects, by handle with the handle of their lead and their
+// project: who a grant's holders are that are still going.
+export const agentsAtWork = (
+  projects: readonly WorkspaceProject[],
+): readonly {
+  readonly projectId: string
+  readonly handle: string
+  readonly ledBy: string | null
+}[] =>
+  projects.flatMap(({ id, history }) =>
+    history.flatMap(({ state }) =>
+      state.roster.terminals.flatMap((terminal) =>
+        terminal.handle !== undefined && agentWorking(terminal)
+          ? [{ projectId: id, handle: terminal.handle, ledBy: terminal.ledBy ?? null }]
+          : [],
+      ),
+    ),
+  )
+
 // Whether a status asks for the person, as working on does not.
 export const needsPerson = (status: ProjectStatus | undefined): boolean =>
   status !== undefined && status !== "running"

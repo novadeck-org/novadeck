@@ -57,6 +57,14 @@ export type Draft = {
   readonly picks: Picks | null
   readonly leftOut: readonly string[]
 }
+// An agent that is at work now, with the handle of its lead where it has one.
+export type AtWork = {
+  readonly projectId: string
+  readonly handle: string
+  readonly ledBy: string | null
+}
+const nobody: readonly AtWork[] = []
+
 export const noDraft: Draft = { text: "", option: null, picks: null, leftOut: [] }
 
 // Whether there is anything in a draft worth a "Draft" on the row.
@@ -109,6 +117,9 @@ export type InboxContextValue = {
   readonly reveal: (row: InboxRow) => void
   // The person's live grants, and the way to revoke one; none where the backend makes none.
   readonly grants: readonly Grant[]
+  // The agents at work now, by project and handle with the handle of the lead of each: what the Grants list
+  // says a grant's holders are doing.
+  readonly atWork: readonly AtWork[]
   readonly revoke: ((id: string) => void) | undefined
   // Why a grant's last revoke failed, by grant id.
   readonly revokeFailures: Readonly<Record<string, string>>
@@ -176,6 +187,7 @@ export const InboxProvider = ({
   phone,
   working = false,
   active = false,
+  atWork = nobody,
   children,
 }: {
   readonly inbox: Inbox
@@ -187,6 +199,8 @@ export const InboxProvider = ({
   readonly working?: boolean
   // Whether the Inbox's panel is on screen: the asks that settle meanwhile keep their place.
   readonly active?: boolean
+  // The agents at work now, for the Grants list.
+  readonly atWork?: readonly AtWork[]
   readonly children?: ReactNode
 }): React.JSX.Element => {
   const state = useSyncExternalStore(inbox.state.subscribe, inbox.state.getSnapshot)
@@ -554,6 +568,7 @@ export const InboxProvider = ({
       snooze,
       reveal: revealRow,
       grants,
+      atWork,
       revoke,
       revokeFailures,
       autorun,
@@ -589,6 +604,7 @@ export const InboxProvider = ({
       snooze,
       revealRow,
       grants,
+      atWork,
       revoke,
       revokeFailures,
       autorun,

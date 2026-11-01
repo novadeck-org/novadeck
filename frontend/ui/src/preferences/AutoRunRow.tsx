@@ -1,10 +1,17 @@
 import type { AutoRunState } from "@novadeck/core/autorun"
 import { outcomeText, visibleText } from "@novadeck/core/autorun-text"
 
+import { addonNoteClasses } from "./addon-parts"
 import { settingRowClasses, settingsCardClasses } from "./settings"
 
-// What Preferences lists of cmd's AutoRun: only while Novadeck's silencing holds, with Undo and
-// the exact value it puts back.
+const value = (kind: string, text: string): React.JSX.Element => (
+  <code data-autorun-value={kind} style={{ whiteSpace: "pre-wrap", overflowWrap: "anywhere" }}>
+    {visibleText(text)}
+  </code>
+)
+
+// What Preferences lists of Command Prompt's startup script: one row while Novadeck's hiding
+// of its output holds, with Undo, and behind Details the exact value Undo puts back.
 export const AutoRunRow = ({
   state,
   onUndo,
@@ -17,19 +24,23 @@ export const AutoRunRow = ({
   if (state.state !== "silenced") return null
   const { outcome } = state
   return (
-    <ul className={`m-0 p-0 ${settingsCardClasses}`} aria-label="cmd's AutoRun">
+    <ul className={`m-0 p-0 ${settingsCardClasses}`} aria-label="Command Prompt startup output">
       <li className={settingRowClasses}>
         <div className="flex min-w-0 flex-col gap-1">
-          <span id="autorun-label">cmd&apos;s AutoRun output is silenced</span>
-          <span className="settings-note text-control leading-5">
-            Undo restores{" "}
-            <code
-              data-autorun-value="restores"
-              style={{ whiteSpace: "pre-wrap", overflowWrap: "anywhere" }}
-            >
-              {visibleText(state.restores)}
-            </code>
-          </span>
+          <span id="autorun-label">Command Prompt startup output hidden for Antigravity</span>
+          <details className={addonNoteClasses}>
+            <summary className="cursor-pointer select-none">Details</summary>
+            <p className="m-0 mt-1 break-words">
+              Undo puts this back exactly: {value("restores", state.restores)}
+            </p>
+            {state.machine !== null && (
+              <p className="m-0 mt-1 break-words">
+                The machine&apos;s startup script (HKLM) holds a value too, which Novadeck
+                doesn&apos;t change: {value("machine", state.machine)}. The Inbox shows how to
+                change it yourself.
+              </p>
+            )}
+          </details>
           {outcome !== null && (outcome.kind === "undo-refused" || outcome.kind === "failed") && (
             <span className="settings-note text-control leading-5" data-tone="danger" role="alert">
               {outcomeText(outcome)}

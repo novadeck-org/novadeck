@@ -8,6 +8,7 @@ import {
   write,
   type Picks,
 } from "@novadeck/core/conversation/picks"
+import { grantTitle } from "@novadeck/core/grants"
 import type { HeldMessage, InboxAnswer, InboxRow, Trouble } from "@novadeck/core/inbox"
 import { unsaidWaits, waitsText } from "@novadeck/core/messages"
 import { HandleChip } from "@novadeck/toolkit/HandleChip"
@@ -22,7 +23,7 @@ import {
   type Menu as MenuModel,
   type MenuRow,
 } from "./console-menu"
-import { ApprovalBox, GrantCard } from "./GrantCard"
+import { ApprovalWords, GrantCard, GrantWords } from "./GrantCard"
 import { rowOf } from "./inbox-dom"
 import { actionOf, agentName, limitWindow, recommended, subjectOf } from "./inbox-text"
 import { noDraft, useInboxContext, type Sent } from "./InboxProvider"
@@ -305,12 +306,8 @@ const Thing = ({ row, now }: { readonly row: InboxRow; readonly now: number }) =
     case "grant":
       return (
         <>
-          <Heading glyph="!">
-            <Text text={subjectOf(row)} />
-          </Heading>
-          <blockquote className="console-quote" aria-label={`What @${row.source.handle} says`}>
-            {row.proposal.reason}
-          </blockquote>
+          <Heading glyph="!">{grantTitle(row.proposal, row.source.handle)}</Heading>
+          <GrantWords proposal={row.proposal} />
         </>
       )
     case "ask": {
@@ -321,7 +318,16 @@ const Thing = ({ row, now }: { readonly row: InboxRow; readonly now: number }) =
             <Text text={ask.subject} />
           </Heading>
           {ask.hardToUndo && <p className="console-hard">! Hard to undo: {ask.hardToUndo}</p>}
-          <Prose text={ask.body} />
+          {ask.shape.type === "approval" ? (
+            // The agent's own words stay a muted note: Novadeck's sentence is the one under it.
+            ask.body.trim() !== "" && (
+              <p className="console-note">
+                <Text text={ask.body} />
+              </p>
+            )
+          ) : (
+            <Prose text={ask.body} />
+          )}
           {ask.details && (
             <div className="console-detail">
               <Disclosure label="More detail">
@@ -332,7 +338,9 @@ const Thing = ({ row, now }: { readonly row: InboxRow; readonly now: number }) =
           {ask.shape.type === "action" && (
             <CommandBox command={ask.shape.command} folder={ask.shape.directory} copy />
           )}
-          {ask.shape.type === "approval" && <ApprovalBox row={row} commands={ask.shape.commands} />}
+          {ask.shape.type === "approval" && (
+            <ApprovalWords row={row} commands={ask.shape.commands} />
+          )}
         </>
       )
     }
@@ -381,7 +389,7 @@ const ChoicesMenu = ({
   readonly arrived: boolean
 }): React.JSX.Element => {
   const { row, answering, submit, change, reveal } = props
-  const { drafts, setDraft } = useInboxContext()
+  const { drafts, setDraft, dismiss } = useInboxContext()
   // An agent's ask keeps its words as a draft, on its row; other words are the sheet's.
   const [local, setLocal] = useState<Readonly<Record<number, string>>>({})
   const [pressed, setPressed] = useState<number | null>(null)
@@ -392,8 +400,9 @@ const ChoicesMenu = ({
       ? setDraft(row.id, { text })
       : setLocal((record) => ({ ...record, [at]: text }))
   // The rows that answer, the way to the terminal aside.
-  const answers = model.rows.filter((menuRow) => menuRow.type !== "reveal").length
-  const items = model.rows.map((menuRow, at): MenuItem => {
+  const rows = model.rows.filter((menuRow) => menuRow.type !== "decline" || dismiss)
+  const answers = rows.filter((menuRow) => menuRow.type !== "reveal").length
+  const items = rows.map((menuRow, at): MenuItem => {
     switch (menuRow.type) {
       case "answer":
         return {
@@ -421,6 +430,8 @@ const ChoicesMenu = ({
           },
         }
       }
+      case "decline":
+        return { key: `d${at}`, label: menuRow.label, effect: null }
       case "reveal":
         return { key: `r${at}`, label: menuRow.label, effect: menuRow.effect, away: true }
       case "toggle":
@@ -428,9 +439,13 @@ const ChoicesMenu = ({
     }
   })
   const run = (at: number): void => {
-    const menuRow = model.rows[at]
+    const menuRow = rows[at]
     if (!menuRow) return
     if (menuRow.type === "reveal") return reveal()
+    if (menuRow.type === "decline") {
+      setPressed(at)
+      return dismiss?.(row.id)
+    }
     if (menuRow.type === "toggle") return change(menuRow.change)
     setPressed(at)
     if (menuRow.type === "answer") {

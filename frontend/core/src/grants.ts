@@ -8,10 +8,8 @@ import type { Store } from "./store"
 export type GrantPreset = "push" | "pr"
 
 // How long a grant lasts: until the agent reports done (or is released, or exits), which is
-// the default, or at most an hour. The card offers these two.
+// the default, or at most an hour. The card's menu offers these two.
 export type GrantLifetime = "until-done" | "hour"
-export const grantLifetimeChoices: readonly GrantLifetime[] = ["until-done", "hour"]
-export const defaultGrantLifetime: GrantLifetime = "until-done"
 
 // A command that is granted: exact words, or with `rest`, followed by anything.
 export type GrantCommand = {
@@ -110,21 +108,111 @@ export const commandWords = (command: GrantCommand): string[] => command.argv.ma
 
 export const commandText = (command: GrantCommand): string => commandWords(command).join(" ")
 
-// A lifetime as the card's options and receipts word it.
-export const lifetimeLabel = (lifetime: GrantLifetime): string =>
-  lifetime === "hour" ? "1 hour" : "Until it's done"
-
 // A lifetime inside a sentence: "until it's done" or "for 1 hour".
 export const lifetimeWords = (lifetime: GrantLifetime): string =>
   lifetime === "hour" ? "for 1 hour" : "until it's done"
 
-// What the Grant card says each preset allows, in Novadeck's own words. `repos` names where:
-// the one repo ticked, or the repos ticked below.
-export const presetSentence = (preset: GrantPreset, repos: string): string =>
-  preset === "push"
-    ? `Push a named branch to ${repos} (no force, never to main/master or its default branch)`
-    : `Open, edit, mark ready and comment on pull requests in ${repos} (no merge commands, close or reopen; no labels)`
+// The Grant card's title and body, in Novadeck's words, from the proposal's fixed fields only:
+// its presets, repos and the teammates it covers. The lead's own words (`reason`) and the
+// commands never go into them.
 
-// The line over an `approval` card's commands.
-export const approvalSentence = (handle: string): string =>
-  `Lets @${handle} run, without asking again, until it reports done or for 1 hour:`
+// Who the card names: the covered teammates (and the lead when it asks to be included), or
+// "my team" where there are none or more than three.
+export const grantHolders = (proposal: GrantProposal, lead: string): string => {
+  const handles = [
+    ...(proposal.withLead ? [lead] : []),
+    ...proposal.covered.map(({ handle }) => handle),
+  ].map((handle) => `@${handle}`)
+  if (handles.length === 0 || handles.length > 3) return "my team"
+  return handles.length === 1
+    ? handles[0]!
+    : `${handles.slice(0, -1).join(", ")} and ${handles.at(-1)}`
+}
+
+export const grantTitle = (proposal: GrantProposal, lead: string): string =>
+  `Let ${grantHolders(proposal, lead)} work without asking?`
+
+export type GrantBodyPart = { readonly text: string } | { readonly code: string }
+
+const repoName = (url: string): string => url.replace(/^github\.com\//, "")
+
+// The repos the card grants as proposed: the ones it ticks.
+export const proposedRepos = (proposal: GrantProposal): readonly GrantRepo[] =>
+  proposal.repos.filter(({ ticked }) => ticked).map(({ repo }) => repo)
+
+// What they'd do, where, and what still needs the person.
+export const grantBody = (proposal: GrantProposal): readonly GrantBodyPart[] => {
+  const push = proposal.presets.includes("push")
+  const pr = proposal.presets.includes("pr")
+  const what =
+    push && pr
+      ? "push their branches and open pull requests"
+      : push
+        ? "push their branches"
+        : pr
+          ? "open and edit pull requests"
+          : "run a few commands"
+  const repos = proposedRepos(proposal)
+  const where: GrantBodyPart[] =
+    push || pr
+      ? repos.length === 0
+        ? [{ text: " in a repo you tick under Review" }]
+        : [
+            { text: " in " },
+            { code: repoName(repos[0]!.url) },
+            ...(repos.length > 1 ? [{ text: ` and ${repos.length - 1} more` }] : []),
+          ]
+      : []
+  const still =
+    push && pr
+      ? "Merges and pushes to main still need you."
+      : push
+        ? "Pushes to main still need you."
+        : pr
+          ? "Merges still need you."
+          : "Review shows which."
+  const parts: GrantBodyPart[] = [
+    { text: `They'd ${what}` },
+    ...where,
+    { text: ` without asking you each time. ${still}` },
+  ]
+  // Words next to words are one run of text.
+  return parts.reduce<GrantBodyPart[]>((merged, part) => {
+    const last = merged.at(-1)
+    return last && "text" in last && "text" in part
+      ? [...merged.slice(0, -1), { text: last.text + part.text }]
+      : [...merged, part]
+  }, [])
+}
+
+// What the lead asked for beyond the presets and the repos that it ticks: every command, and
+// each repo it leaves unticked. They stay unticked until the person ticks them.
+export type GrantExtra =
+  | { readonly kind: "command"; readonly at: number; readonly reason: string }
+  | { readonly kind: "repo"; readonly url: string; readonly reason: string }
+
+const repoReasons = {
+  recent: "This repo was just created or changed",
+  "added-remote": "This remote was added recently and isn't yours",
+} as const
+
+export const grantExtras = (proposal: GrantProposal): readonly GrantExtra[] => [
+  ...proposal.commands.map((command, at): GrantExtra => ({
+    kind: "command",
+    at,
+    reason: command.rest
+      ? "This could do more than pushing"
+      : "This isn't pushing or a pull request",
+  })),
+  ...proposal.repos
+    .filter(({ ticked }) => !ticked)
+    .map(({ repo, flag }): GrantExtra => ({
+      kind: "repo",
+      url: repo.url,
+      reason: flag ? repoReasons[flag] : "This isn't the repo's origin",
+    })),
+]
+
+// "1 more thing" or "3 more things".
+export const moreThings = (count: number): string =>
+  `${count} more ${count === 1 ? "thing" : "things"}`

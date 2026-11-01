@@ -1,13 +1,17 @@
 import type { AutoRunManualReason, AutoRunOutcome } from "./autorun"
 
-// What the AutoRun card and Preferences say, in Novadeck's own words. Values the runner read
-// are shown as code by the caller, never put into a sentence here.
+// What the Command Prompt fix says on the Grant card, in the Inbox and in Preferences, in
+// Novadeck's own plain words ("AutoRun" is the registry value's name, shown only in the
+// details). Values the runner read are shown as code by the caller, never put into a sentence
+// here.
 
-export const autoRunWhy =
-  "cmd prints text of its own before every command (an AutoRun), so Antigravity asks for each command and its hooks' answers can't be read outside Novadeck's terminals."
+export const autoRunTitle = "Antigravity can't use your approvals on this computer"
+
+export const autoRunBody =
+  "A startup script for Windows' Command Prompt prints text each time it runs, and that text garbles Novadeck's answers to Antigravity. Novadeck can hide that script's output. The script still runs, and you can undo this anytime."
 
 export const autoRunEverywhere =
-  "This applies to every cmd window, not only Antigravity's. Redirecting the output also hides what the AutoRun shows in a cmd window (prompts, colours, messages)."
+  "This applies to every Command Prompt window, not only Antigravity's. Hiding the output also hides what the script shows in a window (prompts, colours, messages)."
 
 const handles = (list: readonly string[]): string => list.map((handle) => `@${handle}`).join(", ")
 
@@ -31,19 +35,19 @@ export const outcomeText = (outcome: AutoRunOutcome): string => {
         outcome.restart ? "after Novadeck restarts" : "",
       ].filter(Boolean)
       return later.length > 0
-        ? `cmd prints nothing now. Antigravity's Novadeck plugin is installed ${later.join(" and ")}; a grant reaches an Antigravity started after that.`
-        : "cmd prints nothing now."
+        ? `Command Prompt prints nothing at startup now. Antigravity's Novadeck plugin is installed ${later.join(" and ")}; a grant reaches an Antigravity started after that.`
+        : "Command Prompt prints nothing at startup now."
     }
     case "applied-still-prints-hklm":
-      return "The value was changed, but cmd still prints: the machine's AutoRun does, and Novadeck doesn't change it."
+      return "The startup script's output is hidden, but Command Prompt still prints: the machine's startup script (HKLM) does, and Novadeck doesn't change it."
     case "rolled-back":
-      return "The change didn't silence cmd, so it was undone."
+      return "That didn't stop Command Prompt printing, so Novadeck put it back."
     case "conflict":
-      return "The AutoRun changed since this was shown, so nothing was written."
+      return "The startup script changed since this was shown, so nothing was written."
     case "failed":
       return `Not done: ${outcome.message}`
     case "undone":
-      return "The AutoRun is back as it was."
+      return "The startup script is back as it was."
     case "undo-refused":
       return outcome.restart
         ? "Undo waits: Antigravity terminals from before Novadeck started may still run. Restart Novadeck once they are gone, then undo."
@@ -55,16 +59,16 @@ export const outcomeText = (outcome: AutoRunOutcome): string => {
 export const manualWhy = (reason: AutoRunManualReason, rule: string | null): string => {
   switch (reason) {
     case "machine":
-      return "The AutoRun that prints is the machine's (HKLM), which needs an administrator."
+      return "The startup script that prints is the machine's (HKLM), which needs an administrator."
     case "refused":
       return rule === null
-        ? "Novadeck can't rewrite this value safely."
-        : `Novadeck can't rewrite this value safely: ${rule}.`
+        ? "Novadeck can't rewrite this startup script safely."
+        : `Novadeck can't rewrite this startup script safely: ${rule}.`
     case "form":
-      return "Novadeck can't read this value as plain text it could put back exactly."
+      return "Novadeck can't read this startup script as plain text it could put back exactly."
     case "quiet":
-      return "This value prints nothing on its own, so the output comes from somewhere else."
+      return "This startup script prints nothing on its own, so the output comes from somewhere else."
     case "unchecked":
-      return "Novadeck couldn't tell whether this value prints."
+      return "Novadeck couldn't tell whether this startup script prints."
   }
 }

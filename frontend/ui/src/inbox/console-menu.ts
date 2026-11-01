@@ -52,6 +52,9 @@ export type MenuRow =
     }
   // Shows the terminal: what can't be answered from here.
   | { readonly type: "reveal"; readonly label: string; readonly effect: string | null }
+  // Declines the ask without answering it: it is dismissed and its agent told. Left out where
+  // the backend can't dismiss.
+  | { readonly type: "decline"; readonly label: string }
   // Changes how the Inbox row is handled, without answering it: it stays.
   | {
       readonly type: "toggle"
@@ -246,7 +249,10 @@ const askMenu = (row: Extract<InboxRow, { kind: "ask" }>): Menu => {
     const approve = (label: string, lifetime: GrantLifetime): MenuRow => ({
       type: "answer",
       label,
-      effect: `@${source.handle} runs these without asking ${lifetimeWords(lifetime)}.`,
+      effect:
+        lifetime === "hour"
+          ? null
+          : `Ends when @${source.handle} reports done or is released. Revoke anytime from the Inbox.`,
       pick: false,
       details: null,
       answer: { kind: "ask", answer: { type: "approve", lifetime } },
@@ -254,9 +260,9 @@ const askMenu = (row: Extract<InboxRow, { kind: "ask" }>): Menu => {
     })
     return {
       rows: [
-        approve("Approve", "until-done"),
-        approve("Approve for 1 hour", "hour"),
-        ownWords(row),
+        approve("Allow until it's done", "until-done"),
+        approve("Allow for 1 hour", "hour"),
+        { type: "decline", label: "Decline" },
       ],
       hard,
     }

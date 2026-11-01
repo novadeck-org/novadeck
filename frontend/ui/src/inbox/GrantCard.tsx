@@ -1,87 +1,30 @@
 /* oxlint-disable react/no-array-index-key -- Commands have no ids; the lists never reorder. */
-import { autoRunPrints } from "@novadeck/core/autorun"
 import {
   commandWords,
-  defaultGrantLifetime,
-  grantLifetimeChoices,
-  lifetimeLabel,
+  grantBody,
+  grantExtras,
   lifetimeWords,
-  presetSentence,
-  approvalSentence,
+  moreThings,
+  proposedRepos,
   type GrantCommand,
   type GrantLifetime,
-  type GrantPreset,
   type GrantProposal,
-  type GrantRepoChoice,
 } from "@novadeck/core/grants"
 import type { InboxRow } from "@novadeck/core/inbox"
 import { Checkbox } from "@novadeck/toolkit/Checkbox"
-import { SegmentGroup } from "@novadeck/toolkit/SegmentGroup"
-import { useState } from "react"
+import { Switch } from "@novadeck/toolkit/Switch"
+import { useId, useState } from "react"
 
+import { AutoRunNote } from "./AutoRunFix"
 import type { SheetContentProps } from "./ConsoleSheet"
 import { useInboxContext } from "./InboxProvider"
 import { Menu, type MenuHandle, type MenuItem } from "./Menu"
+import { Disclosure } from "./sheet-parts"
 
-// The cards that make a grant (#587, #588), in Novadeck's own words: the fixed sentences of
-// each preset, the commands as code, who is covered and for how long. Only the person's click
-// makes a grant; the agent's own words are quoted, never the card's.
-
-// One granted command as shell-quoted code, `rest` marked in the warning colour.
-export const GrantCommandLine = ({
-  command,
-}: {
-  readonly command: GrantCommand
-}): React.JSX.Element => (
-  <code className="grant-command">
-    <span className="console-dollar" aria-hidden="true">
-      ${" "}
-    </span>
-    {commandWords(command).join(" ")}
-    {command.rest && (
-      <span className="grant-rest" data-mark="rest">
-        {" "}
-        … followed by anything
-      </span>
-    )}
-  </code>
-)
-
-// An approval ask's commands under Novadeck's sentence for them.
-export const ApprovalBox = ({
-  row,
-  commands,
-}: {
-  readonly row: InboxRow
-  readonly commands: readonly GrantCommand[]
-}): React.JSX.Element => (
-  <div className="console-box grant-box" data-grant="approval">
-    <p className="grant-sentence">{approvalSentence(row.source.handle)}</p>
-    <ul className="grant-lines" aria-label="Commands">
-      {commands.map((command, index) => (
-        <li key={index}>
-          <GrantCommandLine command={command} />
-        </li>
-      ))}
-    </ul>
-    {row.source.agent === "codex" && (
-      <p className="grant-warn" data-grant="codex">
-        @{row.source.handle} runs Codex, which runs allowed commands outside Codex&apos;s sandbox.
-      </p>
-    )}
-  </div>
-)
-
-const fromWords = {
-  github: "from GitHub",
-  "remote-head": "from the remote's HEAD, which an agent can write",
-  guess: "guessed: main and master both held back",
-} as const
-
-const flagWords = {
-  "added-remote": "added remote",
-  recent: "new or changed in the last 24 h",
-} as const
+// The cards that make a grant (#587, #588), in Novadeck's own words, composed from the fixed
+// parts of what is asked: the presets, the repos, the commands and who is covered. The agent's
+// own words are never in them: the lead's reason sits under them as a muted note, and a command
+// is code. Only the person's click makes a grant.
 
 const repoName = (url: string): string => url.replace(/^github\.com\//, "")
 
@@ -89,21 +32,145 @@ const repoName = (url: string): string => url.replace(/^github\.com\//, "")
 const toggle = <T,>(list: readonly T[], item: T, on: boolean): T[] =>
   on ? [...list.filter((each) => each !== item), item] : list.filter((each) => each !== item)
 
-// What stayed ticked, and the problem that keeps Grant from going, if there is one.
-const problemOf = (
-  presets: readonly GrantPreset[],
-  commands: readonly number[],
-  repos: readonly string[],
-): string | null => {
-  if (presets.length === 0 && commands.length === 0) return "Tick something to grant."
-  if (presets.length > 0 && repos.length === 0)
-    return "Tick a repo for the pushes and pull requests."
-  return null
+const handlesOf = (list: readonly { readonly handle: string }[]): string =>
+  list.map(({ handle }) => `@${handle}`).join(", ")
+
+// A granted command as plain code: its shell-quoted words.
+const CommandCode = ({ command }: { readonly command: GrantCommand }): React.JSX.Element => (
+  <code>{commandWords(command).join(" ")}</code>
+)
+
+// What the Grant card says under its title: what they'd do and where, and the lead's reason,
+// muted, as the agent's own words.
+export const GrantWords = ({
+  proposal,
+}: {
+  readonly proposal: GrantProposal
+}): React.JSX.Element => (
+  <>
+    <div className="console-body">
+      <div className="markdown">
+        <p style={{ margin: 0 }}>
+          {grantBody(proposal).map((part, index) =>
+            "code" in part ? <code key={index}>{part.code}</code> : part.text,
+          )}
+        </p>
+      </div>
+    </div>
+    {proposal.reason.trim() !== "" && <p className="console-note">{proposal.reason}</p>}
+  </>
+)
+
+// An approval ask's commands under Novadeck's sentence for them, as code lines. What is open
+// ended, or runs outside a sandbox, is a line in warning text.
+export const ApprovalWords = ({
+  row,
+  commands,
+}: {
+  readonly row: InboxRow
+  readonly commands: readonly GrantCommand[]
+}): React.JSX.Element => {
+  const open = commands.filter(({ rest }) => rest)
+  return (
+    <>
+      <div className="console-body">
+        <div className="markdown">
+          <p style={{ margin: 0 }}>
+            @{row.source.handle} would run these without asking you each time:
+          </p>
+        </div>
+      </div>
+      <ul className="grant-lines" aria-label="Commands" style={{ marginLeft: 16 }}>
+        {commands.map((command, index) => (
+          <li key={index}>
+            <CommandCode command={command} />
+          </li>
+        ))}
+      </ul>
+      {open.length > 0 && (
+        <p className="grant-warn" style={{ marginLeft: 16 }} data-grant="rest">
+          {open.map((command, index) => (
+            <span key={index}>
+              {index > 0 && ", "}
+              <code>{commandWords(command).join(" ")}</code>
+            </span>
+          ))}{" "}
+          could be followed by anything.
+        </p>
+      )}
+      {row.source.agent === "codex" && (
+        <p className="grant-warn" style={{ marginLeft: 16 }} data-grant="codex">
+          @{row.source.handle} uses Codex: allowed commands run outside Codex&apos;s sandbox.
+        </p>
+      )}
+    </>
+  )
 }
 
-// A lead's Grant card with the menu that answers it. Everything the lead proposed is ticked
-// as proposed, but for the repos it flags; the person unticks what they don't want and picks
-// the time, and Grant sends what is left.
+// The things the lead asked for beyond the presets, behind Review: each unticked, with why it
+// needs the person's OK in warning text.
+const Review = ({
+  proposal,
+  commands,
+  repos,
+  disabled,
+  onCommand,
+  onRepo,
+}: {
+  readonly proposal: GrantProposal
+  readonly commands: readonly number[]
+  readonly repos: readonly string[]
+  readonly disabled: boolean
+  readonly onCommand: (at: number, on: boolean) => void
+  readonly onRepo: (url: string, on: boolean) => void
+}): React.JSX.Element => (
+  <fieldset className="grant-group">
+    <legend>Needs your OK</legend>
+    <p className="console-note" style={{ marginLeft: 0 }}>
+      Not included unless you tick them.
+    </p>
+    {grantExtras(proposal).map((extra) =>
+      extra.kind === "command" ? (
+        <Tick
+          key={`c${extra.at}`}
+          checked={commands.includes(extra.at)}
+          disabled={disabled}
+          onChange={(on) => onCommand(extra.at, on)}
+        >
+          <span className="grant-repo">
+            <span>
+              Also run <CommandCode command={proposal.commands[extra.at]!} />
+              {proposal.commands[extra.at]!.rest && " with any arguments"}
+            </span>
+            <span className="grant-warn">{extra.reason}</span>
+          </span>
+        </Tick>
+      ) : (
+        <Tick
+          key={extra.url}
+          checked={repos.includes(extra.url)}
+          disabled={disabled}
+          onChange={(on) => onRepo(extra.url, on)}
+        >
+          <span className="grant-repo">
+            <span>
+              Push to <code>{repoName(extra.url)}</code>
+            </span>
+            <span className="grant-warn">{extra.reason}</span>
+          </span>
+        </Tick>
+      ),
+    )}
+  </fieldset>
+)
+
+// The ways to answer a lead's Grant card: with what the person ticked under Review.
+type Answer = "until-done" | "hour" | "decline" | "terminal"
+
+// A lead's Grant card, under its title and words (`GrantWords`): the extras it asked for, the
+// details of who is covered, and the menu that answers it. The presets and the repos it ticks
+// are as proposed; the person ticks what else they allow, and the option they press carries
+// how long it lasts.
 export const GrantCard = ({
   props,
   proposal,
@@ -116,159 +183,149 @@ export const GrantCard = ({
   readonly arrived: boolean
 }): React.JSX.Element => {
   const { row, answering, submit, reveal } = props
-  const { dismiss, autorun } = useInboxContext()
+  const { dismiss } = useInboxContext()
   const lead = row.source.handle
-  const [presets, setPresets] = useState<readonly GrantPreset[]>(proposal.presets)
-  const [commands, setCommands] = useState<readonly number[]>(proposal.commands.map((_, at) => at))
+  const [reviewing, setReviewing] = useState(false)
+  // Nothing the lead asked for beyond the proposed repos is ticked until the person ticks it.
+  const [commands, setCommands] = useState<readonly number[]>([])
   const [repos, setRepos] = useState<readonly string[]>(
-    proposal.repos.filter(({ ticked }) => ticked).map(({ repo }) => repo.url),
+    proposedRepos(proposal).map(({ url }) => url),
   )
   const [withLead, setWithLead] = useState(proposal.withLead)
-  const [lifetime, setLifetime] = useState<GrantLifetime>(
-    grantLifetimeChoices.includes(proposal.lifetime) ? proposal.lifetime : defaultGrantLifetime,
-  )
   const [pressed, setPressed] = useState<number | null>(null)
-  const where =
-    repos.length === 1
-      ? repoName(repos[0]!)
-      : repos.length === 0
-        ? "no repo yet"
-        : "the repos ticked below"
-  const problem = problemOf(presets, commands, repos)
+  const me = useId()
+  const extras = grantExtras(proposal)
   const codex = proposal.covered.filter(({ agent }) => agent === "codex")
   const antigravity = proposal.covered.filter(({ agent }) => agent === "agy")
-  const items: MenuItem[] = [
+  const problem =
+    proposal.presets.length > 0 && repos.length === 0
+      ? "Tick a repo under Review for the pushes and pull requests."
+      : proposal.presets.length === 0 && commands.length === 0
+        ? "Tick something under Review to grant."
+        : null
+  const answers: { readonly key: Answer; readonly item: MenuItem }[] = [
     {
-      key: "grant",
-      label: "Grant",
-      effect: problem ?? `Lasts ${lifetimeWords(lifetime)}, as ticked.`,
+      key: "until-done",
+      item: {
+        key: "until-done",
+        label: "Allow until they're done",
+        effect:
+          problem ??
+          "Ends when each reports done, or the lead lets them go. Revoke anytime from the Inbox.",
+      },
     },
-    ...(dismiss ? [{ key: "decline", label: "Decline", effect: null }] : []),
-    { key: "terminal", label: "Go to terminal", effect: null, away: true },
+    {
+      key: "hour",
+      item: { key: "hour", label: "Allow for 1 hour", effect: problem },
+    },
+    ...(dismiss
+      ? [{ key: "decline" as const, item: { key: "decline", label: "Decline", effect: null } }]
+      : []),
+    {
+      key: "terminal",
+      item: { key: "terminal", label: "Go to terminal", effect: null, away: true },
+    },
   ]
   const run = (at: number): void => {
-    if (items[at]?.away) return reveal()
+    const pick = answers[at]?.key
+    if (pick === "terminal") return reveal()
     setPressed(at)
-    if (at === 0) {
-      if (problem) return
-      const picked = repos.filter((url) => proposal.repos.some(({ repo }) => repo.url === url))
-      submit(
-        {
-          kind: "grant",
-          answer: {
-            type: "grant",
-            presets: proposal.presets.filter((preset) => presets.includes(preset)),
-            commands: commands.toSorted((a, b) => a - b),
-            repos: picked,
-            withLead,
-            lifetime,
-          },
+    if (pick === "decline") return dismiss?.(row.id)
+    if ((pick !== "until-done" && pick !== "hour") || problem) return
+    const lifetime: GrantLifetime = pick
+    submit(
+      {
+        kind: "grant",
+        answer: {
+          type: "grant",
+          presets: proposal.presets,
+          commands: commands.toSorted((a, b) => a - b),
+          repos: repos.filter((url) => proposal.repos.some(({ repo }) => repo.url === url)),
+          withLead,
+          lifetime,
         },
-        `Granted @${lead}'s team ${lifetimeWords(lifetime)}.`,
-      )
-    } else dismiss?.(row.id)
+      },
+      `Granted @${lead}'s team ${lifetimeWords(lifetime)}.`,
+    )
   }
   return (
     <>
-      <div className="console-box grant-box" data-grant="card">
-        {proposal.presets.length > 0 && (
-          <fieldset className="grant-group">
-            <legend>Allowed</legend>
-            {proposal.presets.map((preset) => (
-              <Tick
-                key={preset}
-                checked={presets.includes(preset)}
-                disabled={answering}
-                onChange={(on) => setPresets((list) => toggle(list, preset, on))}
-              >
-                {presetSentence(preset, where)}
-              </Tick>
-            ))}
-          </fieldset>
-        )}
-        {proposal.repos.length > 0 && (
-          <fieldset className="grant-group">
-            <legend>Repos</legend>
-            {proposal.repos.map((choice) => (
-              <Tick
-                key={choice.repo.url}
-                checked={repos.includes(choice.repo.url)}
-                disabled={answering}
-                onChange={(on) => setRepos((list) => toggle(list, choice.repo.url, on))}
-              >
-                <RepoLine choice={choice} />
-              </Tick>
-            ))}
-          </fieldset>
-        )}
-        {proposal.commands.length > 0 && (
-          <fieldset className="grant-group">
-            <legend>Commands</legend>
-            {proposal.commands.map((command, at) => (
-              <Tick
-                key={at}
-                checked={commands.includes(at)}
-                disabled={answering}
-                onChange={(on) => setCommands((list) => toggle(list, at, on))}
-              >
-                <GrantCommandLine command={command} />
-              </Tick>
-            ))}
-          </fieldset>
-        )}
-        <fieldset className="grant-group">
-          <legend>Who</legend>
-          <p className="grant-who">
-            @{lead}&apos;s teammates, now and later (now:{" "}
-            {proposal.covered.length > 0
-              ? proposal.covered.map(({ handle: each }) => `@${each}`).join(", ")
-              : "none"}
-            )
+      {extras.length > 0 && (
+        <>
+          <p
+            className="grant-warn"
+            style={{ marginLeft: 16, display: "flex", alignItems: "baseline", gap: 6 }}
+          >
+            @{lead} also asked for {moreThings(extras.length)} ·{" "}
+            <button
+              type="button"
+              className="button link inbox-link text-control"
+              aria-expanded={reviewing}
+              onClick={() => setReviewing(!reviewing)}
+            >
+              Review
+            </button>
           </p>
-          <Tick checked={withLead} disabled={answering} onChange={setWithLead}>
-            and @{lead} itself
-          </Tick>
-          {codex.length > 0 && (
-            <p className="grant-warn" data-grant="codex">
-              {codex.map(({ handle: each }) => `@${each}`).join(", ")}{" "}
-              {codex.length === 1 ? "runs" : "run"} Codex, which runs allowed commands outside
-              Codex&apos;s sandbox.
-            </p>
+          {reviewing && (
+            <Review
+              proposal={proposal}
+              commands={commands}
+              repos={repos}
+              disabled={answering}
+              onCommand={(at, on) => setCommands((list) => toggle(list, at, on))}
+              onRepo={(url, on) => setRepos((list) => toggle(list, url, on))}
+            />
           )}
-          {antigravity.length > 0 && (
-            <p className="grant-warn" data-grant="agy">
-              {antigravity.map(({ handle: each }) => `@${each}`).join(", ")}{" "}
-              {antigravity.length === 1 ? "runs" : "run"} Antigravity, which only partly takes it: a
-              teammate started before the grant still asks per command; Antigravity before 1.4.10
-              never takes it.
-              {autoRunPrints(autorun) &&
-                " cmd's AutoRun prints here, so Antigravity asks for each command: Silence it in the Inbox (one click, undoable)."}
-            </p>
-          )}
-        </fieldset>
-        <div className="grant-group grant-time">
-          <span className="grant-legend">For</span>
-          <SegmentGroup
-            label="How long"
-            items={grantLifetimeChoices.map((each) => ({
-              value: each,
-              label: lifetimeLabel(each),
-            }))}
-            value={lifetime}
-            disabled={answering}
-            onValueChange={(next) => {
-              const chosen = grantLifetimeChoices.find((each) => each === next)
-              if (chosen) setLifetime(chosen)
-            }}
-            className="flex shrink-0 gap-1"
-            itemClassName="flex h-7 min-w-12 items-center justify-center px-2.5 text-control"
-            indicatorClassName="absolute"
-          />
-        </div>
+        </>
+      )}
+      <div style={{ marginLeft: 16 }}>
+        <Disclosure label="Details" openLabel="Hide details">
+          <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+            <p className="grant-who">Includes teammates @{lead} adds later.</p>
+            {repos.length > 1 && <p className="grant-who">In {repos.map(repoName).join(", ")}.</p>}
+            <div
+              style={{
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "space-between",
+                gap: 12,
+              }}
+            >
+              <span id={me} className="grant-who">
+                Include me (@{lead}) too
+              </span>
+              <Switch
+                checked={withLead}
+                onChange={setWithLead}
+                labelledBy={me}
+                disabled={answering}
+              />
+            </div>
+            {codex.length > 0 && (
+              <p className="grant-warn" data-grant="codex">
+                {handlesOf(codex)} {codex.length === 1 ? "uses" : "use"} Codex: allowed commands run
+                outside Codex&apos;s sandbox.
+              </p>
+            )}
+            {antigravity.length > 0 && (
+              <>
+                <p className="grant-warn" data-grant="agy">
+                  {handlesOf(antigravity)} {antigravity.length === 1 ? "uses" : "use"} Antigravity,
+                  which only partly takes a grant: a teammate started before it still asks per
+                  command, and Antigravity before 1.4.10 never takes it.
+                </p>
+                <AutoRunNote
+                  where="card"
+                  line="Antigravity on this PC needs one fix to use this grant"
+                />
+              </>
+            )}
+          </div>
+        </Disclosure>
       </div>
       <Menu
         label="Answers"
-        items={items}
+        items={answers.map(({ item }) => item)}
         busy={answering}
         pressed={answering ? pressed : null}
         onPress={run}
@@ -278,20 +335,6 @@ export const GrantCard = ({
     </>
   )
 }
-
-const RepoLine = ({ choice }: { readonly choice: GrantRepoChoice }): React.JSX.Element => (
-  <span className="grant-repo">
-    <code>{choice.repo.url}</code>
-    {choice.flag && (
-      <span className="grant-flag" data-flag={choice.flag}>
-        {flagWords[choice.flag]}
-      </span>
-    )}
-    <span className="grant-meta">
-      default branch <code>{choice.repo.defaultBranch}</code>, {fromWords[choice.repo.defaultFrom]}
-    </span>
-  </span>
-)
 
 const Tick = ({
   checked,

@@ -14,7 +14,7 @@ describe("an AutoRun value as the person reads it", () => {
   })
 })
 
-describe("what the card says a click came to", () => {
+describe("what the fix says a click came to", () => {
   it("names the terminals or the restart that an install waits for", () => {
     expect(outcomeText({ kind: "applied-clean", waiting: ["fox"], restart: false })).toContain(
       "once @fox closes",
@@ -23,7 +23,7 @@ describe("what the card says a click came to", () => {
       "after Novadeck restarts",
     )
     expect(outcomeText({ kind: "applied-clean", waiting: [], restart: false })).toBe(
-      "cmd prints nothing now.",
+      "Command Prompt prints nothing at startup now.",
     )
     expect(outcomeText({ kind: "undo-refused", terminals: [], restart: true })).toContain(
       "Restart Novadeck",

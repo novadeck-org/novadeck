@@ -45,7 +45,11 @@ export const Disclosure = ({
         {open ? openLabel : label}
         <ChevronDown size={12} aria-hidden />
       </button>
-      {open && <div id={id}>{children}</div>}
+      {open && (
+        <div id={id} style={{ alignSelf: "stretch" }}>
+          {children}
+        </div>
+      )}
     </div>
   )
 }

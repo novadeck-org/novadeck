@@ -14,7 +14,7 @@ import { afterEach } from "vitest"
 
 import { context, describe, expect, it } from "../test"
 import { InboxList } from "./InboxList"
-import { InboxProvider } from "./InboxProvider"
+import { InboxProvider, type AtWork } from "./InboxProvider"
 import { InboxSheet } from "./InboxSheet"
 
 // jsdom has no ResizeObserver, which the sheet's placement watches its anchor with.
@@ -38,10 +38,7 @@ const source = (handle: string): InboxRow["source"] => ({
 
 const proposal: GrantProposal = {
   presets: ["push", "pr"],
-  commands: [
-    { argv: ["pnpm", "test"], rest: false },
-    { argv: ["echo", "it's here"], rest: true },
-  ],
+  commands: [{ argv: ["echo", "it's here"], rest: true }],
   repos: [
     {
       repo: { url: "github.com/acme/shop", defaultBranch: "main", defaultFrom: "github" },
@@ -112,7 +109,7 @@ const live = (more: Partial<Grant> = {}): Grant => ({
   proposedBy: "moth",
   madeAt: 0,
   lifetime: "hour",
-  endsAt: Date.now() + 90 * 60_000 - 1000,
+  endsAt: Date.now() + 42 * 60_000 - 1000,
   revokedAt: null,
   lastUse: null,
   ...more,
@@ -126,7 +123,12 @@ afterEach(() => {
 
 const mount = (
   rows: readonly InboxRow[],
-  { grants = [] as readonly Grant[], open = true, autorun = noAutoRun as AutoRunState } = {},
+  {
+    grants = [] as readonly Grant[],
+    open = true,
+    autorun = noAutoRun as AutoRunState,
+    atWork = [] as readonly AtWork[],
+  } = {},
 ) => {
   const state = createStore<InboxState>({ ...emptyInbox, items: rows })
   const store = createStore<readonly Grant[]>(grants)
@@ -134,6 +136,7 @@ const mount = (
   const sent: InboxAnswer[] = []
   const dismissed: string[] = []
   const revoked: string[] = []
+  const silenced: string[] = []
   const inbox: Inbox = {
     state,
     answer: (_, answer) => void sent.push(answer),
@@ -143,7 +146,7 @@ const mount = (
     grants: { state: store, revoke: (id) => void revoked.push(id), failed },
     autorun: {
       state: createStore<AutoRunState>(autorun),
-      silence: () => {},
+      silence: (value) => void silenced.push(value),
       undo: () => {},
       dismiss: () => {},
     },
@@ -151,7 +154,7 @@ const mount = (
   const view = render(
     createElement(
       InboxProvider,
-      { inbox, reveal: () => {} },
+      { inbox, reveal: () => {}, atWork },
       createElement("div", { id: "inbox-panel" }, createElement(InboxList)),
       createElement(InboxSheet, { active: true }),
     ),
@@ -166,94 +169,161 @@ const mount = (
     Array.from(document.querySelectorAll<HTMLLabelElement>(".grant-tick"))
       .find((each) => each.textContent?.includes(label))!
       .querySelector("input")!
+  const button = (name: string): HTMLButtonElement =>
+    Array.from(document.querySelectorAll<HTMLButtonElement>("button")).find(
+      (each) => each.textContent === name,
+    )!
   const done = async (): Promise<void> => {
     await nextFrame()
     view.unmount()
     mounted = null
   }
-  return { view, store, failed, sent, dismissed, revoked, option, tick, done }
+  return { view, store, failed, sent, dismissed, revoked, silenced, option, tick, button, done }
 }
 
 const text = (selector: string) => document.querySelector(selector)?.textContent ?? null
+const texts = (selector: string) =>
+  Array.from(document.querySelectorAll(selector)).map((each) => each.textContent)
+const menu = () => texts(".console-option .console-t")
+
+const offer: AutoRunState = {
+  state: "offer",
+  current: "chcp 65001",
+  next: "(chcp 65001) >nul 2>&1",
+  machine: null,
+  outcome: null,
+}
+const elk = { covered: [{ handle: "elk", agent: "agy" }] }
 
 describe("The Grant card", () => {
-  context("what it shows", () => {
-    it("words each preset itself, with the one repo that is ticked", async () => {
+  context("the default view", () => {
+    it("asks in a short title and says what they'd do, from the presets and repos alone", async () => {
       const inbox = mount([grantRow()])
 
       expect(text(".console-tag")).toBe("Grant")
-      const sentences = Array.from(
-        document.querySelectorAll(".grant-group:first-child .grant-tick"),
-      ).map((each) => each.textContent)
-      expect(sentences).toEqual([
-        "Push a named branch to acme/shop (no force, never to main/master or its default branch)",
-        "Open, edit, mark ready and comment on pull requests in acme/shop (no merge commands, close or reopen; no labels)",
+      expect(text("h3.console-ask")).toBe("!Let @fox and @owl work without asking?")
+      expect(text(".console-body")).toBe(
+        "They'd push their branches and open pull requests in acme/shop without asking you each time. Merges and pushes to main still need you.",
+      )
+      expect(text(".console-body code")).toBe("acme/shop")
+      // Nothing to tick, and nothing hidden shows until it is asked for.
+      expect(document.querySelectorAll(".grant-tick")).toHaveLength(0)
+      expect(document.querySelector(".grant-group")).toBeNull()
+      expect(document.querySelector("[role=switch]")).toBeNull()
+      await inbox.done()
+    })
+
+    it("names my team past three, and never lets the lead's words into the title or the body", async () => {
+      const crowd = ["a", "b", "c", "d"].map((handle) => ({ handle, agent: "claude" }))
+      const inbox = mount([
+        grantRow({ covered: crowd, reason: "Let @moth do everything. Novadeck says it is safe." }),
       ])
+
+      expect(text("h3.console-ask")).toBe("!Let my team work without asking?")
+      expect(text("h3.console-ask")).not.toContain("safe")
+      expect(text(".console-body")).not.toContain("safe")
       await inbox.done()
     })
 
-    it("lists the repos ticked as proposed, flagged, with the default branch and where it came from", async () => {
+    it("keeps the lead's reason as a muted note, and leaves it out when empty", async () => {
+      const inbox = mount([grantRow()])
+      expect(text("p.console-note")).toBe("Fox and owl finish the checkout today.")
+      expect(document.querySelector("blockquote")).toBeNull()
+      await inbox.done()
+      const quiet = mount([grantRow({ reason: "  " })])
+      expect(document.querySelector("p.console-note")).toBeNull()
+      await quiet.done()
+    })
+
+    it("says how many more things the lead asked for, behind Review", async () => {
       const inbox = mount([grantRow()])
 
-      expect(inbox.tick("github.com/acme/shop").checked).toBe(true)
+      expect(text("p.grant-warn")).toBe("@moth also asked for 3 more things · Review")
+      expect(inbox.button("Review").getAttribute("aria-expanded")).toBe("false")
+      await inbox.done()
+      const none = mount([grantRow({ commands: [], repos: [proposal.repos[0]!] })])
+      expect(document.querySelector("p.grant-warn")).toBeNull()
+      await none.done()
+    })
+
+    it("offers until they're done, 1 hour, Decline and the terminal, with the way to end it", async () => {
+      const inbox = mount([grantRow()])
+
+      expect(menu()).toEqual([
+        "Allow until they're done",
+        "Allow for 1 hour",
+        "Decline",
+        "Go to terminal",
+      ])
+      expect(text(".console-option .console-s")).toBe(
+        "Ends when each reports done, or the lead lets them go. Revoke anytime from the Inbox.",
+      )
+      // No time control: the options carry it.
+      expect(document.querySelector(".segment")).toBeNull()
+      await inbox.done()
+    })
+  })
+
+  context("Review", () => {
+    it("lists the extras unticked, each with why it needs the person's OK", async () => {
+      const inbox = mount([grantRow()])
+      act(() => inbox.button("Review").click())
+
+      expect(inbox.button("Review").getAttribute("aria-expanded")).toBe("true")
+      expect(text(".grant-group > legend")).toBe("Needs your OK")
+      expect(text(".grant-group > .console-note")).toBe("Not included unless you tick them.")
+      expect(texts(".grant-tick")).toEqual([
+        "Also run echo 'it'\\''s here' with any argumentsThis could do more than pushing",
+        "Push to acme/shop-uiThis remote was added recently and isn't yours",
+        "Push to acme/newThis repo was just created or changed",
+      ])
+      expect(inbox.tick("echo").checked).toBe(false)
       expect(inbox.tick("shop-ui").checked).toBe(false)
-      expect(text("[data-flag=added-remote]")).toBe("added remote")
-      expect(text("[data-flag=recent]")).toBe("new or changed in the last 24 h")
-      const shopUi = inbox.tick("shop-ui").closest("label")!.textContent
-      expect(shopUi).toContain("default branch trunk, from the remote's HEAD")
-      expect(inbox.tick("acme/new").closest("label")!.textContent).toContain("guessed")
+      expect(inbox.tick("acme/new").checked).toBe(false)
       await inbox.done()
     })
+  })
 
-    it("shows each command shell-quoted, the open-ended one marked", async () => {
+  context("Details", () => {
+    it("says who is covered, with Include me off, and warns for Codex, in words", async () => {
       const inbox = mount([grantRow()])
+      expect(document.querySelector("[role=switch]")).toBeNull()
+      act(() => inbox.button("Details").click())
 
-      const commands = Array.from(document.querySelectorAll(".grant-command")).map(
-        (each) => each.textContent,
+      expect(text(".grant-who")).toBe("Includes teammates @moth adds later.")
+      const include = document.querySelector<HTMLElement>("[role=switch]")!
+      expect(include.getAttribute("aria-checked")).toBe("false")
+      expect(include.getAttribute("aria-labelledby")).toBeTruthy()
+      expect(document.getElementById(include.getAttribute("aria-labelledby")!)?.textContent).toBe(
+        "Include me (@moth) too",
       )
-      expect(commands[0]).toBe("$ pnpm test")
-      expect(commands[1]).toBe("$ echo 'it'\\''s here' … followed by anything")
-      expect(document.querySelectorAll(".grant-rest")).toHaveLength(1)
-      await inbox.done()
-    })
-
-    it("says who is covered, now and later, with the lead itself unticked, and warns for Codex", async () => {
-      const inbox = mount([grantRow()])
-
-      expect(text(".grant-who")).toBe("@moth's teammates, now and later (now: @fox, @owl)")
-      expect(inbox.tick("and @moth itself").checked).toBe(false)
       expect(text("[data-grant=codex]")).toBe(
-        "@fox runs Codex, which runs allowed commands outside Codex's sandbox.",
+        "@fox uses Codex: allowed commands run outside Codex's sandbox.",
       )
+      expect(inbox.button("Hide details")).toBeDefined()
       await inbox.done()
     })
 
-    it("warns for Antigravity that a teammate started earlier still asks, and old versions never take it", async () => {
-      const inbox = mount([grantRow({ covered: [{ handle: "elk", agent: "agy" }] })])
+    it("says only part of a grant reaches Antigravity, and names no Codex without a Codex teammate", async () => {
+      const inbox = mount([grantRow(elk)])
+      act(() => inbox.button("Details").click())
 
       expect(text("[data-grant=agy]")).toBe(
-        "@elk runs Antigravity, which only partly takes it: a teammate started before the grant still asks per command; Antigravity before 1.4.10 never takes it.",
+        "@elk uses Antigravity, which only partly takes a grant: a teammate started before it still asks per command, and Antigravity before 1.4.10 never takes it.",
       )
       expect(document.querySelector("[data-grant=codex]")).toBeNull()
       await inbox.done()
     })
 
-    it("names the fix for Antigravity while cmd's AutoRun prints, and drops the line once it doesn't", async () => {
-      const offer: AutoRunState = {
-        state: "offer",
-        current: "chcp 65001",
-        next: "(chcp 65001) >nul 2>&1",
-        machine: null,
-        outcome: null,
-      }
-      const printing = mount([grantRow({ covered: [{ handle: "elk", agent: "agy" }] })], {
-        autorun: offer,
-      })
-      expect(text("[data-grant=agy]")).toBe(
-        "@elk runs Antigravity, which only partly takes it: a teammate started before the grant still asks per command; Antigravity before 1.4.10 never takes it. cmd's AutoRun prints here, so Antigravity asks for each command: Silence it in the Inbox (one click, undoable).",
+    it("has the AutoRun line and its Fix while Command Prompt prints, and drops it once it doesn't", async () => {
+      const printing = mount([grantRow(elk)], { autorun: offer })
+      act(() => printing.button("Details").click())
+      expect(texts("p.grant-warn").at(-1)).toBe(
+        "Antigravity on this PC needs one fix to use this grant · Fix",
       )
       await printing.done()
-      const silenced = mount([grantRow({ covered: [{ handle: "elk", agent: "agy" }] })], {
+
+      const silenced = mount([grantRow(elk)], {
         autorun: {
           state: "silenced",
           current: offer.next,
@@ -263,54 +333,54 @@ describe("The Grant card", () => {
           outcome: null,
         },
       })
-      expect(text("[data-grant=agy]")).not.toContain("AutoRun")
+      act(() => silenced.button("Details").click())
+      expect(document.body.textContent).not.toContain("to use this grant")
       await silenced.done()
+
+      const other = mount([grantRow()], { autorun: offer })
+      act(() => other.button("Details").click())
+      expect(document.body.textContent).not.toContain("to use this grant")
+      await other.done()
     })
 
-    it("quotes the lead's reason and offers until done and 1 hour with until done chosen", async () => {
-      const inbox = mount([grantRow()])
+    it("opens a small confirm from Fix, with the key and values behind details, and Hide it hides them", async () => {
+      const inbox = mount([grantRow(elk)], { autorun: offer })
+      act(() => inbox.button("Details").click())
+      act(() => inbox.button("Fix").click())
+      await nextFrame()
 
-      expect(text("blockquote.console-quote")).toBe("Fox and owl finish the checkout today.")
-      const choices = Array.from(document.querySelectorAll<HTMLInputElement>(".segment input"))
-      expect(choices.map((each) => each.getAttribute("aria-label"))).toEqual([
-        "Until it's done",
-        "1 hour",
-      ])
-      expect(choices.find((each) => each.checked)?.getAttribute("aria-label")).toBe(
-        "Until it's done",
+      const dialog = document.querySelector("[role=alertdialog]")!
+      expect(dialog.querySelector("h2, [id*=title]")?.textContent).toBe(
+        "Antigravity can't use your approvals on this computer",
       )
+      expect(dialog.textContent).toContain("Novadeck can hide that script's output.")
+      expect(dialog.textContent).not.toContain("HKEY_CURRENT_USER")
+      act(() =>
+        Array.from(dialog.querySelectorAll("button"))
+          .find((each) => each.textContent === "details")!
+          .click(),
+      )
+      expect(dialog.textContent).toContain(
+        "HKEY_CURRENT_USER\\Software\\Microsoft\\Command Processor",
+      )
+      expect(dialog.querySelector("[data-autorun-value=current]")?.textContent).toBe("chcp 65001")
+      expect(dialog.querySelector("[data-autorun-value=next]")?.textContent).toBe(
+        "(chcp 65001) >nul 2>&1",
+      )
+      act(() =>
+        Array.from(dialog.querySelectorAll("button"))
+          .find((each) => each.textContent === "Hide it")!
+          .click(),
+      )
+      expect(inbox.silenced).toEqual(["(chcp 65001) >nul 2>&1"])
       await inbox.done()
     })
   })
 
   context("answering", () => {
-    it("sends Grant with what stayed ticked and the time", async () => {
+    it("sends the presets and the repos it ticks for as long as they're at it, with nothing else", async () => {
       const inbox = mount([grantRow()])
-      act(() => inbox.tick("shop-ui").click())
-      act(() => inbox.tick("echo").click())
-      act(() => inbox.tick("and @moth itself").click())
-      act(() => inbox.tick("pull requests").click())
-      act(() => inbox.option("Grant").click())
-
-      expect(inbox.sent).toEqual([
-        {
-          kind: "grant",
-          answer: {
-            type: "grant",
-            presets: ["push"],
-            commands: [0],
-            repos: ["github.com/acme/shop", "github.com/acme/shop-ui"],
-            withLead: true,
-            lifetime: "until-done",
-          },
-        },
-      ])
-      await inbox.done()
-    })
-
-    it("sends what was proposed when nothing is touched", async () => {
-      const inbox = mount([grantRow()])
-      act(() => inbox.option("Grant").click())
+      act(() => inbox.option("Allow until they're done").click())
 
       expect(inbox.sent).toEqual([
         {
@@ -318,7 +388,7 @@ describe("The Grant card", () => {
           answer: {
             type: "grant",
             presets: ["push", "pr"],
-            commands: [0, 1],
+            commands: [],
             repos: ["github.com/acme/shop"],
             withLead: false,
             lifetime: "until-done",
@@ -328,13 +398,41 @@ describe("The Grant card", () => {
       await inbox.done()
     })
 
-    it("sends nothing while no repo is ticked for a preset, and says why", async () => {
+    it("carries 1 hour in the answer, with what was ticked under Review and Include me", async () => {
       const inbox = mount([grantRow()])
-      act(() => inbox.tick("github.com/acme/shop").click())
+      act(() => inbox.button("Review").click())
+      act(() => inbox.tick("shop-ui").click())
+      act(() => inbox.tick("echo").click())
+      act(() => inbox.button("Details").click())
+      act(() => document.querySelector<HTMLElement>("[role=switch]")!.click())
+      act(() => inbox.option("Allow for 1 hour").click())
 
-      expect(inbox.option("Grant").textContent).toContain("Tick a repo")
-      act(() => inbox.option("Grant").click())
+      expect(inbox.sent).toEqual([
+        {
+          kind: "grant",
+          answer: {
+            type: "grant",
+            presets: ["push", "pr"],
+            commands: [0],
+            repos: ["github.com/acme/shop", "github.com/acme/shop-ui"],
+            withLead: true,
+            lifetime: "hour",
+          },
+        },
+      ])
+      await inbox.done()
+    })
+
+    it("sends nothing while no repo is ticked for a preset, and says why", async () => {
+      const repos = proposal.repos.map((each) => ({ ...each, ticked: false }))
+      const inbox = mount([grantRow({ repos })])
+
+      expect(inbox.option("Allow until they're done").textContent).toContain("Tick a repo")
+      act(() => inbox.option("Allow until they're done").click())
       expect(inbox.sent).toEqual([])
+      act(() => inbox.button("Review").click())
+      act(() => inbox.tick("shop-ui").click())
+      expect(inbox.option("Allow until they're done").textContent).not.toContain("Tick a repo")
       await inbox.done()
     })
 
@@ -350,16 +448,22 @@ describe("The Grant card", () => {
 })
 
 describe("The approval card", () => {
-  it("says what it lets the terminal run, for how long, with the commands as code", async () => {
+  it("keeps the agent's words as a muted note and says in Novadeck's what it would run, as code", async () => {
     const inbox = mount([approvalRow()])
 
     expect(text(".console-tag")).toBe("Approval")
-    expect(text(".grant-sentence")).toBe(
-      "Lets @fox run, without asking again, until it reports done or for 1 hour:",
-    )
-    expect(
-      Array.from(document.querySelectorAll(".grant-command")).map((each) => each.textContent),
-    ).toEqual(["$ pnpm build", "$ pnpm run 'x y' … followed by anything"])
+    expect(text("h3.console-ask")).toBe("!May I run the build?")
+    expect(texts("p.console-note")).toEqual(["It only writes dist/."])
+    expect(text(".console-body")).toBe("@fox would run these without asking you each time:")
+    expect(texts(".grant-lines code")).toEqual(["pnpm build", "pnpm run 'x y'"])
+    await inbox.done()
+  })
+
+  it("marks what could be followed by anything as a warning line, not a pill", async () => {
+    const inbox = mount([approvalRow()])
+
+    expect(text("[data-grant=rest]")).toBe("pnpm run 'x y' could be followed by anything.")
+    expect(document.querySelector(".grant-rest, .grant-flag")).toBeNull()
     await inbox.done()
   })
 
@@ -370,21 +474,31 @@ describe("The approval card", () => {
     const codex = approvalRow()
     const inbox = mount([{ ...codex, source: { ...codex.source, agent: "codex" } }])
     expect(text("[data-grant=codex]")).toBe(
-      "@fox runs Codex, which runs allowed commands outside Codex's sandbox.",
+      "@fox uses Codex: allowed commands run outside Codex's sandbox.",
     )
     await inbox.done()
   })
 
-  it("approves, or takes the person's words", async () => {
+  it("offers until it's done, 1 hour, Decline and the terminal, and the answer carries the time", async () => {
     const inbox = mount([approvalRow()])
 
-    expect(
-      Array.from(document.querySelectorAll(".console-option .console-t")).map(
-        (each) => each.textContent,
-      ),
-    ).toEqual(["Approve", "Approve for 1 hour", "Reply in your own words", "Go to terminal"])
-    act(() => inbox.option("Approve for 1 hour").click())
+    expect(menu()).toEqual([
+      "Allow until it's done",
+      "Allow for 1 hour",
+      "Decline",
+      "Go to terminal",
+    ])
+    act(() => inbox.option("Allow for 1 hour").click())
     expect(inbox.sent).toEqual([{ kind: "ask", answer: { type: "approve", lifetime: "hour" } }])
+    await inbox.done()
+  })
+
+  it("declines by dismissing the ask", async () => {
+    const inbox = mount([approvalRow()])
+    act(() => inbox.option("Decline").click())
+
+    expect(inbox.dismissed).toEqual(["ap"])
+    expect(inbox.sent).toEqual([])
     await inbox.done()
   })
 })
@@ -397,13 +511,13 @@ describe("The Grants section", () => {
     await inbox.done()
   })
 
-  it("lists each live grant with its holder, actions, repos, time left and last use", async () => {
+  it("lists each live grant with its holder, actions, repos, how long it lasts and last use", async () => {
     const lastUse = { at: Date.now() - 4 * 60_000, handle: "owl", command: "git push origin a:a" }
     const inbox = mount([], { grants: [live({ lastUse })], open: false })
 
     const row = document.querySelector(".grant-row")!
     expect(row.querySelector(".grant-row-holder")?.textContent).toBe("@moth's team")
-    expect(row.querySelector(".grant-row-left")?.textContent).toBe("1h 30m left")
+    expect(row.querySelector(".grant-row-left")?.textContent).toBe("1 hour · 42 min left")
     expect(row.querySelector(".grant-row-what")?.textContent).toBe("push branches in acme/shop")
     expect(row.querySelector(".grant-row-commands")?.textContent).toBe("pnpm test")
     expect(row.querySelector(".grant-row-last")?.textContent).toBe(
@@ -412,13 +526,34 @@ describe("The Grants section", () => {
     await inbox.done()
   })
 
-  it("says until done for a grant with no clock", async () => {
+  it("says until done, with the teammates of the lead still at work", async () => {
     const inbox = mount([], {
+      grants: [live({ lifetime: "until-done", endsAt: null })],
+      atWork: [
+        { projectId: "p", handle: "fox", ledBy: "moth" },
+        { projectId: "p", handle: "owl", ledBy: "moth" },
+        { projectId: "p", handle: "elk", ledBy: "someone" },
+        { projectId: "p", handle: "moth", ledBy: null },
+        { projectId: "other", handle: "kit", ledBy: "moth" },
+      ],
+      open: false,
+    })
+    expect(document.querySelector(".grant-row-left")?.textContent).toBe(
+      "until done · @fox, @owl working",
+    )
+    await inbox.done()
+  })
+
+  it("says only until done where nobody is at work, and never more than 60 minutes left", async () => {
+    const idle = mount([], {
       grants: [live({ lifetime: "until-done", endsAt: null })],
       open: false,
     })
     expect(document.querySelector(".grant-row-left")?.textContent).toBe("until done")
-    await inbox.done()
+    await idle.done()
+    const long = mount([], { grants: [live({ endsAt: Date.now() + 90 * 60_000 })], open: false })
+    expect(document.querySelector(".grant-row-left")?.textContent).toBe("1 hour · 60 min left")
+    await long.done()
   })
 
   it("shows why a revoke failed beside its grant", async () => {
@@ -442,6 +577,26 @@ describe("The Grants section", () => {
     expect(document.querySelector(".grant-row-holder")?.textContent).toBe("@fox")
     act(() => inbox.store.update(() => []))
     expect(document.querySelector(".inbox-grants")).toBeNull()
+    await inbox.done()
+  })
+})
+
+describe("The AutoRun line in the Inbox", () => {
+  it("is not there where Command Prompt prints nothing", async () => {
+    const inbox = mount([], { open: false })
+    expect(document.querySelector("[data-autorun]")).toBeNull()
+    await inbox.done()
+  })
+
+  it("says Antigravity needs a fix, with Fix, with no Grant card open", async () => {
+    const inbox = mount([], { autorun: offer, open: false })
+    expect(text(".inbox-grants .grant-row")).toBe(
+      "Antigravity on this PC needs one fix to use approvals · Fix",
+    )
+    expect(document.querySelector("[role=alertdialog]")).toBeNull()
+    act(() => inbox.button("Fix").click())
+    await nextFrame()
+    expect(document.querySelector("[role=alertdialog]")).not.toBeNull()
     await inbox.done()
   })
 })

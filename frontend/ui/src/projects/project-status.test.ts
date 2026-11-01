@@ -4,6 +4,7 @@ import type { AgentStatus, TerminalMetadata, WorkspaceProject } from "@novadeck/
 
 import { context, describe, expect, it } from "../test"
 import {
+  agentsAtWork,
   anyAgentWorking,
   elsewhereStatus,
   projectStatus as statusOf,
@@ -232,5 +233,18 @@ describe("Whether an agent is working", () => {
     expect(anyAgentWorking([])).toBe(false)
     expect(anyAgentWorking([idle])).toBe(false)
     expect(anyAgentWorking([idle, busy])).toBe(true)
+  })
+})
+
+describe("The agents at work", () => {
+  it("lists those that work, by project, with their handle and lead", () => {
+    const worker = { ...running(2, { working: true }), handle: "fox", ledBy: "moth" }
+    const lead = { ...running(1, { working: true }), handle: "moth" }
+    const idle = { ...running(3, {}), handle: "owl", ledBy: "moth" }
+    const shell = { ...running(4), handle: "elk" }
+    expect(agentsAtWork([project("a", [lead, worker, idle, shell]), project("b", [])])).toEqual([
+      { projectId: "a", handle: "moth", ledBy: null },
+      { projectId: "a", handle: "fox", ledBy: "moth" },
+    ])
   })
 })
