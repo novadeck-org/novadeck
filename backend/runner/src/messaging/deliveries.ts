@@ -1,4 +1,5 @@
 import type { ActivityEvent, Background, HarnessEvent } from "@novadeck/harness-core/events"
+import { replyLine } from "@novadeck/harness-core/prompts"
 import type { AgentName } from "@novadeck/protocol"
 import type { KeyKind } from "@novadeck/tui-input"
 
@@ -20,7 +21,7 @@ import {
 import { addressed, awaiting, feed, promptsInBackground, type Live } from "./live.js"
 import type { Loops } from "./loops.js"
 import type { MessageStore } from "./message-store.js"
-import type { Message } from "./messages.js"
+import { cleanInboxText, type Message } from "./messages.js"
 import type { Sessions } from "./sessions.js"
 
 /**
@@ -282,15 +283,24 @@ export class Deliveries {
   }
 
   /**
-   * The person's Inbox replies waiting for the terminal's root session, oldest first: the
-   * ones the doorbell's line says. A request for feedback is none.
+   * The doorbell's line, by its nonce, where the person's Inbox replies wait for the
+   * terminal's root session (`replyLine`), oldest first; undefined for none. A request for
+   * feedback is none.
    */
-  waitingReplies(terminalId: string): readonly Message[] {
+  replyLine(terminalId: string): ((nonce: string) => string) | undefined {
     const live = this.host.sessions.get(terminalId)
-    if (!live) return []
-    return [...this.waitingFor(live)]
-      .filter((message) => message.response !== undefined && !message.response.feedback)
-      .toSorted((a, b) => a.sentAt - b.sentAt)
+    if (!live) return undefined
+    return replyLine(
+      [...this.waitingFor(live)]
+        .filter((message) => message.response !== undefined && !message.response.feedback)
+        .toSorted((a, b) => a.sentAt - b.sentAt)
+        .map(({ text, response }) => ({
+          subject: cleanInboxText(response!.subject),
+          ...(response!.option !== undefined && { option: cleanInboxText(response!.option) }),
+          ...(response!.action !== undefined && { action: cleanInboxText(response!.action) }),
+          text,
+        })),
+    )
   }
 
   /**

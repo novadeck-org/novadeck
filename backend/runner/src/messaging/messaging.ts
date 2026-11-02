@@ -1,6 +1,5 @@
 import type { ActivityEvent, HarnessEvent } from "@novadeck/harness-core/events"
 import { hookShellSlackMs } from "@novadeck/harness-core/hook-command"
-import { replyLine } from "@novadeck/harness-core/prompts"
 import type { AgentName, MessageState, TerminalMessages } from "@novadeck/protocol"
 import type { KeyKind } from "@novadeck/tui-input"
 
@@ -15,7 +14,7 @@ import { Leasing, type LeasingHost } from "./leasing.js"
 import type { Deliverable, Scope } from "./live.js"
 import { Loops } from "./loops.js"
 import { MessageStore, type MessagingChange } from "./message-store.js"
-import { cleanInboxText, type Held, type Message } from "./messages.js"
+import type { Held, Message } from "./messages.js"
 import type { About } from "./peers.js"
 import { memoryMessages, type MessageRecords } from "./records.js"
 import { Relays, type InboxOwner } from "./relays.js"
@@ -319,19 +318,8 @@ export class Messaging {
     return this.deliveries.ringable(terminalId)
   }
 
-  /**
-   * The doorbell's line, by its nonce, where the person's Inbox replies wait for the
-   * terminal's agent (`replyLine`): undefined for none.
-   */
   replyLine(terminalId: string): ((nonce: string) => string) | undefined {
-    return replyLine(
-      this.deliveries.waitingReplies(terminalId).map(({ text, response }) => ({
-        subject: cleanInboxText(response!.subject),
-        ...(response!.option !== undefined && { option: cleanInboxText(response!.option) }),
-        ...(response!.action !== undefined && { action: cleanInboxText(response!.action) }),
-        text,
-      })),
-    )
+    return this.deliveries.replyLine(terminalId)
   }
 
   personPrompt(terminalId: string): string | undefined {
