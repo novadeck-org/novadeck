@@ -318,6 +318,10 @@ export class Messaging {
     return this.deliveries.ringable(terminalId)
   }
 
+  replyLine(terminalId: string): ((nonce: string) => string) | undefined {
+    return this.deliveries.replyLine(terminalId)
+  }
+
   personPrompt(terminalId: string): string | undefined {
     return this.deliveries.personPrompt(terminalId)
   }

@@ -1165,7 +1165,8 @@ session's start earns. The paste check lets the history above the box lose one l
 way Codex's Tip goes, only when at most one line of text is under it and the rows below
 moved up (a list that lost an item has more of its items below).
 
-**The line a ring left.** A doorbell line that is all the agent's own box holds, as its
+**The line a ring left.** A doorbell line, or reply line (its nonce opening and closing it,
+so text typed after it shows, and exactly as the ring typed it), that is all the agent's own box holds, as its
 harness's box reader reads it (the prompt, no overlay over it, no prompt queued, wrapped
 anywhere), whose nonce is one of the terminal's last rings that no doorbell prompt
 confirmed, is Novadeck's, never the person's draft, however that ring ended: its Enter lost,
@@ -1497,6 +1498,58 @@ Only the nonce varies. It names no sender and holds none of `@ / ! # $`, which
 harnesses treat specially (Claude Code attaches an `@path`, Codex opens a file picker on
 `@`).
 
+**The reply line.** When the person's Inbox replies wait for the agent (not a request for
+feedback), the doorbell types them instead, in the person's voice, its nonce opening and
+closing the line:
+
+```text
+[Novadeck Inbox reply, n7Q2] Re your ask "Merge #461 (ligatures on WebGL)?": I picked "Merge it". [n7Q2]
+```
+
+A harness takes a delivery's hook context as something other than the person's words, and
+its own checks may count only their prompts: Claude Code's auto mode reads user messages and
+tool calls, never a hook's context, so it blocked merges and pushes the person had approved
+in the Inbox ("Merge Without Review"), its prompt only the doorbell line saying it wasn't
+theirs. Typed, the reply is their prompt, naming the ask it answers, as the classifier
+wants an approval to name its action. Agents' messages never ride it: a peer's words as a
+prompt would carry the person's authority, so they keep the plain line, and the delivery
+the prompt's hook gives carries every message, the replies again in full under the
+person's mark.
+
+- **Its words.** Each reply is one phrase, `Re your ask "subject":` then the option picked,
+  the action marked done, or the person's words, several joined with `|`. The subject and
+  labels are the agent's, quoted as its ask's: no `"` (as `'`) or `|` (as `/`) of theirs,
+  nor a curly or full-width one, can close the quote or start another reply, so no agent
+  text reads as a pick the person didn't make. In all of it brackets become parentheses (no
+  text shows a line's head or closing nonce), whitespace one space, and `@` and `$`
+  full-width (`＠`, `＄`). A reply holding what a terminal may draw otherwise or not at all
+  (emoji and their modifiers, selectors and keycaps, format characters such as zero-width
+  and direction marks or tags, other controls, unassigned characters) rings with the plain
+  line: dropping it could change the words, and an emoji may be the answer.
+- **Its length.** At most 320 characters, so no harness folds it into a pasted-text
+  placeholder. The agent's subject is cut to 80 and a label to 40; the person's words are
+  never cut. Replies that don't all fit whole ring with the plain line, the delivery
+  carrying them: never some of them, as a later one may take back an earlier, nor part of
+  one, as a cut may drop its condition. The line is made as the typist pastes it, after
+  its watch of the screen, so a reply answered meanwhile is in it.
+- **As the plain line otherwise.** It is a doorbell prompt by its nonce, never the
+  person's own, so it withdraws no ask and clears no done mark; its turn says it carries
+  replies, so a hook with no messages left for it says the replies in it are the user's
+  rather than that the notice can be ignored. Left in the box by a failed ring, it is
+  submitted only while the box holds exactly what was typed (a line the person edited is
+  theirs, and one the doorbell no longer knows is left to them too). After a ring of the
+  terminal fails with its paste counted, the next rings with the plain line, which every
+  harness takes, until one is confirmed.
+- **Its limits.** Replies that reach a working agent (a tool call's or its Stop's hook),
+  replies that don't fit or hold what no line holds, and the rings after a failed one come
+  as context alone, where Claude Code's auto mode doesn't count them. A reply line the
+  person edits in the box and submits themselves still reads as Novadeck's by its frame,
+  so their prompt withdraws no ask.
+- **Its rows.** It wraps over several rows where the plain line takes one, and the paste
+  check lets the box grow a row for each. The rows near it then span more of the screen,
+  so a popup closing there would go unseen by the check; the box reader's check that the
+  box shows, empty and taking a prompt, before the paste is what keeps a ring off one.
+
 Novadeck knows nothing of how a harness draws its screen: no placeholder text, glyphs,
 row positions or footer text. Every check below is the same for every TUI, built from
 what Novadeck sees anyway: the person's input, the decoded activity, and the screen's
@@ -1554,7 +1607,8 @@ text in `record.terminal.screen` (`@xterm/headless`), with its paste mode. The r
    - every row that changed is one the line occupies or within 3 rows of them, which
      covers a vanishing placeholder, footer hints and the box growing. When the box
      grows by a row, the rows above it may move up one and those below down one; they
-     are compared moved. Or, for a ring of a Ready terminal only (a first screen, or one
+     are compared moved. A line that wraps lets it grow a row more for each row past
+     its first. Or, for a ring of a Ready terminal only (a first screen, or one
      after a `/clear` or a resume, its box known empty), as a TUI may draw something
      there only while its box is empty (Codex its logo), farther
      rows changed too, but only as one block of text that vanished whole, and the line

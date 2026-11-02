@@ -187,12 +187,11 @@ const checkRows = (
     if (index > last + nearRows) return index - down
     return undefined
   }
-  const moves = [
-    [0, 0],
-    [1, 0],
-    [0, 1],
-    [1, 1],
-  ] as const
+  // The box grows a row more for each the line wraps onto past its first (a reply line).
+  const grown = 1 + last - first
+  const moves: (readonly [number, number])[] = []
+  for (let up = 0; up <= grown; up += 1)
+    for (let down = 0; down <= grown - up + 1 && down <= grown; down += 1) moves.push([up, down])
   const unchanged = (up: number, down: number) =>
     after.every((row, index) => {
       const from = origin(index, up, down)
