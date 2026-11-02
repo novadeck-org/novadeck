@@ -1518,25 +1518,33 @@ person's mark.
 
 - **Its words.** Each reply is one phrase, `Re your ask "subject":` then the option picked,
   the action marked done, or the person's words, several joined with `|`. The subject and
-  labels are the agent's, quoted as its ask's: no `"` (as `'`) or `|` (as `/`) of theirs can
-  close the quote or start another reply, so no agent text reads as a pick the person
-  didn't make. In all of it brackets become parentheses (no text shows a line's head or
-  closing nonce), control characters a space, `@` and `$` full-width (`＠`, `＄`), and emoji,
-  zero-width and direction marks go, as a terminal may draw them otherwise and the paste
-  check would not find the line.
+  labels are the agent's, quoted as its ask's: no `"` (as `'`) or `|` (as `/`) of theirs,
+  nor a curly or full-width one, can close the quote or start another reply, so no agent
+  text reads as a pick the person didn't make. In all of it brackets become parentheses (no
+  text shows a line's head or closing nonce), whitespace one space, and `@` and `$`
+  full-width (`＠`, `＄`). A reply holding what a terminal may draw otherwise or not at all
+  (emoji and their modifiers, selectors and keycaps, format characters such as zero-width
+  and direction marks or tags, other controls, unassigned characters) rings with the plain
+  line: dropping it could change the words, and an emoji may be the answer.
 - **Its length.** At most 320 characters, so no harness folds it into a pasted-text
-  placeholder. The agent's subject runs to 80 and a label to 40; the person's words go
-  whole where they fit, else each is cut to fit, an ellipsis ending it. Replies that don't
-  all fit with at least 24 characters of their words each ring with the plain line, the
-  delivery carrying them: never some of them, as a later one may take back an earlier.
+  placeholder. The agent's subject is cut to 80 and a label to 40; the person's words are
+  never cut. Replies that don't all fit whole ring with the plain line, the delivery
+  carrying them: never some of them, as a later one may take back an earlier, nor part of
+  one, as a cut may drop its condition. The line is made as the typist pastes it, after
+  its watch of the screen, so a reply answered meanwhile is in it.
 - **As the plain line otherwise.** It is a doorbell prompt by its nonce, never the
   person's own, so it withdraws no ask and clears no done mark; its turn says it carries
-  replies, so a hook with no messages left for it says the replies stand rather than that
-  the notice can be ignored. Left in the box by a failed ring, it is submitted only while
-  the box holds exactly what was typed (a line the person edited is theirs). After a ring
-  of the terminal fails with its paste counted, the next rings with the plain line, which
-  every harness takes. Replies that reach a working agent (a tool call's or its Stop's
-  hook) come as context alone.
+  replies, so a hook with no messages left for it says the replies in it are the user's
+  rather than that the notice can be ignored. Left in the box by a failed ring, it is
+  submitted only while the box holds exactly what was typed (a line the person edited is
+  theirs, and one the doorbell no longer knows is left to them too). After a ring of the
+  terminal fails with its paste counted, the next rings with the plain line, which every
+  harness takes, until one is confirmed.
+- **Its limits.** Replies that reach a working agent (a tool call's or its Stop's hook),
+  replies that don't fit or hold what no line holds, and the rings after a failed one come
+  as context alone, where Claude Code's auto mode doesn't count them. A reply line the
+  person edits in the box and submits themselves still reads as Novadeck's by its frame,
+  so their prompt withdraws no ask.
 - **Its rows.** It wraps over several rows where the plain line takes one, and the paste
   check lets the box grow a row for each. The rows near it then span more of the screen,
   so a popup closing there would go unseen by the check; the box reader's check that the

@@ -14,6 +14,7 @@ import {
 import type { BoxProfile } from "@novadeck/tui-input/box"
 
 import { coalesced } from "../terminals/coalesce.js"
+import { maxUnconfirmed } from "./deliveries.js"
 import type { Waits } from "./delivery.js"
 
 /**
@@ -259,13 +260,12 @@ export class Doorbell {
     if (!this.closed) this.schedule(terminalId)
   }
 
-  /** Forgets a terminal that stopped running. */
   /** Keeps the line a ring typed under `nonce`, with the terminal's last few. */
   private remember(terminalId: string, nonce: string, line: string): void {
     const lines = this.typed.get(terminalId) ?? new Map<string, string>()
     lines.set(nonce, line)
-    // As many as messaging remembers unconfirmed rings (`maxUnconfirmed`).
-    for (const old of [...lines.keys()].slice(0, -8)) lines.delete(old)
+    // As many as messaging remembers unconfirmed rings.
+    for (const old of [...lines.keys()].slice(0, -maxUnconfirmed)) lines.delete(old)
     this.typed.set(terminalId, lines)
   }
 
@@ -274,6 +274,7 @@ export class Doorbell {
     return (nonce) => this.typed.get(terminalId)?.get(nonce)
   }
 
+  /** Forgets a terminal that stopped running. */
   forget(terminalId: string): void {
     tracer.forgotten?.(terminalId)
     this.settle(terminalId)
@@ -601,10 +602,17 @@ export class Doorbell {
     let delivered
     // After a ring that failed with its paste counted, the short doorbell line, which every
     // harness takes: the replies then come with the delivery alone.
-    const line =
-      (this.failures.get(terminalId)?.count ?? 0) > 0
-        ? doorbellLine
-        : (this.host.replies?.(terminalId) ?? doorbellLine)
+    const plain = (this.failures.get(terminalId)?.count ?? 0) > 0
+    // The line is made as the typist pastes it, after its watch of the screen, so it says
+    // the replies waiting then, a late one too; once per nonce, as it is kept as typed.
+    let made: { readonly nonce: string; readonly text: string } | undefined
+    const line = (nonce: string): string => {
+      if (made?.nonce !== nonce) {
+        const replies = plain ? undefined : this.host.replies?.(terminalId)
+        made = { nonce, text: replies?.(nonce) ?? doorbellLine(nonce) }
+      }
+      return made.text
+    }
     try {
       delivered = await typist.deliver(entry, line, {
         // Only a Ready terminal may lose a block of text as the line lands, as Codex's logo.

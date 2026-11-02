@@ -2405,7 +2405,7 @@ describe("ringing", () => {
       { ...doorbellStarted(codex, "old"), replies: true } as HarnessEvent,
     ])
     expect(answer.leaseId).toBeNull()
-    expect(answer.stdout).toContain("the user's Inbox replies this prompt says are theirs")
+    expect(answer.stdout).toContain("the Inbox replies in this prompt are the user's own")
     expect(answer.stdout).not.toContain("can be ignored")
   })
 

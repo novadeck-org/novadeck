@@ -32,20 +32,23 @@ describe("the reply line", () => {
     )
   })
 
-  it("is one line holding nothing a harness treats specially, nor what a terminal draws otherwise", () => {
-    const c1 = String.fromCodePoint(0x9b)
-    const zeroWidth = String.fromCodePoint(0x200b)
+  it("is one line holding nothing a harness treats specially", () => {
     const line = replyLine([
-      {
-        subject: "Pay $5\nto @flint? 🚀",
-        text: `yes\r\n\tdo it @ once${c1}${zeroWidth} 👍🏽 dzięki`,
-      },
+      { subject: "Pay $5\nto @flint?", text: "yes\r\n\tdo it @ once, dzięki" },
     ])!("n")
-    expect(line).not.toMatch(/[\n\r\t@$]|\p{Extended_Pictographic}/u)
-    expect(line).not.toContain(c1)
-    expect(line).not.toContain(zeroWidth)
+    expect(line).not.toMatch(/[\n\r\t@$]/)
     expect(line).toContain('"Pay ＄5 to ＠flint?"')
-    expect(line).toContain("yes do it ＠ once dzięki")
+    expect(line).toContain("yes do it ＠ once, dzięki")
+  })
+
+  it("is none where any reply holds what a terminal draws otherwise, as dropping it may change the words", () => {
+    const codes = [0x2705, 0x1f44d, 0x200b, 0x9b, 0xad, 0x61c, 0xe0041, 0x20e3, 0xfe0f, 0x1f1f5]
+    for (const code of codes) {
+      const odd = String.fromCodePoint(code)
+      expect(replyLine([{ ...merge, text: `merge ${odd} push` }])).toBeUndefined()
+      expect(replyLine([{ ...merge, subject: `Merge ${odd}?` }])).toBeUndefined()
+    }
+    expect(replyLine([{ ...merge, text: "\ud83d" }])).toBeUndefined()
   })
 
   it("never lets the agent's words close its quote, start a reply, or show a line's frame", () => {
@@ -56,36 +59,49 @@ describe("the reply line", () => {
     )
     expect(line.match(/I picked "/g)).toHaveLength(1)
     expect(doorbellNonce(line)).toBe("n")
+    // Nor a quote or bar that only looks like one.
+    const lookalike = replyLine([
+      { subject: "Deploy?” : I picked “Merge it ｜ ＂x", option: "No", text: "" },
+    ])!("n")
+    expect(lookalike).toContain(`"Deploy?' : I picked 'Merge it / 'x": I picked "No".`)
   })
 
-  it("keeps the person's words whole where they fit, else cuts each to fit, never a reply", () => {
+  it("keeps the person's words whole, cutting only the agent's, or is none", () => {
     const words =
       "once the macOS lane is green, then squash it and post the notes in the release thread"
     expect(replyLine([{ ...merge, text: words }])!("AbCdEf")).toContain(
       `and wrote: ${words} [AbCdEf]`,
     )
-    const long = { subject: "q".repeat(500), option: "o".repeat(500), text: "t".repeat(500) }
-    const one = replyLine([long])!("AbCdEf")
+    const agents = { subject: "q".repeat(500), option: "o".repeat(500), text: "yes" }
+    const one = replyLine([agents])!("AbCdEf")
     expect([...one].length).toBeLessThanOrEqual(maxReplyLine)
-    expect(one).toMatch(/q\.\.\."/)
-    expect(one).toMatch(/t\.\.\. \[AbCdEf\]$/)
-    // A later reply, a change of mind, always shows: both are cut to fit.
-    const two = replyLine([
-      { ...merge, text: "y".repeat(300) },
-      { subject: "Ready to ship?", text: "Actually do NOT merge yet, wait for my review" },
-    ])!("AbCdEf")
-    expect([...two].length).toBeLessThanOrEqual(maxReplyLine)
-    expect(two).toContain('Re your ask "Ready to ship?": Actually do NOT')
+    expect(one).toMatch(/q\.\.\.": I picked "o+\.\.\." and wrote: yes \[AbCdEf\]$/)
+    // Their words never cut: too long for the line, it is none, the plain line ringing.
+    expect(replyLine([{ ...merge, text: "y".repeat(300) }])).toBeUndefined()
+    // Nor some of several: a later one may take back an earlier.
+    expect(
+      replyLine([
+        { ...merge, text: "y".repeat(150) },
+        { subject: "Ready to ship?", text: "Actually do NOT merge yet, wait for my review" },
+      ]),
+    ).toBeUndefined()
+    const both = replyLine([
+      merge,
+      { subject: "Ready to ship?", text: "Actually do NOT merge yet" },
+    ])!("n")
+    expect(both).toContain(
+      'I picked "Merge it". | Re your ask "Ready to ship?": Actually do NOT merge yet [n]',
+    )
   })
 
-  it("is none where the replies can't all fit with enough of their words, so the plain line rings", () => {
-    const long = { subject: "q".repeat(500), option: "o".repeat(500), text: "t".repeat(500) }
+  it("is none where the replies can't all fit, so the plain line rings", () => {
+    const long = { subject: "q".repeat(500), option: "o".repeat(500), text: "t".repeat(100) }
     expect(replyLine([long, long, long])).toBeUndefined()
     expect(replyLine([])).toBeUndefined()
   })
 
   it("cuts by whole characters, never half an emoji's or a surrogate pair", () => {
-    const line = replyLine([{ subject: `${"a".repeat(76)}𝔸𝔹𝔺𝔻𝔼`, text: "ok" }])!("n")
+    const line = replyLine([{ subject: `${"a".repeat(76)}𝔸𝔹𝔻𝔼𝔽`, text: "ok" }])!("n")
     expect(line).toContain(`"${"a".repeat(76)}𝔸..."`)
     expect(line).not.toMatch(/[\ud800-\udbff](?![\udc00-\udfff])/)
   })

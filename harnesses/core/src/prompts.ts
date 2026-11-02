@@ -46,29 +46,25 @@ export const maxReplyLine = 320
 // action label.
 const agentLimits = { subject: 80, choice: 40 } as const
 
-// The fewest characters of the person's words worth a line; with less room, the plain line.
-const minWords = 24
-
-// What a line drops: control characters (C0 and C1) as a space, and, as nothing, what a
-// terminal may draw otherwise than it was given, so the paste check never finds it (emoji,
-// their joiners and selectors) or draws as nothing (zero-width and direction marks).
-// eslint-disable-next-line no-control-regex -- Control characters are what it drops.
-const controls = /[\u0000-\u001f\u007f-\u009f]+/g
-const unseen = new RegExp(
-  String.raw`\p{Extended_Pictographic}|\p{Emoji_Modifier}|\p{Regional_Indicator}|[\u200b-\u200f\u202a-\u202e\u2060-\u2069\ufe00-\ufe0f\ufeff]`,
-  "gu",
+// What no line holds: anything a terminal may draw otherwise than it was given, so the
+// paste check never finds it (emoji, their joiners, modifiers and selectors, a keycap), or
+// draws as nothing (format characters: zero-width, direction marks, tags, a soft hyphen),
+// unassigned or private characters, half a surrogate pair, and control characters other
+// than whitespace. Dropping them could change the person's words (an emoji may be the
+// answer), so replies holding any ring with the plain line instead.
+const unfit = new RegExp(
+  String.raw`[\p{Cf}\p{Co}\p{Cn}\p{Cs}\u0000-\u0008\u000b\u000c\u000e-\u001f\u007f-\u009f⃣︀-️\u{e0100}-\u{e01ef}]|\p{Extended_Pictographic}|\p{Emoji_Modifier}|\p{Regional_Indicator}`,
+  "u",
 )
 
 /**
  * Text as one line that no harness treats specially and no one can read as the line's own
- * frame: control characters a space, whitespace runs one space, `@` and `$` (Claude Code
- * attaches an `@path`, Codex opens a picker on either) full-width, and brackets as
- * parentheses, so no text shows a line's head or closing nonce.
+ * frame: whitespace runs one space, `@` and `$` (Claude Code attaches an `@path`, Codex
+ * opens a picker on either) full-width, and brackets as parentheses, so no text shows a
+ * line's head or closing nonce.
  */
 const inline = (text: string): string =>
   text
-    .replace(controls, " ")
-    .replace(unseen, "")
     .replace(/\s+/g, " ")
     .replaceAll("@", "＠")
     .replaceAll("$", "＄")
@@ -77,11 +73,17 @@ const inline = (text: string): string =>
     .trim()
 
 /**
- * The agent's words, as `inline`, which the line quotes: never a double quote or `|`, so
- * they can't close the quote or start another reply, and read as the person's choice.
+ * The agent's words, as `inline`, which the line quotes and cuts to `limit`: never a double
+ * quote or `|`, nor one that looks like it, so they can't close the quote or start another
+ * reply, and read as the person's choice.
  */
 const quoted = (text: string, limit: number): string =>
-  `"${cut(inline(text).replaceAll('"', "'").replaceAll("|", "/"), limit)}"`
+  `"${cut(
+    inline(text)
+      .replace(/["“”„‟″‶＂]/g, "'")
+      .replace(/[|¦∣｜]/g, "/"),
+    limit,
+  )}"`
 
 /** Text cut to `limit` characters (whole code points), an ellipsis ending what was cut. */
 const cut = (text: string, limit: number): string => {
@@ -95,12 +97,12 @@ const cut = (text: string, limit: number): string => {
 }
 
 /**
- * One reply as the line says it, in the person's voice, their words cut to `words`
- * characters: the agent's subject and labels quoted as its own.
+ * One reply as the line says it, in the person's voice, their words whole: the agent's
+ * subject and labels quoted as its own.
  */
-const replyPhrase = ({ subject, option, action, text }: InboxReply, words: number): string => {
+const replyPhrase = ({ subject, option, action, text }: InboxReply): string => {
   const asked = `Re your ask ${quoted(subject, agentLimits.subject)}:`
-  const own = cut(inline(text), words)
+  const own = inline(text)
   if (action !== undefined)
     return `${asked} I marked it done (${quoted(action, agentLimits.choice)}).`
   if (option !== undefined)
@@ -112,32 +114,30 @@ const replyPhrase = ({ subject, option, action, text }: InboxReply, words: numbe
 
 /**
  * The line the doorbell types when the person's Inbox replies wait for the agent: every
- * one of them, in their voice, so the agent's harness takes them as the person's own
- * prompt (as Claude Code's auto mode does an approval); the delivery the prompt's hook
- * gives then carries them in full, with any agents' messages. Its nonce opens and closes
- * it. Within `maxReplyLine`, the person's words in each are cut to fit, an ellipsis
- * showing it; undefined for no replies, or for more than fit with `minWords` of each,
- * which then come with the plain line's delivery alone: never some of them, as a later
- * one may take back an earlier.
+ * one of them, in their voice and their words whole, so the agent's harness takes them as
+ * the person's own prompt (as Claude Code's auto mode does an approval); the delivery the
+ * prompt's hook gives then carries them in full, with any agents' messages. Its nonce opens
+ * and closes it. Only the agent's subject and labels are cut. Undefined for no replies,
+ * for replies that don't all fit `maxReplyLine` whole, and for any holding what no line
+ * holds (`unfit`): those come with the plain line's delivery alone, never some or part of
+ * them, as a later one may take back an earlier, or the words cut a condition off.
  */
 export const replyLine = (
   replies: readonly InboxReply[],
 ): ((nonce: string) => string) | undefined => {
   if (replies.length === 0) return undefined
-  const frame = (nonce: string, words: number) =>
-    `[${replyHead}, ${nonce}] ${replies.map((reply) => replyPhrase(reply, words)).join(" | ")} [${nonce}]`
-  // The person's words go uncut where they fit, else as long as they all fit.
-  const longest = Math.max(...replies.map(({ text }) => [...inline(text)].length))
-  const room = (nonce: string): number | undefined => {
-    for (let words = Math.min(longest, maxReplyLine); words >= minWords; words -= 1)
-      if ([...frame(nonce, words)].length <= maxReplyLine) return words
-    return longest < minWords && [...frame(nonce, longest)].length <= maxReplyLine
-      ? longest
-      : undefined
-  }
-  // Whether they fit is told once, by a nonce as long as the typist's.
-  if (room("x".repeat(nonceLength)) === undefined) return undefined
-  return (nonce) => frame(nonce, room(nonce) ?? minWords)
+  const fields = replies.flatMap(({ subject, option, action, text }) => [
+    subject,
+    option ?? "",
+    action ?? "",
+    text,
+  ])
+  if (fields.some((field) => unfit.test(field))) return undefined
+  const body = replies.map(replyPhrase).join(" | ")
+  const line = (nonce: string) => `[${replyHead}, ${nonce}] ${body} [${nonce}]`
+  // Whether they fit is told by a nonce as long as the typist's (`freshNonce`).
+  if ([...line("x".repeat(nonceLength))].length > maxReplyLine) return undefined
+  return line
 }
 
 /** The length of the typist's nonces (`freshNonce` in `@novadeck/tui-input`). */

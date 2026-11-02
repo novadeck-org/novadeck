@@ -216,7 +216,12 @@ for (const setup of setups) {
       expect(waiting().map((each) => each.id)).toEqual([ask.id])
       const mark = terminal.mark()
       // This is the same runner operation that the authenticated UI's inbox.answer calls.
-      run.deck.terminals.answerAsk(ask.id, { type: "reply", option: 1, text: "Use green, please." })
+      // Their words hold what the line must carry safely: @ and $, and letters past ASCII.
+      run.deck.terminals.answerAsk(ask.id, {
+        type: "reply",
+        option: 1,
+        text: "Use green, please: zażółć, @flint, $5.",
+      })
       expect(() =>
         run.deck.terminals.answerAsk(ask.id, { type: "reply", option: null, text: "Again" }),
       ).toThrow(/no longer/)
@@ -227,14 +232,14 @@ for (const setup of setups) {
       const text = [received.system, ...received.turns.map((entry) => entry.text)].join("\n")
       expect(text).toMatch(/person=['"][A-Za-z0-9]{8}['"]/)
       expect(text).toContain("Novadeck relayed the user's response")
-      expect(text).toContain("Use green, please.")
+      expect(text).toContain("Use green, please: zażółć, @flint, $5.")
       // The doorbell typed the reply as the person's own prompt, which the harness sent as
       // a user turn: what an approval check that reads only the person's words sees.
       expect(
         received.turns.some(
           (entry) =>
             entry.role === "user" &&
-            /\[Novadeck Inbox reply, ([A-Za-z0-9]+)\] Re your ask "Which colour should the heading use\?": I picked "Green" and wrote: Use green, please\. \[\1\]/.test(
+            /\[Novadeck Inbox reply, ([A-Za-z0-9]+)\] Re your ask "Which colour should the heading use\?": I picked "Green" and wrote: Use green, please: zażółć, ＠flint, ＄5\. \[\1\]/.test(
               entry.text,
             ),
         ),
@@ -245,7 +250,7 @@ for (const setup of setups) {
           from: { kind: "person" },
           to: { kind: "agent", handle: terminal.handle, agent: expect.anything() },
           state: "delivered",
-          text: "Green\n\nUse green, please.",
+          text: "Green\n\nUse green, please: zażółć, @flint, $5.",
         },
       ])
       expect(history.find((message) => message.inbox === "ask")?.text).toContain(

@@ -34,7 +34,7 @@ const idle = (delivery: Delivery, inBackground: boolean): boolean =>
   delivery.state === "ringing"
 
 /** How many of a terminal's latest unconfirmed rings it remembers (`Live.unconfirmed`). */
-const maxUnconfirmed = 8
+export const maxUnconfirmed = 8
 
 /**
  * Whether subagents a turn left running run on, to wake its agent: delivery's

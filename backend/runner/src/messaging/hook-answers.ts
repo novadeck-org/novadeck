@@ -28,11 +28,11 @@ const nothingWaiting =
 
 /** What a reply line's hook adds when its messages couldn't come now: the replies stand. */
 const repliesWaiting =
-  "Novadeck: the user's Inbox replies this prompt says are theirs; their full messages are still waiting and come on a later turn."
+  "Novadeck: the Inbox replies in this prompt are the user's own; their full messages are still waiting and come on a later turn."
 
 /** What a reply line's hook adds when its messages came another way. */
 const repliesCame =
-  "Novadeck: the user's Inbox replies this prompt says are theirs; their full messages already reached you."
+  "Novadeck: the Inbox replies in this prompt are the user's own; their full messages already reached you."
 
 /** A lease is given only with this long left before its hook's deadline, in milliseconds. */
 export const leaseMargin = 300

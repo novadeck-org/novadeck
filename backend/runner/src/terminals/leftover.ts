@@ -13,3 +13,7 @@ export const leftoverNonce = (text: string): string | undefined => {
     /^\[NovadeckInboxreply,([A-Za-z0-9]+)\](?:(?!\[NovadeckInboxreply,).)*\[\1\]$/.exec(box)?.[1]
   )
 }
+
+/** Whether a box's text is a reply line rather than the plain doorbell line. */
+export const replyLeftover = (text: string): boolean =>
+  compact(text).startsWith("[NovadeckInboxreply,")

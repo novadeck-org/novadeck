@@ -12,7 +12,7 @@ import { doorbellLog } from "../messaging/doorbell-log.js"
 import { tracer, type DoorbellHost } from "../messaging/doorbell.js"
 import type { Messaging } from "../messaging/messaging.js"
 import { busy } from "./busy.js"
-import { leftoverNonce } from "./leftover.js"
+import { leftoverNonce, replyLeftover } from "./leftover.js"
 import type { Bound } from "./record.js"
 
 /** What the doorbell reads of a running terminal's record. */
@@ -219,9 +219,11 @@ export const doorbellHost = <R extends DoorbellRecord>(
         return undefined
       const nonce = leftoverNonce(text.text)
       if (nonce === undefined || !messaging.unconfirmed(terminalId, nonce)) return undefined
-      // Exactly what the ring typed, where the doorbell knows it: an edited line is the person's.
+      // Exactly what the ring typed: an edited line is the person's. A reply line the doorbell
+      // no longer knows is left to them too; the plain line is the same for every nonce.
       const line = typed?.(nonce)
-      return line === undefined || compact(line) === compact(text.text) ? nonce : undefined
+      if (line === undefined) return replyLeftover(text.text) ? undefined : nonce
+      return compact(line) === compact(text.text) ? nonce : undefined
     },
     replies: (terminalId) => messaging.replyLine(terminalId),
     ringLeftover: (terminalId, nonce) => {
