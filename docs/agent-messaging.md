@@ -2144,8 +2144,10 @@ again on each call.
   5. every turn's start while the terminal has no summary at all: an agent whose first prompt
      gives it no work yet (a question) puts the first nudge off, as the notice allows, and
      without this would hear nothing more until the backstop, its terminal untitled. The
-     notice tells such an agent to ignore it and make up no summary to quiet it, as it comes
-     with each prompt (an agent only chatting once named a placeholder subject to stop it).
+     notice counts any task, investigation, review, design discussion or question to dig
+     into as work, and tells an agent with only small talk so far to let it be and make up no
+     summary to quiet it, as it comes with each prompt (an agent only chatting once named a
+     placeholder subject to stop it).
 
 - **A page's troubles.** When a page an agent showed with `show` has problems in the
   user's pane (console errors, failed requests, a failed load), the pane reports them with
