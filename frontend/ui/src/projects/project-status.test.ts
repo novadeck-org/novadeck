@@ -114,7 +114,9 @@ describe("A project's status", () => {
       expect(projectStatus(project("p", [working]), ends)).toBe("running")
       // A bare end reads unread, which no status marks; a done report that stands does.
       expect(projectStatus(project("p", [working, running(6, {})]), ends)).toBe("running")
-      expect(projectStatus(project("p", [working, finished]), ends)).toBe("done")
+      // One finished terminal leaves the project working while another works on.
+      expect(projectStatus(project("p", [working, finished]), ends)).toBe("running")
+      expect(projectStatus(project("p", [finished, running(6, {})]), ends)).toBe("done")
       expect(projectStatus(project("p", [finished, failed, working]), ends)).toBe("failed")
       expect(projectStatus(project("p", [failed, waiting]), ends)).toBe("unblock")
       expect(projectStatus(project("p", [waiting, asking, failed]), ends)).toBe("unblock")
