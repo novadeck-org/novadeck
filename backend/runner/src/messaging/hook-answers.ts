@@ -26,6 +26,14 @@ const stillWaiting =
 const nothingWaiting =
   "Novadeck: no agent messages are waiting any more; this automatic notice can be ignored."
 
+/** What a reply line's hook adds when its messages couldn't come now: the replies stand. */
+const repliesWaiting =
+  "Novadeck: the user's Inbox replies this prompt says are theirs; their full messages are still waiting and come on a later turn."
+
+/** What a reply line's hook adds when its messages came another way. */
+const repliesCame =
+  "Novadeck: the user's Inbox replies this prompt says are theirs; their full messages already reached you."
+
 /** A lease is given only with this long left before its hook's deadline, in milliseconds. */
 export const leaseMargin = 300
 
@@ -282,6 +290,7 @@ export class HookAnswers {
         undelivered(message) &&
         addressed(message, root),
     )
+    if (start.replies) return answered(only?.id ?? null, waits ? repliesWaiting : repliesCame)
     return answered(only?.id ?? null, waits ? stillWaiting : nothingWaiting)
   }
 

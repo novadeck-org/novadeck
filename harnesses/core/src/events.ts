@@ -111,6 +111,8 @@ export type ActivityEvent = EventBase &
         readonly prompt?: string
         /** A doorbell prompt's nonce. */
         readonly nonce?: string
+        /** A doorbell prompt that says the person's Inbox replies (`replyLine`). */
+        readonly replies?: true
         /** The turn's id, where the harness names one, as Codex does. */
         readonly turn?: string
         /**

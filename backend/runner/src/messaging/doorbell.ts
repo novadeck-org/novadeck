@@ -73,9 +73,14 @@ export type DoorbellHost = {
   /**
    * The nonce of the doorbell line that is all the agent's own box holds, as a ring that
    * failed or was abandoned left it: Novadeck's, never the person's draft; undefined
-   * otherwise.
+   * otherwise. `typed` gives the line a ring typed under a nonce, where the doorbell still
+   * knows it: the box must hold exactly that, so a reply line the person edited is theirs.
    */
-  readonly leftover: (terminalId: string, screen: ScreenText) => string | undefined
+  readonly leftover: (
+    terminalId: string,
+    screen: ScreenText,
+    typed?: (nonce: string) => string | undefined,
+  ) => string | undefined
   /** Starts the submission of that line, under its nonce: the terminal is Ringing; false when it may not now. */
   readonly ringLeftover: (terminalId: string, nonce: string) => boolean
   /** How much longer the screen is not believed, after a Stop that left a prompt queued; 0 if none. */
@@ -191,6 +196,8 @@ export class Doorbell {
   private readonly recheckMaxMs: number
   /** How long until each stalled terminal's screen is looked at next, as it backs off. */
   private readonly backoff = new Map<string, number>()
+  /** The lines each terminal's latest rings typed, by nonce (see `DoorbellHost.leftover`). */
+  private readonly typed = new Map<string, Map<string, string>>()
   /** How many rings in a row failed in each terminal, and the last failed one's nonce. */
   private readonly failures = new Map<
     string,
@@ -253,6 +260,20 @@ export class Doorbell {
   }
 
   /** Forgets a terminal that stopped running. */
+  /** Keeps the line a ring typed under `nonce`, with the terminal's last few. */
+  private remember(terminalId: string, nonce: string, line: string): void {
+    const lines = this.typed.get(terminalId) ?? new Map<string, string>()
+    lines.set(nonce, line)
+    // As many as messaging remembers unconfirmed rings (`maxUnconfirmed`).
+    for (const old of [...lines.keys()].slice(0, -8)) lines.delete(old)
+    this.typed.set(terminalId, lines)
+  }
+
+  /** The lines the terminal's rings typed, by nonce, as `DoorbellHost.leftover` takes them. */
+  private typedIn(terminalId: string): (nonce: string) => string | undefined {
+    return (nonce) => this.typed.get(terminalId)?.get(nonce)
+  }
+
   forget(terminalId: string): void {
     tracer.forgotten?.(terminalId)
     this.settle(terminalId)
@@ -260,6 +281,7 @@ export class Doorbell {
     this.timers.delete(terminalId)
     this.backoff.delete(terminalId)
     this.failures.delete(terminalId)
+    this.typed.delete(terminalId)
     this.typists.get(terminalId)?.forget()
     this.typists.delete(terminalId)
     this.looked.delete(terminalId)
@@ -513,7 +535,7 @@ export class Doorbell {
     }
     // A doorbell line alone in the box, as a failed or abandoned ring left it: Novadeck's
     // own, submitted once the wait after the failure is over.
-    const left = this.host.leftover(terminalId, screen)
+    const left = this.host.leftover(terminalId, screen, this.typedIn(terminalId))
     if (left !== undefined) {
       const failed = this.failures.get(terminalId)
       if (failed && now < failed.retryAt) {
@@ -590,6 +612,7 @@ export class Doorbell {
         calmSince,
         start: (nonce) => {
           if (!this.host.ring(terminalId, nonce)) return false
+          this.remember(terminalId, nonce, line(nonce))
           started = nonce
           return true
         },
@@ -625,7 +648,8 @@ export class Doorbell {
     if (this.leftovers.get(terminalId) !== nonce) return
     this.leftovers.delete(terminalId)
     const screen = await this.host.target(terminalId)?.screen()
-    if (!screen || this.host.leftover(terminalId, screen) !== nonce) return
+    if (!screen || this.host.leftover(terminalId, screen, this.typedIn(terminalId)) !== nonce)
+      return
     if (!this.host.ringLeftover(terminalId, nonce)) return
     const typist = this.typist(terminalId)
     if (!typist) return

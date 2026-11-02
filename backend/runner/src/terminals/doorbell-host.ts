@@ -3,7 +3,7 @@ import type { AgentName } from "@novadeck/protocol"
 import type { Terminal } from "@novadeck/terminal/host"
 import { foregroundRuns, processGroup, terminalForeground } from "@novadeck/terminal/pty"
 import type { TypingTarget } from "@novadeck/tui-input"
-import { isEmpty, type BoxProfile } from "@novadeck/tui-input/box"
+import { compact, isEmpty, type BoxProfile } from "@novadeck/tui-input/box"
 
 import { blocking } from "../harnesses/activity.js"
 import type { Binding } from "../harnesses/bindings.js"
@@ -211,14 +211,17 @@ export const doorbellHost = <R extends DoorbellRecord>(
     // Novadeck's, however that ring ended (its paste check rejected, abandoned mid-way, its
     // Enter lost). A confirmed ring's line there is the person's (their Escape put it back,
     // or they recalled it), as is anything beside it, or a prompt queued with it.
-    leftover: (terminalId, screen) => {
+    leftover: (terminalId, screen, typed) => {
       if (!live(terminalId)) return undefined
       const box = profile(terminalId)
       const text = box?.read(screen)
       if (!box || !text || text.mode !== "prompt" || box.overlay(screen) || box.queued(screen))
         return undefined
       const nonce = leftoverNonce(text.text)
-      return nonce !== undefined && messaging.unconfirmed(terminalId, nonce) ? nonce : undefined
+      if (nonce === undefined || !messaging.unconfirmed(terminalId, nonce)) return undefined
+      // Exactly what the ring typed, where the doorbell knows it: an edited line is the person's.
+      const line = typed?.(nonce)
+      return line === undefined || compact(line) === compact(text.text) ? nonce : undefined
     },
     replies: (terminalId) => messaging.replyLine(terminalId),
     ringLeftover: (terminalId, nonce) => {

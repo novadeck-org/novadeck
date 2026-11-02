@@ -2397,6 +2397,18 @@ describe("ringing", () => {
     expect(messaging.delivery("B")).toMatchObject({ state: "working", box: { empty: true } })
   })
 
+  it("tells a reply line's prompt with nothing left for it that the replies it says stand", () => {
+    const { ask, codex, prompt, stop } = create()
+    prompt("B", codex)
+    stop("B", codex)
+    const answer = ask("B", codex, "UserPromptSubmit", [
+      { ...doorbellStarted(codex, "old"), replies: true } as HarnessEvent,
+    ])
+    expect(answer.leaseId).toBeNull()
+    expect(answer.stdout).toContain("the user's Inbox replies this prompt says are theirs")
+    expect(answer.stdout).not.toContain("can be ignored")
+  })
+
   it("gives way to another prompt, the ring then over", () => {
     const { messaging, prompt, codex } = settledWithMessages()
     messaging.ring("B", "n1")

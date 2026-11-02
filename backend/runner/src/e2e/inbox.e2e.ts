@@ -234,7 +234,7 @@ for (const setup of setups) {
         received.turns.some(
           (entry) =>
             entry.role === "user" &&
-            /\[Novadeck Inbox reply, ([A-Za-z0-9]+)\] Re "Which colour should the heading use\?": I picked "Green" and wrote: Use green, please\. \[\1\]/.test(
+            /\[Novadeck Inbox reply, ([A-Za-z0-9]+)\] Re your ask "Which colour should the heading use\?": I picked "Green" and wrote: Use green, please\. \[\1\]/.test(
               entry.text,
             ),
         ),

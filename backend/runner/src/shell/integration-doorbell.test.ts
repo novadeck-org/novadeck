@@ -119,7 +119,7 @@ describe.skipIf(process.platform === "win32" || !existsSync(bash))(
         const rung = tui.received().at(-1)!
         // The prompt is the person's reply, ＠ in place of the @ a harness takes as a path.
         expect(rung.prompt).toMatch(
-          /^\[Novadeck Inbox reply, ([A-Za-z0-9]+)\] Re "Which colour\?": blue, ask ＠flint \[\1\]$/,
+          /^\[Novadeck Inbox reply, ([A-Za-z0-9]+)\] Re your ask "Which colour\?": blue, ask ＠flint \[\1\]$/,
         )
         // Its hook delivers the reply in full beside it, under the person's mark.
         expect(rung.printed).toContain("<reply>blue, ask @flint</reply>")
