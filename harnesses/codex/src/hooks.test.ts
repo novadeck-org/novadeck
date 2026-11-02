@@ -25,7 +25,7 @@ describe("the hooks Novadeck gives Codex", () => {
       createHash("sha256").update(hooks(platform)).digest("hex")
     expect({ linux: digest("linux"), win32: digest("win32") }).toEqual({
       linux: "95937995adee748f8bdb8878e2702652f5c5308e881955b63912cf679bb350a0",
-      win32: "0748259c99ee2a4ca858b6e812da414668cd3b453e7f3cb299af9daac330705f",
+      win32: "e6bc5a1052061f531cff3e6d8a7a549dec5617c210a8d3c1be6316132b9acdc4",
     })
   })
 })

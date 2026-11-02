@@ -1283,8 +1283,8 @@ read. Each harness reaches cmd differently, so each has its own guard:
 - **Claude Code and Codex** run their hooks in PowerShell. The launcher `NOVADECK_HOOK` is a
   batch file (`hook.cmd`), which Windows starts through `cmd /c` with no `/d`, so the AutoRun
   ran first. Their hook line (`hookCommand`, PowerShell dialect) now starts that cmd itself:
-  `& $(if ($env:ComSpec) { $env:ComSpec } else { 'cmd.exe' }) /d /c $env:NOVADECK_HOOK <agent> <event>`.
-  The path stays an argument PowerShell quotes, so a space or an 8.3 name in it is safe; only
+  `$l = '"' + $env:NOVADECK_HOOK + '" <agent> <event>'; & $(if ($env:ComSpec) { $env:ComSpec } else { 'cmd.exe' }) /d /s /c $l`.
+  The path sits inside one quoted command line that `/s` unwraps, so a space, an `&` or an 8.3 name in it is safe; only
   Novadeck's hook line changes, never the agent's own commands. Because Codex trusts a hook by
   its definition, people who connected Codex on Windows review the changed hook once. Claude
   Code's status line runs in Git Bash (`sh`) and is not changed: an AutoRun's text could show

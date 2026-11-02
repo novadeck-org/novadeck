@@ -67,8 +67,11 @@ export const hookCommand = (dialect: Dialect, { agent, event, fallback }: HookCa
       // The launcher is a batch file (hook.cmd), which Windows starts through `cmd /c` with no
       // `/d`, so the machine's or the person's cmd AutoRun would run first and print ahead of
       // the hook's JSON. So cmd is started here, with `/d`, as Novadeck's own hook line only.
+      // The command line is one quoted string for `/s`, which strips its outer quotes: a path
+      // with a space or an `&` stays whole, as PowerShell wraps the argument in quotes itself.
       const cmd = "$(if ($env:ComSpec) { $env:ComSpec } else { 'cmd.exe' })"
-      const found = `if ($env:NOVADECK_HOOK -and (Test-Path -LiteralPath $env:NOVADECK_HOOK)) { & ${cmd} /d /c $env:NOVADECK_HOOK ${run} }`
+      const line = `$l = '"' + $env:NOVADECK_HOOK + '" ${run}'; & ${cmd} /d /s /c $l`
+      const found = `if ($env:NOVADECK_HOOK -and (Test-Path -LiteralPath $env:NOVADECK_HOOK)) { ${line} }`
       return fallback === undefined ? found : `${found} else { ${psQuote(fallback)} }`
     }
     case "cmd": {

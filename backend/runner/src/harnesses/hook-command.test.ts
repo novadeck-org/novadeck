@@ -106,7 +106,7 @@ describe("a hook command", () => {
     ] as const) {
       const command = hookCommand("powershell", { agent, event })
       expect(command).toBe(
-        `if ($env:NOVADECK_HOOK -and (Test-Path -LiteralPath $env:NOVADECK_HOOK)) { & $(if ($env:ComSpec) { $env:ComSpec } else { 'cmd.exe' }) /d /c $env:NOVADECK_HOOK ${agent} ${event} }`,
+        `if ($env:NOVADECK_HOOK -and (Test-Path -LiteralPath $env:NOVADECK_HOOK)) { $l = '"' + $env:NOVADECK_HOOK + '" ${agent} ${event}'; & $(if ($env:ComSpec) { $env:ComSpec } else { 'cmd.exe' }) /d /s /c $l }`,
       )
       // The launcher's path stays an argument read from the environment, so a space, `&` or
       // an 8.3 name (C:\Users\RUNNER~1\...) in it is quoted by PowerShell, never spliced.
@@ -123,7 +123,7 @@ describe("a hook command", () => {
       writeFileSync(hook, "@echo off\r\necho %cmdcmdline%\r\n")
       const command = hookCommand("powershell", { agent: "claude", event: "Stop" })
       const { stdout } = run("powershell", command, { NOVADECK_HOOK: hook })
-      expect(stdout).toMatch(/ \/d \/c /i)
+      expect(stdout).toMatch(/ \/d \/s \/c /i)
     },
   )
 
