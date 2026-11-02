@@ -98,6 +98,43 @@ describe.skipIf(process.platform === "win32" || !existsSync(bash))(
       expect(tui.received()).toHaveLength(2)
     })
 
+    for (const agent of ["codex", "claude", "agy"] as const)
+      it(`wakes ${agent} with the person's Inbox reply as its prompt, in their words`, async ({
+        shell,
+      }) => {
+        const tui = await ringing(shell, "asking", "tui", agent)
+        if (agent === "agy") await agyStarted(tui)
+        else await tui.first()
+        const asking = () =>
+          tui.manager.inboxEntries().filter(({ content }) => content.kind === "ask")
+        await expect.poll(asking, { timeout: 10_000 }).toHaveLength(1)
+        await expect.poll(tui.delivery, { timeout: 10_000 }).toBe("settled")
+        const turns = tui.received().length
+        tui.manager.answerAsk(asking()[0]!.id, {
+          type: "reply",
+          option: null,
+          text: "blue, ask @flint",
+        })
+        await vi.waitFor(() => expect(tui.received()).toHaveLength(turns + 1), { timeout: 10_000 })
+        const rung = tui.received().at(-1)!
+        // The prompt is the person's reply, ＠ in place of the @ a harness takes as a path.
+        expect(rung.prompt).toMatch(
+          /^\[Novadeck Inbox reply, ([A-Za-z0-9]+)\] Re "Which colour\?": blue, ask ＠flint \[\1\]$/,
+        )
+        // Its hook delivers the reply in full beside it, under the person's mark.
+        expect(rung.printed).toContain("<reply>blue, ask @flint</reply>")
+        await expect
+          .poll(() => tui.manager.messages(tui.idle.id).threads.flatMap(({ messages }) => messages))
+          .toContainEqual(expect.objectContaining({ state: "delivered", text: "blue, ask @flint" }))
+        await tui.back(turns + 1)
+        await expect.poll(tui.delivery, { timeout: 10_000 }).toBe("settled")
+        // A doorbell prompt, never the person's own: it tells the agent of no ask taken out.
+        expect(rung.printed).not.toContain("took your open ask")
+        expect(asking()).toEqual([])
+        await quiet()
+        expect(tui.received()).toHaveLength(turns + 1)
+      })
+
     it("types only the constant doorbell line into a terminal whose title holds @ and quotes", async ({
       shell,
     }) => {

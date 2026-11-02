@@ -228,6 +228,17 @@ for (const setup of setups) {
       expect(text).toMatch(/person=['"][A-Za-z0-9]{8}['"]/)
       expect(text).toContain("Novadeck relayed the user's response")
       expect(text).toContain("Use green, please.")
+      // The doorbell typed the reply as the person's own prompt, which the harness sent as
+      // a user turn: what an approval check that reads only the person's words sees.
+      expect(
+        received.turns.some(
+          (entry) =>
+            entry.role === "user" &&
+            /\[Novadeck Inbox reply, ([A-Za-z0-9]+)\] Re "Which colour should the heading use\?": I picked "Green" and wrote: Use green, please\. \[\1\]/.test(
+              entry.text,
+            ),
+        ),
+      ).toBe(true)
       const history = terminal.messages().threads.flatMap((thread) => thread.messages)
       expect(history.filter((message) => message.inbox === "answer")).toMatchObject([
         {

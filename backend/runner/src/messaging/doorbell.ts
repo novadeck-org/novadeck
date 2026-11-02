@@ -88,6 +88,12 @@ export type DoorbellHost = {
   /** What types into the terminal; undefined once it is gone. */
   readonly target: (terminalId: string) => TypingTarget | undefined
   /**
+   * The line to ring with, by its nonce, where the person's Inbox replies wait there: they
+   * reach the agent as its prompt, in their words (`replyLine`). Undefined for the plain
+   * doorbell line, as a host without it always rings.
+   */
+  readonly replies?: (terminalId: string) => ((nonce: string) => string) | undefined
+  /**
    * How the agent bound there, or shown at its prompt before one binds, draws its input box;
    * undefined where there is none, and the gate finds no box. A host without it (a test's)
    * leaves the gate unable to tell.
@@ -571,8 +577,14 @@ export class Doorbell {
     if (!typist) return
     let started: string | undefined
     let delivered
+    // After a ring that failed with its paste counted, the short doorbell line, which every
+    // harness takes: the replies then come with the delivery alone.
+    const line =
+      (this.failures.get(terminalId)?.count ?? 0) > 0
+        ? doorbellLine
+        : (this.host.replies?.(terminalId) ?? doorbellLine)
     try {
-      delivered = await typist.deliver(entry, doorbellLine, {
+      delivered = await typist.deliver(entry, line, {
         // Only a Ready terminal may lose a block of text as the line lands, as Codex's logo.
         vanish: () => this.host.ready(terminalId),
         calmSince,

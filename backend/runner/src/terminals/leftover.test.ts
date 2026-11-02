@@ -1,4 +1,4 @@
-import { doorbellLine } from "@novadeck/harness-core/prompts"
+import { doorbellLine, replyLine } from "@novadeck/harness-core/prompts"
 
 import { describe, expect, it } from "../test.js"
 import { leftoverNonce } from "./leftover.js"
@@ -16,5 +16,15 @@ describe("the line a failed ring left in a box", () => {
     expect(leftoverNonce(`Hello ${doorbellLine("n7Q2")}`)).toBeUndefined()
     expect(leftoverNonce(`${doorbellLine("n7Q2")}${doorbellLine("k3f9")}`)).toBeUndefined()
     expect(leftoverNonce("")).toBeUndefined()
+  })
+
+  it("is told for a reply line alone, wrapped anywhere, but not with text after or a second one", () => {
+    const reply = replyLine([{ subject: "Merge #461?", option: "Merge it", text: "" }])!
+    const line = reply("n7Q2")
+    expect(leftoverNonce(line)).toBe("n7Q2")
+    expect(leftoverNonce(line.replace('Re "', 'Re\n"'))).toBe("n7Q2")
+    expect(leftoverNonce(`${line} and then`)).toBeUndefined()
+    expect(leftoverNonce(`${line}${reply("k3f9")}`)).toBeUndefined()
+    expect(leftoverNonce(`${reply("k3f9")} ${doorbellLine("n7Q2")}`)).toBeUndefined()
   })
 })

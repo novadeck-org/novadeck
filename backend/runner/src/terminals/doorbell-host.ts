@@ -220,6 +220,7 @@ export const doorbellHost = <R extends DoorbellRecord>(
       const nonce = leftoverNonce(text.text)
       return nonce !== undefined && messaging.unconfirmed(terminalId, nonce) ? nonce : undefined
     },
+    replies: (terminalId) => messaging.replyLine(terminalId),
     ringLeftover: (terminalId, nonce) => {
       const rung = messaging.ringLeftover(terminalId, nonce)
       if (rung) doorbellLog.current?.ring(terminalId, messaging.waitedMs(terminalId))

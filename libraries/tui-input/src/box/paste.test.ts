@@ -56,6 +56,24 @@ describe("the paste check", () => {
     })
   })
 
+  it("lets the box grow a row for each the line wraps onto, and no more", () => {
+    const long = `[Novadeck Inbox reply, n7Q2] Re "${"x".repeat(150)}": I picked "Merge it". [n7Q2]`
+    const rows = (text: string) => [text.slice(0, 60), text.slice(60, 120), text.slice(120)]
+    const history = Array.from({ length: 10 }, (_, index) => `history ${index + 1}`)
+    const before = [...history, "> ", "─ footer"]
+    // Three rows of line: the box grew up two and everything above it moved up two.
+    const [a, b, c] = rows(long)
+    const box = [`> ${a}`, `  ${b}`, `  ${c}`, "─ footer"]
+    const after = [...history.slice(2), ...box]
+    expect(checkPaste(before, after, long)).toMatchObject({ accepted: true, first: 8, last: 10 })
+    // A far row showing something new, wherever the box grew from: refused.
+    const changed = ["popup row", ...history.slice(3), ...box]
+    expect(checkPaste(before, changed, long)).toMatchObject({
+      accepted: false,
+      reason: "elsewhere",
+    })
+  })
+
   it("finds the line wrapped across rows, indented or not", () => {
     expect(findLine([`> ${line.slice(0, 40)}`, `  ${line.slice(40)}`], line)).toEqual([
       { first: 0, last: 1, column: 2 },

@@ -20,6 +20,7 @@ import {
 import { addressed, awaiting, feed, promptsInBackground, type Live } from "./live.js"
 import type { Loops } from "./loops.js"
 import type { MessageStore } from "./message-store.js"
+import type { Message } from "./messages.js"
 import type { Sessions } from "./sessions.js"
 
 /**
@@ -264,6 +265,12 @@ export class Deliveries {
 
   /** Whether messages wait for the terminal's root session (or the one about to bind). */
   private waiting(live: Live): boolean {
+    for (const _ of this.waitingFor(live)) return true
+    return false
+  }
+
+  /** The messages waiting for the terminal's root session (or the one about to bind). */
+  private *waitingFor(live: Live): Generator<Message> {
     const { root, terminalId } = live
     for (const message of this.host.store.messages())
       if (
@@ -271,8 +278,19 @@ export class Deliveries {
         message.to.terminalId === terminalId &&
         (root ? addressed(message, root) : awaiting(live, message))
       )
-        return true
-    return false
+        yield message
+  }
+
+  /**
+   * The person's Inbox replies waiting for the terminal's root session, oldest first: the
+   * ones the doorbell's line says. A request for feedback is none.
+   */
+  waitingReplies(terminalId: string): readonly Message[] {
+    const live = this.host.sessions.get(terminalId)
+    if (!live) return []
+    return [...this.waitingFor(live)]
+      .filter((message) => message.response !== undefined && !message.response.feedback)
+      .toSorted((a, b) => a.sentAt - b.sentAt)
   }
 
   /**

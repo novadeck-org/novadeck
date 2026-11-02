@@ -56,6 +56,8 @@ const terminal = (
     resizeAtForeground?: boolean
     /** Its hold's settle never takes effect: only the size cap ends the hold of the resizes. */
     settleLost?: boolean
+    /** The person's Inbox replies wait there: the line the host gives for them. */
+    replies?: (nonce: string) => string
   } = {},
 ) => {
   const rows = options.logo
@@ -159,6 +161,7 @@ const terminal = (
     },
     agentGone: () => void asked.push("agentGone"),
     target: () => target,
+    ...(options.replies && { replies: () => options.replies }),
   }
   const target: TypingTarget = {
     screen: async () => {
@@ -264,6 +267,12 @@ const terminal = (
     confirm: () => (ringing = undefined),
     // Idle but not ringable by its state, as after the turn that took a ring over.
     stall: () => (stalled = true),
+    // Settled again with its box empty and messages waiting, as after a turn of its own.
+    rearm: () => {
+      rows.splice(0, rows.length, "header", "", "", "", "", "", "> ", "", "footer")
+      stalled = false
+      ringable = true
+    },
   }
 }
 
@@ -539,6 +548,26 @@ describe("the doorbell", () => {
     expect(pastedAt! - resizedAt).toBeGreaterThanOrEqual(100)
     expect(written).toHaveLength(2)
     expect(failed).toEqual([])
+    doorbell.close()
+  })
+
+  it("rings with the person's Inbox replies as its line, and the plain line after a ring of them failed", async () => {
+    const replies = (nonce: string) => `[Novadeck Inbox reply, ${nonce}] Re "x": yes [${nonce}]`
+    const { host, written, failed, rearm } = terminal({ takes: "elsewhere", replies })
+    const doorbell = new Doorbell(host, host.queue, fast)
+    doorbell.changed("t")
+    await vi.waitFor(() => expect(failed).toHaveLength(1))
+    expect(written[0]).toMatch(
+      // eslint-disable-next-line no-control-regex -- A bracketed paste's markers.
+      /^\x1b\[200~\[Novadeck Inbox reply, ([A-Za-z0-9]{6})\] Re "x": yes \[\1\]\x1b\[201~$/,
+    )
+    rearm()
+    doorbell.changed("t")
+    await vi.waitFor(() => expect(written).toHaveLength(2), { timeout: 5_000 })
+    expect(written[1]).toMatch(
+      // eslint-disable-next-line no-control-regex -- A bracketed paste's markers.
+      /^\x1b\[200~\[Novadeck: automatic notice, agent messages waiting, [A-Za-z0-9]{6}\]\x1b\[201~$/,
+    )
     doorbell.close()
   })
 

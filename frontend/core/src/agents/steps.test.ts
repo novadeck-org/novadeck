@@ -201,6 +201,17 @@ describe("the words an agent was given", () => {
     })
   })
 
+  it("leave out the doorbell line that says the person's Inbox replies", () => {
+    const items = [
+      user("fix the flaky inbox test and push it", 1),
+      user('[Novadeck Inbox reply, k3f9Xz] Re "Merge #461?": I picked "Merge it". [k3f9Xz]', 2),
+    ]
+    expect(agentContext("claude", items).said).toEqual({
+      text: "fix the flaky inbox test and push it",
+      at: 1,
+    })
+  })
+
   it("leave out Claude Code's slash commands and what they printed", () => {
     const items = [
       user("fix the flaky login test in the auth package", 1),

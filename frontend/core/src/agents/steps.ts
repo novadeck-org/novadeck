@@ -35,9 +35,11 @@ const fillerWords = 3
 // The longest a step's result runs before it's cut.
 const maxResult = 80
 
-// Lines Novadeck types into the agent for itself: its doorbell, and what hooks give back as
-// a prompt (Codex's `<hook_prompt>`, a delivery of agents' messages). Never the person's.
-const doorbell = /\[Novadeck: automatic notice, agent messages waiting, [A-Za-z0-9]+\]/g
+// Lines Novadeck types into the agent for itself: its doorbell, plain or with the person's
+// Inbox replies (which `answersOf` gives), and what hooks give back as a prompt (Codex's
+// `<hook_prompt>`, a delivery of agents' messages). Never the person's own prompt.
+const doorbell =
+  /\[Novadeck: automatic notice, agent messages waiting, [A-Za-z0-9]+\]|\[Novadeck Inbox reply, ([A-Za-z0-9]+)\] [^\n]*? \[\1\]/g
 const continuation = (text: string): boolean =>
   /^\s*<hook_prompt\b/.test(text) || text.includes("<novadeck-messages")
 
@@ -136,7 +138,8 @@ export const agentContext = (
 // The person's replies from the Inbox delivered to a terminal's agent, when it got them:
 // Novadeck delivers them as messages, so its harness's transcript doesn't hold them as the
 // person's (Claude Code and Antigravity get them as a hook's context, Codex as a developer
-// message, its prompt only Novadeck's doorbell line). Agents' messages, its lead's too,
+// message, its prompt Novadeck's doorbell line, which says the replies again but stands
+// for none: these are the replies themselves, whole). Agents' messages, its lead's too,
 // aren't the person's words, so the sheet never quotes them.
 export const answersOf = (threads: TerminalThreads | undefined): readonly Said[] =>
   (threads?.threads ?? []).flatMap((thread) =>
