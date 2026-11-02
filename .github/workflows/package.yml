@@ -658,7 +658,8 @@ jobs:
           }
           if ($failed) { exit 1 }
 
-      # The relay is built with the Rust its rust-toolchain.toml names; on macOS as one
+      # The relay (and on Windows novadeck-cmd.exe, built with it and shipped beside it, so
+      # signed and checked like it) is built with the Rust its rust-toolchain.toml names; on macOS as one
       # binary for both architectures. macOS signs with the keychain's identity on its own;
       # Windows signs when given the Azure account, which goes to electron-builder through
       # `pnpm exec`, as cmd.exe would mangle the quoted publisher in `pnpm run`. The app's

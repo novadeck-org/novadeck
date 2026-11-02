@@ -1275,6 +1275,58 @@ the runner, over the same endpoint and token `show` uses, and print what it retu
    what the notice stands for (the person's prompt withdrawing the agent's asks), and
    a lapse leaves that undone, to be offered again at the turn's next hook.
 
+### Windows hooks on a machine whose cmd AutoRun prints
+
+Whatever a cmd AutoRun prints stands before a hook's JSON answer, which a harness then cannot
+read. Each harness reaches cmd differently, so each has its own guard:
+
+- **Claude Code and Codex** run their hooks in PowerShell. The launcher `NOVADECK_HOOK` is a
+  batch file (`hook.cmd`), which Windows starts through `cmd /c` with no `/d`, so the AutoRun
+  ran first. Their hook line (`hookCommand`, PowerShell dialect) now starts that cmd itself:
+  `$l = '"' + $env:NOVADECK_HOOK + '" <agent> <event>'; & $(if ($env:ComSpec) { $env:ComSpec } else { 'cmd.exe' }) /d /s /c $l`.
+  The path sits inside one quoted command line that `/s` unwraps, so a space, an `&` or an 8.3 name in it is safe; only
+  Novadeck's hook line changes, never the agent's own commands. Because Codex trusts a hook by
+  its definition, people who connected Codex on Windows review the changed hook once. Claude
+  Code's status line runs in Git Bash (`sh`) and is not changed: an AutoRun's text could show
+  in the line it prints, and no JSON is read from it.
+- **Antigravity** runs its hooks itself as `cmd /c`, so it gets the pass-through below.
+
+### Antigravity on a machine whose cmd AutoRun prints
+
+Antigravity on Windows runs its hooks as `cmd /c "<command>"` through the `cmd` it finds on
+PATH, without `/d`, so the machine's or the person's `cmd` AutoRun runs first, and whatever it
+prints stands before the hook's answer, which Antigravity then cannot read as JSON. Messaging
+with it would not work on such a machine. So there Novadeck runs Antigravity's hooks through
+its own `cmd.exe`, which starts the real one with `/d`: the AutoRun is skipped for Novadeck's
+hooks only, never for the agent's commands (its `run_command` does not take that `cmd`, and the
+pass-through passes any other command on unchanged, AutoRun included).
+
+- **`novadeck-cmd.exe`** (`backend/relay/src/bin/novadeck-cmd.rs`) is built with the relay on
+  Windows alone and ships beside it (`relay/novadeck-cmd.exe`), signed with it. It reads its raw
+  command line, finds `System32\cmd.exe` through `GetSystemDirectoryW` (never PATH, which would
+  find itself), and runs it with the same arguments, `/d ` first when they hold Novadeck's own hook
+  command (`if defined NOVADECK_HOOK`, as the Antigravity plugin writes it; any case). The folder
+  is on the PATH of everything Antigravity starts, which is why only that command gets `/d`.
+- **Detection.** The start's check of `cmd /c rem` (`cmdPrints` in `shell/install.ts`) finds
+  that cmd prints (or is too slow to tell). Only then `installShellFiles` installs the
+  pass-through as `<shell dir>\agy-cmd\cmd.exe`, a folder holding nothing else, with the rules
+  the relay is installed by (a copy a previous runner's Antigravity still runs is moved aside and
+  replaced, so an upgrade keeps the shim), and verifies it byte for byte against the shipped
+  one. The folder's path must be its short name with no character cmd reads as more
+  (`InstalledShell.cmdShimDir`).
+- **Placement.** Antigravity's shim (`harnesses/agy/src/shim.ts`, `agy.cmd` in the shells'
+  `bin`, Windows only, and only with a `cmdShimDir`) puts that folder first on PATH for
+  Antigravity alone, under `setlocal` so the terminal's shell keeps its PATH, and only in a
+  Novadeck terminal whose `NOVADECK_SHIMS` names `agy`. It finds the real `agy` on PATH only.
+  Where the pass-through is missing or differs, there is no shim and nothing changes.
+- **What stays.** The plugin is global, so under `cmdPrints` its PreToolUse hook stays
+  unregistered: an Antigravity outside Novadeck's terminals runs the plugin's hooks through the
+  person's own `cmd`, where the AutoRun's output breaks the answer. Its other hooks are
+  registered and, in Novadeck's terminals, run through the pass-through, so messages arrive.
+  Set `NOVADECK_CMD_LOG` to a file to make the pass-through append the arguments it passed on.
+  The Windows e2e `windows-autorun.e2e.ts` runs a message between two Antigravity agents under
+  a printing AutoRun.
+
 ### A turn the runner's stop cut short
 
 Nothing a harness keeps of a session says its turn was cut when Novadeck stops: Claude Code,

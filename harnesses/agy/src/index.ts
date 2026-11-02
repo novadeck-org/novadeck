@@ -20,6 +20,7 @@ import {
   preToolUseAnswer,
 } from "./plugin.js"
 import { statusLineLimit, statusLineSettings, trustsFolder } from "./settings.js"
+import { makeCmdShim } from "./shim.js"
 import { shown } from "./status-line.js"
 import { transcripts, typedEntry } from "./transcripts.js"
 
@@ -75,6 +76,12 @@ export const agy = {
   hookDialect,
   hook,
   files,
+  // Windows only, and only where cmd's AutoRun prints and Novadeck's cmd.exe pass-through is
+  // installed (`machine.cmdShimDir`): a shim that puts the pass-through first on PATH.
+  shims: (platform, machine = {}) =>
+    platform === "win32" && machine.cmdShimDir !== undefined
+      ? [{ path: "agy.cmd", content: makeCmdShim(machine.cmdShimDir) }]
+      : [],
   // Its status line tells what no hook does: working or idle, a confirmation waiting on
   // the person, and its context and quotas.
   settings: statusLineSettings,

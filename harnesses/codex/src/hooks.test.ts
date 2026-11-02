@@ -17,14 +17,15 @@ const hooks = (platform: NodeJS.Platform) =>
 describe("the hooks Novadeck gives Codex", () => {
   // Codex asks every person who connected it to review its hooks again whenever their text
   // changes, as an update brings: change them only meaning to, and pin the new text here.
-  // Last changed for the PreToolUse matcher naming the async question, `request_user_input_async`
+  // Last changed (Windows) for the hook line starting its launcher in a cmd with /d, so a printing
+  // AutoRun stays out of the answer; before that, for the PreToolUse matcher naming the async question, `request_user_input_async`
   // (before that, an Interrupt hook's 3 s, Codex's most, so it warns at no start).
   it("are what people reviewed", () => {
     const digest = (platform: NodeJS.Platform) =>
       createHash("sha256").update(hooks(platform)).digest("hex")
     expect({ linux: digest("linux"), win32: digest("win32") }).toEqual({
       linux: "95937995adee748f8bdb8878e2702652f5c5308e881955b63912cf679bb350a0",
-      win32: "58c26f8bb0ceba420dafabfe89f44ff74cf7d0ab63c4db5794a562f3ac22aa21",
+      win32: "e6bc5a1052061f531cff3e6d8a7a549dec5617c210a8d3c1be6316132b9acdc4",
     })
   })
 })
