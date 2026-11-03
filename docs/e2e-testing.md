@@ -86,8 +86,7 @@ otherwise. Otherwise:
   than an adapter is affected (`@novadeck/harness-core`, `protocol`, `relay`, the engines,
   `libraries/terminal`, `wire` and `sandbox`, or one added later, so a new dependency of the
   runner runs everything until a rule says otherwise; an adapter not yet pinned counts as
-  one; a package outside the paths that trigger this workflow, a new `tools/<name>`
-  say, needs its path added there for its changes to run anything), or a changed file is in
+  one), or a changed file is in
   `backend/runner/` (the suite and the pins), node-pty's patch, `scripts/e2e/`,
   `.github/actions/e2e-harness-cache/`, or is `.github/workflows/e2e.yml`, the root
   `package.json`, `pnpm-lock.yaml`, `pnpm-workspace.yaml` or `turbo.json`. The runner is
@@ -96,7 +95,12 @@ otherwise. Otherwise:
 - Otherwise each affected adapter package (`@novadeck/harness-<id>`) runs that harness's
   jobs, with the Windows quirks job, and the Mixed job with them.
 - Otherwise (documentation, the UI, the host, the viewers, anything the runner doesn't build
-  on) no E2E job runs. None is a required check, so a skipped one blocks no merge.
+  on) no E2E job runs.
+
+The workflow starts on every pull request, so the plan always decides. Its `E2E` job is the
+one required check: it passes once the plan ran and every job it chose passed, or when it
+chose none, and fails on a failed or cancelled one (a skipped required check counts as
+passed, so the gate itself never skips).
 
 Which systems those jobs run on is told by the changed files (`allSystemsFolders` in
 `plan.ts`, with the reasons beside it). Linux always runs them. Windows and macOS run them
