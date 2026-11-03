@@ -23,13 +23,15 @@ export const maxTurnFilePath = 1024
 // How much an agent's activity and detail carry at most: its subagents running, the jobs it
 // waits on, its actors (the root and its subagents) and the requests waiting on the person,
 // a request's choices; and, in UTF-16 code units, a name (an id, a kind, a tool, a choice),
-// a description (a job's, a wake's reason), a request's subject and a waited job's command.
+// a description (a job's, a wake's reason), a request's subject and a waited job's command;
+// and the prompts given through `agents.prompt` whose receipts it keeps.
 export const agentLimits = {
   subagents: 32,
   jobs: 16,
   actors: 33,
   requests: 32,
   choices: 16,
+  prompts: 8,
   name: 256,
   description: 512,
   subject: 1024,
@@ -185,11 +187,36 @@ const agentCoverage = z.strictObject({
   context: coverageLevel,
 })
 
+// A prompt given through `agents.prompt`, and whether the agent's own record (its transcript)
+// has it, as the runner reads that record with the harness's decoder, the one the chat's
+// transcript comes from (see docs/backend-api.md, "Prompt receipts"):
+// - `pending`: sent, and not in the record yet;
+// - `settled`: there, as the person's words of the user item at `item` of the root's
+//   transcript (`agents.transcript`'s index), which a client may show the prompt as until
+//   it has that item;
+// - `unrecorded`: the agent's turns went by, and the record never got it;
+// - `in-box`: not in the record, and back in the agent's own input box, as an Escape in the
+//   terminal puts queued words back;
+// - `withdrawn`: a Stop through `agents.interrupt` handed the words back.
+// `text` is the prompt as given while a client may still show it, null once settled or
+// withdrawn. `sentAt` is when its Enter was pressed, on the runner's clock, in epoch
+// milliseconds. A prompt a late record settles moves from `unrecorded` or `in-box` to
+// `settled`.
+export const promptReceipt = z.strictObject({
+  ref: agentRef,
+  text: z.string().max(16_384).nullable(),
+  sentAt: z.number(),
+  state: z.enum(["pending", "settled", "unrecorded", "in-box", "withdrawn"]),
+  item: z.number().int().nonnegative().nullable(),
+})
+export type PromptReceipt = z.infer<typeof promptReceipt>
+
 // `agents.detail` snapshots: the agent a terminal runs, its root and subagents (root
 // first; a subagent's parent is null where the harness does not say), each request
 // waiting on the person with what it asks about and the answers it offers, and how much
-// of each feature this harness tells. Without an agent bound, only `terminalId`. Its
-// plans are companion items (`companionItem`).
+// of each feature this harness tells, and the receipts of the prompts given it through
+// `agents.prompt` in this session, oldest first. Without an agent bound, only `terminalId`.
+// Its plans are companion items (`companionItem`).
 export const agentDetail = z.strictObject({
   terminalId: id,
   agent: agentName.nullable(),
@@ -225,6 +252,7 @@ export const agentDetail = z.strictObject({
     )
     .max(agentLimits.requests),
   coverage: agentCoverage.nullable(),
+  prompts: z.array(promptReceipt).max(agentLimits.prompts),
 })
 
 // An agent Novadeck can connect: whether it is installed here, and whether Novadeck's

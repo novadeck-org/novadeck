@@ -1,3 +1,4 @@
+import type { SentBubble } from "@novadeck/chat/bubbles"
 import { Transcript } from "@novadeck/chat/Transcript"
 import type { ChatItem } from "@novadeck/core/conversation"
 import { agentName, groupItems } from "@novadeck/core/conversation/turns"
@@ -111,6 +112,14 @@ const lineOf = (block: Element): { line: string; rows: number } => {
     return { line: `tools: ${folded}${rows.join("; ")}`, rows: rows.length }
   }
   if (block.matches(".chat-note")) return { line: `note: ${textOf(block)}`, rows: 0 }
+  const sent = block.getAttribute("data-sent")
+  if (sent) {
+    const words = textOf(block.querySelector(".chat-bubble")!)
+    const note = block.querySelector(".chat-sent")
+    const button = note?.querySelector("button")?.textContent
+    const said = note ? textOf(note.querySelector("span")!) : ""
+    return { line: `sent (${sent}): ${words} · ${said}${button ? ` [${button}]` : ""}`, rows: 0 }
+  }
   const role = block.getAttribute("data-role")
   const bubble = role === "agent" ? block.querySelector(".chat-bubble")?.cloneNode(true) : null
   if (bubble instanceof Element) {
@@ -130,13 +139,20 @@ export type Rendered = {
 }
 
 // The conversation as the UI draws it: core's blocks through the real Transcript in jsdom,
-// with the agent named as the chat names it.
-export const renderChat = (items: readonly ChatItem[], harness: AgentName): Rendered => {
+// with the agent named as the chat names it, and the person's prompts the record doesn't show
+// yet among them (`sent`).
+export const renderChat = (
+  items: readonly ChatItem[],
+  harness: AgentName,
+  sent: readonly SentBubble[] = [],
+): Rendered => {
   const view = render(
     createElement(Transcript, {
       blocks: groupItems(items),
       agent: agentName(harness),
       working: false,
+      sent,
+      onShowTerminal: () => {},
     }),
   )
   try {

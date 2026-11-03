@@ -504,6 +504,7 @@ export class Bindings {
     // Detail changes where the summary may not: a revised request, a subject.
     this.host.detailed(record)
     this.host.typing().dialogsChanged(record.summary.id)
+    this.host.typing().receiptsChanged(record.summary.id)
     const { bound } = record
     const agent = bound?.binding.agent ?? null
     const ready = this.readyOf(record)

@@ -285,9 +285,14 @@ export type Runner = {
      * paste never showed as exactly the text, and `PROMPT_REFUSED`, writing nothing, for
      * text the agent's TUI would read as more than a message: one starting with `/` or `!`,
      * ending in an `@` or `$` mention a picker would take the Enter for, holding a control
-     * character, or nothing but white space; see `promptRefusal`.
+     * character, or nothing but white space; see `promptRefusal`. Resolves with the ref its
+     * receipt in `detail` has (`ref`, where given, else the runner's), and whether one follows.
      */
-    prompt(terminalId: string, text: string, automatic?: true): Promise<void>
+    prompt(
+      terminalId: string,
+      text: string,
+      options?: { readonly automatic?: true; readonly ref?: string },
+    ): Promise<{ readonly ref: string; readonly tracked: boolean }>
     /**
      * Answers a request waiting on the person through its dialog in the agent's TUI, by the
      * ref `detail` names it by. Rejects with `NOT_FOUND` for a request it doesn't have,
@@ -631,9 +636,14 @@ export const connectRunner = async (
           (client, signal) => client.agents.transcript({ terminalId, actor }, { signal }),
           { type: "reset" },
         ),
-      prompt: (terminalId, text, automatic) =>
+      prompt: (terminalId, text, { automatic, ref } = {}) =>
         call((client) =>
-          client.agents.prompt({ terminalId, text, ...(automatic && { automatic }) }),
+          client.agents.prompt({
+            terminalId,
+            text,
+            ...(automatic && { automatic }),
+            ...(ref !== undefined && { ref }),
+          }),
         ),
       answer: (terminalId, request, answer) =>
         call((client) => client.agents.answer({ terminalId, request, answer })),

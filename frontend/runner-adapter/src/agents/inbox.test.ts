@@ -167,6 +167,7 @@ const detailOf = (...requests: Asked[]): AgentDetail => ({
     askedAt,
   })),
   coverage: null,
+  prompts: [],
 })
 
 const settle = () => vi.advanceTimersByTimeAsync(0)

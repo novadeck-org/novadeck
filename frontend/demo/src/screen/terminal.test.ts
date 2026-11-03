@@ -98,6 +98,7 @@ const conversationOf = (fields: Partial<Conversation> = {}): Conversation => ({
   loaded: true,
   items: [],
   requests: [],
+  prompts: [],
   ...fields,
 })
 

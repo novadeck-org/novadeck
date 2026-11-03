@@ -1,0 +1,238 @@
+import { appendFile, mkdtemp, rm, writeFile } from "node:fs/promises"
+import { tmpdir } from "node:os"
+import { join } from "node:path"
+
+import type { Harness } from "@novadeck/harness-core/harness"
+import { agentLimits } from "@novadeck/protocol"
+import { vi } from "vitest"
+
+import { logs, useLogger } from "../log.js"
+import { describe, expect, it } from "../test.js"
+import type { Turns } from "./receipt-match.js"
+import { Receipts, type ReceiptSource } from "./receipts.js"
+
+const terminal = "t1"
+const slackMs = 50
+
+/** A record of one JSON line per item, `{ "text": … }`, read as the user's text. */
+const items: ReceiptSource["items"] = (line) => {
+  const { text } = JSON.parse(line) as { text: string }
+  return [
+    { role: "user", kind: "text", text, at: 0 } as ReturnType<
+      NonNullable<Harness["transcripts"]>["items"]
+    >[number],
+  ]
+}
+const row = (text: string) => `${JSON.stringify({ text })}\n`
+
+/** The runner's log lines while a test runs. */
+const capture = (resources: { defer: (cleanup: () => void) => void }) => {
+  const lines: { level: string; evt: string }[] = []
+  const before = logs.current()
+  const note = (level: string) => (evt: string) => void lines.push({ level, evt })
+  useLogger({
+    for: () => ({
+      debug: note("debug"),
+      info: note("info"),
+      warn: note("warn"),
+      error: note("error"),
+      fatal: note("fatal"),
+    }),
+    flush: () => {},
+    close: () => {},
+  })
+  resources.defer(() => useLogger(before))
+  return lines
+}
+
+const setup = async (
+  resources: { defer: (cleanup: () => void | Promise<void>) => void },
+  initial = "",
+) => {
+  const folder = await mkdtemp(join(tmpdir(), "novadeck-receipts-"))
+  resources.defer(() => rm(folder, { recursive: true, force: true }))
+  const path = join(folder, "record.jsonl")
+  await writeFile(path, initial)
+  const clock = { now: 1_000 }
+  const host = {
+    agent: "claude" as ReceiptSource["agent"],
+    key: "session-1" as string | null,
+    turns: { working: false, endedAt: null } as Turns,
+    box: undefined as string | undefined,
+    changes: 0,
+  }
+  const receipts = new Receipts(
+    {
+      source: async () => ({
+        key: "session-1",
+        agent: host.agent,
+        version: "1.0.0",
+        path,
+        items,
+      }),
+      bound: () => host.key,
+      turns: () => host.turns,
+      box: async () => host.box,
+      changed: () => void (host.changes += 1),
+    },
+    { now: () => clock.now, slackMs, pollMs: 5 },
+  )
+  resources.defer(() => receipts.close())
+  const state = (ref: string) => receipts.view(terminal).find((each) => each.ref === ref)?.state
+  /** Sends a prompt as the typist does: expected, then its Enter. */
+  const give = async (text: string, ref: string) => {
+    const result = await receipts.expect(terminal, text, ref)
+    receipts.sent(terminal, ref)
+    return result
+  }
+  /** Moves the clock past the slack and lets the record be read to its end after it. */
+  const pass = async () => {
+    clock.now += slackMs + 1
+    receipts.changed(terminal)
+    await new Promise((resolve) => setTimeout(resolve, 40))
+  }
+  return { path, clock, host, receipts, state, give, pass }
+}
+
+describe("prompt receipts", () => {
+  it("settles a pending prompt, with its item's index, when its line is appended", async ({
+    resources,
+  }) => {
+    const { path, receipts, state, give } = await setup(resources, row("earlier"))
+    expect(await give("hello", "r1")).toEqual({ ref: "r1", tracked: true })
+    expect(state("r1")).toBe("pending")
+    await appendFile(path, row("hello"))
+    await vi.waitFor(() => expect(state("r1")).toBe("settled"))
+    expect(receipts.view(terminal)[0]).toMatchObject({ ref: "r1", text: null, item: 1 })
+  })
+
+  it("does not settle a new send by an older identical item already in the record", async ({
+    resources,
+  }) => {
+    const { path, state, give } = await setup(resources, row("ok"))
+    await give("ok", "r1")
+    await new Promise((resolve) => setTimeout(resolve, 40))
+    expect(state("r1")).toBe("pending")
+    await appendFile(path, row("ok"))
+    await vi.waitFor(() => expect(state("r1")).toBe("settled"))
+  })
+
+  it("reaches unrecorded after the deadline and logs chat.unrecorded exactly once", async ({
+    resources,
+  }) => {
+    const lines = capture(resources)
+    const { state, give, pass } = await setup(resources)
+    await give("never arrives", "r1")
+    await pass()
+    await vi.waitFor(() => expect(state("r1")).toBe("unrecorded"))
+    await pass()
+    expect(lines.filter((line) => line.evt === "chat.unrecorded")).toEqual([
+      { level: "warn", evt: "chat.unrecorded" },
+    ])
+  })
+
+  it("does not call a prompt missing while the agent works", async ({ resources }) => {
+    const { host, state, give, pass } = await setup(resources)
+    host.turns = { working: true, endedAt: null }
+    await give("queued", "r1")
+    await pass()
+    expect(state("r1")).toBe("pending")
+  })
+
+  it("calls a prompt in-box, with no log, when the box holds its words", async ({ resources }) => {
+    const lines = capture(resources)
+    const { host, state, give, pass } = await setup(resources)
+    host.box = "> hello\n  there"
+    await give("hello there", "r1")
+    await pass()
+    await vi.waitFor(() => expect(state("r1")).toBe("in-box"))
+    expect(lines.filter((line) => line.evt === "chat.unrecorded")).toEqual([])
+  })
+
+  it("turns unrecorded into settled when a late match arrives", async ({ resources }) => {
+    capture(resources)
+    const { path, state, give, pass } = await setup(resources)
+    await give("late", "r1")
+    await pass()
+    await vi.waitFor(() => expect(state("r1")).toBe("unrecorded"))
+    await appendFile(path, row("late"))
+    await vi.waitFor(() => expect(state("r1")).toBe("settled"))
+  })
+
+  it("withdraws a pending prompt whose words a Stop handed back", async ({ resources }) => {
+    const { receipts, state, give } = await setup(resources)
+    await give("take this back", "r1")
+    await give("keep this", "r2")
+    receipts.withdraw(terminal, "> take this back")
+    expect(state("r1")).toBe("withdrawn")
+    expect(receipts.view(terminal)[0]).toMatchObject({ ref: "r1", text: null })
+    expect(state("r2")).toBe("pending")
+  })
+
+  it("forgets a prompt that failed to be given", async ({ resources }) => {
+    const { receipts, state, give } = await setup(resources)
+    await give("never typed", "r1")
+    receipts.failed(terminal, "r1")
+    expect(state("r1")).toBeUndefined()
+    expect(receipts.view(terminal)).toEqual([])
+  })
+
+  it("rejects a ref the terminal holds already as a CONFLICT", async ({ resources }) => {
+    const { receipts, give } = await setup(resources)
+    await give("one", "r1")
+    await expect(receipts.expect(terminal, "two", "r1")).rejects.toMatchObject({
+      code: "CONFLICT",
+    })
+  })
+
+  it("does not track a shell send to Antigravity, which records none", async ({ resources }) => {
+    const { host, receipts } = await setup(resources)
+    host.agent = "agy"
+    expect(await receipts.expect(terminal, "!ls", "r1")).toEqual({ ref: "r1", tracked: false })
+    expect(await receipts.expect(terminal, "hello", "r2")).toEqual({ ref: "r2", tracked: true })
+    expect(receipts.view(terminal)).toEqual([])
+  })
+
+  it("empties the view when the terminal binds another session", async ({ resources }) => {
+    const { host, receipts, give } = await setup(resources)
+    await give("hello", "r1")
+    expect(receipts.view(terminal)).toHaveLength(1)
+    host.key = "session-2"
+    expect(receipts.view(terminal)).toEqual([])
+    receipts.changed(terminal)
+    host.key = "session-1"
+    expect(receipts.view(terminal)).toEqual([])
+  })
+
+  it("keeps an item baseline across a rewrite of the record", async ({ resources }) => {
+    const long = "the old prompt, long enough to end past where the first record did"
+    const { path, receipts, state, give } = await setup(resources, row("a") + row(long))
+    await give(long, "r1")
+    await new Promise((resolve) => setTimeout(resolve, 40))
+    // The record is truncated and rewritten, shorter at first, the old item landing again
+    // as its second item: its line ends past where the record ended, but it is not new.
+    await writeFile(path, row("b".repeat(40)))
+    await new Promise((resolve) => setTimeout(resolve, 40))
+    await appendFile(path, row(long))
+    await new Promise((resolve) => setTimeout(resolve, 40))
+    expect(state("r1")).toBe("pending")
+    await appendFile(path, row(long))
+    await vi.waitFor(() => expect(state("r1")).toBe("settled"))
+    expect(receipts.view(terminal)[0]?.item).toBe(2)
+  })
+
+  it("drops settled receipts first when it holds more than its cap", async ({ resources }) => {
+    const { path, receipts, state, give } = await setup(resources)
+    for (let at = 0; at < agentLimits.prompts; at += 1)
+      // eslint-disable-next-line no-await-in-loop -- Each prompt is given after the one before.
+      await give(`word ${at}`, `r${at}`)
+    await appendFile(path, row("word 1"))
+    await vi.waitFor(() => expect(state("r1")).toBe("settled"))
+    await give("one more", "r8")
+    const refs = receipts.view(terminal).map((each) => each.ref)
+    expect(refs).toHaveLength(agentLimits.prompts)
+    expect(refs).not.toContain("r1")
+    expect(refs).toContain("r0")
+    expect(refs).toContain("r8")
+  })
+})

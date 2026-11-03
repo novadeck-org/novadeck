@@ -50,6 +50,33 @@ const item = (
     30_000,
   )
 
+/**
+ * Gives the agent a prompt as the chat does, and checks its receipt: followed, pending or
+ * already settled once the Enter is out (`agents.detail`); then returns a wait for it to
+ * settle, as the user item at its `item` that holds its words.
+ */
+const prompted = async (terminal: DeckTerminal, text: string): Promise<() => Promise<void>> => {
+  const { ref, tracked } = await terminal.prompt(text)
+  expect(tracked, `${text}: followed`).toBe(true)
+  const first = (await terminal.detail()).prompts.find((prompt) => prompt.ref === ref)
+  expect(first?.state, `${text}: its receipt once sent`).toMatch(/^(pending|settled)$/)
+  return async () => {
+    const settled = await terminal.poll(
+      async () => {
+        const receipt = (await terminal.detail()).prompts.find((prompt) => prompt.ref === ref)
+        expect(receipt?.state, `${text}: never missing`).not.toMatch(/^(unrecorded|in-box)$/)
+        return receipt?.state === "settled" ? receipt : undefined
+      },
+      `"${text}" to reach its agent's record`,
+      30_000,
+    )
+    const items = await terminal.transcript()
+    const at = items.find((each) => each.index === settled.item)
+    expect(at?.role, `${text}: settled by`).toBe("user")
+    expect(at?.text, `${text}: settled by`).toContain(text.split("\n")[0])
+  }
+}
+
 for (const setup of setups) {
   describe.skipIf(!supported)(setup.name, () => {
     const it = e2e(setup)
@@ -371,15 +398,18 @@ for (const setup of setups) {
       const calls = run.model.mark()
       const mark = t1.mark()
 
-      await t1.prompt("Start the long job")
+      const first = await prompted(t1, "Start the long job")
       await run.model.waitFor((call) => !call.side && latest(call).includes("Start the long job"), {
         after: calls,
       })
       await t1.reached("working", { after: mark })
-      await t1.prompt("Then sum it up\nin one line\n\nthanks")
+      await first()
+      const second = await prompted(t1, "Then sum it up\nin one line\n\nthanks")
       held.open()
 
       await t1.until("Summed up.")
+      // The receipt says the record has it, pending until it did.
+      await second()
       await through(t1, ["working", "settled"], { after: mark })
       await item(t1, "user", (text) => text.includes("Start the long job"))
       await item(t1, "user", (text) => text.includes("Then sum it up") && text.includes("thanks"))
@@ -449,7 +479,14 @@ for (const setup of setups) {
             // would join them as one paste, words and not a path, so the words land first.
             await t1.until(given[0]!)
             await t1.confirm(setup.image!.shows, async () => t1.press(`\x1b[200~${path}\x1b[201~`))
-          } else for (const prompt of given) await t1.prompt(prompt)
+          }
+          // Each followed until the record has it, as the chat shows it pending until then.
+          const settles = image
+            ? []
+            : await given.reduce<Promise<(() => Promise<void>)[]>>(
+                async (done, prompt) => [...(await done), await prompted(t1, prompt)],
+                Promise.resolve([]),
+              )
           // Every prompt waits in the harness's queue, shown on its screen, before the tool ends.
           await t1.poll(async () => {
             const shown = await t1.screenText()
@@ -462,6 +499,7 @@ for (const setup of setups) {
 
           for (const prompt of given)
             await item(t1, "assistant", (text) => text.includes("Read:") && text.includes(prompt))
+          for (const settled of settles) await settled()
           await through(t1, ["working", "settled"], { after: mark })
           const items = await t1.transcript()
           const users = items.filter((one) => one.role === "user" && one.kind === "text")

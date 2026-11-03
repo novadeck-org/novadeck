@@ -9,7 +9,8 @@
    composer (`.chat-composer`).
 
    Hooks: data-compact on `.chat` in a Grid or Canvas window; data-role="user" |
-   "assistant" | "agent" on a message; data-kind="run" | "read" | "write" | "search" |
+   "assistant" | "agent" on a message, data-sent="queued" | "sending" | "unrecorded" |
+   "in-box" on the person's prompt the agent's record doesn't hold yet, its note `.chat-sent`; data-kind="run" | "read" | "write" | "search" |
    "web" | "agent" | "plan" | "other" and data-running on a tool row, aria-expanded on its
    button; data-folded on a long run of calls; data-kind="permission" | "question" |
    "plan" and data-dialog="choices" | "questions" | "form" | "raw" | "none" on a request,
@@ -139,6 +140,30 @@
   border-color: var(--chat-agent-border-color, var(--color-line));
   background-color: var(--chat-agent-bg, var(--color-shell));
   color: inherit;
+}
+/* The person's prompt before the agent's record has it: faded while queued or on its way;
+   a note under it once it never arrived. */
+.chat-message[data-sent="queued"] .chat-bubble,
+.chat-message[data-sent="sending"] .chat-bubble {
+  opacity: 0.6;
+}
+.chat-message[data-sent="unrecorded"] .chat-bubble,
+.chat-message[data-sent="in-box"] .chat-bubble {
+  border-style: dashed;
+  border-color: var(--chat-error-fg, var(--color-danger-fg));
+}
+.chat-sent {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 8px;
+  margin: 4px 2px 0;
+  font-size: 11.5px;
+  color: var(--_muted);
+}
+.chat-message[data-sent="unrecorded"] .chat-sent,
+.chat-message[data-sent="in-box"] .chat-sent {
+  color: var(--chat-error-fg, var(--color-danger-fg));
 }
 .chat-text {
   margin: 0;

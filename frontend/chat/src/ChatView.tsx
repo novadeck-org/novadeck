@@ -15,6 +15,7 @@ import {
   useSyncExternalStore,
 } from "react"
 
+import { sentBubbles } from "./bubbles"
 import { Composer } from "./Composer"
 import { composerMode } from "./composer-mode"
 import { sameReply, type ChatReply, type ChatReplyTo } from "./replies"
@@ -63,10 +64,11 @@ export const ChatView = ({
   // The question the draft replies to, or that it is held, kept with the draft by the app.
   readonly replyTo: ChatReplyTo | null
   readonly onReplyTo: (to: ChatReplyTo | null) => void
-  // The words from the box on their way to the agent, if any, which the app keeps.
-  readonly sending: ChatSend | null
+  // The words from the box on their way to the agent, oldest first, which the app keeps.
+  readonly sending: readonly ChatSend[]
   // Sends the box's words, as a prompt or as the reply `to` names: the app takes them
-  // out of the draft as they go, and puts them back should they not arrive.
+  // out of the draft as they go, queues a prompt behind those still on their way, and puts
+  // them back should they not arrive.
   readonly onSend: (text: string, to: ChatReply | null) => Promise<void>
   readonly onInterrupt: () => Promise<void>
   readonly onAnswer: (request: string, answer: ChatAnswer) => Promise<void>
@@ -84,6 +86,7 @@ export const ChatView = ({
     loaded,
     items,
     requests,
+    prompts,
   } = useSyncExternalStore(conversation.subscribe, conversation.getSnapshot)
   const name = agentName(harness ?? program)
   const blocks = useMemo(() => groupItems(items), [items])
@@ -98,6 +101,12 @@ export const ChatView = ({
   const extra = more.session === session ? more.extra : 0
   const shownFrom = Math.max(0, blocks.length - windowSize - extra)
   const shown = shownFrom === 0 ? blocks : blocks.slice(shownFrom)
+
+  // The person's prompts the agent's record doesn't show yet.
+  const bubbles = useMemo(
+    () => sentBubbles(sending, prompts, items.length),
+    [sending, prompts, items.length],
+  )
 
   const scroller = useRef<HTMLDivElement>(null)
   const thread = useRef<HTMLDivElement>(null)
@@ -120,7 +129,7 @@ export const ChatView = ({
     }
     follow()
     // oxlint-disable-next-line react/exhaustive-effect-dependencies -- Follows whenever the blocks change.
-  }, [shown, follow])
+  }, [shown, bubbles, follow])
   // Code highlighting, images and folded rows change the height after the fact.
   useEffect(() => {
     const content = thread.current
@@ -157,7 +166,10 @@ export const ChatView = ({
   // person edits them, whether the chat was on screen as it went or comes back after.
   // Never while the reply itself is on its way, whose arrival ends it.
   const lapsed = replyTo !== null && replyTo !== "held" && mode !== "reply" && mode !== "waiting"
-  const replyGoing = replyTo !== null && replyTo !== "held" && sameReply(sending?.to, replyTo)
+  const replyGoing =
+    replyTo !== null &&
+    replyTo !== "held" &&
+    sending.some((send) => send.to !== null && sameReply(send.to, replyTo))
   useLayoutEffect(() => {
     if (lapsed && !replyGoing) onReplyTo(draft.trim() !== "" ? "held" : null)
   }, [lapsed, replyGoing, draft, onReplyTo])
@@ -167,7 +179,7 @@ export const ChatView = ({
       ?.querySelector<HTMLElement>(".chat-input")
       ?.focus({ preventScroll: true })
 
-  const empty = items.length === 0
+  const empty = items.length === 0 && bubbles.length === 0
   return (
     <section
       className="chat"
@@ -211,7 +223,13 @@ export const ChatView = ({
                     : "Nothing said yet. Send a prompt below."}
               </p>
             )}
-            <Transcript blocks={shown} agent={name} working={working} />
+            <Transcript
+              blocks={shown}
+              agent={name}
+              working={working}
+              sent={bubbles}
+              onShowTerminal={onAnswerInTerminal}
+            />
             {status && (
               <p
                 className="chat-status"
@@ -302,7 +320,7 @@ export const ChatView = ({
           onDraft(text)
         }}
         mode={mode}
-        sending={sending !== null}
+        sending={sending.some((send) => send.to !== null)}
         replySending={replyGoing}
         working={working}
         onSend={async (text) => {

@@ -482,6 +482,7 @@ export class Terminals {
           record.bound?.telemetry ?? null,
           this.typing.dialogs.view(record.summary.id),
           this.typing.dialogs.answered(record.summary.id),
+          this.typing.receipts.view(record.summary.id),
         ),
       messages: (terminalId) => this.messages(terminalId),
     })
@@ -938,8 +939,13 @@ export class Terminals {
    * Gives the terminal's agent a prompt as the person would paste and submit it (see
    * `Prompts`), once those before it in the terminal's input queue are done.
    */
-  prompt(input: { terminalId: string; text: string; automatic?: true | undefined }): Promise<void> {
-    return this.typing.prompt(input.terminalId, input.text, input.automatic)
+  prompt(input: {
+    terminalId: string
+    text: string
+    automatic?: true | undefined
+    ref?: string | undefined
+  }): Promise<{ ref: string; tracked: boolean }> {
+    return this.typing.prompt(input.terminalId, input.text, input.automatic, input.ref)
   }
 
   /**

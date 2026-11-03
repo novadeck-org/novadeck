@@ -282,15 +282,22 @@ export const contract = {
     // nothing but white space, is PROMPT_REFUSED, writing nothing. `automatic` marks a fixed
     // line an Inbox button sends ("continue"), not words the person wrote: the turn it
     // starts is theirs to the doorbell and delivery, but takes no open ask out of the Inbox.
+    // `ref` names the prompt's receipt in `agents.detail` (`promptReceipt`), which a client
+    // may pick so its own copy of the prompt has the same key from the start; one the
+    // terminal had already is a CONFLICT, writing nothing; without one, the runner picks it.
+    // `tracked` says whether a receipt follows: not where the runner can't read the agent's
+    // record yet (no session bound), or the harness keeps none of what was sent (a shell
+    // command Antigravity runs, `recordsShell`).
     prompt: procedure
       .input(
         z.strictObject({
           terminalId: id,
           text: z.string().min(1).max(16_384),
           automatic: z.literal(true).optional(),
+          ref: agentRef.optional(),
         }),
       )
-      .output(z.void()),
+      .output(z.strictObject({ ref: agentRef, tracked: z.boolean() })),
     // Answers a request waiting on the person through its dialog in the agent's TUI, as the
     // person would with its keys: the harness's adapter reads the dialog, checks it is the
     // request's, presses what the answer takes, and resolves once the dialog went as

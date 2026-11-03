@@ -1,5 +1,5 @@
 import { ChatView } from "@novadeck/chat/ChatView"
-import { chatDraftOf, chatReplyOf, chatSendOf, chatShown } from "@novadeck/chat/state"
+import { chatDraftOf, chatReplyOf, chatSendsOf, chatShown } from "@novadeck/chat/state"
 import { useChat } from "@novadeck/chat/use-chat"
 import { agentStats } from "@novadeck/core/agents/stats"
 import { ledTerminals, runningLeads, terminalOrigins } from "@novadeck/core/derivations"
@@ -260,7 +260,7 @@ export const WorkspaceTerminal = memo(
     )
     const draft = useChat(chat, (state) => chatDraftOf(state.drafts, chatContext, terminalId))
     const replyTo = useChat(chat, (state) => chatReplyOf(state.replies, chatContext, terminalId))
-    const sending = useChat(chat, (state) => chatSendOf(state.sends, chatContext, terminalId))
+    const sending = useChat(chat, (state) => chatSendsOf(state.sends, chatContext, terminalId))
     const conversation = useMemo(
       () => (showChat ? conversations?.conversation(terminalKey) : undefined),
       [showChat, conversations, terminalKey],
@@ -290,11 +290,9 @@ export const WorkspaceTerminal = memo(
                 onReplyTo={(to) => commands.setChatReply(chatContext, terminalId, to)}
                 sending={sending}
                 onSend={(text, to) => commands.sendChat(terminalKey, text, to)}
-                onInterrupt={async () => {
-                  const returned = await conversations!.interrupt(terminalKey)
-                  // Words queued behind the stopped turn come back to the box, to send again.
-                  if (returned) commands.appendChatDraft(chatContext, terminalId, returned)
-                }}
+                // Words queued behind the stopped turn, the agent's and the chat's, come back
+                // to the box, to send again.
+                onInterrupt={() => commands.stopChat(terminalKey)}
                 onAnswer={(request, answer) => conversations!.answer(terminalKey, request, answer)}
                 onWordsLost={(words) => commands.appendChatDraft(chatContext, terminalId, words)}
                 onAnswerInTerminal={() => commands.showTerminal(terminalId)}

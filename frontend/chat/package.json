@@ -6,9 +6,11 @@
   "license": "GPL-3.0-or-later",
   "type": "module",
   "exports": {
+    "./bubbles": "./src/bubbles.ts",
     "./chat.css": "./src/chat.css",
     "./ChatView": "./src/ChatView.tsx",
     "./commands": "./src/commands.ts",
+    "./sends": "./src/sends.ts",
     "./state": "./src/state.ts",
     "./Transcript": "./src/Transcript.tsx",
     "./use-chat": "./src/use-chat.ts"

@@ -159,17 +159,35 @@ export type ChatRequest = {
   readonly answered: boolean
 }
 
+// A prompt given the agent through `Conversations.send`, and whether its own record has it
+// yet, as the backend reads that record (where it tells, `SendResult.tracked`): `pending`
+// until it does; `settled` once it does, as the person's words of the item at `item` (its
+// index in `items`), which a chat may show it as until that item arrives; `unrecorded`
+// when the agent's turns went by and the record never got it; `in-box` when it didn't, and
+// the words are back in the agent's own box; `withdrawn` when a Stop handed them back.
+// `text` is the prompt as given, null once withdrawn, or settled before its words were seen. `sentAt` is when it went,
+// on the backend's clock.
+export type ChatPrompt = {
+  readonly ref: string
+  readonly text: string | null
+  readonly sentAt: number
+  readonly state: "pending" | "settled" | "unrecorded" | "in-box" | "withdrawn"
+  readonly item: number | null
+}
+
 // A terminal's conversation now. `agent` and `session` name the agent's session bound to
 // the terminal whose transcript is read, its harness's name for the agent (`claude`,
 // `codex`, `agy`); both null while none is. `loaded` once the session's records so far
 // have started arriving. `items` are its root agent's, oldest first; subagents keep their
-// own. `requests` wait on the person, oldest first.
+// own. `requests` wait on the person, oldest first. `prompts` are the session's prompts
+// given through `send`, oldest first, as far as the backend follows them.
 export type Conversation = {
   readonly agent: string | null
   readonly session: string | null
   readonly loaded: boolean
   readonly items: readonly ChatItem[]
   readonly requests: readonly ChatRequest[]
+  readonly prompts: readonly ChatPrompt[]
 }
 
 export const noConversation: Conversation = {
@@ -178,7 +196,13 @@ export const noConversation: Conversation = {
   loaded: false,
   items: [],
   requests: [],
+  prompts: [],
 }
+
+// What `Conversations.send` resolves with, where its backend follows prompts: whether a
+// receipt for it (`Conversation.prompts`, by the `ref` it was sent with) follows. A backend
+// that follows none resolves with nothing.
+export type SendResult = { readonly tracked: boolean }
 
 // Where a backend's conversations come from, and how the chat talks back to the agent.
 export type Conversations = {
@@ -189,12 +213,14 @@ export type Conversations = {
   // Gives the terminal's agent a prompt as the person would type it into its box, then
   // Enter. Rejects with an Error whose message tells the person why it didn't go.
   // `automatic` marks a fixed line an Inbox button sends, not words the person wrote: the
-  // agent's turn on it takes no open ask out of the Inbox.
+  // agent's turn on it takes no open ask out of the Inbox. `ref` names its receipt in
+  // `Conversation.prompts` (16 letters, digits, `_` or `-`; see `promptRef`), where the
+  // backend follows it.
   readonly send: (
     key: TerminalKey,
     text: string,
-    options?: { readonly automatic?: true },
-  ) => Promise<void>
+    options?: { readonly automatic?: true; readonly ref?: string },
+  ) => Promise<SendResult | void>
   // Stops the agent's turn, as Escape in its TUI does. Resolves with the words the person
   // had queued behind the turn, which the agent gave back and the chat's box takes again,
   // or null. Rejects as `send` does.
@@ -208,6 +234,13 @@ export type Conversations = {
   // isn't refused here, though `send` refuses it: the chat sends no empty message, and an
   // option's words are optional, so there is nothing to warn about yet.
   readonly refused: Refused
+}
+
+// A fresh ref for a prompt's receipt, as the backend takes them.
+export const promptRef = (): string => {
+  const alphabet = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789_-"
+  const bytes = crypto.getRandomValues(new Uint8Array(16))
+  return Array.from(bytes, (byte) => alphabet[byte % 64]).join("")
 }
 
 // What `Conversations.answer` rejects with when the answer took but the words that follow
