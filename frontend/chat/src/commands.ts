@@ -52,6 +52,11 @@ export type ChatCommands = {
   readonly setChatReply: (context: string, terminalId: string, to: ChatReplyTo | null) => void
 }
 
+// How long a prompt sent with its receipt to follow may go without the conversation showing
+// that receipt before the chat stops waiting on it, in milliseconds: the backend tells it as
+// the prompt's Enter goes, so only a receipt it dropped first is never seen.
+export const unseenMs = 15_000
+
 // The session context a terminal's chat state is kept under.
 const contextOf = (key: TerminalKey) => `${key.projectId}/${key.workspaceSessionId}`
 
@@ -169,7 +174,15 @@ export const createChatCommands = ({
         finished(key, ref, receipt?.state === "in-box")
     }
     const unsubscribe = store.subscribe(look)
-    watches.set(ref, unsubscribe)
+    // A receipt the backend dropped before this window saw it, as one whose session never
+    // bound, holds the queue no longer than this.
+    const unseen = setTimeout(() => {
+      if (!seen && watches.has(ref)) finished(key, ref, false)
+    }, unseenMs)
+    watches.set(ref, () => {
+      clearTimeout(unseen)
+      unsubscribe()
+    })
     look()
   }
 

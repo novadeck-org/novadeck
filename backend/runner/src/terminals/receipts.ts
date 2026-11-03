@@ -55,6 +55,11 @@ export type ReceiptsOptions = {
   readonly slackMs: number
   /** How often the record is read for what it gained, in milliseconds. */
   readonly pollMs?: number
+  /**
+   * How long the record is still followed once no prompt there may settle, so the next
+   * prompt reads on from where it was rather than from the start, in milliseconds.
+   */
+  readonly keepMs?: number
 }
 
 type State = PromptReceipt["state"]
@@ -112,6 +117,8 @@ type Track = {
   attaching: Promise<void> | undefined
   reader: Reader | undefined
   timer: ReturnType<typeof setTimeout> | undefined
+  /** Stops following the record, once it has been `keepMs` with nothing to settle. */
+  rest: ReturnType<typeof setTimeout> | undefined
 }
 
 /** A ref for a prompt whose client gave none: as `agentRef` takes them. */
@@ -144,6 +151,7 @@ export class Receipts {
   private readonly now: () => number
   private readonly slackMs: number
   private readonly pollMs: number | undefined
+  private readonly keepMs: number
 
   constructor(
     private readonly host: ReceiptsHost,
@@ -152,19 +160,29 @@ export class Receipts {
     this.now = options.now ?? Date.now
     this.slackMs = options.slackMs
     this.pollMs = options.pollMs
+    this.keepMs = options.keepMs ?? 60_000
   }
 
   /**
-   * A prompt is about to be given: followed from now, under `ref`, if the record can tell
-   * (`tracked`). A ref the terminal's receipts hold already is a CONFLICT.
+   * Holds `ref` for a prompt about to be given, before anything waits: a ref the terminal's
+   * receipts hold already is a CONFLICT, writing nothing.
+   */
+  claim(terminalId: string, ref: string): void {
+    if (this.tracks.get(terminalId)?.entries.some((entry) => entry.ref === ref))
+      throw new DomainError("CONFLICT", "A prompt with that ref was given already.")
+  }
+
+  /**
+   * A prompt is being given: followed from now, under `ref`, if the record can tell
+   * (`tracked`). The ref is `claim`ed first; one a second prompt took meanwhile isn't followed.
    */
   async expect(
     terminalId: string,
     text: string,
     ref: string = freshRef(),
   ): Promise<{ readonly ref: string; readonly tracked: boolean }> {
-    if (this.tracks.get(terminalId)?.entries.some((entry) => entry.ref === ref))
-      throw new DomainError("CONFLICT", "A prompt with that ref was given already.")
+    this.claim(terminalId, ref)
+    const givenAt = this.now()
     const unbound = this.host.bound(terminalId) === null
     // Prompts given before the session bound are read in its record first, so this one's
     // track is theirs.
@@ -189,14 +207,13 @@ export class Receipts {
       : 0
     const track = this.trackOf(terminalId, source, agent)
     // Raced by a second prompt with the same ref while the record was looked at.
-    if (track.entries.some((entry) => entry.ref === ref))
-      throw new DomainError("CONFLICT", "A prompt with that ref was given already.")
+    if (track.entries.some((entry) => entry.ref === ref)) return { ref, tracked: false }
     const entry: Entry = {
       ref,
       text,
       lines,
       bytes,
-      since: source ? null : this.now(),
+      since: source ? null : givenAt,
       items: bytes === 0 ? 0 : undefined,
       sentAt: null,
       state: "pending",
@@ -285,6 +302,7 @@ export class Receipts {
     this.tracks.delete(terminalId)
     track.reader?.controller.abort()
     clearTimeout(track.timer)
+    clearTimeout(track.rest)
   }
 
   /** Stops following every terminal's, as the runner shuts down. */
@@ -310,6 +328,7 @@ export class Receipts {
       attaching: undefined,
       reader: undefined,
       timer: undefined,
+      rest: undefined,
     }
     this.tracks.set(terminalId, track)
     return track
@@ -320,30 +339,34 @@ export class Receipts {
    * item recorded since each was given new to it. Another agent's session starts them over.
    */
   private attach(terminalId: string, track: Track, key: string): Promise<void> {
-    track.attaching ??= this.attached(terminalId, track, key).finally(() => {
-      track.attaching = undefined
-    })
+    track.attaching ??= this.attached(terminalId, track, key).then(
+      (again) => {
+        track.attaching = undefined
+        // The session changed while its record was looked up: the new one's is looked up.
+        if (again) this.changed(terminalId)
+      },
+      () => void (track.attaching = undefined),
+    )
     return track.attaching
   }
 
-  private async attached(terminalId: string, track: Track, key: string): Promise<void> {
+  /** Reads the record of the session bound under `key`; true where another bound meanwhile. */
+  private async attached(terminalId: string, track: Track, key: string): Promise<boolean> {
     const source = await this.host.source(terminalId).catch(() => undefined)
-    if (this.tracks.get(terminalId) !== track || track.source) return
-    if (!source || source.key !== key || this.host.bound(terminalId) !== key) {
-      // Looked again once the record is known, or the session changed meanwhile.
-      if (this.host.bound(terminalId) === key) return
-      this.changed(terminalId)
-      return
-    }
+    if (this.tracks.get(terminalId) !== track || track.source) return false
+    // Looked again once the record is known, or once the session that bound meanwhile is.
+    if (!source || source.key !== key || this.host.bound(terminalId) !== key)
+      return this.host.bound(terminalId) !== key
     if (source.agent !== track.agent) {
       this.forget(terminalId)
       this.host.changed(terminalId)
-      return
+      return false
     }
     track.source = source
     this.host.changed(terminalId)
     this.read(terminalId, track)
     this.check(terminalId)
+    return false
   }
 
   /** Room for one more receipt: the oldest settled or withdrawn goes first, else the oldest. */
@@ -357,6 +380,8 @@ export class Receipts {
   /** Reads the record while a prompt may settle, from its start, so items are counted. */
   private read(terminalId: string, track: Track): void {
     const { source } = track
+    clearTimeout(track.rest)
+    track.rest = undefined
     if (track.reader || !source) return
     const reader: Reader = {
       controller: new AbortController(),
@@ -425,14 +450,24 @@ export class Receipts {
     )
   }
 
-  /** Stops reading the record once no prompt there may settle. */
+  /**
+   * Stops reading the record once no prompt there has settled for `keepMs`: the next one
+   * within it reads on from where the record was read to, not from its start, which in a
+   * long session's record takes a second or more.
+   */
   private idle(terminalId: string, track: Track): void {
-    if (track.entries.some((entry) => open(entry.state))) return
-    track.reader?.controller.abort()
-    track.reader = undefined
+    if (track.entries.some((entry) => open(entry.state)) || track.rest) return
     clearTimeout(track.timer)
     track.timer = undefined
-    if (track.entries.length === 0) this.tracks.delete(terminalId)
+    track.rest = setTimeout(() => {
+      track.rest = undefined
+      if (track.entries.some((entry) => open(entry.state))) return
+      track.reader?.controller.abort()
+      track.reader = undefined
+      if (track.entries.length === 0 && this.tracks.get(terminalId) === track)
+        this.tracks.delete(terminalId)
+    }, this.keepMs)
+    track.rest.unref?.()
   }
 
   /** Calls each pending prompt missing whose deadline passed, and looks again at the next. */
@@ -443,13 +478,15 @@ export class Receipts {
     track.timer = undefined
     const turns = this.host.turns(terminalId)
     const now = this.now()
-    // Before its session binds there is no record to read: the first prompt's hook binds it
-    // within the slack, or the prompt never started a turn.
+    // Before its session binds there is no record to read: the first prompt's hook binds it,
+    // given twice the slack, as a harness's first hook may come late on a cold start, or the
+    // prompt never started a turn.
     const readAt = track.source ? (track.reader?.readAt ?? null) : now
+    const slackMs = track.source ? this.slackMs : 2 * this.slackMs
     let next = Number.POSITIVE_INFINITY
     for (const entry of track.entries) {
       if (entry.state !== "pending" || entry.sentAt === null || entry.checking) continue
-      const due = missingAt(entry.sentAt, turns, readAt, now, this.slackMs)
+      const due = missingAt(entry.sentAt, turns, readAt, now, slackMs)
       if (due === true) void this.missing(terminalId, track, entry)
       else if (due !== null) next = Math.min(next, due)
     }
@@ -467,10 +504,16 @@ export class Receipts {
     if (box !== undefined && inBox(box, entry.lines)) entry.state = "in-box"
     else {
       entry.state = "unrecorded"
-      // Once per prompt, with no content: what it tells is that a decoder may have drifted.
-      log.warn("chat.unrecorded", "A prompt given through the chat isn't in its agent's record.", {
-        data: { agent: track.agent, version: track.source?.version ?? null },
-      })
+      // Once per prompt whose record was read, with no content: what it tells is that a
+      // decoder may have drifted. One whose session never bound tells no such thing.
+      if (track.source)
+        log.warn(
+          "chat.unrecorded",
+          "A prompt given through the chat isn't in its agent's record.",
+          {
+            data: { agent: track.agent, version: track.source?.version ?? null },
+          },
+        )
     }
     this.host.changed(terminalId)
   }

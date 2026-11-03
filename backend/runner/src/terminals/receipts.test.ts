@@ -84,7 +84,7 @@ const setup = async (
       box: async () => host.box,
       changed: () => void (host.changes += 1),
     },
-    { now: () => clock.now, slackMs, pollMs: 5 },
+    { now: () => clock.now, slackMs, pollMs: 5, keepMs: 30 },
   )
   resources.defer(() => receipts.close())
   const state = (ref: string) => receipts.view(terminal).find((each) => each.ref === ref)?.state
@@ -168,13 +168,68 @@ describe("prompt receipts", () => {
     })
   })
 
-  it("calls a prompt given before any session bound missing once none bound in the slack", async ({
+  it("gives a prompt before the session binds twice the slack, and logs no decoder miss for it", async ({
+    resources,
+  }) => {
+    const lines = capture(resources)
+    const { host, state, give, pass } = await setup(resources)
+    host.key = null
+    host.shown = "codex"
+    host.agent = "codex"
+    await give("hello", "r1")
+    await pass()
+    expect(state("r1")).toBe("pending")
+    await pass()
+    await vi.waitFor(() => expect(state("r1")).toBe("unrecorded"))
+    expect(lines.filter((line) => line.evt === "chat.unrecorded")).toEqual([])
+  })
+
+  it("looks up the record of a session that bound while another's was looked up", async ({
+    resources,
+  }) => {
+    const { path, host, receipts, state, give } = await setup(resources)
+    host.key = null
+    host.shown = "claude"
+    await give("hello", "r1")
+    let release = () => {}
+    host.lookup = new Promise((resolve) => (release = resolve))
+    host.key = "session-0"
+    receipts.changed(terminal)
+    // The session that bound first is gone by the time its lookup answers.
+    host.key = "session-1"
+    release()
+    await new Promise((resolve) => setTimeout(resolve, 20))
+    await appendFile(path, row("hello", 1_000))
+    await vi.waitFor(() => expect(state("r1")).toBe("settled"))
+  })
+
+  it("reads on from where the record was read for the next prompt, its items counted", async ({
+    resources,
+  }) => {
+    const { path, receipts, state, give } = await setup(resources, row("earlier"))
+    await give("one", "r1")
+    await appendFile(path, row("one"))
+    await vi.waitFor(() => expect(state("r1")).toBe("settled"))
+    await give("two", "r2")
+    await appendFile(path, row("two"))
+    await vi.waitFor(() => expect(state("r2")).toBe("settled"))
+    expect(receipts.view(terminal).map(({ item }) => item)).toEqual([1, 2])
+    // Past the keep, the record is no longer followed; the next prompt reads it from its start.
+    await new Promise((resolve) => setTimeout(resolve, 60))
+    await give("three", "r3")
+    await appendFile(path, row("three"))
+    await vi.waitFor(() => expect(state("r3")).toBe("settled"))
+    expect(receipts.view(terminal).at(-1)?.item).toBe(3)
+  })
+
+  it("calls a prompt given before any session bound missing once none bound in twice the slack", async ({
     resources,
   }) => {
     const { host, state, give, pass } = await setup(resources)
     host.key = null
     host.shown = "agy"
     await give("hello", "r1")
+    await pass()
     await pass()
     await vi.waitFor(() => expect(state("r1")).toBe("unrecorded"))
   })

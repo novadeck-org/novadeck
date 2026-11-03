@@ -965,7 +965,7 @@ one from an earlier runner.
   settled or withdrawn going first) is:
   - `pending` from the Enter (`sentAt`) until a user item the transcript gained after the
     prompt was given holds its words: both sides with line breaks as line feeds, doorbell
-    and Inbox reply lines taken out, and a shell command as `!` and the command; its lines
+    and Inbox reply lines taken out; its lines
     a run of the item's lines, white space at each line's ends aside. One item settles
     several prompts, in the order they were given, as Antigravity joins prompts queued
     behind a turn into one input; a prompt not found doesn't hold back one after it;

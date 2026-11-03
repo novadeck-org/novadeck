@@ -20,7 +20,7 @@ import { Answers, type AnswersOptions } from "./answers.js"
 import { Dialogs, type DialogsOptions } from "./dialogs.js"
 import { agentWorking, doorbellHost, profileOf } from "./doorbell-host.js"
 import { Interrupts, Prompts } from "./prompting.js"
-import { Receipts, type ReceiptsOptions } from "./receipts.js"
+import { freshRef, Receipts, type ReceiptsOptions } from "./receipts.js"
 import type { Record } from "./record.js"
 import { interruptionsOf } from "./transcripts.js"
 
@@ -165,8 +165,12 @@ export class Typing {
     automatic?: true | undefined,
     ref?: string | undefined,
   ): Promise<Prompted> {
-    // Followed from before any key goes, so what the record gains from here on counts.
-    const receipt = await this.receipts.expect(terminalId, text, ref)
+    // Its ref is held at once, and it joins the input queue in this same tick, as it always
+    // has, so nothing given after it goes before it. Its receipt is set up beside it: what
+    // the record was is looked at long before any key of it lands.
+    const claimed = ref ?? freshRef()
+    this.receipts.claim(terminalId, claimed)
+    const following = this.receipts.expect(terminalId, text, claimed)
     // A fixed line from an Inbox button: the turn it starts withdraws no ask (see `automatic`).
     if (automatic) this.host.messaging().automatic(terminalId, text)
     try {
@@ -174,9 +178,13 @@ export class Typing {
     } catch (error) {
       // Refused, failed or never given: no turn comes of it, so the mark would catch another.
       if (automatic) this.host.messaging().automaticFailed(terminalId, text)
-      this.receipts.failed(terminalId, receipt.ref)
+      void following.then(
+        () => this.receipts.failed(terminalId, claimed),
+        () => undefined,
+      )
       throw error
     }
+    const receipt = await following.catch(() => ({ ref: claimed, tracked: false }))
     this.receipts.sent(terminalId, receipt.ref)
     return receipt
   }
