@@ -1,7 +1,7 @@
-import type { SessionObserved } from "@novadeck/harness-core/events"
+import type { SessionObserved, TelemetryObserved } from "@novadeck/harness-core/events"
 
 import { describe, expect, it } from "../test.js"
-import { observe, type Facts, type Sessions } from "./bindings.js"
+import { observe, versionOf, withVersion, type Facts, type Sessions } from "./bindings.js"
 
 const idle: Sessions = { sessions: {}, binding: null, cwd: "/home" }
 const facts: Facts = {
@@ -189,5 +189,64 @@ describe("observing a harness session", () => {
     expect(observe(running, seen({ startedAt: 3_000, cwd: "/elsewhere" }), facts)?.cwd).toBe(
       "/elsewhere",
     )
+  })
+})
+
+describe("the harness version a binding carries", () => {
+  const told = (fields: Partial<TelemetryObserved> = {}): TelemetryObserved => ({
+    type: "telemetry-observed",
+    agent: "claude",
+    sessionId: "a",
+    instance: null,
+    startedAt: 2_500,
+    version: "2.1.316",
+    ...fields,
+  })
+  const binding = running.binding!
+
+  it("is unknown until a record of the session names it", () => {
+    expect(versionOf(binding)).toBeNull()
+    expect(versionOf(null)).toBeNull()
+    expect(versionOf(withVersion(binding, told()))).toBe("2.1.316")
+  })
+
+  it("changes when a newer release writes the session, and not when the record names none", () => {
+    const known = withVersion(binding, told())
+    expect(withVersion(known, told({ version: "2.1.320" })).version).toBe("2.1.320")
+    const { version: _, ...silent } = told()
+    expect(withVersion(known, silent)).toBe(known)
+    expect(withVersion(known, told())).toBe(known)
+  })
+
+  it("is taken only from a record of the bound session, and of its process where both tell", () => {
+    expect(withVersion(binding, told({ sessionId: "b" }))).toBe(binding)
+    expect(withVersion(binding, told({ agent: "codex" }))).toBe(binding)
+    const process = { ...binding, instance: "7" }
+    expect(withVersion(process, told({ instance: "8" }))).toBe(process)
+    expect(withVersion(process, told({ instance: "7" })).version).toBe("2.1.316")
+    expect(withVersion(process, told({ instance: null })).version).toBe("2.1.316")
+  })
+
+  it("takes the running release over the one that created the session, which never replaces it", () => {
+    const created = withVersion(binding, told({ version: "0.165.0", created: true }))
+    expect(created).toMatchObject({ version: "0.165.0", created: true })
+    const live = withVersion(created, told({ version: "0.166.0" }))
+    expect(live.version).toBe("0.166.0")
+    expect(live).not.toHaveProperty("created")
+    expect(withVersion(live, told({ version: "0.165.0", created: true }))).toBe(live)
+    expect(withVersion(created, told({ version: "0.164.0", created: true })).version).toBe(
+      "0.164.0",
+    )
+  })
+
+  it("stays as the same session reports again, and is unknown for another session", () => {
+    const known = { ...running, binding: { ...binding, version: "2.1.316" } }
+    expect(observe(known, seen({ startedAt: 3_000 }), facts)?.binding?.version).toBe("2.1.316")
+    const next = observe(
+      known,
+      seen({ sessionId: "b", startedAt: 3_000, evidence: "native-switch" }),
+      facts,
+    )
+    expect(next?.binding).toEqual({ agent: "claude", sessionId: "b", instance: null })
   })
 })

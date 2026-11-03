@@ -90,6 +90,7 @@ describe("an agent's detail", () => {
       actors: [],
       requests: [],
       coverage: null,
+      prompts: [],
     })
   })
 

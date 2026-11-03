@@ -25,6 +25,7 @@ export type SavedRecord = Pick<
   | "work"
   | "agents"
   | "promptedAt"
+  | "interruptions"
   | "closed"
   | "terminal"
   | "changed"
@@ -475,6 +476,7 @@ export class Saves {
       cwd: record.summary.cwd,
       agents: record.agents,
       promptedAt: record.promptedAt,
+      interruptions: record.interruptions ?? [],
     }
   }
 

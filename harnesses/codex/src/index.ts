@@ -1,5 +1,6 @@
 import type { Harness, LaunchProfile, MessagingProfile } from "@novadeck/harness-core/harness"
 
+import { bannerMarker, bannerVersion } from "./banner.js"
 import { box } from "./box.js"
 import { decode } from "./decode.js"
 import { dialogs } from "./dialogs.js"
@@ -145,6 +146,8 @@ export const codex = {
   dialogs,
   title,
   titleWorking,
+  screenVersion: bannerVersion,
+  screenMarker: bannerMarker,
   startedSession,
   hooksTrusted,
   // Where it keeps its threads' locks and its configuration, and how it is found.

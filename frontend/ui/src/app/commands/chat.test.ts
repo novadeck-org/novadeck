@@ -1,4 +1,4 @@
-import { chatDraftOf, chatReplyOf, chatSendOf, chatShown, watchChat } from "@novadeck/chat/state"
+import { chatDraftOf, chatReplyOf, chatSendsOf, chatShown, watchChat } from "@novadeck/chat/state"
 import { noConversation, type Conversations } from "@novadeck/core/conversation"
 import type { AgentStatus } from "@novadeck/core/types"
 
@@ -241,20 +241,24 @@ describe("chat commands", () => {
       const settle: { resolve: () => void; reject: (failure: unknown) => void }[] = []
       const sent: string[] = []
       const answers: unknown[] = []
+      const returned: (string | null)[] = []
       const wait = () => new Promise<void>((resolve, reject) => settle.push({ resolve, reject }))
       const app = open(
         { working: false },
         {
           conversation: () => ({ getSnapshot: () => noConversation, subscribe: () => () => {} }),
           send: (_key, text) => (sent.push(text), wait()),
-          interrupt: async () => null,
+          interrupt: async () => returned.shift() ?? null,
           answer: (_key, request, answer) => (answers.push([request, answer]), wait()),
           refused: () => false,
         },
       )
       const draft = () => chatDraftOf(app.chat.store.getSnapshot().drafts, "project/initial", "01")
-      const inFlight = () => chatSendOf(app.chat.store.getSnapshot().sends, "project/initial", "01")
-      return { app, settle, sent, answers, draft, inFlight }
+      const inFlight = () =>
+        chatSendsOf(app.chat.store.getSnapshot().sends, "project/initial", "01").map(
+          ({ text, draft: typed, to, phase }) => ({ text, draft: typed, to, phase }),
+        )
+      return { app, settle, sent, answers, returned, draft, inFlight }
     }
 
     it("takes the words out of the draft as they go, and keeps none once they arrive", async () => {
@@ -262,12 +266,12 @@ describe("chat commands", () => {
       app.commands.setChatDraft("01", "go")
       const going = app.commands.sendChat(key, "go", null)
       expect(draft()).toBe("")
-      expect(inFlight()).toEqual({ draft: "go", to: null })
+      expect(inFlight()).toEqual([{ text: "go", draft: "go", to: null, phase: "typing" }])
       app.commands.setChatDraft("01", "next")
       settle[0]!.resolve()
       await going
       expect(sent).toEqual(["go"])
-      expect(inFlight()).toBeNull()
+      expect(inFlight()).toEqual([])
       expect(draft()).toBe("next")
     })
 
@@ -279,7 +283,7 @@ describe("chat commands", () => {
       settle[0]!.reject(new Error("The runner is offline."))
       await expect(going).rejects.toThrow("The runner is offline.")
       expect(draft()).toBe("go\nuse pnpm")
-      expect(inFlight()).toBeNull()
+      expect(inFlight()).toEqual([])
     })
 
     it("puts a shell command back after words that came meanwhile, so they never run as its lines", async () => {
@@ -316,16 +320,67 @@ describe("chat commands", () => {
       settle[0]!.reject(new Error("no"))
       await expect(going).rejects.toThrow()
       expect(app.chat.store.getSnapshot().drafts).toEqual({})
-      expect(inFlight()).toBeNull()
+      expect(inFlight()).toEqual([])
     })
 
-    it("sends one at a time", async () => {
-      const { app, settle, sent } = sending()
+    it("queues a prompt behind the one on its way, and sends it once that one went", async () => {
+      const { app, settle, sent, inFlight } = sending()
       const first = app.commands.sendChat(key, "one", null)
-      await expect(app.commands.sendChat(key, "two", null)).rejects.toThrow("still on its way")
+      const second = app.commands.sendChat(key, "two", null)
+      expect(sent).toEqual(["one"])
+      expect(inFlight().map(({ text, phase }) => [text, phase])).toEqual([
+        ["one", "typing"],
+        ["two", "queued"],
+      ])
+      settle[0]!.resolve()
+      await first
+      expect(sent).toEqual(["one", "two"])
+      settle[1]!.resolve()
+      await second
+      expect(inFlight()).toEqual([])
+    })
+
+    it("puts every prompt queued behind one that didn't go back in the box, in order", async () => {
+      const { app, settle, sent, draft, inFlight } = sending()
+      const first = app.commands.sendChat(key, "one", null)
+      const second = app.commands.sendChat(key, "two", null)
+      const third = app.commands.sendChat(key, "three", null)
+      app.commands.setChatDraft("01", "typed meanwhile")
+      settle[0]!.reject(new Error("The runner is offline."))
+      await expect(first).rejects.toThrow("The runner is offline.")
+      await second
+      await third
+      expect(sent).toEqual(["one"])
+      expect(draft()).toBe("one\ntwo\nthree\ntyped meanwhile")
+      expect(inFlight()).toEqual([])
+    })
+
+    it("sends nothing queued after a Stop: the words handed back come first, then the queued ones", async () => {
+      const { app, settle, sent, returned, draft, inFlight } = sending()
+      const first = app.commands.sendChat(key, "one", null)
+      const second = app.commands.sendChat(key, "two", null)
+      app.commands.setChatDraft("01", "typed meanwhile")
+      returned.push("queued in the agent")
+      await app.commands.stopChat(key)
+      await second
+      expect(draft()).toBe("queued in the agent\ntwo\ntyped meanwhile")
       settle[0]!.resolve()
       await first
       expect(sent).toEqual(["one"])
+      expect(inFlight()).toEqual([])
+    })
+
+    it("answers a question at once, though a prompt is on its way", async () => {
+      const { app, settle, sent, answers } = sending()
+      const prompt = app.commands.sendChat(key, "one", null)
+      const to = { request: "r1", dialog: "q1" }
+      const answer = app.commands.sendChat(key, "yes", to)
+      expect(sent).toEqual(["one"])
+      expect(answers).toEqual([["r1", { type: "chat", dialog: "q1", text: "yes" }]])
+      settle[0]!.resolve()
+      settle[1]!.resolve()
+      await prompt
+      await answer
     })
 
     it("answers the question a reply names on one line, and ends the reply once it took", async () => {

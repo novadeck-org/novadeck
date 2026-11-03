@@ -7,6 +7,7 @@ import {
   callId,
   shortName,
   replied,
+  versionName,
 } from "@novadeck/harness-core/decode"
 import type { EventBase, HarnessEvent } from "@novadeck/harness-core/events"
 import { isFields, parseFields, type Fields } from "@novadeck/harness-core/fields"
@@ -70,7 +71,7 @@ export const rolloutEvents = (
   { sessionId, instance }: Pick<Run, "sessionId" | "instance">,
 ): readonly HarnessEvent[] => {
   if (
-    !/"(token_count|task_started|item_completed|task_complete|turn_aborted|turn_context)"/.test(
+    !/"(session_meta|token_count|task_started|item_completed|task_complete|turn_aborted|turn_context)"/.test(
       line,
     )
   )
@@ -81,6 +82,16 @@ export const rolloutEvents = (
   const startedAt = Date.parse(timestamp)
   if (!Number.isFinite(startedAt)) return []
   const base: EventBase<"codex"> = { agent: "codex", sessionId, instance, startedAt }
+  // The rollout's first record names the release that wrote it (a session resumed by a
+  // newer release adds none, probed 2026-11-03, 0.165.0 then 0.166.0). A record of another
+  // thread, as a fork's or a subagent's parent, is not this session's.
+  if (type === "session_meta") {
+    if (fields.id !== undefined && fields.id !== sessionId) return []
+    const version = versionName(fields.cli_version)
+    return version !== undefined
+      ? [{ type: "telemetry-observed", ...base, version, created: true }]
+      : []
+  }
   if (type === "turn_context") {
     const { model, effort } = fields
     // A turn that names its model names its effort too, none clearing the last model's.
@@ -232,6 +243,17 @@ const telemetry = (
   }
 }
 
+// The kind a backlog event is kept by, one latest of each: a turn's model is a kind of its
+// own, apart from the token counts, and so is the release's version.
+const backlogKind = (event: HarnessEvent): string =>
+  event.type !== "telemetry-observed"
+    ? event.type
+    : event.model !== undefined || event.effort
+      ? "model"
+      : event.version !== undefined && event.context === undefined && event.limits === undefined
+        ? "version"
+        : event.type
+
 /**
  * Follows a bound session's rollout. Codex writes a turn's mode before the hook that
  * binds the session starts, so what the rollout already holds counts too: its latest
@@ -239,21 +261,14 @@ const telemetry = (
  * then each record appended.
  */
 export const followRollout: NonNullable<Harness["watch"]> = (run, signal, emit) => {
-  // The latest of each kind the backlog held, until it has all been read. A turn's model
-  // is a kind of its own, apart from the token counts.
+  // The latest of each kind the backlog held, until it has all been read.
   let backlog: Map<string, HarnessEvent> | undefined = new Map()
   return followLines(
     run.transcript,
     signal,
     (line) => {
       for (const event of rolloutEvents(line, run))
-        if (backlog)
-          backlog.set(
-            event.type === "telemetry-observed" && (event.model !== undefined || event.effort)
-              ? "model"
-              : event.type,
-            event,
-          )
+        if (backlog) backlog.set(backlogKind(event), event)
         else emit(event)
     },
     {

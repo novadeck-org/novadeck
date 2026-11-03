@@ -1,4 +1,4 @@
-import { shortName } from "@novadeck/harness-core/decode"
+import { shortName, versionName } from "@novadeck/harness-core/decode"
 import type { EventBase, HarnessEvent } from "@novadeck/harness-core/events"
 import type { Report } from "@novadeck/harness-core/report"
 import { telemetryLimits } from "@novadeck/protocol"
@@ -52,10 +52,14 @@ export const statusLine = (
       { minutes, used: Math.min(1, percent / 100), resetsAt: at !== undefined ? at * 1000 : null },
     ]
   })
+  // Which release runs it: every status line says, so a session's version is known before
+  // its transcript holds a record.
+  const version = versionName(payload.version)
   return [
     {
       type: "telemetry-observed",
       ...base,
+      ...(version !== undefined && { version }),
       ...(held.length > 0 && {
         context: {
           occupied: Math.round(held.reduce((sum, each) => sum + each, 0)),

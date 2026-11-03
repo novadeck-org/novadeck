@@ -27,6 +27,7 @@ import {
   started as fresh,
   type Activity,
 } from "../harnesses/activity.js"
+import { versionOf } from "../harnesses/bindings.js"
 import { rootRef } from "../harnesses/detail.js"
 import { harnesses } from "../harnesses/registry.js"
 import { followRoot } from "../harnesses/roots.js"
@@ -38,6 +39,7 @@ import { ptyOptions } from "../testing/pty.js"
 import type { Resources } from "../testing/resources.js"
 import { plainSealer } from "../testing/sealing.js"
 import { WorkspaceStore } from "../workspaces/store.js"
+import { bannerSeen } from "./binding/banners.js"
 import { Terminals } from "./manager.js"
 import type { Bound } from "./record.js"
 
@@ -2021,12 +2023,13 @@ describe("a turn the person's Escape ended", () => {
     const inside = manager as unknown as Inside
     const record = inside.records.get(terminal.id)! as {
       transcript: string | null
-      escape?: { offset: Promise<unknown> }
+      escape?: { step: Promise<unknown> }
       interruptions?: readonly unknown[]
     } & (typeof inside.records extends Map<string, infer R> ? R : never)
     const directory = mkdtempSync(join(tmpdir(), "novadeck-interrupted-"))
+    let steps = 0
     const step = (source: string, type: string, content: string) =>
-      `${JSON.stringify({ source, type, content })}\n`
+      `${JSON.stringify({ step_index: steps++, source, type, content })}\n`
     // The chat's text items, an interruption as its note.
     const chat = async (agent: "agy" | "claude", sessionId: string) => {
       const reader = new AbortController()
@@ -2068,10 +2071,10 @@ describe("a turn the person's Escape ended", () => {
         })
         inside.messaging.escaped = () => ({ ...binding, type: "turn-escaped", startedAt: 20 })
         inside.bindings.escaped(record)
-        // The transcript's length is read as the key comes; Antigravity writes the turn's
+        // The transcript's last step is read as the key comes; Antigravity writes the turn's
         // cut-off words just after it (56 to 94 ms on, probed).
         // eslint-disable-next-line no-await-in-loop -- Each case reads its own file.
-        await record.escape?.offset
+        await record.escape?.step
         appendFileSync(record.transcript, step("MODEL", "PLANNER_RESPONSE", "Let me look."))
         if (end === "a Stop")
           inside.bindings.applyFact(record, {
@@ -2110,6 +2113,89 @@ describe("a turn the person's Escape ended", () => {
       expect(record.interruptions ?? []).toHaveLength(2)
     } finally {
       vi.useRealTimers()
+      rmSync(directory, { recursive: true, force: true })
+    }
+  })
+
+  it("still shows in the chat where it stood once the runner restarts", async ({ terminals }) => {
+    const store = new WorkspaceStore()
+    const directory = mkdtempSync(join(tmpdir(), "novadeck-interrupted-"))
+    type Kept = {
+      transcript: string | null
+      escape?: { step: Promise<unknown> }
+      interruptions?: readonly unknown[]
+    }
+    try {
+      const project = await store.createProject({ id: randomUUID(), name: "P", cwd })
+      const session = store.createSession({ id: randomUUID(), projectId: project.id, name: "S" })
+      const binding = { agent: "agy", sessionId: randomUUID(), instance: null } as const
+      const transcript = join(directory, "steps.jsonl")
+      const step = (index: number, source: string, type: string, content: string) =>
+        `${JSON.stringify({ step_index: index, source, type, content })}\n`
+      // The terminal's record, bound to the Antigravity session as its hooks would bind it.
+      const bound = async (manager: Terminals, restore: boolean) => {
+        const { id } = await manager.create(
+          { id: terminalId, sessionId: session.id, cwd, cols: 80, rows: 24, restore },
+          "creator",
+        )
+        const inside = manager as unknown as Inside
+        const record = inside.records.get(id)! as Kept &
+          (typeof inside.records extends Map<string, infer R> ? R : never)
+        record.transcript = transcript
+        record.bound = { binding, activity: fresh(0, false, false), telemetry: null }
+        return { inside, record }
+      }
+      const terminalId = randomUUID()
+      writeFileSync(transcript, step(0, "USER_EXPLICIT", "USER_INPUT", "Hold on"))
+
+      const first = terminals.manager({ ...ptyOptions, records: store })
+      const { inside, record } = await bound(first, false)
+      vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] })
+      try {
+        inside.bindings.applyFact(record, {
+          ...binding,
+          type: "turn-started",
+          cause: "prompt",
+          startedAt: 10,
+        })
+        inside.messaging.escaped = () => ({ ...binding, type: "turn-escaped", startedAt: 20 })
+        inside.bindings.escaped(record)
+        await record.escape?.step
+        appendFileSync(transcript, step(1, "MODEL", "PLANNER_RESPONSE", "Let me look."))
+        await vi.advanceTimersByTimeAsync(escapeVerdictMs)
+      } finally {
+        vi.useRealTimers()
+      }
+      // On Windows the verdict reads the screen for up to `escapeScreenMs` first.
+      await vi.waitFor(() => expect(record.interruptions).toHaveLength(1), {
+        timeout: escapeScreenMs + 2000,
+      })
+      // Saved at once, not on the next periodic save: a runner killed now still keeps it.
+      expect(store.terminal(terminalId)?.interruptions).toHaveLength(1)
+      await first.shutdown()
+      expect(store.terminal(terminalId)?.interruptions).toEqual([
+        { sessionId: binding.sessionId, step: 0, at: 20 },
+      ])
+
+      // The resumed session goes on in the same transcript.
+      appendFileSync(transcript, step(2, "USER_EXPLICIT", "USER_INPUT", "Go on"))
+      const second = terminals.manager({ ...ptyOptions, records: store })
+      await bound(second, true)
+      const reader = new AbortController()
+      const seen: string[] = []
+      const reading = (async () => {
+        for await (const change of second.transcript(terminalId, rootRef(binding), reader.signal))
+          if (change.type === "items")
+            seen.push(
+              ...change.items.map((each) => (each.interrupted ? "(interrupted)" : each.text)),
+            )
+      })()
+      await vi.waitFor(() => expect(seen).toContain("Go on"), { timeout: 5000 })
+      expect(seen).toEqual(["Hold on", "Let me look.", "(interrupted)", "Go on"])
+      reader.abort()
+      await reading
+    } finally {
+      store.close()
       rmSync(directory, { recursive: true, force: true })
     }
   })
@@ -2538,5 +2624,137 @@ describe("a shell's prompt coming back", () => {
     inside.prompted(record, record.terminal.pty, cwd)
     expect(ready).not.toContain("codex")
     expect(record.summary.ready).toBeNull()
+  })
+})
+
+describe("the harness version a terminal's binding carries", () => {
+  type Inside = {
+    records: Map<string, { bound: Bound | null }>
+    bindings: { applyFact: (record: unknown, fact: object) => boolean }
+  }
+
+  it("is told by the session's records, keeps the telemetry apart, and ignores another session's", async ({
+    terminals,
+  }) => {
+    const manager = terminals.manager(ptyOptions)
+    const terminal = await manager.create(
+      { id: randomUUID(), sessionId: "session", cwd, cols: 80, rows: 24 },
+      "creator",
+    )
+    const inside = manager as unknown as Inside
+    const record = inside.records.get(terminal.id)!
+    const binding = { agent: "claude", sessionId: "s", instance: null } as const
+    record.bound = { binding, activity: fresh(0), telemetry: null }
+    const tell = (fact: object) =>
+      inside.bindings.applyFact(record, {
+        ...binding,
+        type: "telemetry-observed",
+        startedAt: 10,
+        ...fact,
+      })
+
+    expect(versionOf(record.bound?.binding)).toBeNull()
+    tell({ sessionId: "other", version: "9.9.9" })
+    expect(versionOf(record.bound?.binding)).toBeNull()
+    // The version alone is no telemetry: the summary the clients see stays without any.
+    expect(tell({ version: "2.1.316" })).toBe(false)
+    expect(versionOf(record.bound?.binding)).toBe("2.1.316")
+    expect(record.bound?.telemetry).toBeNull()
+    // Telemetry that names it too sets both, and one without leaves the version.
+    tell({ startedAt: 20, version: "2.1.317", context: { occupied: 5, capacity: 100 } })
+    expect(versionOf(record.bound?.binding)).toBe("2.1.317")
+    expect(record.bound?.telemetry).toMatchObject({ context: { occupied: 5 } })
+    tell({ startedAt: 30, context: { occupied: 6, capacity: 100 } })
+    expect(versionOf(record.bound?.binding)).toBe("2.1.317")
+  })
+})
+
+describe("the harness version a screen shows", () => {
+  type Inside = {
+    records: Map<
+      string,
+      {
+        bound: Bound | null
+        terminal: { screen: { write: (text: string, done: () => void) => void } }
+      }
+    >
+    reporting: {
+      screenVersion: (record: unknown, binding: unknown, drawn?: string) => Promise<void>
+    }
+    typing: { dialogsChanged: (terminalId: string) => void }
+    bindings: {
+      follow: (record: unknown, event: object) => void
+      endBinding: (record: unknown) => boolean
+    }
+  }
+
+  it("is the banner a starting Codex drew, though its replayed conversation covers it by the time it binds", async ({
+    terminals,
+  }) => {
+    const manager = terminals.manager(ptyOptions)
+    const terminal = await manager.create(
+      { id: randomUUID(), sessionId: "session", cwd, cols: 80, rows: 24 },
+      "creator",
+    )
+    const inside = manager as unknown as Inside
+    const record = inside.records.get(terminal.id)!
+    const draw = (text: string) =>
+      new Promise<void>((resolve) => record.terminal.screen.write(text, resolve))
+    // Codex's TUI is on the alternate screen; the draw is what the terminal tells the runner.
+    await draw("\x1b[?1049h\x1b[2J\x1b[H")
+    inside.typing.dialogsChanged(terminal.id)
+    await draw("  >_ OpenAI Codex (v0.166.0)\r\n")
+    inside.typing.dialogsChanged(terminal.id)
+    // The resumed conversation is replayed over it; then the session binds.
+    await draw("\x1b[2J\x1b[H› Turn 1\r\n• Done 1.\r\n")
+    inside.typing.dialogsChanged(terminal.id)
+    const binding = { agent: "codex", sessionId: "s", instance: null } as const
+    record.bound = { binding, activity: fresh(0), telemetry: null }
+    // Another agent's binding takes none; Codex's takes it, once.
+    expect(bannerSeen(record as never, "claude")).toBeUndefined()
+    await inside.reporting.screenVersion(record, binding, bannerSeen(record as never, "codex"))
+    expect(versionOf(record.bound?.binding)).toBe("0.166.0")
+    // It stays with the process: a session switch inside it (`follow`) binds with it again,
+    // and the end of the session (the agent's exit) is what forgets it.
+    inside.bindings.follow(record, {
+      type: "session-observed",
+      ...binding,
+      sessionId: "s2",
+      evidence: "native-switch",
+      startedAt: 1,
+    })
+    expect(bannerSeen(record as never, "codex")).toBe("0.166.0")
+    inside.bindings.endBinding(record)
+    expect(bannerSeen(record as never, "codex")).toBeUndefined()
+  })
+
+  it("is the running release in Codex's banner, which the rollout's creating release gives way to", async ({
+    terminals,
+  }) => {
+    const manager = terminals.manager(ptyOptions)
+    const terminal = await manager.create(
+      { id: randomUUID(), sessionId: "session", cwd, cols: 80, rows: 24 },
+      "creator",
+    )
+    const inside = manager as unknown as Inside
+    const record = inside.records.get(terminal.id)!
+    const binding = { agent: "codex", sessionId: "s", instance: null } as const
+    record.bound = { binding, activity: fresh(0), telemetry: null }
+    await new Promise<void>((resolve) =>
+      record.terminal.screen.write("\x1b[2J\x1b[H  >_ OpenAI Codex (v0.166.0)\r\n", resolve),
+    )
+    await inside.reporting.screenVersion(record, binding)
+    expect(versionOf(record.bound?.binding)).toBe("0.166.0")
+    // The rollout of a session a newer release resumed names the one that began it.
+    ;(
+      manager as unknown as { bindings: { applyFact: (r: unknown, f: object) => boolean } }
+    ).bindings.applyFact(record, {
+      ...binding,
+      type: "telemetry-observed",
+      startedAt: 1,
+      version: "0.165.0",
+      created: true,
+    })
+    expect(versionOf(record.bound?.binding)).toBe("0.166.0")
   })
 })

@@ -69,14 +69,14 @@ import { createTranscriptRedactor, type TranscriptRedactor } from "./redaction.j
 import { restoredSeparator } from "./restored.js"
 import { cancelResume, Claims, restartedTask } from "./resumes.js"
 import { Sampler, shellProcess } from "./sampling.js"
-import { hasRun, type TerminalRecords } from "./saved-terminals.js"
+import { hasRun, keptState, type TerminalRecords } from "./saved-terminals.js"
 import { Saves } from "./saving.js"
 import type { TranscriptSealer } from "./sealing.js"
 import { Streams } from "./streams.js"
 import { savedSummaryOf, summaryOf, type AgentSummary } from "./summary.js"
 import { openedWith, renamed as renamedTo, summaryTitle, unnamed, type Naming } from "./titles.js"
 import { interruptionsOf, transcriptChanges } from "./transcripts.js"
-import { Typing } from "./typing.js"
+import { Typing, type Prompted, type PromptInput } from "./typing.js"
 
 export type TerminalOptions = {
   shell?: string
@@ -482,6 +482,7 @@ export class Terminals {
           record.bound?.telemetry ?? null,
           this.typing.dialogs.view(record.summary.id),
           this.typing.dialogs.answered(record.summary.id),
+          this.typing.receipts.view(record.summary.id),
         ),
       messages: (terminalId) => this.messages(terminalId),
     })
@@ -810,7 +811,7 @@ export class Terminals {
         actorWatches: new Map(),
         transcript: null,
         sourceReaders: new Set(),
-        promptedAt: saved?.promptedAt ?? null,
+        ...keptState(saved),
         prompts: [],
         line: emptyLine,
         lineEntered: started.resumes,
@@ -938,8 +939,8 @@ export class Terminals {
    * Gives the terminal's agent a prompt as the person would paste and submit it (see
    * `Prompts`), once those before it in the terminal's input queue are done.
    */
-  prompt(input: { terminalId: string; text: string; automatic?: true | undefined }): Promise<void> {
-    return this.typing.prompt(input.terminalId, input.text, input.automatic)
+  prompt(input: PromptInput): Promise<Prompted> {
+    return this.typing.prompt(input.terminalId, input.text, input.automatic, input.ref)
   }
 
   /**
@@ -1499,7 +1500,7 @@ export class Terminals {
     signal?.addEventListener("abort", abort, { once: true })
     if (signal?.aborted) reader.abort()
     try {
-      yield* transcriptChanges(path, source.items, reader.signal, interruptionsOf(record, native))
+      yield* transcriptChanges(path, source, reader.signal, interruptionsOf(record, native))
     } finally {
       signal?.removeEventListener("abort", abort)
       reader.abort()

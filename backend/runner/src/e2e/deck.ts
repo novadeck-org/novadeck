@@ -109,9 +109,10 @@ export type DeckTerminal = {
   ) => Promise<T>
   /**
    * Gives its agent a prompt as the chat does, `agents.prompt`: pasted into its box, and
-   * Enter once it shows; resolves once that Enter is out, rejects as the call would.
+   * Enter once it shows; resolves once that Enter is out, with the ref of its receipt in
+   * `detail` and whether one follows, and rejects as the call would.
    */
-  readonly prompt: (text: string) => Promise<void>
+  readonly prompt: (text: string) => Promise<{ readonly ref: string; readonly tracked: boolean }>
   /** Presses Escape in its agent as the chat does, `agents.interrupt`. */
   readonly interrupt: () => Promise<InterruptResult>
   /**
@@ -783,7 +784,7 @@ export const createDeck = async (options: DeckOptions): Promise<Deck> => {
       messages: () => terminals.messages(id),
       prompt: async (text) => {
         prompted = undefined
-        await terminals.prompt({ terminalId: id, text })
+        return await terminals.prompt({ terminalId: id, text })
       },
       interrupt: async () => {
         prompted = undefined

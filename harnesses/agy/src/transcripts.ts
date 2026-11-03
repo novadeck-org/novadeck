@@ -26,6 +26,10 @@ const typed = (fields: Fields): string | undefined => {
  */
 export const transcripts: TranscriptDecoder = {
   locate: (root, _sessionId, subagent) => Promise.resolve(subagent === null ? root : undefined),
+  step: (line) => {
+    const index = parseFields(line)?.step_index
+    return typeof index === "number" ? index : undefined
+  },
   items: (line) => {
     const fields = parseFields(line)
     if (!fields) return []

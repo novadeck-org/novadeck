@@ -1,4 +1,4 @@
-import { SettleInTerminal, WordsLost } from "@novadeck/core/conversation"
+import { noConversation, SettleInTerminal, WordsLost } from "@novadeck/core/conversation"
 import { promptRefusal } from "@novadeck/core/conversation/prompt-refusal"
 import type { AgentDetail, TranscriptChange, TranscriptItem } from "@novadeck/protocol"
 import { WireError } from "@novadeck/wire"
@@ -27,6 +27,7 @@ const detail = (change: Partial<AgentDetail> = {}): AgentDetail => ({
   actors: [{ ref: root, role: "root", parent: null, type: null }],
   requests: [],
   coverage: null,
+  prompts: [],
   ...change,
 })
 
@@ -59,7 +60,10 @@ const setup = () => {
       transcripts[actor] = next
       return next.iterator
     }),
-    prompt: vi.fn<ConversationStreams["prompt"]>(async () => {}),
+    prompt: vi.fn<ConversationStreams["prompt"]>(async (_terminal, _text, options) => ({
+      ref: options?.ref ?? "runner-picked-ref",
+      tracked: true,
+    })),
     interrupt: vi.fn<ConversationStreams["interrupt"]>(async () => ({ returned: null })),
     answer: vi.fn<ConversationStreams["answer"]>(async () => {}),
   }
@@ -479,7 +483,7 @@ describe("the runner's conversations", () => {
   describe("sending", () => {
     it("gives the prompt to the runner and stops the turn on interrupt", async () => {
       const { conversations, streams } = setup()
-      await conversations.send(key, "hello")
+      await expect(conversations.send(key, "hello")).resolves.toEqual({ tracked: true })
       await conversations.interrupt(key)
       expect(streams.prompt).toHaveBeenCalledWith("t", "hello", undefined)
       expect(streams.interrupt).toHaveBeenCalledWith("t")
@@ -488,7 +492,74 @@ describe("the runner's conversations", () => {
     it("marks a fixed line an Inbox button sends as automatic", async () => {
       const { conversations, streams } = setup()
       await conversations.send(key, "continue", { automatic: true })
-      expect(streams.prompt).toHaveBeenCalledWith("t", "continue", true)
+      expect(streams.prompt).toHaveBeenCalledWith("t", "continue", { automatic: true })
+    })
+
+    it("names the prompt's receipt with the ref given", async () => {
+      const { conversations, streams } = setup()
+      await conversations.send(key, "hello", { ref: "abcdefghijklmnop" })
+      expect(streams.prompt).toHaveBeenCalledWith("t", "hello", { ref: "abcdefghijklmnop" })
+    })
+
+    it("empties the conversation once its terminal is gone, so what waited on it hears so", async () => {
+      const { details, store } = setup()
+      const unsubscribe = store.subscribe(() => {})
+      const receipt = {
+        ref: "abcdefghijklmnop",
+        text: "hello",
+        sentAt: 1,
+        state: "pending" as const,
+        item: null,
+      }
+      details.push(detail({ prompts: [receipt] }))
+      await vi.waitFor(() => expect(store.getSnapshot().prompts).toEqual([receipt]))
+      details.end()
+      await vi.waitFor(() => expect(store.getSnapshot()).toEqual(noConversation))
+      unsubscribe()
+    })
+
+    it("keeps a settled prompt's words, which its receipt no longer carries", async () => {
+      const { details, store } = setup()
+      const unsubscribe = store.subscribe(() => {})
+      const receipt = {
+        ref: "abcdefghijklmnop",
+        text: "hello",
+        sentAt: 1,
+        state: "pending" as const,
+        item: null,
+      }
+      details.push(detail({ prompts: [receipt] }))
+      await vi.waitFor(() => expect(store.getSnapshot().prompts).toEqual([receipt]))
+      details.push(detail({ prompts: [{ ...receipt, state: "settled", text: null, item: 3 }] }))
+      await vi.waitFor(() =>
+        expect(store.getSnapshot().prompts).toEqual([{ ...receipt, state: "settled", item: 3 }]),
+      )
+      unsubscribe()
+    })
+
+    it("shows no prompts from a runner that sends no receipts", async () => {
+      const { details, store } = setup()
+      const unsubscribe = store.subscribe(() => {})
+      const { prompts: _none, ...older } = detail()
+      details.push(older)
+      await vi.waitFor(() => expect(store.getSnapshot().session).toBe("s1"))
+      expect(store.getSnapshot().prompts).toEqual([])
+      unsubscribe()
+    })
+
+    it("shows the session's receipts as its prompts", async () => {
+      const { details, store } = setup()
+      const unsubscribe = store.subscribe(() => {})
+      const receipt = {
+        ref: "abcdefghijklmnop",
+        text: "hello",
+        sentAt: 1,
+        state: "unrecorded" as const,
+        item: null,
+      }
+      details.push(detail({ prompts: [receipt] }))
+      await vi.waitFor(() => expect(store.getSnapshot().prompts).toEqual([receipt]))
+      unsubscribe()
     })
 
     it.each([

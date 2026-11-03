@@ -54,7 +54,9 @@ const projectOf = ({ pinned, ...project }: ProjectRow): Project => ({
 // column; see the step from 6.
 // 8: a project keeps where the person put it in the switcher (`rank`) and whether they
 // pinned it; `position` stays the order it was added in.
-const schemaVersion = 8
+// 9: a terminal keeps where the person interrupted turns its agents' transcripts don't
+// record (`interruptions`), which only the runner's memory held until then.
+const schemaVersion = 9
 const schema = `
   CREATE TABLE projects (
     position INTEGER PRIMARY KEY,
@@ -111,6 +113,9 @@ const schema = `
     last_program TEXT,
     -- What its root agent session worked on, for agents messaging each other, as JSON.
     work TEXT,
+    -- Where the person interrupted turns its agents' transcripts don't record, as JSON:
+    -- [{ "sessionId", "step", "at" }], oldest first; null for none.
+    interruptions TEXT,
     UNIQUE (session_id, handle),
     -- What an item's foreign key names; a save may move a terminal to another session, and
     -- its items go with it.
@@ -268,6 +273,10 @@ type Step = string | ((database: DatabaseSync, path: string) => void)
  * dropping it first deletes their rows through ON DELETE CASCADE.
  */
 const migrations: Readonly<Record<number, Step>> = {
+  // Interruptions were kept in the runner's memory alone: no terminal has any.
+  8: `
+    ALTER TABLE terminals ADD COLUMN interruptions TEXT;
+  `,
   // The switcher's arrangement, which the person's browser kept until now: nobody has one.
   7: `
     ALTER TABLE projects ADD COLUMN rank INTEGER;
@@ -890,6 +899,7 @@ type TerminalRow = {
   command: string | null
   last_program: string | null
   work: string | null
+  interruptions: string | null
 }
 
 const workOf = (text: string | null): Work | null => {
@@ -910,7 +920,26 @@ const namingOf = (row: NamingRow): Naming => ({
   summary: row.summary,
 })
 
-const listed = (row: Omit<TerminalRow, "transcript">): ListedTerminal => ({
+// Only what is shaped as one, so a damaged row loses its interruptions, never its terminal.
+const interruptionsOf = (text: string | null): SavedTerminal["interruptions"] => {
+  if (text === null) return []
+  try {
+    const value: unknown = JSON.parse(text)
+    if (!Array.isArray(value)) return []
+    return value.filter(
+      (each): each is SavedTerminal["interruptions"][number] =>
+        typeof each === "object" &&
+        each !== null &&
+        typeof each.sessionId === "string" &&
+        Number.isInteger(each.step) &&
+        typeof each.at === "number",
+    )
+  } catch {
+    return []
+  }
+}
+
+const listed = (row: Omit<TerminalRow, "transcript" | "interruptions">): ListedTerminal => ({
   id: row.id,
   sessionId: row.session_id,
   handle: row.handle,
@@ -1304,10 +1333,16 @@ export class WorkspaceStore implements TerminalRecords, MessageRecords, InboxRec
     const row = this.queries.get`
       SELECT id, session_id, cwd, agent_reports, prompted_at, transcript, saved_at, handle,
         person_title, opener_title, murmur_title, summary, opened_by,
-        led_by, command, last_program, work
+        led_by, command, last_program, work, interruptions
       FROM terminals WHERE id = ${terminalId}
     ` as TerminalRow | undefined
-    return row && { ...listed(row), transcript: row.transcript }
+    return (
+      row && {
+        ...listed(row),
+        interruptions: interruptionsOf(row.interruptions),
+        transcript: row.transcript,
+      }
+    )
   }
 
   // In the order their handles were given, which is the order they were asked for: a
@@ -1328,7 +1363,7 @@ export class WorkspaceStore implements TerminalRecords, MessageRecords, InboxRec
           FROM terminals t LEFT JOIN session_handles h USING (session_id, handle)
           WHERE t.session_id = ${sessionId}
           ORDER BY h.rowid IS NULL, h.rowid, t.rowid`
-    ) as Omit<TerminalRow, "transcript">[]
+    ) as Omit<TerminalRow, "transcript" | "interruptions">[]
     return rows.map(listed)
   }
 
@@ -1384,15 +1419,18 @@ export class WorkspaceStore implements TerminalRecords, MessageRecords, InboxRec
     const { summary } = naming
     const openerTitle = naming.opener?.title ?? null
     const work = terminal.work === null ? null : JSON.stringify(terminal.work)
+    const interruptions = terminal.interruptions?.length
+      ? JSON.stringify(terminal.interruptions)
+      : null
     if (terminal.transcript === undefined)
       void this.queries.run`
         INSERT INTO terminals (id, session_id, cwd, agent_reports, prompted_at, saved_at, handle,
           person_title, opener_title, murmur_title, summary, opened_by,
-          led_by, command, last_program, work)
+          led_by, command, last_program, work, interruptions)
         VALUES (${terminal.id}, ${terminal.sessionId}, ${terminal.cwd}, ${agents},
           ${terminal.promptedAt}, ${now}, ${handle}, ${person}, ${openerTitle},
           ${murmurTitle}, ${summary}, ${openedBy}, ${ledBy}, ${command}, ${lastProgram},
-          ${work})
+          ${work}, ${interruptions})
         ON CONFLICT (id) DO UPDATE SET session_id = excluded.session_id, cwd = excluded.cwd,
           agent_reports = excluded.agent_reports, prompted_at = excluded.prompted_at,
           saved_at = excluded.saved_at, handle = excluded.handle,
@@ -1400,17 +1438,18 @@ export class WorkspaceStore implements TerminalRecords, MessageRecords, InboxRec
           murmur_title = excluded.murmur_title,
           summary = excluded.summary, opened_by = excluded.opened_by,
           led_by = excluded.led_by, command = excluded.command,
-          last_program = excluded.last_program, work = excluded.work
+          last_program = excluded.last_program, work = excluded.work,
+          interruptions = excluded.interruptions
       `
     else
       void this.queries.run`
         INSERT INTO terminals (id, session_id, cwd, agent_reports, prompted_at, transcript, saved_at,
           handle, person_title, opener_title, murmur_title, summary,
-          opened_by, led_by, command, last_program, work)
+          opened_by, led_by, command, last_program, work, interruptions)
         VALUES (${terminal.id}, ${terminal.sessionId}, ${terminal.cwd}, ${agents},
           ${terminal.promptedAt}, ${terminal.transcript}, ${now}, ${handle}, ${person},
           ${openerTitle}, ${murmurTitle}, ${summary}, ${openedBy}, ${ledBy},
-          ${command}, ${lastProgram}, ${work})
+          ${command}, ${lastProgram}, ${work}, ${interruptions})
         ON CONFLICT (id) DO UPDATE SET session_id = excluded.session_id, cwd = excluded.cwd,
           agent_reports = excluded.agent_reports, prompted_at = excluded.prompted_at,
           transcript = excluded.transcript, saved_at = excluded.saved_at,
@@ -1418,7 +1457,8 @@ export class WorkspaceStore implements TerminalRecords, MessageRecords, InboxRec
           opener_title = excluded.opener_title,
           murmur_title = excluded.murmur_title, summary = excluded.summary,
           opened_by = excluded.opened_by, led_by = excluded.led_by, command = excluded.command,
-          last_program = excluded.last_program, work = excluded.work
+          last_program = excluded.last_program, work = excluded.work,
+          interruptions = excluded.interruptions
       `
   }
 

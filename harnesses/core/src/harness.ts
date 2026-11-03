@@ -140,6 +140,14 @@ export type Harness = {
      * word, is caught.
      */
     readonly shapes: (line: string) => readonly Shape[]
+    /**
+     * Where one line stands in it, where the line says (Antigravity's `step_index`), growing
+     * through the conversation though lines may come out of order: what the runner keeps an
+     * interruption the transcript doesn't record against (`records` false), as a rewrite of
+     * the file that keeps each step's index keeps the mark's place, where a byte offset would
+     * not. None for a harness that records its own.
+     */
+    readonly step?: (line: string) => number | undefined
   }
   /**
    * The plans one line of its transcript or rollout records, as its own decoders read
@@ -195,6 +203,18 @@ export type Harness = {
    * foreground runs a process of the harness's name.
    */
   readonly title?: (title: string, at: number) => PromptShown | undefined
+  /**
+   * The version of the harness running, read off the rows of its screen, where it draws one
+   * (Codex's banner, "OpenAI Codex (v0.166.0)", at each process's start, a resume's too);
+   * undefined where they show none. It names the running release, which its records may not.
+   */
+  readonly screenVersion?: (rows: readonly string[]) => string | undefined
+  /**
+   * What its version line starts with, and within how many columns, so the runner looks at
+   * a screen's rows cheaply on every draw and has `screenVersion` read only those that hold
+   * it (Codex: `>_` within the first 8 columns).
+   */
+  readonly screenMarker?: { readonly text: string; readonly columns: number }
   /** Whether the terminal title it sets says a turn runs, as Codex's Working does. */
   readonly titleWorking?: (title: string) => boolean
   /**

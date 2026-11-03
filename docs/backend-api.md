@@ -800,8 +800,10 @@ one from an earlier runner.
   milliseconds on the runner's clock, and its `dialog`, below), and how much of each
   feature the agent's harness
   tells (`unsupported`, `partial`, `complete`). Actors and requests have runner-issued
-  refs, never a harness's own ids; the summary's subagents use the same refs. Without an
-  agent bound, only `terminalId` is set. The stream follows the terminal from agent to
+  refs, never a harness's own ids; the summary's subagents use the same refs. Its `prompts`
+  are the receipts of the prompts given through `agents.prompt` in the bound session (see
+  "Prompt receipts" below). Without an agent bound, only `terminalId` is set, and the
+  receipts of prompts given an agent at its own prompt before its session binds. The stream follows the terminal from agent to
   agent and ends when the terminal is closed; an unknown one is `TERMINAL_NOT_FOUND`.
   The client's `agents.detail(terminalId)` resubscribes across reconnections and ends
   once the terminal is gone.
@@ -825,7 +827,8 @@ one from an earlier runner.
   interrupted the turn: Claude Code's and Codex's records hold their own, and for
   Antigravity, whose record holds none, the runner adds one where an Escape that stood
   came: after the turn's last steps, before the person's next prompt written after the key.
-  It keeps them in memory, so a runner restart forgets them. The runner reads no further ahead than it has sent, but a remote client's own
+  It keeps them with the terminal, by the transcript's latest step at the key, so they
+  keep their place after a runner restart. The runner reads no further ahead than it has sent, but a remote client's own
   pace is not tracked: a large record on a slow link fills the socket's buffer like any
   other output.
   An actor the terminal's session does not have, or without a transcript Novadeck reads,
@@ -833,7 +836,7 @@ one from an earlier runner.
   client's `agents.transcript(terminalId, actor)` resubscribes across reconnections,
   yielding `reset` before the items follow again, and ends without one when the actor
   is gone.
-- `agents.prompt({ terminalId, text, automatic? })` gives the terminal's agent a prompt as the person
+- `agents.prompt({ terminalId, text, automatic?, ref? })` gives the terminal's agent a prompt as the person
   would paste and submit it (`automatic: true` marks a fixed line an Inbox button sends, such as "continue", not words the person wrote: the turn it starts withdraws no ask from the Inbox, see [Agent messaging](agent-messaging.md); a strict-schema field added with the protocol version unchanged, as the repo does while client and runner ship together; `text` is 1 to 16,384 characters; its line breaks, CRLF and a lone CR included, are taken as one line break each and stay
   line breaks in the box). It needs an agent bound, or one showing its own empty prompt
   before its first session binds (Codex before its first prompt), and no request waiting
@@ -940,7 +943,51 @@ one from an earlier runner.
   "Queued follow-up inputs", waiting for the turn to end. Each shows up as a separate user item in the transcript. The
   window's resizes are held until a second after the Enter; the next entry of the queue takes
   them over and keeps that deadline, so one that is refused at once lets none go earlier. The
-  client's `agents.prompt(terminalId, text)` is that call.
+  client's `agents.prompt(terminalId, text, { automatic?, ref? })` is that call.
+
+  It resolves with `{ ref, tracked }`: the ref of the prompt's receipt (the `ref` given, 16
+  letters, digits, `_` or `-`, which a client picks so its own copy of the prompt has the
+  same key from the start; one the terminal's receipts already hold is a `CONFLICT` writing
+  nothing; the runner's own without one), and whether a receipt follows it.
+
+  **Prompt receipts.** The runner follows each prompt until the agent's own record holds it,
+  so the chat can show it until then and say when it never came, the same in every window
+  and after a reload (`terminals/receipts.ts`). It reads the root's transcript from its
+  start with the harness's own decoder, the one `agents.transcript` serves, so a prompt a
+  decoder drops is missing here as it is in the chat. `tracked` is false for a shell command,
+  on every harness (Codex records one only once it has run, however long that takes, with
+  no turn to say it runs; Antigravity keeps no record of one), and where no agent shows in
+  the terminal. A prompt given an agent at its own prompt before its first session binds,
+  as Codex's and Antigravity's first prompt is (their session binds at that prompt's hook),
+  is followed too: once the session binds, its record is read for it, an item recorded in
+  the second the prompt was given or later being new to it (harnesses record whole seconds
+  at the coarsest); a session that never binds makes it missing at the Enter plus the wait
+  below. A receipt (`promptReceipt`, up to 8 per session in `agents.detail`, the oldest
+  settled or withdrawn going first) is:
+  - `pending` from the Enter (`sentAt`) until a user item the transcript gained after the
+    prompt was given holds its words: both sides with line breaks as line feeds, doorbell
+    and Inbox reply lines taken out; its lines
+    a run of the item's lines, white space at each line's ends aside. One item settles
+    several prompts, in the order they were given, as Antigravity joins prompts queued
+    behind a turn into one input; a prompt not found doesn't hold back one after it;
+  - `settled`, with `item`, that item's index in `agents.transcript` (counting the
+    interruptions the runner joins to Antigravity's), and its `text` null;
+  - `unrecorded` once the agent has been idle for the doorbell's confirmation wait
+    (`confirmMs`: 5 s, plus the hook shell's slack on Windows) since the later of the Enter
+    and its latest turn's end, and the transcript was read to its end after that, with
+    the words not there. A turn that runs puts it off, so a prompt the harness takes into
+    the running turn (Codex steers it, Claude Code takes it beside a tool's result) or runs
+    as the next turn (Claude Code's and Antigravity's queue) has that turn to show. The
+    runner logs `chat.unrecorded` once for it, with the harness and its version, never the
+    words;
+  - `in-box` instead, where the agent's box holds the words when that is decided, as an
+    Escape in the terminal puts queued words back: not logged, as no decoder missed it;
+  - `withdrawn` once an `agents.interrupt` handed the words back (`returned`), a pending
+    receipt's or one back in the box.
+    A transcript that holds the words within 10 minutes of a receipt turning `unrecorded` or
+    `in-box` still settles it; past that it is read for it no more. A new session starts the
+    receipts over; they are kept in memory only. `prompts` is optional in the schema, as a
+    runner from before receipts sends none; a client reads its absence as none.
 
 - A request's `dialog` in `agents.detail` is what its harness's adapter (`harnesses/<harness>/src/dialogs.ts`,
   the only code that knows how a harness draws its dialogs) read from the terminal's

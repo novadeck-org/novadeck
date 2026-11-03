@@ -4,6 +4,7 @@ import {
   type ChatAnswer,
   type ChatDialog,
   type ChatItem,
+  type ChatPrompt,
   type ChatRequest,
   conflictFailure,
   notCleared,
@@ -36,7 +37,11 @@ export type ConversationStreams = {
     terminalId: string,
     actor: string,
   ) => AsyncIterableIterator<TranscriptChange, undefined>
-  readonly prompt: (terminalId: string, text: string, automatic?: true) => Promise<void>
+  readonly prompt: (
+    terminalId: string,
+    text: string,
+    options?: { readonly automatic?: true; readonly ref?: string },
+  ) => Promise<{ readonly ref: string; readonly tracked: boolean }>
   readonly interrupt: (terminalId: string) => Promise<{ readonly returned: string | null }>
   readonly answer: (terminalId: string, request: string, answer: RequestAnswer) => Promise<void>
 }
@@ -112,6 +117,31 @@ export const requestOf = (
 
 const requestsOf = (detail: AgentDetail, root: string | null): readonly ChatRequest[] =>
   detail.requests.map((request) => requestOf(request, root))
+
+// The receipts of the prompts given in the session, as the chat has them. A settled one
+// keeps the words its receipt carried while pending, as the runner drops them, so the chat
+// can show it until its item arrives.
+const promptsOf = (detail: AgentDetail, before: readonly ChatPrompt[]): readonly ChatPrompt[] =>
+  (detail.prompts ?? []).map(({ ref, text, sentAt, state, item }) => ({
+    ref,
+    text:
+      text ??
+      (state === "settled" ? (before.find((prompt) => prompt.ref === ref)?.text ?? null) : null),
+    sentAt,
+    state,
+    item,
+  }))
+
+const samePrompts = (a: readonly ChatPrompt[], b: readonly ChatPrompt[]): boolean =>
+  a.length === b.length &&
+  a.every(
+    (prompt, index) =>
+      prompt.ref === b[index]!.ref &&
+      prompt.text === b[index]!.text &&
+      prompt.sentAt === b[index]!.sentAt &&
+      prompt.state === b[index]!.state &&
+      prompt.item === b[index]!.item,
+  )
 
 // Dialogs are plain data a snapshot sends again whole, so they are the same when they read
 // the same.
@@ -283,17 +313,20 @@ const read = (
       settling = undefined
     }
     const requests = requestsOf(snapshot, root)
+    const prompts = promptsOf(snapshot, changed ? [] : store.getSnapshot().prompts)
     store.update((current) => {
       const same =
         !changed &&
         current.agent === snapshot.agent &&
         current.session === session &&
-        sameRequests(current.requests, requests)
+        sameRequests(current.requests, requests) &&
+        samePrompts(current.prompts, prompts)
       if (same) return current
       return {
         agent: snapshot.agent,
         session,
         requests: sameRequests(current.requests, requests) ? current.requests : requests,
+        prompts: samePrompts(current.prompts, prompts) ? current.prompts : prompts,
         ...(changed
           ? { loaded: false, items: [] }
           : { loaded: current.loaded, items: current.items }),
@@ -317,6 +350,13 @@ const read = (
     } catch {
       // The terminal is gone, or the runner closed.
     }
+    // Its terminal went: so did its conversation, and what waited on it hears so.
+    if (!alive) return
+    following = null
+    end(transcript)
+    transcript = undefined
+    clearTimeout(settling)
+    store.update(() => noConversation)
   })()
 
   return {
@@ -388,9 +428,12 @@ export const createRunnerConversations = (
     // The runner's terminal ids are unique, so the id alone names the terminal.
     conversation: ({ terminalId }) => entryOf(terminalId).conversation,
     send: ({ terminalId }, text, options) =>
-      track(streams.prompt(terminalId, text, options?.automatic)).catch((error: unknown) => {
-        throw failure(error, "reach", "send")
-      }),
+      track(streams.prompt(terminalId, text, options)).then(
+        ({ tracked }) => ({ tracked }),
+        (error: unknown) => {
+          throw failure(error, "reach", "send")
+        },
+      ),
     interrupt: ({ terminalId }) =>
       track(streams.interrupt(terminalId)).then(
         ({ returned }) => returned,

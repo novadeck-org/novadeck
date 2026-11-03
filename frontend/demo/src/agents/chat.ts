@@ -326,6 +326,8 @@ export const createDemoChat = (
         : attention
           ? settle(found, made, transcript?.requests ?? [], attention)
           : [],
+      // The demo follows no prompts: what it sends shows as its transcript's own item.
+      prompts: [],
     }
   }
   const entryOf = (key: TerminalKey) => {

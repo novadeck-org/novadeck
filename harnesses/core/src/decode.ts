@@ -16,6 +16,13 @@ import type { Report } from "./report.js"
 export const text = (value: unknown): string | undefined =>
   typeof value === "string" ? value : undefined
 
+/**
+ * A harness's version as it writes it (`2.1.316`, `0.166.0`, `1.4.12`), or undefined: dotted
+ * numbers, perhaps with a pre-release or build suffix.
+ */
+export const versionName = (value: unknown): string | undefined =>
+  typeof value === "string" && /^\d+(?:\.\d+){1,3}[\w.+-]{0,32}$/.test(value) ? value : undefined
+
 /** A session id a shell can run as a plain word, or undefined. */
 export const sessionId = (value: unknown): string | undefined =>
   agentSessionId.safeParse(value).success ? (value as string) : undefined

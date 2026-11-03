@@ -256,7 +256,7 @@ describe("workspace metadata", () => {
     expect(first.id).toMatch(/^[0-9a-f]{8}-(?:[0-9a-f]{4}-){3}[0-9a-f]{12}$/)
     const database = new DatabaseSync(path)
     try {
-      expect(database.prepare("PRAGMA user_version").get()?.user_version).toBe(8)
+      expect(database.prepare("PRAGMA user_version").get()?.user_version).toBe(9)
       expect(database.prepare("PRAGMA foreign_key_check").all()).toEqual([])
       expect(() =>
         database
@@ -490,13 +490,13 @@ describe("workspace metadata", () => {
     const path = join(directory(), "workspace.sqlite")
     const future = new DatabaseSync(path)
     future.exec(
-      "CREATE TABLE future_data (value TEXT); INSERT INTO future_data VALUES ('saved'); PRAGMA user_version = 9",
+      "CREATE TABLE future_data (value TEXT); INSERT INTO future_data VALUES ('saved'); PRAGMA user_version = 10",
     )
     future.close()
     expect(() => new WorkspaceStore(path)).toThrow(/newer/)
     const database = new DatabaseSync(path)
     try {
-      expect(database.prepare("PRAGMA user_version").get()?.user_version).toBe(9)
+      expect(database.prepare("PRAGMA user_version").get()?.user_version).toBe(10)
       expect(database.prepare("SELECT value FROM future_data").get()?.value).toBe("saved")
     } finally {
       database.close()
@@ -548,7 +548,7 @@ describe("workspace metadata", () => {
     new WorkspaceStore(path).close()
     const database = new DatabaseSync(path)
     try {
-      expect(database.prepare("PRAGMA user_version").get()?.user_version).toBe(8)
+      expect(database.prepare("PRAGMA user_version").get()?.user_version).toBe(9)
       expect(database.prepare("PRAGMA foreign_key_check").all()).toEqual([])
       // Every old table is gone, and so are the old names.
       expect(Object.keys(rowsOf(database)).toSorted()).toEqual(
@@ -1069,6 +1069,38 @@ describe("workspace metadata", () => {
     expect(carried).toEqual(created)
   })
 
+  it("carries a version 8 database to the very tables a new one is made with, its terminals uninterrupted", async ({
+    directory,
+  }) => {
+    const path = join(directory(), "workspace.sqlite")
+    const old = new DatabaseSync(path)
+    old.exec(`${readFileSync(new URL("schemas/8.sql", import.meta.url), "utf8")}
+      PRAGMA user_version = 8;
+      INSERT INTO projects (position, id, name, cwd) VALUES (1, 'p', 'P', '/p');
+      INSERT INTO sessions (position, id, project_id, name) VALUES (1, 's', 'p', 'S');
+      INSERT INTO terminals (id, session_id, handle, cwd, agent_reports, saved_at)
+        VALUES ('t', 's', 'moth', '/p', '{"agy":{"sessionId":"g","seq":1}}', 1);`)
+    old.close()
+    const migrated = new WorkspaceStore(path)
+    expect(migrated.terminal("t")).toMatchObject({
+      handle: "moth",
+      agents: { agy: { sessionId: "g", seq: 1 } },
+      interruptions: [],
+    })
+    migrated.close()
+    const fresh = join(directory(), "workspace.sqlite")
+    new WorkspaceStore(fresh).close()
+    const [carried, created] = [path, fresh].map((file) => {
+      const database = new DatabaseSync(file)
+      try {
+        return normalisedSchemaOf(database)
+      } finally {
+        database.close()
+      }
+    })
+    expect(carried).toEqual(created)
+  })
+
   it("lists projects in the person's order, then the unarranged ones as added, and keeps their pins", async ({
     directory,
     store,
@@ -1335,8 +1367,8 @@ describe("workspace metadata", () => {
       // and adds a step in store.ts's migrations, from schemas/<version before>.sql, which
       // is added for it. Then record the new digest here.
       expect({ version, digest }).toEqual({
-        version: 8,
-        digest: "f61e02a512d9a259d5f47cebd870774b66a7d69fa58cf09801e41d863e20d9c1",
+        version: 9,
+        digest: "a623b4858efc33398395f2077112a529ae95d749471c3976bb2960f9aacf7b3c",
       })
     } finally {
       database.close()
@@ -1473,6 +1505,39 @@ const numbered = (id: string, handle: string) => ({
 })
 
 describe("saved terminals", () => {
+  it("keep where the person interrupted turns, by step, and drop what isn't shaped as one", ({
+    directory,
+    kept,
+  }) => {
+    const path = join(directory(), "workspace.sqlite")
+    const first = kept(path)
+    const interruptions = [
+      { sessionId: "g", step: -1, at: 10 },
+      { sessionId: "g", step: 4, at: 20 },
+    ]
+    first.saveTerminal({ ...numbered("a", "moth"), interruptions })
+    first.saveTerminal({ ...numbered("b", "owl") })
+    expect(first.terminal("a")?.interruptions).toEqual(interruptions)
+    // Saved again without them, it keeps none.
+    first.saveTerminal({ ...numbered("b", "owl"), interruptions: [] })
+    expect(first.terminal("b")?.interruptions).toEqual([])
+    first.close()
+    const raw = new DatabaseSync(path)
+    raw.exec(`
+      UPDATE terminals SET interruptions = 'not json' WHERE id = 'b';
+      INSERT INTO terminals (id, session_id, cwd, agent_reports, saved_at, handle, interruptions)
+        VALUES ('c', 's', '/', '{}', 1, 'fox',
+          '[{"sessionId":"g","step":2,"at":5},{"step":"3","at":6},{"sessionId":"g","step":1.5,"at":7}]');
+    `)
+    raw.close()
+    const second = kept(path)
+    expect(second.terminal("a")?.interruptions).toEqual(interruptions)
+    expect(second.terminal("b")?.interruptions).toEqual([])
+    expect(second.terminal("c")?.interruptions).toEqual([{ sessionId: "g", step: 2, at: 5 }])
+    // A listing leaves them out, as it does the screen.
+    expect(second.terminals("s").find(({ id }) => id === "a")).not.toHaveProperty("interruptions")
+  })
+
   it("keep what a session was doing in its agent's report, and read a row saved without it as having none", async ({
     directory,
     kept,
@@ -1549,6 +1614,7 @@ describe("saved terminals", () => {
     expect(reopened.terminal(terminal.id)).toEqual({
       ...terminal,
       cwd: "/work/sub",
+      interruptions: [],
       transcript: "screen",
       savedAt: expect.any(Number),
     })

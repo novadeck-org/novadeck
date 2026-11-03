@@ -23,6 +23,16 @@ const context = { occupied: 1_000, capacity: 200_000 }
 const limit = { minutes: 300, used: 0.25, resetsAt: 5_000 }
 
 describe("observing telemetry", () => {
+  it("changes nothing for a record that names only the harness's version", () => {
+    const first = observeTelemetry(null, binding, seen({ context, limits: [limit] }))!
+    expect(
+      observeTelemetry(first, binding, seen({ startedAt: 99, version: "0.166.0" })),
+    ).toBeUndefined()
+    expect(observeTelemetry(null, binding, seen({ version: "0.166.0" }))).toBeUndefined()
+    // An event with nothing in it that is no version's still counts as a record.
+    expect(observeTelemetry(null, binding, seen({}))).toMatchObject({ context: null, at: 10 })
+  })
+
   it("keeps what a later record leaves out", () => {
     const first = observeTelemetry(null, binding, seen({ context, limits: [limit] }))!
     const next = observeTelemetry(

@@ -1,4 +1,3 @@
-import { stat } from "node:fs/promises"
 import { setTimeout as sleep } from "node:timers/promises"
 
 import type { ActivityEvent, HarnessEvent, SessionObserved } from "@novadeck/harness-core/events"
@@ -13,6 +12,7 @@ import {
   summary as activitySummary,
   withLimit,
 } from "../../harnesses/activity.js"
+import { withVersion } from "../../harnesses/bindings.js"
 import { harnesses } from "../../harnesses/registry.js"
 import { lastReply } from "../../harnesses/replies.js"
 import { limitOf, observeTelemetry, telemetrySummary } from "../../harnesses/telemetry.js"
@@ -23,8 +23,10 @@ import { failed } from "../failures.js"
 import { markTurn } from "../interrupted.js"
 import type { Record } from "../record.js"
 import { hasRun } from "../saved-terminals.js"
+import { lastStep } from "../transcripts.js"
 import { TurnEnds, type TurnsHost } from "../turn-ends.js"
 import type { Typing } from "../typing.js"
+import { bannerForgotten } from "./banners.js"
 import { savedSession } from "./standing.js"
 
 /**
@@ -153,6 +155,9 @@ export class Bindings {
     record.bound = null
     record.resumeEnded = true
     this.unwatch(record)
+    // A banner drawn by an agent that has ended is not the next one's; a session switch
+    // inside the same process (`follow`) ends nothing, and keeps it.
+    bannerForgotten(record)
   }
 
   /**
@@ -281,15 +286,11 @@ export class Bindings {
     // Where its transcript stood at the key, for the chat to show the interruption it
     // doesn't record, should the Escape stand.
     const { transcript } = record
+    const { records, transcripts } = harnesses[binding.agent]
+    const step = transcripts?.step
     record.escape =
-      !harnesses[binding.agent].records && transcript
-        ? {
-            key: event.startedAt,
-            offset: stat(transcript).then(
-              ({ size }) => size,
-              () => undefined,
-            ),
-          }
+      !records && step && transcript
+        ? { key: event.startedAt, step: lastStep(transcript, step) }
         : undefined
     this.awaitVerdict(record, event)
   }
@@ -314,12 +315,13 @@ export class Bindings {
     if (!confirmed && !overtaken) return
     record.escape = undefined
     const { sessionId } = bound.binding
-    void escape.offset.then((offset) => {
-      if (offset === undefined || record.bound?.binding.sessionId !== sessionId) return
+    void escape.step.then((step) => {
+      if (step === undefined || record.bound?.binding.sessionId !== sessionId) return
       const kept = record.interruptions ?? []
-      record.interruptions = [...kept, { sessionId, offset, at: escape.key }].slice(
-        -maxInterruptions,
-      )
+      record.interruptions = [...kept, { sessionId, step, at: escape.key }].slice(-maxInterruptions)
+      // Saved with the terminal at once, so the chat still shows it after a restart, even
+      // one that comes before the next periodic save.
+      this.host.save(record)
     })
   }
 
@@ -458,8 +460,11 @@ export class Bindings {
     if (!bound) return false
     const { binding } = bound
     if (fact.type === "telemetry-observed") {
-      const next = observeTelemetry(bound.telemetry, binding, fact)
-      if (next) record.bound = { ...bound, telemetry: next }
+      // Which release wrote the session is kept with the binding, and changes nothing else.
+      const versioned = withVersion(binding, fact)
+      const next = observeTelemetry(bound.telemetry, versioned, fact)
+      if (versioned !== binding || next)
+        record.bound = { ...bound, binding: versioned, ...(next && { telemetry: next }) }
       if (next) this.latchLimit(record)
       return next !== undefined
     }
@@ -504,6 +509,7 @@ export class Bindings {
     // Detail changes where the summary may not: a revised request, a subject.
     this.host.detailed(record)
     this.host.typing().dialogsChanged(record.summary.id)
+    this.host.typing().receiptsChanged(record.summary.id)
     const { bound } = record
     const agent = bound?.binding.agent ?? null
     const ready = this.readyOf(record)

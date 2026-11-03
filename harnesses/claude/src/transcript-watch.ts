@@ -1,4 +1,4 @@
-import { callId } from "@novadeck/harness-core/decode"
+import { callId, versionName } from "@novadeck/harness-core/decode"
 import type { ActivityEvent, EventBase, TelemetryObserved } from "@novadeck/harness-core/events"
 import { parseFields } from "@novadeck/harness-core/fields"
 import { followLines } from "@novadeck/harness-core/follow"
@@ -127,13 +127,44 @@ const results = (
     ]
   })
 
+// Claude Code closes every record about the conversation with the same keys, after its
+// content (`…,"cwd":…,"sessionId":…,"version":"2.1.316","gitBranch":"HEAD"}`, 2.1.316), so a
+// long line is read at its tail, not parsed: `version` followed only by plain top-level
+// values to the line's end, which a key of the record's content is not.
+const versionReach = 600
+const closing =
+  /"version":"([^"\\]{1,40})"(?:,"[^"\\]+":(?:"[^"\\]*"|-?[\d.]+|true|false|null))*\}\s*$/
+
+/**
+ * The version of Claude Code that wrote a transcript line: its closing `version` key, which
+ * the records about the conversation have (user, assistant, attachment, system) and its
+ * bookkeeping ones (`mode`, `permission-mode`, `file-history-snapshot`, `last-prompt`…) do
+ * not. Undefined for a line without one.
+ */
+export const transcriptVersion = (line: string): string | undefined =>
+  versionName(closing.exec(line.slice(-versionReach))?.[1])
+
 /**
  * Follows a bound session's transcript for what no hook reports: an interrupted turn, and
- * a request a timed-out prompt denied.
+ * a request a timed-out prompt denied; and for the version of Claude Code writing it, told
+ * when it first shows and whenever it changes (a session resumed by a newer release).
  */
 export const followTranscript: NonNullable<Harness["watch"]> = (run, signal, emit) => {
   const calls: Calls = new Map()
+  let version: string | undefined
   return followLines(run.transcript, signal, (line) => {
+    const written = transcriptVersion(line)
+    if (written !== undefined && written !== version) {
+      version = written
+      emit({
+        type: "telemetry-observed",
+        agent: "claude",
+        sessionId: run.sessionId,
+        instance: run.instance,
+        startedAt: Date.now(),
+        version,
+      })
+    }
     for (const event of transcriptEvents(line, run, calls)) emit(event)
   })
 }

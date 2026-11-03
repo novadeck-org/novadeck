@@ -171,8 +171,8 @@ export const recordingRunner = (runner: Runner, io: string[]): RunnerApi => {
       list: () => runner.agents.list(),
       detail: (terminalId) => runner.agents.detail(terminalId),
       transcript: (terminalId, actor) => runner.agents.transcript(terminalId, actor),
-      prompt: (terminalId, text, automatic) =>
-        note(`prompt ${terminalId}`, () => runner.agents.prompt(terminalId, text, automatic)),
+      prompt: (terminalId, text, options) =>
+        note(`prompt ${terminalId}`, () => runner.agents.prompt(terminalId, text, options)),
       interrupt: (terminalId) =>
         note(`interrupt ${terminalId}`, () => runner.agents.interrupt(terminalId)),
       answer: (terminalId, request, answer) =>
