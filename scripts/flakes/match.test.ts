@@ -102,6 +102,12 @@ describe("the known-flake register", () => {
       })
     })
 
+    it("reads E2E's gate as Quality's, a job that fails only for the jobs it needs", () => {
+      const verdict = judgeRun(register, [known, { job: "E2E", log: "" }], 1)
+      expect(verdict.jobs.map(({ job }) => job)).toEqual(["Test (macOS)"])
+      expect(verdict.rerun).toBe(true)
+    })
+
     it("reruns nothing beside a failure no flake explains", () => {
       const verdict = judgeRun(register, [known, { job: "Test (Linux)", log: "Error: boom" }], 1)
       expect(verdict.rerun).toBe(false)
