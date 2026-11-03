@@ -7,12 +7,8 @@ import { copyFileSync, mkdtempSync, readdirSync, readFileSync, rmSync, statSync 
 import { homedir, tmpdir } from "node:os"
 import { basename, dirname, extname, join, resolve } from "node:path"
 
-import fuses from "@electron/fuses"
+import { FuseState, FuseV1Options, FuseVersion, flipFuses } from "@electron/fuses"
 
-const { FuseV1Options, FuseVersion, flipFuses } = fuses
-
-// The package declares its FuseState enum but does not export it at run time.
-const FuseState = { DISABLE: 48, ENABLE: 49 }
 // Where the fuse wire starts in the binary: this marker, then the wire's version and length.
 const sentinel = "dL7pKGdnNz796PbbjQWNKmHXBZaB9tsX"
 
