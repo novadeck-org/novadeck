@@ -165,7 +165,7 @@ export class Typing {
     this.dialogs.changed(terminalId)
     // A starting agent's banner, drawn before it binds, names the version running.
     const record = this.host.live(terminalId)
-    if (record) bannerDrawn(record, () => this.screenOf(terminalId))
+    if (record) bannerDrawn(record)
   }
 
   /** Forgets what the doorbell and the dialogs kept of a terminal, as it exits or goes. */

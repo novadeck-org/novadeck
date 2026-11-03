@@ -39,7 +39,7 @@ import { ptyOptions } from "../testing/pty.js"
 import type { Resources } from "../testing/resources.js"
 import { plainSealer } from "../testing/sealing.js"
 import { WorkspaceStore } from "../workspaces/store.js"
-import { bannerSeen } from "./binding/banners.js"
+import { bannerTaken } from "./binding/banners.js"
 import { Terminals } from "./manager.js"
 import type { Bound } from "./record.js"
 
@@ -2594,7 +2594,9 @@ describe("the harness version a screen shows", () => {
         terminal: { screen: { write: (text: string, done: () => void) => void } }
       }
     >
-    reporting: { screenVersion: (record: unknown, binding: unknown) => Promise<void> }
+    reporting: {
+      screenVersion: (record: unknown, binding: unknown, drawn?: string) => Promise<void>
+    }
     typing: { dialogsChanged: (terminalId: string) => void }
   }
 
@@ -2611,21 +2613,20 @@ describe("the harness version a screen shows", () => {
     const draw = (text: string) =>
       new Promise<void>((resolve) => record.terminal.screen.write(text, resolve))
     // Codex's TUI is on the alternate screen; the draw is what the terminal tells the runner.
-    await draw("\x1b[?1049h\x1b[2J\x1b[H  >_ OpenAI Codex (v0.166.0)\r\n")
+    await draw("\x1b[?1049h\x1b[2J\x1b[H")
     inside.typing.dialogsChanged(terminal.id)
-    await expect.poll(() => bannerSeen(record as never, "codex")).toBe("0.166.0")
+    await draw("  >_ OpenAI Codex (v0.166.0)\r\n")
+    inside.typing.dialogsChanged(terminal.id)
     // The resumed conversation is replayed over it; then the session binds.
     await draw("\x1b[2J\x1b[H› Turn 1\r\n• Done 1.\r\n")
     inside.typing.dialogsChanged(terminal.id)
     const binding = { agent: "codex", sessionId: "s", instance: null } as const
     record.bound = { binding, activity: fresh(0), telemetry: null }
-    await inside.reporting.screenVersion(record, binding)
+    // Another agent's binding takes none; Codex's takes it, once.
+    expect(bannerTaken(record as never, "claude")).toBeUndefined()
+    await inside.reporting.screenVersion(record, binding, bannerTaken(record as never, "codex"))
     expect(versionOf(record.bound?.binding)).toBe("0.166.0")
-    // It is a Codex banner: another agent's binding takes none, and leaving the screen forgets it.
-    expect(bannerSeen(record as never, "claude")).toBeUndefined()
-    await draw("\x1b[?1049l")
-    inside.typing.dialogsChanged(terminal.id)
-    expect(bannerSeen(record as never, "codex")).toBeUndefined()
+    expect(bannerTaken(record as never, "codex")).toBeUndefined()
   })
 
   it("is the running release in Codex's banner, which the rollout's creating release gives way to", async ({

@@ -2,7 +2,7 @@
   "harness": "codex",
   "version": "0.166.0",
   "source": "captured",
-  "how": "Codex's screen (40 rows, the alternate screen) from e2e/probes/codex-banner.e2e.ts against the fake model: a fresh start, after seven turns (the banner scrolled away), the session resumed after a runner restart as it first draws (the banner on row 1, at 350 ms), at its prompt and after one more turn (the replayed conversation has taken the banner's place); paths replaced",
+  "how": "Codex's screen (40 rows, the alternate screen) from e2e/probes/codex-banner.e2e.ts against the fake model: a fresh start, after seven turns (the banner scrolled away), the session resumed after a runner restart as it first draws (the banner on row 1, drawn about 350 ms after the start and covered about 150 ms later), at its prompt and after one more turn (the replayed conversation has taken the banner's place); paths replaced",
   "timeline": [
     {
       "ms": 143,

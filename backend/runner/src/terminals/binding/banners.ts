@@ -1,4 +1,3 @@
-import type { ScreenText } from "@novadeck/emulator/headless"
 import type { AgentName } from "@novadeck/protocol"
 import type { Pty } from "@novadeck/terminal/pty"
 
@@ -8,88 +7,80 @@ import type { Record } from "../record.js"
 /*
  * The version some harnesses draw on their screen as they start (`Harness.screenVersion`:
  * Codex's banner). A resumed session replays its conversation over it, and Codex binds only
- * once its first hook fires, so by then the banner is gone: it is read as the process draws,
- * while the terminal's screen is the alternate one and no session is bound, and kept for
- * the binding (probed 2026-11-03, 0.166.0: shown from 350 to 500 ms after a resume began,
- * bound at 800 ms).
+ * once its first hook fires, so by then the banner is gone (probed 2026-11-03, 0.166.0,
+ * 40 rows: drawn about 350 ms after the start, covered about 150 ms later, the session bound
+ * about 800 ms after the start). So the banner is looked for in the draw handler itself,
+ * synchronously, in the rows the emulator holds at that moment: a read queued behind the
+ * output (`screenOf`) could land after the replay. It is kept until the session binds.
  */
 
-type Seen = { readonly agent: AgentName; readonly version: string; readonly child: Pty }
+type Seen = {
+  readonly agent: AgentName
+  readonly version: string
+  readonly child: Pty
+  // The shell prompt it was drawn after: a later prompt means the process ended.
+  readonly prompted: number | null
+}
 
 const seen = new WeakMap<Record, Seen>()
-const reading = new WeakMap<Record, { again: boolean }>()
-// When the terminal's alternate screen was first drawn while nothing was bound, for each pty.
-const entered = new WeakMap<Record, { readonly child: Pty; readonly at: number }>()
+
+// The harnesses that draw a version, once; a row is handed over alone, in one array.
+const drawing = Object.entries(harnesses).flatMap(([agent, harness]) =>
+  harness.screenVersion ? [{ agent: agent as AgentName, read: harness.screenVersion }] : [],
+)
+const row: string[] = [""]
+
+// Whether what was seen belongs to the process now in the terminal.
+const current = (record: Record, found: Seen): boolean =>
+  found.child === record.terminal.pty && found.prompted === record.promptedAt
 
 /**
- * How long after its alternate screen first draws a starting TUI's banner is looked for:
- * Codex shows it within half a second, so a TUI that runs on (an editor, `htop`) has its
- * screen read only at its start, never for as long as it runs.
+ * The terminal drew: while no session is bound, and until a banner is seen for this process,
+ * scans the visible rows of the active buffer (the alternate screen of a TUI, or the normal
+ * one where a terminal passes no switch, as Windows' may), from the bottom up, so where an
+ * earlier process's banner stands above, the nearest the bottom is the one running. Only
+ * rows that may hold the banner become strings.
  */
-export const bannerWindowMs = 3000
-
-// The version one screen shows, of the harness that shows one.
-const read = (screen: ScreenText): { agent: AgentName; version: string } | undefined => {
-  for (const [agent, harness] of Object.entries(harnesses)) {
-    const version = harness.screenVersion?.(screen.rows)
-    if (version !== undefined) return { agent: agent as AgentName, version }
+export const bannerDrawn = (record: Record): void => {
+  if (record.bound !== null || drawing.length === 0) return
+  const known = seen.get(record)
+  if (known) {
+    if (current(record, known)) return
+    seen.delete(record)
   }
-  return undefined
+  const { screen } = record.terminal
+  const { active } = screen.buffer
+  for (let y = screen.rows - 1; y >= 0; y--) {
+    const text = active.getLine(active.baseY + y)?.translateToString(true)
+    if (!text?.includes(">_")) continue
+    row[0] = text
+    for (const { agent, read } of drawing) {
+      const version = read(row)
+      if (version !== undefined) {
+        seen.set(record, {
+          agent,
+          version,
+          child: record.terminal.pty,
+          prompted: record.promptedAt,
+        })
+        return
+      }
+    }
+  }
 }
 
 /**
- * The terminal drew: while no session is bound and its screen is the alternate one, as a
- * starting TUI's is, reads the screen for a banner, within `bannerWindowMs` of that screen
- * first drawing and until one is found. Reads follow one another and never pile up.
- * Leaving the alternate screen forgets what was seen.
+ * Takes the version a banner showed as `agent` started in the terminal, and forgets it: it
+ * belongs to the session now binding, not to a process that later starts there.
  */
-export const bannerDrawn = (
-  record: Record,
-  screenOf: () => Promise<ScreenText | undefined>,
-): void => {
-  const { buffer } = record.terminal.screen
-  if (record.bound !== null || buffer.active !== buffer.alternate) {
-    if (buffer.active !== buffer.alternate) {
-      seen.delete(record)
-      entered.delete(record)
-    }
-    return
-  }
-  const child = record.terminal.pty
-  const start = entered.get(record)
-  if (start?.child !== child) entered.set(record, { child, at: Date.now() })
-  else if (Date.now() - start.at > bannerWindowMs) return
-  // Found already: the same process draws no other.
-  if (seen.get(record)?.child === child) return
-  const running = reading.get(record)
-  if (running) {
-    running.again = true
-    return
-  }
-  const state = { again: false }
-  reading.set(record, state)
-  void (async () => {
-    try {
-      do {
-        state.again = false
-        // eslint-disable-next-line no-await-in-loop -- Each read follows the draw before it.
-        const screen = await screenOf()
-        const found = screen && read(screen)
-        if (found && record.terminal.pty === child && record.bound === null)
-          seen.set(record, { ...found, child })
-      } while (state.again)
-    } catch {
-      // A terminal that went meanwhile has no screen to read.
-    } finally {
-      reading.delete(record)
-    }
-  })()
-}
-
-/** The version a banner showed as `agent` started in the terminal, until it binds. */
-export const bannerSeen = (record: Record, agent: AgentName): string | undefined => {
+export const bannerTaken = (record: Record, agent: AgentName): string | undefined => {
   const found = seen.get(record)
-  return found && found.agent === agent && found.child === record.terminal.pty
-    ? found.version
-    : undefined
+  if (found?.agent !== agent) return undefined
+  seen.delete(record)
+  return current(record, found) ? found.version : undefined
+}
+
+/** Forgets what was seen: its agent ended, or the terminal's binding did. */
+export const bannerForgotten = (record: Record): void => {
+  seen.delete(record)
 }

@@ -26,6 +26,7 @@ import type { Record } from "../record.js"
 import { hasRun } from "../saved-terminals.js"
 import { TurnEnds, type TurnsHost } from "../turn-ends.js"
 import type { Typing } from "../typing.js"
+import { bannerForgotten } from "./banners.js"
 import { savedSession } from "./standing.js"
 
 /**
@@ -498,6 +499,8 @@ export class Bindings {
     record.transcript = null
     for (const reader of record.sourceReaders) reader.abort()
     record.sourceReaders.clear()
+    // A banner drawn by an agent that has ended is not the next one's.
+    bannerForgotten(record)
   }
 
   /**

@@ -38,7 +38,7 @@ import { boundProgram } from "../sampling.js"
 import { retold, toldOf } from "../told.js"
 import type { Typing } from "../typing.js"
 import { judgedFirst, personPrompted, workAfter } from "../work.js"
-import { bannerSeen } from "./banners.js"
+import { bannerTaken } from "./banners.js"
 import type { Bindings } from "./facts.js"
 import type { Shown } from "./shown.js"
 
@@ -255,9 +255,13 @@ export class Reports {
       }
       changed = true
       if (!same) {
+        // What the starting process drew is taken before `follow`, which forgets it.
+        const drawn = next.binding && bannerTaken(record, next.binding.agent)
         this.host.bindings().follow(record, event)
         if (next.binding)
-          void this.screenVersion(record, next.binding).catch(failed.report(undefined))
+          void this.screenVersion(record, next.binding, drawn || undefined).catch(
+            failed.report(undefined),
+          )
         // The plans its bar mirrored of another session go; unbinding alone keeps them.
         if (next.binding) this.host.companion().bound(record.summary.id, next.binding.sessionId)
       }
@@ -331,17 +335,18 @@ export class Reports {
 
   /**
    * The version of the harness running a newly bound session, where its screen shows it
-   * (`Harness.screenVersion`): read once, as the session binds, while its banner is up. It
+   * (`Harness.screenVersion`): from the screen as the session binds, else `drawn`, the banner
+   * the process drew as it started and the draw handler saw (`bannerDrawn`). It
    * is told like a record of the session's own (`applyFact`), so it binds only to the
    * session it was read for.
    */
-  async screenVersion(record: Record, binding: Binding): Promise<void> {
+  async screenVersion(record: Record, binding: Binding, drawn?: string): Promise<void> {
     const read = harnesses[binding.agent].screenVersion
     if (!read) return
     const child = record.terminal.pty
     const screen = await this.host.typing().screenOf(record.summary.id)
     // What it showed as the process started, if the conversation has been drawn over it.
-    const version = (screen && read(screen.rows)) ?? bannerSeen(record, binding.agent)
+    const version = (screen && read(screen.rows)) ?? drawn
     if (!version || record.terminal.pty !== child) return
     this.host.bindings().applyFact(record, {
       type: "telemetry-observed",
