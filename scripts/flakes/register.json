@@ -1,5 +1,5 @@
 {
-  "aggregates": ["Test"],
+  "aggregates": ["Test", "E2E"],
   "flakes": [
     {
       "id": "ui-companions-plan-reopen-place",
