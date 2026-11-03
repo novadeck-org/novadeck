@@ -38,6 +38,7 @@ import { boundProgram } from "../sampling.js"
 import { retold, toldOf } from "../told.js"
 import type { Typing } from "../typing.js"
 import { judgedFirst, personPrompted, workAfter } from "../work.js"
+import { bannerSeen } from "./banners.js"
 import type { Bindings } from "./facts.js"
 import type { Shown } from "./shown.js"
 
@@ -339,7 +340,8 @@ export class Reports {
     if (!read) return
     const child = record.terminal.pty
     const screen = await this.host.typing().screenOf(record.summary.id)
-    const version = screen && read(screen.rows)
+    // What it showed as the process started, if the conversation has been drawn over it.
+    const version = (screen && read(screen.rows)) ?? bannerSeen(record, binding.agent)
     if (!version || record.terminal.pty !== child) return
     this.host.bindings().applyFact(record, {
       type: "telemetry-observed",

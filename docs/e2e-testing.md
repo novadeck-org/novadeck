@@ -885,8 +885,8 @@ and the harness versions each job installed, through OpenRouter as the release n
 report goes without it. A dispatch of Nightly Report with a run's id shows the report it
 would make, as a dry run.
 
-Three of them reach into the runner through casts typecheck can't see past:
-`interrupt-held-reply` wraps `bindings.applyFact`, `version` wraps `reporting.report`, and
+Four of them reach into the runner through casts typecheck can't see past:
+`interrupt-held-reply` wraps `bindings.applyFact`, `version` wraps `reporting.report`, `codex-banner` reads `records`, and
 `agy-stop-boundary` wraps
 `reporting.report` and reads `records` (a record's `bound` session and its pty) and
 `messaging.delivery`, all private to `Terminals`; the bound session's own type is `Record`'s,

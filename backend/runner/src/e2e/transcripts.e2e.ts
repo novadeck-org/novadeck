@@ -385,15 +385,22 @@ for (const setup of setups) {
         await t1
           .poll(
             () => {
-              const known = versionOf(inside.records.get(t1.id)?.bound?.binding)
-              return known === installed.version ? known : undefined
+              const binding = inside.records.get(t1.id)?.bound?.binding
+              // Not the release that created the session (Codex's rollout): a fresh session
+              // has its banner on the screen, which names the one running.
+              return versionOf(binding) === installed.version && !binding?.created
+                ? installed.version
+                : undefined
             },
             `its binding to carry version ${installed.version}`,
             15_000,
           )
           .catch((error: unknown) => {
-            const known = versionOf(inside.records.get(t1.id)?.bound?.binding)
-            throw new Error(`${String(error)}\nIt carries ${String(known)}.`, { cause: error })
+            const binding = inside.records.get(t1.id)?.bound?.binding
+            throw new Error(
+              `${String(error)}\nIt carries ${String(versionOf(binding))}${binding?.created ? " (its creator's)" : ""}.`,
+              { cause: error },
+            )
           })
 
         const calls = served.filter((one) => one.kind === "tool-call")

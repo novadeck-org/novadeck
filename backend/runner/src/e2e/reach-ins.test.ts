@@ -26,6 +26,7 @@ const reaching = [
   "doorbell.e2e.ts",
   "person.e2e.ts",
   "probes/agy-stop-boundary.e2e.ts",
+  "probes/codex-banner.e2e.ts",
   "probes/interrupt-held-reply.e2e.ts",
   "probes/version.e2e.ts",
   "transcripts.e2e.ts",

@@ -39,6 +39,7 @@ import { ptyOptions } from "../testing/pty.js"
 import type { Resources } from "../testing/resources.js"
 import { plainSealer } from "../testing/sealing.js"
 import { WorkspaceStore } from "../workspaces/store.js"
+import { bannerSeen } from "./binding/banners.js"
 import { Terminals } from "./manager.js"
 import type { Bound } from "./record.js"
 
@@ -2594,7 +2595,38 @@ describe("the harness version a screen shows", () => {
       }
     >
     reporting: { screenVersion: (record: unknown, binding: unknown) => Promise<void> }
+    typing: { dialogsChanged: (terminalId: string) => void }
   }
+
+  it("is the banner a starting Codex drew, though its replayed conversation covers it by the time it binds", async ({
+    terminals,
+  }) => {
+    const manager = terminals.manager(ptyOptions)
+    const terminal = await manager.create(
+      { id: randomUUID(), sessionId: "session", cwd, cols: 80, rows: 24 },
+      "creator",
+    )
+    const inside = manager as unknown as Inside
+    const record = inside.records.get(terminal.id)!
+    const draw = (text: string) =>
+      new Promise<void>((resolve) => record.terminal.screen.write(text, resolve))
+    // Codex's TUI is on the alternate screen; the draw is what the terminal tells the runner.
+    await draw("\x1b[?1049h\x1b[2J\x1b[H  >_ OpenAI Codex (v0.166.0)\r\n")
+    inside.typing.dialogsChanged(terminal.id)
+    await expect.poll(() => bannerSeen(record as never, "codex")).toBe("0.166.0")
+    // The resumed conversation is replayed over it; then the session binds.
+    await draw("\x1b[2J\x1b[H› Turn 1\r\n• Done 1.\r\n")
+    inside.typing.dialogsChanged(terminal.id)
+    const binding = { agent: "codex", sessionId: "s", instance: null } as const
+    record.bound = { binding, activity: fresh(0), telemetry: null }
+    await inside.reporting.screenVersion(record, binding)
+    expect(versionOf(record.bound?.binding)).toBe("0.166.0")
+    // It is a Codex banner: another agent's binding takes none, and leaving the screen forgets it.
+    expect(bannerSeen(record as never, "claude")).toBeUndefined()
+    await draw("\x1b[?1049l")
+    inside.typing.dialogsChanged(terminal.id)
+    expect(bannerSeen(record as never, "codex")).toBeUndefined()
+  })
 
   it("is the running release in Codex's banner, which the rollout's creating release gives way to", async ({
     terminals,

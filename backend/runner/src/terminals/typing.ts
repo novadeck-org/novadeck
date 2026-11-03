@@ -17,6 +17,7 @@ import { harnesses } from "../harnesses/registry.js"
 import { Doorbell, type DoorbellOptions } from "../messaging/doorbell.js"
 import type { Messaging } from "../messaging/messaging.js"
 import { Answers, type AnswersOptions } from "./answers.js"
+import { bannerDrawn } from "./binding/banners.js"
 import { Dialogs, type DialogsOptions } from "./dialogs.js"
 import { agentWorking, doorbellHost, profileOf } from "./doorbell-host.js"
 import { Interrupts, Prompts } from "./prompting.js"
@@ -159,9 +160,12 @@ export class Typing {
     this.doorbell?.changed(terminalId)
   }
 
-  /** The terminal's screen or requests changed: its dialogs are looked at again. */
+  /** The terminal's screen or requests changed: its dialogs are looked at again, and a banner read. */
   dialogsChanged(terminalId: string): void {
     this.dialogs.changed(terminalId)
+    // A starting agent's banner, drawn before it binds, names the version running.
+    const record = this.host.live(terminalId)
+    if (record) bannerDrawn(record, () => this.screenOf(terminalId))
   }
 
   /** Forgets what the doorbell and the dialogs kept of a terminal, as it exits or goes. */

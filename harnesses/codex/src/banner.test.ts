@@ -4,22 +4,29 @@ import { describe, expect, it } from "vitest"
 
 import { bannerVersion } from "./banner.js"
 
-const { screens } = loadProbe(import.meta.dirname, "banner.probe.json") as {
+const { version, screens } = loadProbe(import.meta.dirname, "banner.probe.json") as {
+  version: string
   screens: { [name: string]: ScreenText }
 }
 
 describe("the version in Codex's banner, as captured", () => {
-  it("names the release running at a fresh start and after a turn", () => {
-    expect(bannerVersion(screens.freshStart!.rows)).toBe("0.165.0")
-    expect(bannerVersion(screens.freshAfterTurn!.rows)).toBe("0.165.0")
+  it("names the release running at a fresh start and as a resume first draws", () => {
+    expect(bannerVersion(screens.freshStart!.rows)).toBe(version)
+    expect(bannerVersion(screens.resumeStart!.rows)).toBe(version)
   })
 
-  it("names the release that resumed a session, not the one that began it", () => {
-    expect(bannerVersion(screens.resumeStart!.rows)).toBe("0.166.0")
-    expect(bannerVersion(screens.resumeAfterTurn!.rows)).toBe("0.166.0")
+  it("is gone once the conversation has been drawn over it", () => {
+    for (const name of ["afterTurns", "resumeAtPrompt", "resumeAfterTurn"])
+      expect(bannerVersion(screens[name]!.rows), name).toBeUndefined()
   })
 
-  it("is not taken from words in the conversation, or once the banner has scrolled away", () => {
+  it("is the lowest of two, where an earlier process's stands above", () => {
+    expect(
+      bannerVersion(["  >_ OpenAI Codex (v0.165.0)", "› hi", "  >_ OpenAI Codex (v0.166.0)"]),
+    ).toBe("0.166.0")
+  })
+
+  it("is not taken from words in the conversation", () => {
     expect(
       bannerVersion(["› >_ OpenAI Codex (v9.9.9)", "• see >_ OpenAI Codex (v9.9.9)"]),
     ).toBeUndefined()
