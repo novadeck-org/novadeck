@@ -18,6 +18,15 @@ type Seen = { readonly agent: AgentName; readonly version: string; readonly chil
 
 const seen = new WeakMap<Record, Seen>()
 const reading = new WeakMap<Record, { again: boolean }>()
+// When the terminal's alternate screen was first drawn while nothing was bound, for each pty.
+const entered = new WeakMap<Record, { readonly child: Pty; readonly at: number }>()
+
+/**
+ * How long after its alternate screen first draws a starting TUI's banner is looked for:
+ * Codex shows it within half a second, so a TUI that runs on (an editor, `htop`) has its
+ * screen read only at its start, never for as long as it runs.
+ */
+export const bannerWindowMs = 3000
 
 // The version one screen shows, of the harness that shows one.
 const read = (screen: ScreenText): { agent: AgentName; version: string } | undefined => {
@@ -30,8 +39,9 @@ const read = (screen: ScreenText): { agent: AgentName; version: string } | undef
 
 /**
  * The terminal drew: while no session is bound and its screen is the alternate one, as a
- * starting TUI's is, reads the screen for a banner. Reads follow one another and never
- * pile up. Leaving the alternate screen forgets what was seen.
+ * starting TUI's is, reads the screen for a banner, within `bannerWindowMs` of that screen
+ * first drawing and until one is found. Reads follow one another and never pile up.
+ * Leaving the alternate screen forgets what was seen.
  */
 export const bannerDrawn = (
   record: Record,
@@ -39,9 +49,18 @@ export const bannerDrawn = (
 ): void => {
   const { buffer } = record.terminal.screen
   if (record.bound !== null || buffer.active !== buffer.alternate) {
-    if (buffer.active !== buffer.alternate) seen.delete(record)
+    if (buffer.active !== buffer.alternate) {
+      seen.delete(record)
+      entered.delete(record)
+    }
     return
   }
+  const child = record.terminal.pty
+  const start = entered.get(record)
+  if (start?.child !== child) entered.set(record, { child, at: Date.now() })
+  else if (Date.now() - start.at > bannerWindowMs) return
+  // Found already: the same process draws no other.
+  if (seen.get(record)?.child === child) return
   const running = reading.get(record)
   if (running) {
     running.again = true
@@ -49,7 +68,6 @@ export const bannerDrawn = (
   }
   const state = { again: false }
   reading.set(record, state)
-  const child = record.terminal.pty
   void (async () => {
     try {
       do {
