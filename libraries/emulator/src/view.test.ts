@@ -195,7 +195,10 @@ describe("a view's font", () => {
     Object.defineProperty(options, "fontFamily", {
       configurable: true,
       get: () => current,
-      set: (value: string) => void changes.push((current = value)),
+      set: (value: string) => {
+        current = value
+        changes.push(value)
+      },
     })
     const done = view.setFont("Test Mono")
     expect(changes).toEqual([])
