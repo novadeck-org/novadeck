@@ -4,10 +4,13 @@ import { basename, join } from "node:path"
 
 import type { TranscriptItem } from "@novadeck/protocol"
 
+import type { Binding } from "../harnesses/bindings.js"
+import { versionOf } from "../harnesses/bindings.js"
 import type { AgentSetup } from "./agents/agent.js"
 import { setups } from "./agents/index.js"
 import type { DeckTerminal } from "./deck.js"
 import { describe, e2e, expect, supported } from "./fixture.js"
+import { installHarness } from "./install.js"
 import { asked, tool, type Call, type Reply } from "./model/script.js"
 import { own, start } from "./scenarios.js"
 
@@ -368,6 +371,34 @@ for (const setup of setups) {
                   call,
                 })),
               )}`,
+              { cause: error },
+            )
+          })
+
+        // The runner knows which release wrote it: the one installed, as the harness's own
+        // records say (Claude Code's transcript and status line, Codex's rollout, Antigravity's
+        // status line). Reached through the runner's records: no client is told.
+        const inside = run.deck.terminals as unknown as {
+          records: Map<string, { bound: { binding: Binding } | null }>
+        }
+        const installed = await installHarness(setup.agent)
+        await t1
+          .poll(
+            () => {
+              const binding = inside.records.get(t1.id)?.bound?.binding
+              // Not the release that created the session (Codex's rollout): a fresh session
+              // has its banner on the screen, which names the one running.
+              return versionOf(binding) === installed.version && !binding?.created
+                ? installed.version
+                : undefined
+            },
+            `its binding to carry version ${installed.version}`,
+            15_000,
+          )
+          .catch((error: unknown) => {
+            const binding = inside.records.get(t1.id)?.bound?.binding
+            throw new Error(
+              `${String(error)}\nIt carries ${String(versionOf(binding))}${binding?.created ? " (its creator's)" : ""}.`,
               { cause: error },
             )
           })

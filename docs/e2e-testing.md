@@ -889,13 +889,14 @@ and the harness versions each job installed, through OpenRouter as the release n
 report goes without it. A dispatch of Nightly Report with a run's id shows the report it
 would make, as a dry run.
 
-Two of them reach into the runner through casts typecheck can't see past:
-`interrupt-held-reply` wraps `bindings.applyFact`, and `agy-stop-boundary` wraps
+Four of them reach into the runner through casts typecheck can't see past:
+`interrupt-held-reply` wraps `bindings.applyFact`, `version` wraps `reporting.report`, `codex-banner` reads `records`, and
+`agy-stop-boundary` wraps
 `reporting.report` and reads `records` (a record's `bound` session and its pty) and
 `messaging.delivery`, all private to `Terminals`; the bound session's own type is `Record`'s,
-which typecheck follows. So do two tests CI's E2E jobs run, but only with harnesses: `doorbell`
-(`messaging.ring` and `ringFailed`, and `live`'s screen and pty) and `person` (`live`'s
-screen). `src/e2e/reach-ins.test.ts`, a unit test, looks for each of those members
+which typecheck follows. So do three tests CI's E2E jobs run, but only with harnesses: `doorbell`
+(`messaging.ring` and `ringFailed`, and `live`'s screen and pty), `person` (`live`'s
+screen) and `transcripts` (`records`, for the version the bound session's binding carries). `src/e2e/reach-ins.test.ts`, a unit test, looks for each of those members
 on a real `Terminals`, so a rename or a move fails in a second, with no harness. It also fails
 when another file under `src/e2e/` casts the deck's `Terminals` (or the deck) to `unknown`,
 `never` or `any`, until the test checks what that one reaches. It can't tell a caller that

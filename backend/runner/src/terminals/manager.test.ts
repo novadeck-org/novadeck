@@ -27,6 +27,7 @@ import {
   started as fresh,
   type Activity,
 } from "../harnesses/activity.js"
+import { versionOf } from "../harnesses/bindings.js"
 import { rootRef } from "../harnesses/detail.js"
 import { harnesses } from "../harnesses/registry.js"
 import { followRoot } from "../harnesses/roots.js"
@@ -38,6 +39,7 @@ import { ptyOptions } from "../testing/pty.js"
 import type { Resources } from "../testing/resources.js"
 import { plainSealer } from "../testing/sealing.js"
 import { WorkspaceStore } from "../workspaces/store.js"
+import { bannerSeen } from "./binding/banners.js"
 import { Terminals } from "./manager.js"
 import type { Bound } from "./record.js"
 
@@ -2622,5 +2624,137 @@ describe("a shell's prompt coming back", () => {
     inside.prompted(record, record.terminal.pty, cwd)
     expect(ready).not.toContain("codex")
     expect(record.summary.ready).toBeNull()
+  })
+})
+
+describe("the harness version a terminal's binding carries", () => {
+  type Inside = {
+    records: Map<string, { bound: Bound | null }>
+    bindings: { applyFact: (record: unknown, fact: object) => boolean }
+  }
+
+  it("is told by the session's records, keeps the telemetry apart, and ignores another session's", async ({
+    terminals,
+  }) => {
+    const manager = terminals.manager(ptyOptions)
+    const terminal = await manager.create(
+      { id: randomUUID(), sessionId: "session", cwd, cols: 80, rows: 24 },
+      "creator",
+    )
+    const inside = manager as unknown as Inside
+    const record = inside.records.get(terminal.id)!
+    const binding = { agent: "claude", sessionId: "s", instance: null } as const
+    record.bound = { binding, activity: fresh(0), telemetry: null }
+    const tell = (fact: object) =>
+      inside.bindings.applyFact(record, {
+        ...binding,
+        type: "telemetry-observed",
+        startedAt: 10,
+        ...fact,
+      })
+
+    expect(versionOf(record.bound?.binding)).toBeNull()
+    tell({ sessionId: "other", version: "9.9.9" })
+    expect(versionOf(record.bound?.binding)).toBeNull()
+    // The version alone is no telemetry: the summary the clients see stays without any.
+    expect(tell({ version: "2.1.316" })).toBe(false)
+    expect(versionOf(record.bound?.binding)).toBe("2.1.316")
+    expect(record.bound?.telemetry).toBeNull()
+    // Telemetry that names it too sets both, and one without leaves the version.
+    tell({ startedAt: 20, version: "2.1.317", context: { occupied: 5, capacity: 100 } })
+    expect(versionOf(record.bound?.binding)).toBe("2.1.317")
+    expect(record.bound?.telemetry).toMatchObject({ context: { occupied: 5 } })
+    tell({ startedAt: 30, context: { occupied: 6, capacity: 100 } })
+    expect(versionOf(record.bound?.binding)).toBe("2.1.317")
+  })
+})
+
+describe("the harness version a screen shows", () => {
+  type Inside = {
+    records: Map<
+      string,
+      {
+        bound: Bound | null
+        terminal: { screen: { write: (text: string, done: () => void) => void } }
+      }
+    >
+    reporting: {
+      screenVersion: (record: unknown, binding: unknown, drawn?: string) => Promise<void>
+    }
+    typing: { dialogsChanged: (terminalId: string) => void }
+    bindings: {
+      follow: (record: unknown, event: object) => void
+      endBinding: (record: unknown) => boolean
+    }
+  }
+
+  it("is the banner a starting Codex drew, though its replayed conversation covers it by the time it binds", async ({
+    terminals,
+  }) => {
+    const manager = terminals.manager(ptyOptions)
+    const terminal = await manager.create(
+      { id: randomUUID(), sessionId: "session", cwd, cols: 80, rows: 24 },
+      "creator",
+    )
+    const inside = manager as unknown as Inside
+    const record = inside.records.get(terminal.id)!
+    const draw = (text: string) =>
+      new Promise<void>((resolve) => record.terminal.screen.write(text, resolve))
+    // Codex's TUI is on the alternate screen; the draw is what the terminal tells the runner.
+    await draw("\x1b[?1049h\x1b[2J\x1b[H")
+    inside.typing.dialogsChanged(terminal.id)
+    await draw("  >_ OpenAI Codex (v0.166.0)\r\n")
+    inside.typing.dialogsChanged(terminal.id)
+    // The resumed conversation is replayed over it; then the session binds.
+    await draw("\x1b[2J\x1b[H› Turn 1\r\n• Done 1.\r\n")
+    inside.typing.dialogsChanged(terminal.id)
+    const binding = { agent: "codex", sessionId: "s", instance: null } as const
+    record.bound = { binding, activity: fresh(0), telemetry: null }
+    // Another agent's binding takes none; Codex's takes it, once.
+    expect(bannerSeen(record as never, "claude")).toBeUndefined()
+    await inside.reporting.screenVersion(record, binding, bannerSeen(record as never, "codex"))
+    expect(versionOf(record.bound?.binding)).toBe("0.166.0")
+    // It stays with the process: a session switch inside it (`follow`) binds with it again,
+    // and the end of the session (the agent's exit) is what forgets it.
+    inside.bindings.follow(record, {
+      type: "session-observed",
+      ...binding,
+      sessionId: "s2",
+      evidence: "native-switch",
+      startedAt: 1,
+    })
+    expect(bannerSeen(record as never, "codex")).toBe("0.166.0")
+    inside.bindings.endBinding(record)
+    expect(bannerSeen(record as never, "codex")).toBeUndefined()
+  })
+
+  it("is the running release in Codex's banner, which the rollout's creating release gives way to", async ({
+    terminals,
+  }) => {
+    const manager = terminals.manager(ptyOptions)
+    const terminal = await manager.create(
+      { id: randomUUID(), sessionId: "session", cwd, cols: 80, rows: 24 },
+      "creator",
+    )
+    const inside = manager as unknown as Inside
+    const record = inside.records.get(terminal.id)!
+    const binding = { agent: "codex", sessionId: "s", instance: null } as const
+    record.bound = { binding, activity: fresh(0), telemetry: null }
+    await new Promise<void>((resolve) =>
+      record.terminal.screen.write("\x1b[2J\x1b[H  >_ OpenAI Codex (v0.166.0)\r\n", resolve),
+    )
+    await inside.reporting.screenVersion(record, binding)
+    expect(versionOf(record.bound?.binding)).toBe("0.166.0")
+    // The rollout of a session a newer release resumed names the one that began it.
+    ;(
+      manager as unknown as { bindings: { applyFact: (r: unknown, f: object) => boolean } }
+    ).bindings.applyFact(record, {
+      ...binding,
+      type: "telemetry-observed",
+      startedAt: 1,
+      version: "0.165.0",
+      created: true,
+    })
+    expect(versionOf(record.bound?.binding)).toBe("0.166.0")
   })
 })

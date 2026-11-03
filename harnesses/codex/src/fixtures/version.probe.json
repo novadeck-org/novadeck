@@ -1,0 +1,9 @@
+{
+  "harness": "codex",
+  "version": "0.166.0",
+  "source": "captured",
+  "how": "the first record of the rollout Codex wrote in one reply; ids and paths replaced",
+  "rollout": [
+    "{\"timestamp\":\"2026-11-03T16:37:28.800Z\",\"ordinal\":0,\"type\":\"session_meta\",\"payload\":{\"session_id\":\"00000000-0000-4000-8000-000000000001\",\"id\":\"00000000-0000-4000-8000-000000000001\",\"timestamp\":\"2026-11-03T16:37:28.528Z\",\"cwd\":\"/home/user/project\",\"runtime_workspace_roots\":[\"/home/user/project\"],\"originator\":\"codex-tui\",\"cli_version\":\"0.166.0\",\"source\":\"cli\",\"thread_source\":\"user\",\"model_provider\":\"novadeck-e2e\",\"base_instructions\":{\"text\":\"You are Codex, here against Novadeck's fake model.\",\"provenance\":{\"type\":\"model\",\"model\":\"fake-model\"}},\"history_mode\":\"paginated\",\"context_window\":{\"window_id\":\"00000000-0000-4000-8000-000000000001\"}}}"
+  ]
+}

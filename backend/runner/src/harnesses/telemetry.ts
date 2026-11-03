@@ -24,6 +24,14 @@ export const observeTelemetry = (
 ): Telemetry | undefined => {
   if (!bound(binding, event)) return undefined
   const naming = event.model !== undefined || event.effort !== undefined
+  // A record of the harness's version alone says nothing of tokens, quotas or model.
+  if (
+    event.version !== undefined &&
+    !naming &&
+    event.context === undefined &&
+    event.limits === undefined
+  )
+    return undefined
   const modelOnly = naming && event.context === undefined && event.limits === undefined
   const usageAt = telemetry?.at ?? Number.NEGATIVE_INFINITY
   const modelAt = telemetry?.modelAt ?? Number.NEGATIVE_INFINITY
