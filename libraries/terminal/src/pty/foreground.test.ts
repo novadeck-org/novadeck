@@ -135,17 +135,30 @@ describe.skipIf(process.platform !== "darwin")("macOS foreground naming", () => 
 })
 
 describe.skipIf(process.platform === "win32")("a process's children", () => {
-  it("tells a shell with a background job from an idle one, and nothing for a bad pid", async () => {
-    const job = spawn("sh", ["-c", "sleep 30 & wait"], { cols: 80, rows: 24 })
-    onTestFinished(() => job.kill())
-    await vi.waitFor(async () => expect(await hasChildProcess(job.pid)).toBe(true))
-    const idle = spawn("sh", [], { cols: 80, rows: 24 })
-    onTestFinished(() => idle.kill())
-    await vi.waitFor(async () => expect(await hasChildProcess(idle.pid)).toBe(false))
-    await expect(hasChildProcess(undefined)).resolves.toBeUndefined()
-    await expect(hasChildProcess(0)).resolves.toBeUndefined()
-    await expect(hasChildProcess(2 ** 22 + 12345)).resolves.toBeUndefined()
-  })
+  // Until the shell has started its job, as `ps` sees it: on a loaded macOS runner the
+  // shell's start and macOS's check of it, then a `ps -ax` each look, bounded at 2 s, took
+  // over the default second (1.1 and 2.3 s, CI 2026-11-03).
+  const startsMs = 20_000
+
+  it(
+    "tells a shell with a background job from an idle one, and nothing for a bad pid",
+    async () => {
+      const job = spawn("sh", ["-c", "sleep 30 & wait"], { cols: 80, rows: 24 })
+      onTestFinished(() => job.kill())
+      await vi.waitFor(async () => expect(await hasChildProcess(job.pid)).toBe(true), {
+        timeout: startsMs,
+      })
+      const idle = spawn("sh", [], { cols: 80, rows: 24 })
+      onTestFinished(() => idle.kill())
+      await vi.waitFor(async () => expect(await hasChildProcess(idle.pid)).toBe(false), {
+        timeout: startsMs,
+      })
+      await expect(hasChildProcess(undefined)).resolves.toBeUndefined()
+      await expect(hasChildProcess(0)).resolves.toBeUndefined()
+      await expect(hasChildProcess(2 ** 22 + 12345)).resolves.toBeUndefined()
+    },
+    2 * startsMs + 5_000,
+  )
 })
 
 describe("children on a Unix shell's terminal", () => {
