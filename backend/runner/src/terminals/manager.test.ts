@@ -2164,7 +2164,10 @@ describe("a turn the person's Escape ended", () => {
       } finally {
         vi.useRealTimers()
       }
-      await vi.waitFor(() => expect(record.interruptions).toHaveLength(1))
+      // On Windows the verdict reads the screen for up to `escapeScreenMs` first.
+      await vi.waitFor(() => expect(record.interruptions).toHaveLength(1), {
+        timeout: escapeScreenMs + 2000,
+      })
       // Saved at once, not on the next periodic save: a runner killed now still keeps it.
       expect(store.terminal(terminalId)?.interruptions).toHaveLength(1)
       await first.shutdown()
