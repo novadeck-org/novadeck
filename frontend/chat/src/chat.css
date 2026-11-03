@@ -143,6 +143,10 @@
 }
 /* The person's prompt before the agent's record has it: faded while queued or on its way;
    a note under it once it never arrived. */
+.chat-message[data-sent] .chat-bubble {
+  width: fit-content;
+  margin-left: auto;
+}
 .chat-message[data-sent="queued"] .chat-bubble,
 .chat-message[data-sent="sending"] .chat-bubble {
   opacity: 0.6;
