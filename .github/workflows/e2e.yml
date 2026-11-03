@@ -3,21 +3,6 @@ name: E2E
 on:
   pull_request:
     types: [opened, synchronize, reopened]
-    paths:
-      - .github/workflows/e2e.yml
-      - .github/actions/e2e-harness-cache/**
-      - contract/protocol/**
-      - backend/relay/**
-      - backend/runner/**
-      - contract/runner-client/**
-      - engines/**
-      - harnesses/**
-      - libraries/**
-      - scripts/e2e/**
-      - package.json
-      - pnpm-lock.yaml
-      - pnpm-workspace.yaml
-      - turbo.json
   schedule:
     # Nightly, against each harness's latest release, to catch drift before a pin moves.
     - cron: "17 3 * * *"
@@ -45,8 +30,9 @@ jobs:
   # schedule, a dispatch or when it can't tell. The jobs below take its rows as their
   # matrices, and none runs when nothing the suite depends on changed. Linux runs for any
   # change that can reach the runner; Windows and macOS only for one that can break them
-  # (`os`), as macOS runners are scarce. Not a required check, so a skipped job blocks no
-  # merge.
+  # (`os`), as macOS runners are scarce. The workflow runs on every pull request so the
+  # plan can say none is needed: main requires the gate below, which a run that never started
+  # would leave pending.
   plan:
     name: Plan
     runs-on: ubuntu-latest
@@ -494,3 +480,28 @@ jobs:
           path: ${{ env.NOVADECK_E2E_TRACES }}
           if-no-files-found: ignore
           retention-days: 7
+
+  # The one check main requires of this workflow. It passes once the plan ran and every job it
+  # chose passed, or when it chose none, as for a change that reaches no harness. `always()`,
+  # not `!cancelled()`: a skipped required check counts as passed, so a cancelled run must
+  # fail it.
+  gate:
+    name: E2E
+    needs: [plan, e2e, quirks]
+    if: always()
+    runs-on: ubuntu-latest
+    timeout-minutes: 1
+    steps:
+      - name: Require Every Planned Job
+        env:
+          PLAN_RESULT: ${{ needs.plan.result }}
+          E2E_RESULT: ${{ needs.e2e.result }}
+          QUIRKS_RESULT: ${{ needs.quirks.result }}
+        run: |
+          test "$PLAN_RESULT" = success || { echo "Plan: $PLAN_RESULT"; exit 1; }
+          for result in "E2E $E2E_RESULT" "Quirks $QUIRKS_RESULT"; do
+            case "${result#* }" in
+              success | skipped) ;;
+              *) echo "$result"; exit 1 ;;
+            esac
+          done

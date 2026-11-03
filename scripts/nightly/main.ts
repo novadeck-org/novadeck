@@ -1,6 +1,7 @@
 import { execFileSync } from "node:child_process"
-import { appendFileSync } from "node:fs"
+import { appendFileSync, readFileSync } from "node:fs"
 
+import { parseRegister } from "../flakes/match.ts"
 import { decide, titleOf, type Action, type FailedJob, type Night } from "./report.ts"
 import { clientFor, writeup, type JobLog } from "./writeup.ts"
 
@@ -39,11 +40,17 @@ export const nightOf = (runId: string, attempt: number): Night => {
       `repos/${repo()}/actions/runs/${runId}/attempts/${attempt}/jobs?per_page=100`,
     ),
   ) as { jobs: { id: number; name: string; conclusion: string | null; html_url: string }[] }[]
+  // A gate job (E2E's) fails only for the jobs it needs, which are listed already.
+  const { aggregates } = parseRegister(
+    JSON.parse(readFileSync(new URL("../flakes/register.json", import.meta.url), "utf8")),
+  )
   const failed: FailedJob[] = jobs
     .flatMap((page) => page.jobs)
     .filter(
       (job) =>
-        job.conclusion !== null && !["success", "skipped", "neutral"].includes(job.conclusion),
+        job.conclusion !== null &&
+        !["success", "skipped", "neutral"].includes(job.conclusion) &&
+        !aggregates.includes(job.name),
     )
     .map((job) => ({
       id: job.id,
