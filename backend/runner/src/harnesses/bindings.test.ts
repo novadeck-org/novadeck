@@ -240,7 +240,7 @@ describe("the harness version a binding carries", () => {
   })
 
   it("stays as the same session reports again, and is unknown for another session", () => {
-    const known = { ...live, binding: { ...binding, version: "2.1.316" } }
+    const known = { ...running, binding: { ...binding, version: "2.1.316" } }
     expect(observe(known, seen({ startedAt: 3_000 }), facts)?.binding?.version).toBe("2.1.316")
     const next = observe(
       known,
