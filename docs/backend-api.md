@@ -593,6 +593,11 @@ changed. Only connecting an agent (below) installs anything elsewhere:
   server without the terminal's environment. It leaves `codex agents`, `--remote` and
   runs outside Novadeck's shells unchanged. The integration puts `NOVADECK_BIN` back in
   front after the user's startup files.
+- On Windows, where cmd's AutoRun prints: `agy-cmd/cmd.exe`, Novadeck's `cmd.exe` pass-through
+  (`novadeck-cmd.exe`, built with the relay and checked byte for byte against the shipped one), and
+  `bin/agy.cmd`, which shells get first on `PATH` while Antigravity is connected: it puts `agy-cmd`
+  first on `PATH` for Antigravity alone, so its `cmd /c` hooks run the real cmd with `/d` and the
+  AutoRun's output stays out of their answers. See [agent messaging](agent-messaging.md).
 - `hook` (`hook.cmd`), a launcher that starts Novadeck's relay (`novadeck-relay`, a
   small native program copied in beside it; see `backend/relay`), so the hook needs
   no bash, python3 or JavaScript runtime and starts in about a millisecond. The relay

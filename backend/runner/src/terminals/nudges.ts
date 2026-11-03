@@ -231,19 +231,22 @@ export const atTurnStart = (
 /**
  * The nudge, one line worded as Novadeck's automatic notice: asking for a summary while
  * there is none, at once, before the agent goes on with its work, as the terminal has no
- * title until then; else showing the current one, to update only when the work's subject
+ * title until then, and to let the notice be while no work was given, as it comes with
+ * every prompt until then (an agent only chatting made up a placeholder to quiet it);
+ * else showing the current one, to update only when the work's subject
  * moved or it holds what a summary leaves out (status, PR or issue numbers, details). A summary names
  * the subject at a high level, as murmur titles the terminal from it.
  */
 export const nudgeText = (current: { readonly summary: string | null }) =>
   current.summary === null
     ? "Novadeck: automatic notice, not from the user: this terminal has no summary yet. " +
-      "Call Novadeck's summarize tool now, before you go on with the work you were given, " +
-      "with one short line on what the work here is about, at a high level: its subject, with " +
-      "no status, PR or issue numbers, or details; with no work given yet, do so as soon as " +
-      "there is. " +
-      "Novadeck titles this terminal from it, and other agents read it in their agents " +
-      "listing. This notice needs no reply."
+      "Once you've been given work, any task, investigation, review, design discussion or " +
+      "question you'll dig into, call Novadeck's summarize tool now, before you go on with " +
+      "it, with one short line on what the work here is about, at a high level: its subject, " +
+      "with no status, PR or issue numbers, or details. Novadeck titles this terminal from " +
+      "it, and other agents read it in their agents listing. Until then, such as with only a " +
+      "greeting or a quick question you answer at once, let this notice be and make up no " +
+      "summary to quiet it: it comes with each prompt until you summarize."
     : `Novadeck: automatic notice, not from the user: this terminal's summary is ` +
       `${JSON.stringify(shorten(current.summary, 200))}; ` +
       "if the work here is now about something else, or that holds status, PR or issue " +

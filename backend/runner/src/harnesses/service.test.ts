@@ -194,6 +194,21 @@ describe("agents Novadeck can connect", () => {
     expect(statusLine()).toBeUndefined()
   })
 
+  it("names Antigravity among the shimmed agents on Windows only with the cmd.exe pass-through installed", async ({
+    fixture,
+  }) => {
+    installed(fixture.home, "agy")
+    await fixture.agents().set("agy", true)
+    const onWindows = (cmdShimDir?: string) =>
+      createHarnesses(() => Promise.resolve({ ...fixture.paths, cmdShimDir }), {
+        home: fixture.home,
+        env: fixture.environment(),
+        platform: "win32",
+      })
+    expect(await onWindows("C:\\NOVADE~1\\shell\\agy-cmd").shims()).toEqual(["agy"])
+    expect(await onWindows().shims()).toEqual([])
+  })
+
   it("install the plugin again where an agent's own copy of it differs from Novadeck's", async ({
     fixture,
   }) => {

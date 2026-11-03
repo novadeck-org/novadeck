@@ -49,11 +49,13 @@ extraResources:
   # The GPL asks that everyone who gets the app gets a copy of the license with it.
   - from: ../../LICENSE
     to: LICENSE
-  # The relay agents start for Novadeck's MCP server and hooks; see backend/relay.
+  # The relay agents start for Novadeck's MCP server and hooks, and on Windows the cmd.exe
+  # pass-through Antigravity's hooks run through; see backend/relay.
   - from: ../../backend/relay/dist
     to: relay
     filter:
       - novadeck-relay*
+      - novadeck-cmd*
   # The manifest of the voice engine, which voice input downloads on install from this
   # release; the archive it names is a release asset, not part of the app. See
   # engines/whisper.

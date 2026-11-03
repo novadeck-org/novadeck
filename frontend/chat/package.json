@@ -21,13 +21,13 @@
   "dependencies": {
     "@novadeck/core": "workspace:*",
     "@novadeck/toolkit": "workspace:*",
-    "lucide-react": "^1.59.0",
+    "lucide-react": "^1.64.0",
     "react": "^19.3.1"
   },
   "devDependencies": {
     "@novadeck/build-kit": "workspace:*",
     "@novadeck/test-kit": "workspace:*",
-    "@types/node": "^26.6.5",
+    "@types/node": "^26.6.6",
     "@types/react": "^19.3.0",
     "@types/react-dom": "^19.3.0",
     "jsdom": "^30.1.3",

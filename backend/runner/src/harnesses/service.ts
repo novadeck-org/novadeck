@@ -159,7 +159,7 @@ const state = async (harness: Harness, install: Install): Promise<AgentIntegrati
 
 /** The harnesses Novadeck can connect, and connecting or disconnecting each one. */
 export const createHarnesses = (
-  paths: () => Promise<ShellPaths | undefined>,
+  paths: () => Promise<(ShellPaths & { readonly cmdShimDir?: string | undefined }) | undefined>,
   options: HarnessesOptions = {},
 ) => {
   const base = options.env ?? process.env
@@ -289,8 +289,11 @@ export const createHarnesses = (
     shims: async (): Promise<AgentName[]> => {
       const install = await installs()
       if (!install) return []
+      // Antigravity's shim exists only where Novadeck's cmd.exe pass-through is installed.
+      const cmdShimDir = (await paths())?.cmdShimDir
+      const machine = cmdShimDir === undefined ? {} : { cmdShimDir }
       const shimmed = agents.filter(
-        (agent) => (harnesses[agent].shims?.(platform) ?? []).length > 0,
+        (agent) => (harnesses[agent].shims?.(platform, machine) ?? []).length > 0,
       )
       const connected = await Promise.all(
         shimmed.map((agent) => harnesses[agent].connected(install(agent))),

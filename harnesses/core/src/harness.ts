@@ -102,8 +102,11 @@ export type Harness = {
     readonly apply: (install: Install) => Promise<void>
     readonly revert: (install: Install) => Promise<void>
   }
-  /** Programs Novadeck's shells put first on PATH while it is connected. */
-  readonly shims?: (platform: NodeJS.Platform) => readonly File[]
+  /**
+   * Programs Novadeck's shells put first on PATH while it is connected; `machine` is what the
+   * machine does to a hook (Antigravity's shim exists only where it names a `cmdShimDir`).
+   */
+  readonly shims?: (platform: NodeJS.Platform, machine?: Machine) => readonly File[]
   /**
    * What shows a command starts no interactive session (see the runner's
    * `terminals/commands.ts`): its `commands` other than a session, as the first word that is
@@ -380,6 +383,15 @@ export type Machine = {
    * answer, which a harness that reads it as JSON then can't.
    */
   readonly cmdPrints?: boolean
+  /**
+   * For a harness that runs its hooks through the `cmd` it finds on PATH: the folder (a path
+   * cmd reads unquoted) holding Novadeck's `cmd.exe` pass-through, which runs the real cmd with
+   * `/d` for Novadeck's own hooks, so the AutoRun does not print ahead of their answers. Its
+   * shim puts the folder first on PATH for the agent alone. Set only where the pass-through
+   * is installed and is the shipped one. It covers the agent in Novadeck's terminals only, so
+   * `cmdPrints` stays set.
+   */
+  readonly cmdShimDir?: string
 }
 
 /** A plan a transcript or rollout line records, and when it was written where it says. */
