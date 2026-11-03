@@ -29,6 +29,8 @@ describe("observing telemetry", () => {
       observeTelemetry(first, binding, seen({ startedAt: 99, version: "0.166.0" })),
     ).toBeUndefined()
     expect(observeTelemetry(null, binding, seen({ version: "0.166.0" }))).toBeUndefined()
+    // An event with nothing in it that is no version's still counts as a record.
+    expect(observeTelemetry(null, binding, seen({}))).toMatchObject({ context: null, at: 10 })
   })
 
   it("keeps what a later record leaves out", () => {
