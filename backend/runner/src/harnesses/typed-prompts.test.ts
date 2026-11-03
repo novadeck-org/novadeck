@@ -110,15 +110,25 @@ describe("a typed prompt where hooks name none", () => {
     ).resolves.toEqual({ events: [other], seen: 9 })
   })
 
-  it("before any read, takes an entry timed after the Enter, a later second than its own", async () => {
+  it("before any read, takes an entry timed in the Enter's second or later", async () => {
     await expect(told(entry("fix it", 1), { seen: undefined })).resolves.toMatchObject({
       events: [{ cause: "prompt" }],
       seen: 1,
     })
-    // In the Enter's own second, rounded down, it may be older than the Enter: it fails safe.
+    // In the Enter's own second, rounded down: the first prompt of a session that bound at
+    // its prompt, resumed after a restart or by the harness's own resume, as the hook it
+    // fires is the first look at the transcript the status line never named.
     await expect(
       told(entry("fix it", 1, Date.parse("2026-10-01T12:00:05Z")), { seen: undefined }),
-    ).resolves.toMatchObject({ events: [{ cause: "harness" }] })
+    ).resolves.toMatchObject({ events: [{ cause: "prompt" }], seen: 1 })
+    // A doorbell line in that second still goes by its nonce, never as the person's.
+    await expect(
+      told(entry(line, 1, Date.parse("2026-10-01T12:00:05Z")), { seen: undefined }),
+    ).resolves.toMatchObject({ events: [{ cause: "doorbell", nonce: "k3f9q2" }] })
+    // One from an earlier second is the resumed transcript's last, older than the Enter.
+    await expect(
+      told(entry("fix it", 1, Date.parse("2026-10-01T12:00:04Z")), { seen: undefined }),
+    ).resolves.toMatchObject({ events: [{ cause: "harness" }], seen: 1 })
     // With no Enter, only the very line it was started with, as `agy -i "<line>"`.
     await expect(
       told(entry(line, 0), { seen: undefined, enteredAt: undefined, startedWith: "k3f9q2" }),

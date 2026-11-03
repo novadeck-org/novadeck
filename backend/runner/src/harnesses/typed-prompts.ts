@@ -45,12 +45,25 @@ export type TypedPrompts = {
 
 /**
  * Whether a typed entry is new: its step after the one last seen in that transcript; or,
- * before any was read, its time after the person's Enter (rounded down where the
- * transcript is coarser, so one in the Enter's own second fails safe); or, before any read
- * and with no Enter, the very doorbell line the agent was started with, as a task, or the
- * one the ring waiting on it typed, as in a terminal the runner restored; never a stale one
- * a resumed session's transcript still ends with, as each line's nonce is fresh.
+ * before any was read, its time no earlier than the second of the person's Enter; or,
+ * before any read and with no Enter, the very doorbell line the agent was started with, as
+ * a task, or the one the ring waiting on it typed, as in a terminal the runner restored;
+ * never a stale one a resumed session's transcript still ends with, as each line's nonce
+ * is fresh.
+ *
+ * Before any read is a session that bound at its prompt, as one resumed after a restart or
+ * by the harness's own resume: Antigravity's status line binds it and names no transcript,
+ * so its first prompt's hook is the first look, and its transcript times are whole seconds,
+ * rounded down. An entry in the Enter's own second counts as the person's, or nearly every
+ * first prompt there would read as the harness's and leave the terminal Drafting, holding
+ * the doorbell. The cost of a wrong one is a turn credited to the person, which withdraws
+ * their open asks and clears a standing done; it takes their own bare Enter, a different
+ * typed entry written in that same second, and no read of the transcript before. A doorbell
+ * line still goes by its nonce (`promptStart`), never as the person's.
  */
+// The coarsest a transcript's times are rounded down to: Antigravity's whole seconds.
+const secondMs = 1000
+
 const fresh = (
   entry: UserEntry,
   {
@@ -61,7 +74,8 @@ const fresh = (
   }: Pick<TypedPrompts, "seen" | "enteredAt" | "startedWith" | "ringing">,
 ) => {
   if (seen !== undefined) return entry.id !== null && entry.id > seen
-  if (enteredAt !== undefined) return entry.at !== null && entry.at > enteredAt
+  if (enteredAt !== undefined)
+    return entry.at !== null && entry.at >= enteredAt - (enteredAt % secondMs)
   const nonce = doorbellNonce(entry.text)
   return nonce !== undefined && (nonce === startedWith || nonce === ringing)
 }
