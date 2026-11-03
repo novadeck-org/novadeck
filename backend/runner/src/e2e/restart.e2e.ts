@@ -1,7 +1,14 @@
+import { setTimeout as sleep } from "node:timers/promises"
+
+import type { AgentDetail, TranscriptItem } from "@novadeck/protocol"
+
+import type { Question } from "./agents/agent.js"
 import { setups } from "./agents/index.js"
+import type { DeckTerminal } from "./deck.js"
 import { describe, e2e, expect, supported } from "./fixture.js"
-import { asked, latest, tool, type Call } from "./model/script.js"
+import { asked, gate, latest, tool, type Call } from "./model/script.js"
 import {
+  answers,
   deliveries,
   delivered,
   holds,
@@ -19,11 +26,196 @@ import {
   pointsBack,
 } from "./scenarios.js"
 
+type Dialog = NonNullable<AgentDetail["requests"][number]["dialog"]>
+
+/** Waits until the terminal's first request shows a dialog of `type`, and returns it with its ref. */
+const dialogOf = <T extends Dialog["type"]>(
+  terminal: DeckTerminal,
+  type: T,
+): Promise<{ ref: string; dialog: Extract<Dialog, { type: T }> }> =>
+  terminal.poll(
+    async () => {
+      const [request] = (await terminal.detail()).requests
+      const dialog = request?.dialog
+      return dialog?.type === type
+        ? { ref: request!.ref, dialog: dialog as Extract<Dialog, { type: T }> }
+        : undefined
+    },
+    `its request to show a ${type} dialog`,
+    60_000,
+  )
+
+/** The root transcript as `agents.transcript` serves it, or undefined while none is bound. */
+const served = async (terminal: DeckTerminal): Promise<readonly TranscriptItem[] | undefined> => {
+  try {
+    return await terminal.transcript()
+  } catch (error) {
+    if ((error as { code?: string }).code === "NOT_FOUND") return undefined
+    throw error
+  }
+}
+
+/** Waits until the served transcript passes `fits`, and returns it. */
+const servedOnce = (
+  terminal: DeckTerminal,
+  fits: (items: readonly TranscriptItem[]) => boolean,
+  what: string,
+): Promise<readonly TranscriptItem[]> =>
+  terminal.poll(
+    async () => {
+      const items = await served(terminal)
+      return items && fits(items) ? items : undefined
+    },
+    what,
+    60_000,
+  )
+
+const userSaid = (items: readonly TranscriptItem[], words: string): number =>
+  items.findIndex((one) => one.role === "user" && !one.interrupted && one.text.includes(words))
+
+const colour: Question = {
+  question: "Which color should the button be?",
+  header: "Color",
+  multiSelect: false,
+  options: [
+    { label: "Blue", description: "The house color." },
+    { label: "Green", description: "Calmer." },
+  ],
+}
+
 // Novadeck restarting under its agents, the same for every harness (see messaging.e2e.ts
 // for the rule on parity).
 for (const setup of setups) {
   describe.skipIf(!supported)(setup.name, () => {
     const it = e2e(setup)
+
+    it("serves the chat again after a restart as it was: a tool call, a question and their answers", async ({
+      e2e: run,
+    }) => {
+      const { approval, asking } = setup
+      if (!approval || !asking) throw new Error(`${setup.name} has no approval or questions`)
+      run.model.use(
+        answers("Make the file", (call) => approval.request(call)),
+        answers("Ask me about the button", (call) => asking.questions(call, [colour])),
+        own((call) => (result(call)?.includes("Green") ? { text: "Green it is." } : undefined)),
+        own((call) => (result(call) !== undefined ? { text: "Made it." } : undefined)),
+        replies("Carry on", "Carried on."),
+      )
+      const t1 = await start(run, setup)
+
+      // A tool call the chat allows, through the harness's own permission dialog.
+      const made = t1.mark()
+      await t1.prompt("Make the file")
+      const allow = await dialogOf(t1, "choices")
+      const yes = allow.dialog.options.find((each) => each.label.startsWith("Yes") && each.text === null)
+      if (!yes) throw new Error(`No yes in ${JSON.stringify(allow.dialog)}`)
+      await t1.answer(allow.ref, { dialog: allow.dialog.id, type: "choice", option: yes.id })
+      await t1.until("Made it.")
+      await through(t1, ["working", "settled"], { after: made })
+
+      // A question the chat answers, through the harness's own question tool.
+      await asking.enter?.(t1)
+      const askedAt = t1.mark()
+      await t1.prompt("Ask me about the button")
+      const question = await dialogOf(t1, "questions")
+      const [first] = question.dialog.questions
+      const green = first!.options.find(({ label }) => label === "Green")!
+      await t1.answer(question.ref, {
+        dialog: question.dialog.id,
+        type: "questions",
+        answers: [{ question: first!.id, options: [green.id] }],
+      })
+      await t1.until("Green it is.")
+      await through(t1, ["working", "settled"], { after: askedAt })
+      const before = await servedOnce(
+        t1,
+        (items) =>
+          items.some((one) => one.role === "assistant" && one.text.includes("Green it is.")),
+        "the chat to hold the answer's reply",
+      )
+      const calls = before.filter((one) => one.kind === "tool-call")
+      expect(calls.length).toBeGreaterThanOrEqual(2)
+      expect(
+        calls.every((call) =>
+          before.some((one) => one.kind === "tool-result" && one.call === call.call),
+        ),
+      ).toBe(true)
+
+      await run.deck.restart()
+
+      // The resumed session's next prompt binds it where its prompt doesn't, and the chat
+      // is served from the transcript's start again: the same items, then the new turn's.
+      const resumed = await run.deck.restore(t1, { resume: setup.agent })
+      await resumed.reached("ready", { timeoutMs: 60_000 })
+      await prompted(resumed, setup)
+      await resumed.prompt("Carry on")
+      await resumed.until("Carried on.")
+      const after = await servedOnce(
+        resumed,
+        (items) =>
+          items.some((one) => one.role === "assistant" && one.text.includes("Carried on.")),
+        "the chat to hold the resumed turn",
+      )
+      expect(after.slice(0, before.length)).toEqual(before)
+      expect(userSaid(after, "Carry on")).toBeGreaterThanOrEqual(before.length)
+    })
+
+    it("still shows where the person interrupted a turn once the runner restarts", async ({
+      e2e: run,
+    }) => {
+      const held = gate()
+      run.model.use(
+        replies("Carry on", "Carried on."),
+        own(async (call) => {
+          if (!asked(call, "Take your time")) return undefined
+          await held.opened
+          return { text: "Too late." }
+        }),
+      )
+      const t1 = await start(run, setup)
+      const calls = run.model.mark()
+      const mark = t1.mark()
+      await t1.prompt("Take your time")
+      await run.model.waitFor((call) => !call.side && latest(call).includes("Take your time"), {
+        after: calls,
+      })
+      await t1.reached("working", { after: mark })
+      await t1.interrupt()
+      await t1.reached("unknown", { after: mark })
+      // Every harness's chat shows it: Claude Code's and Codex's transcripts record it,
+      // and the runner keeps Antigravity's, which doesn't.
+      const before = await servedOnce(
+        t1,
+        (items) => items.some((one) => one.interrupted),
+        "the chat to show the interruption",
+      )
+      held.open()
+      // The held reply is let go and must never show; the runner's verdict on the Escape,
+      // which keeps Antigravity's mark, is in by now.
+      await sleep(3000)
+      expect(before.findIndex((one) => one.interrupted)).toBeGreaterThan(
+        userSaid(before, "Take your time"),
+      )
+
+      await run.deck.restart()
+
+      const resumed = await run.deck.restore(t1, { resume: setup.agent })
+      await resumed.reached("ready", { timeoutMs: 60_000 })
+      await prompted(resumed, setup)
+      await resumed.prompt("Carry on")
+      await resumed.until("Carried on.")
+      const after = await servedOnce(
+        resumed,
+        (items) =>
+          items.some((one) => one.role === "assistant" && one.text.includes("Carried on.")),
+        "the chat to hold the resumed turn",
+      )
+      const noted = after.findIndex((one) => one.interrupted)
+      expect(noted).toBeGreaterThan(userSaid(after, "Take your time"))
+      expect(noted).toBeLessThan(userSaid(after, "Carry on"))
+      expect(after.filter((one) => one.interrupted)).toHaveLength(1)
+      expect(after.map((one) => one.text).join("\n")).not.toContain("Too late.")
+    })
 
     it("points a session resumed after a restart to the rules note it was given before", async ({
       e2e: run,
