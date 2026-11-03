@@ -91,9 +91,14 @@ describe("following the version a transcript says", () => {
         await new Promise((resolve) => setTimeout(resolve, 50))
     }
     try {
+      // The follower starts at the file's end once it has measured it, so the first
+      // release's records go on being written until one is told: each after that is the same.
+      for (let waited = 0; versions().length === 0 && waited < 5000; waited += 50) {
+        appendFileSync(path, line("2.1.300"))
+        // eslint-disable-next-line no-await-in-loop -- Waits on the file's follower.
+        await new Promise((resolve) => setTimeout(resolve, 50))
+      }
       appendFileSync(path, line("2.1.300"))
-      appendFileSync(path, line("2.1.300"))
-      await until(1)
       appendFileSync(path, '{"type":"permission-mode","permissionMode":"default"}\n')
       appendFileSync(path, line("2.1.316"))
       await until(2)
