@@ -11,8 +11,9 @@ import type { WorkspaceProject } from "@novadeck/core/types"
 // done still stands; or one still working. Undefined while none shows anything.
 export type ProjectStatus = "ask" | "unblock" | "failed" | "done" | "running"
 
-// Most pressing first: what blocks an agent before what it asks.
-const rank: readonly ProjectStatus[] = ["unblock", "ask", "failed", "done", "running"]
+// Most pressing first: what blocks an agent before what it asks, then a failure, then an agent
+// still at work before a done report, so a project reads done only once none of it works on.
+const rank: readonly ProjectStatus[] = ["unblock", "ask", "failed", "running", "done"]
 
 const pressing = (a: ProjectStatus | undefined, b: ProjectStatus | undefined) =>
   a === undefined || (b !== undefined && rank.indexOf(b) < rank.indexOf(a)) ? b : a
