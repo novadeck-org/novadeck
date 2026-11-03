@@ -7,6 +7,7 @@ import {
   callId,
   shortName,
   replied,
+  versionName,
 } from "@novadeck/harness-core/decode"
 import type { EventBase, HarnessEvent } from "@novadeck/harness-core/events"
 import { isFields, parseFields, type Fields } from "@novadeck/harness-core/fields"
@@ -70,7 +71,7 @@ export const rolloutEvents = (
   { sessionId, instance }: Pick<Run, "sessionId" | "instance">,
 ): readonly HarnessEvent[] => {
   if (
-    !/"(token_count|task_started|item_completed|task_complete|turn_aborted|turn_context)"/.test(
+    !/"(session_meta|token_count|task_started|item_completed|task_complete|turn_aborted|turn_context)"/.test(
       line,
     )
   )
@@ -81,6 +82,11 @@ export const rolloutEvents = (
   const startedAt = Date.parse(timestamp)
   if (!Number.isFinite(startedAt)) return []
   const base: EventBase<"codex"> = { agent: "codex", sessionId, instance, startedAt }
+  // The rollout's first record names the release that wrote it.
+  if (type === "session_meta") {
+    const version = versionName(fields.cli_version)
+    return version !== undefined ? [{ type: "telemetry-observed", ...base, version }] : []
+  }
   if (type === "turn_context") {
     const { model, effort } = fields
     // A turn that names its model names its effort too, none clearing the last model's.

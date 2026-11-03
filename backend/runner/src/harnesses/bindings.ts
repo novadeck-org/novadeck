@@ -1,4 +1,4 @@
-import type { SessionObserved } from "@novadeck/harness-core/events"
+import type { SessionObserved, TelemetryObserved } from "@novadeck/harness-core/events"
 import type { AgentName } from "@novadeck/protocol"
 
 import type { AgentReport } from "../terminals/saved-terminals.js"
@@ -12,7 +12,31 @@ export type Binding = {
   readonly sessionId: string
   /** The harness process that reported it; null where the platform hides it. */
   readonly instance: string | null
+  /**
+   * The version of the harness that wrote the session's transcript, as its own records say
+   * (`TelemetryObserved.version`); absent while unknown, as before the first record, and then
+   * `versionOf` gives null. It stays with the session, never with the terminal: a new one
+   * is unknown until its records say.
+   */
+  readonly version?: string
 }
+
+/** The harness version a binding knows, or null while it does not. */
+export const versionOf = (binding: Pick<Binding, "version"> | null | undefined): string | null =>
+  binding?.version ?? null
+
+/**
+ * The binding after a record naming a version: with the version where the record names the bound
+ * session (and process, where both tell), else the binding itself.
+ */
+export const withVersion = (binding: Binding, event: TelemetryObserved): Binding =>
+  binding.agent === event.agent &&
+  binding.sessionId === event.sessionId &&
+  (binding.instance === null || event.instance === null || binding.instance === event.instance) &&
+  event.version !== undefined &&
+  binding.version !== event.version
+    ? { ...binding, version: event.version }
+    : binding
 
 /** What a terminal knows of its harness sessions, which an observation may change. */
 export type Sessions = {
@@ -93,6 +117,11 @@ export const observe = (
   // What the session was doing, and what it was told, stay with it as it reports again:
   // only a new session starts without (`AgentReport.turn`, `told`).
   const same = known?.sessionId === event.sessionId
+  // The same session reporting again is still written by the same release.
+  const version =
+    state.binding?.agent === event.agent && state.binding.sessionId === event.sessionId
+      ? state.binding.version
+      : undefined
   const turn = same ? known.turn : undefined
   const told = same ? known.told : undefined
   const sessions = {
@@ -114,6 +143,7 @@ export const observe = (
           // of the bound one where one is (`replaces`): what is known of it stays, so its
           // exit can still be told.
           instance: event.instance ?? state.binding?.instance ?? null,
+          ...(version !== undefined && { version }),
         },
         cwd: event.cwd ?? state.cwd,
       }

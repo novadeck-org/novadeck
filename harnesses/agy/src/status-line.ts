@@ -1,4 +1,4 @@
-import { absolute, sessionId, text } from "@novadeck/harness-core/decode"
+import { absolute, sessionId, text, versionName } from "@novadeck/harness-core/decode"
 import type { EventBase, HarnessEvent, PromptShown } from "@novadeck/harness-core/events"
 import type { Report } from "@novadeck/harness-core/report"
 import { telemetryLimits } from "@novadeck/protocol"
@@ -66,6 +66,10 @@ export const statusLine = ({
     // Its mode, which it names only while not the default, and reruns on when it changes.
     { type: "mode-observed", ...base, planning: payload.cycle_mode === "plan" },
   ]
+  // Which release runs it: the status line's `version` (probed 2026-11-03, 1.4.12, Linux),
+  // in every snapshot of the process, the conversation not yet started included. The
+  // conversation's own files and its hooks name none.
+  const version = versionName(payload.version)
   // Idle reads the same after a completed turn, an Esc and a denial: it ends a turn its
   // Stop did not, as abnormally. Working never starts a turn, as its hook may run 10 to
   // 60 ms after the turn's Stop and still say working (probed 2026-10-02, 1.2.14): only
@@ -153,6 +157,7 @@ export const statusLine = ({
         },
       }),
     ...(limits !== undefined && { limits: limits.slice(0, telemetryLimits.windows) }),
+    ...(version !== undefined && { version }),
   })
   return events
 }

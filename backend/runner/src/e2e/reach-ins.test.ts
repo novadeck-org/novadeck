@@ -27,6 +27,8 @@ const reaching = [
   "person.e2e.ts",
   "probes/agy-stop-boundary.e2e.ts",
   "probes/interrupt-held-reply.e2e.ts",
+  "probes/version.e2e.ts",
+  "transcripts.e2e.ts",
 ]
 
 type Process = { write: unknown; onData: unknown }
@@ -89,6 +91,14 @@ describe("the e2e reach-ins", () => {
     expect(inside.reporting.report).toBeTypeOf("function")
     expect(Object.hasOwn(inside.reporting, "report")).toBe(false)
     expect(inside.messaging.delivery(id)).toHaveProperty("box")
+  })
+
+  it("transcripts' and version's: records, and a bound session's binding", async ({
+    resources,
+  }) => {
+    const { inside, id } = await running(resources)
+    expect(inside.records.get(id)).toHaveProperty("bound", null)
+    expect(inside.reporting.report).toBeTypeOf("function")
   })
 
   it("interrupt-held-reply's: the bindings' applyFact", async ({ resources }) => {

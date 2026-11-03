@@ -27,6 +27,7 @@ import {
   started as fresh,
   type Activity,
 } from "../harnesses/activity.js"
+import { versionOf } from "../harnesses/bindings.js"
 import { rootRef } from "../harnesses/detail.js"
 import { harnesses } from "../harnesses/registry.js"
 import { followRoot } from "../harnesses/roots.js"
@@ -2538,5 +2539,47 @@ describe("a shell's prompt coming back", () => {
     inside.prompted(record, record.terminal.pty, cwd)
     expect(ready).not.toContain("codex")
     expect(record.summary.ready).toBeNull()
+  })
+})
+
+describe("the harness version a terminal's binding carries", () => {
+  type Inside = {
+    records: Map<string, { bound: Bound | null }>
+    bindings: { applyFact: (record: unknown, fact: object) => boolean }
+  }
+
+  it("is told by the session's records, keeps the telemetry apart, and ignores another session's", async ({
+    terminals,
+  }) => {
+    const manager = terminals.manager(ptyOptions)
+    const terminal = await manager.create(
+      { id: randomUUID(), sessionId: "session", cwd, cols: 80, rows: 24 },
+      "creator",
+    )
+    const inside = manager as unknown as Inside
+    const record = inside.records.get(terminal.id)!
+    const binding = { agent: "claude", sessionId: "s", instance: null } as const
+    record.bound = { binding, activity: fresh(0), telemetry: null }
+    const tell = (fact: object) =>
+      inside.bindings.applyFact(record, {
+        ...binding,
+        type: "telemetry-observed",
+        startedAt: 10,
+        ...fact,
+      })
+
+    expect(versionOf(record.bound?.binding)).toBeNull()
+    tell({ sessionId: "other", version: "9.9.9" })
+    expect(versionOf(record.bound?.binding)).toBeNull()
+    // The version alone is no telemetry: the summary the clients see stays without any.
+    expect(tell({ version: "2.1.316" })).toBe(false)
+    expect(versionOf(record.bound?.binding)).toBe("2.1.316")
+    expect(record.bound?.telemetry).toBeNull()
+    // Telemetry that names it too sets both, and one without leaves the version.
+    tell({ startedAt: 20, version: "2.1.317", context: { occupied: 5, capacity: 100 } })
+    expect(versionOf(record.bound?.binding)).toBe("2.1.317")
+    expect(record.bound?.telemetry).toMatchObject({ context: { occupied: 5 } })
+    tell({ startedAt: 30, context: { occupied: 6, capacity: 100 } })
+    expect(versionOf(record.bound?.binding)).toBe("2.1.317")
   })
 })

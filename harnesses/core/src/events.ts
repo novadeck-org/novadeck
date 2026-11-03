@@ -354,7 +354,10 @@ export type ActivityEvent = EventBase &
 /**
  * What a session's own records said of its tokens, quotas and model, each part only when
  * they named it: how full its context is, its rate-limit windows, the model's name and its
- * reasoning effort.
+ * reasoning effort; and the version of the harness that writes them, as a Claude Code
+ * transcript line, a Codex rollout's `session_meta` or an Antigravity status line say. The
+ * version binds to the session the event names (`Binding.version`) and, alone, changes no
+ * telemetry.
  */
 export type TelemetryObserved = EventBase & {
   readonly type: "telemetry-observed"
@@ -362,6 +365,7 @@ export type TelemetryObserved = EventBase & {
   readonly limits?: AgentTelemetry["limits"]
   readonly model?: AgentTelemetry["model"]
   readonly effort?: AgentTelemetry["effort"]
+  readonly version?: string
 }
 
 /**

@@ -13,6 +13,7 @@ import {
   summary as activitySummary,
   withLimit,
 } from "../../harnesses/activity.js"
+import { withVersion } from "../../harnesses/bindings.js"
 import { harnesses } from "../../harnesses/registry.js"
 import { lastReply } from "../../harnesses/replies.js"
 import { limitOf, observeTelemetry, telemetrySummary } from "../../harnesses/telemetry.js"
@@ -458,8 +459,11 @@ export class Bindings {
     if (!bound) return false
     const { binding } = bound
     if (fact.type === "telemetry-observed") {
-      const next = observeTelemetry(bound.telemetry, binding, fact)
-      if (next) record.bound = { ...bound, telemetry: next }
+      // Which release wrote the session is kept with the binding, and changes nothing else.
+      const versioned = withVersion(binding, fact)
+      const next = observeTelemetry(bound.telemetry, versioned, fact)
+      if (versioned !== binding || next)
+        record.bound = { ...bound, binding: versioned, ...(next && { telemetry: next }) }
       if (next) this.latchLimit(record)
       return next !== undefined
     }

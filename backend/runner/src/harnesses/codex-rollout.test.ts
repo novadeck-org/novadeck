@@ -116,6 +116,8 @@ describe("Codex's rollout, as captured", () => {
       (each) =>
         each !== count &&
         each.type !== "turn_context" &&
+        // Its first record tells the release that wrote the rollout (version.test.ts).
+        each.type !== "session_meta" &&
         !told.has((each.payload as { type?: string }).type ?? ""),
     ))
       expect(rolloutEvents(JSON.stringify(record), session)).toEqual([])
