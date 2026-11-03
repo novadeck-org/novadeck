@@ -69,7 +69,7 @@ import { createTranscriptRedactor, type TranscriptRedactor } from "./redaction.j
 import { restoredSeparator } from "./restored.js"
 import { cancelResume, Claims, restartedTask } from "./resumes.js"
 import { Sampler, shellProcess } from "./sampling.js"
-import { hasRun, type TerminalRecords } from "./saved-terminals.js"
+import { hasRun, keptState, type TerminalRecords } from "./saved-terminals.js"
 import { Saves } from "./saving.js"
 import type { TranscriptSealer } from "./sealing.js"
 import { Streams } from "./streams.js"
@@ -810,8 +810,7 @@ export class Terminals {
         actorWatches: new Map(),
         transcript: null,
         sourceReaders: new Set(),
-        promptedAt: saved?.promptedAt ?? null,
-        ...(saved && saved.interruptions.length > 0 && { interruptions: saved.interruptions }),
+        ...keptState(saved),
         prompts: [],
         line: emptyLine,
         lineEntered: started.resumes,

@@ -107,7 +107,9 @@ for (const setup of setups) {
       const made = t1.mark()
       await t1.prompt("Make the file")
       const allow = await dialogOf(t1, "choices")
-      const yes = allow.dialog.options.find((each) => each.label.startsWith("Yes") && each.text === null)
+      const yes = allow.dialog.options.find(
+        (each) => each.label.startsWith("Yes") && each.text === null,
+      )
       if (!yes) throw new Error(`No yes in ${JSON.stringify(allow.dialog)}`)
       await t1.answer(allow.ref, { dialog: allow.dialog.id, type: "choice", option: yes.id })
       await t1.until("Made it.")

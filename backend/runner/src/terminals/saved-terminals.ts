@@ -91,6 +91,17 @@ export type SavedTerminal = {
  */
 export const hasRun = (agents: SavedTerminal["agents"]): boolean => Object.keys(agents).length > 0
 
+/**
+ * What a restored terminal's record takes back as it was saved: when its shell last showed
+ * its prompt, and where the person interrupted turns its transcripts don't record.
+ */
+export const keptState = (
+  saved: SavedTerminal | undefined,
+): { promptedAt: number | null; interruptions?: readonly KeptInterruption[] } => ({
+  promptedAt: saved?.promptedAt ?? null,
+  ...(saved && saved.interruptions.length > 0 && { interruptions: saved.interruptions }),
+})
+
 /** A terminal as listed: all but its transcript and its interruptions. */
 export type ListedTerminal = Omit<SavedTerminal, "transcript" | "interruptions">
 
