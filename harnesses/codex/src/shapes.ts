@@ -43,6 +43,11 @@ export const lists: ShapeLists = {
     "record:world_state",
     "record:inter_agent_communication_metadata",
     "record:token_usage_record",
+    // Copies Codex keeps for its own review and guardian work (0.166.0): the messages and
+    // answers they hold are the conversation's response items, read above.
+    "record:retained_context",
+    "record:dynamic_tools_updated",
+    "record:security_risk_score",
     // Reasoning, instructions for the model, and what compaction left.
     "item:reasoning",
     "item:message/developer",
