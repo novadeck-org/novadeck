@@ -4,7 +4,7 @@ import { loadProbe } from "@novadeck/harness-core/testing/probes"
 import { transcriptLimits } from "@novadeck/protocol"
 import { describe, expect, it } from "vitest"
 
-import { transcripts } from "./transcripts.js"
+import { transcripts, unwrapPasted } from "./transcripts.js"
 
 const { scenarios } = loadProbe(import.meta.dirname, "transcript.probe.json") as {
   scenarios: { [name: string]: object[] }
@@ -243,5 +243,119 @@ describe("Claude Code's transcripts", () => {
       join(dirname(root), "s1", "subagents", "agent-a1b2.jsonl"),
     )
     await expect(transcripts.locate(root, "s1", "../x")).resolves.toBeUndefined()
+  })
+})
+
+describe("Claude Code's wrappers around the person's words", () => {
+  const said = (content: string, extra: object = {}) =>
+    transcripts.items(
+      JSON.stringify({
+        type: "user",
+        uuid: "u1",
+        parentUuid: "u0",
+        timestamp: "2026-11-03T12:00:00.000Z",
+        message: { role: "user", content },
+        ...extra,
+      }),
+    )
+  const texts = (content: string) => said(content).map(({ role, kind, text }) => [role, kind, text])
+
+  it("put a wrapped paste back where it was pasted, between the words typed around it", () => {
+    expect(
+      unwrapPasted(
+        'Read this: \n\n<pasted_content id="4f2a">\nfirst\nsecond\n</pasted_content id="4f2a">\n and fix it',
+      ),
+    ).toBe("Read this: first\nsecond and fix it")
+    expect(
+      unwrapPasted(
+        '<pasted_content id="a">\none\n</pasted_content id="a">\n and <pasted_content id="b">\ntwo\n</pasted_content id="b">\n',
+      ),
+    ).toBe("one and two")
+    expect(unwrapPasted("no wrapper here")).toBe("no wrapper here")
+    expect(
+      texts('\n\n<pasted_content id="9b1c">\nonly a paste\n</pasted_content id="9b1c">\n'),
+    ).toEqual([["user", "text", "only a paste"]])
+  })
+
+  it("read a slash command as the line typed, in either order of its tags", () => {
+    expect(
+      texts(
+        "<command-name>/mcp</command-name>\n            <command-message>mcp</command-message>\n            <command-args></command-args>",
+      ),
+    ).toEqual([["user", "text", "/mcp"]])
+    expect(
+      texts(
+        "<command-message>review</command-message>\n<command-name>/review</command-name>\n<command-args>the open PR</command-args>",
+      ),
+    ).toEqual([["user", "text", "/review the open PR"]])
+  })
+
+  it("read what a slash command printed as a result, without its styles, and nothing for none", () => {
+    expect(
+      said(
+        "<local-command-stdout>\u001b[1mConnected\u001b[22m to linear.</local-command-stdout>",
+      ).map(({ role, kind, text }) => [role, kind, text]),
+    ).toEqual([["tool", "tool-result", "Connected to linear."]])
+    expect(said("<local-command-stdout>(no content)</local-command-stdout>")).toEqual([])
+    expect(said("<local-command-stderr></local-command-stderr>")).toEqual([])
+  })
+
+  it("read shell output without the terminal's colours", () => {
+    expect(
+      said(
+        "<bash-stdout>\u001b[31merror\u001b[0m: no</bash-stdout><bash-stderr></bash-stderr>",
+      ).map(({ text }) => text),
+    ).toEqual(["error: no"])
+  })
+
+  it("read a shell command that couldn't start by its stderr alone", () => {
+    expect(texts("<bash-stderr>Command failed: folder deleted</bash-stderr>")).toEqual([
+      ["tool", "tool-result", "Command failed: folder deleted"],
+    ])
+  })
+
+  it("read a paste whose closing tag leaves out its id the same", () => {
+    expect(unwrapPasted('a: \n\n<pasted_content id="x">\nbody\n</pasted_content>\n')).toBe(
+      "a: body",
+    )
+  })
+
+  it("read the person's text blocks as their text content", () => {
+    const blocks = (text: string) =>
+      transcripts
+        .items(
+          JSON.stringify({
+            type: "user",
+            uuid: "u1",
+            timestamp: "2026-11-03T12:00:00.000Z",
+            message: {
+              role: "user",
+              content: [
+                { type: "image", source: {} },
+                { type: "text", text },
+              ],
+            },
+          }),
+        )
+        .map(({ role, kind, text: shown }) => [role, kind, shown])
+    expect(blocks("<command-name>/mcp</command-name>")).toEqual([["user", "text", "/mcp"]])
+    expect(blocks('<novadeck-messages note="x">hi</novadeck-messages>')).toEqual([])
+    expect(blocks('see \n\n<pasted_content id="y">\nthis\n</pasted_content id="y">\n')).toEqual([
+      ["user", "text", "see this"],
+    ])
+  })
+
+  it("strip the terminal's moves from what a slash command printed, not only its styles", () => {
+    expect(
+      said("<local-command-stdout>\u001b[2K\u001b[?25hDone\u001b[0m</local-command-stdout>").map(
+        ({ text }) => text,
+      ),
+    ).toEqual(["Done"])
+  })
+
+  it("leave out agents' messages Novadeck handed the agent as a prompt", () => {
+    expect(said('<novadeck-messages note="x"><message>hi</message></novadeck-messages>')).toEqual(
+      [],
+    )
   })
 })

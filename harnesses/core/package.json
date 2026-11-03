@@ -73,6 +73,11 @@
       "types": "./dist/report.d.ts",
       "default": "./dist/report.js"
     },
+    "./shapes": {
+      "development": "./src/shapes.ts",
+      "types": "./dist/shapes.d.ts",
+      "default": "./dist/shapes.js"
+    },
     "./testing/dialogs": {
       "development": "./src/testing/dialogs.ts",
       "types": "./dist/testing/dialogs.d.ts",

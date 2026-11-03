@@ -186,12 +186,97 @@ export const claudeVocabulary: readonly Written[] = [
     ],
   },
   {
+    // Claude Code's messaging, scheduling and bookkeeping tools, their inputs' keys as
+    // real transcripts give them.
+    name: "messaging-and-scheduling",
+    records: [
+      said("Coordinate."),
+      ...calls("messaging", [
+        [
+          "SendMessage",
+          { to: "reviewer", message: "Please look\nat the diff", summary: "Look" },
+          "Sent",
+        ],
+        ["ListAgents", {}, "reviewer"],
+        ["TaskStop", { task_id: "b1x" }, "Stopped"],
+        [
+          "ScheduleWakeup",
+          { delaySeconds: 270, prompt: "Check CI", reason: "Waiting on CI" },
+          "Scheduled",
+        ],
+        ["ScheduleWakeup", { stop: true }, "Stopped"],
+        ["CronCreate", { cron: "*/5 * * * *", prompt: "Check the deploy" }, "Created"],
+        ["CronList", {}, "1 job"],
+        ["CronDelete", { id: "job1" }, "Deleted"],
+        ["Skill", { skill: "using-uberepo", args: "status" }, "Loaded"],
+        [
+          "Monitor",
+          { command: "tail -f log", description: "Watch the log", timeout_ms: 60000 },
+          "Started",
+        ],
+        ["ToolSearch", { query: "select:Read", max_results: 1 }, "Found"],
+        ["EnterPlanMode", {}, "Entered"],
+        ["EnterWorktree", { path: "/home/user/project/.wt/a" }, "Entered"],
+        ["ExitWorktree", { action: "keep" }, "Left"],
+      ]),
+    ],
+  },
+  {
     name: "interrupted",
     records: [
       said("Start."),
       replied("Working on it."),
       said("[Request interrupted by user]"),
       replied("Stopped."),
+    ],
+  },
+  {
+    // The wrappers Claude Code writes around the person's words: a paste (2.1.302 on),
+    // slash commands with and without output, and a shell command that couldn't start.
+    name: "wrappers",
+    records: [
+      said(
+        'Read this: \n\n<pasted_content id="4f2a">\nfirst pasted line\nsecond pasted line\n</pasted_content id="4f2a">\n and fix it',
+      ),
+      said('\n\n<pasted_content id="9b1c">\nonly a paste\n</pasted_content id="9b1c">\n'),
+      {
+        type: "attachment",
+        timestamp: stamp,
+        attachment: {
+          type: "queued_command",
+          prompt: 'Also <pasted_content id="7d3e">\nqueued paste\n</pasted_content id="7d3e">\n',
+          commandMode: "prompt",
+          origin: { kind: "human" },
+        },
+      },
+      {
+        type: "user",
+        isMeta: true,
+        timestamp: stamp,
+        message: {
+          role: "user",
+          content:
+            "<local-command-caveat>The command below was run directly in Claude Code.</local-command-caveat>",
+        },
+      },
+      said(
+        "<command-name>/mcp</command-name>\n            <command-message>mcp</command-message>\n            <command-args></command-args>",
+      ),
+      said(
+        "<local-command-stdout>\u001b[1mAuthentication successful.\u001b[22m Connected to linear.</local-command-stdout>",
+      ),
+      said(
+        "<command-name>/permissions</command-name>\n<command-message>permissions</command-message>\n<command-args></command-args>",
+      ),
+      said("<local-command-stdout>(no content)</local-command-stdout>"),
+      said(
+        "<command-message>review</command-message>\n<command-name>/review</command-name>\n<command-args>the open pull request</command-args>",
+      ),
+      replied("Reviewing it."),
+      said("<bash-input>ls gone</bash-input>"),
+      said(
+        '<bash-stderr>Command failed: Working directory "/home/user/gone" was deleted</bash-stderr>',
+      ),
     ],
   },
 ]

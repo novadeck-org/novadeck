@@ -70,6 +70,58 @@ const known = (name: string, fields: Fields | undefined): ToolRun | undefined =>
         title: "Subagent",
         detail: oneLine(textField(fields, "description", "subagent_type", "prompt")),
       }
+    // Keys as real transcripts give them: SendMessage {to, message, summary}, TaskStop
+    // {task_id}, ScheduleWakeup {delaySeconds, prompt, reason}, CronCreate {cron, prompt},
+    // CronDelete {id}, Skill {skill, args}, Monitor {command, description}, ToolSearch {query},
+    // EnterWorktree {path}, ExitWorktree {action}.
+    case "sendmessage": {
+      const to = oneLine(textField(fields, "to", "recipient"))
+      return {
+        kind: "agent",
+        title: to ? `Messaged ${to}` : "Messaged",
+        detail: oneLine(textField(fields, "message", "summary", "content")),
+      }
+    }
+    case "listagents":
+      return { kind: "agent", title: "Listed subagents", detail: "" }
+    case "taskstop":
+      return { kind: "run", title: "Stopped a task", detail: "" }
+    case "schedulewakeup":
+      return {
+        kind: "run",
+        title: "Scheduled a wake-up",
+        detail: oneLine(textField(fields, "reason", "prompt")),
+      }
+    case "croncreate":
+      return {
+        kind: "run",
+        title: "Scheduled",
+        detail: oneLine(textField(fields, "prompt", "cron")),
+      }
+    case "crondelete":
+      return { kind: "run", title: "Unscheduled", detail: "" }
+    case "cronlist":
+      return { kind: "run", title: "Listed schedules", detail: "" }
+    case "skill":
+      return { kind: "other", title: "Used a skill", detail: oneLine(textField(fields, "skill")) }
+    case "monitor":
+      return {
+        kind: "run",
+        title: "Monitored",
+        detail: oneLine(textField(fields, "description", "command")),
+      }
+    case "toolsearch":
+      return {
+        kind: "search",
+        title: "Searched tools",
+        detail: oneLine(textField(fields, "query")),
+      }
+    case "enterplanmode":
+      return { kind: "plan", title: "Entered plan mode", detail: "" }
+    case "enterworktree":
+      return { kind: "run", title: "Entered a worktree", detail: path("path", "name") }
+    case "exitworktree":
+      return { kind: "run", title: "Left a worktree", detail: oneLine(textField(fields, "action")) }
     case "todowrite":
       return { kind: "plan", title: "Updated todos", detail: count(fields?.todos, "item") }
     case "exitplanmode":

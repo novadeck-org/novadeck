@@ -116,10 +116,106 @@ const known = (name: string, fields: Fields | undefined, input: string): ToolRun
         detail: oneLine(textField(first, "question", "title")),
       }
     }
+    // The subagent tools. Rollouts record them as function calls in the namespace
+    // `collaboration` (seen 0.162 to 0.165: send_message {target, message}, wait_agent
+    // {timeout_ms}, followup_task {target, message}, spawn_agent {task_name, agent_type,
+    // message}, list_agents {}); the tool list offers them as `multi_agent_v1.x`, and a hook
+    // names them `collaborationx`.
+    case "spawn_agent":
+      return {
+        kind: "agent",
+        title: "Subagent",
+        detail: oneLine(textField(fields, "task_name", "agent_type", "message", "description")),
+      }
+    case "send_message":
+    case "send_input": {
+      const target = oneLine(textField(fields, "target", "id"))
+      return {
+        kind: "agent",
+        title: target ? `Messaged ${target}` : "Messaged a subagent",
+        detail: oneLine(textField(fields, "message", "input", "text")),
+      }
+    }
+    case "followup_task": {
+      const target = oneLine(textField(fields, "target", "id"))
+      return {
+        kind: "agent",
+        title: target ? `Followed up with ${target}` : "Followed up with a subagent",
+        detail: oneLine(textField(fields, "message")),
+      }
+    }
+    case "list_agents":
+      return { kind: "agent", title: "Listed subagents", detail: "" }
+    case "wait_agent":
+      return { kind: "agent", title: "Waited for a subagent", detail: "" }
+    case "close_agent":
+      return {
+        kind: "agent",
+        title: "Closed a subagent",
+        detail: oneLine(textField(fields, "target", "id")),
+      }
+    case "resume_agent":
+      return {
+        kind: "agent",
+        title: "Resumed a subagent",
+        detail: oneLine(textField(fields, "target", "id")),
+      }
+    case "wait":
+      // Code mode's wait on a running exec cell: {cell_id, yield_time_ms, max_tokens}.
+      return { kind: "run", title: "Waited", detail: "" }
+    // Rollouts give these as namespace and name apart (`clock__sleep`); the tool list
+    // spells them `clock.sleep`. clock.sleep takes {duration_ms}.
+    case "clock.curr_time":
+      return { kind: "run", title: "Checked the time", detail: "" }
+    case "clock.sleep":
+      return { kind: "run", title: "Waited", detail: "" }
+    case "mcp__codex_worktrees.create_worktree":
+      return { kind: "run", title: "Created a worktree", detail: "" }
+    case "mcp__codex_worktrees.get_worktree_creation_status":
+      return { kind: "run", title: "Checked a worktree", detail: "" }
+    case "mcp__codex_worktrees.list_worktrees":
+      return { kind: "run", title: "Listed worktrees", detail: "" }
+    case "list_mcp_resources":
+    case "list_mcp_resource_templates":
+      return { kind: "read", title: "Listed MCP resources", detail: "" }
+    case "read_mcp_resource":
+      return { kind: "read", title: "Read an MCP resource", detail: textField(fields, "uri") }
+    case "request_permissions":
+      // Asks the person to grant more access; its dialog is the Inbox's request.
+      return {
+        kind: "plan",
+        title: "Asked for permissions",
+        detail: oneLine(textField(fields, "reason")),
+      }
+    case "web_search":
+      return {
+        kind: "web",
+        title: "Searched the web",
+        detail: textField(fields, "query"),
+      }
+    case "create_goal":
+    case "update_goal":
+    case "get_goal":
+      return {
+        kind: "plan",
+        title: {
+          create_goal: "Set a goal",
+          update_goal: "Updated the goal",
+          get_goal: "Read the goal",
+        }[name]!,
+        detail: oneLine(textField(fields, "objective", "goal", "status")),
+      }
     default:
       return undefined
   }
 }
+
+// A multi_agent tool by its own name, however Codex spells its namespace: `multi_agent_v1.x`,
+// `multi_agent_v1__x`, or `collaborationx` in a hook.
+const subagentTool = (name: string): string =>
+  /^(?:multi_agent_v\d+|collaboration)(?:\.|__)?(spawn_agent|send_message|send_input|followup_task|list_agents|wait_agent|close_agent|resume_agent)$/.exec(
+    name,
+  )?.[1] ?? name
 
 /**
  * What a Codex tool call was, from its name and its input as text (JSON, or the raw patch
@@ -131,7 +227,11 @@ export const describe = (tool: string, input: string): ToolRun => {
   const mcp = novadeck.map((each) => each.exec(tool)?.[1]).find((each) => each !== undefined)
   return (
     (mcp === undefined ? undefined : novadeckTool(mcp, fields)) ??
-    known(tool.toLowerCase(), fields, input) ??
+    known(
+      subagentTool(tool.toLowerCase()).replace(/^(clock|mcp__codex_worktrees)__/, "$1."),
+      fields,
+      input,
+    ) ??
     otherRun(tool, fields, input)
   )
 }

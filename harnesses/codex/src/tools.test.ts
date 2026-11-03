@@ -111,3 +111,100 @@ suite("what a Codex tool call was", () => {
     expect(run("mystery", "first line\nsecond")).toMatchObject({ detail: "first line" })
   })
 })
+
+suite("what Codex's subagent tools were", () => {
+  it.each([
+    "spawn_agent",
+    "multi_agent_v1.spawn_agent",
+    "multi_agent_v1__spawn_agent",
+    "collaborationspawn_agent",
+  ])("reads %s as a subagent", (tool) => {
+    expect(run(tool, { task_name: "lint", message: "Fix it" })).toEqual({
+      kind: "agent",
+      title: "Subagent",
+      detail: "lint",
+    })
+    expect(run(tool, { message: "Fix it\nnow" }).detail).toBe("Fix it")
+  })
+
+  it("reads the rest of the multi_agent tools", () => {
+    expect(run("multi_agent_v1__send_input", { message: "More" })).toEqual({
+      kind: "agent",
+      title: "Messaged a subagent",
+      detail: "More",
+    })
+    expect(run("multi_agent_v1.wait_agent", { timeout_ms: 1 })).toMatchObject({
+      kind: "agent",
+      title: "Waited for a subagent",
+    })
+    expect(run("multi_agent_v1__close_agent", {}).title).toBe("Closed a subagent")
+    expect(run("multi_agent_v1__resume_agent", {}).title).toBe("Resumed a subagent")
+  })
+
+  it("reads the collaboration namespace as a rollout records it", () => {
+    expect(
+      run("collaboration__spawn_agent", { task_name: "lint", agent_type: "worker", message: "Go" }),
+    ).toEqual({ kind: "agent", title: "Subagent", detail: "lint" })
+    expect(run("collaboration__spawn_agent", { agent_type: "worker", message: "Go" }).detail).toBe(
+      "worker",
+    )
+    expect(
+      run("collaboration__send_message", { target: "/root/lint", message: "Hi\nthere" }),
+    ).toEqual({
+      kind: "agent",
+      title: "Messaged /root/lint",
+      detail: "Hi",
+    })
+    expect(
+      run("collaboration__followup_task", { target: "/root/lint", message: "Also docs" }),
+    ).toEqual({
+      kind: "agent",
+      title: "Followed up with /root/lint",
+      detail: "Also docs",
+    })
+    expect(run("collaboration__list_agents", {})).toEqual({
+      kind: "agent",
+      title: "Listed subagents",
+      detail: "",
+    })
+    expect(run("collaboration__wait_agent", { timeout_ms: 5 }).title).toBe("Waited for a subagent")
+  })
+
+  it("reads a target given as id, and the rest of the codex tools", () => {
+    expect(run("multi_agent_v1__send_input", { id: "a1", message: "x" }).title).toBe("Messaged a1")
+    expect(run("multi_agent_v1__close_agent", { id: "a1" }).detail).toBe("a1")
+    expect(run("clock__sleep", { duration_ms: 5 })).toMatchObject({ kind: "run", title: "Waited" })
+    expect(run("mcp__codex_worktrees__list_worktrees", {}).title).toBe("Listed worktrees")
+    expect(run("list_mcp_resources", {}).title).toBe("Listed MCP resources")
+  })
+
+  it("reads code mode's wait on a running cell", () => {
+    expect(run("wait", { cell_id: "1", yield_time_ms: 1000, max_tokens: 100 })).toEqual({
+      kind: "run",
+      title: "Waited",
+      detail: "",
+    })
+  })
+
+  it("leaves another namespace's spawn_agent alone", () => {
+    expect(run("mcp__db__spawn_agent", {})).toMatchObject({
+      title: "mcp__db__spawn_agent",
+    })
+  })
+
+  it("reads web_search, the goal tools and request_permissions", () => {
+    expect(run("web_search", { query: "vitest" })).toEqual({
+      kind: "web",
+      title: "Searched the web",
+      detail: "vitest",
+    })
+    expect(run("create_goal", { objective: "Ship" })).toMatchObject({
+      title: "Set a goal",
+      detail: "Ship",
+    })
+    expect(run("request_permissions", { reason: "Write out" })).toMatchObject({
+      kind: "plan",
+      title: "Asked for permissions",
+    })
+  })
+})

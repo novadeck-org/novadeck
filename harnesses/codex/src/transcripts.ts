@@ -2,16 +2,24 @@ import { readdir } from "node:fs/promises"
 import { dirname, join } from "node:path"
 
 import { parseFields, type Fields } from "@novadeck/harness-core/fields"
-import type { Harness, TranscriptEntry } from "@novadeck/harness-core/harness"
+import type { TranscriptDecoder, TranscriptEntry } from "@novadeck/harness-core/harness"
 import { at, entry, joined, textOf } from "@novadeck/harness-core/items"
 import { shellCall } from "@novadeck/harness-core/tools"
 
 import { asyncReplyText } from "./async-question.js"
 import { describe } from "./tools.js"
 
-// Context Codex writes into the conversation as the person's message.
+// Context Codex writes into the conversation as the person's message; the note that tells
+// the model a turn was interrupted, which 0.166.0 writes as the person's (0.165.0 and before
+// as a developer's; the chat reads the interruption from the turn's abort event); and what a
+// Stop hook gives back to go on with (`<hook_prompt>`, how Novadeck's hooks deliver agents'
+// messages), which Claude Code keeps as an attachment of its own and the chat leaves out.
 const context =
-  /^\s*(<(environment_context|user_instructions|recommended_plugins|skill|subagent_notification)>|# AGENTS\.md instructions)/
+  /^\s*(<(environment_context|user_instructions|recommended_plugins|skill|subagent_notification|turn_aborted)[\s>]|<hook_prompt[\s>]|# AGENTS\.md instructions)/
+
+/** The text of a message's parts, as the decoder reads it: without the tags around images. */
+export const messageText = (content: unknown): string =>
+  joined(withoutImageTags(content), ["input_text", "output_text"])
 
 // A command the person ran in shell mode (`!`), with its exit code and output. A command
 // that printed nothing leaves `Output:` and the closing tag on lines of their own.
@@ -96,7 +104,7 @@ const interruption = (fields: Fields): readonly TranscriptEntry[] => {
  * reads as its history shows it: `Re: ` and the question, then the answer. A turn the person
  * interrupted reads as their interruption, where it ended.
  */
-export const transcripts: NonNullable<Harness["transcripts"]> = {
+export const transcripts: TranscriptDecoder = {
   locate: async (root, _sessionId, subagent) => {
     if (subagent === null) return root
     const suffix = `-${subagent}.jsonl`
@@ -118,7 +126,7 @@ export const transcripts: NonNullable<Harness["transcripts"]> = {
       case "message": {
         const { role } = payload
         if (role !== "user" && role !== "assistant") return []
-        const text = joined(withoutImageTags(payload.content), ["input_text", "output_text"])
+        const text = messageText(payload.content)
         const reply = role === "user" ? asyncReplyText(text) : undefined
         if (reply !== undefined) return [entry("user", "text", reply, { at: time })]
         const ran = role === "user" ? shell.exec(text) : null

@@ -108,7 +108,69 @@ const known = (name: string, fields: Fields | undefined): ToolRun | undefined =>
     case "read_url_content":
       return { kind: "web", title: "Fetched", detail: textField(fields, "url", "Url") }
     case "search_web":
-      return { kind: "web", title: "Searched the web", detail: textField(fields, "query") }
+      return {
+        kind: "web",
+        title: "Searched the web",
+        detail: textField(fields, "query"),
+      }
+    // ask_question takes `questions[{question, options, is_multi_select}]` (hooks.probe,
+    // docs/harness-coverage.md); invoke_subagent takes `TypeName`, `Role` and `Prompt`
+    // (e2e/agents/agy.ts); manage_task `Action` (`kill`, hooks.probe.json) and schedule
+    // `DurationSeconds`, `CronExpression` and `Prompt` (call-memory.ts). The other three
+    // are read by the argument names a message or a subagent's definition most likely
+    // carries, as no probe has recorded theirs, and show their title alone where none fits.
+    case "list_resources":
+      return { kind: "read", title: "Listed MCP resources", detail: "" }
+    case "read_resource":
+      return {
+        kind: "read",
+        title: "Read an MCP resource",
+        detail: textField(fields, "uri", "Uri"),
+      }
+    case "ask_question": {
+      const first = Array.isArray(fields?.questions) ? fieldsOf(fields.questions[0]) : undefined
+      return {
+        kind: "plan",
+        title: "Asked",
+        detail: oneLine(textField(first, "question")),
+      }
+    }
+    case "invoke_subagent":
+      return {
+        kind: "agent",
+        title: "Subagent",
+        detail: oneLine(textField(fields, "Role", "Prompt", "TypeName")),
+      }
+    case "define_subagent":
+      return {
+        kind: "agent",
+        title: "Defined a subagent",
+        detail: oneLine(textField(fields, "TypeName", "Name", "Role")),
+      }
+    case "manage_subagents":
+      return {
+        kind: "agent",
+        title: "Managed subagents",
+        detail: oneLine(textField(fields, "Action")),
+      }
+    case "send_message":
+      return {
+        kind: "agent",
+        title: "Messaged",
+        detail: oneLine(textField(fields, "Message", "Prompt", "Text", "Content")),
+      }
+    case "manage_task":
+      return {
+        kind: "run",
+        title: "Managed a task",
+        detail: oneLine(textField(fields, "Action")),
+      }
+    case "schedule":
+      return {
+        kind: "run",
+        title: "Scheduled",
+        detail: oneLine(textField(fields, "Prompt", "CronExpression")),
+      }
     default:
       return undefined
   }

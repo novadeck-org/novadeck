@@ -5,6 +5,7 @@ import type { DialogAdapter } from "./dialogs.js"
 import type { HarnessEvent, PlanSource, PromptShown } from "./events.js"
 import type { Dialect } from "./hook-command.js"
 import type { Report } from "./report.js"
+import type { Shape } from "./shapes.js"
 
 /** The reasoning efforts agents may ask for, the same words in every harness that has them. */
 export const efforts = ["low", "medium", "high", "xhigh", "max"] as const
@@ -133,6 +134,12 @@ export type Harness = {
     ) => Promise<string | undefined>
     /** The items one line of it records, oldest first; none for a line of anything else. */
     readonly items: (line: string) => readonly TranscriptEntry[]
+    /**
+     * The shapes one line of it holds, each read, skipped knowingly or unknown to `items`
+     * (see shapes.ts): how a record a harness release added, which `items` drops without a
+     * word, is caught.
+     */
+    readonly shapes: (line: string) => readonly Shape[]
     /**
      * Where one line stands in it, where the line says (Antigravity's `step_index`), growing
      * through the conversation though lines may come out of order: what the runner keeps an
@@ -419,6 +426,12 @@ export type WrittenPlan = { readonly source: PlanSource; readonly at: number | n
 
 /** An item of a transcript, before the runner numbers it. */
 export type TranscriptEntry = Omit<TranscriptItem, "index">
+
+/**
+ * A harness's transcript decoder without its shape lists, which the harness adds beside
+ * it: the lists read the decoder's own helpers, so they live in a module of their own.
+ */
+export type TranscriptDecoder = Omit<NonNullable<Harness["transcripts"]>, "shapes">
 
 /** A session bound to a terminal, as a harness's `watch` follows it. */
 export type Run = {

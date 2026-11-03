@@ -81,7 +81,7 @@ note: Interrupted
 
 
 # request-permissions
-tools: request_permissions [other] | Call: 2 lines: reason: Need network for the build → 1 line: {"permissions":{"network":{"enabled":true},"fil…
+tools: Asked for permissions [plan] · Need network for the build | Call: request_permissions: 2 lines: reason: Need network for the build → 1 line: {"permissions":{"network":{"enabled":true},"fil…
 
 # rui-async-offered
 tools: Asked [plan] · Which color should the button be? | Call: request_user_input_async: 1 line: [{"title":"Which color should the button be?","… → 1 line: {"accepted":true}
