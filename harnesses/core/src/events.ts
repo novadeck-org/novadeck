@@ -366,6 +366,11 @@ export type TelemetryObserved = EventBase & {
   readonly model?: AgentTelemetry["model"]
   readonly effort?: AgentTelemetry["effort"]
   readonly version?: string
+  /**
+   * That the version is the release that created the session, as Codex's rollout names, and
+   * may not be the one running it: a version read of the running process outranks it.
+   */
+  readonly created?: true
 }
 
 /**

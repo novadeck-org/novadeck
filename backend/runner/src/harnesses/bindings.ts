@@ -19,6 +19,8 @@ export type Binding = {
    * is unknown until its records say.
    */
   readonly version?: string
+  /** That `version` is the release that created the session, which a resume may not run. */
+  readonly created?: true
 }
 
 /** The harness version a binding knows, or null while it does not. */
@@ -26,17 +28,25 @@ export const versionOf = (binding: Pick<Binding, "version"> | null | undefined):
   binding?.version ?? null
 
 /**
- * The binding after a record naming a version: with the version where the record names the bound
- * session (and process, where both tell), else the binding itself.
+ * The binding after a record naming a version: with the version where the record names the
+ * bound session (and process, where both tell), else the binding itself. The release that
+ * created a session (`created`) gives way to one read of the running process, and never
+ * replaces it.
  */
-export const withVersion = (binding: Binding, event: TelemetryObserved): Binding =>
-  binding.agent === event.agent &&
-  binding.sessionId === event.sessionId &&
-  (binding.instance === null || event.instance === null || binding.instance === event.instance) &&
-  event.version !== undefined &&
-  binding.version !== event.version
-    ? { ...binding, version: event.version }
-    : binding
+export const withVersion = (binding: Binding, event: TelemetryObserved): Binding => {
+  const { version } = event
+  if (
+    version === undefined ||
+    binding.agent !== event.agent ||
+    binding.sessionId !== event.sessionId ||
+    (binding.instance !== null && event.instance !== null && binding.instance !== event.instance) ||
+    (event.created && binding.version !== undefined && !binding.created) ||
+    (binding.version === version && Boolean(binding.created) === Boolean(event.created))
+  )
+    return binding
+  const { created: _, ...rest } = binding
+  return { ...rest, version, ...(event.created && { created: true as const }) }
+}
 
 /** What a terminal knows of its harness sessions, which an observation may change. */
 export type Sessions = {
@@ -118,9 +128,9 @@ export const observe = (
   // only a new session starts without (`AgentReport.turn`, `told`).
   const same = known?.sessionId === event.sessionId
   // The same session reporting again is still written by the same release.
-  const version =
+  const kept =
     state.binding?.agent === event.agent && state.binding.sessionId === event.sessionId
-      ? state.binding.version
+      ? state.binding
       : undefined
   const turn = same ? known.turn : undefined
   const told = same ? known.told : undefined
@@ -143,7 +153,8 @@ export const observe = (
           // of the bound one where one is (`replaces`): what is known of it stays, so its
           // exit can still be told.
           instance: event.instance ?? state.binding?.instance ?? null,
-          ...(version !== undefined && { version }),
+          ...(kept?.version !== undefined && { version: kept.version }),
+          ...(kept?.created && { created: true as const }),
         },
         cwd: event.cwd ?? state.cwd,
       }

@@ -188,6 +188,12 @@ export type Harness = {
    * foreground runs a process of the harness's name.
    */
   readonly title?: (title: string, at: number) => PromptShown | undefined
+  /**
+   * The version of the harness running, read off the rows of its screen, where it draws one
+   * (Codex's banner, "OpenAI Codex (v0.166.0)", at each process's start, a resume's too);
+   * undefined where they show none. It names the running release, which its records may not.
+   */
+  readonly screenVersion?: (rows: readonly string[]) => string | undefined
   /** Whether the terminal title it sets says a turn runs, as Codex's Working does. */
   readonly titleWorking?: (title: string) => boolean
   /**

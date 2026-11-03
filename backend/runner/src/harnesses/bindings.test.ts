@@ -227,8 +227,20 @@ describe("the harness version a binding carries", () => {
     expect(withVersion(process, told({ instance: null })).version).toBe("2.1.316")
   })
 
+  it("takes the running release over the one that created the session, which never replaces it", () => {
+    const created = withVersion(binding, told({ version: "0.165.0", created: true }))
+    expect(created).toMatchObject({ version: "0.165.0", created: true })
+    const live = withVersion(created, told({ version: "0.166.0" }))
+    expect(live.version).toBe("0.166.0")
+    expect(live).not.toHaveProperty("created")
+    expect(withVersion(live, told({ version: "0.165.0", created: true }))).toBe(live)
+    expect(withVersion(created, told({ version: "0.164.0", created: true })).version).toBe(
+      "0.164.0",
+    )
+  })
+
   it("stays as the same session reports again, and is unknown for another session", () => {
-    const known = { ...running, binding: { ...binding, version: "2.1.316" } }
+    const known = { ...live, binding: { ...binding, version: "2.1.316" } }
     expect(observe(known, seen({ startedAt: 3_000 }), facts)?.binding?.version).toBe("2.1.316")
     const next = observe(
       known,

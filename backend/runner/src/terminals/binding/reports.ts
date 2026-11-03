@@ -255,6 +255,8 @@ export class Reports {
       changed = true
       if (!same) {
         this.host.bindings().follow(record, event)
+        if (next.binding)
+          void this.screenVersion(record, next.binding).catch(failed.report(undefined))
         // The plans its bar mirrored of another session go; unbinding alone keeps them.
         if (next.binding) this.host.companion().bound(record.summary.id, next.binding.sessionId)
       }
@@ -324,6 +326,29 @@ export class Reports {
     this.host.bindings().escaped(record)
     this.judgeFirst(record)
     return this.nudged(record, report, told, answer, deadline)
+  }
+
+  /**
+   * The version of the harness running a newly bound session, where its screen shows it
+   * (`Harness.screenVersion`): read once, as the session binds, while its banner is up. It
+   * is told like a record of the session's own (`applyFact`), so it binds only to the
+   * session it was read for.
+   */
+  async screenVersion(record: Record, binding: Binding): Promise<void> {
+    const read = harnesses[binding.agent].screenVersion
+    if (!read) return
+    const child = record.terminal.pty
+    const screen = await this.host.typing().screenOf(record.summary.id)
+    const version = screen && read(screen.rows)
+    if (!version || record.terminal.pty !== child) return
+    this.host.bindings().applyFact(record, {
+      type: "telemetry-observed",
+      agent: binding.agent,
+      sessionId: binding.sessionId,
+      instance: binding.instance,
+      startedAt: Date.now(),
+      version,
+    })
   }
 
   /** A Stop Novadeck continued, lapsed as delivery took it, ends the agent's turn too. */

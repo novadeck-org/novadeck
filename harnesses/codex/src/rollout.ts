@@ -88,7 +88,9 @@ export const rolloutEvents = (
   if (type === "session_meta") {
     if (fields.id !== undefined && fields.id !== sessionId) return []
     const version = versionName(fields.cli_version)
-    return version !== undefined ? [{ type: "telemetry-observed", ...base, version }] : []
+    return version !== undefined
+      ? [{ type: "telemetry-observed", ...base, version, created: true }]
+      : []
   }
   if (type === "turn_context") {
     const { model, effort } = fields

@@ -16,7 +16,7 @@ const meta = JSON.parse(probe.rollout[0]!) as { payload: Record<string, unknown>
 const session = { sessionId: meta.payload.id as string, instance: "7" }
 
 describe("the version of Codex that wrote a rollout, as captured", () => {
-  it("is the cli_version of its first record, told for the session followed", () => {
+  it("is the cli_version of its first record, told for the session followed as the release that created it", () => {
     expect(rolloutEvents(probe.rollout[0]!, session)).toEqual([
       {
         type: "telemetry-observed",
@@ -25,6 +25,7 @@ describe("the version of Codex that wrote a rollout, as captured", () => {
         instance: "7",
         startedAt: expect.any(Number),
         version: probe.version,
+        created: true,
       },
     ])
   })

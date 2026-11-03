@@ -2583,3 +2583,46 @@ describe("the harness version a terminal's binding carries", () => {
     expect(versionOf(record.bound?.binding)).toBe("2.1.317")
   })
 })
+
+describe("the harness version a screen shows", () => {
+  type Inside = {
+    records: Map<
+      string,
+      {
+        bound: Bound | null
+        terminal: { screen: { write: (text: string, done: () => void) => void } }
+      }
+    >
+    reporting: { screenVersion: (record: unknown, binding: unknown) => Promise<void> }
+  }
+
+  it("is the running release in Codex's banner, which the rollout's creating release gives way to", async ({
+    terminals,
+  }) => {
+    const manager = terminals.manager(ptyOptions)
+    const terminal = await manager.create(
+      { id: randomUUID(), sessionId: "session", cwd, cols: 80, rows: 24 },
+      "creator",
+    )
+    const inside = manager as unknown as Inside
+    const record = inside.records.get(terminal.id)!
+    const binding = { agent: "codex", sessionId: "s", instance: null } as const
+    record.bound = { binding, activity: fresh(0), telemetry: null }
+    await new Promise<void>((resolve) =>
+      record.terminal.screen.write("\x1b[2J\x1b[H  >_ OpenAI Codex (v0.166.0)\r\n", resolve),
+    )
+    await inside.reporting.screenVersion(record, binding)
+    expect(versionOf(record.bound?.binding)).toBe("0.166.0")
+    // The rollout of a session a newer release resumed names the one that began it.
+    ;(
+      manager as unknown as { bindings: { applyFact: (r: unknown, f: object) => boolean } }
+    ).bindings.applyFact(record, {
+      ...binding,
+      type: "telemetry-observed",
+      startedAt: 1,
+      version: "0.165.0",
+      created: true,
+    })
+    expect(versionOf(record.bound?.binding)).toBe("0.166.0")
+  })
+})
