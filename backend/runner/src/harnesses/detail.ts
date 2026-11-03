@@ -42,7 +42,8 @@ export const agentDetail = (
       actors: [],
       requests: [],
       coverage: null,
-      prompts: [],
+      // Prompts given an agent at its own prompt before its first session binds.
+      prompts: prompts.slice(-agentLimits.prompts),
     }
   const root = rootRef(binding)
   const pending = ordered(activity?.pending ?? []).slice(0, agentLimits.requests)

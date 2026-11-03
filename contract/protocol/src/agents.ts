@@ -215,7 +215,8 @@ export type PromptReceipt = z.infer<typeof promptReceipt>
 // first; a subagent's parent is null where the harness does not say), each request
 // waiting on the person with what it asks about and the answers it offers, and how much
 // of each feature this harness tells, and the receipts of the prompts given it through
-// `agents.prompt` in this session, oldest first. Without an agent bound, only `terminalId`.
+// `agents.prompt` in this session, oldest first. Without an agent bound, only `terminalId`,
+// and the receipts of prompts given an agent at its own prompt before its session binds.
 // Its plans are companion items (`companionItem`).
 export const agentDetail = z.strictObject({
   terminalId: id,

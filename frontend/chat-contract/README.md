@@ -34,6 +34,10 @@ and starts with the fold's own line in brackets. A block is read as a person see
 change to how the chat draws a title, a detail, a kind, a call, a note or a fold shows as a
 golden diff.
 
+`sent.test.ts` renders the person's prompts the agent's record doesn't show yet (queued, on
+their way, unrecorded, back in the agent's box) among a conversation each harness recorded in
+its own shape, against `src/sent/<harness>.txt`: `sent (<state>): <words> · <note> [button]`.
+
 What it does not read: which icon a kind maps to, styling, and the Markdown rendering of
 assistant text beyond its words.
 

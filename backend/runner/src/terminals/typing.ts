@@ -50,6 +50,17 @@ const keyOf = (record: Record | undefined): string | null => {
 /** How long `settleBox` looks at a screen for an empty box, in milliseconds. */
 const boxSettleMs = 5_000
 
+/** What `agents.prompt` gives: the text, and whether it is automatic, under which ref. */
+export type PromptInput = {
+  readonly terminalId: string
+  readonly text: string
+  readonly automatic?: true | undefined
+  readonly ref?: string | undefined
+}
+
+/** What a prompt given resolves with: its receipt's ref, and whether one follows. */
+export type Prompted = { readonly ref: string; readonly tracked: boolean }
+
 export type TypingOptions = {
   readonly platform: NodeJS.Platform
   /** How the doorbell rings idle agents; it never rings with `false`, as in some tests. */
@@ -152,7 +163,7 @@ export class Typing {
     text: string,
     automatic?: true | undefined,
     ref?: string | undefined,
-  ): Promise<{ readonly ref: string; readonly tracked: boolean }> {
+  ): Promise<Prompted> {
     // Followed from before any key goes, so what the record gains from here on counts.
     const receipt = await this.receipts.expect(terminalId, text, ref)
     // A fixed line from an Inbox button: the turn it starts withdraws no ask (see `automatic`).
@@ -496,6 +507,7 @@ export class Typing {
         }
       },
       bound: (terminalId) => keyOf(this.host.held(terminalId)),
+      shown: (terminalId) => this.host.messaging().shownAgent(terminalId),
       turns: (terminalId) => {
         const activity = this.host.held(terminalId)?.bound?.activity
         if (!activity) return { working: false, endedAt: null }

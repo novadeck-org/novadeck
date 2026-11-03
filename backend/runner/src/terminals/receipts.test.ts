@@ -14,16 +14,16 @@ import { Receipts, type ReceiptSource } from "./receipts.js"
 const terminal = "t1"
 const slackMs = 50
 
-/** A record of one JSON line per item, `{ "text": … }`, read as the user's text. */
+/** A record of one JSON line per item, `{ "text": … }`, read as the user's text, at `at`. */
 const items: ReceiptSource["items"] = (line) => {
-  const { text } = JSON.parse(line) as { text: string }
+  const { text, at = 0 } = JSON.parse(line) as { text: string; at?: number }
   return [
-    { role: "user", kind: "text", text, at: 0 } as ReturnType<
+    { role: "user", kind: "text", text, at } as ReturnType<
       NonNullable<Harness["transcripts"]>["items"]
     >[number],
   ]
 }
-const row = (text: string) => `${JSON.stringify({ text })}\n`
+const row = (text: string, at?: number) => `${JSON.stringify({ text, at })}\n`
 
 /** The runner's log lines while a test runs. */
 const capture = (resources: { defer: (cleanup: () => void) => void }) => {
@@ -57,6 +57,7 @@ const setup = async (
   const host = {
     agent: "claude" as ReceiptSource["agent"],
     key: "session-1" as string | null,
+    shown: undefined as ReceiptSource["agent"] | undefined,
     turns: { working: false, endedAt: null } as Turns,
     box: undefined as string | undefined,
     changes: 0,
@@ -71,6 +72,7 @@ const setup = async (
         items,
       }),
       bound: () => host.key,
+      shown: () => host.shown,
       turns: () => host.turns,
       box: async () => host.box,
       changed: () => void (host.changes += 1),
@@ -95,6 +97,47 @@ const setup = async (
 }
 
 describe("prompt receipts", () => {
+  it("follows a prompt given before the session binds, by when the record got it", async ({
+    resources,
+  }) => {
+    // Codex and Antigravity bind their session at their first prompt's hook; a resumed
+    // session's record already holds the same words, recorded earlier.
+    const { path, clock, host, receipts, state, give } = await setup(resources, row("hello", 100))
+    host.key = null
+    host.shown = "codex"
+    host.agent = "codex"
+    clock.now = 5_400
+    expect(await give("hello", "r1")).toEqual({ ref: "r1", tracked: true })
+    expect(state("r1")).toBe("pending")
+    host.key = "session-1"
+    receipts.changed(terminal)
+    await new Promise((resolve) => setTimeout(resolve, 40))
+    expect(state("r1")).toBe("pending")
+    // Recorded in the second it was given: coarse records write whole seconds.
+    await appendFile(path, row("hello", 5_000))
+    await vi.waitFor(() => expect(state("r1")).toBe("settled"))
+  })
+
+  it("calls a prompt given before any session bound missing once none bound in the slack", async ({
+    resources,
+  }) => {
+    const { host, state, give, pass } = await setup(resources)
+    host.key = null
+    host.shown = "agy"
+    await give("hello", "r1")
+    await pass()
+    await vi.waitFor(() => expect(state("r1")).toBe("unrecorded"))
+  })
+
+  it("does not follow a shell command given Antigravity before its session binds", async ({
+    resources,
+  }) => {
+    const { host, receipts } = await setup(resources)
+    host.key = null
+    host.shown = "agy"
+    expect(await receipts.expect(terminal, "!ls", "r1")).toEqual({ ref: "r1", tracked: false })
+  })
+
   it("settles a pending prompt, with its item's index, when its line is appended", async ({
     resources,
   }) => {
