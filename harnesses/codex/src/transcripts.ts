@@ -14,7 +14,7 @@ import { describe } from "./tools.js"
 // as a developer's; the chat reads the interruption from the turn's abort event); and what a
 // Stop hook gives back to go on with (`<hook_prompt>`, how Novadeck's hooks deliver agents'
 // messages), which Claude Code keeps as an attachment of its own and the chat leaves out.
-export const context =
+const context =
   /^\s*(<(environment_context|user_instructions|recommended_plugins|skill|subagent_notification|turn_aborted)[\s>]|<hook_prompt[\s>]|# AGENTS\.md instructions)/
 
 /** The text of a message's parts, as the decoder reads it: without the tags around images. */

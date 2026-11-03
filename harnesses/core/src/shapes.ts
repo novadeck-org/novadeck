@@ -10,7 +10,7 @@
  * text, which is how harnesses wrap what isn't the person's own words.
  *
  * The e2e suite fails a test whose transcripts hold an unknown shape, and
- * `scripts/transcripts/shapes.ts` runs the lists over a developer's own history.
+ * `pnpm transcripts:shapes` (scripts/transcripts/main.ts) runs the lists over a developer's own history.
  */
 
 /** Whether a decoder reads a shape, skips it knowingly, or has never seen it. */

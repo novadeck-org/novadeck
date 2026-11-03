@@ -141,7 +141,7 @@ const textItems = (
         "tool-result",
         output
           .slice(1, 3)
-          .map((each) => (each ?? "").trimEnd())
+          .map((each) => (each ?? "").replace(ansi, "").trimEnd())
           .filter(Boolean)
           .join("\n"),
         { at: time, call: fields.parentUuid },

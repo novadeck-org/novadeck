@@ -60,7 +60,10 @@ describe("transcript shapes", () => {
       const disagreeing = lines.flatMap((line) => {
         const held = shapes(line)
         const read = held.some((shape) => shape.verdict === "read")
-        const skipped = held.some((shape) => shape.verdict === "skipped")
+        // Only a skipped tag says the person's text is no words of theirs.
+        const skipped = held.some(
+          (shape) => shape.verdict === "skipped" && shape.key.startsWith("tag:"),
+        )
         const person = held.some((shape) => personKeys[fixture.harness].includes(shape.key))
         const silent = held.some((shape) => mayBeSilent.has(shape.key))
         const items = decode(line).length

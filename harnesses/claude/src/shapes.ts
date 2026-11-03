@@ -7,19 +7,22 @@ import {
   type TranscriptStore,
 } from "@novadeck/harness-core/shapes"
 
-import { holdsPaste, queuedPrompt } from "./transcripts.js"
+import { holdsPaste, queuedPrompt, unwrapPasted } from "./transcripts.js"
 
 /**
  * The shapes of Claude Code's transcript records (see harness-core's shapes.ts), keyed as
  * its decoder tells them apart:
  * - `record:<type>`, a record other than a message or an attachment;
- * - `meta:<type>`, a record Claude Code wrote for itself (`isMeta`), and
+ * - `meta:<type>`, a record Claude Code wrote for itself (`isMeta`), with the tag its text
+ *   opens with (`meta:user/tag:system-reminder`) or its attachment's subtype, and
  *   `record:compact-summary`, its compaction's summary;
- * - `attachment:<type>`, an attachment by its subtype;
+ * - `attachment:<type>`, an attachment by its subtype, a queued prompt also by who gave it
+ *   and how (`attachment:queued_command/human/prompt`), and `record:queue-operation/<op>`;
  * - `block:<role>/<type>`, a block of a user's or assistant's message, plain text content
  *   counting as `text`;
  * - `tag:<name>`, the tag the person's text opens with, and `wrap:pasted_content`, a paste
- *   Claude Code wrapped further in.
+ *   Claude Code wrapped further in (`wrap:pasted_content/raw`, one the decoder couldn't
+ *   unwrap, is on no list).
  */
 export const lists: ShapeLists = {
   read: [
@@ -64,7 +67,6 @@ export const lists: ShapeLists = {
     "meta:user/tag:system-reminder",
     "meta:user/tag:local-command-caveat",
     "meta:assistant",
-    "meta:attachment",
     "meta:system",
     "record:compact-summary",
     // Records of its own state, which carry none of the conversation.
@@ -77,7 +79,10 @@ export const lists: ShapeLists = {
     "record:mode",
     "record:permission-mode",
     "record:last-prompt",
-    "record:queue-operation",
+    "record:queue-operation/enqueue",
+    "record:queue-operation/dequeue",
+    "record:queue-operation/remove",
+    "record:queue-operation/popAll",
     "record:file-history-snapshot",
     "record:file-history-delta",
     "record:pr-link",
@@ -156,11 +161,16 @@ export const lists: ShapeLists = {
 
 const verdicts = classify(lists)
 
-// The keys of the person's text: the tag it opens with, and a paste wrapped further in.
-const userText = (text: string): string[] => [
-  ...tagKeys(text),
-  ...(holdsPaste(text) && !/^\s*<pasted_content\b/.test(text) ? ["wrap:pasted_content"] : []),
-]
+// The keys of the person's text: the tag it opens with, and a paste wrapped further in. A
+// paste is read only where the decoder unwraps it: one in a form it doesn't know (a new
+// attribute, no line breaks) stays raw, and shows as a shape of its own.
+const userText = (text: string): string[] => {
+  const unwrapped = unwrapPasted(text)
+  const tags = tagKeys(text)
+  const opensWithPaste = tags.includes("tag:pasted_content")
+  if (opensWithPaste && unwrapped === text) return ["wrap:pasted_content/raw"]
+  return [...tags, ...(holdsPaste(text) && !opensWithPaste ? ["wrap:pasted_content"] : [])]
+}
 
 // The texts of a message's content: itself as a string, else its text blocks'.
 const textsOf = (content: unknown): string[] =>
@@ -185,6 +195,10 @@ const keysOf = (fields: Fields): string[] => {
   const type = typeof fields.type === "string" ? fields.type : "untyped"
   // What Claude Code wrote for itself, by the tags its text opens with: a prompt of the
   // person's it began writing so would show as a tag of its own.
+  if (fields.isMeta === true && type === "attachment") {
+    const attachment = (fields.attachment ?? {}) as Fields
+    return [`meta:attachment/${typeof attachment.type === "string" ? attachment.type : "untyped"}`]
+  }
   if (fields.isMeta === true) {
     const content = (fields.message as { content?: unknown } | undefined)?.content
     return [
@@ -204,6 +218,11 @@ const keysOf = (fields: Fields): string[] => {
       ...(queued ? userText(queued.text) : []),
     ]
   }
+  // A queue's operations by name: one that took a prompt in some new way shows as its own.
+  if (type === "queue-operation")
+    return [
+      `record:queue-operation/${typeof fields.operation === "string" ? fields.operation : "untyped"}`,
+    ]
   if (type !== "user" && type !== "assistant") return [`record:${type}`]
   const content = (fields.message as { content?: unknown } | undefined)?.content
   if (typeof content === "string")

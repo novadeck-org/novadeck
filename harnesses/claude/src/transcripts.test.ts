@@ -300,6 +300,14 @@ describe("Claude Code's wrappers around the person's words", () => {
     expect(said("<local-command-stderr></local-command-stderr>")).toEqual([])
   })
 
+  it("read shell output without the terminal's colours", () => {
+    expect(
+      said(
+        "<bash-stdout>\u001b[31merror\u001b[0m: no</bash-stdout><bash-stderr></bash-stderr>",
+      ).map(({ text }) => text),
+    ).toEqual(["error: no"])
+  })
+
   it("read a shell command that couldn't start by its stderr alone", () => {
     expect(texts("<bash-stderr>Command failed: folder deleted</bash-stderr>")).toEqual([
       ["tool", "tool-result", "Command failed: folder deleted"],
