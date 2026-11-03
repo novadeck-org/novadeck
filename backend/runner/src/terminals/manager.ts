@@ -811,6 +811,7 @@ export class Terminals {
         transcript: null,
         sourceReaders: new Set(),
         promptedAt: saved?.promptedAt ?? null,
+        ...(saved && saved.interruptions.length > 0 && { interruptions: saved.interruptions }),
         prompts: [],
         line: emptyLine,
         lineEntered: started.resumes,
@@ -1499,7 +1500,7 @@ export class Terminals {
     signal?.addEventListener("abort", abort, { once: true })
     if (signal?.aborted) reader.abort()
     try {
-      yield* transcriptChanges(path, source.items, reader.signal, interruptionsOf(record, native))
+      yield* transcriptChanges(path, source, reader.signal, interruptionsOf(record, native))
     } finally {
       signal?.removeEventListener("abort", abort)
       reader.abort()

@@ -35,6 +35,16 @@ export type AgentReport = {
 }
 
 /**
+ * Where the person interrupted a turn of an agent session whose transcript doesn't record
+ * it (Antigravity's): the session, the last step its transcript had at the key, and when.
+ */
+export type KeptInterruption = {
+  readonly sessionId: string
+  readonly step: number
+  readonly at: number
+}
+
+/**
  * What the runner keeps of a terminal: the terminal itself, which exists until it is
  * closed, and what restores it once its shell is gone.
  */
@@ -67,6 +77,8 @@ export type SavedTerminal = {
   readonly agents: Partial<Record<AgentName, AgentReport>>
   /** When the shell last showed its prompt, in epoch milliseconds. */
   readonly promptedAt: number | null
+  /** Where the person interrupted turns its agents' transcripts don't record, oldest first. */
+  readonly interruptions: readonly KeptInterruption[]
   /** The serialized screen and scrollback; null when transcripts are off. */
   readonly transcript: string | null
   /** When it was last saved, in epoch milliseconds. */
@@ -79,8 +91,8 @@ export type SavedTerminal = {
  */
 export const hasRun = (agents: SavedTerminal["agents"]): boolean => Object.keys(agents).length > 0
 
-/** A terminal as listed: all but its transcript. */
-export type ListedTerminal = Omit<SavedTerminal, "transcript">
+/** A terminal as listed: all but its transcript and its interruptions. */
+export type ListedTerminal = Omit<SavedTerminal, "transcript" | "interruptions">
 
 /** A terminal's handle, what names it, and who opened it and who leads it. */
 export type TerminalIdentity = Pick<SavedTerminal, "handle" | "naming" | "openedBy" | "ledBy">
@@ -118,7 +130,11 @@ export type TerminalRecords = {
   forgetAgent(agent: AgentName): void
 }
 
-/** What saving a terminal takes; `transcript` is left as it is when omitted. */
-export type TerminalToSave = Omit<SavedTerminal, "transcript" | "savedAt"> & {
+/**
+ * What saving a terminal takes; `transcript` is left as it is when omitted, and without
+ * `interruptions` it keeps none.
+ */
+export type TerminalToSave = Omit<SavedTerminal, "transcript" | "savedAt" | "interruptions"> & {
   transcript?: string | null
+  interruptions?: SavedTerminal["interruptions"]
 }

@@ -1,4 +1,3 @@
-import { stat } from "node:fs/promises"
 import { setTimeout as sleep } from "node:timers/promises"
 
 import type { ActivityEvent, HarnessEvent, SessionObserved } from "@novadeck/harness-core/events"
@@ -23,6 +22,7 @@ import { failed } from "../failures.js"
 import { markTurn } from "../interrupted.js"
 import type { Record } from "../record.js"
 import { hasRun } from "../saved-terminals.js"
+import { lastStep } from "../transcripts.js"
 import { TurnEnds, type TurnsHost } from "../turn-ends.js"
 import type { Typing } from "../typing.js"
 import { savedSession } from "./standing.js"
@@ -281,15 +281,11 @@ export class Bindings {
     // Where its transcript stood at the key, for the chat to show the interruption it
     // doesn't record, should the Escape stand.
     const { transcript } = record
+    const { records, transcripts } = harnesses[binding.agent]
+    const step = transcripts?.step
     record.escape =
-      !harnesses[binding.agent].records && transcript
-        ? {
-            key: event.startedAt,
-            offset: stat(transcript).then(
-              ({ size }) => size,
-              () => undefined,
-            ),
-          }
+      !records && step && transcript
+        ? { key: event.startedAt, step: lastStep(transcript, step) }
         : undefined
     this.awaitVerdict(record, event)
   }
@@ -314,12 +310,12 @@ export class Bindings {
     if (!confirmed && !overtaken) return
     record.escape = undefined
     const { sessionId } = bound.binding
-    void escape.offset.then((offset) => {
-      if (offset === undefined || record.bound?.binding.sessionId !== sessionId) return
+    void escape.step.then((step) => {
+      if (step === undefined || record.bound?.binding.sessionId !== sessionId) return
       const kept = record.interruptions ?? []
-      record.interruptions = [...kept, { sessionId, offset, at: escape.key }].slice(
-        -maxInterruptions,
-      )
+      record.interruptions = [...kept, { sessionId, step, at: escape.key }].slice(-maxInterruptions)
+      // Saved with the terminal, so the chat still shows it after a restart.
+      record.changed = true
     })
   }
 
