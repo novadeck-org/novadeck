@@ -1,0 +1,8 @@
+user: Check the folder
+sent (unrecorded): Also list hidden ones · Sent, but not in the agent's record. [Show terminal]
+assistant: The folder holds two files.
+sent (in-box): And their sizes · It's back in Claude's box in the terminal. [Show terminal]
+user: Open the first
+sent (sending): Open the second too · Sending…
+sent (sending): Then sum it up · Sending…
+sent (queued): thanks · Queued

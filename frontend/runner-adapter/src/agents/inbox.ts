@@ -62,7 +62,7 @@ export type InboxStreams = {
     key: TerminalKey,
     text: string,
     options?: { readonly automatic?: true },
-  ) => Promise<void>
+  ) => Promise<unknown>
   readonly interrupt: (key: TerminalKey) => Promise<string | null>
   // The messages' own, which track their progress in the messages state.
   readonly release: (thread: string) => void

@@ -17,7 +17,7 @@ import {
 // pure update its tests set a draft with.
 export { chatDraftOf, setChatDraft } from "./drafts"
 export { chatReplyOf } from "./replies"
-export { chatSendOf } from "./sends"
+export { chatSendsOf } from "./sends"
 export { chatShown } from "./shown"
 
 // What the chat keeps for the app, a store of its own that the app composes. It starts over

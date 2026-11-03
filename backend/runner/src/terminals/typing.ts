@@ -14,14 +14,16 @@ import { DomainError } from "../errors.js"
 import { blocking, type Activity } from "../harnesses/activity.js"
 import { requestRef } from "../harnesses/detail.js"
 import { harnesses } from "../harnesses/registry.js"
-import { Doorbell, type DoorbellOptions } from "../messaging/doorbell.js"
+import { confirmMs, Doorbell, type DoorbellOptions } from "../messaging/doorbell.js"
 import type { Messaging } from "../messaging/messaging.js"
 import { Answers, type AnswersOptions } from "./answers.js"
 import { bannerDrawn } from "./binding/banners.js"
 import { Dialogs, type DialogsOptions } from "./dialogs.js"
 import { agentWorking, doorbellHost, profileOf } from "./doorbell-host.js"
 import { Interrupts, Prompts } from "./prompting.js"
+import { freshRef, Receipts, type ReceiptsOptions } from "./receipts.js"
 import type { Record } from "./record.js"
+import { interruptionsOf } from "./transcripts.js"
 
 /**
  * What the dialog adapters need of a pending request: what it asks, where (its hook's
@@ -41,8 +43,25 @@ export const requestFacts = (
   ...(request.detached && state !== "working" && { turnEnded: true as const }),
 })
 
+/** What tells a terminal's bound session apart, for its prompts' receipts; null for none. */
+const keyOf = (record: Record | undefined): string | null => {
+  const binding = record?.bound?.binding
+  return binding ? `${binding.agent}/${binding.sessionId}` : null
+}
+
 /** How long `settleBox` looks at a screen for an empty box, in milliseconds. */
 const boxSettleMs = 5_000
+
+/** What `agents.prompt` gives: the text, and whether it is automatic, under which ref. */
+export type PromptInput = {
+  readonly terminalId: string
+  readonly text: string
+  readonly automatic?: true | undefined
+  readonly ref?: string | undefined
+}
+
+/** What a prompt given resolves with: its receipt's ref, and whether one follows. */
+export type Prompted = { readonly ref: string; readonly tracked: boolean }
 
 export type TypingOptions = {
   readonly platform: NodeJS.Platform
@@ -52,6 +71,8 @@ export type TypingOptions = {
   /** How interrupts wait; the queued turn's wait defaults from the platform. */
   readonly interrupts: InterruptOptions
   readonly answers?: (AnswersOptions & DialogsOptions) | undefined
+  /** How prompts' receipts are followed; the slack defaults from the platform. */
+  readonly receipts?: Partial<ReceiptsOptions> | undefined
 }
 
 export type TypingHost = {
@@ -99,6 +120,8 @@ export class Typing {
   answers: Answers
   /** The dialogs of requests, as `agents.detail` shows them. */
   readonly dialogs: Dialogs
+  /** Whether each prompt given reached its agent's record, as `agents.detail` shows it. */
+  readonly receipts: Receipts
   /** The terminals whose box `settleBox` is looking at. */
   private readonly settling = new Set<string>()
 
@@ -121,6 +144,10 @@ export class Typing {
     this.interrupts = new Interrupts(this.interruptHost(), options.interrupts)
     this.dialogs = new Dialogs(this.dialogsHost(), options.answers)
     this.answers = new Answers(this.answerHost(), this.inputs, options.answers)
+    this.receipts = new Receipts(this.receiptsHost(), {
+      slackMs: confirmMs(options.platform),
+      ...options.receipts,
+    })
     const doorbell = this.doorbell
     if (doorbell)
       messaging.subscribe((change) => {
@@ -130,18 +157,37 @@ export class Typing {
 
   /**
    * Gives the terminal's agent a prompt as the person would paste and submit it (see
-   * `Prompts`), once those before it in the terminal's input queue are done.
+   * `Prompts`), once those before it in the terminal's input queue are done, followed under
+   * `ref` until the agent's record has it (see `Receipts`).
    */
-  async prompt(terminalId: string, text: string, automatic?: true | undefined): Promise<void> {
+  async prompt(
+    terminalId: string,
+    text: string,
+    automatic?: true | undefined,
+    ref?: string | undefined,
+  ): Promise<Prompted> {
+    // Its ref is held at once, and it joins the input queue in this same tick, as it always
+    // has, so nothing given after it goes before it. Its receipt is set up beside it: what
+    // the record was is looked at long before any key of it lands.
+    const claimed = ref ?? freshRef()
+    this.receipts.claim(terminalId, claimed)
+    const following = this.receipts.expect(terminalId, text, claimed)
     // A fixed line from an Inbox button: the turn it starts withdraws no ask (see `automatic`).
     if (automatic) this.host.messaging().automatic(terminalId, text)
     try {
-      return await this.prompts.prompt(terminalId, text)
+      await this.prompts.prompt(terminalId, text)
     } catch (error) {
       // Refused, failed or never given: no turn comes of it, so the mark would catch another.
       if (automatic) this.host.messaging().automaticFailed(terminalId, text)
+      void following.then(
+        () => this.receipts.failed(terminalId, claimed),
+        () => undefined,
+      )
       throw error
     }
+    const receipt = await following.catch(() => ({ ref: claimed, tracked: false }))
+    this.receipts.sent(terminalId, receipt.ref)
+    return receipt
   }
 
   /** Answers a request waiting on the person through its dialog (see `Terminals.answer`). */
@@ -152,7 +198,10 @@ export class Typing {
   /** Presses Escape in the terminal's agent as the person would (see `Terminals.interrupt`). */
   async interrupt(terminalId: string): Promise<InterruptResult> {
     this.promptable(terminalId)
-    return await this.inputs.run(terminalId, () => this.interrupts.interrupt(terminalId))
+    const result = await this.inputs.run(terminalId, () => this.interrupts.interrupt(terminalId))
+    // The words handed back are the person's draft again: their prompts no longer wait.
+    if (result.returned !== null) this.receipts.withdraw(terminalId, result.returned)
+    return result
   }
 
   /** The terminal's screen or messages changed: the doorbell looks at it again. */
@@ -168,15 +217,22 @@ export class Typing {
     if (record) bannerDrawn(record)
   }
 
-  /** Forgets what the doorbell and the dialogs kept of a terminal, as it exits or goes. */
+  /** The terminal's agent changed what it does, or its session: its receipts look again. */
+  receiptsChanged(terminalId: string): void {
+    this.receipts.changed(terminalId)
+  }
+
+  /** Forgets what the doorbell, the dialogs and the receipts kept of a terminal, as it exits or goes. */
   forget(terminalId: string): void {
     this.doorbell?.forget(terminalId)
     this.dialogs.forget(terminalId)
+    this.receipts.forget(terminalId)
   }
 
-  /** Stops the doorbell, as the runner shuts down. */
+  /** Stops the doorbell and the receipts, as the runner shuts down. */
   close(): void {
     this.doorbell?.close()
+    this.receipts.close()
   }
 
   /** The harness of the agent bound to the terminal, or shown at its prompt, as its box reads. */
@@ -440,6 +496,51 @@ export class Typing {
       busy: (terminalId, on) => {
         if (on) this.dialogs.begin(terminalId)
         else this.dialogs.end(terminalId)
+      },
+    }
+  }
+
+  /** What the receipts ask of the terminals: the root's record, its turns, and its box. */
+  private receiptsHost(): ConstructorParameters<typeof Receipts>[0] {
+    return {
+      source: async (terminalId) => {
+        const record = this.host.live(terminalId)
+        const binding = record?.bound?.binding
+        const root = record?.transcript
+        const source = binding && harnesses[binding.agent].transcripts
+        if (!record || !binding || !root || !source) return undefined
+        const path = await source.locate(root, binding.sessionId, null)
+        if (!path || record.bound?.binding !== binding) return undefined
+        return {
+          key: keyOf(record)!,
+          agent: binding.agent,
+          version: null,
+          path,
+          items: source.items,
+          ...(source.step && { step: source.step }),
+        }
+      },
+      bound: (terminalId) => keyOf(this.host.held(terminalId)),
+      shown: (terminalId) => this.host.messaging().shownAgent(terminalId),
+      interruptions: (terminalId) => {
+        const record = this.host.held(terminalId)
+        return record ? interruptionsOf(record, null)() : []
+      },
+      turns: (terminalId) => {
+        const activity = this.host.held(terminalId)?.bound?.activity
+        if (!activity) return { working: false, endedAt: null }
+        const working = activity.state === "working"
+        return { working, endedAt: working ? null : (activity.lastTurn?.at ?? activity.turnAt) }
+      },
+      box: async (terminalId) => {
+        const screen = await this.screenOf(terminalId)
+        const record = this.host.live(terminalId)
+        const profile = record && this.boxOf(record)
+        return screen && profile ? profile.read(screen)?.text : undefined
+      },
+      changed: (terminalId) => {
+        const record = this.host.held(terminalId)
+        if (record) this.host.detailed(record)
       },
     }
   }

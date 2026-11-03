@@ -76,7 +76,7 @@ import { Streams } from "./streams.js"
 import { savedSummaryOf, summaryOf, type AgentSummary } from "./summary.js"
 import { openedWith, renamed as renamedTo, summaryTitle, unnamed, type Naming } from "./titles.js"
 import { interruptionsOf, transcriptChanges } from "./transcripts.js"
-import { Typing } from "./typing.js"
+import { Typing, type Prompted, type PromptInput } from "./typing.js"
 
 export type TerminalOptions = {
   shell?: string
@@ -482,6 +482,7 @@ export class Terminals {
           record.bound?.telemetry ?? null,
           this.typing.dialogs.view(record.summary.id),
           this.typing.dialogs.answered(record.summary.id),
+          this.typing.receipts.view(record.summary.id),
         ),
       messages: (terminalId) => this.messages(terminalId),
     })
@@ -938,8 +939,8 @@ export class Terminals {
    * Gives the terminal's agent a prompt as the person would paste and submit it (see
    * `Prompts`), once those before it in the terminal's input queue are done.
    */
-  prompt(input: { terminalId: string; text: string; automatic?: true | undefined }): Promise<void> {
-    return this.typing.prompt(input.terminalId, input.text, input.automatic)
+  prompt(input: PromptInput): Promise<Prompted> {
+    return this.typing.prompt(input.terminalId, input.text, input.automatic, input.ref)
   }
 
   /**

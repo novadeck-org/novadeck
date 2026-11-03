@@ -2,8 +2,11 @@ import {
   WordsLost,
   noConversation,
   type ChatAnswer,
+  type ChatItem,
+  type ChatPrompt,
   type Conversation,
   type Conversations,
+  type SendResult,
 } from "@novadeck/core/conversation"
 import { createStore, type Store } from "@novadeck/core/store"
 import { refusing } from "@novadeck/core/testing"
@@ -13,7 +16,7 @@ import { afterEach, vi } from "vitest"
 
 import { ChatView } from "./ChatView"
 import { createChatCommands } from "./commands"
-import { chatDraftOf, chatReplyOf, chatSendOf, createChat } from "./state"
+import { chatDraftOf, chatReplyOf, chatSendsOf, createChat } from "./state"
 import { describe, expect, it } from "./test"
 import { useChat } from "./use-chat"
 
@@ -33,18 +36,23 @@ const inApp = (
     program = "claude",
     send = async () => {},
     answer = async () => {},
+    onRef = () => {},
   }: {
     readonly draft?: string
     readonly program?: string
-    readonly send?: (text: string) => Promise<void>
+    readonly send?: (text: string) => Promise<SendResult | void>
     readonly answer?: (request: string, answer: ChatAnswer) => Promise<void>
+    readonly onRef?: (ref: string) => void
   } = {},
 ) => {
-  const sent = vi.fn<(text: string) => Promise<void>>(send)
+  const sent = vi.fn<(text: string) => Promise<SendResult | void>>(send)
   const answered = vi.fn<(request: string, answer: ChatAnswer) => Promise<void>>(answer)
   const conversations: Conversations = {
     conversation: () => conversation,
-    send: (_key, text) => sent(text),
+    send: (_key, text, options) => {
+      if (options?.ref) onRef(options.ref)
+      return sent(text)
+    },
     interrupt: async () => null,
     answer: (_key, request, reply) => answered(request, reply),
     refused: refusing(),
@@ -70,7 +78,7 @@ const inApp = (
           onDraft: (text) => commands.setChatDraft("01", text),
           replyTo: chatReplyOf(state.replies, context, "01"),
           onReplyTo: (to) => commands.setChatReply(context, "01", to),
-          sending: chatSendOf(state.sends, context, "01"),
+          sending: chatSendsOf(state.sends, context, "01"),
           onSend: (text, to) => commands.sendChat(key, text, to),
           onInterrupt: async () => {},
           onAnswer: (request, reply) => conversations.answer(key, request, reply),
@@ -141,6 +149,28 @@ const send = async (container: HTMLElement): Promise<void> =>
       void sendButton(container).dispatchEvent(new MouseEvent("click", { bubbles: true })),
   )
 
+// The person's prompts shown before the record has them: their words, state and note.
+const bubbles = (container: HTMLElement): (string | null)[][] =>
+  [...container.querySelectorAll<HTMLElement>(".chat-message[data-sent]")].map((each) => [
+    each.querySelector(".chat-text")?.textContent ?? null,
+    each.dataset.sent ?? null,
+    each.querySelector(".chat-sent")?.textContent ?? null,
+  ])
+
+const userItem = (text: string): ChatItem => ({
+  id: "s:0",
+  at: null,
+  role: "user",
+  kind: "text",
+  text,
+  truncated: false,
+  tool: null,
+  call: null,
+  author: null,
+  run: null,
+  interrupted: false,
+})
+
 const box = (container: HTMLElement): HTMLTextAreaElement =>
   container.querySelector<HTMLTextAreaElement>(".chat-input")!
 
@@ -195,7 +225,7 @@ describe("a chat whose answer's words didn't reach the agent", () => {
 })
 
 describe("a chat sending a message", () => {
-  it("takes it out of the box as it goes, the box free for the next one, which waits to be sent", async () => {
+  it("takes it out of the box as it goes, and queues the next one behind it", async () => {
     const sends: (() => void)[] = []
     const chat = inApp(createStore<Conversation>({ ...asking, requests: [] }), {
       draft: "first",
@@ -206,12 +236,69 @@ describe("a chat sending a message", () => {
     expect(chat.sent).toHaveBeenCalledWith("first")
     expect(box(container).value).toBe("")
     expect(box(container).readOnly).toBe(false)
+    expect(bubbles(container)).toEqual([["first", "sending", "Sending…"]])
     set(box(container), "second")
-    expect(sendButton(container).disabled).toBe(true)
-    expect(sendButton(container).getAttribute("aria-busy")).toBe("true")
-    await act(async () => sends[0]!())
     expect(sendButton(container).disabled).toBe(false)
-    expect(box(container).value).toBe("second")
+    await send(container)
+    expect(chat.sent).toHaveBeenCalledTimes(1)
+    expect(box(container).value).toBe("")
+    expect(bubbles(container)).toEqual([
+      ["first", "sending", "Sending…"],
+      ["second", "queued", "Queued"],
+    ])
+    // A backend that follows no prompts: the next goes once the one before went.
+    await act(async () => sends[0]!())
+    expect(chat.sent).toHaveBeenLastCalledWith("second")
+    expect(bubbles(container)).toEqual([["second", "sending", "Sending…"]])
+  })
+
+  it("holds the next one until the agent's record has the one before, where the backend tells", async () => {
+    const conversation = createStore<Conversation>({ ...asking, requests: [] })
+    const refs: string[] = []
+    const chat = inApp(conversation, {
+      draft: "first",
+      send: async () => ({ tracked: true }),
+      onRef: (ref) => refs.push(ref),
+    })
+    const { container } = chat
+    await send(container)
+    set(box(container), "second")
+    await send(container)
+    expect(chat.sent).toHaveBeenCalledTimes(1)
+    const receipt = (state: ChatPrompt["state"], item: number | null = null): ChatPrompt => ({
+      ref: refs[0]!,
+      text: state === "pending" ? "first" : null,
+      sentAt: 1,
+      state,
+      item,
+    })
+    await act(async () => conversation.update((now) => ({ ...now, prompts: [receipt("pending")] })))
+    expect(chat.sent).toHaveBeenCalledTimes(1)
+    await act(async () =>
+      conversation.update((now) => ({ ...now, prompts: [receipt("settled", 0)] })),
+    )
+    expect(chat.sent).toHaveBeenLastCalledWith("second")
+    // Settled, but its item yet to arrive: it shows as on its way until it does.
+    expect(bubbles(container)[0]).toEqual(["first", "sending", "Sending…"])
+    await act(async () => conversation.update((now) => ({ ...now, items: [userItem("first")] })))
+    expect(bubbles(container).map(([text]) => text)).toEqual(["second"])
+  })
+
+  it("says so when the agent's record never got it, and offers the terminal", async () => {
+    const conversation = createStore<Conversation>({
+      ...asking,
+      requests: [],
+      prompts: [
+        { ref: "abcdefghijklmnop", text: "lost words", sentAt: 1, state: "unrecorded", item: null },
+        { ref: "bcdefghijklmnopq", text: "boxed words", sentAt: 2, state: "in-box", item: null },
+        { ref: "cdefghijklmnopqr", text: null, sentAt: 3, state: "withdrawn", item: null },
+      ],
+    })
+    const { container } = inApp(conversation)
+    expect(bubbles(container)).toEqual([
+      ["lost words", "unrecorded", "Sent, but not in the agent's record.Show terminal"],
+      ["boxed words", "in-box", "It's back in Claude's box in the terminal.Show terminal"],
+    ])
   })
 
   it("puts it back before what was typed meanwhile when it doesn't go, saying why", async () => {

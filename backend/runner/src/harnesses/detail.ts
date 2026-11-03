@@ -1,5 +1,10 @@
 import { ref } from "@novadeck/harness-core/decode"
-import { agentLimits, type AgentDetail, type RequestDialog } from "@novadeck/protocol"
+import {
+  agentLimits,
+  type AgentDetail,
+  type PromptReceipt,
+  type RequestDialog,
+} from "@novadeck/protocol"
 
 import { ordered, subagentRef, summary, type Activity, type Request } from "./activity.js"
 import type { Binding } from "./bindings.js"
@@ -25,6 +30,7 @@ export const agentDetail = (
   telemetry: Telemetry | null,
   dialogs: ReadonlyMap<string, RequestDialog> = new Map(),
   answered: ReadonlySet<string> = new Set(),
+  prompts: readonly PromptReceipt[] = [],
 ): AgentDetail => {
   if (!binding)
     return {
@@ -36,6 +42,8 @@ export const agentDetail = (
       actors: [],
       requests: [],
       coverage: null,
+      // Prompts given an agent at its own prompt before its first session binds.
+      prompts: prompts.slice(-agentLimits.prompts),
     }
   const root = rootRef(binding)
   const pending = ordered(activity?.pending ?? []).slice(0, agentLimits.requests)
@@ -91,6 +99,7 @@ export const agentDetail = (
         }
       }),
     coverage: harnesses[binding.agent].coverage,
+    prompts: prompts.slice(-agentLimits.prompts),
   }
 }
 
