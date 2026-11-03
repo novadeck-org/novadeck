@@ -1,5 +1,5 @@
 import { parseFields, type Fields } from "@novadeck/harness-core/fields"
-import type { Harness, UserEntry } from "@novadeck/harness-core/harness"
+import type { TranscriptDecoder, UserEntry } from "@novadeck/harness-core/harness"
 import { at, entry, textOf } from "@novadeck/harness-core/items"
 
 import { describe } from "./tools.js"
@@ -24,7 +24,7 @@ const typed = (fields: Fields): string | undefined => {
  * as the next step, as many steps on as it came in its call's list; its reasoning and
  * its own system steps stay out. It names no subagents.
  */
-export const transcripts: NonNullable<Harness["transcripts"]> = {
+export const transcripts: TranscriptDecoder = {
   locate: (root, _sessionId, subagent) => Promise.resolve(subagent === null ? root : undefined),
   items: (line) => {
     const fields = parseFields(line)

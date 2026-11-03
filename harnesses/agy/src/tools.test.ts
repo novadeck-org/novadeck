@@ -138,3 +138,46 @@ suite("what an Antigravity tool call was", () => {
     expect(run("mystery", "first line\nsecond")).toMatchObject({ detail: "first line" })
   })
 })
+
+suite("what Antigravity's own subagent, task and question tools were", () => {
+  it.each([
+    [
+      "invoke_subagent",
+      { TypeName: "self", Role: "Background helper", Prompt: "Work." },
+      { kind: "agent", title: "Subagent", detail: "Background helper" },
+    ],
+    [
+      "invoke_subagent",
+      { TypeName: "self", Prompt: "Work.\nMore." },
+      { kind: "agent", title: "Subagent", detail: "Work." },
+    ],
+    [
+      "define_subagent",
+      { TypeName: "tester" },
+      { kind: "agent", title: "Defined a subagent", detail: "tester" },
+    ],
+    [
+      "manage_subagents",
+      { Action: "list" },
+      { kind: "agent", title: "Managed subagents", detail: "list" },
+    ],
+    ["send_message", { Message: "Hi\nthere" }, { kind: "agent", title: "Messaged", detail: "Hi" }],
+    ["manage_task", { Action: "kill" }, { kind: "run", title: "Managed a task", detail: "kill" }],
+    [
+      "schedule",
+      { DurationSeconds: 60, Prompt: "Check" },
+      { kind: "run", title: "Scheduled", detail: "Check" },
+    ],
+    [
+      "ask_question",
+      {
+        questions: [{ question: "Which?", options: ["a"], is_multi_select: false }],
+      },
+      { kind: "plan", title: "Asked", detail: "Which?" },
+    ],
+    ["list_resources", {}, { kind: "read", title: "Listed MCP resources", detail: "" }],
+    ["ask_question", {}, { kind: "plan", title: "Asked", detail: "" }],
+  ])("reads %s", (tool, input, expected) => {
+    expect(run(tool, input)).toEqual(expected)
+  })
+})

@@ -28,6 +28,16 @@
       "types": "./dist/index.d.ts",
       "default": "./dist/index.js"
     },
+    "./shapes": {
+      "development": "./src/shapes.ts",
+      "types": "./dist/shapes.d.ts",
+      "default": "./dist/shapes.js"
+    },
+    "./tools": {
+      "development": "./src/tools.ts",
+      "types": "./dist/tools.d.ts",
+      "default": "./dist/tools.js"
+    },
     "./transcripts": {
       "development": "./src/transcripts.ts",
       "types": "./dist/transcripts.d.ts",

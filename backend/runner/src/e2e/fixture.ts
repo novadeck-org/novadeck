@@ -8,6 +8,7 @@ import { tripwire } from "@novadeck/sandbox/tripwire"
 import { Trees } from "@novadeck/terminal/pty"
 import { beforeAll, type TestFunction } from "vitest"
 
+import { harnesses } from "../harnesses/registry.js"
 import { it as base } from "../test.js"
 import type { AgentSetup, Seed } from "./agents/agent.js"
 import { setups as every } from "./agents/index.js"
@@ -16,6 +17,7 @@ import { createDeck, type Deck } from "./deck.js"
 import { installHarness } from "./install.js"
 import { createE2ESandbox, keychainAsks, type Sandbox, unsuffixedClaudeItem } from "./keychain.js"
 import { startFakeModel, type FakeModel } from "./model/server.js"
+import { unknownShapes } from "./shapes.js"
 import { unsupported } from "./support.js"
 import { startTrace, tracesAll, tracing } from "./trace.js"
 
@@ -179,6 +181,24 @@ const fixture = (seed: Seed, setups: readonly AgentSetup[]) => {
       const changes = await checked("the developer's harness home", changed, [])
       const appeared = await checked(loginStore, () => harnessLogins(setups), [])
       const asks = await checked("the sandbox's Keychain log", () => keychainAsks(sandbox), [])
+      // Every transcript the test's harnesses wrote, against their decoders' shape lists: a
+      // shape neither list names is one a decoder drops without a word (as #482's was).
+      const unknown = await checked(
+        "the transcripts' shapes",
+        () =>
+          setups.flatMap((setup) =>
+            unknownShapes(
+              setup.agent,
+              harnesses[setup.agent].home({
+                env,
+                home: sandbox.home,
+                platform: process.platform,
+                plugin: "",
+              }),
+            ),
+          ),
+        [],
+      )
       const hosts = new Set(setups.flatMap((setup) => setup.hosts ?? []))
       const problems = [
         ...(model.foreign > 0
@@ -198,6 +218,7 @@ const fixture = (seed: Seed, setups: readonly AgentSetup[]) => {
             (service) =>
               `a harness asked the macOS Keychain for the person's own ${service}, which the sandbox refused`,
           ),
+        ...unknown,
         ...leftovers.map((one) => `a process outlived the deck in the sandbox: ${one}`),
         ...(leftovers.length > 0 && running.length > 0
           ? [`the sandbox ran, before the deck closed: ${running.join("; ")}`]
@@ -218,7 +239,8 @@ const fixture = (seed: Seed, setups: readonly AgentSetup[]) => {
  * the hook timeout rather than a test's. Once the test ends and its deck has closed, with
  * the fake model still listening for whatever a harness sends on its way out, the test
  * fails should any request have carried a real credential, tried a harness's real host or
- * tripped a dialect, should the developer's own harness homes have changed, or should any
+ * tripped a dialect, should the developer's own harness homes have changed, should a transcript a
+ * harness wrote hold a shape its decoder's lists don't name (`shapes.ts`), or should any
  * process have outlived the deck in the sandbox. Unless the run tests every one of the
  * setups' harnesses (`selected`), the tests are skipped and nothing is installed.
  *

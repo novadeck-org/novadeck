@@ -7,6 +7,7 @@ import { codexHome } from "./home.js"
 import { readModels } from "./models.js"
 import { connect, connected, disconnect, files, hook, hookDialect } from "./plugin.js"
 import { followRollout, followSubagent, rolloutPlans } from "./rollout.js"
+import { shapes } from "./shapes.js"
 import { cmdShim, posixShim } from "./shim.js"
 import { startedSession, title, titleWorking } from "./title.js"
 import { transcripts } from "./transcripts.js"
@@ -122,7 +123,7 @@ export const codex = {
       "--ask-for-approval",
     ],
   },
-  transcripts,
+  transcripts: { ...transcripts, shapes },
   plans: rolloutPlans,
   // Its hooks and rollout; see docs/harness-coverage.md.
   // Nothing it starts wakes it once its turn has ended (probed 2026-10-02, 0.159.3): a

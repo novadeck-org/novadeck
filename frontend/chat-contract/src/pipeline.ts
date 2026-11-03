@@ -4,7 +4,7 @@ import { agentName, groupItems } from "@novadeck/core/conversation/turns"
 import { transcripts as agy } from "@novadeck/harness-agy/transcripts"
 import { transcripts as claude } from "@novadeck/harness-claude/transcripts"
 import { transcripts as codex } from "@novadeck/harness-codex/transcripts"
-import type { Harness, TranscriptEntry } from "@novadeck/harness-core/harness"
+import type { TranscriptDecoder, TranscriptEntry } from "@novadeck/harness-core/harness"
 import { transcriptItem } from "@novadeck/protocol"
 import type { AgentName } from "@novadeck/protocol/harnesses"
 import { withBatch } from "@novadeck/runner-adapter/conversations"
@@ -13,7 +13,7 @@ import { act, createElement } from "react"
 
 // The stages between a harness's record and the rendered chat, run as the app runs them.
 
-type Transcripts = NonNullable<Harness["transcripts"]>
+type Transcripts = TranscriptDecoder
 
 // Each harness's transcripts, whose decoder reads its records.
 export const transcriptsOf: Readonly<Record<AgentName, Transcripts>> = { claude, codex, agy }

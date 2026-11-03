@@ -17,6 +17,11 @@ user: Find it.
 assistant: Searching.
 tools: [4 tool calls · Searched, Found files, Fetched, Searched the web] Searched [search] · TODO | Call: grep_search: 2 lines: Query: TODO → 1 line: a.ts:1; Found files [search] · *.test.ts | Call: find_by_name: 2 lines: Pattern: *.test.ts → 1 line: a.test; Fetched [web] · https://vitest.dev/guide | Call: read_url_content: 1 line: https://vitest.dev/guide → 1 line: A page; Searched the web [web] · vitest snapshots | Call: search_web: 1 line: vitest snapshots → 1 line: Results
 
+# subagents-and-asking
+user: Split it up.
+assistant: Delegating.
+tools: [7 tool calls · Subagent, Defined a subagent, Managed subagents, Messaged] Subagent [agent] · Background helper | Call: invoke_subagent: 3 lines: TypeName: self → 1 line: Started; Defined a subagent [agent] · tester | Call: define_subagent: 2 lines: TypeName: tester → 1 line: Defined; Managed subagents [agent] · list | Call: manage_subagents: 1 line: list → 1 line: tester; Messaged [agent] · Also the lint | Call: send_message: 4 lines: Message: → 1 line: Sent; Managed a task [run] · kill | Call: manage_task: 2 lines: Action: kill → 1 line: Killed; Scheduled [run] · Check the build | Call: schedule: 2 lines: DurationSeconds: 60 → 1 line: Scheduled; Asked [plan] · Which branch? | Call: ask_question: 1 line: [{"question":"Which branch?","options":["main",… → 1 line: main
+
 # novadeck-eager
 user: Use the other terminals.
 assistant: Messaging.

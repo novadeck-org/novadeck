@@ -120,6 +120,43 @@ export const agyVocabulary: readonly Written[] = [
     ),
   },
   {
+    name: "subagents-and-asking",
+    records: turn(
+      "Split it up.",
+      "Delegating.",
+      [
+        [
+          "invoke_subagent",
+          {
+            TypeName: "self",
+            Role: "Background helper",
+            Prompt: "Work in the background.",
+          },
+          "Started",
+        ],
+        ["define_subagent", { TypeName: "tester", Role: "Runs the tests" }, "Defined"],
+        ["manage_subagents", { Action: "list" }, "tester"],
+        ["send_message", { Message: "Also the lint\nplease", toolSummary: "Message" }, "Sent"],
+        ["manage_task", { Action: "kill", toolSummary: "Stop it" }, "Killed"],
+        ["schedule", { DurationSeconds: 60, Prompt: "Check the build" }, "Scheduled"],
+        [
+          "ask_question",
+          {
+            questions: [
+              {
+                question: "Which branch?",
+                options: ["main", "dev"],
+                is_multi_select: false,
+              },
+            ],
+          },
+          "main",
+        ],
+      ],
+      0,
+    ),
+  },
+  {
     name: "novadeck-eager",
     records: turn(
       "Use the other terminals.",

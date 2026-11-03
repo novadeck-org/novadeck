@@ -18,6 +18,21 @@ suite("what a Claude Code tool call was", () => {
     ["Agent", { description: "Review" }, "agent", "Subagent", "Review"],
     ["WebFetch", { url: "https://example.com" }, "web", "Fetched", "https://example.com"],
     ["TodoWrite", { todos: [{}, {}, {}] }, "plan", "Updated todos", "3 items"],
+    ["SendMessage", { to: "fox", message: "Hi\nthere" }, "agent", "Messaged fox", "Hi"],
+    ["SendMessage", { message: "Hi" }, "agent", "Messaged", "Hi"],
+    ["ListAgents", {}, "agent", "Listed subagents", ""],
+    ["TaskStop", { task_id: "b1" }, "run", "Stopped a task", ""],
+    ["ScheduleWakeup", { prompt: "p", reason: "CI" }, "run", "Scheduled a wake-up", "CI"],
+    ["ScheduleWakeup", { stop: true }, "run", "Scheduled a wake-up", ""],
+    ["CronCreate", { cron: "* * * * *", prompt: "Check" }, "run", "Scheduled", "Check"],
+    ["CronDelete", { id: "j" }, "run", "Unscheduled", ""],
+    ["CronList", {}, "run", "Listed schedules", ""],
+    ["Skill", { skill: "review", args: "x" }, "other", "Used a skill", "review"],
+    ["Monitor", { command: "tail", description: "Watch" }, "run", "Monitored", "Watch"],
+    ["ToolSearch", { query: "select:Read" }, "search", "Searched tools", "select:Read"],
+    ["EnterPlanMode", {}, "plan", "Entered plan mode", ""],
+    ["EnterWorktree", { path: "/a/b" }, "run", "Entered a worktree", "/a/b"],
+    ["ExitWorktree", { action: "keep" }, "run", "Left a worktree", "keep"],
   ])("reads %s", (tool, input, kind, title, detail) => {
     expect(run(tool, input)).toEqual({ kind, title, detail })
   })

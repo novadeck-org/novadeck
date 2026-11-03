@@ -106,6 +106,48 @@ export const codexVocabulary: readonly Written[] = [
     ],
   },
   {
+    // The multi_agent tools, in the spellings a rollout (namespace and name apart), the tool
+    // list and a hook give them, and the tools beside them.
+    name: "subagents-and-goals",
+    records: [
+      said("Hand it off."),
+      ...calls("subagents", [
+        ["spawn_agent", { message: "Run the tests\nthen report" }, "agent_1", "multi_agent_v1"],
+        ["spawn_agent", { task_name: "lint", message: "Fix the lint" }, "agent_2", "collaboration"],
+        ["send_input", { target: "agent_1", message: "Also the lint" }, "ok", "multi_agent_v1"],
+        ["wait_agent", { timeout_ms: 30000 }, "done", "multi_agent_v1"],
+        ["resume_agent", { id: "agent_1" }, "ok", "multi_agent_v1"],
+        ["close_agent", { target: "agent_1" }, "closed", "multi_agent_v1"],
+        ["multi_agent_v1.spawn_agent", { message: "Dotted spelling" }, "agent_3"],
+        [
+          "spawn_agent",
+          { task_name: "docs", agent_type: "worker", message: "Update the docs" },
+          "agent_4",
+          "collaboration",
+        ],
+        [
+          "send_message",
+          { target: "/root/docs", message: "Also the README" },
+          "ok",
+          "collaboration",
+        ],
+        [
+          "followup_task",
+          { target: "/root/docs", message: "Now the changelog" },
+          "ok",
+          "collaboration",
+        ],
+        ["list_agents", {}, "/root/docs", "collaboration"],
+        ["wait_agent", { timeout_ms: 30000 }, "done", "collaboration"],
+        ["wait", { cell_id: "7", yield_time_ms: 1000, max_tokens: 1000 }, "still running"],
+        ["web_search", { query: "vitest snapshots" }, "Results"],
+        ["create_goal", { objective: "Ship the fix" }, "ok"],
+        ["get_goal", {}, "Ship the fix"],
+        ["request_permissions", { reason: "Write outside the project" }, "granted"],
+      ]),
+    ],
+  },
+  {
     name: "novadeck-tools",
     records: [
       said("Use the other terminals."),
@@ -175,6 +217,19 @@ export const codexVocabulary: readonly Written[] = [
         type: "event_msg",
         payload: { type: "turn_aborted", turn_id: "turn_1", reason: "interrupted" },
       },
+    ],
+  },
+  {
+    // What a Stop hook gave back to go on with: Novadeck's hooks deliver agents' messages
+    // so, as a user message of Codex's own, which the chat leaves out as Claude Code's is.
+    name: "hook-prompt",
+    records: [
+      said("Wait for the reviewer."),
+      replied("Waiting."),
+      said(
+        '<hook_prompt hook_run_id="stop:1:/home/user/.codex/plugins/novadeck/hooks.json">&lt;novadeck-messages note="Messages from other agents"&gt;Looks good.&lt;/novadeck-messages&gt;</hook_prompt>',
+      ),
+      replied("The reviewer approved it."),
     ],
   },
 ]

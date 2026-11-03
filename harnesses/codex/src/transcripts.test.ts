@@ -347,3 +347,42 @@ describe("Codex's messages between agents", () => {
     ).toMatchObject([{ role: "agent", kind: "text", text: "Check the diff.", author: "/root" }])
   })
 })
+
+describe("Codex's context in the person's place", () => {
+  const said = (text: string) =>
+    transcripts.items(
+      JSON.stringify({
+        timestamp: "2026-11-03T12:00:00.000Z",
+        type: "response_item",
+        payload: { type: "message", role: "user", content: [{ type: "input_text", text }] },
+      }),
+    )
+
+  it("leaves out what a Stop hook gave back to go on with, as Claude Code's is", () => {
+    expect(
+      said(
+        '<hook_prompt hook_run_id="stop:27:/h/hooks.json">&lt;novadeck-messages note="x"&gt;hi&lt;/novadeck-messages&gt;</hook_prompt>',
+      ),
+    ).toEqual([])
+    expect(said("<hook_prompt>go on</hook_prompt>")).toEqual([])
+  })
+
+  it("leaves out the note of an interrupted turn, which 0.166.0 writes as the person's", () => {
+    expect(
+      said("<turn_aborted>\nThe previous turn was interrupted on purpose.\n</turn_aborted>"),
+    ).toEqual([])
+  })
+
+  it("leaves out context whose tag carries attributes", () => {
+    expect(said('<skill name="pdf">\nHow to read PDFs\n</skill>')).toEqual([])
+    expect(said("<skills_instructions>x</skills_instructions>").map(({ text }) => text)).toEqual([
+      "<skills_instructions>x</skills_instructions>",
+    ])
+  })
+
+  it("keeps the person's words that merely mention the tag", () => {
+    expect(said("What does <hook_prompt> do?").map(({ text }) => text)).toEqual([
+      "What does <hook_prompt> do?",
+    ])
+  })
+})

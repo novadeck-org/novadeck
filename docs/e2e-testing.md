@@ -962,6 +962,46 @@ classifies the tool; one that asks the person must reach the Inbox first. It see
 what a harness offers the fake model: a tool gated by a catalog capability the fake
 model's entry doesn't list stays out of sight.
 
+`tool-rows.test.ts`, a unit test, holds the same lists against each harness's `describe`:
+every classified tool gets a row of its own in the chat, or sits on a short list of tools
+meant to show by their name, each with its reason.
+
+## The shapes each harness writes
+
+Each chat decoder keeps two lists beside it (`harnesses/<harness>/src/shapes.ts`): the
+shapes of transcript record it reads, and the ones it skips knowingly. Keys go as deep as it
+takes to catch a prompt hidden under a record skipped on purpose, as #482's was:
+
+- Claude Code: the record's type, an attachment's type, each message block's type
+  (`record:system`, `attachment:queued_command`, `block:assistant/thinking`);
+- Codex: the top-level type, a response item's type and a message's role, an event's type
+  (`record:world_state`, `item:message/developer`, `event:token_count`);
+- Antigravity: the step's source and type, and whether it carries media
+  (`step:MODEL/GENERIC`, `media:MODEL/GENERIC`);
+- every harness: the tag the person's text opens with and closes later (`tag:command-name`,
+  `tag:hook_prompt`), and for Claude Code a paste it wrapped further in
+  (`wrap:pasted_content`).
+
+The fixture's teardown runs every transcript the test's harnesses wrote through those lists
+(`shapes.ts` here) and fails the test on a shape neither names, saying which and where. It
+runs at the pins too, so a pin bump must classify whatever the new version writes: add the
+key to the harness's lists, and teach its decoder any shape that holds the conversation.
+`frontend/chat-contract`'s `shapes.test.ts` holds the recorded fixtures and the vocabulary
+conversations to the same lists, and checks that a line whose shapes are all skipped decodes
+to nothing.
+
+The fake model never writes what only real models do (thinking, server tools, web search,
+images), so before a pin bump run the lists over your own history too, read-only:
+
+```sh
+pnpm transcripts:shapes                 # every transcript under ~/.claude, ~/.codex, ~/.gemini
+pnpm transcripts:shapes --newest 300 claude
+pnpm transcripts:shapes --all codex     # every shape with its verdict and count
+```
+
+It prints keys, counts and the first file each unknown shape came in, never what a
+transcript says.
+
 ## Claude Code against the fake model
 
 - **Seeding.** Its config folder is `<sandbox home>/.claude`, set as `CLAUDE_CONFIG_DIR`.

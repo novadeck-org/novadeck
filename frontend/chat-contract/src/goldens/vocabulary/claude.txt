@@ -23,8 +23,24 @@ tools: [16 tool calls · Messaged reviewer, Messaged, Listed agents, Opened an a
 user: Be extreme.
 tools: [4 tool calls · Ran, a_very_long_tool_name_zzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzz, CustomThing,] Ran [run] | Call: Bash: 1 line, shortened: {"command":"echo xxxxxxxxxxxxxxxxxxxxxxxxxxxxxx… → 1 line, shortened: yyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyy…; a_very_long_tool_name_zzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzz [other] · …/deep/er/file.ts | Call: 1 line: /home/user/project/src/deep/er/file.ts → 1 line: fine; CustomThing [other] · something unknown | Call: 1 line: something unknown → 1 line: result of a tool nobody knows; Result [other] → 1 line: A result whose call fell outside the window.
 
+# messaging-and-scheduling
+user: Coordinate.
+tools: [14 tool calls · Messaged reviewer, Listed subagents, Stopped a task, Scheduled a wake-up] Messaged reviewer [agent] · Please look | Call: SendMessage: 5 lines: to: reviewer → 1 line: Sent; Listed subagents [agent] | Call: ListAgents: empty → 1 line: reviewer; Stopped a task [run] | Call: TaskStop: 1 line: b1x → 1 line: Stopped; Scheduled a wake-up [run] · Waiting on CI | Call: ScheduleWakeup: 3 lines: delaySeconds: 270 → 1 line: Scheduled; Scheduled a wake-up [run] | Call: ScheduleWakeup: 1 line: true → 1 line: Stopped; Scheduled [run] · Check the deploy | Call: CronCreate: 2 lines: cron: */5 * * * * → 1 line: Created; Listed schedules [run] | Call: CronList: empty → 1 line: 1 job; Unscheduled [run] | Call: CronDelete: 1 line: job1 → 1 line: Deleted; Used a skill [other] · using-uberepo | Call: Skill: 2 lines: skill: using-uberepo → 1 line: Loaded; Monitored [run] · Watch the log | Call: Monitor: 3 lines: command: tail -f log → 1 line: Started; Searched tools [search] · select:Read | Call: ToolSearch: 2 lines: query: select:Read → 1 line: Found; Entered plan mode [plan] | Call: EnterPlanMode: empty → 1 line: Entered; Entered a worktree [run] · …/project/.wt/a | Call: EnterWorktree: 1 line: /home/user/project/.wt/a → 1 line: Entered; Left a worktree [run] · keep | Call: ExitWorktree: 1 line: keep → 1 line: Left
+
 # interrupted
 user: Start.
 assistant: Working on it.
 note: Interrupted
 assistant: Stopped.
+
+# wrappers
+user: Read this: first pasted line ⏎ second pasted line and fix it
+user: only a paste
+user: Also queued paste
+user: /mcp
+tools: Result [other] → 1 line: Authentication successful. Connected to linear.
+user: /permissions
+user: /review the open pull request
+assistant: Reviewing it.
+user: !ls gone
+tools: Ran [run] · ls gone | Call: Bash: 1 line: ls gone → 1 line: Command failed: Working directory "/home/user/g…
