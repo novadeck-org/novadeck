@@ -3236,6 +3236,45 @@ describe("Antigravity's prompts, told from its transcript", () => {
     expect(messaging.delivery("G")?.state).toBe("settled")
   })
 
+  // Resumed at its prompt, after a restart or by Antigravity's own resume: its status line
+  // binds the conversation and names no transcript, so the first prompt's hook is the first
+  // look at it, and the entry's time is the Enter's own second, rounded down.
+  for (const [how, before] of [
+    ["after a restart", null],
+    ["by its own resume", binding("agy", "c-before", "7")],
+  ] as const)
+    it(`takes the person's first prompt to a conversation resumed ${how}, and it settles`, async () => {
+      const { messaging, observe, ask, stop, clock: time } = create()
+      messaging.register("G", here, "owl", null)
+      if (before) observe("G", before, agyStatus(before, "idle"), true)
+      observe("G", agy, agyStatus(agy, "idle"), true)
+      expect(messaging.delivery("G")?.state).toBe("ready")
+      time.now += 400
+      messaging.keys("G", ["content"], false)
+      time.now += 300
+      messaging.keys("G", ["enter"], false)
+      time.now += 150
+      const enteredAt = messaging.pendingSubmission("G", time.now)
+      expect(enteredAt).toBeDefined()
+      const { events } = await typedPromptStart(
+        [harnessTurn],
+        {
+          root,
+          typedEntry: harnesses.agy.messaging.typedEntry!,
+          transcript: "/t.jsonl",
+          seen: undefined,
+          enteredAt,
+          ringing: undefined,
+        },
+        () => Promise.resolve({ text: "Fix it", at: enteredAt! - (enteredAt! % 1000), id: 9 }),
+        { waitMs: 2, gapMs: 1 },
+      )
+      expect(events).toMatchObject([{ cause: "prompt", prompt: "Fix it" }])
+      ask("G", agy, "PreInvocation", [...events])
+      stop("G", agy)
+      expect(messaging.delivery("G")?.state).toBe("settled")
+    })
+
   it("never takes a stale line a resumed transcript ends with for a ring's", async () => {
     const { messaging, ask, stop } = resumedAndRung()
     const { events } = await told(doorbellLine("old"), 4, { ringing: messaging.ringing("G") })
