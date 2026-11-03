@@ -4,7 +4,6 @@ import { stat } from "node:fs/promises"
 import { followLines } from "@novadeck/harness-core/follow"
 import type { Harness } from "@novadeck/harness-core/harness"
 import { agentLimits, shellCommand, type AgentName, type PromptReceipt } from "@novadeck/protocol"
-import { harnesses as table } from "@novadeck/protocol/harnesses"
 
 import { DomainError } from "../errors.js"
 import { logs } from "../log.js"
@@ -36,6 +35,12 @@ export type ReceiptsHost = {
    * Antigravity do until their first prompt's hook; undefined for none.
    */
   readonly shown: (terminalId: string) => AgentName | undefined
+  /**
+   * Where in the root's record the runner joins interruptions of its own to the items
+   * `agents.transcript` serves (Antigravity's, whose record holds none), so a settled
+   * prompt's `item` is the index the chat has it at.
+   */
+  readonly interruptions: (terminalId: string) => readonly { readonly offset: number }[]
   /** The root agent's turns, as its activity tells them. */
   readonly turns: (terminalId: string) => Turns
   /** What the agent's input box holds on its screen now; undefined where none is read. */
@@ -103,8 +108,8 @@ type Track = {
   /** The agent the prompts went to. */
   readonly agent: AgentName
   readonly entries: Entry[]
-  /** Its record is being looked up, as its session just bound. */
-  attaching: boolean
+  /** Its record being looked up, as its session just bound. */
+  attaching: Promise<void> | undefined
   reader: Reader | undefined
   timer: ReturnType<typeof setTimeout> | undefined
 }
@@ -161,13 +166,19 @@ export class Receipts {
     if (this.tracks.get(terminalId)?.entries.some((entry) => entry.ref === ref))
       throw new DomainError("CONFLICT", "A prompt with that ref was given already.")
     const unbound = this.host.bound(terminalId) === null
+    // Prompts given before the session bound are read in its record first, so this one's
+    // track is theirs.
+    const waiting = this.tracks.get(terminalId)
+    if (!unbound && waiting && !waiting.source)
+      await this.attach(terminalId, waiting, this.host.bound(terminalId)!)
     const shown = unbound ? this.host.shown(terminalId) : undefined
     const source = unbound ? undefined : await this.host.source(terminalId).catch(() => undefined)
     const agent = source?.agent ?? shown
+    // A shell command isn't followed: Codex records one only once it ran, however long that
+    // takes, with no turn to tell it runs; Antigravity keeps no record of one.
     const shell = shellCommand(text) !== undefined
-    const records = table.find(({ id }) => id === agent)?.recordsShell ?? true
     const lines = promptLines(text)
-    if (!agent || (shell && !records) || lines.length === 0) return { ref, tracked: false }
+    if (!agent || shell || lines.length === 0) return { ref, tracked: false }
     if (source && this.host.bound(terminalId) !== source.key) return { ref, tracked: false }
     if (!source && this.host.bound(terminalId) !== null) return { ref, tracked: false }
     const bytes = source
@@ -254,7 +265,8 @@ export class Receipts {
   /** The receipts of the terminal's prompts given in its bound session, oldest first. */
   view(terminalId: string): PromptReceipt[] {
     const track = this.tracks.get(terminalId)
-    if (!track || this.host.bound(terminalId) !== (track.source?.key ?? null)) return []
+    // Those given before the session bound show on while its record is looked up.
+    if (!track || (track.source && this.host.bound(terminalId) !== track.source.key)) return []
     return track.entries
       .filter((entry): entry is Entry & { sentAt: number } => entry.sentAt !== null)
       .map(({ ref, text, sentAt, state, item }) => ({
@@ -295,7 +307,7 @@ export class Receipts {
       source,
       agent,
       entries: [],
-      attaching: false,
+      attaching: undefined,
       reader: undefined,
       timer: undefined,
     }
@@ -307,11 +319,15 @@ export class Receipts {
    * The session the prompts given before it went to bound: its record is read for them, an
    * item recorded since each was given new to it. Another agent's session starts them over.
    */
-  private async attach(terminalId: string, track: Track, key: string): Promise<void> {
-    if (track.attaching) return
-    track.attaching = true
+  private attach(terminalId: string, track: Track, key: string): Promise<void> {
+    track.attaching ??= this.attached(terminalId, track, key).finally(() => {
+      track.attaching = undefined
+    })
+    return track.attaching
+  }
+
+  private async attached(terminalId: string, track: Track, key: string): Promise<void> {
     const source = await this.host.source(terminalId).catch(() => undefined)
-    track.attaching = false
     if (this.tracks.get(terminalId) !== track || track.source) return
     if (!source || source.key !== key || this.host.bound(terminalId) !== key) {
       // Looked again once the record is known, or the session changed meanwhile.
@@ -364,6 +380,10 @@ export class Receipts {
       source.path,
       reader.controller.signal,
       (line, end) => {
+        // The interruptions `agents.transcript` joins before this line's items.
+        const joined = this.host
+          .interruptions(terminalId)
+          .filter(({ offset }) => offset <= reader.position).length
         const start = reader.index
         for (const entry of track.entries)
           if (entry.items === undefined && end > entry.bytes) entry.items = start
@@ -378,7 +398,7 @@ export class Receipts {
           if (waiting.length === 0) continue
           for (const ref of settledBy(waiting, item.text)) {
             const entry = track.entries.find((each) => each.ref === ref)!
-            done(entry, "settled", index)
+            done(entry, "settled", index + joined)
             changed ||= entry.sentAt !== null
           }
         }

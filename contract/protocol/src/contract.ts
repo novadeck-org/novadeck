@@ -285,9 +285,8 @@ export const contract = {
     // `ref` names the prompt's receipt in `agents.detail` (`promptReceipt`), which a client
     // may pick so its own copy of the prompt has the same key from the start; one the
     // terminal had already is a CONFLICT, writing nothing; without one, the runner picks it.
-    // `tracked` says whether a receipt follows: not where the runner can't read the agent's
-    // record yet (no session bound), or the harness keeps none of what was sent (a shell
-    // command Antigravity runs, `recordsShell`).
+    // `tracked` says whether a receipt follows: not for a shell command (Codex records one
+    // only once it ran, Antigravity none), nor where no agent shows in the terminal.
     prompt: procedure
       .input(
         z.strictObject({

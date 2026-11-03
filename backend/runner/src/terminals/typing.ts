@@ -22,6 +22,7 @@ import { agentWorking, doorbellHost, profileOf } from "./doorbell-host.js"
 import { Interrupts, Prompts } from "./prompting.js"
 import { Receipts, type ReceiptsOptions } from "./receipts.js"
 import type { Record } from "./record.js"
+import { interruptionsOf } from "./transcripts.js"
 
 /**
  * What the dialog adapters need of a pending request: what it asks, where (its hook's
@@ -508,6 +509,10 @@ export class Typing {
       },
       bound: (terminalId) => keyOf(this.host.held(terminalId)),
       shown: (terminalId) => this.host.messaging().shownAgent(terminalId),
+      interruptions: (terminalId) => {
+        const record = this.host.held(terminalId)
+        return record ? interruptionsOf(record, null)() : []
+      },
       turns: (terminalId) => {
         const activity = this.host.held(terminalId)?.bound?.activity
         if (!activity) return { working: false, endedAt: null }

@@ -10,13 +10,14 @@ import type { ChatReply } from "./replies"
 //   answer; null for a prompt, which takes its turn in the terminal's queue;
 // - `phase`: `queued` while a prompt before it hasn't reached the agent's record yet;
 //   `typing` while it goes into the agent's box; `sent` once it went, until its receipt says
-//   whether the record has it.
+//   whether the record has it; `settled` once the record has it, kept only for its words
+//   until the conversation holds its item.
 export type ChatSend = {
   readonly ref: string
   readonly draft: string
   readonly text: string
   readonly to: ChatReply | null
-  readonly phase: "queued" | "typing" | "sent"
+  readonly phase: "queued" | "typing" | "sent" | "settled"
 }
 
 // The words on their way to each terminal's agent, oldest first, by session context and

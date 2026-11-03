@@ -48,7 +48,7 @@ export const sentBubbles = (
     }
   })
   const ownLeft = sends
-    .filter((send) => send.to === null && !told.has(send.ref))
+    .filter((send) => send.to === null && send.phase !== "settled" && !told.has(send.ref))
     .map((send): SentBubble => ({
       ref: send.ref,
       text: send.text,

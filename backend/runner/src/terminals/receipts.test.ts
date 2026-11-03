@@ -58,21 +58,28 @@ const setup = async (
     agent: "claude" as ReceiptSource["agent"],
     key: "session-1" as string | null,
     shown: undefined as ReceiptSource["agent"] | undefined,
+    interruptions: [] as { offset: number }[],
+    // Holds the record's lookup until released, as a slow `locate`.
+    lookup: undefined as Promise<void> | undefined,
     turns: { working: false, endedAt: null } as Turns,
     box: undefined as string | undefined,
     changes: 0,
   }
   const receipts = new Receipts(
     {
-      source: async () => ({
-        key: "session-1",
-        agent: host.agent,
-        version: "1.0.0",
-        path,
-        items,
-      }),
+      source: async () => (
+        await host.lookup,
+        {
+          key: "session-1",
+          agent: host.agent,
+          version: "1.0.0",
+          path,
+          items,
+        }
+      ),
       bound: () => host.key,
       shown: () => host.shown,
+      interruptions: () => host.interruptions,
       turns: () => host.turns,
       box: async () => host.box,
       changed: () => void (host.changes += 1),
@@ -116,6 +123,49 @@ describe("prompt receipts", () => {
     // Recorded in the second it was given: coarse records write whole seconds.
     await appendFile(path, row("hello", 5_000))
     await vi.waitFor(() => expect(state("r1")).toBe("settled"))
+  })
+
+  it("keeps showing a prompt given before the session bound while its record is looked up", async ({
+    resources,
+  }) => {
+    const { path, host, receipts, state, give } = await setup(resources)
+    host.key = null
+    host.shown = "codex"
+    host.agent = "codex"
+    await give("hello", "r1")
+    let release = () => {}
+    host.lookup = new Promise((resolve) => (release = resolve))
+    host.key = "session-1"
+    receipts.changed(terminal)
+    expect(state("r1")).toBe("pending")
+    // A prompt given meanwhile waits for the lookup, and the first prompt's receipt stays.
+    const second = receipts.expect(terminal, "again", "r2")
+    release()
+    expect(await second).toEqual({ ref: "r2", tracked: true })
+    receipts.sent(terminal, "r2")
+    expect(state("r1")).toBe("pending")
+    await appendFile(path, row("hello", 1_000))
+    await vi.waitFor(() => expect(state("r1")).toBe("settled"))
+  })
+
+  it("counts the interruptions the runner joins to the record in a settled prompt's item", async ({
+    resources,
+  }) => {
+    const { path, host, receipts, state, give } = await setup(resources, row("earlier"))
+    // Antigravity's: an Escape after the first line, which the chat shows as an item there.
+    host.interruptions = [{ offset: row("earlier").length }]
+    await give("hello", "r1")
+    await appendFile(path, row("hello"))
+    await vi.waitFor(() => expect(state("r1")).toBe("settled"))
+    expect(receipts.view(terminal)[0]?.item).toBe(2)
+  })
+
+  it("follows no shell command, on any harness", async ({ resources }) => {
+    const { receipts } = await setup(resources)
+    expect(await receipts.expect(terminal, "!npm test", "r1")).toEqual({
+      ref: "r1",
+      tracked: false,
+    })
   })
 
   it("calls a prompt given before any session bound missing once none bound in the slack", async ({

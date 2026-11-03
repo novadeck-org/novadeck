@@ -1,4 +1,4 @@
-import { SettleInTerminal, WordsLost } from "@novadeck/core/conversation"
+import { noConversation, SettleInTerminal, WordsLost } from "@novadeck/core/conversation"
 import { promptRefusal } from "@novadeck/core/conversation/prompt-refusal"
 import type { AgentDetail, TranscriptChange, TranscriptItem } from "@novadeck/protocol"
 import { WireError } from "@novadeck/wire"
@@ -499,6 +499,42 @@ describe("the runner's conversations", () => {
       const { conversations, streams } = setup()
       await conversations.send(key, "hello", { ref: "abcdefghijklmnop" })
       expect(streams.prompt).toHaveBeenCalledWith("t", "hello", { ref: "abcdefghijklmnop" })
+    })
+
+    it("empties the conversation once its terminal is gone, so what waited on it hears so", async () => {
+      const { details, store } = setup()
+      const unsubscribe = store.subscribe(() => {})
+      const receipt = {
+        ref: "abcdefghijklmnop",
+        text: "hello",
+        sentAt: 1,
+        state: "pending" as const,
+        item: null,
+      }
+      details.push(detail({ prompts: [receipt] }))
+      await vi.waitFor(() => expect(store.getSnapshot().prompts).toEqual([receipt]))
+      details.end()
+      await vi.waitFor(() => expect(store.getSnapshot()).toEqual(noConversation))
+      unsubscribe()
+    })
+
+    it("keeps a settled prompt's words, which its receipt no longer carries", async () => {
+      const { details, store } = setup()
+      const unsubscribe = store.subscribe(() => {})
+      const receipt = {
+        ref: "abcdefghijklmnop",
+        text: "hello",
+        sentAt: 1,
+        state: "pending" as const,
+        item: null,
+      }
+      details.push(detail({ prompts: [receipt] }))
+      await vi.waitFor(() => expect(store.getSnapshot().prompts).toEqual([receipt]))
+      details.push(detail({ prompts: [{ ...receipt, state: "settled", text: null, item: 3 }] }))
+      await vi.waitFor(() =>
+        expect(store.getSnapshot().prompts).toEqual([{ ...receipt, state: "settled", item: 3 }]),
+      )
+      unsubscribe()
     })
 
     it("shows the session's receipts as its prompts", async () => {

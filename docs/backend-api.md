@@ -802,7 +802,8 @@ one from an earlier runner.
   tells (`unsupported`, `partial`, `complete`). Actors and requests have runner-issued
   refs, never a harness's own ids; the summary's subagents use the same refs. Its `prompts`
   are the receipts of the prompts given through `agents.prompt` in the bound session (see
-  "Prompt receipts" below). Without an agent bound, only `terminalId` is set. The stream follows the terminal from agent to
+  "Prompt receipts" below). Without an agent bound, only `terminalId` is set, and the
+  receipts of prompts given an agent at its own prompt before its session binds. The stream follows the terminal from agent to
   agent and ends when the terminal is closed; an unknown one is `TERMINAL_NOT_FOUND`.
   The client's `agents.detail(terminalId)` resubscribes across reconnections and ends
   once the terminal is gone.
@@ -952,17 +953,24 @@ one from an earlier runner.
   so the chat can show it until then and say when it never came, the same in every window
   and after a reload (`terminals/receipts.ts`). It reads the root's transcript from its
   start with the harness's own decoder, the one `agents.transcript` serves, so a prompt a
-  decoder drops is missing here as it is in the chat. `tracked` is false where it can't:
-  no session bound yet, or a shell command to a harness that keeps no record of one
-  (Antigravity, `recordsShell`). A receipt (`promptReceipt`, up to 8 per session in
-  `agents.detail`, the oldest settled or withdrawn going first) is:
+  decoder drops is missing here as it is in the chat. `tracked` is false for a shell command,
+  on every harness (Codex records one only once it has run, however long that takes, with
+  no turn to say it runs; Antigravity keeps no record of one), and where no agent shows in
+  the terminal. A prompt given an agent at its own prompt before its first session binds,
+  as Codex's and Antigravity's first prompt is (their session binds at that prompt's hook),
+  is followed too: once the session binds, its record is read for it, an item recorded in
+  the second the prompt was given or later being new to it (harnesses record whole seconds
+  at the coarsest); a session that never binds makes it missing at the Enter plus the wait
+  below. A receipt (`promptReceipt`, up to 8 per session in `agents.detail`, the oldest
+  settled or withdrawn going first) is:
   - `pending` from the Enter (`sentAt`) until a user item the transcript gained after the
     prompt was given holds its words: both sides with line breaks as line feeds, doorbell
     and Inbox reply lines taken out, and a shell command as `!` and the command; its lines
     a run of the item's lines, white space at each line's ends aside. One item settles
     several prompts, in the order they were given, as Antigravity joins prompts queued
     behind a turn into one input; a prompt not found doesn't hold back one after it;
-  - `settled`, with `item`, that item's index in `agents.transcript`, and its `text` null;
+  - `settled`, with `item`, that item's index in `agents.transcript` (counting the
+    interruptions the runner joins to Antigravity's), and its `text` null;
   - `unrecorded` once the agent has been idle for the doorbell's confirmation wait
     (`confirmMs`: 5 s, plus the hook shell's slack on Windows) since the later of the Enter
     and its latest turn's end, and the transcript was read to its end after that, with

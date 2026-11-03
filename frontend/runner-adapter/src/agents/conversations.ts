@@ -350,6 +350,13 @@ const read = (
     } catch {
       // The terminal is gone, or the runner closed.
     }
+    // Its terminal went: so did its conversation, and what waited on it hears so.
+    if (!alive) return
+    following = null
+    end(transcript)
+    transcript = undefined
+    clearTimeout(settling)
+    store.update(() => noConversation)
   })()
 
   return {

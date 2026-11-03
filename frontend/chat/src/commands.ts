@@ -132,9 +132,11 @@ export const createChatCommands = ({
   const finished = (key: TerminalKey, ref: string, inBox: boolean): void => {
     watches.get(ref)?.()
     watches.delete(ref)
+    const was = sendsOf(key).find((send) => send.ref === ref)?.phase
     update(key, (sends) => withSend(sends, contextOf(key), key.terminalId, ref, () => null))
     if (inBox) handBack(key, (send) => send.phase === "queued")
-    else pump(key)
+    // One that settled already let the next go.
+    else if (was !== "settled") pump(key)
   }
 
   // Follows a prompt's receipt until it says whether the record has it: it is done once it
@@ -143,11 +145,26 @@ export const createChatCommands = ({
     const store = conversations!.conversation(key)
     let seen = false
     const session = store.getSnapshot().session
+    let settled = false
     const look = (): void => {
       const conversation = store.getSnapshot()
       const receipt = receiptOf(conversation, ref)
       if (receipt) seen = true
       const gone = !receipt && (seen || (session !== null && conversation.session !== session))
+      // Settled: the next goes at once, and its words stay to show it until its item
+      // arrives, as the receipt carries none.
+      if (!gone && receipt?.state === "settled" && receipt.item !== null) {
+        if (conversation.items.length > receipt.item) return finished(key, ref, false)
+        if (settled) return
+        settled = true
+        update(key, (sends) =>
+          withSend(sends, contextOf(key), key.terminalId, ref, (send) => ({
+            ...send,
+            phase: "settled",
+          })),
+        )
+        return pump(key)
+      }
       if (gone || (receipt && receipt.state !== "pending"))
         finished(key, ref, receipt?.state === "in-box")
     }
@@ -161,8 +178,8 @@ export const createChatCommands = ({
   const pump = (key: TerminalKey): void => {
     const sends = sendsOf(key)
     const prompts = sends.filter((send) => send.to === null)
-    if (prompts.some((send) => send.phase !== "queued")) return
-    const next = prompts[0]
+    if (prompts.some((send) => send.phase === "typing" || send.phase === "sent")) return
+    const next = prompts.find((send) => send.phase === "queued")
     if (!next) return
     const context = contextOf(key)
     const { terminalId } = key
