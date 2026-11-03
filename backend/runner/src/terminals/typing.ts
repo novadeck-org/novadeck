@@ -513,6 +513,7 @@ export class Typing {
           version: null,
           path,
           items: source.items,
+          ...(source.step && { step: source.step }),
         }
       },
       bound: (terminalId) => keyOf(this.host.held(terminalId)),

@@ -23,7 +23,9 @@ const items: ReceiptSource["items"] = (line) => {
     >[number],
   ]
 }
-const row = (text: string, at?: number) => `${JSON.stringify({ text, at })}\n`
+const row = (text: string, at?: number, step?: number) => `${JSON.stringify({ text, at, step })}\n`
+/** Where a line stands, as Antigravity's `step_index` tells: the row's `step`. */
+const step = (line: string): number | undefined => (JSON.parse(line) as { step?: number }).step
 
 /** The runner's log lines while a test runs. */
 const capture = (resources: { defer: (cleanup: () => void) => void }) => {
@@ -58,7 +60,7 @@ const setup = async (
     agent: "claude" as ReceiptSource["agent"],
     key: "session-1" as string | null,
     shown: undefined as ReceiptSource["agent"] | undefined,
-    interruptions: [] as { offset: number }[],
+    interruptions: [] as { step: number }[],
     // Holds the record's lookup until released, as a slow `locate`.
     lookup: undefined as Promise<void> | undefined,
     turns: { working: false, endedAt: null } as Turns,
@@ -75,6 +77,7 @@ const setup = async (
           version: "1.0.0",
           path,
           items,
+          step,
         }
       ),
       bound: () => host.key,
@@ -179,13 +182,40 @@ describe("prompt receipts", () => {
   it("counts the interruptions the runner joins to the record in a settled prompt's item", async ({
     resources,
   }) => {
-    const { path, host, receipts, state, give } = await setup(resources, row("earlier"))
-    // Antigravity's: an Escape after the first line, which the chat shows as an item there.
-    host.interruptions = [{ offset: row("earlier").length }]
+    // Antigravity's: an Escape after its step 0, kept by that step, as one read back after a
+    // runner restart is; the chat shows it as an item before the next prompt.
+    const { path, host, receipts, state, give } = await setup(resources, row("earlier", 0, 0))
+    host.interruptions = [{ step: 0 }]
     await give("hello", "r1")
-    await appendFile(path, row("hello"))
+    await appendFile(path, row("hello", 0, 1))
     await vi.waitFor(() => expect(state("r1")).toBe("settled"))
     expect(receipts.view(terminal)[0]?.item).toBe(2)
+  })
+
+  it("counts a joined interruption the same once the record is rewritten", async ({
+    resources,
+  }) => {
+    const { path, host, receipts, state, give } = await setup(resources, row("earlier", 0, 0))
+    host.interruptions = [{ step: 0 }]
+    await give("hello", "r1")
+    await new Promise((resolve) => setTimeout(resolve, 30))
+    // Rewritten, as on compaction: the same steps, read again from the start.
+    await writeFile(path, row("earlier", 0, 0))
+    await new Promise((resolve) => setTimeout(resolve, 30))
+    await appendFile(path, row("hello", 0, 1))
+    await vi.waitFor(() => expect(state("r1")).toBe("settled"))
+    expect(receipts.view(terminal)[0]?.item).toBe(2)
+  })
+
+  it("joins no interruption whose step the record hasn't reached before the prompt", async ({
+    resources,
+  }) => {
+    const { path, host, receipts, state, give } = await setup(resources, row("earlier", 0, 0))
+    host.interruptions = [{ step: 5 }]
+    await give("hello", "r1")
+    await appendFile(path, row("hello", 0, 1))
+    await vi.waitFor(() => expect(state("r1")).toBe("settled"))
+    expect(receipts.view(terminal)[0]?.item).toBe(1)
   })
 
   it("follows no shell command, on any harness", async ({ resources }) => {

@@ -22,6 +22,11 @@ export type ReceiptSource = {
   readonly path: string
   /** Its harness's decoder, the one the chat's transcript comes from. */
   readonly items: NonNullable<Harness["transcripts"]>["items"]
+  /**
+   * Where a line stands in it, where its harness says (Antigravity's `step_index`), which
+   * the runner's own interruption marks are kept by; undefined where none is told.
+   */
+  readonly step?: NonNullable<Harness["transcripts"]>["step"]
 }
 
 /** What the receipts need of the terminals. */
@@ -40,7 +45,7 @@ export type ReceiptsHost = {
    * `agents.transcript` serves (Antigravity's, whose record holds none), so a settled
    * prompt's `item` is the index the chat has it at.
    */
-  readonly interruptions: (terminalId: string) => readonly { readonly offset: number }[]
+  readonly interruptions: (terminalId: string) => readonly { readonly step: number }[]
   /** The root agent's turns, as its activity tells them. */
   readonly turns: (terminalId: string) => Turns
   /** What the agent's input box holds on its screen now; undefined where none is read. */
@@ -105,6 +110,8 @@ type Reader = {
   index: number
   /** Where the lines read so far end. */
   position: number
+  /** The latest step of the lines read so far, as their harness tells it; -1 before any. */
+  reached: number
   /** When it was last read to its end; null before. */
   readAt: number | null
   /** Whether the record was rewritten since it was opened. */
@@ -404,11 +411,12 @@ export class Receipts {
       controller: new AbortController(),
       index: 0,
       position: 0,
+      reached: -1,
       readAt: null,
       rewritten: false,
     }
     track.reader = reader
-    const { items } = source
+    const { items, step } = source
     // An item is new to a prompt once its line ends past where the record ended as it was
     // given, or, once the record was rewritten, from the item it had then; for one given
     // before its session bound, once it was recorded in the second it was given or later.
@@ -422,10 +430,12 @@ export class Receipts {
       source.path,
       reader.controller.signal,
       (line, end) => {
-        // The interruptions `agents.transcript` joins before this line's items.
-        const joined = this.host
-          .interruptions(terminalId)
-          .filter(({ offset }) => offset <= reader.position).length
+        // The interruptions `agents.transcript` joins before this line's items: each whose
+        // step the lines before it reached, where the harness tells steps.
+        const joined = step
+          ? this.host.interruptions(terminalId).filter((mark) => mark.step <= reader.reached).length
+          : 0
+        reader.reached = Math.max(reader.reached, step?.(line) ?? reader.reached)
         const start = reader.index
         for (const entry of track.entries)
           if (entry.items === undefined && end > entry.bytes) entry.items = start
@@ -461,6 +471,7 @@ export class Receipts {
         onReset: () => {
           reader.index = 0
           reader.position = 0
+          reader.reached = -1
           reader.rewritten = true
         },
       },
