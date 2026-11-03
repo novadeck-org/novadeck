@@ -39,7 +39,7 @@ import { ptyOptions } from "../testing/pty.js"
 import type { Resources } from "../testing/resources.js"
 import { plainSealer } from "../testing/sealing.js"
 import { WorkspaceStore } from "../workspaces/store.js"
-import { bannerTaken } from "./binding/banners.js"
+import { bannerSeen } from "./binding/banners.js"
 import { Terminals } from "./manager.js"
 import type { Bound } from "./record.js"
 
@@ -2598,6 +2598,10 @@ describe("the harness version a screen shows", () => {
       screenVersion: (record: unknown, binding: unknown, drawn?: string) => Promise<void>
     }
     typing: { dialogsChanged: (terminalId: string) => void }
+    bindings: {
+      follow: (record: unknown, event: object) => void
+      endBinding: (record: unknown) => boolean
+    }
   }
 
   it("is the banner a starting Codex drew, though its replayed conversation covers it by the time it binds", async ({
@@ -2623,10 +2627,21 @@ describe("the harness version a screen shows", () => {
     const binding = { agent: "codex", sessionId: "s", instance: null } as const
     record.bound = { binding, activity: fresh(0), telemetry: null }
     // Another agent's binding takes none; Codex's takes it, once.
-    expect(bannerTaken(record as never, "claude")).toBeUndefined()
-    await inside.reporting.screenVersion(record, binding, bannerTaken(record as never, "codex"))
+    expect(bannerSeen(record as never, "claude")).toBeUndefined()
+    await inside.reporting.screenVersion(record, binding, bannerSeen(record as never, "codex"))
     expect(versionOf(record.bound?.binding)).toBe("0.166.0")
-    expect(bannerTaken(record as never, "codex")).toBeUndefined()
+    // It stays with the process: a session switch inside it (`follow`) binds with it again,
+    // and the end of the session (the agent's exit) is what forgets it.
+    inside.bindings.follow(record, {
+      type: "session-observed",
+      ...binding,
+      sessionId: "s2",
+      evidence: "native-switch",
+      startedAt: 1,
+    })
+    expect(bannerSeen(record as never, "codex")).toBe("0.166.0")
+    inside.bindings.endBinding(record)
+    expect(bannerSeen(record as never, "codex")).toBeUndefined()
   })
 
   it("is the running release in Codex's banner, which the rollout's creating release gives way to", async ({

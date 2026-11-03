@@ -194,6 +194,12 @@ export type Harness = {
    * undefined where they show none. It names the running release, which its records may not.
    */
   readonly screenVersion?: (rows: readonly string[]) => string | undefined
+  /**
+   * What its version line starts with, and within how many columns, so the runner looks at
+   * a screen's rows cheaply on every draw and has `screenVersion` read only those that hold
+   * it (Codex: `>_` within the first 8 columns).
+   */
+  readonly screenMarker?: { readonly text: string; readonly columns: number }
   /** Whether the terminal title it sets says a turn runs, as Codex's Working does. */
   readonly titleWorking?: (title: string) => boolean
   /**

@@ -38,7 +38,7 @@ import { boundProgram } from "../sampling.js"
 import { retold, toldOf } from "../told.js"
 import type { Typing } from "../typing.js"
 import { judgedFirst, personPrompted, workAfter } from "../work.js"
-import { bannerTaken } from "./banners.js"
+import { bannerSeen } from "./banners.js"
 import type { Bindings } from "./facts.js"
 import type { Shown } from "./shown.js"
 
@@ -255,8 +255,8 @@ export class Reports {
       }
       changed = true
       if (!same) {
-        // What the starting process drew is taken before `follow`, which forgets it.
-        const drawn = next.binding && bannerTaken(record, next.binding.agent)
+        // What the starting process drew, which stays with it for a later session of it.
+        const drawn = next.binding && bannerSeen(record, next.binding.agent)
         this.host.bindings().follow(record, event)
         if (next.binding)
           void this.screenVersion(record, next.binding, drawn || undefined).catch(

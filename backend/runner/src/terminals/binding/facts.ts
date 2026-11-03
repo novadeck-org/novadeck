@@ -155,6 +155,9 @@ export class Bindings {
     record.bound = null
     record.resumeEnded = true
     this.unwatch(record)
+    // A banner drawn by an agent that has ended is not the next one's; a session switch
+    // inside the same process (`follow`) ends nothing, and keeps it.
+    bannerForgotten(record)
   }
 
   /**
@@ -499,8 +502,6 @@ export class Bindings {
     record.transcript = null
     for (const reader of record.sourceReaders) reader.abort()
     record.sourceReaders.clear()
-    // A banner drawn by an agent that has ended is not the next one's.
-    bannerForgotten(record)
   }
 
   /**

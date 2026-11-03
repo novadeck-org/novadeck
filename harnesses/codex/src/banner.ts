@@ -6,6 +6,9 @@ import { versionName } from "@novadeck/harness-core/decode"
 // the start, covered about 150 ms later).
 const banner = /^\s*>_ OpenAI Codex \(v([^)\s]+)\)\s*$/
 
+/** What the banner's line starts with, within its first columns (`Harness.screenMarker`). */
+export const bannerMarker = { text: ">_", columns: 8 } as const
+
 /**
  * The version of Codex the screen's banner names: the release running, which its rollout
  * cannot say of a session a newer release resumed. Undefined where the banner is not on the
