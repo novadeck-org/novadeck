@@ -2021,12 +2021,13 @@ describe("a turn the person's Escape ended", () => {
     const inside = manager as unknown as Inside
     const record = inside.records.get(terminal.id)! as {
       transcript: string | null
-      escape?: { offset: Promise<unknown> }
+      escape?: { step: Promise<unknown> }
       interruptions?: readonly unknown[]
     } & (typeof inside.records extends Map<string, infer R> ? R : never)
     const directory = mkdtempSync(join(tmpdir(), "novadeck-interrupted-"))
+    let steps = 0
     const step = (source: string, type: string, content: string) =>
-      `${JSON.stringify({ source, type, content })}\n`
+      `${JSON.stringify({ step_index: steps++, source, type, content })}\n`
     // The chat's text items, an interruption as its note.
     const chat = async (agent: "agy" | "claude", sessionId: string) => {
       const reader = new AbortController()
@@ -2068,10 +2069,10 @@ describe("a turn the person's Escape ended", () => {
         })
         inside.messaging.escaped = () => ({ ...binding, type: "turn-escaped", startedAt: 20 })
         inside.bindings.escaped(record)
-        // The transcript's length is read as the key comes; Antigravity writes the turn's
+        // The transcript's last step is read as the key comes; Antigravity writes the turn's
         // cut-off words just after it (56 to 94 ms on, probed).
         // eslint-disable-next-line no-await-in-loop -- Each case reads its own file.
-        await record.escape?.offset
+        await record.escape?.step
         appendFileSync(record.transcript, step("MODEL", "PLANNER_RESPONSE", "Let me look."))
         if (end === "a Stop")
           inside.bindings.applyFact(record, {
@@ -2110,6 +2111,89 @@ describe("a turn the person's Escape ended", () => {
       expect(record.interruptions ?? []).toHaveLength(2)
     } finally {
       vi.useRealTimers()
+      rmSync(directory, { recursive: true, force: true })
+    }
+  })
+
+  it("still shows in the chat where it stood once the runner restarts", async ({ terminals }) => {
+    const store = new WorkspaceStore()
+    const directory = mkdtempSync(join(tmpdir(), "novadeck-interrupted-"))
+    type Kept = {
+      transcript: string | null
+      escape?: { step: Promise<unknown> }
+      interruptions?: readonly unknown[]
+    }
+    try {
+      const project = await store.createProject({ id: randomUUID(), name: "P", cwd })
+      const session = store.createSession({ id: randomUUID(), projectId: project.id, name: "S" })
+      const binding = { agent: "agy", sessionId: randomUUID(), instance: null } as const
+      const transcript = join(directory, "steps.jsonl")
+      const step = (index: number, source: string, type: string, content: string) =>
+        `${JSON.stringify({ step_index: index, source, type, content })}\n`
+      // The terminal's record, bound to the Antigravity session as its hooks would bind it.
+      const bound = async (manager: Terminals, restore: boolean) => {
+        const { id } = await manager.create(
+          { id: terminalId, sessionId: session.id, cwd, cols: 80, rows: 24, restore },
+          "creator",
+        )
+        const inside = manager as unknown as Inside
+        const record = inside.records.get(id)! as Kept &
+          (typeof inside.records extends Map<string, infer R> ? R : never)
+        record.transcript = transcript
+        record.bound = { binding, activity: fresh(0, false, false), telemetry: null }
+        return { inside, record }
+      }
+      const terminalId = randomUUID()
+      writeFileSync(transcript, step(0, "USER_EXPLICIT", "USER_INPUT", "Hold on"))
+
+      const first = terminals.manager({ ...ptyOptions, records: store })
+      const { inside, record } = await bound(first, false)
+      vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] })
+      try {
+        inside.bindings.applyFact(record, {
+          ...binding,
+          type: "turn-started",
+          cause: "prompt",
+          startedAt: 10,
+        })
+        inside.messaging.escaped = () => ({ ...binding, type: "turn-escaped", startedAt: 20 })
+        inside.bindings.escaped(record)
+        await record.escape?.step
+        appendFileSync(transcript, step(1, "MODEL", "PLANNER_RESPONSE", "Let me look."))
+        await vi.advanceTimersByTimeAsync(escapeVerdictMs)
+      } finally {
+        vi.useRealTimers()
+      }
+      // On Windows the verdict reads the screen for up to `escapeScreenMs` first.
+      await vi.waitFor(() => expect(record.interruptions).toHaveLength(1), {
+        timeout: escapeScreenMs + 2000,
+      })
+      // Saved at once, not on the next periodic save: a runner killed now still keeps it.
+      expect(store.terminal(terminalId)?.interruptions).toHaveLength(1)
+      await first.shutdown()
+      expect(store.terminal(terminalId)?.interruptions).toEqual([
+        { sessionId: binding.sessionId, step: 0, at: 20 },
+      ])
+
+      // The resumed session goes on in the same transcript.
+      appendFileSync(transcript, step(2, "USER_EXPLICIT", "USER_INPUT", "Go on"))
+      const second = terminals.manager({ ...ptyOptions, records: store })
+      await bound(second, true)
+      const reader = new AbortController()
+      const seen: string[] = []
+      const reading = (async () => {
+        for await (const change of second.transcript(terminalId, rootRef(binding), reader.signal))
+          if (change.type === "items")
+            seen.push(
+              ...change.items.map((each) => (each.interrupted ? "(interrupted)" : each.text)),
+            )
+      })()
+      await vi.waitFor(() => expect(seen).toContain("Go on"), { timeout: 5000 })
+      expect(seen).toEqual(["Hold on", "Let me look.", "(interrupted)", "Go on"])
+      reader.abort()
+      await reading
+    } finally {
+      store.close()
       rmSync(directory, { recursive: true, force: true })
     }
   })

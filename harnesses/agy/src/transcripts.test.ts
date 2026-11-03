@@ -77,6 +77,15 @@ describe("Antigravity's transcript, as captured", () => {
     )
   })
 
+  it("places each line by its step", () => {
+    const lines = [...transcript, ...parallel] as { step_index: number }[]
+    expect(lines.map((line) => transcripts.step?.(JSON.stringify(line)))).toEqual(
+      lines.map((line) => line.step_index),
+    )
+    expect(transcripts.step?.("not json")).toBeUndefined()
+    expect(transcripts.step?.(JSON.stringify({ source: "MODEL" }))).toBeUndefined()
+  })
+
   it("is the one its hooks name, with no subagents", async () => {
     const root = "/home/user/t.jsonl"
     await expect(transcripts.locate(root, "c", null)).resolves.toBe(root)
