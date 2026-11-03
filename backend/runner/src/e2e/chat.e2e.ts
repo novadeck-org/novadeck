@@ -56,24 +56,29 @@ const item = (
  * settle, as the user item at its `item` that holds its words.
  */
 const prompted = async (terminal: DeckTerminal, text: string): Promise<() => Promise<void>> => {
+  // Its first line names it in a failure: a long prompt's whole text would bury the message.
+  const [label = ""] = text.split("\n")
+  const receiptOf = async (ref: string) =>
+    ((await terminal.detail()).prompts ?? []).find((prompt) => prompt.ref === ref)
   const { ref, tracked } = await terminal.prompt(text)
-  expect(tracked, `${text}: followed`).toBe(true)
-  const first = (await terminal.detail()).prompts.find((prompt) => prompt.ref === ref)
-  expect(first?.state, `${text}: its receipt once sent`).toMatch(/^(pending|settled)$/)
+  expect(tracked, `${label}: followed`).toBe(true)
+  expect((await receiptOf(ref))?.state, `${label}: its receipt once sent`).toMatch(
+    /^(pending|settled)$/,
+  )
   return async () => {
     const settled = await terminal.poll(
       async () => {
-        const receipt = (await terminal.detail()).prompts.find((prompt) => prompt.ref === ref)
-        expect(receipt?.state, `${text}: never missing`).not.toMatch(/^(unrecorded|in-box)$/)
+        const receipt = await receiptOf(ref)
+        expect(receipt?.state, `${label}: never missing`).not.toMatch(/^(unrecorded|in-box)$/)
         return receipt?.state === "settled" ? receipt : undefined
       },
-      `"${text}" to reach its agent's record`,
+      `"${label}" to reach its agent's record`,
       30_000,
     )
     const items = await terminal.transcript()
     const at = items.find((each) => each.index === settled.item)
-    expect(at?.role, `${text}: settled by`).toBe("user")
-    expect(at?.text, `${text}: settled by`).toContain(text.split("\n")[0])
+    expect(at?.role, `${label}: settled by`).toBe("user")
+    expect(at?.text, `${label}: settled by`).toContain(label)
   }
 }
 
@@ -122,9 +127,11 @@ for (const setup of setups) {
       const mark = t1.mark()
       const lines = ["First line of the chat", "Second line of the chat", "Third line of the chat"]
 
-      await t1.prompt(lines.join("\n"))
+      const settled = await prompted(t1, lines.join("\n"))
       await t1.until("Got three lines.")
       await through(t1, ["working", "settled"], { after: mark })
+      // Its receipt settles on the one user item that holds all three lines.
+      await settled()
 
       const user = await item(t1, "user", (text) => text.includes("Third line of the chat"))
       expect(user.split("\n").map((line) => line.trim())).toEqual(lines)
@@ -143,9 +150,12 @@ for (const setup of setups) {
       const mark = t1.mark()
       const lines = Array.from({ length: 40 }, (_, index) => `Line ${index + 1} of the long prompt`)
 
-      await t1.prompt(lines.join("\n"))
+      // The box may show a placeholder for it, but the record holds the words, and so does
+      // its receipt.
+      const settled = await prompted(t1, lines.join("\n"))
       await t1.until("Read all forty.")
       await through(t1, ["working", "settled"], { after: mark })
+      await settled()
 
       const user = await item(t1, "user", (text) => text.includes("Line 40 of the long prompt"))
       expect(user.split("\n").map((line) => line.trim())).toEqual(lines)

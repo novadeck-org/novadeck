@@ -981,9 +981,12 @@ one from an earlier runner.
     words;
   - `in-box` instead, where the agent's box holds the words when that is decided, as an
     Escape in the terminal puts queued words back: not logged, as no decoder missed it;
-  - `withdrawn` once an `agents.interrupt` handed the words back (`returned`).
-    A transcript that later holds the words settles an `unrecorded` or `in-box` receipt. A new
-    session starts the receipts over; they are kept in memory only.
+  - `withdrawn` once an `agents.interrupt` handed the words back (`returned`), a pending
+    receipt's or one back in the box.
+    A transcript that holds the words within 10 minutes of a receipt turning `unrecorded` or
+    `in-box` still settles it; past that it is read for it no more. A new session starts the
+    receipts over; they are kept in memory only. `prompts` is optional in the schema, as a
+    runner from before receipts sends none; a client reads its absence as none.
 
 - A request's `dialog` in `agents.detail` is what its harness's adapter (`harnesses/<harness>/src/dialogs.ts`,
   the only code that knows how a harness draws its dialogs) read from the terminal's

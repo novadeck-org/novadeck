@@ -122,7 +122,7 @@ const requestsOf = (detail: AgentDetail, root: string | null): readonly ChatRequ
 // keeps the words its receipt carried while pending, as the runner drops them, so the chat
 // can show it until its item arrives.
 const promptsOf = (detail: AgentDetail, before: readonly ChatPrompt[]): readonly ChatPrompt[] =>
-  detail.prompts.map(({ ref, text, sentAt, state, item }) => ({
+  (detail.prompts ?? []).map(({ ref, text, sentAt, state, item }) => ({
     ref,
     text:
       text ??

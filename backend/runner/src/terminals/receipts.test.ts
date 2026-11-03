@@ -84,7 +84,7 @@ const setup = async (
       box: async () => host.box,
       changed: () => void (host.changes += 1),
     },
-    { now: () => clock.now, slackMs, pollMs: 5, keepMs: 30 },
+    { now: () => clock.now, slackMs, pollMs: 5, keepMs: 30, lateMs: 1_000 },
   )
   resources.defer(() => receipts.close())
   const state = (ref: string) => receipts.view(terminal).find((each) => each.ref === ref)?.state
@@ -104,6 +104,34 @@ const setup = async (
 }
 
 describe("prompt receipts", () => {
+  it("withdraws a prompt back in the agent's box once a Stop hands its words back", async ({
+    resources,
+  }) => {
+    const { host, receipts, state, give, pass } = await setup(resources)
+    host.box = "check the logs"
+    await give("check the logs", "r1")
+    await pass()
+    await vi.waitFor(() => expect(state("r1")).toBe("in-box"))
+    receipts.withdraw(terminal, "check the logs")
+    expect(state("r1")).toBe("withdrawn")
+  })
+
+  it("lets a late record settle a missing prompt only within the cap", async ({ resources }) => {
+    const { path, clock, state, give, pass } = await setup(resources)
+    await give("late", "r1")
+    await give("too late", "r2")
+    await pass()
+    await vi.waitFor(() => expect(state("r2")).toBe("unrecorded"))
+    expect(state("r1")).toBe("unrecorded")
+    await appendFile(path, row("late"))
+    await vi.waitFor(() => expect(state("r1")).toBe("settled"))
+    // Past the cap, the record is read for it no more: what it gains then settles nothing.
+    clock.now += 1_000
+    await appendFile(path, row("too late"))
+    await new Promise((resolve) => setTimeout(resolve, 60))
+    expect(state("r2")).toBe("unrecorded")
+  })
+
   it("follows a prompt given before the session binds, by when the record got it", async ({
     resources,
   }) => {

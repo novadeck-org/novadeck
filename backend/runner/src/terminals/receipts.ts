@@ -60,6 +60,11 @@ export type ReceiptsOptions = {
    * prompt reads on from where it was rather than from the start, in milliseconds.
    */
   readonly keepMs?: number
+  /**
+   * How long a prompt found missing, or back in the box, may still be settled by the record
+   * gaining it late; past it the record is no longer read for it, in milliseconds.
+   */
+  readonly lateMs?: number
 }
 
 type State = PromptReceipt["state"]
@@ -89,6 +94,8 @@ type Entry = {
   item: number | null
   /** Its box is being read before it is called missing. */
   checking: boolean
+  /** When it was found missing, or back in the box; null before. */
+  missedAt: number | null
 }
 
 /** What is read of a terminal's record, while any prompt there waits on it. */
@@ -133,10 +140,6 @@ const done = (entry: Entry, state: "settled" | "withdrawn", item?: number): void
   entry.item = item ?? null
 }
 
-/** Whether a prompt still waits on the record, or may be settled by a late one. */
-const open = (state: State): boolean =>
-  state === "pending" || state === "unrecorded" || state === "in-box"
-
 /**
  * Follows each prompt given through `agents.prompt` until its agent's own record has it,
  * for the chat to show it until then and to say when it never came (see docs/backend-api.md,
@@ -152,6 +155,7 @@ export class Receipts {
   private readonly slackMs: number
   private readonly pollMs: number | undefined
   private readonly keepMs: number
+  private readonly lateMs: number
 
   constructor(
     private readonly host: ReceiptsHost,
@@ -161,6 +165,7 @@ export class Receipts {
     this.slackMs = options.slackMs
     this.pollMs = options.pollMs
     this.keepMs = options.keepMs ?? 60_000
+    this.lateMs = options.lateMs ?? 600_000
   }
 
   /**
@@ -219,6 +224,7 @@ export class Receipts {
       state: "pending",
       item: null,
       checking: false,
+      missedAt: null,
     }
     this.room(track)
     track.entries.push(entry)
@@ -254,7 +260,8 @@ export class Receipts {
     if (!track) return
     let changed = false
     for (const entry of track.entries)
-      if (entry.state === "pending" && inBox(returned, entry.lines)) {
+      // One back in the agent's box, too: the Stop took the words out of it.
+      if ((entry.state === "pending" || entry.state === "in-box") && inBox(returned, entry.lines)) {
         done(entry, "withdrawn")
         changed = true
       }
@@ -308,6 +315,16 @@ export class Receipts {
   /** Stops following every terminal's, as the runner shuts down. */
   close(): void {
     for (const terminalId of this.tracks.keys()) this.forget(terminalId)
+  }
+
+  /**
+   * Whether a prompt still waits on the record: pending, or found missing or back in the box
+   * less than `lateMs` ago, which the record gaining it late still settles.
+   */
+  private open(entry: Entry): boolean {
+    if (entry.state === "pending") return true
+    if (entry.state !== "unrecorded" && entry.state !== "in-box") return false
+    return entry.missedAt !== null && this.now() - entry.missedAt < this.lateMs
   }
 
   private entry(terminalId: string, ref: string): Entry | undefined {
@@ -372,7 +389,7 @@ export class Receipts {
   /** Room for one more receipt: the oldest settled or withdrawn goes first, else the oldest. */
   private room(track: Track): void {
     while (track.entries.length >= agentLimits.prompts) {
-      const closed = track.entries.findIndex((entry) => !open(entry.state))
+      const closed = track.entries.findIndex((entry) => !this.open(entry))
       track.entries.splice(closed < 0 ? 0 : closed, 1)
     }
   }
@@ -418,7 +435,7 @@ export class Receipts {
           reader.index += 1
           if (item.role !== "user" || item.kind !== "text" || item.interrupted) continue
           const waiting = track.entries.filter(
-            (entry) => open(entry.state) && fresh(entry, end, index, item.at),
+            (entry) => this.open(entry) && fresh(entry, end, index, item.at),
           )
           if (waiting.length === 0) continue
           for (const ref of settledBy(waiting, item.text)) {
@@ -456,12 +473,12 @@ export class Receipts {
    * long session's record takes a second or more.
    */
   private idle(terminalId: string, track: Track): void {
-    if (track.entries.some((entry) => open(entry.state)) || track.rest) return
+    if (track.entries.some((entry) => this.open(entry)) || track.rest) return
     clearTimeout(track.timer)
     track.timer = undefined
     track.rest = setTimeout(() => {
       track.rest = undefined
-      if (track.entries.some((entry) => open(entry.state))) return
+      if (track.entries.some((entry) => this.open(entry))) return
       track.reader?.controller.abort()
       track.reader = undefined
       if (track.entries.length === 0 && this.tracks.get(terminalId) === track)
@@ -501,6 +518,11 @@ export class Receipts {
     const box = await this.host.box(terminalId).catch(() => undefined)
     entry.checking = false
     if (this.tracks.get(terminalId) !== track || entry.state !== "pending") return
+    entry.missedAt = this.now()
+    // Past the time a late record may still settle it, the record is read for it no more.
+    setTimeout(() => {
+      if (this.tracks.get(terminalId) === track) this.idle(terminalId, track)
+    }, this.lateMs).unref?.()
     if (box !== undefined && inBox(box, entry.lines)) entry.state = "in-box"
     else {
       entry.state = "unrecorded"

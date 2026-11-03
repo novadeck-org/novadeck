@@ -253,7 +253,8 @@ export const agentDetail = z.strictObject({
     )
     .max(agentLimits.requests),
   coverage: agentCoverage.nullable(),
-  prompts: z.array(promptReceipt).max(agentLimits.prompts),
+  // Optional, as a runner from before prompt receipts sends none; this one always does.
+  prompts: z.array(promptReceipt).max(agentLimits.prompts).optional(),
 })
 
 // An agent Novadeck can connect: whether it is installed here, and whether Novadeck's

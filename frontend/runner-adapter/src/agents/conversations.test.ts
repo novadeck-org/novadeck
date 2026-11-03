@@ -537,6 +537,16 @@ describe("the runner's conversations", () => {
       unsubscribe()
     })
 
+    it("shows no prompts from a runner that sends no receipts", async () => {
+      const { details, store } = setup()
+      const unsubscribe = store.subscribe(() => {})
+      const { prompts: _none, ...older } = detail()
+      details.push(older)
+      await vi.waitFor(() => expect(store.getSnapshot().session).toBe("s1"))
+      expect(store.getSnapshot().prompts).toEqual([])
+      unsubscribe()
+    })
+
     it("shows the session's receipts as its prompts", async () => {
       const { details, store } = setup()
       const unsubscribe = store.subscribe(() => {})
