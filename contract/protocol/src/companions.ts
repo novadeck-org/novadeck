@@ -261,9 +261,11 @@ export const itemContent = z.discriminatedUnion("state", [
  * - `transcript`: the plan lives in an agent's messages, not a file.
  * - `too-large`: the plan is past what Novadeck writes (256 KiB).
  * - `not-a-plan`: the item is no plan.
+ * - `outside`: the plan's file is in neither its project's folder nor its agent's own
+ *   plans folder, so Novadeck does not write it.
  */
 export const planUnwritable = z.strictObject({
-  reason: z.enum(["gone", "folder", "transcript", "too-large", "not-a-plan"]),
+  reason: z.enum(["gone", "folder", "transcript", "too-large", "not-a-plan", "outside"]),
 })
 export type PlanUnwritable = z.infer<typeof planUnwritable>
 

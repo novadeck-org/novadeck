@@ -239,9 +239,17 @@ fn now() -> u64 {
         .map_or(0, |since| since.as_millis() as u64)
 }
 
+/// A tree member as the relay prints it: its pid, its start, and its program's file name
+/// from the snapshot (empty for a process the snapshot no longer lists), which lets the
+/// runner tell a shell's own launcher or console host from a program it started.
+fn member_json(member: &Member, files: &HashMap<u32, String>) -> Value {
+    let name = files.get(&member.pid).map_or("", String::as_str);
+    json!({ "pid": member.pid, "startedAt": member.started, "name": name })
+}
+
 /// `novadeck-relay tree <pid>[:<started-ms>]...`: each root's tree, as JSON, a line for
 /// each root as it was named: `{"root":"<pid>[:<started-ms>]","processes":[{"pid":<pid>,
-/// "startedAt":<ms>},...]}`. False where Windows refused the snapshot, which tells nothing
+/// "startedAt":<ms>,"name":"<program file>"},...]}`. False where Windows refused the snapshot, which tells nothing
 /// of any tree.
 pub fn print_trees(roots: &[(String, Root)]) -> bool {
     let before = now();
@@ -249,14 +257,18 @@ pub fn print_trees(roots: &[(String, Root)]) -> bool {
     if processes.is_empty() {
         return false;
     }
+    let files: HashMap<u32, String> = processes
+        .iter()
+        .map(|(pid, process)| (*pid, process.file.clone()))
+        .collect();
     let parents: HashMap<u32, u32> = processes
         .into_iter()
         .map(|(pid, process)| (pid, process.parent))
         .collect();
     for (named, root) in roots {
         let members: Vec<Value> = tree(*root, &parents, &started, before)
-            .into_iter()
-            .map(|member| json!({ "pid": member.pid, "startedAt": member.started }))
+            .iter()
+            .map(|member| member_json(member, &files))
             .collect();
         println!("{}", json!({ "root": named, "processes": members }));
     }
@@ -379,6 +391,27 @@ mod tests {
 
     fn by_pid(pid: u32) -> Root {
         Root { pid, started: None }
+    }
+
+    #[test]
+    fn prints_a_member_with_its_program_name() {
+        let files = HashMap::from([(11, "bash.exe".to_string())]);
+        let known = Member {
+            pid: 11,
+            started: 200,
+        };
+        assert_eq!(
+            member_json(&known, &files),
+            json!({ "pid": 11, "startedAt": 200, "name": "bash.exe" })
+        );
+        let gone = Member {
+            pid: 12,
+            started: 300,
+        };
+        assert_eq!(
+            member_json(&gone, &files),
+            json!({ "pid": 12, "startedAt": 300, "name": "" })
+        );
     }
 
     #[test]

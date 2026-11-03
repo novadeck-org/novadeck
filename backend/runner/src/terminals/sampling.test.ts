@@ -1,8 +1,14 @@
-import { afterEach, beforeEach, vi } from "vitest"
+import { afterEach, beforeEach, onTestFinished, vi } from "vitest"
+
+const fresh = vi.hoisted(() => ({ group: undefined as number | undefined }))
+vi.mock("@novadeck/terminal/pty", async (original) => ({
+  ...(await original<typeof import("@novadeck/terminal/pty")>()),
+  terminalForeground: async () => fresh.group,
+}))
 
 import { describe, expect, it } from "../test.js"
 import type { Record } from "./record.js"
-import { boundProgram, Sampler, type SampledRecord } from "./sampling.js"
+import { boundProgram, Sampler, shellBusy, type SampledRecord } from "./sampling.js"
 
 const pollMs = 1_000
 const platform = Object.getOwnPropertyDescriptor(process, "platform")!
@@ -95,5 +101,47 @@ describe("the program a fresh shell resumes where no sample names it", () => {
     sampler().prompted(record)
     vi.advanceTimersByTime(pollMs)
     expect(record.summary.lastProgram).toBe("claude")
+  })
+})
+
+describe("whether a shell may be running a program", () => {
+  const shell = (fields: object = {}) =>
+    ({
+      foreground: undefined,
+      terminal: { pty: { pid: undefined } },
+      summary: { process: { name: "bash", argv: null } },
+      shellName: "bash",
+      prompts: [{}],
+      submitted: false,
+      ...fields,
+    }) as unknown as Parameters<typeof shellBusy>[0]
+
+  it("reads the foreground anew, so a program that has ended since the last sample is idle", async () => {
+    fresh.group = 7
+    onTestFinished(() => void (fresh.group = undefined))
+    const record = shell({
+      foreground: { group: 999 },
+      terminal: { pty: { pid: 7 } },
+      summary: { process: { name: "ssh", argv: null } },
+    })
+    expect(await shellBusy(record)).toBe(false)
+    fresh.group = 999
+    expect(await shellBusy(record)).toBe(true)
+  })
+
+  it("is idle at its prompt", async () => {
+    expect(await shellBusy(shell())).toBe(false)
+  })
+
+  it("is busy while another program holds the foreground", async () => {
+    expect(await shellBusy(shell({ summary: { process: { name: "ssh", argv: null } } }))).toBe(true)
+  })
+
+  it("is busy after a line entered whose prompt hasn't come back, where the integration reports prompts", async () => {
+    expect(await shellBusy(shell({ submitted: true }))).toBe(true)
+  })
+
+  it("ignores a line entered where the integration never reported a prompt", async () => {
+    expect(await shellBusy(shell({ submitted: true, prompts: [] }))).toBe(false)
   })
 })

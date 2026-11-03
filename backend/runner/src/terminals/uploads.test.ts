@@ -126,13 +126,34 @@ describe("uploads", () => {
     const uploads = new Uploads(root)
     const recent = await uploads.save({ name: "recent.png", data: base64("new") })
     const old = "8ba4a381-0d5e-4c4a-9f1e-2b7c3d4e5f60"
-    await mkdir(join(root, old))
+    await mkdir(join(root, old), { recursive: true })
     const weekAgo = new Date(Date.now() - 8 * 24 * 60 * 60 * 1000)
     await utimes(join(root, old), weekAgo, weekAgo)
     await uploads.save({ name: "next.png", data: base64("next") })
     const kept = await readdir(root)
     expect(kept).not.toContain(old)
     expect(kept).toContain(dirname(recent).slice(root.length + 1))
+  })
+
+  it("sweeps away old uploads as the runner starts, with no upload after", async ({
+    resources,
+  }) => {
+    const root = await folder(resources)
+    const old = "8ba4a381-0d5e-4c4a-9f1e-2b7c3d4e5f60"
+    const recent = "9ca4a381-0d5e-4c4a-9f1e-2b7c3d4e5f61"
+    await mkdir(join(root, old), { recursive: true })
+    await mkdir(join(root, recent))
+    const weekAgo = new Date(Date.now() - 8 * 24 * 60 * 60 * 1000)
+    await utimes(join(root, old), weekAgo, weekAgo)
+    await new Uploads(root).sweepOld()
+    expect(await readdir(root)).toEqual([recent])
+  })
+
+  it("sweeps nothing, and makes nothing, where there is no folder yet", async ({ resources }) => {
+    const root = join(await folder(resources), "missing")
+    await new Uploads(root).sweepOld()
+    await new Uploads(undefined).sweepOld()
+    await expect(stat(root)).rejects.toMatchObject({ code: "ENOENT" })
   })
 
   it("leaves folders it did not make, however old", async ({ resources }) => {

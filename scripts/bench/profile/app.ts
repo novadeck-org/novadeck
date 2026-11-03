@@ -3,6 +3,7 @@ import { join } from "node:path"
 
 import { _electron, type ElectronApplication, type Page } from "playwright"
 
+import { openedCopy } from "../../../apps/desktop/scripts/fuses.mjs"
 import { openSandbox } from "../timing/sandbox.ts"
 
 // The desktop app the profile runs: the unpacked package `pnpm --filter @novadeck/desktop
@@ -94,6 +95,9 @@ export const openApp = (executable = packaged().executable): AppRun => {
   // sandbox is reaped and removed.
   let launching: Promise<unknown> | undefined
   let stopped: Promise<readonly string[]> | undefined
+  // The package ships with Node's inspector shut, which Playwright's driver needs: the app
+  // runs from a copy of the app with only RunAsNode, NODE_OPTIONS and the inspector open.
+  let opened: Awaited<ReturnType<typeof openedCopy>> | undefined
   const stop = () =>
     (stopped ??= (async () => {
       await launching?.catch(() => {})
@@ -108,6 +112,7 @@ export const openApp = (executable = packaged().executable): AppRun => {
         // An app that won't close ends forcibly; the reaping catches what it leaves.
         if (!(await Promise.race([closed, late]))) child.kill("SIGKILL")
       }
+      opened?.remove()
       return close()
     })())
   return {
@@ -115,6 +120,7 @@ export const openApp = (executable = packaged().executable): AppRun => {
     start: async (size, extra = []) => {
       if (stopped) throw new Error("the run is stopping")
       if (!existsSync(executable)) throw new Error(`the packaged app is missing: ${executable}`)
+      opened ??= await openedCopy(executable)
       const scratch = join(sandbox.root, "scratch")
       mkdirSync(scratch, { recursive: true })
       const display = Object.fromEntries(
@@ -136,7 +142,7 @@ export const openApp = (executable = packaged().executable): AppRun => {
       const signals = ["SIGINT", "SIGTERM", "SIGHUP"] as const
       const before = signals.map((signal) => new Set(process.listeners(signal)))
       const launch = _electron.launch({
-        executablePath: executable,
+        executablePath: opened.executable,
         args: switches,
         cwd: sandbox.root,
         // A release's version would otherwise let the packaged app look for updates.

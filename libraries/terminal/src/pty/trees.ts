@@ -2,8 +2,15 @@ import { execFile } from "node:child_process"
 import { join } from "node:path"
 import { promisify } from "node:util"
 
-/** A process of a terminal's tree: its pid and its start, which together name it alone. */
-export type Member = { readonly pid: number; readonly startedAt: number }
+/**
+ * A process of a terminal's tree: its pid and its start, which together name it alone; and,
+ * where the relay tells, its program's file name.
+ */
+export type Member = {
+  readonly pid: number
+  readonly startedAt: number
+  readonly name?: string
+}
 
 /**
  * Runs the relay with `args`, for its output, within `timeoutMs`; rejects where it can't
@@ -134,13 +141,19 @@ export const parseTrees = (output: string): Map<string, readonly Member[]> => {
       if (typeof root !== "string" || !Array.isArray(processes)) continue
       found.set(
         root,
-        processes.filter(
-          (each): each is Member =>
-            typeof each === "object" &&
-            each !== null &&
-            Number.isSafeInteger((each as Member).pid) &&
-            Number.isSafeInteger((each as Member).startedAt),
-        ),
+        processes
+          .filter(
+            (each): each is Member =>
+              typeof each === "object" &&
+              each !== null &&
+              Number.isSafeInteger((each as Member).pid) &&
+              Number.isSafeInteger((each as Member).startedAt),
+          )
+          .map(({ pid, startedAt, name }) => ({
+            pid,
+            startedAt,
+            ...(typeof name === "string" && name !== "" && { name }),
+          })),
       )
     } catch {
       // Not a line of the relay's.

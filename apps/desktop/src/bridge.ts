@@ -169,8 +169,9 @@ export const openLogsChannel = "novadeck:open-logs"
 
 /**
  * Renderer-to-main request for a picture of a live page, by its view's web contents id, no
- * wider than a width; answers a JPEG `data:` address or undefined. See the viewers'
- * `picturePage`.
+ * wider than a width; answers a JPEG `data:` address or undefined. A third argument, `true`,
+ * says the picture is for an agent's look: none is taken while the page holds a frame from
+ * off this machine. See the viewers' `picturePage`.
  */
 export const pagePictureChannel = "novadeck:page-picture"
 

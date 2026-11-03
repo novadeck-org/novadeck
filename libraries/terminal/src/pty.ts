@@ -2,6 +2,7 @@
 // Windows its process tree, and on Linux the systemd scope it is kept in.
 export {
   foregroundProcess,
+  hasChildProcess,
   foregroundRuns,
   openFiles,
   processGroup,

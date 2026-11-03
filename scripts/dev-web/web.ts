@@ -15,7 +15,8 @@ export const devWebCommands = (token: string, port = 8787): readonly DevCommand[
   {
     name: "runner",
     command: "pnpm --filter @novadeck/runner dev",
-    env: { NOVADECK_TOKEN: token, PORT: String(port) },
+    // HOST is pinned: some shells (tcsh) export the machine's name as HOST.
+    env: { NOVADECK_TOKEN: token, PORT: String(port), HOST: "127.0.0.1" },
   },
   {
     name: "ui",

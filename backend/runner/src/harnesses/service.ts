@@ -159,7 +159,7 @@ const state = async (harness: Harness, install: Install): Promise<AgentIntegrati
 
 /** The harnesses Novadeck can connect, and connecting or disconnecting each one. */
 export const createHarnesses = (
-  paths: () => Promise<ShellPaths | undefined>,
+  paths: () => Promise<(ShellPaths & { readonly cmdShimDir?: string | undefined }) | undefined>,
   options: HarnessesOptions = {},
 ) => {
   const base = options.env ?? process.env
@@ -269,6 +269,17 @@ export const createHarnesses = (
     },
     /** Where the agent lives on this machine, once the shell files say where its plugin is. */
     install: async (agent: AgentName): Promise<Install | undefined> => (await installs())?.(agent),
+    /** The folders the agent keeps the plans it writes as files in (see `Harness.planFolders`). */
+    planFolders: async (agent: AgentName): Promise<readonly string[]> => {
+      // Before the shell files say where the plugin is, the agent's default home stands.
+      const where = (await installs())?.(agent) ?? {
+        env: latest ?? base,
+        home,
+        platform,
+        plugin: "",
+      }
+      return harnesses[agent].planFolders?.(where) ?? []
+    },
     /** Whether Novadeck's plugin is installed into the agent. */
     connected: async (agent: AgentName): Promise<boolean> => {
       const install = await installs()
@@ -278,8 +289,11 @@ export const createHarnesses = (
     shims: async (): Promise<AgentName[]> => {
       const install = await installs()
       if (!install) return []
+      // Antigravity's shim exists only where Novadeck's cmd.exe pass-through is installed.
+      const cmdShimDir = (await paths())?.cmdShimDir
+      const machine = cmdShimDir === undefined ? {} : { cmdShimDir }
       const shimmed = agents.filter(
-        (agent) => (harnesses[agent].shims?.(platform) ?? []).length > 0,
+        (agent) => (harnesses[agent].shims?.(platform, machine) ?? []).length > 0,
       )
       const connected = await Promise.all(
         shimmed.map((agent) => harnesses[agent].connected(install(agent))),

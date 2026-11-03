@@ -497,8 +497,10 @@ with every safety check again at that time:
   only inside Novadeck's terminals like `show`. `open_terminal` opens a terminal beside the agent's,
   in `cwd` (absolute, or from the terminal's directory, which is the default), named
   `title`, and can start `command` at the new shell's first prompt, one line as the
-  person would type it, such as `npm run dev`; `focus` brings it into view
-  only when the person asked to see it. `open_terminal` starts no agent: every agent, with or without a
+  person would type it, such as `npm run dev`, which opens only once the person approves
+  it (an approval dialog shows the exact command, the folder and the asking agent; the call
+  answers at once that they were asked, and a notice later tells the agent their answer);
+  `focus` brings it into view only when the person asked to see it. `open_terminal` starts no agent: every agent, with or without a
   task (and optionally a `model`, `effort` or a session to `resume`), is started by
   `open_agent`, which makes the caller its lead as `lead` says (by default, when it opens
   with a task). The runner checks the token, reads the request

@@ -16,3 +16,15 @@ const comparable = (path: string): string => {
 
 /** Whether two paths name the same file: whole paths compared, each in its own rules. */
 export const samePath = (a: string, b: string): boolean => comparable(a) === comparable(b)
+
+/**
+ * `folder` beside the nearest folder above `path` named `marker`, in the rules `path` is
+ * written in: `/home/a/.claude-work/projects/x/s.jsonl` with `projects` and `plans` gives
+ * `/home/a/.claude-work/plans`. Empty when no folder above it has that name.
+ */
+export const beside = (path: string, marker: string, folder: string): readonly string[] => {
+  const rules = flavourOf(path)
+  for (let dir = rules.dirname(path); rules.dirname(dir) !== dir; dir = rules.dirname(dir))
+    if (rules.basename(dir) === marker) return [rules.join(rules.dirname(dir), folder)]
+  return []
+}

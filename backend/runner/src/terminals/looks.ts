@@ -44,7 +44,7 @@ export const lookText = (
   own: boolean,
 ): string => {
   const shown = item.url ?? ""
-  const now = answer.url === "" ? shown : answer.url
+  const now = answer.url
   const where =
     now === shown
       ? `It is at ${quotedText(now, 300)}.`
@@ -76,4 +76,13 @@ export const lookText = (
 }
 
 /** Whether a page's address now is one a look may picture: served from this machine. */
-export const pictureAllowed = (address: string): boolean => address === "" || onThisMachine(address)
+export const pictureAllowed = (address: string): boolean => onThisMachine(address)
+
+/** Whether two addresses share an origin: scheme, host and port. */
+export const sameOrigin = (a: string, b: string): boolean => {
+  try {
+    return new URL(a).origin === new URL(b).origin
+  } catch {
+    return false
+  }
+}

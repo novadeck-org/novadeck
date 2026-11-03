@@ -359,6 +359,48 @@ export const picturePage = async (
 }
 
 /**
+ * Whether the page view holds a frame, at any depth, committed from an address off this
+ * machine (`local` says which are on it). It reads the frames on screen now, so a document
+ * that never finished, a navigation that left the old one, a cached page and an
+ * `<object>` all count; `about:blank` and `srcdoc` frames, no web address, don't. A view
+ * whose frames can't be read counts as holding one.
+ */
+export const holdsOffsiteFrame = (
+  page: WebContents,
+  local: (address: string) => boolean,
+): boolean => {
+  try {
+    const { mainFrame } = page
+    return mainFrame.framesInSubtree.some(
+      (frame) => frame !== mainFrame && webAddress(frame.url) && !local(frame.url),
+    )
+  } catch {
+    return true
+  }
+}
+
+/**
+ * `picturePage` for the app's page, which says whether the picture is for an agent's look
+ * (`forLook` is exactly `true`): then none is taken while the view holds a frame from off
+ * this machine (see `holdsOffsiteFrame`), so the look falls back to a fresh load, which
+ * keeps such frames out. A resting picture for the person's own pane is taken as ever.
+ */
+export const pictureForApp = async (
+  app: WebContents,
+  id: unknown,
+  fromId: (id: number) => WebContents | undefined,
+  width: unknown,
+  forLook: unknown,
+  local: (address: string) => boolean,
+): Promise<string | undefined> => {
+  if (forLook === true) {
+    const page = pageViewOf(app, id, fromId)
+    if (!page || holdsOffsiteFrame(page, local)) return undefined
+  }
+  return picturePage(app, id, fromId, width)
+}
+
+/**
  * Tells how many sign-in windows a page view has open as each opens or closes. Electron
  * closes them when the view goes, so its app keeps the view live while any is open. A
  * view gone first, its windows closing after it, has no one left to tell.

@@ -31,8 +31,16 @@ import {
   pointAt,
   readPlanFile,
   readTextPlan,
-  savePlan,
+  savePlan as savePlanIn,
 } from "./content.js"
+
+// The tests' plans are in temporary folders, where saving is allowed unless a test says otherwise.
+const savePlan = (
+  item: Parameters<typeof savePlanIn>[0],
+  text: string,
+  basedOn: string,
+  folders: readonly string[] = [tmpdir()],
+) => savePlanIn(item, text, basedOn, folders)
 
 const it = base.extend<{ directory: string }>({
   directory: async ({ resources }, use) => {
@@ -561,6 +569,59 @@ describe("saving a plan", () => {
       content: { truncated: true, writable: false },
     })
   })
+
+  it("saves only under the folders it is given, as the real paths they are", async ({
+    directory,
+  }) => {
+    const project = join(directory, "project")
+    const plans = join(directory, "plans")
+    const elsewhere = join(directory, "elsewhere")
+    for (const folder of [project, plans, elsewhere]) mkdirSync(folder)
+    const outside = join(elsewhere, "p.md")
+    writeFileSync(outside, "# Plan\n")
+    writeFileSync(join(project, "p.md"), "# Plan\n")
+    writeFileSync(join(plans, "p.md"), "# Plan\n")
+    const stampOf = async (path: string) => (await readPlanFile(path))?.stamp ?? ""
+    const folders = [project, plans, join(directory, "missing")]
+    await expect(
+      savePlan(filePlan(outside), "x", await stampOf(outside), folders),
+    ).rejects.toMatchObject({ code: "PLAN_UNWRITABLE", data: { reason: "outside" } })
+    expect(readFileSync(outside, "utf8")).toBe("# Plan\n")
+    for (const inside of [join(project, "p.md"), join(plans, "p.md")]) {
+      // eslint-disable-next-line no-await-in-loop -- Each step waits for the one before.
+      const stamp = await stampOf(inside)
+      // eslint-disable-next-line no-await-in-loop -- Each step waits for the one before.
+      await expect(savePlan(filePlan(inside), "# New\n", stamp, folders)).resolves.toMatchObject({
+        saved: true,
+      })
+    }
+    // No folders, no saving; a folder is not its sibling of the same prefix.
+    await expect(savePlan(filePlan(outside), "x", "", [])).rejects.toMatchObject({
+      data: { reason: "outside" },
+    })
+    mkdirSync(join(directory, "plans-more"))
+    writeFileSync(join(directory, "plans-more", "p.md"), "# Plan\n")
+    await expect(
+      savePlan(filePlan(join(directory, "plans-more", "p.md")), "x", "", folders),
+    ).rejects.toMatchObject({ data: { reason: "outside" } })
+  })
+
+  it.skipIf(process.platform === "win32")(
+    "refuses a link in a folder that leads out of it",
+    async ({ directory }) => {
+      const plans = join(directory, "plans")
+      mkdirSync(plans)
+      const target = join(directory, "secret.md")
+      writeFileSync(target, "# Not a plan\n")
+      symlinkSync(target, join(plans, "p.md"))
+      await expect(
+        savePlan(filePlan(join(plans, "p.md")), "x", (await readPlanFile(target))?.stamp ?? "", [
+          plans,
+        ]),
+      ).rejects.toMatchObject({ data: { reason: "outside" } })
+      expect(readFileSync(target, "utf8")).toBe("# Not a plan\n")
+    },
+  )
 
   it("refuses what can never be saved as PLAN_UNWRITABLE, saying why", async ({ directory }) => {
     const path = join(directory, "p.md")

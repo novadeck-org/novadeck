@@ -40,6 +40,18 @@ const error = (text: string, source = "", line = 0): PageTrouble => ({
 
 const entryOf = (troubles = noTroubles, itemId = page.itemId) => troubles.get(itemId)!
 
+describe("a page's notice", () => {
+  it("masks secrets in what the page logged, named or addressed", () => {
+    const key = "ghp_abcdefghijklmnopqrstuvwxyz0123456789"
+    const held = troubled(noTroubles, { ...page, url: `http://localhost:5173/?token=${key}` }, [
+      error(`login failed, API_KEY=${key}`),
+    ])
+    const notice = pageNotice(entryOf(held))
+    expect(notice).not.toContain(key)
+    expect(notice).toContain("login failed")
+  })
+})
+
 describe("page troubles held for a terminal", () => {
   it("keep one entry per item, for its latest show", () => {
     const first = troubled(noTroubles, page, [error("a")])

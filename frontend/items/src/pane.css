@@ -464,6 +464,19 @@
 .plan-notice p {
   margin: 0;
 }
+/* Where a plan's edits are written, in full under the reader's header. */
+.plan-save-path {
+  margin: 0;
+  padding: 6px 14px;
+  border-bottom: var(--border-width) solid var(--artifact-meta-border-color, var(--color-line));
+  font-size: var(--text-control);
+  line-height: 20px;
+  color: var(--color-muted);
+}
+.plan-save-path {
+  overflow-wrap: anywhere;
+  user-select: text;
+}
 .plan-notice-actions {
   display: flex;
   gap: 6px;

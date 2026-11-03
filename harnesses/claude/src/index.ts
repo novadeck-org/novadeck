@@ -1,6 +1,7 @@
 import { join } from "node:path"
 
 import type { Harness, LaunchProfile, MessagingProfile } from "@novadeck/harness-core/harness"
+import { beside } from "@novadeck/harness-core/paths"
 import type { Report } from "@novadeck/harness-core/report"
 
 import { box } from "./box.js"
@@ -76,6 +77,9 @@ export const claude = {
   // Claude Code's local install is an alias in the person's rc file, not on PATH.
   fallback: (home) => join(home, ".claude", "local", "claude"),
   home: claudeHome,
+  planFolders: (install) => [join(claudeHome(install), "plans")],
+  // Its transcripts are `<home>/projects/<project>/<session>.jsonl`.
+  planFoldersOf: (transcript) => beside(transcript, "projects", "plans"),
   connected,
   connect,
   disconnect,

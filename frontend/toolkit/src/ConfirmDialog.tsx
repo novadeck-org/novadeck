@@ -1,4 +1,4 @@
-import { useRef, useState, type ReactNode } from "react"
+import { useEffect, useRef, useState, type ReactNode } from "react"
 
 import { Dialog, DialogDescription, DialogTitle } from "./Dialog"
 
@@ -19,6 +19,11 @@ export type ConfirmDialogProps<Subject> = {
   readonly focus?: "confirm" | "cancel"
   // Where focus goes back when the person cancels; the page's choice otherwise.
   readonly returnFocus?: (subject: Subject) => HTMLElement | null
+  // A delay in milliseconds before confirming works, started when the dialog shows and again
+  // whenever `armKey` changes, so keys typed ahead as it opens, or meant for a dialog it just
+  // replaced, can't answer it. Confirming is available at once when left out.
+  readonly armMs?: number
+  readonly armKey?: string
   // The dialog's width, e.g. `w-[min(360px,calc(100vw-32px))]`.
   readonly widthClassName: string
 }
@@ -35,6 +40,8 @@ export const ConfirmDialog = <Subject,>({
   onCancel,
   focus = "cancel",
   returnFocus,
+  armMs = 0,
+  armKey = "",
   widthClassName,
 }: ConfirmDialogProps<Subject>): React.JSX.Element => {
   const [shown, setShown] = useState(subject)
@@ -42,6 +49,15 @@ export const ConfirmDialog = <Subject,>({
   const confirmed = useRef(false)
   const confirm = useRef<HTMLButtonElement>(null)
   const cancel = useRef<HTMLButtonElement>(null)
+  // The key whose delay has passed; confirming works only for the key now shown.
+  const [armedKey, setArmedKey] = useState<string | null>(null)
+  const shownNow = subject !== null
+  useEffect(() => {
+    if (armMs === 0 || !shownNow) return undefined
+    const timer = setTimeout(() => setArmedKey(armKey), armMs)
+    return () => clearTimeout(timer)
+  }, [armMs, armKey, shownNow])
+  const armed = armMs === 0 || armedKey === armKey
   const heading = shown === null ? "" : title(shown)
   return (
     <Dialog
@@ -77,7 +93,7 @@ export const ConfirmDialog = <Subject,>({
           ref={confirm}
           type="button"
           className="button primary"
-          disabled={confirmDisabled}
+          disabled={confirmDisabled || !armed}
           onClick={() => {
             confirmed.current = true
             onConfirm()

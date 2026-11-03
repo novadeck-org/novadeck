@@ -5,7 +5,11 @@ import { devToken, devWebCommands } from "./web.ts"
 describe("dev:web", () => {
   it("hands the runner and the UI the same token, each under its own name", () => {
     const [runner, ui] = devWebCommands("a".repeat(64), 9000)
-    expect(runner?.env).toEqual({ NOVADECK_TOKEN: "a".repeat(64), PORT: "9000" })
+    expect(runner?.env).toEqual({
+      NOVADECK_TOKEN: "a".repeat(64),
+      PORT: "9000",
+      HOST: "127.0.0.1",
+    })
     expect(ui?.env).toEqual({
       VITE_NOVADECK_RUNNER_URL: "ws://127.0.0.1:9000/api/rpc",
       VITE_NOVADECK_RUNNER_TOKEN: "a".repeat(64),

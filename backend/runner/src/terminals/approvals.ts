@@ -20,21 +20,24 @@ export type ApprovalOutcome =
 type CloseWay = "now" | "request"
 
 /**
- * How an agent's close of another terminal goes: a teammate it leads, or a terminal that
- * runs no agent, closes at once; any other terminal that runs an agent closes only once
- * the person confirms.
+ * How an agent's close of another terminal goes: a teammate it leads, or a plain shell at
+ * its prompt, closes at once; any other terminal that runs an agent, or a program other
+ * than its shell (an ssh session, an editor, a server), closes only once the person confirms.
  */
 export const closeWay = (input: {
   /** Whether the caller is the target's running lead. */
   readonly leads: boolean
   /** The agent running in the target, if any. */
   readonly agent: AgentName | null
+  /** Whether a program other than the target's shell runs in its foreground, or may. */
+  readonly busy: boolean
 }): CloseWay => {
-  return input.leads || input.agent === null ? "now" : "request"
+  return input.leads || (input.agent === null && !input.busy) ? "now" : "request"
 }
 
 /**
- * Agents' requests to close a terminal that runs an agent they don't lead, or to lead one, on
+ * Agents' requests to close a terminal that runs an agent they don't lead or a program of its
+ * own, to lead one, or to open a terminal that runs a command, on
  * their way to a client that approves them with the person. Each goes to the client that subscribed last
  * and waits, with no time limit, for the person's answer, until either terminal closes or
  * that client goes away. One waits at most for each terminal.

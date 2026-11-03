@@ -1,6 +1,7 @@
 import { join } from "node:path"
 
 import type { Harness, LaunchProfile, MessagingProfile } from "@novadeck/harness-core/harness"
+import { beside } from "@novadeck/harness-core/paths"
 
 import { box } from "./box.js"
 import { decode } from "./decode.js"
@@ -19,6 +20,7 @@ import {
   preToolUseAnswer,
 } from "./plugin.js"
 import { statusLineLimit, statusLineSettings, trustsFolder } from "./settings.js"
+import { makeCmdShim } from "./shim.js"
 import { shown } from "./status-line.js"
 import { transcripts, typedEntry } from "./transcripts.js"
 
@@ -64,6 +66,9 @@ export const agy = {
   // Antigravity installs a plugin folder, which its name must match.
   plugin: join("agy", pluginId),
   home: antigravityHome,
+  // The folders of its conversations, where it writes the plans it asks to be reviewed.
+  planFolders: (install) => [join(antigravityHome(install), "brain")],
+  planFoldersOf: (transcript) => beside(transcript, "brain", "brain"),
   connected,
   installed,
   connect,
@@ -71,6 +76,12 @@ export const agy = {
   hookDialect,
   hook,
   files,
+  // Windows only, and only where cmd's AutoRun prints and Novadeck's cmd.exe pass-through is
+  // installed (`machine.cmdShimDir`): a shim that puts the pass-through first on PATH.
+  shims: (platform, machine = {}) =>
+    platform === "win32" && machine.cmdShimDir !== undefined
+      ? [{ path: "agy.cmd", content: makeCmdShim(machine.cmdShimDir) }]
+      : [],
   // Its status line tells what no hook does: working or idle, a confirmation waiting on
   // the person, and its context and quotas.
   settings: statusLineSettings,

@@ -1064,7 +1064,7 @@ cp backend/runner/example.env backend/runner/.env
   > token in its JavaScript. Anyone who can load that bundle can run shells on the
   > runner as its user. Keep such builds private: never deploy or share them.
 
-- Runner: `HOST`, `PORT`, and `CORS_ORIGINS` control the listener and allowed frontend origins.
+- Runner: `HOST`, `PORT`, and `CORS_ORIGINS` control the listener and allowed frontend origins; a `HOST` that isn't loopback is refused unless `NOVADECK_ALLOW_REMOTE_HOST=1`.
 - Terminal API: `NOVADECK_TOKEN` enables authenticated WebSocket RPC;
   `NOVADECK_DATABASE` optionally selects the SQLite metadata file. Without a token,
   only the existing HTTP status API is available.
@@ -1159,13 +1159,23 @@ which releases upload so installed apps can update themselves; see
 [docs/auto-update.md](auto-update.md).
 
 Each package ships the relay agents start for Novadeck's MCP server and hooks, built
-from source with the rest of the app.
+from source with the rest of the app; the Windows packages also ship `novadeck-cmd.exe`, the
+`cmd.exe` pass-through Antigravity's hooks run through where cmd's AutoRun prints (see
+[agent messaging](agent-messaging.md)), beside it in `relay`.
 
 The [release workflow](../.github/workflows/release.yml) publishes immutable GitHub
 prereleases from qualifying changes on `main`, with notes, checksums, and native
 packages. It smoke-tests each packaged application before upload, installs the AppImage and
 the macOS app through `install.sh` served from a local copy of the release, and fails when
-the installed AppImage runs without Electron's sandbox. The workflow feeds
+the installed AppImage runs without Electron's sandbox. The packaged binary's Electron fuses
+(`electronFuses` in `apps/desktop/electron-builder.yml`) turn off running it as Node,
+`NODE_OPTIONS` and the inspect arguments, and turn on the asar integrity check and loading the app only
+from `app.asar` (the UI in `resources/ui` is outside that check); the smoke test reads them back. The smoke test drives the shipped binary itself over Chromium's
+remote debugging port (no fuse covers it) and quits it as a person does. What needs the app to
+run as Node or under Playwright's inspector (the smoke test's worker and koffi checks,
+`scripts/bench/profile`) uses `openedCopy` from `apps/desktop/scripts/fuses.mjs`: a copy of the
+app with only those three turned on (beside the executable on Linux and Windows; on macOS the
+whole bundle, copied to a scratch folder and signed ad hoc there). The workflow feeds
 its own repository into the update feed baked into each app and into `install.sh`, so
 moving the repository needs no edit. Conventional
 Commits determine release eligibility; versions are currently limited to patch

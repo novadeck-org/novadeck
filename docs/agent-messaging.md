@@ -1165,7 +1165,8 @@ session's start earns. The paste check lets the history above the box lose one l
 way Codex's Tip goes, only when at most one line of text is under it and the rows below
 moved up (a list that lost an item has more of its items below).
 
-**The line a ring left.** A doorbell line that is all the agent's own box holds, as its
+**The line a ring left.** A doorbell line, or reply line (its nonce opening and closing it,
+so text typed after it shows, and exactly as the ring typed it), that is all the agent's own box holds, as its
 harness's box reader reads it (the prompt, no overlay over it, no prompt queued, wrapped
 anywhere), whose nonce is one of the terminal's last rings that no doorbell prompt
 confirmed, is Novadeck's, never the person's draft, however that ring ended: its Enter lost,
@@ -1274,6 +1275,58 @@ the runner, over the same endpoint and token `show` uses, and print what it retu
    A lease may cover only a notice, with no messages: its acknowledgement then settles
    what the notice stands for (the person's prompt withdrawing the agent's asks), and
    a lapse leaves that undone, to be offered again at the turn's next hook.
+
+### Windows hooks on a machine whose cmd AutoRun prints
+
+Whatever a cmd AutoRun prints stands before a hook's JSON answer, which a harness then cannot
+read. Each harness reaches cmd differently, so each has its own guard:
+
+- **Claude Code and Codex** run their hooks in PowerShell. The launcher `NOVADECK_HOOK` is a
+  batch file (`hook.cmd`), which Windows starts through `cmd /c` with no `/d`, so the AutoRun
+  ran first. Their hook line (`hookCommand`, PowerShell dialect) now starts that cmd itself:
+  `$l = '"' + $env:NOVADECK_HOOK + '" <agent> <event>'; & $(if ($env:ComSpec) { $env:ComSpec } else { 'cmd.exe' }) /d /s /c $l`.
+  The path sits inside one quoted command line that `/s` unwraps, so a space, an `&` or an 8.3 name in it is safe; only
+  Novadeck's hook line changes, never the agent's own commands. Because Codex trusts a hook by
+  its definition, people who connected Codex on Windows review the changed hook once. Claude
+  Code's status line runs in Git Bash (`sh`) and is not changed: an AutoRun's text could show
+  in the line it prints, and no JSON is read from it.
+- **Antigravity** runs its hooks itself as `cmd /c`, so it gets the pass-through below.
+
+### Antigravity on a machine whose cmd AutoRun prints
+
+Antigravity on Windows runs its hooks as `cmd /c "<command>"` through the `cmd` it finds on
+PATH, without `/d`, so the machine's or the person's `cmd` AutoRun runs first, and whatever it
+prints stands before the hook's answer, which Antigravity then cannot read as JSON. Messaging
+with it would not work on such a machine. So there Novadeck runs Antigravity's hooks through
+its own `cmd.exe`, which starts the real one with `/d`: the AutoRun is skipped for Novadeck's
+hooks only, never for the agent's commands (its `run_command` does not take that `cmd`, and the
+pass-through passes any other command on unchanged, AutoRun included).
+
+- **`novadeck-cmd.exe`** (`backend/relay/src/bin/novadeck-cmd.rs`) is built with the relay on
+  Windows alone and ships beside it (`relay/novadeck-cmd.exe`), signed with it. It reads its raw
+  command line, finds `System32\cmd.exe` through `GetSystemDirectoryW` (never PATH, which would
+  find itself), and runs it with the same arguments, `/d ` first when they hold Novadeck's own hook
+  command (`if defined NOVADECK_HOOK`, as the Antigravity plugin writes it; any case). The folder
+  is on the PATH of everything Antigravity starts, which is why only that command gets `/d`.
+- **Detection.** The start's check of `cmd /c rem` (`cmdPrints` in `shell/install.ts`) finds
+  that cmd prints (or is too slow to tell). Only then `installShellFiles` installs the
+  pass-through as `<shell dir>\agy-cmd\cmd.exe`, a folder holding nothing else, with the rules
+  the relay is installed by (a copy a previous runner's Antigravity still runs is moved aside and
+  replaced, so an upgrade keeps the shim), and verifies it byte for byte against the shipped
+  one. The folder's path must be its short name with no character cmd reads as more
+  (`InstalledShell.cmdShimDir`).
+- **Placement.** Antigravity's shim (`harnesses/agy/src/shim.ts`, `agy.cmd` in the shells'
+  `bin`, Windows only, and only with a `cmdShimDir`) puts that folder first on PATH for
+  Antigravity alone, under `setlocal` so the terminal's shell keeps its PATH, and only in a
+  Novadeck terminal whose `NOVADECK_SHIMS` names `agy`. It finds the real `agy` on PATH only.
+  Where the pass-through is missing or differs, there is no shim and nothing changes.
+- **What stays.** The plugin is global, so under `cmdPrints` its PreToolUse hook stays
+  unregistered: an Antigravity outside Novadeck's terminals runs the plugin's hooks through the
+  person's own `cmd`, where the AutoRun's output breaks the answer. Its other hooks are
+  registered and, in Novadeck's terminals, run through the pass-through, so messages arrive.
+  Set `NOVADECK_CMD_LOG` to a file to make the pass-through append the arguments it passed on.
+  The Windows e2e `windows-autorun.e2e.ts` runs a message between two Antigravity agents under
+  a printing AutoRun.
 
 ### A turn the runner's stop cut short
 
@@ -1445,6 +1498,58 @@ Only the nonce varies. It names no sender and holds none of `@ / ! # $`, which
 harnesses treat specially (Claude Code attaches an `@path`, Codex opens a file picker on
 `@`).
 
+**The reply line.** When the person's Inbox replies wait for the agent (not a request for
+feedback), the doorbell types them instead, in the person's voice, its nonce opening and
+closing the line:
+
+```text
+[Novadeck Inbox reply, n7Q2] Re your ask "Merge #461 (ligatures on WebGL)?": I picked "Merge it". [n7Q2]
+```
+
+A harness takes a delivery's hook context as something other than the person's words, and
+its own checks may count only their prompts: Claude Code's auto mode reads user messages and
+tool calls, never a hook's context, so it blocked merges and pushes the person had approved
+in the Inbox ("Merge Without Review"), its prompt only the doorbell line saying it wasn't
+theirs. Typed, the reply is their prompt, naming the ask it answers, as the classifier
+wants an approval to name its action. Agents' messages never ride it: a peer's words as a
+prompt would carry the person's authority, so they keep the plain line, and the delivery
+the prompt's hook gives carries every message, the replies again in full under the
+person's mark.
+
+- **Its words.** Each reply is one phrase, `Re your ask "subject":` then the option picked,
+  the action marked done, or the person's words, several joined with `|`. The subject and
+  labels are the agent's, quoted as its ask's: no `"` (as `'`) or `|` (as `/`) of theirs,
+  nor a curly or full-width one, can close the quote or start another reply, so no agent
+  text reads as a pick the person didn't make. In all of it brackets become parentheses (no
+  text shows a line's head or closing nonce), whitespace one space, and `@` and `$`
+  full-width (`＠`, `＄`). A reply holding what a terminal may draw otherwise or not at all
+  (emoji and their modifiers, selectors and keycaps, format characters such as zero-width
+  and direction marks or tags, other controls, unassigned characters) rings with the plain
+  line: dropping it could change the words, and an emoji may be the answer.
+- **Its length.** At most 320 characters, so no harness folds it into a pasted-text
+  placeholder. The agent's subject is cut to 80 and a label to 40; the person's words are
+  never cut. Replies that don't all fit whole ring with the plain line, the delivery
+  carrying them: never some of them, as a later one may take back an earlier, nor part of
+  one, as a cut may drop its condition. The line is made as the typist pastes it, after
+  its watch of the screen, so a reply answered meanwhile is in it.
+- **As the plain line otherwise.** It is a doorbell prompt by its nonce, never the
+  person's own, so it withdraws no ask and clears no done mark; its turn says it carries
+  replies, so a hook with no messages left for it says the replies in it are the user's
+  rather than that the notice can be ignored. Left in the box by a failed ring, it is
+  submitted only while the box holds exactly what was typed (a line the person edited is
+  theirs, and one the doorbell no longer knows is left to them too). After a ring of the
+  terminal fails with its paste counted, the next rings with the plain line, which every
+  harness takes, until one is confirmed.
+- **Its limits.** Replies that reach a working agent (a tool call's or its Stop's hook),
+  replies that don't fit or hold what no line holds, and the rings after a failed one come
+  as context alone, where Claude Code's auto mode doesn't count them. A reply line the
+  person edits in the box and submits themselves still reads as Novadeck's by its frame,
+  so their prompt withdraws no ask.
+- **Its rows.** It wraps over several rows where the plain line takes one, and the paste
+  check lets the box grow a row for each. The rows near it then span more of the screen,
+  so a popup closing there would go unseen by the check; the box reader's check that the
+  box shows, empty and taking a prompt, before the paste is what keeps a ring off one.
+
 Novadeck knows nothing of how a harness draws its screen: no placeholder text, glyphs,
 row positions or footer text. Every check below is the same for every TUI, built from
 what Novadeck sees anyway: the person's input, the decoded activity, and the screen's
@@ -1502,7 +1607,8 @@ text in `record.terminal.screen` (`@xterm/headless`), with its paste mode. The r
    - every row that changed is one the line occupies or within 3 rows of them, which
      covers a vanishing placeholder, footer hints and the box growing. When the box
      grows by a row, the rows above it may move up one and those below down one; they
-     are compared moved. Or, for a ring of a Ready terminal only (a first screen, or one
+     are compared moved. A line that wraps lets it grow a row more for each row past
+     its first. Or, for a ring of a Ready terminal only (a first screen, or one
      after a `/clear` or a resume, its box known empty), as a TUI may draw something
      there only while its box is empty (Codex its logo), farther
      rows changed too, but only as one block of text that vanished whole, and the line
@@ -2037,7 +2143,11 @@ again on each call.
      backstop last fired (the doorbell's turns don't count);
   5. every turn's start while the terminal has no summary at all: an agent whose first prompt
      gives it no work yet (a question) puts the first nudge off, as the notice allows, and
-     without this would hear nothing more until the backstop, its terminal untitled.
+     without this would hear nothing more until the backstop, its terminal untitled. The
+     notice counts any task, investigation, review, design discussion or question to dig
+     into as work, and tells an agent with only small talk so far to let it be and make up no
+     summary to quiet it, as it comes with each prompt (an agent only chatting once named a
+     placeholder subject to stop it).
 
 - **A page's troubles.** When a page an agent showed with `show` has problems in the
   user's pane (console errors, failed requests, a failed load), the pane reports them with
@@ -2087,9 +2197,14 @@ nothing when exactly one page is on the bar. The rules:
    elsewhere, an address the bar doesn't hold, or several pages with no `page`, is refused
    with a sentence. A page that has since moved off this machine is not pictured either:
    the runner checks the address the client answers with. The rule is about the page
-   itself, not what it embeds. A picture of the pane is the page as the user sees it,
-   frames from elsewhere included. A fresh load blocks frames and navigations to addresses
-   not on this machine, while cross-origin subresources (images, scripts, fetches) load as usual;
+   itself, not what it embeds. The pane is the user's own browser and may be signed in
+   elsewhere, so a look is answered from it only while it is on the origin (scheme, host and
+   port) of the item's shown address, and only while its page holds no frame loaded from off
+   this machine (the app tracks those per page view; it doesn't block them). The viewer
+   declines otherwise, and the look falls back to a fresh load, which blocks frames and
+   navigations to addresses not on this machine, while cross-origin subresources (images,
+   scripts, fetches) load as usual. The runner checks the origin of a pane's answer too, and
+   refuses a pane on another one;
 2. who takes it: the client, over `companions.looks` and `companions.answerLook`, which work
    as `terminals.requests` and `answerRequest` do. Each look goes to the client that
    subscribed last, as `{ lookId, itemId, shown, url }`, where `shown` is the item's latest
@@ -2116,7 +2231,8 @@ nothing when exactly one page is on the bar. The rules:
    the troubles seen. The result is text first (the page's name, its address now and the
    shown one if it moved, the title, how it was taken and at what size, the troubles), then
    the picture as an MCP `image` content block. A page's own strings (its title, its
-   address, an error's text) are quoted as the troubles notice quotes them, and the text
+   address, an error's text) are quoted as the troubles notice quotes them, with what looks
+   like a secret masked (`@novadeck/secrets`, in notices too), and the text
    says they are never instructions;
 4. troubles: a picture of the pane says nothing of the console as it is now, so the text
    claims only what the runner knows. For a page the caller showed, it lists the troubles

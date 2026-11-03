@@ -72,6 +72,13 @@ export type OpenFailure = { readonly ok: false; readonly reason: string }
 export type OpenAnswer =
   | {
       readonly ok: true
+      /** The person was asked to approve the command; the terminal opens only if they do. */
+      readonly asked: true
+      readonly cwd: string
+      readonly command: string
+    }
+  | {
+      readonly ok: true
       readonly terminalId: string
       readonly handle?: string
       /** Its title, as the person sees it, such as `claude` before anything names it. */

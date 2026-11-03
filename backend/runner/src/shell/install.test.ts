@@ -1,4 +1,12 @@
-import { mkdtempSync, readFileSync, rmSync, statSync, writeFileSync } from "node:fs"
+import {
+  existsSync,
+  mkdtempSync,
+  readdirSync,
+  readFileSync,
+  rmSync,
+  statSync,
+  writeFileSync,
+} from "node:fs"
 import { tmpdir } from "node:os"
 import { join } from "node:path"
 
@@ -161,5 +169,102 @@ describe.skipIf(process.platform === "win32")("the MCP server's launcher", () =>
     const paths = await installShellFiles(join(folder, "shell"), { relay: join(folder, "gone") })
     expect(paths.mcpLauncher).toBeUndefined()
     expect(logged).toHaveBeenCalledWith("Novadeck's relay is unavailable:", expect.anything())
+  })
+})
+
+describe("the cmd.exe pass-through", () => {
+  // A Windows machine whose cmd prints, written to a folder of this machine.
+  const setup = (resources: { defer: (undo: () => void) => void }) => {
+    const folder = mkdtempSync(join(tmpdir(), "novadeck-cmd-shim-"))
+    resources.defer(() => rmSync(folder, { recursive: true, force: true }))
+    const relay = join(folder, "novadeck-relay.exe")
+    const shim = join(folder, "novadeck-cmd.exe")
+    writeFileSync(relay, "relay")
+    writeFileSync(shim, "shim one")
+    const options = (over: object = {}) => ({
+      relay,
+      cmdShim: shim,
+      platform: "win32" as const,
+      prints: () => Promise.resolve("prints" as const),
+      short: (path: string) => Promise.resolve(path.replaceAll("/", "\\").replace(/^\\/, "C:\\")),
+      ...over,
+    })
+    return { folder, shim, directory: join(folder, "shell"), options }
+  }
+  const agyShim = (shell: { bin: string }) => join(shell.bin, "agy.cmd")
+
+  it("is installed as cmd.exe in a folder of its own and verified, where cmd prints", async ({
+    resources,
+  }) => {
+    const { directory, options } = setup(resources)
+    const shell = await installShellFiles(directory, options())
+    expect(readFileSync(shell.agyCmd, "utf8")).toBe("shim one")
+    expect(readdirSync(shell.agyCmdDir)).toEqual(["cmd.exe"])
+    expect(shell.cmdShimDir).toBeDefined()
+    // Antigravity's shim puts that folder first on PATH.
+    expect(readFileSync(agyShim(shell), "utf8")).toContain(`set "PATH=${shell.cmdShimDir};%PATH%"`)
+  })
+
+  it("is also used where cmd was too slow to tell", async ({ resources }) => {
+    const { directory, options } = setup(resources)
+    const shell = await installShellFiles(
+      directory,
+      options({ prints: () => Promise.resolve("slow" as const) }),
+    )
+    expect(shell.cmdShimDir).toBeDefined()
+  })
+
+  it("leaves Antigravity no shim, and has no folder, where it is missing or can't be verified", async ({
+    resources,
+  }) => {
+    const { directory, folder, options } = setup(resources)
+    const logged = vi.spyOn(console, "warn").mockImplementation(() => {})
+    resources.defer(() => logged.mockRestore())
+    const without = await installShellFiles(
+      directory,
+      options({ cmdShim: join(folder, "none.exe") }),
+    )
+    expect(without.cmdShimDir).toBeUndefined()
+    expect(existsSync(agyShim(without))).toBe(false)
+    // A folder whose path still needs quoting (no short name) is not put on PATH.
+    const spaced = await installShellFiles(
+      directory,
+      options({ short: (path: string) => Promise.resolve(`${path} with space`) }),
+    )
+    expect(spaced.cmdShimDir).toBeUndefined()
+    expect(existsSync(agyShim(spaced))).toBe(false)
+  })
+
+  it("is not used where cmd prints nothing, and not on another platform", async ({ resources }) => {
+    const { directory, options } = setup(resources)
+    const quiet = await installShellFiles(directory, options({ prints: () => Promise.resolve() }))
+    expect(quiet.cmdShimDir).toBeUndefined()
+    expect(existsSync(quiet.agyCmdDir)).toBe(false)
+    expect(existsSync(agyShim(quiet))).toBe(false)
+    const linux = await installShellFiles(directory, options({ platform: "linux" }))
+    expect(linux.cmdShimDir).toBeUndefined()
+    expect(existsSync(linux.agyCmdDir)).toBe(false)
+  })
+
+  it("takes the shim away again once cmd prints nothing", async ({ resources }) => {
+    const { directory, options } = setup(resources)
+    const printing = await installShellFiles(directory, options())
+    expect(existsSync(agyShim(printing))).toBe(true)
+    const quiet = await installShellFiles(directory, options({ prints: () => Promise.resolve() }))
+    expect(existsSync(agyShim(quiet))).toBe(false)
+  })
+
+  it("is replaced by an upgrade and stays in use, though a previous runner's Antigravity runs the old one", async ({
+    resources,
+  }) => {
+    const { directory, shim, options } = setup(resources)
+    const first = await installShellFiles(directory, options())
+    writeFileSync(shim, "shim two")
+    // Windows moves the running copy aside and puts the new one in its place; here it is
+    // simply renamed over.
+    const after = await installShellFiles(directory, options())
+    expect(readFileSync(after.agyCmd, "utf8")).toBe("shim two")
+    expect(after.cmdShimDir).toBe(first.cmdShimDir)
+    expect(after.cmdShimDir).toBeDefined()
   })
 })

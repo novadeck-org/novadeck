@@ -22,7 +22,7 @@
   "dependencies": {
     "@novadeck/core": "workspace:*",
     "@novadeck/demo": "workspace:*",
-    "lucide-react": "^1.59.0",
+    "lucide-react": "^1.64.0",
     "react": "^19.3.1"
   },
   "devDependencies": {

@@ -3,6 +3,8 @@ import { readdirSync, readFileSync, readlinkSync } from "node:fs"
 import { basename } from "node:path"
 import { promisify } from "node:util"
 
+import type { Member } from "./trees.js"
+
 // A reported process's bounds, so it fits the schemas a consumer reports it under.
 const nameChars = 256
 const argCount = 64
@@ -99,6 +101,85 @@ export const processGroup = async (pid: number): Promise<number | undefined> => 
     // Gone, or ps unavailable.
   }
   return undefined
+}
+
+// Programs that sit under an idle shell without being work the person started: prompt
+// helpers (powerlevel10k's gitstatusd), and on Windows a console host and the launcher a
+// shell starts as itself (Git Bash's bash.exe runs usr\\bin\\bash.exe).
+const promptHelper = /^gitstatusd/
+const consoleHosts = new Set(["conhost.exe", "openconsole.exe"])
+
+type PsRow = {
+  readonly pid: number
+  readonly ppid: number
+  readonly tty: string
+  readonly comm: string
+}
+
+/** `ps -o pid=,ppid=,tty=,comm=` rows, in any order; a line that isn't one is left out. */
+export const parsePsRows = (output: string): PsRow[] =>
+  output.split("\n").flatMap((line) => {
+    const match = /^\s*(\d+)\s+(\d+)\s+(\S+)\s+(.+?)\s*$/.exec(line)
+    return match
+      ? [{ pid: Number(match[1]), ppid: Number(match[2]), tty: match[3]!, comm: match[4]! }]
+      : []
+  })
+
+/**
+ * Whether the shell `pid` has a child the person started: one on the shell's own terminal,
+ * as a job in the background is (`npm run dev &`), not a worker on a terminal of its own, as
+ * prompts that run async (zsh-async's zpty) keep, and not a known prompt helper.
+ */
+export const hasTerminalChild = (rows: readonly PsRow[], pid: number): boolean | undefined => {
+  const shell = rows.find((row) => row.pid === pid)
+  if (!shell || shell.tty === "?" || shell.tty === "??") return undefined
+  return rows.some(
+    (row) =>
+      row.ppid === pid &&
+      row.tty === shell.tty &&
+      !promptHelper.test(row.comm.split("/").pop() ?? row.comm),
+  )
+}
+
+/**
+ * Whether any of the Windows `tree` of a shell (`pid` first) is work the person started: a
+ * process other than the shell, a console host, or the launcher the shell started as itself
+ * (a member that has the shell's own program name). Without names, any other process counts.
+ */
+export const hasJobUnder = (tree: readonly Member[], pid: number): boolean => {
+  const own = tree.find((member) => member.pid === pid)?.name?.toLowerCase()
+  return tree.some((member) => {
+    if (member.pid === pid) return false
+    const name = member.name?.toLowerCase()
+    return name === undefined || (!consoleHosts.has(name) && name !== own)
+  })
+}
+
+/**
+ * Whether the shell `pid` has a live child that is work: a job in the background
+ * (`npm run dev &`, a PowerShell `Start-Job`). Undefined when the lookup can't tell: `ps`
+ * missing or failing, a shell with no terminal, and on Windows no `trees` or a relay that
+ * can't run.
+ */
+export const hasChildProcess = async (
+  pid: number | undefined,
+  trees?: { readonly read: (root: number) => Promise<readonly Member[] | undefined> },
+): Promise<boolean | undefined> => {
+  if (pid === undefined || !Number.isSafeInteger(pid) || pid <= 0) return undefined
+  if (process.platform === "win32") {
+    const tree = await trees?.read(pid)
+    return tree === undefined ? undefined : hasJobUnder(tree, pid)
+  }
+  if (process.platform !== "linux" && process.platform !== "darwin") return undefined
+  try {
+    const { stdout } = await promisify(execFile)("ps", ["-ax", "-o", "pid=,ppid=,tty=,comm="], {
+      encoding: "utf8",
+      timeout: 2_000,
+    })
+    return hasTerminalChild(parsePsRows(stdout), pid)
+  } catch {
+    return undefined
+  }
 }
 
 /** A process's name as /proc/<pid>/stat holds it, in parentheses; null when unreadable. */

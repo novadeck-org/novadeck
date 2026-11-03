@@ -10,3 +10,9 @@ export const relayName = process.platform === "win32" ? "novadeck-relay.exe" : "
  * relay it ships instead.
  */
 export const relayPath = join(dirname(fileURLToPath(import.meta.url)), "dist", relayName)
+
+/** The cmd.exe pass-through's file name, built on Windows alone. */
+export const cmdShimName = "novadeck-cmd.exe"
+
+/** The pass-through this package built, by `pnpm build`, on Windows. */
+export const cmdShimPath = join(dirname(fileURLToPath(import.meta.url)), "dist", cmdShimName)

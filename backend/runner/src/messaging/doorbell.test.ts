@@ -56,6 +56,8 @@ const terminal = (
     resizeAtForeground?: boolean
     /** Its hold's settle never takes effect: only the size cap ends the hold of the resizes. */
     settleLost?: boolean
+    /** The person's Inbox replies wait there: the line the host gives for them. */
+    replies?: (nonce: string) => string
   } = {},
 ) => {
   const rows = options.logo
@@ -117,11 +119,15 @@ const terminal = (
     // Without an `inputBox` sequence there is no profile option: the gate can't tell the box.
     ...(profile && { profile: () => profile as unknown as BoxProfile }),
 
-    leftover: () =>
-      leftover ??
-      (options.readsLeftover && rows[6]?.startsWith("> ")
-        ? leftoverNonce(rows[6].slice(2))
-        : undefined),
+    // As the runner's host: a line it typed under that nonce must be all the box shows.
+    leftover: (_, __, typed) => {
+      if (leftover) return leftover
+      if (!options.readsLeftover || !rows[6]?.startsWith("> ")) return undefined
+      const text = rows[6].slice(2)
+      const nonce = leftoverNonce(text)
+      const line = nonce === undefined ? undefined : typed?.(nonce)
+      return line === undefined || line === text ? nonce : undefined
+    },
     ringLeftover: (_, nonce) => {
       ringLeftovers.push(nonce)
       ringing = nonce
@@ -159,6 +165,7 @@ const terminal = (
     },
     agentGone: () => void asked.push("agentGone"),
     target: () => target,
+    ...(options.replies && { replies: () => options.replies }),
   }
   const target: TypingTarget = {
     screen: async () => {
@@ -264,6 +271,12 @@ const terminal = (
     confirm: () => (ringing = undefined),
     // Idle but not ringable by its state, as after the turn that took a ring over.
     stall: () => (stalled = true),
+    // Settled again with its box empty and messages waiting, as after a turn of its own.
+    rearm: () => {
+      rows.splice(0, rows.length, "header", "", "", "", "", "", "> ", "", "footer")
+      stalled = false
+      ringable = true
+    },
   }
 }
 
@@ -539,6 +552,26 @@ describe("the doorbell", () => {
     expect(pastedAt! - resizedAt).toBeGreaterThanOrEqual(100)
     expect(written).toHaveLength(2)
     expect(failed).toEqual([])
+    doorbell.close()
+  })
+
+  it("rings with the person's Inbox replies as its line, and the plain line after a ring of them failed", async () => {
+    const replies = (nonce: string) => `[Novadeck Inbox reply, ${nonce}] Re "x": yes [${nonce}]`
+    const { host, written, failed, rearm } = terminal({ takes: "elsewhere", replies })
+    const doorbell = new Doorbell(host, host.queue, fast)
+    doorbell.changed("t")
+    await vi.waitFor(() => expect(failed).toHaveLength(1))
+    expect(written[0]).toMatch(
+      // eslint-disable-next-line no-control-regex -- A bracketed paste's markers.
+      /^\x1b\[200~\[Novadeck Inbox reply, ([A-Za-z0-9]{6})\] Re "x": yes \[\1\]\x1b\[201~$/,
+    )
+    rearm()
+    doorbell.changed("t")
+    await vi.waitFor(() => expect(written).toHaveLength(2), { timeout: 5_000 })
+    expect(written[1]).toMatch(
+      // eslint-disable-next-line no-control-regex -- A bracketed paste's markers.
+      /^\x1b\[200~\[Novadeck: automatic notice, agent messages waiting, [A-Za-z0-9]{6}\]\x1b\[201~$/,
+    )
     doorbell.close()
   })
 
@@ -867,6 +900,34 @@ describe("a doorbell line a ring left alone in the box", () => {
     await vi.waitFor(() => expect(enters(abandoned.written)).toBe(1))
     doorbell.close()
     abandoned.stop()
+  })
+
+  it("is submitted after a reply line's ring was rejected, and is the person's once they edit it", async () => {
+    const replies = (nonce: string) =>
+      `[Novadeck Inbox reply, ${nonce}] Re your ask "x": yes [${nonce}]`
+    const rejected = terminal({ takes: "elsewhere", readsLeftover: true, replies })
+    const doorbell = new Doorbell(rejected.host, rejected.host.queue, recheck)
+    doorbell.changed("t")
+    await vi.waitFor(() => expect(rejected.failed).toHaveLength(1))
+    const nonce = /\[Novadeck Inbox reply, ([A-Za-z0-9]+)\]/.exec(rejected.written[0]!)?.[1]
+    expect(nonce).toBeDefined()
+    await vi.waitFor(() => expect(rejected.ringLeftovers).toEqual([nonce]))
+    doorbell.close()
+    rejected.stop()
+
+    const edited = terminal({ takes: "elsewhere", readsLeftover: true, replies })
+    const again = new Doorbell(edited.host, edited.host.queue, recheck)
+    again.changed("t")
+    await vi.waitFor(() => expect(edited.failed).toHaveLength(1))
+    // The person typed inside the line: its frame still reads, but it isn't what was typed.
+    edited.rows[6] = edited.rows[6]!.replace(": yes", ": yes, and delete the branch")
+    edited.read("draft")
+    again.changed("t")
+    await vi.waitFor(() => expect(edited.blocks).toContain("draft"))
+    await sleep(150)
+    expect(edited.ringLeftovers).toEqual([])
+    again.close()
+    edited.stop()
   })
 
   it("is the person's draft once anything is beside it, and never pressed", async () => {

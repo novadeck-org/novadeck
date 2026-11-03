@@ -141,6 +141,17 @@ which in a dialog of the window the page is in; a cancelled or failed question c
 it. On macOS the app doesn't turn on Touch ID passkeys yet, so the person's own synced
 passkeys don't show there; a security key or a phone still can.
 
+## Packaged App Fuses
+
+The packaged binary's Electron fuses (`electronFuses` in `apps/desktop/electron-builder.yml`)
+turn off running it as Node (`ELECTRON_RUN_AS_NODE`), `NODE_OPTIONS` and `--inspect`, so
+starting the binary with them runs nothing of the starter's choosing in the app's place, and
+turn on the embedded asar integrity check (macOS and Windows) and loading the app only from
+`app.asar`. The UI in `resources/ui` is outside that check. Chromium's
+`--remote-debugging-port` is not a fuse and stays open: whoever can start the binary with it
+reaches the page and its preload bridge, and through them can run shells as the app, with the
+permissions macOS has granted it (such as access to protected folders).
+
 ## Release Verification
 
 Releases are built by the repository's `release.yml`. Every asset gets a GitHub build
@@ -207,7 +218,8 @@ as an Electron window with context isolation, and never forward it to web conten
 The desktop host answers port requests only from the main frame of its own windows,
 which cannot navigate away from the packaged UI.
 
-Bind to loopback by default. Remote access requires a trusted HTTPS/WSS reverse
+Bind to loopback by default: the runner refuses to start on any other `HOST` unless
+`NOVADECK_ALLOW_REMOTE_HOST=1` is set. Remote access requires a trusted HTTPS/WSS reverse
 proxy (or a private encrypted network), explicit browser origins in
 `CORS_ORIGINS`, and firewall rules preventing direct public access to the plaintext
 listener. Requests without an Origin header are permitted for native clients but
@@ -262,16 +274,25 @@ it is never uploaded.
 
 Each shell the runner starts can report which agent session runs in it, through a
 local endpoint: a Unix socket in a private temporary directory, or a named pipe on
-Windows. The endpoint accepts only an agent session report, for the terminal whose
-random per-shell token (`NOVADECK_REPORT_TOKEN`) the report carries. That token also
-authorizes every agent tool call the terminal's agent makes (asks, tells, messages to other
-agents, and opening a terminal that runs a command), so a process that reads a shell's token
+Windows. The endpoint accepts an agent session report, and the agent's tool calls to
+Novadeck's MCP server, each for the terminal whose random per-shell token
+(`NOVADECK_REPORT_TOKEN`) it carries. So that token authorizes every agent tool call the
+terminal's agent makes (asks, tells, messages to other agents, and opening a terminal that
+runs a command), and a process that reads a shell's token
 can act as that shell's agent, with everything its agent may do. Processes in a shell can read
 that shell's token, and so can misreport its session, which at worst resumes another session of
 the same user. The runner builds the resume command itself, from a fixed program and arguments
 and a session id limited to letters, digits, `.`, `_` and `-`, so a report cannot change what
-the resume command runs; a process holding the token can still run commands through the agent
-tools, as that user could in the shell already.
+the resume command runs. `open_terminal` with a command, which starts a new terminal that runs
+it, is asked of the person first, with the exact command, the folder and the agent that asks,
+and opens nothing unless they approve; the agent hears their answer. `close_terminal` likewise
+asks before closing a terminal that runs another agent's session or a program other than its
+shell, or a shell with a job in the background. The dialog writes out characters that draw as
+nothing and holds the answer back until the person has seen the whole command. A command is
+quoted into the shell only from characters no shell expands. The approval certifies the
+command, not what it runs: a script it calls, a git filter (the `show` tool's `changes` runs
+`git diff` with the folder's filters on) or a harness's settings in a folder an agent can write
+can still run more, so an agent that edits files unattended remains a way around it.
 The shell integration and hook live in the runner's own `shell` folder; the runner
 never writes to the user's rc files or dotfiles. Only when the person connects an agent
 does it install Novadeck's plugin into that agent, through the agent's own plugin

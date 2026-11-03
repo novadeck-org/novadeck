@@ -34,6 +34,24 @@ const readOrigins = (value: string | undefined): readonly string[] => {
   return origins
 }
 
+/** Whether `host` names this machine only: `localhost`, 127.x.x.x or ::1. */
+const isLoopback = (host: string): boolean => {
+  const name = host.replace(/^\[(.*)\]$/, "$1").toLowerCase()
+  return name === "localhost" || name === "::1" || /^127(\.\d{1,3}){3}$/.test(name)
+}
+
+const readHost = (environment: NodeJS.ProcessEnv): string => {
+  const host = environment.HOST?.trim() || "127.0.0.1"
+  const allowed = ["1", "true"].includes(environment.NOVADECK_ALLOW_REMOTE_HOST?.trim() ?? "")
+  if (!allowed && !isLoopback(host)) {
+    throw new Error(
+      `HOST ${host} is not a loopback address: the listener would be open to the network. ` +
+        "Set NOVADECK_ALLOW_REMOTE_HOST=1 to allow it, behind a trusted HTTPS/WSS proxy or a private network.",
+    )
+  }
+  return host
+}
+
 export const readConfig = (environment: NodeJS.ProcessEnv = process.env): ServerOptions => {
   const token = environment.NOVADECK_TOKEN?.trim()
   if (token !== undefined && (token.length < 32 || token.length > 512)) {
@@ -51,7 +69,7 @@ export const readConfig = (environment: NodeJS.ProcessEnv = process.env): Server
   const murmurEngine = environment.NOVADECK_MURMUR_ENGINE?.trim()
   const murmurSource = environment.NOVADECK_MURMUR_SOURCE?.trim()
   return {
-    hostname: environment.HOST?.trim() || "127.0.0.1",
+    hostname: readHost(environment),
     port: readPort(environment.PORT),
     origins: readOrigins(environment.CORS_ORIGINS),
     // The shell integration and pasted files live beside the metadata.

@@ -47,7 +47,9 @@ cp backend/runner/example.env backend/runner/.env
 ```
 
 Generate a credential with the command in `example.env`, then set `NOVADECK_TOKEN`
-in the ignored `.env` file. Leave `HOST=127.0.0.1` for local testing. Run:
+in the ignored `.env` file. Leave `HOST=127.0.0.1` for local testing: the runner refuses any HOST that isn't loopback
+(`localhost`, `127.x.x.x`, `::1`) unless `NOVADECK_ALLOW_REMOTE_HOST=1` is also set. A project created without a folder uses the home folder, so plan saves are
+bounded only by the home folder there. Run:
 
 ```sh
 pnpm --filter @novadeck/runner start
@@ -591,6 +593,11 @@ changed. Only connecting an agent (below) installs anything elsewhere:
   server without the terminal's environment. It leaves `codex agents`, `--remote` and
   runs outside Novadeck's shells unchanged. The integration puts `NOVADECK_BIN` back in
   front after the user's startup files.
+- On Windows, where cmd's AutoRun prints: `agy-cmd/cmd.exe`, Novadeck's `cmd.exe` pass-through
+  (`novadeck-cmd.exe`, built with the relay and checked byte for byte against the shipped one), and
+  `bin/agy.cmd`, which shells get first on `PATH` while Antigravity is connected: it puts `agy-cmd`
+  first on `PATH` for Antigravity alone, so its `cmd /c` hooks run the real cmd with `/d` and the
+  AutoRun's output stays out of their answers. See [agent messaging](agent-messaging.md).
 - `hook` (`hook.cmd`), a launcher that starts Novadeck's relay (`novadeck-relay`, a
   small native program copied in beside it; see `backend/relay`), so the hook needs
   no bash, python3 or JavaScript runtime and starts in about a millisecond. The relay
@@ -1132,7 +1139,9 @@ one from an earlier runner.
     `{ saved: true, stamp }`. What can never be saved is `PLAN_UNWRITABLE`, whose data says
     why: `transcript` (the plan is in an agent's messages), `too-large` (a text or file over
     256 KiB), `gone` (the file is missing or no plain file), `folder` (the runner may not
-    write in the plan's folder) or `not-a-plan`. Any other failure (a full disk, a file held
+    write in the plan's folder), `outside` (the file is in neither the project's folder nor
+    the agent's own plans folder: `~/.claude/plans` for Claude Code, Antigravity's `brain`
+    folder; Codex keeps its plans in its messages) or `not-a-plan`. Any other failure (a full disk, a file held
     open by another program) is an ordinary error that may pass; an unknown item is
     `NOT_FOUND`.
     Saves of one plan are handled one at a time.

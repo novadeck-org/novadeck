@@ -1,6 +1,6 @@
 // Launches the unpacked packaged app and runs a real shell through its bundled runner.
 // Usage (after `pnpm run package:<target>`): node scripts/smoke.mjs
-import { execFileSync } from "node:child_process"
+import { execFileSync, spawn } from "node:child_process"
 import { existsSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from "node:fs"
 import { createRequire } from "node:module"
 import { tmpdir } from "node:os"
@@ -8,7 +8,9 @@ import { dirname, join, resolve } from "node:path"
 import { fileURLToPath } from "node:url"
 
 import * as esbuild from "esbuild"
-import { _electron } from "playwright"
+import { chromium } from "playwright"
+
+import { closeWithin, fuseProblems, killUnder, openedCopy, processesUnder } from "./fuses.mjs"
 
 const packageDir = resolve(dirname(fileURLToPath(import.meta.url)), "..")
 const release = join(packageDir, "release")
@@ -21,7 +23,10 @@ const fail = (message) => {
 const packaged = () => {
   if (process.platform === "win32") {
     const root = join(release, "win-unpacked")
-    return { executable: join(root, "novadeck.exe"), resources: join(root, "resources") }
+    return {
+      executable: join(root, "novadeck.exe"),
+      resources: join(root, "resources"),
+    }
   }
   if (process.platform === "darwin") {
     const folder = readdirSync(release).find((name) => name.startsWith("mac"))
@@ -29,14 +34,32 @@ const packaged = () => {
       folder && readdirSync(join(release, folder)).find((name) => name.endsWith(".app"))
     if (!folder || !bundle) fail("No unpacked macOS app bundle was found.")
     const root = join(release, folder, bundle, "Contents")
-    return { executable: join(root, "MacOS", "novadeck"), resources: join(root, "Resources") }
+    return {
+      executable: join(root, "MacOS", "novadeck"),
+      resources: join(root, "Resources"),
+    }
   }
   const root = join(release, "linux-unpacked")
-  return { executable: join(root, "novadeck"), resources: join(root, "resources") }
+  return {
+    executable: join(root, "novadeck"),
+    resources: join(root, "resources"),
+  }
 }
 
 const { executable, resources } = packaged()
 if (!existsSync(executable)) fail(`The packaged executable is missing: ${executable}`)
+
+// The shipped binary must not run as Node, take NODE_OPTIONS or the inspect arguments, and must
+// load only from a checked app.asar: its fuses are read back as they ship.
+for (const problem of await fuseProblems(executable)) fail(`A fuse is wrong: ${problem}`)
+console.log("The packaged binary's fuses are set: no RunAsNode, NODE_OPTIONS or inspect arguments.")
+
+// The checks that need the binary to run as Node (the worker and koffi checks) use a copy of
+// the app with only those three fuses turned on (on macOS the whole bundle, in a scratch
+// folder); it finds the same app.asar and code, so what ships is what is tested. The runner round
+// trip below drives the shipped app itself.
+const opened = await openedCopy(executable)
+process.on("exit", opened.remove)
 
 // A compiled build/Release binary would shadow the prebuilds, which carry the bundled
 // ConPTY files. node-pty's Windows install script also copies those files into
@@ -80,7 +103,7 @@ console.log((status >>> 0).toString(16))
   )
   try {
     const status = execFileSync(
-      executable,
+      opened.executable,
       [probe, join(resources, "app.asar", "out", "main", "index.js")],
       {
         env: { ...process.env, ELECTRON_RUN_AS_NODE: "1" },
@@ -130,7 +153,9 @@ try {
   const config = join(mkdtempSync(join(tmpdir(), "novadeck-smoke-relay-")), "relay.json")
   writeFileSync(
     config,
-    JSON.stringify({ fallbacks: { agy: { PreToolUse: '{"decision":"ask"}', "*": "{}" } } }),
+    JSON.stringify({
+      fallbacks: { agy: { PreToolUse: '{"decision":"ask"}', "*": "{}" } },
+    }),
   )
   const hook = execFileSync(relay, ["hook", "--config", config, "agy", "PreToolUse"], {
     input: "{}",
@@ -141,7 +166,9 @@ try {
   })
   if (hook.toString() !== '{"decision":"ask"}\n') throw new Error(`hook: ${hook}`)
   // It names its build, in the protocol the runner speaks.
-  const version = execFileSync(relay, ["--version"], { timeout: 10_000 }).toString()
+  const version = execFileSync(relay, ["--version"], {
+    timeout: 10_000,
+  }).toString()
   if (!/^novadeck-relay \S+ \(protocol 2\)/.test(version)) {
     throw new Error(`version: ${version}`)
   }
@@ -175,8 +202,8 @@ for (const [name, label] of [
 }
 
 // The threads the runner redacts in (murmur's digests, saved transcripts), started as the
-// runner starts them: a worker on the script inside app.asar. The packaged executable runs the check as Node, which reads
-// asar archives the same way the app does.
+// runner starts them: a worker on the script inside app.asar. The app's open copy runs the check as Node,
+// which reads asar archives the same way the app does.
 {
   const script = join(mkdtempSync(join(tmpdir(), "novadeck-smoke-worker-")), "start-worker.mjs")
   writeFileSync(
@@ -202,7 +229,7 @@ worker.once("message", (reply) => {
     ["transcript redaction", "redactionWorker.js"],
   ]) {
     try {
-      execFileSync(executable, [script, join(resources, "app.asar", "out", "main", file)], {
+      execFileSync(opened.executable, [script, join(resources, "app.asar", "out", "main", file)], {
         env: { ...process.env, ELECTRON_RUN_AS_NODE: "1" },
         timeout: 30_000,
         stdio: ["ignore", "pipe", "pipe"],
@@ -230,16 +257,76 @@ const client = `${bundle.outputFiles[0].text};globalThis.novadeckClient = novade
 
 const userData = mkdtempSync(join(tmpdir(), "novadeck-smoke-data-"))
 const work = mkdtempSync(join(tmpdir(), "novadeck-smoke-work-"))
-const app = await _electron.launch({
-  executablePath: executable,
-  // Hosted Linux runners forbid the unprivileged namespaces Chromium's sandbox needs.
-  args: [`--user-data-dir=${userData}`, ...(process.platform === "linux" ? ["--no-sandbox"] : [])],
+// The shipped binary itself, not the open copy: Playwright's Electron driver needs the inspector
+// the fuses shut, but Chromium's remote debugging port is no Node fuse, and drives the page as
+// well. The app quits as it does for a person, by closing the browser.
+const output = []
+const child = spawn(
+  executable,
+  [
+    "--remote-debugging-port=0",
+    `--user-data-dir=${userData}`,
+    // Hosted Linux runners forbid the unprivileged namespaces Chromium's sandbox needs.
+    ...(process.platform === "linux" ? ["--no-sandbox"] : []),
+  ],
   // A release's version would otherwise let the packaged app look for updates.
-  env: { ...process.env, NOVADECK_UPDATES: "off" },
-  timeout: 60_000,
+  {
+    env: { ...process.env, NOVADECK_UPDATES: "off" },
+    stdio: ["ignore", "pipe", "pipe"],
+    windowsHide: true,
+  },
+)
+const exited = new Promise((settle) =>
+  child.once("exit", (code, signal) => settle({ code, signal })),
+)
+const listening = new Promise((settle) => {
+  const look = (chunk) => {
+    output.push(String(chunk))
+    const found = /DevTools listening on (ws:\/\/\S+)/.exec(output.join(""))
+    if (found) settle(found[1])
+  }
+  child.stdout.on("data", look)
+  child.stderr.on("data", look)
 })
+const endpoint = await Promise.race([
+  listening,
+  exited.then(() => undefined),
+  new Promise((settle) => setTimeout(settle, 60_000, undefined)),
+])
+// Where the shipped app runs from, which a hung one is looked for under.
+const shippedRoot =
+  process.platform === "darwin"
+    ? executable.slice(0, executable.indexOf(".app") + ".app".length)
+    : executable
+if (!endpoint) {
+  killUnder(shippedRoot)
+  fail(`The packaged app did not open its debugging port. Its output:\n${output.join("")}`)
+}
+let browser
+const app = {
+  process: () => child,
+  windows: () => browser?.contexts().flatMap((context) => context.pages()) ?? [],
+  close: async () => {
+    if (!browser) throw new Error("the page was never reached")
+    if (process.platform === "darwin") {
+      // The browser is gone before it answers, so the command's own answer is not waited for.
+      // This is the path of the menu's Quit: app.quit.
+      void browser
+        .newBrowserCDPSession()
+        .then((session) => session.send("Browser.close"))
+        .catch(() => {})
+    } else {
+      // As a person quits on Linux and Windows: closing the last window, which ends the app
+      // through window-all-closed, the orderly quit that gates installing an update on quit.
+      for (const page of app.windows()) void page.close({ runBeforeUnload: false }).catch(() => {})
+    }
+    await exited
+  },
+}
 try {
-  const page = await app.firstWindow()
+  browser = await chromium.connectOverCDP(endpoint)
+  const context = browser.contexts()[0]
+  const page = context.pages()[0] ?? (await context.waitForEvent("page", { timeout: 60_000 }))
   await page.waitForLoadState("domcontentloaded")
   await page.evaluate(client)
   // The typed echo differs from the output, so only the shell's answer matches.
@@ -264,7 +351,11 @@ try {
         }
       }
       globalThis.smoke = runner
-      const project = await runner.projects.create({ id: crypto.randomUUID(), name: "Smoke", cwd })
+      const project = await runner.projects.create({
+        id: crypto.randomUUID(),
+        name: "Smoke",
+        cwd,
+      })
       const session = await runner.sessions.create({
         id: crypto.randomUUID(),
         projectId: project.id,
@@ -289,7 +380,10 @@ try {
       })()
       await terminal.write(typed)
       const timeout = new Promise((settle) => setTimeout(() => settle(false), 20_000))
-      return { answered: await Promise.race([reading, timeout]), tail: text.slice(-400) }
+      return {
+        answered: await Promise.race([reading, timeout]),
+        tail: text.slice(-400),
+      }
     },
     { cwd: work, typed: input },
   )
@@ -309,8 +403,43 @@ try {
     console.log("The terminal runs on the bundled ConPTY host (OpenConsole.exe).")
   }
 } finally {
-  await app.close()
-  rmSync(work, { recursive: true, force: true })
-  rmSync(userData, { recursive: true, force: true })
+  if (!browser) {
+    // The page was never reached: nothing to close, only the spawned app to end.
+    child.kill("SIGKILL")
+    killUnder(shippedRoot)
+    killUnder(opened.root)
+  } else {
+    const hung = await closeWithin(app, shippedRoot, output, userData)
+    // What the app left running after its main process ended is looked for after a grace, and
+    // killed only once it is named.
+    const gone = (waited) =>
+      processesUnder(shippedRoot).length === 0 || waited >= 5_000
+        ? Promise.resolve()
+        : new Promise((settle) => setTimeout(settle, 250)).then(() => gone(waited + 250))
+    await gone(0)
+    const left = processesUnder(shippedRoot)
+    killUnder(shippedRoot)
+    killUnder(opened.root)
+    if (hung) fail(hung)
+    const { code, signal } = await exited
+    if (code !== 0 || signal)
+      fail(`The packaged app ended with code ${code} and signal ${signal}, not 0 and none.`)
+    if (left.length > 0)
+      fail(
+        `The packaged app left processes running after it quit:\n${left.map(([pid, command]) => `  ${pid} ${command.slice(0, 200)}`).join("\n")}`,
+      )
+    // A quit the app made itself, not one it was killed in: its log says it ran to its end,
+    // and on Linux and Windows that it began the orderly way, as closing the window does.
+    const hostLog = join(userData, "logs", "host.log")
+    const ended = existsSync(hostLog) ? readFileSync(hostLog, "utf8") : ""
+    const orderly = process.platform === "darwin" ? "" : '[^\\n]*"orderly":true'
+    if (
+      !new RegExp(`"evt":"app\\.quit"${orderly}`).test(ended) ||
+      !/"evt":"session.end"[^\n]*"code":0/.test(ended)
+    )
+      fail(`The packaged app's log doesn't show an orderly quit:\n${ended.slice(-1500)}`)
+    rmSync(work, { recursive: true, force: true })
+    rmSync(userData, { recursive: true, force: true })
+  }
 }
 console.log("The packaged app closed cleanly.")

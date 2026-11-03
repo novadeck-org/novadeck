@@ -211,7 +211,7 @@ describe("showcase agents", () => {
 
     it("refuses saves for the reason, or fails them without one", async () => {
       const { showcase, stampOf } = running()
-      for (const fault of ["gone", "folder", "transcript", "too-large"] as const) {
+      for (const fault of ["gone", "folder", "outside", "transcript", "too-large"] as const) {
         showcase.fault(studio, fault)
         // eslint-disable-next-line no-await-in-loop -- Each step waits for the one before.
         const refused = await showcase

@@ -120,11 +120,7 @@ export const answerMessage = (messages: DemoMessages, askId: string) =>
     .find((each) => each.id === `answer:${askId}`)
 
 // The call an agent's harness names its command run with, in the project's folder `home`.
-export const runCall = (
-  job: Pick<Job, "agent" | "command" | "plan">,
-  call: string,
-  home: string,
-) =>
+export const runCall = (job: Pick<Job, "agent" | "command" | "plan">, call: string, home: string) =>
   job.agent === "claude"
     ? use(
         call,

@@ -28,14 +28,15 @@ import { applyEdits, removeNotes } from "./revise"
 // their content through `follow`, so the companion pane can't tell it from a runner.
 // What can go wrong with an agent's plan for the person's edits, for the debug panel and
 // specs to reach: it lives in the agent's messages (`transcript`), its file is deleted
-// (`gone`), its folder can't be written (`folder`), it is too large to write
-// (`too-large`), or saves fail for a while without saying why (`failing`).
-export type PlanFault = "transcript" | "gone" | "folder" | "too-large" | "failing"
+// (`gone`), its folder can't be written (`folder`), it is outside the folders Novadeck
+// writes plans in (`outside`), it is too large to write (`too-large`), or saves fail for a while without saying why (`failing`).
+export type PlanFault = "transcript" | "gone" | "folder" | "outside" | "too-large" | "failing"
 
 export const planFaults: readonly PlanFault[] = [
   "transcript",
   "gone",
   "folder",
+  "outside",
   "too-large",
   "failing",
 ]

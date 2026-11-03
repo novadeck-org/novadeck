@@ -62,7 +62,8 @@ jobs:
             ~/.cargo/registry
             ~/.cargo/git
             backend/relay/target
-          key: relay-${{ runner.os }}-${{ hashFiles('backend/relay/Cargo.lock', 'backend/relay/rust-toolchain.toml') }}
+          key: relay-${{ runner.os }}-${{ hashFiles('backend/relay/Cargo.lock', 'backend/relay/Cargo.toml', 'backend/relay/rust-toolchain.toml') }}
+          restore-keys: relay-${{ runner.os }}-
 
       # What Quality's Test job compiles: the relay's build (`pnpm test` builds it) and its
       # tests, which compile here and don't run.

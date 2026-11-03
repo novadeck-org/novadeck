@@ -1,5 +1,6 @@
 import {
   chmodSync,
+  mkdirSync,
   mkdtempSync,
   readdirSync,
   readFileSync,
@@ -28,6 +29,22 @@ afterEach(() => {
 const line = (index: number): string => `line ${String(index).padStart(4, "0")} ${"x".repeat(80)}`
 
 describe("openLogFile", () => {
+  it.skipIf(process.platform === "win32")(
+    "keeps the folder and files to their owner, those from before too",
+    () => {
+      const logs = join(folder(), "logs")
+      mkdirSync(logs, { mode: 0o755 })
+      writeFileSync(join(logs, "host.log"), "old\n", { mode: 0o644 })
+      writeFileSync(join(logs, "host.1.log"), "older\n", { mode: 0o644 })
+      const file = openLogFile({ folder: logs, name: "host" })
+      file.write("one")
+      file.close()
+      expect(statSync(logs).mode & 0o777).toBe(0o700)
+      expect(statSync(join(logs, "host.log")).mode & 0o777).toBe(0o600)
+      expect(statSync(join(logs, "host.1.log")).mode & 0o777).toBe(0o600)
+    },
+  )
+
   it("appends lines to name.log, making the folder", () => {
     const logs = join(folder(), "logs")
     const file = openLogFile({ folder: logs, name: "host" })

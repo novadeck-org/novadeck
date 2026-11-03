@@ -145,10 +145,14 @@ export const terminalRequestAnswer = z.union([
 ])
 
 // What an agent asks the person to approve, through Novadeck's MCP server: `close`, a
-// terminal of its session that runs an agent it doesn't lead, or `lead`, to lead the agent
-// there from now on, with `brief` as the first message it sends it.
+// terminal of its session that runs an agent it doesn't lead or a program other than its
+// shell; `lead`, to lead the agent there from now on, with `brief` as the first message it
+// sends it; or `run`, to open a terminal that starts `command` in `cwd`, the one-line command
+// exactly as the shell would be given it. For `run`, the request's `terminalId` is the asking
+// terminal's own, as no terminal exists yet.
 const approvalAction = z.discriminatedUnion("type", [
   z.strictObject({ type: z.literal("close") }),
+  z.strictObject({ type: z.literal("run"), command: startupCommand, cwd: directory }),
   z.strictObject({ type: z.literal("lead"), brief: z.string().min(1).max(4096) }),
 ])
 

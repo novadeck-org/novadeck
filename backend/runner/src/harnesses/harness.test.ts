@@ -210,6 +210,20 @@ describe("the harness registry", () => {
     expect(shimmed("linux")).toEqual(["claude", "codex"])
     expect(shimmed("win32")).toEqual(["claude", "codex"])
   })
+
+  it("gives Antigravity a shim on Windows alone, where the cmd.exe pass-through is installed", () => {
+    const withShim = (platform: NodeJS.Platform) =>
+      Object.values(harnesses)
+        .filter(
+          (harness) =>
+            (harness.shims?.(platform, { cmdPrints: true, cmdShimDir: "C:\\S~1\\agy-cmd" }) ?? [])
+              .length > 0,
+        )
+        .map(({ id }) => id)
+    expect(withShim("win32")).toEqual(["claude", "codex", "agy"])
+    expect(withShim("linux")).toEqual(["claude", "codex"])
+    expect(withShim("darwin")).toEqual(["claude", "codex"])
+  })
 })
 
 const parse = (line: string | undefined) => JSON.parse(line ?? "null") as unknown

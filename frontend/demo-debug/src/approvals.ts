@@ -18,6 +18,10 @@ const demoBrief = [
   "Ask me through the Inbox if the schema in the doc and the one in production disagree. Report with done when the PR is up.",
 ].join("\n")
 
+// A command as an agent might write one: long, with a pipe and a quote, so the dialog shows it whole.
+const demoCommand =
+  'curl -fsSL https://example.com/install.sh | sh -s -- --prefix "$HOME/.local" && pnpm install --frozen-lockfile && pnpm test --filter billing'
+
 // What agents ask the person to allow, as the runner's backend has them: confirming a close
 // closes the terminal, confirming a lead makes the asker its lead, as the runner would.
 export const createDemoApprovals = (
@@ -27,6 +31,8 @@ export const createDemoApprovals = (
   readonly approvals: Approvals
   // Makes `from` ask to close `terminal`, queued behind the approvals already waiting.
   readonly askToClose: (from: TerminalKey, terminal: TerminalKey) => void
+  // Makes `from` ask to open a terminal running a command, confirmed or not.
+  readonly askToRun: (from: TerminalKey, command: string, cwd: string) => void
   // Makes `from` ask to lead `terminal` with a brief.
   readonly askToLead: (from: TerminalKey, terminal: TerminalKey, brief: string) => void
   // The person ends `terminal`'s lead.
@@ -56,6 +62,8 @@ export const createDemoApprovals = (
         targets.delete(requestId)
         pending.update((waiting) => waiting.filter((each) => each.requestId !== requestId))
         if (!approved || !found || !action) return
+        // A run's terminal would be new: the demo opens none.
+        if (action.type === "run") return
         if (action.type === "close")
           dispatch()?.([
             {
@@ -79,6 +87,7 @@ export const createDemoApprovals = (
       },
     },
     askToClose: (from, terminal) => queue(from, terminal, { type: "close" }),
+    askToRun: (from, command, cwd) => queue(from, from, { type: "run", command, cwd }),
     askToLead: (from, terminal, brief) => queue(from, terminal, { type: "lead", brief }),
     release: (terminal) =>
       dispatch()?.([
@@ -126,6 +135,15 @@ export const approvalGroups = (
           const [asker] = othersOf(workspace(), key)
           if (!asker) return note("Add a second terminal first.")
           controls.askToLead({ ...key, terminalId: asker.id }, key, demoBrief)
+        },
+      },
+      {
+        label: "Ask to run a command",
+        hint: "Modal: the selected terminal's agent asks to open a terminal that runs a long command; confirming opens none in the demo",
+        run: ({ selected, note }) => {
+          const key = selected()
+          if (!key) return note("Select a terminal first.")
+          controls.askToRun(key, demoCommand, "~/projects/billing")
         },
       },
       {

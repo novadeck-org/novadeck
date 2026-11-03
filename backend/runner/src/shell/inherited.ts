@@ -21,9 +21,28 @@ export const inherited = [
   ...harnesses.flatMap(({ inheritedEnv }) => inheritedEnv),
 ] as readonly string[]
 
+/**
+ * Removes the variables a child must not inherit (see `inherited`) from `env` itself. On
+ * Windows names have no case, so `novadeck_token` goes as well as `NOVADECK_TOKEN`.
+ */
+export const stripInherited = (
+  env: NodeJS.ProcessEnv,
+  platform: NodeJS.Platform = process.platform,
+): void => {
+  if (platform !== "win32") {
+    for (const name of inherited) delete env[name]
+    return
+  }
+  const names = new Set(inherited.map((name) => name.toUpperCase()))
+  for (const name of Object.keys(env)) if (names.has(name.toUpperCase())) delete env[name]
+}
+
 /** `env` without the variables a child must not inherit (see `inherited`). */
-export const withoutInherited = (env: NodeJS.ProcessEnv): NodeJS.ProcessEnv => {
+export const withoutInherited = (
+  env: NodeJS.ProcessEnv,
+  platform: NodeJS.Platform = process.platform,
+): NodeJS.ProcessEnv => {
   const kept = { ...env }
-  for (const name of inherited) delete kept[name]
+  stripInherited(kept, platform)
   return kept
 }

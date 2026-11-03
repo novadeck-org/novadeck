@@ -45,7 +45,8 @@ const cmdSafe = /^[^"&|<>^%()\r\n]*$/
  * launcher Novadeck's shells name in NOVADECK_HOOK, with the agent and the event. Outside
  * Novadeck's shells, or with a launcher set but gone, it prints `fallback`, or nothing,
  * and never fails the harness:
- * - `sh` and `powershell` check the launcher is there first.
+ * - `sh` and `powershell` check the launcher is there first; `powershell` runs it in a cmd
+ *   started with `/d` (no AutoRun), as the launcher is a batch file on Windows.
  * - `cmd` holds no double quote, and reads the launcher unquoted, as Novadeck's shells name
  *   it by its short name, without spaces. A launcher whose path still has one, or `&`,
  *   which cmd splits a line at once it has put the path in, breaks the line. Without a
@@ -63,7 +64,14 @@ export const hookCommand = (dialect: Dialect, { agent, event, fallback }: HookCa
         ? `[ -n "$NOVADECK_HOOK" ] && "$NOVADECK_HOOK" ${run} || true`
         : `if [ -x "$NOVADECK_HOOK" ]; then "$NOVADECK_HOOK" ${run}; else echo ${shQuote(fallback)}; fi`
     case "powershell": {
-      const found = `if ($env:NOVADECK_HOOK -and (Test-Path -LiteralPath $env:NOVADECK_HOOK)) { & $env:NOVADECK_HOOK ${run} }`
+      // The launcher is a batch file (hook.cmd), which Windows starts through `cmd /c` with no
+      // `/d`, so the machine's or the person's cmd AutoRun would run first and print ahead of
+      // the hook's JSON. So cmd is started here, with `/d`, as Novadeck's own hook line only.
+      // The command line is one quoted string for `/s`, which strips its outer quotes: a path
+      // with a space or an `&` stays whole, as PowerShell wraps the argument in quotes itself.
+      const cmd = "$(if ($env:ComSpec) { $env:ComSpec } else { 'cmd.exe' })"
+      const line = `$l = '"' + $env:NOVADECK_HOOK + '" ${run}'; & ${cmd} /d /s /c $l`
+      const found = `if ($env:NOVADECK_HOOK -and (Test-Path -LiteralPath $env:NOVADECK_HOOK)) { ${line} }`
       return fallback === undefined ? found : `${found} else { ${psQuote(fallback)} }`
     }
     case "cmd": {

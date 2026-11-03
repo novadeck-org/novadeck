@@ -1,4 +1,5 @@
 import type { ActivityEvent, Background, HarnessEvent } from "@novadeck/harness-core/events"
+import { replyLine } from "@novadeck/harness-core/prompts"
 import type { AgentName } from "@novadeck/protocol"
 import type { KeyKind } from "@novadeck/tui-input"
 
@@ -20,6 +21,7 @@ import {
 import { addressed, awaiting, feed, promptsInBackground, type Live } from "./live.js"
 import type { Loops } from "./loops.js"
 import type { MessageStore } from "./message-store.js"
+import { cleanInboxText, type Message } from "./messages.js"
 import type { Sessions } from "./sessions.js"
 
 /**
@@ -33,7 +35,7 @@ const idle = (delivery: Delivery, inBackground: boolean): boolean =>
   delivery.state === "ringing"
 
 /** How many of a terminal's latest unconfirmed rings it remembers (`Live.unconfirmed`). */
-const maxUnconfirmed = 8
+export const maxUnconfirmed = 8
 
 /**
  * Whether subagents a turn left running run on, to wake its agent: delivery's
@@ -264,6 +266,12 @@ export class Deliveries {
 
   /** Whether messages wait for the terminal's root session (or the one about to bind). */
   private waiting(live: Live): boolean {
+    for (const _ of this.waitingFor(live)) return true
+    return false
+  }
+
+  /** The messages waiting for the terminal's root session (or the one about to bind). */
+  private *waitingFor(live: Live): Generator<Message> {
     const { root, terminalId } = live
     for (const message of this.host.store.messages())
       if (
@@ -271,8 +279,28 @@ export class Deliveries {
         message.to.terminalId === terminalId &&
         (root ? addressed(message, root) : awaiting(live, message))
       )
-        return true
-    return false
+        yield message
+  }
+
+  /**
+   * The doorbell's line, by its nonce, where the person's Inbox replies wait for the
+   * terminal's root session (`replyLine`), oldest first; undefined for none. A request for
+   * feedback is none.
+   */
+  replyLine(terminalId: string): ((nonce: string) => string) | undefined {
+    const live = this.host.sessions.get(terminalId)
+    if (!live) return undefined
+    return replyLine(
+      [...this.waitingFor(live)]
+        .filter((message) => message.response !== undefined && !message.response.feedback)
+        .toSorted((a, b) => a.sentAt - b.sentAt)
+        .map(({ text, response }) => ({
+          subject: cleanInboxText(response!.subject),
+          ...(response!.option !== undefined && { option: cleanInboxText(response!.option) }),
+          ...(response!.action !== undefined && { action: cleanInboxText(response!.action) }),
+          text,
+        })),
+    )
   }
 
   /**

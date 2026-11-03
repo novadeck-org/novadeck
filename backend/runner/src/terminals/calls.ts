@@ -3,6 +3,7 @@ import { resolve as resolvePath } from "node:path"
 import type { Effort, Install, Model } from "@novadeck/harness-core/harness"
 import { doorbellLine, quotedLine } from "@novadeck/harness-core/prompts"
 import type { AgentName } from "@novadeck/protocol"
+import type { Trees } from "@novadeck/terminal/pty"
 import { freshNonce } from "@novadeck/tui-input"
 
 import { agents, harnesses } from "../harnesses/registry.js"
@@ -50,8 +51,13 @@ import {
 import { peerOf } from "./peers-host.js"
 import type { Record } from "./record.js"
 import { resumeRefusal, type Claims } from "./resumes.js"
+import { nobodyToRun, runNotice, waitingToRun } from "./runs.js"
+import { shellBusy } from "./sampling.js"
 import { readSummarizeRequest, type SummarizeAnswer } from "./summarize-request.js"
 import { cleanSummary, summarized, summaryRefusal } from "./titles.js"
+
+// Characters that reorder how text is drawn, which a command shown for approval must not hold.
+const bidiControl = /[\u061C\u200E\u200F\u202A-\u202E\u2066-\u2069]/
 
 // A command line for the words: every word but a quoted line is a plain word, and a line
 // holds nothing a shell expands.
@@ -92,6 +98,8 @@ export type CallsHost = LeadsHost & {
   readonly opens: () => OpenRequests
   readonly companion: () => Companion
   readonly launcher: () => Launcher
+  /** Windows' process trees, which tell whether a shell has a job under it. */
+  readonly trees: () => Pick<Trees, "read">
   /** The sessions given out to resume, one to a terminal. */
   readonly claims: () => Claims
   /** Where a harness lives on this machine, which says how it may start with a task. */
@@ -196,6 +204,9 @@ export class Calls {
     // Starting an agent is open_agent's: it alone says who leads the agent, and with what task.
     const session = request.command === undefined ? null : sessionLaunch(request.command)
     if (session !== null) return refused(sessionCommandRefusal(session))
+    // What the person is asked to approve must read as it runs: no direction controls.
+    if (request.command !== undefined && bidiControl.test(request.command))
+      return refused("The command holds text-direction control characters, which aren't run.")
     const starts = request.command !== undefined || request.agent !== undefined
     // Every check `send` would refuse the task for, before anything starts.
     if (request.agent !== undefined && request.message !== undefined) {
@@ -227,16 +238,33 @@ export class Calls {
       .directory(resolvePath(record.summary.cwd, folder))
       .catch(() => undefined)
     if (cwd === undefined) return refused(`${folder} isn't a folder a terminal can open in.`)
-    const started: { command?: string | undefined; prompted: boolean; nonce?: string } =
-      request.agent === undefined
-        ? { command: request.command, prompted: true }
-        : resuming?.ok
-          ? { command: commandLine(resuming.argv), prompted: true }
-          : await this.taskCommand(request.agent, cwd, choice, request.message !== undefined)
+    // A command is the person's to approve: with no one to ask, or one question already
+    // waiting from this terminal, nothing is charged or asked.
+    if (request.command !== undefined) {
+      const waiting = this.host.approvals().refusal(call.terminalId)
+      if (waiting) return refused(waiting === "nobody" ? nobodyToRun : waitingToRun)
+    }
+    let started: { command?: string | undefined; prompted: boolean; nonce?: string }
+    try {
+      started =
+        request.agent === undefined
+          ? { command: request.command, prompted: true }
+          : resuming?.ok
+            ? { command: commandLine(resuming.argv), prompted: true }
+            : await this.taskCommand(request.agent, cwd, choice, request.message !== undefined)
+    } catch (error) {
+      if (!(error instanceof RangeError)) throw error
+      return refused("The agent's start line holds a character no shell quotes safely.")
+    }
     const { command } = started
     // Closed, or the runner stopped, while the folder was looked at.
     if (this.host.stopping() || this.host.records().get(call.terminalId) !== record)
       return unansweredCalls.open
+    // Another question may have been asked meanwhile, from here or about this terminal.
+    if (request.command !== undefined) {
+      const waiting = this.host.approvals().refusal(call.terminalId)
+      if (waiting) return refused(waiting === "nobody" ? nobodyToRun : waitingToRun)
+    }
     const now = Date.now()
     const charged = this.openers.get(call.terminalId) ?? call.terminalId
     prune(this.opened, now, openLimit.windowMs)
@@ -248,6 +276,8 @@ export class Calls {
       )
     this.opened.set(charged, times)
     this.allOpened = all
+    if (request.command !== undefined)
+      return this.askToRun(record, charged, { cwd, command: request.command, request })
     const asked = await this.host.opens().request(
       {
         from: call.terminalId,
@@ -308,6 +338,63 @@ export class Calls {
       ...(resuming?.ok && request.resume !== undefined && { resumed: request.resume }),
       ...(task && { task, ...(!started.prompted && { taskWaits: true as const }) }),
     }
+  }
+
+  /**
+   * Asks the person, through the client that follows `approvals`, to let a terminal start
+   * `command` in `cwd`. The call doesn't wait for them, as some harnesses time a tool call out:
+   * it answers `asked` at once, the terminal opens only if they confirm, and the caller hears
+   * the outcome as a notice.
+   */
+  private askToRun(
+    caller: Record,
+    charged: string,
+    run: {
+      readonly cwd: string
+      readonly command: string
+      readonly request: {
+        readonly title?: string | undefined
+        readonly focus?: boolean | undefined
+      }
+    },
+  ): OpenAnswer {
+    const { cwd, command, request } = run
+    const { id, sessionId, handle } = caller.summary
+    const tell = (text: string) => this.host.messaging().notice(id, text, { always: true })
+    this.host
+      .approvals()
+      .request(
+        { from: id, terminalId: id, sessionId, action: { type: "run", command, cwd } },
+        (outcome) => {
+          void (async () => {
+            if (this.host.stopping() || this.host.records().get(id) !== caller) return
+            if (outcome === "declined") return tell(runNotice.declined(command))
+            if (outcome !== "confirmed") return tell(runNotice.gone(command))
+            const asked = await this.host
+              .opens()
+              .request(
+                { from: id, sessionId, cwd, command, focus: request.focus === true },
+                this.openMs,
+                {
+                  by: handle,
+                  ...(request.title !== undefined && { title: request.title }),
+                  command,
+                  leads: false,
+                },
+              )
+            if (this.host.stopping() || this.host.records().get(id) !== caller) return
+            if (asked.type === "answered" && "terminalId" in asked.answer)
+              this.openers.set(asked.answer.terminalId, charged)
+            const answer = this.opening(asked, cwd, command)
+            tell(
+              answer.ok && "handle" in answer && answer.handle !== undefined
+                ? runNotice.opened(answer.handle, command)
+                : runNotice.refused(command, answer.ok ? "it did not open." : answer.reason),
+            )
+          })().catch(() => undefined)
+        },
+      )
+    return { ok: true, asked: true, cwd, command }
   }
 
   /**
@@ -416,6 +503,13 @@ export class Calls {
       return refused(`${mention(to)} is already closing.`)
     const target = await this.host.peers().target(peerOf(record), to)
     if (!target.ok) return target
+    // A program in the shell's foreground, a line entered whose prompt hasn't come back, or a
+    // job in the background: only read for a terminal that runs no agent.
+    const closingRecord = this.host.records().get(target.terminalId)
+    const busy =
+      target.agent === null && closingRecord
+        ? await shellBusy(closingRecord, this.host.trees())
+        : false
     // Closed, or the runner stopped, while the terminals were described.
     const closing = this.host.records().get(target.terminalId)
     if (this.host.stopping() || this.host.records().get(call.terminalId) !== record || !closing)
@@ -424,7 +518,7 @@ export class Calls {
     if (this.host.closingNow(closing.summary.id) || closing.closed)
       return refused(`${mention(target.handle)} is already closing.`)
     const leadsIt = this.host.messaging().leadOf(target.terminalId) === record.summary.handle
-    const way = closeWay({ leads: leadsIt, agent: target.agent })
+    const way = closeWay({ leads: leadsIt, agent: target.agent, busy })
     if (way === "request") {
       const waiting = this.host.approvals().refusal(target.terminalId)
       if (waiting)

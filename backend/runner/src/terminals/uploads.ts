@@ -49,7 +49,7 @@ type Part = { name?: string | undefined; path?: string | undefined; data: string
 /**
  * Files pasted into terminals, each saved in a folder of its own under `folder`,
  * or under a fresh temporary folder without one, readable by the runner's owner only.
- * Starting a file sweeps away uploads older than a week.
+ * Starting the runner and starting a file sweep away uploads older than a week.
  */
 export class Uploads {
   private root: Promise<string> | undefined
@@ -60,6 +60,16 @@ export class Uploads {
     private readonly folder: string | undefined,
     private readonly now: () => number = Date.now,
   ) {}
+
+  /**
+   * Sweeps away old uploads now, as the runner starts, so a runner that is never pasted
+   * into still lets go of last week's files. Nothing happens without a folder, and nothing
+   * is made where there is none yet; a failure is left for the next sweep.
+   */
+  async sweepOld(): Promise<void> {
+    if (this.folder === undefined) return
+    await this.sweep(this.folder).catch(() => {})
+  }
 
   /** Saves a part, starting a file with `name` or adding to the one at `path`; answers its path. */
   async save(part: Part): Promise<string> {

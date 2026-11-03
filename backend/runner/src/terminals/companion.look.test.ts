@@ -144,6 +144,16 @@ describe("an agent's look at a page", () => {
       ok: false,
       reason: expect.stringContaining("Several pages are showing"),
     })
+    // Each pane is on the page it was asked about.
+    fixture.answer = (look) => ({
+      lookId: look.lookId,
+      picture,
+      url: look.url,
+      title: "Dashboard",
+      taken: "pane",
+      size: { width: 1280, height: 800 },
+      troubles: [],
+    })
     expect(await fixture.look({ page: { url: "http://localhost:3000/other#x" } })).toMatchObject({
       ok: true,
     })
@@ -177,6 +187,56 @@ describe("an agent's look at a page", () => {
       ok: false,
       reason: expect.stringContaining("moved on to an address not served from this machine"),
     })
+  })
+
+  it("pictures the pane only on the origin shown: another origin, signed in, is the person's own", async ({
+    fixture,
+  }) => {
+    await show(fixture)
+    const pane = (at: string): void => {
+      fixture.answer = (look) => ({
+        lookId: look.lookId,
+        picture,
+        url: at,
+        title: "Account",
+        taken: "pane",
+        size: { width: 1280, height: 800 },
+        troubles: [],
+      })
+    }
+    // Another path of the shown origin is still the page.
+    pane("http://localhost:5173/work")
+    expect(await fixture.look()).toMatchObject({ ok: true })
+    // Another port on this machine, and another host name for it, are other origins.
+    for (const elsewhere of ["http://localhost:3000/account", "http://127.0.0.1:5173/"]) {
+      pane(elsewhere)
+      // eslint-disable-next-line no-await-in-loop -- Each origin is checked in turn.
+      expect(await fixture.look()).toMatchObject({
+        ok: false,
+        reason: expect.stringContaining("no longer on the origin you showed"),
+      })
+    }
+    // A pane that says nothing of where it is isn't taken for the shown page.
+    pane("")
+    expect(await fixture.look()).toMatchObject({ ok: false })
+  })
+
+  it("masks secrets in a page's own text", async ({ fixture }) => {
+    await show(fixture)
+    const key = "ghp_abcdefghijklmnopqrstuvwxyz0123456789"
+    fixture.answer = (look) => ({
+      lookId: look.lookId,
+      picture,
+      url,
+      title: `Dashboard ${key}`,
+      taken: "fresh",
+      size: { width: 900, height: 600 },
+      troubles: [{ kind: "error", text: `token=${key} rejected`, source: "", line: 0 }],
+    })
+    const answer = await fixture.look()
+    const text = answer.ok ? answer.text : ""
+    expect(text).toContain("Its title is")
+    expect(text).not.toContain(key)
   })
 
   it("says where the page is now when it moved, quoting what the page supplies", async ({

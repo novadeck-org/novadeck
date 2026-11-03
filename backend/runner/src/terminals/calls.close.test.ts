@@ -15,7 +15,8 @@ const token = "t".repeat(48)
 const terminal = (id: string, handle: string, title = "Terminal"): Record =>
   ({
     summary: { id, handle, title, sessionId: "session" },
-    terminal: { exiting: false },
+    terminal: { exiting: false, pty: { pid: undefined } },
+    prompts: [],
     token,
     closed: false,
   }) as unknown as Record
@@ -58,6 +59,7 @@ const setup = (
       },
     }),
     approvals: () => approvals,
+    trees: () => ({ read: async () => undefined }),
     closingNow: () => false,
     closeForGood: (record: Record) => {
       record.closed = true
@@ -229,6 +231,41 @@ describe("an agent closing a teammate it leads, or a terminal with no agent", ()
     expect(answer).toMatchObject({ ok: true, handle: "fox" })
     expect(answer).not.toHaveProperty("ran")
     expect(run.steps).toContain("removed fox")
+  })
+
+  it("asks the person before closing a plain terminal that runs a program, and closes nothing yet", async () => {
+    const run = setup({ moth: "claude", fox: null })
+    const requested = person(run.approvals)
+    const fox = run.records.get("id-fox")!
+    // ssh holds the foreground; the shell is bash.
+    Object.assign(fox, { shellName: "bash" })
+    Object.assign(fox.summary, { process: { name: "ssh", argv: null } })
+    await expect(run.close("moth", "fox")).resolves.toMatchObject({
+      ok: true,
+      asked: true,
+      handle: "fox",
+    })
+    await settle()
+    expect(requested).toMatchObject([{ type: "request", terminalId: "id-fox" }])
+    expect(run.steps).toEqual([])
+  })
+
+  it("closes at once where the shell has no integration, however many lines were entered", async () => {
+    const run = setup({ moth: "claude", fox: null })
+    Object.assign(run.records.get("id-fox")!, { submitted: true, prompts: [] })
+    await expect(run.close("moth", "fox")).resolves.toMatchObject({ ok: true, handle: "fox" })
+    expect(run.steps).toContain("removed fox")
+  })
+
+  it("asks too where the platform names no program but a line was entered at the prompt", async () => {
+    const run = setup({ moth: "claude", fox: null })
+    const requested = person(run.approvals)
+    // The shell's integration has reported a prompt (it reset `submitted` before).
+    Object.assign(run.records.get("id-fox")!, { submitted: true, prompts: [{}] })
+    await expect(run.close("moth", "fox")).resolves.toMatchObject({ ok: true, asked: true })
+    await settle()
+    expect(requested).toHaveLength(1)
+    expect(run.steps).toEqual([])
   })
 })
 

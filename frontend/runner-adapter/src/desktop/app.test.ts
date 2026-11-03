@@ -867,7 +867,7 @@ describe("what the desktop app gives the backend", () => {
     options.beforeQuit!(save)
     options.showAppearance!({ dark: true } as never)
     options.openLogs!()
-    options.pagePicture!("page" as never, 640)
+    options.pagePicture!("page" as never, 640, true)
     options.pageLook!({ url: "https://example.com", layout: "phone", before: 1 })
     options.pagePhone!("page" as never, true as never)
     expect(calls).toEqual([
@@ -875,7 +875,7 @@ describe("what the desktop app gives the backend", () => {
       ["before quit", save],
       ["appearance", { dark: true }],
       ["logs"],
-      ["picture", "page", 640],
+      ["picture", "page", 640, true],
       ["look", { url: "https://example.com", layout: "phone", before: 1 }],
       ["phone", "page", true],
     ])
