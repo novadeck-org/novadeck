@@ -314,8 +314,9 @@ export class Bindings {
       if (step === undefined || record.bound?.binding.sessionId !== sessionId) return
       const kept = record.interruptions ?? []
       record.interruptions = [...kept, { sessionId, step, at: escape.key }].slice(-maxInterruptions)
-      // Saved with the terminal, so the chat still shows it after a restart.
-      record.changed = true
+      // Saved with the terminal at once, so the chat still shows it after a restart, even
+      // one that comes before the next periodic save.
+      this.host.save(record)
     })
   }
 

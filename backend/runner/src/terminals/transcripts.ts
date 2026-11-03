@@ -15,8 +15,9 @@ const backlog = 4 * batch
 /**
  * Where the person interrupted a turn that the transcript itself doesn't record, as
  * Antigravity's writes no step for an Escape: the last step the file had when they pressed
- * it (its harness's `step`; -1 for none), and when. A step keeps its index through a
- * rewrite of the file, so the mark keeps its place after a reset and a runner restart.
+ * it (its harness's `step`; -1 for none), and when: the mark keeps its place after a runner
+ * restart, and after a reset as long as the rewrite keeps each step's index, which a byte
+ * offset never would (Antigravity's rewrite on compaction is unprobed).
  */
 export type Interruption = { readonly step: number; readonly at: number }
 

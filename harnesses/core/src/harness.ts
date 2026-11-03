@@ -136,9 +136,9 @@ export type Harness = {
     /**
      * Where one line stands in it, where the line says (Antigravity's `step_index`), growing
      * through the conversation though lines may come out of order: what the runner keeps an
-     * interruption the transcript doesn't record against (`records` false), as a step keeps
-     * its index through a rewrite of the file, where a byte offset would not. None for a
-     * harness that records its own.
+     * interruption the transcript doesn't record against (`records` false), as a rewrite of
+     * the file that keeps each step's index keeps the mark's place, where a byte offset would
+     * not. None for a harness that records its own.
      */
     readonly step?: (line: string) => number | undefined
   }

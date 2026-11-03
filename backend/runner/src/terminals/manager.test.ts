@@ -2165,6 +2165,8 @@ describe("a turn the person's Escape ended", () => {
         vi.useRealTimers()
       }
       await vi.waitFor(() => expect(record.interruptions).toHaveLength(1))
+      // Saved at once, not on the next periodic save: a runner killed now still keeps it.
+      expect(store.terminal(terminalId)?.interruptions).toHaveLength(1)
       await first.shutdown()
       expect(store.terminal(terminalId)?.interruptions).toEqual([
         { sessionId: binding.sessionId, step: 0, at: 20 },
