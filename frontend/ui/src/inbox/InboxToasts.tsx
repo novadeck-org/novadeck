@@ -117,12 +117,14 @@ const showText = (waiting: ShowWaiting, now: number): ToastText => ({
 // The toasts of the Inbox's rows that need the person while the app has their focus: it
 // follows the Inbox by `follow` (the app's `watchInboxToasts`), which decides what rings and
 // when on the board it's given, and draws them as a stack over the header's right end. A
-// click on one shows the Inbox on its row; the pill that counts the rest shows the Inbox.
+// click on one shows the Inbox on its row, for that row alone: once it is answered the sidebar
+// goes back to what it showed (`peekInbox`). The pill that counts the rest shows the Inbox.
 // Closing a toast or letting it run out leaves its row in the Inbox.
 export const InboxToasts = ({
   follow,
   followShows,
   showInbox,
+  peekInbox,
   showTerminal,
 }: {
   // Rings the Inbox's toasts on the board until the returned stop.
@@ -130,6 +132,8 @@ export const InboxToasts = ({
   // Tells of what waits to open on the board until the returned stop.
   readonly followShows: (board: ShowBoard) => () => void
   readonly showInbox: () => void
+  // Shows the Inbox for one row; returns what puts the sidebar back, unless it showed already.
+  readonly peekInbox: () => (() => void) | undefined
   // Brings the terminal into view, selected, which opens what waits on it.
   readonly showTerminal: (terminalId: string) => void
 }): React.JSX.Element => {
@@ -167,8 +171,7 @@ export const InboxToasts = ({
       label="Inbox"
       onSelect={(toast, { keyboard }) => {
         if (toast.kind === "show") return showTerminal(toast.waiting.terminalId)
-        showInbox()
-        open(toast.row.id)
+        open(toast.row.id, { once: true, after: peekInbox() })
         // From the keyboard, on to the sheet that opens, as from a row.
         if (keyboard) focusSheetSoon()
       }}

@@ -392,6 +392,52 @@ describe("workspace commands", () => {
     })
   })
 
+  context("when the Inbox shows for one row, as a click on a toast shows it", () => {
+    const panel = (app: ReturnType<typeof openCommands>) =>
+      app.ui.getSnapshot().location.route.panel
+
+    it("puts back the panel that showed, and typing in the selected terminal", () => {
+      const app = openCommands()
+      app.commands.showSessions()
+      const back = app.commands.peekInbox()
+      expect(panel(app)).toBe("inbox")
+      back!()
+      expect(panel(app)).toBe("sessions")
+      expect(app.shell()).toMatchObject({ sidebarCollapsed: false })
+      app.flush()
+      expect(app.effects.at(-1)).toBe(`focus input ${app.state().selected}`)
+    })
+
+    it("hides the sidebar again where it was hidden, and goes back to Zen", () => {
+      const app = openCommands()
+      app.commands.showSessions()
+      app.commands.hideSidebar()
+      app.commands.peekInbox()!()
+      expect(app.shell()).toMatchObject({ sidebarCollapsed: true, zen: null })
+      expect(panel(app)).toBe("sessions")
+      app.commands.enterZen()
+      const zen = app.shell().zen
+      app.commands.peekInbox()!()
+      expect(app.shell().zen).toEqual(zen)
+    })
+
+    it("puts nothing back once the person has moved the sidebar on", () => {
+      const app = openCommands()
+      app.commands.showSessions()
+      const back = app.commands.peekInbox()
+      app.commands.toggleSidebar("inbox")
+      back!()
+      expect(app.shell().sidebarCollapsed).toBe(true)
+      expect(panel(app)).toBe("inbox")
+    })
+
+    it("has nothing to put back where the Inbox showed already", () => {
+      const app = openCommands()
+      app.commands.showInbox()
+      expect(app.commands.peekInbox()).toBeUndefined()
+    })
+  })
+
   context("when a view saves its layout after the session changed", () => {
     it("saves it to the session the view showed", () => {
       const app = openCommands({ workspace: workspaceFixture({ sessions: ["initial", "other"] }) })

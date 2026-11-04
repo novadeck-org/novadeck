@@ -12,13 +12,17 @@ import {
   type NavigationMove,
   type ShellState,
 } from "../../shell/shell-state"
-import { currentContext } from "../selectors"
+import { currentContext, currentState } from "../selectors"
 import { updateShell } from "../ui-store"
 import type { CommandContext } from "./context"
 
 export type ShellCommands = {
   readonly showSessions: () => void
   readonly showInbox: () => void
+  // Shows the Inbox for one row, as a click on a toast or a notice does: unless it shows
+  // already, returns what puts the sidebar back as it was before (or hidden), with typing back
+  // in the selected terminal. That does nothing once the person has moved the sidebar on.
+  readonly peekInbox: () => (() => void) | undefined
   readonly hideSidebar: () => void
   // Hides the panel when it already shows; otherwise leaves Zen and shows it.
   readonly toggleSidebar: (panel: SidebarPanel) => void
@@ -71,6 +75,27 @@ export const createShellCommands = (ctx: CommandContext): ShellCommands => {
   return {
     showSessions: () => show("sessions"),
     showInbox: () => show("inbox"),
+    peekInbox: () => {
+      const desktop = effects.desktop()
+      const { location, shell } = ui.getSnapshot()
+      if (location.route.panel === "inbox" && sidebarVisible(shell, desktop)) return undefined
+      const was = location.route.panel
+      const { sidebar, sidebarCollapsed, zen } = shell
+      show("inbox")
+      return () => {
+        const now = ui.getSnapshot()
+        if (now.location.route.panel !== "inbox" || !sidebarVisible(now.shell, effects.desktop()))
+          return
+        change((edited) => ({ ...edited, sidebar, sidebarCollapsed, zen }))
+        // In place of the Inbox, so Back doesn't bring it back.
+        navigation.go({ panel: was }, true)
+        if (!effects.desktop()) return
+        effects.afterFrame(() => {
+          const { selected } = currentState(workspace.getSnapshot())
+          if (selected) effects.focusTerminalInput(selected)
+        })
+      }
+    },
     hideSidebar: hide,
     toggleSidebar: (next) => {
       // Visibility before this command: a panel hidden by Zen shows instead of hiding.
