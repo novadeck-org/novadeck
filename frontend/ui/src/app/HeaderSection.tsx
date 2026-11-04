@@ -14,7 +14,7 @@ import { useUiState, useWorkspaceServices, useWorkspaceState } from "./controlle
 import { useStoreSelector } from "./controller/useStoreSelector"
 import { routeUrl } from "./routing"
 import { currentState, shallowEqual } from "./selectors"
-import { useClock } from "./useTerminalMarks"
+import { useMoveOn } from "./useTerminalMarks"
 
 // The earlier of two times, either of which may be none.
 const soonest = (a: number | undefined, b: number | undefined): number | undefined =>
@@ -58,12 +58,13 @@ export const HeaderSection = memo((): React.JSX.Element => {
   // What the raw Inbox holds, as the tabs read it, not the landing rule's: its needs and
   // done reports mark the projects as they mark the tabs.
   const items = useStoreSelector((backend.inbox ?? noInbox).state, (state) => state.items)
-  const allProjects = useWorkspaceState((workspace) => workspace.projects)
-  // Moves on as a limit among them resets, so its project is marked then, and as an agent's
-  // wait passes, so its project's mark clears then.
-  const now = useClock((at) =>
-    soonest(nextLimitReset(items, at), nextStatusChange(allProjects, at)),
-  )
+  // The time the marks are judged by: it moves on as a limit among the items resets, so
+  // its project is marked then, and as an agent's wait passes by its grace, so its
+  // project's mark clears then. The wait's end is read as a time, so the header renders
+  // again only as it changes, not with every change to the projects.
+  const [now, setNow] = useState(() => Date.now())
+  const waitEndsAt = useWorkspaceState((workspace) => nextStatusChange(workspace.projects, now))
+  useMoveOn(soonest(nextLimitReset(items, now), waitEndsAt), setNow)
   // The selectors close over `unread`, the items and the time, so a new one is a new
   // selector and recomputes.
   const statuses = useWorkspaceState(
