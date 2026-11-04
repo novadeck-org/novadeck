@@ -287,8 +287,10 @@ Switching terminal tabs in Focus uses the same transition.
 The project switcher in the top bar lists every project with what its agents show: the
 most pressing of its terminals' marks, as their tabs have them ("?" or "!" while an
 agent needs you, "✓" while a done report waits unseen, "✗" while a failed turn waits
-unread, a spinner while one works). A dot on the switcher's button marks what another project has
-waiting on you, in that mark's colour; projects only working don't light it. The list
+unread, a spinner while one works, "∅" while one is paused at its usage limit, a slow
+drip while one waits on a job or a wake-up, "○" while Novadeck can't hear from one). A
+dot on the switcher's button marks what another project has waiting on you, in that
+mark's colour; projects only working, paused, waiting or unheard don't light it. The list
 grows to 560px before it scrolls.
 
 Drag projects into any order, or move the focused one with Alt+Up and Alt+Down. Pin up to

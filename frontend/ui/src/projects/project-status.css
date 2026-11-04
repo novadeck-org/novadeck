@@ -1,17 +1,20 @@
 /* What a project's terminals show at a glance, marked as a terminal tab marks its phase:
    `.project-status-mark`, a glyph in the mono face, sits in the dropdown's rows and the
    pins bar. The parent says which: data-project-status="ask" | "unblock" | "failed" |
-   "done" | "running" on the element that holds the mark.
+   "paused" | "running" | "waiting" | "done" | "unheard" on the element that holds the mark.
 
    "?" while an agent asks, "!" while it is blocked on the person, "✓" while an agent's done
    report waits unseen, "✗" while a turn that ended on an error does, a spinner while one
-   works.
+   works, and the tabs' quieter glyphs (tabs.css) for the rest: "∅" while an agent is paused
+   at its usage limit, the slow drip while one waits on a job or a wake-up, "○" while one is
+   unheard. Reduced motion holds the spinner and the drip still (accessibility.css).
 
    Tokens, each optional (its fallback in brackets):
    --project-status-attention-fg (warning-fg): the mark while an agent asks or is blocked.
    --project-status-done-fg (success-fg): the mark while a done report waits unseen.
    --project-status-failed-fg (danger-fg): the mark while a turn that ended on an error waits.
-   --project-status-running-fg (ink): the spinner. */
+   --project-status-running-fg (ink): the spinner.
+   --project-status-quiet-fg (muted): the paused, waiting and unheard marks. */
 .project-status-mark {
   flex: none;
   width: 1ch;
@@ -33,18 +36,36 @@
 [data-project-status="done"] > .project-status-mark::before {
   content: "✓";
 }
-/* The spinner is a tab's (tabs.css): a column of frames, one line shown, stepped up by a
-   transform. */
-[data-project-status="running"] > .project-status-mark {
+[data-project-status="paused"] > .project-status-mark,
+[data-project-status="unheard"] > .project-status-mark {
+  font-weight: 400;
+}
+[data-project-status="paused"] > .project-status-mark::before {
+  content: "∅";
+}
+[data-project-status="unheard"] > .project-status-mark::before {
+  content: "○";
+}
+/* The spinner and the drip are a tab's (tabs.css): a column of frames, one line shown,
+   stepped up by a transform. */
+[data-project-status="running"] > .project-status-mark,
+[data-project-status="waiting"] > .project-status-mark {
   height: 1lh;
   overflow: hidden;
   font-weight: 400;
 }
-[data-project-status="running"] > .project-status-mark::before {
+[data-project-status="running"] > .project-status-mark::before,
+[data-project-status="waiting"] > .project-status-mark::before {
   display: block;
   white-space: pre;
+}
+[data-project-status="running"] > .project-status-mark::before {
   content: "⠋\A⠙\A⠹\A⠸\A⠼\A⠴\A⠦\A⠧\A⠇\A⠏";
   animation: terminal-spin 800ms steps(10) infinite;
+}
+[data-project-status="waiting"] > .project-status-mark::before {
+  content: "⠉\A⠒\A⠤\A⣀\A\00a0";
+  animation: terminal-spin 2s steps(5) infinite;
 }
 
 /* The tones, set on the mark by its parent so no other child of it takes them. */
@@ -60,4 +81,9 @@
 }
 [data-project-status="running"] > .project-status-mark {
   color: var(--project-status-running-fg, var(--color-ink));
+}
+[data-project-status="paused"] > .project-status-mark,
+[data-project-status="waiting"] > .project-status-mark,
+[data-project-status="unheard"] > .project-status-mark {
+  color: var(--project-status-quiet-fg, var(--color-muted));
 }

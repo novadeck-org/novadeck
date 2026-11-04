@@ -7,13 +7,35 @@ import type { WorkspaceProject } from "@novadeck/core/types"
 // What a project's terminals show at a glance, the most pressing of them, as the switcher
 // marks it, as their tabs do: an agent that asks the person a question (the tab's `?`, the
 // Inbox's `ask`) or is blocked on them for a permission, a plan or an action (its `!`, the
-// Inbox's `unblock`); one that failed while they looked elsewhere; one whose report of its task
-// done still stands; or one still working. Undefined while none shows anything.
-export type ProjectStatus = "ask" | "unblock" | "failed" | "done" | "running"
+// Inbox's `unblock`); one that failed while they looked elsewhere; one paused at its usage
+// limit; one still working; one that ended its turn to wait on a job or a wake-up; one whose
+// report of its task done still stands; or one Novadeck can't hear from. Undefined while none
+// shows anything.
+export type ProjectStatus =
+  | "ask"
+  | "unblock"
+  | "failed"
+  | "paused"
+  | "running"
+  | "waiting"
+  | "done"
+  | "unheard"
 
-// Most pressing first: what blocks an agent before what it asks, then a failure, then an agent
-// still at work before a done report, so a project reads done only once none of it works on.
-const rank: readonly ProjectStatus[] = ["unblock", "ask", "failed", "running", "done"]
+// Most pressing first: what blocks an agent before what it asks, then a failure, then a limit
+// hit (which the person may want to know of while the rest works on), then an agent at work
+// and one that waits to be woken before a done report, so a project reads done only once none
+// of it works on or waits to; an agent nothing tells of comes last, as anything known outranks
+// it.
+const rank: readonly ProjectStatus[] = [
+  "unblock",
+  "ask",
+  "failed",
+  "paused",
+  "running",
+  "waiting",
+  "done",
+  "unheard",
+]
 
 const pressing = (a: ProjectStatus | undefined, b: ProjectStatus | undefined) =>
   a === undefined || (b !== undefined && rank.indexOf(b) < rank.indexOf(a)) ? b : a
@@ -28,14 +50,19 @@ export const statusText: Record<ProjectStatus, string> = {
   ask: "Asks a question",
   unblock: "Needs you",
   failed: doneText(true),
-  done: doneText(),
+  paused: "Paused at its usage limit",
   running: "Working",
+  waiting: "Waits on a job or a wake-up",
+  done: doneText(),
+  unheard: "Not reporting",
 }
 
 // The status of each terminal is what its tab shows: its need (the Inbox's raw `items`, as
 // the tab reads them, and the dialog its agent shows now), an unread turn that failed, a
-// done report that stands, or an agent at work. An ended terminal shows nothing, as its tab reads
-// ended, and only an agent at work counts as running, not a dev server or any other program.
+// done report that stands, or its agent's phase: paused at its limit, at work, waiting, or
+// unheard. An ended terminal shows nothing, as its tab reads ended, and only an agent at work
+// counts as running, not a dev server or any other program: a shell's own program is no
+// status, so a project never spins for a server left running.
 export const projectStatus = (
   project: WorkspaceProject,
   unread: UnreadEnds,
@@ -64,9 +91,13 @@ export const projectStatus = (
           ? failed
             ? "failed"
             : "done"
-          : phase === "running" && agentWorking(terminal)
-            ? "running"
-            : undefined)
+          : phase === "running"
+            ? agentWorking(terminal)
+              ? "running"
+              : undefined
+            : phase === "paused" || phase === "waiting" || phase === "unheard"
+              ? phase
+              : undefined)
       status = pressing(status, each)
     }
   }
@@ -79,9 +110,11 @@ export const anyAgentWorking = (projects: readonly WorkspaceProject[]): boolean 
     history.some(({ state }) => state.roster.terminals.some(agentWorking)),
   )
 
-// Whether a status asks for the person, as working on does not.
+// Whether a status asks for the person: what an agent needs, a failure or a done report, as
+// one at work, paused, waiting or unheard does not.
+const asksForPerson: ReadonlySet<ProjectStatus> = new Set(["unblock", "ask", "failed", "done"])
 export const needsPerson = (status: ProjectStatus | undefined): boolean =>
-  status !== undefined && status !== "running"
+  status !== undefined && asksForPerson.has(status)
 
 // The status of every project, by its id, that shows one.
 export const projectStatuses = (

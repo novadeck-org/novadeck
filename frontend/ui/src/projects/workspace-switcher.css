@@ -13,14 +13,15 @@
    Each row marks what its project's terminals show, the most pressing of them, with
    `.project-status-mark`, whose glyphs and tones are project-status.css's, and the
    trigger's `.workspace-switcher-dot` (an `.attention-dot`, see attention-dot.css) marks
-   that another project has something waiting on the person; a project only working
-   doesn't mark it.
+   that another project has something waiting on the person; a project only working,
+   paused at a limit, waiting to be woken or unheard doesn't mark it.
 
    Hooks: on a row, data-pinned="true" for a pinned project and data-dragging="true" while
    it is dragged. On the trigger, aria-expanded="true" while the popover is open; on a row,
    aria-current="true" and data-selected="true" for the current project. On a row,
-   data-project-status="ask" | "unblock" | "failed" | "done" | "running", which the
-   status mark inside reads; on the trigger, the same but never "running", for its dot.
+   data-project-status="ask" | "unblock" | "failed" | "paused" | "running" | "waiting" |
+   "done" | "unheard", which the status mark inside reads; on the trigger, only the ones
+   that ask for the person ("ask", "unblock", "failed", "done"), for its dot.
 
    Tokens, each optional (its fallback in brackets):
    --workspace-switcher-icon-fg (muted): the trigger's folder and chevron.
