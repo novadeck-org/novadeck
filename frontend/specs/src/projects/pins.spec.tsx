@@ -240,6 +240,21 @@ describe("A pinned project", () => {
     await expect.element(workspaceSwitcher()).toHaveAttribute("data-project-status")
   })
 
+  it("marks its pin as the switcher's row marks it, an agent at work included", async () => {
+    // mobile-app's agent works; its pin spins as its row does, though the dot leaves it
+    // out, as working asks nothing of the person.
+    arrange(["mobile-app"])
+    await openWorkspace("/?demo=agents")
+    await skipWelcome()
+    await expect.element(pin("mobile-app")).toHaveAttribute("aria-description", "Working")
+    await expect.element(pin("mobile-app")).toHaveAttribute("data-project-status", "running")
+    await workspaceSwitcher().click()
+    await expect.element(switcherRow("mobile-app")).toHaveAttribute("aria-description", "Working")
+    await expect
+      .element(switcherRow("mobile-app"))
+      .toHaveAttribute("data-project-status", "running")
+  })
+
   it("is absent with no pins, and appears when pinning from the switcher menu", async () => {
     await openWorkspace()
     await expect.element(pinsBar()).not.toBeInTheDocument()

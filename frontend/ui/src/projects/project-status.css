@@ -5,7 +5,7 @@
 
    "?" while an agent asks, "!" while it is blocked on the person, "✓" while an agent's done
    report waits unseen, "✗" while a turn that ended on an error does, a spinner while one
-   works (the pins bar leaves that one out, so the header stays still while agents work).
+   works.
 
    Tokens, each optional (its fallback in brackets):
    --project-status-attention-fg (warning-fg): the mark while an agent asks or is blocked.

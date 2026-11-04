@@ -17,7 +17,7 @@ import { usePinDrop, type Point } from "./pin-drop"
 import { usePinHandoff } from "./pin-handoff"
 import { ease, slide } from "./pin-motion"
 import { pinsThatFit } from "./pins-fit"
-import { needsPerson, statusText, type ProjectStatus } from "./project-status"
+import { statusText, type ProjectStatus } from "./project-status"
 
 type Pin = { readonly id: string; readonly name: string; readonly directory: string }
 
@@ -43,8 +43,8 @@ const offBar = (strip: HTMLElement | null, point: Point): boolean => {
 }
 
 // The pinned projects, as a bar under the header, in the person's order: each pin is its
-// number (its shortcut's digit), its name and a mark of what its project's terminals ask
-// of the person, and a click switches to it. The bar slides in with the first pin and out
+// number (its shortcut's digit), its name and a mark of what its project's terminals show,
+// the same mark as the switcher's row shows for it, and a click switches to it. The bar slides in with the first pin and out
 // with the last. The current pin stays in its place, marked as current, so switching never
 // moves the others, and a mark's slot is always there, so one appearing never does either.
 // They take the room the bar leaves them: each shows whole or not at all, the last ones
@@ -279,8 +279,6 @@ export const PinsBar = ({
             >
               <ManagerOf onManager={takeManager} />
               {items.map((project, index) => {
-                // A project only working shows nothing: the bar stays still while agents work.
-                const status = needsPerson(statuses[project.id]) ? statuses[project.id] : undefined
                 return (
                   <PinButton
                     key={project.id}
@@ -289,7 +287,7 @@ export const PinsBar = ({
                     fits={index < shown}
                     last={index === shown - 1}
                     current={project.id === current}
-                    status={status}
+                    status={statuses[project.id]}
                     dragging={dragging}
                     leaving={unpinning}
                     arriving={project.id === arriving}
