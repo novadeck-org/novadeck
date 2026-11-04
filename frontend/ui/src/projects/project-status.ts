@@ -2,7 +2,8 @@ import { agentWorking } from "@novadeck/core/agents/finish"
 import type { InboxRow } from "@novadeck/core/inbox"
 import { inboxMarks } from "@novadeck/core/inbox/marks"
 import { doneText, terminalGlance } from "@novadeck/core/terminals/ending"
-import type { WorkspaceProject } from "@novadeck/core/types"
+import { waitingOf, wakeGraceMs } from "@novadeck/core/terminals/waiting"
+import type { TerminalMetadata, WorkspaceProject } from "@novadeck/core/types"
 
 // What a project's terminals show at a glance, the most pressing of them, as the switcher
 // marks it, as their tabs do: an agent that asks the person a question (the tab's `?`, the
@@ -63,46 +64,75 @@ export const statusText: Record<ProjectStatus, string> = {
 // unheard. An ended terminal shows nothing, as its tab reads ended, and only an agent at work
 // counts as running, not a dev server or any other program: a shell's own program is no
 // status, so a project never spins for a server left running.
+const terminalStatus = (
+  project: WorkspaceProject,
+  sessionId: string,
+  terminal: TerminalMetadata,
+  unread: UnreadEnds,
+  rows: readonly InboxRow[],
+  now: number,
+): ProjectStatus | undefined => {
+  if (terminal.state === "exited" || terminal.state === "failed") return undefined
+  const at = { projectId: project.id, workspaceSessionId: sessionId, terminalId: terminal.id }
+  const { need, phase, failed } = terminalGlance(
+    terminal,
+    inboxMarks(rows, at, now),
+    unread(`${project.id}/${sessionId}`, terminal.id),
+    now,
+  )
+  return (
+    need ??
+    (phase === "done"
+      ? failed
+        ? "failed"
+        : "done"
+      : phase === "running"
+        ? agentWorking(terminal)
+          ? "running"
+          : undefined
+        : phase === "paused" || phase === "waiting" || phase === "unheard"
+          ? phase
+          : undefined)
+  )
+}
+
+// The most pressing status among a project's terminals that `counts`.
+const mostPressing = (
+  project: WorkspaceProject,
+  unread: UnreadEnds,
+  rows: readonly InboxRow[],
+  now: number,
+  counts: (status: ProjectStatus) => boolean,
+): ProjectStatus | undefined => {
+  let status: ProjectStatus | undefined
+  for (const session of project.history)
+    for (const terminal of session.state.roster.terminals) {
+      const each = terminalStatus(project, session.id, terminal, unread, rows, now)
+      if (each !== undefined && counts(each)) status = pressing(status, each)
+    }
+  return status
+}
+
+const any = (): boolean => true
+
+// What a project's terminals show: the most pressing status among them, which the
+// switcher's rows and the pins bar mark.
 export const projectStatus = (
   project: WorkspaceProject,
   unread: UnreadEnds,
   rows: readonly InboxRow[] = [],
   now = Date.now(),
-): ProjectStatus | undefined => {
-  let status: ProjectStatus | undefined
-  for (const session of project.history) {
-    const context = `${project.id}/${session.id}`
-    for (const terminal of session.state.roster.terminals) {
-      if (terminal.state === "exited" || terminal.state === "failed") continue
-      const at = {
-        projectId: project.id,
-        workspaceSessionId: session.id,
-        terminalId: terminal.id,
-      }
-      const { need, phase, failed } = terminalGlance(
-        terminal,
-        inboxMarks(rows, at, now),
-        unread(context, terminal.id),
-        now,
-      )
-      const each: ProjectStatus | undefined =
-        need ??
-        (phase === "done"
-          ? failed
-            ? "failed"
-            : "done"
-          : phase === "running"
-            ? agentWorking(terminal)
-              ? "running"
-              : undefined
-            : phase === "paused" || phase === "waiting" || phase === "unheard"
-              ? phase
-              : undefined)
-      status = pressing(status, each)
-    }
-  }
-  return status
-}
+): ProjectStatus | undefined => mostPressing(project, unread, rows, now, any)
+
+// What a project's terminals ask of the person: the most pressing status among them that
+// does, which the switcher's dot reads, so a done report under an agent paused at its limit
+// or waiting to be woken still lights it, as its mark shows the quieter state.
+export const projectAsk = (
+  project: WorkspaceProject,
+  unread: UnreadEnds,
+  rows: readonly InboxRow[] = [],
+  now = Date.now(),
+): ProjectStatus | undefined => mostPressing(project, unread, rows, now, needsPerson)
 
 // Whether an agent is at work in any of the projects, in any of their sessions.
 export const anyAgentWorking = (projects: readonly WorkspaceProject[]): boolean =>
@@ -116,30 +146,68 @@ const asksForPerson: ReadonlySet<ProjectStatus> = new Set(["unblock", "ask", "fa
 export const needsPerson = (status: ProjectStatus | undefined): boolean =>
   status !== undefined && asksForPerson.has(status)
 
+const byProject = (
+  projects: readonly WorkspaceProject[],
+  each: (project: WorkspaceProject) => ProjectStatus | undefined,
+): Readonly<Record<string, ProjectStatus>> => {
+  const statuses: Record<string, ProjectStatus> = {}
+  for (const project of projects) {
+    const status = each(project)
+    if (status) statuses[project.id] = status
+  }
+  return statuses
+}
+
 // The status of every project, by its id, that shows one.
 export const projectStatuses = (
   projects: readonly WorkspaceProject[],
   unread: UnreadEnds,
   rows: readonly InboxRow[] = [],
   now = Date.now(),
-): Readonly<Record<string, ProjectStatus>> => {
-  const statuses: Record<string, ProjectStatus> = {}
-  for (const project of projects) {
-    const status = projectStatus(project, unread, rows, now)
-    if (status) statuses[project.id] = status
-  }
-  return statuses
+): Readonly<Record<string, ProjectStatus>> =>
+  byProject(projects, (project) => projectStatus(project, unread, rows, now))
+
+// What every project asks of the person, by its id, where one asks anything.
+export const projectAsks = (
+  projects: readonly WorkspaceProject[],
+  unread: UnreadEnds,
+  rows: readonly InboxRow[] = [],
+  now = Date.now(),
+): Readonly<Record<string, ProjectStatus>> =>
+  byProject(projects, (project) => projectAsk(project, unread, rows, now))
+
+// When a project's status next changes by time alone, so a view can read them again then:
+// the grace after a job an agent's harness gives up on, or after its wake-up, passing,
+// which ends its wait. Undefined while nothing waits that way; a limit resetting is the
+// Inbox's (`nextLimitReset`), and the needs it makes are read from its rows.
+export const nextStatusChange = (
+  projects: readonly WorkspaceProject[],
+  now = Date.now(),
+): number | undefined => {
+  let soonest: number | undefined
+  for (const { history } of projects)
+    for (const { state } of history)
+      for (const terminal of state.roster.terminals) {
+        const waiting = waitingOf(terminal, now)
+        if (!waiting) continue
+        const ends = waiting.jobs
+          .filter((job) => job.until !== null)
+          .map((job) => job.until! + wakeGraceMs)
+        if (waiting.wake) ends.push(waiting.wake.at + wakeGraceMs)
+        for (const at of ends) if (soonest === undefined || at < soonest) soonest = at
+      }
+  return soonest
 }
 
-// The most pressing status among the projects other than `current` and the `ignore`d ones
-// that ask for the person: what the switcher's button marks.
+// The most pressing among what the projects other than `current` and the `ignore`d ones
+// ask of the person (`projectAsks`): what the switcher's button marks.
 export const elsewhereStatus = (
-  statuses: Readonly<Record<string, ProjectStatus>>,
+  asks: Readonly<Record<string, ProjectStatus>>,
   current: string,
   ignore: readonly string[],
 ): ProjectStatus | undefined => {
   let status: ProjectStatus | undefined
-  for (const [id, each] of Object.entries(statuses))
+  for (const [id, each] of Object.entries(asks))
     if (id !== current && !ignore.includes(id) && needsPerson(each)) status = pressing(status, each)
   return status
 }

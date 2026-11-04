@@ -28,6 +28,7 @@ export const WorkspaceHeader = ({
   projects,
   project,
   statuses,
+  asks,
   arrangement,
   onProjectMove,
   onProjectStep,
@@ -47,8 +48,10 @@ export const WorkspaceHeader = ({
   enabledViews: ViewMode[]
   projects: Project[]
   project: Project
-  // What each project's terminals show, by its id, where they show anything.
+  // What each project's terminals show, by its id, where they show anything, and what they
+  // ask of the person, where they ask anything, for the switcher's dot.
   statuses: Readonly<Record<string, ProjectStatus>>
+  asks: Readonly<Record<string, ProjectStatus>>
   // How the person arranged the projects, and the intents to change it.
   arrangement: ProjectArrangement
   onProjectMove: (id: string, index: number) => void
@@ -98,6 +101,7 @@ export const WorkspaceHeader = ({
           projects={projects}
           current={project}
           statuses={statuses}
+          asks={asks}
           arrangement={arrangement}
           onSelect={onProjectSelect}
           onMove={onProjectMove}

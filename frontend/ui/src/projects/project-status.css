@@ -6,8 +6,9 @@
    "?" while an agent asks, "!" while it is blocked on the person, "✓" while an agent's done
    report waits unseen, "✗" while a turn that ended on an error does, a spinner while one
    works, and the tabs' quieter glyphs (tabs.css) for the rest: "∅" while an agent is paused
-   at its usage limit, the slow drip while one waits on a job or a wake-up, "○" while one is
-   unheard. Reduced motion holds the spinner and the drip still (accessibility.css).
+   at its usage limit, the slow drip while one waits on a job or a wake-up (the tabs' job
+   drip for both: a project says that it waits, not on what), "○" while one is unheard.
+   Reduced motion holds the spinner and the drip still (accessibility.css).
 
    Tokens, each optional (its fallback in brackets):
    --project-status-attention-fg (warning-fg): the mark while an agent asks or is blocked.

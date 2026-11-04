@@ -1,4 +1,4 @@
-import { noInbox } from "@novadeck/core/inbox"
+import { nextLimitReset, noInbox } from "@novadeck/core/inbox"
 import { viewModes } from "@novadeck/core/state"
 import type { Project } from "@novadeck/core/types"
 import { memo, useMemo, useState } from "react"
@@ -7,14 +7,18 @@ import { transitionWorkspace } from "../layouts/transition"
 import { createPinDrop, PinDropContext } from "../projects/pin-drop"
 import { PinsBar } from "../projects/PinsBar"
 import { arrangeProjects } from "../projects/project-arrangement"
-import { projectStatuses } from "../projects/project-status"
+import { nextStatusChange, projectAsks, projectStatuses } from "../projects/project-status"
 import { WorkspaceHeader } from "../shell/WorkspaceHeader"
 import { unreadEnd } from "../terminals/unread-state"
 import { useUiState, useWorkspaceServices, useWorkspaceState } from "./controller/context"
 import { useStoreSelector } from "./controller/useStoreSelector"
 import { routeUrl } from "./routing"
 import { currentState, shallowEqual } from "./selectors"
-import { useLimitClock } from "./useTerminalMarks"
+import { useClock } from "./useTerminalMarks"
+
+// The earlier of two times, either of which may be none.
+const soonest = (a: number | undefined, b: number | undefined): number | undefined =>
+  a === undefined ? b : b === undefined ? a : Math.min(a, b)
 
 const noIds: readonly string[] = []
 
@@ -54,9 +58,13 @@ export const HeaderSection = memo((): React.JSX.Element => {
   // What the raw Inbox holds, as the tabs read it, not the landing rule's: its needs and
   // done reports mark the projects as they mark the tabs.
   const items = useStoreSelector((backend.inbox ?? noInbox).state, (state) => state.items)
-  // Moves on as a limit among them resets, so its project is marked then.
-  const now = useLimitClock(items)
-  // The selector closes over `unread`, the items and the time, so a new one is a new
+  const allProjects = useWorkspaceState((workspace) => workspace.projects)
+  // Moves on as a limit among them resets, so its project is marked then, and as an agent's
+  // wait passes, so its project's mark clears then.
+  const now = useClock((at) =>
+    soonest(nextLimitReset(items, at), nextStatusChange(allProjects, at)),
+  )
+  // The selectors close over `unread`, the items and the time, so a new one is a new
   // selector and recomputes.
   const statuses = useWorkspaceState(
     (workspace) =>
@@ -66,6 +74,11 @@ export const HeaderSection = memo((): React.JSX.Element => {
         items,
         now,
       ),
+    shallowEqual,
+  )
+  const asks = useWorkspaceState(
+    (workspace) =>
+      projectAsks(workspace.projects, (context, id) => unreadEnd(unread, context, id), items, now),
     shallowEqual,
   )
   const { zen, enabledViews, homeTo } = useUiState(
@@ -106,6 +119,7 @@ export const HeaderSection = memo((): React.JSX.Element => {
         projects={projects}
         project={project}
         statuses={statuses}
+        asks={asks}
         arrangement={arrangement}
         onProjectMove={moveProject}
         onProjectStep={stepProject}

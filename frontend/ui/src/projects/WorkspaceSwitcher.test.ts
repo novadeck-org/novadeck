@@ -31,6 +31,7 @@ const Harness = (): React.JSX.Element => {
     projects,
     current: projects[0]!,
     statuses: {},
+    asks: {},
     arrangement,
     dotIgnores: [],
     onSelect: () => {},

@@ -6,6 +6,9 @@ import { context, describe, expect, it } from "../test"
 import {
   anyAgentWorking,
   elsewhereStatus,
+  nextStatusChange,
+  projectAsk as askOf,
+  projectAsks as asksOf,
   projectStatus as statusOf,
   projectStatuses as statusesOf,
 } from "./project-status"
@@ -17,6 +20,10 @@ const projectStatus = (project: WorkspaceProject, unread: Unread, rows: InboxRow
   statusOf(project, (session, id) => unread[session]?.[id], rows, now)
 const projectStatuses = (projects: WorkspaceProject[], unread: Unread, rows: InboxRow[] = []) =>
   statusesOf(projects, (session, id) => unread[session]?.[id], rows, now)
+const projectAsk = (project: WorkspaceProject, unread: Unread, rows: InboxRow[] = []) =>
+  askOf(project, (session, id) => unread[session]?.[id], rows, now)
+const projectAsks = (projects: WorkspaceProject[], unread: Unread) =>
+  asksOf(projects, (session, id) => unread[session]?.[id], [], now)
 
 const now = 1_000_000
 
@@ -104,6 +111,9 @@ const resting = (number: number): TerminalMetadata =>
     },
   })
 const unheard = (number: number): TerminalMetadata => ({ ...running(number), process: "claude" })
+// An agent whose turn ended to wait for a wake-up at `at`.
+const wakingAt = (number: number, at: number): TerminalMetadata =>
+  running(number, { waiting: { jobs: [], wake: { at, reason: null } } })
 
 const unread = (id: string, terminal: string, end: "unread" | "failed"): Unread => ({
   [`${id}/initial`]: { [terminal]: end },
@@ -225,6 +235,12 @@ describe("A project's status", () => {
       ).toBe("ask")
     })
 
+    it("stops reading an agent as waiting once its wake-up has passed by the grace", () => {
+      const grace = 2 * 60_000
+      expect(projectStatus(project("p", [wakingAt(1, now - grace + 1)]), noUnread)).toBe("waiting")
+      expect(projectStatus(project("p", [wakingAt(1, now - grace)]), noUnread)).toBeUndefined()
+    })
+
     it("reads unread ends only from its own sessions", () => {
       const finished = running(1, {})
       expect(
@@ -233,6 +249,59 @@ describe("A project's status", () => {
       expect(projectStatus(project("p", [finished]), unread("p", finished.id, "failed"))).toBe(
         "failed",
       )
+    })
+  })
+
+  context("as what it asks of the person", () => {
+    it("is the most pressing status that does, under the quieter states its mark shows", () => {
+      const finished = running(1, { reported: true })
+      expect(projectAsk(project("p", [finished, paused(2)]), noUnread)).toBe("done")
+      expect(projectAsk(project("p", [finished, resting(2)]), noUnread)).toBe("done")
+      expect(projectAsk(project("p", [finished, running(2, { working: true })]), noUnread)).toBe(
+        "done",
+      )
+      expect(
+        projectAsk(project("p", [paused(1), resting(2), unheard(3)]), noUnread),
+      ).toBeUndefined()
+      expect(
+        projectAsk(project("p", [finished, paused(2)]), noUnread, [askRow("p", paused(2), "text")]),
+      ).toBe("ask")
+      // Its mark shows the quieter state all the same.
+      expect(projectStatus(project("p", [finished, paused(2)]), noUnread)).toBe("paused")
+    })
+
+    it("is kept by project, where one asks anything", () => {
+      const finished = running(1, { reported: true })
+      expect(
+        projectAsks([project("a", [finished, paused(2)]), project("b", [resting(1)])], noUnread),
+      ).toEqual({ a: "done" })
+    })
+  })
+
+  context("as it changes by time alone", () => {
+    it("changes once a wake-up or a job its harness gave up on passes by the grace", () => {
+      const grace = 2 * 60_000
+      const givenUp = running(1, {
+        waiting: {
+          jobs: [
+            { id: "job", description: null, command: "sleep", since: now - 1, until: now + 10 },
+          ],
+          wake: null,
+        },
+      })
+      expect(nextStatusChange([project("p", [wakingAt(1, now + 500)])], now)).toBe(
+        now + 500 + grace,
+      )
+      expect(
+        nextStatusChange([project("p", [wakingAt(1, now + 500)]), project("q", [givenUp])], now),
+      ).toBe(now + 10 + grace)
+    })
+
+    it("never changes while nothing waits, or a job has no end", () => {
+      expect(nextStatusChange([project("p", [resting(1), paused(2), unheard(3)])], now)).toBe(
+        undefined,
+      )
+      expect(nextStatusChange([], now)).toBeUndefined()
     })
   })
 })

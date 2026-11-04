@@ -7,18 +7,24 @@ import { useEffect, useState } from "react"
 import { useStoreSelector } from "./controller/useStoreSelector"
 import { sameItems } from "./selectors"
 
-// The time the limits among `rows` are judged by, moved on once the next one resets (which
-// makes its terminal an Unblock) though nothing else changes.
-export const useLimitClock = (rows: readonly InboxRow[]): number => {
+// The time something is judged by, moved on once `nextChange` of it passes though nothing
+// else changes, so what is judged by it is judged again then; `nextChange` is asked again
+// with each time, for the change after. Undefined waits on nothing.
+export const useClock = (nextChange: (now: number) => number | undefined): number => {
   const [now, setNow] = useState(() => Date.now())
-  const resetsAt = nextLimitReset(rows, now)
+  const at = nextChange(now)
   useEffect(() => {
-    if (resetsAt === undefined) return undefined
-    const timer = setTimeout(() => setNow(Date.now()), Math.max(0, resetsAt - Date.now()) + 50)
+    if (at === undefined) return undefined
+    const timer = setTimeout(() => setNow(Date.now()), Math.max(0, at - Date.now()) + 50)
     return () => clearTimeout(timer)
-  }, [resetsAt])
+  }, [at])
   return now
 }
+
+// The time the limits among `rows` are judged by, moved on once the next one resets (which
+// makes its terminal an Unblock) though nothing else changes.
+export const useLimitClock = (rows: readonly InboxRow[]): number =>
+  useClock((now) => nextLimitReset(rows, now))
 
 const none: readonly InboxRow[] = []
 
