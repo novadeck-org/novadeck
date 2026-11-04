@@ -135,7 +135,7 @@ describe("the runner's terminal screens' options", () => {
   context("with and without the desktop app", () => {
     afterEach(() => void Reflect.deleteProperty(globalThis, "novadeck"))
 
-    it("name a copied file by its own path as the desktop app does, and read its clipboard unasked", () => {
+    it("name a copied file by its own path as the desktop app does", () => {
       const file = new File(["x"], "notes.txt")
       Object.defineProperty(globalThis, "novadeck", {
         configurable: true,
@@ -145,15 +145,13 @@ describe("the runner's terminal screens' options", () => {
         theme: noTheme,
       })
       expect(paste.pathOf?.(file)).toBe("/home/me/notes.txt")
-      expect(paste.trustedClipboard).toBe(true)
     })
 
-    it("upload a browser's files, and ask before reading its clipboard", () => {
+    it("upload a browser's files", () => {
       const { paste } = screensOptions(runtimeOf({} as AttachedTerminal).runtime, {
         theme: noTheme,
       })
       expect(paste.pathOf).toBeUndefined()
-      expect(paste.trustedClipboard).toBe(false)
     })
   })
 })

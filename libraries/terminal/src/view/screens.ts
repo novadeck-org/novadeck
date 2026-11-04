@@ -8,13 +8,7 @@ import {
 
 import { sizeBounds } from "../size.js"
 import { followTerminal, type FollowedTerminal, type FollowOptions, type Screen } from "./follow.js"
-import {
-  clipboardAccess,
-  takeClipboardKeys,
-  takeFilePastes,
-  type PasteFailure,
-  type PasteTarget,
-} from "./paste.js"
+import { takeClipboardKeys, takeFilePastes, type PasteFailure, type PasteTarget } from "./paste.js"
 import { silenceQueries } from "./queries.js"
 import {
   createStore,
@@ -90,12 +84,6 @@ export type TerminalScreensOptions<K> = FollowOptions<K> & {
     readonly pathOf?: ((file: File) => string) | undefined
     // The most a file may be to upload.
     readonly maxBytes: number
-    // Whether Ctrl+V may read the clipboard without asking.
-    readonly trustedClipboard: boolean
-    // What Ctrl+V does where it may not read: by default the program gets the key, as a
-    // shell's programs take Ctrl+V; "browser" leaves the key to the browser, which pastes the
-    // clipboard's text.
-    readonly ctrlV?: "program" | "browser"
     // The wording of a failed paste's notice.
     readonly notice: (failure: PasteFailure) => string
   }
@@ -227,8 +215,6 @@ export const createTerminalScreens = <K>(o: TerminalScreensOptions<K>): Terminal
   // The parked screens, the one parked longest first: a map keeps the order its keys were
   // added in, so a screen shown again leaves it and parking it again puts it last.
   const parked = new Map<string, { key: K; entry: Entry }>()
-  // Whether Ctrl+V may read the clipboard, the same for every terminal.
-  const readable = clipboardAccess(o.paste.trustedClipboard)
   // The font the owner last asked for, which a screen opens in and is brought to.
   let font: TerminalFont = { size: defaultFontSize }
   const entryOf = (key: K): Entry => {
@@ -330,16 +316,9 @@ export const createTerminalScreens = <K>(o: TerminalScreensOptions<K>): Terminal
       if (taking()) return followed.input(data)
       if (data.includes("\r")) screen.restart()
     }
-    // Input held while Ctrl+V reads the clipboard, and whether a paste goes ahead of it.
-    let held: string[] | undefined
-    let ahead = false
-    const send = (data: string): void => {
-      if (held && !ahead) held.push(data)
-      else deliver(data)
-    }
-    const input = xterm.onData(send)
+    const input = xterm.onData(deliver)
     // Some mouse reports arrive as binary; they go to the shell the same way.
-    const binary = xterm.onBinary(send)
+    const binary = xterm.onBinary(deliver)
     // Pasted files go in as their paths on the host's machine, as a bracketed paste. An
     // upload that ends after the screen is gone pastes and tells nothing.
     let noticed: ReturnType<typeof setTimeout> | undefined
@@ -360,36 +339,9 @@ export const createTerminalScreens = <K>(o: TerminalScreensOptions<K>): Terminal
       },
     }
     const pastes = takeFilePastes(container, target)
-    // Ctrl+C copies a selection on Windows, where Ctrl+V pastes; on Linux Ctrl+V pastes a
-    // clipboard of images too, and what is typed while it looks waits behind it.
-    takeClipboardKeys(
-      xterm,
-      {
-        ...target,
-        copy: (text) => void navigator.clipboard?.writeText(text).catch(() => {}),
-        paste: (text) => {
-          ahead = true
-          try {
-            target.paste(text)
-          } finally {
-            ahead = false
-          }
-        },
-        active: () => taking() && !xterm.options.disableStdin,
-        hold: () => {
-          held = []
-          return (controlV) => {
-            const queued = held ?? []
-            held = undefined
-            if (gone) return
-            // As typed, so it scrolls to the prompt, and is dropped while typing is locked.
-            if (controlV) xterm.input("\u0016", true)
-            queued.forEach(deliver)
-          }
-        },
-      },
-      { readable, ...(o.paste.ctrlV && { unreadable: o.paste.ctrlV }) },
-    )
+    // The copy and paste keys of Linux and Windows: Ctrl+C copies a selection, and Ctrl+V
+    // pastes through the browser's paste, which `takeFilePastes` above completes for files.
+    takeClipboardKeys(xterm, (text) => void navigator.clipboard?.writeText(text).catch(() => {}))
     let settling: ReturnType<typeof setTimeout> | undefined
     // The theme's font, once it has loaded: a bundled font still on its way arrives later,
     // and the terminal keeps the font it has until then. A new font changes the cell size,

@@ -3,20 +3,15 @@ import { afterEach, describe as context, describe, expect, it, vi } from "vitest
 import {
   closeScreens,
   emulatorPrototype,
-  exited,
   inputOf,
-  later,
   openedTerminals,
   optionsOf,
-  shell,
   shown,
   snapshot,
   streamOf,
   screensOf,
 } from "./fakes.test-support.js"
-import { ctrlVHoldMs } from "./paste.js"
 import { pasteNoticeMs } from "./screens.js"
-import { createStore, type ViewLink } from "./view-state.js"
 
 // jsdom has no layout observers, media queries or canvas; xterm falls back without them.
 vi.hoisted(() => {
@@ -42,12 +37,6 @@ vi.hoisted(() => {
 // A screen closes once its session has stayed off screen for its retention; it closes here
 // instead, while the file's DOM is still there to take its listeners off.
 afterEach(closeScreens)
-
-// An image on the clipboard.
-const clipboardImage = () => ({
-  types: ["image/png"],
-  getType: async () => new Blob([new Uint8Array([1])], { type: "image/png" }),
-})
 
 describe("pasting into a terminal's screen", () => {
   context("when a pasted image can't be saved", () => {
@@ -118,177 +107,96 @@ describe("pasting into a terminal's screen", () => {
     })
   })
 
-  context("when Ctrl+V is pressed on Linux or Windows", () => {
-    // A running shell's screen in a browser that lets the page read the clipboard,
-    // recording what is written to the shell. `read` answers the clipboard, `upload` saves.
-    const typing = (options: {
-      read: () => Promise<unknown[]>
-      upload?: (key: string, file: { readonly name: string }) => Promise<string>
-    }) => {
+  context("when the copy keys are pressed", () => {
+    // A running shell's screen with something selected, recording what is written to the
+    // shell and to the clipboard.
+    const selecting = async (platform: string) => {
+      Object.defineProperty(navigator, "platform", { configurable: true, value: platform })
+      const written: string[] = []
       Object.defineProperty(navigator, "clipboard", {
         configurable: true,
-        value: { read: options.read },
+        value: {
+          writeText: vi.fn<(text: string) => Promise<void>>(
+            async (text) => void written.push(text),
+          ),
+        },
       })
-      Object.defineProperty(navigator, "permissions", {
-        configurable: true,
-        value: { query: async () => Object.assign(new EventTarget(), { state: "granted" }) },
-      })
-      const connection = createStore<ViewLink>("connected")
       const opened = openedTerminals()
-      const { attached, written, push } = streamOf([snapshot("$ ")])
-      const entry = { closed: false }
-      const screens = screensOf(
-        optionsOf({
-          attach: async () => attached,
-          connection,
-          lifecycle: () => shell({ closed: entry.closed }),
-          // The owner's rule: a shell that exits with a failure waits for Enter.
-          waitsAfter: () => true,
-          paste: {
-            ...optionsOf().paste,
-            upload: options.upload ?? (async (_key, file) => `/u/${file.name.replace(/\d/g, "0")}`),
-          },
-        }),
+      const { attached, written: sent } = streamOf([snapshot("$ echo hi\r\n")])
+      const screens = screensOf(optionsOf({ attach: async () => attached }))
+      const { element } = shown(screens, "01")
+      const xterm = opened[0]!
+      await vi.waitFor(() =>
+        expect(xterm.buffer.active.getLine(0)?.translateToString()).toContain("echo hi"),
       )
-      const { hold, element } = shown(screens, "01")
-      const xterm = () => opened[0]!
-      const press = () =>
-        inputOf(element).dispatchEvent(
-          new KeyboardEvent("keydown", {
-            key: "v",
-            code: "KeyV",
-            keyCode: 86,
-            ctrlKey: true,
-            bubbles: true,
-            cancelable: true,
-          }),
-        )
-      const ready = () =>
-        vi.waitFor(() =>
-          expect(xterm().buffer.active.getLine(0)?.translateToString()).toContain("$"),
-        )
-      // The shell's exit, as the stream tells it.
-      const exit = () => push(exited({ code: 1, signal: null, ranMs: 60_000 }, 2))
-      return { hold, element, written, press, ready, xterm, exit, connection, entry }
+      xterm.select(2, 0, 4)
+      const press = (init: KeyboardEventInit) => {
+        const event = new KeyboardEvent("keydown", {
+          keyCode: 67,
+          ctrlKey: true,
+          bubbles: true,
+          cancelable: true,
+          ...init,
+        })
+        inputOf(element).dispatchEvent(event)
+        return event
+      }
+      return { xterm, element, press, written, sent }
     }
     afterEach(() => {
       Reflect.deleteProperty(navigator, "clipboard")
-      Reflect.deleteProperty(navigator, "permissions")
+      Reflect.deleteProperty(navigator, "platform")
     })
 
-    it("pastes an image-only clipboard's path, with what was typed meanwhile after it", async () => {
-      const clipboard = later<unknown[]>()
-      const typed = typing({ read: () => clipboard.promise })
-      await typed.ready()
-      expect(typed.press()).toBe(false)
-      typed.xterm().input("ls")
-      clipboard.give([clipboardImage()])
-      await vi.waitFor(() => expect(typed.written).toHaveLength(2))
-      expect(typed.written).toEqual(["/u/pasted-00000000-000000.png ", "ls"])
+    it.each(["Linux x86_64", "Win32"])(
+      "copies the selection with Ctrl+C on %s, clears it and sends the program nothing",
+      async (platform) => {
+        const page = await selecting(platform)
+        expect(page.xterm.getSelection()).toBe("echo")
+        expect(page.press({ key: "c", code: "KeyC" }).defaultPrevented).toBe(true)
+        expect(page.written).toEqual(["echo"])
+        expect(page.xterm.hasSelection()).toBe(false)
+        expect(page.sent).toEqual([])
+      },
+    )
+
+    it("sends Ctrl+C to the program once nothing is selected", async () => {
+      const page = await selecting("Linux x86_64")
+      page.xterm.clearSelection()
+      page.press({ key: "c", code: "KeyC" })
+      expect(page.written).toEqual([])
+      expect(page.sent).toEqual(["\u0003"])
     })
 
-    it("sends Ctrl+V, then what was typed, for a clipboard of text", async () => {
-      const typed = typing({
-        read: async () => [{ types: ["text/plain"], getType: async () => new Blob(["hi"]) }],
+    it.each(["Linux x86_64", "Win32"])(
+      "leaves Ctrl+V and Ctrl+Shift+V to the browser and swallows Ctrl+Shift+C without a selection on %s",
+      async (platform) => {
+        const page = await selecting(platform)
+        const v = { key: "v", code: "KeyV", keyCode: 86 }
+        expect(page.press(v).defaultPrevented).toBe(false)
+        expect(page.press({ ...v, key: "V", shiftKey: true }).defaultPrevented).toBe(false)
+        page.xterm.clearSelection()
+        expect(page.press({ key: "C", code: "KeyC", shiftKey: true }).defaultPrevented).toBe(true)
+        expect(page.sent).toEqual([])
+        expect(page.written).toEqual([])
+      },
+    )
+
+    it("keeps Ctrl+C the program's on macOS, where ⌘C copies", async () => {
+      const page = await selecting("MacIntel")
+      page.press({ key: "c", code: "KeyC" })
+      expect(page.written).toEqual([])
+      expect(page.sent).toEqual(["\u0003"])
+    })
+
+    it("fills a copy event, as ⌘C raises it through the menu, with the selection", async () => {
+      const page = await selecting("MacIntel")
+      const data = { setData: vi.fn<(type: string, value: string) => void>() }
+      const event = Object.assign(new Event("copy", { bubbles: true, cancelable: true }), {
+        clipboardData: data,
       })
-      await typed.ready()
-      typed.press()
-      typed.xterm().input("w")
-      await vi.waitFor(() => expect(typed.written).toEqual(["\u0016", "w"]))
-      expect(typed.hold.state.getSnapshot().notice).toBeNull()
-    })
-
-    it("queues mouse reports and pasted text behind it too", async () => {
-      const clipboard = later<unknown[]>()
-      const typed = typing({ read: () => clipboard.promise })
-      await typed.ready()
-      typed.press()
-      // A mouse report, as xterm's own mouse handling sends it from its core.
-      const core = Reflect.get(typed.xterm(), "_core") as {
-        coreService: { triggerBinaryEvent: (data: string) => void }
-      }
-      core.coreService.triggerBinaryEvent("\u001b[M !!")
-      // Ctrl+Shift+V of text, which the emulator pastes itself.
-      const paste = new Event("paste", { bubbles: true, cancelable: true })
-      Object.defineProperty(paste, "clipboardData", {
-        value: {
-          files: [],
-          items: [],
-          getData: (type: string) => (type === "text/plain" ? "echo" : ""),
-        },
-      })
-      inputOf(typed.element).dispatchEvent(paste)
-      expect(typed.written).toEqual([])
-      clipboard.give([])
-      await vi.waitFor(() => expect(typed.written).toEqual(["\u0016", "\u001b[M !!", "echo"]))
-    })
-
-    it("lets typing go after a while when the image is slow to upload, pasting its path later", async () => {
-      vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] })
-      try {
-        const saved = later<string>()
-        const typed = typing({ read: async () => [clipboardImage()], upload: () => saved.promise })
-        await vi.advanceTimersByTimeAsync(0)
-        await typed.ready()
-        typed.press()
-        typed.xterm().input("ls")
-        await vi.advanceTimersByTimeAsync(1_000)
-        expect(typed.written).toEqual([])
-        await vi.advanceTimersByTimeAsync(ctrlVHoldMs)
-        expect(typed.written).toEqual(["ls"])
-        saved.give("/u/late.png")
-        await vi.advanceTimersByTimeAsync(0)
-        expect(typed.written).toEqual(["ls", "/u/late.png "])
-      } finally {
-        vi.useRealTimers()
-      }
-    })
-
-    it("sends nothing it held once the shell exited meanwhile", async () => {
-      const clipboard = later<unknown[]>()
-      const typed = typing({ read: () => clipboard.promise })
-      await typed.ready()
-      typed.press()
-      typed.xterm().input("ls")
-      typed.exit()
-      await new Promise((resolve) => setTimeout(resolve, 10))
-      clipboard.give([])
-      await new Promise((resolve) => setTimeout(resolve, 10))
-      expect(typed.written).toEqual([])
-    })
-
-    it("holds back its Ctrl+V once typing is locked meanwhile", async () => {
-      const clipboard = later<unknown[]>()
-      const typed = typing({ read: () => clipboard.promise })
-      await typed.ready()
-      typed.press()
-      typed.connection.update(() => "reconnecting")
-      clipboard.give([])
-      await new Promise((resolve) => setTimeout(resolve, 10))
-      expect(typed.written).toEqual([])
-    })
-
-    it("pastes and sends nothing once the terminal's screen is gone", async () => {
-      vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] })
-      try {
-        const saved = later<string>()
-        const typed = typing({ read: async () => [clipboardImage()], upload: () => saved.promise })
-        await vi.advanceTimersByTimeAsync(0)
-        await typed.ready()
-        typed.press()
-        typed.xterm().input("ls")
-        await vi.advanceTimersByTimeAsync(0)
-        // Nobody shows it and its terminal closes, so the screen closes a moment later, while
-        // the image uploads.
-        typed.hold.release({ unmount: true })
-        typed.entry.closed = true
-        await vi.advanceTimersByTimeAsync(1_000)
-        saved.give("/u/late.png")
-        await vi.advanceTimersByTimeAsync(ctrlVHoldMs)
-        expect(typed.written).toEqual([])
-      } finally {
-        vi.useRealTimers()
-      }
+      inputOf(page.element).dispatchEvent(event)
+      expect(data.setData).toHaveBeenCalledWith("text/plain", "echo")
     })
   })
 })
