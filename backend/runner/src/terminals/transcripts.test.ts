@@ -5,8 +5,16 @@ import { join } from "node:path"
 import type { TranscriptEntry } from "@novadeck/harness-core/harness"
 import type { TranscriptChange } from "@novadeck/protocol"
 
+import { harnesses } from "../harnesses/registry.js"
+import { logs, useLogger } from "../log.js"
 import { describe, expect, it as base } from "../test.js"
-import { type Interruption, lastStep, transcriptChanges } from "./transcripts.js"
+import {
+  type Interruption,
+  lastStep,
+  type Reading,
+  transcriptChanges,
+  unknownShape,
+} from "./transcripts.js"
 
 // A line is one item: its text, the person's where it starts with "> " (after its step,
 // where it has one), the agent's else.
@@ -33,7 +41,7 @@ const step = (line: string): number | undefined => {
 
 type Fixture = {
   path: string
-  read: (interruptions?: () => readonly Interruption[]) => {
+  read: (reading?: Reading) => {
     changes: TranscriptChange[]
     stop: () => void
   }
@@ -48,18 +56,13 @@ const it = base.extend<{ file: Fixture }>({
       rmSync(directory, { recursive: true, force: true })
     })
     const path = join(directory, "transcript.jsonl")
-    const read = (interruptions?: () => readonly Interruption[]) => {
+    const read = (reading?: Reading) => {
       const changes: TranscriptChange[] = []
       // As the runner stops a reader: by its signal.
       const reader = new AbortController()
       controller.signal.addEventListener("abort", () => reader.abort())
       void (async () => {
-        for await (const change of transcriptChanges(
-          path,
-          { items, step },
-          reader.signal,
-          interruptions,
-        ))
+        for await (const change of transcriptChanges(path, { items, step }, reader.signal, reading))
           changes.push(change)
       })()
       return { changes, stop: () => reader.abort() }
@@ -70,8 +73,8 @@ const it = base.extend<{ file: Fixture }>({
 
 const texts = (changes: readonly TranscriptChange[]) =>
   changes.map((change) =>
-    change.type === "reset"
-      ? "reset"
+    change.type !== "items"
+      ? change.type
       : change.items.map(({ index, text, interrupted }) =>
           interrupted ? `${index}:(interrupted)` : `${index}:${text}`,
         ),
@@ -134,7 +137,7 @@ describe("an interruption the transcript doesn't record", () => {
     // The Escape came once step 1 was written; the turn's cut-off words (step 2, as
     // Antigravity writes them just after the key) then the next prompt followed.
     writeFileSync(file.path, "0 > a\n1 b\n2 c\n3 > d\n")
-    const { changes } = file.read(() => [{ step: 1, at: 20 }])
+    const { changes } = file.read({ interruptions: () => [{ step: 1, at: 20 }] })
     await expect
       .poll(() => flat(changes))
       .toEqual(["0:0 > a", "1:1 b", "2:2 c", "3:(interrupted)", "4:3 > d"])
@@ -148,7 +151,7 @@ describe("an interruption the transcript doesn't record", () => {
     file,
   }) => {
     writeFileSync(file.path, "0 > a\n1 b\n")
-    const { changes } = file.read(() => [{ step: 1, at: 20 }])
+    const { changes } = file.read({ interruptions: () => [{ step: 1, at: 20 }] })
     await expect.poll(() => flat(changes)).toEqual(["0:0 > a", "1:1 b", "2:(interrupted)"])
     appendFileSync(file.path, "2 > c\n")
     await expect
@@ -159,10 +162,12 @@ describe("an interruption the transcript doesn't record", () => {
   it("comes before the next prompt after it, oldest first, each in its place", async ({ file }) => {
     // Told newest first; the first came while step 1 was still being written.
     writeFileSync(file.path, "0 > a\n1 long\n2 > c\n3 d\n4 > e\n")
-    const { changes } = file.read(() => [
-      { step: 3, at: 30 },
-      { step: 0, at: 20 },
-    ])
+    const { changes } = file.read({
+      interruptions: () => [
+        { step: 3, at: 30 },
+        { step: 0, at: 20 },
+      ],
+    })
     await expect
       .poll(() => flat(changes))
       .toEqual([
@@ -181,20 +186,20 @@ describe("an interruption the transcript doesn't record", () => {
   }) => {
     writeFileSync(file.path, "0 > a\n")
     const told: Interruption[] = []
-    const { changes } = file.read(() => told)
+    const { changes } = file.read({ interruptions: () => told })
     await expect.poll(() => flat(changes)).toEqual(["0:0 > a"])
     // The verdict comes after the person's next prompt was written: the note joins the end.
     appendFileSync(file.path, "1 > b\n")
     await expect.poll(() => flat(changes)).toEqual(["0:0 > a", "1:1 > b"])
     told.push({ step: 0, at: 20 })
     await expect.poll(() => flat(changes)).toEqual(["0:0 > a", "1:1 > b", "2:(interrupted)"])
-    const again = file.read(() => told)
+    const again = file.read({ interruptions: () => told })
     await expect.poll(() => flat(again.changes)).toEqual(["0:0 > a", "1:(interrupted)", "2:1 > b"])
   })
 
   it("is told again after a reset, from the rewritten file's start", async ({ file }) => {
     writeFileSync(file.path, "0 > a long first line\n")
-    const { changes } = file.read(() => [{ step: -1, at: 20 }])
+    const { changes } = file.read({ interruptions: () => [{ step: -1, at: 20 }] })
     await expect.poll(() => flat(changes)).toEqual(["0:(interrupted)", "1:0 > a long first line"])
     writeFileSync(file.path, "0 > new\n")
     await expect
@@ -210,7 +215,7 @@ describe("an interruption the transcript doesn't record", () => {
 
   it("keeps its place by step when a rewrite moves every line's bytes", async ({ file }) => {
     writeFileSync(file.path, "0 > a, at length\n1 b, at length\n2 c\n3 > d\n")
-    const { changes } = file.read(() => [{ step: 1, at: 20 }])
+    const { changes } = file.read({ interruptions: () => [{ step: 1, at: 20 }] })
     const before = ["0:0 > a, at length", "1:1 b, at length", "2:2 c", "3:(interrupted)", "4:3 > d"]
     await expect.poll(() => flat(changes)).toEqual(before)
     // The same steps, each written shorter, put in its place: the bytes step 1 ended at are
@@ -227,7 +232,7 @@ describe("an interruption the transcript doesn't record", () => {
     // Step 1 made two calls, whose results (2 and 3) were written before it; the Escape
     // came once all were.
     writeFileSync(file.path, "0 > a\n2 r\n3 r\n1 calls\n4 > b\n")
-    const { changes } = file.read(() => [{ step: 3, at: 20 }])
+    const { changes } = file.read({ interruptions: () => [{ step: 3, at: 20 }] })
     await expect
       .poll(() => flat(changes))
       .toEqual(["0:0 > a", "1:2 r", "2:3 r", "3:1 calls", "4:(interrupted)", "5:4 > b"])
@@ -238,9 +243,9 @@ describe("an interruption the transcript doesn't record", () => {
     const changes: TranscriptChange[] = []
     const reader = new AbortController()
     void (async () => {
-      for await (const change of transcriptChanges(file.path, { items }, reader.signal, () => [
-        { step: -1, at: 20 },
-      ]))
+      for await (const change of transcriptChanges(file.path, { items }, reader.signal, {
+        interruptions: () => [{ step: -1, at: 20 }],
+      }))
         changes.push(change)
     })()
     await expect.poll(() => flat(changes)).toEqual(["0:> a", "1:b"])
@@ -272,5 +277,122 @@ describe("the last step a transcript holds", () => {
     expect(await lastStep(file.path, step)).toBe(1)
     appendFileSync(file.path, `${"y".repeat(300 * 1024)}\n`)
     expect(await lastStep(file.path, step)).toBe(1)
+  })
+})
+
+describe("a shape its harness's decoder has never seen", () => {
+  // Per harness: a line it reads, one of metadata it has never seen, and one of the
+  // conversation it has never seen, with their unknown keys.
+  const lines = {
+    claude: {
+      read: { type: "user", message: { role: "user", content: "hi" } },
+      metadata: { type: "brand-new-record" },
+      conversation: {
+        type: "assistant",
+        message: { role: "assistant", content: [{ type: "hologram", text: "x" }] },
+      },
+      keys: ["record:brand-new-record", "block:assistant/hologram"],
+    },
+    codex: {
+      read: {
+        type: "response_item",
+        payload: { type: "message", role: "user", content: [{ type: "input_text", text: "hi" }] },
+      },
+      metadata: { type: "brand_new_record", payload: {} },
+      conversation: { type: "response_item", payload: { type: "hologram_call" } },
+      keys: ["record:brand_new_record", "item:hologram_call"],
+    },
+    agy: {
+      read: {
+        step_index: 0,
+        source: "USER_EXPLICIT",
+        type: "USER_INPUT",
+        content: "<USER_REQUEST>\nhi\n</USER_REQUEST>",
+      },
+      metadata: { step_index: 1, source: "SYSTEM", type: "BRAND_NEW_STEP", content: "x" },
+      conversation: { step_index: 2, source: "MODEL", type: "HOLOGRAM", content: "x" },
+      keys: ["step:SYSTEM/BRAND_NEW_STEP", "step:MODEL/HOLOGRAM"],
+    },
+  } as const
+  const line = (fields: object) => `${JSON.stringify(fields)}\n`
+
+  for (const agent of ["claude", "codex", "agy"] as const)
+    it(`tells the chat once of ${agent}'s inside the conversation, never of its metadata`, async ({
+      file,
+    }) => {
+      const { read, metadata, conversation, keys } = lines[agent]
+      const told: [string, boolean][] = []
+      const changes: TranscriptChange[] = []
+      const reader = new AbortController()
+      const source = harnesses[agent].transcripts!
+      writeFileSync(file.path, line(read) + line(metadata))
+      const reading = (async () => {
+        for await (const change of transcriptChanges(file.path, source, reader.signal, {
+          unknown: (key, inside) => void told.push([key, inside]),
+        }))
+          changes.push(change)
+      })()
+      await expect.poll(() => flat(changes)).toEqual([expect.stringMatching(/^0:.*hi/)])
+      await new Promise((resolve) => setTimeout(resolve, 300))
+      expect(changes.map((change) => change.type)).toEqual(["items"])
+      appendFileSync(file.path, line(conversation) + line(conversation))
+      await expect.poll(() => told).toHaveLength(3)
+      await new Promise((resolve) => setTimeout(resolve, 300))
+      expect(changes.map((change) => change.type)).toEqual(["items", "unread"])
+      expect(told).toEqual([
+        [keys[0], false],
+        [keys[1], true],
+        [keys[1], true],
+      ])
+      reader.abort()
+      await reading
+    })
+
+  it("is logged once per shape and harness version, a tag by no name, a version's few", ({
+    resources,
+  }) => {
+    const logged: unknown[] = []
+    const before = logs.current()
+    const note = (evt: string, _message?: string, detail?: { data?: unknown }) =>
+      void (evt === "transcript.unknown" && logged.push(detail?.data))
+    useLogger({
+      for: () => ({ debug: note, info: note, warn: note, error: note, fatal: note }),
+      flush: () => {},
+      close: () => {},
+    })
+    resources.defer(() => useLogger(before))
+    const binding = { agent: "codex", version: `0.0.${crypto.randomUUID()}` }
+    const next = { ...binding, version: `${binding.version}-next` }
+    unknownShape(binding, "record:brand_new_record", false)
+    unknownShape(binding, "item:hologram_call", true)
+    unknownShape(binding, "record:brand_new_record", false)
+    unknownShape(next, "record:brand_new_record", false)
+    // A tag the person typed names their own words: only that it was a tag is told.
+    unknownShape(next, "tag:acme_merger_notes", false)
+    unknownShape(next, "meta:user/tag:acme_merger_notes", false)
+    unknownShape(undefined, "item:hologram_call", true)
+    const shape = (version: string, key: string, conversational: boolean) => ({
+      agent: "codex",
+      version,
+      shape: key,
+      conversational,
+    })
+    expect(logged).toEqual([
+      shape(binding.version, "record:brand_new_record", false),
+      shape(binding.version, "item:hologram_call", true),
+      shape(next.version, "record:brand_new_record", false),
+      shape(next.version, "tag:…", false),
+      shape(next.version, "meta:user/tag:…", false),
+    ])
+    // A version's log holds no more than a few: a release that renamed everything says so
+    // without filling it.
+    const many = { ...binding, version: `${binding.version}-many` }
+    for (let index = 0; index < 40; index += 1) unknownShape(many, `record:new_${index}`, false)
+    expect(
+      logged.filter((each) => (each as { version: string }).version === many.version),
+    ).toHaveLength(16)
+    // A conversational shape past them still is, as the chat's notice came from it.
+    unknownShape(many, "item:hologram_call", true)
+    expect(logged.at(-1)).toEqual(shape(many.version, "item:hologram_call", true))
   })
 })

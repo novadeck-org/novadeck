@@ -585,7 +585,7 @@ const itemsNow = async (
       ])
       if (next === undefined || next.done) return items
       if (next.value.type === "reset") items.length = 0
-      else items.push(...next.value.items)
+      else if (next.value.type === "items") items.push(...next.value.items)
     }
   } finally {
     controller.abort()

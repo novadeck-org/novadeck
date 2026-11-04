@@ -27,6 +27,10 @@ export const lists: ShapeLists = {
     "item:function_call_output",
     "item:custom_tool_call",
     "item:custom_tool_call_output",
+    // Calls of the Responses API's own tools: a shell command, a web search, an image.
+    "item:local_shell_call",
+    "item:web_search_call",
+    "item:image_generation_call",
     // Another agent's message to this one.
     "item:agent_message",
     // The person's Esc, which only an interrupted abort reads as.
@@ -54,7 +58,18 @@ export const lists: ShapeLists = {
     "item:message/system",
     "item:additional_tools",
     "item:compaction",
+    // Compaction's own item by its older name, which 0.166.0 still reads (a serde alias).
+    "item:compaction_summary",
+    "item:compaction_trigger",
+    "item:context_compaction",
     "item:configuration_update",
+    // The model looking up which deferred tools to load, and what it found: the calls it
+    // then makes are read above. Named in the 0.166.0 binary; no rollout here holds one yet.
+    "item:tool_search_call",
+    "item:tool_search_output",
+    // The commit undo goes back to, named in the 0.166.0 binary as a response item; no
+    // rollout here holds one yet.
+    "item:ghost_snapshot",
     // Events mirror the response items, which the decoder reads instead.
     "event:agent_message",
     "event:agent_message_delta",
@@ -114,6 +129,9 @@ const keysOf = (fields: Fields): string[] => {
     ...(/^\s*# AGENTS\.md instructions/.test(text) ? ["tag:AGENTS.md"] : tagKeys(text)),
   ]
 }
+
+/** Whether a shape is inside the conversation: a response item, a message by any role. */
+export const conversational = (key: string): boolean => key.startsWith("item:")
 
 /** The shapes one line of a Codex rollout holds; none for a line that isn't JSON. */
 export const shapes = (line: string): readonly Shape[] => {

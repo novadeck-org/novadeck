@@ -141,6 +141,13 @@ export type Harness = {
      */
     readonly shapes: (line: string) => readonly Shape[]
     /**
+     * Whether a shape of that key sits inside the conversation: a block of the person's or
+     * the agent's message, or a step of theirs. One `shapes` calls unknown there is words
+     * the chat may be missing, which it tells the person; any other unknown shape is
+     * metadata, which a harness release adds often, and only the runner's log tells.
+     */
+    readonly conversational: (key: string) => boolean
+    /**
      * Where one line stands in it, where the line says (Antigravity's `step_index`), growing
      * through the conversation though lines may come out of order: what the runner keeps an
      * interruption the transcript doesn't record against (`records` false), as a rewrite of
@@ -431,7 +438,10 @@ export type TranscriptEntry = Omit<TranscriptItem, "index">
  * A harness's transcript decoder without its shape lists, which the harness adds beside
  * it: the lists read the decoder's own helpers, so they live in a module of their own.
  */
-export type TranscriptDecoder = Omit<NonNullable<Harness["transcripts"]>, "shapes">
+export type TranscriptDecoder = Omit<
+  NonNullable<Harness["transcripts"]>,
+  "shapes" | "conversational"
+>
 
 /** A session bound to a terminal, as a harness's `watch` follows it. */
 export type Run = {

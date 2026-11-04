@@ -10,7 +10,7 @@ import { dialogs } from "./dialogs.js"
 import { claudeHome } from "./home.js"
 import { models } from "./models.js"
 import { connect, connected, disconnect, files, hook, hookDialect } from "./plugin.js"
-import { shapes } from "./shapes.js"
+import { conversational, shapes } from "./shapes.js"
 import { cmdShim, commands, posixShim } from "./shim.js"
 import { followTranscript, transcriptPlans } from "./transcript-watch.js"
 import { transcripts } from "./transcripts.js"
@@ -135,7 +135,7 @@ export const claude = {
       "--tools",
     ],
   },
-  transcripts: { ...transcripts, shapes },
+  transcripts: { ...transcripts, shapes, conversational },
   plans: transcriptPlans,
   // Its hooks, transcript and status line; see docs/harness-coverage.md.
   // A background subagent's or command's end starts a turn with a task notification.

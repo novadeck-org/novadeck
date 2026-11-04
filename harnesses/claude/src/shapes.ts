@@ -237,6 +237,16 @@ const keysOf = (fields: Fields): string[] => {
   })
 }
 
+/**
+ * Whether a shape is inside the conversation: a block of a user's or assistant's message, or
+ * a prompt of the person's a running turn took in, whatever its mode (#482's was one), unless
+ * marked meta, which the chat leaves out as Claude Code's own.
+ */
+export const conversational = (key: string): boolean =>
+  key.startsWith("block:user/") ||
+  key.startsWith("block:assistant/") ||
+  (key.startsWith("attachment:queued_command/human/") && !key.endsWith("/meta"))
+
 /** The shapes one line of a Claude Code transcript holds; none for a line that isn't JSON. */
 export const shapes = (line: string): readonly Shape[] => {
   const fields = parseFields(line)

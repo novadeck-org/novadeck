@@ -221,6 +221,101 @@ describe("Codex's rollout records", () => {
   })
 })
 
+describe("Codex's calls of the Responses API's own tools, as the 0.166.0 binary names them", () => {
+  it("give a shell call's command as a run, whose output pairs with it", () => {
+    const [call, output] = items([
+      item({
+        type: "local_shell_call",
+        call_id: "c1",
+        status: "completed",
+        action: { type: "exec", command: ["bash", "-lc", "ls -la"], timeout_ms: 1000 },
+      }),
+      item({ type: "function_call_output", call_id: "c1", output: "a\nb" }),
+    ])
+    expect(call).toMatchObject({
+      kind: "tool-call",
+      tool: "local_shell",
+      run: { kind: "run", title: "Ran", detail: "ls -la" },
+    })
+    expect(output).toMatchObject({ text: "a\nb", call: call?.call })
+    const [argv] = items([
+      item({
+        type: "local_shell_call",
+        id: "c2",
+        action: { type: "exec", command: ["git", "status"] },
+      }),
+    ])
+    expect(argv).toMatchObject({ run: { detail: "git status" } })
+    const [windows] = items([
+      item({
+        type: "local_shell_call",
+        call_id: "c3",
+        action: {
+          type: "exec",
+          command: ["powershell.exe", "-NoProfile", "-Command", "Get-ChildItem"],
+        },
+      }),
+    ])
+    expect(windows).toMatchObject({ run: { detail: "Get-ChildItem" } })
+  })
+
+  it("give a web search by what it did: a query, a page opened, or a pattern in one", () => {
+    // Done once recorded: its result is its status, so it neither runs on nor reads as lost.
+    const [call, result] = items([
+      item({
+        type: "web_search_call",
+        id: "ws0",
+        status: "completed",
+        action: { type: "search", query: "q" },
+      }),
+    ])
+    expect(result).toMatchObject({ kind: "tool-result", text: "completed", call: call?.call })
+    const search = (action: object) =>
+      items([item({ type: "web_search_call", id: "ws1", status: "completed", action })])[0]
+    expect(search({ type: "search", query: "vitest shard" })).toMatchObject({
+      kind: "tool-call",
+      tool: "web_search",
+      run: { kind: "web", title: "Searched the web", detail: "vitest shard" },
+    })
+    expect(search({ type: "search", queries: ["a", "b"] })).toMatchObject({
+      run: { title: "Searched the web", detail: "a, b" },
+    })
+    expect(search({ type: "open_page", url: "https://example.com" })).toMatchObject({
+      run: { title: "Opened a page", detail: "https://example.com" },
+    })
+    expect(
+      search({ type: "find_in_page", url: "https://example.com", pattern: "shard" }),
+    ).toMatchObject({
+      run: { title: "Searched a page", detail: "shard in https://example.com" },
+    })
+    expect(search({ type: "find_in_page", pattern: "shard" })).toMatchObject({
+      run: { title: "Searched a page", detail: "shard" },
+    })
+    expect(search({ type: "other" })).toMatchObject({
+      run: { title: "Searched the web", detail: "" },
+    })
+  })
+
+  it("give an image the model made by its prompt, never the image's data", () => {
+    const [call, result] = items([
+      item({
+        type: "image_generation_call",
+        id: "ig1",
+        status: "completed",
+        revised_prompt: "a crow on a rack",
+        result: "iVBORw0KGgo=",
+      }),
+    ])
+    expect(call).toMatchObject({
+      kind: "tool-call",
+      tool: "image_generation",
+      run: { title: "Generated an image", detail: "a crow on a rack" },
+    })
+    expect(result).toMatchObject({ kind: "tool-result", text: "completed" })
+    expect(JSON.stringify([call, result])).not.toContain("iVBORw0KGgo=")
+  })
+})
+
 const asked = loadProbe(import.meta.dirname, "ask.probe.0.166.0.json") as {
   scenarios: { [name: string]: { rollout: object[] } }
 }

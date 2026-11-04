@@ -150,8 +150,12 @@ for (const setup of setups) {
       const resumed = await run.deck.restore(t1, { resume: setup.agent })
       await resumed.reached("ready", { timeoutMs: 60_000 })
       await prompted(resumed, setup)
+      // A chat prompt into the resumed session, whose turn settles: its first prompt is the
+      // person's, though nothing read its transcript yet (#635).
+      const carried = resumed.mark()
       await resumed.prompt("Carry on")
       await resumed.until("Carried on.")
+      await through(resumed, ["working", "settled"], { after: carried })
       const after = await servedOnce(
         resumed,
         (items) =>
@@ -204,8 +208,12 @@ for (const setup of setups) {
       const resumed = await run.deck.restore(t1, { resume: setup.agent })
       await resumed.reached("ready", { timeoutMs: 60_000 })
       await prompted(resumed, setup)
+      // A chat prompt into the resumed session, whose turn settles: its first prompt is the
+      // person's, though nothing read its transcript yet (#635).
+      const carried = resumed.mark()
       await resumed.prompt("Carry on")
       await resumed.until("Carried on.")
+      await through(resumed, ["working", "settled"], { after: carried })
       const after = await servedOnce(
         resumed,
         (items) =>

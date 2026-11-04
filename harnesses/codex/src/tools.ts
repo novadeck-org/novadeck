@@ -187,11 +187,25 @@ const known = (name: string, fields: Fields | undefined, input: string): ToolRun
         title: "Asked for permissions",
         detail: oneLine(textField(fields, "reason")),
       }
-    case "web_search":
+    case "web_search": {
+      // A search, or (as a `web_search_call` item) a page it opened or searched in.
+      const query = textField(fields, "query")
+      const url = textField(fields, "url")
+      const pattern = textField(fields, "pattern")
+      if (query || (!url && !pattern))
+        return { kind: "web", title: "Searched the web", detail: query }
+      if (!pattern) return { kind: "web", title: "Opened a page", detail: url }
       return {
         kind: "web",
-        title: "Searched the web",
-        detail: textField(fields, "query"),
+        title: "Searched a page",
+        detail: url ? `${pattern} in ${url}` : pattern,
+      }
+    }
+    case "image_generation":
+      return {
+        kind: "other",
+        title: "Generated an image",
+        detail: oneLine(textField(fields, "prompt")),
       }
     case "create_goal":
     case "update_goal":

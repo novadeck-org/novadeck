@@ -61,7 +61,7 @@ describe("a client's transcript across its runner's streams", () => {
     resources.defer(() => client.close())
     const seen: string[] = []
     for await (const change of client.agents.transcript(crypto.randomUUID(), "a".repeat(16)))
-      seen.push(change.type === "reset" ? "reset" : change.items[0]!.text)
+      seen.push(change.type === "items" ? change.items[0]!.text : change.type)
     expect(seen).toEqual(["first", "reset", "again"])
   })
 })

@@ -20,7 +20,7 @@ import {
   preToolUseAnswer,
 } from "./plugin.js"
 import { statusLineLimit, statusLineSettings, trustsFolder } from "./settings.js"
-import { shapes } from "./shapes.js"
+import { conversational, shapes } from "./shapes.js"
 import { makeCmdShim } from "./shim.js"
 import { shown } from "./status-line.js"
 import { transcripts, typedEntry } from "./transcripts.js"
@@ -125,7 +125,7 @@ export const agy = {
       "-v",
     ],
   },
-  transcripts: { ...transcripts, shapes },
+  transcripts: { ...transcripts, shapes, conversational },
   // Its hooks name no subagents; its status line counts them; see docs/harness-coverage.md.
   // A background subagent's end wakes it with a message saying it went idle.
   wakes: true,

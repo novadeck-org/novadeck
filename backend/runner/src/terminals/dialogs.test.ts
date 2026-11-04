@@ -7,6 +7,7 @@ import {
   type AgentName,
 } from "@novadeck/protocol"
 
+import { logs, useLogger } from "../log.js"
 import { describe, expect, it } from "../test.js"
 import { Dialogs, identified, rawText, type Waiting } from "./dialogs.js"
 
@@ -244,6 +245,44 @@ describe("each request's dialog", () => {
     })
   })
 
+  it("is raw, with the screen's text, where its adapter throws on the screen", async ({
+    resources,
+  }) => {
+    const failed: unknown[] = []
+    const before = logs.current()
+    const note = (evt: string, _message?: string, detail?: unknown) =>
+      void (evt === "dialogs.read-failed" && failed.push(detail))
+    useLogger({
+      for: () => ({ debug: note, info: note, warn: note, error: note, fatal: note }),
+      flush: () => {},
+      close: () => {},
+    })
+    resources.defer(() => useLogger(before))
+    const adapter: DialogAdapter = {
+      read: () => {
+        throw new Error("a layout it never saw")
+      },
+      screenRequest: () => {
+        throw new Error("a layout it never saw")
+      },
+    }
+    const { dialogs } = terminal({ adapter })
+    dialogs.changed("t")
+    await until(() => dialogs.shown("t", "r1") !== null)
+    expect(dialogs.shown("t", "r1")).toMatchObject({ type: "raw", reason: "unrecognized" })
+    // It throws again on each redraw, which the log tells only once while it waits.
+    const redraw = async () => {
+      dialogs.changed("t")
+      await new Promise((resolve) => setTimeout(resolve, 30))
+    }
+    await redraw()
+    await redraw()
+    await redraw()
+    // Its class alone: an adapter's message may quote the screen.
+    expect(failed).toEqual([{ data: { error: "Error" } }])
+    expect(JSON.stringify(failed)).not.toContain("a layout it never saw")
+  })
+
   it("is raw and unsupported where the harness has no adapter", async () => {
     const { dialogs } = terminal({ adapter: false })
     dialogs.changed("t")
@@ -343,6 +382,30 @@ describe("requests only the screen tells", () => {
     dialogs.changed("t")
     await until(() => cleared.length === 1)
     expect(state.requests).toEqual([])
+  })
+})
+
+describe("requests only the screen tells, where the adapter throws on a later screen", () => {
+  const prompt: ScreenRequest = { kind: "plan", tool: "plan", input: null, subject: "A plan" }
+
+  it("keep what they raised: a screen it can't read says nothing of it", async () => {
+    const reads = { throws: false }
+    const { tui, dialogs, asked, cleared, use, state } = terminal({ requests: [] })
+    use({
+      ...fakeAdapter(),
+      screenRequest: () => {
+        if (reads.throws) throw new Error("a layout it never saw")
+        return prompt
+      },
+    })
+    dialogs.changed("t")
+    await until(() => asked.length === 1)
+    reads.throws = true
+    tui.noise = 1
+    dialogs.changed("t")
+    await new Promise((resolve) => setTimeout(resolve, 80))
+    expect(cleared).toEqual([])
+    expect(state.requests.map((each) => each.ref)).toEqual(["screen"])
   })
 })
 

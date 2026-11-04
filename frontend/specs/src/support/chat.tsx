@@ -14,10 +14,12 @@ import { openWorkspace, skipWelcome, terminal, terminalTab } from "./workspace"
  */
 export const openChatDemo = async (
   route = "/",
-  { chatView = true, experimental = true } = {},
+  { chatView = true, experimental = true, unread = false } = {},
 ): Promise<void> => {
   localStorage.setItem("novadeck.preferences", JSON.stringify({ chatView }))
-  await openWorkspace(`${route}?demo=agents${experimental ? "&channel=experimental" : ""}`)
+  await openWorkspace(
+    `${route}?demo=agents${experimental ? "&channel=experimental" : ""}${unread ? "&unread=on" : ""}`,
+  )
   await skipWelcome()
 }
 

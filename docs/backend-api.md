@@ -828,7 +828,15 @@ one from an earlier runner.
   Antigravity, whose record holds none, the runner adds one where an Escape that stood
   came: after the turn's last steps, before the person's next prompt written after the key.
   It keeps them with the terminal, by the transcript's latest step at the key, so they
-  keep their place after a runner restart. The runner reads no further ahead than it has sent, but a remote client's own
+  keep their place after a runner restart. Each line's shapes go through its harness's
+  lists (`transcripts.shapes`, `harnesses/core/src/shapes.ts`): the first
+  unknown one inside the conversation (a block of a Claude Code user or assistant message or a
+  prompt the person queued mid-turn, a Codex response item, an Antigravity MODEL or USER_EXPLICIT step) sends `unread` once,
+  which the chat shows as a one-line notice that it may be missing parts the terminal has;
+  other unknown shapes, metadata a harness release adds often, send nothing. The runner
+  logs `transcript.unknown` once per unknown shape and harness version per runner
+  (metadata up to 16 a version, a conversational shape always), with the harness, its version, the shape's key (a tag's name left out) and
+  whether it is inside the conversation, never the line. The runner reads no further ahead than it has sent, but a remote client's own
   pace is not tracked: a large record on a slow link fills the socket's buffer like any
   other output.
   An actor the terminal's session does not have, or without a transcript Novadeck reads,

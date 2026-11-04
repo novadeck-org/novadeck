@@ -2201,6 +2201,35 @@ describe("a turn the person's Escape ended", () => {
   })
 })
 
+describe("a chat prompt's receipt", () => {
+  it("names the version of the harness that writes the record, once its records say", async ({
+    terminals,
+  }) => {
+    const manager = terminals.manager(ptyOptions)
+    const { id } = await manager.create(
+      { id: randomUUID(), sessionId: "session", cwd, cols: 80, rows: 24 },
+      "creator",
+    )
+    type Source = { version: string | null } | undefined
+    const inside = manager as unknown as {
+      records: Map<string, { bound: Bound | null; transcript: string | null }>
+      typing: { receiptsHost: () => { source: (id: string) => Promise<Source> } }
+    }
+    const record = inside.records.get(id)!
+    const host = inside.typing.receiptsHost()
+    record.transcript = join(tmpdir(), "steps.jsonl")
+    const binding = { agent: "agy", sessionId: randomUUID(), instance: null } as const
+    record.bound = { binding, activity: fresh(0, false, false), telemetry: null }
+    expect((await host.source(id))?.version).toBeNull()
+    record.bound = {
+      binding: { ...binding, version: "1.4.12" },
+      activity: fresh(0, false, false),
+      telemetry: null,
+    }
+    expect((await host.source(id))?.version).toBe("1.4.12")
+  })
+})
+
 describe("terminal naming", () => {
   // Sampling never announces a terminal while these read their watchers.
   const quiet = { ...ptyOptions, processPollMs: 3_600_000 }
