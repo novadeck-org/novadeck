@@ -89,7 +89,6 @@ export const screensOptions = (
     // The desktop app's runner is on this machine, so a copied file's own path names it.
     pathOf: desktopApp()?.pathForFile,
     maxBytes: maxUploadBytes,
-    trustedClipboard: desktopApp() !== undefined,
     notice: pasteNotice,
   },
   on: {

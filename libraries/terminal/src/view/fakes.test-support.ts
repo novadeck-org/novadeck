@@ -107,7 +107,6 @@ export const optionsOf = (over: Partial<TerminalScreensOptions<string>> = {}) =>
     paste: {
       upload: () => new Promise<string>(() => {}),
       maxBytes: 32 * 1024 * 1024,
-      trustedClipboard: false,
       notice: noticeOf,
     },
     ...over,

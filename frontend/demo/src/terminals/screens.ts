@@ -241,9 +241,6 @@ export const demoScreensOptions = (
           ? Promise.reject(new Error("The debug panel failed this paste"))
           : Promise.resolve(`/tmp/novadeck-paste/${file.name}`),
       maxBytes: maxUploadBytes,
-      trustedClipboard: false,
-      // The browser pastes on Ctrl+V, as the line editor takes a paste as typed text.
-      ctrlV: "browser",
       notice: pasteNotice(maxUploadBytes),
     },
   }

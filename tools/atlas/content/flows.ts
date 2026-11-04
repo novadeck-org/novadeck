@@ -123,7 +123,7 @@ export const flows: (Omit<Flow, "steps"> & { steps: CuratedStep[] })[] = [
         text: "xterm turns the key into data, and the screen passes it on unless the shell has exited.",
         anchor: {
           file: "libraries/terminal/src/view/screens.ts",
-          text: "const input = xterm.onData(send)",
+          text: "const input = xterm.onData(deliver)",
         },
       },
       {

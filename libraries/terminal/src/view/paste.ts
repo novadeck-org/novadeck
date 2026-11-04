@@ -225,12 +225,6 @@ export const takeFilePastes = (container: HTMLElement, target: PasteTarget): (()
   return () => container.removeEventListener("paste", listener, true)
 }
 
-// How long typing waits behind Ctrl+V while the clipboard is read, at most.
-const ctrlVWaitMs = 1_000
-// How long typing waits behind Ctrl+V at all, even for an image still uploading, whose
-// path then goes in when it is saved.
-export const ctrlVHoldMs = 2_000
-
 type Key = Pick<
   KeyboardEvent,
   | "type"
@@ -244,147 +238,54 @@ type Key = Pick<
   | "keyCode"
 >
 
-// Whether a key press is Ctrl with `letter` alone. With Shift it is the terminal's copy
-// or paste already, AltGr reports Ctrl with Alt, and a key composing text belongs to the
-// input method. The letter is the layout's, or the key's place where the layout has no
-// Latin letters there.
-const plainCtrl = (event: Key, letter: "c" | "v"): boolean => {
+// Whether a key press is Ctrl with `letter`, with Shift or without it as `shifted` says. AltGr
+// reports Ctrl with Alt, and a key composing text belongs to the input method. The letter
+// is the layout's, or the key's place where the layout has no Latin letters there.
+const chord = (event: Key, letter: "c" | "v", shifted: boolean): boolean => {
   if (event.type !== "keydown" || event.isComposing || event.keyCode === 229) return false
-  if (!event.ctrlKey || event.shiftKey || event.altKey || event.metaKey) return false
+  if (!event.ctrlKey || event.shiftKey !== shifted || event.altKey || event.metaKey) return false
   return /^[a-z]$/i.test(event.key)
     ? event.key.toLowerCase() === letter
     : event.code === `Key${letter.toUpperCase()}`
 }
 
-// Whether a key press is a plain Ctrl+V on Linux or Windows, which may paste an image.
-// On Apple platforms ⌘V pastes and Ctrl+V stays the program's.
-export const plainCtrlV = (event: Key, platform: Platform): boolean =>
-  platform !== "mac" && plainCtrl(event, "v")
-
-// What Ctrl+C or Ctrl+V does on Windows, as in Windows Terminal: Ctrl+C copies a
-// selection, reaching the program only without one, and Ctrl+V pastes. Elsewhere both
-// stay the program's, but for Ctrl+V's images on Linux (`takeClipboardKeys`).
-export const windowsClipboardKey = (
+// What the copy and paste keys do on Linux and Windows, as in their own terminals: Ctrl+C
+// copies a selection and reaches the program only without one; Ctrl+Shift+C copies a
+// selection too, and without one does nothing, so it never interrupts the program ("swallow");
+// Ctrl+V and Ctrl+Shift+V paste. On Apple platforms ⌘C and ⌘V copy and paste through the
+// menu, and Ctrl+C and Ctrl+V stay the program's.
+export const clipboardKey = (
   event: Key,
   platform: Platform,
   selected: boolean,
-): "copy" | "paste" | undefined => {
-  if (platform !== "windows") return undefined
-  if (plainCtrl(event, "c")) return selected ? "copy" : undefined
-  return plainCtrl(event, "v") ? "paste" : undefined
+): "copy" | "swallow" | "paste" | undefined => {
+  if (platform === "mac") return undefined
+  if (chord(event, "c", false)) return selected ? "copy" : undefined
+  if (chord(event, "c", true)) return selected ? "copy" : "swallow"
+  return chord(event, "v", false) || chord(event, "v", true) ? "paste" : undefined
 }
 
-// Whether Ctrl+V pastes a clipboard's images: it holds an image and no text. Text stays
-// the program's, as the paste of text beside an image does.
-export const pastesImages = (items: readonly Pick<ClipboardItem, "types">[]): boolean =>
-  items.some((item) => item.types.some((type) => type.startsWith("image/"))) &&
-  !items.some((item) => item.types.includes("text/plain"))
-
-// The images Ctrl+V pastes: none but on a clipboard of images and no text, or one it
-// can't read.
-const ctrlVImages = async (now: Date): Promise<File[]> => {
-  try {
-    const items = await navigator.clipboard.read()
-    return pastesImages(items) ? await imagesOf(items, now) : []
-  } catch {
-    return []
-  }
-}
-
-// Whether Ctrl+V may read the clipboard without asking: always where the owner trusts it,
-// as the desktop app does, and in a browser once the page may, as after a first image pasted
-// with Ctrl+Shift+V. Reading it otherwise would ask on every Ctrl+V, as vim's.
-export const clipboardAccess = (trusted: boolean): (() => boolean) => {
-  if (trusted) return () => true
-  let granted = false
-  const watch = async (): Promise<void> => {
-    const status = await navigator.permissions.query({ name: "clipboard-read" as PermissionName })
-    granted = status.state === "granted"
-    status.addEventListener("change", () => (granted = status.state === "granted"))
-  }
-  // A browser that has no such permission to ask about never reads it.
-  watch().catch(() => {})
-  return () => granted
-}
-
-type CtrlVTarget = PasteTarget & {
-  // Puts text on the clipboard, as Ctrl+C copies a selection on Windows.
-  readonly copy: (text: string) => void
-  // Whether the terminal's program takes input now; otherwise Ctrl+V goes as it did.
-  readonly active: () => boolean
-  // Holds the terminal's input until the returned release, which first sends Ctrl+V as
-  // typed when `controlV`. Pastes while held go ahead of what it holds.
-  readonly hold: () => (controlV: boolean) => void
-}
-
-// Gives Ctrl+C and Ctrl+V their meaning in a terminal. On Windows Ctrl+C copies a
-// selection, clearing it, and Ctrl+V is left to the browser, which pastes as for
-// Ctrl+Shift+V, files and images included (`takeFilePastes`). On Linux a plain Ctrl+V
-// pastes a clipboard of images as their paths, as a paste of them does. Any other
-// clipboard, one it can't read, or one read too slowly sends Ctrl+V to the program,
-// without a word, as programs such as vim take it. Typing meanwhile waits, to arrive
-// after the paths or Ctrl+V, for `holdMs` at most. Ctrl+V pressed again, or repeating,
-// while typing waits does nothing, so an image goes in once; once typing goes again, as
-// past a slow upload, Ctrl+V does too. Where the clipboard can't be read,
-// `unreadable: "browser"` leaves the key to the browser, which pastes the clipboard's
-// text as a paste, for a terminal whose program edits lines and has no use for Ctrl+V.
+// Gives the copy and paste keys their meaning in a terminal (`clipboardKey`). A copy puts
+// the selection on the clipboard through `copy` and clears it. A paste is left to the
+// browser, whose paste event the emulator takes as text and `takeFilePastes` as files and
+// images, so no key reaches the program.
 export const takeClipboardKeys = (
   xterm: Pick<
     Terminal,
     "attachCustomKeyEventHandler" | "hasSelection" | "getSelection" | "clearSelection"
   >,
-  target: CtrlVTarget,
-  {
-    platform = currentPlatform(),
-    readable = (): boolean => true,
-    waitMs = ctrlVWaitMs,
-    holdMs = ctrlVHoldMs,
-    unreadable = "program",
-  }: {
-    platform?: Platform
-    readable?: () => boolean
-    waitMs?: number
-    holdMs?: number
-    unreadable?: "program" | "browser"
-  } = {},
+  copy: (text: string) => void,
+  { platform = currentPlatform() }: { platform?: Platform } = {},
 ): void => {
-  let holding = false
-  const check = async (): Promise<void> => {
-    const hold = target.hold()
-    let cap: ReturnType<typeof setTimeout> | undefined
-    let released = false
-    const release = (controlV: boolean): void => {
-      if (released) return
-      released = true
-      holding = false
-      clearTimeout(cap)
-      hold(controlV)
-    }
-    // An image found but slow to upload lets typing go, and sends no Ctrl+V.
-    cap = setTimeout(() => release(false), holdMs)
-    let timer: ReturnType<typeof setTimeout> | undefined
-    const late = new Promise<File[]>((resolve) => (timer = setTimeout(resolve, waitMs, [])))
-    const images = await Promise.race([ctrlVImages(new Date()), late])
-    clearTimeout(timer)
-    if (images.length === 0) return release(true)
-    // An image none of whose paths went in leaves Ctrl+V to the program, as its paste does.
-    release((await pasteFiles(images, target)) === 0)
-  }
   xterm.attachCustomKeyEventHandler((event) => {
-    const key = windowsClipboardKey(event, platform, xterm.hasSelection())
-    if (key === "copy") {
-      event.preventDefault()
-      target.copy(xterm.getSelection())
-      xterm.clearSelection()
-      return false
-    }
+    const key = clipboardKey(event, platform, xterm.hasSelection())
+    if (key === undefined) return true
     if (key === "paste") return false
-    if (!plainCtrlV(event, platform) || !target.active()) return true
-    if (!readable()) return unreadable === "program"
     event.preventDefault()
-    if (holding) return false
-    holding = true
-    void check().catch(() => (holding = false))
+    if (key === "copy") {
+      copy(xterm.getSelection())
+      xterm.clearSelection()
+    }
     return false
   })
 }
