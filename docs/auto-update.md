@@ -283,7 +283,10 @@ offered one, not the running one) to `update.json`; and re-offers the update as 
 From the next launch that release is only told of: the updater never downloads on its own,
 the app asks for each download, and leaves out the release the mark names, which is offered
 as `available`. A newer release installs as usual and the mark, being for the older one,
-is ignored. The comparison is in `checkForUpdates` (`failedVersion`), where it is tested. Every write to `update.json` is synchronous and goes through a
+is ignored. The comparison is in `checkForUpdates` (`failedVersion`), where it is tested.
+A download whose file is gone by the time it would install, as when the person or a cleaner
+emptied `~/.cache`, is no failed install: nothing installs or is marked, and the next launch
+downloads the release again (macOS checks its own prepared copy the same way). Every write to `update.json` is synchronous and goes through a
 temporary file that is renamed over, re-reading the file first, so the failure mark, which
 is written as the app exits, cannot race another change.
 
