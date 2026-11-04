@@ -5,9 +5,10 @@
    `.pin` is one, a button for one project: `.pin-number` is its place in the person's
    order (its shortcut's digit, in the mono face), `.pin-name` its name, and `.pin-mark`
    (a `.project-status-mark`, with the glyphs and tones of project-status.css) after them,
-   while an agent waits on the person or a finished agent's reply waits unread. The mark's
-   slot is always there, empty or not, so a pin's width never changes; a project only
-   working shows none.
+   as the switcher's row for the project shows it: while an agent waits on the person, a
+   finished agent's reply waits unread, or an agent works, is paused at its limit, waits
+   to be woken or is unheard. The mark's slot is always there, empty or not, so a pin's
+   width never changes.
 
    A project dragged out of the switcher's list opens an empty bar for it. As such a drag
    starts, a soft band of the accent sweeps once across the bar, empty or not, and while
@@ -22,7 +23,8 @@
    from the switcher can be dropped on it, and data-over="true" while its pin is over the
    bar. On the drop hint, data-shown="true" while it shows. On a pin,
    aria-current="true" for the current project, and data-project-status="ask" |
-   "unblock" | "failed" | "done" (never "running"); data-dragging="true" on the pin
+   "unblock" | "failed" | "paused" | "running" | "waiting" | "done" | "unheard";
+   data-dragging="true" on the pin
    being dragged along the bar, which lifts as a dragged row of the switcher does, fading
    in, while the others slide aside;
    data-leaving="true" on it once dragged well off the bar, where letting go unpins it;

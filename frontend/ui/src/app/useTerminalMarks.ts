@@ -7,16 +7,22 @@ import { useEffect, useState } from "react"
 import { useStoreSelector } from "./controller/useStoreSelector"
 import { sameItems } from "./selectors"
 
+// Moves a clock (`setNow`, a `useState` setter) on to the time once `at` passes though
+// nothing else changes, so what is judged by it is judged again then. Undefined waits on
+// nothing. The caller works `at` out from the clock's time, so it is asked again with each.
+export const useMoveOn = (at: number | undefined, setNow: (now: number) => void): void => {
+  useEffect(() => {
+    if (at === undefined) return undefined
+    const timer = setTimeout(() => setNow(Date.now()), Math.max(0, at - Date.now()) + 50)
+    return () => clearTimeout(timer)
+  }, [at, setNow])
+}
+
 // The time the limits among `rows` are judged by, moved on once the next one resets (which
 // makes its terminal an Unblock) though nothing else changes.
 export const useLimitClock = (rows: readonly InboxRow[]): number => {
   const [now, setNow] = useState(() => Date.now())
-  const resetsAt = nextLimitReset(rows, now)
-  useEffect(() => {
-    if (resetsAt === undefined) return undefined
-    const timer = setTimeout(() => setNow(Date.now()), Math.max(0, resetsAt - Date.now()) + 50)
-    return () => clearTimeout(timer)
-  }, [resetsAt])
+  useMoveOn(nextLimitReset(rows, now), setNow)
   return now
 }
 

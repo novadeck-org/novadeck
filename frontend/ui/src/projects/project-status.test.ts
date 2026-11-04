@@ -6,6 +6,9 @@ import { context, describe, expect, it } from "../test"
 import {
   anyAgentWorking,
   elsewhereStatus,
+  nextStatusChange,
+  projectAsk as askOf,
+  projectAsks as asksOf,
   projectStatus as statusOf,
   projectStatuses as statusesOf,
 } from "./project-status"
@@ -17,6 +20,10 @@ const projectStatus = (project: WorkspaceProject, unread: Unread, rows: InboxRow
   statusOf(project, (session, id) => unread[session]?.[id], rows, now)
 const projectStatuses = (projects: WorkspaceProject[], unread: Unread, rows: InboxRow[] = []) =>
   statusesOf(projects, (session, id) => unread[session]?.[id], rows, now)
+const projectAsk = (project: WorkspaceProject, unread: Unread, rows: InboxRow[] = []) =>
+  askOf(project, (session, id) => unread[session]?.[id], rows, now)
+const projectAsks = (projects: WorkspaceProject[], unread: Unread) =>
+  asksOf(projects, (session, id) => unread[session]?.[id], [], now)
 
 const now = 1_000_000
 
@@ -87,6 +94,26 @@ const project = (id: string, terminals: TerminalMetadata[]): WorkspaceProject =>
     ],
   }
 }
+
+// An agent paused at its usage limit, which resets later; one whose turn ended to wait on
+// a job it left running; and an agent program Novadeck hears nothing from.
+const paused = (number: number): TerminalMetadata =>
+  running(number, {
+    lastTurn: { at: now - 1, outcome: "failed", limit: { minutes: 300, resetsAt: now + 60_000 } },
+  })
+const resting = (number: number): TerminalMetadata =>
+  running(number, {
+    waiting: {
+      jobs: [
+        { id: "job", description: "Build", command: "pnpm build", since: now - 1, until: null },
+      ],
+      wake: null,
+    },
+  })
+const unheard = (number: number): TerminalMetadata => ({ ...running(number), process: "claude" })
+// An agent whose turn ended to wait for a wake-up at `at`.
+const wakingAt = (number: number, at: number): TerminalMetadata =>
+  running(number, { waiting: { jobs: [], wake: { at, reason: null } } })
 
 const unread = (id: string, terminal: string, end: "unread" | "failed"): Unread => ({
   [`${id}/initial`]: { [terminal]: end },
@@ -187,6 +214,33 @@ describe("A project's status", () => {
       expect(projectStatus(project("p", [server]), noUnread)).toBeUndefined()
     })
 
+    it("reads an agent's quieter phases as its tab does: paused at its limit, waiting, unheard", () => {
+      expect(projectStatus(project("p", [paused(1)]), noUnread)).toBe("paused")
+      expect(projectStatus(project("p", [resting(1)]), noUnread)).toBe("waiting")
+      expect(projectStatus(project("p", [unheard(1)]), noUnread)).toBe("unheard")
+      // A limit hit shows over work going on elsewhere in the project; work over a wait; a
+      // wait over a done report; and an agent nothing tells of under everything known.
+      const working = running(2, { working: true })
+      const finished = running(3, { reported: true })
+      expect(projectStatus(project("p", [working, paused(1)]), noUnread)).toBe("paused")
+      expect(projectStatus(project("p", [resting(1), working]), noUnread)).toBe("running")
+      expect(projectStatus(project("p", [finished, resting(1)]), noUnread)).toBe("waiting")
+      expect(projectStatus(project("p", [unheard(1), finished]), noUnread)).toBe("done")
+      expect(projectStatus(project("p", [unheard(1), resting(2)]), noUnread)).toBe("waiting")
+      // What the person is asked for still comes first.
+      const ends: Unread = { "p/initial": { [finished.id]: "failed" } }
+      expect(projectStatus(project("p", [paused(1), finished]), ends)).toBe("failed")
+      expect(
+        projectStatus(project("p", [paused(1)]), noUnread, [askRow("p", paused(1), "text")]),
+      ).toBe("ask")
+    })
+
+    it("stops reading an agent as waiting once its wake-up has passed by the grace", () => {
+      const grace = 2 * 60_000
+      expect(projectStatus(project("p", [wakingAt(1, now - grace + 1)]), noUnread)).toBe("waiting")
+      expect(projectStatus(project("p", [wakingAt(1, now - grace)]), noUnread)).toBeUndefined()
+    })
+
     it("reads unread ends only from its own sessions", () => {
       const finished = running(1, {})
       expect(
@@ -195,6 +249,59 @@ describe("A project's status", () => {
       expect(projectStatus(project("p", [finished]), unread("p", finished.id, "failed"))).toBe(
         "failed",
       )
+    })
+  })
+
+  context("as what it asks of the person", () => {
+    it("is the most pressing status that does, under the quieter states its mark shows", () => {
+      const finished = running(1, { reported: true })
+      expect(projectAsk(project("p", [finished, paused(2)]), noUnread)).toBe("done")
+      expect(projectAsk(project("p", [finished, resting(2)]), noUnread)).toBe("done")
+      expect(projectAsk(project("p", [finished, running(2, { working: true })]), noUnread)).toBe(
+        "done",
+      )
+      expect(
+        projectAsk(project("p", [paused(1), resting(2), unheard(3)]), noUnread),
+      ).toBeUndefined()
+      expect(
+        projectAsk(project("p", [finished, paused(2)]), noUnread, [askRow("p", paused(2), "text")]),
+      ).toBe("ask")
+      // Its mark shows the quieter state all the same.
+      expect(projectStatus(project("p", [finished, paused(2)]), noUnread)).toBe("paused")
+    })
+
+    it("is kept by project, where one asks anything", () => {
+      const finished = running(1, { reported: true })
+      expect(
+        projectAsks([project("a", [finished, paused(2)]), project("b", [resting(1)])], noUnread),
+      ).toEqual({ a: "done" })
+    })
+  })
+
+  context("as it changes by time alone", () => {
+    it("changes once a wake-up or a job its harness gave up on passes by the grace", () => {
+      const grace = 2 * 60_000
+      const givenUp = running(1, {
+        waiting: {
+          jobs: [
+            { id: "job", description: null, command: "sleep", since: now - 1, until: now + 10 },
+          ],
+          wake: null,
+        },
+      })
+      expect(nextStatusChange([project("p", [wakingAt(1, now + 500)])], now)).toBe(
+        now + 500 + grace,
+      )
+      expect(
+        nextStatusChange([project("p", [wakingAt(1, now + 500)]), project("q", [givenUp])], now),
+      ).toBe(now + 10 + grace)
+    })
+
+    it("never changes while nothing waits, or a job has no end", () => {
+      expect(nextStatusChange([project("p", [resting(1), paused(2), unheard(3)])], now)).toBe(
+        undefined,
+      )
+      expect(nextStatusChange([], now)).toBeUndefined()
     })
   })
 })
@@ -222,8 +329,10 @@ describe("The switcher's mark", () => {
     expect(elsewhereStatus(statuses, "here", ["there"])).toBeUndefined()
   })
 
-  it("ignores projects that are only working", () => {
+  it("ignores projects that are only working, paused, waiting or unheard", () => {
     expect(elsewhereStatus({ busy: "running" }, "here", [])).toBeUndefined()
+    expect(elsewhereStatus({ a: "paused", b: "waiting", c: "unheard" }, "here", [])).toBeUndefined()
+    expect(elsewhereStatus({ a: "paused", b: "done" }, "here", [])).toBe("done")
   })
 })
 

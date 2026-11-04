@@ -287,19 +287,21 @@ Switching terminal tabs in Focus uses the same transition.
 The project switcher in the top bar lists every project with what its agents show: the
 most pressing of its terminals' marks, as their tabs have them ("?" or "!" while an
 agent needs you, "✓" while a done report waits unseen, "✗" while a failed turn waits
-unread, a spinner while one works). A dot on the switcher's button marks what another project has
-waiting on you, in that mark's colour; projects only working don't light it. The list
+unread, a spinner while one works, "∅" while one is paused at its usage limit, a slow
+drip while one waits on a job or a wake-up, "○" while Novadeck can't hear from one). A
+dot on the switcher's button marks what another project has waiting on you, in that
+mark's colour; projects only working, paused, waiting or unheard don't light it. The list
 grows to 560px before it scrolls.
 
 Drag projects into any order, or move the focused one with Alt+Up and Alt+Down. Pin up to
 nine with the pin beside a row's trash icon: pinned projects lead the list, and dragging
 one across the rule below them pins or unpins it. While any are pinned, a bar under the
-header shows them in that order, each as its number, its name and its mark (except the
-spinner, so the bar stays still while agents work); the current one is underlined, and a
-click switches to it. Drag a pin along the bar to reorder the pins, or focus one and
-press Alt+Left or Alt+Right; drag one off the bar and let go to unpin it. Drag a project
-out of the switcher and it becomes a pin, which you drag into place on the bar as you
-would any pin; let it go off the bar, or press Esc, and nothing changes. The number is
+header shows them in that order, each as its number, its name and its mark, the same
+as its row in the list shows; the current one is underlined, and a click switches to it.
+Drag a pin along the bar to reorder the pins, or focus one and press Alt+Left or
+Alt+Right; drag one off the bar and let go to unpin it. Drag a project out of the
+switcher and it becomes a pin, which you drag into place on the bar as you would any pin;
+let it go off the bar, or press Esc, and nothing changes. The number is
 its shortcut: `Ctrl+Shift+1` to `Ctrl+Shift+9` (`Cmd+1` to `Cmd+9` on macOS, in the
 desktop app, since a browser keeps those for its tabs) switches to that pin, from
 terminal input too. Shift keeps a bare `Ctrl+3` to `Ctrl+8` for the terminal, where they

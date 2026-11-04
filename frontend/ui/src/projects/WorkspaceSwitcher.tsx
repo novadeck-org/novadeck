@@ -12,8 +12,10 @@ import { ProjectList } from "./ProjectList"
 type WorkspaceSwitcherProps = {
   projects: Project[]
   current: Project
-  // What each project's terminals show, by its id, where they show anything.
+  // What each project's terminals show, by its id, where they show anything, and what they
+  // ask of the person, where they ask anything (`projectAsks`), which the button's dot reads.
   statuses: Readonly<Record<string, ProjectStatus>>
+  asks: Readonly<Record<string, ProjectStatus>>
   // How the person arranged the projects, and how each change is asked for: `onMove` puts
   // a project at a place in the list (pinned ones first), `onStep` moves it one place,
   // pinning or unpinning it where it crosses the rule.
@@ -34,6 +36,7 @@ export const WorkspaceSwitcher = ({
   projects,
   current,
   statuses,
+  asks,
   arrangement,
   dotIgnores,
   onSelect,
@@ -56,7 +59,7 @@ export const WorkspaceSwitcher = ({
   // The last project stays: the workspace always has one.
   const removable = Boolean(onRemove) && projects.length > 1
   // What another project has waiting on the person, marked on the button.
-  const elsewhere = elsewhereStatus(statuses, current.id, dotIgnores)
+  const elsewhere = elsewhereStatus(asks, current.id, dotIgnores)
   return (
     <div className="workspace-switcher relative min-w-0 w-fit max-w-[200px] flex-[0_1_auto] max-[700px]:max-w-[130px]">
       <Popover
