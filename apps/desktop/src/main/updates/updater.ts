@@ -618,8 +618,14 @@ export const checkForUpdates = (
     Object.assign(updater, {
       install: (...args: unknown[]): unknown => {
         // A download whose file is gone can't install, but it did not fail: it is let go
-        // unmarked, so the next launch downloads it again rather than offer its page.
-        if (downloaded?.file !== undefined && !installing && !exists(downloaded.file)) {
+        // unmarked, so the next launch downloads it again rather than offer its page. The
+        // updater lets go of the file first when a newer download fails, and empties its
+        // folder after (`installerPath` is then null while the file is still there).
+        if (
+          downloaded?.file !== undefined &&
+          !installing &&
+          (!exists(downloaded.file) || Reflect.get(updater, "installerPath") === null)
+        ) {
           const { version } = downloaded
           log(`${version} was no longer ready to install; it downloads again.`, undefined)
           downloaded = undefined

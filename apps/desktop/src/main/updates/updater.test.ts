@@ -1124,6 +1124,16 @@ describe("checking for updates", () => {
         expect(logged).toHaveLength(1)
       })
 
+      it("lets go of a download the updater itself let go of, as a newer one's failure does", () => {
+        const { updater, failed, offered } = checking()
+        updater.emit("update-downloaded", { version: "1.2.3", downloadedFile: "/cache/x" })
+        Object.assign(updater, { installerPath: null })
+        expect(updater.install(true, false)).toBe(false)
+        expect(updater.installed).toBe(0)
+        expect(failed).toEqual([])
+        expect(offered.at(-1)).toEqual(["retrying", "1.2.3"])
+      })
+
       it("installs a download whose file is there as before", () => {
         const { updater, started } = gone()
         updater.emit("update-downloaded", {
