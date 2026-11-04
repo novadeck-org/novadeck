@@ -1,3 +1,4 @@
+import { existsSync } from "node:fs"
 import type { OutgoingHttpHeaders } from "node:http"
 import { isAbsolute, relative } from "node:path/posix"
 
@@ -474,7 +475,10 @@ export type Updater = {
  *
  * An error raised while installing fails the install: installing on quit is switched
  * off, so the same failing install is not tried at every quit, `installFailed` hears of
- * the version, and `offer` is told the update is only `available`. Installing is when
+ * the version, and `offer` is told the update is only `available`. A download whose file
+ * is gone by then, as when the person or a cleaner emptied the cache folder, is no failed
+ * install: nothing installs, nothing is marked, and the next launch downloads it again
+ * (`exists` tells whether the file is there). Installing is when
  * the updater's `install` (quitting) has been called, which this wraps to know and to
  * tell `installing` of the version first; any other error, such as a check still in
  * flight failing offline, is only logged.
@@ -528,6 +532,7 @@ export const checkForUpdates = (
     installFailed,
     log,
     logger,
+    exists = existsSync,
   }: {
     readonly mode: UpdateMode
     readonly channel: UpdateChannel
@@ -556,6 +561,8 @@ export const checkForUpdates = (
     readonly installFailed: (version: string) => void
     readonly log: (message: string, error: unknown) => void
     readonly logger?: Updater["logger"] | undefined
+    /** Whether a downloaded file is still there to install; the file system's by default. */
+    readonly exists?: ((file: string) => boolean) | undefined
   },
 ): {
   readonly setChannel: (channel: UpdateChannel) => void
@@ -573,7 +580,9 @@ export const checkForUpdates = (
   let following = channel
   updater.logger = logger ?? { info: () => {}, warn: () => {}, error: () => {} }
 
-  let downloaded: { readonly version: string } | undefined
+  // The update waiting to install, with the file electron-updater downloaded it to, when it
+  // named one; on macOS `prepare` keeps its own copy, which the app checks itself.
+  let downloaded: { readonly version: string; readonly file?: string | undefined } | undefined
   // The download under way, the first or a newer release's in place of `downloaded`, with
   // the whole percent last offered for it (-1 before any) and whether it came through.
   let loading:
@@ -608,6 +617,16 @@ export const checkForUpdates = (
   if (typeof original === "function")
     Object.assign(updater, {
       install: (...args: unknown[]): unknown => {
+        // A download whose file is gone can't install, but it did not fail: it is let go
+        // unmarked, so the next launch downloads it again rather than offer its page.
+        if (downloaded?.file !== undefined && !installing && !exists(downloaded.file)) {
+          const { version } = downloaded
+          log(`${version} was no longer ready to install; it downloads again.`, undefined)
+          downloaded = undefined
+          updater.autoInstallOnAppQuit = false
+          offer({ kind: "retrying", version })
+          return false
+        }
         installing = true
         if (downloaded !== undefined) installStarted?.(downloaded.version)
         // (silent, force run): the installer starts the app when it is done only if asked.
@@ -742,7 +761,7 @@ export const checkForUpdates = (
   })
   updater.on("update-downloaded", ({ version, downloadedFile }) => {
     if (prepare === undefined) {
-      downloaded = { version }
+      downloaded = { version, file: downloadedFile }
       return offer({ kind: "ready", version })
     }
     // Only the latest download counts: one prepared after it was replaced is let go.

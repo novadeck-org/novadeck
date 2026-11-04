@@ -575,6 +575,7 @@ describe("checking for updates", () => {
       allow?: boolean
       feed?: Parameters<typeof checkForUpdates>[1]["feed"]
       runAfterInstall?: () => boolean
+      exists?: (file: string) => boolean
     } = {},
   ) => {
     const updater = new FakeUpdater()
@@ -603,6 +604,7 @@ describe("checking for updates", () => {
       runAfterInstall: options.runAfterInstall,
       installFailed: (version) => void failed.push(version),
       log: (message) => void logged.push(message),
+      exists: options.exists,
     })
     return { updater, offered, failed, started, logged, allowed, ...checks }
   }
@@ -1085,6 +1087,52 @@ describe("checking for updates", () => {
       updater.install()
       expect(started).toEqual(["1.2.3"])
       expect(updater.installed).toBe(1)
+    })
+
+    context("a download whose file is gone by the time it installs", () => {
+      // As when the person, or a cleaner, emptied ~/.cache while the update waited.
+      const gone = () => checking({ exists: (file) => file !== "/cache/novadeck.AppImage" })
+
+      it("installs nothing and marks nothing, so the next launch downloads it again", () => {
+        const { updater, failed, started, offered, logged } = gone()
+        updater.emit("update-downloaded", {
+          version: "1.2.3",
+          downloadedFile: "/cache/novadeck.AppImage",
+        })
+        expect(updater.install(true, false)).toBe(false)
+        expect(updater.installed).toBe(0)
+        expect(failed).toEqual([])
+        expect(started).toEqual([])
+        expect(updater.autoInstallOnAppQuit).toBe(false)
+        expect(offered).toEqual([
+          ["ready", "1.2.3"],
+          ["retrying", "1.2.3"],
+        ])
+        expect(logged).toEqual(["1.2.3 was no longer ready to install; it downloads again."])
+      })
+
+      it("leaves nothing to install as the quit begins, or on the quit after it", () => {
+        const { updater, failed, installNow, logged } = gone()
+        updater.emit("update-downloaded", {
+          version: "1.2.3",
+          downloadedFile: "/cache/novadeck.AppImage",
+        })
+        expect(installNow()).toBe(false)
+        expect(installNow()).toBe(false)
+        expect(updater.installed).toBe(0)
+        expect(failed).toEqual([])
+        expect(logged).toHaveLength(1)
+      })
+
+      it("installs a download whose file is there as before", () => {
+        const { updater, started } = gone()
+        updater.emit("update-downloaded", {
+          version: "1.2.3",
+          downloadedFile: "/cache/other.AppImage",
+        })
+        expect(updater.install(true, false)).toBe(true)
+        expect(started).toEqual(["1.2.3"])
+      })
     })
 
     context("putting the update in place as the quit begins", () => {
