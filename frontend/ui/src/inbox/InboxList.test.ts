@@ -642,6 +642,22 @@ describe("The Inbox's list", () => {
       inbox.view.unmount()
     })
 
+    it("puts back what it took the place of when closed after its ask settled", async () => {
+      const inbox = mount([agentAsk("a", 1), agentAsk("b", 2)], false, true)
+      const back: string[] = []
+      act(() => inbox.handlers().open("a", { once: true, after: () => void back.push("a") }))
+      await nextFrame()
+      act(() => inbox.handlers().dismiss!("a"))
+      await nextFrame()
+      // The sheet stays to say so, until the person closes it.
+      expect(back).toEqual([])
+      inbox.press("Escape")
+      await nextFrame()
+      expect(sheet()).toBeNull()
+      expect(back).toEqual(["a"])
+      inbox.view.unmount()
+    })
+
     it("puts nothing back when closed unanswered", async () => {
       const inbox = mount([permission("a", 1), permission("b", 2)])
       const back: string[] = []

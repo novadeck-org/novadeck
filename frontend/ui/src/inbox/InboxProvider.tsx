@@ -87,7 +87,7 @@ export type InboxContextValue = {
   readonly phone: boolean
   // Whether any agent in the workspace is at work, which the empty list says.
   readonly working: boolean
-  // Opens a row's sheet; with `after`, for that row alone (see `OpenOptions`).
+  // Opens a row's sheet; with `once`, for that row alone (see `OpenOptions`).
   readonly open: (id: string, options?: OpenOptions) => void
   readonly close: () => void
   readonly showHeld: () => void
@@ -108,17 +108,19 @@ export type InboxContextValue = {
   readonly reveal: (row: InboxRow) => void
 }
 
-// How a sheet opens: on rows read newer than the last commit (`rows`), and, `once`, for its
-// row alone, as a click on a toast or a notice opens it. Where the person didn't open the
-// Inbox themselves (`after`, which puts back what it took the place of), it is a one-off: once
-// its row is answered, snoozed from it or gone, the sheet closes instead of going on to what
-// asks next, and `after` runs. Another such click while a one-off is open keeps it one, with
-// the same `after`; where the person is already going through the Inbox's sheets, or it
-// showed already, the sheet is an ordinary one. Closing a one-off otherwise, or going to
-// another row from the list, makes it an ordinary sheet and puts nothing back.
+// How a sheet opens.
+//
+// A sheet opened `once` with an `after`, while no sheet is open, is a one-off: once its row
+// is answered, snoozed from it, or gone, or the person closes it after the ask settled, the
+// sheet closes instead of going on to what asks next, and `after` runs. Another `once` open
+// while a one-off is open is one too, with the first one's `after`. Any other open, or
+// closing it before then, makes it an ordinary sheet, and `after` never runs.
 export type OpenOptions = {
+  // The rows, where the caller read them newer than the last commit.
   readonly rows?: readonly InboxRow[]
+  // For its row alone, as a click on a toast or a notice opens it.
   readonly once?: boolean
+  // Puts back what the Inbox took the place of; absent where the Inbox showed already.
   readonly after?: (() => void) | undefined
 }
 
@@ -127,7 +129,7 @@ const InboxContext = createContext<InboxContextValue | null>(null)
 // Opens the row `pick` finds among those listed now, for a view outside the Inbox: one
 // function for as long as the Inbox lasts, so a view holding it never renders again with
 // the Inbox's every change. None in a view rendered on its own.
-// `once` opens it for its row alone (see `OpenOptions`).
+// Given `once`, it opens for its row alone, with `once.after` (see `OpenOptions`).
 export type InboxOpener = (
   pick: (rows: readonly InboxRow[]) => InboxRow | undefined,
   once?: { readonly after: (() => void) | undefined },
@@ -191,7 +193,8 @@ export const InboxProvider = ({
   // The answers the sheet has moved on from, by row id and when it started waiting (a newer
   // row may take an old id): opened again, their sheet stays, answered.
   const movedOn = useRef(new Set<string>())
-  // The row whose sheet is open as a one-off, and what runs once it is answered.
+  // The row whose sheet is open as a one-off, and what runs once it is done with (see
+  // `OpenOptions`).
   const oneOff = useRef<{ readonly id: string; readonly after: () => void } | null>(null)
   const [drafts, setDrafts] = useState<Readonly<Record<string, Draft>>>({})
   const [now, setNow] = useState(() => Date.now())
@@ -286,12 +289,17 @@ export const InboxProvider = ({
   const close = useCallback((): void => {
     const { state: snapshot, view: before, phone: screen } = latest.current
     if (before.open === null) return
+    const once = oneOff.current
     oneOff.current = null
     setAnswered({})
     setReceipt(null)
     movedOn.current.clear()
     setView(closeSheet(before, snapshot.items))
     screen?.showList()
+    // A one-off whose ask settled while it was open, as replied to in its terminal, is done
+    // with as well.
+    const settledOpen = snapshot.items.find(({ id }) => id === before.open)?.settled
+    if (once?.id === before.open && settledOpen) once.after()
   }, [])
 
   const showHeld = useCallback((): void => {

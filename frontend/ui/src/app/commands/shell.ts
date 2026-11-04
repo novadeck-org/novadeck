@@ -19,9 +19,11 @@ import type { CommandContext } from "./context"
 export type ShellCommands = {
   readonly showSessions: () => void
   readonly showInbox: () => void
-  // Shows the Inbox for one row, as a click on a toast or a notice does: unless it shows
-  // already, returns what puts the sidebar back as it was before (or hidden), with typing back
-  // in the selected terminal. That does nothing once the person has moved the sidebar on.
+  // Shows the Inbox for one row, as a click on a toast or a notice does, in place of the page
+  // the person was on rather than as a step Back goes through. Returns what puts the sidebar
+  // back as it was: the same panel, hidden, or Zen, with typing back in the selected terminal.
+  // Returns nothing where the Inbox showed already. What it returns does nothing once the
+  // Inbox is no longer the panel that shows.
   readonly peekInbox: () => (() => void) | undefined
   readonly hideSidebar: () => void
   // Hides the panel when it already shows; otherwise leaves Zen and shows it.
@@ -63,10 +65,10 @@ export const createShellCommands = (ctx: CommandContext): ShellCommands => {
     change(hideSidebar)
     if (effects.desktop()) effects.focusSidebarToggle(panel())
   }
-  const show = (next: SidebarPanel): void => {
+  const show = (next: SidebarPanel, replace = false): void => {
     const inZen = Boolean(ui.getSnapshot().shell.zen)
     change((shell) => ({ ...shell, zen: null }))
-    navigation.go({ panel: next })
+    navigation.go({ panel: next }, replace)
     change(showPanel)
     // The Zen dock the person pressed is gone; focus follows to the rail.
     if (inZen && effects.desktop())
@@ -81,13 +83,12 @@ export const createShellCommands = (ctx: CommandContext): ShellCommands => {
       if (location.route.panel === "inbox" && sidebarVisible(shell, desktop)) return undefined
       const was = location.route.panel
       const { sidebar, sidebarCollapsed, zen } = shell
-      show("inbox")
+      show("inbox", true)
       return () => {
         const now = ui.getSnapshot()
         if (now.location.route.panel !== "inbox" || !sidebarVisible(now.shell, effects.desktop()))
           return
         change((edited) => ({ ...edited, sidebar, sidebarCollapsed, zen }))
-        // In place of the Inbox, so Back doesn't bring it back.
         navigation.go({ panel: was }, true)
         if (!effects.desktop()) return
         effects.afterFrame(() => {

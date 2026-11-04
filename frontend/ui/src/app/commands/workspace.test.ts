@@ -401,8 +401,11 @@ describe("workspace commands", () => {
       app.commands.showSessions()
       const back = app.commands.peekInbox()
       expect(panel(app)).toBe("inbox")
+      // In place of the page the person was on, and back, so Back has no step for it.
+      expect(app.ui.getSnapshot().location.navigationType).toBe("REPLACE")
       back!()
       expect(panel(app)).toBe("sessions")
+      expect(app.ui.getSnapshot().location.navigationType).toBe("REPLACE")
       expect(app.shell()).toMatchObject({ sidebarCollapsed: false })
       app.flush()
       expect(app.effects.at(-1)).toBe(`focus input ${app.state().selected}`)
