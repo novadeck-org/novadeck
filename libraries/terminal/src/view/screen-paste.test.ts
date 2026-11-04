@@ -168,6 +168,20 @@ describe("pasting into a terminal's screen", () => {
       expect(page.sent).toEqual(["\u0003"])
     })
 
+    it.each(["Linux x86_64", "Win32"])(
+      "leaves Ctrl+V and Ctrl+Shift+V to the browser and swallows Ctrl+Shift+C without a selection on %s",
+      async (platform) => {
+        const page = await selecting(platform)
+        const v = { key: "v", code: "KeyV", keyCode: 86 }
+        expect(page.press(v).defaultPrevented).toBe(false)
+        expect(page.press({ ...v, key: "V", shiftKey: true }).defaultPrevented).toBe(false)
+        page.xterm.clearSelection()
+        expect(page.press({ key: "C", code: "KeyC", shiftKey: true }).defaultPrevented).toBe(true)
+        expect(page.sent).toEqual([])
+        expect(page.written).toEqual([])
+      },
+    )
+
     it("keeps Ctrl+C the program's on macOS, where ⌘C copies", async () => {
       const page = await selecting("MacIntel")
       page.press({ key: "c", code: "KeyC" })

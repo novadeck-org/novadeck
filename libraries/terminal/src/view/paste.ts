@@ -268,7 +268,8 @@ export const clipboardKey = (
 // Gives the copy and paste keys their meaning in a terminal (`clipboardKey`). A copy puts
 // the selection on the clipboard through `copy` and clears it. A paste is left to the
 // browser, whose paste event the emulator takes as text and `takeFilePastes` as files and
-// images, so no key reaches the program.
+// images, so no key reaches the program. A key held down acts once: a repeat of a paste or
+// of a copy is swallowed, while a repeat of a Ctrl+C that interrupted still reaches the program.
 export const takeClipboardKeys = (
   xterm: Pick<
     Terminal,
@@ -277,12 +278,25 @@ export const takeClipboardKeys = (
   copy: (text: string) => void,
   { platform = currentPlatform() }: { platform?: Platform } = {},
 ): void => {
+  // Whether the key held down began as a copy, whose repeats must not reach the program.
+  let copying = false
   xterm.attachCustomKeyEventHandler((event) => {
+    if (event.type === "keydown" && !event.repeat) copying = false
+    if (event.type === "keydown" && event.repeat && copying) {
+      event.preventDefault()
+      return false
+    }
     const key = clipboardKey(event, platform, xterm.hasSelection())
     if (key === undefined) return true
-    if (key === "paste") return false
+    if (key === "paste") {
+      // A held key pastes once: the first press is the browser's, its repeats are swallowed.
+      if (!event.repeat) return false
+      event.preventDefault()
+      return false
+    }
     event.preventDefault()
     if (key === "copy") {
+      copying = true
       copy(xterm.getSelection())
       xterm.clearSelection()
     }

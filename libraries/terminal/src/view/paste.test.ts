@@ -588,10 +588,35 @@ describe.each(["other", "windows"] as const)(
     it("leave Ctrl+V and Ctrl+Shift+V to the browser to paste, sending no Ctrl+V", () => {
       const page = keyboard({ platform, selection: "x" })
       expect(page.press()).toEqual({ passed: false, prevented: false })
-      expect(page.press({ repeat: true })).toEqual({ passed: false, prevented: false })
       expect(page.press(shifted)).toEqual({ passed: false, prevented: false })
       expect(page.log).toEqual([])
       expect(page.selected()).toBe("x")
+    })
+
+    it("paste once when Ctrl+V or Ctrl+Shift+V is held, swallowing the repeats", () => {
+      const page = keyboard({ platform })
+      for (const init of [{}, shifted]) {
+        expect(page.press(init)).toEqual({ passed: false, prevented: false })
+        expect(page.press({ ...init, repeat: true })).toEqual({ passed: false, prevented: true })
+      }
+    })
+
+    it("send no Ctrl+C on the repeats of a Ctrl+C or Ctrl+Shift+C that copied", () => {
+      for (const init of [c, { ...c, ...shifted }]) {
+        const page = keyboard({ platform, selection: "x" })
+        page.press(init)
+        expect(page.press({ ...init, repeat: true })).toEqual({ passed: false, prevented: true })
+        expect(page.press({ ...init, repeat: true })).toEqual({ passed: false, prevented: true })
+        expect(page.log).toEqual(["copy x"])
+      }
+    })
+
+    it("send Ctrl+C on a fresh press after a copy, and on the repeats of an interrupt", () => {
+      const page = keyboard({ platform, selection: "x" })
+      page.press(c)
+      page.press({ ...c, repeat: true })
+      expect(page.press(c)).toEqual({ passed: true, prevented: false })
+      expect(page.press({ ...c, repeat: true })).toEqual({ passed: true, prevented: false })
     })
 
     it("leave other keys to the emulator", () => {

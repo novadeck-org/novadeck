@@ -581,12 +581,12 @@ text or reaches the program.
 
 Pasting an image, such as a screenshot, into a terminal pastes the path of a file
 holding it, as a native terminal does for a dropped file. A paste with any text stays
-text, even with an image beside it, as cells copied from a spreadsheet come. On Linux and Windows,
-Ctrl+V and Ctrl+Shift+V paste, files and images included, and
-Ctrl+C and Ctrl+Shift+C copy the selected text and clear the selection. With nothing
-selected, Ctrl+C reaches the program, so it still interrupts, and Ctrl+Shift+C does
-nothing. On macOS ⌘C copies and ⌘V pastes, and Ctrl+C and Ctrl+V stay the program's.
-These keys work the same in a shell and in Claude Code, Codex and Antigravity sessions.
+text, even with an image beside it, as cells copied from a spreadsheet come. On Linux and
+Windows, Ctrl+V and Ctrl+Shift+V paste, files and images included, and Ctrl+C and
+Ctrl+Shift+C copy the selected text and clear the selection. With nothing selected,
+Ctrl+C reaches the program, so it still interrupts, and Ctrl+Shift+C does nothing. On
+macOS ⌘C copies and ⌘V pastes, and Ctrl+C and Ctrl+V stay the program's. These keys work
+the same in a shell and in Claude Code, Codex and Antigravity sessions.
 In the desktop app, a file or folder copied in a file
 manager pastes its own path, whatever its size, so an agent edits the file itself; a
 Windows name with anything but letters, digits, spaces and `.`, `_`, `-`, such as
@@ -598,8 +598,8 @@ page, any file pasted in a browser) on its own machine, readable by its owner on
 folder beside its database, or a temporary folder without one; each upload removes
 those older than a week. Claude Code and Codex take a pasted
 image's path as the image. The desktop app may read the clipboard for this; in a
-browser, the first paste of an image asks for permission. A paste that fails, as of a
-copy over 32 MB or with the clipboard unreadable, says why for a moment at the top of the
+browser, a paste with no text (an image, or an empty clipboard) may ask for permission.
+A paste that fails, as of a copy over 32 MB or with the clipboard unreadable, says why for a moment at the top of the
 terminal.
 
 The new-session shortcut creates and selects an empty session in the current project
