@@ -924,6 +924,7 @@ describe("The Console sheet", () => {
           items: [turn({ text: "run the suite and report back please", at: 10 })],
           requests: [],
           prompts: [],
+          unread: false,
         })),
       )
       expect(text(".console-you")).toContain("run the suite")

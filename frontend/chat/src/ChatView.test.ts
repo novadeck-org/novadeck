@@ -586,7 +586,10 @@ describe("a reply to the agent's question, as its dialog changes", () => {
       program: "agy",
     })
     const region = [...container.querySelectorAll('[role="status"]')].find(
-      (each) => each.childElementCount === 0 && each.tagName === "DIV",
+      (each) =>
+        each.childElementCount === 0 &&
+        each.tagName === "DIV" &&
+        !each.classList.contains("chat-unread-region"),
     )
     expect(region).toBeDefined()
     await send(container)
@@ -647,5 +650,50 @@ describe("a reply to the agent's question, as its dialog changes", () => {
     expect(container.textContent).toContain("still loading")
     act(() => store.update(() => withDialog("q1")))
     expect(container.querySelector(".chat-reply")?.textContent).toContain("Replying to")
+  })
+})
+
+describe("parts of the conversation the chat can't read", () => {
+  const notice = (container: HTMLElement): string | null =>
+    container.querySelector(".chat-unread")?.textContent ?? null
+  const action = (container: HTMLElement, name: string): HTMLButtonElement =>
+    [...container.querySelectorAll<HTMLButtonElement>(".chat-unread button")].find(
+      (each) => each.textContent === name,
+    )!
+
+  it("tells once at the top, until dismissed, for the session alone", () => {
+    const session = `s-${crypto.randomUUID()}`
+    const conversation = createStore<Conversation>({
+      ...noConversation,
+      agent: "claude",
+      session,
+      loaded: true,
+      unread: true,
+    })
+    const chat = inApp(conversation)
+    expect(notice(chat.container)).toContain(
+      "This chat may be missing parts of the conversation. The terminal has all of it.",
+    )
+    // Above the thread, in a region mounted while empty so a screen reader announces it.
+    const region = chat.container.querySelector(".chat")?.firstElementChild
+    expect(region?.getAttribute("role")).toBe("status")
+    expect(region?.firstElementChild?.className).toBe("chat-unread")
+    expect(action(chat.container, "Show terminal")).toBeDefined()
+    act(() => action(chat.container, "Dismiss").click())
+    expect(notice(chat.container)).toBeNull()
+    // The chat leaving the screen and coming back, as the person visits the terminal.
+    chat.show(false)
+    chat.show(true)
+    expect(notice(chat.container)).toBeNull()
+    // Another session in the terminal tells its own.
+    act(() => void conversation.update((current) => ({ ...current, session: `${session}-next` })))
+    expect(notice(chat.container)).not.toBeNull()
+  })
+
+  it("says nothing where the record holds nothing it can't read", () => {
+    const { container } = inApp(
+      createStore<Conversation>({ ...noConversation, agent: "claude", session: "s", loaded: true }),
+    )
+    expect(notice(container)).toBeNull()
   })
 })

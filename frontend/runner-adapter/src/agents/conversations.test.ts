@@ -365,6 +365,33 @@ describe("the runner's conversations", () => {
       expect(store.getSnapshot().items.map((each) => each.id)).toEqual(["s2:0"])
     })
 
+    it("says the record holds parts it can't read, through a reset, until the session changes", async () => {
+      const { details, transcripts, store } = setup()
+      store.subscribe(() => {})
+      details.push(detail())
+      await settle()
+      transcripts[root]!.push(batch(item(0)))
+      await settle()
+      expect(store.getSnapshot().unread).toBe(false)
+      transcripts[root]!.push({ type: "unread" })
+      await settle()
+      expect(store.getSnapshot()).toMatchObject({ unread: true, items: [{ id: "s1:0" }] })
+      transcripts[root]!.push({ type: "reset" })
+      transcripts[root]!.push(batch(item(0)))
+      await settle()
+      details.push(detail({ prompts: [] }))
+      await settle()
+      expect(store.getSnapshot().unread).toBe(true)
+      details.push(
+        detail({
+          sessionId: "s2",
+          actors: [{ ref: other, role: "root", parent: null, type: null }],
+        }),
+      )
+      await settle()
+      expect(store.getSnapshot()).toMatchObject({ session: "s2", unread: false })
+    })
+
     it("has no conversation once the agent leaves, and waits for the next snapshot", async () => {
       const { details, transcripts, streams, store } = setup()
       store.subscribe(() => {})

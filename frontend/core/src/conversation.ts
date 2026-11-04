@@ -180,7 +180,9 @@ export type ChatPrompt = {
 // `codex`, `agy`); both null while none is. `loaded` once the session's records so far
 // have started arriving. `items` are its root agent's, oldest first; subagents keep their
 // own. `requests` wait on the person, oldest first. `prompts` are the session's prompts
-// given through `send`, oldest first, as far as the backend follows them.
+// given through `send`, oldest first, as far as the backend follows them. `unread` once the
+// session's records hold a part of the conversation the backend can't read, which `items`
+// leave out and the terminal shows.
 export type Conversation = {
   readonly agent: string | null
   readonly session: string | null
@@ -188,6 +190,7 @@ export type Conversation = {
   readonly items: readonly ChatItem[]
   readonly requests: readonly ChatRequest[]
   readonly prompts: readonly ChatPrompt[]
+  readonly unread: boolean
 }
 
 export const noConversation: Conversation = {
@@ -197,6 +200,7 @@ export const noConversation: Conversation = {
   items: [],
   requests: [],
   prompts: [],
+  unread: false,
 }
 
 // What `Conversations.send` resolves with, where its backend follows prompts: whether a

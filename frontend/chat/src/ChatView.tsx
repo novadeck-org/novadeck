@@ -22,6 +22,7 @@ import { sameReply, type ChatReply, type ChatReplyTo } from "./replies"
 import { Requests } from "./Requests"
 import type { ChatSend } from "./sends"
 import { Transcript } from "./Transcript"
+import { dismissUnread, unreadDismissed } from "./unread"
 
 // How many blocks of a long conversation show, and how many more "Show earlier" adds.
 const windowSize = 60
@@ -87,6 +88,7 @@ export const ChatView = ({
     items,
     requests,
     prompts,
+    unread,
   } = useSyncExternalStore(conversation.subscribe, conversation.getSnapshot)
   const name = agentName(harness ?? program)
   const blocks = useMemo(() => groupItems(items), [items])
@@ -145,6 +147,10 @@ export const ChatView = ({
   // A shell command went to an agent that keeps no record of it in its conversation, as its
   // harness says: its output shows only in the terminal.
   const [unrecorded, setUnrecorded] = useState(false)
+  // The agent's record holds parts of the conversation the chat can't read: once a session,
+  // until the person dismisses it.
+  const [, setDismissed] = useState(0)
+  const unreadShown = unread && session !== null && !unreadDismissed(session)
   const answer = useCallback(
     (request: string, reply: ChatAnswer): Promise<void> =>
       onAnswer(request, reply).catch((failure: unknown) => {
@@ -186,6 +192,35 @@ export const ChatView = ({
       data-compact={compact || undefined}
       aria-label={`${terminalName} chat`}
     >
+      {/* Mounted while empty, so a screen reader announces the line as it comes. */}
+      <div className="chat-unread-region" role="status">
+        {unreadShown && (
+          <p className="chat-unread">
+            <span>
+              This chat may be missing parts of the conversation. The terminal has all of it.
+            </span>
+            <span className="chat-unread-actions">
+              <button
+                type="button"
+                className="button quiet nodrag nopan"
+                onClick={onAnswerInTerminal}
+              >
+                Show terminal
+              </button>
+              <button
+                type="button"
+                className="button quiet nodrag nopan"
+                onClick={() => {
+                  dismissUnread(session)
+                  setDismissed((count) => count + 1)
+                }}
+              >
+                Dismiss
+              </button>
+            </span>
+          </p>
+        )}
+      </div>
       <div className="chat-main">
         <div
           ref={scroller}

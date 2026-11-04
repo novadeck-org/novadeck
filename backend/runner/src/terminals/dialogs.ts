@@ -181,6 +181,8 @@ type State = {
   again: boolean
   /** Answers under way, whose screens go through states no look should judge. */
   answering: number
+  /** Whether its adapter threw reading it yet, logged only the first time while it waits. */
+  failed: boolean
 }
 
 /**
@@ -192,6 +194,21 @@ type State = {
  * again as the screen or the requests change, throttled, and announces only real
  * changes. It presses nothing. Knows nothing of how any harness draws its screen.
  */
+/**
+ * What `read` gives, or undefined where it throws: logged once while the terminal waits, as
+ * an adapter that throws on a screen throws again on each redraw of it.
+ */
+const attempt = <T>(state: State, read: () => T): T | undefined => {
+  try {
+    return read()
+  } catch (error) {
+    if (!state.failed)
+      log.error("dialogs.read-failed", "Novadeck could not read an agent's dialog", { err: error })
+    state.failed = true
+    return undefined
+  }
+}
+
 export class Dialogs {
   private readonly states = new Map<string, State>()
   private readonly now: () => number
@@ -311,6 +328,7 @@ export class Dialogs {
         looking: false,
         again: false,
         answering: 0,
+        failed: false,
       }
       this.states.set(terminalId, state)
     }
@@ -356,7 +374,19 @@ export class Dialogs {
   private async read(terminalId: string, state: State): Promise<void> {
     const before = this.host.pending(terminalId)
     if (!before) return this.forget(terminalId)
-    const adapter = this.host.adapter(before.agent)
+    const found = this.host.adapter(before.agent)
+    // An adapter that throws on a screen reads no dialog there, so its request's dialog
+    // turns raw as one it doesn't recognise, the screen's text in the chat, rather than
+    // waiting there quietly while the error goes only to the log. One that throws telling
+    // a request from the screen tells nothing either way: what it raised stays.
+    const adapter = found && {
+      read: (rows: readonly string[], facts: Waiting["facts"]) =>
+        attempt(state, () => found.read(rows, facts)),
+      ...(found.screenRequest && {
+        screenRequest: (rows: readonly string[]) =>
+          attempt(state, () => ({ seen: found.screenRequest!(rows) })),
+      }),
+    }
     const screen = await this.host.screen(terminalId)
     if (!screen || this.states.get(terminalId) !== state) return
     const { rows } = screen
@@ -373,8 +403,9 @@ export class Dialogs {
     let wake = 0
     // A request only the screen tells comes with its screen, and goes once the screen is
     // still without it, never on a redraw in between.
-    if (adapter?.screenRequest) {
-      const seen = adapter.screenRequest(rows)
+    const fromScreen = adapter?.screenRequest?.(rows)
+    if (fromScreen) {
+      const { seen } = fromScreen
       const held = before.requests.find(({ screen: told }) => told)
       const same =
         seen !== undefined &&

@@ -51,6 +51,10 @@ const keysOf = (line: string, fields: Fields): string[] => {
   ]
 }
 
+/** Whether a shape is inside the conversation: a step the model or the person wrote. */
+export const conversational = (key: string): boolean =>
+  key.startsWith("step:MODEL/") || key.startsWith("step:USER_EXPLICIT/")
+
 /** The shapes one line of an Antigravity transcript holds; none for a line that isn't JSON. */
 export const shapes = (line: string): readonly Shape[] => {
   const fields = parseFields(line)

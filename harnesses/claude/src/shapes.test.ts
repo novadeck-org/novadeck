@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest"
 
-import { shapes } from "./shapes.js"
+import { conversational, shapes } from "./shapes.js"
 
 const keys = (record: object) =>
   shapes(JSON.stringify(record)).map(({ key, verdict }) => `${key} ${verdict}`)
@@ -57,5 +57,31 @@ describe("Claude Code's shapes", () => {
     expect(keys({ type: "queue-operation", operation: "absorb" })).toEqual([
       "record:queue-operation/absorb unknown",
     ])
+  })
+
+  it("count a prompt of the person's a turn took in some new way as the conversation's (#482)", () => {
+    const queued = (commandMode: string) =>
+      shapes(
+        JSON.stringify({
+          type: "attachment",
+          attachment: {
+            type: "queued_command",
+            prompt: "hi",
+            commandMode,
+            origin: { kind: "human" },
+          },
+        }),
+      )
+    expect(queued("bash")).toEqual([
+      { key: "attachment:queued_command/human/bash", verdict: "unknown" },
+    ])
+    expect(conversational("attachment:queued_command/human/bash")).toBe(true)
+    // One marked meta is Claude Code's own, which the chat leaves out as it is.
+    expect(conversational("attachment:queued_command/human/prompt/meta")).toBe(false)
+    // Others' queued messages, and attachments of context, stay metadata.
+    expect(conversational("attachment:queued_command/peer/prompt")).toBe(false)
+    expect(conversational("attachment:brand_new_context")).toBe(false)
+    expect(conversational("record:brand-new-record")).toBe(false)
+    expect(conversational("block:assistant/hologram")).toBe(true)
   })
 })

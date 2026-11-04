@@ -5,7 +5,10 @@ import type { Harness, TranscriptEntry } from "@novadeck/harness-core/harness"
 import { interruptionEntry } from "@novadeck/harness-core/items"
 import { transcriptLimits, type TranscriptChange } from "@novadeck/protocol"
 
+import { logs } from "../log.js"
 import type { Record } from "./record.js"
+
+const log = logs.for("chat")
 
 // Items per change, as the protocol takes them, and how many may wait unread before the
 // file's reading pauses.
@@ -69,6 +72,59 @@ export const interruptionsOf =
         )
       : []
 
+// The unknown shapes the log has told, by harness version (`agent@version`): each once per
+// runner, so the one that raised the chat's notice is there beside the metadata a release
+// added first: metadata up to `shapesPerVersion` a version, a conversational shape always
+// (its containers' types are few); `pnpm transcripts:shapes` lists all of a developer's own
+// history.
+const toldShapes = new Map<string, Set<string>>()
+const shapesPerVersion = 16
+
+// A key as the log may hold it: a tag's name is the person's own text where they typed or
+// pasted it (`<acme_notes>…`), so only that it was a tag is told.
+const loggable = (key: string): string => key.replace(/(^|\/)tag:[^/]*/g, "$1tag:…")
+
+/**
+ * Logs each shape a harness version writes that its decoder has never seen, once per
+ * runner: its key, a tag's name left out, and whether it sits inside the conversation,
+ * never the line's content. The version is the bound session's, null while its records
+ * haven't named one yet.
+ */
+export const unknownShape = (
+  binding: { readonly agent: string; readonly version?: string } | undefined,
+  key: string,
+  conversational: boolean,
+): void => {
+  if (!binding) return
+  const version = binding.version ?? null
+  const shape = loggable(key)
+  const at = `${binding.agent}@${version ?? ""}`
+  const told = toldShapes.get(at) ?? new Set<string>()
+  if (told.has(shape) || (!conversational && told.size >= shapesPerVersion)) return
+  told.add(shape)
+  toldShapes.set(at, told)
+  log.warn("transcript.unknown", "A transcript holds a shape its decoder has never seen.", {
+    data: { agent: binding.agent, version, shape, conversational },
+  })
+}
+
+/** What a reading of a transcript tells beside its items. */
+export type Reading = {
+  /** The interruptions it doesn't record (see `Interruption`). */
+  readonly interruptions?: () => readonly Interruption[]
+  /** Told each shape a line holds that its decoder has never seen. */
+  readonly unknown?: (key: string, conversational: boolean) => void
+}
+
+/** The reading of an actor's transcript for a terminal's chat, by the actor's native id. */
+export const readingOf = (
+  record: Pick<Record, "bound" | "interruptions">,
+  native: string | null,
+): Reading => ({
+  interruptions: interruptionsOf(record, native),
+  unknown: (key, conversational) => unknownShape(record.bound?.binding, key, conversational),
+})
+
 /**
  * An actor's transcript as changes: every item from the start of `path`, then each one
  * appended, in batches, with `reset` when the file is rewritten; until `signal` aborts.
@@ -77,12 +133,21 @@ export const interruptionsOf =
  * harness writes just after the key (Antigravity's, up to 0.1 s on), before the next prompt.
  * One told only after the next prompt was read joins at the end, and in its place once the
  * transcript is read again. Where its harness gives lines no `step`, none joins.
+ * A line holding a shape its harness's decoder has never seen is told to `unknown`, and the
+ * first inside the conversation (its harness's `conversational`) sends `unread` once, as
+ * the chat may be missing words the terminal shows.
  */
 export const transcriptChanges = async function* (
   path: string,
-  { items, step }: Pick<NonNullable<Harness["transcripts"]>, "items" | "step">,
+  {
+    items,
+    step,
+    shapes,
+    conversational,
+  }: Pick<NonNullable<Harness["transcripts"]>, "items"> &
+    Partial<Pick<NonNullable<Harness["transcripts"]>, "step" | "shapes" | "conversational">>,
   outer: AbortSignal,
-  interruptions: () => readonly Interruption[] = () => [],
+  { interruptions = () => [], unknown }: Reading = {},
 ): AsyncGenerator<TranscriptChange> {
   // Its own, so leaving early stops the reading as `outer` aborting does.
   const controller = new AbortController()
@@ -98,6 +163,8 @@ export const transcriptChanges = async function* (
   // step order, and the interruptions told since the file was read from its start.
   let reached = -1
   const told = new Set<string>()
+  // Whether `unread` was sent; a rewrite keeps it, as the chat does.
+  let unread = false
   let wake: (() => void) | undefined
   let resume: (() => void) | undefined
   const notify = () => {
@@ -131,6 +198,15 @@ export const transcriptChanges = async function* (
     path,
     signal,
     (line) => {
+      for (const shape of shapes?.(line) ?? []) {
+        if (shape.verdict !== "unknown") continue
+        const inside = conversational?.(shape.key) ?? false
+        unknown?.(shape.key, inside)
+        if (!inside || unread) continue
+        unread = true
+        queue.push({ type: "unread" })
+        notify()
+      }
       const read = items(line)
       if (read.some((item) => item.role === "user")) interrupted(reached)
       reached = Math.max(reached, step?.(line) ?? reached)

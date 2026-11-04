@@ -23,7 +23,9 @@ export const toolRun = z.strictObject({
 // the agent's text, another agent's message to it (`author` names that agent, in its
 // harness's words), a tool call, with its input as text, or a tool's result; `call`
 // pairs a result with its call, and `run` says what a call was. Text past 16 KiB is cut
-// short and marked `truncated`. Private reasoning is never included.
+// short and marked `truncated`. Private reasoning is never included. `unread` says, once,
+// that the record holds a part of the conversation its decoder has never seen, which the
+// items leave out: the terminal shows it.
 // The refinement on an item makes `.pick`, `.omit` and `.partial` of it throw; `.extend` works.
 export const transcriptItem = z
   .strictObject({
@@ -51,6 +53,7 @@ export const transcriptChange = z.discriminatedUnion("type", [
     items: z.array(transcriptItem).min(1).max(transcriptLimits.items),
   }),
   z.strictObject({ type: z.literal("reset") }),
+  z.strictObject({ type: z.literal("unread") }),
 ])
 
 export type TranscriptItem = z.infer<typeof transcriptItem>

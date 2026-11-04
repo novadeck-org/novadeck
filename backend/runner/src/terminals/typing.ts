@@ -12,6 +12,7 @@ import { isEmpty, type BoxProfile } from "@novadeck/tui-input/box"
 
 import { DomainError } from "../errors.js"
 import { blocking, type Activity } from "../harnesses/activity.js"
+import { versionOf } from "../harnesses/bindings.js"
 import { requestRef } from "../harnesses/detail.js"
 import { harnesses } from "../harnesses/registry.js"
 import { confirmMs, Doorbell, type DoorbellOptions } from "../messaging/doorbell.js"
@@ -514,7 +515,7 @@ export class Typing {
         return {
           key: keyOf(record)!,
           agent: binding.agent,
-          version: null,
+          version: versionOf(binding),
           path,
           items: source.items,
           ...(source.step && { step: source.step }),

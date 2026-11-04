@@ -75,7 +75,7 @@ import type { TranscriptSealer } from "./sealing.js"
 import { Streams } from "./streams.js"
 import { savedSummaryOf, summaryOf, type AgentSummary } from "./summary.js"
 import { openedWith, renamed as renamedTo, summaryTitle, unnamed, type Naming } from "./titles.js"
-import { interruptionsOf, transcriptChanges } from "./transcripts.js"
+import { readingOf, transcriptChanges } from "./transcripts.js"
 import { Typing, type Prompted, type PromptInput } from "./typing.js"
 
 export type TerminalOptions = {
@@ -1500,7 +1500,7 @@ export class Terminals {
     signal?.addEventListener("abort", abort, { once: true })
     if (signal?.aborted) reader.abort()
     try {
-      yield* transcriptChanges(path, source, reader.signal, interruptionsOf(record, native))
+      yield* transcriptChanges(path, source, reader.signal, readingOf(record, native))
     } finally {
       signal?.removeEventListener("abort", abort)
       reader.abort()

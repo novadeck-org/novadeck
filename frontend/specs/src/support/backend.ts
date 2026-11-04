@@ -1,7 +1,9 @@
+import type { Conversation, Conversations } from "@novadeck/core/conversation"
 import type { PortableInstall } from "@novadeck/core/desktop/portable"
 import type { SandboxState } from "@novadeck/core/desktop/sandbox"
 import type { InboxRow } from "@novadeck/core/inbox"
 import type { Backend, Notice } from "@novadeck/core/port"
+import type { Store } from "@novadeck/core/store"
 import { createDemoBackend } from "@novadeck/demo"
 import {
   createDemoPortable,
@@ -172,6 +174,38 @@ const requestedTranscripts = (
     : backend
 }
 
+// `&unread=on` makes every agent's record hold a part of the conversation the runner can't
+// read, as one a harness release added inside a message: the runner tells the chat, which
+// the demo's own transcripts never need. Without it, as for a record's new metadata, which
+// the runner only logs, the chat is told nothing.
+const requestedUnread = (
+  backend: ReturnType<typeof createDemoBackend>,
+): ReturnType<typeof createDemoBackend> => {
+  const { conversations } = backend
+  if (addressParams().get("unread") !== "on" || !conversations) return backend
+  return { ...backend, conversations: unreadConversations(conversations) }
+}
+
+const unreadConversations = (conversations: Conversations): Conversations => ({
+  ...conversations,
+  conversation: (key) => {
+    const store = conversations.conversation(key)
+    // The same snapshot for the same conversation, as a store gives.
+    let from: Conversation | undefined
+    let shown: Conversation | undefined
+    const snapshot = (): Conversation => {
+      const next = store.getSnapshot()
+      if (next !== from || !shown) {
+        from = next
+        shown = next.session === null ? next : { ...next, unread: true }
+      }
+      return shown
+    }
+    const unread: Store<Conversation> = { subscribe: store.subscribe, getSnapshot: snapshot }
+    return unread
+  },
+})
+
 // Specs open the demo as a visitor's, with `?visitor=on`: what the app shows for one.
 // `&turnMs=` and `&nudgeMs=` shorten its agents' turns and the wait before Codex asks;
 // `&readingMs=` has Claude Code read that long before its plan comes, and none without. What
@@ -305,8 +339,10 @@ const plainSpecBackend = (): ReturnType<typeof createDemoBackend> => {
   const update = requestedUpdate()
   const sandbox = requestedSandbox()
   const portable = requestedPortable()
-  const demo = requestedTranscripts(
-    requestedVersion(demoWithUpdate(update, portable, createDemoBackend({ theme: pageTheme }))),
+  const demo = requestedUnread(
+    requestedTranscripts(
+      requestedVersion(demoWithUpdate(update, portable, createDemoBackend({ theme: pageTheme }))),
+    ),
   )
   const uninstall = requestedUninstall()
   const withSandbox = sandbox ? { ...demo, sandbox: createDemoSandbox(sandbox) } : demo

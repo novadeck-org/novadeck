@@ -55,6 +55,9 @@ export const lists: ShapeLists = {
     "item:additional_tools",
     "item:compaction",
     "item:configuration_update",
+    // The commit undo goes back to, named in the 0.166.0 binary as a response item; no
+    // rollout here holds one yet.
+    "item:ghost_snapshot",
     // Events mirror the response items, which the decoder reads instead.
     "event:agent_message",
     "event:agent_message_delta",
@@ -114,6 +117,9 @@ const keysOf = (fields: Fields): string[] => {
     ...(/^\s*# AGENTS\.md instructions/.test(text) ? ["tag:AGENTS.md"] : tagKeys(text)),
   ]
 }
+
+/** Whether a shape is inside the conversation: a response item, a message by any role. */
+export const conversational = (key: string): boolean => key.startsWith("item:")
 
 /** The shapes one line of a Codex rollout holds; none for a line that isn't JSON. */
 export const shapes = (line: string): readonly Shape[] => {
