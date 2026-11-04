@@ -241,8 +241,7 @@ describe("A pinned project", () => {
   })
 
   it("marks its pin as the switcher's row marks it, an agent at work included", async () => {
-    // mobile-app's agent works; its pin spins as its row does, though the dot leaves it
-    // out, as working asks nothing of the person.
+    // mobile-app's agent works: its pin spins as its row does.
     arrange(["mobile-app"])
     await openWorkspace("/?demo=agents")
     await skipWelcome()

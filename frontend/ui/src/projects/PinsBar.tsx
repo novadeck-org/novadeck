@@ -44,9 +44,10 @@ const offBar = (strip: HTMLElement | null, point: Point): boolean => {
 
 // The pinned projects, as a bar under the header, in the person's order: each pin is its
 // number (its shortcut's digit), its name and a mark of what its project's terminals show,
-// the same mark as the switcher's row shows for it, and a click switches to it. The bar slides in with the first pin and out
-// with the last. The current pin stays in its place, marked as current, so switching never
-// moves the others, and a mark's slot is always there, so one appearing never does either.
+// the same mark as the switcher's row shows for it, and a click switches to it. The bar
+// slides in with the first pin and out with the last. The current pin stays in its place,
+// marked as current, so switching never moves the others, and a mark's slot is always
+// there, so one appearing never does either.
 // They take the room the bar leaves them: each shows whole or not at all, the last ones
 // first to go, and `onShown` says which show. All stay in the bar so each can be measured;
 // the ones that don't fit are hidden and inert.
@@ -278,29 +279,27 @@ export const PinsBar = ({
               }}
             >
               <ManagerOf onManager={takeManager} />
-              {items.map((project, index) => {
-                return (
-                  <PinButton
-                    key={project.id}
-                    project={project}
-                    index={index}
-                    fits={index < shown}
-                    last={index === shown - 1}
-                    current={project.id === current}
-                    status={statuses[project.id]}
-                    dragging={dragging}
-                    leaving={unpinning}
-                    arriving={project.id === arriving}
-                    focusRequest={focusRequest}
-                    onFocused={() => setFocusRequest(null)}
-                    onSelect={() => onSelect(project.id)}
-                    onStep={(by) => {
-                      setFocusRequest({ id: project.id })
-                      onStep(project.id, by)
-                    }}
-                  />
-                )
-              })}
+              {items.map((project, index) => (
+                <PinButton
+                  key={project.id}
+                  project={project}
+                  index={index}
+                  fits={index < shown}
+                  last={index === shown - 1}
+                  current={project.id === current}
+                  status={statuses[project.id]}
+                  dragging={dragging}
+                  leaving={unpinning}
+                  arriving={project.id === arriving}
+                  focusRequest={focusRequest}
+                  onFocused={() => setFocusRequest(null)}
+                  onSelect={() => onSelect(project.id)}
+                  onStep={(by) => {
+                    setFocusRequest({ id: project.id })
+                    onStep(project.id, by)
+                  }}
+                />
+              ))}
             </DragDropProvider>
             {/* Always there to be measured, it shows only where it fits after the pins. */}
             <span
