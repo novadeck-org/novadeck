@@ -196,14 +196,17 @@ type State = {
  */
 /**
  * What `read` gives, or undefined where it throws: logged once while the terminal waits, as
- * an adapter that throws on a screen throws again on each redraw of it.
+ * an adapter that throws on a screen throws again on each redraw of it. Only the error's
+ * class is logged, as an adapter's message may quote the screen's rows.
  */
 const attempt = <T>(state: State, read: () => T): T | undefined => {
   try {
     return read()
   } catch (error) {
     if (!state.failed)
-      log.error("dialogs.read-failed", "Novadeck could not read an agent's dialog", { err: error })
+      log.error("dialogs.read-failed", "Novadeck could not read an agent's dialog", {
+        data: { error: error instanceof Error ? error.name : typeof error },
+      })
     state.failed = true
     return undefined
   }

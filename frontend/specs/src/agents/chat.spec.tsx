@@ -490,7 +490,9 @@ describe("A chat whose agent's record holds parts it can't read", () => {
     await expectStaysAbsent(chatOf("Checkout implementation").getByText(notice))
   })
 
-  it("says nothing where all it can't read is metadata, which the runner only logs", async () => {
+  it("says nothing while its conversation holds nothing unread", async () => {
+    // The UI's half only: which unknown shapes count as unread (none of metadata's, which
+    // the runner only logs) is the runner's, which its unit tests check per harness.
     await openChatDemo()
     const chat = await openChat("Checkout implementation")
     await expect.element(conversation(chat)).toBeVisible()

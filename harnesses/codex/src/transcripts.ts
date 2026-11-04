@@ -82,6 +82,42 @@ const toolName = (payload: Fields): unknown =>
     ? `${payload.namespace.replace(/_+$/, "")}__${payload.name}`
     : payload.name
 
+const stringOf = (value: unknown): string | undefined =>
+  typeof value === "string" ? value : undefined
+
+// What a web search did, by its action as the 0.166.0 binary names it: a search's query (or
+// queries), a page it opened, or a pattern it looked for in one; an action it doesn't name
+// gives nothing.
+const searchInput = (action: unknown): Fields => {
+  const fields = (action ?? {}) as Fields
+  const queries = Array.isArray(fields.queries)
+    ? fields.queries.filter((each) => typeof each === "string").join(", ")
+    : undefined
+  const query = stringOf(fields.query) ?? queries
+  const url = stringOf(fields.url)
+  const pattern = stringOf(fields.pattern)
+  return { ...(query && { query }), ...(url && { url }), ...(pattern && { pattern }) }
+}
+
+// A call of a tool the Responses API runs itself, with its status as its result.
+const builtIn = (
+  payload: Fields,
+  tool: string,
+  input: Fields,
+  time: ReturnType<typeof at>,
+): readonly TranscriptEntry[] => [
+  entry("assistant", "tool-call", JSON.stringify(input), {
+    at: time,
+    tool,
+    call: payload.id,
+    describe,
+  }),
+  entry("tool", "tool-result", stringOf(payload.status) ?? "completed", {
+    at: time,
+    call: payload.id,
+  }),
+]
+
 // The person's Esc, as Codex records it: the turn's abort, an event (the developer message
 // it tells the model with stays out with the rest), read as the chat's note that they
 // interrupted it (probed 2026-10, 0.162.1 and 0.165.0). Another reason, as a turn another
@@ -158,6 +194,31 @@ export const transcripts: TranscriptDecoder = {
             { at: time, tool: toolName(payload), call: payload.call_id, describe },
           ),
         ]
+      // A call of the Responses API's own tools, which Codex records as items of their own
+      // (field names from the 0.166.0 binary). A shell call's output is a
+      // `function_call_output` of its call, its command an argv. A search's results and an
+      // image are the model's own, and Codex records each item once it is done, so its row's
+      // result is its status: done, not running, and nothing lost.
+      case "local_shell_call": {
+        const { command } = (payload.action ?? {}) as Fields
+        return [
+          entry("assistant", "tool-call", JSON.stringify({ command }), {
+            at: time,
+            tool: "local_shell",
+            call: payload.call_id ?? payload.id,
+            describe,
+          }),
+        ]
+      }
+      case "web_search_call":
+        return builtIn(payload, "web_search", searchInput(payload.action), time)
+      case "image_generation_call":
+        return builtIn(
+          payload,
+          "image_generation",
+          typeof payload.revised_prompt === "string" ? { prompt: payload.revised_prompt } : {},
+          time,
+        )
       case "function_call_output":
       case "custom_tool_call_output": {
         const { output } = payload

@@ -248,9 +248,10 @@ describe("each request's dialog", () => {
   it("is raw, with the screen's text, where its adapter throws on the screen", async ({
     resources,
   }) => {
-    const failed: string[] = []
+    const failed: unknown[] = []
     const before = logs.current()
-    const note = (evt: string) => void (evt === "dialogs.read-failed" && failed.push(evt))
+    const note = (evt: string, _message?: string, detail?: unknown) =>
+      void (evt === "dialogs.read-failed" && failed.push(detail))
     useLogger({
       for: () => ({ debug: note, info: note, warn: note, error: note, fatal: note }),
       flush: () => {},
@@ -277,7 +278,9 @@ describe("each request's dialog", () => {
     await redraw()
     await redraw()
     await redraw()
-    expect(failed).toEqual(["dialogs.read-failed"])
+    // Its class alone: an adapter's message may quote the screen.
+    expect(failed).toEqual([{ data: { error: "Error" } }])
+    expect(JSON.stringify(failed)).not.toContain("a layout it never saw")
   })
 
   it("is raw and unsupported where the harness has no adapter", async () => {
