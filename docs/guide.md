@@ -295,10 +295,11 @@ Drag projects into any order, or move the focused one with Alt+Up and Alt+Down. 
 nine with the pin beside a row's trash icon: pinned projects lead the list, and dragging
 one across the rule below them pins or unpins it. While any are pinned, a bar under the
 header shows them in that order, each as its number, its name and its mark, the same
-as its row in the list shows; the current one is underlined, and a click switches to it. Drag a pin along the bar to reorder the pins, or focus one and
-press Alt+Left or Alt+Right; drag one off the bar and let go to unpin it. Drag a project
-out of the switcher and it becomes a pin, which you drag into place on the bar as you
-would any pin; let it go off the bar, or press Esc, and nothing changes. The number is
+as its row in the list shows; the current one is underlined, and a click switches to it.
+Drag a pin along the bar to reorder the pins, or focus one and press Alt+Left or
+Alt+Right; drag one off the bar and let go to unpin it. Drag a project out of the
+switcher and it becomes a pin, which you drag into place on the bar as you would any pin;
+let it go off the bar, or press Esc, and nothing changes. The number is
 its shortcut: `Ctrl+Shift+1` to `Ctrl+Shift+9` (`Cmd+1` to `Cmd+9` on macOS, in the
 desktop app, since a browser keeps those for its tabs) switches to that pin, from
 terminal input too. Shift keeps a bare `Ctrl+3` to `Ctrl+8` for the terminal, where they
