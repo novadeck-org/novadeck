@@ -38,7 +38,7 @@ const spawn = (args = [ptyChild], options: { useConptyDll?: boolean } = {}) => {
     rows: 24,
     // On Windows, the ConPTY node-pty bundles, as `spawnPty` runs every terminal on. The
     // system's (on Server 2025) delivers each line of input a second or more late, and
-    // under CI load past these waits: a host Novadeck never runs on.
+    // under CI load past these waits: a console host Novadeck never uses.
     useConptyDll: process.platform === "win32",
     ...options,
   })
