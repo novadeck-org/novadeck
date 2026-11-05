@@ -8,6 +8,7 @@ import type {
   ThemeSource,
 } from "@novadeck/core/port"
 import { createStore, type MutableStore } from "@novadeck/core/store"
+import { terminalKeyId } from "@novadeck/core/terminals/registry"
 import type { Workspace } from "@novadeck/core/types"
 import { demoTerminalsLife } from "@novadeck/demo"
 import { isDemoMurmur } from "@novadeck/demo/addons/murmur"
@@ -19,7 +20,7 @@ import { isDemoSource } from "@novadeck/demo/source"
 import { createDemo, type DemoVariant } from "@novadeck/demo/variants"
 import { babciaCuesOf } from "@novadeck/demo/videos/babcia"
 import { launchCuesOf } from "@novadeck/demo/videos/launch"
-import { sessionOf } from "@novadeck/demo/workspace"
+import { sessionOf, terminalOf } from "@novadeck/demo/workspace"
 
 import { approvalGroups, createDemoApprovals } from "./approvals"
 import { babciaGroups } from "./babcia"
@@ -172,15 +173,19 @@ export const createDebugDemo = (launch: DemoLaunch): Backend => {
           status: { state: "failed", message: crashLoopMessage },
         })),
       )
-      failed = terminals.map((terminal) => ({ ...target, terminalId: terminal.id }))
+      // Every session's failed terminals, an earlier trip's too, until Restart terminals.
+      const tripped = terminals.map((terminal) => ({ ...target, terminalId: terminal.id }))
+      const again = new Set(tripped.map(terminalKeyId))
+      failed = [...failed.filter((each) => !again.has(terminalKeyId(each))), ...tripped]
       crashes.update(() => crashCount)
     },
     terminals: () => terminalCount(latest),
   }
 
+  // Restarts what a trip failed and still is, not one already restarted by hand.
   const retry = (): void => {
     crashes.update(() => 0)
-    failed.forEach(restart)
+    failed.filter((key) => terminalOf(latest, key)?.state === "failed").forEach(restart)
     failed = []
   }
 
