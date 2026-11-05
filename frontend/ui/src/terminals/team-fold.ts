@@ -39,6 +39,24 @@ export const foldsAway = (
   kept: boolean,
 ): boolean => !kept && above.some((lead) => isFolded(folded, context, lead))
 
+// A tab order after a drag, with each folded lead's hidden tabs moved back right after it, in
+// their own order. They hold places in the list the person can't see, so a drag past a folded
+// lead would otherwise leave its team behind, or land a tab inside it, and its unfold would
+// show the team split.
+export const keepFoldsTogether = (
+  order: readonly string[],
+  folds: readonly { readonly lead: string; readonly hidden: readonly string[] }[],
+): string[] => {
+  let next = [...order]
+  for (const { lead, hidden } of folds) {
+    const moving = next.filter((id) => hidden.includes(id))
+    if (!moving.length || !next.includes(lead)) continue
+    next = next.filter((id) => !hidden.includes(id))
+    next.splice(next.indexOf(lead) + 1, 0, ...moving)
+  }
+  return next
+}
+
 const isLeads = (value: unknown): value is readonly string[] =>
   Array.isArray(value) && value.length > 0 && value.every((id) => typeof id === "string")
 

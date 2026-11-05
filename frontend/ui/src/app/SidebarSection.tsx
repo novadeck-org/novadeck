@@ -10,10 +10,12 @@ import { useDesktop } from "../shell/desktop"
 import { sidebarVisible } from "../shell/shell-state"
 import { WorkspaceSidebar } from "../shell/WorkspaceSidebar"
 import { latestTurnEnd } from "../sidebar/source-turns"
+import { keepFoldsTogether } from "../terminals/team-fold"
 import { useUiState, useWorkspaceServices, useWorkspaceState } from "./controller/context"
 import { useStoreSelector } from "./controller/useStoreSelector"
 import { sourceShown } from "./routing"
 import { currentState, currentTarget, sameItems, sameTarget } from "./selectors"
+import { foldsOf } from "./team-fold"
 import { renderTab } from "./WorkspaceTab"
 
 // The Sessions panel shows each session's name, visit time and terminals, nothing else.
@@ -37,7 +39,7 @@ const noSource = createStore<SourceState>({ projects: {} })
 
 // The sidebar wired to the workspace: terminal tabs and workspace sessions.
 export const SidebarSection = memo((): React.JSX.Element => {
-  const { commands, backend } = useWorkspaceServices()
+  const { commands, backend, workspace: workspaceStore, ui } = useWorkspaceServices()
   const { switchSession, startFresh, hideSidebar, add, reorder } = commands
   const desktop = useDesktop()
   const projectId = useWorkspaceState((workspace) => workspace.activeProjectId)
@@ -123,7 +125,13 @@ export const SidebarSection = memo((): React.JSX.Element => {
       onHide={hideSidebar}
       onCreate={() => add()}
       renderTab={renderTab}
-      onReorder={(tabOrder) => reorder(target, tabOrder)}
+      // A drag past a folded lead keeps its hidden team right after it.
+      onReorder={(tabOrder) =>
+        reorder(
+          target,
+          keepFoldsTogether(tabOrder, foldsOf(workspaceStore.getSnapshot(), ui.getSnapshot())),
+        )
+      }
     />
   )
 })

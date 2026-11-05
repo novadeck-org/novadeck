@@ -1,12 +1,12 @@
 import { descendantsOf, leadChain } from "@novadeck/core/derivations"
 import { isWindow } from "@novadeck/core/roster"
-import type { Tile } from "@novadeck/core/types"
+import type { Tile, Workspace } from "@novadeck/core/types"
 
 import { foldsAway, isFolded, toggleFolded } from "../terminals/team-fold"
 import type { FoldTeam } from "../terminals/window-menu"
 import { useUiState, useWorkspaceServices, useWorkspaceState } from "./controller/context"
 import { currentContext, currentState, sameItems } from "./selectors"
-import type { UiStore } from "./ui-store"
+import type { UiState, UiStore } from "./ui-store"
 
 // How long a team counts as folding or unfolding once the person turned it over: past the
 // motion, so a tab or row that mounts later, as on a session switch or the sidebar shown
@@ -48,6 +48,21 @@ export const previewTeamFold = (ui: UiStore, preview: UiStoreFoldPreview): void 
   )
 
 type UiStoreFoldPreview = { readonly context: string; readonly lead: string } | null
+
+// The current session's folds, each lead with the tabs its fold hides (not the one the person is
+// on, nor the leads above it, which show in place): what a drag keeps together.
+export const foldsOf = (
+  workspace: Workspace,
+  ui: UiState,
+): { readonly lead: string; readonly hidden: readonly string[] }[] => {
+  const context = currentContext(workspace)
+  const { selected } = currentState(workspace)
+  const kept = new Set([selected, ...leadChain(workspace, selected)])
+  return (ui.foldedTeams[context] ?? []).map((lead) => ({
+    lead,
+    hidden: descendantsOf(workspace, lead).filter((id) => !kept.has(id)),
+  }))
+}
 
 // The current session's folded leads.
 export const useFoldedLeads = (): readonly string[] => {
