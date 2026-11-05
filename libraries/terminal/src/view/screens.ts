@@ -7,6 +7,7 @@ import {
 } from "@novadeck/emulator/browser"
 
 import { sizeBounds } from "../size.js"
+import { copyOnSelect, takeClipboardWrites } from "./copy.js"
 import { followTerminal, type FollowedTerminal, type FollowOptions, type Screen } from "./follow.js"
 import { takeClipboardKeys, takeFilePastes, type PasteFailure, type PasteTarget } from "./paste.js"
 import { silenceQueries } from "./queries.js"
@@ -36,8 +37,11 @@ export const clampSize = (size: {
 // forces a layout and may tell the host, so a zoom or a drag refits once it pauses,
 // not on every frame across dozens of terminals.
 const resizeSettleMs = 120
-// How long a notice of a failed paste stays.
+// How long the notice of a failed paste stays.
 export const pasteNoticeMs = 4_000
+// How long the notice of a copy stays: long enough to see, short enough to be out of the
+// way of the output under it.
+export const copyNoticeMs = 1_200
 
 // What the screens are built from: the owner's emulator, theme, stream and policies. The
 // screens know no app, wire or protocol; whatever is the owner's comes in here.
@@ -74,6 +78,9 @@ export type TerminalScreensOptions<K> = FollowOptions<K> & {
   // terminal is wanted on screen, which keeps it indefinitely; otherwise it goes after
   // `afterMs` of the clock's time.
   readonly retain: { readonly afterMs: number; readonly shown: (key: K) => boolean }
+  // The wording of the notice that tells the person a copy from the terminal reached the
+  // clipboard: a selection, Ctrl+C's or a program's own. None shows without one.
+  readonly copied?: string
   readonly paste: {
     // Saves a file on the host's machine and resolves with its path there.
     readonly upload: (
@@ -332,16 +339,46 @@ export const createTerminalScreens = <K>(o: TerminalScreensOptions<K>): Terminal
         if (!gone) xterm.paste(text)
       },
       failed: (text) => {
-        if (gone) return
-        refresh({ notice: text })
-        clearTimeout(noticed)
-        noticed = setTimeout(() => refresh({ notice: null }), pasteNoticeMs)
+        say(text, pasteNoticeMs)
+        failing = Date.now() + pasteNoticeMs
       },
     }
+    // Until when a failed paste's notice stays, which a copy's doesn't cut short.
+    let failing = 0
+    // Shows `text` in the screen's notice for `ms`, in place of the one it has.
+    const say = (text: string, ms: number): void => {
+      if (gone) return
+      refresh({ notice: text })
+      clearTimeout(noticed)
+      noticed = setTimeout(() => refresh({ notice: null }), ms)
+    }
+    // Says a copy reached the clipboard.
+    const copied = (): void => {
+      if (o.copied && Date.now() >= failing) say(o.copied, copyNoticeMs)
+    }
+    // Puts text on the clipboard, and says so once it is there; a page that may not write
+    // it, or has no clipboard, copies nothing and says nothing.
+    const copy = (text: string): void => {
+      void navigator.clipboard?.writeText(text).then(copied, () => {})
+    }
+    // The browser's own copy of the selection, as macOS's ⌘C makes through the menu, says
+    // so too.
+    const browserCopy = (): void => {
+      if (xterm.hasSelection()) copied()
+    }
+    container.addEventListener("copy", browserCopy)
     const pastes = takeFilePastes(container, target)
     // The copy and paste keys of Linux and Windows: Ctrl+C copies a selection, and Ctrl+V
     // pastes through the browser's paste, which `takeFilePastes` above completes for files.
-    takeClipboardKeys(xterm, (text) => void navigator.clipboard?.writeText(text).catch(() => {}))
+    takeClipboardKeys(xterm, copy)
+    // A mouse selection copies as it ends, and a program may copy with OSC 52 while the
+    // person is in this terminal; on every platform.
+    const selections = copyOnSelect(xterm, container, copy)
+    const writes = takeClipboardWrites(
+      xterm,
+      copy,
+      () => document.hasFocus() && document.activeElement === xterm.textarea,
+    )
     let settling: ReturnType<typeof setTimeout> | undefined
     // The theme's font, once it has loaded: a bundled font still on its way arrives later,
     // and the terminal keeps the font it has until then. A new font changes the cell size,
@@ -389,6 +426,9 @@ export const createTerminalScreens = <K>(o: TerminalScreensOptions<K>): Terminal
       binary.dispose()
       gone = true
       pastes()
+      selections()
+      writes.dispose()
+      container.removeEventListener("copy", browserCopy)
       clearTimeout(noticed)
       queries.dispose()
       followed.stop()

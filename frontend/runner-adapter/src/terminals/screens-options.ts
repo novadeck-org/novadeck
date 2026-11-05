@@ -8,7 +8,7 @@ import { hasCode, type AttachedTerminal } from "@novadeck/runner-client"
 import type { AttachStream, Exit } from "@novadeck/terminal"
 import { openEmulator } from "@novadeck/terminal-views/emulator"
 import { screenMarkup } from "@novadeck/terminal-views/mount"
-import { pasteNotice as sharedNotice } from "@novadeck/terminal-views/paste-notice"
+import { copiedNotice, pasteNotice as sharedNotice } from "@novadeck/terminal-views/paste-notice"
 import { pageRendererPool } from "@novadeck/terminal-views/renderer-pool"
 import { terminalTheme } from "@novadeck/terminal-views/theme"
 import type { PasteFailure } from "@novadeck/terminal/view"
@@ -84,6 +84,7 @@ export const screensOptions = (
   track: (work) => runtime.track(work),
   park: { afterMs: parkMs, keep: cap },
   retain: { afterMs: retainMs, shown: (key) => runtime.shown(key) },
+  copied: copiedNotice,
   paste: {
     upload: (key, file) => runtime.upload(key.terminalId, file),
     // The desktop app's runner is on this machine, so a copied file's own path names it.
