@@ -17,7 +17,11 @@
 //! a job that ends with the pass-through should it be killed, as a program that cancels a
 //! command ends the `cmd` it started (`a && b` doesn't go on to `b`), and Ctrl+C and
 //! Ctrl+Break are left to cmd, which shares the console and answers them itself, with its
-//! own exit code passed on. Once cmd exits by itself, what it left running (`start`) goes on.
+//! own exit code passed on. Once cmd exits by itself, what it left running (`start`) goes on,
+//! except after one of Novadeck's own hook commands, which leaves nothing running. A hook's
+//! cmd also ends, with all it started, should the program that started the pass-through end
+//! before it, as one killed without its tree is: nothing is left to read the hook's answer.
+//! The person's commands, and Antigravity's own, run on as they would under the real cmd.
 //!
 //! Windows only: elsewhere there is no cmd, and the program does nothing.
 
@@ -169,12 +173,27 @@ fn main() {
     command.raw_arg(OsString::from_wide(&arguments));
     // Programs cmd starts that ask to leave the job (CREATE_BREAKAWAY_FROM_JOB) still may.
     let limits = job::KILL_ON_CLOSE | job::BREAKAWAY_OK;
+    let hook = is_hook(after_program(line));
+    // A hook answers its parent alone: once that has ended, nothing is left to read it.
+    let parent = hook.then(parent::Parent::open).flatten();
     let started = job::Job::start(&mut command, limits)
         .or_else(|first| job::Job::start(&mut command, limits).map_err(|again| (first, again)));
     let status = match started {
         Ok((mut child, job)) => {
+            let orphaned = parent
+                .as_ref()
+                .is_some_and(|parent| parent.ends_before(&child));
+            if orphaned {
+                job.end();
+            }
             let status = child.wait();
-            job.let_go();
+            // What a hook's cmd left running ends with it; anything else's goes on, as it
+            // would after cmd.
+            if hook {
+                job.end();
+            } else {
+                job.let_go();
+            }
             status
         }
         // Where Windows refuses the job twice, nothing ran yet: cmd runs without one, so it
@@ -186,7 +205,15 @@ fn main() {
                     &format!("novadeck-cmd: cmd runs without a job: {first}; again, {again}"),
                 );
             }
-            command.creation_flags(0).status()
+            command.creation_flags(0).spawn().and_then(|mut child| {
+                if parent
+                    .as_ref()
+                    .is_some_and(|parent| parent.ends_before(&child))
+                {
+                    let _ = child.kill();
+                }
+                child.wait()
+            })
         }
     };
     let code = match status {
@@ -202,6 +229,112 @@ fn main() {
         }
     };
     std::process::exit(code);
+}
+
+/// The process that started the pass-through, to end a hook's cmd should it end first.
+#[cfg(windows)]
+mod parent {
+    use std::ffi::c_void;
+    use std::os::windows::io::AsRawHandle;
+
+    const SYNCHRONIZE: u32 = 0x0010_0000;
+    const QUERY_LIMITED_INFORMATION: u32 = 0x1000;
+    const INFINITE: u32 = u32::MAX;
+    /// ProcessBasicInformation, for NtQueryInformationProcess.
+    const BASIC_INFORMATION: u32 = 0;
+
+    /// ntdll's PROCESS_BASIC_INFORMATION.
+    #[repr(C)]
+    #[derive(Default)]
+    struct BasicInformation {
+        exit_status: i32,
+        peb: usize,
+        affinity: usize,
+        base_priority: i32,
+        pid: usize,
+        parent: usize,
+    }
+
+    #[link(name = "ntdll")]
+    unsafe extern "system" {
+        fn NtQueryInformationProcess(
+            process: *mut c_void,
+            class: u32,
+            information: *mut c_void,
+            size: u32,
+            written: *mut u32,
+        ) -> i32;
+    }
+
+    #[link(name = "kernel32")]
+    unsafe extern "system" {
+        fn GetCurrentProcess() -> *mut c_void;
+        fn OpenProcess(access: u32, inherit: i32, pid: u32) -> *mut c_void;
+        fn GetProcessTimes(
+            process: *mut c_void,
+            created: *mut u64,
+            exited: *mut u64,
+            kernel: *mut u64,
+            user: *mut u64,
+        ) -> i32;
+        fn WaitForMultipleObjects(
+            count: u32,
+            handles: *const *mut c_void,
+            all: i32,
+            wait: u32,
+        ) -> u32;
+        fn CloseHandle(handle: *mut c_void) -> i32;
+    }
+
+    /// When `process` started, or None where Windows won't say.
+    fn created(process: *mut c_void) -> Option<u64> {
+        let (mut created, mut other) = (0u64, 0u64);
+        let told =
+            unsafe { GetProcessTimes(process, &mut created, &mut other, &mut other, &mut other) };
+        (told != 0).then_some(created)
+    }
+
+    pub struct Parent(*mut c_void);
+
+    impl Parent {
+        /// The parent, as Windows recorded it, while it still runs. None where it can't be
+        /// read or opened, or its pid names a process started after this one: the parent
+        /// had already ended, and the pid is another's.
+        pub fn open() -> Option<Parent> {
+            let mut information = BasicInformation::default();
+            let status = unsafe {
+                NtQueryInformationProcess(
+                    GetCurrentProcess(),
+                    BASIC_INFORMATION,
+                    (&raw mut information).cast(),
+                    size_of::<BasicInformation>() as u32,
+                    std::ptr::null_mut(),
+                )
+            };
+            if status < 0 {
+                return None;
+            }
+            let pid = u32::try_from(information.parent).ok()?;
+            let handle = unsafe { OpenProcess(SYNCHRONIZE | QUERY_LIMITED_INFORMATION, 0, pid) };
+            if handle.is_null() {
+                return None;
+            }
+            let parent = Parent(handle);
+            (created(parent.0)? <= created(unsafe { GetCurrentProcess() })?).then_some(parent)
+        }
+
+        /// Waits for `child` to end or for the parent to: true when the parent ended first.
+        pub fn ends_before(&self, child: &std::process::Child) -> bool {
+            let handles = [child.as_raw_handle().cast(), self.0];
+            unsafe { WaitForMultipleObjects(2, handles.as_ptr(), 0, INFINITE) == 1 }
+        }
+    }
+
+    impl Drop for Parent {
+        fn drop(&mut self) {
+            unsafe { CloseHandle(self.0) };
+        }
+    }
 }
 
 #[cfg(not(windows))]

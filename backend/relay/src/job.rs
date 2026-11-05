@@ -169,10 +169,14 @@ impl Drop for Job {
 
 /// Resumes the threads of process `pid`, started suspended; false where none resumed.
 fn resume(pid: u32) -> bool {
-    let snapshot = unsafe { CreateToolhelp32Snapshot(SNAPSHOT_THREADS, 0) };
-    if snapshot.is_null() || snapshot == INVALID_HANDLE {
+    // A snapshot can fail while processes start and end around it (ERROR_BAD_LENGTH, which
+    // its documentation says to try again on): a few tries before the job is given up.
+    let snapshot = (0..5)
+        .map(|_| unsafe { CreateToolhelp32Snapshot(SNAPSHOT_THREADS, 0) })
+        .find(|snapshot| !snapshot.is_null() && *snapshot != INVALID_HANDLE);
+    let Some(snapshot) = snapshot else {
         return false;
-    }
+    };
     let mut entry = ThreadEntry {
         size: size_of::<ThreadEntry>() as u32,
         usage: 0,
