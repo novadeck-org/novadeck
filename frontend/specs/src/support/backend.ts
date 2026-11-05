@@ -349,7 +349,7 @@ const approvalBackends: SpecApprovals[] = []
 const specApprovals = (): Approvals => {
   const pending = createStore<readonly Approval[]>([])
   const answered: SpecApprovals["answered"] = []
-  const made: SpecApprovals = {
+  const asked: SpecApprovals = {
     pending,
     answered,
     answer: (requestId, approved) => {
@@ -358,8 +358,8 @@ const specApprovals = (): Approvals => {
       pending.update((waiting) => waiting.filter((each) => each.requestId !== requestId))
     },
   }
-  approvalBackends.push(made)
-  return made
+  approvalBackends.push(asked)
+  return asked
 }
 
 /** What agents ask the person to allow, in the app of `&approvals=on`. */

@@ -12,7 +12,7 @@ const left = "novadeck.specs.left-by-unmount"
 const route =
   "/projects/storefront/sessions/initial/focus?terminal=storefront-initial-01&desktop=on"
 
-function WritesOnUnmount() {
+const WritesOnUnmount = (): React.JSX.Element => {
   useEffect(() => () => localStorage.setItem(left, "written"), [])
   return <p>Mounted</p>
 }
