@@ -26,6 +26,20 @@ describe("an item's run", () => {
     expect(transcriptItem.safeParse({ ...call, index: 0 }).success).toBe(true)
   })
 
+  it("leaves no half character where its text, tool or author is cut", () => {
+    const at = (limit: number) => `${"x".repeat(limit - 1)}😀`
+    const call = entry("assistant", "tool-call", at(transcriptLimits.text), {
+      at: null,
+      tool: at(transcriptLimits.name),
+      author: at(transcriptLimits.name),
+      describe: seen,
+    })
+    expect(call.text).toBe("x".repeat(transcriptLimits.text - 1))
+    expect(call.truncated).toBe(true)
+    expect(call.tool).toBe("x".repeat(transcriptLimits.name - 1))
+    expect(call.author).toBe("x".repeat(transcriptLimits.name - 1))
+  })
+
   it('describes a call whose tool is not text as "tool"', () => {
     expect(
       entry("assistant", "tool-call", "{}", { at: null, tool: 3, describe: seen }).run,

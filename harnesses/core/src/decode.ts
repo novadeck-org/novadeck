@@ -12,6 +12,16 @@ import type { Report } from "./report.js"
  * and the ids Novadeck derives where no harness names one.
  */
 
+/**
+ * `value` cut to at most `limit` UTF-16 units, never inside a character: a surrogate pair
+ * the cut would split goes whole.
+ */
+export const cutText = (value: string, limit: number): string => {
+  if (value.length <= limit) return value
+  const last = value.charCodeAt(limit - 1)
+  return value.slice(0, last >= 0xd800 && last <= 0xdbff ? limit - 1 : limit)
+}
+
 /** A payload's string field, or undefined. */
 export const text = (value: unknown): string | undefined =>
   typeof value === "string" ? value : undefined
@@ -204,9 +214,8 @@ const links = /!?\[([^\]]*)\]\([^)]*\)/g
  */
 export const replyPreview = (value: unknown): string | undefined => {
   if (typeof value !== "string") return undefined
-  const line = value
-    // Only as much as can show: a reply may be long, and the hook already cut it.
-    .slice(0, replyPreviewLength * 8)
+  // Only as much as can show: a reply may be long, and the hook already cut it.
+  const line = cutText(value, replyPreviewLength * 8)
     .replace(escapes, "")
     .split(/\r\n|\r|\n/)
     .map((part) => part.replace(lead, "").replace(links, "$1").replace(marks, ""))
@@ -216,10 +225,7 @@ export const replyPreview = (value: unknown): string | undefined => {
     .trim()
   if (!line) return undefined
   if (line.length <= replyPreviewLength) return line
-  let end = replyPreviewLength - 1
-  const last = line.charCodeAt(end - 1)
-  if (last >= 0xd800 && last <= 0xdbff) end -= 1
-  return `${line.slice(0, end).trimEnd()}…`
+  return `${cutText(line, replyPreviewLength - 1).trimEnd()}…`
 }
 
 /** A turn's end's `reply`, from a field holding the agent's last reply; nothing without one. */
@@ -235,12 +241,11 @@ export const replied = (value: unknown): { readonly reply?: string } => {
  */
 export const errorText = (value: unknown): string | undefined => {
   if (typeof value !== "string") return undefined
-  const plain = value
-    .slice(0, maxTurnError * 2)
+  const plain = cutText(value, maxTurnError * 2)
     .replace(escapes, "")
     .replace(inlineControls, " ")
     .trim()
-  return plain === "" ? undefined : plain.slice(0, maxTurnError)
+  return plain === "" ? undefined : cutText(plain, maxTurnError)
 }
 
 /**
@@ -285,14 +290,17 @@ export const subjectOf = (
       .map((option) => (option as { label?: unknown } | null)?.label)
       .filter((label): label is string => typeof label === "string" && label.length > 0)
       .slice(0, agentLimits.choices)
-      .map((label) => label.slice(0, agentLimits.name))
+      .map((label) => cutText(label, agentLimits.name))
     return {
-      subject: typeof prompt === "string" ? prompt.slice(0, agentLimits.subject) : null,
+      subject: typeof prompt === "string" ? cutText(prompt, agentLimits.subject) : null,
       choices,
     }
   }
   const subject = field(fields, "planFilePath", "command", "file_path", "path", "url", "pattern")
-  return { subject: subject?.slice(0, agentLimits.subject) ?? null, choices: [] }
+  return {
+    subject: subject === undefined ? null : cutText(subject, agentLimits.subject),
+    choices: [],
+  }
 }
 
 /** A value as JSON with every object's keys sorted, so the same value reads the same. */
@@ -328,8 +336,6 @@ export const maxPlan = 256 * 1024
 
 /** A plan's text cut short to what the protocol takes, a character left whole. */
 export const planText = (value: string): { readonly text: string; readonly truncated: boolean } => {
-  let end = Math.min(value.length, maxPlan)
-  const last = value.charCodeAt(end - 1)
-  if (end < value.length && last >= 0xd800 && last <= 0xdbff) end -= 1
-  return { text: value.slice(0, end), truncated: end < value.length }
+  const text = cutText(value, maxPlan)
+  return { text, truncated: text.length < value.length }
 }
