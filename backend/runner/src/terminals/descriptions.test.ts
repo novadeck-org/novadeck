@@ -615,7 +615,7 @@ describe("when an agent's terminal is named", () => {
     // A new agent in the terminal, once murmur is usable again, is not named from it.
     made.change({
       agent: "codex",
-      naming: { ...made.subjects.get("a")!.naming, murmur: { title: "Addons switch" } },
+      naming: { ...made.subjects.get("a")!.naming, murmur: { title: "Kept" } },
     })
     made.describer.setUsable(false)
     made.describer.setUsable(true)
@@ -700,7 +700,7 @@ describe("when an agent's terminal is named", () => {
     // A titled terminal, which catch-up names only for a summary still owed.
     made.change({
       agent: "codex",
-      naming: { ...made.subjects.get("a")!.naming, murmur: { title: "Addons switch" } },
+      naming: { ...made.subjects.get("a")!.naming, murmur: { title: "Kept" } },
     })
     made.describer.setUsable(false)
     made.describer.setUsable(true)
@@ -1249,7 +1249,7 @@ describe("when murmur becomes usable", () => {
     // No summary: prompts name nothing.
     agent("c", unnamed)
     // Titled: it waits for its agent's next summary.
-    agent("d", { ...unnamed, murmur: { title: "Login fixes" }, summary: "Fixes the login." })
+    agent("d", { ...unnamed, murmur: { title: "Had one" }, summary: "Fixes the login." })
     agent("e", { ...unnamed, opener: { title: "Opened" }, summary: "Fixes the logout." })
     // Titled by the agent that opened it: never described.
     subjects.set("e", { ...subjects.get("e")!, openedBy: "sable" })
@@ -1334,18 +1334,22 @@ describe("when murmur becomes usable", () => {
     expect(refused.describer.jobs).toHaveLength(1)
 
     // A titled terminal waits for its agent's next summary, as catch-up leaves it.
-    const titled = resumed({ murmur: { title: "Comparison pages" } })
+    const titled = resumed({ murmur: { title: "Had one" } })
     titled.murmur.reported("a")
     await settle()
     expect(titled.describer.jobs).toHaveLength(0)
   })
 
-  describe.each(["claude", "codex", "agy"] as const)("for %s", (agent) => {
-    const stale = "Claude dev server"
+  describe.each([
+    ["claude", "Claude dev server"],
+    ["codex", "Codex dev server"],
+    ["agy", "Antigravity dev server"],
+  ] as const)("for %s", (agent, stale) => {
     const recorded = "Responsive Payload media images on the PL website"
 
+    // Resumed with the runner: catch-up takes it for a shell and titles it from its screen
+    // once the wait for the agent ends. `atPrompt` stays true throughout, as on Windows.
     it("gives an agent that binds after a shell title the title of its summary", async () => {
-      // Resumed with the runner: no summary yet to wait for, so catch-up took it for a shell.
       const made = create({
         agent: null,
         expecting: agent,
@@ -1354,10 +1358,6 @@ describe("when murmur becomes usable", () => {
       made.describer.setUsable(false)
       made.describer.setUsable(true)
       await settle(made.times.expectMs + made.times.shellSettleMs + 50)
-      // Binding took longer than the wait, so the screen was titled as a shell.
-      made.change({ expecting: null, program: null, atPrompt: true })
-      made.murmur.prompted("a")
-      await settle(made.times.shellSettleMs + 50)
       expect(made.written).toEqual([{ title: "Title 1" }])
       made.change({ agent, work: work(), activity: idle("ok") })
       made.murmur.reported("a")
@@ -1374,7 +1374,7 @@ describe("when murmur becomes usable", () => {
       expect(made.written).toHaveLength(2)
     })
 
-    it("heals a shell's title kept from an earlier run, and leaves a summary's alone", async () => {
+    it("heals a shell's title kept from an earlier run, and leaves the others alone", async () => {
       const healed = create({
         agent,
         activity: idle("ok"),
@@ -1397,48 +1397,94 @@ describe("when murmur becomes usable", () => {
       })
       late.describer.setUsable(false)
       late.describer.setUsable(true)
-      late.change({
-        agent,
-        expecting: null,
-        work: work(),
-        activity: idle("ok"),
-      })
+      late.change({ agent, expecting: null, work: work(), activity: idle("ok") })
       late.murmur.reported("a")
       await settle()
       expect(late.written).toEqual([{ title: "Title 1" }])
 
-      // A title that came from its summary costs the model nothing on a restart.
-      const fine = create({
+      // The person's title is never touched, with a stale murmur title beside it.
+      const mine = create({
         agent,
         activity: idle("ok"),
         work: work(),
-        naming: {
-          ...unnamed,
-          summary: recorded,
-          murmur: { title: "Payload media images" },
-        },
+        naming: { ...unnamed, summary: recorded, person: "Mine", murmur: { title: stale } },
       })
-      fine.describer.setUsable(false)
-      fine.describer.setUsable(true)
-      fine.murmur.reported("a")
-      await settle(fine.times.retryMs)
-      expect(fine.describer.jobs).toHaveLength(0)
+      mine.describer.setUsable(false)
+      mine.describer.setUsable(true)
+      mine.murmur.reported("a")
+      await settle(mine.times.retryMs)
+      expect(mine.describer.jobs).toHaveLength(0)
     })
+
+    it.each(["Payload media images", "Test fixes", "Login redirect"])(
+      "leaves the title %s, which does not name the agent, alone on a restart",
+      async (title) => {
+        const fine = create({
+          agent,
+          activity: idle("ok"),
+          work: work(),
+          naming: { ...unnamed, summary: recorded, murmur: { title } },
+        })
+        fine.describer.setUsable(false)
+        fine.describer.setUsable(true)
+        fine.murmur.reported("a")
+        await settle(fine.times.retryMs)
+        expect(fine.describer.jobs).toHaveLength(0)
+      },
+    )
 
     it("does not describe an agent that is still starting as a shell, however long it takes", async () => {
       const made = create({ agent: null, expecting: agent, atPrompt: true })
       made.murmur.prompted("a")
       // The agent's program holds the foreground when the wait ends, and has not bound.
       made.change({ program: { name: agent, argv: [agent] }, atPrompt: false })
+      made.murmur.sampled("a")
       await settle(made.times.expectMs + made.times.shellSettleMs + 50)
       expect(made.describer.jobs).toHaveLength(0)
       expect(made.written).toEqual([])
-      // It never started: back at the prompt with nothing expected, it is a shell.
-      made.change({ expecting: null, program: null, atPrompt: true })
-      made.murmur.prompted("a")
+      // It left without binding: back at the prompt, the terminal is a shell.
+      made.change({ program: { name: "bash", argv: null } })
+      made.murmur.sampled("a")
       await settle(made.times.shellSettleMs + 50)
       expect(made.describer.digests).toHaveLength(1)
       expect(made.describer.digests[0]).toMatchObject({ kind: "shell" })
+    })
+
+    it("describes later programs of a shell its agent bound in and left", async () => {
+      // The record keeps `expecting` after the agent exits.
+      const made = create({ agent: null, expecting: agent, atPrompt: true })
+      made.describer.setUsable(true)
+      made.change({ agent, work: work(), activity: idle("ok") })
+      made.murmur.reported("a")
+      made.change({ agent: null, program: { name: "bash", argv: null } })
+      made.murmur.sampled("a")
+      await settle(made.times.expectMs + 50)
+      made.change({ program: { name: "pnpm", argv: ["pnpm", "dev"] } })
+      made.murmur.sampled("a")
+      await settle(made.times.shellRunMs + 50)
+      expect(made.describer.digests.at(-1)).toMatchObject({ kind: "shell", command: "pnpm dev" })
+    })
+
+    it("names a new agent from its own summary, not the one that left", async () => {
+      const made = create({
+        agent: null,
+        expecting: agent,
+        naming: { ...unnamed, summary: "Old agent: responsive payload images" },
+      })
+      made.describer.setUsable(true)
+      // The first agent binds and leaves; the shell is titled; another agent binds.
+      made.change({ agent, work: work(), activity: idle("ok") })
+      made.murmur.reported("a")
+      made.change({ agent: null, program: { name: "bash", argv: null } })
+      made.murmur.prompted("a")
+      await settle(made.times.shellSettleMs + 50)
+      const before = made.written.length
+      expect(before).toBe(1)
+      made.change({ agent: "codex", work: work(), activity: idle("ok") })
+      made.murmur.reported("a")
+      await settle(made.times.settleMs + made.times.retryMs)
+      expect(made.written).toHaveLength(before)
+      expect(made.describer.digests.some(({ kind }) => kind === "agent")).toBe(false)
     })
   })
 
