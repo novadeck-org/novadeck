@@ -453,7 +453,7 @@ describe("the item store", () => {
 
   context("when the plan goes while a save is under way", () => {
     // The plan's edit sent, then the plan closed with its save unanswered.
-    const closedSaving = async () => {
+    const closedSaving = () => {
       const { companions, saves } = backend()
       const { actions, workspace } = connected(companions)
       actions.edit(`${first}No blog.\n`, [])
@@ -463,7 +463,7 @@ describe("the item store", () => {
     }
 
     it("leaves nothing waiting behind it, not even the save's timeout", async () => {
-      await closedSaving()
+      closedSaving()
       expect(vi.getTimerCount()).toBe(0)
       await vi.advanceTimersByTimeAsync(60_000)
       expect(vi.getTimerCount()).toBe(0)
