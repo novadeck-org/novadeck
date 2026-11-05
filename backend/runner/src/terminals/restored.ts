@@ -23,14 +23,16 @@ export const showRestored = (
   terminalId: string,
   note?: string,
 ): Promise<void> =>
-  terminal
-    .replay(
-      transcript,
-      [transcript && restoredSeparator(savedAt), note && dim(note)].filter(Boolean).join("\r\n"),
-    )
-    .catch((error: unknown) =>
-      log.warn("terminals.replay-failed", "Novadeck could not show a terminal's earlier screen", {
-        data: { terminalId },
-        err: error,
-      }),
-    )
+  // With no earlier screen the note is the first line, not under a blank one.
+  (transcript
+    ? terminal.replay(
+        transcript,
+        [restoredSeparator(savedAt), note && dim(note)].filter(Boolean).join("\r\n"),
+      )
+    : terminal.replay(`${dim(note ?? "")}\r\n`)
+  ).catch((error: unknown) =>
+    log.warn("terminals.replay-failed", "Novadeck could not show a terminal's earlier screen", {
+      data: { terminalId },
+      err: error,
+    }),
+  )

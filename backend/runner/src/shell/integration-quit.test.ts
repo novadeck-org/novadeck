@@ -1,3 +1,4 @@
+import { spawnSync } from "node:child_process"
 import { randomUUID } from "node:crypto"
 import { existsSync, readFileSync, writeFileSync } from "node:fs"
 import { join } from "node:path"
@@ -12,6 +13,7 @@ import {
   create,
   it,
   open,
+  reporter,
   screen,
   show,
   showStandIn,
@@ -42,10 +44,14 @@ describe.skipIf(process.platform === "win32" || !existsSync(bash))(
   "restoring a lead's teammates after Windows ended their agents",
   () => {
     // A lead, moth, opens a teammate that binds and finishes a turn; its agent then ends
-    // as Windows ends it at shutdown (killed, while the person typed nothing), or as the
-    // person ends it. The runner is told nothing, and keeps saving. A second runner then
-    // restores the terminal as the app does: resuming only the agent the saved row names.
-    const quit = async (shell: Fixture, agent: AgentName, byPerson: boolean) => {
+    // as Windows ends it at shutdown (killed, the person typing nothing, or something that
+    // does not end it), or as the person ends it with Ctrl+C. With `gone` the agent's binding
+    // ends first, its process found gone by a report, as the doorbell's probe finds it, and
+    // the shell's prompt follows. The runner is told nothing, and keeps saving. A second
+    // runner then restores the terminal as the app does: resuming only the agent the saved
+    // row names.
+    type How = "system" | "typed" | "gone" | "person"
+    const quit = async (shell: Fixture, agent: AgentName, how: How) => {
       const bin = showStandIn(shell.home)
       const stand = standIn(shell.home)
       writeFileSync(
@@ -56,9 +62,27 @@ describe.skipIf(process.platform === "win32" || !existsSync(bash))(
           'echo "' +
           agent +
           ' args: $*"\nsleep 1\n' +
-          `exec agent ${agent} s-worker "$HOME/steps-$NOVADECK_TERMINAL_ID"\n`,
+          (how === "gone"
+            ? "exec report\n"
+            : `exec agent ${agent} s-worker "$HOME/steps-$NOVADECK_TERMINAL_ID"\n`),
         { mode: 0o755 },
       )
+      // A process that is gone, which the reports of a session name as its agent's.
+      const gone = String(spawnSync(process.execPath, ["-e", ""]).pid)
+      if (how === "gone")
+        reporter(shell.home, [
+          { agent, sessionId: "s-worker", seq: 1, source: "startup", instance: gone },
+          {
+            agent,
+            sessionId: "s-worker",
+            seq: 2,
+            source: "startup",
+            event: "Stop",
+            fields: agent === "agy" ? { fullyIdle: true } : {},
+            instance: gone,
+            wait: 100,
+          },
+        ])
       const options = {
         env: {
           HOME: shell.home,
@@ -108,21 +132,29 @@ describe.skipIf(process.platform === "win32" || !existsSync(bash))(
         const back = windows()
         const [answer] = (await answered) as { ok: boolean }[]
         expect(answer!.ok).toBe(true)
-        await shell.until(manager, created[0]!, `${agent} ready`)
+        await shell.until(manager, created[0]!, how === "gone" ? "reports sent" : `${agent} ready`)
         return { id: created[0]!, back }
       })()
-      const { step } = driver(shell, manager)
-      await step(worker.id, {
-        hook: agent === "agy" ? "PreInvocation" : "UserPromptSubmit",
-        payload: agent === "agy" ? { invocationNum: 1 } : { prompt: "go" },
-      })
-      await step(worker.id, {
-        hook: "Stop",
-        payload: agent === "agy" ? { fullyIdle: true } : {},
-      })
-      expect(manager.get(worker.id)).toMatchObject({ ledBy: "moth", agent })
+      if (how === "gone") {
+        // The second report found the process gone: the binding ended, the agent still led.
+        await expect.poll(() => manager.get(worker.id).agent, { timeout: 5000 }).toBeNull()
+      } else {
+        const { step } = driver(shell, manager)
+        await step(worker.id, {
+          hook: agent === "agy" ? "PreInvocation" : "UserPromptSubmit",
+          payload: agent === "agy" ? { invocationNum: 1 } : { prompt: "go" },
+        })
+        await step(worker.id, {
+          hook: "Stop",
+          payload: agent === "agy" ? { fullyIdle: true } : {},
+        })
+        expect(manager.get(worker.id)).toMatchObject({ ledBy: "moth", agent })
+      }
       const pid = Number(readFileSync(join(shell.home, `pid-${worker.id}`), "utf8"))
-      if (byPerson) manager.write({ terminalId: worker.id, data: "\x03" }, "client")
+      // Text, arrows and the like are not what ends an agent.
+      if (how === "typed")
+        manager.write({ terminalId: worker.id, data: "keep going\x1b[A" }, "client")
+      if (how === "person") manager.write({ terminalId: worker.id, data: "\x03" }, "client")
       else process.kill(pid, "SIGKILL")
       // The shell outlives its agent by more than a sample, and the runner goes on.
       await shell.until(manager, worker.id, "$ ")
@@ -148,19 +180,22 @@ describe.skipIf(process.platform === "win32" || !existsSync(bash))(
     }
 
     for (const agent of ["claude", "codex", "agy"] as const) {
-      it(`resumes ${agent} in the teammate, still led, when its agent ended with nobody's keys`, async ({
-        shell,
-      }) => {
-        const { worker, options } = await quit(shell, agent, false)
-        const manager = await restore(shell, worker, options)
-        await shell.until(manager, worker, resumed[agent])
-        expect(manager.get(worker)).toMatchObject({ ledBy: "moth" })
-      })
+      for (const [how, when] of [
+        ["system", "its agent was killed with nobody at the keys"],
+        ["typed", "its agent was killed after the person typed into it"],
+        ["gone", "its agent's binding ended before the shell's prompt"],
+      ] as const)
+        it(`resumes ${agent} in the teammate, still led, when ${when}`, async ({ shell }) => {
+          const { worker, options } = await quit(shell, agent, how)
+          const manager = await restore(shell, worker, options)
+          await shell.until(manager, worker, resumed[agent])
+          expect(manager.get(worker)).toMatchObject({ ledBy: "moth" })
+        })
 
       it(`restores a plain shell for ${agent} the person ended, as they asked`, async ({
         shell,
       }) => {
-        const { worker, options } = await quit(shell, agent, true)
+        const { worker, options } = await quit(shell, agent, "person")
         const manager = await restore(shell, worker, options)
         await new Promise((resolve) => setTimeout(resolve, 500))
         expect(await screen(manager, worker)).not.toContain(resumed[agent])

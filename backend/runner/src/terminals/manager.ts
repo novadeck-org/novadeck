@@ -835,7 +835,7 @@ export class Terminals {
       this.register(record, expectedAgent(input.command ?? task?.command, input.resume))
       if (unled) this.messaging.endLead(record.summary.id)
       // The resumed agent shows its own history; a shell that resumes none, the transcript.
-      const note = resumeNote(judged, input.resume)
+      const note = resumeNote(judged, input.resume, started.resumes)
       if (!started.resumes && (opened || note)) {
         const [text, at] = [opened?.text ?? "", opened && new Date(opened.at)]
         void showRestored(record.terminal, text, at, input.id, note)
@@ -1007,7 +1007,7 @@ export class Terminals {
       keys.map(({ kind }) => kind),
       blocking(record.bound?.activity.pending).length > 0,
     )
-    this.bindings.keyed(record)
+    this.bindings.keyed(record, data)
     if (this.messaging.untrustedAgent(record.summary.id)) this.shown.recheckTrust(record)
   }
 
@@ -1058,14 +1058,8 @@ export class Terminals {
           const connected = await this.launcher.connected(input.resume)
           const env = await environment
           return (restart) => {
-            const resume =
-              input.resume &&
-              this.claims.resumable(
-                record.summary.id,
-                input.resume,
-                record.agents[input.resume]?.sessionId,
-                connected,
-              )
+            const judged = this.claims.judge({ id: record.summary.id, ...input }, record, connected)
+            const resume = judged?.ok ? judged : undefined
             const { spec, started } = this.launcher.launch(
               shell,
               cwd,
@@ -1112,7 +1106,15 @@ export class Terminals {
                   lineEntered: started.resumes,
                 })
                 // The earlier shell's screen shows above the new one's.
-                shown = earlier ? this.show(record, earlier, null) : Promise.resolve()
+                const note = resumeNote(judged, input.resume, started.resumes)
+                if (earlier || note)
+                  shown = showRestored(
+                    record.terminal,
+                    earlier ?? "",
+                    null,
+                    record.summary.id,
+                    note,
+                  )
                 // Restarted to resume the worker's agent session, it stays led; restarted as a plain
                 // shell, there is no agent left to lead.
                 if (!started.resumes) this.bindings.endLead(record)
@@ -1661,7 +1663,7 @@ export class Terminals {
         this.bindings.endLeadGone(record)
     } else if (binding.instance && alive(binding.instance)) {
       record.suspended = binding.instance
-    } else this.bindings.endLeadGone(record, true)
+    } else this.bindings.endLeadGone(record)
     // Nothing came of the agent the shell was opened to run: it is a plain shell now.
     if (binding === null && ran) record.expecting = null
     // An agent whose prompt showed, with no session bound, left with it: first, so the

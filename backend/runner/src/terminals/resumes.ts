@@ -69,22 +69,28 @@ export const resumeRefusal = (agent: AgentName, reason: UnavailableReason): stri
 
 /**
  * What a restored terminal's screen says when the agent that ran there was not resumed, in
- * a sentence for the person; undefined when it was, or none was asked to be.
+ * a sentence for the person; undefined when it was, or none was asked to be. `took` is
+ * whether the new shell was given the resume command.
  */
 export const resumeNote = (
-  checked: { readonly ok: boolean; readonly reason?: UnavailableReason } | undefined,
+  checked: ResumeCheck | undefined,
   agent: AgentName | undefined,
+  took: boolean,
 ): string | undefined => {
-  if (!checked || checked.ok || !agent || !checked.reason) return undefined
+  if (!checked || !agent) return undefined
   const label = agentLabel(agent)
-  const why = {
-    "not-connected": `Novadeck isn't connected to ${label}`,
-    unsupported: `${label} can't resume a session by its id here`,
-    "no-session": `Novadeck has no ${label} session saved for this terminal`,
-    "invalid-session": `the ${label} session saved for this terminal isn't one it can run`,
-    "in-use": `that ${label} session is already open in another terminal`,
-  }[checked.reason]
-  return `${label} was running here, but wasn't resumed: ${why}.`
+  const why = checked.ok
+    ? took
+      ? undefined
+      : "this shell can't run the command that resumes it"
+    : {
+        "not-connected": `Novadeck isn't connected to ${label}`,
+        unsupported: `${label} can't resume a session by its id here`,
+        "no-session": `Novadeck has no ${label} session saved for this terminal`,
+        "invalid-session": `the ${label} session saved for this terminal isn't one it can run`,
+        "in-use": `that ${label} session is already open in another terminal`,
+      }[checked.reason]
+  return why && `${label} was running here, but wasn't resumed: ${why}.`
 }
 
 /** Whether a session may resume now: its command and claim, or why not. */

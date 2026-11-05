@@ -8,7 +8,7 @@ import type { Record } from "./record.js"
 /** What sampling reads of a terminal's record, and what it keeps there. */
 export type SampledRecord = Pick<
   Record,
-  "terminal" | "foreground" | "summary" | "changed" | "bound" | "keyedAt"
+  "terminal" | "foreground" | "summary" | "changed" | "bound" | "endKeyAt"
 >
 
 // Whether the platform hides a terminal's foreground program, as Windows does: no sample
@@ -16,19 +16,29 @@ export type SampledRecord = Pick<
 const foregroundHidden = (): boolean => process.platform === "win32"
 
 /**
- * How long before its shell showed its prompt the person's keys may have come for an
- * agent's end to be theirs: `/exit` or a Ctrl+C ends it within moments of the key.
+ * How long before an agent's end the person's Ctrl+C or Ctrl+D may have come for the end
+ * to be theirs: they quit an agent within moments of the key.
  */
-export const exitKeysMs = 10_000
+export const exitKeysMs = 5_000
 
 /**
- * Whether the person ended the agent whose shell shows its prompt now, as their keys just
- * before tell. Where no sample names the foreground program (Windows), a prompt back says
- * only that the agent is gone, and the system shutting down ends every console program
- * with nobody at the keys: that agent was running at the quit, and resumes.
+ * How long a Windows terminal's agent that ended without such a key waits before it counts
+ * as ended (its resume and lead let go). A shutdown ends every console program with nobody
+ * at the keys, and the app then saves its pages (1.5 s at most) and closes the runner
+ * (killed after 5 s), so the runner is gone well within it; an agent that really ended, as
+ * by a crash, a one-shot run or a slow `/exit`, only counts later than elsewhere.
  */
-export const endedByPerson = (record: Pick<Record, "keyedAt">): boolean =>
-  record.keyedAt !== undefined && Date.now() - record.keyedAt <= exitKeysMs
+export const shutdownGraceMs = 30_000
+
+/**
+ * How long after an agent's end, where no sample names the foreground program (Windows),
+ * it counts as ended: a sample's time after the person's own Ctrl+C or Ctrl+D just before,
+ * else `shutdownGraceMs`. The one decision of every path that ends an agent there.
+ */
+export const endWaitMs = (record: Pick<Record, "endKeyAt">, pollMs: number): number =>
+  record.endKeyAt !== undefined && Date.now() - record.endKeyAt <= exitKeysMs
+    ? pollMs
+    : shutdownGraceMs
 
 /**
  * An agent's session bound the terminal. Where no sample names the foreground program,
@@ -127,19 +137,21 @@ export class Sampler<R extends SampledRecord> {
    * shell, as Windows ends every console program while it shuts down, has its shell show a
    * prompt for the moment before the runner stops: that agent stays the one to resume. An
    * agent bound again meanwhile, the shell ended or replaced, or the runner stopping keeps
-   * it too, as does an agent that ended with none of the person's keys before (see
-   * `endedByPerson`), whatever the runner's wait.
+   * it too. The wait is a sample's time after the person's own Ctrl+C or Ctrl+D, else
+   * `shutdownGraceMs` (see `endWaitMs`).
    */
   prompted(record: R): void {
     if (!foregroundHidden() || record.summary.lastProgram === null) return
-    if (!endedByPerson(record)) return
     const shell = record.terminal.pty
-    setTimeout(() => {
-      if (this.host.stopping() || record.bound !== null || record.terminal.pty !== shell) return
-      if (record.terminal.exit !== null || record.terminal.exiting) return
-      record.summary = { ...record.summary, lastProgram: null }
-      record.changed = true
-    }, this.pollMs).unref()
+    setTimeout(
+      () => {
+        if (this.host.stopping() || record.bound !== null || record.terminal.pty !== shell) return
+        if (record.terminal.exit !== null || record.terminal.exiting) return
+        record.summary = { ...record.summary, lastProgram: null }
+        record.changed = true
+      },
+      endWaitMs(record, this.pollMs),
+    ).unref()
   }
 
   /** Stops sampling, as the runner shuts down. */

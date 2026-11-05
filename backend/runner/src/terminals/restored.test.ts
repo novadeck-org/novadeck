@@ -50,9 +50,9 @@ describe("saying why an agent was not resumed", () => {
     ])
   })
 
-  it("stands alone where there is no earlier screen", async () => {
+  it("is the first line, under no blank one, where there is no earlier screen", async () => {
     const { terminal, calls } = played()
     await showRestored(terminal, "", null, "t1", "Claude Code wasn't resumed.")
-    expect(calls).toEqual([["", "\x1b[0;2mClaude Code wasn't resumed.\x1b[0m"]])
+    expect(calls).toEqual([["\x1b[0;2mClaude Code wasn't resumed.\x1b[0m\r\n", undefined]])
   })
 })

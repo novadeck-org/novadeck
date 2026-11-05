@@ -116,15 +116,18 @@ describe("the session a restore asks to resume", () => {
 
   it("says to the person why an agent that ran was not resumed, and nothing when it was", () => {
     const ask = { id: "t1", resume: "codex" as const }
-    expect(resumeNote(claims.judge(ask, saved, true), "codex")).toBe(
+    expect(resumeNote(claims.judge(ask, saved, true), "codex", false)).toBe(
       "Codex was running here, but wasn't resumed: Novadeck has no Codex session saved for this terminal.",
     )
-    expect(
-      resumeNote(claims.judge({ ...ask, resume: "claude" }, saved, false), "claude"),
-    ).toContain("Novadeck isn't connected to Claude Code")
-    expect(resumeNote(claims.judge({ ...ask, resume: "claude" }, saved, true), "claude")).toBe(
-      undefined,
+    const claude = { ...ask, resume: "claude" as const }
+    expect(resumeNote(claims.judge(claude, saved, false), "claude", false)).toContain(
+      "Novadeck isn't connected to Claude Code",
     )
-    expect(resumeNote(undefined, undefined)).toBeUndefined()
+    expect(resumeNote(claims.judge(claude, saved, true), "claude", true)).toBeUndefined()
+    // Judged fit, but the shell took no command to resume it.
+    expect(resumeNote(claims.judge(claude, saved, true), "claude", false)).toContain(
+      "this shell can't run the command",
+    )
+    expect(resumeNote(undefined, undefined, false)).toBeUndefined()
   })
 })

@@ -22,7 +22,7 @@ import type { Companion } from "../companion.js"
 import { failed } from "../failures.js"
 import { markTurn } from "../interrupted.js"
 import type { Record } from "../record.js"
-import { endedByPerson } from "../sampling.js"
+import { endWaitMs } from "../sampling.js"
 import { hasRun } from "../saved-terminals.js"
 import { lastStep } from "../transcripts.js"
 import { TurnEnds, type TurnsHost } from "../turn-ends.js"
@@ -68,6 +68,9 @@ export type BindingsHost = {
   readonly pollMs: number
 }
 
+// Ctrl+C or Ctrl+D, as the terminal sends them, or the keyboard protocol that reports them.
+const endKeys = ["\x03", "\x04", "\x1b[99;5u", "\x1b[100;5u"]
+
 /**
  * The agent bound to each terminal, as its hooks and its own sources tell: what applies
  * their facts to its activity and telemetry, the sources that follow it, the Escape's
@@ -92,34 +95,34 @@ export class Bindings {
     if (!binding?.instance || this.host.alive(binding.instance)) return false
     record.left = binding
     // The agent's process is gone: the lead it had ends with it.
-    this.endLeadGone(record, true)
+    this.endLeadGone(record)
     return this.endBinding(record)
   }
 
   /**
    * Ends the terminal's lead as the agent it led is found gone, its process or the shell's
-   * prompt telling. Windows ends every console program just before its shell as it shuts
-   * down, and the runner stops only after: there the lead ends once the shell has outlived
-   * its agent for a sample's time, so an agent ended that way resumes still led, as its
-   * session resumes (`Sampler.prompted`). The runner stopping, the shell ending or
-   * replaced meanwhile, or another lead meanwhile, keeps it. So does an agent that had a
-   * session (`ran`) and ended with none of the person's keys before (see `endedByPerson`),
-   * whatever the wait: the system ended it, and the runner may stop after any time. It is
-   * kept with the terminal's next save, as the session the sampler let go of at the same
-   * moment is, so no saved terminal resumes its agent unled.
+   * prompt telling; every path that finds one gone comes here. Windows ends every console
+   * program just before its shell as it shuts down, and the runner stops only after: there
+   * the lead ends only once the shell has outlived its agent for `endWaitMs`, so an agent
+   * the system ended resumes still led, as its session resumes (`Sampler.prompted`). The
+   * runner stopping, the shell ending or replaced meanwhile, or another lead meanwhile,
+   * keeps it. It is kept with the terminal's next save, as the session the sampler let go
+   * of at the same moment is, so no saved terminal resumes its agent unled.
    */
-  endLeadGone(record: Record, ran = false): void {
+  endLeadGone(record: Record): void {
     if (process.platform !== "win32") return this.endLead(record)
-    if (ran && !endedByPerson(record)) return
     const shell = record.terminal.pty
     const lead = record.summary.ledBy
-    setTimeout(() => {
-      if (this.host.stopping() || record.closed || record.terminal.pty !== shell) return
-      if (record.terminal.exit !== null || record.terminal.exiting) return
-      // A lead the person approved meanwhile is a new one, not the one that ended.
-      if (record.summary.ledBy !== lead) return
-      this.endLead(record, false)
-    }, this.host.pollMs).unref()
+    setTimeout(
+      () => {
+        if (this.host.stopping() || record.closed || record.terminal.pty !== shell) return
+        if (record.terminal.exit !== null || record.terminal.exiting) return
+        // A lead the person approved meanwhile is a new one, not the one that ended.
+        if (record.summary.ledBy !== lead) return
+        this.endLead(record, false)
+      },
+      endWaitMs(record, this.host.pollMs),
+    ).unref()
   }
 
   /**
@@ -278,9 +281,9 @@ export class Bindings {
     this.escaped(record)
   }
 
-  /** The person's keys reached the terminal: noted, and judged for an Escape (see `escaped`). */
-  keyed(record: Record): void {
-    record.keyedAt = Date.now()
+  /** The person's keys reached the terminal: an ending key noted, and judged for an Escape (see `escaped`). */
+  keyed(record: Record, data: string): void {
+    if (endKeys.some((key) => data.includes(key))) record.endKeyAt = Date.now()
     this.escaped(record)
   }
 

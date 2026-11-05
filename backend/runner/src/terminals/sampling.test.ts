@@ -8,7 +8,14 @@ vi.mock("@novadeck/terminal/pty", async (original) => ({
 
 import { describe, expect, it } from "../test.js"
 import type { Record } from "./record.js"
-import { boundProgram, exitKeysMs, Sampler, shellBusy, type SampledRecord } from "./sampling.js"
+import {
+  boundProgram,
+  exitKeysMs,
+  Sampler,
+  shellBusy,
+  shutdownGraceMs,
+  type SampledRecord,
+} from "./sampling.js"
 
 const pollMs = 1_000
 const platform = Object.getOwnPropertyDescriptor(process, "platform")!
@@ -18,10 +25,10 @@ const on = (name: NodeJS.Platform): void => {
 }
 
 // A running terminal's record, as sampling reads it.
-const running = (lastProgram: string | null, keyedAt?: number): SampledRecord => {
+const running = (lastProgram: string | null, endKeyAt?: number): SampledRecord => {
   const pty = { pid: 1 }
   return {
-    ...(keyedAt !== undefined && { keyedAt }),
+    ...(endKeyAt !== undefined && { endKeyAt }),
     summary: { lastProgram } as SampledRecord["summary"],
     changed: false,
     bound: null,
@@ -60,7 +67,7 @@ describe("the program a fresh shell resumes where no sample names it", () => {
     expect(record.summary.lastProgram).toBeNull()
   })
 
-  it("is let go once the shell has held its prompt for a sample's time, after the person's keys", () => {
+  it("is let go a sample's time after the person's Ctrl+C or Ctrl+D", () => {
     on("win32")
     const record = running("claude", Date.now() - 1_000)
     sampler().prompted(record)
@@ -71,28 +78,29 @@ describe("the program a fresh shell resumes where no sample names it", () => {
     expect(record.changed).toBe(true)
   })
 
+  it("is let go after the grace when no such key came just before, as a crash or a slow /exit ends it", () => {
+    on("win32")
+    const idle = running("claude")
+    const earlier = running("claude", Date.now() - exitKeysMs - 1)
+    for (const record of [idle, earlier]) sampler().prompted(record)
+    vi.advanceTimersByTime(shutdownGraceMs - 1)
+    for (const record of [idle, earlier]) expect(record.summary.lastProgram).toBe("claude")
+    vi.advanceTimersByTime(1)
+    for (const record of [idle, earlier]) {
+      expect(record.summary.lastProgram).toBeNull()
+      expect(record.changed).toBe(true)
+    }
+  })
+
   it("stays the agent's when the runner stops right after its shell's prompt, as Windows shuts down", () => {
     on("win32")
     const record = running("claude")
     let stopping = false
     sampler(() => stopping).prompted(record)
     stopping = true
-    vi.advanceTimersByTime(pollMs)
+    vi.advanceTimersByTime(shutdownGraceMs)
     expect(record.summary.lastProgram).toBe("claude")
     expect(record.changed).toBe(false)
-  })
-
-  it("stays the agent's, however long the shell holds its prompt, when none of the person's keys ended it", () => {
-    on("win32")
-    // The system ended the agent, as at shutdown, and the runner may be told to stop long after.
-    const idle = running("claude")
-    const earlier = running("claude", Date.now() - exitKeysMs - 1)
-    for (const record of [idle, earlier]) sampler().prompted(record)
-    vi.advanceTimersByTime(60_000)
-    for (const record of [idle, earlier]) {
-      expect(record.summary.lastProgram).toBe("claude")
-      expect(record.changed).toBe(false)
-    }
   })
 
   it("stays the agent's when one binds again, or the shell ends or is replaced, meanwhile", () => {
