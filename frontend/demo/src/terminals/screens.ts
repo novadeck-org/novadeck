@@ -59,7 +59,11 @@ export const demoScreensOptions = (
   { theme = noTheme, pool = pageRendererPool(), introOf, runtime }: DemoTerminalSetup = {},
 ) => {
   let link: DemoAgentLink | undefined
-  const screens = new Map<string, DemoTerminalScreen>()
+  // Each terminal's screen, and what stops it hearing its terminal.
+  const screens = new Map<
+    string,
+    { readonly screen: DemoTerminalScreen; readonly stop: () => void }
+  >()
   // Each terminal's stream that draws it now, which the debug layer ends to show its output
   // on the way again.
   const streams = new Map<string, { readonly key: TerminalKey; readonly end: () => void }>()
@@ -68,7 +72,7 @@ export const demoScreensOptions = (
   const screenOf = (key: TerminalKey): DemoTerminalScreen => {
     const id = terminalKeyId(key)
     const known = screens.get(id)
-    if (known) return known
+    if (known) return known.screen
     const terminal = engine.terminal(key)
     const made = createDemoTerminalScreen({
       key,
@@ -77,7 +81,6 @@ export const demoScreensOptions = (
       link: () => link,
       size: opening,
     })
-    screens.set(id, made)
     // It goes with its terminal, and its stream with a shell that starts again, so the
     // screens lock until it has.
     const stop = engine.subscribe(key, () => {
@@ -85,8 +88,9 @@ export const demoScreensOptions = (
       if (engine.has(key)) return
       stop()
       made.dispose()
-      screens.delete(id)
+      if (screens.get(id)?.screen === made) screens.delete(id)
     })
+    screens.set(id, { screen: made, stop })
     return made
   }
 
@@ -207,7 +211,9 @@ export const demoScreensOptions = (
     // As far in from the window's edge as the demo's output always sat.
     markup: { ...screenMarkup, containerClass: `${screenMarkup.containerClass} p-3` },
     attach: async (key) => {
-      if (!running || !(await shown(key))) throw new Error("The terminal closed")
+      const shows = running && (await shown(key))
+      // Stopped while it waited: the screens let the terminal go.
+      if (!shows || !running) throw new Error("The terminal closed")
       return streamOf(key, screenOf(key))
     },
     // A stream ends only for a screen held back a while, so the screens attach again once it
@@ -257,13 +263,16 @@ export const demoScreensOptions = (
       stopAttaching = undefined
       ;[...waiting].forEach((stop) => stop())
       ;[...streams.values()].forEach(({ end }) => end())
-      screens.forEach((screen) => screen.dispose())
+      screens.forEach(({ screen, stop: unheard }) => {
+        unheard()
+        screen.dispose()
+      })
       screens.clear()
     },
     // Links the terminals' screens to the agents' conversations, as `withConversations` does.
     link: (next: DemoAgentLink): void => {
       link = next
-      screens.forEach((screen) => screen.refresh())
+      screens.forEach(({ screen }) => screen.refresh())
     },
   }
 }
