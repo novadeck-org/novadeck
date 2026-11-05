@@ -9,6 +9,7 @@ import {
   guardPage,
   lockPagesSession,
   maxForwardedRequests,
+  maxRequestOrigins,
   pagesSession,
   countSignIns,
   holdPhoneLoads,
@@ -646,6 +647,16 @@ describe("the requests of a page view that fail", () => {
     for (let each = 0; each < maxForwardedRequests + 10; each += 1)
       errored("net::ERR_FAILED", { url: `ws://localhost/socket-${each}` })
     expect(told).toHaveLength(2 * maxForwardedRequests + 1)
+  })
+
+  it("are bound for each page view however many origins fail, those past a bound sharing one", () => {
+    const { told, completed } = watched()
+    for (let each = 0; each < 1_000; each += 1)
+      completed(500, { url: `http://site-${each}.localhost:1/x.png` })
+    expect(told).toHaveLength(maxRequestOrigins + maxForwardedRequests)
+    // The origins first told of keep their own room.
+    completed(500, { url: "http://site-0.localhost:1/again.png" })
+    expect(told).toHaveLength(maxRequestOrigins + maxForwardedRequests + 1)
   })
 
   it("forget a page view once it's gone, as a rest of its page drops it", () => {

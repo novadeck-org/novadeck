@@ -483,6 +483,9 @@ const requestKinds: Readonly<Record<string, string>> = {
 /** How many failures of one page view, from one origin, are told per navigation of its main frame. */
 export const maxForwardedRequests = 100
 
+/** How many origins of one page view have a count of their own per navigation; those past it share one. */
+export const maxRequestOrigins = 32
+
 /**
  * Tells of each request of the pages' session that fails, with the page view it is for: an
  * HTTP error answer (4xx, 5xx), or none at all (status 0), but not one cancelled, as by a
@@ -493,6 +496,7 @@ export const maxForwardedRequests = 100
  * server that errors, has `maxForwardedRequests` told for each origin and navigation of its
  * main frame and no more, so another site's beacon failing in a loop can't use up what the
  * page's own origin has: far over what a viewer reports for a document, which it decides.
+ * Past `maxRequestOrigins` origins, the rest share one count.
  */
 export const watchPageRequests = (
   pages: Session,
@@ -506,8 +510,12 @@ export const watchPageRequests = (
   ): void => {
     if (details.webContentsId === undefined) return
     const view = told.get(details.webContentsId) ?? new Map<string, number>()
-    // An address that is no web page's, as ws: or blob:, shares one count, whatever it is.
-    const origin = originOf(details.url) ?? "other"
+    // An address that is no web page's, as ws: or blob:, shares one count, whatever it is,
+    // as do origins past the first `maxRequestOrigins`, so a page can't send without end
+    // by failing at ever new ones.
+    const own = originOf(details.url)
+    const origin =
+      own !== null && (view.has(own) || view.size < maxRequestOrigins) ? own : "other"
     const count = view.get(origin) ?? 0
     if (count >= maxForwardedRequests) return
     told.set(details.webContentsId, view.set(origin, count + 1))
