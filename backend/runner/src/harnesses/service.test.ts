@@ -357,12 +357,32 @@ describe("agents Novadeck can connect", () => {
     async ({ fixture }) => {
       const moved = join(fixture.home, "gh-elsewhere")
       const profile = join(fixture.home, "profile.sh")
-      writeFileSync(profile, `export GH_CONFIG_DIR="${moved}"\nexport UNRELATED=1\n`)
-      const agents = fixture.agents({ ENV: profile, GH_CONFIG_DIR: undefined })
+      writeFileSync(
+        profile,
+        [
+          `export GH_CONFIG_DIR="${moved}"`,
+          `export KUBECONFIG="${moved}"`,
+          // In lower case, as npm reads its own.
+          `export npm_config_userconfig="${moved}"`,
+          "export UNRELATED=1",
+          "",
+        ].join("\n"),
+      )
+      const own = join(fixture.home, "kube-own")
+      const agents = fixture.agents({ ENV: profile, GH_CONFIG_DIR: undefined, KUBECONFIG: own })
       // The app's own until the shell answers.
       expect(agents.environment().GH_CONFIG_DIR).toBeUndefined()
       await expect.poll(() => agents.environment().GH_CONFIG_DIR, { timeout: 10_000 }).toBe(moved)
+      expect(agents.environment()).toMatchObject({
+        KUBECONFIG: moved,
+        npm_config_userconfig: moved,
+      })
       expect(agents.environment().UNRELATED).toBeUndefined()
+      // Agents' own commands keep the app's values of the tools' variables, as before.
+      const install = await agents.install("codex")
+      expect(install?.env.KUBECONFIG).toBe(own)
+      expect(install?.env.GH_CONFIG_DIR).toBeUndefined()
+      expect(install?.env.npm_config_userconfig).toBeUndefined()
     },
   )
 

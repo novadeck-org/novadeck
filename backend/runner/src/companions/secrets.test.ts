@@ -1,6 +1,6 @@
 import { mkdirSync, mkdtempSync, realpathSync, rmSync, symlinkSync, writeFileSync } from "node:fs"
-import { tmpdir } from "node:os"
-import { delimiter, join, parse, sep } from "node:path"
+import { homedir, tmpdir } from "node:os"
+import { delimiter, dirname, join, parse, sep } from "node:path"
 
 import { it as base, describe, expect } from "../test.js"
 import { secret, secrets, secretVariables } from "./secrets.js"
@@ -71,9 +71,12 @@ describe("a file that may hold secrets", () => {
   })
 
   it("is an agent's login wherever a variable moves the agent's home", ({ directory }) => {
-    // Claude Code's and Gemini's logins are held by their names, so anywhere.
+    // Claude Code's, Gemini's and Antigravity's logins are held by their names, so anywhere.
     expect(secret(join(directory, "claude-work", ".credentials.json"), {})).toBe(true)
     expect(secret(join(directory, "gemini-work", ".gemini", "oauth_creds.json"), {})).toBe(true)
+    expect(secret(join(directory, "agy-work", "antigravity-oauth-token"), {})).toBe(true)
+    expect(secret(join(directory, "agy-work", "mcp_oauth_tokens.json"), {})).toBe(true)
+    expect(secret(join(directory, "gemini-work", "mcp-oauth-tokens.json"), {})).toBe(true)
     // Codex's is too plain a name for that: the variable says where its home is.
     const home = folder(directory, "codex-work", ["auth.json"])
     expect(secret(join(home, "auth.json"), {})).toBe(false)
@@ -151,12 +154,31 @@ describe("a file that may hold secrets", () => {
   })
 
   it("holds nothing more for a variable that names no one place", ({ directory }) => {
-    const plain = join(directory, "notes.txt")
-    // Empty, relative (to a folder only the tool knows), or a filesystem's root.
-    for (const value of ["", ".", "relative", parse(directory).root]) {
-      for (const variable of secretVariables)
-        expect(secret(plain, { [variable]: value }), `${variable}=${value}`).toBe(false)
+    const { root } = parse(directory)
+    // Relative, to a folder only the tool knows: never read against the runner's own.
+    const here = process.cwd()
+    for (const variable of secretVariables) {
+      expect(secret(join(here, "notes.txt"), { [variable]: "" }), variable).toBe(false)
+      for (const name of ["notes.txt", "auth.json", "hosts.yml"]) {
+        expect(secret(join(here, name), { [variable]: "." }), variable).toBe(false)
+        expect(secret(join(here, "moved", name), { [variable]: "moved" }), variable).toBe(false)
+        // A filesystem's root is no tool's folder.
+        expect(secret(join(root, name), { [variable]: root }), variable).toBe(false)
+      }
+      expect(secret(join(here, "moved"), { [variable]: "moved" }), variable).toBe(false)
     }
+  })
+
+  it("never holds the person's whole home for a variable that names it", ({ directory }) => {
+    const work = join(homedir(), "project", "notes.txt")
+    for (const variable of ["GNUPGHOME", "AZURE_CONFIG_DIR", "DOCKER_CONFIG", "CLOUDSDK_CONFIG"]) {
+      expect(secret(work, { [variable]: homedir() }), variable).toBe(false)
+      expect(secret(work, { [variable]: dirname(homedir()) }), variable).toBe(false)
+      // A folder inside it still is the tool's.
+      const inside = join(homedir(), "project")
+      expect(secret(work, { [variable]: inside }), variable).toBe(true)
+    }
+    expect(secret(join(directory, "notes.txt"), { DOCKER_CONFIG: homedir() })).toBe(false)
   })
 
   it("reads a variable's name and a path in any case, as Windows does", ({ directory }) => {

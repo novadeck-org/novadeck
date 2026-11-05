@@ -5,7 +5,7 @@ import { basename, isAbsolute, join, relative } from "node:path"
 import type { CompanionItem, TerminalMessages } from "@novadeck/protocol"
 
 import { planTitle } from "../companions/content.js"
-import { secret } from "../companions/secrets.js"
+import { secrets } from "../companions/secrets.js"
 import { DomainError } from "../errors.js"
 import type { Activity } from "../harnesses/activity.js"
 import type { Messaging } from "../messaging/messaging.js"
@@ -297,15 +297,14 @@ export class TerminalPeers {
       ...shown.flatMap((item) => (item.kind === "file" && !item.secret && item.path) || []),
       ...(terminal.work?.files ?? []),
     ]
+    const held = secrets(this.options.environment?.())
     return {
       cwd,
       branch: await this.branch(cwd),
       folders: busiestFolders(terminal.work?.folders ?? {})
         .map(({ folder }) => inside(folder))
         .filter((path) => path !== undefined),
-      files: files
-        .filter((path) => inside(path) && !secret(path, this.options.environment?.()))
-        .map((path) => basename(path)),
+      files: files.filter((path) => inside(path) && !held(path)).map((path) => basename(path)),
     }
   }
 

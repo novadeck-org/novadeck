@@ -1,4 +1,5 @@
 import { existsSync, realpathSync } from "node:fs"
+import { homedir } from "node:os"
 import { delimiter, dirname, isAbsolute, join, resolve, sep } from "node:path"
 
 import { harnesses } from "@novadeck/protocol"
@@ -13,6 +14,9 @@ const secretNames = [
   /^\.envrc$/i,
   /^\.?credentials(\.[\w.]+)?$/i,
   /^oauth_creds\.json$/i,
+  // Antigravity's login where the system has no keyring, and agents' MCP logins.
+  /^antigravity-oauth-token$/i,
+  /^mcp[-_]oauth[-_]tokens\.json$/i,
   /^\.yarnrc\.yml$/i,
   /^\.s3cfg$/i,
   /^rclone\.conf$/i,
@@ -115,7 +119,11 @@ export const secrets = (env: NodeJS.ProcessEnv = process.env): ((path: string) =
   const places = (variable: string) =>
     placesOf(env[variable] ?? upper.get(variable), listVariables.has(variable))
   const homes = logins.map((login) => ({ ...login, moved: places(login.variable) }))
-  const folders = folderVariables.flatMap(places)
+  // Never the person's own home or a folder above it: that would hold all their work.
+  const own = fold(homedir())
+  const folders = folderVariables
+    .flatMap(places)
+    .filter((place) => place !== own && !own.startsWith(place + sep))
   const files = new Set(fileVariables.flatMap(places))
   return (path) => {
     // Either separator, in any case: an agent on Windows may name a path with both.

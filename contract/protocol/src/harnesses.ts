@@ -56,8 +56,9 @@ export const harnesses = [
     shortName: "Antigravity",
     nodeScript: undefined,
     inheritedEnv: ["ANTIGRAVITY_CONVERSATION_ID"],
-    // It keeps its login in the system's keyring; Gemini's `oauth_creds.json`, beside its
-    // home, holds secrets by that name wherever the folder is.
+    // It keeps its login in the system's keyring, or without one in its home as
+    // `antigravity-oauth-token`; that and Gemini's `oauth_creds.json`, beside its home, hold
+    // secrets by those names wherever the folders are.
     logins: [],
     // It runs the command, but keeps no record of it: the output shows only in the terminal.
     recordsShell: false,
