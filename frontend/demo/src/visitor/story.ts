@@ -1,3 +1,4 @@
+import type { Conversations } from "@novadeck/core/conversation"
 import type { Backend, BackendSink, TerminalKey } from "@novadeck/core/port"
 import type { TerminalMetadata, Workspace } from "@novadeck/core/types"
 
@@ -137,7 +138,7 @@ export const visitorStory = (
       if (step !== "review" || !latest || asking(latest)) return
       step = "done"
       const terminal = terminalOf(latest, codex)
-      if (reviewing(terminal)) turns.ask(codex, terminal, "permission", 1)
+      if (reviewing(terminal) && !turns.working(codex)) turns.ask(codex, terminal, "permission", 1)
     }
     // Claude Code's plan comes, if it is still at its reading: the visitor may have stopped
     // it, and the commit that opened the desk may not have come yet.
@@ -202,5 +203,18 @@ export const visitorStory = (
       },
     }
   }
-  return { transcripts, wrap }
+  // A line the visitor sends Codex while it reviews reaches it at once, as a real Codex takes
+  // what is typed mid-turn: the review, which no turn of the demo's is behind, gives way to a
+  // turn on the line, as Escape ends it. Without this the line would wait behind a review
+  // that ends only once the visitor has dealt with Claude Code.
+  const converse = (conversations: Conversations): Conversations => ({
+    ...conversations,
+    send: (key, prompt, options) => {
+      const terminal = terminalOf(latest, key)
+      if (same(key, codex) && reviewing(terminal) && !turns.working(codex) && prompt.trim())
+        turns.rest(codex, terminal)
+      return conversations.send(key, prompt, options)
+    },
+  })
+  return { transcripts, wrap, converse }
 }
