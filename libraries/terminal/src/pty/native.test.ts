@@ -36,6 +36,10 @@ const spawn = (args = [ptyChild], options: { useConptyDll?: boolean } = {}) => {
     env: { ...process.env, ...ptyChildEnv },
     cols: 80,
     rows: 24,
+    // On Windows, the ConPTY node-pty bundles, as `spawnPty` runs every terminal on. The
+    // system's (on Server 2025) delivers each line of input a second or more late, and
+    // under CI load past these waits: a host Novadeck never runs on.
+    useConptyDll: process.platform === "win32",
     ...options,
   })
   const events = new EventEmitter()

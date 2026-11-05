@@ -4,7 +4,7 @@ import { once } from "node:events"
 import { describe, expect, it, vi } from "vitest"
 
 import { nativeStandIn } from "../testing.js"
-import { forceKill, spawnPty, type ProcessTrees } from "./pty.js"
+import { forceKill, spawnPty, type NativeSpawn, type ProcessTrees } from "./pty.js"
 
 // A stand-in for node-pty's terminal, which on Windows throws on any signal.
 // `pid` null: node-pty doesn't know the process yet.
@@ -111,6 +111,24 @@ const start = (standIn: ReturnType<typeof nativeStandIn>, platform: NodeJS.Platf
   })
 
 describe("a pty", () => {
+  it("runs on node-pty's bundled ConPTY on Windows, as the system's takes input late", () => {
+    for (const platform of ["win32", "linux", "darwin"] as const) {
+      const standIn = nativeStandIn({ conpty: platform === "win32" })
+      const native = vi.fn<NativeSpawn>(standIn.spawn)
+      spawnPty({
+        file: "shell",
+        args: [],
+        cwd: "/",
+        env: {},
+        cols: 80,
+        rows: 24,
+        platform,
+        native,
+      })
+      expect(native.mock.calls[0]?.[2].useConptyDll).toBe(platform === "win32")
+    }
+  })
+
   it("has no process id while a ConPTY names it 0, and drew once output arrived", () => {
     const standIn = nativeStandIn({ conpty: true })
     const pty = start(standIn, "win32")
