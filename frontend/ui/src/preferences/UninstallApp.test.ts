@@ -3,7 +3,7 @@ import { render } from "@novadeck/test-kit/render"
 import { act, createElement } from "react"
 import { vi } from "vitest"
 
-import { describe, expect, it } from "../test"
+import { describe, eventually, expect, it } from "../test"
 import { UninstallApp, type UninstallValue } from "./UninstallApp"
 
 const ready: OfferedUninstall = {
@@ -116,8 +116,9 @@ describe("the uninstall dialog of a copy the app removes", () => {
       button("Uninstall", dialog()!)?.click()
       await Promise.resolve()
     })
-    await settle()
-    expect(dialog()?.querySelector("[role=alert]")?.textContent).toBe("Disk busy.")
+    await eventually(() =>
+      expect(dialog()?.querySelector("[role=alert]")?.textContent).toBe("Disk busy."),
+    )
     expect(button("Uninstall", dialog()!)?.disabled).toBe(false)
     unmount()
   })
@@ -133,8 +134,9 @@ describe("the uninstall dialog of a copy the app removes", () => {
       button("Continue", dialog()!)?.click()
       await Promise.resolve()
     })
-    await settle()
-    expect(dialog()?.textContent).toMatch(/Novadeck is closing for its uninstaller\./)
+    await eventually(() =>
+      expect(dialog()?.textContent).toMatch(/Novadeck is closing for its uninstaller\./),
+    )
     expect(dialog()?.querySelectorAll("button")).toHaveLength(0)
     unmount()
   })
@@ -150,8 +152,7 @@ describe("the uninstall dialog of a copy the app removes", () => {
       button("Uninstall", dialog()!)?.click()
       await Promise.resolve()
     })
-    await settle()
-    expect(dialog()?.textContent).toMatch(/Novadeck is uninstalled\./)
+    await eventually(() => expect(dialog()?.textContent).toMatch(/Novadeck is uninstalled\./))
     expect(dialog()?.querySelector("code")?.textContent).toBe("sudo rm /etc/apparmor.d/novadeck")
     expect(button("Copy", dialog()!)).toBeDefined()
     expect(button("Cancel", dialog()!)).toBeUndefined()
@@ -167,8 +168,7 @@ describe("the uninstall dialog of a copy the app removes", () => {
       button("Uninstall", dialog()!)?.click()
       await Promise.resolve()
     })
-    await settle()
-    expect(dialog()?.textContent).toMatch(/Novadeck is uninstalled\./)
+    await eventually(() => expect(dialog()?.textContent).toMatch(/Novadeck is uninstalled\./))
     expect(button("Copy", dialog()!)).toBeUndefined()
     expect(button("Quit", dialog()!)).toBeDefined()
     unmount()
@@ -178,8 +178,7 @@ describe("the uninstall dialog of a copy the app removes", () => {
     const { container, unmount } = mount(ready)
     await open(container)
     await act(async () => button("Cancel", dialog()!)?.click())
-    await settle()
-    expect(dialog()).toBeNull()
+    await eventually(() => expect(dialog()).toBeNull())
     unmount()
   })
 
@@ -217,9 +216,10 @@ describe("the uninstall dialog of a copy the app removes", () => {
       button("Uninstall", dialog()!)?.click()
       await Promise.resolve()
     })
-    await settle()
-    expect(dialog()?.querySelector("[role=alert]")?.textContent).toBe(
-      "Disk busy. Claude Code and Codex were disconnected; connect them again in Preferences if you keep Novadeck.",
+    await eventually(() =>
+      expect(dialog()?.querySelector("[role=alert]")?.textContent).toBe(
+        "Disk busy. Claude Code and Codex were disconnected; connect them again in Preferences if you keep Novadeck.",
+      ),
     )
     // The agents are off now, but the retry still names them.
     rerender(

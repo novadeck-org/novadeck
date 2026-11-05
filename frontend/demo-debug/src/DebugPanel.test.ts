@@ -30,6 +30,7 @@ const groups: readonly DemoActionGroup[] = [
           throw new Error("No such fixture")
         },
       },
+      { label: "Crash", hint: "The crash screen", run: ({ crash }) => crash() },
     ],
   },
   {
@@ -151,7 +152,7 @@ describe("demo debug panel", () => {
       panel.click(panel.handle())
       expect(panel.actions()).toEqual([])
       panel.click(panel.toggle("Selected terminal"))
-      expect(panel.actions()).toEqual(["Exit code 3", "Work", "Again", "Breaks"])
+      expect(panel.actions()).toEqual(["Exit code 3", "Work", "Again", "Breaks", "Crash"])
       expect(panel.toggle("Selected terminal").getAttribute("aria-expanded")).toBe("true")
       panel.click(panel.toggle("Selected terminal"))
       expect(panel.actions()).toEqual([])
@@ -291,6 +292,19 @@ describe("demo debug panel", () => {
       expect(panel.view.container.querySelector('[role="status"]')?.textContent).toBe(
         "Error: No such fixture",
       )
+    })
+
+    it("throws from its own render when an action asks to crash, for the app's crash screen", () => {
+      const panel = mount()
+      panel.click(panel.handle())
+      panel.click(panel.toggle("Selected terminal"))
+      const crash = [...panel.view.container.querySelectorAll<HTMLElement>(".debug-action")].find(
+        (each) => each.textContent?.startsWith("Crash"),
+      )!
+      // React reports the error it throws; the test needn't print it.
+      vi.spyOn(console, "error").mockImplementation(() => {})
+      expect(() => panel.click(crash)).toThrow("The demo's debug panel threw, as asked.")
+      mounted.splice(0)
     })
 
     it("renders a repeated note anew, so it is announced again", () => {

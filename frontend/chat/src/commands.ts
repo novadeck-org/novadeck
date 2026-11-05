@@ -38,15 +38,15 @@ export type ChatCommands = {
   // names, in its own field, at once, or else as a prompt, in its turn. They leave the draft
   // at once, so the box is free for the next words, whether or not the chat stays on screen.
   // A prompt goes once the one before it reached the agent's record, where the backend
-  // tells (`Conversation.prompts`), else once it went. The promise resolves once the words
-  // went, or came back to the box with others' that didn't; it rejects with why they didn't
-  // go, when they come back, before whatever was typed meanwhile, with every prompt queued
-  // after them. A reply goes one at a time.
-  readonly sendChat: (key: TerminalKey, text: string, to: ChatReply | null) => Promise<void>
+  // tells (`Conversation.prompts`), else once it went. The promise resolves true once the
+  // words went, and false once they came back to the box unsent, with others' that didn't go
+  // or at a Stop; it rejects with why they didn't go, when they come back, before whatever
+  // was typed meanwhile, with every prompt queued after them. A reply goes one at a time.
+  readonly sendChat: (key: TerminalKey, text: string, to: ChatReply | null) => Promise<boolean>
   // Stops the agent's turn, as Escape in its TUI does. The prompts queued in the chat are
   // never sent after it: they come back to the box after the words the agent handed back,
-  // and before what the box holds. Rejects as `Conversations.interrupt` does, the queued
-  // prompts back in the box all the same.
+  // and before what the box holds, their sends resolving false. Rejects as
+  // `Conversations.interrupt` does, the queued prompts back in the box all the same.
   readonly stopChat: (key: TerminalKey) => Promise<void>
   // Sets the question the terminal's draft replies to in a session, or that it is held.
   readonly setChatReply: (context: string, terminalId: string, to: ChatReplyTo | null) => void
@@ -81,7 +81,7 @@ export const createChatCommands = ({
   // How each prompt's promise settles, by ref, while it waits in the queue or goes.
   const settles = new Map<
     string,
-    { readonly resolve: () => void; readonly reject: (failure: unknown) => void }
+    { readonly resolve: (went: boolean) => void; readonly reject: (failure: unknown) => void }
   >()
   // What follows each prompt sent until its receipt says whether the record has it, by ref.
   const watches = new Map<string, () => void>()
@@ -95,9 +95,9 @@ export const createChatCommands = ({
     })
 
   // Takes the sends `taken` picks out of the terminal's queue and puts their drafts back in
-  // the box, in order, ahead of whatever it holds now. Their promises resolve, but for the
-  // one `failed` names, which rejects with why. Nothing goes back for a terminal that closed
-  // meanwhile, whose draft went with it.
+  // the box, in order, ahead of whatever it holds now. Their promises resolve false, as
+  // unsent, but for the one `failed` names, which rejects with why. Nothing goes back for a
+  // terminal that closed meanwhile, whose draft went with it.
   const handBack = (
     key: TerminalKey,
     taken: (send: ChatSend) => boolean,
@@ -127,7 +127,7 @@ export const createChatCommands = ({
       const settle = settles.get(send.ref)
       settles.delete(send.ref)
       if (failed && failed[0] === send.ref) settle?.reject(failed[1])
-      else settle?.resolve()
+      else settle?.resolve(false)
     }
   }
 
@@ -203,7 +203,7 @@ export const createChatCommands = ({
       (result) => {
         const settle = settles.get(next.ref)
         settles.delete(next.ref)
-        settle?.resolve()
+        settle?.resolve(true)
         if (!sendsOf(key).some((send) => send.ref === next.ref)) return
         if (!result?.tracked) return finished(key, next.ref, false)
         update(key, (all) =>
@@ -221,7 +221,7 @@ export const createChatCommands = ({
     )
   }
 
-  const sendReply = async (key: TerminalKey, text: string, to: ChatReply): Promise<void> => {
+  const sendReply = async (key: TerminalKey, text: string, to: ChatReply): Promise<boolean> => {
     const context = contextOf(key)
     const { terminalId } = key
     if (chatReplySendOf(chat.store.getSnapshot().sends, context, terminalId) !== null)
@@ -243,16 +243,21 @@ export const createChatCommands = ({
       handBack(key, (send) => send.ref === ref)
       throw failure
     }
+    // The reply ends with its answer. Words typed while it went were written as a reply, so
+    // they are held for the person's edit, as for a reply whose question went, never sent as
+    // a message unread.
     chat.update((state) => {
       const replied = sameReply(chatReplyOf(state.replies, context, terminalId), to)
+      const typed = chatDraftOf(state.drafts, context, terminalId).trim() !== ""
       return {
         ...state,
         sends: withSend(state.sends, context, terminalId, ref, () => null),
         ...(replied && {
-          replies: setChatReply(state.replies, context, terminalId, null),
+          replies: setChatReply(state.replies, context, terminalId, typed ? "held" : null),
         }),
       }
     })
+    return true
   }
 
   return {
@@ -287,7 +292,7 @@ export const createChatCommands = ({
       // The draft as typed goes back on a failure, not the words as sent, trimmed.
       const draft = chatDraftOf(chat.store.getSnapshot().drafts, context, terminalId) || text
       const ref = promptRef()
-      const sent = new Promise<void>((resolve, reject) => settles.set(ref, { resolve, reject }))
+      const sent = new Promise<boolean>((resolve, reject) => settles.set(ref, { resolve, reject }))
       chat.update((state) => ({
         ...state,
         drafts: setChatDraft(state.drafts, context, terminalId, ""),
@@ -332,7 +337,7 @@ export const createChatCommands = ({
             ),
           }))
         for (const send of queued) {
-          settles.get(send.ref)?.resolve()
+          settles.get(send.ref)?.resolve(false)
           settles.delete(send.ref)
         }
       }
