@@ -320,6 +320,7 @@ describe("the lead of an agent found gone", () => {
       ["claude", "/quit"],
       ["codex", "/quit"],
       ["agy", "/exit"],
+      ["agy", "/quit"],
     ] as const) {
       const { ends, worker } = led()
       worker.bound = { binding: { agent, sessionId: "s1", instance: null } } as Record["bound"]
@@ -328,8 +329,8 @@ describe("the lead of an agent found gone", () => {
       vi.advanceTimersByTime(pollMs)
       expect(worker.summary.ledBy).toBeNull()
     }
-    // Text, another command, and an exit command of another agent are none.
-    for (const typed of ["hello\r", "/clear\r", "/exit", "/quit\r"]) {
+    // Text, another command, and an exit command not yet submitted are none.
+    for (const typed of ["hello\r", "/clear\r", "/exit", "/exits\r"]) {
       const { ends, worker } = led()
       worker.bound = {
         binding: { agent: "agy", sessionId: "s1", instance: null },

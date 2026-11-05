@@ -195,9 +195,12 @@ The rules that keep this safe:
   leave one behind its agent's trust screen, starts its agent again with the command
   it was opened with, so it stays led and its brief still waits. On Windows,
   which ends every console program just before its shell as it shuts down, an agent
-  found gone ends its lead only once its shell has outlived it for a sample's time
-  (`processPollMs`, a second), unless the runner stops or the shell ends or restarts
-  meanwhile, so a worker ended by a reboot resumes still led; that end is saved with the
+  found gone ends its lead only once its shell has outlived it for a grace of 30 samples
+  (`processPollMs` each, 30 s), or one sample when the person's Ctrl+C, Ctrl+D or the
+  harness's exit command (`exitCommands`) came just before, and never while the desktop's
+  word that the session is ending holds (15 min), unless the runner stops or the shell
+  ends or restarts meanwhile, so a worker ended by a reboot resumes still led; another
+  session started in the shell meanwhile ends the lead at once; that end is saved with the
   terminal's next save, with the session to resume it lets go of then. `ledBy` is
   cleared, saved and announced, messaging stops treating the former lead as one for
   later sends, and its messages still waiting for that terminal's first session, its

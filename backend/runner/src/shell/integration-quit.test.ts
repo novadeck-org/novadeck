@@ -43,7 +43,8 @@ const windows = () => {
   return back
 }
 
-describe.skipIf(process.platform === "win32" || !existsSync(bash))(
+// Windows is stubbed over Linux shells; macOS adds nothing to that but CI time.
+describe.skipIf(process.platform !== "linux" || !existsSync(bash))(
   "restoring a lead's teammates after Windows ended their agents",
   () => {
     // A lead, moth, opens a teammate that binds and finishes a turn; its agent then ends

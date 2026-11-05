@@ -1682,11 +1682,6 @@ export class Terminals {
     if (binding === null || moved) this.murmur?.prompted(record.summary.id, entered || moved)
   }
 
-  /** Shows a transcript on the record's fresh screen, ahead of its shell's output. */
-  private show(record: Record, transcript: string, savedAt: Date | null): Promise<void> {
-    return showRestored(record.terminal, transcript, savedAt, record.summary.id)
-  }
-
   /** The shell exited: the agent layer lets go of it, before its viewers read the exit. */
   private exited(record: Record): void {
     this.bindings.exited(record)

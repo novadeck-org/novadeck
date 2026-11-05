@@ -162,10 +162,9 @@ export class Saves {
    */
   persist(): void {
     // The system is ending the session: no agent's end counts from here on.
-    for (const record of this.host.records()) {
-      record.ending = Date.now()
-      record.goneSession = undefined
-    }
+    // A pending end's session stays marked, so another session started after a cancelled
+    // shutdown still ends the gone agent's lead at once.
+    for (const record of this.host.records()) record.ending = Date.now()
     this.flush()
     void this.finish()
   }
