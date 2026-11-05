@@ -20,6 +20,7 @@ const root = fileURLToPath(new URL("..", import.meta.url))
 
 // What to re-check in reuse-language-encode.patch when whisper.cpp changes: it skips the decode
 // loop's first encode on the strength of what language detection just left in the state.
+const encoderPatch = "reuse-language-encode.patch"
 const encoderReview = [
   "The patch skips the first encode of whisper_full_with_state's loop because language",
   "detection has just encoded the window at seek 0. On the new whisper.cpp, check that",
@@ -66,12 +67,11 @@ export const main = (): Promise<void> =>
       "-DWHISPER_SDL2=OFF",
     ],
     windowsBuild: { env: "NOVADECK_WHISPER_BUILD", folder: "nvw" },
+    checkSource: async (source) => {
+      await requireReviewedFile(source, join(root, "patches", encoderPatch), encoderReview)
+      console.log(`src/whisper.cpp is the file ${encoderPatch} was reviewed against`)
+    },
     extras: async (source, staging) => {
-      await requireReviewedFile(
-        source,
-        join(root, "patches", "reuse-language-encode.patch"),
-        encoderReview,
-      )
       await cp(join(source, "samples", "jfk.wav"), join(staging, "check.wav"))
       await cp(join(source, "LICENSE"), join(staging, "LICENSE"))
     },
