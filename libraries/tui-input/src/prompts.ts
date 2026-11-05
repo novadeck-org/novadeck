@@ -13,7 +13,7 @@ import { bracketedPaste } from "./typing.js"
  * - `refused`: the caller's `refuse` rule judged the text, and said why in the message;
  * - `gone`: the terminal ended, or the hold on the person's input lapsed, while it waited;
  * - `no-paste`: the screen takes no bracketed paste;
- * - `no-box`: the program's input box is not on its screen;
+ * - `no-box`: the program's input box is not on its screen, or a view of the program covers it;
  * - `shell-mode`: the box is in its shell mode already, where a message would run;
  * - `draft`: the box holds text already, which the prompt would merge into;
  * - `too-tall`: the text shows whole in a box with no room for it on this screen;
@@ -297,7 +297,8 @@ export class Prompts {
         }
       }
       // The person's keys wait until the Enter is out, so none comes between the paste and it.
-      if (pressed) this.host.type(terminalId, "\r")
+      // An Enter that can't be written leaves the text as a draft of a terminal gone.
+      if (pressed && !this.host.type(terminalId, "\r")) throw this.gone()
     } catch (error) {
       hold.settle()
       throw error
@@ -325,11 +326,15 @@ export class Prompts {
   }
 
   /**
-   * The screen once the box reads empty in its prompt mode, within `emptyMs`: a draft the
-   * person left, or a failed paste's, never goes, and is refused then; the TUI still
-   * clearing the text of a prompt just sent does, as does a shell mode that a command's
-   * Enter is leaving. A box left in its shell mode, even empty, would run a message as a
-   * command: refused all the same, to be cleared in the terminal.
+   * The screen once the box reads empty in its prompt mode, with no view of the program over
+   * it, steady on two reads running, within `emptyMs`: a draft the person left, or a failed
+   * paste's, never goes, and is refused then; the TUI still clearing the text of a prompt
+   * just sent does, as does a shell mode that a command's Enter is leaving. One empty read is
+   * not enough, as a key the person typed just before the hold may not show on it yet. A box
+   * left in its shell mode, even empty, would run a message as a command: refused all the
+   * same, to be cleared in the terminal. An empty box read off a view (`BoxProfile.overlay`,
+   * a history search or a transcript) is no box: the paste would go to the view, and its
+   * Enter act in it. A hold that lapsed meanwhile refuses it as `gone`, whatever the box.
    */
   private async emptied(
     terminalId: string,
@@ -339,11 +344,18 @@ export class Prompts {
   ): Promise<ScreenText> {
     const until = Date.now() + this.emptyMs
     let now = first
+    // Where the box read empty on the read before, if it did.
+    let seen: string | undefined
     for (;;) {
+      if (!holding()) throw this.gone()
       const box = profile.read(now)
-      if (box && box.mode === "prompt" && isEmpty(box)) return now
-      if (Date.now() >= until || !holding())
-        throw !box
+      const view = box !== undefined && profile.overlay(now)
+      const empty = box !== undefined && box.mode === "prompt" && isEmpty(box) && !view
+      const key = empty ? `${box.first}:${box.last}` : undefined
+      if (key !== undefined && key === seen) return now
+      // A box first seen empty as the time is up is given its second read.
+      if (Date.now() >= until && (key === undefined || seen !== undefined))
+        throw !box || view || empty
           ? new PromptRefusal("no-box", "The input box is not on the screen.")
           : box.mode === "shell"
             ? new PromptRefusal("shell-mode", "The input box is in its shell mode.")
@@ -351,6 +363,7 @@ export class Prompts {
                 "draft",
                 "The input box holds text already: a draft the prompt would merge into.",
               )
+      seen = key
       // eslint-disable-next-line no-await-in-loop -- The screen is looked at in turn.
       await sleep(this.pollMs)
       // eslint-disable-next-line no-await-in-loop -- As above.
@@ -430,7 +443,7 @@ export class Prompts {
    * viewport (see `showsTail`), or only the placeholder its TUI shows for a
    * long paste (for a command, only where its shell runs the text the placeholder stands
    * for: `unexpanded` where it showed only a placeholder it would run as text). A box that
-   * went into its shell mode as a message landed never counts.
+   * went into its shell mode as a message landed never counts, nor one under a view.
    */
   private async landed(
     terminalId: string,
@@ -449,7 +462,8 @@ export class Prompts {
       const after = await this.host.screen(terminalId)
       if (!after) return false
       const box = profile.read(after)
-      const right = box !== undefined && box.mode === mode
+      // A view opened over the box as the text landed would take the Enter.
+      const right = box !== undefined && box.mode === mode && !profile.overlay(after)
       // A text taller than the box's viewport shows only its tail, the box then full.
       const holds =
         right && (sameText(box.text, text) || showsTail(profile, box, after.rows.length, text))
