@@ -36,15 +36,47 @@ const running = (pid: number): boolean => {
   }
 }
 
+// Whether creating a lock failed because another holds it. On Windows a lock just deleted
+// can still be pending deletion, which reads as EPERM until its last handle closes.
+const held = (error: unknown): boolean => {
+  const code = (error as NodeJS.ErrnoException).code
+  return (
+    code === "EEXIST" || (process.platform === "win32" && (code === "EPERM" || code === "EACCES"))
+  )
+}
+
+// Removes a lock its holder left behind, only while it still reads `seen`: two waiters can
+// find the same dead lock, and the second must not delete the lock the first took after.
+// Only one waiter at a time takes over, behind a second lock of its own.
+const takeOver = (file: string, seen: string): void => {
+  const guard = `${file}.takeover`
+  try {
+    closeSync(openSync(guard, "wx"))
+  } catch (error) {
+    if (!held(error)) throw error
+    // A takeover is a read and a delete; one older than that died on the way.
+    const age = Date.now() - (statSync(guard, { throwIfNoEntry: false })?.mtimeMs ?? Date.now())
+    if (age > 10_000) rmSync(guard, { force: true })
+    return
+  }
+  try {
+    if (readFileSync(file, "utf8") === seen) rmSync(file, { force: true })
+  } catch {
+    // released meanwhile
+  } finally {
+    rmSync(guard, { force: true })
+  }
+}
+
 // Runs `run` holding `file` as a lock, so two briefs at once (two agents, or a brief beside
-// `check`) don't both build into the same `dist`, nor one read it while the other writes.
+// `check`) don't both build into the same `dist`, nor one load it while the other writes.
 // A lock whose process is gone is taken over, and so is one older than any build takes (its
 // pid may be another process's by now). Waits two minutes at most.
-export const withLock = (
+export const withLock = async (
   file: string,
-  run: () => void,
+  run: () => void | Promise<void>,
   { wait = 120_000, stale = 600_000 } = {},
-): void => {
+): Promise<void> => {
   mkdirSync(dirname(file), { recursive: true })
   const deadline = Date.now() + wait
   for (;;) {
@@ -54,19 +86,20 @@ export const withLock = (
       closeSync(fd)
       break
     } catch (error) {
-      if ((error as NodeJS.ErrnoException).code !== "EEXIST") throw error
+      if (!held(error)) throw error
     }
-    let holder = Number.NaN
+    let seen = ""
     let age = 0
     try {
-      holder = Number(readFileSync(file, "utf8"))
+      seen = readFileSync(file, "utf8")
       age = Date.now() - statSync(file).mtimeMs
     } catch {
       continue // released between the open and the read
     }
+    const holder = Number(seen)
     // An empty lock is one being written: its writer runs.
     if ((Number.isInteger(holder) && holder > 0 && !running(holder)) || age > stale) {
-      rmSync(file, { force: true })
+      takeOver(file, seen)
       continue
     }
     if (Date.now() > deadline)
@@ -74,7 +107,7 @@ export const withLock = (
     sleep(100)
   }
   try {
-    run()
+    await run()
   } finally {
     rmSync(file, { force: true })
   }
@@ -88,8 +121,9 @@ export const withLock = (
 // Windows. For terminal that is the first of its build's three steps (the view build and the
 // copied test child follow it); the extractor needs only the main entry. The build's own
 // output goes to stderr, so a failing build explains itself and stdout stays the caller's.
-export const ensureBuilt = (repo: string): void =>
-  withLock(join(repo, "node_modules", ".atlas-build.lock"), () => {
+// A turbo build of the same packages beside it is outside the lock.
+export const ensureBuilt = (repo: string): Promise<void> =>
+  withLock(join(repo, "node_modules", ".atlas-build.lock"), async () => {
     let rebuilt = false
     // Each with a file its build writes: the emulator has no index, only its subpaths.
     for (const [name, folder, output] of [
@@ -116,4 +150,7 @@ export const ensureBuilt = (repo: string): void =>
         stdio: ["ignore", 2, 2],
       })
     }
+    // Loaded while the lock is held, so no other brief rebuilds it under this one; the
+    // extractors' own imports of it then come from Node's module cache.
+    await import("@novadeck/protocol")
   })
