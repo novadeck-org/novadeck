@@ -251,9 +251,12 @@ export class Reports {
         if (record.suspended !== null && next.binding.instance !== record.suspended)
           this.host.bindings().endLead(record)
         // Another session than the one that ended, while its lead waits to end: started by
-        // the person, whom that lead never directed. The same session resumed is no other.
-        if (record.goneSession !== undefined && next.binding.sessionId !== record.goneSession)
-          this.host.bindings().endLead(record)
+        // the person, whom that lead never directed. The same session resumed is no other,
+        // and from then on its own later sessions (a `/clear`) are its agent's as ever.
+        if (record.goneSession !== undefined) {
+          if (next.binding.sessionId !== record.goneSession) this.host.bindings().endLead(record)
+          record.goneSession = undefined
+        }
         record.suspended = null
         boundProgram(record, next.binding.agent)
       }

@@ -508,8 +508,8 @@ resume, and a worker stays led, until its shell has outlived the agent by 30 sec
 Windows ends the agents before their shells as it shuts down, and an agent ended that way
 still resumes, so a team comes back as a team after a reboot. Once Windows says the
 session is ending, no agent's end counts for 15 minutes. An agent you end yourself with
-Ctrl+C, Ctrl+D or its exit command (`/exit`, `/quit`) lets go after a second. A terminal
-that was running an agent and comes back without it says why. A worker whose agent hadn't
+Ctrl+C, Ctrl+D or its exit command (`/exit`, `/quit`) lets go after a second. On every
+system, a terminal whose agent Novadeck was asked to resume and couldn't says why. A worker whose agent hadn't
 started its first session yet, as one still at its trust screen, starts that agent again
 with its task, still led.
 

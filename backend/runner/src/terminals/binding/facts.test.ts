@@ -393,7 +393,7 @@ describe("the lead of an agent found gone", () => {
     on("win32")
     const { ends, worker, ended } = led()
     ends.endLeadGone(worker)
-    // A cancelled shutdown's persist forgot it, so the new binding didn't end the lead.
+    // Forgotten, as once the same session bound again and then switched to another.
     worker.goneSession = undefined
     worker.bound = {
       binding: { agent: "claude", sessionId: "s-other", instance: null },

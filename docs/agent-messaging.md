@@ -196,12 +196,13 @@ The rules that keep this safe:
   it was opened with, so it stays led and its brief still waits. On Windows,
   which ends every console program just before its shell as it shuts down, an agent
   found gone ends its lead only once its shell has outlived it for a grace of 30 samples
-  (`processPollMs` each, 30 s), or one sample when the person's Ctrl+C, Ctrl+D or the
-  harness's exit command (`exitCommands`) came just before, and never while the desktop's
-  word that the session is ending holds (15 min), unless the runner stops or the shell
-  ends or restarts meanwhile, so a worker ended by a reboot resumes still led; another
-  session started in the shell meanwhile ends the lead at once; that end is saved with the
-  terminal's next save, with the session to resume it lets go of then. `ledBy` is
+  (`processPollMs` each, 30 s). The grace is one sample when the person's Ctrl+C, Ctrl+D
+  or the harness's exit command (`exitCommands`) came just before. While the desktop's
+  word that the session is ending holds (15 min), no end counts until it lapses. The
+  runner stopping, or the shell ending or restarting meanwhile, keeps the lead, so a
+  worker ended by a reboot resumes still led. Another session started in the shell
+  meanwhile ends the lead at once. The end is saved with the terminal's next save, with
+  the session to resume it lets go of then. `ledBy` is
   cleared, saved and announced, messaging stops treating the former lead as one for
   later sends, and its messages still waiting for that terminal's first session, its
   brief among them, become gone, with the sender told, so they never reach an agent
