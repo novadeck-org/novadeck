@@ -205,6 +205,7 @@ const panel = (selected: string | undefined, { keeping }: { keeping?: number } =
     dispatch: (actions: readonly BackendAction[]) => void workspace.transact(actions),
     workspace: () => workspace.getSnapshot(),
     note: (text) => void notes.push(text),
+    crash: () => {},
   }
   const read = vi.fn<NonNullable<Inbox["readFinishes"]>>()
   const states = createDemoStates(
@@ -531,6 +532,7 @@ describe("demo states", () => {
         dispatch: () => {},
         workspace: () => only,
         note: (text) => void notes.push(text),
+        crash: () => {},
         target: "project",
       })
       expect(notes).toEqual(["Add another project with a terminal first."])
@@ -701,6 +703,7 @@ const openOver = (variant: "plain" | "agents") => {
     dispatch: (batch) => void workspace.transact(batch as never),
     workspace: () => workspace.getSnapshot(),
     note: () => {},
+    crash: () => {},
   }
   const states = createDemoStates(turns)
   const run = (label: string): void =>

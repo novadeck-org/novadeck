@@ -124,6 +124,7 @@ export const createDebugPanel = ({
     const [query, setQuery] = useState("")
     const [opened, setOpened] = useState(readOpened)
     const [target, setTarget] = useState(readTarget)
+    const [crashed, setCrashed] = useState(false)
     const toggle = useRef<HTMLButtonElement>(null)
     const search = useRef<HTMLInputElement>(null)
     const body = useRef<HTMLDivElement>(null)
@@ -160,6 +161,7 @@ export const createDebugPanel = ({
       dispatch: dispatch(),
       workspace,
       note: setNote,
+      crash: () => setCrashed(true),
     })
     const groups = [
       ...shellGroups({ launch, shell, states }),
@@ -194,6 +196,7 @@ export const createDebugPanel = ({
       setNote("")
       void Promise.resolve(action.run(context())).catch((error: unknown) => setNote(String(error)))
     }
+    if (crashed) throw new Error("The demo's debug panel threw, as asked.")
     // Mounted while closed too: the handle, and where the demo's notifications appear.
     // The drawer stays mounted, so it slides both ways; closed, it is inert below the edge.
     return (
