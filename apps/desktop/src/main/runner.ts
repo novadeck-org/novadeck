@@ -1,5 +1,10 @@
 import type { Logger } from "@novadeck/log"
-import { utilityProcess, type MessagePortMain, type UtilityProcess } from "electron"
+import {
+  utilityProcess,
+  type ForkOptions,
+  type MessagePortMain,
+  type UtilityProcess,
+} from "electron"
 
 import {
   databaseArgumentPrefix,
@@ -23,10 +28,11 @@ export type RunnerProcess = {
    */
   deliver(port: MessagePortMain): boolean
   /**
-   * Ends the runner's shells, then the process; forcibly after `timeoutMs`. Final:
-   * later ports aren't delivered.
+   * Ends the runner's shells, then the process; forcibly after `timeoutMs`, and settles
+   * `exitGraceMs` after that even if the process never exits, so a quit can't hang on it.
+   * Final: later ports aren't delivered.
    */
-  close(timeoutMs?: number): Promise<void>
+  close(timeoutMs?: number, exitGraceMs?: number): Promise<void>
   /** Saves every terminal's restore state now, as when the system session is ending. */
   persist(): void
 }
@@ -41,10 +47,21 @@ export type RunnerEvents = {
   /** It can serve, `ms` after it was forked. */
   readonly ready?: (run: number, ms: number) => void
   /**
-   * Its process exited with `code`: `expected` when the app was closing it. A crash, a
-   * kill or the system's OOM killer says more through `child-process-gone`.
+   * Its process exited with `code`: `expected` when the app was closing it and it ended by
+   * itself, cleanly. A crash, a kill or the system's OOM killer says more through
+   * `child-process-gone`.
    */
   readonly exited?: (run: number, code: number, expected: boolean) => void
+  /**
+   * V8 had to end it (`type` is `FatalError`), at `location`. Its exit follows. The
+   * diagnostic report Electron gives with it is not passed on: it holds the process's
+   * stack, heap and environment.
+   */
+  readonly fatal?: (run: number, type: string, location: string) => void
+  /** It didn't end within `ms` of being asked to close, so it was killed. */
+  readonly killed?: (run: number, ms: number) => void
+  /** It didn't exit even `ms` after it was killed: the close settles without it. */
+  readonly abandoned?: (run: number, ms: number) => void
   /** A line it wrote to its stdout or stderr, as V8 and native code write a fatal error. */
   readonly output?: (run: number, stream: "stdout" | "stderr", line: string) => void
   /** Its stdout or stderr ended, as it does once the process is gone. */
@@ -76,6 +93,18 @@ export const logRunnerEvents = (logger: Logger, echo: boolean): RunnerEvents => 
       // Still said where it always was, as the system's journal keeps a desktop app's output.
       console.error(`Novadeck runner exited unexpectedly (code ${code})`)
     },
+    fatal: (start, type, location) =>
+      runnerLog.error("runner.fatal", "The runner hit an error V8 could not go on from.", {
+        data: { run: start, type, location },
+      }),
+    killed: (start, ms) =>
+      runnerLog.warn("runner.close-timeout", "The runner did not close in time and was killed.", {
+        data: { run: start, ms },
+      }),
+    abandoned: (start, ms) =>
+      runnerLog.error("runner.exit-timeout", "The runner did not exit after it was killed.", {
+        data: { run: start, ms },
+      }),
     outputEnded: (start, stream) => output.end(start, stream),
     output: (start, stream, line) => {
       output.line(start, stream, line)
@@ -106,16 +135,23 @@ export const startRunner = (options: {
   /** How start `run` writes its log: the argument after `logArgumentPrefix`, if it keeps one. */
   log?: (run: number) => string
   events?: RunnerEvents
+  /** How the process is started: Electron's `utilityProcess.fork`, or a test's stand-in. */
+  fork?: (entry: string, args: string[], options: ForkOptions) => UtilityProcess
 }): RunnerProcess => {
-  const { events = {} } = options
+  const {
+    events = {},
+    fork = (entry, args, forkOptions) => utilityProcess.fork(entry, args, forkOptions),
+  } = options
   let child: UtilityProcess | undefined
   let closing: Promise<void> | undefined
+  // Whether closing had to kill the runner, which then didn't end as asked.
+  let killed = false
   let runs = 0
   const spawn = () => {
     runs += 1
     const run = runs
     const forkedAt = performance.now()
-    const worker = utilityProcess.fork(
+    const worker = fork(
       options.entry,
       [
         `${databaseArgumentPrefix}${options.database}`,
@@ -143,13 +179,16 @@ export const startRunner = (options: {
         (line) => events.output?.(run, stream, line),
         () => events.outputEnded?.(run, stream),
       )
+    // Electron emits it when V8 ends the process; with no listener, the emitter would throw
+    // it in the main process, which shows Electron's error dialog over the app.
+    worker.on("error", (type, location) => events.fatal?.(run, type, location))
     worker.on("message", (report: RunnerReport) => {
       if (report?.type === "ready") events.ready?.(run, Math.round(performance.now() - forkedAt))
     })
     worker.once("exit", (code) => {
       if (child === worker) child = undefined
       // The next connection request starts a new runner.
-      events.exited?.(run, code, closing !== undefined)
+      events.exited?.(run, code, closing !== undefined && !killed && code === 0)
     })
     child = worker
     return worker
@@ -168,7 +207,7 @@ export const startRunner = (options: {
     persist() {
       if (child && !closing) send(child, { type: "persist" })
     },
-    close(timeoutMs = 5_000) {
+    close(timeoutMs = 5_000, exitGraceMs = 2_000) {
       clearInterval(beats)
       closing ??= new Promise<void>((resolve) => {
         const worker = child
@@ -176,9 +215,22 @@ export const startRunner = (options: {
           resolve()
           return
         }
-        const timer = setTimeout(() => worker.kill(), timeoutMs)
+        const run = runs
+        let abandon: ReturnType<typeof setTimeout> | undefined
+        const timer = setTimeout(() => {
+          killed = true
+          events.killed?.(run, timeoutMs)
+          worker.kill()
+          // A process stuck past its kill, as in a write to a drive that stopped answering,
+          // must not hold the quit for ever.
+          abandon = setTimeout(() => {
+            events.abandoned?.(run, exitGraceMs)
+            resolve()
+          }, exitGraceMs)
+        }, timeoutMs)
         worker.once("exit", () => {
           clearTimeout(timer)
+          clearTimeout(abandon)
           resolve()
         })
         send(worker, { type: "close" })
