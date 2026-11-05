@@ -147,11 +147,14 @@ fn process(pid: u32, clock: Option<&Clock>) -> Option<Process> {
 }
 
 /// A `/proc/<pid>/stat` line's name, which may hold spaces and brackets, parent (field 4)
-/// and start in clock ticks after boot (field 22), where the line has it.
+/// and start in clock ticks after boot (field 22), where the line has it. The name is the
+/// kernel's `comm`: at most 15 bytes, and what a program sets as its title, where macOS
+/// names a process by the path it was started by. None for a line of any other shape.
 #[cfg(any(target_os = "linux", test))]
 fn stat(line: &str) -> Option<(String, u32, Option<u64>)> {
-    let name = &line[line.find('(')? + 1..line.rfind(')')?];
-    let rest: Vec<&str> = line[line.rfind(')')? + 2..].split(' ').collect();
+    let close = line.rfind(')')?;
+    let name = line.get(line.find('(')? + 1..close)?;
+    let rest: Vec<&str> = line.get(close + 2..)?.split(' ').collect();
     let parent = rest.get(1)?.parse().ok()?;
     let started = rest.get(19).and_then(|ticks| ticks.parse().ok());
     Some((name.to_owned(), parent, started))
@@ -285,6 +288,10 @@ mod tests {
             Some(("agent".into(), 4100, None))
         );
         assert_eq!(stat("garbled"), None);
+        // Cut short, or out of order: nothing, rather than a panic that aborts the hook.
+        assert_eq!(stat("1 (x)"), None);
+        assert_eq!(stat("1 (x) "), None);
+        assert_eq!(stat("1 )("), None);
     }
 
     #[test]

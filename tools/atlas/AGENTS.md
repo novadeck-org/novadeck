@@ -46,6 +46,8 @@ says as a map, not a proof:
   from the reducer; confirm them in the adapter before relying on them.
 - Error lists come from the handler and the router only; deeper helpers may raise more.
 - Before you act on an absence ("nothing writes this table"), check the source.
+- An anchor printed as `file (anchor not found)` has rotted: the text it points at is gone
+  from that file. `pnpm --filter @novadeck/atlas check` lists every such anchor.
 
 The full data is `tools/atlas/src/generated/atlas.json` after `pnpm --filter @novadeck/atlas
 extract`, for `jq`; it is large, so prefer briefs.
@@ -61,7 +63,8 @@ extract`, for `jq`; it is large, so prefer briefs.
   or a distinctive call, not an incidental statement whose wording other refactors change;
   keep a statement only where its text is the claim, as `utilityProcess.fork(` is.
   `pnpm --filter @novadeck/atlas check` fails when an anchor rots, when source under `apps/`, `backend/`, `contract/`, `frontend/`, `harnesses/` or `engines/` belongs to no area, or when a
-  note names an area that no longer exists. `pnpm lint` runs it, so CI's Lint job does too. A new folder becomes a token on its own; give
+  note names an area that no longer exists. `pnpm lint` runs it, so CI's Lint job does too. It reads the working tree, files
+  not yet added included (ignored ones aside), so a stray file can fail it locally while CI passes. A new folder becomes a token on its own; give
   it a purpose in `content/areas.ts` (the index lists a token without one bare). A new package needs a root there.
 - Every structure an extractor depends on (a type, a class, a marker line) is expected, not
   assumed: when it is gone, or a scan that must find something finds nothing, the extractor

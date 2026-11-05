@@ -157,12 +157,75 @@ describe("createRedactor", () => {
       `file://${h("fileserver.acme.corp")}.corp/${h("clients")}/${h("plan", ".md")}`,
     ],
     ["an npm package", "react@19.3.1 and @novadeck/log", "react@19.3.1 and @novadeck/log"],
+    [
+      "a URL's credentials after a long word",
+      `${"x".repeat(40)}https://ana:hunter2@127.0.0.1/`,
+      `${"x".repeat(40)}https://<redacted>@127.0.0.1/`,
+    ],
+    [
+      "what JSON.parse quotes from the middle of its input, in another error's message",
+      'Settings could not be read: Unexpected token \'h\', ..."assword": hunter2xyz"... is not valid JSON',
+      "Settings could not be read: Unexpected token (input withheld)",
+    ],
+    [
+      "what JSON.parse quotes across a line break, in another error's message",
+      "Read failed: Unexpected token 'a', \"ab\ncd private\" is not valid JSON",
+      "Read failed: Unexpected token (input withheld)",
+    ],
+    ["an address after another @", "a@b@c.com", "a@<email>"],
+    [
+      "what JSON.parse quotes, in another error's message",
+      "Settings could not be read: Unexpected token 'm', \"my private\"... is not valid JSON",
+      "Settings could not be read: Unexpected token (input withheld)",
+    ],
   ]
 
   for (const [what, text, written] of cases)
     it(`replaces ${what}`, () => {
       expect(redact(text)).toBe(written)
     })
+
+  it.each([
+    ["a non-ASCII local part", "contact zoë@example.com now", "contact <email> now"],
+    ["a decomposed accent", "contact zoe\u0308@example.com now", "contact <email> now"],
+    ["a Polish name", "od paweł@firma.pl i łukasz@firma.pl", "od <email> i <email>"],
+    ["a non-ASCII domain", "ana@exämple.de failed", "<email> failed"],
+    ["an address in another script", "иван@пример.рф", "<email>"],
+    ["a host alone", "sent to ana@intranet, then ana@devbox.", "sent to <email>, then <email>."],
+    ["an address at a sentence's end", "write to ana@acme.dev.", "write to <email>."],
+  ])("replaces an email address with %s", (_what, text, written) => {
+    expect(redact(text)).toBe(written)
+  })
+
+  it.each([
+    ["a package's version", "installed react@19.3.1 and @types/node@26.6.6"],
+    ["a package's tag", "npx vite@latest and pnpm add vitest@beta, foo@dev and foo@preview"],
+    ["a package's tagged version", "pkg@v1.2.3"],
+    ["a workspace package", "@novadeck/log@workspace:*"],
+    ["a package in the pnpm store", "node_modules/.pnpm/vite@7.1.2_@types+node@26.6.6/x"],
+    ["an image's digest", "node@sha256:0123456789abcdef"],
+    ["a reflog entry", "HEAD@{1} and stash@{0}"],
+    ["a stack frame's address", "render@http://127.0.0.1:41235/assets/index.js:1:2"],
+    ["a scoped package alone", "@scope/name"],
+  ])("keeps %s, which is no email address", (_what, text) => {
+    expect(redact(text)).toBe(text)
+  })
+
+  // Each took seconds before: a pattern that looked again from each character of a long run.
+  it.each([
+    ["a long run of letters", "A".repeat(200_000)],
+    ["a long hex run", "0123456789abcdef".repeat(12_500)],
+    ["a long dotted run before an @", `${"a.".repeat(100_000)}@x`],
+    ["a long dashed host", `a@${"b-".repeat(100_000)}`],
+    ["a long run before a remote's path", `a@b.c:${"d".repeat(200_000)}`],
+    ["a syntax error with a long gap", `SyntaxError: ${" ".repeat(200_000)}x"`],
+    ["many syntax errors with no quote", "SyntaxError: ".repeat(15_000)],
+    ["many remote-like parts", "a@b.c:".repeat(33_000)],
+  ])("redacts %s of 200,000 characters at once", (_what, text) => {
+    const started = performance.now()
+    redact(text)
+    expect(performance.now() - started).toBeLessThan(2_000)
+  })
 
   it.each([
     ["a hex segment", "/home/ana/.config/Code/0123456789abcdef0123456789abcdef/bigbank/state.db"],

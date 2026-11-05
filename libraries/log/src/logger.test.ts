@@ -1,4 +1,4 @@
-import { mkdtempSync, readFileSync, rmSync } from "node:fs"
+import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs"
 import { tmpdir } from "node:os"
 import { join } from "node:path"
 
@@ -40,6 +40,46 @@ const setup = (options: Partial<LoggerOptions> = {}) => {
 }
 
 describe("createLogger", () => {
+  it("says how many lines it couldn't write, before the next it can", () => {
+    const base = mkdtempSync(join(tmpdir(), "novadeck-log-"))
+    folders.push(base)
+    // A file where the folder should be: nothing is written until it goes.
+    const folder = join(base, "logs")
+    writeFileSync(folder, "")
+    let now = Date.UTC(2026, 9, 19, 12)
+    const logger = createLogger({
+      proc: "runner",
+      sid: "launch-1",
+      file: { folder, name: "runner", retryMs: 1_000, now: () => now },
+      redact: (text) => text,
+      now: () => now,
+      pid: 42,
+    })
+    const log = logger.for("doorbell")
+    log.info("doorbell.hold", "One.")
+    log.info("doorbell.hold", "Two.")
+    rmSync(folder)
+    now += 1_000
+    log.info("doorbell.hold", "Three.")
+    logger.close()
+    const written = readFileSync(logPath(folder, "runner"), "utf8")
+      .trim()
+      .split("\n")
+      .map((line) => JSON.parse(line) as Entry)
+    expect(
+      written.map(({ level, src, evt, msg, data }) => ({ level, src, evt, msg, data })),
+    ).toEqual([
+      {
+        level: "warn",
+        src: "log",
+        evt: "log.dropped",
+        msg: "2 lines before this could not be written.",
+        data: { count: 2 },
+      },
+      { level: "info", src: "doorbell", evt: "doorbell.hold", msg: "Three.", data: undefined },
+    ])
+  })
+
   it("writes one JSON line per event, in the envelope", () => {
     const { logger, lines } = setup()
     logger

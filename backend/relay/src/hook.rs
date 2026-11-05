@@ -162,14 +162,17 @@ pub fn run(agent: &str, event: &str, config: &Config) {
     let fallback = || config.fallback(agent, event);
     // The agent's payload, read whole even where it goes unused, so the agent never
     // writes into a closed pipe; within the hook's limit, as an agent may leave it open.
-    let payload = read_payload(deadline);
-    let Some(terminal) = Terminal::from_env() else {
-        return say(&fallback());
-    };
-    let Some(payload) = payload else {
+    let Some(payload) = read_payload(deadline) else {
         return say(&fallback());
     };
     let payload = String::from_utf8_lossy(&payload).into_owned();
+    // Claude Code's status line shows the person's own wherever it runs: outside a terminal
+    // Novadeck can reach as within one.
+    let own = claude_status_line(agent, event).then(|| own_status_line(payload.clone(), deadline));
+    let shown = move || own.and_then(|running| running.join().ok().flatten());
+    let Some(terminal) = Terminal::from_env() else {
+        return say(&shown().unwrap_or_else(fallback));
+    };
     let hello = terminal.hello(
         "hook",
         json!({
@@ -183,10 +186,8 @@ pub fn run(agent: &str, event: &str, config: &Config) {
             "payload": payload,
         }),
     );
-    let own = claude_status_line(agent, event).then(|| own_status_line(payload, deadline));
-    let shown = move || own.and_then(|running| running.join().ok().flatten());
     let Ok(runtime) = endpoint::runtime() else {
-        return say(&fallback());
+        return say(&shown().unwrap_or_else(fallback));
     };
     runtime.block_on(async {
         let left = deadline.saturating_duration_since(Instant::now());

@@ -18,3 +18,18 @@ test("finds statements in templates and strings, and what they do to which table
     { table: "sessions", verb: "read" },
   ])
 })
+
+// A regex such as `/\/*$/`, or a store method part-way through an edit, can leave a `/*`
+// that never closes: the scan skips that line instead of starting over, and still finds the
+// SQL after it.
+test("returns on a block comment that never closes, and reads past it", () => {
+  const code = [
+    'const q = "SELECT 1 FROM terminals"',
+    "const trailing = /\\/*$/",
+    'const r = "SELECT 2 FROM sessions"',
+  ].join("\n")
+  expect(sqlIn(code).map((each) => each.sql)).toEqual([
+    "SELECT 1 FROM terminals",
+    "SELECT 2 FROM sessions",
+  ])
+})

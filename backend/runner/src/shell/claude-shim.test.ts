@@ -1,7 +1,10 @@
 import { spawnSync } from "node:child_process"
-import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs"
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs"
 import { tmpdir } from "node:os"
 import { delimiter, join } from "node:path"
+
+import { claude } from "@novadeck/harness-claude/index"
+import { gitBash } from "@novadeck/sandbox"
 
 import { describe, expect, it as base } from "../test.js"
 import { installShellFiles } from "./install.js"
@@ -9,7 +12,8 @@ import { installShellFiles } from "./install.js"
 const windows = process.platform === "win32"
 
 type Fixture = {
-  run: (args: string[], env?: NodeJS.ProcessEnv) => string[]
+  root: string
+  run: (args: string[], env?: NodeJS.ProcessEnv, cwd?: string) => string[]
   bin: string
   real: string
   settings: string
@@ -41,7 +45,7 @@ const it = base.extend<{ shim: Fixture }>({
         },
       )
     const settings = join(paths.plugins.claude, "statusline.json")
-    const run: Fixture["run"] = (args, env = {}) => {
+    const run: Fixture["run"] = (args, env = {}, cwd) => {
       rmSync(log, { force: true })
       const shim = join(paths.bin, windows ? "claude.cmd" : "claude")
       const options = {
@@ -53,6 +57,7 @@ const it = base.extend<{ shim: Fixture }>({
           ...env,
         },
         encoding: "utf8" as const,
+        ...(cwd !== undefined && { cwd }),
       }
       const result = windows
         ? spawnSync(process.env.COMSPEC ?? "cmd.exe", ["/d", "/c", shim, ...args], options)
@@ -60,7 +65,7 @@ const it = base.extend<{ shim: Fixture }>({
       if (result.status !== 0) throw new Error(`claude failed: ${result.stderr}`)
       return JSON.parse(readFileSync(log, "utf8")) as string[]
     }
-    await use({ run, bin: paths.bin, real, settings, remove: () => rmSync(settings) })
+    await use({ root, run, bin: paths.bin, real, settings, remove: () => rmSync(settings) })
   },
 })
 
@@ -97,11 +102,35 @@ describe("claude shim", { timeout: 60_000 }, () => {
     expect(JSON.parse(readFileSync(shim.settings, "utf8"))).toEqual({
       statusLine: {
         type: "command",
-        command: '[ -n "$NOVADECK_HOOK" ] && "$NOVADECK_HOOK" claude StatusLine || true',
+        command: windows
+          ? claude.hook("win32", "StatusLine")
+          : '[ -n "$NOVADECK_HOOK" ] && "$NOVADECK_HOOK" claude StatusLine || true',
         padding: 0,
       },
     })
   })
+
+  // Claude Code runs its status line in Git Bash on Windows. A batch file started there runs
+  // through a cmd with no /d, which runs the AutoRun first; cmd says how it was started.
+  it.runIf(windows)(
+    "starts the status line's launcher in a cmd with /d, so no AutoRun prints ahead of it",
+    ({ shim }) => {
+      const bash = gitBash()
+      expect(bash, "Git Bash").toBeDefined()
+      const launcher = join(shim.root, "hook.cmd")
+      writeFileSync(launcher, "@echo cmd=%CMDCMDLINE%\r\n@echo args=%*\r\n")
+      const { statusLine } = JSON.parse(readFileSync(shim.settings, "utf8")) as {
+        statusLine: { command: string }
+      }
+      const result = spawnSync(bash!, ["-c", statusLine.command], {
+        env: { ...process.env, NOVADECK_HOOK: launcher },
+        input: "{}",
+        encoding: "utf8",
+      })
+      expect(result.stdout).toMatch(/^cmd=\S*cmd(?:\.exe)?"? \/d \/c /im)
+      expect(result.stdout).toMatch(/^args=claude StatusLine\s*$/m)
+    },
+  )
 
   it("leaves Claude Code's other commands alone", ({ shim }) => {
     expect(shim.run(["mcp", "list"])).toEqual(["mcp", "list"])
@@ -112,6 +141,54 @@ describe("claude shim", { timeout: 60_000 }, () => {
       "x",
     ])
   })
+
+  it("reads an option's value as a value, though it names one of Claude Code's commands", ({
+    shim,
+  }) => {
+    const settings = expect.stringMatching(/statusline\.json$/)
+    expect(shim.run(["-n", "update", "bump deps"])).toEqual([
+      "--settings",
+      settings,
+      "-n",
+      "update",
+      "bump deps",
+    ])
+    expect(shim.run(["--agent", "agents", "--model", "haiku", "fix it"])).toEqual([
+      "--settings",
+      settings,
+      "--agent",
+      "agents",
+      "--model",
+      "haiku",
+      "fix it",
+    ])
+    // A command after an option's value is still one.
+    expect(shim.run(["--model", "haiku", "mcp", "list"])).toEqual([
+      "--model",
+      "haiku",
+      "mcp",
+      "list",
+    ])
+    expect(shim.run(["-n"])).toEqual(["--settings", settings, "-n"])
+    // Its commands go by their case, as Claude Code's own reading does.
+    expect(shim.run(["MCP"])).toEqual(["--settings", settings, "MCP"])
+  })
+
+  it.runIf(windows)(
+    "runs the real claude, never a claude.cmd in the current folder, where a plain where looks first",
+    ({ shim }) => {
+      const repo = join(shim.root, "repo")
+      mkdirSync(repo)
+      const marker = join(shim.root, "planted")
+      writeFileSync(join(repo, "claude.cmd"), `@echo planted> "${marker}"\r\n`)
+      expect(shim.run(["hi"], {}, repo)).toEqual([
+        "--settings",
+        expect.stringMatching(/statusline\.json$/),
+        "hi",
+      ])
+      expect(existsSync(marker)).toBe(false)
+    },
+  )
 
   it("runs unchanged outside Novadeck's shells, or while Claude Code is not connected", ({
     shim,

@@ -1,10 +1,10 @@
-import { execFileSync } from "node:child_process"
 import { posix } from "node:path"
 
 import { covered } from "../content/areas.ts"
 import type { Api, Area, AreaLink, Data } from "../src/atlas.ts"
 import type { Anchors } from "./anchors.ts"
 import { areaOf } from "./areas.ts"
+import { workingFiles } from "./files.ts"
 
 const { dirname, join, normalize } = posix
 
@@ -21,14 +21,9 @@ const suffixes = ["", ".ts", ".tsx", "/index.ts", "/index.tsx"]
 
 const unresolved = new Map<string, number>()
 
-const trackedFiles = (repo: string, paths: string[]): string[] =>
-  execFileSync("git", ["ls-files", ...paths], { cwd: repo, encoding: "utf8", maxBuffer: 1 << 26 })
-    .split("\n")
-    .filter(Boolean)
-
 // The package.json of every package under the covered folders.
 const manifests = (repo: string): string[] =>
-  trackedFiles(
+  workingFiles(
     repo,
     covered.map((folder) => `${folder}*/package.json`),
   )
@@ -175,9 +170,9 @@ export const extractLinks = (
   owned: { api: Api; data: Data },
 ): AreaLink[] => {
   const links = new Map<string, AreaLink>()
-  const tracked = trackedFiles(repo, covered)
-  const files = tracked.filter((file) => sourcePattern.test(file) && !skipPattern.test(file))
-  const known = new Set(tracked)
+  const present = workingFiles(repo, covered)
+  const files = present.filter((file) => sourcePattern.test(file) && !skipPattern.test(file))
+  const known = new Set(present)
   const packages = workspacePackages(repo, anchors)
   const imports = packageImports(repo, anchors)
   unresolved.clear()

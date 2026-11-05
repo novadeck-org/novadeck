@@ -1,9 +1,9 @@
-import { execFileSync } from "node:child_process"
 import { matchesGlob } from "node:path"
 
 import { covered, notes, roots, type Root } from "../content/areas.ts"
 import type { AgentSurface, Api, Area, BrokenAnchor, Data } from "../src/atlas.ts"
 import type { Anchors } from "./anchors.ts"
+import { workingFiles } from "./files.ts"
 
 type Owned = { api: Api; data: Data; agents: AgentSurface }
 
@@ -52,13 +52,7 @@ export const extractAreas = (
   anchors: Anchors,
   owned: Owned,
 ): { areas: Area[]; problems: BrokenAnchor[] } => {
-  const files = execFileSync("git", ["ls-files"], {
-    cwd: repo,
-    encoding: "utf8",
-    maxBuffer: 1 << 26,
-  })
-    .split("\n")
-    .filter((file) => sourceFile.test(file) && !generated.test(file))
+  const files = workingFiles(repo).filter((file) => sourceFile.test(file) && !generated.test(file))
 
   const areas: Area[] = roots.flatMap((root) =>
     tokensOf(root, files).map(({ id, glob }) => {
@@ -104,8 +98,8 @@ export const extractAreas = (
       problems.push({
         where: "package root without files",
         file: root.dir,
-        text: `no tracked source under ${root.dir} for \`${root.token}\``,
-        reason: "no tracked source files",
+        text: `no source under ${root.dir} for \`${root.token}\``,
+        reason: "no source files",
       })
 
   const own = (file: string | undefined, id: string, into: "procedures" | "tables" | "tools") => {

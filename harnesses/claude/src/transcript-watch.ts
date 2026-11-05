@@ -7,6 +7,7 @@ import { at } from "@novadeck/harness-core/items"
 
 import { presentedPlan } from "./decode.js"
 import { interruptions, mentionsInterruption } from "./interruption.js"
+import { transcripts } from "./transcripts.js"
 
 /**
  * What Claude Code's session transcript says beside its hooks: followed live while a
@@ -15,7 +16,7 @@ import { interruptions, mentionsInterruption } from "./interruption.js"
  */
 
 /**
- * The root's tool calls whose results the transcript has yet to record, by their
+ * An agent's tool calls whose results its transcript has yet to record, by their
  * `tool_use` ids: the request each would resolve, and its tool.
  */
 export type Calls = Map<string, { readonly requestId: string; readonly toolName: string }>
@@ -73,8 +74,8 @@ export const transcriptEvents = (
     return [{ type: "turn-ended", ...base, outcome: "completed", recorded: true }]
   const { content, usage } = (message ?? {}) as { content?: unknown; usage?: unknown }
   const blocks = (Array.isArray(content) ? content : []) as Record<string, unknown>[]
-  if (type === "assistant") remember(calls, blocks)
-  const settled = type === "user" ? results(calls, blocks, base) : []
+  if (type === "assistant") remember(calls, blocks, null)
+  const settled = type === "user" ? results(calls, blocks, base, null) : []
   if (type === "assistant" && typeof usage === "object" && usage !== null) {
     const {
       input_tokens: input,
@@ -94,20 +95,25 @@ export const transcriptEvents = (
   return [...settled, { type: "turn-ended", ...base, outcome: "interrupted" }]
 }
 
-// The calls an assistant record makes, each by the id the hooks' request goes by.
-const remember = (calls: Calls, blocks: readonly Record<string, unknown>[]): void => {
+// The calls an actor's assistant record makes, each by the id its hooks' request goes by.
+const remember = (
+  calls: Calls,
+  blocks: readonly Record<string, unknown>[],
+  actor: string | null,
+): void => {
   for (const { type, id, name, input } of blocks) {
     if (type !== "tool_use" || typeof id !== "string" || typeof name !== "string") continue
-    calls.set(id, { requestId: callId(null, name, input), toolName: name })
+    calls.set(id, { requestId: callId(actor, name, input), toolName: name })
     if (calls.size > remembered) calls.delete(calls.keys().next().value!)
   }
 }
 
-// The requests a user record's tool results settle.
+// The requests an actor's user record's tool results settle.
 const results = (
   calls: Calls,
   blocks: readonly Record<string, unknown>[],
   base: EventBase<"claude">,
+  actor: string | null,
 ): ActivityEvent[] =>
   blocks.flatMap(({ type, tool_use_id: id }) => {
     const call = type === "tool_result" && typeof id === "string" ? calls.get(id) : undefined
@@ -119,7 +125,7 @@ const results = (
         type: "attention-resolved",
         ...base,
         requestId,
-        actor: null,
+        actor,
         toolName,
         loose: loosely.has(toolName),
         outcome: "settled",
@@ -167,6 +173,67 @@ export const followTranscript: NonNullable<Harness["watch"]> = (run, signal, emi
     }
     for (const event of transcriptEvents(line, run, calls)) emit(event)
   })
+}
+
+// The calls a line's tool results name, as Claude Code writes them, unspaced.
+const resultIds = /"tool_use_id":"([^"\\]+)"/g
+
+/**
+ * What one line of a subagent's own transcript (`<session>/subagents/agent-<id>.jsonl`)
+ * says that no hook does: a tool call's result came. The person denying its request, with
+ * Esc or its "No", or its prompt timing out, fires no hook, and the subagent runs on, so
+ * its result is all that says the request waits no longer (probed 2026-10-03, 2.1.287;
+ * fixture `subagent.probe.json`, 2.1.314). Every line of that file is the subagent's
+ * (`isSidechain`); only a result from `since` on, when its oldest request still waiting was
+ * asked, is told, though every call is remembered, and settled, from the file's start.
+ */
+export const subagentEvents = (
+  line: string,
+  { sessionId, instance }: Pick<Run, "sessionId" | "instance">,
+  actor: string,
+  since: number,
+  calls: Calls,
+): readonly ActivityEvent[] => {
+  // A tool's result, often long, is parsed only where it names a call still unpaired.
+  const called = line.includes('"tool_use"')
+  const pairs = () => [...line.matchAll(resultIds)].some(([, id]) => calls.has(id!))
+  if (!called && !(calls.size > 0 && line.includes('"tool_result"') && pairs())) return []
+  const fields = parseFields(line)
+  if (!fields || typeof fields.timestamp !== "string") return []
+  const startedAt = Date.parse(fields.timestamp)
+  if (!Number.isFinite(startedAt)) return []
+  const content = (fields.message as { content?: unknown } | undefined)?.content
+  const blocks = (Array.isArray(content) ? content : []) as Record<string, unknown>[]
+  if (fields.type === "assistant") remember(calls, blocks, actor)
+  if (fields.type !== "user") return []
+  const base: EventBase<"claude"> = { agent: "claude", sessionId, instance, startedAt }
+  const settled = results(calls, blocks, base, actor)
+  return startedAt < since ? [] : settled
+}
+
+/**
+ * Follows a subagent's own transcript, from its start, for its calls' results from `since`
+ * on: Novadeck follows it while that subagent's request waits. Claude Code may write the
+ * file after the hook that asks, so it is read once it appears.
+ */
+export const followSubagent: NonNullable<Harness["watchActor"]> = async (
+  run,
+  actor,
+  since,
+  signal,
+  emit,
+) => {
+  const path = await transcripts.locate(run.transcript, run.sessionId, actor)
+  if (!path || signal.aborted) return
+  const calls: Calls = new Map()
+  await followLines(
+    path,
+    signal,
+    (line) => {
+      for (const event of subagentEvents(line, run, actor, since, calls)) emit(event)
+    },
+    { fromStart: true },
+  )
 }
 
 /**

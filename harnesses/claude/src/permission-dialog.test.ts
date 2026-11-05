@@ -1114,6 +1114,11 @@ describe("Claude Code's permission dialogs", () => {
     expect(accepted).toBeGreaterThan(20)
   })
 
+  // Guards against a catastrophic slowdown only (a quadratic read of 100,000 blanks takes
+  // seconds), never a measure of speed: each runs in a few milliseconds here, and a cold or
+  // busy CI runner may take many times that.
+  const slow = { call: 1000, big: 3000, all: 5000 }
+
   it("stays fast on long blanks, long texts and large screens", () => {
     const shared = factsOf("k-edit-shared")
     const rows = screen("k-edit-shared", "120x40")
@@ -1128,15 +1133,15 @@ describe("Claude Code's permission dialogs", () => {
       expect(
         time(() => edit(blank, "x")),
         "blank",
-      ).toBeLessThan(100)
+      ).toBeLessThan(slow.call)
       expect(
         time(() => edit("hello", blank)),
         "blank new",
-      ).toBeLessThan(100)
+      ).toBeLessThan(slow.call)
       expect(
         time(() => edit(`x${blank}\nhello`, "y")),
         "blank before",
-      ).toBeLessThan(100)
+      ).toBeLessThan(slow.call)
       expect(
         time(() =>
           dialogs.read(
@@ -1145,7 +1150,7 @@ describe("Claude Code's permission dialogs", () => {
           ),
         ),
         "content",
-      ).toBeLessThan(100)
+      ).toBeLessThan(slow.call)
     }
     // A large synthetic diff: thousands of rows, a repeated word everywhere.
     const big = [
@@ -1162,18 +1167,18 @@ describe("Claude Code's permission dialogs", () => {
     expect(
       time(() => edit("hello hello", "goodbye goodbye", big)),
       "big",
-    ).toBeLessThan(500)
+    ).toBeLessThan(slow.big)
     expect(
       time(() => edit("hello", "goodbye", big)),
       "big short",
-    ).toBeLessThan(500)
+    ).toBeLessThan(slow.big)
   })
 
   it("returns promptly for an old text of only blanks, and never reads it", () => {
     const shared = factsOf("k-edit-shared")
     const rows = screen("k-edit-shared", "120x40")
     const file = (shared.input as { file_path: string }).file_path
-    const started = Date.now()
+    const started = performance.now()
     for (const old_string of ["  ", "\t", " \t ", "\n", " \n", "\n\n", "   \n  "]) {
       for (const new_string of ["x", "", "\n", "  \n", "goodbye\n"]) {
         expect(
@@ -1191,7 +1196,7 @@ describe("Claude Code's permission dialogs", () => {
         )
       }
     }
-    expect(Date.now() - started).toBeLessThan(1000)
+    expect(performance.now() - started).toBeLessThan(slow.all)
   })
 
   it("keeps trailing whitespace that isn't before a line break", () => {
