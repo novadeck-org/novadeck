@@ -81,7 +81,14 @@ describe("Codex's fixture app-server", () => {
         const failed = server.start().catch((error: unknown) => String(error))
         const told = await failed
         expect(told).toMatch(/didn't answer initialize in 20 ms/)
-        expect(told).toMatch(/processes:\n/)
+        // On a busy Windows runner, CIM may not answer within the lister's minute (seen on
+        // #671): the scene then says so, as it should, but a lister that fails any other
+        // way, as a command or its JSON gone wrong, fails here.
+        expect(told).toMatch(
+          globalThis.process.platform === "win32"
+            ? /processes:(\n| couldn't read \(Command failed: powershell\.exe [^\n]*; ended by SIGTERM(; stderr: [\s\S]*)?\))/
+            : /processes:\n/,
+        )
         expect(told).toMatch(/CODEX_HOME:\n2 files/)
         expect(told).toMatch(/state\.sqlite 0 B, changed [+-]?\d+ ms/)
         expect(told).toMatch(/tail of log[\\/]codex-tui\.log:\nx*last words/)

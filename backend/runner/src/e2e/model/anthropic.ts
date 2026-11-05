@@ -157,6 +157,53 @@ const deferredOf = (request: z.infer<typeof messages>): string[] => {
   return [...new Set(named)].filter((name) => name !== "" && !offered.has(name))
 }
 
+// The queries of every search the conversation made.
+const searchesOf = (request: z.infer<typeof messages>): Set<string> =>
+  new Set(
+    request.messages.flatMap((message) =>
+      message.role === "assistant" && Array.isArray(message.content)
+        ? message.content
+            .filter((one) => one.type === "tool_use" && one.name === search)
+            .map((one) => string((one.input as { query?: unknown } | undefined)?.query))
+        : [],
+    ),
+  )
+
+// How Claude Code lists the MCP servers it started that haven't connected yet, one a line.
+const connectingList = /The following MCP servers are still connecting[^\n]*\n((?:[^\n]+\n?)+)/g
+
+// The name a server's tools carry after `mcp__`, as Claude Code spells it.
+const serverPrefix = (server: string): string =>
+  `mcp__${server.replaceAll(/[^a-zA-Z0-9_-]/g, "_")}__`.toLowerCase()
+
+/**
+ * The MCP servers a request names as still connecting, by the prefix their tools carry,
+ * whose tools it neither offers nor names as deferred, and that no search in the
+ * conversation has waited for yet. Claude Code (2.1.316) sends a prompt before a slow
+ * server connects and tells the model to search for the server's tools, which waits for
+ * it; a query that starts `mcp__` takes the tools whose names start so (seen on a loaded
+ * macOS runner, where Novadeck's own server was one).
+ */
+const connectingOf = (
+  request: z.infer<typeof messages>,
+  deferred: readonly string[],
+  searched: ReadonlySet<string>,
+): string[] => {
+  const known = [...(request.tools ?? []).map((tool) => tool.name), ...deferred]
+  const texts = [
+    ...(request.system === undefined ? [] : [textOf(request.system)]),
+    ...request.messages.map((message) => textOf(message.content)),
+  ]
+  const named = texts.flatMap((text) =>
+    [...text.matchAll(connectingList)].flatMap((match) =>
+      (match[1] ?? "").split("\n").map((line) => line.trim()),
+    ),
+  )
+  return [...new Set(named.filter((name) => name !== "").map(serverPrefix))].filter(
+    (prefix) => !known.some((name) => name.startsWith(prefix)) && !searched.has(prefix),
+  )
+}
+
 /**
  * The call a Messages request makes. One that offers no tools is the harness's own, as
  * Claude Code's title and quota calls are: its agent's turns always offer them.
@@ -274,11 +321,19 @@ export const anthropic: Dialect = {
     const call = parse(body)
     const sent = messages.parse(body)
     const deferred = call.tools.includes(search) ? deferredOf(sent) : []
-    // Loaded once: what a load left deferred isn't asked for again.
-    const last = sent.messages.findLast((one) => one.role === "assistant")?.content
-    const loading =
-      deferred.length > 0 &&
-      !(Array.isArray(last) && last.some((one) => one.type === "tool_use" && one.name === search))
+    const searched = searchesOf(sent)
+    // Loaded once: what a load left deferred isn't asked for again, but tools named since,
+    // as those of a server that connected after the first load, are.
+    const asked = new Set(
+      [...searched].flatMap((query) =>
+        query.startsWith("select:") ? query.slice("select:".length).split(",") : [],
+      ),
+    )
+    const loads = deferred.filter((name) => !asked.has(name))
+    const loading = loads.length > 0
+    // Then the tools of servers still connecting, each waited for once.
+    const connecting =
+      call.tools.includes(search) && !loading ? connectingOf(sent, deferred, searched) : []
     const message = messageOf(
       call,
       loading
@@ -286,11 +341,18 @@ export const anthropic: Dialect = {
             calls: [
               {
                 name: search,
-                input: { query: `select:${deferred.join(",")}`, max_results: deferred.length },
+                input: { query: `select:${loads.join(",")}`, max_results: loads.length },
               },
             ],
           }
-        : await reply(call),
+        : connecting.length > 0
+          ? {
+              calls: connecting.map((prefix) => ({
+                name: search,
+                input: { query: prefix, max_results: 100 },
+              })),
+            }
+          : await reply(call),
     )
     if (!sent.stream) return json(200, message)
     return {

@@ -211,21 +211,43 @@ describe("createRedactor", () => {
     expect(redact(text)).toBe(text)
   })
 
-  // Each took seconds before: a pattern that looked again from each character of a long run.
+  // Each took seconds at 200,000 characters before: a pattern that looked again from each
+  // character of a long run. What holds is linear time, not a speed a slow machine may not
+  // have: ten times the text takes about ten times as long, where a quadratic takes a
+  // hundred. 40 sits between the two (30 was seen on a loaded macOS runner), each time is
+  // the best of three after a warm-up (the 200,000's stops early once under the bound),
+  // and under 100 ms passes whatever the ratio.
   it.each([
-    ["a long run of letters", "A".repeat(200_000)],
-    ["a long hex run", "0123456789abcdef".repeat(12_500)],
-    ["a long dotted run before an @", `${"a.".repeat(100_000)}@x`],
-    ["a long dashed host", `a@${"b-".repeat(100_000)}`],
-    ["a long run before a remote's path", `a@b.c:${"d".repeat(200_000)}`],
-    ["a syntax error with a long gap", `SyntaxError: ${" ".repeat(200_000)}x"`],
-    ["many syntax errors with no quote", "SyntaxError: ".repeat(15_000)],
-    ["many remote-like parts", "a@b.c:".repeat(33_000)],
-  ])("redacts %s of 200,000 characters at once", (_what, text) => {
-    const started = performance.now()
-    redact(text)
-    expect(performance.now() - started).toBeLessThan(2_000)
-  })
+    ["a long run of letters", (length: number) => "A".repeat(length)],
+    ["a long hex run", (length: number) => "0123456789abcdef".repeat(length / 16)],
+    ["a long dotted run before an @", (length: number) => `${"a.".repeat(length / 2)}@x`],
+    ["a long dashed host", (length: number) => `a@${"b-".repeat(length / 2)}`],
+    ["a long run before a remote's path", (length: number) => `a@b.c:${"d".repeat(length)}`],
+    ["a syntax error with a long gap", (length: number) => `SyntaxError: ${" ".repeat(length)}x"`],
+    ["many syntax errors with no quote", (length: number) => "SyntaxError: ".repeat(length / 13)],
+    ["many remote-like parts", (length: number) => "a@b.c:".repeat(length / 6)],
+  ])(
+    "redacts %s in time linear in its length, to 200,000 characters",
+    (_what, text) => {
+      const timed = (length: number): number => {
+        const shown = text(length)
+        const started = performance.now()
+        redact(shown)
+        return performance.now() - started
+      }
+      timed(20_000)
+      const small = Math.min(timed(20_000), timed(20_000), timed(20_000))
+      const bound = Math.max(40 * small, 100)
+      let large = timed(200_000)
+      for (let tries = 1; tries < 3 && large >= bound; tries++)
+        large = Math.min(large, timed(200_000))
+      expect(
+        large,
+        `${large.toFixed(1)} ms at 200,000, ${small.toFixed(1)} ms at 20,000`,
+      ).toBeLessThan(bound)
+    },
+    60_000,
+  )
 
   it.each([
     ["a hex segment", "/home/ana/.config/Code/0123456789abcdef0123456789abcdef/bigbank/state.db"],
