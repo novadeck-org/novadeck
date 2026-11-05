@@ -128,7 +128,9 @@ export const followLines = async (
         parts = []
         held = 0
         skipping = true
-      } else parts.push(piece)
+      }
+      // A piece cut from the read is copied, so it doesn't hold the rest of that read.
+      else parts.push(from === 0 ? piece : Buffer.from(piece))
     }
     return lines
   }
@@ -171,8 +173,12 @@ export const followLines = async (
       // Not there yet, or gone for now: try again.
       return { read: 0, found: false, lines: [] }
     }
-    // What it had read is no longer there: read it again from its start.
-    if (rewritten) restart()
+    // What it had read is no longer there: read it again from its start. Which file that
+    // is, the next stat says: one put in its place since this stat is the same rewrite.
+    if (rewritten) {
+      restart()
+      file = undefined
+    }
     return poll()
   }
   while (!signal.aborted) {

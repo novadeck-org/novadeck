@@ -158,6 +158,8 @@ describe("following a file's lines", () => {
     // The next read waits on the reader, so a line written now stays unread until it lets go.
     await waiting
     appendFileSync(path, "b\n")
+    // Polls enough to read it, were it not held.
+    await new Promise((resolve) => setTimeout(resolve, 150))
     expect(reader.lines()).toEqual(["a"])
     release?.()
     await expect.poll(reader.lines).toEqual(["a", "b"])
