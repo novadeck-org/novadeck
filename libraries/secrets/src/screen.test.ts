@@ -3,7 +3,7 @@ import { randomBytes } from "node:crypto"
 import { describe, expect, it, vi } from "vitest"
 
 import { redacted } from "./marks.js"
-import { maskScreen, redactScreen } from "./screen.js"
+import { keyBlockLines, maskScreen, redactScreen } from "./screen.js"
 
 // A line in rows of `width` characters.
 const chop = (text: string, width: number): string[] =>
@@ -173,6 +173,68 @@ describe("redacting key blocks across a screen's rows", () => {
 
     expect(screen.join("\n")).not.toMatch(/MIIEvQ|bbbbQy/)
     expect(screen.at(-1)).toBe("$ ls")
+  })
+})
+
+describe("text that names a key block's markers", () => {
+  it("keeps a search for a marker and the code it finds", () => {
+    const screen = [
+      '$ grep -rn -- "-----BEGIN" src',
+      'src/a.ts:3: if (pem.startsWith("-----BEGIN")) ok()',
+      'src/b.ts:9: const tail = "-----END"',
+      "$ ls",
+      "README.md  src",
+    ]
+
+    expect(
+      redactScreen(
+        screen,
+        screen.map(() => false),
+      ),
+    ).toEqual(screen)
+  })
+
+  const lines = (count: number): string[] =>
+    Array.from({ length: count }, (_x, i) => `line ${i} of the build log`)
+
+  it("masks no more than so many lines after a BEGIN with no end on screen", () => {
+    const after = lines(keyBlockLines + 40)
+    const screen = ['if (pem.startsWith("-----BEGIN CERTIFICATE-----")) {', ...after]
+
+    const result = redactScreen(
+      screen,
+      screen.map(() => false),
+    )
+
+    expect(result.slice(0, keyBlockLines + 1).every((row) => row === redacted)).toBe(true)
+    expect(result.slice(keyBlockLines + 1)).toEqual(after.slice(keyBlockLines))
+  })
+
+  it("masks no more than so many lines before an END with no BEGIN on screen", () => {
+    const before = lines(keyBlockLines + 40)
+    const screen = [...before, 'const end = "-----END CERTIFICATE-----"', "$ ls"]
+
+    const result = redactScreen(
+      screen,
+      screen.map(() => false),
+    )
+
+    expect(result.slice(0, 40)).toEqual(before.slice(0, 40))
+    expect(result.slice(40, -1).every((row) => row === redacted)).toBe(true)
+    expect(result.at(-1)).toBe("$ ls")
+  })
+
+  it("masks a key block of many lines whole", () => {
+    const body = Array.from({ length: 150 }, () => randomBytes(48).toString("base64"))
+    const screen = ["$ cat key.asc", "-----BEGIN PGP PRIVATE KEY BLOCK-----", ...body, "$"]
+
+    const result = redactScreen(
+      screen,
+      screen.map(() => false),
+    )
+
+    expect(result.slice(1, -1).every((row) => row === redacted)).toBe(true)
+    expect(result[0]).toBe("$ cat key.asc")
   })
 })
 

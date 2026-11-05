@@ -20,8 +20,10 @@ machine. Pure JavaScript, for Node and the browser alike.
   longest value a rule takes whole). A secret split across them is masked on both sides, a
   longer one by the windows that overlap along it (a token with a prefix, longer than 2048
   characters, is masked to the end of its run), and the work grows with the rows, not with
-  their square. A key block masks every row it covers, to the end of the screen when its end is not
-  on it.
+  their square. A key block masks every row it covers, from its `-----BEGIN … -----` to its
+  `-----END … -----`, or up to 256 lines past the one marker that is on the screen (a marker cut
+  short by the pane's edge counts; one with more text after it, as in code or grep's output,
+  does not).
 - `maskScreen(rows, continues)`: the same reading as `redactScreen`, but returning which UTF-16
   units of each row are secret, one array of flags per row as long as the row, for a caller that
   masks the cells themselves and keeps the screen's shape.

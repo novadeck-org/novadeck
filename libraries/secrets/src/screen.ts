@@ -16,25 +16,48 @@ const groups = (length: number, continues: readonly boolean[]): [number, number]
   return result
 }
 
+// A key block's marker as it starts or ends a block: whole, or cut short by the pane's width at the
+// end of its text (its dashes on the next row, or lost). A bare `-----BEGIN` in code or in grep's
+// output, with more text after it, is no marker.
+const marker = (word: string): RegExp =>
+  new RegExp(`-----${word} [A-Z0-9 ]+-----|-----${word}(?: [A-Z0-9 ]*)?-*[ \\t]*$`, "g")
+const begins = marker("BEGIN")
+const ends = marker("END")
+// Where the last marker in `text` starts, or -1.
+const lastMarker = (text: string, pattern: RegExp): number => {
+  let at = -1
+  for (const found of text.matchAll(pattern)) at = found.index
+  return at
+}
+// How many lines a block with no end on screen covers, after its BEGIN or before its END: more
+// than a large PGP key holds, so a marker in code costs at most this much of the screen.
+export const keyBlockLines = 256
+
 // Which rows of the screen a key block covers: every row from a BEGIN marker to its END marker,
-// or to the end of the screen if that is not visible. A marker may be split by the end of a
-// row, so rows that go on in the next are read together; the whole group is covered.
+// or `keyBlockLines` lines on if that is not visible. A marker may be split by the end of a
+// row, so rows that go on in the next are read together, as one line; the whole group is covered.
 const keyBlockRows = (screen: readonly string[], continues: readonly boolean[]): boolean[] => {
   const covered: boolean[] = screen.map(() => false)
-  let inside = false
-  for (const [first, last] of groups(screen.length, continues)) {
-    const text = screen.slice(first, last + 1).join("")
-    // A marker cut short by the pane's width still starts or ends a block: its dashes may be
-    // on the next row, or lost. Whichever comes last in the group says if a block is open.
-    const lastBegin = text.lastIndexOf("-----BEGIN")
-    const lastEnd = text.lastIndexOf("-----END")
-    if (lastEnd >= 0 && !inside && lastBegin < 0) {
-      // An END with no BEGIN on screen: its block began above the top.
-      for (let i = 0; i <= last; i += 1) covered[i] = true
-    } else if (inside || lastBegin >= 0) {
+  const lines = groups(screen.length, continues)
+  const cover = (from: number, to: number): void => {
+    for (let line = Math.max(0, from); line <= to; line += 1) {
+      const [first, last] = lines[line] ?? [0, -1]
       for (let i = first; i <= last; i += 1) covered[i] = true
     }
-    if (lastBegin >= 0 || lastEnd >= 0) inside = lastBegin > lastEnd
+  }
+  // The line the open block's BEGIN is on, or -1 when no block is open.
+  let opened = -1
+  for (const [line, [first, last]] of lines.entries()) {
+    const text = screen.slice(first, last + 1).join("")
+    // Whichever marker comes last in the line says if a block is open after it.
+    const lastBegin = lastMarker(text, begins)
+    const lastEnd = lastMarker(text, ends)
+    if (opened >= 0 && line - opened > keyBlockLines) opened = -1
+    if (lastEnd >= 0 && opened < 0 && lastBegin < 0) {
+      // An END with no BEGIN on screen: its block began above, at most so many lines up.
+      cover(line - keyBlockLines, line)
+    } else if (opened >= 0 || lastBegin >= 0) cover(line, line)
+    if (lastBegin >= 0 || lastEnd >= 0) opened = lastBegin > lastEnd ? line : -1
   }
   return covered
 }
@@ -153,7 +176,7 @@ const maskedRows = (
  * Which UTF-16 units of a screen's rows are secret, one array of flags per row, as long as the
  * row. Rows are read as `redactScreen` reads them: each on its own and, where it runs to the
  * pane's edge (`continues`), with the rows that go on from it; a key block flags every unit of
- * every row it covers, to the end of the screen when its end is not on it.
+ * every row it covers, up to `keyBlockLines` lines on when its end is not on the screen.
  */
 export const maskScreen = (
   screen: readonly string[],
@@ -167,7 +190,7 @@ export const maskScreen = (
 /**
  * A screen's rows with their secrets masked, each row on its own and, where it runs to the
  * pane's edge (`continues`), read with the rows that go on from it; a key block masks every
- * row it covers, to the end of the screen when its end is not on it.
+ * row it covers, up to `keyBlockLines` lines on when its end is not on the screen.
  */
 export const redactScreen = (
   screen: readonly string[],
