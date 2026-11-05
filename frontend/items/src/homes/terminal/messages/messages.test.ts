@@ -17,7 +17,9 @@ const stops: (() => void)[] = []
 afterEach(() => stops.splice(0).forEach((stop) => stop()))
 
 describe("a terminal's messages on its taskbar", () => {
-  const messagesOf = (count: number): MessagesState => ({
+  // The terminal's messages, `count` of them from the `first`th on, as a listing that has
+  // dropped the older ones holds them.
+  const messagesOf = (count: number, first = 0): MessagesState => ({
     ...noMessages,
     terminals: {
       [terminalKeyPath({ ...target, terminalId: "01" })]: {
@@ -32,8 +34,8 @@ describe("a terminal's messages on its taskbar", () => {
             held: false,
             heldFor: null,
             messages: Array.from({ length: count }, (_, index) => ({
-              id: `m${index}`,
-              hop: index + 1,
+              id: `m${first + index}`,
+              hop: first + index + 1,
               from: agent("fox"),
               to: agent("moth"),
               text: "Ready",
@@ -99,6 +101,22 @@ describe("a terminal's messages on its taskbar", () => {
     state.update(() => messagesOf(2))
     await heard()
     expect(bar()).toMatchObject({ hidden: [], order: [messagesKey] })
+  })
+
+  it("come back with the next message at the runner's listing cap, where the oldest drops as it comes", async () => {
+    const { state, bar, hide } = following(messagesOf(1000))
+    hide()
+    state.update(() => messagesOf(1000, 1))
+    await heard()
+    expect(bar()).toMatchObject({ hidden: [], order: [messagesKey] })
+  })
+
+  it("stay hidden when messages only drop out of the listing", async () => {
+    const { state, bar, hide } = following(messagesOf(3))
+    hide()
+    state.update(() => messagesOf(2, 1))
+    await heard()
+    expect(bar()?.hidden).toEqual([messagesKey])
   })
 
   it("change inside a workspace commit without failing it, never reaching a terminal it closed", async () => {

@@ -107,21 +107,29 @@ export const noLinks: MessageLinks = {
 export const usePeers = (links: MessageLinks): Readonly<Record<string, MessagePeer>> =>
   useSyncExternalStore(links.peers.subscribe, links.peers.getSnapshot)
 
-// How many messages a terminal's threads hold.
-const messageCount = (threads: TerminalThreads | undefined): number =>
-  (threads?.threads ?? []).reduce((count, thread) => count + thread.messages.length, 0)
+// The messages a terminal's threads hold, by id.
+const messageIds = (threads: TerminalThreads | undefined): ReadonlySet<string> =>
+  new Set((threads?.threads ?? []).flatMap((thread) => thread.messages.map((each) => each.id)))
 
 // The messages join a terminal's bar when it first has them, after what came before, and
 // come back once hidden with the next message, whether or not the terminal is on screen.
-// Follows them from here on; returns the stop.
+// A message is new by its id, not by the count growing: at the runner's listing caps the
+// oldest drop out as new ones come. Follows them from here on; returns the stop.
 export const followMessages = (workspace: WorkspaceStore, messages: Messages): (() => void) => {
-  const counts = new Map<string, number>()
+  // Each terminal's threads as last heard, and their messages' ids.
+  const known = new Map<
+    string,
+    { readonly threads: TerminalThreads | undefined; readonly ids: ReadonlySet<string> }
+  >()
   const note = (state: MessagesState): void => {
     const actions: WorkspaceAction[] = []
+    for (const id of known.keys()) if (!(id in state.terminals)) known.delete(id)
     for (const [id, threads] of Object.entries(state.terminals)) {
-      const count = messageCount(threads)
-      const more = count > (counts.get(id) ?? count)
-      counts.set(id, count)
+      const before = known.get(id)
+      const ids = before?.threads === threads ? before.ids : messageIds(threads)
+      const more =
+        before !== undefined && ids !== before.ids && [...ids].some((each) => !before.ids.has(each))
+      known.set(id, { threads, ids })
       if (!hasMessages(threads)) continue
       // A terminal closed since its messages came takes nothing: the bar's actions pass it by.
       const { terminalId, ...target } = terminalKeyOfPath(id)
