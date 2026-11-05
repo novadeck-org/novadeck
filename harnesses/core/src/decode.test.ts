@@ -1,14 +1,16 @@
-import { maxTurnError } from "@novadeck/protocol"
+import { agentLimits, maxTurnError } from "@novadeck/protocol"
 import { describe, expect, it } from "vitest"
 
 import {
   callId,
   commandFolder,
+  cutText,
   errorText,
   firedFacts,
   maxPlan,
   planText,
   shortName,
+  subjectOf,
   withMode,
   withRequestCwd,
 } from "./decode.js"
@@ -28,6 +30,33 @@ const asked: HarnessEvent = {
 }
 const bidi = String.fromCodePoint(0x202e)
 const zeroWidth = String.fromCodePoint(0x200b)
+
+// A character outside the BMP, two UTF-16 units, so a cut can fall between them.
+const emoji = "😀"
+const lone = /[\ud800-\udbff](?![\udc00-\udfff])|(?<![\ud800-\udbff])[\udc00-\udfff]/
+
+describe("text cut short", () => {
+  it("is cut at the limit, or before a character the limit would split", () => {
+    expect(cutText("abcdef", 3)).toBe("abc")
+    expect(cutText("ab", 3)).toBe("ab")
+    expect(cutText(`ab${emoji}`, 3)).toBe("ab")
+    expect(cutText(`ab${emoji}`, 4)).toBe(`ab${emoji}`)
+  })
+
+  it("leaves no half character in what a harness's text is cut to", () => {
+    const at = (limit: number) => `${"x".repeat(limit - 1)}${emoji}tail`
+    expect(errorText(at(maxTurnError))).not.toMatch(lone)
+    expect(errorText(at(maxTurnError * 2))).not.toMatch(lone)
+    const { subject, choices } = subjectOf({
+      questions: [
+        { question: at(agentLimits.subject), options: [{ label: at(agentLimits.name) }] },
+      ],
+    })
+    expect(subject).not.toMatch(lone)
+    expect(choices[0]).not.toMatch(lone)
+    expect(subjectOf({ command: at(agentLimits.subject) }).subject).not.toMatch(lone)
+  })
+})
 
 describe("a failed turn's error", () => {
   it("keeps its lines, and drops escapes, controls and reordering marks", () => {
