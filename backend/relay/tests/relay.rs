@@ -114,15 +114,16 @@ fn a_status_line_ends_with_a_relay_ended_before_its_deadline() {
 #[test]
 fn a_status_line_ends_with_its_relay_even_what_the_first_kill_passes_over() {
     let dir = scratch("passed-over");
-    let (left, mark) = (dir.join("left"), dir.join("mark"));
+    let (left, mark, rejoined) = (dir.join("left"), dir.join("mark"), dir.join("rejoined"));
     let rejoins = Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/rejoins.pl");
     status_line(
         &dir,
         &format!(
-            "cat >/dev/null; perl '{}' '{}' '{}' 3 & sleep 4",
+            "cat >/dev/null; perl '{}' '{}' '{}' 3 '{}' & sleep 4",
             sh(&rejoins),
             sh(&left),
-            sh(&mark)
+            sh(&mark),
+            sh(&rejoined)
         ),
     );
     let mut hook = status_line_hook(&dir);
@@ -132,7 +133,10 @@ fn a_status_line_ends_with_its_relay_even_what_the_first_kill_passes_over() {
     end(&mut hook);
     thread::sleep(Duration::from_secs(4));
     let outlived = std::fs::read_to_string(&mark);
+    // Else nothing was passed over, and its end proves nothing.
+    let rejoined = rejoined.exists();
     let _ = std::fs::remove_dir_all(&dir);
+    assert!(rejoined, "it never rejoined the group");
     if let Ok(outlived) = outlived {
         panic!("the status line outlived its relay: {outlived}");
     }

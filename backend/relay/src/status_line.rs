@@ -165,15 +165,22 @@ fn start(command: &str) -> Option<(std::process::Child, i32)> {
 fn end(group: &i32, closed: &mpsc::Receiver<()>) {
     unsafe { libc::kill(-group, libc::SIGTERM) };
     let mut ended = closed.recv_timeout(SETTLE).is_ok();
-    end_outright(*group, |wait| {
-        ended = ended || closed.recv_timeout(wait).is_ok();
-        ended
-    });
+    end_outright(
+        *group,
+        || true,
+        |wait| {
+            ended = ended || closed.recv_timeout(wait).is_ok();
+            ended
+        },
+        thread::sleep,
+    );
 }
 
 /// Sends the group SIGKILL, then again every `AGAIN` until `closed_within` (which waits up
-/// to the time it is given) says its output closed, once more after that, and for no longer
-/// than `SETTLE`. Only async-signal-safe calls, as the relay's signal handler runs it too.
+/// to the time it is given) says its output closed, for no longer than `SETTLE`; once it
+/// closed, after a `pause` of `AGAIN`, once more, for what forked as the last one came and
+/// never held the output. Each only while the group is still `ours`. Only
+/// async-signal-safe calls, as the relay's signal handler runs it too.
 ///
 /// Keep the repeat: one SIGKILL isn't enough on macOS. XNU's killpg(2) (`pgrp_iterate`, in
 /// bsd/kern/kern_proc.c) takes the group's pids, then looks each one up, and a process still
@@ -185,14 +192,24 @@ fn end(group: &i32, closed: &mpsc::Receiver<()>) {
 /// the process it was forked from did, so the output closes only once a later SIGKILL ended
 /// it too.
 #[cfg(unix)]
-fn end_outright(group: i32, mut closed_within: impl FnMut(Duration) -> bool) {
-    let mut closed = false;
+fn end_outright(
+    group: i32,
+    ours: impl Fn() -> bool,
+    mut closed_within: impl FnMut(Duration) -> bool,
+    pause: impl Fn(Duration),
+) {
+    let kill = || {
+        if ours() {
+            unsafe { libc::kill(-group, libc::SIGKILL) };
+        }
+    };
     for _ in 0..SETTLE.as_millis() / AGAIN.as_millis() {
-        unsafe { libc::kill(-group, libc::SIGKILL) };
-        if closed {
+        kill();
+        if closed_within(AGAIN) {
+            pause(AGAIN);
+            kill();
             return;
         }
-        closed = closed_within(AGAIN);
     }
 }
 
@@ -214,6 +231,7 @@ fn let_go(_group: &i32) {
 mod group {
     use std::sync::Once;
     use std::sync::atomic::{AtomicI32, Ordering};
+    use std::time::Duration;
 
     /// The group, or 0 while none runs.
     static RUNNING: AtomicI32 = AtomicI32::new(0);
@@ -232,22 +250,28 @@ mod group {
     /// Ends the group, then the relay, by the signal that came: the handler is reset as
     /// it runs (`SA_RESETHAND`), and the signal isn't held back (`SA_NODEFER`), so raising
     /// it again ends the relay as it would have ended without this. The group is sent
-    /// SIGKILL as at the deadline, again while its output stays open, so for up to `SETTLE`.
+    /// SIGKILL as at the deadline, again while its output stays open, for up to `SETTLE`.
     /// Only async-signal-safe calls.
     extern "C" fn ended(signal: libc::c_int) {
         let group = RUNNING.load(Ordering::SeqCst);
         if group > 0 {
-            super::end_outright(group, |wait| {
-                let closed = || CLOSED.load(Ordering::SeqCst) == group;
-                if !closed() {
-                    let wait = libc::timespec {
-                        tv_sec: 0,
-                        tv_nsec: wait.subsec_nanos() as libc::c_long,
-                    };
-                    unsafe { libc::nanosleep(&wait, std::ptr::null_mut()) };
-                }
-                closed()
-            });
+            // poll(2) with nothing to watch, as a sleep that is async-signal-safe.
+            let pause = |wait: Duration| unsafe {
+                libc::poll(std::ptr::null_mut(), 0, wait.as_millis() as libc::c_int);
+            };
+            let closed = || CLOSED.load(Ordering::SeqCst) == group;
+            super::end_outright(
+                group,
+                // Once the run let go of it, its leader may be reaped and its pid another's.
+                || RUNNING.load(Ordering::SeqCst) == group,
+                |wait| {
+                    if !closed() {
+                        pause(wait);
+                    }
+                    closed()
+                },
+                pause,
+            );
         }
         unsafe { libc::raise(signal) };
     }
@@ -430,12 +454,17 @@ mod tests {
     #[test]
     fn ends_what_the_first_kill_passes_over() {
         let rejoins = concat!(env!("CARGO_MANIFEST_DIR"), "/tests/rejoins.pl");
-        ends_at_the_deadline("passed-over", |mark, later| {
+        let mark = ends_at_the_deadline("passed-over", |mark, later| {
             format!(
-                "trap '' TERM; perl '{}' /dev/null '{mark}' {later} & sleep {later}",
+                "trap '' TERM; perl '{}' /dev/null '{mark}' {later} '{mark}.rejoined' & \
+                 sleep {later}",
                 quoted(Path::new(rejoins))
             )
         });
+        // Else nothing was passed over, and its end proves nothing.
+        let rejoined = mark.with_extension("rejoined");
+        assert!(rejoined.exists(), "it never rejoined the group");
+        let _ = std::fs::remove_file(&rejoined);
     }
 
     /// A path as a shell (Git Bash on Windows) reads it in single quotes.
@@ -457,8 +486,8 @@ mod tests {
 
     /// Runs `command`, given its mark's path, quoted, and the time after which a process it
     /// started leaves it, twice the deadline, and checks the deadline ended it all and kept
-    /// what it printed, "partly", by then.
-    fn ends_at_the_deadline(name: &str, command: impl Fn(&str, &str) -> String) {
+    /// what it printed, "partly", by then. Gives the mark's path, of the run that printed.
+    fn ends_at_the_deadline(name: &str, command: impl Fn(&str, &str) -> String) -> PathBuf {
         // A shell can be slow to start (Git Bash on a busy Windows runner took over 300 ms),
         // and a deadline that comes before it printed shows nothing: each such run is tried
         // again with a longer deadline. A process the command started leaves a mark at twice
@@ -494,7 +523,7 @@ mod tests {
                          {ended:?}, and it left\n{left}"
                     );
                 }
-                return;
+                return mark;
             }
             assert_eq!(
                 printed, "",
