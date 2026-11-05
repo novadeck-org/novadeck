@@ -1,5 +1,70 @@
+import { readFileSync } from "node:fs"
+import { dirname, join } from "node:path"
+
+import { engineDirectory } from "@novadeck/murmur"
+
 import { describe, expect, it } from "../test.js"
 import { candidates, parseDevices } from "./devices.js"
+
+// The engine's patch prints each device's line; the parser reads it. Only a built engine runs
+// the patch, so this renders the line from the patch's own source and reads it back, and a
+// change to the patch's format or arguments that the parser doesn't follow fails here.
+const patch = readFileSync(
+  join(dirname(engineDirectory), "patches", "list-device-types.patch"),
+  "utf8",
+)
+const added = patch
+  .split("\n")
+  .filter((text) => text.startsWith("+") && !text.startsWith("+++"))
+  .map((text) => text.slice(1))
+
+/** The arguments split at the commas outside any brackets. */
+const splitArguments = (text: string): string[] => {
+  const parts: string[] = []
+  let depth = 0
+  let start = 0
+  for (let index = 0; index < text.length; index++) {
+    const character = text[index]
+    if (character === "(") depth++
+    else if (character === ")") depth--
+    else if (character === "," && depth === 0) {
+      parts.push(text.slice(start, index).trim())
+      start = index + 1
+    }
+  }
+  parts.push(text.slice(start).trim())
+  return parts
+}
+
+/** The line the patch's printf prints for a device with these values and `kind`. */
+const printed = (kind: string): string => {
+  const call = added
+    .map((text) => /^\s*printf\("((?:[^"\\]|\\.)*)",\s*(.*)\);\s*$/.exec(text))
+    .find((match) => match !== null)
+  if (call == null) throw new Error("The patch has no printf line.")
+  const values = new Map([
+    ["ggml_backend_dev_name(dev)", "Vulkan0"],
+    ["ggml_backend_dev_description(dev)", "Intel(R) Arc(tm) Graphics (MTL)"],
+    ["total / MiB", "47803"],
+    ["free / MiB", "43023"],
+    ["type", kind],
+  ])
+  const args = splitArguments(call[2]!).map((arg) => {
+    const value = values.get(arg)
+    if (value === undefined) throw new Error(`The patch prints ${arg}, which this test can't fill.`)
+    return value
+  })
+  const specifiers = call[1]!.match(/%(?:zu|s)/g) ?? []
+  expect(specifiers).toHaveLength(args.length)
+  let next = 0
+  return call[1]!
+    .replace(/\\n/g, "\n")
+    .replace(/%(?:zu|s)/g, () => args[next++]!)
+    .replace(/%%/g, "%")
+}
+
+/** The kinds the patch prints: its default and each type's. */
+const printedKinds = [...patch.matchAll(/^\+.*\btype = "([^"]+)"/gm)].map((match) => match[1]!)
 
 const output = `Available devices:
   Vulkan0: Intel(R) Arc(tm) Graphics (MTL) (47803 MiB, 43023 MiB free) [igpu]
@@ -49,6 +114,27 @@ describe("listing devices", () => {
       "Vulkan0",
       "Vulkan2",
     ])
+  })
+
+  it("reads the line the engine's patch prints, for each kind it knows", () => {
+    expect(printedKinds).toEqual(expect.arrayContaining(["cpu", "gpu", "igpu", "accel"]))
+    for (const kind of ["cpu", "gpu", "igpu", "accel"]) {
+      expect(parseDevices(`Available devices:\n${printed(kind)}`)).toEqual([
+        {
+          id: "Vulkan0",
+          name: "Intel(R) Arc(tm) Graphics (MTL)",
+          kind,
+          totalMiB: 47803,
+          freeMiB: 43023,
+        },
+      ])
+    }
+  })
+
+  it("skips the patch's lines for the kinds it doesn't know", () => {
+    const unknown = printedKinds.filter((kind) => !["cpu", "gpu", "igpu", "accel"].includes(kind))
+    expect(unknown).toEqual(expect.arrayContaining(["other"]))
+    for (const kind of unknown) expect(parseDevices(printed(kind))).toEqual([])
   })
 
   it("has no candidates without a GPU", () => {
