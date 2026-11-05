@@ -185,12 +185,6 @@ export const appearsAt = (selector: string): (() => number | undefined) => {
   return () => seen
 }
 
-/** Closes the first-run welcome, where the demo opens with it. */
-export const skipWelcome = async (): Promise<void> => {
-  const skip = page.getByRole("button", { name: "Skip for now" })
-  if (await skip.query()) await skip.click()
-}
-
 /** Reloads the app at its current address: in-memory work starts over, stored preferences stay. */
 export const reloadWorkspace = async (): Promise<void> => {
   const route = window.location.hash.replace(/^#/, "")

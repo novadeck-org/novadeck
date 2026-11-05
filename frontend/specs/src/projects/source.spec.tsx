@@ -1,7 +1,7 @@
 import { page, userEvent } from "vitest/browser"
 
 import { expectStaysTrue } from "../support/layouts"
-import { layoutSettled, openWorkspace, sidebarPanel, skipWelcome } from "../support/workspace"
+import { layoutSettled, openWorkspace, sidebarPanel } from "../support/workspace"
 import { context, describe, expect, it } from "../test"
 
 // The agents demo has a Source panel with the storefront's files. Specs run with reduced motion,
@@ -14,7 +14,6 @@ describe("The Source panel", () => {
   context("when the demo has a source to show", () => {
     it("opens from its toggle on the storefront's files, each with who changed it", async () => {
       await openWorkspace(agents)
-      await skipWelcome()
 
       await sidebarPanel("Source").click()
 
@@ -26,7 +25,6 @@ describe("The Source panel", () => {
 
     it("keeps one chip and a count on a row whose name has no room beside two", async () => {
       await openWorkspace(agents)
-      await skipWelcome()
       await sidebarPanel("Source").click()
 
       const select = page.getByRole("treeitem", { name: /^Checkout\.tsx,/ })
@@ -43,7 +41,6 @@ describe("The Source panel", () => {
   context("when the demo has a team whose members both worked here", () => {
     it("groups them in a squad track, and a click on the lead keeps both lit", async () => {
       await openWorkspace(messages)
-      await skipWelcome()
       await sidebarPanel("Source").click()
 
       const strip = page.getByRole("group", { name: "Light agents" })
@@ -72,7 +69,6 @@ describe("The Source panel", () => {
 
     it("lets go of the kept agents on Escape after a mouse click, not sending it to the terminal", async () => {
       await openWorkspace(messages)
-      await skipWelcome()
       await sidebarPanel("Source").click()
       const strip = page.getByRole("group", { name: "Light agents" })
       const crow = strip.getByRole("button", { name: "@crow" })
@@ -121,7 +117,6 @@ describe("The Source panel", () => {
 
     it("keeps two chips only where the name still reads in full, at every width around it", async () => {
       await openWorkspace(agents)
-      await skipWelcome()
       await sidebarPanel("Source").click()
 
       const tree = page.getByRole("tree", { name: "Project files" }).element() as HTMLElement

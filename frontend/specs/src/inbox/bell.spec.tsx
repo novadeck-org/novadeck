@@ -1,12 +1,6 @@
 import { page } from "vitest/browser"
 
-import {
-  expectStaysAbsent,
-  openWorkspace,
-  sidebar,
-  sidebarPanel,
-  skipWelcome,
-} from "../support/workspace"
+import { expectStaysAbsent, openWorkspace, sidebar, sidebarPanel } from "../support/workspace"
 import { context, describe, expect, it } from "../test"
 
 // The agents demo: its agents wait on plans, permissions and a question in several projects,
@@ -23,7 +17,6 @@ describe("The Inbox bell", () => {
   context("when something waits on the person", () => {
     it("counts it on the rail, in the bell's name", async () => {
       await openWorkspace(agents)
-      await skipWelcome()
 
       await expect.element(bell()).toBeVisible()
       await expect.element(bell()).toHaveAccessibleName(/^Inbox, [1-9]\d* waiting$/)
@@ -42,7 +35,6 @@ describe("The Inbox bell", () => {
   context("when opening a link to the panel", () => {
     it("shows the Inbox sidebar", async () => {
       await openWorkspace(`${agents}&panel=inbox`)
-      await skipWelcome()
 
       await expect.element(sidebar()).toHaveAccessibleName("Inbox")
       await expect.element(sidebarPanel("Inbox")).toBeChecked()
@@ -52,7 +44,6 @@ describe("The Inbox bell", () => {
   context("when going Back and Forward between panels", () => {
     it("restores the panel each step showed", async () => {
       await openWorkspace(agents)
-      await skipWelcome()
       await sidebarPanel("Inbox").click()
       await expect.element(sidebarPanel("Inbox")).toBeChecked()
       await sidebarPanel("Sessions").click()
@@ -81,7 +72,6 @@ describe("The Inbox bell", () => {
 
     it("opens the panel from the bell and hands focus to the rail", async () => {
       await openWorkspace(agents)
-      await skipWelcome()
       await enterZen().click()
       await expect.element(zenBell()).toBeVisible()
 

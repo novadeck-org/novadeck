@@ -6,7 +6,6 @@ import {
   expectStaysAbsent,
   openWorkspace,
   sidebarPanel,
-  skipWelcome,
   tabDescription,
   terminal,
   terminalTab,
@@ -20,7 +19,6 @@ const inbox = "/?demo=inbox"
 
 const openInbox = async (route = inbox): Promise<void> => {
   await openWorkspace(route)
-  await skipWelcome()
   await sidebarPanel("Inbox").click()
 }
 
@@ -60,7 +58,6 @@ afterEach(() => {
 describe("The Inbox on the rail", () => {
   it("counts what isn't an update", async () => {
     await openWorkspace(inbox)
-    await skipWelcome()
     await terminalTab("Checkout review").click()
 
     await expect.element(sidebarPanel("Inbox")).toHaveAccessibleName("Inbox, 12 waiting")
@@ -70,7 +67,6 @@ describe("The Inbox on the rail", () => {
 describe("The agents demo's Inbox", () => {
   it("lists what its agents wait on, and an answer there moves the agent on", async () => {
     await openWorkspace("/?demo=agents")
-    await skipWelcome()
     await expect.poll(() => tabDescription("Checkout review") ?? "").toContain("Needs permission")
     await sidebarPanel("Inbox").click()
     await expect.element(row("Approve the plan?").first()).toBeVisible()

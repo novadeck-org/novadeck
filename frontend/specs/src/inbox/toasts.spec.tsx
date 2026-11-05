@@ -3,13 +3,7 @@ import { page, userEvent } from "vitest/browser"
 
 import { desktopWindow } from "../support/backend"
 import { preferencesDialog } from "../support/keyboard"
-import {
-  appearsAt,
-  expectStaysAbsent,
-  openWorkspace,
-  sidebarPanel,
-  skipWelcome,
-} from "../support/workspace"
+import { appearsAt, expectStaysAbsent, openWorkspace, sidebarPanel } from "../support/workspace"
 import { context, describe, expect, it } from "../test"
 
 // The Inbox's toasts: a new Inbox entry that needs the person rings as a toast while the app has
@@ -44,7 +38,6 @@ const inboxRow = (subject: RegExp | string) =>
 
 const open = async (extra?: string): Promise<void> => {
   await openWorkspace(route(extra))
-  await skipWelcome()
 }
 
 const nothingToasts = (): Promise<void> =>

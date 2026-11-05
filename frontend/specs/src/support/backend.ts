@@ -144,7 +144,7 @@ export const portableInstall = {
 // debug panel's scenarios (see @novadeck/demo-debug/desktop/uninstall).
 const requestedUninstall = (): Backend["uninstall"] => {
   const name = addressParams().get("uninstall")
-  return name && name in uninstallScenarios
+  return name && Object.hasOwn(uninstallScenarios, name)
     ? createDemoUninstall(uninstallScenarios[name as keyof typeof uninstallScenarios]).uninstall
     : undefined
 }

@@ -13,7 +13,6 @@ import {
   isMac,
   openWorkspace,
   press,
-  skipWelcome,
   terminal,
 } from "../support/workspace"
 import { context, describe, expect, it } from "../test"
@@ -232,7 +231,6 @@ describe("A pinned project", () => {
     // out, so it shows the next most pressing: api-service's waiting agents.
     arrange(["docs-site"])
     await openWorkspace("/?demo=agents")
-    await skipWelcome()
     await expect.element(pin("docs-site")).toHaveAttribute("aria-description", "Asks a question")
     await expect.element(workspaceSwitcher()).toHaveAttribute("data-project-status", "unblock")
 
@@ -248,7 +246,6 @@ describe("A pinned project", () => {
     // mobile-app's agent works: its pin spins as its row does.
     arrange(["mobile-app"])
     await openWorkspace("/?demo=agents")
-    await skipWelcome()
     await expect.element(pin("mobile-app")).toHaveAttribute("aria-description", "Working")
     await expect.element(pin("mobile-app")).toHaveAttribute("data-project-status", "running")
     await workspaceSwitcher().click()
@@ -279,7 +276,6 @@ describe("A pinned project", () => {
     it("by dragging a pin along the bar, which the switcher and the numbers follow", async () => {
       arrange(["storefront", "api-service", "mobile-app"])
       await openWorkspace("/?demo=agents")
-      await skipWelcome()
       expect(pinNames()).toEqual(["1storefront", "2api-service", "3mobile-app"])
 
       const first = pin("storefront")
@@ -311,7 +307,6 @@ describe("A pinned project", () => {
     it("unpins a pin dragged off the bar and let go there", async () => {
       arrange(["storefront", "api-service", "mobile-app"])
       await openWorkspace("/?demo=agents")
-      await skipWelcome()
       const from = pin("api-service").element().getBoundingClientRect()
       await userEvent.dragAndDrop(pin("api-service"), page.elementLocator(document.body), {
         sourcePosition: { x: from.width / 2, y: from.height / 2 },
@@ -326,7 +321,6 @@ describe("A pinned project", () => {
     it("only by a drag: a click still switches", async () => {
       arrange(["storefront", "api-service", "mobile-app"])
       await openWorkspace("/?demo=agents")
-      await skipWelcome()
       await pin("api-service").click()
       await expect.element(pin("api-service")).toHaveAttribute("aria-current", "true")
       expect(pinNames()).toEqual(["1storefront", "2api-service", "3mobile-app"])
@@ -335,7 +329,6 @@ describe("A pinned project", () => {
     it("by Alt and the arrows, with the focus kept, and never out of the bar", async () => {
       arrange(["storefront", "api-service", "mobile-app"])
       await openWorkspace("/?demo=agents")
-      await skipWelcome()
       pin("storefront").element().focus()
       await userEvent.keyboard("{Alt>}{ArrowRight}{/Alt}")
       await expect.poll(pinNames).toEqual(["1api-service", "2storefront", "3mobile-app"])
@@ -375,7 +368,6 @@ describe("A pinned project", () => {
     it("pins it where it is let go, after the pins it passes", async () => {
       arrange(["storefront", "api-service"])
       await openWorkspace("/?demo=agents")
-      await skipWelcome()
       await workspaceSwitcher().click()
 
       await dragOut("mobile-app")
@@ -391,7 +383,6 @@ describe("A pinned project", () => {
 
     it("opens an empty bar for the drag, and the project becomes the first pin", async () => {
       await openWorkspace("/?demo=agents")
-      await skipWelcome()
       await expect.element(pinsBar()).not.toBeInTheDocument()
       await workspaceSwitcher().click()
 
@@ -402,7 +393,6 @@ describe("A pinned project", () => {
 
     it("says where to drop until the drag is let go, after the menu has closed", async () => {
       await openWorkspace("/?demo=agents")
-      await skipWelcome()
       await workspaceSwitcher().click()
       await expect
         .element(page.getByRole("dialog", { name: "Switch workspace" }))
@@ -436,7 +426,6 @@ describe("A pinned project", () => {
     it("marks a bar with pins as a place to drop, its words after them", async () => {
       arrange(["storefront", "api-service"])
       await openWorkspace("/?demo=agents")
-      await skipWelcome()
       await workspaceSwitcher().click()
       let seen: {
         readonly hint: boolean
@@ -469,7 +458,6 @@ describe("A pinned project", () => {
       await page.viewport(620, 900)
       onTestFinished(() => page.viewport(1440, 900))
       await openWorkspace("/?demo=agents")
-      await skipWelcome()
       await workspaceSwitcher().click()
       const overlaps: string[] = []
       let sampled = 0
@@ -495,7 +483,6 @@ describe("A pinned project", () => {
 
     it("still reorders the list when dragged to its top, with the bar behind it", async () => {
       await openWorkspace("/?demo=agents")
-      await skipWelcome()
       await workspaceSwitcher().click()
       await expect.poll(() => switcherOrder()[0]).toBeTruthy()
       const first = switcherOrder()[0]!
@@ -512,7 +499,6 @@ describe("A pinned project", () => {
     it("pins nothing when let go off the bar", async () => {
       arrange(["storefront"])
       await openWorkspace("/?demo=agents")
-      await skipWelcome()
       await workspaceSwitcher().click()
       const before = switcherOrder()
       expect(before).toContain("mobile-app")
@@ -527,7 +513,6 @@ describe("A pinned project", () => {
     it("pins nothing when Escape cancels the drag on the bar", async () => {
       arrange(["storefront"])
       await openWorkspace("/?demo=agents")
-      await skipWelcome()
       await workspaceSwitcher().click()
       const before = switcherOrder()
       const escaped = escapeOnceHandedOver("mobile-app")
@@ -555,7 +540,6 @@ describe("A pinned project", () => {
     await page.viewport(600, 900)
     onTestFinished(() => page.viewport(1440, 900))
     await openWorkspace("/?demo=agents")
-    await skipWelcome()
     await expect.element(pin("storefront")).toBeVisible()
     await expect.element(pin("docs-site")).not.toBeInTheDocument()
     await expect.element(workspaceSwitcher()).toHaveAttribute("data-project-status", "ask")
@@ -564,7 +548,6 @@ describe("A pinned project", () => {
   it("keeps the other pins where they are when switching", async () => {
     arrange(["storefront", "api-service", "docs-site", "mobile-app"])
     await openWorkspace("/?demo=agents")
-    await skipWelcome()
     const xs = () =>
       pinsBar()
         .getByRole("button")
@@ -596,7 +579,6 @@ describe("A pinned project", () => {
     await page.viewport(600, 900)
     onTestFinished(() => page.viewport(1440, 900))
     await openWorkspace("/?demo=agents")
-    await skipWelcome()
     const shownNames = () =>
       pinsBar()
         .getByRole("button")

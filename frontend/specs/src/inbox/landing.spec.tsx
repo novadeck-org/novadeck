@@ -2,13 +2,7 @@ import { demoInboxIds } from "@novadeck/demo/inbox/fixtures"
 import { page } from "vitest/browser"
 
 import { desktopWindow } from "../support/backend"
-import {
-  expectStaysAbsent,
-  openWorkspace,
-  sidebarPanel,
-  skipWelcome,
-  terminalTab,
-} from "../support/workspace"
+import { expectStaysAbsent, openWorkspace, sidebarPanel, terminalTab } from "../support/workspace"
 import { context, describe, expect, it } from "../test"
 
 // The landing rule: what an agent says from the terminal the person is looking at doesn't
@@ -26,7 +20,6 @@ const inboxRow = (subject: RegExp | string) =>
 
 const open = async (route: string): Promise<void> => {
   await openWorkspace(route)
-  await skipWelcome()
 }
 
 // The grace a new entry waits before it rings is 2 s; waiting past it shows nothing rang.
