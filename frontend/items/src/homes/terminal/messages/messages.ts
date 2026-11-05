@@ -114,16 +114,16 @@ export const noLinks: MessageLinks = {
 export const usePeers = (links: MessageLinks): Readonly<Record<string, MessagePeer>> =>
   useSyncExternalStore(links.peers.subscribe, links.peers.getSnapshot)
 
-// The messages a terminal's threads hold, by id.
-const messageIds = (threads: TerminalThreads | undefined): ReadonlySet<string> =>
-  new Set((threads?.threads ?? []).flatMap((thread) => thread.messages.map((each) => each.id)))
+// Each thread's latest message, by id: a new message is always the latest in its thread.
+const latestIds = (threads: TerminalThreads | undefined): ReadonlySet<string> =>
+  new Set((threads?.threads ?? []).flatMap((thread) => thread.messages.at(-1)?.id ?? []))
 
 // The messages join a terminal's bar when it first has them, after what came before, and
 // come back once hidden with the next message, whether or not the terminal is on screen.
 // A message is new by its id, not by the count growing: at the runner's listing caps the
 // oldest drop out as new ones come. Follows them from here on; returns the stop.
 export const followMessages = (workspace: WorkspaceStore, messages: Messages): (() => void) => {
-  // Each terminal's threads as last heard, and their messages' ids.
+  // Each terminal's threads as last heard, and their latest messages' ids.
   const known = new Map<
     string,
     { readonly threads: TerminalThreads | undefined; readonly ids: ReadonlySet<string> }
@@ -132,7 +132,7 @@ export const followMessages = (workspace: WorkspaceStore, messages: Messages): (
     const actions: WorkspaceAction[] = []
     for (const [id, threads] of Object.entries(state.terminals)) {
       const before = known.get(id)
-      const ids = before?.threads === threads ? before.ids : messageIds(threads)
+      const ids = before?.threads === threads ? before.ids : latestIds(threads)
       const more =
         before !== undefined && ids !== before.ids && [...ids].some((each) => !before.ids.has(each))
       known.set(id, { threads, ids })
