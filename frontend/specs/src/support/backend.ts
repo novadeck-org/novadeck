@@ -2,8 +2,8 @@ import type { Conversation, Conversations } from "@novadeck/core/conversation"
 import type { PortableInstall } from "@novadeck/core/desktop/portable"
 import type { SandboxState } from "@novadeck/core/desktop/sandbox"
 import type { InboxRow, InboxSource } from "@novadeck/core/inbox"
-import type { Backend, Notice } from "@novadeck/core/port"
-import type { Store } from "@novadeck/core/store"
+import type { Approval, Approvals, Backend, Notice } from "@novadeck/core/port"
+import { createStore, type Store } from "@novadeck/core/store"
 import { createDemoBackend } from "@novadeck/demo"
 import {
   createDemoPortable,
@@ -323,9 +323,53 @@ export const desktopWindow = {
 // The demo a spec opens, as its address's hash asks.
 export const createSpecBackend = (): ReturnType<typeof createDemoBackend> => {
   const demo = plainSpecBackend()
+  const withApprovals = approvalsRequested() ? { ...demo, approvals: specApprovals() } : demo
   // Keeps no arrangement, as a demo doesn't, but takes the one a spec leaves in storage
   // (`novadeck.project-arrangement`) as an earlier client's, which the app imports.
-  return { ...(desktopRequested() ? asDesktop(demo) : demo), arrange: async () => {} }
+  return {
+    ...(desktopRequested() ? asDesktop(withApprovals) : withApprovals),
+    arrange: async () => {},
+  }
+}
+
+// Specs open the demo with a backend that has agents ask the person's approval with
+// `&approvals=on`: the spec makes an agent ask with `approvals.ask`, and reads the person's
+// answers with `approvals.answers`.
+const approvalsRequested = (): boolean => addressParams().get("approvals") === "on"
+
+type SpecApprovals = Approvals & {
+  readonly pending: ReturnType<typeof createStore<readonly Approval[]>>
+  readonly answered: { readonly requestId: string; readonly approved: boolean }[]
+}
+
+// The approvals of every backend made since the page opened: StrictMode makes two and keeps
+// one, so an ask reaches each, and the page's answers are read from them all.
+const approvalBackends: SpecApprovals[] = []
+
+const specApprovals = (): Approvals => {
+  const pending = createStore<readonly Approval[]>([])
+  const answered: SpecApprovals["answered"] = []
+  const made: SpecApprovals = {
+    pending,
+    answered,
+    answer: (requestId, approved) => {
+      if (!pending.getSnapshot().some((each) => each.requestId === requestId)) return
+      answered.push({ requestId, approved })
+      pending.update((waiting) => waiting.filter((each) => each.requestId !== requestId))
+    },
+  }
+  approvalBackends.push(made)
+  return made
+}
+
+/** What agents ask the person to allow, in the app of `&approvals=on`. */
+export const approvals = {
+  /** An agent asks, queued behind the approvals already waiting. */
+  ask: (approval: Approval): void =>
+    approvalBackends.forEach((each) => each.pending.update((waiting) => [...waiting, approval])),
+  /** The person's answers, in the order given. */
+  answers: (): { readonly requestId: string; readonly approved: boolean }[] =>
+    approvalBackends.flatMap((each) => each.answered),
 }
 
 const plainSpecBackend = (): ReturnType<typeof createDemoBackend> => {
@@ -357,11 +401,12 @@ const plainSpecBackend = (): ReturnType<typeof createDemoBackend> => {
 }
 
 /**
- * Forgets what earlier pages' backends left (their updates, desktop windows and Babcia cues), as
- * the workspace opens: what a spec reads and drives is then the page it has open, though an
- * earlier spec or an earlier page of its own made more.
+ * Forgets what earlier pages' backends left (their updates, desktop windows, approvals and Babcia
+ * cues), as the workspace opens: what a spec reads and drives is then the page it has open,
+ * though an earlier spec or an earlier page of its own made more.
  */
 export const forgetEarlierPages = (): void => {
+  approvalBackends.length = 0
   made.length = 0
   desktops.length = 0
   babciaCues.length = 0
