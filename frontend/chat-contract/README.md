@@ -38,6 +38,11 @@ golden diff.
 their way, unrecorded, back in the agent's box) among a conversation each harness recorded in
 its own shape, against `src/sent/<harness>.txt`: `sent (<state>): <words> · <note> [button]`.
 
+`live.test.ts` renders a conversation each harness's agent still works on, against
+`src/live/<harness>.txt`: the latest run's unanswered call reads `→ running`, and a fold that
+starts open (the latest run's, while the agent works) reads `[open: …]`. Every other golden is
+of a finished conversation.
+
 What it does not read: which icon a kind maps to, styling, and the Markdown rendering of
 assistant text beyond its words.
 
@@ -57,11 +62,11 @@ A golden changes only with a reviewed diff. Run the package's tests without `CI`
 
 ```
 pnpm --filter @novadeck/chat-contract exec vitest run -u
-git diff frontend/chat-contract/src/goldens
+git diff frontend/chat-contract/src
 ```
 
-With `CI=true` a missing or changed golden fails the test instead of being written. The test
-also fails on a golden no fixture owns.
+With `CI=true` a missing or changed golden fails the test instead of being written. The tests
+also fail on a golden nothing owns, in `goldens/`, `sent/` and `live/`.
 
 A change to a decoder, to `groupItems`, to a harness's `describe` or to the components should
 change a golden only when the chat is meant to show something else. A move of code (a package

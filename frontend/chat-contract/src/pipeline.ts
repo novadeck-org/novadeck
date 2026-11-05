@@ -101,24 +101,34 @@ const rowOf = (row: Element): string => {
   ].join("")
 }
 
+const unknownBlock = (block: Element): Error =>
+  new Error(`The chat rendered a block this contract does not know: ${block.outerHTML}`)
+
 // One line of a golden per block, from what the DOM shows. A folded run is opened, each of
 // its rows too, so what they hold is read.
 const lineOf = (block: Element): { line: string; rows: number } => {
   if (block.matches(".chat-tools")) {
     const fold = block.querySelector("button.chat-tools-fold")
-    const folded = fold ? `[${foldText(fold)}] ` : ""
-    if (fold?.getAttribute("aria-expanded") === "false") click(fold)
+    // A fold that starts open (a live run's) says so; a finished one starts shut.
+    const shut = fold?.getAttribute("aria-expanded") === "false"
+    const folded = fold ? `[${shut ? "" : "open: "}${foldText(fold)}] ` : ""
+    if (fold && shut) click(fold)
     const rows = [...block.querySelectorAll("li.chat-tool")].map(rowOf)
     return { line: `tools: ${folded}${rows.join("; ")}`, rows: rows.length }
   }
   if (block.matches(".chat-note")) return { line: `note: ${textOf(block)}`, rows: 0 }
   const sent = block.getAttribute("data-sent")
   if (sent) {
-    const words = textOf(block.querySelector(".chat-bubble")!)
+    const bubble = block.querySelector(".chat-bubble")
     const note = block.querySelector(".chat-sent")
+    const words = note?.querySelector("span")
+    if (!bubble || (note && !words)) throw unknownBlock(block)
     const button = note?.querySelector("button")?.textContent
-    const said = note ? textOf(note.querySelector("span")!) : ""
-    return { line: `sent (${sent}): ${words} · ${said}${button ? ` [${button}]` : ""}`, rows: 0 }
+    const said = words ? textOf(words) : ""
+    return {
+      line: `sent (${sent}): ${textOf(bubble)} · ${said}${button ? ` [${button}]` : ""}`,
+      rows: 0,
+    }
   }
   const role = block.getAttribute("data-role")
   const bubble = role === "agent" ? block.querySelector(".chat-bubble")?.cloneNode(true) : null
@@ -128,7 +138,7 @@ const lineOf = (block: Element): { line: string; rows: number } => {
     return { line: `agent (${from}): ${textOf(bubble)}`, rows: 0 }
   }
   if (role === "user" || role === "assistant") return { line: `${role}: ${textOf(block)}`, rows: 0 }
-  throw new Error(`The chat rendered a block this contract does not know: ${block.outerHTML}`)
+  throw unknownBlock(block)
 }
 
 export type Rendered = {
@@ -140,17 +150,18 @@ export type Rendered = {
 
 // The conversation as the UI draws it: core's blocks through the real Transcript in jsdom,
 // with the agent named as the chat names it, and the person's prompts the record doesn't show
-// yet among them (`sent`).
+// yet among them (`sent`). Finished, unless `working` says the agent still works on it.
 export const renderChat = (
   items: readonly ChatItem[],
   harness: AgentName,
   sent: readonly SentBubble[] = [],
+  { working = false }: { readonly working?: boolean } = {},
 ): Rendered => {
   const view = render(
     createElement(Transcript, {
       blocks: groupItems(items),
       agent: agentName(harness),
-      working: false,
+      working,
       sent,
       onShowTerminal: () => {},
     }),
