@@ -1,10 +1,12 @@
 // First, so its `@layer` order statement leads the bundle.
 import "@novadeck/ui/styles.css"
-import type { Backend, BackendSelection, ConnectBackend } from "@novadeck/core/port"
+import type { Backend, BackendSelection } from "@novadeck/core/port"
 import { createBootRehearsals } from "@novadeck/demo-debug/boot-rehearsal"
 import { App, type WorkspacePanel } from "@novadeck/ui/app/App"
 import { start } from "@novadeck/ui/entries/start"
 import { pageTheme } from "@novadeck/ui/theme/source"
+
+import { sharedLoad } from "./load"
 
 // The content preview (`pnpm dev:previews`): the demo with its debug panel, both loaded with
 // the connection instead of the entry point, as the desktop app loads a runner's client.
@@ -16,18 +18,12 @@ let panelOf: ((backend: Backend) => WorkspacePanel | undefined) | undefined
 
 // One connection for every attempt, as it remembers the variant and what the panel armed.
 // Attempts at once share its load; one that failed is tried again by the next.
-let loading: Promise<ConnectBackend> | undefined
-const load = (): Promise<ConnectBackend> =>
-  (loading ??= import("@novadeck/demo-debug/connect").then(
-    ({ connectDemo, debugPanelOf }) => {
-      panelOf = debugPanelOf
-      return connectDemo(rehearsals, pageTheme)
-    },
-    (error: unknown) => {
-      loading = undefined
-      throw error
-    },
-  ))
+const load = sharedLoad(() =>
+  import("@novadeck/demo-debug/connect").then(({ connectDemo, debugPanelOf }) => {
+    panelOf = debugPanelOf
+    return connectDemo(rehearsals, pageTheme)
+  }),
+)
 
 const demo: BackendSelection = {
   connect: async (signal, progress) => (await load())(signal, progress),

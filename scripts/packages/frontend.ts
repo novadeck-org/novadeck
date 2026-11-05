@@ -194,8 +194,10 @@ export const packages: readonly Pkg[] = [
       dev: "vite --host 127.0.0.1 --mode content-preview",
       build: "vite build --mode content-preview",
       preview: "vite preview --host 127.0.0.1",
+      test: "vitest run",
       typecheck: "tsc --noEmit -p tsconfig.json",
     },
+    vitest: "unit",
     node: [", as every app's does (docs/build-graph.md):", "its Vite config runs in Node."],
   },
 ]
