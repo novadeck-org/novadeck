@@ -560,7 +560,9 @@ version. Promote to Stable runs it for the release it promotes, so the demo show
 Download gives people and prereleases never reach it. Run workflow deploys a tag by hand. Quality builds it on every pull request. The
 build carries a `_headers` file (`apps/try/src/deploy.ts`, written by `tools/build-kit`):
 only novadeck.dev may frame it, nothing of it is indexed, hashed assets are kept for good,
-and the posters for five minutes.
+and the posters for five minutes. It carries a `404.html` too, so a file the deploy no longer has
+is a 404 rather than the page in its place, which would be kept as the file for good; a person
+who mistypes an address is sent on to the demo.
 
 The Try workflow also writes four posters into the build before it deploys it, and
 `pnpm poster:try` does the same for a local build: `poster-light-1280.webp`,

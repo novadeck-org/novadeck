@@ -4,25 +4,28 @@ import { describe, expect, it } from "../test.js"
 import {
   cleanSummary,
   defaultTitle,
+  described,
   murmured,
   openedWith,
   renamed,
-  summarized,
   summaryChars,
   summaryRefusal,
   titleOf,
+  titleRefusal,
   titledByHand,
   unnamed,
   type Naming,
 } from "./titles.js"
 
-const terminal = { command: null, openedBy: "moth" }
+const terminal = { handle: "fox", command: null, openedBy: "moth" }
+const alone = { handle: "fox", command: null, openedBy: null }
 const opener = { title: "Login fix" }
 const murmur = { title: "Fixing login" }
+const own = { title: "Login cookie" }
 
 describe("a terminal's title", () => {
-  it("is the person's, then the opening agent's, then murmur's, then the default", () => {
-    const named: Naming = { person: "Mine", opener, murmur, summary: "Fixes login." }
+  it("is the person's, then the opening agent's, then murmur's, then its own agent's, then the default", () => {
+    const named: Naming = { person: "Mine", opener, murmur, own, summary: "Fixes login." }
     expect(titleOf(named, terminal)).toEqual({ title: "Mine", source: { kind: "person" } })
     // A lead's title outlasts a local model's later one.
     expect(titleOf({ ...named, person: null }, terminal)).toEqual({
@@ -33,6 +36,11 @@ describe("a terminal's title", () => {
       title: "Fixing login",
       source: { kind: "murmur" },
     })
+    // The terminal's own agent names it by its own handle, only where nothing above has.
+    expect(titleOf({ ...named, person: null, opener: null, murmur: null }, terminal)).toEqual({
+      title: "Login cookie",
+      source: { kind: "agent", by: "fox" },
+    })
     expect(titleOf(unnamed, terminal)).toEqual({
       title: "Terminal",
       source: { kind: "default" },
@@ -41,8 +49,8 @@ describe("a terminal's title", () => {
 
   it("ignores an opener's title when no terminal opened it", () => {
     const named: Naming = { ...unnamed, opener }
-    expect(titleOf(named, { command: null, openedBy: null }).source).toEqual({ kind: "default" })
-    expect(titleOf({ ...named, murmur }, { command: null, openedBy: null }).source).toEqual({
+    expect(titleOf(named, alone).source).toEqual({ kind: "default" })
+    expect(titleOf({ ...named, murmur }, alone).source).toEqual({
       kind: "murmur",
     })
   })
@@ -54,8 +62,12 @@ describe("a terminal's title", () => {
     expect(titledByHand({ ...unnamed, opener }, null)).toBe(false)
   })
 
-  it("is never made by a summary", () => {
-    expect(titleOf(summarized(unnamed, "Fixes login."), terminal).source).toEqual({
+  it("is its own agent's where nothing else named it, never made by a summary", () => {
+    expect(titleOf(described(unnamed, "Login cookie", "Fixes login."), terminal)).toEqual({
+      title: "Login cookie",
+      source: { kind: "agent", by: "fox" },
+    })
+    expect(titleOf({ ...unnamed, summary: "Fixes login." }, terminal).source).toEqual({
       kind: "default",
     })
   })
@@ -76,7 +88,9 @@ describe("a terminal's title", () => {
     expect(defaultTitle("env A=1 B=2 /usr/bin/codex")).toBe("codex")
     expect(defaultTitle("A=1")).toBe("Terminal")
     expect(defaultTitle(null)).toBe("Terminal")
-    expect(titleOf(unnamed, { command: "claude", openedBy: null }).title).toBe("claude")
+    expect(titleOf(unnamed, { handle: "fox", command: "claude", openedBy: null }).title).toBe(
+      "claude",
+    )
   })
 
   // A title kept before the rule took in bidirectional marks and C1 controls would fail every
@@ -125,12 +139,32 @@ describe("naming a terminal", () => {
   })
 
   it("keeps the agent's summary apart from every title, and replaces it each time", () => {
-    const named = summarized(murmured(unnamed, "Fixing login"), "Fixes the login bug.")
+    const named = described(murmured(unnamed, "Fixing login"), "Login bug", "Fixes the login bug.")
     expect(named.summary).toBe("Fixes the login bug.")
     expect(named.murmur).toEqual(murmur)
-    expect(summarized(named, "Now the signup.").summary).toBe("Now the signup.")
+    expect(named.own).toEqual({ title: "Login bug" })
+    expect(described(named, "Signup", "Now the signup.")).toMatchObject({
+      own: { title: "Signup" },
+      summary: "Now the signup.",
+    })
     // Murmur's next title leaves the agent's summary as it is.
     expect(murmured(named, "Fixing signup").summary).toBe("Fixes the login bug.")
+  })
+})
+
+describe("an agent's title", () => {
+  it("is one short line with words in it", () => {
+    expect(titleRefusal("Checkout rounding fix")).toBeUndefined()
+    expect(titleRefusal("")).toMatch(/empty/)
+    expect(titleRefusal("---")).toMatch(/needs words/)
+    expect(titleRefusal("x".repeat(81))).toMatch(/81 characters/)
+    // Over the person's limit too, it is too long, not malformed.
+    expect(titleRefusal("x".repeat(250))).toMatch(/250 characters/)
+  })
+
+  it("refuses what a person's title would: more than one line, control and direction marks", () => {
+    for (const title of ["Two\nlines", "Tab\there", "Esc\u001b[2J", "C1\u009bnext", "Flip\u202eit"])
+      expect(titleRefusal(title)).toMatch(/one line/)
   })
 })
 

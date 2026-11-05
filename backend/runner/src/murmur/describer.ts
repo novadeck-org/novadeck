@@ -10,7 +10,7 @@ export type AgentDigest = {
    * it is taken out of the title it writes.
    */
   readonly project: string | null
-  /** The agent's latest summary of its work, from `summarize`. */
+  /** The agent's latest summary of its work, from `describe`. */
   readonly summary: string
 }
 

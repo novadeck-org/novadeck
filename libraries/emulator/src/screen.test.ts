@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest"
 
-import { createScreen, readScreen, serializerOf, written } from "./screen.js"
+import { createScreen, readScreen, serializerOf, written, type Screen } from "./screen.js"
 import { snapshot } from "./snapshot.js"
 import { cells } from "./width.js"
 
@@ -20,6 +20,81 @@ describe("a screen", () => {
     expect(serializerOf(screen)).toBe(serializerOf(screen))
     await written(screen, "hello")
     expect(snapshot(screen, { fits: () => true, mouse: "default" })).toContain("hello")
+    screen.dispose()
+  })
+})
+
+// A handler that throws leaves the parser where the throw found it: inside the OSC whose end
+// ran it, or the escape sequence before its final. The screen ends the sequence at once, so
+// the output that follows draws.
+describe("a screen whose parse threw", () => {
+  const broken = new Error("a listener threw")
+  const breaking = (register: (screen: Screen, fail: () => never) => void) => {
+    const reported: unknown[] = []
+    const screen = createScreen({
+      cols: 20,
+      rows: 2,
+      scrollback: 0,
+      onParseError: (error) => reported.push(error),
+    })
+    register(screen, () => {
+      throw broken
+    })
+    return { screen, reported }
+  }
+
+  it.each([
+    [
+      "an OSC",
+      "\x1b]7;file:///x\x07",
+      (screen: Screen, fail: () => never) => screen.parser.registerOscHandler(7, fail),
+    ],
+    [
+      "an ESC",
+      "\x1bc",
+      (screen: Screen, fail: () => never) => screen.parser.registerEscHandler({ final: "c" }, fail),
+    ],
+    [
+      "a CSI",
+      "\x1b[1z",
+      (screen: Screen, fail: () => never) => screen.parser.registerCsiHandler({ final: "z" }, fail),
+    ],
+  ])("ends %s whose handler threw, and draws what follows", async (_, sequence, register) => {
+    const { screen, reported } = breaking(register)
+    await written(screen, sequence)
+    await written(screen, "hello")
+    expect(readScreen(screen).rows[0]).toBe("hello")
+    expect(reported).toEqual([broken])
+    screen.dispose()
+  })
+
+  it("reports only its first error, and each write still resolves", async () => {
+    const { screen, reported } = breaking((breakable, fail) =>
+      breakable.parser.registerCsiHandler({ final: "z" }, fail),
+    )
+    await written(screen, "\x1b[z")
+    await written(screen, "a\x1b[z")
+    await written(screen, "b")
+    expect(readScreen(screen).rows[0]).toBe("ab")
+    expect(reported).toEqual([broken])
+    screen.dispose()
+  })
+
+  it("goes on when its report throws", async () => {
+    const screen = createScreen({
+      cols: 20,
+      rows: 2,
+      scrollback: 0,
+      onParseError: () => {
+        throw new Error("the logger threw")
+      },
+    })
+    screen.parser.registerCsiHandler({ final: "z" }, () => {
+      throw broken
+    })
+    await written(screen, "\x1b[z")
+    await written(screen, "after")
+    expect(readScreen(screen).rows[0]).toBe("after")
     screen.dispose()
   })
 })

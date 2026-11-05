@@ -18,7 +18,7 @@
  *   own.
  * - `lead` asks the person to let it lead an agent already running in another terminal,
  *   and `release` ends such a lead; `send` and `agents` message the agents in the
- *   project's other terminals and list them; `summarize` says what the agent's own
+ *   project's other terminals and list them; `describe` names and says what the agent's own
  *   terminal works on.
  * - `ask`, `tell` and `done` put a question, a milestone and a report in the person's
  *   Inbox; `feedback` drafts feedback about Novadeck for the person's feedback card (see
@@ -968,8 +968,7 @@ const agents: Tool<Listing> = {
     "you lead, and its latest report, else its agent's summary. Give terminal (a handle, " +
     "as \"@fox\") for that terminal's details, or full true for every terminal's (as all " +
     "show with five or fewer): also its title's source (the user's, else the opening " +
-    "agent's, else " +
-    "Novadeck's local model's, which it says), the summary its agent gave of its work, the " +
+    "agent's, else Novadeck's local model's, else its own agent's, which it says), the summary its agent gave of its work, the " +
     "folder and git branch its agent works in now (and the folder its terminal started in, " +
     "when that differs), the user's first and latest prompts there, its plan, the folders " +
     "it writes in most, and the latest message between you. A terminal whose agent is " +
@@ -1002,21 +1001,28 @@ const agents: Tool<Listing> = {
   failed: "Novadeck couldn't list the terminals.",
 }
 
-const summarize: Tool<unknown> = {
-  name: "summarize",
+const describe: Tool<unknown> = {
+  name: "describe",
   description:
-    "Summarize your own Novadeck terminal: one short line on what the work here is about, " +
-    'at a high level, such as "Checkout rounding fix" or "Billing webhook key rotation". ' +
-    "Name the subject only: no status or progress (done, merged, in CI, next), no PR or " +
-    "issue numbers, no file names or details. Other agents read it in their agents listing " +
-    "to tell terminals apart and route work, and Novadeck may name the terminal from it. " +
-    "It only ever summarizes your own terminal. Call it when Novadeck's automatic notice " +
-    "asks, first thing once you are given work, or when the work moves to another subject; " +
-    "progress alone is no reason to update it. It sets no title: titles are Novadeck's and " +
-    "the user's.",
+    "Describe your own Novadeck terminal with a title and a summary, each one short line on " +
+    'what the work here is about, at a high level, such as "Checkout rounding fix" or ' +
+    '"Billing webhook key rotation". Name the subject only: no status or progress (done, ' +
+    "merged, in CI, next), no PR or issue numbers, no file names or details. The title is " +
+    "what Novadeck names the terminal with when nothing else has named it: the user, the " +
+    "agent that opened it, or its local model, which all come first. Other agents read the " +
+    "summary in their agents listing to tell terminals apart and route work, and Novadeck " +
+    "may name the terminal from it. It only ever describes your own terminal. Call it when " +
+    "Novadeck's automatic notice asks, first thing once you are given work, or when the " +
+    "work moves to another subject; progress alone is no reason to update it.",
   inputSchema: {
     type: "object",
     properties: {
+      title: {
+        type: "string",
+        description:
+          "A few words naming what the work here is about: its subject, with no status, PR or issue numbers, or file names.",
+        maxLength: 80,
+      },
       summary: {
         type: "string",
         description:
@@ -1024,13 +1030,13 @@ const summarize: Tool<unknown> = {
         maxLength: 200,
       },
     },
-    required: ["summary"],
+    required: ["title", "summary"],
     additionalProperties: false,
   },
-  call: "summarize",
-  request: (args) => picked(args, ["summary"]),
-  said: () => "Summarized this terminal.",
-  failed: "Novadeck couldn't summarize the terminal.",
+  call: "describe",
+  request: (args) => picked(args, ["title", "summary"]),
+  said: () => "Described this terminal.",
+  failed: "Novadeck couldn't describe the terminal.",
 }
 
 const entryFields = {
@@ -1051,7 +1057,9 @@ const ask: Tool<{ readonly id: string; readonly withdrawn?: boolean }> = {
     "own question tool and you'd stop to ask with it, do, as you normally would: the Inbox " +
     "shows that question as it is, so it needs no ask. Always ask every other question " +
     "you end your turn waiting on, such as which option to take or whether to open a pull " +
-    "request, unless it is already an open ask, and put the full question in your reply too. A closing offer such as " +
+    "request, unless it is already an open ask, and put the full question in your reply too: " +
+    "while the user looks at this terminal, the Inbox holds its asks back until they look away, " +
+    "so then your reply is the only place they see it. A closing offer such as " +
     "'anything else?' isn't one, nor is an action your harness is already prompting them " +
     "for. With a lead, ask all the same, and send it the question too, so it knows what you " +
     "wait on; if your lead answers it first, act on that as its instruction and withdraw the " +
@@ -1168,7 +1176,7 @@ const ask: Tool<{ readonly id: string; readonly withdrawn?: boolean }> = {
   said: (answer) =>
     answer.withdrawn
       ? `Withdrew ask ${answer.id} from the Inbox.`
-      : `Ask ${answer.id} is in the user's Inbox. Their answer arrives later as a message; keep working on what doesn't depend on it, and end your turn once nothing else is left.`,
+      : `Ask ${answer.id} is in the user's Inbox. While they look at this terminal it waits there unseen until they look away, so put the full question in your reply too. Their answer arrives later as a message; keep working on what doesn't depend on it, and end your turn once nothing else is left.`,
   failed: "Novadeck couldn't save the ask.",
 }
 const tell: Tool<{ readonly id: string }> = {
@@ -1263,7 +1271,7 @@ const tools: readonly Tool<unknown>[] = [
   release,
   send,
   agents,
-  summarize,
+  describe,
   feedback,
 ]
 
@@ -1298,7 +1306,8 @@ const instructions =
   "Novadeck shows that question in the Inbox as it is, so it needs no ask. Always ask " +
   "there every other question you end your turn waiting on, such as which option to take " +
   "or whether to open a pull request, unless it is already an open ask, and put the full " +
-  "question in your reply too; a closing " +
+  "question in your reply too, as the Inbox holds an ask back while they look at this " +
+  "terminal; a closing " +
   "offer such as 'anything else?' isn't one, nor is an action your harness is already " +
   "prompting them for. When they write to you here, Novadeck takes your open asks out " +
   "of the Inbox and tells you; ask again only what their message leaves open. If they " +

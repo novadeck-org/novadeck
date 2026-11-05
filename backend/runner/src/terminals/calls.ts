@@ -31,6 +31,7 @@ import {
 } from "./closes.js"
 import { sessionLaunch } from "./commands.js"
 import type { Companion } from "./companion.js"
+import { readDescribeRequest, type DescribeAnswer } from "./describe-request.js"
 import { mention } from "./handles.js"
 import type { Launcher } from "./launching.js"
 import { Leads, leadNotice, type LeadsHost } from "./leads.js"
@@ -53,8 +54,7 @@ import type { Record } from "./record.js"
 import { resumeRefusal, type Claims } from "./resumes.js"
 import { nobodyToRun, runNotice, waitingToRun } from "./runs.js"
 import { shellBusy } from "./sampling.js"
-import { readSummarizeRequest, type SummarizeAnswer } from "./summarize-request.js"
-import { cleanSummary, summarized, summaryRefusal } from "./titles.js"
+import { cleanSummary, described, summaryRefusal, titleRefusal } from "./titles.js"
 
 // A command line for the words: every word but a quoted line is a plain word, and a line
 // holds nothing a shell expands.
@@ -110,7 +110,9 @@ export type CallsHost = LeadsHost & {
   readonly forget: (terminalId: string) => void
   /** Saves what restores the terminal, without its screen. */
   readonly save: (record: Record) => void
-  /** Tells murmur the terminal's agent summarized its work. */
+  /** Shows the terminal's title after what names it changed (see `titleOf`), as `Names.retitle`. */
+  readonly retitle: (record: Record) => void
+  /** Tells murmur the terminal's agent described its work. */
   readonly summarized: (terminalId: string) => void
   readonly send: (call: Call) => Promise<SendAnswer | TeamAnswer>
   readonly agents: (call: Call) => Promise<AgentsAnswer>
@@ -658,8 +660,8 @@ export class Calls {
         return this.host.send(call)
       case "agents":
         return this.host.agents(call)
-      case "summarize":
-        return this.summarize(call)
+      case "describe":
+        return this.describe(call)
       case "models":
         return this.listModels(call)
     }
@@ -678,28 +680,35 @@ export class Calls {
   }
 
   /**
-   * Summarizes the caller's own terminal, as its agent asked through Novadeck's MCP
-   * server: the summary of its work `agents()` lists. It names nothing: titles are the
-   * person's, murmur's and the opener's, so an agent has no way to set one. The call
-   * tells murmur to look at the terminal again, now that its agent said what it works on.
-   * A call without the shell's own token learns nothing more.
+   * Describes the caller's own terminal, as its agent asked through Novadeck's MCP
+   * server: a title that names its work, which shows where nothing above it names the
+   * terminal (see `titleOf`), and the summary `agents()` lists. The call tells murmur to
+   * look at the terminal again, now that its agent said what it works on. A call without
+   * the shell's own token learns nothing more.
    */
-  async summarize(call: Call): Promise<SummarizeAnswer> {
+  async describe(call: Call): Promise<DescribeAnswer> {
     const record = callerOf(this.host.records(), call)
-    if (!record) return unansweredCalls.summarize
-    const read = readSummarizeRequest(call.request)
+    if (!record) return unansweredCalls.describe
+    const read = readDescribeRequest(call.request)
     if (!read.ok) return read
+    const title = read.request.title.trim()
+    const untitled = titleRefusal(title)
+    if (untitled) return refused(untitled)
     const summary = cleanSummary(read.request.summary)
     const refusal = summaryRefusal(summary)
     if (refusal) return refused(refusal)
     // Drift is measured from where its work is now.
     const facts = await this.host.peers().facts(peerOf(record))
     if (this.host.stopping() || this.host.records().get(call.terminalId) !== record)
-      return unansweredCalls.summarize
-    record.naming = summarized(record.naming, summary)
+      return unansweredCalls.describe
+    // A summary murmur already named the terminal from says nothing new to it, as when an
+    // agent that summarized before agents gave titles describes only to add its title.
+    const unchanged = record.naming.summary === summary && record.naming.murmur !== null
+    record.naming = described(record.naming, title, summary)
     record.nudges = afterSummary(record.nudges, facts)
+    this.host.retitle(record)
     this.host.save(record)
-    this.host.summarized(record.summary.id)
+    if (!unchanged) this.host.summarized(record.summary.id)
     return { ok: true }
   }
 }

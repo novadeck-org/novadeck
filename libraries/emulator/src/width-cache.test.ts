@@ -233,6 +233,28 @@ describe.each(bundles)("the DOM renderer's width measurements in lib/%s", (bundl
     // Each new string is measured through jsdom, which a slow runner takes seconds over.
   }, 20_000)
 
+  it("keep the fonts used last, and let go of the rest", async () => {
+    // A font size stepped through many values, or a window moved between screens of other
+    // pixel ratios, makes an entry each: the page keeps the eight used last.
+    const shared = () =>
+      (document as unknown as Record<symbol, Map<string, unknown>>)[
+        Symbol.for("novadeck.xterm.widths")
+      ]
+    // One after another, as the order is what is kept.
+    const inTurn = (sizes: number[]) =>
+      sizes.reduce<Promise<unknown>>(
+        (before, fontSize) => before.then(() => open({ fontSize })),
+        Promise.resolve(),
+      )
+    await inTurn([10, 11, 12, 13, 14, 15])
+    // The first is used again on the way, so it stays while sizes 11 and 12 go.
+    expect((await open({ fontSize: 10 })).reads).toBeLessThanOrEqual(1)
+    await inTurn([16, 17, 18, 19])
+    expect(shared()?.size).toBe(8)
+    expect((await open({ fontSize: 10 })).reads).toBeLessThanOrEqual(1)
+    expect((await open({ fontSize: 11 })).reads).toBeGreaterThan(5)
+  })
+
   it("never keep a width that read as 0", async () => {
     broken = true
     await open({ fontFamily: "Unlaid Mono" })

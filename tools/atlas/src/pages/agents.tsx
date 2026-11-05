@@ -36,7 +36,7 @@ const icons: Record<string, LucideIcon> = {
   close_terminal: SquareX,
   send: Send,
   agents: Users,
-  summarize: FileText,
+  describe: FileText,
   lead: Link,
   release: Unlink,
 }

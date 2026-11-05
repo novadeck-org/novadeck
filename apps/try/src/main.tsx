@@ -5,6 +5,9 @@ import { App } from "@novadeck/ui/app/App"
 import { start } from "@novadeck/ui/entries/start"
 import { pageTheme } from "@novadeck/ui/theme/source"
 
+import { embeddedIn } from "./embed"
+import { reloadOnStaleDeploy } from "./reload"
+
 // The visitor build, for a website: the demo without its debug panel. It loads with the
 // connection, so the page's first load carries neither it nor its terminal emulator: the
 // build checks that, and holds each part to its budget in vite.config.ts.
@@ -15,22 +18,12 @@ const visitor: BackendSelection = {
     }),
 }
 
-// A visitor's page can outlive a deploy of the static site, whose files carry new hashes: a
-// lazily loaded view then 404s and the app would unmount. Reloading once picks up the new
-// build; the session key stops a page that keeps failing from reloading again and again.
-window.addEventListener("vite:preloadError", (event) => {
-  try {
-    if (window.sessionStorage.getItem("novadeck:try-reloaded")) return
-    window.sessionStorage.setItem("novadeck:try-reloaded", "1")
-  } catch {
-    return
-  }
-  event.preventDefault()
-  window.location.reload()
-})
+// A page that outlived a deploy reloads to pick up the new build: see src/reload.ts.
+reloadOnStaleDeploy(
+  window,
+  () => window.sessionStorage,
+  () => window.location.reload(),
+)
 
-// Framed in another page, as the website's hero frames it, the demo is addressed with
-// `?embed` (see docs/development.md, "Visitor build"): read here once, and nowhere else.
-const embedded = new URLSearchParams(window.location.search).has("embed")
-
-start(<App selection={visitor} embedded={embedded} />)
+// Whether the page is the hero's frame, read here once, and nowhere else: see src/embed.ts.
+start(<App selection={visitor} embedded={embeddedIn(window)} />)

@@ -52,4 +52,25 @@ describe("the tripwire", () => {
 
     expect(changed()).toEqual([])
   })
+
+  it("finds no file or folder that mentioned the sandbox before, unless it mentions it again", () => {
+    // As one may mention a short name Windows gave an earlier sandbox's root, gone since,
+    // and gives this one again.
+    const { home, sandbox } = scratch()
+    writeFileSync(join(home, "config.json"), JSON.stringify({ earlier: sandbox.root }))
+    mkdirSync(join(home, "projects", "sandbox-run-x"))
+    const changed = tripwire(sandbox, watches, home)
+
+    expect(changed()).toEqual([])
+
+    writeFileSync(
+      join(home, "config.json"),
+      JSON.stringify({ earlier: sandbox.root, last: `${sandbox.root}/project` }),
+    )
+    mkdirSync(join(home, "projects", "sandbox-run-x-project"))
+
+    expect([...changed()].toSorted()).toEqual(
+      [join(home, "config.json"), join(home, "projects")].toSorted(),
+    )
+  })
 })

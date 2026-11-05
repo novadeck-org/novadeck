@@ -78,7 +78,7 @@ export type Peer = {
   readonly untrusted: AgentName | null
   readonly title: string | null
   readonly titleSource: TitleSource | null
-  /** What its own agent said it works on, through `summarize`. */
+  /** What its own agent said it works on, through `describe`. */
   readonly summary: string | null
   /** Where its agent works now, and that folder's git branch (see `Whereabouts`). */
   readonly folder: string | null
@@ -273,7 +273,11 @@ export const ago = (at: number, now: number): string => {
 /** Who a peer's title is from, as agents read it after the title; nothing for the person's. */
 const titleNote = (peer: Peer): string => {
   const source = peer.titleSource
-  if (source?.kind === "agent") return ` (set by ${mention(source.by)}, not the user)`
+  // An agent's own title names it by the peer's own handle.
+  if (source?.kind === "agent")
+    return source.by === peer.handle
+      ? " (set by its own agent, not the user)"
+      : ` (set by ${mention(source.by)}, not the user)`
   return source?.kind === "murmur" ? " (written by Novadeck's local model, not the user)" : ""
 }
 

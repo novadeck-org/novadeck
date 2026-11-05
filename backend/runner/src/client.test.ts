@@ -524,7 +524,7 @@ describe("runner client project removal", () => {
       agents: {},
       promptedAt: null,
       handle: earlier.giveHandle(sessions.removed),
-      naming: { person: null, opener: null, murmur: null, summary: null },
+      naming: { person: null, opener: null, murmur: null, own: null, summary: null },
       openedBy: null,
       ledBy: null,
       command: null,

@@ -64,7 +64,8 @@ export const titleFrom = (text: string): string | undefined => {
 export const handle = z.string().regex(/^[a-z]{2,12}(?:[2-9]|[1-9][0-9]{1,8})?$/)
 
 // Who a terminal's title is from: the person; murmur, the local model that describes
-// terminals; an agent, by its terminal's handle (the one that opened it with a title); or
+// terminals; an agent, by its terminal's handle (the one that opened it with a title, or the
+// terminal's own, for the title its agent gave it); or
 // its session's `default`.
 export const titleSource = z.discriminatedUnion("kind", [
   z.strictObject({ kind: z.literal("person") }),
