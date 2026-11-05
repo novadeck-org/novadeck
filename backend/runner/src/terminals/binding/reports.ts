@@ -269,8 +269,7 @@ export class Reports {
     }
     // A Stop Novadeck may continue shows once its ask is answered, so a continued turn
     // never flashes idle.
-    const stopAsk =
-      deadline !== undefined && askOf(report.agent, report.event) === "stop"
+    const stopAsk = deadline !== undefined && askOf(report.agent, report.event) === "stop"
     const moved = record.summary.cwd !== cwd
     if (!stopAsk) this.host.bindings().publishAgent(record, moved)
     const changes = this.followRootOf(record, events, report.event === "StatusLine")
