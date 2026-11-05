@@ -46,15 +46,13 @@ const known = (harness: AgentName): string[] => casesOf(source(`${harness}/src/t
 
 // Novadeck's old tool names, which `novadeckTool` keeps only so sessions recorded before
 // the rename keep their label: no conversation calls them any more.
-const retired: readonly string[] = ["summarize"]
+const retired: ReadonlySet<string> = new Set(["summarize"])
 
 // Novadeck's own tools, from core's `novadeckTool`, less the retired names.
 const novadeckTools = ((): string[] => {
   const code = source("core/src/tools.ts")
   const from = code.indexOf("export const novadeckTool")
-  return casesOf(code.slice(from, code.indexOf("\n}\n", from))).filter(
-    (tool) => !retired.includes(tool),
-  )
+  return casesOf(code.slice(from, code.indexOf("\n}\n", from))).filter((tool) => !retired.has(tool))
 })()
 
 // A recorded name as its `describe` looks it up: a Novadeck tool as `novadeck:<tool>`, and
