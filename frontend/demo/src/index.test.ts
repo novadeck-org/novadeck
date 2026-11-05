@@ -14,6 +14,7 @@ import { createMockTerminal, defaultName } from "./samples"
 import { createDemoEngine } from "./terminals/engine"
 import { context, describe, expect, it } from "./test"
 import { createDemo, demoVariants } from "./variants"
+import { terminalOf } from "./workspace"
 
 describe("demo backend", () => {
   context("standing in for the runner", () => {
@@ -290,6 +291,50 @@ describe("demo backend", () => {
           texts.push(content.content.text)
       })
       expect(texts[0]).toMatch(/^# Checkout flow/)
+      unbind()
+      stop()
+    })
+  })
+
+  context("when an agent asks for a plan approval while the Inbox is bound", () => {
+    it("shows the plan once the commit that asked is done, not inside it", async () => {
+      const turns = demoTurns()
+      const backend = createDemo("agents", undefined, turns)
+      const store = createWorkspaceStore(
+        workspaceFromSeed(backend.seed, { view: "grid", windowedView: "grid", now: 0 }),
+        backend.commit,
+      )
+      backend.commit(store.getSnapshot(), [])
+      const stop = backend.start!({
+        dispatch: (actions) => store.transact(actions as never),
+        open: () => {},
+      })
+      const unbind = backend.inbox!.bind!({ workspace: store })
+      const project = store.getSnapshot().projects.find((each) => each.id === "storefront")!
+      const owner = project.history[0]!
+      // A terminal the seed has asking nothing, whose plan the Inbox has yet to show.
+      const terminal = owner.state.roster.terminals.find(
+        (each) => each.state === "running" && each.agent && !each.agent.attention,
+      )!
+      const key = {
+        projectId: project.id,
+        workspaceSessionId: owner.id,
+        terminalId: terminal.id,
+      }
+      const plans = () =>
+        sessionItems(store.getSnapshot(), key).filter(
+          (item) => item.kind === "plan" && item.from?.terminalId === terminal.id,
+        )
+      // Asking first, it is followed: what its conversation asks next is heard in the commit.
+      turns.ask(key, terminal, "question", 1)
+      await Promise.resolve()
+      const asking = terminalOf(store.getSnapshot(), key)
+      const before = plans()
+      expect(() => turns.ask(key, asking, "plan", 1)).not.toThrow()
+      expect(plans()).toEqual(before)
+      await Promise.resolve()
+      expect(plans()).not.toEqual(before)
+      expect(plans()).not.toEqual([])
       unbind()
       stop()
     })

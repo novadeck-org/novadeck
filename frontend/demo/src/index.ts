@@ -429,6 +429,8 @@ export const withPlanShows = (backend: Backend): Backend => {
   if (!inbox) return backend
   const companions = backend.companions ?? emptyCompanions()
   let latest: Workspace | undefined
+  // Whether a workspace commit is under way, in which no transaction may start.
+  let committing = false
   return {
     ...backend,
     companions: {
@@ -443,7 +445,12 @@ export const withPlanShows = (backend: Backend): Backend => {
     },
     commit: (workspace, actions) => {
       latest = workspace
-      backend.commit(workspace, actions)
+      committing = true
+      try {
+        backend.commit(workspace, actions)
+      } finally {
+        committing = false
+      }
     },
     start: (sink) => {
       const stop = backend.start?.(sink)
@@ -476,8 +483,18 @@ export const withPlanShows = (backend: Backend): Backend => {
         }
       }
       look()
-      const stopInbox = inbox.state.subscribe(look)
+      // A row can reach the Inbox inside a workspace commit (an agent's status, heard by the
+      // conversation the Inbox follows), where no transaction may start: its plan shows once
+      // the commit is done.
+      let stopped = false
+      const stopInbox = inbox.state.subscribe(() => {
+        if (!committing) return look()
+        queueMicrotask(() => {
+          if (!stopped) look()
+        })
+      })
       return () => {
+        stopped = true
         stopInbox()
         stop?.()
       }
