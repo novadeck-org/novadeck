@@ -101,7 +101,8 @@ export const visitorAmbient = (turns: DemoTurns) => {
             timers.delete(timer)
             if (document.hidden) return review(subagents, wait)
             const terminal = terminalOf(latest, codex)
-            if (!reviewing(terminal)) return
+            // A turn the visitor began on Codex is its own: the review gave way to it.
+            if (!reviewing(terminal) || turns.working(codex)) return
             turns.work(codex, terminal, subagents ? { subagents: true } : undefined)
             review(!subagents, subagents ? reviewBusyMs : reviewLullMs)
           }, wait)

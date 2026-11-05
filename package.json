@@ -10,7 +10,7 @@
   "scripts": {
     "dev": "pnpm --filter @novadeck/desktop dev",
     "dev:web": "node scripts/dev-web/main.ts",
-    "dev:previews": "pnpm --filter @novadeck/protocol... build && pnpm --filter @novadeck/previews dev --port 5181",
+    "dev:previews": "pnpm --filter @novadeck/protocol... build && pnpm --filter @novadeck/previews dev --port 5181 --strictPort",
     "atlas": "pnpm --filter @novadeck/protocol... build && pnpm --filter @novadeck/atlas dev",
     "atlas:brief": "node tools/atlas/brief/main.ts",
     "dev:try": "pnpm --filter @novadeck/protocol... build && pnpm --filter @novadeck/try dev --port 5190",

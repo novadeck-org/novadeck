@@ -1,0 +1,12 @@
+# long-run
+user: Check it all.
+assistant: Looking.
+tools: [4 tool calls · Ran, Read, Searched] Ran [run] · ls | Call: run_command: 1 line: ls → 2 lines: a; Read [read] · …/user/project/a.ts | Call: view_file: 1 line: /home/user/project/a.ts → 1 line: a; Read [read] · …/user/project/b.ts | Call: view_file: 1 line: /home/user/project/b.ts → 1 line: b; Searched [search] · TODO | Call: grep_search: 1 line: TODO → 1 line: a.ts:1
+user: And the tests.
+assistant: Testing.
+tools: [open: 4 tool calls · Ran, Read, Searched] Ran [run] · npm run build | Call: run_command: 1 line: npm run build → 1 line: built; Read [read] · …/user/project/c.ts | Call: view_file: 1 line: /home/user/project/c.ts → 1 line: c; Searched [search] · FIXME | Call: grep_search: 1 line: FIXME → 1 line: none; Ran [run] · npm test | Call: run_command: 1 line: npm test → running
+
+# short-run
+user: Run it.
+assistant: Running.
+tools: Read [read] · …/user/project/a.ts | Call: view_file: 1 line: /home/user/project/a.ts → 1 line: a; Ran [run] · npm test | Call: run_command: 1 line: npm test → running

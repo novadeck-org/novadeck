@@ -15,6 +15,9 @@ import type { DemoAgentVerbs, DemoWaiting } from "./link"
 // How long a demo agent's turn works before it finishes.
 export const demoTurnMs = 1500
 
+// The longest delay setTimeout takes as asked, in milliseconds: past it, it fires at once.
+const longestTimerMs = 2 ** 31 - 1
+
 // What a demo agent's turn does that its conversation shows: it began, with the prompt
 // that started it where one did, ran a tool halfway through, and ended with a reply or
 // said nothing; or the agent went back to rest, with no turn behind it.
@@ -85,7 +88,9 @@ const statusOf = (terminal: TerminalMetadata | undefined): AgentStatus | undefin
 // put an agent in a state of the seeds' and the debug panel's choosing (see
 // `DemoAgentVerbs`), each cancelling what an earlier one or a turn still had pending;
 // `watch` hears every turn's events; and `start` takes the sink the statuses go to.
-export const demoTurns = (turnMs = demoTurnMs) => {
+export const demoTurns = (requestedMs = demoTurnMs) => {
+  // As long as asked, up to what a timer can wait, as an address may ask for more.
+  const turnMs = Math.min(requestedMs, longestTimerMs)
   let sink: BackendSink | undefined
   const watchers = new Set<(event: TurnEvent) => void>()
   // Hears every status an agent reports, which `watch`'s events don't carry whole: whether
@@ -149,6 +154,8 @@ export const demoTurns = (turnMs = demoTurnMs) => {
     done?: { readonly subject: string; readonly body: string },
   ): void => {
     const id = terminalKeyId(key)
+    // An agent in plan mode stays in it through the turn, as Claude Code does.
+    const mode = agent.planning ? { planning: true as const } : {}
     const timers: Timers = [
       ...(tools ? [setTimeout(() => emit({ type: "tool", key }), turnMs / 2)] : []),
       setTimeout(() => {
@@ -156,6 +163,7 @@ export const demoTurns = (turnMs = demoTurnMs) => {
         if (done) reported.add(id)
         status(key, {
           working: false,
+          ...mode,
           ...left(agent),
           lastTurn: { outcome: "completed", reply, at: Date.now() },
         })
@@ -165,7 +173,7 @@ export const demoTurns = (turnMs = demoTurnMs) => {
     active.set(id, timers)
     // After the engine's own update: a status is a workspace commit of its own.
     queueMicrotask(() => {
-      if (active.get(id) === timers) status(key, { working: true })
+      if (active.get(id) === timers) status(key, { working: true, ...mode })
     })
   }
   // Starts the turn of an agent idle at its prompt; whether it started. Nothing for any
@@ -204,17 +212,21 @@ export const demoTurns = (turnMs = demoTurnMs) => {
   }
   // Takes an agent past what it asked, once the person answered: it waits no more, and
   // goes on to say `reply`, or, with the person's words as a `prompt`, to a turn on them,
-  // or, where it `waits`, stops at its prompt for the person's next words.
+  // or, where it `waits`, stops at its prompt for the person's next words. One whose plan
+  // the person declined stays `planning`.
   const resume = (
     key: TerminalKey,
     terminal: TerminalMetadata,
-    next: { readonly reply: string } | { readonly prompt: string } | { readonly waits: true },
+    next: ({ readonly reply: string } | { readonly prompt: string } | { readonly waits: true }) & {
+      readonly planning?: true
+    },
   ): void => {
     if (terminal.state !== "running" || active.has(terminalKeyId(key))) return
     const agent = terminal.agent ?? { working: false }
     bump(terminalKeyId(key))
     const resting: AgentStatus = {
       working: false,
+      ...(next.planning ? { planning: true as const } : {}),
       ...left(agent),
     }
     status(key, resting)
@@ -264,7 +276,7 @@ export const demoTurns = (turnMs = demoTurnMs) => {
     finish: (key, terminal, outcome, options) => {
       const { program, began } = take(key, terminal)
       const id = terminalKeyId(key)
-      const after = options?.after ?? turnMs
+      const after = Math.min(options?.after ?? turnMs, longestTimerMs)
       const { background, error, waiting: waits, done, limit } = options ?? {}
       // A turn that ends in the harness's or the API's error has said nothing of its own.
       const reply = error ? undefined : (options?.reply ?? replies[outcome])

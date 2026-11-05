@@ -109,7 +109,7 @@ export const madeRequest = (
       },
       outcome: (answer) =>
         picked(answer) === "3"
-          ? { items: [], waits: true }
+          ? { items: [], waits: true, planning: true }
           : {
               items: [],
               reply: "Starting on the plan. The first step is done.",
