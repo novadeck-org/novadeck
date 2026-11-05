@@ -181,7 +181,7 @@ export const agyVocabulary: readonly Written[] = [
         [`${novadeck}show`, { file: { path: "/home/user/project/plan.md" } }, "Showing"],
         [`${novadeck}close`, { file: { path: "/home/user/project/plan.md" } }, "Closed"],
         [`${novadeck}showing`, {}, "Nothing"],
-        [`${novadeck}summarize`, { summary: "Pinning the chat." }, "Saved"],
+        [`${novadeck}describe`, { title: "Chat pinning", summary: "Pinning the chat." }, "Saved"],
         ["mcp_github_create_issue", { title: "Flaky test" }, "Created #12"],
       ],
       0,
@@ -218,7 +218,11 @@ export const agyVocabulary: readonly Written[] = [
         ],
         [
           "call_mcp_tool",
-          { ServerName: "novadeck", ToolName: "summarize", Arguments: { summary: "Done." } },
+          {
+            ServerName: "novadeck",
+            ToolName: "describe",
+            Arguments: { title: "Chat", summary: "Done." },
+          },
           "Saved",
         ],
         [
