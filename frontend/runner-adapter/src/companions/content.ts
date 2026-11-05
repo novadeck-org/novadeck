@@ -9,6 +9,7 @@ import {
 } from "@novadeck/core/items"
 import type { CompanionWindowMeta, WorkspaceTarget } from "@novadeck/core/types"
 import {
+  companionLimits,
   harnesses,
   planUnwritable,
   type AgentName,
@@ -18,6 +19,8 @@ import {
   type PageTrouble as RunnerTrouble,
 } from "@novadeck/protocol"
 import { hasCode, type Runner } from "@novadeck/runner-client"
+
+import { fitsRunner } from "../fits"
 
 // The runner's companion items as the UI holds them: what agents show and the person
 // attaches, each a pointer the runner keeps, and their content, which `content` reads
@@ -145,6 +148,9 @@ export const createRunnerCompanions = (
     }
   },
   save: async (_target, itemId, text, basedOn) => {
+    // One the runner can't take in one message is never sent: past a WebSocket's limit, the
+    // socket would close the whole link.
+    if (!fitsRunner(text, companionLimits.plan)) throw new PlanUnwritableError("too-large")
     const result = await runner.save({ itemId, text, basedOn }).catch((error: unknown) => {
       // A plan that can't be written says why; any other failure may pass.
       const why = hasCode(error, "PLAN_UNWRITABLE") && planUnwritable.safeParse(error.data)
