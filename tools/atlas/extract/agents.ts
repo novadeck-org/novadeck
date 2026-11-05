@@ -1,5 +1,3 @@
-import { execFileSync } from "node:child_process"
-
 import type {
   AgentSurface,
   Anchor,
@@ -10,6 +8,7 @@ import type {
   McpTool,
 } from "../src/atlas.ts"
 import { lineAt, type Anchors } from "./anchors.ts"
+import { sourceFiles, workingFiles } from "./files.ts"
 
 const mcpFile = "backend/runner/src/shell/mcp.ts"
 const managerFile = "backend/runner/src/terminals/manager.ts"
@@ -54,6 +53,29 @@ const lineOf = (source: string | null, pattern: RegExp): number | null => {
   return index === -1 ? null : lineAt(source, index)
 }
 
+// Each limit's value, read from its `export const <name> = <number or object literal>`. One
+// that is no plain literal (it names another constant, say) is reported, and left undefined.
+export const readLimits = (
+  anchors: Anchors,
+  files: Record<string, string> = limitFiles,
+): (readonly [string, unknown])[] =>
+  Object.entries(files).map(([name, file]) => {
+    const value = new RegExp(`^export const ${name} = ([^{\\n]+|\\{[\\s\\S]*?\\n\\})`, "m")
+      .exec(anchors.read(file) ?? "")?.[1]
+      ?.replace(/\s+as const$/, "")
+    if (!value) {
+      anchors.report("mcp tools", file, `expected \`export const ${name} = \``)
+      return [name, undefined] as const
+    }
+    try {
+      return [name, new Function(`return (${value})`)() as unknown] as const
+    } catch (error) {
+      const reason = error instanceof Error ? error.message : String(error)
+      anchors.report("mcp tools", file, `could not evaluate ${name}: ${reason}`)
+      return [name, undefined] as const
+    }
+  })
+
 // Each `const <tool>: Tool<…> = {…}` literal in the MCP server, evaluated for its name,
 // description and input schema; the arrow functions inside it are never called.
 const extractTools = (anchors: Anchors, packages: HarnessPackage[]): McpTool[] => {
@@ -71,14 +93,7 @@ const extractTools = (anchors: Anchors, packages: HarnessPackage[]): McpTool[] =
     anchors.read(contractFile) ?? "",
   )?.[1]
   if (!effortList) anchors.report("mcp tools", contractFile, "expected `export const efforts = [`")
-  // Each limit's value, read from its `export const <name> = <number or object literal>`.
-  const limits = Object.entries(limitFiles).map(([name, file]) => {
-    const value = new RegExp(`^export const ${name} = ([^{\\n]+|\\{[\\s\\S]*?\\n\\})`, "m").exec(
-      anchors.read(file) ?? "",
-    )?.[1]
-    if (!value) anchors.report("mcp tools", file, `expected \`export const ${name} = \``)
-    return [name, value ? (new Function(`return (${value})`)() as unknown) : undefined] as const
-  })
+  const limits = readLimits(anchors)
   const variables = listed
     .split(",")
     .map((name) => name.trim())
@@ -172,13 +187,11 @@ const titles: Record<string, string> = {
 
 // Every `harnesses/*` package but the shared core is a harness.
 const findHarnessPackages = (repo: string, anchors: Anchors): HarnessPackage[] => {
-  // Tracked packages only: a folder left behind with just an ignored node_modules is none.
-  const ids = execFileSync("git", ["ls-files", "--", "harnesses/*/package.json"], {
-    cwd: repo,
-    encoding: "utf8",
-  })
-    .split("\n")
-    .map((file) => file.split("/")[1])
+  // Packages in the working tree: a folder left behind with just an ignored node_modules
+  // is none.
+  const ids = [
+    ...new Set(workingFiles(repo, ["harnesses/*/package.json"]).map((file) => file.split("/")[1])),
+  ]
     .filter((id): id is string => id !== undefined && id !== "core")
     .toSorted()
   if (ids.length === 0) anchors.report("harnesses", "harnesses", "found 0 harness packages")
@@ -209,25 +222,47 @@ const hookSummaries: Record<string, string> = {
   StatusLine: "The status line refreshes; Novadeck passes on the person's own.",
 }
 
-// The events a harness registers, and where in its source they are written.
-const hookEvents = (source: string, id: string): { events: string[]; from: number } => {
+// The events a harness registers, whether each is registered only on some machines (inside
+// a conditional spread, `...(platform !== "win32" && { … })`), and where in its source they
+// are written.
+export const hookEvents = (
+  source: string,
+): { events: { event: string; conditional: boolean }[]; from: number } => {
   const list = /^const events = \[([^\]]*)\]/m.exec(source)
   if (list?.[1] !== undefined) {
     return {
-      events: [...list[1].matchAll(/"(\w+)"/g)]
-        .map(([, event]) => event ?? "")
-        .concat(id === "claude" ? ["StatusLine"] : []),
+      events: [...list[1].matchAll(/"(\w+)"/g)].map(([, event]) => ({
+        event: event ?? "",
+        conditional: false,
+      })),
       from: list.index,
     }
   }
   const from = source.indexOf('path: "hooks.json"')
   if (from === -1) return { events: [], from: 0 }
   const body = source.slice(from, source.indexOf("settings:", from))
-  return {
-    events: [...new Set([...body.matchAll(/\b([A-Z]\w+): \[/g)].map(([, event]) => event ?? ""))],
-    from,
-  }
+  // Each `...(` and the offset of the parenthesis that closes it.
+  const spreads = [...body.matchAll(/\.\.\.\(/g)].map((match): [number, number] => {
+    let depth = 0
+    for (let i = match.index + 4; i < body.length; i++) {
+      if (body[i] === "(") depth += 1
+      else if (body[i] === ")" && --depth < 0) return [match.index, i]
+    }
+    return [match.index, body.length]
+  })
+  const events = new Map<string, boolean>()
+  for (const match of body.matchAll(/\b([A-Z]\w+): \[/g))
+    if (!events.has(match[1]!))
+      events.set(
+        match[1]!,
+        spreads.some(([open, close]) => match.index > open && match.index < close),
+      )
+  return { events: [...events].map(([event, conditional]) => ({ event, conditional })), from }
 }
+
+// A status line that reports to Novadeck is a hook too, registered apart from the others:
+// Claude Code's `hook(platform, "StatusLine")`, Antigravity's `NOVADECK_HOOK agy StatusLine`.
+const statusLine = /\bhook\(\w+, "StatusLine"\)|NOVADECK_HOOK%?"? \w+ StatusLine\b/
 
 const lineFrom = (source: string, needle: string, from: number): number | null => {
   const index = source.indexOf(needle, from)
@@ -235,6 +270,7 @@ const lineFrom = (source: string, needle: string, from: number): number | null =
 }
 
 const extractHarnesses = (
+  repo: string,
   anchors: Anchors,
   packages: HarnessPackage[],
 ): { harnesses: Harness[]; hooks: Hook[] } => {
@@ -268,17 +304,18 @@ const extractHarnesses = (
     const pluginFile = `harnesses/${id}/src/plugin.ts`
     const pluginSource = anchors.read(pluginFile)
     const hooksFile = pluginSource === null ? file : pluginFile
-    const { events, from } = hookEvents(pluginSource ?? source, id)
+    const { events, from } = hookEvents(pluginSource ?? source)
     if (events.length === 0)
       anchors.report(
         "harnesses",
         hooksFile,
         "found 0 hook events (`const events = [` or hooks.json)",
       )
-    for (const event of events) {
+    for (const { event, conditional } of events) {
       hooks.push({
         harness: id,
         event,
+        conditional,
         summary: hookSummaries[event] ?? "A hook Novadeck registers.",
         anchor: {
           file: hooksFile,
@@ -289,6 +326,20 @@ const extractHarnesses = (
         },
       })
     }
+    if (!events.some(({ event }) => event === "StatusLine"))
+      for (const each of sourceFiles(repo, `harnesses/${id}/src`)) {
+        const text = anchors.read(each) ?? ""
+        const index = text.search(statusLine)
+        if (index === -1) continue
+        hooks.push({
+          harness: id,
+          event: "StatusLine",
+          conditional: false,
+          summary: hookSummaries.StatusLine!,
+          anchor: { file: each, line: lineAt(text, index) },
+        })
+        break
+      }
   }
   return { harnesses, hooks }
 }
@@ -350,7 +401,7 @@ const extractContract = (anchors: Anchors): ContractMember[] => {
 // Novadeck as an agent sees it: MCP tools, hooks, the harness contract and the harnesses.
 export const extractAgents = (repo: string, anchors: Anchors): AgentSurface => {
   const packages = findHarnessPackages(repo, anchors)
-  const { harnesses, hooks } = extractHarnesses(anchors, packages)
+  const { harnesses, hooks } = extractHarnesses(repo, anchors, packages)
   const tools = extractTools(anchors, packages)
   if (tools.length === 0) anchors.report("mcp tools", mcpFile, "found 0 tools")
   return { tools, hooks, contract: extractContract(anchors), harnesses }

@@ -7,8 +7,13 @@ import type { StoreMethod } from "../src/runner-lens.ts"
 // other brief under 6000, about 1.5k tokens; brief.test.ts enforces both), names areas by
 // their tokens, and says plainly where the static trace stops.
 
+// An anchor whose line was not found says so, so it can't pass for a pointer to the file.
 const at = (anchor: Anchor | null) =>
-  anchor === null ? "?" : anchor.line === null ? anchor.file : `${anchor.file}:${anchor.line}`
+  anchor === null
+    ? "?"
+    : anchor.line === null
+      ? `${anchor.file} (anchor not found)`
+      : `${anchor.file}:${anchor.line}`
 
 const clip = (text: string, max: number) => {
   const flat = text.replace(/\s+/g, " ").trim()
@@ -210,14 +215,13 @@ export const renderProcedure = (atlas: Atlas, procedure: Procedure): string => {
             `\`${action.type}\`${e.basis === "diff" ? ` (inferred: ${e.trigger ?? "state diff"})` : ""}`,
         ),
     )
+    const everyCommit = atlas.ui.everyCommit.some((e) => e.procedures.includes(procedure.id))
     out.push(
-      ui.fromCommit
-        ? `Reached by UI actions: ${list([...new Set(actions)], 10)}${
-            atlas.ui.everyCommit.some((e) => e.procedures.includes(procedure.id))
-              ? "; and every commit"
-              : ""
-          }`
-        : "No path from a store commit was found by the static scan.",
+      !ui.fromCommit
+        ? "No path from a store commit was found by the static scan."
+        : actions.length === 0 && everyCommit
+          ? "Reached on every store commit (no single action found)."
+          : `Reached by UI actions: ${list([...new Set(actions)], 10)}${everyCommit ? "; and every commit" : ""}`,
     )
   }
 
@@ -229,6 +233,19 @@ export const renderProcedure = (atlas: Atlas, procedure: Procedure): string => {
         `${"  ".repeat(step.depth)}- ${step.label} (${at(step.anchor)})${
           step.store.length > 0 ? ` → store.${step.store.join(", store.")}` : ""
         }`,
+      )
+    // A handler the trace doesn't follow (a function the router imports) says so, so the
+    // steps above aren't read as its path.
+    const same = (anchor: Anchor) =>
+      anchor.file === procedure.handler?.file && anchor.line === procedure.handler.line
+    if (
+      procedure.handler &&
+      !trace.steps.some((step) => same(step.anchor)) &&
+      !atlas.runner.methods.some((method) => same(method.anchor)) &&
+      trace.steps.length > 0
+    )
+      out.push(
+        `The handler (${at(procedure.handler)}) is not traced here; read it for the rest of the path.`,
       )
     if (!trace.traced) {
       out.push(`No store call found. That means unknown, not "no database". ${uncertain}`)
@@ -477,17 +494,28 @@ export const renderFlows = (atlas: Atlas): string =>
     "Brief one with `flow:<id>`.",
   ].join("\n")
 
-export const renderHarnesses = (atlas: Atlas): string =>
-  [
+export const renderHarnesses = (atlas: Atlas): string => {
+  const required = atlas.agents.contract.filter((m) => !m.optional).map((m) => m.name)
+  return [
     "# Harnesses: what Novadeck offers agents",
     "",
     `MCP tools: ${atlas.agents.tools.map((t) => `\`${t.name}\``).join(", ")}`,
-    `Harness contract: ${atlas.agents.contract.length} members (${atlas.agents.contract.filter((m) => !m.optional).length} required).`,
-    ...atlas.agents.harnesses.map(
-      (h) =>
+    `Harness contract: ${atlas.agents.contract.length} members (${required.length} required).`,
+    "",
+    "Each harness, the hooks it registers (conditional: only on some machines), and the required",
+    "members it lacks:",
+    ...atlas.agents.harnesses.flatMap((h) => {
+      const hooks = atlas.agents.hooks
+        .filter((k) => k.harness === h.id)
+        .map((k) => `${k.event}${k.conditional ? " (conditional)" : ""}`)
+      const missing = required.filter((name) => !h.implements.includes(name))
+      return [
         `- ${h.title} (${h.package}): implements ${h.implements.length} members, ${at(h.anchor)}`,
-    ),
-    `Hooks: ${atlas.agents.hooks.length} across harnesses.`,
+        `  - Hooks (${hooks.length}): ${list(hooks, 20)}`,
+        ...(missing.length > 0 ? [`  - Lacks required: ${missing.join(", ")}`] : []),
+      ]
+    }),
     "",
     "Brief a tool with `tool:<name>`.",
   ].join("\n")
+}
