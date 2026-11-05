@@ -6,6 +6,8 @@ import { isAbsolute, join, relative, sep } from "node:path"
 import type { FolderListing } from "@novadeck/protocol"
 
 import { DomainError } from "../errors.js"
+import { gitEnv, gitPath } from "../git.js"
+import { killTree } from "../programs.js"
 
 /** The most entries one folder lists; a folder holding more says so (`truncated`). */
 export const maxFolderEntries = 2000
@@ -39,27 +41,6 @@ const within = (root: string, path: string): boolean => {
 }
 
 /**
- * The `GIT_*` variables git keeps: they only set how far up, and across which filesystems,
- * it looks for the repository a folder is in, as the person set it.
- */
-const keptGit = new Set(["GIT_CEILING_DIRECTORIES", "GIT_DISCOVERY_ACROSS_FILESYSTEM"])
-
-/**
- * The environment git runs in: ours, but for the `GIT_*` variables, which could point it at
- * another repository, apart from the ones that only set where it looks for one.
- */
-const gitEnvironment = (): NodeJS.ProcessEnv => {
-  const env: NodeJS.ProcessEnv = {}
-  for (const [key, value] of Object.entries(process.env)) {
-    const name = key.toUpperCase()
-    if (!name.startsWith("GIT_") || keptGit.has(name)) env[key] = value
-  }
-  // Optional locks are off so asking never touches the repository's index.
-  env.GIT_OPTIONAL_LOCKS = "0"
-  return env
-}
-
-/**
  * Which of the entries of `directory` git ignores, by name. Only reads: a folder that is
  * no repository, no git installed, git failing or taking too long all mean nothing is
  * ignored, as a listing never fails over it.
@@ -80,19 +61,24 @@ const ignoredNames = (directory: string, entries: Found[]): Promise<Set<string>>
       clearTimeout(timer)
       resolve(names)
     }
-    // The fsmonitor is off because a repository's own config can name a program for it to
-    // run, and reading a folder must never run anything a project brings along.
+    // Git is the one on PATH, never a `git.exe` the folder brings along. The fsmonitor is off
+    // because a repository's own config can name a program for it to run, and reading a
+    // folder must never run anything a project brings along.
+    const program = gitPath()
+    if (!program) return resolve(none)
     const git = spawn(
-      "git",
+      program,
       ["-c", "core.fsmonitor=false", "-C", directory, "check-ignore", "-z", "--stdin"],
       {
-        env: gitEnvironment(),
+        env: gitEnv(),
+        // Its own group, so a time limit ends what it started too.
+        detached: process.platform !== "win32",
         stdio: ["pipe", "pipe", "ignore"],
         windowsHide: true,
       },
     )
     const timer = setTimeout(() => {
-      git.kill()
+      killTree(git.pid)
       finish(none)
     }, ignoreTimeout)
     const chunks: Buffer[] = []

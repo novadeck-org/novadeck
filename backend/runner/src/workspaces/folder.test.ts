@@ -1,7 +1,17 @@
 import { execFileSync } from "node:child_process"
-import { mkdirSync, mkdtempSync, rmSync, symlinkSync, writeFileSync } from "node:fs"
+import {
+  existsSync,
+  mkdirSync,
+  mkdtempSync,
+  readFileSync,
+  rmSync,
+  symlinkSync,
+  writeFileSync,
+} from "node:fs"
 import { tmpdir } from "node:os"
-import { join } from "node:path"
+import { delimiter, join, relative } from "node:path"
+
+import { vi } from "vitest"
 
 import { describe, expect, it } from "../test.js"
 import { listFolder, maxFolderEntries } from "./folder.js"
@@ -97,6 +107,60 @@ describe("a project's folder", () => {
       delete process.env.GIT_DIR
     }
   })
+
+  // A fake git stands for one a project or the runner's working folder brings along; it
+  // must be runnable without an extension, so these run on POSIX only (Windows' search
+  // rules are `findProgram`'s tests').
+  it.skipIf(process.platform === "win32")(
+    "runs the git on PATH, never one a relative PATH entry names",
+    async ({ resources }) => {
+      const root = repository(resources)
+      const planted = project(resources)
+      const ran = join(planted, "ran")
+      writeFileSync(join(planted, "git"), `#!/bin/sh\ntouch "${ran}"\n`, { mode: 0o755 })
+      const saved = process.env.PATH
+      process.env.PATH = `${relative(process.cwd(), planted)}${delimiter}${saved ?? ""}`
+      try {
+        const { entries } = await listFolder(root, "")
+        expect(entries.find((entry) => entry.name === "node_modules")?.ignored).toBe(true)
+        expect(existsSync(ran)).toBe(false)
+      } finally {
+        process.env.PATH = saved
+      }
+    },
+  )
+
+  it.skipIf(process.platform === "win32")(
+    "marks nothing ignored when git takes too long, and ends it with what it started",
+    async ({ resources }) => {
+      const root = repository(resources)
+      const slow = project(resources)
+      const pid = join(slow, "pid")
+      // It leaves a child of its own holding the output, as a filter's program may.
+      writeFileSync(join(slow, "git"), `#!/bin/sh\nsleep 30 &\necho $! > "${pid}"\nwait\n`, {
+        mode: 0o755,
+      })
+      const saved = process.env.PATH
+      process.env.PATH = `${slow}${delimiter}${saved ?? ""}`
+      try {
+        const started = Date.now()
+        const { entries } = await listFolder(root, "")
+        expect(Date.now() - started).toBeLessThan(5_000)
+        expect(entries.filter((entry) => entry.ignored)).toEqual([])
+        const alive = () => {
+          try {
+            process.kill(Number(readFileSync(pid, "utf8")), 0)
+            return true
+          } catch {
+            return false
+          }
+        }
+        await vi.waitFor(() => expect(alive()).toBe(false))
+      } finally {
+        process.env.PATH = saved
+      }
+    },
+  )
 
   it("stops looking for a repository where GIT_CEILING_DIRECTORIES says", async ({ resources }) => {
     const root = repository(resources)

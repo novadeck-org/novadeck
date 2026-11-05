@@ -1705,6 +1705,21 @@ it("answers methods it doesn't know with an error", async () => {
   expect(unknown?.error).toMatchObject({ code: -32601 })
 })
 
+describe("Novadeck's MCP server when answering fails", () => {
+  it("answers the request with an internal error, so the agent's call doesn't wait for its timeout", async () => {
+    const line = JSON.stringify({
+      jsonrpc: "2.0",
+      id: 7,
+      method: "tools/call",
+      params: { name: "agents", arguments: {} },
+    })
+    const reply = JSON.parse(
+      (await mcpAnswer(line, () => Promise.reject(new Error("the runner went away"))))!,
+    ) as { id: unknown; error?: { code: number; message: string } }
+    expect(reply).toMatchObject({ id: 7, error: { code: -32603 } })
+  })
+})
+
 describe("the bounds Novadeck's MCP tools advertise", () => {
   // Each advertised bound and the protocol's own for the field the runner fills from it, so
   // an agent that keeps to the schema it is shown is never refused for a length.

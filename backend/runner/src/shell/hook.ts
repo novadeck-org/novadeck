@@ -2,7 +2,7 @@ import { hookShellSlackMs, dialectPrograms } from "@novadeck/harness-core/hook-c
 import type { Report } from "@novadeck/harness-core/report"
 import { agentName, type AgentName } from "@novadeck/protocol"
 
-import { harnesses } from "../harnesses/registry.js"
+import { askOf, harnesses } from "../harnesses/registry.js"
 import { cut } from "../text.js"
 import { object, type Fields } from "./json.js"
 
@@ -191,7 +191,7 @@ export const relayHook = (
     typeof deadline === "number" && Number.isFinite(deadline)
       ? Math.min(deadline, seq + askMs)
       : seq + askMs
-  return event in harnesses[agent.data].messaging.asks
+  return askOf(agent.data, event)
     ? { report: sized, deadline: Math.round(relayGivesUp) - printMs }
     : { report: sized }
 }

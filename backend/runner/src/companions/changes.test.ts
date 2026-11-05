@@ -20,7 +20,6 @@ import {
   changesContent,
   describeChange,
   type Change,
-  gitEnv,
   parseDiff,
   parseListing,
   readChange,
@@ -837,34 +836,5 @@ describe("how long a change waits to be read again", () => {
     expect(waitAfter(1000, 2000)).toBe(2000)
     expect(waitAfter(1500, 2000)).toBe(6000)
     expect(waitAfter(60_000, 2000)).toBe(15_000)
-  })
-})
-
-describe("the environment git runs in", () => {
-  it("drops what would point git elsewhere, and keeps the rest of the person's", () => {
-    const saved = { ...process.env }
-    Object.assign(process.env, {
-      GIT_DIR: "/elsewhere",
-      GIT_INDEX_FILE: "/x",
-      GIT_CONFIG_COUNT: "1",
-      GIT_EXTERNAL_DIFF: "/bin/true",
-      GIT_CEILING_DIRECTORIES: "/ceiling",
-      GIT_EXEC_PATH: "/exec",
-    })
-    try {
-      const env = gitEnv()
-      for (const name of ["GIT_DIR", "GIT_INDEX_FILE", "GIT_CONFIG_COUNT", "GIT_EXTERNAL_DIFF"])
-        expect(env[name]).toBeUndefined()
-      expect(env).toMatchObject({
-        GIT_CEILING_DIRECTORIES: "/ceiling",
-        GIT_EXEC_PATH: "/exec",
-        GIT_OPTIONAL_LOCKS: "0",
-        GIT_TERMINAL_PROMPT: "0",
-        GIT_LITERAL_PATHSPECS: "1",
-      })
-    } finally {
-      for (const name of Object.keys(process.env)) if (!(name in saved)) delete process.env[name]
-      Object.assign(process.env, saved)
-    }
   })
 })

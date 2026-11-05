@@ -693,6 +693,12 @@ describe("reading a relay's hook", () => {
     expect(relayHook(claude)?.report.instance).toBe("4242")
   })
 
+  it("takes only an event its harness asks on for an ask, never a name objects carry", () => {
+    expect(relayHook(hook({ agent: "claude", event: "Stop" }))?.deadline).toBeTypeOf("number")
+    for (const event of ["constructor", "toString", "__proto__", "hasOwnProperty"])
+      expect(relayHook(hook({ agent: "claude", event }))?.deadline).toBeUndefined()
+  })
+
   it("names an agent by its own pid only where its harness's pidVariable says so", () => {
     const ancestors = [{ pid: 20, name: "codex" }]
     // Codex sets none: a CLAUDE_PID it inherited from a Claude Code above it names not it.

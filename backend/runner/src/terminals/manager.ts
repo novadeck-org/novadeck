@@ -66,7 +66,7 @@ import { OpenRequests } from "./opens.js"
 import { TerminalPeers } from "./peers-host.js"
 import type { Record } from "./record.js"
 import { createTranscriptRedactor, type TranscriptRedactor } from "./redaction.js"
-import { restoredSeparator } from "./restored.js"
+import { showRestored } from "./restored.js"
 import { cancelResume, Claims, restartedTask } from "./resumes.js"
 import { Sampler, shellProcess } from "./sampling.js"
 import { hasRun, keptState, type TerminalRecords } from "./saved-terminals.js"
@@ -1684,7 +1684,7 @@ export class Terminals {
 
   /** Shows a transcript on the record's fresh screen, ahead of its shell's output. */
   private show(record: Record, transcript: string, savedAt: Date | null): Promise<void> {
-    return record.terminal.replay(transcript, restoredSeparator(savedAt))
+    return showRestored(record.terminal, transcript, savedAt, record.summary.id)
   }
 
   /** The shell exited: the agent layer lets go of it, before its viewers read the exit. */

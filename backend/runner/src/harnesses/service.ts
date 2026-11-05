@@ -1,9 +1,9 @@
 import { spawn } from "node:child_process"
 import { readFile, rm, writeFile } from "node:fs/promises"
 import { homedir } from "node:os"
-import { delimiter, join } from "node:path"
+import { join } from "node:path"
 
-import type { Harness, Install, Model } from "@novadeck/harness-core/harness"
+import type { Command, Harness, Install, Model } from "@novadeck/harness-core/harness"
 import type { AgentIntegration, AgentName } from "@novadeck/protocol"
 import { relayPath } from "@novadeck/relay"
 import { refreshPath } from "@novadeck/terminal/shell"
@@ -11,6 +11,8 @@ import { refreshPath } from "@novadeck/terminal/shell"
 import { DomainError } from "../errors.js"
 import { exists } from "../files.js"
 import { logs } from "../log.js"
+import { cmdPath, findProgram, killTree } from "../programs.js"
+import { withoutInherited } from "../shell/inherited.js"
 import type { ShellPaths } from "../shell/scripts.js"
 import { agents, harnesses } from "./registry.js"
 
@@ -92,59 +94,111 @@ const loginShellEnvironment = (env: NodeJS.ProcessEnv) =>
 const loginEnvironment = (env: NodeJS.ProcessEnv, platform: NodeJS.Platform, relay: string) =>
   platform === "win32" ? refreshPath(env, { platform, relay }) : loginShellEnvironment(env)
 
-// The program to run: the one on PATH, or where the harness's installer puts it otherwise.
-const locate = async (program: string, harness: Harness, install: Install): Promise<string> => {
-  for (const directory of (install.env.PATH ?? "").split(delimiter).filter(Boolean))
-    // eslint-disable-next-line no-await-in-loop -- The first match wins.
-    if (await exists(join(directory, program))) return program
+/**
+ * The program to run, by its absolute path: the one on PATH, or where the harness's installer
+ * puts it otherwise. Never one in the runner's working folder, which Windows would search
+ * first (see `findProgram`); undefined where there is none.
+ */
+const locate = async (
+  program: string,
+  harness: Harness,
+  install: Install,
+): Promise<string | undefined> => {
+  const found = findProgram(program, { env: install.env, platform: install.platform })
+  if (found) return found
   const fallback = program === harness.id ? harness.fallback?.(install.home) : undefined
-  return fallback && (await exists(fallback)) ? fallback : program
+  return fallback && (await exists(fallback)) ? fallback : undefined
+}
+
+/** How an agent's commands run: in `cwd`, the person's home, with `env`, for `timeoutMs` at most. */
+type Settings = {
+  readonly cwd: string
+  readonly env: NodeJS.ProcessEnv
+  readonly platform: NodeJS.Platform
+  readonly timeoutMs: number
 }
 
 /**
  * Runs one of an agent's commands the way the person would in a terminal: with their
  * login environment, and through cmd on Windows, where agents install as .cmd files.
+ * `argv` starts with the program's absolute path (see `locate`); `name` is what the
+ * command calls it, for its failure. It runs in the person's home, as their terminal
+ * starts, so no project's own configuration applies. Past `timeoutMs` it fails, and the program ends with
+ * all it started: ending cmd.exe alone leaves the agent running, and a child that holds the
+ * error output open would keep the command from ever settling.
  */
 const run = (
+  name: string,
   argv: readonly string[],
-  {
-    env,
-    platform,
-    timeoutMs,
-  }: { env: NodeJS.ProcessEnv; platform: NodeJS.Platform; timeoutMs: number },
+  { cwd, env, platform, timeoutMs }: Settings,
 ): Promise<void> =>
   new Promise((resolve, reject) => {
     const [program = "", ...args] = argv
+    const what = [name, ...args].slice(0, 3).join(" ")
     const child =
       platform === "win32"
-        ? spawn(env.COMSPEC || "cmd.exe", ["/d", "/s", "/c", `"${cmdLine(argv)}"`], {
+        ? spawn(cmdPath(env), ["/d", "/s", "/c", `"${cmdLine(argv)}"`], {
+            cwd,
             env,
             stdio: ["ignore", "ignore", "pipe"],
             windowsVerbatimArguments: true,
             windowsHide: true,
           })
-        : spawn(program, args, { env, stdio: ["ignore", "ignore", "pipe"] })
+        : spawn(program, args, {
+            cwd,
+            env,
+            // Its own group, so the time limit ends what it started too.
+            detached: true,
+            stdio: ["ignore", "ignore", "pipe"],
+          })
     let errors = ""
+    let settled = false
+    const settle = (error?: Error) => {
+      if (settled) return
+      settled = true
+      clearTimeout(timer)
+      if (error) reject(error)
+      else resolve()
+    }
     child.stderr.setEncoding("utf8")
     child.stderr.on("data", (chunk: string) => {
       errors = (errors + chunk).slice(-2000)
     })
-    const timer = setTimeout(() => child.kill(), timeoutMs)
-    child.on("error", (error) => {
-      clearTimeout(timer)
-      reject(error)
-    })
+    const timer = setTimeout(() => {
+      killTree(child.pid, platform)
+      settle(new Error(`${what} took longer than ${Math.round(timeoutMs / 1000)} s.`))
+    }, timeoutMs)
+    child.on("error", settle)
     child.on("close", (code) => {
-      clearTimeout(timer)
-      if (code === 0) resolve()
-      else
-        reject(
-          new Error(
-            `${argv.slice(0, 3).join(" ")} failed: ${errors.trim().split("\n").at(-1) ?? code}`,
-          ),
-        )
+      if (code === 0) return settle()
+      settle(new Error(`${what} failed: ${errors.trim().split("\n").at(-1) ?? code}`))
     })
   })
+
+// Runs an agent's plugin commands in order; a failing one that isn't optional fails them all.
+const steps = async (
+  harness: Harness,
+  where: Install,
+  commands: readonly Command[],
+  settings: Settings,
+): Promise<void> => {
+  for (const command of commands) {
+    try {
+      const [program = "", ...args] = command.argv
+      // eslint-disable-next-line no-await-in-loop -- Each step needs the one before.
+      const located = await locate(program, harness, where)
+      if (!located) throw new Error(`${program} is not on PATH.`)
+      // eslint-disable-next-line no-await-in-loop -- As above.
+      await run(program, [located, ...args], settings)
+    } catch (error) {
+      if (command.optional) continue
+      throw new DomainError(
+        "AGENT_SETUP_FAILED",
+        error instanceof Error ? error.message : String(error),
+      )
+    }
+  }
+}
 
 const state = async (harness: Harness, install: Install): Promise<AgentIntegration> => {
   const connected = await harness.connected(install)
@@ -162,9 +216,11 @@ export const createHarnesses = (
   paths: () => Promise<(ShellPaths & { readonly cmdShimDir?: string | undefined }) | undefined>,
   options: HarnessesOptions = {},
 ) => {
-  const base = options.env ?? process.env
-  const home = options.home ?? base.HOME ?? homedir()
   const platform = options.platform ?? process.platform
+  // The runner's own token, and an agent session's markers, never reach the login shell's
+  // startup files or an agent's commands, as they never reach a terminal (see `inherited`).
+  const base = withoutInherited(options.env ?? process.env, platform)
+  const home = options.home ?? base.HOME ?? homedir()
   const relay = options.relay ?? relayPath
   const timeoutMs = options.timeoutMs ?? 60_000
   // Looked up in the background from the start, and again before each change. Listing
@@ -204,7 +260,7 @@ export const createHarnesses = (
   const apply = async (agent: AgentName, connected: boolean): Promise<AgentIntegration> => {
     const install = await installs(true)
     const env = latest ?? base
-    const settings = { env, platform, timeoutMs }
+    const settings = { cwd: home, env, platform, timeoutMs }
     if (!install) throw new DomainError("AGENT_SETUP_FAILED", "Shell integration is unavailable.")
     const harness = harnesses[agent]
     const where = install(agent)
@@ -224,28 +280,24 @@ export const createHarnesses = (
     if (!connected) await rm(reinstalling(where), { force: true })
     // Its own settings go back before its plugin does, so nothing names a missing hook.
     if (!connected) await settle("revert")
-    for (const command of connected ? harness.connect(where) : harness.disconnect) {
-      try {
-        const [program = "", ...args] = command.argv
-        // eslint-disable-next-line no-await-in-loop -- Each step needs the one before.
-        const located = platform === "win32" ? program : await locate(program, harness, where)
-        // eslint-disable-next-line no-await-in-loop -- As above.
-        await run([located, ...args], settings)
-      } catch (error) {
-        if (command.optional) continue
-        throw new DomainError(
-          "AGENT_SETUP_FAILED",
-          error instanceof Error ? error.message : String(error),
-        )
-      }
-    }
+    const before = connected && (await harness.connected(where))
+    await steps(harness, where, connected ? harness.connect(where) : harness.disconnect, settings)
     const after = await state(harness, where)
     if (after.connected !== connected)
       throw new DomainError(
         "AGENT_SETUP_FAILED",
         `${agent} did not ${connected ? "install" : "remove"} Novadeck's plugin.`,
       )
-    if (connected) await settle("apply")
+    if (!connected) return after
+    try {
+      await settle("apply")
+    } catch (error) {
+      // Settings it can't change, such as a file that doesn't parse, leave an agent the
+      // person was connecting disconnected, not connected without them; one connected
+      // before, as a refresh finds it, stays so.
+      if (!before) await steps(harness, where, harness.disconnect, settings).catch(() => {})
+      throw error
+    }
     return after
   }
   const api = {
@@ -351,8 +403,13 @@ export const createHarnesses = (
               return false
             }
             await writeFile(reinstalling(where), "")
-            await apply(agent, true)
-            await rm(reinstalling(where), { force: true })
+            // The mark is for a reinstall a quit cut short: one that fails, as over settings
+            // that don't parse, is logged and done, not tried again at every start.
+            try {
+              await apply(agent, true)
+            } finally {
+              await rm(reinstalling(where), { force: true })
+            }
             // An agent that rewrites what it copies would be installed again at every start.
             if (await differing(installed, where))
               log.error(

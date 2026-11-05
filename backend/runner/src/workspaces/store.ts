@@ -1853,7 +1853,9 @@ export class WorkspaceStore implements TerminalRecords, MessageRecords, InboxRec
       this.database.exec("COMMIT")
       return result
     } catch (error) {
-      this.database.exec("ROLLBACK")
+      // SQLite ends the transaction itself after some failures, such as a full disk; its
+      // own error is the one to tell, not that nothing was left to roll back.
+      if (this.database.isTransaction) this.database.exec("ROLLBACK")
       throw error
     }
   }

@@ -7,7 +7,7 @@ import { relayMs, shellInForeground, type ProcessTrees } from "@novadeck/termina
 
 import { boundSince, started as fresh } from "../../harnesses/activity.js"
 import { observe, type Binding } from "../../harnesses/bindings.js"
-import { harnesses } from "../../harnesses/registry.js"
+import { askOf, harnesses } from "../../harnesses/registry.js"
 import { unreplied, withReplies } from "../../harnesses/replies.js"
 import { followRoot, rootedIn, type Root, type RootChange } from "../../harnesses/roots.js"
 import { transcriptWaitMs, typedPromptStart } from "../../harnesses/typed-prompts.js"
@@ -269,8 +269,7 @@ export class Reports {
     }
     // A Stop Novadeck may continue shows once its ask is answered, so a continued turn
     // never flashes idle.
-    const stopAsk =
-      deadline !== undefined && harnesses[report.agent].messaging.asks[report.event] === "stop"
+    const stopAsk = deadline !== undefined && askOf(report.agent, report.event) === "stop"
     const moved = record.summary.cwd !== cwd
     if (!stopAsk) this.host.bindings().publishAgent(record, moved)
     const changes = this.followRootOf(record, events, report.event === "StatusLine")

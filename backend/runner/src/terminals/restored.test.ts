@@ -1,7 +1,7 @@
 import { createScreen, replay, transcript } from "@novadeck/emulator/headless"
 
 import { describe, expect, it } from "../test.js"
-import { restoredSeparator } from "./restored.js"
+import { restoredSeparator, showRestored } from "./restored.js"
 
 describe("the separator after a restored transcript", () => {
   it("is dim, and names the day the transcript was saved when it is known", () => {
@@ -20,5 +20,12 @@ describe("the separator after a restored transcript", () => {
       buffer.getLine(row)!.translateToString(true),
     ).filter((line) => line)
     expect(shown).toEqual(["one", "two", "── restored transcript ──"])
+  })
+})
+
+describe("showing a terminal's earlier screen", () => {
+  it("lets a replay that fails go, so the save after it runs and nothing is left unhandled", async () => {
+    const ended = { replay: () => Promise.reject(new Error("the terminal is gone")) }
+    await expect(showRestored(ended, "earlier", null, "t1")).resolves.toBeUndefined()
   })
 })
