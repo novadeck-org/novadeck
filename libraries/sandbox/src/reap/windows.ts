@@ -105,7 +105,34 @@ const compiledLister = (): Promise<string> =>
     }
   })())
 
-/** The sandbox's processes, as the lister finds them, each with how its recorded parent stands. */
+/** A process as the lister writes it. */
+export type Row = {
+  readonly pid: number
+  readonly comm: string
+  readonly start: number
+  readonly parent: string
+  readonly stopped: boolean
+  readonly path: string
+  readonly line: string
+}
+
+/** The most of a command line a report holds. */
+const mostOfLine = 400
+
+/**
+ * The lister's row as a process: where it could read them, its program's path and its
+ * command line, cut where it is long, make its `detail`.
+ */
+export const asProcess = ({ pid, comm, start, parent, stopped, path, line }: Row): Process => {
+  const ran = line.length > mostOfLine ? `${line.slice(0, mostOfLine)}…` : line
+  const detail = [path && `at ${path}`, ran && `as ${ran}`].filter(Boolean).join(" ")
+  return { pid, comm, start, stopped, parent, ...(detail ? { detail } : {}) }
+}
+
+/**
+ * The sandbox's processes, as the lister finds them, each with how its recorded parent
+ * stands, whether its threads are all suspended, and what it runs.
+ */
 export const list = async (sandbox: Scope): Promise<readonly Process[]> => {
   const program = await compiledLister()
   let stdout: string
@@ -121,13 +148,7 @@ export const list = async (sandbox: Scope): Promise<readonly Process[]> => {
     compiled = undefined
     throw blocked(program, cause)
   }
-  const rows = JSON.parse(stdout) as {
-    readonly pid: number
-    readonly comm: string
-    readonly start: number
-    readonly parent: string
-  }[]
-  return rows.map(({ pid, comm, start, parent }) => ({ pid, comm, start, stopped: false, parent }))
+  return (JSON.parse(stdout) as readonly Row[]).map(asProcess)
 }
 
 /**

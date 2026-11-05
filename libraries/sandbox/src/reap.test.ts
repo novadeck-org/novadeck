@@ -189,11 +189,15 @@ describe.skipIf(process.platform !== "win32")("reap on Windows", () => {
 
     const leftovers = await reap(sandbox)
 
-    // Each named with its recorded parent, this worker, which still runs.
+    // Each named with its recorded parent, this worker, which still runs, then with its
+    // program's path and its command line.
     const parent = `parent node#${process.pid} running`
-    expect(leftovers.toSorted()).toEqual(
-      [`node.exe (${inside.pid}, ${parent})`, `node.exe (${homed.pid}, ${parent})`].toSorted(),
-    )
+    expect(leftovers).toHaveLength(2)
+    for (const child of [inside, homed]) {
+      const one = leftovers.find((each) => each.startsWith(`node.exe (${child.pid}, ${parent}) `))
+      expect(one?.toLowerCase()).toContain(` at ${process.execPath.toLowerCase()} as `)
+      expect(one).toContain("setTimeout")
+    }
     expect(other.exitCode).toBeNull()
     expect(await reap(sandbox)).toEqual([])
   }, 60_000)
