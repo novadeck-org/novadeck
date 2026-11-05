@@ -320,7 +320,9 @@ export const subagentEvents = (
   if (!Number.isFinite(startedAt) || startedAt < since) return []
   const { type: kind, item } = (payload ?? {}) as { type?: unknown; item?: unknown }
   if (kind === "turn_aborted")
-    return [{ type: "subagent-turn-aborted", agent: "codex", sessionId, instance, actor, startedAt }]
+    return [
+      { type: "subagent-turn-aborted", agent: "codex", sessionId, instance, actor, startedAt },
+    ]
   if (kind === "item_completed" && isFields(item) && item.type === "McpToolCall")
     return mcpSettled({ agent: "codex", sessionId, instance, startedAt }, actor, item)
   return []

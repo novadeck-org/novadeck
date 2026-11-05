@@ -26,9 +26,9 @@ describe("whether Codex's configuration enables Novadeck's plugin", () => {
   })
 
   it("takes only the key, never a comment or another key's value", () => {
-    expect(
-      enabled('[plugins."novadeck@novadeck"]', "# enabled = true", "enabled = false"),
-    ).toBe(false)
+    expect(enabled('[plugins."novadeck@novadeck"]', "# enabled = true", "enabled = false")).toBe(
+      false,
+    )
     expect(enabled('[plugins."novadeck@novadeck"]', "enabled = false # was enabled = true")).toBe(
       false,
     )
@@ -54,9 +54,7 @@ describe("whether Codex's configuration enables Novadeck's plugin", () => {
     expect(enabled('plugins."novadeck@novadeck".enabled = true')).toBe(true)
     expect(enabled("[plugins]", '"novadeck@novadeck".enabled = true')).toBe(true)
     expect(enabled("[plugins]", '"novadeck@novadeck" = { enabled = true }')).toBe(true)
-    expect(enabled("[plugins]", '"novadeck@novadeck" = { other = 1, enabled = false }')).toBe(
-      false,
-    )
+    expect(enabled("[plugins]", '"novadeck@novadeck" = { other = 1, enabled = false }')).toBe(false)
     expect(enabled("[ plugins . 'novadeck@novadeck' ]", "enabled = true")).toBe(true)
   })
 })

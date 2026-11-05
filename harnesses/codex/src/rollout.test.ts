@@ -32,7 +32,10 @@ describe("following a rollout", () => {
   it("tells only the latest of what it held again, never each old record, once the file is rewritten", async () => {
     folder = mkdtempSync(join(tmpdir(), "novadeck-rollout-"))
     const path = join(folder, "rollout.jsonl")
-    writeFileSync(path, `${ended("t1", "2026-11-01T10:00:00Z")}\n${ended("t2", "2026-11-01T10:01:00Z")}\n`)
+    writeFileSync(
+      path,
+      `${ended("t1", "2026-11-01T10:00:00Z")}\n${ended("t2", "2026-11-01T10:01:00Z")}\n`,
+    )
     const told: HarnessEvent[] = []
     const controller = new AbortController()
     const following = followRollout({ ...session, transcript: path }, controller.signal, (event) =>
@@ -82,7 +85,13 @@ describe("a subagent's MCP tool call, in its own rollout", () => {
       type: "event_msg",
       payload: {
         type: "item_completed",
-        item: { type: "McpToolCall", id: "call_1", server: "probe", tool: "touch", arguments: input },
+        item: {
+          type: "McpToolCall",
+          id: "call_1",
+          server: "probe",
+          tool: "touch",
+          arguments: input,
+        },
       },
     })
   const since = Date.parse("2026-11-01T10:00:00Z")
