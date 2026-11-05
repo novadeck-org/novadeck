@@ -250,6 +250,34 @@ describe("redacting a text line by line", () => {
   })
 })
 
+describe("tokens with a prefix and a hex or short body", () => {
+  const hex = "0123456789abcdef"
+  it.each([
+    ["a DigitalOcean token", `doctl auth init -t dop_v1_${hex.repeat(4)}`, "dop_v1_"],
+    ["a DigitalOcean refresh token", `dor_v1_${hex.repeat(4)}`, "dor_v1_"],
+    ["a Shopify admin token", `X-Shopify-Access-Token shpat_${hex.repeat(2)}`, "shpat_"],
+    ["a Shopify shared secret", `shpss_${hex.repeat(2).toUpperCase()}`, "shpss_"],
+    ["a Stripe webhook secret", "whsec_aB3dE5gH7jK9mN1pQ3sT5vX7zA9cE1gH", "whsec_"],
+    ["a Google OAuth client secret", "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", "GOCSPX-"],
+  ])("masks %s", (_name, text, prefix) => {
+    const result = redact(text)
+
+    expect(result).toContain(redacted)
+    expect(result).not.toContain(prefix)
+  })
+
+  it.each([
+    "dop_v1_0123abcd",
+    "shpat_ is the prefix of a Shopify token",
+    "whsec_test and whsec_live_mode",
+    "GOCSPX-placeholder",
+    "commit 9fceb02d0ae598e95dc970b74767f19372d61af8",
+    "shop_settings_page and do_v1_release",
+  ])("keeps %s", (text) => {
+    expect(redact(text)).toBe(text)
+  })
+})
+
 describe("redacting tools' output, and code that only reads a secret", () => {
   const gone: [string, string][] = [
     ["$ openssl rand -base64 32\nK7gNU3sdo+OL0wNhqoVWhr3g6s1xYv72ol/pe/Unols=", "K7gNU3sdo"],

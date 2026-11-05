@@ -32,8 +32,8 @@ machine. Pure JavaScript, for Node and the browser alike.
 ## What the rules find
 
 - Provider keys and tokens by their prefixes (`sk-`, `sk_live_`, `ghp_`, `github_pat_`,
-  `glpat-`, `hf_`, `hvs.`, `npm_`, `pypi-`, `AIza`, `ya29.`, `AKIA`, `xox`, `SG.`,
-  `AGE-SECRET-KEY-`), each once long enough to be one, Discord bot tokens and JWTs. Key blocks
+  `glpat-`, `hf_`, `hvs.`, `npm_`, `pypi-`, `AIza`, `GOCSPX-`, `ya29.`, `AKIA`, `xox`, `SG.`,
+  `dop_v1_`, `shpat_`, `whsec_`, `AGE-SECRET-KEY-`), each once long enough to be one, Discord bot tokens and JWTs. Key blocks
   (`-----BEGIN … -----`) are masked whole, or to the end of the text when their end is cut off.
 - `Authorization`, `Cookie` and bearer values, webhook URLs, URLs with `user:password@` (an
   empty user too) and secret query parameters.

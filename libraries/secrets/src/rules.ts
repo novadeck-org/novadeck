@@ -66,6 +66,10 @@ export const rules: readonly Rule[] = [
   token("pypi-", "A-Za-z0-9_=-", 20),
   token("ya29\\.(?=[A-Za-z0-9_.-]*[A-Z0-9])", `${urlSafe}.`, 20),
   token("AIza", urlSafe, 30),
+  token("GOCSPX-", urlSafe, 24),
+  token("do[opr]_v1_", "0-9a-f", 64),
+  token("shp(?:at|ss|ca|pa)_", "0-9a-fA-F", 32),
+  token("whsec_", "A-Za-z0-9", 24),
   {
     pattern: new RegExp(`(?<![\\w])SG\\.${atLeast(urlSafe, 16)}\\.${atLeast(urlSafe, 16)}`, "g"),
     replace: hide,
