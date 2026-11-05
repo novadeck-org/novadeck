@@ -1,6 +1,8 @@
+import type { Backend } from "@novadeck/core/port"
 import { noTheme } from "@novadeck/terminal-views/theme"
+import { parkMs } from "@novadeck/terminal/view"
 import { describeBackendContract } from "@novadeck/test-kit/backend-contract"
-import { afterAll, vi } from "vitest"
+import { afterAll, expect, vi } from "vitest"
 
 import { pause, runnerBackend, type RunnerBackend } from "./backend"
 import { recordingRunner, startTestRunner } from "./testing/runner"
@@ -33,7 +35,19 @@ vi.setConfig({ testTimeout: 10_000 })
 const runner = await startTestRunner()
 afterAll(() => runner.close())
 
-let latest: RunnerBackend | undefined
+// Each backend the contract made, by the port it was given, to settle the right one.
+const made = new WeakMap<Backend, RunnerBackend>()
+
+// The contract closes every terminal it opened: none may still run a shell once it is done.
+afterAll(async () => {
+  const sessions = runner.listing.flatMap(({ sessions }) =>
+    sessions.map(({ session }) => session.id),
+  )
+  const listed = await Promise.all(
+    sessions.map((sessionId) => runner.client.terminals.list({ sessionId })),
+  )
+  expect(listed.flat().filter((terminal) => terminal.started && terminal.exit === null)).toEqual([])
+})
 
 describeBackendContract("runner", {
   create: () => {
@@ -43,14 +57,14 @@ describeBackendContract("runner", {
       saveDelay: 10,
       transcripts: true,
     })
-    latest = created
+    made.set(created.backend, created)
     return {
       backend: created.backend,
       probe: { holds: created.holds, io: () => io },
       driver: {
         // Ends the shell from this client, as the person could from inside it.
         status: async (key, status) => {
-          await latest?.idle()
+          await created.idle()
           const attached = await runner.client.terminals
             .attach(key.terminalId)
             .catch(() => undefined)
@@ -67,7 +81,8 @@ describeBackendContract("runner", {
       },
     }
   },
-  settle: async () => {
-    await latest?.idle()
+  settle: async (backend) => {
+    await made.get(backend)?.idle()
   },
+  parkMs,
 })
