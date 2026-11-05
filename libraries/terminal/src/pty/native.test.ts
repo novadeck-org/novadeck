@@ -6,7 +6,15 @@ import { describe, expect, it, onTestFinished, vi } from "vitest"
 
 import { command, ptyChild, ptyChildEnv, ptyTrace } from "../testing.js"
 
-// Waits at most 10 s, then fails with `label` and what `stalled` tells of the terminal.
+// How long a step may take. Under CI load, Windows' ConPTYs (the bundled one and the system's)
+// hold input for seconds at a time while output flows (#712): a line that reaches a child in
+// milliseconds on a quiet machine took 2 s, and past 10 s, on a busy runner.
+const stepMs = process.platform === "win32" ? 30_000 : 10_000
+// A test of several sessions, each of which may take its steps' time; on Windows, a bundled
+// ConPTY also takes about 3 s to start its program in this file.
+const sessionsMs = process.platform === "win32" ? 120_000 : 60_000
+
+// Waits at most `stepMs`, then fails with `label` and what `stalled` tells of the terminal.
 const bounded = async <T>(
   operation: Promise<T>,
   label: string,
@@ -19,7 +27,7 @@ const bounded = async <T>(
       new Promise<never>((_, reject) => {
         timer = setTimeout(
           () => reject(new Error(`Timed out waiting for ${label}${stalled()}`)),
-          10_000,
+          stepMs,
         )
       }),
     ])
@@ -36,6 +44,8 @@ const spawn = (args = [ptyChild], options: { useConptyDll?: boolean } = {}) => {
     env: { ...process.env, ...ptyChildEnv },
     cols: 80,
     rows: 24,
+    // On Windows, the ConPTY node-pty bundles, which `spawnPty` runs every terminal on.
+    useConptyDll: process.platform === "win32",
     ...options,
   })
   const events = new EventEmitter()
@@ -124,41 +134,53 @@ const descriptors = () => {
 const settle = () => new Promise<void>((resolve) => setTimeout(resolve, 1_000))
 
 describe("installed native PTY dependency", () => {
-  it("starts a child and delivers its final output without hiding native startup errors", async () => {
-    const terminal = spawn(["-e", 'process.stdout.write("NATIVE_PTY_OK")'])
-    expect((await terminal.exit()).exitCode).toBe(0)
-    expect(terminal.output()).toContain("NATIVE_PTY_OK")
-  }, 20_000)
+  it(
+    "starts a child and delivers its final output without hiding native startup errors",
+    async () => {
+      const terminal = spawn(["-e", 'process.stdout.write("NATIVE_PTY_OK")'])
+      expect((await terminal.exit()).exitCode).toBe(0)
+      expect(terminal.output()).toContain("NATIVE_PTY_OK")
+    },
+    stepMs * 2,
+  )
 
-  it("keeps repeated child sessions alive for multiple writes and their natural exit", async () => {
-    for (let session = 0; session < 6; session++) {
-      const terminal = spawn()
-      // eslint-disable-next-line no-await-in-loop -- Each session must finish before its successor starts.
-      await terminal.until("PTY_READY")
-      for (let write = 0; write < 3; write++) {
-        const marker = `NATIVE_SESSION_${session}_WRITE_${write}`
-        terminal.write(command({ type: "write", data: marker }), `write ${marker}`)
-        // eslint-disable-next-line no-await-in-loop -- The reply proves the previous write reached a live child.
-        await terminal.until(marker)
+  it(
+    "keeps repeated child sessions alive for multiple writes and their natural exit",
+    async () => {
+      for (let session = 0; session < 6; session++) {
+        const terminal = spawn()
+        // eslint-disable-next-line no-await-in-loop -- Each session must finish before its successor starts.
+        await terminal.until("PTY_READY")
+        for (let write = 0; write < 3; write++) {
+          const marker = `NATIVE_SESSION_${session}_WRITE_${write}`
+          terminal.write(command({ type: "write", data: marker }), `write ${marker}`)
+          // eslint-disable-next-line no-await-in-loop -- The reply proves the previous write reached a live child.
+          await terminal.until(marker)
+        }
+        const final = `NATIVE_SESSION_${session}_FINAL`
+        terminal.write(command({ type: "exit", code: 7, data: final }), "exit 7")
+        // eslint-disable-next-line no-await-in-loop -- Verify complete shutdown before the next native startup.
+        expect((await terminal.exit()).exitCode).toBe(7)
+        expect(terminal.output()).toContain(final)
       }
-      const final = `NATIVE_SESSION_${session}_FINAL`
-      terminal.write(command({ type: "exit", code: 7, data: final }), "exit 7")
-      // eslint-disable-next-line no-await-in-loop -- Verify complete shutdown before the next native startup.
-      expect((await terminal.exit()).exitCode).toBe(7)
-      expect(terminal.output()).toContain(final)
-    }
-  }, 60_000)
+    },
+    sessionsMs,
+  )
 
-  it("closes repeated running children after their first output", async () => {
-    for (let session = 0; session < 6; session++) {
-      const terminal = spawn()
-      // eslint-disable-next-line no-await-in-loop -- Wait for native startup before explicitly closing this child.
-      await terminal.until("PTY_READY")
-      terminal.child.kill()
-      // eslint-disable-next-line no-await-in-loop -- Every child must exit before starting its successor.
-      expect(await terminal.exit()).toHaveProperty("exitCode")
-    }
-  }, 60_000)
+  it(
+    "closes repeated running children after their first output",
+    async () => {
+      for (let session = 0; session < 6; session++) {
+        const terminal = spawn()
+        // eslint-disable-next-line no-await-in-loop -- Wait for native startup before explicitly closing this child.
+        await terminal.until("PTY_READY")
+        terminal.child.kill()
+        // eslint-disable-next-line no-await-in-loop -- Every child must exit before starting its successor.
+        expect(await terminal.exit()).toHaveProperty("exitCode")
+      }
+    },
+    sessionsMs,
+  )
 
   it.skipIf(process.platform !== "darwin")(
     "releases PTY and kqueue descriptors across successful native spawns",
