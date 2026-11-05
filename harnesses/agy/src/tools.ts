@@ -35,6 +35,12 @@ export const writers: readonly string[] = [
   "replace_file_content",
 ]
 
+/**
+ * The tools whose call may outlive its turn, each ending in its PostToolUse: a command it
+ * backgrounds, and a timer (see `pending` in call-memory.ts).
+ */
+export const outliving: readonly string[] = ["run_command", "schedule"]
+
 // Where run_command's arguments may hold its command line.
 const commandKeys = ["cmd", "command", "CommandLine"]
 

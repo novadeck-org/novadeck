@@ -261,7 +261,7 @@ describe("Antigravity's PreToolUse answer", () => {
     },
   )
 
-  it("is registered for every tool, with PostToolUse for the three that matter", () => {
+  it("is registered for every tool, with PostToolUse for the ones that matter", () => {
     const launchers: Launchers = { mcp: { command: "/data/shell/mcp" } }
     const hooks = (platform: NodeJS.Platform, machine?: Machine) =>
       (
@@ -289,6 +289,8 @@ describe("Antigravity's PreToolUse answer", () => {
         "write_to_file",
         "replace_file_content",
         "ask_question",
+        "run_command",
+        "schedule",
       ])
     }
   })

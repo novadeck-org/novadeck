@@ -6,7 +6,7 @@ import { hookSeconds, hookCommand, type Dialect } from "@novadeck/harness-core/h
 import { json, manifest } from "@novadeck/harness-core/plugin"
 
 import { geminiHome } from "./home.js"
-import { writers } from "./tools.js"
+import { outliving, writers } from "./tools.js"
 
 /** Novadeck's plugin as Antigravity names it, in its commands and its plugins folder. */
 export const pluginId = manifest.name
@@ -86,7 +86,8 @@ export const disconnect: Harness["disconnect"] = [
 /**
  * Antigravity runs PreInvocation hooks before each model call, the first time with the
  * conversation's first message, Stop once the turn ends, PreToolUse before every tool,
- * and PostToolUse after the tools that matter here. PreToolUse is answered "ask" at
+ * and PostToolUse after the tools that matter here: only those its matchers name, as
+ * without one it fires none (probed 2026-10-20, 1.4.3). PreToolUse is answered "ask" at
  * once (never held: a waiting hook hides a confirmation's dialog), so the person's own
  * policy still decides every call; it reports ask_question, which shows a dialog no
  * status line tells, and the call a confirmation is about. Where cmd prints something
@@ -109,12 +110,13 @@ export const files: Harness["files"] = (platform, launchers, machine = {}) => [
         PreInvocation: [handler(platform, "PreInvocation")],
         Stop: [handler(platform, "Stop")],
         // Tool events take matcher groups: before every tool; after a tool, the ones
-        // that write files (one writes artifacts, which names a plan), and the one that
-        // asks the person.
+        // that write files (one writes artifacts, which names a plan), the one that asks
+        // the person, and the two that may outlive their turn, whose PostToolUse ends the
+        // job or the wake-up a Stop lists (see `pending` in call-memory.ts).
         ...(!(platform === "win32" && machine.cmdPrints) && {
           PreToolUse: [{ matcher: "*", hooks: [handler(platform, "PreToolUse")] }],
         }),
-        PostToolUse: [...writers, "ask_question"].map((matcher) => ({
+        PostToolUse: [...writers, "ask_question", ...outliving].map((matcher) => ({
           matcher,
           hooks: [handler(platform, "PostToolUse")],
         })),
