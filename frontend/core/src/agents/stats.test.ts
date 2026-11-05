@@ -1,6 +1,6 @@
-import { describe, expect, it } from "../test"
-import type { AgentUsage } from "../types"
-import { agentStats } from "./stats"
+import { describe, expect, it } from "../test";
+import type { AgentUsage } from "../types";
+import { agentStats } from "./stats";
 
 const codex: AgentUsage = {
   context: { occupied: 30_000, capacity: 200_000 },
@@ -10,7 +10,7 @@ const codex: AgentUsage = {
   ],
   model: "gpt-6-astra",
   effort: "high",
-}
+};
 
 describe("an agent's usage", () => {
   it("shows on its taskbar the model, its effort, and how full the context is", () => {
@@ -23,8 +23,8 @@ describe("an agent's usage", () => {
         tokens: "30k/200k",
         detail: "Context 15% full · 30k of 200k tokens",
       },
-    })
-  })
+    });
+  });
 
   it("counts tokens where the capacity is unknown, as Claude Code's transcript leaves it", () => {
     const only: AgentUsage = {
@@ -32,19 +32,37 @@ describe("an agent's usage", () => {
       limits: [],
       model: null,
       effort: null,
-    }
+    };
     expect(agentStats(only)?.context).toEqual({
       share: null,
       label: "1.2M",
       tokens: "1.2M",
       detail: "Context: 1.2M tokens",
-    })
-  })
+    });
+  });
+
+  it("rounds before it picks the unit, so a context just short of a million reads 1M", () => {
+    const at = (occupied: number) =>
+      agentStats({
+        context: { occupied, capacity: 1_000_000 },
+        limits: [],
+        model: null,
+        effort: null,
+      })?.context?.tokens;
+    expect(at(999_499)).toBe("999k/1M");
+    expect(at(999_500)).toBe("1M/1M");
+    expect(at(999)).toBe("999/1M");
+  });
 
   it("shows nothing without usage", () => {
-    expect(agentStats(undefined)).toBeUndefined()
+    expect(agentStats(undefined)).toBeUndefined();
     expect(
-      agentStats({ context: null, limits: codex.limits, model: null, effort: null }),
-    ).toBeUndefined()
-  })
-})
+      agentStats({
+        context: null,
+        limits: codex.limits,
+        model: null,
+        effort: null,
+      }),
+    ).toBeUndefined();
+  });
+});
