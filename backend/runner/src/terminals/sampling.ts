@@ -32,15 +32,36 @@ export const exitKeysMs = 5_000
 export const graceSamples = 30
 
 /**
- * How long the system's word that the session is ending (the app's `persist`) holds: long
- * enough for a shutdown screen that waits on apps, short enough that a shutdown the person
- * cancels stops holding.
+ * How many samples the system's word that the session is ending (the app's `persist`)
+ * holds: 900, 15 minutes as sampled by default. Long enough for a shutdown screen that
+ * waits on apps, short enough that a shutdown the person cancels stops holding.
  */
-export const endingMs = 15 * 60_000
+export const endingSamples = 900
 
-/** Whether the system said lately that it is ending the session, so no agent's end counts. */
-export const sessionEnding = (record: Pick<Record, "ending">): boolean =>
-  record.ending !== undefined && Date.now() - record.ending < endingMs
+/** Whether the system said lately that it is ending the session, so no agent's end counts yet. */
+export const sessionEnding = (record: Pick<Record, "ending">, pollMs: number): boolean =>
+  record.ending !== undefined && Date.now() - record.ending < endingSamples * pollMs
+
+/**
+ * Runs `decide` once an agent's end counts (see `endWaitMs`), and only once the system's
+ * word that the session is ending has lapsed: held back while it stands, so an end during a
+ * shutdown that was cancelled is decided afterwards, not lost.
+ */
+export const whenEndCounts = (
+  record: Pick<Record, "endKeyAt" | "ending">,
+  pollMs: number,
+  decide: () => void,
+): void => {
+  const fire = (): void => {
+    if (record.ending !== undefined && sessionEnding(record, pollMs)) {
+      const left = record.ending + endingSamples * pollMs - Date.now()
+      setTimeout(fire, Math.max(pollMs, left)).unref()
+      return
+    }
+    decide()
+  }
+  setTimeout(fire, endWaitMs(record, pollMs)).unref()
+}
 
 /**
  * How long after an agent's end, where no sample names the foreground program (Windows),
@@ -149,22 +170,20 @@ export class Sampler<R extends SampledRecord> {
    * shell, as Windows ends every console program while it shuts down, has its shell show a
    * prompt for the moment before the runner stops: that agent stays the one to resume. An
    * agent bound again meanwhile, the shell ended or replaced, or the runner stopping keeps
-   * it too, as does the system's word that the session is ending. The wait is a sample's
-   * time after the person's own ending key, else the grace (see `endWaitMs`).
+   * it too. The wait is a sample's time after the person's own ending key, else the grace
+   * (see `endWaitMs`), and the system's word that the session is ending holds it back
+   * (see `whenEndCounts`).
    */
   prompted(record: R): void {
-    if (!foregroundHidden() || record.summary.lastProgram === null || sessionEnding(record)) return
+    if (!foregroundHidden() || record.summary.lastProgram === null) return
     const shell = record.terminal.pty
-    setTimeout(
-      () => {
-        if (this.host.stopping() || sessionEnding(record) || record.bound !== null) return
-        if (record.terminal.pty !== shell) return
-        if (record.terminal.exit !== null || record.terminal.exiting) return
-        record.summary = { ...record.summary, lastProgram: null }
-        record.changed = true
-      },
-      endWaitMs(record, this.pollMs),
-    ).unref()
+    whenEndCounts(record, this.pollMs, () => {
+      if (this.host.stopping() || record.bound !== null) return
+      if (record.terminal.pty !== shell) return
+      if (record.terminal.exit !== null || record.terminal.exiting) return
+      record.summary = { ...record.summary, lastProgram: null }
+      record.changed = true
+    })
   }
 
   /** Stops sampling, as the runner shuts down. */

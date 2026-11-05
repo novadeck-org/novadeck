@@ -53,7 +53,7 @@ describe.skipIf(process.platform === "win32" || !existsSync(bash))(
     // the shell's prompt follows. The runner is told nothing, and keeps saving. A second
     // runner then restores the terminal as the app does: resuming only the agent the saved
     // row names.
-    type How = "system" | "typed" | "gone" | "person" | "exit" | "signalled"
+    type How = "system" | "typed" | "gone" | "person" | "exit" | "signalled" | "cancelled"
     const quit = async (shell: Fixture, agent: AgentName, how: How, then?: "same" | "other") => {
       const bin = showStandIn(shell.home)
       const stand = standIn(shell.home)
@@ -94,7 +94,8 @@ describe.skipIf(process.platform === "win32" || !existsSync(bash))(
           PS1: "$ ",
           PATH: `${bin}:${stand}:${process.env.PATH}`,
         },
-        processPollMs: sample,
+        // A cancelled shutdown's hold is 900 samples: short samples let it lapse in a test.
+        processPollMs: how === "cancelled" ? 3 : sample,
         saveMs: 50,
         install: (name: AgentName) =>
           Promise.resolve({
@@ -163,13 +164,16 @@ describe.skipIf(process.platform === "win32" || !existsSync(bash))(
       if (how === "exit")
         manager.write({ terminalId: worker.id, data: `${exits[agent]}\r` }, "client")
       // The system tells the runner the session is ending, then ends the agent.
-      if (how === "signalled") manager.persist()
-      if (how === "person") manager.write({ terminalId: worker.id, data: "\x03" }, "client")
+      if (how === "signalled" || how === "cancelled") manager.persist()
+      if (how === "person" || how === "cancelled")
+        manager.write({ terminalId: worker.id, data: "\x03" }, "client")
       else process.kill(pid, "SIGKILL")
       // The shell outlives its agent by more than a sample, and the runner goes on.
       await shell.until(manager, worker.id, "$ ")
       // The runner outlives the agent by more than the grace (30 samples) after the signal.
-      await new Promise((resolve) => setTimeout(resolve, sample * (how === "signalled" ? 40 : 10)))
+      await new Promise((resolve) =>
+        setTimeout(resolve, how === "cancelled" ? 4000 : sample * (how === "signalled" ? 40 : 10)),
+      )
       if (then) {
         // The person starts an agent in the shell: another session, or the one that ended.
         const folder = join(shell.home, `steps-${worker.id}`)
@@ -179,7 +183,8 @@ describe.skipIf(process.platform === "win32" || !existsSync(bash))(
           "client",
         )
         await expect.poll(() => manager.get(worker.id).agent, { timeout: 5000 }).toBe(agent)
-        await new Promise((resolve) => setTimeout(resolve, 300))
+        // The same session resumed keeps its lead past the grace too (30 samples).
+        await new Promise((resolve) => setTimeout(resolve, then === "same" ? sample * 40 : 300))
         const { ledBy } = manager.get(worker.id)
         worker.back()
         controller.abort()
@@ -227,6 +232,18 @@ describe.skipIf(process.platform === "win32" || !existsSync(bash))(
         shell,
       }) => {
         const { worker, options } = await quit(shell, agent, "exit")
+        const manager = await restore(shell, worker, options)
+        await new Promise((resolve) => setTimeout(resolve, 500))
+        expect(await screen(manager, worker)).not.toContain(resumed[agent])
+        expect(manager.get(worker)).toMatchObject({ ledBy: null })
+      })
+
+      it(`restores a plain shell for ${agent} the person ended after a shutdown that was cancelled`, async ({
+        shell,
+      }) => {
+        // The system said the session is ending, then the person left the agent, and the
+        // hold lapsed: the end counts, as it would have without the word.
+        const { worker, options } = await quit(shell, agent, "cancelled")
         const manager = await restore(shell, worker, options)
         await new Promise((resolve) => setTimeout(resolve, 500))
         expect(await screen(manager, worker)).not.toContain(resumed[agent])

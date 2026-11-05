@@ -23,7 +23,7 @@ import { afterTyped } from "../exits.js"
 import { failed } from "../failures.js"
 import { markTurn } from "../interrupted.js"
 import type { Record } from "../record.js"
-import { endWaitMs, sessionEnding } from "../sampling.js"
+import { whenEndCounts } from "../sampling.js"
 import { hasRun } from "../saved-terminals.js"
 import { lastStep } from "../transcripts.js"
 import { TurnEnds, type TurnsHost } from "../turn-ends.js"
@@ -112,22 +112,20 @@ export class Bindings {
    */
   endLeadGone(record: Record): void {
     if (process.platform !== "win32") return this.endLead(record)
-    if (sessionEnding(record)) return
     const shell = record.terminal.pty
     const lead = record.summary.ledBy
+    const gone = record.bound
     record.goneSession = record.bound?.binding.sessionId ?? record.left?.sessionId ?? null
-    setTimeout(
-      () => {
-        record.goneSession = undefined
-        if (this.host.stopping() || sessionEnding(record) || record.closed) return
-        if (record.terminal.pty !== shell) return
-        if (record.terminal.exit !== null || record.terminal.exiting) return
-        // A lead the person approved meanwhile is a new one, not the one that ended.
-        if (record.summary.ledBy !== lead) return
-        this.endLead(record, false)
-      },
-      endWaitMs(record, this.host.pollMs),
-    ).unref()
+    whenEndCounts(record, this.host.pollMs, () => {
+      record.goneSession = undefined
+      if (this.host.stopping() || record.closed || record.terminal.pty !== shell) return
+      if (record.terminal.exit !== null || record.terminal.exiting) return
+      // An agent bound again, as the session resumed, keeps it; another session ended it.
+      if (record.bound !== null && record.bound !== gone) return
+      // A lead the person approved meanwhile is a new one, not the one that ended.
+      if (record.summary.ledBy !== lead) return
+      this.endLead(record, false)
+    })
   }
 
   /**
@@ -224,7 +222,7 @@ export class Bindings {
    */
   restarted(): Pick<
     Record,
-    "bound" | "suspended" | "root" | "seenEntry" | "watching" | "transcript"
+    "bound" | "suspended" | "root" | "seenEntry" | "watching" | "transcript" | "goneSession"
   > {
     return {
       bound: null,
@@ -238,8 +236,8 @@ export class Bindings {
    * What the shell held of its agents, which ends with it, as it exits or restarts. The rest
    * of a shell's state (its prompts, line, foreground) the restart sets for the new one.
    */
-  private shellEnded(): Pick<Record, "suspended" | "root" | "seenEntry"> {
-    return { suspended: null, root: null, seenEntry: undefined }
+  private shellEnded(): Pick<Record, "suspended" | "root" | "seenEntry" | "goneSession"> {
+    return { suspended: null, root: null, seenEntry: undefined, goneSession: undefined }
   }
 
   /**

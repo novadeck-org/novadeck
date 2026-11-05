@@ -13,6 +13,7 @@ import {
   exitKeysMs,
   Sampler,
   shellBusy,
+  endingSamples,
   graceSamples,
   type SampledRecord,
 } from "./sampling.js"
@@ -103,16 +104,18 @@ describe("the program a fresh shell resumes where no sample names it", () => {
     expect(record.changed).toBe(false)
   })
 
-  it("stays the agent's, past the grace, once the system said the session is ending", () => {
+  it("waits out the system's word that the session is ending, then lets go", () => {
     on("win32")
     const before = running("claude")
-    sampler().prompted(before)
     before.ending = Date.now()
-    const after = running("claude")
-    after.ending = Date.now()
-    sampler().prompted(after)
-    vi.advanceTimersByTime(graceSamples * pollMs)
-    for (const record of [before, after]) expect(record.summary.lastProgram).toBe("claude")
+    sampler().prompted(before)
+    const during = running("claude")
+    sampler().prompted(during)
+    during.ending = Date.now()
+    vi.advanceTimersByTime(endingSamples * pollMs - 1)
+    for (const record of [before, during]) expect(record.summary.lastProgram).toBe("claude")
+    vi.advanceTimersByTime(1 + pollMs)
+    for (const record of [before, during]) expect(record.summary.lastProgram).toBeNull()
   })
 
   it("stays the agent's when one binds again, or the shell ends or is replaced, meanwhile", () => {
