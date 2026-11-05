@@ -1430,6 +1430,7 @@ export const runnerBackend = (
     for (const entry of entries.values()) if (!entry.closed) followWhenReady(entry)
     voice.follow()
     murmur.follow()
+    inbox.follow()
     window.addEventListener("pagehide", flush)
     // The app waits for these saves, removals and closes before a close or quit can end
     // the shells, so they name what still runs.
