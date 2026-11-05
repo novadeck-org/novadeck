@@ -68,6 +68,8 @@ export type Wire<C extends AnyContractRouter> = {
 
 const wireFatal = ["UNAUTHORIZED", "INCOMPATIBLE_PROTOCOL", "CLOSED"] as const
 const backoff = (attempt: number) => Math.min(250 * 2 ** attempt, 5_000)
+// How long a session must last for the next reconnection to start backing off afresh.
+const steadyMs = 10_000
 
 /** A connection's failure as a wire error; anything that isn't one is a failure to connect. */
 const asWireError = (error: unknown): WireError => {
@@ -177,12 +179,17 @@ class Connection<C extends AnyContractRouter & WireContract> implements Wire<C> 
   private async supervise(): Promise<void> {
     const signal = this.stopping.signal
     const retryDelay = this.options.retryDelay ?? backoff
+    let attempt = 0
     while (this.current) {
+      const since = Date.now()
       // eslint-disable-next-line no-await-in-loop -- One channel is live at a time.
       await this.current.channel.closed
       if (signal.aborted) return
+      // A session that lasted starts the backoff afresh. One lost soon after its handshake, as
+      // to a message the client fails to read each time it resumes, goes on backing off.
+      if (Date.now() - since >= steadyMs) attempt = 0
       let error: WireError = new WireError("DISCONNECTED", "The connection was lost.")
-      for (let attempt = 0; ; attempt += 1) {
+      for (; ; attempt += 1) {
         this.status.set({ state: "reconnecting", error })
         // eslint-disable-next-line no-await-in-loop -- Back off between attempts.
         await sleep(retryDelay(attempt), signal)
@@ -190,6 +197,7 @@ class Connection<C extends AnyContractRouter & WireContract> implements Wire<C> 
         try {
           // eslint-disable-next-line no-await-in-loop -- Attempts are sequential.
           this.current = await this.handshake()
+          attempt += 1
           break
         } catch (reason) {
           if (signal.aborted) return

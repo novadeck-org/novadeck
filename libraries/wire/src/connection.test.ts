@@ -161,6 +161,30 @@ describe("connect", () => {
     expect(delays).toEqual([0, 1, 2])
   })
 
+  it("goes on backing off after a session lost soon after its handshake, until one lasts", async () => {
+    vi.useFakeTimers({ toFake: ["Date"] })
+    onTestFinished(() => void vi.useRealTimers())
+    const server = serve()
+    const delays: number[] = []
+    const wire = await open(server, {
+      retryDelay: (attempt) => {
+        delays.push(attempt)
+        return 0
+      },
+    })
+    const lose = async () => {
+      drop(server)
+      await until(wire, "reconnecting")
+      await until(wire, "connected")
+    }
+    await lose()
+    await lose()
+    expect(delays).toEqual([0, 1])
+    vi.setSystemTime(Date.now() + 10_000)
+    await lose()
+    expect(delays).toEqual([0, 1, 0])
+  })
+
   it("waits for a live session through a reconnection", async () => {
     const server = serve()
     const wire = await open(server)
