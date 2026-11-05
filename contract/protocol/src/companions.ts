@@ -93,6 +93,20 @@ export const planSaveResult = z.discriminatedUnion("saved", [
   }),
 ])
 
+// How long what a look and a page's troubles carry runs at most, in UTF-16 code units, which
+// the client cuts to: the page's title, why a look has no picture, an error's text and the
+// script it came from, a failed request's address and what it fetched, and a failed load's
+// error. The address a look is at is a page item's, up to `companionLimits.url`.
+export const lookLimits = {
+  title: 1024,
+  reason: 512,
+  text: 1024,
+  source: 2048,
+  request: 2048,
+  what: 32,
+  load: 256,
+} as const
+
 // `companions.pageTrouble` items: what went wrong on a page an agent showed, as the desktop
 // pane saw it while the page was at the address's origin it was shown at. An `error` the
 // page logged or threw, with the script and line it came from (0 when unknown); a
@@ -103,17 +117,17 @@ export const planSaveResult = z.discriminatedUnion("saved", [
 export const pageTrouble = z.discriminatedUnion("kind", [
   z.strictObject({
     kind: z.literal("error"),
-    text: z.string().max(1024),
-    source: z.string().max(2048),
+    text: z.string().max(lookLimits.text),
+    source: z.string().max(lookLimits.source),
     line: z.int().min(0),
   }),
   z.strictObject({
     kind: z.literal("request"),
-    url: z.string().max(2048),
+    url: z.string().max(lookLimits.request),
     status: z.int().min(0).max(999),
-    what: z.string().max(32),
+    what: z.string().max(lookLimits.what),
   }),
-  z.strictObject({ kind: z.literal("load"), text: z.string().max(256) }),
+  z.strictObject({ kind: z.literal("load"), text: z.string().max(lookLimits.load) }),
 ])
 
 /** How many troubles one `companions.pageTrouble` call carries at most. */
@@ -126,7 +140,7 @@ export const pageLook = z.strictObject({
   lookId: id,
   itemId: id,
   shown: z.int().min(1),
-  url: z.string().max(2048),
+  url: z.string().max(companionLimits.url),
 })
 
 /** The largest picture a look is answered with: a JPEG data URL, in characters. */
@@ -141,13 +155,13 @@ export const pageLookAnswer = z.union([
   z.strictObject({
     lookId: id,
     picture: z.string().max(maxLookPicture).startsWith("data:image/jpeg;base64,"),
-    url: z.string().max(2048),
-    title: z.string().max(1024),
+    url: z.string().max(companionLimits.url),
+    title: z.string().max(lookLimits.title),
     taken: z.enum(["pane", "fresh"]),
     size: z.strictObject({ width: z.int().min(1).max(8192), height: z.int().min(1).max(8192) }),
     troubles: z.array(pageTrouble).max(maxPageTroubles),
   }),
-  z.strictObject({ lookId: id, reason: z.string().trim().min(1).max(512) }),
+  z.strictObject({ lookId: id, reason: z.string().trim().min(1).max(lookLimits.reason) }),
 ])
 
 /** Bounds of a change as `companions.content` carries it: files, and the diff text in all. */

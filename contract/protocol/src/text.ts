@@ -43,3 +43,46 @@ export const hiddenIn = (text: string): string | undefined => {
 
 /** The most lines a command an agent asks the person to run may hold. */
 export const maxCommandLines = 40
+
+// Controls but the tab and the line feed: C0 (the carriage return too), DEL and C1, as the
+// escapes a terminal takes as keys or sequences, U+009B among them.
+const controls = "\\x00-\\x08\\x0b-\\x1f\\x7f-\\x9f"
+// The marks that reorder text or hide in it: the bidirectional marks, embeddings, overrides
+// and isolates, which can make a title read as something else; the zero-width space, the
+// word joiner, the byte-order mark and the Mongolian vowel separator; and the line and
+// paragraph separators. Not the zero-width joiner and non-joiner: emoji joined into one, as
+// a person and a laptop, and scripts such as Persian need them, and they reorder nothing.
+const directions = "\\u061c\\u200e\\u200f\\u202a-\\u202e\\u2066-\\u2069"
+const marks = `${directions}\\u180e\\u200b\\u2028\\u2029\\u2060\\ufeff`
+
+/**
+ * A mark that changes the direction text reads in: the bidirectional marks, embeddings,
+ * overrides and isolates. One of the marks `unsafeCharacter` takes in, which a refusal can
+ * name apart.
+ */
+export const directionMark = new RegExp(`[${directions}]`)
+
+/**
+ * A control character other than the tab and the line feed: what an input box would take
+ * as a key, and a terminal as part of an escape sequence.
+ */
+export const controlCharacter = new RegExp(`[${controls}]`)
+
+/**
+ * A character no text a person reads may hold: a `controlCharacter`, or a mark that reorders
+ * text or hides in it. The one rule behind what the runner strips from an agent's Inbox
+ * text, and (as `unsafeInLine`) what titles, Inbox lines, startup commands and notices
+ * refuse.
+ */
+export const unsafeCharacter = new RegExp(`[${controls}${marks}]`)
+
+/** An `unsafeCharacter`, or the tab or line feed: what one line may not hold. */
+export const unsafeInLine = new RegExp(`[\\t\\n${controls}${marks}]`)
+
+/** Text that is one line: none of it is what one line may not hold (`unsafeInLine`). */
+export const singleLine = new RegExp(`^[^\\t\\n${controls}${marks}]*$`)
+
+const unsafeInLineRuns = new RegExp(`[\\t\\n${controls}${marks}]+`, "g")
+
+/** `text` as one line: each run of what one line may not hold (`unsafeInLine`) as a space, trimmed. */
+export const asLine = (text: string): string => text.replace(unsafeInLineRuns, " ").trim()

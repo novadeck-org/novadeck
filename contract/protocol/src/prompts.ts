@@ -1,3 +1,5 @@
+import { controlCharacter } from "./text.js"
+
 /**
  * What a prompt may hold to be pasted into an agent's input box and submitted as a message
  * (`agents.prompt`), one rule for the runner, which refuses with `PROMPT_REFUSED`, and for
@@ -12,16 +14,13 @@
  */
 export const normalisedText = (text: string): string => text.replace(/\r\n?/g, "\n")
 
-// C0 controls but the line feed and the tab, DEL, and C1 controls: the escape that would end a
-// bracketed paste early and type what follows as keys, a Ctrl-U that clears the box.
-// eslint-disable-next-line no-control-regex -- Control characters are what it finds.
-const controls = /[\x00-\x08\x0b-\x1f\x7f-\x9f]/
-
 /**
- * Whether the text holds a control character an input box would take as a key. Line breaks
- * (CRLF, CR, LF) are text, and tabs.
+ * Whether the text holds a control character an input box would take as a key, as the
+ * escape that would end a bracketed paste early and type what follows as keys, or a Ctrl-U
+ * that clears the box. Line breaks (CRLF, CR, LF) are text, and tabs.
  */
-export const hasControlCharacters = (text: string): boolean => controls.test(normalisedText(text))
+export const hasControlCharacters = (text: string): boolean =>
+  controlCharacter.test(normalisedText(text))
 
 /**
  * The shell command a prompt gives, where it starts with `!`: the rest, trimmed, which each
@@ -62,7 +61,7 @@ export const promptRefusal = (
   { shell = false }: { readonly shell?: boolean } = {},
 ): string | undefined => {
   const pasted = normalisedText(text)
-  if (controls.test(pasted))
+  if (controlCharacter.test(pasted))
     return "A message can't hold control characters: the agent would take them as keys."
   const trimmed = pasted.trim()
   if (trimmed === "") return "A message can't be empty."
