@@ -38,6 +38,19 @@ export const sessionId = (value: unknown): string | undefined =>
   agentSessionId.safeParse(value).success ? (value as string) : undefined
 
 /**
+ * The session and transcript a hook payload names, or undefined: Claude Code's and Codex's
+ * hooks all carry `session_id` and `transcript_path` (null for a Codex thread that keeps no
+ * rollout), not only the SessionStart that binds the session.
+ */
+export const hookTranscript = ({
+  payload,
+}: Pick<Report, "payload">): { sessionId: string; transcript: string } | undefined => {
+  const id = sessionId(payload.session_id)
+  const transcript = absolute(payload.transcript_path)
+  return id !== undefined && transcript !== undefined ? { sessionId: id, transcript } : undefined
+}
+
+/**
  * An absolute path, or undefined: a POSIX one, or a Windows one from its drive (`C:\\…`,
  * `C:/…`) or share (`\\\\host\\…`), whatever system runs the runner, as an agent's paths
  * are its own system's.

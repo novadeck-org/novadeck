@@ -128,6 +128,10 @@ export class Reports {
     }
     const record = this.host.records().get(report.terminalId)
     if (!record || record.terminal.exiting || !sameToken(record.token, report.token)) return silent
+    // The bound session's transcript, where this report names it and nothing did before.
+    const named = harnesses[report.agent].transcriptOf?.(report)
+    if (named && record.bound?.binding.agent === report.agent)
+      this.host.bindings().learnTranscript(record, named.sessionId, named.transcript)
     const decoded = firedFacts(harnesses[report.agent].decode(report), report)
     // A turn's end its hook named no reply for reads the reply from the agent's
     // transcript; any other report goes on at once.
@@ -202,14 +206,8 @@ export class Reports {
       if (this.late(record, event)) continue
       // The bound session's transcript, from a later report when the one that bound it
       // named none, as Antigravity's status line does.
-      const binding = record.bound?.binding
-      if (
-        event.transcript !== undefined &&
-        record.transcript === null &&
-        binding?.agent === event.agent &&
-        binding.sessionId === event.sessionId
-      )
-        record.transcript = event.transcript
+      if (event.transcript !== undefined && record.bound?.binding.agent === event.agent)
+        this.host.bindings().learnTranscript(record, event.sessionId, event.transcript)
       const next = observe(
         {
           sessions: record.agents,

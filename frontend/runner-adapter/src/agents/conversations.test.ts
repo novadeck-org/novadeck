@@ -8,8 +8,11 @@ import { describe, expect, it } from "../test"
 import { channel } from "../testing/channel"
 import {
   createRunnerConversations,
+  failuresToLoaded,
   graceMs,
   loadedMs,
+  retryMaxMs,
+  retryMs,
   settleMs,
   type ConversationStreams,
 } from "./conversations"
@@ -486,14 +489,156 @@ describe("the runner's conversations", () => {
       expect(store.getSnapshot().items).toHaveLength(2)
     })
 
-    it("are loaded with none when the transcript is not found", async () => {
-      const { details, transcripts, store } = setup()
+    it("stay loading while the transcript is not found, and load once it is", async () => {
+      const { details, transcripts, streams, store } = setup()
       store.subscribe(() => {})
       details.push(detail())
       await settle()
       transcripts[root]!.fail(new WireError("NOT_FOUND"))
       await settle()
-      expect(store.getSnapshot()).toMatchObject({ loaded: true, items: [] })
+      // Not "nothing said yet": the runner may not know the transcript yet.
+      expect(store.getSnapshot()).toMatchObject({ loaded: false, items: [] })
+      expect(streams.transcript).toHaveBeenCalledTimes(1)
+      await vi.advanceTimersByTimeAsync(retryMs)
+      expect(streams.transcript).toHaveBeenCalledTimes(2)
+      transcripts[root]!.push(batch(item(0), item(1)))
+      await settle()
+      expect(store.getSnapshot()).toMatchObject({ loaded: true })
+      expect(store.getSnapshot().items).toHaveLength(2)
+    })
+
+    it("count as none after a few reads in a row failed, and are still asked again", async () => {
+      const { details, transcripts, streams, store } = setup()
+      store.subscribe(() => {})
+      details.push(detail())
+      await settle()
+      let wait = retryMs
+      for (let failure = 1; failure <= failuresToLoaded; failure += 1) {
+        transcripts[root]!.fail(new WireError("NOT_FOUND"))
+        // eslint-disable-next-line no-await-in-loop -- Each failure follows the wait before it.
+        await settle()
+        expect(store.getSnapshot().loaded).toBe(failure >= failuresToLoaded)
+        // eslint-disable-next-line no-await-in-loop -- Each failure follows the wait before it.
+        await vi.advanceTimersByTimeAsync(wait)
+        wait = Math.min(wait * 2, retryMaxMs)
+      }
+      expect(streams.transcript).toHaveBeenCalledTimes(failuresToLoaded + 1)
+      transcripts[root]!.push(batch(item(0)))
+      await settle()
+      expect(store.getSnapshot().items).toHaveLength(1)
+    })
+
+    it("are read again at the next snapshot of the same session, replacing what showed", async () => {
+      const { details, transcripts, streams, store } = setup()
+      store.subscribe(() => {})
+      details.push(detail())
+      await settle()
+      transcripts[root]!.push(batch(item(0, "old"), item(1, "old")))
+      await settle()
+      transcripts[root]!.fail(new WireError("CONNECTION_LOST"))
+      await settle()
+      expect(store.getSnapshot().items).toHaveLength(2)
+      await vi.advanceTimersByTimeAsync(retryMs)
+      details.push(detail({ activity: null, requests: [] }))
+      await settle()
+      expect(streams.transcript).toHaveBeenCalledTimes(2)
+      transcripts[root]!.push(batch(item(0, "new")))
+      await settle()
+      // It replaces what showed once it is as long, or quiet for a while.
+      expect(store.getSnapshot().items).toHaveLength(2)
+      await vi.advanceTimersByTimeAsync(settleMs)
+      expect(store.getSnapshot().items.map(({ text }) => text)).toEqual(["new"])
+    })
+
+    it("are asked for no oftener than once a wait, however many snapshots come", async () => {
+      const { details, transcripts, streams, store } = setup()
+      store.subscribe(() => {})
+      details.push(detail())
+      await settle()
+      transcripts[root]!.fail(new WireError("NOT_FOUND"))
+      await settle()
+      for (let at = 0; at < 20; at += 1) {
+        details.push(detail({ prompts: [] }))
+        // eslint-disable-next-line no-await-in-loop -- Snapshots arrive over a second.
+        await vi.advanceTimersByTimeAsync(50)
+      }
+      // The snapshots pulled the wait in to its first end, and no further.
+      expect(streams.transcript).toHaveBeenCalledTimes(2)
+    })
+
+    it("stay loading for the time a few reads take, however many snapshots come", async () => {
+      const { details, transcripts, streams, store } = setup()
+      store.subscribe(() => {})
+      details.push(detail())
+      await settle()
+      const started = Date.now()
+      while (streams.transcript.mock.calls.length <= failuresToLoaded + 2) {
+        transcripts[root]!.fail(new WireError("NOT_FOUND"))
+        // eslint-disable-next-line no-await-in-loop -- Fails every read as it opens.
+        await settle()
+        if (store.getSnapshot().loaded) break
+        details.push(detail({ prompts: [] }))
+        // eslint-disable-next-line no-await-in-loop -- Snapshots keep coming meanwhile.
+        await vi.advanceTimersByTimeAsync(100)
+      }
+      expect(store.getSnapshot().loaded).toBe(true)
+      expect(Date.now() - started).toBeGreaterThanOrEqual(2 * retryMs)
+    })
+
+    it("keeps what shows through a read again until it is as long", async () => {
+      const { details, transcripts, store } = setup()
+      store.subscribe(() => {})
+      details.push(detail())
+      await settle()
+      transcripts[root]!.push(batch(...Array.from({ length: 300 }, (_, at) => item(at))))
+      await settle()
+      transcripts[root]!.fail(new WireError("CONNECTION_LOST"))
+      await settle()
+      await vi.advanceTimersByTimeAsync(retryMs)
+      transcripts[root]!.push(batch(...Array.from({ length: 256 }, (_, at) => item(at))))
+      await settle()
+      expect(store.getSnapshot().items).toHaveLength(300)
+      transcripts[root]!.push(batch(...Array.from({ length: 50 }, (_, at) => item(256 + at))))
+      await settle()
+      expect(store.getSnapshot().items).toHaveLength(306)
+    })
+
+    it("go on backing off for a read that fails after the same items every time", async () => {
+      const { details, transcripts, streams, store } = setup()
+      store.subscribe(() => {})
+      details.push(detail())
+      await settle()
+      const first = () => {
+        transcripts[root]!.push(batch(item(0), item(1)))
+        transcripts[root]!.fail(new WireError("CONNECTION_LOST"))
+      }
+      first()
+      await settle()
+      await vi.advanceTimersByTimeAsync(retryMs)
+      first()
+      await settle()
+      // Nothing beyond what showed: this failure counts, and the next wait doubles.
+      await vi.advanceTimersByTimeAsync(retryMs)
+      expect(streams.transcript).toHaveBeenCalledTimes(2)
+      await vi.advanceTimersByTimeAsync(retryMs)
+      expect(streams.transcript).toHaveBeenCalledTimes(3)
+    })
+
+    it("stop being asked for once the session changes or the reading stops", async () => {
+      const { details, transcripts, streams, conversations, store } = setup()
+      store.subscribe(() => {})
+      details.push(detail())
+      await settle()
+      transcripts[root]!.fail(new WireError("NOT_FOUND"))
+      await settle()
+      details.push(detail({ sessionId: "s2" }))
+      await settle()
+      expect(streams.transcript).toHaveBeenCalledTimes(2)
+      transcripts[root]!.fail(new WireError("NOT_FOUND"))
+      await settle()
+      conversations.stop()
+      await vi.advanceTimersByTimeAsync(retryMaxMs * 2)
+      expect(streams.transcript).toHaveBeenCalledTimes(2)
     })
 
     it("are loaded with none when the transcript ends with nothing", async () => {

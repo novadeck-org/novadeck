@@ -387,6 +387,56 @@ describe.skipIf(process.platform === "win32" || !existsSync(bash))(
       await reading
     })
 
+    // Their session start names no transcript (as one run without a file shows), but any
+    // later hook of the session does.
+    for (const [agent, line] of [
+      ["claude", userLine("hi")],
+      [
+        "codex",
+        `${JSON.stringify({ timestamp: "2026-09-30T08:00:00Z", type: "response_item", payload: { type: "message", role: "user", content: [{ type: "input_text", text: "hi" }] } })}\n`,
+      ],
+    ] as const)
+      it(`takes ${agent}'s transcript from a later hook when its session start named none`, async ({
+        shell,
+      }) => {
+        const transcript = join(shell.home, `${agent}.jsonl`)
+        writeFileSync(transcript, line)
+        const bin = reporter(shell.home, [
+          { agent, sessionId: "s1", seq: 1, source: "startup" },
+          {
+            agent,
+            sessionId: "s1",
+            seq: 2,
+            source: "",
+            event: "UserPromptSubmit",
+            fields: { transcript_path: transcript, prompt: "hi" },
+          },
+        ])
+        const manager = shell.manager({
+          env: { HOME: shell.home, PS1: "$ ", PATH: `${bin}:${process.env.PATH}` },
+        })
+        const next = shell.watch(manager)
+        const terminal = await create(manager, shell)
+        manager.write({ terminalId: terminal.id, data: "report\r" }, "owner")
+        const details = manager.detail(terminal.id)
+        let root: string | undefined
+        while (!root) {
+          // eslint-disable-next-line no-await-in-loop -- Reads snapshots until the agent binds.
+          const { value } = await details.next()
+          root = value?.actors[0]?.ref
+        }
+        await details.return(undefined)
+        await next((summary) => summary.id === terminal.id && summary.activity?.state === "working")
+        const texts: string[] = []
+        const reading = (async () => {
+          for await (const change of manager.transcript(terminal.id, root))
+            if (change.type === "items") texts.push(...change.items.map(({ text }) => text))
+        })()
+        await expect.poll(() => texts).toEqual(["hi"])
+        manager.forgetAgent(agent)
+        await reading
+      })
+
     it("takes a transcript from a later report when the status line bound the session", async ({
       shell,
     }) => {

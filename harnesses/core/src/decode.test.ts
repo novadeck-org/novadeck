@@ -7,6 +7,7 @@ import {
   cutText,
   errorText,
   firedFacts,
+  hookTranscript,
   maxPlan,
   planText,
   shortName,
@@ -265,5 +266,36 @@ describe("a permission request's call id", () => {
     expect(callId("a1", "Bash", { command: "ls" })).not.toBe(root)
     expect(callId(null, "Read", { command: "ls" })).not.toBe(root)
     expect(callId(null, "Bash", { command: "pwd" })).not.toBe(root)
+  })
+})
+
+describe("hookTranscript", () => {
+  it("names the session and transcript a hook's payload carries", () => {
+    expect(
+      hookTranscript({ payload: { session_id: "s1", transcript_path: "/home/a/s1.jsonl" } }),
+    ).toEqual({ sessionId: "s1", transcript: "/home/a/s1.jsonl" })
+  })
+
+  it("takes a Windows drive path and a share", () => {
+    for (const transcript of [
+      "C:\\Users\\a\\s1.jsonl",
+      "C:/Users/a/s1.jsonl",
+      "\\\\host\\share\\s1.jsonl",
+    ])
+      expect(
+        hookTranscript({ payload: { session_id: "s1", transcript_path: transcript } }),
+      ).toEqual({
+        sessionId: "s1",
+        transcript,
+      })
+  })
+
+  it("names nothing without both, or with a transcript that is not an absolute path", () => {
+    expect(hookTranscript({ payload: { session_id: "s1" } })).toBeUndefined()
+    expect(hookTranscript({ payload: { session_id: "s1", transcript_path: null } })).toBeUndefined()
+    expect(hookTranscript({ payload: { transcript_path: "/a/b.jsonl" } })).toBeUndefined()
+    expect(
+      hookTranscript({ payload: { session_id: "s1", transcript_path: "rel/s1.jsonl" } }),
+    ).toBeUndefined()
   })
 })
