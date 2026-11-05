@@ -1353,6 +1353,21 @@ const respond = async (line: string, call?: McpCall): Promise<Reply | undefined>
   // Notifications, such as notifications/initialized, need no answer; nor do answers,
   // since this server asks nothing.
   if (id === undefined || id === null || typeof method !== "string") return undefined
+  // A request whose handling fails is still answered, or the agent's call waits for its
+  // harness's own timeout, which can be minutes, with nothing to tell it why.
+  try {
+    return await answered(id, method, params, call)
+  } catch {
+    return { id, error: { code: -32603, message: "Internal error: Novadeck could not answer." } }
+  }
+}
+
+const answered = async (
+  id: unknown,
+  method: string,
+  params: unknown,
+  call: McpCall | undefined,
+): Promise<Reply> => {
   if (method === "initialize") return { id, result: initialized(params, call !== undefined) }
   if (method === "ping") return { id, result: {} }
   if (method === "tools/list") return { id, result: { tools: call ? await listedTools(call) : [] } }
