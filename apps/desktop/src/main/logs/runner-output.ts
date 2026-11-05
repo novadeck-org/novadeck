@@ -3,25 +3,49 @@
 import type { Log } from "@novadeck/log"
 
 /**
+ * The most of one line kept, in characters: the log keeps far less of a line, and a stream
+ * that never writes a line break, as a large object printed whole, must not grow without end.
+ */
+export const lineLimit = 16 * 1024
+
+/**
  * Calls `line` with each whole line of `stream` that holds more than spaces, then `end` once
- * the stream ends, with what was left of it first.
+ * the stream ends, with what was left of it first. A line longer than `limit` is passed on
+ * cut at it, marked so, and the rest of it up to its line break is dropped.
  */
 export const eachLine = (
   stream: NodeJS.ReadableStream | null,
   line: (text: string) => void,
   end?: () => void,
+  limit = lineLimit,
 ): void => {
   if (!stream) return
   let rest = ""
+  // Whether the line under way was already passed on cut, its rest still to drop.
+  let cut = false
+  const pass = (text: string): void => {
+    if (cut) {
+      cut = false
+      return
+    }
+    if (text.trim() !== "") line(text.length > limit ? `${text.slice(0, limit)}…` : text)
+  }
   stream.setEncoding("utf8")
   stream.on("data", (chunk: string) => {
     const lines = (rest + chunk).split(/\r?\n/)
     rest = lines.pop() ?? ""
-    for (const each of lines) if (each.trim() !== "") line(each)
+    for (const each of lines) pass(each)
+    if (cut) rest = ""
+    else if (rest.length > limit) {
+      pass(rest)
+      rest = ""
+      cut = true
+    }
   })
   stream.on("end", () => {
-    if (rest.trim() !== "") line(rest)
+    pass(rest)
     rest = ""
+    cut = false
     end?.()
   })
 }
@@ -89,6 +113,8 @@ export const logRunnerOutput = (log: Log, limit = outputLimit): RunnerOutput => 
     },
     end(run, stream) {
       const state = of(run, stream)
+      // A stream ends once: what a crash loop's many starts leave behind must not pile up.
+      streams.delete(`${run} ${stream}`)
       if (state.held !== undefined) emit(run, stream, state, state.held)
       state.held = undefined
       if (state.dropped === 0) return
@@ -96,8 +122,6 @@ export const logRunnerOutput = (log: Log, limit = outputLimit): RunnerOutput => 
         data: { run, dropped: state.dropped, kept: state.tail.length },
       })
       for (const text of state.tail) write(run, stream, text)
-      state.tail = []
-      state.dropped = 0
     },
   }
 }
