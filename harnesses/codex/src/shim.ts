@@ -49,13 +49,15 @@ exec "$novadeck_real" \${novadeck_daemon:+"$novadeck_daemon"} -c "${titleSetting
 
 // `where` lists matches in PATH order, including this shim, and on npm installs an
 // extensionless script that only other shells run; the first other runnable one wins.
+// `$PATH:` keeps the search to PATH: a plain `where` looks in the current folder first,
+// where a cloned repo's `codex.cmd` would be taken for the real one (as Antigravity's shim).
 export const cmdShim = `@echo off
 ${header("rem", "shim for codex")}
 rem Runs the real codex with --no-daemon, so its hooks can tell Novadeck which session
 rem runs in this terminal, and with a title that tells Novadeck once its prompt shows.
 setlocal
 set "novadeck_real="
-for /f "delims=" %%i in ('where codex 2^>nul') do call :consider "%%~fi"
+for /f "delims=" %%i in ('where $PATH:codex 2^>nul') do call :consider "%%~fi"
 if not defined novadeck_real (
   echo codex: command not found 1>&2
   exit /b 9009
