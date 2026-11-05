@@ -225,10 +225,15 @@ export const ruledBox = (screen: ScreenText, markers: Markers): InputBox | undef
   return undefined
 }
 
+/** Whether a row is a line of a box's body: indented under its marker, and showing text. */
+const bodyRow = (row: string | undefined): boolean => /^ {2}.*\S/.test(row ?? "")
+
 /**
- * A box drawn with no frame, its first row led by one of `markers` and its last the
- * cursor's row: rows indented under the marker go up from the cursor to it. The history
- * above is no part of it: it ends at the nearest row led by a marker.
+ * A box drawn with no frame, its first row led by one of `markers`: rows indented under the
+ * marker go up from the cursor to it, and on down from the cursor to the first row that is
+ * not one (a blank row, before the program's footer), as a cursor moved up a draft leaves
+ * lines of it below. The history above is no part of it: it ends at the nearest row led by a
+ * marker.
  */
 export const markedBox = (screen: ScreenText, markers: Markers): InputBox | undefined => {
   const { cursor } = screen
@@ -239,8 +244,11 @@ export const markedBox = (screen: ScreenText, markers: Markers): InputBox | unde
     // The body is indented under the marker, however much more the typed lines
     // are; a blank line may lie inside it, but the cursor's own row holds text, or the
     // cursor is elsewhere.
-    const body = /^ {2}.*\S/.test(row) || (row.trim() === "" && first !== cursor.row)
+    const body = bodyRow(row) || (row.trim() === "" && first !== cursor.row)
     if (!body) return undefined
   }
-  return first >= 0 ? read(screen, first, cursor.row, markers) : undefined
+  if (first < 0) return undefined
+  let last = cursor.row
+  while (bodyRow(screen.rows[last + 1])) last += 1
+  return read(screen, first, last, markers)
 }
