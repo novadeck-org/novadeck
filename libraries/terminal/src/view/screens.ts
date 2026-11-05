@@ -145,8 +145,6 @@ export type Hold = {
   }) => void
   // Focuses the input, and says whether the focus landed in the screen.
   readonly focus: () => boolean
-  // Starts a fresh shell in an ended terminal.
-  readonly restart: () => void
   // Lets the screen go, once. With `unmount`, focus the screen holds is left for the next
   // mount to restore; without it (out of sight, staying mounted) none is.
   readonly release: (options?: { readonly unmount?: boolean }) => void
@@ -168,6 +166,11 @@ export type TerminalScreens<K> = {
   // The terminal's screen for a mount that shows it, opened on first use. Each acquire has
   // the one release its handle makes.
   readonly acquire: (key: K, options: ShowOptions) => Hold
+  // Starts a fresh shell in the ended terminal, shown or not: through its open screen, which
+  // then takes no keys until the fresh shell's screen arrives, else through the owner's
+  // `restart`. Restarting past an open screen would leave it waiting for Enter, taking the
+  // keys typed to the fresh shell as a restart's.
+  readonly restart: (key: K) => void
   // Sets the terminal font from Preferences: new screens open in it and the open ones
   // whose size differs change to it and fit again.
   readonly setFont: (font: TerminalFont) => void
@@ -580,7 +583,6 @@ export const createTerminalScreens = <K>(o: TerminalScreensOptions<K>): Terminal
           screen.xterm.focus()
           return screen.container.contains(document.activeElement)
         },
-        restart: screen.restart,
         release: ({ unmount = false } = {}) => {
           if (released) return
           released = true
@@ -597,6 +599,11 @@ export const createTerminalScreens = <K>(o: TerminalScreensOptions<K>): Terminal
         screen.xterm.options.fontSize = next.size
         screen.followed.refit()
       }
+    },
+    restart: (key) => {
+      const screen = entries.get(id(key))?.screen
+      if (screen) screen.restart()
+      else o.restart(key)
     },
     typeInto: (key, text) => {
       const screen = entries.get(id(key))?.screen

@@ -32,6 +32,11 @@ export type TerminalHostOptions = {
   readonly trees: ProcessTrees
   /** How its ptys start: as a test plays them, and where their programs are kept. */
   readonly pty?: PtyOptions
+  /**
+   * Tells of a listener of terminal `id`'s `event` that threw, or, as `"parse"`, of output its
+   * screen could not parse (see `TerminalOptions.failed`).
+   */
+  readonly failed?: (error: unknown, event: string, id: string) => void
 }
 
 /**
@@ -233,6 +238,9 @@ export const createTerminalHost = (options: TerminalHostOptions): TerminalHost =
             scrollback: options.scrollback,
             controller,
             ...(options.pty && { pty: options.pty }),
+            ...(options.failed && {
+              failed: (error: unknown, event: string) => options.failed!(error, event, id),
+            }),
           })
           const entry: Entry = { terminal, exitOrder: 0, kept: 0, restarting: false }
           open.set(id, entry)

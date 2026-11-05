@@ -1,10 +1,44 @@
 import { describe, expect, it, onTestFinished, vi } from "vitest"
 
-import { endProcess, endTree } from "./windows.js"
+import { named } from "./rounds.js"
+import { asProcess, endProcess, endTree, type Row } from "./windows.js"
 
 // A pid no process has, so a tree of it reads as ended at once: above Linux's pid_max, and a
 // multiple of 4, as Windows reads a pid without its two low bits.
 const gone = 2 ** 22 + 8
+
+describe("a Windows process as the lister wrote it", () => {
+  const row: Row = {
+    pid: 7056,
+    comm: "cmd.exe",
+    start: 100,
+    parent: "#668 gone",
+    stopped: false,
+    path: "C:\\Windows\\System32\\cmd.exe",
+    line: '"C:\\Windows\\System32\\cmd.exe" /d /c echo hi',
+  }
+
+  it("is named with its parent, then its program's path and its command line", () => {
+    expect(named(asProcess(row))).toBe(
+      'cmd.exe (7056, parent #668 gone) at C:\\Windows\\System32\\cmd.exe as "C:\\Windows\\System32\\cmd.exe" /d /c echo hi',
+    )
+  })
+
+  // As a program started suspended and never resumed is: it can never exit by itself.
+  it("is named stopped where every thread of it is suspended", () => {
+    expect(named(asProcess({ ...row, stopped: true }))).toMatch(
+      /^cmd\.exe \(7056, stopped, parent #668 gone\) at /,
+    )
+  })
+
+  it("is named without what the lister couldn't read, and with a long command line cut", () => {
+    expect(named(asProcess({ ...row, path: "", line: "" }))).toBe(
+      "cmd.exe (7056, parent #668 gone)",
+    )
+    const long = named(asProcess({ ...row, path: "", line: "x".repeat(500) }))
+    expect(long).toBe(`cmd.exe (7056, parent #668 gone) as ${"x".repeat(400)}…`)
+  })
+})
 
 describe("ending a Windows process's tree", () => {
   const reader = (tree: readonly { pid: number; startedAt: number }[] | undefined) => {
@@ -85,6 +119,17 @@ describe("ending a Windows process's tree", () => {
       expect(calls.end).toEqual([tree])
     },
   )
+
+  // Waiting its 30 s would take it past this test's time.
+  it("waits for a tree that won't end no later than it is told", { timeout: 2_000 }, async () => {
+    // This worker, which runs throughout.
+    const tree = [{ pid: process.pid, startedAt: 100 }]
+    const { calls, trees } = reader(tree)
+
+    await endTree({ pid: process.pid, start: 100 }, trees, async () => {}, Date.now() + 200)
+
+    expect(calls.end).toEqual([tree])
+  })
 
   it("ends it by recorded parents where its reader can't read the tree", async () => {
     const { trees } = reader(undefined)

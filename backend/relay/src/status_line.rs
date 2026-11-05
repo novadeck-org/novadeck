@@ -303,16 +303,13 @@ mod group {
 /// (probed 2026-10-23, 2.1.309), in a job of its own to end at the deadline, as Windows
 /// has no process group to signal, and which ends with the relay, should it be killed.
 #[cfg(windows)]
-fn start(command: &str) -> Option<(std::process::Child, crate::job::Job)> {
-    use std::process::{Command, Stdio};
-
+fn start(command: &str) -> Option<(crate::job::Process, crate::job::Job)> {
+    let mut arguments: Vec<u16> = "-c ".encode_utf16().collect();
+    arguments.extend(crate::job::argument(command));
     crate::job::Job::start(
-        Command::new(git_bash()?)
-            .arg("-c")
-            .arg(command)
-            .stdin(Stdio::piped())
-            .stdout(Stdio::piped())
-            .stderr(Stdio::null()),
+        &git_bash()?,
+        &arguments,
+        crate::job::Streams::Piped,
         crate::job::KILL_ON_CLOSE,
     )
     .ok()

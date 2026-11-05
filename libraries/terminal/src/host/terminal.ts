@@ -9,6 +9,7 @@ import {
   type Reporting,
   type Screen,
   type ScreenText,
+  written,
 } from "@novadeck/emulator/headless"
 
 import { TerminalError, type Exit, type TerminalEvent } from "../contract.js"
@@ -115,6 +116,12 @@ export type TerminalOptions = {
   readonly controller?: string | undefined
   /** How its ptys start: as a test plays them, and where their programs are kept (see `spawnPty`). */
   readonly pty?: PtyOptions
+  /**
+   * Tells of a listener of `event` that threw, once for each event in each run; the terminal
+   * carries on, its other listeners included. As `"parse"`, tells of the first chunk of a run's
+   * output its screen could not parse, which the screen skipped. To the console unless given.
+   */
+  readonly failed?: (error: unknown, event: keyof Listeners | "parse") => void
 }
 
 type Listeners = {
@@ -264,8 +271,28 @@ export const createTerminal = (options: TerminalOptions): HostedTerminal => {
     reset: new Set(),
     keys: new Set(),
   }
+  const failed =
+    options.failed ??
+    ((error: unknown, event: keyof Listeners | "parse") =>
+      console.error(
+        event === "parse"
+          ? "A terminal's screen could not parse its output:"
+          : `A terminal's ${event} listener failed:`,
+        error,
+      ))
+  // The events a listener of threw, each told once.
+  const threw = new Set<keyof Listeners>()
+  // A listener's throw would skip the rest, and the work it fired in: out of the screen's
+  // emitters it ends the process, and in its parser it leaves the parse mid-sequence.
   const fire = <K extends keyof Listeners>(event: K, ...args: Parameters<Listeners[K]>) => {
-    for (const listener of listeners[event]) (listener as (...all: typeof args) => void)(...args)
+    for (const listener of listeners[event])
+      try {
+        ;(listener as (...all: typeof args) => void)(...args)
+      } catch (error) {
+        if (threw.has(event)) continue
+        threw.add(event)
+        failed(error, event)
+      }
   }
 
   let size = { cols: options.spec.cols, rows: options.spec.rows }
@@ -318,6 +345,7 @@ export const createTerminal = (options: TerminalOptions): HostedTerminal => {
       cols: spec.cols,
       rows: spec.rows,
       scrollback: options.scrollback,
+      onParseError: (error) => failed(error, "parse"),
     })
     const mouse = trackMouse(screen)
     let pty: Pty
@@ -374,7 +402,7 @@ export const createTerminal = (options: TerminalOptions): HostedTerminal => {
         .map((one) => one.data)
         .join("")
       if (text === "") return
-      await new Promise<void>((resolve) => run.screen.write(text, resolve))
+      await written(run.screen, text)
       fire("drawn")
       for (let start = 0; start < text.length;) {
         let end = Math.min(start + outputChars, text.length)
@@ -720,6 +748,8 @@ export const createTerminal = (options: TerminalOptions): HostedTerminal => {
       history = []
       historyBytes = 0
       controller = next
+      // A fresh run's listeners that throw are told of again.
+      threw.clear()
       dispose()
       run = started
       size = { cols: spec.cols, rows: spec.rows }

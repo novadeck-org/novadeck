@@ -266,6 +266,109 @@ describe("anthropic", () => {
     ])
   })
 
+  it("loads tools named only after a first load, as a server's that connected since", async () => {
+    // The first load took WebFetch alone; Novadeck's server connected, and named its tools.
+    const later = {
+      ...loaded,
+      messages: [
+        ...deferring.messages.slice(0, 1),
+        loaded.messages[2],
+        {
+          role: "user",
+          content: [
+            { type: "tool_result", tool_use_id: "toolu_s", content: "loaded" },
+            {
+              type: "text",
+              text: 'The following deferred tools are now available via ToolSearch. Use ToolSearch with query "select:<name>[,<name>...]":\nmcp__plugin_novadeck_novadeck__open_agent\n',
+            },
+          ],
+        },
+      ],
+      tools: [...deferring.tools, { name: "WebFetch", defer_loading: true }],
+    }
+    const { response, calls } = await handle(post("/v1/messages", later), { text: "Done." })
+
+    expect(calls).toEqual([])
+    expect(JSON.parse(response.body as string)).toMatchObject({
+      content: [
+        {
+          type: "tool_use",
+          name: "ToolSearch",
+          input: { query: "select:mcp__plugin_novadeck_novadeck__open_agent", max_results: 1 },
+        },
+      ],
+    })
+  })
+
+  // Claude Code 2.1.316's first look at a prompt sent before Novadeck's server connected:
+  // the server named as still connecting, none of its tools offered or named.
+  const connecting = {
+    model: "claude-test",
+    messages: [
+      { role: "user", content: [{ type: "text", text: "Open the team" }] },
+      {
+        role: "system",
+        content: [
+          {
+            type: "text",
+            text: "The following MCP servers are still connecting \u2014 their tools (typically named mcp__<server>__*) are not yet available but will appear shortly:\nplugin:novadeck:novadeck\n\nIf the user's request might be served by one of these servers (even if they didn't name it explicitly), call ToolSearch with a relevant keyword.",
+          },
+        ],
+      },
+    ],
+    tools: [{ name: "Bash" }, { name: "ToolSearch" }],
+  }
+
+  it("waits for a server still connecting through a search for its tools, before the rules see a call", async () => {
+    const { response, calls } = await handle(post("/v1/messages", connecting), { text: "Done." })
+
+    expect(calls).toEqual([])
+    expect(JSON.parse(response.body as string)).toMatchObject({
+      content: [
+        {
+          type: "tool_use",
+          name: "ToolSearch",
+          input: { query: "mcp__plugin_novadeck_novadeck__", max_results: 100 },
+        },
+      ],
+      stop_reason: "tool_use",
+    })
+  })
+
+  it("searches for a server's tools once, and not where they are offered already", async () => {
+    const searched = {
+      ...connecting,
+      messages: [
+        ...connecting.messages,
+        {
+          role: "assistant",
+          content: [
+            {
+              type: "tool_use",
+              id: "toolu_c",
+              name: "ToolSearch",
+              input: { query: "mcp__plugin_novadeck_novadeck__" },
+            },
+          ],
+        },
+        {
+          role: "user",
+          content: [{ type: "tool_result", tool_use_id: "toolu_c", content: "No matching tools" }],
+        },
+      ],
+    }
+    const offered = {
+      ...connecting,
+      tools: [...connecting.tools, { name: "mcp__plugin_novadeck_novadeck__open_agent" }],
+    }
+
+    for (const request of [searched, offered]) {
+      // eslint-disable-next-line no-await-in-loop -- One request after another.
+      const { calls } = await handle(post("/v1/messages", request), { text: "Done." })
+      expect(calls).toHaveLength(1)
+    }
+  })
+
   it("leaves a tool's result the latest turn when a load follows it, as a server joins late", () => {
     const call = parse({
       model: "claude-test",

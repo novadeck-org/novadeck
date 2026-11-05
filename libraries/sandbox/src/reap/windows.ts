@@ -105,7 +105,34 @@ const compiledLister = (): Promise<string> =>
     }
   })())
 
-/** The sandbox's processes, as the lister finds them, each with how its recorded parent stands. */
+/** A process as the lister writes it. */
+export type Row = {
+  readonly pid: number
+  readonly comm: string
+  readonly start: number
+  readonly parent: string
+  readonly stopped: boolean
+  readonly path: string
+  readonly line: string
+}
+
+/** The most of a command line a report holds. */
+const mostOfLine = 400
+
+/**
+ * The lister's row as a process: where it could read them, its program's path and its
+ * command line, cut where it is long, make its `detail`.
+ */
+export const asProcess = ({ pid, comm, start, parent, stopped, path, line }: Row): Process => {
+  const ran = line.length > mostOfLine ? `${line.slice(0, mostOfLine)}…` : line
+  const detail = [path && `at ${path}`, ran && `as ${ran}`].filter(Boolean).join(" ")
+  return { pid, comm, start, stopped, parent, ...(detail ? { detail } : {}) }
+}
+
+/**
+ * The sandbox's processes, as the lister finds them, each with how its recorded parent
+ * stands, whether its threads are all suspended, and what it runs.
+ */
 export const list = async (sandbox: Scope): Promise<readonly Process[]> => {
   const program = await compiledLister()
   let stdout: string
@@ -121,13 +148,7 @@ export const list = async (sandbox: Scope): Promise<readonly Process[]> => {
     compiled = undefined
     throw blocked(program, cause)
   }
-  const rows = JSON.parse(stdout) as {
-    readonly pid: number
-    readonly comm: string
-    readonly start: number
-    readonly parent: string
-  }[]
-  return rows.map(({ pid, comm, start, parent }) => ({ pid, comm, start, stopped: false, parent }))
+  return (JSON.parse(stdout) as readonly Row[]).map(asProcess)
 }
 
 /**
@@ -144,41 +165,48 @@ const taskkillTree = async (pid: number): Promise<void> => {
 
 /**
  * Ends a Windows process and what it started (see `endProcess`): the tree `trees` reads,
- * only should its root still be the process found, by its start, and waited for, so nothing
- * of it holds the sandbox's files once `reap` returns; where it can't be read, the tree
- * `kill` ends by recorded parent pids, taskkill unless a test gives another. Exported for
- * its tests, as no process on Windows outlives the first ask long enough to reach it there.
+ * only should its root still be the process found, by its start, and waited for until
+ * `until` at most, 30 seconds unless given, so nothing of it holds the sandbox's files
+ * once `reap` returns; where it can't be read, the tree `kill` ends by recorded parent
+ * pids, taskkill unless a test gives another. Exported for its tests, as no process on
+ * Windows outlives the first ask long enough to reach it there.
  */
 export const endTree = async (
   one: { readonly pid: number; readonly start: number },
   trees: ProcessTrees,
   kill: (pid: number) => Promise<void> = taskkillTree,
+  until = Date.now() + 30_000,
 ): Promise<void> => {
   const tree = await trees.read(one.pid)
-  // Where it can't be read, the tree is ended by recorded parents, awaited: only the root is
-  // checked, just before, by its start.
+  // Where it can't be read, the tree is ended by recorded parents, awaited: the root was
+  // checked by its start as `reap` listed it again a moment before (its `current`), and a
+  // child it left outside the sandbox, which no listing here finds, still ends with it.
   if (tree === undefined) return kill(one.pid).catch(() => {})
   if (tree[0]?.startedAt !== one.start) return
   await trees.end(tree)
-  await waitWhile(() => tree.some(({ pid }) => pidRunning(pid)), 30_000)
+  await waitWhile(
+    () => tree.some(({ pid }) => pidRunning(pid)),
+    Math.min(30_000, until - Date.now()),
+  )
 }
 
 /**
  * Ends a Windows process, as the Windows table's `end`. Windows has no signal to ask with:
- * asking ends it alone, with TerminateProcess; forcibly, its tree (see `endTree`). Without a
- * reader a forcible end takes the process alone too: taskkill's tree goes by recorded parent
- * pids, which may name an unrelated process, and what the process started is still in the
- * sandbox, for the next round to find. `terminate` is TerminateProcess unless a test gives
- * another. Exported for its tests, as no process on Windows outlives the first ask long
- * enough to reach a forcible end there.
+ * asking ends it alone, with TerminateProcess; forcibly, its tree (see `endTree`), waited
+ * for until `until`. Without a reader a forcible end takes the process alone too:
+ * taskkill's tree goes by recorded parent pids, which may name an unrelated process, and
+ * what the process started is still in the sandbox, for the next round to find.
+ * `terminate` is TerminateProcess unless a test gives another. Exported for its tests, as
+ * no process on Windows outlives the first ask long enough to reach a forcible end there.
  */
 export const endProcess = async (
   one: { readonly pid: number; readonly start: number },
   forcibly: boolean,
   trees: ProcessTrees | undefined,
   terminate: (pid: number) => void = (pid) => process.kill(pid),
+  until?: number,
 ): Promise<void> => {
-  if (forcibly && trees) return endTree(one, trees)
+  if (forcibly && trees) return endTree(one, trees, taskkillTree, until)
   try {
     terminate(one.pid)
   } catch {
@@ -196,5 +224,5 @@ export const windows = (trees: ProcessTrees | undefined): Table => ({
     const now = await list(sandbox)
     return found.filter((one) => now.some((it) => it.pid === one.pid && it.start === one.start))
   },
-  end: (one, forcibly) => endProcess(one, forcibly, trees),
+  end: (one, forcibly, until) => endProcess(one, forcibly, trees, undefined, until),
 })

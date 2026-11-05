@@ -6,7 +6,8 @@ export type Scope = Pick<Sandbox, "root" | "home" | "started">
 /**
  * A process of the sandbox: its command's name, its start, which with its pid tells it
  * apart from a later process given the same pid, and whether it was stopped, as by job
- * control, when last read (never on Windows, which has no such state).
+ * control, when last read (on Windows, with every thread of it suspended, as those of a
+ * program started suspended and never resumed are).
  */
 export type Process = {
   readonly pid: number
@@ -15,6 +16,8 @@ export type Process = {
   readonly stopped: boolean
   /** On Windows, how its recorded parent stands, for a leftover's report. */
   readonly parent?: string
+  /** On Windows, its program's path and its command line, for a leftover's report. */
+  readonly detail?: string
 }
 
 /** How a platform finds the sandbox's processes, tells whether one still runs, and ends it. */
@@ -25,8 +28,11 @@ export type Table = {
   readonly alive: (sandbox: Scope, one: Process) => boolean
   /** Those of them still the same processes of the sandbox, as they are now. */
   readonly current: (sandbox: Scope, found: readonly Process[]) => Promise<readonly Process[]>
-  /** Asks the process to end, or with `forcibly` ends it and, where it can, what it started. */
-  readonly end: (one: Process, forcibly: boolean) => Promise<void>
+  /**
+   * Asks the process to end, or with `forcibly` ends it and, where it can, what it started,
+   * waiting for that no later than `until`, a time in ms since the epoch.
+   */
+  readonly end: (one: Process, forcibly: boolean, until: number) => Promise<void>
 }
 
 /**
@@ -41,6 +47,33 @@ export const pidRunning = (pid: number): boolean => {
   } catch {
     return false
   }
+}
+
+/**
+ * Those found of the processes, with every one of the processes whose parent is one of
+ * them or whose process group holds one of them, until no more join; never one through
+ * `ownGroup`, the caller's own group, which a process found by its folder may share with
+ * the caller's other workers, though a child of a found process in it still joins.
+ */
+export const sandboxed = (
+  processes: readonly { readonly pid: number; readonly ppid: number; readonly pgid: number }[],
+  found: ReadonlySet<number>,
+  ownGroup: number | undefined,
+): ReadonlySet<number> => {
+  const members = new Set(found)
+  for (let grown = true; grown;) {
+    grown = false
+    const groups = new Set(processes.filter(({ pid }) => members.has(pid)).map(({ pgid }) => pgid))
+    for (const one of processes)
+      if (
+        !members.has(one.pid) &&
+        (members.has(one.ppid) || (one.pgid > 1 && one.pgid !== ownGroup && groups.has(one.pgid)))
+      ) {
+        members.add(one.pid)
+        grown = true
+      }
+  }
+  return members
 }
 
 /** Asks the process to end with SIGTERM, or with `forcibly` ends it with SIGKILL. */

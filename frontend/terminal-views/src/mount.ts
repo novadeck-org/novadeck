@@ -16,12 +16,10 @@ const phaseOf = (status: TerminalMountProps["status"]): ViewPhase =>
 // above one and ragged below, so Canvas keeps the DOM renderer.
 const wantsWebgl = (view: ViewMode): boolean => view !== "canvas"
 
-// The screens a mount takes its screen from (only `acquire` is the mount's), and how its
-// terminal starts a fresh shell while the mount holds no screen, as a Canvas window in sight
-// does until its turn to take one comes, with its ending bar's Restart already showing.
-type Screens = Pick<TerminalScreens<TerminalKey>, "acquire"> & {
-  readonly restart: (key: TerminalKey) => void
-}
+// The screens a mount takes its screen from, and how its terminal starts a fresh shell,
+// whether the mount holds a screen or not: a Canvas window in sight holds none until its turn
+// to take one comes, with its ending bar's Restart already showing.
+type Screens = Pick<TerminalScreens<TerminalKey>, "acquire" | "restart">
 
 // What a mount asks of its screen: the input's accessible name in the app's words, the
 // shell's stage, and whether the view draws with WebGL.
@@ -105,9 +103,7 @@ export const createTerminalMount =
       },
       focus: () => hold?.focus() ?? false,
       restart: () => {
-        if (disposed) return
-        if (hold) hold.restart()
-        else screens.restart(key)
+        if (!disposed) screens.restart(key)
       },
       dispose: () => {
         if (disposed) return

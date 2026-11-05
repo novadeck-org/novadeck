@@ -1,5 +1,5 @@
 import { execFileSync } from "node:child_process"
-import { mkdirSync, mkdtempSync, readFileSync, realpathSync, symlinkSync } from "node:fs"
+import { mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync, symlinkSync } from "node:fs"
 import { tmpdir } from "node:os"
 import { basename, delimiter, join } from "node:path"
 
@@ -28,10 +28,11 @@ export type Sandbox = {
    * The environment every sandboxed process gets: HOME, XDG folders, a PATH of the
    * programs under test and system tools, a dead D-Bus address so no secret service
    * answers, the proxy, when given, as HTTP(S)_PROXY with loopback exempt (Node's fetch
-   * included), and npm's prefix inside the sandbox so a program that updates itself can't
-   * touch a global install. On Windows also the user's folders, which programs there find
-   * their home and configuration by (USERPROFILE, APPDATA, LOCALAPPDATA, TEMP), all inside
-   * the sandbox, and the system's own variables, which its programs need to start.
+   * included), npm's prefix inside the sandbox so a program that updates itself can't
+   * touch a global install, and an ssh for git that reads none of the user's `~/.ssh`. On
+   * Windows also the user's folders, which programs there find their home and
+   * configuration by (USERPROFILE, APPDATA, LOCALAPPDATA, TEMP), all inside the sandbox,
+   * and the system's own variables, which its programs need to start.
    */
   readonly env: Readonly<Record<string, string>>
   /**
@@ -66,7 +67,8 @@ const windows = process.platform === "win32"
 
 /** The proxy variables, upper and lower case, as programs read one or the other. */
 const proxied = (proxy: string): Record<string, string> => {
-  const loopback = "127.0.0.1,localhost"
+  // `::1` bare, as Node and curl both read it; curl reads no `[::1]`.
+  const loopback = "127.0.0.1,localhost,::1"
   return {
     HTTP_PROXY: proxy,
     HTTPS_PROXY: proxy,
@@ -81,14 +83,42 @@ const proxied = (proxy: string): Record<string, string> => {
   }
 }
 
+/** A word sh reads as the text itself, whatever it holds. */
+const quoted = (text: string): string => `'${text.replaceAll("'", "'\\''")}'`
+
 /**
- * Makes a sandbox under the system's temporary folder; the caller removes `root`. Node
- * reaches PATH through a folder of its own, as the one it is installed in may hold global
- * installs of the very programs under test.
+ * Makes a sandbox under the system's temporary folder; the caller removes `root`, which,
+ * should making it fail, is removed here. Node reaches PATH through a folder of its own,
+ * as the one it is installed in may hold global installs of the very programs under test.
  */
 export const createSandbox = (options: SandboxOptions): Sandbox => {
   const started = process.platform === "linux" ? sinceBoot() : Date.now()
   const root = realpathSync.native(mkdtempSync(join(tmpdir(), options.prefix)))
+  try {
+    return populated(root, started, options)
+  } catch (error) {
+    rmSync(root, { recursive: true, force: true })
+    throw error
+  }
+}
+
+// Node's link in its own folder. Windows makes one only for an administrator or with
+// Developer Mode on, and says only EPERM otherwise.
+const link = (node: string): void => {
+  try {
+    symlinkSync(process.execPath, join(node, basename(process.execPath)))
+  } catch (error) {
+    if (windows && (error as { code?: unknown }).code === "EPERM")
+      throw new Error(
+        "createSandbox: Windows refused a symbolic link, which it makes only for an administrator or with Developer Mode on (see docs/e2e-testing.md)",
+        { cause: error },
+      )
+    throw error
+  }
+}
+
+// The sandbox's folders and environment, in `root`.
+const populated = (root: string, started: number, options: SandboxOptions): Sandbox => {
   const folder = (...parts: string[]) => {
     const path = join(root, ...parts)
     mkdirSync(path, { recursive: true, mode: 0o700 })
@@ -99,7 +129,7 @@ export const createSandbox = (options: SandboxOptions): Sandbox => {
   const project = folder("project")
   const runtime = folder("run")
   const node = folder("node")
-  symlinkSync(process.execPath, join(node, basename(process.execPath)))
+  link(node)
   const system = windows
     ? windowsEnvironment(home, user, options.forbidden ?? [], folder)
     : undefined
@@ -121,6 +151,12 @@ export const createSandbox = (options: SandboxOptions): Sandbox => {
     // A bus that isn't there, so no keyring or secret service answers.
     DBUS_SESSION_BUS_ADDRESS: `unix:path=${join(runtime, "no-bus")}`,
     NPM_CONFIG_PREFIX: folder("npm"),
+    // OpenSSH finds ~/.ssh by the user's passwd entry, not HOME, so git's ssh reads no
+    // configuration or key and keeps its known hosts in the sandbox's home.
+    GIT_SSH_COMMAND: [
+      "ssh -F none -o IdentitiesOnly=yes -o IdentityFile=none",
+      `-o UserKnownHostsFile=${quoted(join(home, ".ssh", "known_hosts"))}`,
+    ].join(" "),
     ...(options.proxy && proxied(options.proxy)),
   }
   return { root, home, project, env, started }

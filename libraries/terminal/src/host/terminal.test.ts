@@ -34,7 +34,7 @@ type Program = ReturnType<typeof nativeStandIn>
  */
 const terminalOf = (
   o: { cols?: number; rows?: number; runs?: number; platform?: NodeJS.Platform } & Partial<
-    Pick<TerminalOptions, "limits" | "controller">
+    Pick<TerminalOptions, "limits" | "controller" | "failed">
   > = {},
 ) => {
   const runs = Array.from({ length: o.runs ?? 1 }, () => nativeStandIn())
@@ -52,6 +52,7 @@ const terminalOf = (
     scrollback: 1000,
     controller: o.controller,
     pty: { native, platform: o.platform ?? "linux" },
+    ...(o.failed && { failed: o.failed }),
   })
   onTestFinished(() => terminal.dispose())
   const program = runs[0] as Program
@@ -199,6 +200,81 @@ describe("a terminal's output", () => {
       ["cwd", "/tmp/here", true],
       ["cwd", "/srv/there", true],
       ["reset"],
+    ])
+  })
+
+  it("carries on past a listener that throws, and tells of each event's first throw", async () => {
+    const failed = vi.fn<NonNullable<TerminalOptions["failed"]>>()
+    const { terminal, program, settled } = terminalOf({ failed })
+    const titles: string[] = []
+    terminal.on("title", () => {
+      throw new Error("title")
+    })
+    terminal.on("title", (title) => titles.push(title))
+    terminal.on("cwd", () => {
+      throw new Error("cwd")
+    })
+    terminal.on("exit", () => {
+      throw new Error("exit")
+    })
+    program.draw("\u001b]0;One\u0007")
+    program.draw("\u001b]0;Two\u0007")
+    // A throw inside the parse would leave it in the OSC, taking what follows as its text.
+    program.draw("\u001b]7;file:///tmp/here\u0007after")
+    await settled()
+    expect(titles).toEqual(["One", "Two"])
+    expect(text(terminal.screen)).toContain("after")
+    program.exit(0)
+    await terminal.exited
+    expect(terminal.exit).toMatchObject({ code: 0 })
+    expect(failed.mock.calls).toEqual([
+      [new Error("title"), "title"],
+      [new Error("cwd"), "cwd"],
+      [new Error("exit"), "exit"],
+    ])
+  })
+
+  it("tells again of a listener that throws in a restart's run", async () => {
+    const failed = vi.fn<NonNullable<TerminalOptions["failed"]>>()
+    const { terminal, runs, settled } = terminalOf({ failed, runs: 2 })
+    terminal.on("title", () => {
+      throw new Error("title")
+    })
+    runs[0]!.draw("\u001b]0;One\u0007")
+    runs[0]!.exit(0)
+    await terminal.exited
+    await terminal.enqueue(() => terminal.restart(specOf(), undefined, () => {}))
+    runs[1]!.draw("\u001b]0;Two\u0007")
+    await settled()
+    expect(failed).toHaveBeenCalledTimes(2)
+  })
+
+  it("tells of each run's first output its screen could not parse, and draws what follows", async () => {
+    const failed = vi.fn<NonNullable<TerminalOptions["failed"]>>()
+    const { terminal, runs, settled } = terminalOf({ failed, runs: 2 })
+    const broken = () =>
+      terminal.screen.parser.registerOscHandler(1337, () => {
+        throw new Error("parse")
+      })
+    broken()
+    runs[0]!.draw("\u001b]1337;one\u0007")
+    await settled()
+    runs[0]!.draw("\u001b]1337;two\u0007")
+    await settled()
+    // The screen skips the chunk whose parse threw; the next is drawn.
+    runs[0]!.draw("after")
+    await settled()
+    expect(text(terminal.screen)).toContain("after")
+    expect(failed.mock.calls).toEqual([[new Error("parse"), "parse"]])
+    runs[0]!.exit(0)
+    await terminal.exited
+    await terminal.enqueue(() => terminal.restart(specOf(), undefined, () => {}))
+    broken()
+    runs[1]!.draw("\u001b]1337;three\u0007")
+    await settled()
+    expect(failed.mock.calls).toEqual([
+      [new Error("parse"), "parse"],
+      [new Error("parse"), "parse"],
     ])
   })
 

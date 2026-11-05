@@ -433,3 +433,41 @@ describe("the done report that stands", () => {
     expect(plain.bound.summary.reported).toBeNull()
   })
 })
+
+describe("learning the bound session's transcript", () => {
+  const unknown = () => {
+    const bound = record()
+    bound.transcript = null
+    bound.watching = null
+    return bound
+  }
+
+  it("takes it for the bound session when none is known", () => {
+    const { bindings: learner } = bindings()
+    const bound = unknown()
+    learner.learnTranscript(bound, "s1", "/new.jsonl")
+    expect(bound.transcript).toBe("/new.jsonl")
+  })
+
+  it("keeps the one known", () => {
+    const { bindings: learner } = bindings()
+    const bound = record()
+    learner.learnTranscript(bound, "s1", "/new.jsonl")
+    expect(bound.transcript).toBe("/t.jsonl")
+  })
+
+  it("takes none from another session", () => {
+    const { bindings: learner } = bindings()
+    const bound = unknown()
+    learner.learnTranscript(bound, "s2", "/new.jsonl")
+    expect(bound.transcript).toBeNull()
+  })
+
+  it("takes none where no session is bound", () => {
+    const { bindings: learner } = bindings()
+    const bound = unknown()
+    bound.bound = null
+    learner.learnTranscript(bound, "s1", "/new.jsonl")
+    expect(bound.transcript).toBeNull()
+  })
+})

@@ -323,9 +323,11 @@ describe("the footer's feedback button", () => {
       view.type("going")
       act(() => view.sendButton().click())
       expect(view.field().readOnly).toBe(true)
-      release()
+      // Inside act, so what the send's end sets renders before the test goes on, not when
+      // React's scheduler gets to it on a loaded machine.
+      await act(async () => release())
       // The card closes once it's sent, so the cleared note is seen by opening it again.
-      await vi.waitFor(() => expect(view.button().textContent).toBe("Sent · thanks"))
+      expect(view.button().textContent).toBe("Sent · thanks")
       await view.open()
       expect(view.field().value).toBe("")
       expect(view.field().readOnly).toBe(false)
