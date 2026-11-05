@@ -1,6 +1,5 @@
 import { applyAppearance } from "@novadeck/ui/theme/apply"
 import { beforeEach } from "vitest"
-import { cleanup } from "vitest-browser-react"
 import { page, server } from "vitest/browser"
 
 import "@novadeck/ui/styles.css"
@@ -22,7 +21,10 @@ beforeEach(async () => {
     )
   }
   // The last spec's app unmounts first: until then it is live, and its effects and its unmount
-  // can write to storage, which the clear below must not leave for this spec to read.
+  // can write to storage, which the clear below must not leave for this spec to read. Loaded
+  // here, not at the top: react-dom must load after the counter run's render probe, which a
+  // spec file installs as it loads (the `pure` entry adds no hooks of its own).
+  const { cleanup } = await import("vitest-browser-react/pure")
   await cleanup()
   localStorage.clear()
   sessionStorage.clear()
