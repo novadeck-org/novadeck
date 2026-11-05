@@ -214,9 +214,9 @@ describe("createRedactor", () => {
   // Each took seconds at 200,000 characters before: a pattern that looked again from each
   // character of a long run. What holds is linear time, not a speed a slow machine may not
   // have: ten times the text takes about ten times as long, where a quadratic takes a
-  // hundred. 25 leaves room for noise, the 20,000's time is the best of three after a
-  // warm-up, the 200,000's is timed again only past the bound (a pause of the process), and
-  // under 100 ms passes whatever the ratio.
+  // hundred. 40 sits between the two (30 was seen on a loaded macOS runner), each time is
+  // the best of three after a warm-up (the 200,000's stops early once under the bound),
+  // and under 100 ms passes whatever the ratio.
   it.each([
     ["a long run of letters", (length: number) => "A".repeat(length)],
     ["a long hex run", (length: number) => "0123456789abcdef".repeat(length / 16)],
@@ -237,9 +237,10 @@ describe("createRedactor", () => {
       }
       timed(20_000)
       const small = Math.min(timed(20_000), timed(20_000), timed(20_000))
-      const bound = Math.max(25 * small, 100)
-      const first = timed(200_000)
-      const large = first < bound ? first : Math.min(first, timed(200_000))
+      const bound = Math.max(40 * small, 100)
+      let large = timed(200_000)
+      for (let tries = 1; tries < 3 && large >= bound; tries++)
+        large = Math.min(large, timed(200_000))
       expect(
         large,
         `${large.toFixed(1)} ms at 200,000, ${small.toFixed(1)} ms at 20,000`,
