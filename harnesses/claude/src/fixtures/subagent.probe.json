@@ -1,0 +1,76 @@
+{
+  "harness": "claude",
+  "version": "2.1.314",
+  "source": "captured",
+  "how": "a background subagent's own transcript (subagents/agent-<id>.jsonl) around a Bash call the person rejected on its permission dialog; ids, paths, the command and usage replaced, the records' other keys left out",
+  "agentId": "afixture0001",
+  "records": [
+    {
+      "parentUuid": "00000000-0000-4000-8000-0000000000a1",
+      "isSidechain": true,
+      "agentId": "afixture0001",
+      "type": "assistant",
+      "message": {
+        "role": "assistant",
+        "content": [
+          {
+            "type": "tool_use",
+            "id": "toolu_fixture0001",
+            "name": "Bash",
+            "input": {
+              "command": "<command>",
+              "description": "<description>",
+              "timeout": 920000
+            },
+            "caller": { "type": "direct" }
+          }
+        ],
+        "stop_reason": "tool_use",
+        "usage": {
+          "input_tokens": 2,
+          "cache_creation_input_tokens": 795,
+          "cache_read_input_tokens": 117863,
+          "output_tokens": 544
+        }
+      },
+      "timestamp": "2026-10-30T17:07:53.073Z",
+      "sessionId": "00000000-0000-4000-8000-000000000001",
+      "version": "2.1.314"
+    },
+    {
+      "parentUuid": "00000000-0000-4000-8000-0000000000a2",
+      "isSidechain": true,
+      "agentId": "afixture0001",
+      "type": "user",
+      "message": {
+        "role": "user",
+        "content": [
+          {
+            "type": "tool_result",
+            "content": "The user doesn't want to proceed with this tool use. The tool use was rejected (eg. if it was a file edit, the new_string was NOT written to the file). STOP what you are doing and wait for the user to tell you how to proceed.",
+            "is_error": true,
+            "tool_use_id": "toolu_fixture0001"
+          }
+        ]
+      },
+      "timestamp": "2026-10-30T17:08:16.417Z",
+      "toolUseResult": "User rejected tool use",
+      "toolDenialKind": "user-rejected",
+      "sessionId": "00000000-0000-4000-8000-000000000001",
+      "version": "2.1.314"
+    },
+    {
+      "parentUuid": "00000000-0000-4000-8000-0000000000a3",
+      "isSidechain": true,
+      "agentId": "afixture0001",
+      "type": "user",
+      "message": {
+        "role": "user",
+        "content": [{ "type": "text", "text": "[Request interrupted by user for tool use]" }]
+      },
+      "timestamp": "2026-10-30T17:08:16.418Z",
+      "sessionId": "00000000-0000-4000-8000-000000000001",
+      "version": "2.1.314"
+    }
+  ]
+}
