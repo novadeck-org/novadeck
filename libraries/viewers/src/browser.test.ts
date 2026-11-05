@@ -1202,6 +1202,21 @@ describe("the browser viewer", () => {
       expect(calls).toContain("reload fresh")
     })
 
+    it("loads no address but an http(s) one when it reloads once woken", async () => {
+      const { viewer, calls, fire, ready } = resting()
+      fire("did-stop-loading")
+      viewer.awake(false)
+      await settled()
+      viewer.reload()
+      viewer.awake(true)
+      ready()
+      viewer.update({ url: "data:text/html,<script>alert(1)</script>", shown: 1 })
+      calls.splice(0)
+      fire("did-stop-loading")
+      expect(calls.filter((call) => call.startsWith("load "))).toEqual([])
+      expect(viewer.state()).toMatchObject({ browser: { shown: 0 } })
+    })
+
     it("starts at rest from its state, as its picture, and wakes where it was", async () => {
       const first = resting()
       first.at.url = `${url}work`

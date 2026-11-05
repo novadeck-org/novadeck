@@ -979,14 +979,14 @@ export const mountBrowser: Mount<BrowserContent, BrowserOptions, BrowserViewer> 
 
   return {
     update: (next) => {
-      // An older show arriving late changes nothing.
-      if (showOf(next) < showing) return
+      // An older show arriving late changes nothing. Nor does an address but an http(s)
+      // one: loaded after it attached, past the lockdown's check of its first address, and
+      // kept as the shown one, a later reload would go there.
+      if (showOf(next) < showing || !webAddress(next.url)) return
       const previous = shown
       const again = showOf(next) > showing
       shown = next
       showing = showOf(next)
-      // Loaded after it attached, past the lockdown's check of its first address.
-      if (!webAddress(next.url)) return
       if (!again && previous.url === next.url) return
       scrollTo = again ? scrollOf(next) : undefined
       if (page) return refresh()
