@@ -6,7 +6,14 @@ import { cleanup, render } from "vitest-browser-react"
 import { page } from "vitest/browser"
 
 import { expectStaysTrue } from "../support/layouts"
-import { isMac, layoutSettled, press, terminal, terminalTab } from "../support/workspace"
+import {
+  isMac,
+  layoutSettled,
+  press,
+  terminal,
+  terminalLines,
+  terminalTab,
+} from "../support/workspace"
 import { describe, expect, it } from "../test"
 
 // The copy and paste keys in a runner's terminal, as its shell hears them: on Linux and
@@ -65,8 +72,9 @@ describe("the copy and paste keys in a runner terminal", () => {
       const runner = await openRunner()
       const copied = vi.spyOn(navigator.clipboard, "writeText").mockResolvedValue()
       runner.write(runner.terminalIds[0]!, "copyme\r\n")
+      // Drawn on its top row before the double-click aims at it.
+      await expect.poll(() => terminalLines("Agent 1")[0]).toContain("copyme")
       const screen = terminal("Agent 1").element().querySelector(".xterm-screen")!
-      await expect.poll(() => screen.getBoundingClientRect().height).toBeGreaterThan(0)
       // A double-click on the word's first letters selects it.
       await page.elementLocator(screen).dblClick({ position: { x: 6, y: 6 } })
 
@@ -80,12 +88,20 @@ describe("the copy and paste keys in a runner terminal", () => {
     "leaves Ctrl+V to the browser's paste, whose text the shell gets",
     async () => {
       const runner = await openRunner()
+      // Whether each paste key was left to the browser, whose paste a prevented key never fires.
+      const leftAlone: boolean[] = []
+      const note = (event: KeyboardEvent): void => {
+        if (event.key.toLowerCase() === "v") leftAlone.push(!event.defaultPrevented)
+      }
+      window.addEventListener("keydown", note)
+      onTestFinished(() => window.removeEventListener("keydown", note))
 
       await press("{Control>}v{/Control}")
       await press("{Control>}{Shift>}V{/Shift}{/Control}")
       pasteText("echo pasted")
 
       await expect.poll(() => heard(runner)).toContain("echo pasted")
+      expect(leftAlone).toEqual([true, true])
       // Neither key reached the program as its own ^V.
       expect(heard(runner)).not.toContain("\x16")
     },
