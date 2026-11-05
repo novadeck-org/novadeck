@@ -19,6 +19,8 @@ const contract = {
   ticks: oc.input(type<void>()).output(eventIterator(type<number>())),
   // A stream made as it's asked for, not when it's first read.
   made: oc.input(type<void>()).output(eventIterator(type<number>())),
+  // A stream that never yields, as one of changes that don't come; it ignores its signal.
+  idle: oc.input(type<void>()).output(eventIterator(type<number>())),
 }
 
 const protocolVersion = 7
@@ -30,8 +32,9 @@ class AppError extends Error {}
 const serve = (options: Partial<SessionsOptions> = {}) => {
   const held: (() => void)[] = []
   const started: string[] = []
-  // How many of the streams `made` gave back were told they're done.
-  const ended = { count: 0 }
+  // How many of the streams `made` and `idle` gave back were told they're done, and how many
+  // reads `idle`'s were asked for.
+  const ended = { count: 0, idle: 0, waiting: 0 }
   const { wire: _, ...app } = contract
   const api = implement(app).$context<SessionContext>()
   const sessions = createSessions({
@@ -59,6 +62,20 @@ const serve = (options: Partial<SessionsOptions> = {}) => {
           next: () => Promise.resolve({ done: false, value: 1 }),
           return: () => {
             ended.count += 1
+            return Promise.resolve({ done: true, value: undefined })
+          },
+        }
+        return stream as unknown as AsyncIteratorObject<number, unknown, void>
+      }),
+      idle: api.idle.handler(() => {
+        const stream: AsyncIterableIterator<number> = {
+          [Symbol.asyncIterator]: () => stream,
+          next: () => {
+            ended.waiting += 1
+            return new Promise(() => {})
+          },
+          return: () => {
+            ended.idle += 1
             return Promise.resolve({ done: true, value: undefined })
           },
         }
@@ -93,6 +110,7 @@ const serve = (options: Partial<SessionsOptions> = {}) => {
       fail: () => Promise<void>
       ticks: () => Promise<AsyncIterator<number>>
       made: () => Promise<AsyncIterator<number>>
+      idle: () => Promise<AsyncIterator<number>>
     }
     const handshake = (clientId?: string) =>
       client.wire.handshake({
@@ -337,5 +355,54 @@ describe("createSessions", () => {
     sessions.close(session)
     expect(await made.next()).toEqual({ done: true, value: undefined })
     expect(ended.count).toBe(1)
+  })
+
+  it("ends a stream waiting for an item once its session closes, telling the stream", async () => {
+    const { sessions, open, ended } = serve()
+    const { session, client, handshake } = open()
+    await handshake()
+    const idle = await client.idle()
+    const next = idle.next()
+    await vi.waitFor(() => expect(ended.waiting).toBe(1))
+    sessions.close(session)
+    expect(await next).toEqual({ done: true, value: undefined })
+    expect(ended.idle).toBe(1)
+  })
+
+  it("lets a session that handshakes as another client be taken over only as that one", async () => {
+    const closed = vi.fn<(session: Session) => void>()
+    const { open } = serve({ closed })
+    const [first, second] = [crypto.randomUUID(), crypto.randomUUID()]
+    const twice = open()
+    await twice.handshake(first)
+    await twice.handshake(second)
+    expect(twice.session.clientId).toBe(second)
+    // The client it was no longer names it: its new connection ends nothing.
+    const former = open()
+    await former.handshake(first)
+    expect(twice.session.closed).toBe(false)
+    expect(twice.terminate).not.toHaveBeenCalled()
+    const current = open()
+    await current.handshake(second)
+    expect(closed.mock.calls).toEqual([[twice.session]])
+    expect(twice.terminate).toHaveBeenCalledOnce()
+    expect(former.session.closed).toBe(false)
+  })
+
+  it("cuts off a session refused again and again before it proves itself", async () => {
+    const closed = vi.fn<(session: Session) => void>()
+    const { open } = serve({ closed })
+    const { session, client, terminate } = open()
+    const wrong = () => client.wire.handshake({ protocolVersion, token: "wrong" })
+    await expect(wrong()).rejects.toMatchObject({ code: "UNAUTHORIZED" })
+    await expect(client.echo("hi")).rejects.toMatchObject({ code: "UNAUTHORIZED" })
+    await expect(wrong()).rejects.toMatchObject({ code: "UNAUTHORIZED" })
+    expect(terminate).not.toHaveBeenCalled()
+    await expect(client.echo("hi")).rejects.toMatchObject({ code: "UNAUTHORIZED" })
+    expect(terminate).toHaveBeenCalledOnce()
+    expect(closed.mock.calls).toEqual([[session]])
+    // Closed, it's refused as ever, and not ended again.
+    await expect(wrong()).rejects.toMatchObject({ code: "UNAUTHORIZED" })
+    expect(terminate).toHaveBeenCalledOnce()
   })
 })

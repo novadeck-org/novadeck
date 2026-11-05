@@ -1,3 +1,5 @@
+import { until } from "./until.js"
+
 const done = { value: undefined, done: true } as const
 
 /** A value with an async stream of its changes. */
@@ -36,17 +38,15 @@ export class Watched<T> {
    */
   watch(): AsyncIterableIterator<T, undefined> {
     let last: { value: T } | undefined
-    let stop: (() => void) | undefined
-    const stopped = new Promise<typeof done>((resolve) => {
-      stop = () => resolve(done)
-    })
+    // Each wait listens for the stop on its own, so a long watch keeps nothing per change.
+    const stopping = new AbortController()
     let active = true
     const iterator: AsyncIterableIterator<T, undefined> = {
       [Symbol.asyncIterator]: () => iterator,
       next: async () => {
         if (last && this.final(last.value)) active = false
         if (active && last?.value === this.current) {
-          await Promise.race([this.changed, stopped])
+          await until(this.changed, stopping.signal)
         }
         if (!active) return done
         last = { value: this.current }
@@ -54,7 +54,7 @@ export class Watched<T> {
       },
       return: () => {
         active = false
-        stop?.()
+        stopping.abort()
         return Promise.resolve(done)
       },
     }

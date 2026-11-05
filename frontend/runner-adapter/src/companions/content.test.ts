@@ -9,6 +9,7 @@ import {
   type ItemContent,
 } from "@novadeck/core/items"
 import {
+  companionLimits,
   maxPageTroubles,
   pageTrouble,
   type ItemContent as RunnerContent,
@@ -290,6 +291,24 @@ describe("the runner's companion content", () => {
     const dropped = new WireError("DISCONNECTED")
     app.saveFails(dropped)
     await expect(app.companions.save(target, hero, "# New\n", "a1")).rejects.toBe(dropped)
+  })
+
+  it("never sends a plan too big for one message to the runner, and says it's too large", async () => {
+    const app = following()
+    // Within the plan's length, but past a WebSocket message once JSON-escaped.
+    const quoted = '"'.repeat(companionLimits.plan - 1024)
+    const tooLong = "#".repeat(companionLimits.plan + 1)
+    for (const text of [quoted, tooLong]) {
+      // eslint-disable-next-line no-await-in-loop -- Each step waits for the one before.
+      const rejected = await app.companions.save(target, hero, text, "a1").catch((e) => e)
+      expect(rejected).toBeInstanceOf(PlanUnwritableError)
+      expect(rejected.reason).toBe("too-large")
+    }
+    expect(app.saves).toEqual([])
+    // A big one that fits goes as usual.
+    const fits = "#".repeat(200 * 1024)
+    await app.companions.save(target, hero, fits, "a1")
+    expect(app.saves.map((each) => each.text.length)).toEqual([fits.length])
   })
 
   it("passes on a file cut short or pointing past its end", async () => {

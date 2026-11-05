@@ -4,6 +4,7 @@ import { WireError } from "@novadeck/wire"
 import { afterEach, beforeEach, vi } from "vitest"
 
 import { context, describe, expect, it } from "../test"
+import { catchReports } from "../testing/reported"
 import { createSessionSaves } from "./saves"
 
 const visited = (workspace: Workspace, visitedAt: number | null): Workspace => ({
@@ -22,8 +23,9 @@ const renamed = (workspace: Workspace, name: string): Workspace => ({
   })),
 })
 
-// Saves over a runner that records each call and answers as `answer` says.
-const open = (answer: () => Promise<void> = async () => {}) => {
+// Saves over a runner that records each call and answers as `answer` says, and whose sessions
+// exist as `ready` says.
+const open = (answer: () => Promise<void> = async () => {}, ready = async () => true) => {
   const sent: string[] = []
   const visits: (number | null)[] = []
   let latest: Workspace | undefined
@@ -33,7 +35,7 @@ const open = (answer: () => Promise<void> = async () => {}) => {
       visits.push(visitedAt)
       return answer()
     },
-    ready: () => Promise.resolve(true),
+    ready: () => ready(),
     latest: () => latest,
     track: (work) => work,
     halted: () => false,
@@ -111,6 +113,42 @@ describe("session saves", () => {
       await vi.advanceTimersByTimeAsync(500)
       expect(app.sent).toEqual(["initial", "initial"])
       expect(app.saves.busy()).toBe(false)
+    })
+  })
+
+  context("when the runner refuses a save for another reason", () => {
+    it("reports it, and sends the session again only with its next change", async () => {
+      const { reported, restore } = catchReports()
+      const refusal = new WireError("INTERNAL_ERROR", "The runner broke.")
+      const app = open(async () => {
+        throw refusal
+      })
+      const first = workspaceFixture()
+      try {
+        app.commit(first)
+        app.commit(renamed(first, "Renamed"))
+        await vi.advanceTimersByTimeAsync(5_000)
+      } finally {
+        restore()
+      }
+      expect(app.sent).toEqual(["initial"])
+      expect(reported).toEqual([refusal])
+    })
+  })
+
+  context("when the session isn't on the runner yet", () => {
+    it("keeps its change for the next send, which asks for the session again", async () => {
+      let there = false
+      const app = open(undefined, async () => there)
+      const first = workspaceFixture()
+      app.commit(first)
+      app.commit(renamed(first, "Renamed"))
+      await vi.advanceTimersByTimeAsync(800)
+      expect(app.sent).toEqual([])
+      there = true
+      app.saves.flush()
+      await vi.advanceTimersByTimeAsync(0)
+      expect(app.sent).toEqual(["initial"])
     })
   })
 

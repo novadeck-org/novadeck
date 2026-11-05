@@ -1,4 +1,4 @@
-import { createKept, type ViewerState } from "@novadeck/viewers"
+import { createKept, type Kept, type ViewerState } from "@novadeck/viewers"
 import {
   mountMarkdown,
   type ClassedRange,
@@ -14,7 +14,7 @@ export type MarkdownEditorHandle = { readonly jumpTo: (at: number) => void }
 // What a document's editor held when it closed, so the next one for that document, as a
 // view switch or a tab Focus no longer keeps builds it again, opens as it was left: the
 // parsed text, its undo history and selection, and where it was scrolled. One store for
-// every document, a plan's or a file's, by the item showing it.
+// every plan, by the item showing it; a kind may keep its own (`kept`), as files do.
 const savedEditors = createKept<ViewerState>(12)
 
 const none: readonly ClassedRange[] = []
@@ -39,6 +39,8 @@ export type MarkdownEditorProps = {
   onClose?: () => void
   // The document can't be written: it reads, and takes no edits.
   readOnly?: boolean
+  // Where its editor is kept as it closes, by `id`: the plans' store unless given.
+  kept?: Kept<ViewerState>
 }
 
 // A Markdown document, formatted where it's read: edited there, or read-only. It loads
@@ -53,6 +55,7 @@ export const MarkdownEditor = ({
   onReady,
   onClose = ignore,
   readOnly = false,
+  kept = savedEditors,
 }: MarkdownEditorProps): React.JSX.Element => {
   // The latest props, for the viewer's callbacks, which outlive a render.
   const latest = useRef({ onEdit, onReady, onClose })
@@ -68,7 +71,7 @@ export const MarkdownEditor = ({
     id,
     content,
     label,
-    kept: savedEditors,
+    kept,
     editable: !readOnly,
     onEdit: edited,
     extensions,

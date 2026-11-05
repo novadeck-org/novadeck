@@ -1,7 +1,9 @@
 import type { Workspace, WorkspaceSession } from "@novadeck/core/types"
-import { maxClientStateLength, maxWebSocketMessageBytes } from "@novadeck/protocol"
+import { maxClientStateLength } from "@novadeck/protocol"
 import { hasCode } from "@novadeck/runner-client"
 
+import { fitsRunner } from "../fits"
+import { reportCaught } from "../streams"
 import { encodeSession } from "./state"
 
 // What a save holds: the state and the visit are sent together, and a visit alone is a change.
@@ -41,14 +43,6 @@ export type SessionSaves = {
 }
 
 const backoffMs = 500
-// Room for the request around the state in its WebSocket message.
-const envelopeBytes = 8 * 1024
-
-// Whether the runner accepts the state: it has a length limit of its own, and the
-// message carries it JSON-escaped inside the request.
-const fitsRunner = (state: string): boolean =>
-  state.length <= maxClientStateLength &&
-  new TextEncoder().encode(JSON.stringify(state)).length <= maxWebSocketMessageBytes - envelopeBytes
 
 const findSession = (
   workspace: Workspace | undefined,
@@ -90,11 +84,16 @@ export const createSessionSaves = ({
       const last = saved.get(id)
       // More than the runner accepts, a state it would reject is dropped; a visit still goes,
       // with the state the runner last kept.
-      const next = fitsRunner(state) ? state : last?.state
+      const next = fitsRunner(state, maxClientStateLength) ? state : last?.state
       if (next === undefined || (last?.state === next && last.visitedAt === visitedAt)) continue
       const sent = track(
         exists.then(async (ok) => {
-          if (!ok) return
+          // Its session isn't on the runner yet: sent with the next change or reconnection,
+          // which asks for the session again.
+          if (!ok) {
+            if (!halted()) dirty.add(id)
+            return
+          }
           try {
             await save(id, next, visitedAt)
             saved.set(id, { state: next, visitedAt })
@@ -103,10 +102,13 @@ export const createSessionSaves = ({
             // Unreachable: try again after the next change or reconnection.
             if (hasCode(error, "DISCONNECTED")) dirty.add(id)
             // Too many calls in flight: try again shortly.
-            if (hasCode(error, "RESOURCE_LIMIT")) {
+            else if (hasCode(error, "RESOURCE_LIMIT")) {
               dirty.add(id)
               if (!timer) timer = setTimeout(flush, backoffMs)
             }
+            // A runner shutting down refuses saves on purpose, so its shells' exits never
+            // overwrite what it kept; anything else is logged.
+            else if (!hasCode(error, "CLOSING")) reportCaught(error)
           }
         }),
       )

@@ -1,4 +1,7 @@
-import { RPCHandler } from "@orpc/server/message-port"
+import type { RPCHandler } from "@orpc/server/message-port"
+import { StandardRPCHandler } from "@orpc/server/standard"
+import { createServerPeerHandleRequestFn } from "@orpc/server/standard-peer"
+import { ServerPeer } from "@orpc/standard-server-peer"
 
 import { positive } from "./limits.js"
 import type { Sessions } from "./sessions.js"
@@ -12,6 +15,12 @@ export type ServedPort = Parameters<RPCHandler<object>["upgrade"]>[0] & {
 const onClose = (port: ServedPort, listener: () => void): void => {
   if ("addEventListener" in port) port.addEventListener("close", listener)
   else if ("on" in port) port.on("close", listener)
+}
+
+const onMessage = (port: ServedPort, listener: (data: unknown) => void): void => {
+  if ("addEventListener" in port) port.addEventListener("message", (event) => listener(event.data))
+  else if ("on" in port)
+    port.on("message", (event: { data?: unknown } | undefined) => listener(event?.data))
 }
 
 /**
@@ -38,8 +47,21 @@ export const servePort = (
     maxCalls: positive("maxCalls", options.maxCalls ?? 1024),
   })
   const close = () => sessions.close(session)
-  new RPCHandler(sessions.router).upgrade(port, { context: { session } })
-  onClose(port, close)
+  // oRPC's own port handler, but each message's handling caught: it leaves a message it can't
+  // read, or an answer it can't post, to reject where nothing handles it. Tell the app instead.
+  const peer = new ServerPeer((message) => port.postMessage(message))
+  const handle = createServerPeerHandleRequestFn(new StandardRPCHandler(sessions.router, {}), {
+    context: { session },
+  })
+  onMessage(port, (data) => {
+    peer
+      .message(data as string | ArrayBuffer | Uint8Array, handle)
+      .catch((error: unknown) => sessions.failed([], error))
+  })
+  onClose(port, () => {
+    peer.close()
+    close()
+  })
   port.start?.()
   return () => {
     close()

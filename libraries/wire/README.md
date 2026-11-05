@@ -31,7 +31,14 @@ beside the wire's own handshake.
     fail and streams end as soon as the channel closes. A call in flight when it closes
     fails as `DISCONNECTED`; a stream's pending read, and the call whose send threw, fail
     with oRPC's own error, so a caller that needs the cause asks the channel whether it's
-    still open. A channel whose send throws is closed, so whoever holds it replaces it.
+    still open, or reads it with `lost`. A channel whose send throws, or that brings a
+    message the client can't read, is closed, so whoever holds it replaces it; its other
+    calls and its streams' pending reads fail as `DISCONNECTED`, with what broke it as the
+    cause.
+  - `lost(error, session)`, a session's failure as a `WireError`: oRPC's with their code,
+    anything else as `DISCONNECTED` once its channel has closed and `INTERNAL_SERVER_ERROR`
+    while it's open (though the app's own code, such as its `open`, may have thrown it), each
+    with what was raised as its cause.
   - `connect({ contract, transport, protocolVersion, fatal, retryDelay, timeoutMs, signal })`,
     a supervised connection to a server of `contract` (which has `wireContract` in it),
     resolving after the first handshake. Each new channel's handshake sends `protocolVersion`,
@@ -39,7 +46,9 @@ beside the wire's own handshake.
     half-open one) and the transport's token; the server answers its `epoch`, its lifetime,
     which a stream's cursor belongs to, and a server that answers another protocol is
     `INCOMPATIBLE_PROTOCOL`. A connection that drops comes back on its own, after
-    `retryDelay(attempt)` (`min(250·2ⁿ, 5000)` ms by default), until `close()` or a fatal
+    `retryDelay(attempt)` (`min(250·2ⁿ, 5000)` ms by default; `attempt` counts on across
+    sessions lost within 10 s of their handshake, so one that fails each time it resumes
+    doesn't spin, and starts afresh after one that lasted), until `close()` or a fatal
     code: `UNAUTHORIZED`, `INCOMPATIBLE_PROTOCOL`, `CLOSED` and whatever `fatal(code)` adds.
     A connection or handshake taking longer than `timeoutMs` (10 s) fails; the transport
     hears of it through its signal, and must give up when that aborts.
@@ -56,10 +65,11 @@ beside the wire's own handshake.
     sessions, which its reader sees as one. `open(client, { after, signal })` opens it on a
     session. It resumes one of two ways:
     - from a cursor (`{ cursor, ack }`): a new session's stream picks up after the last item
-      read (`after`), unless the epoch changed or the server refused the reader as too slow
-      (`SLOW_CONSUMER`), which start it afresh. Each item counts as read once the next is
-      asked for, and `ack` tells the server, one acknowledgement in flight at a time, a
-      refused one retried after 50 ms. Its first stream opens on the live session or fails.
+      read (`after`), unless the epoch changed, the server refused the reader as too slow
+      (`SLOW_CONSUMER`) or can't resume from its cursor (`INVALID_CURSOR`), which start it
+      afresh. Each item counts as read once the next is asked for, and `ack` tells the
+      server, one acknowledgement in flight at a time, a refused one retried after
+      `min(50·2ⁿ, 3000)` ms. Its first stream opens on the live session or fails.
       Once it has yielded, only a lost connection is resumed: any other failure, or why the
       connection closed, ends it, thrown to the reader;
     - by starting over (`{ restart: true, reset, holdReset }`): each stream it opens says
@@ -71,7 +81,9 @@ beside the wire's own handshake.
 
     For a restarting stream, `gone(error)` says its subject was removed, which ends it. One
     that can lose its subject is opened again as soon as its server ends it, to learn whether
-    it's still there; one that can't is opened again on the next session. The `Following` it
+    it's still there, unless it keeps ending before it yields anything: from the second
+    such end in a row, it backs off as a refusal does. One that can't is opened again on the
+    next session. The `Following` it
     gives says which `session` its stream has yielded on, and why it `finished`: `ended` by
     the server, `stopped` by `return()` or the connection's close, or `failed`.
 
@@ -107,15 +119,21 @@ beside the wire's own handshake.
     (`INCOMPATIBLE_PROTOCOL`), then asks `admit`, which may refuse with a code of the app's.
     A session whose client connects again is closed, and its transport ended, as the new
     one's handshake takes over: a client notices a dead connection before the server does.
+    A session that handshakes again as another client is only that one's from then on.
     `closed(session)` tells the app a session ended, to release what it held, and
     `failed(path, error)` tells it, for a log, each failure of a call or a stream before
-    `error` maps it, and each handshake refused, whether for its input, by the wire or by
-    `admit`.
+    `error` maps it, each handshake refused, whether for its input, by the wire or by
+    `admit`, and, by the path `[]`, what a transport met outside any call. The sessions'
+    `failed` tells it the same way.
   - The gate, in front of every procedure of the app's `router`: a session that hasn't
     authenticated, or has closed, is `UNAUTHORIZED`; one with `maxCalls` calls running is
-    `RESOURCE_LIMIT`. A failure is mapped with `error`, the app's codes beside the wire's. A
-    stream a procedure returns is guarded too: it ends once its session closes, even one
-    that closed before it began, and its failures are mapped the same way. A stream holds
+    `RESOURCE_LIMIT`. A session refused as unproven more than three times, by its handshake's
+    token or the gate, is closed and its transport ended: the app's client handshakes once.
+    A failure is mapped with `error`, the app's codes beside the wire's. A stream a procedure
+    returns is guarded too: it ends once its session closes, even while it waits for its next
+    item or one that closed before it began, and is told it's done (without waiting for a
+    generator, which only hears once the read it's in settles); its failures are mapped the
+    same way. A stream holds
     its call only until the procedure hands it back: open streams don't count against
     `maxCalls`.
   - `serveWebSocket(sessions, { path, token | verify, origins, maxPayloadBytes,
@@ -127,7 +145,9 @@ beside the wire's own handshake.
     other origins 403, and sockets beyond `maxConnections` (32) 429. A peer's close frame
     releases its session before the reply, so it can reconnect at once.
   - `servePort(sessions, port, { maxCalls })`, one trusted client over a DOM `MessagePort`
-    or Electron's `MessagePortMain`: holding the port is the credential, so no token.
+    or Electron's `MessagePortMain`: holding the port is the credential, so no token. A
+    message it can't read, or an answer it can't post, goes to `failed`, never to the host as
+    a rejection nobody handles.
   - `KeyedChanges<Key, Change>`, one reader's stream of keyed state: the current state, then
     `synced`, then later changes, holding only the latest unread change per key, each in the
     place its key first changed. A key the reader was never told of leaves without a removal.
@@ -139,8 +159,14 @@ beside the wire's own handshake.
 
   None holds changes for a reader: changes made while it hasn't read yet come to it as one
   (one per key, for `KeyedChanges`).
-  A remote reader that can't keep up isn't slowed either: the server's socket sends what it
-  reads, and cuts off a reader whose unsent bytes outgrow its send budget.
+  Across the wire, though, the reader is oRPC's, not the app's: it pulls the next item as
+  soon as the last one is sent, and neither a socket's nor a port's send waits for the far
+  end. So only changes within one burst are merged; each later one goes on the wire, and a
+  client that doesn't read yet holds them all, in order, in oRPC's queue for that stream. A
+  client's reads should keep pace, or its stream be bounded as terminal output's is, by
+  acknowledgements. A remote reader that can't keep up isn't slowed either: the server's
+  socket sends what it reads, and cuts off a reader whose unsent bytes outgrow its send
+  budget; a port has no such budget.
 
 - `./testing`: channels held in memory, for tests that need no socket or port.
   `memoryPorts()` is the two ends of a port, delivering on a microtask, cloned, in the same
