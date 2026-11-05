@@ -307,7 +307,7 @@
       "test": "src/diff.test.ts > the diff viewer > with lines wider than the viewer > pins each line's marker with its numbers",
       "signature": "Error: Test timed out in 15000ms\\.",
       "status": "known",
-      "cause": "Unknown, not reproduced: on macOS the test ran past its 15 s timeout (16.9 s), while every other test in the file took under 0.7 s. Its only waits are two double requestAnimationFrame frames (diff.test.ts's frame()), one after mounting and one after scrolling the lines sideways, so a page went over 15 s without drawing a frame; the viewers' vitest.config.ts already notes macOS pages going seconds without one while other packages' tests ran beside them. No failure screenshot was kept.",
+      "cause": "Unknown, not reproduced: on macOS the test ran past its 15 s timeout (16.9 s). Its only waits are two double requestAnimationFrame frames (diff.test.ts's frame()), one after mounting and one after scrolling the lines sideways, so the page went over 15 s without drawing a frame; other tests in the file that wait on frames ran slow in the same run (one 12 s, several 1 to 2 s), and the viewers' vitest.config.ts already notes macOS pages going seconds without one while other packages' tests ran beside them. Vitest took a failure screenshot, but CI uploads only frontend/specs' attachments, so it wasn't kept.",
       "seen": ["#672 run 41993632666 attempt 1 job 127131493653 (macOS)"]
     }
   ]

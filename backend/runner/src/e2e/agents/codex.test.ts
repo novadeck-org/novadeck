@@ -86,7 +86,7 @@ describe("Codex's fixture app-server", () => {
         // way, as a command or its JSON gone wrong, fails here.
         expect(told).toMatch(
           globalThis.process.platform === "win32"
-            ? /processes:(\n| couldn't read \(Command failed: powershell\.exe [^\n]*; ended by SIGTERM\))/
+            ? /processes:(\n| couldn't read \(Command failed: powershell\.exe [^\n]*; ended by SIGTERM(; stderr: [\s\S]*)?\))/
             : /processes:\n/,
         )
         expect(told).toMatch(/CODEX_HOME:\n2 files/)
