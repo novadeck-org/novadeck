@@ -680,10 +680,8 @@ jobs:
           fi
           pnpm --workspace-root exec turbo run build --filter=@novadeck/desktop
           pnpm --dir apps/desktop exec electron-builder --win --x64 --publish never "${feed[@]}" \
-            "-c.win.azureSignOptions.publisherName=$AZURE_SIGNING_PUBLISHER" \
-            "-c.win.azureSignOptions.endpoint=$AZURE_SIGNING_ENDPOINT" \
-            "-c.win.azureSignOptions.codeSigningAccountName=$AZURE_SIGNING_ACCOUNT" \
-            "-c.win.azureSignOptions.certificateProfileName=$AZURE_SIGNING_PROFILE"
+            "-c.win.signtoolOptions.sign=./scripts/sign-windows.mjs" \
+            "-c.win.signtoolOptions.publisherName=$AZURE_SIGNING_PUBLISHER"
 
       # The installers, install.sh and the app's update feed all fetch these names, so a
       # rename in the builder's configuration fails here rather than on a person's computer.
