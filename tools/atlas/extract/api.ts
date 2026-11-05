@@ -5,7 +5,10 @@ import { lineAt, type Anchors } from "./anchors.ts"
 import { frontendSources, sourceFiles } from "./files.ts"
 import {
   findDefinition,
+  findFunction,
+  functionsOf,
   handlerBody,
+  rankCalls,
   routerFile,
   servicesOf,
   type Service,
@@ -48,13 +51,14 @@ const toJson = (schema: unknown): JsonSchema | null => {
   }
 }
 
-// `terminals.create` → the line of the service method the router calls for it, else the
-// router's own handler.
+// `terminals.create` → the line of the service method or imported function that does the
+// work of its router handler (`rankCalls`), else the router's own handler.
 const handlerOf = (
   anchors: Anchors,
   runnerFiles: string[],
   router: string,
   known: Service[],
+  functions: Map<string, string>,
   id: string,
 ): Anchor | null => {
   const handler = handlerBody(router, id)
@@ -64,15 +68,12 @@ const handlerOf = (
     const own = sessions.indexOf(`.${id}.handler(`)
     return own === -1 ? null : { file: sessionsFile, line: lineAt(sessions, own) }
   }
-  const rank = (call: RegExpMatchArray): number =>
-    (call[2] === id.split(".").at(-1) ? 0 : 2) + (call[1] === "store" ? 1 : 0)
-  const calls = [...handler.body.matchAll(/\b(\w+)\.(\w+)\(/g)].toSorted(
-    (a, b) => rank(a) - rank(b),
-  )
-  for (const call of calls) {
-    const service = known.find((each) => each.field === call[1])
-    if (!service) continue
-    const found = findDefinition(anchors, runnerFiles, service, call[2]!)
+  for (const call of rankCalls(handler.body, id, new Set(functions.keys()))) {
+    const service = known.find((each) => each.field === call.service)
+    const found =
+      call.service === null
+        ? findFunction(anchors, functions.get(call.name)!, call.name)
+        : service && findDefinition(anchors, runnerFiles, service, call.name)
     if (found) return found
   }
   return { file: routerFile, line: lineAt(router, handler.start) }
@@ -195,6 +196,7 @@ export const extractApi = async (repo: string, anchors: Anchors): Promise<Api> =
   const source = anchors.read(contractFile) ?? ""
   const router = anchors.read(routerFile) ?? ""
   const routed = servicesOf(anchors, router)
+  const functions = functionsOf(router)
   const runnerFiles = sourceFiles(repo, "backend/runner/src")
   // The runner client calls some procedures (write, resize, ack) for the UI.
   const callerFiles = [...frontendSources(repo), ...sourceFiles(repo, "contract/runner-client/src")]
@@ -218,7 +220,7 @@ export const extractApi = async (repo: string, anchors: Anchors): Promise<Api> =
     const id = path.join(".")
     const name = path[path.length - 1]!
     const stream = streamed(definition.outputSchema)
-    const handler = handlerOf(anchors, runnerFiles, router, routed, id)
+    const handler = handlerOf(anchors, runnerFiles, router, routed, functions, id)
     return {
       id,
       namespace: path.slice(0, -1).join("."),
