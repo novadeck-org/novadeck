@@ -5,7 +5,7 @@ import { fileURLToPath } from "node:url"
 
 import { afterEach, describe, expect, it } from "vitest"
 
-import { blobId, patchedFile, requireReviewedFile } from "./reviewed.ts"
+import { blobId, patchedFile, requireReviewedFile } from "../scripts/reviewed.ts"
 
 const encode = (text: string) => new TextEncoder().encode(text)
 
@@ -26,12 +26,15 @@ describe("the file a patch changes", () => {
       fileURLToPath(new URL("../patches/reuse-language-encode.patch", import.meta.url)),
       "utf8",
     )
-    expect(patchedFile(patch)).toEqual({ path: "src/whisper.cpp", after: "7221ce3" })
+    expect(patchedFile(patch)).toEqual({ path: "src/whisper.cpp", after: "a375357" })
   })
 
-  it("must be one file, named by an index line", () => {
+  it("must be one file", () => {
     const two = `${patchOf("a.cpp", "abcdef0")}${patchOf("b.cpp", "abcdef1")}`
     expect(() => patchedFile(two)).toThrow(/one file/)
+  })
+
+  it("must be named by an index line", () => {
     expect(() => patchedFile("diff --git a/a.cpp b/a.cpp\n--- a/a.cpp\n")).toThrow(/index line/)
   })
 })
@@ -56,6 +59,17 @@ describe("the reviewed file check", () => {
   it("passes it with the CRLF line endings a Windows git may write", async () => {
     const { source, patch } = await prepare("int x;\r\n", blobId(encode("int x;\n")).slice(0, 7))
     await expect(requireReviewedFile(source, patch, "Re-check it.")).resolves.toBeUndefined()
+  })
+
+  it("passes bytes that are not UTF-8 as they are", async () => {
+    folder = await mkdtemp(join(tmpdir(), "whisper-reviewed-"))
+    const bytes = new Uint8Array([0xff, 0x0a])
+    await mkdir(join(folder, "source"), { recursive: true })
+    await writeFile(join(folder, "source", "x.bin"), bytes)
+    await writeFile(join(folder, "x.patch"), patchOf("x.bin", blobId(bytes).slice(0, 7)))
+    await expect(
+      requireReviewedFile(join(folder, "source"), join(folder, "x.patch"), "Re-check it."),
+    ).resolves.toBeUndefined()
   })
 
   it("fails a file that changed upstream, and says what to re-check", async () => {

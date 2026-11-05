@@ -6,6 +6,10 @@ import { basename, join } from "node:path"
 export const blobId = (data: Uint8Array): string =>
   createHash("sha1").update(`blob ${data.length}\0`).update(data).digest("hex")
 
+// Each CR that ends a line dropped, as git's CRLF conversion does.
+const withoutCarriageReturns = (data: Uint8Array): Uint8Array =>
+  data.filter((byte, at) => byte !== 0x0d || data[at + 1] !== 0x0a)
+
 /**
  * The one file a patch changes, and the abbreviated id of the file it leaves, from the
  * `index <before>..<after>` line `git diff` writes.
@@ -33,9 +37,8 @@ export const requireReviewedFile = async (
 ): Promise<void> => {
   const { path, after } = patchedFile(await readFile(patch, "utf8"))
   // Compared as git stores it, with LF line endings, as a Windows git configured to write
-  // CRLF may have left it.
-  const text = (await readFile(join(source, path), "utf8")).replaceAll("\r\n", "\n")
-  const found = blobId(new TextEncoder().encode(text))
+  // CRLF may have left it; byte for byte otherwise.
+  const found = blobId(withoutCarriageReturns(await readFile(join(source, path))))
   if (!found.startsWith(after)) {
     throw new Error(
       `${path} is not the file ${basename(patch)} was reviewed against (${after}, found ${found.slice(0, after.length)}). ${review}`,

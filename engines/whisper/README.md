@@ -19,8 +19,9 @@ The encoder patch is the one that can go wrong quietly. When a whisper.cpp bump 
 language detection leaves in the state, a patch that still applies would decode stale encoder
 output: wrong or empty transcripts, no error. So the build checks that `src/whisper.cpp`, once
 patched, is the file the patch's own `index` line names. A bump that changes that file fails
-the build, with a list of what to re-check. Once you have re-checked it, re-cut the patch with
-`git diff` against the new source.
+the build, with a list of what to re-check. It watches only that file, which holds everything
+the patch relies on: language detection, the encoder and the audio context. Once you have
+re-checked it, re-cut the patch with `git diff` against the new source.
 
 ## Checking a build by hand
 
