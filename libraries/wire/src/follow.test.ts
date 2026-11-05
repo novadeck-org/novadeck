@@ -195,6 +195,31 @@ describe("follow", () => {
       expect(items.finished).toBe("ended")
     })
 
+    it("backs off opening a stream its server keeps ending before it yields, after the first", async () => {
+      const driven = connection()
+      driven.connect()
+      const { opened, open, last } = streams<Item>()
+      const items = follow(driven.wire, { open, resume: { restart: true }, gone: () => false })
+      const first = items.next()
+      await vi.waitFor(() => expect(opened).toHaveLength(1))
+      last().feed.end()
+      await vi.waitFor(() => expect(opened).toHaveLength(2))
+      const started = Date.now()
+      last().feed.end()
+      await new Promise((resolve) => setTimeout(resolve, 100))
+      expect(opened).toHaveLength(2)
+      await vi.waitFor(() => expect(opened).toHaveLength(3), { timeout: 1_000 })
+      expect(Date.now() - started).toBeGreaterThanOrEqual(190)
+      // Once one yields, the next that ends is opened again at once.
+      last().feed.push(item(1))
+      expect(await first).toEqual({ value: item(1), done: false })
+      const next = items.next()
+      last().feed.end()
+      await vi.waitFor(() => expect(opened).toHaveLength(4), { timeout: 150 })
+      last().feed.push(item(2))
+      expect(await next).toEqual({ value: item(2), done: false })
+    })
+
     it("holds reset back until a stream opened again yields, and says none for the first", async () => {
       const driven = connection()
       driven.connect()
@@ -337,6 +362,33 @@ describe("follow", () => {
       await vi.waitFor(() => expect(sent).toEqual([1, 2]), { timeout: 1_000 })
     })
 
+    it("backs off an acknowledgement its server goes on refusing", async () => {
+      const driven = connection()
+      driven.connect()
+      const sent: number[] = []
+      const { open, last } = streams<Event>()
+      const items = follow(driven.wire, {
+        open,
+        resume: {
+          cursor: (value: Event) => (value.type === "event" ? value.sequence : undefined),
+          ack: (_client: Client, position: number) => {
+            sent.push(position)
+            return Promise.reject(new WireError("BAD_REQUEST"))
+          },
+        },
+      })
+      const first = items.next()
+      await vi.waitFor(() => expect(last()).toBeDefined())
+      last().feed.push(event(1), event(2))
+      await first
+      await items.next()
+      await new Promise((resolve) => setTimeout(resolve, 500))
+      // After 50, 100 and 200 ms; every 50 ms would be ten.
+      expect(sent.length).toBeGreaterThanOrEqual(2)
+      expect(sent.length).toBeLessThanOrEqual(5)
+      await items.return()
+    })
+
     it("has one acknowledgement in flight at a time", async () => {
       const driven = connection()
       driven.connect()
@@ -476,6 +528,27 @@ describe("follow", () => {
       expect(opened.map((each) => each.after)).toEqual([undefined, undefined, undefined])
       last().feed.push(event(9))
       expect(await fresh).toEqual({ value: event(9), done: false })
+    })
+
+    it("starts afresh when its server can't resume from the cursor", async () => {
+      const driven = connection()
+      driven.connect()
+      const { opened, open, last } = streams<Event>()
+      const items = follow(driven.wire, { open, resume: cursor([]) })
+      const first = items.next()
+      await vi.waitFor(() => expect(opened).toHaveLength(1))
+      last().feed.push(event(4))
+      await first
+      driven.drop()
+      last().feed.fail(new WireError("DISCONNECTED"))
+      const next = items.next()
+      driven.connect()
+      await vi.waitFor(() => expect(opened).toHaveLength(2))
+      last().feed.fail(new WireError("INVALID_CURSOR"))
+      await vi.waitFor(() => expect(opened).toHaveLength(3))
+      expect(opened.map((each) => each.after)).toEqual([undefined, 4, undefined])
+      last().feed.push(event(1))
+      expect(await next).toEqual({ value: event(1), done: false })
     })
 
     it("throws what it can't resume from, and ends when its server ends it", async () => {

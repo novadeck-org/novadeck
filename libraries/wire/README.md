@@ -61,10 +61,11 @@ beside the wire's own handshake.
     sessions, which its reader sees as one. `open(client, { after, signal })` opens it on a
     session. It resumes one of two ways:
     - from a cursor (`{ cursor, ack }`): a new session's stream picks up after the last item
-      read (`after`), unless the epoch changed or the server refused the reader as too slow
-      (`SLOW_CONSUMER`), which start it afresh. Each item counts as read once the next is
-      asked for, and `ack` tells the server, one acknowledgement in flight at a time, a
-      refused one retried after 50 ms. Its first stream opens on the live session or fails.
+      read (`after`), unless the epoch changed, the server refused the reader as too slow
+      (`SLOW_CONSUMER`) or can't resume from its cursor (`INVALID_CURSOR`), which start it
+      afresh. Each item counts as read once the next is asked for, and `ack` tells the
+      server, one acknowledgement in flight at a time, a refused one retried after
+      `min(50·2ⁿ, 3000)` ms. Its first stream opens on the live session or fails.
       Once it has yielded, only a lost connection is resumed: any other failure, or why the
       connection closed, ends it, thrown to the reader;
     - by starting over (`{ restart: true, reset, holdReset }`): each stream it opens says
@@ -76,7 +77,9 @@ beside the wire's own handshake.
 
     For a restarting stream, `gone(error)` says its subject was removed, which ends it. One
     that can lose its subject is opened again as soon as its server ends it, to learn whether
-    it's still there; one that can't is opened again on the next session. The `Following` it
+    it's still there, unless it keeps ending before it yields anything: from the second
+    such end in a row, it backs off as a refusal does. One that can't is opened again on the
+    next session. The `Following` it
     gives says which `session` its stream has yielded on, and why it `finished`: `ended` by
     the server, `stopped` by `return()` or the connection's close, or `failed`.
 
