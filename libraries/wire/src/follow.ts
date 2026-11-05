@@ -3,6 +3,7 @@ import type { AnyContractRouter, ContractRouterClient } from "@orpc/contract"
 import type { Session, Wire } from "./connection.js"
 import { hasCode, normalize, WireError } from "./errors.js"
 import { sleep } from "./sleep.js"
+import { until } from "./until.js"
 
 /**
  * A stream that resumes from a cursor: each item may carry its position, a reconnection asks
@@ -63,8 +64,6 @@ type Open<C extends AnyContractRouter, T> = {
 }
 
 const done = { value: undefined, done: true } as const
-
-const noop = (): void => {}
 
 /**
  * A session's failure as a wire error: oRPC's as theirs, anything else on a closed channel as
@@ -166,20 +165,8 @@ class Follower<C extends AnyContractRouter, T> implements Following<C, T> {
   }
 
   /** Waits for `promise`, or resolves undefined once finished. */
-  private async until<V>(promise: Promise<V>): Promise<V | undefined> {
-    const signal = this.stopping.signal
-    if (signal.aborted) return undefined
-    // A listener of its own, removed after: a long stream's reads leave nothing behind.
-    let stop: () => void = noop
-    const stopped = new Promise<undefined>((resolve) => {
-      stop = () => resolve(undefined)
-    })
-    signal.addEventListener("abort", stop, { once: true })
-    try {
-      return await Promise.race([promise, stopped])
-    } finally {
-      signal.removeEventListener("abort", stop)
-    }
+  private until<V>(promise: Promise<V>): Promise<V | undefined> {
+    return until(promise, this.stopping.signal)
   }
 
   private deliver(value: T): IteratorResult<T, undefined> {
