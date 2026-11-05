@@ -1,6 +1,10 @@
 import {
   allTeams,
+  descendantsOf,
+  leadChain,
   ledTerminals,
+  litTeams,
+  treeRole,
   messagePeers,
   runningLeads,
   sameTeam,
@@ -389,5 +393,72 @@ describe("the sameness of peers", () => {
     expect(samePeers({ owl: peer }, { owl: { ...peer } })).toBe(true)
     expect(samePeers({ owl: peer }, { owl: { ...peer, live: "working" } })).toBe(false)
     expect(samePeers({ owl: peer }, {})).toBe(false)
+  })
+})
+
+describe("nested teams", () => {
+  it("chain the leads above a terminal, nearest first", () => {
+    expect(leadChain(teams(), "05")).toEqual(["04", "01"])
+    expect(leadChain(teams(), "04")).toEqual(["01"])
+    expect(leadChain(teams(), "01")).toEqual([])
+    expect(leadChain(teams(), "03")).toEqual([])
+  })
+
+  it("end a loop of leads where it would come round again", () => {
+    const looped = workspaceReducer(teams(), {
+      type: "terminal/update",
+      target,
+      terminalId: "01",
+      ledBy: "newt",
+    } as Parameters<typeof workspaceReducer>[1])
+    expect(leadChain(looped, "05")).toEqual(["04", "01"])
+    expect(descendantsOf(looped, "01")).toEqual(["02", "04", "05"])
+  })
+
+  it("find every terminal a lead leads, and those they lead in turn", () => {
+    expect(descendantsOf(teams(), "01")).toEqual(["02", "04", "05"])
+    expect(descendantsOf(teams(), "04")).toEqual(["05"])
+    expect(descendantsOf(teams(), "02")).toEqual([])
+  })
+
+  it("tint the whole tree, from the top lead down, whichever member is selected", () => {
+    for (const selected of ["01", "02", "05"]) {
+      const workspace = select(teams(), selected)
+      expect(["01", "02", "03", "04", "05"].map((id) => treeRole(workspace, id))).toEqual([
+        "lead",
+        "worker",
+        undefined,
+        "lead",
+        "worker",
+      ])
+    }
+    expect(treeRole(select(teams(), "03"), "01")).toBeUndefined()
+  })
+
+  context("lighting for a selection", () => {
+    it("lights a nested teammate's team whole and the way up through each lead above", () => {
+      expect(litTeams(teams(), "05")).toEqual({
+        full: [{ lead: "04", workers: ["05"] }],
+        path: [{ lead: "01", child: "04" }],
+      })
+    })
+
+    it("lights both teams of a lead that works in another, whole", () => {
+      expect(litTeams(teams(), "04")).toEqual({
+        full: [
+          { lead: "04", workers: ["05"] },
+          { lead: "01", workers: ["02", "04"] },
+        ],
+        path: [],
+      })
+    })
+
+    it("lights the top lead's own team only, and nothing for a terminal in no team", () => {
+      expect(litTeams(teams(), "01")).toEqual({
+        full: [{ lead: "01", workers: ["02", "04"] }],
+        path: [],
+      })
+      expect(litTeams(teams(), "03")).toEqual({ full: [], path: [] })
+    })
   })
 })

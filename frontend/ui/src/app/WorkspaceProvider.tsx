@@ -14,6 +14,7 @@ import { readPreferences } from "../preferences/preferences-storage"
 import { listedArrangement } from "../projects/project-arrangement"
 import { readStoredProjectArrangement } from "../projects/project-arrangement-storage"
 import { readSidebarCollapsed, readWindowedView } from "../shell/shell-storage"
+import { readFoldedTeams } from "../terminals/team-fold"
 import { followSavedPreferences, watchAppearance } from "./appearance"
 import { createNavigator, type NavigatorServices, type RouterBinding } from "./commands/navigator"
 import { createWorkspaceCommands } from "./commands/workspace"
@@ -80,6 +81,7 @@ const createServices = (
         (backend.arrange && readStoredProjectArrangement()) ||
         listedArrangement(backend.seed.projects),
       canvasWindowSize: readCanvasWindowSize(),
+      foldedTeams: readFoldedTeams(),
     }),
   )
   const chat = createChat()

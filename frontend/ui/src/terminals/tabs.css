@@ -17,7 +17,11 @@
    ended on an error), data-terminal-subagents="working" | "background" (its agent runs
    subagents, working on while they do, or they run on without it), data-team="lead" |
    "worker" (its place in the selected terminal's team, which the rail's wire joins:
-   TeamWire.tsx). Parts: `.terminal-glyph`,
+   TeamWire.tsx), data-team-fold="away" | "preview" | "unfolding" | "shown" (a teammate's
+   tab in its lead's fold: folded out of the list, dimmed while a click beside its lead would
+   fold it, unrolling as its team comes back, or shown; app/team-fold.ts), data-team-level="1" |
+   "2" | "3" (how many leads stand above it, up to three: from two, a nested team's, it steps in).
+   Parts: `.terminal-glyph`,
    `.terminal-tab-process`, `.terminal-tab-need` (`!` or `?` right after the program, its
    data-need the same as the tab's), `.terminal-tab-starting`, `.terminal-tab-age` (how long
    ago a done tab's agent finished, or when a paused one's usage limit resets, after its
@@ -38,7 +42,11 @@
    `.terminal-tab-waits` (what a waiting agent waits on, in the same place and fold: each
    row's `.terminal-tab-wait` glyph and `.terminal-tab-wait-trail`), `.terminal-tab-passed`
    (the trace of a wake-up that passed),
-   `.terminal-tab-rename`, `.terminal-tab-empty`.
+   `.terminal-tab-rename`, `.terminal-tab-empty`, `.team-fold-rows` (a folded lead's
+   teammates under its line: `.team-fold-rows-fold`, each `.team-fold-row`, data-selected
+   while its teammate is the selected terminal, with a `.terminal-tab-branch`, a
+   `.team-fold-mark` with data-phase and data-failed as a tab's own, its name and a
+   `.terminal-tab-need`; then `.team-fold-more`).
 
    Tokens, each optional (its fallback in brackets):
    --tab-snoozed-fg (muted), --tab-snoozed-bg (the ink at 6%), --tab-snoozed-bar-color
@@ -68,6 +76,10 @@
    --tab-subagent-fg (muted): a subagent's mark, and its row under the selected tab.
    --tab-subagent-rule-fg (line-strong): the rule before the marks, and the branches.
    --tab-empty-fg (muted): the note in an empty list.
+   --tab-fold-preview-opacity (0.4): a teammate's tab while a click beside its lead would
+   fold it away.
+   --tab-team-step (6px): how far a nested team's tab steps in per level; the wire's lanes are
+   as wide (TeamWire.tsx).
    --tab-team-bg (the strong colour at 6% over the tab): the selected terminal's
    teammates. --tab-team-hover-bg (the strong colour at 10% over the hover ground): the
    same under the pointer. --tab-team-handle-fg (strong): their handles, and the lead's
@@ -143,7 +155,8 @@
 .terminal-tab-process,
 .terminal-tab-starting,
 .terminal-tab-subagents,
-.terminal-tab-branches {
+.terminal-tab-branches,
+.team-fold-rows {
   font-family: var(--tab-process-font, var(--font-glyphs));
 }
 .terminal-tab:is(
@@ -467,4 +480,159 @@
 }
 .terminal-tab[data-team="lead"] .terminal-tab-handle::before {
   content: none;
+}
+
+/* A lead's fold (app/team-fold.ts). Teammates are top-level tabs; a person who only follows
+   the lead folds them out of the list by pointing beside the lead's tab (TeamWire.tsx) or from
+   its menu. A teammate's tab collapses into the tab above as it folds away, and unrolls from it
+   as its team comes back; while the person points beside the lead, the tabs a click would
+   fold dim and lift a little toward it. Height animates to and from auto where the engine can
+   (interpolate-size), and the tab leaves the layout once it has collapsed: its display and
+   least height are the tab's utilities' (TerminalTab.tsx), which this layer can't outrank. */
+.terminal-tab[data-team-fold] {
+  interpolate-size: allow-keywords;
+  /* The item's own (item.css) first, which a transition here would otherwise replace. */
+  transition:
+    background-color var(--motion-feedback) var(--ease-interface),
+    border-color var(--motion-feedback) var(--ease-interface),
+    box-shadow var(--motion-feedback) var(--ease-interface),
+    height var(--motion-layout) var(--ease-interface),
+    min-height var(--motion-layout) var(--ease-interface),
+    opacity var(--motion-layout) var(--ease-interface),
+    translate var(--motion-layout) var(--ease-interface),
+    scale var(--motion-layout) var(--ease-interface),
+    filter var(--motion-layout) var(--ease-interface),
+    display var(--motion-layout) allow-discrete;
+}
+.terminal-tab[data-team-fold="away"] {
+  height: 0;
+  overflow: hidden;
+  opacity: 0;
+  translate: 0 -10px;
+}
+.terminal-tab[data-team-fold="preview"] {
+  opacity: var(--tab-fold-preview-opacity, 0.4);
+  translate: 0 -6px;
+  scale: 0.985;
+  filter: saturate(0.4);
+}
+@starting-style {
+  .terminal-tab[data-team-fold="unfolding"] {
+    height: 0;
+    overflow: hidden;
+    opacity: 0;
+    translate: 0 -10px;
+  }
+}
+/* Nested teams: a team's teammates stay in line with every other tab, and a team inside it
+   steps in a lane's width (TeamWire.tsx) per level below that, up to two, so its tabs sit
+   beside its wire's lane. Subtle on purpose: enough to see the levels, little of the
+   sidebar's width. */
+.terminal-tab[data-team-level="2"] {
+  margin-left: var(--tab-team-step, 6px);
+}
+.terminal-tab[data-team-level="3"] {
+  margin-left: calc(2 * var(--tab-team-step, 6px));
+}
+/* A folded lead's teammates, under its line: a row each, as a tab's subagent rows are, so the
+   tab grows to hold the team it folded in. Each row has its branch, the teammate's glyph as
+   its own tab draws it (in the same colours) and its name, then what it needs of the person,
+   the tab's own `!` or `?`. The rows grow in as the team folds; a row is muted, ink under the
+   pointer and while its teammate is the selected terminal. The rows grow in only as the team
+   folds (data-entering), not each time they mount. */
+.team-fold-rows {
+  grid-template-rows: 1fr;
+  color: var(--tab-subagent-fg, var(--color-muted));
+  transition: grid-template-rows var(--motion-layout) var(--ease-interface);
+}
+.team-fold-rows-fold {
+  transition: opacity var(--motion-layout) var(--ease-interface);
+}
+@starting-style {
+  .team-fold-rows[data-entering] {
+    grid-template-rows: 0fr;
+  }
+  .team-fold-rows[data-entering] .team-fold-rows-fold {
+    opacity: 0;
+  }
+}
+.team-fold-row {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  gap: 0.375rem;
+  white-space: nowrap;
+  cursor: pointer;
+}
+.team-fold-row:hover,
+.team-fold-row[data-selected] {
+  color: var(--tab-glyph-fg, var(--color-ink));
+}
+/* What a row's teammate, or any terminal folded away under it, needs of the person: only the
+   strongest shows, a `!` if any can't go on without them, else a `?`. */
+.team-fold-needs {
+  display: inline-flex;
+}
+.team-fold-needs:has(> [data-need="unblock"]) > [data-need="ask"],
+.team-fold-needs > [data-need="unblock"] ~ [data-need="unblock"],
+.team-fold-needs > [data-need="ask"] ~ [data-need="ask"] {
+  display: none;
+}
+/* A teammate that leads its own team: how many it folds away with it. */
+.team-fold-count {
+  color: var(--tab-subagent-fg, var(--color-muted));
+}
+.team-fold-mark {
+  display: inline-block;
+  flex-shrink: 0;
+  width: 1ch;
+  height: 18px;
+  overflow: hidden;
+  font-family: var(--tab-process-font, var(--font-glyphs));
+  text-align: center;
+  color: var(--tab-glyph-fg, var(--color-ink));
+}
+.team-fold-mark::before {
+  display: block;
+  white-space: pre;
+  content: "\00a0";
+}
+.team-fold-mark[data-phase="starting"],
+.team-fold-mark[data-phase="unheard"],
+.team-fold-mark[data-phase="paused"],
+.team-fold-mark[data-phase="waiting"] {
+  color: var(--tab-waiting-fg, var(--color-muted));
+}
+.team-fold-mark[data-phase="starting"]::before {
+  content: "·";
+}
+.team-fold-mark[data-phase="ended"]::before {
+  content: "×";
+}
+.team-fold-mark[data-phase="unheard"]::before {
+  content: "○";
+}
+.team-fold-mark[data-phase="paused"]::before {
+  content: "∅";
+}
+.team-fold-mark[data-phase="waiting"]::before {
+  content: "⣀";
+}
+.team-fold-mark[data-phase="done"] {
+  font-weight: 700;
+  color: var(--tab-done-fg, var(--color-success-fg));
+}
+.team-fold-mark[data-phase="done"]::before {
+  content: "✓";
+}
+.team-fold-mark[data-phase="done"][data-failed] {
+  color: var(--tab-failed-fg, var(--color-danger-fg));
+}
+.team-fold-mark[data-phase="done"][data-failed]::before {
+  content: "✗";
+}
+.team-fold-mark[data-phase="running"]::before {
+  content: "⠋\A⠙\A⠹\A⠸\A⠼\A⠴\A⠦\A⠧\A⠇\A⠏";
+  animation: terminal-spin 800ms steps(10) infinite;
+  animation-delay: inherit;
 }

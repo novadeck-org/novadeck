@@ -1,6 +1,7 @@
-import { allTeams, sameTeam, sameTeams, teamOf } from "@novadeck/core/derivations"
+import { allTeams, leadChain, litTeams, sameLitTeams, sameTeams } from "@novadeck/core/derivations"
 import type { Backend, BackendSelection, CreateBackend, TerminalKey } from "@novadeck/core/port"
 import {
+  useCallback,
   useEffect,
   useRef,
   useState,
@@ -34,8 +35,9 @@ import { FooterSection } from "./FooterSection"
 import { HeaderSection } from "./HeaderSection"
 import { InboxHost } from "./InboxHost"
 import { sourceShown } from "./routing"
-import { currentState, currentTarget, shallowEqual } from "./selectors"
+import { currentContext, currentState, currentTarget, sameItems, shallowEqual } from "./selectors"
 import { SidebarSection } from "./SidebarSection"
+import { previewTeamFold, toggleTeamFold, useFoldedLeads } from "./team-fold"
 import { useInboxBadge } from "./useInboxBadge"
 import { VisitorBar, VisitorCover } from "./Visitor"
 import { WorkspaceOverlays } from "./WorkspaceOverlays"
@@ -150,9 +152,47 @@ const TeamWireSection = ({
 }): React.JSX.Element => {
   const selected = useWorkspaceState((workspace) => currentState(workspace).selected)
   const teams = useWorkspaceState(allTeams, sameTeams)
-  const team = useWorkspaceState((workspace) => teamOf(workspace, selected), sameTeam)
+  // What lights for the selection, its teams and the way up through the leads above it, and
+  // each team's level, its lane (nested teams).
+  const lit = useWorkspaceState((workspace) => litTeams(workspace, selected), sameLitTeams)
+  const above = useWorkspaceState((workspace) => leadChain(workspace, selected), sameItems)
+  const levels = useWorkspaceState(
+    (workspace) => allTeams(workspace).map(({ lead }) => leadChain(workspace, lead).length),
+    sameItems,
+  )
+  const chains = useWorkspaceState(
+    (workspace) => allTeams(workspace).map(({ lead }) => leadChain(workspace, lead).join(" ")),
+    sameItems,
+  )
   const list = useSyncExternalStore(tabList.subscribe, tabList.getSnapshot)
-  return <TeamWire teams={teams} team={team} selected={selected} shown={shown} list={list} />
+  // Folding a lead's teammates out of the list, from the gutter beside its tab.
+  const { ui } = useWorkspaceServices()
+  const context = useWorkspaceState(currentContext)
+  const folded = useFoldedLeads()
+  const unfolding = useUiState((state) =>
+    state.unfolding?.context === context ? state.unfolding.lead : undefined,
+  )
+  const onFold = useCallback((lead: string) => toggleTeamFold(ui, context, lead), [ui, context])
+  const onPreview = useCallback(
+    (lead: string | null) => previewTeamFold(ui, lead === null ? null : { context, lead }),
+    [ui, context],
+  )
+  return (
+    <TeamWire
+      teams={teams}
+      levels={levels}
+      chains={chains}
+      lit={lit}
+      above={above}
+      selected={selected}
+      shown={shown}
+      list={list}
+      folded={folded}
+      unfolding={unfolding}
+      onFold={onFold}
+      onPreview={onPreview}
+    />
+  )
 }
 
 // The rail and the Zen dock read the bell's badge and rings themselves, so an unread change that

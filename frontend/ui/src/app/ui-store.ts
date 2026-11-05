@@ -23,6 +23,7 @@ import { initialShell, resetPresentation, type ShellState } from "../shell/shell
 import { writeSidebarCollapsed, writeWindowedView } from "../shell/shell-storage"
 import { nextRecent, visibleSwitcher, type RecentSwitcher } from "../terminals/recent"
 import type { RenameSession } from "../terminals/rename-state"
+import { noFoldedTeams, writeFoldedTeams, type FoldedTeams } from "../terminals/team-fold"
 import { noUnread, type Unread, type Viewing } from "../terminals/unread-state"
 import { noFeatureFlags, type FeatureFlag, type FeatureFlags } from "./feature-flags"
 import type { WorkspaceRoute } from "./routing"
@@ -82,6 +83,18 @@ export type UiState = {
   readonly projectArrangement: ProjectArrangement
   // The size the person last gave a window on Canvas, which new windows open at.
   readonly canvasWindowSize: WindowSize
+  // The teams the person folded into their leads in the Terminals list (team-fold.ts).
+  readonly foldedTeams: FoldedTeams
+  // The lead whose team folds or unfolds if the person clicks where they point now, beside its
+  // tab: its teammates' tabs show what a click does; never persisted.
+  readonly foldPreview: { readonly context: string; readonly lead: string } | null
+  // The lead whose team the person last unfolded: its teammates' tabs unroll from it as they
+  // come back, where a tab merely mounting, as on a session switch, appears at once; never
+  // persisted.
+  readonly unfolding: { readonly context: string; readonly lead: string } | null
+  // The lead whose team the person just folded: the rows its tab grows for its teammates grow
+  // in, where rows merely mounting, as on a session switch, appear at once; never persisted.
+  readonly folding: { readonly context: string; readonly lead: string } | null
   // Which of the app's unfinished parts the person turned on; never persisted, as the desktop app
   // remembers them.
   readonly flags: FeatureFlags
@@ -105,12 +118,14 @@ export const initialUi = ({
   sidebarCollapsed = false,
   projectArrangement = noArrangement,
   canvasWindowSize = defaultCanvasWindowSize,
+  foldedTeams = noFoldedTeams,
 }: {
   location: UiLocation
   preferences: PreferencesValue
   sidebarCollapsed?: boolean
   projectArrangement?: ProjectArrangement
   canvasWindowSize?: WindowSize
+  foldedTeams?: FoldedTeams
 }): UiState => ({
   location,
   preferences,
@@ -134,6 +149,10 @@ export const initialUi = ({
   unread: noUnread,
   projectArrangement,
   canvasWindowSize,
+  foldedTeams,
+  foldPreview: null,
+  unfolding: null,
+  folding: null,
   flags: noFeatureFlags,
 })
 
@@ -165,6 +184,7 @@ export const persistUi = (ui: Store<UiState>, workspace: Store<Workspace>): (() 
     persist(ui, (state) => state.preferences, writePreferences),
     persist(ui, (state) => state.shell.sidebarCollapsed, writeSidebarCollapsed),
     persist(ui, (state) => state.canvasWindowSize, writeCanvasWindowSize),
+    persist(ui, (state) => state.foldedTeams, writeFoldedTeams),
     persist(workspace, (snapshot) => currentState(snapshot).windowedView, writeWindowedView),
   ]
   return () => stops.forEach((stop) => stop())
