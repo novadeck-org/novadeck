@@ -105,4 +105,17 @@ describe("Codex's apply_patch PostToolUse", () => {
   it("names none for a patch whose response says it did not", () => {
     expect(touched("apply_patch verification failed: Failed to find expected lines")).toEqual([])
   })
+
+  it("names none for another tool whose text only quotes a patch", () => {
+    for (const [tool, input] of [
+      ["mcp__novadeck__send", { to: "moth", message: patch }],
+      ["Bash", { command: `cat > fix.patch <<'EOF'\n${patch}\nEOF` }],
+    ] as const)
+      expect(
+        hook("PostToolUse", { tool_name: tool, tool_input: input } as Report["payload"]).filter(
+          ({ type }) => type === "file-touched",
+        ),
+        tool,
+      ).toEqual([])
+  })
 })
