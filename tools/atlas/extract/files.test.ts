@@ -33,9 +33,24 @@ test("reads the packages under frontend/ and apps/, past entries that are no pac
 test("lists the working tree's files, as the folder scans see them", () => {
   repo = mkdtempSync(join(tmpdir(), "atlas-files-"))
   const git = (...args: string[]) =>
-    execFileSync("git", ["-c", "user.name=atlas", "-c", "user.email=atlas@test", ...args], {
-      cwd: repo,
-    })
+    // The person's own signing and hooks stay out of this throwaway repository.
+    execFileSync(
+      "git",
+      [
+        "-c",
+        "user.name=atlas",
+        "-c",
+        "user.email=atlas@test",
+        "-c",
+        "commit.gpgsign=false",
+        "-c",
+        "core.hooksPath=.no-hooks",
+        ...args,
+      ],
+      {
+        cwd: repo,
+      },
+    )
   git("init", "-q")
   mkdirSync(join(repo, "src/new"), { recursive: true })
   mkdirSync(join(repo, "node_modules"))

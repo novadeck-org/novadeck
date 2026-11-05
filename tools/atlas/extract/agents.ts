@@ -1,5 +1,3 @@
-import { execFileSync } from "node:child_process"
-
 import type {
   AgentSurface,
   Anchor,
@@ -10,7 +8,7 @@ import type {
   McpTool,
 } from "../src/atlas.ts"
 import { lineAt, type Anchors } from "./anchors.ts"
-import { sourceFiles } from "./files.ts"
+import { sourceFiles, workingFiles } from "./files.ts"
 
 const mcpFile = "backend/runner/src/shell/mcp.ts"
 const managerFile = "backend/runner/src/terminals/manager.ts"
@@ -189,13 +187,11 @@ const titles: Record<string, string> = {
 
 // Every `harnesses/*` package but the shared core is a harness.
 const findHarnessPackages = (repo: string, anchors: Anchors): HarnessPackage[] => {
-  // Tracked packages only: a folder left behind with just an ignored node_modules is none.
-  const ids = execFileSync("git", ["ls-files", "--", "harnesses/*/package.json"], {
-    cwd: repo,
-    encoding: "utf8",
-  })
-    .split("\n")
-    .map((file) => file.split("/")[1])
+  // Packages in the working tree: a folder left behind with just an ignored node_modules
+  // is none.
+  const ids = [
+    ...new Set(workingFiles(repo, ["harnesses/*/package.json"]).map((file) => file.split("/")[1])),
+  ]
     .filter((id): id is string => id !== undefined && id !== "core")
     .toSorted()
   if (ids.length === 0) anchors.report("harnesses", "harnesses", "found 0 harness packages")

@@ -234,6 +234,19 @@ export const renderProcedure = (atlas: Atlas, procedure: Procedure): string => {
           step.store.length > 0 ? ` → store.${step.store.join(", store.")}` : ""
         }`,
       )
+    // A handler the trace doesn't follow (a function the router imports) says so, so the
+    // steps above aren't read as its path.
+    const same = (anchor: Anchor) =>
+      anchor.file === procedure.handler?.file && anchor.line === procedure.handler.line
+    if (
+      procedure.handler &&
+      !trace.steps.some((step) => same(step.anchor)) &&
+      !atlas.runner.methods.some((method) => same(method.anchor)) &&
+      trace.steps.length > 0
+    )
+      out.push(
+        `The handler (${at(procedure.handler)}) is not traced here; read it for the rest of the path.`,
+      )
     if (!trace.traced) {
       out.push(`No store call found. That means unknown, not "no database". ${uncertain}`)
     } else {

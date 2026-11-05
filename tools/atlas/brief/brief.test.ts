@@ -2,7 +2,7 @@ import { beforeAll, describe, expect, it } from "vitest"
 
 import { build } from "../extract/main.ts"
 import type { Atlas } from "../src/atlas.ts"
-import { brief, subjects } from "./main.ts"
+import { brief, queryOf, subjects } from "./main.ts"
 
 let atlas: Atlas
 beforeAll(async () => {
@@ -108,5 +108,42 @@ describe("what a brief says", () => {
     const text = brief(commitOnly, `procedure:${procedure.id}`).text
     expect(text).toContain("Reached on every store commit (no single action found).")
     expect(text).not.toContain("Reached by UI actions: none")
+  })
+})
+
+describe("the command line", () => {
+  it("takes a kind and a name as two words, past pnpm's `--`, and refuses more", () => {
+    expect(queryOf(atlas, [])).toBeUndefined()
+    expect(queryOf(atlas, ["--", "terminals.create"])).toBe("terminals.create")
+    expect(queryOf(atlas, ["table", "terminals"])).toBe("table:terminals")
+    expect(queryOf(atlas, ["terminals.create", "extra"])).toBeInstanceOf(Error)
+    expect(brief(atlas, queryOf(atlas, ["terminals.create", "extra"])).found).toBe(false)
+    // A path behind a kind still suggests its area.
+    expect(brief(atlas, "area:backend/runner/src/terminals").text).toContain(
+      "Close: area:backend/runner/terminals",
+    )
+  })
+})
+
+// The handlers the review found pointing at a guard or a callback, as the router has them.
+describe("the runner's procedures", () => {
+  const procedure = (id: string) => atlas.api.procedures.find((p) => p.id === id)!
+
+  it("point at the call that does their work", () => {
+    expect(procedure("companions.save").area).toBe("backend/runner/companions")
+    expect(procedure("terminals.upload").handler?.file).toBe(
+      "backend/runner/src/terminals/uploads.ts",
+    )
+    expect(procedure("sessions.create").handler?.file).toBe(
+      "backend/runner/src/workspaces/store.ts",
+    )
+  })
+
+  it("say when the trace doesn't follow the handler", () => {
+    const save = procedure("companions.save")
+    expect(brief(atlas, "procedure:companions.save").text).toContain(
+      `The handler (${save.handler!.file}:${save.handler!.line}) is not traced here`,
+    )
+    expect(brief(atlas, "procedure:terminals.create").text).not.toContain("is not traced here")
   })
 })

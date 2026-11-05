@@ -63,10 +63,23 @@ export const subjects = (atlas: Atlas): Subject[] => [
   ...atlas.flows.map((f) => ({ kind: "flow", name: f.id, render: () => renderFlow(atlas, f.id) })),
 ]
 
+// The subject the command line asks for: `atlas:brief table terminals` is `table:terminals`,
+// a `--` before it is pnpm's, and more words than that are refused.
+export const queryOf = (atlas: Atlas, args: string[]): string | undefined | Error => {
+  const words = args[0] === "--" ? args.slice(1) : args
+  if (words.length <= 1) return words[0]
+  if (words.length === 2 && subjects(atlas).some((s) => s.kind === words[0]))
+    return `${words[0]}:${words[1]}`
+  return new Error(
+    `One subject at a time, not "${words.join(" ")}"; a kind and a name go as \`kind:name\`.`,
+  )
+}
+
 export const brief = (
   atlas: Atlas,
-  query: string | undefined,
+  query: string | undefined | Error,
 ): { text: string; found: boolean } => {
+  if (query instanceof Error) return { text: query.message, found: false }
   if (!query) return { text: renderIndex(atlas), found: true }
   const all = subjects(atlas)
   const colon = query.indexOf(":")
@@ -81,7 +94,7 @@ export const brief = (
       found: false,
     }
   // A path (`backend/runner/src/terminals`, or a file in it) suggests the area that owns it.
-  const path = query.replaceAll("\\", "/").replace(/^\.\//, "").replace(/\/$/, "")
+  const path = name.replaceAll("\\", "/").replace(/^\.\//, "").replace(/\/$/, "")
   const owner = areaOf(atlas.areas, `${path}/_`)
   const near = [
     ...all.filter((s) => s.kind === "area" && s.name === owner),
@@ -103,9 +116,8 @@ export const brief = (
 
 if (import.meta.main) {
   const { build } = await import("../extract/main.ts")
-  // `atlas:brief table terminals` asks for `table:terminals`.
-  const query = process.argv.slice(2).join(":") || undefined
-  const { text, found } = brief(await build(), query)
+  const atlas = await build()
+  const { text, found } = brief(atlas, queryOf(atlas, process.argv.slice(2)))
   process.stdout.write(`${text}\n`)
   if (!found) process.exitCode = 1
 }
