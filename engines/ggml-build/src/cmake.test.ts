@@ -181,10 +181,16 @@ describe("a slice's CPU kernels", () => {
         [compiled("ggml-cpu/arch/x86/quants.c", `${ivyBridge} -mfma -mbmi2 -mavx2`)],
         "x86_64",
       ),
-    ).toEqual(["the x86_64 kernels are built with -mavx2 -mfma -mbmi2"])
+    ).toEqual(["the x86_64 kernels are built with -mfma -mbmi2 -mavx2"])
     expect(
-      kernelProblems([compiled("ggml-cpu/arch/x86/quants.c", "-arch x86_64 -msse4.2")], "x86_64"),
-    ).toEqual(["the x86_64 kernels are built without -mavx -mf16c"])
+      kernelProblems(
+        [compiled("ggml-cpu/arch/x86/quants.c", `${ivyBridge} -mavx512f -mavxvnni -march=haswell`)],
+        "x86_64",
+      ),
+    ).toEqual(["the x86_64 kernels are built with -mavx512f -mavxvnni -march=haswell"])
+    expect(
+      kernelProblems([compiled("ggml-cpu/arch/x86/quants.c", "-arch x86_64 -mavx")], "x86_64"),
+    ).toEqual(["the x86_64 kernels are built without -msse4.2 -mf16c"])
   })
 
   it("read Windows paths and argument lists too", () => {

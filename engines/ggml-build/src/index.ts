@@ -53,8 +53,9 @@ const stageBuilds = async (
   const slices = builds.flatMap(({ slice, folder }) =>
     slice ? [{ slice, folder, staged: `${staging}-${slice}` }] : [],
   )
-  if (slices.length === 0) {
-    await Promise.all(builds.map(({ folder }) => stage(folder, staging, executable)))
+  const [only] = builds
+  if (slices.length === 0 && only) {
+    await stage(only.folder, staging, executable)
     return
   }
   await Promise.all(slices.map(({ folder, staged }) => stage(folder, staged, executable)))

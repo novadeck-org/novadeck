@@ -33,6 +33,8 @@ export const tar = tarOf(machine.platform, process.env)
 
 // The Azure service principal Windows signing authenticates with. Only the signing call is
 // given it: CMake, the build and git run upstream's scripts, pinned by commit but not audited.
+// A defence in depth, not a boundary: this process still holds them, and a child running as
+// the same user could read them from it.
 const credentialNames = new Set(["AZURE_TENANT_ID", "AZURE_CLIENT_ID", "AZURE_CLIENT_SECRET"])
 
 /** The environment without the signing credentials (named in any case, as Windows reads them). */

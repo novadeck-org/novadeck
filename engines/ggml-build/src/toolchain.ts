@@ -17,8 +17,8 @@ export const missingTool = (
   if (!found("git")) return `Building the ${label} needs git, which applies its patches.`
   if (!found(tarOf(on.platform, env))) return `Building the ${label} needs tar.`
   if (on.platform === "darwin") {
-    // lipo merges the architectures' builds into one universal binary.
-    if (!found("xcrun", "--version") || !found("lipo", "-info")) {
+    // They hold lipo too, which merges the architectures' builds into one universal binary.
+    if (!found("xcrun", "--version")) {
       return `Building the ${label} on macOS needs Xcode's command line tools.`
     }
     return undefined

@@ -105,6 +105,13 @@ export type CompileCommand = {
   readonly arguments?: readonly string[]
 }
 
+// An instruction set past Ivy Bridge, or a whole -march, which would stop an Intel Mac that
+// lacks it.
+const pastIvyBridge = (flag: string): boolean =>
+  ["-mavx2", "-mfma", "-mbmi2"].includes(flag) ||
+  /^-m(avx512|avxvnni|amx)/.test(flag) ||
+  flag.startsWith("-march=")
+
 /**
  * What is wrong with the CPU kernels a slice compiles, or nothing: its architecture's
  * quantized kernels must be in the build, with the Intel slice's instruction sets and no
@@ -125,8 +132,8 @@ export const kernelProblems = (commands: readonly CompileCommand[], slice: Slice
     const flags = (entry: CompileCommand) => new Set(line(entry).split(/\s+/))
     for (const entry of kernels) {
       const used = flags(entry)
-      const lacking = ["-mavx", "-mf16c"].filter((flag) => !used.has(flag))
-      const beyond = ["-mavx2", "-mfma", "-mbmi2"].filter((flag) => used.has(flag))
+      const lacking = ["-msse4.2", "-mavx", "-mf16c"].filter((flag) => !used.has(flag))
+      const beyond = [...used].filter(pastIvyBridge)
       if (lacking.length > 0)
         problems.push(`the x86_64 kernels are built without ${lacking.join(" ")}`)
       if (beyond.length > 0) problems.push(`the x86_64 kernels are built with ${beyond.join(" ")}`)

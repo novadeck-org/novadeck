@@ -33,12 +33,4 @@ describe("the toolchain", () => {
       expect(missingTool("voice engine", win, {}, without("pwsh"))).toBeUndefined()
     })
   })
-
-  context("on macOS", () => {
-    it("needs lipo, which merges the architectures' builds", () => {
-      expect(missingTool("voice engine", mac, {}, without("lipo"))).toBe(
-        "Building the voice engine on macOS needs Xcode's command line tools.",
-      )
-    })
-  })
 })
