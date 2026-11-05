@@ -261,23 +261,33 @@ const backlogKind = (event: HarnessEvent): string =>
  * binds the session starts, so what the rollout already holds counts too: its latest
  * mode, as of now, and its latest plan and token count, as of when they were written;
  * then each record appended. A rollout rewritten, or another put in its place, is read
- * again the same way, so none of its old records counts as news.
+ * again: only what it records after the last record read before counts, as its own time
+ * says, so an old record is never news and a new one is never lost.
  */
 export const followRollout: NonNullable<Harness["watch"]> = (run, signal, emit) => {
   // The latest of each kind the backlog held, until it has all been read.
   let backlog: Map<string, HarnessEvent> | undefined = new Map()
+  // When the latest record read was written, and, once the file was rewritten, the time
+  // a record of the rewritten file must be past to count.
+  let latest = Number.NEGATIVE_INFINITY
+  let after = Number.NEGATIVE_INFINITY
   return followLines(
     run.transcript,
     signal,
     (line) => {
-      for (const event of rolloutEvents(line, run))
+      for (const event of rolloutEvents(line, run)) {
+        if (event.startedAt <= after) continue
+        latest = Math.max(latest, event.startedAt)
         if (backlog) backlog.set(backlogKind(event), event)
         else emit(event)
+      }
     },
     {
       fromStart: true,
       onReset: () => {
-        backlog = new Map()
+        // Rewritten while its backlog was still being read: nothing was told yet.
+        if (backlog) backlog = new Map()
+        else after = latest
       },
       onIdle: () => {
         if (!backlog) return

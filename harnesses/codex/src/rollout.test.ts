@@ -1,4 +1,4 @@
-import { mkdtempSync, renameSync, rmSync, writeFileSync } from "node:fs"
+import { appendFileSync, mkdtempSync, renameSync, rmSync, writeFileSync } from "node:fs"
 import { tmpdir } from "node:os"
 import { join } from "node:path"
 
@@ -29,34 +29,40 @@ describe("following a rollout", () => {
     folder = undefined
   })
 
-  it("tells only the latest of what it held again, never each old record, once the file is rewritten", async () => {
+  it("tells only what a rewritten file records past the last record read, never an old one, losing none", async () => {
     folder = mkdtempSync(join(tmpdir(), "novadeck-rollout-"))
     const path = join(folder, "rollout.jsonl")
-    writeFileSync(
-      path,
-      `${ended("t1", "2026-11-01T10:00:00Z")}\n${ended("t2", "2026-11-01T10:01:00Z")}\n`,
-    )
+    const times = ["10:00", "10:01", "10:02", "10:03", "10:04"].map((at) => `2026-11-01T${at}:00Z`)
+    const records = (count: number) =>
+      times
+        .slice(0, count)
+        .map((at, index) => `${ended(`t${index + 1}`, at)}\n`)
+        .join("")
+    writeFileSync(path, records(2))
     const told: HarnessEvent[] = []
     const controller = new AbortController()
     const following = followRollout({ ...session, transcript: path }, controller.signal, (event) =>
       told.push(event),
     )
-    try {
-      await expect.poll(() => turns(told), { timeout: 5000 }).toEqual(["t2"])
-      // Another file put in its place, as a migration or a sync tool writes one, holding
-      // the same turns and one more.
-      const next = join(folder, "next.jsonl")
-      writeFileSync(
-        next,
-        [
-          ended("t1", "2026-11-01T10:00:00Z"),
-          ended("t2", "2026-11-01T10:01:00Z"),
-          ended("t3", "2026-11-01T10:02:00Z"),
-          "",
-        ].join("\n"),
-      )
+    // Another file put in its place, as a migration or a sync tool writes one.
+    const replace = (content: string) => {
+      const next = join(folder!, "next.jsonl")
+      writeFileSync(next, content)
       renameSync(next, path)
-      await expect.poll(() => turns(told), { timeout: 5000 }).toEqual(["t2", "t3"])
+    }
+    try {
+      // Its backlog: the latest turn's end alone.
+      await expect.poll(() => turns(told), { timeout: 5000 }).toEqual(["t2"])
+      // The same records again: nothing is news.
+      replace(records(2))
+      await new Promise((resolve) => setTimeout(resolve, 1000))
+      expect(turns(told)).toEqual(["t2"])
+      // The same records and two more: both new ones are told, none of the old.
+      replace(records(4))
+      await expect.poll(() => turns(told), { timeout: 5000 }).toEqual(["t2", "t3", "t4"])
+      // Appended after it, as ever.
+      appendFileSync(path, records(5).split("\n").at(-2)! + "\n")
+      await expect.poll(() => turns(told), { timeout: 5000 }).toEqual(["t2", "t3", "t4", "t5"])
     } finally {
       controller.abort()
       await following
