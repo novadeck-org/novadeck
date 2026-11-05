@@ -2,8 +2,8 @@ import { hashOf } from "./hash.js"
 import { languageOf } from "./highlight/languages.js"
 import { highlightLines, paintRows, runsKey, type HighlightedLine } from "./highlight/rows.js"
 import { createHold } from "./hold.js"
-import { createKept } from "./kept.js"
 import type { Mount, ViewerState } from "./index.js"
+import { createKept } from "./kept.js"
 
 // A read-only change: a repository's files against a base, each a section under a header
 // (its path, how it changed, what it added and removed) with its hunks as numbered lines

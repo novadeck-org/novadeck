@@ -162,7 +162,10 @@ describe("markdown on pathological text", () => {
     ["deeply nested quotes", ">".repeat(size) + " x"],
     ["deeply nested bullets", "- ".repeat(size / 2) + "x"],
     ["deeply nested quotes and bullets", "> - ".repeat(size / 4) + "x"],
-    ["deeply indented bullets", Array.from({ length: 128 }, (_, n) => `${" ".repeat(n * 2)}- a`).join("\n")],
+    [
+      "deeply indented bullets",
+      Array.from({ length: 128 }, (_, n) => `${" ".repeat(n * 2)}- a`).join("\n"),
+    ],
   ])("reads %s in well under the second a quadratic reading took", (_name, text) => {
     // Warmed up first, so the bound measures the reading, not the compiler; generous for
     // slow CI machines, yet far below the ~1 s a quadratic reading took here. The quickest
@@ -204,7 +207,9 @@ describe("deep nesting", () => {
 
   it("still nests as deep as the limit", () => {
     const quote = (depth: number): readonly MarkdownBlock[] =>
-      depth === 0 ? [{ t: "p", inline: [{ t: "text", text: "x" }] }] : [{ t: "quote", blocks: quote(depth - 1) }]
+      depth === 0
+        ? [{ t: "p", inline: [{ t: "text", text: "x" }] }]
+        : [{ t: "quote", blocks: quote(depth - 1) }]
     expect(parseMarkdown(">".repeat(32) + " x")).toEqual(quote(32))
   })
 })

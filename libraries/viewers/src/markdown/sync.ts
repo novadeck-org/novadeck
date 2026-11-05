@@ -82,7 +82,13 @@ export const lineChanges = (before: string, after: string): ChangeSet => {
   const kept = keptLines(a.slice(head, head + rows), b.slice(head, head + columns))
   if (!kept)
     return ChangeSet.of(
-      [{ from: starts[head]!, to: starts[head + rows]!, insert: b.slice(head, head + columns).join("") }],
+      [
+        {
+          from: starts[head]!,
+          to: starts[head + rows]!,
+          insert: b.slice(head, head + columns).join(""),
+        },
+      ],
       before.length,
     )
   const changes: { from: number; to: number; insert: string }[] = []

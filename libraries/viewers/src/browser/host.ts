@@ -519,8 +519,7 @@ export const watchPageRequests = (
     // as do origins past the first `maxRequestOrigins`, so a page can't send without end
     // by failing at ever new ones.
     const own = originOf(details.url)
-    const origin =
-      own !== null && (view.has(own) || view.size < maxRequestOrigins) ? own : "other"
+    const origin = own !== null && (view.has(own) || view.size < maxRequestOrigins) ? own : "other"
     const count = view.get(origin) ?? 0
     if (count >= maxForwardedRequests) return
     told.set(details.webContentsId, view.set(origin, count + 1))

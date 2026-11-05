@@ -117,14 +117,14 @@ describe("markdown sync", () => {
       seed = (seed * 48_271) % 2_147_483_647
       return seed % below
     }
-    const textOf = (): string[] =>
-      Array.from({ length: random(12) }, () => `${"abc"[random(3)]}\n`)
+    const textOf = (): string[] => Array.from({ length: random(12) }, () => `${"abc"[random(3)]}\n`)
     const mostKept = (a: readonly string[], b: readonly string[]): number => {
       const table = a.map(() => b.map(() => 0))
       const at = (i: number, j: number): number => (i < 0 || j < 0 ? 0 : table[i]![j]!)
       a.forEach((line, i) =>
         b.forEach((other, j) => {
-          table[i]![j] = line === other ? at(i - 1, j - 1) + 1 : Math.max(at(i - 1, j), at(i, j - 1))
+          table[i]![j] =
+            line === other ? at(i - 1, j - 1) + 1 : Math.max(at(i - 1, j), at(i, j - 1))
         }),
       )
       return at(a.length - 1, b.length - 1)
