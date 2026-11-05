@@ -52,6 +52,28 @@ describe("contentSecurityPolicy", () => {
     )
   })
 
+  it("fills every placeholder in the page", () => {
+    const plugin = contentSecurityPolicy({ connect: () => ["'self'"] })
+    const page = `<!-- connect-src: ${connectSourcesPlaceholder} --><meta content="connect-src ${connectSourcesPlaceholder}">`
+    expect(transform(plugin, page)).toBe(
+      `<!-- connect-src: 'self' --><meta content="connect-src 'self'">`,
+    )
+  })
+
+  it("puts each source in as it is, with no replacement pattern expanded", () => {
+    const plugin = contentSecurityPolicy({ connect: () => ["wss://a$&b.example", "$'", "$$"] })
+    expect(transform(plugin, `connect-src ${connectSourcesPlaceholder};`)).toBe(
+      "connect-src wss://a$&b.example $' $$;",
+    )
+  })
+
+  it("fails a page that still holds the placeholder once filled", () => {
+    const plugin = contentSecurityPolicy({ connect: () => [connectSourcesPlaceholder] })
+    expect(() => transform(plugin, `connect-src ${connectSourcesPlaceholder};`)).toThrow(
+      "placeholder is left unfilled",
+    )
+  })
+
   it("tells the app the build's mode, and whether it's served", () => {
     expect(seen({ mode: "try", command: "build" })).toMatchObject({ mode: "try", command: "build" })
     expect(seen({ mode: "try", command: "serve" })).toMatchObject({ mode: "try", command: "serve" })

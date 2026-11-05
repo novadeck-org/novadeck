@@ -35,7 +35,10 @@ const waitingChars = 256 * 1024
 /** One owner's attachment: its mode, and the events it reads in order. */
 export type Attachment = {
   readonly mode: "control" | "observe"
-  /** The next event, once the ack window lets it go; undefined once the attachment ended. */
+  /**
+   * The next event, once the ack window lets it go; undefined once the attachment ended.
+   * One call at a time: a call made while another waits leaves that one never settled.
+   */
   next(): Promise<TerminalEvent | undefined>
   cancel(): void
 }
@@ -628,10 +631,18 @@ export const createTerminal = (options: TerminalOptions): HostedTerminal => {
       if (mode === "control") controller = owner
       else if (controller === owner) controller = undefined
       const first = history[0]?.event.sequence ?? sequence + 1
+      const replayed =
+        after !== undefined && after >= first - 1
+          ? history.filter(({ event }) => event.sequence > after)
+          : undefined
+      // A replay past the attachment's own queue would fail it at once, as would every
+      // resume from the same cursor: it takes a snapshot instead.
+      const fits =
+        replayed !== undefined &&
+        replayed.reduce((total, { bytes }) => total + bytes, 0) <= limits.subscriberBytes
       try {
-        if (after !== undefined && after >= first - 1) {
-          for (const { event } of history) if (event.sequence > after) subscription.push(event)
-        } else subscription.push(snapshot())
+        if (fits) for (const { event } of replayed) subscription.push(event)
+        else subscription.push(snapshot())
       } catch (error) {
         subscription.cancel()
         detach(owner, subscription)
@@ -690,12 +701,10 @@ export const createTerminal = (options: TerminalOptions): HostedTerminal => {
     type: (data) => run.pty.write(data),
     readScreen: (<T>(read?: (screen: Screen) => T) =>
       enqueue(() => (read ? read(run.screen) : readScreen(run.screen)))) as Terminal["readScreen"],
-    replay: (text, separator) => {
-      const { screen } = run
-      // A Windows pseudoconsole places its cursor at rows of a screen it takes as its own
-      // from the top, so the transcript leaves the screen for the scrollback.
-      return enqueue(() => replayOn(screen, text, separator, conpty))
-    },
+    // A Windows pseudoconsole places its cursor at rows of a screen it takes as its own
+    // from the top, so the transcript leaves the screen for the scrollback. The screen is
+    // the one in force as the step runs, as a restart queued before swaps it.
+    replay: (text, separator) => enqueue(() => replayOn(run.screen, text, separator, conpty)),
     gone: () => {
       gone = true
     },

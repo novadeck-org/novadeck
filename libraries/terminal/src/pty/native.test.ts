@@ -4,15 +4,23 @@ import { EventEmitter } from "node:events"
 import * as pty from "node-pty"
 import { describe, expect, it, onTestFinished, vi } from "vitest"
 
-import { command, ptyChild } from "../testing.js"
+import { command, ptyChild, ptyChildEnv, ptyTrace } from "../testing.js"
 
-const bounded = async <T>(operation: Promise<T>, label: string): Promise<T> => {
+// Waits at most 10 s, then fails with `label` and what `stalled` tells of the terminal.
+const bounded = async <T>(
+  operation: Promise<T>,
+  label: string,
+  stalled: () => string = () => "",
+): Promise<T> => {
   let timer: ReturnType<typeof setTimeout> | undefined
   try {
     return await Promise.race([
       operation,
       new Promise<never>((_, reject) => {
-        timer = setTimeout(() => reject(new Error(`Timed out waiting for ${label}`)), 10_000)
+        timer = setTimeout(
+          () => reject(new Error(`Timed out waiting for ${label}${stalled()}`)),
+          10_000,
+        )
       }),
     ])
   } finally {
@@ -24,6 +32,8 @@ const spawn = (args = [ptyChild], options: { useConptyDll?: boolean } = {}) => {
   // Exercise the installed native package directly so failures retain their cause.
   const child = pty.spawn(process.execPath, args, {
     cwd: process.cwd(),
+    // The child traces what reached it and what it wrote, which a stall reports.
+    env: { ...process.env, ...ptyChildEnv },
     cols: 80,
     rows: 24,
     ...options,
@@ -39,6 +49,9 @@ const spawn = (args = [ptyChild], options: { useConptyDll?: boolean } = {}) => {
   const exit = new Promise<{ exitCode: number }>((resolve) => {
     resolveExit = resolve
   })
+  // Whether the input was lost, the child never ended, or node-pty never told of its end.
+  const stalled = () =>
+    `; its last output ${JSON.stringify(output.slice(-160))}; the children's trace:\n${ptyTrace()}`
   const ended = child.onExit((event) => {
     exited = true
     resolveExit(event)
@@ -67,13 +80,18 @@ const spawn = (args = [ptyChild], options: { useConptyDll?: boolean } = {}) => {
       )
     })
     try {
-      await bounded(found, `PTY ${child.pid} output ${marker}`)
+      await bounded(found, `PTY ${child.pid} output ${marker}`, stalled)
     } finally {
       events.removeAllListeners("data")
       events.removeAllListeners("exit")
     }
   }
-  return { child, until, exit: () => bounded(exit, `PTY ${child.pid} exit`), output: () => output }
+  return {
+    child,
+    until,
+    exit: () => bounded(exit, `PTY ${child.pid} exit`, stalled),
+    output: () => output,
+  }
 }
 
 const descriptors = () => {

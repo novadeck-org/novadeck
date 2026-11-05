@@ -207,6 +207,15 @@
       "seen": ["#288 run 39128108243 job 117677654572 (macOS)"]
     },
     {
+      "id": "terminal-native-pty-session-exit-windows",
+      "jobs": ["^Test \\(Windows(, (?:[12][/-]2|[1-3][/-]3))?\\)$"],
+      "test": "src/pty/native.test.ts > installed native PTY dependency > keeps repeated child sessions alive for multiple writes and their natural exit",
+      "signature": "Timed out waiting for PTY \\d+ exit",
+      "status": "known",
+      "cause": "Unknown, not reproduced (Linux only here): on Windows, one of the six sessions had its three writes answered, was sent its exit, and node-pty reported no exit within 10 s. The log shows no more. Lost input, a child that never ended, and an exit node-pty's non-DLL ConPTY path never reported (it waits for 1 s without output after the process exits, then closes the pipe) all fit. The test now reports its last output and the children's trace (what reached each child, what it wrote, and 'exiting' just before it exits), which tells them apart on the next failure.",
+      "seen": ["#649 run 41964174104 job 127037213740 (Windows 1/3)"]
+    },
+    {
       "id": "ui-workspace-overlays-windows-timeout",
       "jobs": ["^Test \\(Windows(, (?:[12][/-]2|[1-3][/-]3))?\\)$"],
       "test": "src/workspace/overlays.test.ts > workspace dialogs that load on demand > opens the dialog requested last when an earlier one never finished loading",

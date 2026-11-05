@@ -93,9 +93,9 @@ export type TerminalHost = {
   /**
    * Starts a new run of exited terminal `id` in place, keeping it meanwhile. Refuses, in
    * this order: `CLOSING`, `TERMINAL_NOT_FOUND` for one it doesn't hold open, `check`'s
-   * refusal, `CONFLICT` unless it exited and no other restart is under way, then
-   * `CONTROL_IN_USE` for another controller. `prepare` does
-   * the caller's waiting and gives back its step. Once the draws queued before are drawn, the
+   * refusal, `CLOSING` again for one a `terminate` ended, which stays closing, `CONFLICT`
+   * unless it exited and no other restart is under way, then `CONTROL_IN_USE` for another
+   * controller. `prepare` does the caller's waiting and gives back its step. Once the draws queued before are drawn, the
    * step runs with `CLOSING` and `check` asked again, and calls `restart` with the new run.
    */
   restart<T>(
@@ -320,6 +320,7 @@ export const createTerminalHost = (options: TerminalHostOptions): TerminalHost =
       const entry = open.get(id)
       if (!entry) throw new TerminalError("TERMINAL_NOT_FOUND")
       check()
+      if (entry.closing) throw new TerminalError("CLOSING")
       const { terminal } = entry
       if (terminal.exit === null || entry.restarting)
         throw new TerminalError("CONFLICT", "Only an exited terminal can restart.")

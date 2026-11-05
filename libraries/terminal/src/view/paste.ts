@@ -167,6 +167,10 @@ const save = async (file: File, target: PasteTarget, now: Date): Promise<string>
     name: uploadName(file, now),
     data: new Uint8Array(await file.arrayBuffer()),
   })
+  // Outside a bracketed paste a newline is Enter: a path the host kept one in would run
+  // what follows it as a command.
+  if (/\p{Cc}/u.test(path))
+    throw new Error("The host saved the file under a path with a control character")
   return shellPath(path)
 }
 
