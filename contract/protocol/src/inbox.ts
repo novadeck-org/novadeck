@@ -2,7 +2,7 @@ import { z } from "zod"
 
 import { agentName, turnError, turnFiles, turnReply } from "./agents.js"
 import { id } from "./fields.js"
-import { hiddenIn, maxCommandLines } from "./text.js"
+import { hiddenIn, maxCommandLines, unsafeInLine } from "./text.js"
 
 // How long each text of an agent's ask, tell or done runs at most, in UTF-16 code units: a
 // one-line subject or label (`line`), Markdown, an option's summary, why it is hard to undo,
@@ -17,16 +17,16 @@ export const inboxTextLimits = {
 } as const
 export const maxAskOptions = 3
 
-// One line of at most `max` characters. A longer one is its own schema: a second `max` on
-// a string keeps the first.
+// One line of at most `max` characters, without what one line may not hold (`unsafeInLine`);
+// the runner strips all of that but line breaks and tabs from an agent's text first. A longer
+// one is its own schema: a second `max` on a string keeps the first.
 const oneLine = (max: number) =>
   z
     .string()
     .trim()
     .min(1)
     .max(max)
-    // eslint-disable-next-line no-control-regex -- Subjects cannot contain control characters.
-    .refine((text) => !/[\r\n\x00-\x1f]/.test(text), "Use one line")
+    .refine((text) => !unsafeInLine.test(text), "Use one line")
 const line = oneLine(inboxTextLimits.line)
 const markdown = z.string().max(inboxTextLimits.markdown)
 

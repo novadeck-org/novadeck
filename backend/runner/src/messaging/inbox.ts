@@ -6,12 +6,14 @@ import {
   hiddenIn,
   inboxEntry,
   inboxTextLimits,
+  isAgentName,
   maxAskOptions,
   maxCommandLines,
   maxTurnError,
   maxTurnFilePath,
   maxTurnFiles,
   replyPreviewLength,
+  unsafeInLine,
   type AgentAsk,
   type AgentName,
   type AskAnswer,
@@ -107,8 +109,8 @@ const subject = z
       .trim()
       .min(1)
       .max(inboxTextLimits.line)
-      // eslint-disable-next-line no-control-regex -- Subjects must stay one line after cleaning.
-      .refine((text) => !/[\r\n\x00-\x1f]/.test(text), "Use one line for the subject"),
+      // Subjects must stay one line after cleaning.
+      .refine((text) => !unsafeInLine.test(text), "Use one line for the subject"),
   )
 const markdown = z.string().max(inboxTextLimits.markdown)
 // A command an agent asks the person to run, kept as written, with every part of it in
@@ -164,18 +166,20 @@ const requestedShape = z.discriminatedUnion("type", [
   z.strictObject({
     type: z.literal("action"),
     command,
+    // A folder that cleans to nothing is no folder, as when it is left out.
     directory: z
       .string()
-      .transform(cleanInboxText)
+      .transform((text) => cleanInboxText(text).trim() || null)
       .pipe(
         z
           .string()
           .max(inboxTextLimits.directory)
-          // One line: the rule for what draws as nothing covers every control but a line feed.
+          // One line, as the protocol's folder is (`unsafeInLine`), with nothing that draws as nothing.
           .refine(
-            (text) => !text.includes("\n") && !hiddenIn(text),
+            (text) => !unsafeInLine.test(text) && !hiddenIn(text),
             "Use one plain line for the folder",
-          ),
+          )
+          .nullable(),
       )
       .nullable()
       .optional(),
@@ -368,7 +372,10 @@ export class Inbox {
       stored = records.entries()
     })
     for (const entry of stored) {
-      if (entry?.content?.kind === "turn") {
+      // A newer build's harness this one doesn't know: its entries stay in the records for
+      // that build, and out of this one's Inbox, whose listing would fail on them.
+      if (!isAgentName(entry?.agent)) continue
+      if (entry.content?.kind === "turn") {
         // Clamped in memory only: a newer runner's fields stay in the records until the
         // entry is next amended.
         const content = clampedTurn(entry.content)

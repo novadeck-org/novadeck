@@ -11,6 +11,7 @@ import type { CompanionWindowMeta, WorkspaceTarget } from "@novadeck/core/types"
 import {
   companionLimits,
   harnesses,
+  lookLimits,
   planUnwritable,
   type AgentName,
   type CompanionItem as RunnerItem,
@@ -91,18 +92,18 @@ export const troubleOf = (trouble: PageTrouble): RunnerTrouble => {
   if (trouble.kind === "error")
     return {
       kind: "error",
-      text: clip(trouble.text, 1024),
-      source: clip(trouble.source, 2048),
+      text: clip(trouble.text, lookLimits.text),
+      source: clip(trouble.source, lookLimits.source),
       line: Number.isFinite(trouble.line) ? Math.max(0, Math.trunc(trouble.line)) : 0,
     }
   if (trouble.kind === "request")
     return {
       kind: "request",
-      url: clip(trouble.url, 2048),
+      url: clip(trouble.url, lookLimits.request),
       status: Math.min(999, Math.max(0, Math.trunc(trouble.status) || 0)),
-      what: clip(trouble.what, 32),
+      what: clip(trouble.what, lookLimits.what),
     }
-  return { kind: "load", text: clip(trouble.text, 256) }
+  return { kind: "load", text: clip(trouble.text, lookLimits.load) }
 }
 
 export const createRunnerCompanions = (

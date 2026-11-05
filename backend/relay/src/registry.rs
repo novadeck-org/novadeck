@@ -12,6 +12,7 @@
 //! name, nor a space splits one. Values of other kinds are left out, and a key that can't
 //! be opened gives no lines.
 
+use std::io::Write;
 use std::ptr::null_mut;
 
 const LOCAL_MACHINE: isize = 0x8000_0002_u32 as i32 as isize;
@@ -138,9 +139,11 @@ pub fn print() {
         ),
         ("user", CURRENT_USER, "Environment"),
     ];
+    let mut stdout = std::io::stdout().lock();
     for (scope, root, path) in keys {
         for (name, value) in values(root, path) {
-            println!("{}", line(scope, &name, &value));
+            // A runner gone meanwhile reads none of it; `println!` would panic on that.
+            let _ = writeln!(stdout, "{}", line(scope, &name, &value));
         }
     }
 }

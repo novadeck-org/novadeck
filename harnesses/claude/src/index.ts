@@ -11,8 +11,8 @@ import { claudeHome } from "./home.js"
 import { models } from "./models.js"
 import { connect, connected, disconnect, files, hook, hookDialect } from "./plugin.js"
 import { conversational, shapes } from "./shapes.js"
-import { cmdShim, commands, posixShim } from "./shim.js"
-import { followTranscript, transcriptPlans } from "./transcript-watch.js"
+import { cmdShim, commands, posixShim, valued } from "./shim.js"
+import { followSubagent, followTranscript, transcriptPlans } from "./transcript-watch.js"
 import { transcripts } from "./transcripts.js"
 
 // What a hook prints to hand the model `delivery` as context.
@@ -100,40 +100,7 @@ export const claude = {
     commands: commands.filter((command) => !sessionCommands.has(command)),
     flags: ["-h", "--help", "-v", "--version"],
     print: ["-p", "--print"],
-    takesValue: [
-      "--add-dir",
-      "--agent",
-      "--agents",
-      "--allowedTools",
-      "--allowed-tools",
-      "--append-system-prompt",
-      "--autocompact",
-      "--betas",
-      "--debug-file",
-      "--disallowedTools",
-      "--disallowed-tools",
-      "--effort",
-      "--environment",
-      "--fallback-model",
-      "--file",
-      "--input-format",
-      "--json-schema",
-      "--max-budget-usd",
-      "--mcp-config",
-      "--model",
-      "-n",
-      "--name",
-      "--output-format",
-      "--permission-mode",
-      "--permission-prompts",
-      "--plugin-dir",
-      "--plugin-url",
-      "--session-id",
-      "--setting-sources",
-      "--settings",
-      "--system-prompt",
-      "--tools",
-    ],
+    takesValue: valued,
   },
   transcripts: { ...transcripts, shapes, conversational },
   plans: transcriptPlans,
@@ -160,4 +127,7 @@ export const claude = {
   messaging,
   box,
   watch: followTranscript,
+  // A subagent's request its person denied, or whose prompt timed out, fires no hook: its own
+  // transcript records the call's result.
+  watchActor: followSubagent,
 } satisfies Harness

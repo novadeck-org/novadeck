@@ -56,7 +56,11 @@ export const voiceState = z.strictObject({
   aim: voiceModel,
   language: voiceLanguage,
   // Download sizes in bytes: the engine for this platform, and each model.
-  sizes: z.strictObject({ engine: z.int().nonnegative(), turbo: z.int(), small: z.int() }),
+  sizes: z.strictObject({
+    engine: z.int().nonnegative(),
+    turbo: z.int().nonnegative(),
+    small: z.int().nonnegative(),
+  }),
   installing: voiceInstall.nullable(),
   check: voiceCheck.nullable(),
   // Why the last install, or the engine's update, failed, until the next install, update

@@ -79,6 +79,21 @@ describe("collapse", () => {
     expect(written).toHaveLength(2)
   })
 
+  it("writes the repeats still held before a fatal line, as the process may die after it", () => {
+    const { repeats, written } = run([
+      [0, line(0, "held")],
+      [10, line(10, "held")],
+      [20, line(20, "held")],
+      [30, line(30, "gone", "fatal")],
+    ])
+    expect(written.map((entry) => entry.msg)).toEqual([
+      "held",
+      "held (repeated 2 more times)",
+      "gone",
+    ])
+    expect(repeats.size).toBe(0)
+  })
+
   it("writes everything when the window is 0", () => {
     const { written } = run(
       [

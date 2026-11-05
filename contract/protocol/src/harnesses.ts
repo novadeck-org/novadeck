@@ -67,3 +67,12 @@ export const agentNames = harnesses.map(({ id }) => id) as unknown as readonly [
   AgentName,
   ...AgentName[],
 ]
+
+/**
+ * Whether `name` is an agent this build knows. A newer build may know more harnesses and
+ * keep their names in data an older one reads, as a portable copy opening the newer one's
+ * workspace: what reads a kept name checks it, so an unknown one degrades, never fails a
+ * whole listing.
+ */
+export const isAgentName = (name: unknown): name is AgentName =>
+  (agentNames as readonly unknown[]).includes(name)

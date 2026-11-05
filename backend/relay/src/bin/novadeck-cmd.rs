@@ -12,7 +12,19 @@
 //! With `NOVADECK_CMD_LOG` set to a file, it appends the arguments it passes on there
 //! (for tests; nothing in Novadeck sets it).
 //!
+//! It stands in for cmd to whatever started it, so ending it ends cmd: the real cmd runs in
+//! a job that ends with the pass-through should it be killed, as a program that cancels a
+//! command ends the `cmd` it started (`a && b` doesn't go on to `b`), and Ctrl+C and
+//! Ctrl+Break are left to cmd, which shares the console and answers them itself, with its
+//! own exit code passed on. Once cmd exits by itself, what it left running (`start`) goes on.
+//!
 //! Windows only: elsewhere there is no cmd, and the program does nothing.
+
+// The same job the relay runs a status line in; the relay alone ends one early.
+#[cfg(windows)]
+#[allow(dead_code)]
+#[path = "../job.rs"]
+mod job;
 
 /// What follows the program name in a raw Windows command line, as the C runtime reads
 /// argv[0]: a name in quotes ends at the next quote (no escapes), any other at the first
@@ -109,7 +121,20 @@ fn main() {
     unsafe extern "system" {
         fn GetCommandLineW() -> *const u16;
         fn GetSystemDirectoryW(buffer: *mut u16, size: u32) -> u32;
+        fn SetConsoleCtrlHandler(
+            handler: Option<unsafe extern "system" fn(u32) -> i32>,
+            add: i32,
+        ) -> i32;
     }
+
+    /// Ctrl+C (0) and Ctrl+Break (1) are cmd's to answer: handled here, they don't end the
+    /// pass-through before it. A handler, unlike ignoring them outright, isn't inherited by
+    /// cmd. Closing the console, logging off or shutting down still end it, and its job.
+    unsafe extern "system" fn leave_to_cmd(event: u32) -> i32 {
+        i32::from(event <= 1)
+    }
+    // SAFETY: the handler is a plain function that lives as long as the process.
+    unsafe { SetConsoleCtrlHandler(Some(leave_to_cmd), 1) };
 
     // SAFETY: GetCommandLineW returns this process's command line, a NUL-terminated string
     // that lives as long as the process.
@@ -139,13 +164,27 @@ fn main() {
         |wide| PathBuf::from(OsString::from_wide(&wide)),
     );
     let cmd = system.join("cmd.exe");
-    let code = match Command::new(&cmd)
-        .raw_arg(OsString::from_wide(&arguments))
-        .status()
-    {
+    let mut command = Command::new(&cmd);
+    command.raw_arg(OsString::from_wide(&arguments));
+    // Programs cmd starts that ask to leave the job (CREATE_BREAKAWAY_FROM_JOB) still may.
+    let status = match job::Job::start(&mut command, job::KILL_ON_CLOSE | job::BREAKAWAY_OK) {
+        Some((mut child, job)) => {
+            let status = child.wait();
+            job.let_go();
+            status
+        }
+        // Where Windows refuses the job, nothing ran yet: cmd runs without one.
+        None => command.creation_flags(0).status(),
+    };
+    let code = match status {
         Ok(status) => status.code().unwrap_or(1),
         Err(error) => {
-            eprintln!("novadeck-cmd: cannot run {}: {error}", cmd.display());
+            use std::io::Write;
+            let _ = writeln!(
+                std::io::stderr(),
+                "novadeck-cmd: cannot run {}: {error}",
+                cmd.display()
+            );
             1
         }
     };

@@ -11,9 +11,38 @@ import {
 import { tmpdir } from "node:os"
 import { join } from "node:path"
 
-import { afterEach, describe, expect, it } from "vitest"
+import { afterEach, describe as context, describe, expect, it, vi } from "vitest"
 
 import { logPath, openLogFile } from "./file.js"
+
+// Faults the file system can be made to have, as another program holding a file open on
+// Windows, or a disk that fills.
+const faults = vi.hoisted(() => ({
+  /** Files that can't be renamed, as when another program holds them open. */
+  held: new Set<string>(),
+  /** Bytes the disk takes before it is full; undefined for no limit. */
+  room: undefined as number | undefined,
+}))
+
+vi.mock("node:fs", async (importOriginal) => {
+  const fs = await importOriginal<typeof import("node:fs")>()
+  const busy = (): Error => Object.assign(new Error("EBUSY: resource busy"), { code: "EBUSY" })
+  return {
+    ...fs,
+    renameSync: (from: string, to: string): void => {
+      if (faults.held.has(from)) throw busy()
+      fs.renameSync(from, to)
+    },
+    writeSync: (handle: number, buffer: Buffer, offset = 0): number => {
+      const room = faults.room
+      if (room === undefined) return fs.writeSync(handle, buffer, offset)
+      if (room === 0) throw Object.assign(new Error("ENOSPC: no space"), { code: "ENOSPC" })
+      const length = Math.min(room, buffer.length - offset)
+      faults.room = room - length
+      return fs.writeSync(handle, buffer, offset, length)
+    },
+  }
+})
 
 const folders: string[] = []
 const folder = (): string => {
@@ -23,8 +52,12 @@ const folder = (): string => {
 }
 
 afterEach(() => {
+  faults.held.clear()
+  faults.room = undefined
   for (const made of folders.splice(0)) rmSync(made, { recursive: true, force: true })
 })
+
+const lines = (path: string): string[] => readFileSync(path, "utf8").trim().split("\n")
 
 const line = (index: number): string => `line ${String(index).padStart(4, "0")} ${"x".repeat(80)}`
 
@@ -110,13 +143,149 @@ describe("openLogFile", () => {
       file.write(line(1))
       chmodSync(logs, 0o555)
       try {
-        for (let index = 2; index < 8; index += 1) file.write(line(index))
+        for (let index = 2; index < 6; index += 1) file.write(line(index))
       } finally {
         chmodSync(logs, 0o755)
       }
       file.close()
       const written = readFileSync(logPath(logs, "host"), "utf8").trim().split("\n")
-      expect(written).toEqual(Array.from({ length: 8 }, (_, index) => line(index)))
+      expect(written).toEqual(Array.from({ length: 6 }, (_, index) => line(index)))
+    },
+  )
+
+  context("where the file written can't be moved, as another program holds it", () => {
+    const rotated = () => {
+      const logs = folder()
+      let now = 0
+      const file = openLogFile({
+        folder: logs,
+        name: "host",
+        maxBytes: 300,
+        retryMs: 1_000,
+        now: () => now,
+        dropped: (count) => `DROPPED ${count}`,
+      })
+      // Three lines a file: host.2.log, host.1.log and host.log all written.
+      for (let index = 0; index < 9; index += 1) file.write(line(index))
+      return { logs, file, later: (ms: number) => (now += ms) }
+    }
+
+    it("keeps every older file as it was, however often it tries", () => {
+      const { logs, file, later } = rotated()
+      const before = [1, 2].map((index) => readFileSync(logPath(logs, "host", index), "utf8"))
+      faults.held.add(logPath(logs, "host"))
+      file.write(line(9))
+      later(1_000)
+      file.write(line(10))
+      later(1_000)
+      file.write(line(11))
+      file.close()
+      expect([1, 2].map((index) => readFileSync(logPath(logs, "host", index), "utf8"))).toEqual(
+        before,
+      )
+      expect(lines(logPath(logs, "host"))).toEqual([6, 7, 8, 9, 10, 11].map(line))
+      expect(readdirSync(logs).toSorted()).toEqual(["host.1.log", "host.2.log", "host.log"])
+    })
+
+    it("stops at twice its size, and says how many lines it dropped once it rotates", () => {
+      const { logs, file, later } = rotated()
+      faults.held.add(logPath(logs, "host"))
+      for (let index = 9; index < 14; index += 1) file.write(line(index))
+      expect(statSync(logPath(logs, "host")).size).toBeLessThanOrEqual(600)
+      faults.held.clear()
+      later(1_000)
+      file.write(line(14))
+      file.close()
+      expect(lines(logPath(logs, "host"))).toEqual(["DROPPED 2", line(14)])
+      expect(lines(logPath(logs, "host", 1))).toEqual([6, 7, 8, 9, 10, 11].map(line))
+      expect(lines(logPath(logs, "host", 2))).toEqual([3, 4, 5].map(line))
+    })
+  })
+
+  context("when the disk fills", () => {
+    it("says how many lines it dropped, and starts the next on a line of its own", () => {
+      const logs = folder()
+      let now = 0
+      const file = openLogFile({
+        folder: logs,
+        name: "host",
+        retryMs: 1_000,
+        now: () => now,
+        dropped: (count) => `DROPPED ${count}`,
+      })
+      file.write("one")
+      faults.room = 3
+      file.write("two cut short")
+      file.write("lost")
+      faults.room = undefined
+      now = 1_000
+      file.write("three")
+      file.close()
+      expect(readFileSync(logPath(logs, "host"), "utf8")).toBe("one\ntwo\nDROPPED 2\nthree\n")
+    })
+  })
+
+  it("starts a new file where the one it moved aside can't be put back", () => {
+    const logs = folder()
+    const file = openLogFile({ folder: logs, name: "host", maxBytes: 300 })
+    for (let index = 0; index < 3; index += 1) file.write(line(index))
+    faults.held.add(join(logs, "host.rotating.log"))
+    file.write(line(3))
+    file.close()
+    expect(lines(logPath(logs, "host"))).toEqual([line(3)])
+  })
+
+  it("rotates past what a rotation a crash cut short left behind", () => {
+    const logs = folder()
+    writeFileSync(join(logs, "host.rotating.log"), "left\n")
+    const file = openLogFile({ folder: logs, name: "host", maxBytes: 300 })
+    for (let index = 0; index < 4; index += 1) file.write(line(index))
+    file.close()
+    expect(readdirSync(logs).toSorted()).toEqual(["host.1.log", "host.log"])
+    expect(lines(logPath(logs, "host", 1))).toEqual([0, 1, 2].map(line))
+  })
+
+  // Root reads any file, and Windows has no such modes.
+  it.skipIf(process.platform === "win32" || process.getuid?.() === 0)(
+    "appends to a file it may write but not read",
+    () => {
+      const logs = folder()
+      writeFileSync(join(logs, "host.log"), "old\n", { mode: 0o200 })
+      chmodSync(join(logs, "host.log"), 0o200)
+      const file = openLogFile({ folder: logs, name: "host" })
+      file.write("new")
+      file.close()
+      expect(readFileSync(join(logs, "host.log"), "utf8")).toBe("old\nnew\n")
+    },
+  )
+
+  it("starts on a line of its own after one an earlier run cut short", () => {
+    const logs = folder()
+    writeFileSync(join(logs, "host.log"), "cut sh")
+    const file = openLogFile({ folder: logs, name: "host" })
+    file.write("next")
+    file.close()
+    expect(readFileSync(join(logs, "host.log"), "utf8")).toBe("cut sh\nnext\n")
+  })
+
+  it("starts the file again with keep 1, and stays within its size", () => {
+    const logs = folder()
+    const file = openLogFile({ folder: logs, name: "host", maxBytes: 300, keep: 1 })
+    for (let index = 0; index < 20; index += 1) file.write(line(index))
+    file.close()
+    expect(readdirSync(logs)).toEqual(["host.log"])
+    expect(statSync(logPath(logs, "host")).size).toBeLessThanOrEqual(300)
+    expect(lines(logPath(logs, "host")).at(-1)).toBe(line(19))
+  })
+
+  it.each([0, -1, 2.5, Number.NaN, Number.POSITIVE_INFINITY])(
+    "keeps 3 files when told to keep %s",
+    (keep) => {
+      const logs = folder()
+      const file = openLogFile({ folder: logs, name: "host", maxBytes: 300, keep })
+      for (let index = 0; index < 20; index += 1) file.write(line(index))
+      file.close()
+      expect(readdirSync(logs).toSorted()).toEqual(["host.1.log", "host.2.log", "host.log"])
     },
   )
 

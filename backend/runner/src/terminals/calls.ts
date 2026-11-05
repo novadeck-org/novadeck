@@ -56,9 +56,6 @@ import { shellBusy } from "./sampling.js"
 import { readSummarizeRequest, type SummarizeAnswer } from "./summarize-request.js"
 import { cleanSummary, summarized, summaryRefusal } from "./titles.js"
 
-// Characters that reorder how text is drawn, which a command shown for approval must not hold.
-const bidiControl = /[\u061C\u200E\u200F\u202A-\u202E\u2066-\u2069]/
-
 // A command line for the words: every word but a quoted line is a plain word, and a line
 // holds nothing a shell expands.
 const commandLine = (argv: readonly string[]): string =>
@@ -204,9 +201,6 @@ export class Calls {
     // Starting an agent is open_agent's: it alone says who leads the agent, and with what task.
     const session = request.command === undefined ? null : sessionLaunch(request.command)
     if (session !== null) return refused(sessionCommandRefusal(session))
-    // What the person is asked to approve must read as it runs: no direction controls.
-    if (request.command !== undefined && bidiControl.test(request.command))
-      return refused("The command holds text-direction control characters, which aren't run.")
     const starts = request.command !== undefined || request.agent !== undefined
     // Every check `send` would refuse the task for, before anything starts.
     if (request.agent !== undefined && request.message !== undefined) {

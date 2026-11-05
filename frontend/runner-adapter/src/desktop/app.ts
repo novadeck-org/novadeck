@@ -20,15 +20,14 @@ import {
   parseUpdateOffer,
   parseWhatsNew,
 } from "@novadeck/protocol/bridge"
+import { asLine, unsafeInLine } from "@novadeck/protocol/text"
 
 import type { RunnerBackendOptions } from "../backend"
 
-// Text a notice may show: one line, without control characters, cut to `length` with an
-// ellipsis, never inside a character.
-// eslint-disable-next-line no-control-regex -- These are the characters it replaces.
-const controls = /[\x00-\x1f\x7f-\x9f\u061c\u200e\u200f\u202a-\u202e\u2066-\u2069]+/g
+// Text a notice may show: one line (`asLine`), its runs of spaces as one, cut to `length` with
+// an ellipsis, never inside a character.
 export const noticeText = (text: string, length: number): string => {
-  const line = text.replace(controls, " ").replace(/\s+/g, " ").trim()
+  const line = asLine(text).replace(/\s+/g, " ")
   if (line.length <= length) return line
   let end = length - 1
   const last = line.charCodeAt(end - 1)
@@ -211,7 +210,7 @@ export const sandboxStateOf = (state: unknown): SandboxState => {
   if (sandboxed === true) return { sandboxed: true }
   if (sandboxed !== false) throw new Error("Unknown sandbox state")
   const command = typeof fix === "string" ? fix.trim() : ""
-  const plain = command.length <= maxFixLength && command.replace(controls, "") === command
+  const plain = command.length <= maxFixLength && !unsafeInLine.test(command)
   return { sandboxed: false, fix: plain ? command : "" }
 }
 
@@ -258,7 +257,7 @@ const plainLine = (value: unknown, max = maxUninstallText): value is string =>
   typeof value === "string" &&
   value !== "" &&
   value.length <= max &&
-  value.replace(controls, "") === value &&
+  !unsafeInLine.test(value) &&
   value.trim() === value
 
 // The app's account of what uninstalling would do, as the page takes it. An answer that
