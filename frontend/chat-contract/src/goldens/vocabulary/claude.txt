@@ -44,3 +44,7 @@ user: /review the open pull request
 assistant: Reviewing it.
 user: !ls gone
 tools: Ran [run] · ls gone | Call: Bash: 1 line: ls gone → 1 line: Command failed: Working directory "/home/user/g…
+
+# novadeck-reports
+user: Wrap up.
+tools: [4 tool calls · Reported done, Drafted feedback, Looked at the page] Reported done [agent] · Chat contract hardened | Call: mcp__plugin_novadeck_novadeck__done: 2 lines: subject: Chat contract hardened → 1 line: Reported.; Drafted feedback [agent] · bug | Call: mcp__plugin_novadeck_novadeck__feedback: 2 lines: kind: bug → 1 line: Drafted.; Looked at the page [web] · http://localhost:5173 | Call: mcp__plugin_novadeck_novadeck__look: 1 line: {"url":"http://localhost:5173"} → 1 line: Looked; Looked at the page [web] | Call: mcp__plugin_novadeck_novadeck__look: empty → 1 line: Looked
