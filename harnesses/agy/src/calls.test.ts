@@ -1,4 +1,5 @@
 import type { Report } from "@novadeck/harness-core/report"
+import { agentDetail, agentLimits } from "@novadeck/protocol"
 import { describe, expect, it } from "vitest"
 
 import { hook } from "./report.test-support.js"
@@ -11,7 +12,7 @@ describe("an Antigravity tool call", () => {
   it.each([
     ["call_mcp_tool", { ServerName: "novadeck_novadeck", ToolName: "send" }, "novadeck"],
     ["call_mcp_tool", { ServerName: '"novadeck_novadeck"', ToolName: "new_tool" }, "novadeck"],
-    ["call_mcp_tool", { ServerName: "novadeck", ToolName: "send" }, "work"],
+    ["call_mcp_tool", { ServerName: "novadeck", ToolName: "send" }, "novadeck"],
     ["call_mcp_tool", { ServerName: "other", ToolName: "send" }, "work"],
     ["call_mcp_tool", {}, "work"],
     ["read_file", { file_path: "/h/.agy/mcp/novadeck_novadeck/tools/send.json" }, "novadeck"],
@@ -29,7 +30,9 @@ describe("an Antigravity tool call", () => {
     ["run_command", {}, "work"],
     ["write_file", { file_path: "/a" }, "work"],
     ["ask_question", {}, "work"],
-    ["mcp_novadeck_novadeck_send", {}, "work"],
+    ["mcp_novadeck_novadeck_send", {}, "novadeck"],
+    ["mcp_novadeck_novadeck_new_tool", {}, "novadeck"],
+    ["mcp_novadeck_other_send", {}, "work"],
   ] as const)("%s %j is %s", (tool, args, kind) => {
     expect(kindOf(tool, args)).toBe(kind)
   })
@@ -102,6 +105,41 @@ describe("an Antigravity tool call", () => {
       "attention-requested",
       "tool-called",
     ])
+  })
+
+  it("asks ask_question's question cut to what the protocol takes, as the other harnesses do", () => {
+    const asked = hook("PreToolUse", {
+      stepIdx: 4,
+      toolCall: {
+        name: "ask_question",
+        args: {
+          questions: [
+            {
+              question: "q".repeat(2000),
+              options: Array.from({ length: 20 }, (_, index) => `${index}`.repeat(300)),
+            },
+          ],
+        },
+      },
+    }).find(({ type }) => type === "attention-requested")
+    if (asked?.type !== "attention-requested") throw new Error("no request")
+    expect(asked.subject).toHaveLength(agentLimits.subject)
+    expect(asked.choices).toHaveLength(agentLimits.choices)
+    expect(asked.choices.every((choice) => choice.length <= agentLimits.name)).toBe(true)
+    // As the agent's detail carries it, which refuses anything longer.
+    const request = agentDetail.shape.requests.element.pick({ subject: true, choices: true })
+    const { subject, choices } = asked
+    expect(request.safeParse({ subject, choices }).success).toBe(true)
+  })
+
+  it("offers no empty choice, as the other harnesses offer none", () => {
+    const asked = hook("PreToolUse", {
+      toolCall: {
+        name: "ask_question",
+        args: { questions: [{ question: "Which?", options: ["", "a", 3, "b"] }] },
+      },
+    }).find(({ type }) => type === "attention-requested")
+    expect(asked).toMatchObject({ choices: ["a", "b"] })
   })
 
   it("is not reported by its other hooks, or by a PreToolUse naming no call", () => {

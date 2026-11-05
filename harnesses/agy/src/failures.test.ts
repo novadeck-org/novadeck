@@ -80,6 +80,13 @@ describe("Antigravity's edit tools", () => {
     expect(named("read_file")).toEqual([])
   })
 
+  it("name the file when the hook quotes it a second time, as the transcript does", () => {
+    const quoted = hook("PostToolUse", {
+      toolCall: { name: "write_file", args: { Path: '"/w/c.ts"' } },
+    }).filter(({ type }) => type === "file-touched")
+    expect(quoted).toMatchObject([{ path: "/w/c.ts" }])
+  })
+
   it("name none for a read, a relative path or a call that failed", () => {
     expect(touched("view_file")).toEqual([])
     expect(
