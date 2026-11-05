@@ -10,7 +10,7 @@ import type {
 
 import { webAddress } from "./address.js"
 import { lockedPreferences } from "./lockdown.js"
-import { chromeMajorOf, phoneEmulation, phoneUserAgent } from "./phone.js"
+import { chromeMajorOf, phoneEmulation, phoneTouch, phoneUserAgent } from "./phone.js"
 import { originOf, type PageRequestFailure } from "./trouble.js"
 import { within } from "./wait.js"
 
@@ -79,10 +79,107 @@ export const phoneWaitMs = 2_000
 // The page views acting as a phone's.
 const phones = new WeakSet<WebContents>()
 
-// A page view as itself: the protocol let go, which undoes all it set, and the session's
-// user agent back.
+// A phone is touched, not pointed at: over it the mouse taps and swipes, as a finger would.
+// Chromium has one switch for that in a whole window, its page views included, so left on
+// for a phone's view it has the mouse touch the app's own page too: a tap's cursor all over
+// it, nothing hovered, and every drag a swipe. So it's on only while the pointer is over a
+// phone's view, and off again as the pointer goes back to the app's page.
+
+// What the main process sees of the mouse on its way to a page: Electron's
+// `before-mouse-event`, whose `button` is "none" with none down, which its type leaves out.
+type Mouse = { readonly type: string; readonly button?: string }
+type MouseHeard = (event: { preventDefault: () => void }, mouse: Mouse) => void
+
+// A button is down: partway through a tap or a swipe, which switching the mouse over would
+// cut short.
+const held = (mouse: Mouse): boolean => mouse.button !== undefined && mouse.button !== "none"
+// The pointer moving freely, no button down.
+const roams = (mouse: Mouse): boolean => mouse.type === "mouseMove" && !held(mouse)
+
+// The phone's view the mouse touches in each app window, and how the window stops watching
+// for the pointer to come back to its own page.
+const touched = new WeakMap<
+  WebContents,
+  { readonly page: WebContents; readonly unwatch: () => void }
+>()
+
+// Sends the switch to `contents`' DevTools protocol; one that can't take it is left be.
+const switchTouch = async (contents: WebContents, on: boolean): Promise<void> => {
+  try {
+    await contents.debugger.sendCommand(...phoneTouch(on))
+  } catch {
+    // Gone, or its protocol let go: nothing of it is left to switch.
+  }
+}
+
+// Turns the switch off through the app's own page, for a phone that's gone: it left the
+// switch on, with no protocol of its own left to turn it off. The app's page is held by the
+// protocol only as long as that takes; where DevTools already holds it, the mouse stays as
+// it is.
+const pointThrough = async (app: WebContents): Promise<void> => {
+  try {
+    if (app.isDestroyed() || app.debugger.isAttached()) return
+    app.debugger.attach("1.3")
+    await switchTouch(app, false)
+    if (!app.isDestroyed()) app.debugger.detach()
+  } catch {
+    // Left touching: nothing here can reach the switch.
+  }
+}
+
+// The mouse points again in the window of `app`, off the phone it touched.
+const point = (app: WebContents): void => {
+  const was = touched.get(app)
+  if (!was) return
+  touched.delete(app)
+  was.unwatch()
+  void (was.page.isDestroyed() ? pointThrough(app) : switchTouch(was.page, false))
+}
+
+// The mouse touches the phone's view `page` in the window of `app`, until the pointer is
+// back on the app's own page, there or over what took a gone phone's place.
+const touch = (app: WebContents, page: WebContents): void => {
+  if (touched.get(app)?.page === page) return
+  point(app)
+  const back: MouseHeard = (_event, mouse) => {
+    if (page.isDestroyed() || roams(mouse)) point(app)
+  }
+  app.on("before-mouse-event", back)
+  touched.set(app, { page, unwatch: () => app.off("before-mouse-event", back) })
+  void switchTouch(page, true)
+}
+
+// The page views whose pointer is followed, each once.
+const followed = new WeakSet<WebContents>()
+
+// Follows the pointer over a page view of an app window, for the mouse to touch it while
+// it's a phone's: from the pointer's first move over it, which the page never sees, as a
+// phone is never pointed at, until it leaves, unless it leaves mid-swipe, which ends where
+// the button is let go.
+const follow = (page: WebContents): void => {
+  if (followed.has(page) || !page.hostWebContents) return
+  followed.add(page)
+  const over: MouseHeard = (event, mouse) => {
+    const app = page.hostWebContents
+    if (!app || !phones.has(page)) return
+    const touching = touched.get(app)?.page === page
+    if (touching) {
+      if (mouse.type === "mouseLeave" && !held(mouse)) point(app)
+      return
+    }
+    if (!roams(mouse)) return
+    event.preventDefault()
+    touch(app, page)
+  }
+  page.on("before-mouse-event", over)
+}
+
+// A page view as itself: the mouse off it, the protocol let go, which undoes all it set, and
+// the session's user agent back.
 const unemulate = (page: WebContents): void => {
   phones.delete(page)
+  const app = page.hostWebContents
+  if (app && touched.get(app)?.page === page) point(app)
   if (page.debugger.isAttached()) page.debugger.detach()
   page.setUserAgent(page.session.getUserAgent())
 }
@@ -97,6 +194,7 @@ const emulate = async (page: WebContents, phone: boolean): Promise<boolean> => {
       return true
     }
     phones.add(page)
+    follow(page)
     if (!page.debugger.isAttached()) page.debugger.attach("1.3")
     page.setUserAgent(phoneAgent())
     await Promise.all(
@@ -130,11 +228,11 @@ const pageViewOf = (
 
 /**
  * Makes the page view `id` act as a phone's, as its viewer shows it at a phone's size, or
- * as itself again: a phone's screen and layout, a pointer that touches, and a phone's
- * browser in its user agent and client hints. What it loads from then on is a phone's; a
- * document already loaded is told of its new screen and pointer, but not what it runs on,
- * so its viewer loads it again. False unless `id` is a page view of `app`, as for
- * `picturePage`, and when it can't.
+ * as itself again: a phone's screen and layout, touched by the mouse while the pointer is
+ * over it, and a phone's browser in its user agent and client hints. What it loads from
+ * then on is a phone's; a document already loaded is told of its new screen and pointer,
+ * but not what it runs on, so its viewer loads it again. False unless `id` is a page view of
+ * `app`, as for `picturePage`, and when it can't.
  */
 export const phonePage = async (
   app: WebContents,
