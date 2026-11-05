@@ -93,7 +93,10 @@ export const commandFolder = (
 }
 
 /**
- * The path rules a harness's paths follow, from one of its paths: Windows' for a drive
+ * The path rules a harness's paths follow, from the one a command resolves against, unlike
+ * `paths`' `flavourOf`, which reads any path: only an absolute anchor names Windows here (a
+ * relative `src\\a` says nothing of the folder it resolves in), and `//host/x` and a bare
+ * `C:` do, as an agent's cwd may be written so. Windows' for a drive
  * (`C:\\…`, `C:/…`) or a share (`\\\\host\\…`), else POSIX's, whatever the runner runs on,
  * so a Windows agent's native paths resolve as Windows paths and a test can give either.
  */
