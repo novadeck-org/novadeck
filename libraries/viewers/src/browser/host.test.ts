@@ -418,16 +418,33 @@ describe("a page signing in with a passkey it doesn't name", () => {
 })
 
 describe("a page view's sign-in windows", () => {
+  const opened = () => Object.assign(new EventEmitter(), { webContents: new EventEmitter() })
+
   it("are counted as each opens and closes", () => {
     const contents = Object.assign(new EventEmitter(), { isDestroyed: () => false })
     const counts: number[] = []
     countSignIns(contents as unknown as WebContents, (open) => counts.push(open))
-    const first = new EventEmitter()
-    const second = new EventEmitter()
+    const first = opened()
+    const second = opened()
     contents.emit("did-create-window", first)
     contents.emit("did-create-window", second)
     first.emit("closed")
     second.emit("closed")
+    expect(counts).toEqual([1, 2, 1, 0])
+  })
+
+  it("count the windows a sign-in window opens too, as an account chooser", () => {
+    const contents = Object.assign(new EventEmitter(), { isDestroyed: () => false })
+    const counts: number[] = []
+    countSignIns(contents as unknown as WebContents, (open) => counts.push(open))
+    const signIn = opened()
+    const chooser = opened()
+    contents.emit("did-create-window", signIn)
+    signIn.webContents.emit("did-create-window", chooser)
+    // The sign-in window goes, its chooser still open.
+    signIn.emit("closed")
+    expect(counts.at(-1)).toBe(1)
+    chooser.emit("closed")
     expect(counts).toEqual([1, 2, 1, 0])
   })
 
@@ -436,7 +453,7 @@ describe("a page view's sign-in windows", () => {
     const contents = Object.assign(new EventEmitter(), { isDestroyed: () => gone })
     const counts: number[] = []
     countSignIns(contents as unknown as WebContents, (open) => counts.push(open))
-    const window = new EventEmitter()
+    const window = opened()
     contents.emit("did-create-window", window)
     gone = true
     expect(() => window.emit("closed")).not.toThrow()

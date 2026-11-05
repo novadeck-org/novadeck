@@ -401,19 +401,24 @@ export const pictureForApp = async (
 }
 
 /**
- * Tells how many sign-in windows a page view has open as each opens or closes. Electron
- * closes them when the view goes, so its app keeps the view live while any is open. A
- * view gone first, its windows closing after it, has no one left to tell.
+ * Tells how many sign-in windows a page view has open as each opens or closes, with those
+ * they open in turn, as an account chooser. Electron closes them when the view goes, so its
+ * app keeps the view live while any is open. A view gone first, its windows closing after
+ * it, has no one left to tell.
  */
 export const countSignIns = (contents: WebContents, tell: (open: number) => void): void => {
   let open = 0
-  contents.on("did-create-window", (window) => {
-    tell(++open)
-    window.once("closed", () => {
-      open -= 1
-      if (!contents.isDestroyed()) tell(open)
+  const watch = (opener: WebContents): void => {
+    opener.on("did-create-window", (window) => {
+      tell(++open)
+      window.once("closed", () => {
+        open -= 1
+        if (!contents.isDestroyed()) tell(open)
+      })
+      watch(window.webContents)
     })
-  })
+  }
+  watch(contents)
 }
 
 /**
