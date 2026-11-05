@@ -72,6 +72,12 @@ unsafe extern "system" {
     fn OpenThread(access: u32, inherit: i32, thread: u32) -> *mut c_void;
     fn ResumeThread(thread: *mut c_void) -> u32;
     fn CloseHandle(handle: *mut c_void) -> i32;
+    fn GetLastError() -> u32;
+}
+
+/// What failed, with the error Windows gave for it.
+fn failed(what: &str) -> String {
+    format!("{what} failed (error {})", unsafe { GetLastError() })
 }
 
 /// A job object that ends every process in it at once, whatever parent each records: as a
@@ -86,31 +92,41 @@ pub struct Job {
 
 impl Job {
     /// `command` started in a new job with `limits` (`KILL_ON_CLOSE`, `BREAKAWAY_OK`):
-    /// suspended until it is in the job, so nothing it starts can escape it. None where
-    /// Windows refuses any of that, when nothing of `command` has run.
+    /// suspended until it is in the job, so nothing it starts can escape it. Where Windows
+    /// refuses any of that, nothing of `command` has run, and the error says which step.
     pub fn start(
         command: &mut std::process::Command,
         limits: u32,
-    ) -> Option<(std::process::Child, Job)> {
+    ) -> Result<(std::process::Child, Job), String> {
         use std::os::windows::io::AsRawHandle;
         use std::os::windows::process::CommandExt;
 
         let handle = unsafe { CreateJobObjectW(std::ptr::null_mut(), std::ptr::null()) };
         if handle.is_null() {
-            return None;
+            return Err(failed("CreateJobObjectW"));
         }
         let job = Job { handle, limits };
         if !job.limit(limits) {
-            return None;
+            return Err(failed("SetInformationJobObject"));
         }
-        let mut child = command.creation_flags(CREATE_SUSPENDED).spawn().ok()?;
-        let assigned = unsafe { AssignProcessToJobObject(job.handle, child.as_raw_handle()) } != 0;
-        if !assigned || !resume(child.id()) {
+        let mut child = command
+            .creation_flags(CREATE_SUSPENDED)
+            .spawn()
+            .map_err(|error| format!("starting it suspended failed ({error})"))?;
+        let refused = if unsafe { AssignProcessToJobObject(job.handle, child.as_raw_handle()) } == 0
+        {
+            Some(failed("AssignProcessToJobObject"))
+        } else if !resume(child.id()) {
+            Some(failed("ResumeThread"))
+        } else {
+            None
+        };
+        if let Some(refused) = refused {
             let _ = child.kill();
             let _ = child.wait();
-            return None;
+            return Err(refused);
         }
-        Some((child, job))
+        Ok((child, job))
     }
 
     /// Sets the job's limits to `flags`; false where Windows refuses.
@@ -153,10 +169,14 @@ impl Drop for Job {
 
 /// Resumes the threads of process `pid`, started suspended; false where none resumed.
 fn resume(pid: u32) -> bool {
-    let snapshot = unsafe { CreateToolhelp32Snapshot(SNAPSHOT_THREADS, 0) };
-    if snapshot.is_null() || snapshot == INVALID_HANDLE {
+    // A snapshot can fail while processes start and end around it (ERROR_BAD_LENGTH, which
+    // its documentation says to try again on): a few tries before the job is given up.
+    let snapshot = (0..5)
+        .map(|_| unsafe { CreateToolhelp32Snapshot(SNAPSHOT_THREADS, 0) })
+        .find(|snapshot| !snapshot.is_null() && *snapshot != INVALID_HANDLE);
+    let Some(snapshot) = snapshot else {
         return false;
-    }
+    };
     let mut entry = ThreadEntry {
         size: size_of::<ThreadEntry>() as u32,
         usage: 0,
