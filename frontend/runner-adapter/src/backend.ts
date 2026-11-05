@@ -585,13 +585,25 @@ export const runnerBackend = (
   }
 
   // Runs `operation` once `ready` settles well; resolves whether both succeeded.
-  const after = (ready: Promise<boolean>, operation: () => Promise<unknown>): Promise<boolean> =>
+  // A refusal is reported, once per `what`: it is asked for again, and may be refused again.
+  const refusedOnce = new Set<string>()
+  const after = (
+    ready: Promise<boolean>,
+    operation: () => Promise<unknown>,
+    what?: string,
+  ): Promise<boolean> =>
     track(
       ready.then((ok) =>
         ok
           ? untilAnswered(operation, { done: ["CONFLICT"] }).then(
               () => true,
-              () => false,
+              (error: unknown) => {
+                if (what !== undefined && !(error instanceof Cancelled) && !refusedOnce.has(what)) {
+                  refusedOnce.add(what)
+                  reportCaught(error)
+                }
+                return false
+              },
             )
           : false,
       ),
@@ -621,8 +633,11 @@ export const runnerBackend = (
     attempt(
       projects,
       project.id,
-      after(created, () =>
-        runner.projects.create({ id: project.id, name: project.name, cwd: project.directory }),
+      after(
+        created,
+        () =>
+          runner.projects.create({ id: project.id, name: project.name, cwd: project.directory }),
+        project.id,
       ),
     )
   const sessionReady = (project: WorkspaceProject, session: WorkspaceSession): Promise<boolean> =>
@@ -630,8 +645,10 @@ export const runnerBackend = (
     attempt(
       sessions,
       session.id,
-      after(projectReady(project), () =>
-        runner.sessions.create({ id: session.id, projectId: project.id, name: session.name }),
+      after(
+        projectReady(project),
+        () => runner.sessions.create({ id: session.id, projectId: project.id, name: session.name }),
+        session.id,
       ),
     )
   // The same by the session's id; undefined for one the workspace doesn't hold.
@@ -1437,12 +1454,18 @@ export const runnerBackend = (
           answer,
         })
       } catch (error) {
-        // The agent hears at once rather than wait out its time limit; the stream goes on.
-        answer({
-          reason: launchFailure({
-            ...(request.command !== undefined && { command: request.command }),
-          }),
-        })
+        // The agent hears at once rather than wait out its time limit; the stream goes on. A
+        // terminal the app added before it threw may well start, so the answer follows it.
+        const added = [...launches].find(([, launch]) => launch.requestId === request.requestId)
+        answer(
+          added
+            ? { terminalId: added[0] }
+            : {
+                reason: launchFailure({
+                  ...(request.command !== undefined && { command: request.command }),
+                }),
+              },
+        )
         throw error
       } finally {
         opening = undefined

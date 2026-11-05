@@ -305,7 +305,7 @@ describe("the runner's companion content", () => {
       expect(rejected.reason).toBe("too-large")
     }
     expect(app.saves).toEqual([])
-    // One at the limit that fits goes as usual.
+    // A big one that fits goes as usual.
     const fits = "#".repeat(200 * 1024)
     await app.companions.save(target, hero, fits, "a1")
     expect(app.saves.map((each) => each.text.length)).toEqual([fits.length])

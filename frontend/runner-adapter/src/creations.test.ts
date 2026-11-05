@@ -5,6 +5,7 @@ import { vi } from "vitest"
 
 import { startingTerminal } from "./sessions/seed"
 import { context, describe, expect, it } from "./test"
+import { catchReports } from "./testing/reported"
 import { id, scripted } from "./testing/scripted"
 
 vi.setConfig({ testTimeout: 10_000 })
@@ -39,9 +40,17 @@ describe("the projects and sessions a window creates on the runner", () => {
         activate: false,
         session: emptySession(fresh, "Fresh"),
       })
-      await vi.waitFor(() => expect(app.of("create session")).not.toEqual([]))
-      await app.idle()
+      const { reported, restore } = catchReports()
+      try {
+        await vi.waitFor(() => expect(app.of("create session")).not.toEqual([]))
+        await app.idle()
+      } finally {
+        restore()
+      }
       const refused = app.of("create session").length
+      // Asked for again, and refused again, it is reported once.
+      expect(refused).toBeGreaterThan(1)
+      expect(reported).toEqual([expect.objectContaining({ code: "INTERNAL_ERROR" })])
 
       refusing = false
       const terminal = startingTerminal(id(21), "/tmp")
@@ -88,11 +97,12 @@ describe("the projects and sessions a window creates on the runner", () => {
       // Waiting for the runner as the window stops, as before a reload, or in development as
       // React runs the effects twice.
       app.stop()
-      await new Promise((resolve) => setTimeout(resolve, 800))
+      // The wait for the runner gives up, and lets go of its status watch, as the stop did of
+      // its own.
+      await vi.waitFor(() => expect(app.statuses.returned()).toBe(2))
+      await app.idle()
       expect(app.of("create session")).toEqual([])
       expect(app.of("create")).toEqual([])
-      // The wait for the runner let go of its status watch, as the stop did of its own.
-      expect(app.statuses.returned()).toBe(2)
 
       const received: BackendAction[] = []
       const again = app.backend.start!({
