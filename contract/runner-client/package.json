@@ -14,6 +14,7 @@
   },
   "scripts": {
     "build": "tsc -p tsconfig.build.json",
+    "test": "vitest run",
     "typecheck": "tsc --noEmit -p tsconfig.json"
   },
   "dependencies": {
@@ -21,6 +22,8 @@
     "@novadeck/wire": "workspace:*"
   },
   "devDependencies": {
-    "typescript": "^7.0.2"
+    "@orpc/server": "catalog:",
+    "typescript": "^7.0.2",
+    "vitest": "^5.0.5"
   }
 }
