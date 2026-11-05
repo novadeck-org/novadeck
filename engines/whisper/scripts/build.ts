@@ -47,6 +47,15 @@ export const main = (): Promise<void> =>
     // is still fetching this engine does not dictate with an older one that would not
     // understand the runner (see olderEngine in backend/runner/src/engines/unpack.ts).
     engineInterface: 1,
+    // In the order they apply. The three server patches change server.cpp one after the
+    // other, each from the lines the one before it left: loopback-only from
+    // exit-with-stdin's, and no-load-route from loopback-only's.
+    patches: [
+      "exit-with-stdin.patch",
+      "loopback-only.patch",
+      "no-load-route.patch",
+      "reuse-language-encode.patch",
+    ],
     target: "whisper-server",
     executable: "whisper-server",
     options: [

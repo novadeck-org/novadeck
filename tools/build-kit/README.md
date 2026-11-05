@@ -8,13 +8,15 @@ policy, so it needs no library fences.
   Security Policy. `connectSourcesPlaceholder`, which every app's `index.html` holds, becomes
   the sources `connect(build)` gives for the build's `mode`, `command` and environment: the
   variables of the env files the app's build reads, with `envPrefix` (the app's own by
-  default; never empty), the process's before the files'. A page without the placeholder
-  fails the build.
+  default; never empty), the process's before the files'. Every placeholder is filled, each
+  source as it is; a page without the placeholder, or still holding it once filled, fails the
+  build.
 - `connectSources({ runner, development })` (`/connect-sources`, with nothing of Vite, so an
   app's tests can read its policy anywhere), the sources of an app that talks to services on
   loopback, and where configured to a WebSocket runner elsewhere; while served, the
   development server's WebSocket on loopback too. The runner's URL comes with the setting that
-  names it, for its errors. `configuredSources(build)` is that for a build as it is
+  names it, for its errors, and must name its host with letters, digits, dots and hyphens (or
+  an IPv6 address), so it can't end the page's attribute or add a directive. `configuredSources(build)` is that for a build as it is
   configured: the runner `VITE_NOVADECK_RUNNER_URL` names, which every app's `connect` uses.
 - `hostingHeaders({ rules })` emits a build's `_headers` file where `rules(mode)` has any;
   `headersFile(rules)` writes one, each path then its headers. A host applies every rule a
@@ -27,16 +29,22 @@ policy, so it needs no library fences.
 - `bundleChecks({ utilities, budgets })` (`/bundle-checks`) fails a build that loads the
   terminal emulator with its first chunk, draws terminals without their styles
   (`terminal-xterm.css`), or whose CSS lost a folder the UI's stylesheet scans for Tailwind
-  (`utilities` lists one utility from each: `frontendUtilities` for the visitor build and
-  the preview, `desktopUtilities` for the desktop app, which adds the UI's own; a scanned
-  folder that writes no utility only it writes is in `unguardedFolders` instead). It fails
+  (`utilities` lists one utility from each: `frontendUtilities`, the UI's own among them, for
+  every app; a scanned folder that writes no utility only it writes is in `unguardedFolders`
+  instead). It fails
   too when the build holds nothing for these checks to read. With `budgets` it also fails a
   build that weighs too much: `first`, what the page loads first, its scripts and styles
   gzipped and every woff2 font they declare, and `demo`, the module `demoModule` names with
   what it loads and the first chunk does not. The visitor build sets them in
   `apps/try/vite.config.ts`; the others have none.
-- `unit()` (`/vitest`), the jsdom `unit` project of the UI's packages' tests and the try
-  app's (`frontend/specs` runs projects of its own, and `frontend/test-kit` has no tests).
+- `unit()` (`/vitest`), the jsdom `unit` project of the UI's packages' tests and of each app
+  with unit tests (its `vitest.config.ts` lists it), written as `.test.ts` or `.test.tsx`
+  (`frontend/specs` runs projects of its own, and `frontend/test-kit` has no tests).
+
+`tailwind-guards.test.ts` checks that each guard is a class only its folder can make: it reads
+what the UI's stylesheet scans as git lists it, and every stylesheet the build reads. Those
+files are other packages', so this package's `turbo.json` adds them to its `test` task's
+inputs; without them a local run would replay a cached pass after the guards broke.
 
 Each is a subpath of its own (`@novadeck/build-kit/content-security-policy`, `/connect-sources`,
 `/hosting-headers`, `/search-visibility`, `/fonts`, `/bundle-checks`, `/vitest`). It ships as

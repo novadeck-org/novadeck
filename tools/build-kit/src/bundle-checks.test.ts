@@ -1,9 +1,13 @@
+import { randomBytes } from "node:crypto"
+
 import { describe, expect, it } from "vitest"
 
 import {
   budgetViolations,
+  bundleChecks,
   firstChunkGaps,
   firstChunkViolations,
+  frontendUtilities,
   missingScreenStyles,
   missingUtilities,
   type Budgets,
@@ -96,6 +100,11 @@ describe("the terminal screens' styles", () => {
     expect(missingScreenStyles(bare)).toBe(true)
     expect(missingScreenStyles({})).toBe(true)
   })
+
+  it("fail a build whose only mention of the screen's host is another sheet's rule", () => {
+    for (const other of [".terminal-xterm{background:red}", ".terminal-xterm-frame .xterm{}"])
+      expect(missingScreenStyles({ "a.css": sheet(other) }), other).toBe(true)
+  })
 })
 
 describe("the folders Tailwind scans", () => {
@@ -131,6 +140,7 @@ describe("the folders Tailwind scans", () => {
 })
 
 describe("a build's budgets", () => {
+  // Budgets of this test's own: the numbers are arbitrary, not an app's.
   const visitorBudgets: Budgets = {
     first: 1_100_000,
     demo: 190_000,
@@ -223,5 +233,112 @@ describe("a build's budgets", () => {
       "assets/mono.woff2": { type: "asset", fileName: "assets/mono.woff2", source: bytes },
     }
     expect(budgetViolations(visitorBudgets, fonted, weigh)).toHaveLength(1)
+  })
+
+  it("counts a font declared with a query or a fragment after its file", () => {
+    for (const url of ["./mono.woff2?v=3", '"./mono.woff2#iefix"']) {
+      const declared = {
+        ...built(visitorBudgets.first - 10_000, 0),
+        "index.js": chunk("x".repeat(visitorBudgets.first - 10_000), {
+          isEntry: true,
+          imports: ["shared.js"],
+          viteMetadata: { importedCss: new Set(["assets/index.css"]) },
+        }),
+        "assets/index.css": {
+          type: "asset",
+          fileName: "assets/index.css",
+          source: `@font-face{src:url(${url})}`,
+        },
+        "assets/mono.woff2": {
+          type: "asset",
+          fileName: "assets/mono.woff2",
+          source: new Uint8Array(20_000),
+        },
+      }
+      expect(budgetViolations(visitorBudgets, declared, weigh), url).toHaveLength(1)
+    }
+  })
+})
+
+describe("the bundleChecks plugin", () => {
+  // A rule for each utility, as Tailwind writes its class.
+  const rules = frontendUtilities
+    .map(({ utility }) => `.${utility.replace(/[^\w-]/g, "\\$&")}{}`)
+    .join("")
+  const screens = ".terminal-xterm .xterm .xterm-viewport{}"
+  const xterm = "/work/node_modules/@xterm/xterm/lib/xterm.mjs"
+  // A bundle that passes every check, with `change` made to it.
+  const bundle = (change: Record<string, unknown> = {}) => ({
+    "index.js": {
+      type: "chunk",
+      isEntry: true,
+      imports: [],
+      modules: { [app]: {} },
+      code: "x",
+      viteMetadata: { importedCss: new Set(["index.css"]) },
+    },
+    "connect.js": {
+      type: "chunk",
+      modules: { [xterm]: {} },
+      code: "y",
+      facadeModuleId: "/work/frontend/demo/src/visitor/connect.ts",
+    },
+    "index.css": { type: "asset", fileName: "index.css", source: `${rules}${screens}` },
+    ...change,
+  })
+  const budgets: Budgets = {
+    first: 1_000,
+    demo: 1_000,
+    demoModule: "/frontend/demo/src/visitor/connect.ts",
+  }
+  // What the plugin reports for a build of `bundle` in the `try` mode, through Vite's `error`.
+  const errors = (built: Record<string, unknown>, options: { budgets?: Budgets } = {}) => {
+    const plugin = bundleChecks({ utilities: frontendUtilities, ...options })
+    ;(plugin.configResolved as (config: { mode: string }) => void)({ mode: "try" })
+    const reported: string[] = []
+    ;(plugin.generateBundle as (this: unknown, output: unknown, bundle: unknown) => void).call(
+      { error: (message: string) => void reported.push(message) },
+      {},
+      built,
+    )
+    return reported
+  }
+
+  it("runs only in builds", () => {
+    expect(bundleChecks({ utilities: frontendUtilities }).apply).toBe("build")
+  })
+
+  it("passes a bundle that holds what every check reads", () => {
+    expect(errors(bundle())).toEqual([])
+    expect(errors(bundle(), { budgets })).toEqual([])
+  })
+
+  it("fails a bundle each check rejects, naming the build's mode", () => {
+    const cases: [string, Record<string, unknown>, { budgets?: Budgets }?][] = [
+      ["holds nothing for checks to read", { "connect.js": { type: "chunk", modules: {} } }],
+      [
+        "loads the terminal emulator with its first chunk",
+        { "index.js": { ...bundle()["index.js"], modules: { [app]: {}, [xterm]: {} } } },
+      ],
+      [
+        "is over its budget",
+        // Text gzip can't shrink below the budget, as the plugin weighs it gzipped.
+        { "index.js": { ...bundle()["index.js"], code: randomBytes(5_000).toString("base64") } },
+        { budgets },
+      ],
+      [
+        "lost a folder Tailwind scans",
+        { "index.css": { type: "asset", fileName: "index.css", source: screens } },
+      ],
+      [
+        "draws terminals without their styles",
+        { "index.css": { type: "asset", fileName: "index.css", source: rules } },
+      ],
+    ]
+    for (const [what, change, options] of cases) {
+      const reported = errors(bundle(change), options)
+      expect(reported, what).toHaveLength(1)
+      expect(reported[0], what).toContain(`The try build ${what}`)
+    }
   })
 })

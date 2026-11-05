@@ -11,7 +11,7 @@ import {
   shellTail,
 } from "./agent"
 import { banner, openingBlocks } from "./openings"
-import { commandBlock, sampleBlocks } from "./samples"
+import { clock, commandBlock, hotUpdatesKept, sampleBlocks } from "./samples"
 import type { Block } from "./screen"
 import { plain, span, widthOf, type Line } from "./vt"
 
@@ -98,6 +98,22 @@ describe("the demo's sample output", () => {
       before.map((block) => read(block(80))),
     )
     expect(read(after.at(-1)!(80))).toBe("09:42:46 [vite] hmr update /src/cart/CartSummary.tsx")
+  })
+
+  it("keeps no more of the dev server's log than a terminal scrolls back to, its clock wrapping at midnight", () => {
+    const at = { directory: "~", projectName: "novadeck" }
+    const day = sampleBlocks("server", { ...at, beats: 10_000 })
+    // The opening lines, and the hot updates kept.
+    expect(day.length).toBeLessThanOrEqual(1 + hotUpdatesKept)
+    expect(day.length).toBeGreaterThan(1 + hotUpdatesKept / 2)
+    const last = read(day.at(-1)!(80))
+    expect(last).toMatch(/^([01]\d|2[0-3]):[0-5]\d:[0-5]\d \[vite\] hmr update /)
+    expect(clock(9 * 3600 + 15 * 3600)).toBe("00:00:00")
+    // One beat more appends its update, the rest drawing as they did.
+    const next = sampleBlocks("server", { ...at, beats: 10_001 })
+    expect(next.slice(0, day.length).map((block) => read(block(80)))).toEqual(
+      day.map((block) => read(block(80))),
+    )
   })
 
   it("writes a typed command and its reply apart from what came before", () => {

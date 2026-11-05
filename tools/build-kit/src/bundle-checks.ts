@@ -104,7 +104,9 @@ export const firstChunkViolations = (bundle: Readonly<Record<string, BuiltChunk>
 // The rule every build that draws terminals must carry: where xterm draws in a screen's host
 // (frontend/terminal-views/src/terminal-xterm.css). A build that lost its terminal styles still
 // draws, but with xterm's black viewport and its wide scrollbar, which nothing else catches.
-const screenRule = ".terminal-xterm"
+// The whole selector, which only that sheet writes: another rule that names the host, such as
+// a theme's, is not it.
+const screenRule = ".terminal-xterm .xterm .xterm-viewport"
 
 // Whether a build lacks the terminal screens' styles, which every build draws its terminals
 // with: the desktop app's pages the runner's, the visitor build and the preview the demo's.
@@ -140,9 +142,7 @@ export const missingUtilities = (
 // every woff2 font those styles declare, in bytes as they are, though a browser fetches only
 // the faces the page draws with), and the demo, which loads with its connection, the terminal
 // emulator among it (scripts and styles gzipped), found by the module its chunk is named for.
-// The visitor build's are set from the first build with the demo drawn as terminals, 1,058 kB
-// (663 kB of it the eleven fonts declared; main's first load weighed the same) and 172 kB,
-// with room to grow; the website's hero waits on both.
+// An app with budgets sets them in its own vite.config.ts (the visitor build's, today).
 export type Budgets = { readonly first: number; readonly demo: number; readonly demoModule: string }
 
 // A built chunk's code, the module it stands for and the styles it brings, or an asset's
@@ -181,9 +181,12 @@ export const budgetViolations = (
   const fonts = (sheets: Iterable<string>): number => {
     const named = new Set(
       [...sheets].flatMap((sheet) =>
-        [...textOf(bundle[sheet]?.source).matchAll(/url\(["']?([^)"']+\.woff2)["']?\)/g)].map(
-          ([, url]) => baseName(url!),
-        ),
+        // A font's file, without any query or fragment after it (`x.woff2?v=3`, `x.woff2#x`).
+        [
+          ...textOf(bundle[sheet]?.source).matchAll(
+            /url\(["']?([^)"'?#]+\.woff2)(?:[?#][^)"']*)?["']?\)/g,
+          ),
+        ].map(([, url]) => baseName(url!)),
       ),
     )
     return Object.entries(bundle)
@@ -206,8 +209,10 @@ export const budgetViolations = (
 }
 
 // The utilities every frontend build's CSS must hold, one from each folder the UI's stylesheet
-// scans (its `@source` lines): a scan that lost a folder would drop its looks without failing
-// anything else. Each is a utility that only its folder writes (tailwind-guards.test.ts checks
+// scans (its `@source` lines), the UI's own among them: a scan that lost a folder would drop
+// its looks without failing anything else. Every build's config is outside the UI's folder,
+// in apps/, and the sheet scans nothing it doesn't name (`source(none)`), so every build
+// guards the UI's folder as it does the others. Each is a utility that only its folder writes (tailwind-guards.test.ts checks
 // that no other scanned file does), and each is written here in halves: Tailwind scans no file
 // of this package, but a whole copy anywhere it does scan would make the class itself, and the
 // check would pass however much the scan lost. Do not quote one whole in a comment either.
@@ -216,14 +221,7 @@ export const frontendUtilities: readonly ScannedUtility[] = [
   { folder: "frontend/demo-debug/", utility: ["h-[min(760px,", "calc(100vh-80px))]"].join("") },
   { folder: "frontend/demo/", utility: ["under", "line"].join("") },
   { folder: "frontend/toolkit/", utility: ["cursor-[", "inherit]"].join("") },
-]
-
-/**
- * The desktop app's pages, whose config is outside the UI's folder: the UI's own utility as
- * well, the workspace header's.
- */
-export const desktopUtilities: readonly ScannedUtility[] = [
-  ...frontendUtilities,
+  // The workspace header's.
   {
     folder: "frontend/ui/",
     utility: ["grid-cols-[minmax(0,1fr)_auto", "_minmax(0,1fr)]"].join(""),

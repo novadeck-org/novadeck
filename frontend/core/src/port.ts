@@ -95,7 +95,8 @@ export type ViewState = {
   readonly waits: boolean
   // Why input is refused; null while it takes input.
   readonly lock: TerminalLock | null
-  // Why the last paste failed, for a few seconds after it did.
+  // A short word for the person: why the last paste failed, for a few seconds after it
+  // did, or that a copy reached the clipboard, for a moment.
   readonly notice: string | null
 }
 // The terminal font from Preferences, in CSS pixels.

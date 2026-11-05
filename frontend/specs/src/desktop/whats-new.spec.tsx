@@ -1,13 +1,7 @@
-import { beforeEach } from "vitest"
+import { onTestFinished } from "vitest"
 import { page, type Locator } from "vitest/browser"
 
-import {
-  forgetUpdates,
-  reportProgress,
-  startDownload,
-  whatsNewAsked,
-  whatsNewCalls,
-} from "../support/backend"
+import { reportProgress, startDownload, whatsNewAsked, whatsNewCalls } from "../support/backend"
 import { findDialog, pressShortcut } from "../support/keyboard"
 import {
   commandInput,
@@ -35,8 +29,6 @@ const slow = { timeout: 12_000 }
 const cardElement = (): Element | null => document.querySelector(".whats-new")
 
 describe("the what's-new card", () => {
-  beforeEach(forgetUpdates)
-
   it("is absent where the app has no word of it", async () => {
     await openWorkspace()
     await expectStaysAbsent(card())
@@ -205,20 +197,17 @@ describe("the what's-new card", () => {
 
     it("keeps to the room between the header and the footer, scrolling its highlights", async () => {
       await page.viewport(1280, 520)
-      try {
-        await openWorkspace("/?update=whatsNewLong")
-        await expect.element(card()).toBeVisible()
-        const box = card().element().getBoundingClientRect()
-        const header = document.querySelector("header")?.getBoundingClientRect()
-        expect(box.top).toBeGreaterThanOrEqual(header?.bottom ?? 0)
-        await expect.element(closeButton()).toBeVisible()
-        const list = card().element().querySelector(".whats-new-list")!
-        expect(list.scrollHeight).toBeGreaterThan(list.clientHeight)
-        // Only a list that scrolls is a Tab stop.
-        await expect.poll(() => list.getAttribute("tabindex")).toBe("0")
-      } finally {
-        await page.viewport(1440, 900)
-      }
+      onTestFinished(() => page.viewport(1440, 900))
+      await openWorkspace("/?update=whatsNewLong")
+      await expect.element(card()).toBeVisible()
+      const box = card().element().getBoundingClientRect()
+      const header = document.querySelector("header")?.getBoundingClientRect()
+      expect(box.top).toBeGreaterThanOrEqual(header?.bottom ?? 0)
+      await expect.element(closeButton()).toBeVisible()
+      const list = card().element().querySelector(".whats-new-list")!
+      expect(list.scrollHeight).toBeGreaterThan(list.clientHeight)
+      // Only a list that scrolls is a Tab stop.
+      await expect.poll(() => list.getAttribute("tabindex")).toBe("0")
     })
 
     it("hands focus to the terminal when a download's bar takes the card's place", async () => {

@@ -4,6 +4,7 @@ import { afterEach } from "vitest"
 import { cdp } from "vitest/browser"
 
 import { describe, expect, it } from "./test"
+import { hasWebgl, requireWebglOnCi } from "./webgl"
 
 // A screen that changes renderer fits its slot again, so the two renderers must measure the same
 // cell, or the pty resizes (and an agent's TUI redraws) on every swap. WebGL's cell is whole
@@ -62,7 +63,8 @@ const fitted = (width: number, height: number, renderer: "dom" | "webgl") => {
   return view.fit()
 }
 
-const hasWebgl = Boolean(document.createElement("canvas").getContext("webgl2"))
+requireWebglOnCi()
+
 const boxes = [
   { width: 800, height: 400 },
   { width: 641, height: 333 },

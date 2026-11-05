@@ -820,9 +820,7 @@ describe("the tool vocabulary split by harness", () => {
           .filter((name) => !names.includes(name))
         const unusedSpellings = spellings
           .filter(([owner]) => owner !== harness)
-          .filter(
-            ([, pattern]) => !names.some((name) => pattern.test(name.replace(/^mcp__/i, "mcp__"))),
-          )
+          .filter(([, pattern]) => !names.some((name) => pattern.test(name)))
         expect([...new Set(unneeded)]).toEqual([])
         expect(unusedSpellings.map(([, pattern]) => String(pattern))).toEqual([])
       })
@@ -841,6 +839,10 @@ describe("the tool vocabulary split by harness", () => {
   }
 })
 
+// Antigravity's shell mode (`!` typed first) leaves no step in its transcript: on 1.4.12 the
+// shell-bang probe's commands ran, with no model call, and its steps went straight from the
+// prompt before them to the one after (probed 2026-11-05). A `!` pasted with the command
+// isn't shell mode; it reaches the model as a prompt. So it has no case here.
 describe("a command typed in shell mode", () => {
   const commands = [
     "ls -la",

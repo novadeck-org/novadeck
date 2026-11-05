@@ -35,7 +35,10 @@ export default defineConfig({
     bundleChecks({
       // One utility from each folder the UI's stylesheet scans: see the build kit.
       utilities: frontendUtilities,
-      // What the page loads first, and the demo, which loads with its connection.
+      // What the page loads first, and the demo, which loads with its connection; the
+      // website's hero waits on both. The first load's was set at 1.1 MB from the first build
+      // with the demo drawn as terminals (1,058 kB, 663 kB of it the eleven fonts declared),
+      // and raised to 1.3 MB in #439, when main sat about 100 bytes under it.
       budgets: {
         first: 1_300_000,
         demo: 190_000,

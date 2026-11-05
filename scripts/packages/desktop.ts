@@ -311,23 +311,6 @@ export const edits: readonly Edit[] = [
       "// Each entry's page, whichever app holds it: the desktop app's two (its own and the browser\n// app's), and the visitor build's and the content preview's.",
     why: "the two pages are the desktop app's",
   },
-  // The renderer's build guards a utility from the UI's own folder too, since its config is
-  // outside it; the guards' test keeps that utility as unique as the others.
-  {
-    file: "tools/build-kit/src/bundle-checks.ts",
-    before:
-      '  { folder: "frontend/demo/", utility: ["under", "line"].join("") },\n]\n\nexport type BundleChecks = {',
-    after:
-      '  { folder: "frontend/demo/", utility: ["under", "line"].join("") },\n]\n\n/**\n * The desktop app\'s pages, whose config is outside the UI\'s folder: the UI\'s own utility as\n * well, the workspace header\'s.\n */\nexport const desktopUtilities: readonly ScannedUtility[] = [\n  ...frontendUtilities,\n  {\n    folder: "frontend/ui/",\n    utility: ["grid-cols-[minmax(0,1fr)_auto", "_minmax(0,1fr)]"].join(""),\n  },\n]\n\nexport type BundleChecks = {',
-    why: "the desktop app's pages guard the UI's folder too, which their config is outside",
-  },
-  {
-    file: "tools/build-kit/src/tailwind-guards.test.ts",
-    before: "frontendUtilities",
-    after: "desktopUtilities",
-    why: "every guard the builds hold, the desktop app's among them",
-    all: true,
-  },
   // The UI's architecture test: the entries that connect to a runner leave it.
   {
     file: `${ui}/src/architecture.test.ts`,

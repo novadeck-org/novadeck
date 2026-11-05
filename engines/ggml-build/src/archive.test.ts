@@ -77,6 +77,18 @@ describe("the engine archive", () => {
     expect(() => pack([{ ...server, name: "x".repeat(101) }])).toThrow(/too long for the archive/)
   })
 
+  it("refuses a link that is not to a file beside it", () => {
+    for (const link of [
+      "x".repeat(101),
+      "/usr/lib/libggml.so",
+      "../libggml.so",
+      "lib/libggml.so",
+      "..",
+    ]) {
+      expect(() => pack([{ name: "libggml.so", link }])).toThrow(/which is not a file beside it/)
+    }
+  })
+
   it("extracts with the system tar", () => {
     const into = folder()
     writeFileSync(join(into, "engine.tar.gz"), pack([server, library]))

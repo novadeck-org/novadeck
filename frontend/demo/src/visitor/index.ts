@@ -53,7 +53,7 @@ export const visitorDemo = ({
       ...(ambient && !still && { introOf: life.introOf }),
     },
   })
-  const storied = story.wrap(withConversations(base, story.transcripts, turns))
+  const storied = story.wrap(withConversations(base, story.transcripts, turns, story.converse))
   const backend = withSource(
     withInbox(ambient && !still ? life.wrap(storied) : storied, turns),
     turns,

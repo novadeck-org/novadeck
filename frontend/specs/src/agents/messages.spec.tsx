@@ -1,6 +1,7 @@
 import { page, userEvent, type Locator } from "vitest/browser"
 
 import { windowMenu } from "../support/companions"
+import { expectStaysTrue } from "../support/layouts"
 import {
   bubbles,
   conversationRow,
@@ -383,8 +384,7 @@ describe("A team in the sidebar", () => {
     await expect.poll(lit).toBe(0)
     expect(resting()).toBe(1)
     // Past any measuring a press on the list set going.
-    await new Promise((resolve) => setTimeout(resolve, 700))
-    expect([resting(), lit()]).toEqual([1, 0])
+    await expectStaysTrue(() => resting() === 1 && lit() === 0, "the wire at rest", { ms: 700 })
     expect(document.querySelectorAll(".team-wire-segment")).toHaveLength(1)
   })
 

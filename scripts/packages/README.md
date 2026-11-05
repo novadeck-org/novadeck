@@ -358,8 +358,6 @@ doesn't track, it installs on every run, and a second run says there is nothing 
    - the README, the theming doc, the atlas's UI entry and the dev-web test follow;
    - the UI's architecture test (the runner adapter's entries) and the browser fence, which
      takes `apps/desktop/renderer` and leaves the app's `src/`, Node's;
-   - the build kit's `desktopUtilities`: the renderer's build guards the UI's own folder too, as
-     its config is outside it, and the guards' test keeps that utility unique.
 5. **On the run that moves the host alone** (while its `package.json` is at the old place), it
    makes what the move makes once. A later run, on a branch catching up, undoes nothing main
    changed since:

@@ -7,7 +7,12 @@ type Call = readonly [tool: string, args: object, result?: string]
 // A step list: the person's request, then the model's response with these calls, and each
 // call's result a step on, at the index the decoder pairs it by (the response's plus one
 // plus its place in its list).
-const turn = (request: string, answer: string, list: readonly Call[], from: number): object[] => [
+export const turn = (
+  request: string,
+  answer: string,
+  list: readonly Call[],
+  from: number,
+): object[] => [
   {
     step_index: from,
     source: "USER_EXPLICIT",
@@ -235,6 +240,25 @@ export const agyVocabulary: readonly Written[] = [
         ["run_command", { CommandLine: `echo ${"x".repeat(20_000)}` }, "y".repeat(20_000)],
         [`a_very_long_tool_name_${"z".repeat(300)}`, { path: "/home/user/project/f.ts" }, "fine"],
         ["unknown_tool", { query: "something" }, "result"],
+      ],
+      0,
+    ),
+  },
+  {
+    // Novadeck's reporting tools, their inputs' keys as Novadeck's server defines them and
+    // Claude Code's transcripts record them.
+    name: "novadeck-reports",
+    records: turn(
+      "Wrap up.",
+      "Reporting.",
+      [
+        [
+          `${novadeck}done`,
+          { subject: "Chat contract hardened", body: "Fixed four findings." },
+          "Reported.",
+        ],
+        [`${novadeck}feedback`, { kind: "bug", text: "The pane went blank." }, "Drafted."],
+        [`${novadeck}look`, { page: { url: "http://localhost:5173" } }, "Looked"],
       ],
       0,
     ),

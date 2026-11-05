@@ -2,6 +2,10 @@ import { unit } from "@novadeck/build-kit/vitest"
 import { playwright } from "@vitest/browser-playwright"
 import { configDefaults, defineConfig, type TestProjectInlineConfiguration } from "vitest/config"
 
+// On CI the specs that need WebGL2 fail where the browser has none, instead of skipping
+// (src/webgl.ts), unless NOVADECK_WEBGL_OPTIONAL=1 allows it.
+const webglRequired = Boolean(process.env.CI) && process.env.NOVADECK_WEBGL_OPTIONAL !== "1"
+
 // A project of specs that run a terminal in a real browser.
 const browserProject = (options: {
   readonly name: string
@@ -25,6 +29,7 @@ const browserProject = (options: {
     include: options.include ?? ["src/*.spec.ts"],
     exclude: [...configDefaults.exclude, ...(options.exclude ?? [])],
     testTimeout: 30_000,
+    provide: { webglRequired },
     browser: {
       enabled: true,
       headless: true,
