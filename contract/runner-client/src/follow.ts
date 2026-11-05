@@ -24,6 +24,18 @@ export const followRestarting = <T>(connection: RunnerWire, open: Open<T>, reset
   })
 
 /**
+ * `inbox.watch()`, `terminals.requests()` and the like, which follow something the runner
+ * always has: one stream per connection, opened again after each reconnection. The runner
+ * ends one only as it goes (while it shuts down, say), so an ended stream waits for the next
+ * session instead of opening again on this one.
+ */
+export const followSession = <T>(connection: RunnerWire, open: Open<T>) =>
+  follow(connection, {
+    open: (client, { signal }) => open(client, signal),
+    resume: { restart: true },
+  })
+
+/**
  * `terminals.watch()` and `companions.watch()`, which follow all of a kind on the runner: one
  * stream per connection, opened again after each reconnection, each opening with `reset`.
  */

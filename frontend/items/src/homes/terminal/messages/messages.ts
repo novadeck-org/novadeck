@@ -13,7 +13,7 @@ import {
 import type { WorkspaceAction } from "@novadeck/core/state"
 import type { Store, WorkspaceStore } from "@novadeck/core/store"
 import { type TerminalKey, terminalKeyPath, terminalKeyOfPath } from "@novadeck/core/types"
-import { useSyncExternalStore } from "react"
+import { useCallback, useSyncExternalStore } from "react"
 
 import { markSeen, seenAt, seenKey, seenStore } from "./seen"
 
@@ -68,8 +68,16 @@ export const useMessages = (messages: Messages | undefined, key: TerminalKey): M
   const paused = useMessagesPart(messages, (state) => state.paused)
   const pending = useMessagesPart(messages, (state) => state.pending)
   const error = useMessagesPart(messages, (state) => state.error)
-  const seen = seenStore()
-  const record = useSyncExternalStore(seen.subscribe, seen.getSnapshot)
+  const store = seenStore()
+  const record = useSyncExternalStore(store.subscribe, store.getSnapshot)
+  // The same while the terminal is, so an effect that marks what's seen runs only as what's
+  // on screen changes.
+  const pause = useCallback((next: boolean) => messages?.pause(next), [messages])
+  const seen = useCallback(
+    (conversation: string, at: number) =>
+      store.update((current) => markSeen(current, seenKey(id, conversation), at)),
+    [store, id],
+  )
   return {
     threads,
     paused,
@@ -77,10 +85,9 @@ export const useMessages = (messages: Messages | undefined, key: TerminalKey): M
     error,
     hasMessages: hasMessages(threads),
     badge: messageBadge(threads, paused),
-    pause: (next) => messages?.pause(next),
+    pause,
     seenAt: (conversation) => seenAt(record, seenKey(id, conversation)),
-    seen: (conversation, at) =>
-      seen.update((current) => markSeen(current, seenKey(id, conversation), at)),
+    seen,
   }
 }
 
@@ -107,21 +114,28 @@ export const noLinks: MessageLinks = {
 export const usePeers = (links: MessageLinks): Readonly<Record<string, MessagePeer>> =>
   useSyncExternalStore(links.peers.subscribe, links.peers.getSnapshot)
 
-// How many messages a terminal's threads hold.
-const messageCount = (threads: TerminalThreads | undefined): number =>
-  (threads?.threads ?? []).reduce((count, thread) => count + thread.messages.length, 0)
+// Each thread's latest message, by id: a new message is always the latest in its thread.
+const latestIds = (threads: TerminalThreads | undefined): ReadonlySet<string> =>
+  new Set((threads?.threads ?? []).flatMap((thread) => thread.messages.at(-1)?.id ?? []))
 
 // The messages join a terminal's bar when it first has them, after what came before, and
 // come back once hidden with the next message, whether or not the terminal is on screen.
-// Follows them from here on; returns the stop.
+// A message is new by its id, not by the count growing: at the runner's listing caps the
+// oldest drop out as new ones come. Follows them from here on; returns the stop.
 export const followMessages = (workspace: WorkspaceStore, messages: Messages): (() => void) => {
-  const counts = new Map<string, number>()
+  // Each terminal's threads as last heard, and their latest messages' ids.
+  const known = new Map<
+    string,
+    { readonly threads: TerminalThreads | undefined; readonly ids: ReadonlySet<string> }
+  >()
   const note = (state: MessagesState): void => {
     const actions: WorkspaceAction[] = []
     for (const [id, threads] of Object.entries(state.terminals)) {
-      const count = messageCount(threads)
-      const more = count > (counts.get(id) ?? count)
-      counts.set(id, count)
+      const before = known.get(id)
+      const ids = before?.threads === threads ? before.ids : latestIds(threads)
+      const more =
+        before !== undefined && ids !== before.ids && [...ids].some((each) => !before.ids.has(each))
+      known.set(id, { threads, ids })
       if (!hasMessages(threads)) continue
       // A terminal closed since its messages came takes nothing: the bar's actions pass it by.
       const { terminalId, ...target } = terminalKeyOfPath(id)

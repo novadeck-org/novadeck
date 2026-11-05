@@ -10,6 +10,7 @@ import { type TerminalKey, terminalKeyPath } from "@novadeck/core/types"
 import type { MessageParty, TerminalMessages } from "@novadeck/protocol"
 
 import { reasonOf } from "../errors"
+import { reportCaught } from "../streams"
 
 // The runner's messages between agents: each terminal's threads as `messages.watch`
 // streams them, and the one pause switch, which every listing reports. A pause the runner
@@ -129,13 +130,18 @@ export const createRunnerMessages = (
       try {
         for await (const listing of stream) {
           if (followed.get(id) !== stream) return
-          state.update((current) =>
-            reconcile({
-              ...current,
-              paused: listing.paused,
-              terminals: { ...current.terminals, [id]: messagesOf(listing) },
-            }),
-          )
+          // A reader that throws is reported; the next listing reaches the state as usual.
+          try {
+            state.update((current) =>
+              reconcile({
+                ...current,
+                paused: listing.paused,
+                terminals: { ...current.terminals, [id]: messagesOf(listing) },
+              }),
+            )
+          } catch (error) {
+            reportCaught(error)
+          }
         }
       } catch {
         // The runner closed or lost the terminal.

@@ -4,6 +4,7 @@ import { vi } from "vitest"
 
 import { context, describe, expect, it } from "../test"
 import { channel } from "../testing/channel"
+import { catchReports } from "../testing/reported"
 import { createRunnerMessages, messagesOf, type MessageStreams } from "./messages"
 
 const key = { projectId: "p", workspaceSessionId: "s", terminalId: "a" }
@@ -71,6 +72,28 @@ const streams = (overrides: Partial<MessageStreams> = {}) => {
 }
 
 describe("the runner's messages", () => {
+  it("keep following after a reader throws, which is reported", async () => {
+    const { reported, restore } = catchReports()
+    const { messages, push } = streams()
+    const broken = new Error("A reader broke.")
+    let breaks = true
+    const unsubscribe = messages.state.subscribe(() => {
+      if (!breaks) return
+      breaks = false
+      throw broken
+    })
+    try {
+      messages.follow(key)
+      push(listing())
+      await vi.waitFor(() => expect(reported).toEqual([broken]))
+      push(listing({ paused: true }))
+      await vi.waitFor(() => expect(messages.state.getSnapshot().paused).toBe(true))
+    } finally {
+      unsubscribe()
+      restore()
+    }
+  })
+
   it("follow a terminal's threads as the runner lists them, the pause with them", async () => {
     const { messages, push } = streams()
     messages.follow(key)

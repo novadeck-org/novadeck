@@ -24,6 +24,7 @@ import { createStore, type Store } from "@novadeck/core/store"
 import type { TerminalKey, TerminalMetadata, Workspace } from "@novadeck/core/types"
 import { longHoldMs, type AgentDetail, type AskAnswer, type InboxEntry } from "@novadeck/protocol"
 
+import { reportCaught } from "../streams"
 import { requestOf, rootOf } from "./conversations"
 
 // The runner's Inbox: what every agent terminal waits on the person for, as Inbox rows, built from what the UI already has: the terminals' statuses (a finished turn,
@@ -75,6 +76,8 @@ export type RunnerInbox = Inbox & {
   readonly readFinishes: NonNullable<Inbox["readFinishes"]>
   // Ends every stream it opened; the backend is stopping.
   readonly end: () => void
+  // Opens them again, for the binding there is; the backend started again after `end`.
+  readonly follow: () => void
 }
 
 type Reading = {
@@ -174,7 +177,7 @@ export const createRunnerInbox = (
     string,
     { readonly thread: string; readonly source: InboxSource; readonly observed: boolean }
   >()
-  // Set once the backend stops: nothing opens or recomputes after it.
+  // Set while the backend is stopped: nothing opens or recomputes until it follows again.
   let ended = false
 
   const close = (id: string): void => {
@@ -401,6 +404,40 @@ export const createRunnerInbox = (
     ])
   }
 
+  // Follows the runner's entries for the binding, until it is unbound or the backend stops. A
+  // listing whose handling throws is reported, and the next one handled as usual.
+  const watchEntries = (next: InboxBinding): void => {
+    stopEntries()
+    if (ended) return
+    const stream = streams.inbox.watch()
+    entriesStream = stream
+    void (async () => {
+      try {
+        for await (const snapshot of stream) {
+          if (entriesStream !== stream || binding !== next || ended) return
+          try {
+            entries = snapshot.filter(notATurn)
+            listed = snapshot.flatMap((entry) => turnOf(entry) ?? [])
+            const held = new Set(listed.map(({ id }) => id))
+            for (const id of hidden) if (!held.has(id)) hidden.delete(id)
+            recompute()
+            retryReads()
+          } catch (error) {
+            reportCaught(error)
+          }
+        }
+      } catch {
+        // The client opens the stream again after a reconnection; one closed for good drops
+        // its entries.
+      }
+      if (entriesStream !== stream) return
+      entriesStream = undefined
+      entries = []
+      forgetTurns()
+      recompute()
+    })()
+  }
+
   const find = (id: string): InboxRow | undefined =>
     state.getSnapshot().items.find((item) => item.id === id)
 
@@ -516,30 +553,7 @@ export const createRunnerInbox = (
     bind: (next) => {
       binding = next
       unsubscribe = [next.workspace.subscribe(recompute), messages.subscribe(recompute)]
-      stopEntries()
-      const stream = streams.inbox.watch()
-      entriesStream = stream
-      void (async () => {
-        try {
-          for await (const snapshot of stream) {
-            if (entriesStream !== stream || binding !== next || ended) return
-            entries = snapshot.filter(notATurn)
-            listed = snapshot.flatMap((entry) => turnOf(entry) ?? [])
-            const held = new Set(listed.map(({ id }) => id))
-            for (const id of hidden) if (!held.has(id)) hidden.delete(id)
-            recompute()
-            retryReads()
-          }
-        } catch {
-          // The client opens the stream again after a reconnection; one closed for good drops
-          // its entries.
-        }
-        if (entriesStream !== stream) return
-        entriesStream = undefined
-        entries = []
-        forgetTurns()
-        recompute()
-      })()
+      watchEntries(next)
       recompute()
       return () => {
         if (binding !== next) return
@@ -553,6 +567,13 @@ export const createRunnerInbox = (
         turns.update(() => undefined)
         state.update(() => emptyInbox)
       }
+    },
+    follow: () => {
+      if (!ended) return
+      ended = false
+      if (!binding) return
+      watchEntries(binding)
+      recompute()
     },
     end: () => {
       ended = true

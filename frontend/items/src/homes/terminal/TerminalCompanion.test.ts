@@ -1,4 +1,4 @@
-import { emptyCompanions, isOnBar } from "@novadeck/core/items"
+import { emptyCompanions, isOnBar, type Companions, type ItemContent } from "@novadeck/core/items"
 import { emptyBar, messagesKey } from "@novadeck/core/items/companion-bar"
 import {
   noMessages,
@@ -52,7 +52,7 @@ const notes = itemFixture("notes", "01", {
 const commandsOf = (workspace: WorkspaceStore): ItemCommands => ({
   undock: () => {},
   place: () => {},
-  closeItem: () => {},
+  closeItem: (itemId) => void workspace.dispatch({ type: "item/close", target, itemId }),
   markSeen: () => {},
   openBarTab: (terminalId, barKey) =>
     void workspace.dispatch({ type: "bar/open", target, terminalId, key: barKey }),
@@ -98,9 +98,10 @@ const Terminal = ({
 const renderTerminal = (
   initial: Workspace,
   messages?: Messages,
-): { container: HTMLElement; workspace: WorkspaceStore } => {
+  companions: Companions = emptyCompanions(),
+): { container: HTMLElement; workspace: WorkspaceStore; itemStore: ItemStore } => {
   const workspace = createWorkspaceStore(initial)
-  const itemStore = createItemStore({ companions: emptyCompanions(), workspace })
+  const itemStore = createItemStore({ companions, workspace })
   const { container, unmount } = render(
     createElement(
       DragSessionContext,
@@ -114,7 +115,7 @@ const renderTerminal = (
     unmounts.push(itemStore.connect())
     if (messages) unmounts.push(followMessages(workspace, messages))
   })
-  return { container, workspace }
+  return { container, workspace, itemStore }
 }
 
 // A message for the terminal from its peer, and the terminal's messages holding them.
@@ -159,6 +160,34 @@ describe("a pane beside its terminal", () => {
     const divider = container.querySelector(".pane-divider")
     expect(divider?.getAttribute("role")).toBe("separator")
     expect(divider?.getAttribute("aria-label")).toBe("Resize pane")
+  })
+
+  context("when a drag on its divider is cancelled", () => {
+    it("stops resizing the pane with the pointer's moves", () => {
+      const { container } = renderTerminal(
+        workspaceReducer(workspaceReducer(workspaceFixture(), shown()), {
+          type: "bar/open",
+          target,
+          terminalId: "01",
+          key: hero.id,
+        }),
+      )
+      const frame = container.querySelector<HTMLElement>(".pane-split")!
+      frame.getBoundingClientRect = () => new DOMRect(0, 0, 1000, 600)
+      const divider = container.querySelector<HTMLElement>(".pane-divider")!
+      divider.setPointerCapture = () => {}
+      const pointer = (type: string, clientX: number) =>
+        act(() => {
+          divider.dispatchEvent(new PointerEvent(type, { bubbles: true, clientX, pointerId: 1 }))
+        })
+      const ratio = () => divider.getAttribute("aria-valuenow")
+      pointer("pointerdown", 500)
+      pointer("pointermove", 400)
+      expect(ratio()).toBe("40")
+      pointer("pointercancel", 400)
+      pointer("pointermove", 600)
+      expect(ratio()).toBe("40")
+    })
   })
 })
 
@@ -528,6 +557,198 @@ describe("a terminal's taskbar", () => {
       expect(messagesIcon()).toBeNull()
       await act(async () => state.update(() => messagesOf([message("m1"), message("m2")])))
       expect(messagesIcon()).not.toBeNull()
+    })
+  })
+
+  context("when the person closes a plan placed here whose edits can't be saved", () => {
+    // Plans another terminal's agent made, placed on this terminal's bar.
+    const placed = (id: string, name: string) =>
+      itemFixture(id, "01", {
+        kind: "plan",
+        name,
+        path: `/p/${id}.md`,
+        from: { terminalId: "02", handle: "fox" },
+        plan: { agent: "Codex", role: "root", source: "file" },
+      })
+    // A plan titled after its file's name, as `first.md` reads "First".
+    const titleOf = (name: string) => name[0]!.toUpperCase() + name.slice(1, -3)
+    const ready = (text: string): ItemContent => ({
+      state: "ready",
+      stamp: "1",
+      content: { kind: "plan", text, truncated: false, writable: true, skill: true },
+    })
+    const edited = (name: string) => `# ${titleOf(name)}\n\nMine.\n`
+    // The plans on the bar, each edited, then its file gone: the edits can't reach it.
+    const stuck = async (plans: readonly ReturnType<typeof placed>[]) => {
+      const emitters = new Map<string, (content: ItemContent) => void>()
+      const companions: Companions = {
+        ...emptyCompanions(),
+        follow: (_target, itemId, _options, on) => {
+          emitters.set(itemId, on)
+          const item = plans.find((each) => each.id === itemId)!
+          on(ready(`# ${titleOf(item.name)}\n`))
+          return () => {}
+        },
+        save: () => new Promise(() => {}),
+      }
+      const initial = plans.reduce(
+        (workspace, item) => workspaceReducer(workspace, shown(item)),
+        workspaceFixture(),
+      )
+      const rendered = renderTerminal(initial, undefined, companions)
+      await act(async () => {
+        for (const item of plans) {
+          rendered.itemStore.plan(target, item.id).edit(edited(item.name), [])
+          emitters.get(item.id)!({ state: "unavailable", reason: "gone", size: null })
+        }
+      })
+      return rendered
+    }
+    const dialog = () => document.querySelector<HTMLElement>("[role='alertdialog']")
+    const answer = async (label: string) => {
+      const button = [...dialog()!.querySelectorAll("button")].find(
+        (each) => each.textContent === label,
+      )!
+      await act(async () => button.click())
+    }
+    const onBar = (workspace: WorkspaceStore) =>
+      activeSession(workspace.getSnapshot())!.state.items.map((item) => item.name)
+    // jsdom has no clipboard: the one the page has here, until the test ends.
+    const clipboard = (writeText?: (text: string) => Promise<void>) => {
+      Object.defineProperty(navigator, "clipboard", {
+        value: writeText && { writeText },
+        configurable: true,
+      })
+      unmounts.push(() => Reflect.deleteProperty(navigator, "clipboard"))
+    }
+
+    it("copies the edits, then closes it", async () => {
+      const copied: string[] = []
+      clipboard(async (text) => void copied.push(text))
+      const { container, workspace } = await stuck([placed("p1", "first.md")])
+      await act(async () => (icon(container, "Plan: First") as HTMLElement).click())
+      await act(async () =>
+        container.querySelector<HTMLElement>("[aria-label='Close First']")!.click(),
+      )
+      expect(dialog()?.textContent).toContain("couldn't be saved, and closing it loses them")
+      await answer("Copy my edits and close")
+      expect(copied).toEqual([edited("first.md")])
+      expect(onBar(workspace)).toEqual([])
+    })
+
+    it("keeps it open and says so when the edits couldn't be copied", async () => {
+      const writeText = vi.fn<(text: string) => Promise<void>>(() =>
+        Promise.reject(new Error("Document is not focused")),
+      )
+      clipboard(writeText)
+      const { container, workspace } = await stuck([placed("p1", "first.md")])
+      await act(async () => (icon(container, "Plan: First") as HTMLElement).click())
+      await act(async () =>
+        container.querySelector<HTMLElement>("[aria-label='Close First']")!.click(),
+      )
+      await answer("Copy my edits and close")
+      expect(writeText).toHaveBeenCalledOnce()
+      expect(onBar(workspace)).toEqual(["first.md"])
+      expect(dialog()?.textContent).toContain("Your edits couldn't be copied")
+      // The dialog still cancels, though it was confirmed.
+      await act(async () =>
+        dialog()!.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape", bubbles: true })),
+      )
+      await vi.waitFor(() => expect(dialog()).toBeNull())
+      expect(onBar(workspace)).toEqual(["first.md"])
+    })
+
+    it("keeps it open where there's no clipboard", async () => {
+      clipboard()
+      const { container, workspace } = await stuck([placed("p1", "first.md")])
+      await act(async () => (icon(container, "Plan: First") as HTMLElement).click())
+      await act(async () =>
+        container.querySelector<HTMLElement>("[aria-label='Close First']")!.click(),
+      )
+      await answer("Copy my edits and close")
+      expect(onBar(workspace)).toEqual(["first.md"])
+      expect(dialog()?.textContent).toContain("Your edits couldn't be copied")
+    })
+
+    // The plan's close asked for and confirmed, with a clipboard whose write waits to be
+    // answered.
+    const confirmedPending = async () => {
+      const writes: { resolve: () => void; reject: (error: Error) => void }[] = []
+      clipboard(() => new Promise<void>((resolve, reject) => void writes.push({ resolve, reject })))
+      const rendered = await stuck([placed("p1", "first.md")])
+      const close = () =>
+        act(async () =>
+          rendered.container.querySelector<HTMLElement>("[aria-label='Close First']")!.click(),
+        )
+      await act(async () => (icon(rendered.container, "Plan: First") as HTMLElement).click())
+      await close()
+      await answer("Copy my edits and close")
+      return { ...rendered, writes, close }
+    }
+
+    it("copies once however often the person confirms while the copy is under way", async () => {
+      const { writes, workspace } = await confirmedPending()
+      await answer("Copy my edits and close")
+      expect(writes).toHaveLength(1)
+      await act(async () => writes[0]!.resolve())
+      expect(onBar(workspace)).toEqual([])
+    })
+
+    it("lets a copy the person cancelled go, keeping the plan and saying nothing of it", async () => {
+      const { writes, workspace, close } = await confirmedPending()
+      await answer("Cancel")
+      await act(async () => writes[0]!.reject(new Error("Document is not focused")))
+      expect(onBar(workspace)).toEqual(["first.md"])
+      await vi.waitFor(() => expect(dialog()).toBeNull())
+      await close()
+      expect(dialog()?.textContent).toContain("couldn't be saved, and closing it loses them")
+    })
+
+    it("doesn't ask about a stuck plan that left the bar while it waited its turn", async () => {
+      clipboard(async () => {})
+      const { container, workspace } = await stuck([
+        placed("p1", "first.md"),
+        placed("p2", "second.md"),
+      ])
+      const stack = icon(container, "2 plans") as HTMLElement
+      await act(async () =>
+        stack.dispatchEvent(new MouseEvent("contextmenu", { bubbles: true, cancelable: true })),
+      )
+      const close = [...document.querySelectorAll<HTMLElement>("[role='menuitem']")].find(
+        (each) => each.textContent === "Close 2 plans",
+      )!
+      await act(async () => close.click())
+      await vi.waitFor(() => expect(dialog()?.textContent).toContain("Close “first.md”?"))
+      // Its agent closed the second meanwhile.
+      await act(
+        async () =>
+          void workspace.dispatch({ type: "item/close", target, itemId: placed("p2", "").id }),
+      )
+      await answer("Copy my edits and close")
+      await vi.waitFor(() => expect(dialog()).toBeNull())
+      expect(onBar(workspace)).toEqual([])
+    })
+
+    it("asks about each of a stack's stuck plans in turn", async () => {
+      clipboard(async () => {})
+      const { container, workspace } = await stuck([
+        placed("p1", "first.md"),
+        placed("p2", "second.md"),
+      ])
+      const stack = icon(container, "2 plans") as HTMLElement
+      await act(async () =>
+        stack.dispatchEvent(new MouseEvent("contextmenu", { bubbles: true, cancelable: true })),
+      )
+      const close = [...document.querySelectorAll<HTMLElement>("[role='menuitem']")].find(
+        (each) => each.textContent === "Close 2 plans",
+      )!
+      await act(async () => close.click())
+      // The menu runs what was chosen once it has closed, a frame later.
+      await vi.waitFor(() => expect(dialog()?.textContent).toContain("Close “first.md”?"))
+      await answer("Copy my edits and close")
+      await vi.waitFor(() => expect(dialog()?.textContent).toContain("Close “second.md”?"))
+      await answer("Copy my edits and close")
+      expect(onBar(workspace)).toEqual([])
     })
   })
 })

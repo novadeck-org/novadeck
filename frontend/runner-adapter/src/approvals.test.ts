@@ -8,6 +8,7 @@ import { afterAll, vi } from "vitest"
 import { runnerBackend, type RunnerApi } from "./backend"
 import { context, describe, expect, it } from "./test"
 import { channel } from "./testing/channel"
+import { catchReports } from "./testing/reported"
 import { startTestRunner } from "./testing/runner"
 
 vi.setConfig({ testTimeout: 20_000 })
@@ -15,7 +16,8 @@ vi.setConfig({ testTimeout: 20_000 })
 const runner = await startTestRunner()
 afterAll(() => runner.close())
 
-const open = (failAnswer = false) => {
+// `refusals` are what the runner answers the person's answers with, in turn, before it takes them.
+const open = (refusals: unknown[] = []) => {
   const sent = channel<Approval>()
   const answers: ApprovalAnswer[] = []
   const released: string[] = []
@@ -39,7 +41,8 @@ const open = (failAnswer = false) => {
       },
       answerApproval: async (answer) => {
         answers.push(answer)
-        if (failAnswer) throw Object.assign(new Error("gone"), { code: "NOT_FOUND" })
+        const refusal = refusals.shift()
+        if (refusal) throw refusal
       },
     },
   }
@@ -166,13 +169,46 @@ describe("approvals through the runner backend", () => {
     })
 
     it("ignores a runner that no longer waits for it", async () => {
-      const app = open(true)
+      const app = open([new WireError("NOT_FOUND", "gone")])
       const first = app.request()
       await app.settled()
       app.backend.approvals!.answer(first.requestId, false)
       await app.settled()
       expect(app.answers).toEqual([{ requestId: first.requestId, approved: false }])
       expect(app.pending()).toEqual([])
+      app.stop()
+    })
+  })
+
+  context("when the runner can't take the person's answer yet", () => {
+    it("sends it again once fewer calls are in flight", async () => {
+      const app = open([new WireError("RESOURCE_LIMIT")])
+      const first = app.request()
+      await app.settled()
+      app.backend.approvals!.answer(first.requestId, true)
+      await app.settled()
+      const answer = { requestId: first.requestId, approved: true }
+      expect(app.answers).toEqual([answer, answer])
+      expect(app.pending()).toEqual([])
+      app.stop()
+    })
+  })
+
+  context("when the runner refuses the person's answer", () => {
+    it("reports it and lists the request again, to be answered again", async () => {
+      const { reported, restore } = catchReports()
+      const refusal = new WireError("INTERNAL_ERROR", "The runner broke.")
+      const app = open([refusal])
+      const first = app.request()
+      try {
+        await app.settled()
+        app.backend.approvals!.answer(first.requestId, false)
+        await app.settled()
+      } finally {
+        restore()
+      }
+      expect(reported).toEqual([refusal])
+      expect(app.pending().map((each) => each.requestId)).toEqual([first.requestId])
       app.stop()
     })
   })
