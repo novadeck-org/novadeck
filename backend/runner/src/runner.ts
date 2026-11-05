@@ -132,6 +132,22 @@ const openStore = (database: string | undefined): WorkspaceStore => {
  */
 export const wire = (options: RunnerOptions) => {
   const store = openStore(options.database)
+  const started: Started[] = []
+  try {
+    return assemble(store, options, started)
+  } catch (error) {
+    // A part that can't be built, such as terminals given a limit of 0, leaves nothing
+    // running: what already started ends, then the store, in the order `close` ends them.
+    void Promise.allSettled(started.map((part) => part.close())).finally(() => store.close())
+    throw error
+  }
+}
+
+// A part of the runner that began work as it was built, which `close` must end.
+type Started = { close(): Promise<void> }
+
+// The runner's parts over its store (see `wire`); each that starts work joins `started`.
+const assemble = (store: WorkspaceStore, options: RunnerOptions, started: Started[]) => {
   // Written once, for the shells and for the agents that install Novadeck's plugin.
   const shellFiles =
     options.shell === undefined
@@ -199,6 +215,7 @@ export const wire = (options: RunnerOptions) => {
   })
   // Not awaited: the runner starts at once, and the first voice call waits for the load.
   voice.start()
+  started.push(voice)
   const murmur = new Murmur(store.settings, {
     engine: options.murmur?.engine,
     source: options.murmur?.source,
@@ -212,6 +229,7 @@ export const wire = (options: RunnerOptions) => {
     voice: voice.activity,
   })
   murmur.start()
+  started.push(murmur)
   // On Linux each shell runs in a systemd scope of its own, so one killed for memory
   // takes down its terminal, not the app.
   const scopes = userScopes()
