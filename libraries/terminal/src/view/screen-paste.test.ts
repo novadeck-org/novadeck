@@ -5,13 +5,14 @@ import {
   emulatorPrototype,
   inputOf,
   openedTerminals,
+  output,
   optionsOf,
   shown,
   snapshot,
   streamOf,
   screensOf,
 } from "./fakes.test-support.js"
-import { pasteNoticeMs } from "./screens.js"
+import { copyNoticeMs, pasteNoticeMs } from "./screens.js"
 
 // jsdom has no layout observers, media queries or canvas; xterm falls back without them.
 vi.hoisted(() => {
@@ -198,5 +199,109 @@ describe("pasting into a terminal's screen", () => {
       inputOf(page.element).dispatchEvent(event)
       expect(data.setData).toHaveBeenCalledWith("text/plain", "echo")
     })
+  })
+})
+
+describe("copying from a terminal's screen", () => {
+  const base64 = (text: string): string =>
+    btoa(String.fromCharCode(...new TextEncoder().encode(text)))
+
+  // A focused or unfocused screen whose program then copies with OSC 52.
+  const copyFrom = async (focus: boolean) => {
+    const writeText = vi.fn<(text: string) => Promise<void>>(async () => {})
+    Object.defineProperty(navigator, "clipboard", { configurable: true, value: { writeText } })
+    vi.spyOn(document, "hasFocus").mockReturnValue(true)
+    const stream = streamOf([snapshot("$ ")])
+    const screens = screensOf(
+      optionsOf({ attach: () => Promise.resolve(stream.attached), copied: "Copied" }),
+    )
+    const { hold } = shown(screens, "a")
+    if (focus) expect(hold.focus()).toBe(true)
+    stream.push(output(`\x1b]52;c;${base64("from the program ✓")}\x07`, 2))
+    return { writeText, hold }
+  }
+
+  afterEach(() => Reflect.deleteProperty(navigator, "clipboard"))
+
+  it("puts a program's OSC 52 write on the clipboard while the person is in it", async () => {
+    const { writeText, hold } = await copyFrom(true)
+    await vi.waitFor(() => expect(writeText).toHaveBeenCalledWith("from the program ✓"))
+    await vi.waitFor(() => expect(hold.state.getSnapshot().notice).toBe("Copied"))
+  })
+
+  it("lets the notice of a copy go after a moment", async () => {
+    const { hold } = await copyFrom(true)
+    await vi.waitFor(() => expect(hold.state.getSnapshot().notice).toBe("Copied"))
+    await vi.waitFor(() => expect(hold.state.getSnapshot().notice).toBeNull(), {
+      timeout: copyNoticeMs + 1_000,
+    })
+  })
+
+  it("leaves the clipboard alone while the person is elsewhere", async () => {
+    const { writeText, hold } = await copyFrom(false)
+    await new Promise((resolve) => setTimeout(resolve, 50))
+    expect(writeText).not.toHaveBeenCalled()
+    expect(hold.state.getSnapshot().notice).toBeNull()
+  })
+
+  // A screen showing `hello world`, with its first word selected.
+  const selected = async () => {
+    const writeText = vi.fn<(text: string) => Promise<void>>(async () => {})
+    Object.defineProperty(navigator, "clipboard", { configurable: true, value: { writeText } })
+    const opened = openedTerminals()
+    const stream = streamOf([snapshot("hello world")])
+    const screens = screensOf(
+      optionsOf({ attach: () => Promise.resolve(stream.attached), copied: "Copied" }),
+    )
+    const { hold, element } = shown(screens, "a")
+    const xterm = opened[0]!
+    await vi.waitFor(() =>
+      expect(xterm.buffer.active.getLine(0)?.translateToString(true)).toBe("hello world"),
+    )
+    xterm.select(0, 0, 5)
+    return { writeText, hold, input: inputOf(element) }
+  }
+
+  it("says a copy with Ctrl+C reached the clipboard", async () => {
+    const { writeText, hold, input } = await selected()
+    input.dispatchEvent(
+      new KeyboardEvent("keydown", { key: "c", code: "KeyC", ctrlKey: true, bubbles: true }),
+    )
+    await vi.waitFor(() => expect(writeText).toHaveBeenCalledWith("hello"))
+    await vi.waitFor(() => expect(hold.state.getSnapshot().notice).toBe("Copied"))
+  })
+
+  it("says the browser's own copy of the selection reached it, as macOS's ⌘C makes", async () => {
+    const { hold, input } = await selected()
+    input.dispatchEvent(new Event("copy", { bubbles: true }))
+    expect(hold.state.getSnapshot().notice).toBe("Copied")
+  })
+
+  it("keeps a failed paste's notice over a copy's while it stays", async () => {
+    const writeText = vi.fn<(text: string) => Promise<void>>(async () => {})
+    Object.defineProperty(navigator, "clipboard", { configurable: true, value: { writeText } })
+    vi.spyOn(document, "hasFocus").mockReturnValue(true)
+    vi.spyOn(console, "error").mockImplementation(() => {})
+    const stream = streamOf([snapshot("$ ")])
+    const screens = screensOf(
+      optionsOf({
+        attach: () => Promise.resolve(stream.attached),
+        copied: "Copied",
+        paste: { ...optionsOf().paste, upload: () => Promise.reject(new Error("refused")) },
+      }),
+    )
+    const { hold, element } = shown(screens, "a")
+    const event = new Event("paste", { bubbles: true, cancelable: true })
+    const image = new File([new Uint8Array([1])], "", { type: "image/png" })
+    Object.defineProperty(event, "clipboardData", {
+      value: { files: [], items: [{ kind: "file", getAsFile: () => image }], getData: () => "" },
+    })
+    inputOf(element).dispatchEvent(event)
+    await vi.waitFor(() => expect(hold.state.getSnapshot().notice).toBe("image/png: refused"))
+    expect(hold.focus()).toBe(true)
+    stream.push(output(`\x1b]52;c;${base64("later")}\x07`, 2))
+    await vi.waitFor(() => expect(writeText).toHaveBeenCalledWith("later"))
+    await new Promise((resolve) => setTimeout(resolve, 20))
+    expect(hold.state.getSnapshot().notice).toBe("image/png: refused")
   })
 })
