@@ -9,7 +9,7 @@ import tailwindcss from "@tailwindcss/vite"
 import react from "@vitejs/plugin-react"
 import { defineConfig } from "vite"
 
-import { connect, headerRules, hidden } from "./src/deploy"
+import { connect, headerRules, hidden, notFound } from "./src/deploy"
 
 // The visitor build, for a website: the demo without its debug panel. The mode is `try`
 // (see the scripts in package.json); how the build is deployed is src/deploy.ts.
@@ -20,8 +20,6 @@ export default defineConfig({
   // What every page shares stays the UI's: its public files and its env files.
   publicDir: resolve(ui, "public"),
   envDir: ui,
-  // The demo always previews the welcome dialog.
-  define: { "import.meta.env.VITE_WELCOME_PREVIEW": JSON.stringify("true") },
   build: {
     manifest: true,
     // Fonts always ship as files, which the Content Security Policy allows.
@@ -46,5 +44,6 @@ export default defineConfig({
       },
     }),
     hostingHeaders({ rules: headerRules }),
+    notFound(),
   ],
 })
