@@ -1324,6 +1324,10 @@ pass-through passes any other command on unchanged, AutoRun included).
   unregistered: an Antigravity outside Novadeck's terminals runs the plugin's hooks through the
   person's own `cmd`, where the AutoRun's output breaks the answer. Its other hooks are
   registered and, in Novadeck's terminals, run through the pass-through, so messages arrive.
+  Without PreToolUse Novadeck learns of no call before it runs, so there: an `ask_question`
+  never reaches the Inbox, a confirmation can't be answered from the chat (its dialog is
+  matched to the call PreToolUse named), a Stop lists no job or timer, and the loop guard sees
+  no calls, so it counts every turn as work.
   Set `NOVADECK_CMD_LOG` to a file to make the pass-through append the arguments it passed on.
   The Windows e2e `windows-autorun.e2e.ts` runs a message between two Antigravity agents under
   a printing AutoRun.
