@@ -21,6 +21,7 @@ mod registry;
 mod status_line;
 
 use std::collections::HashMap;
+use std::io::{self, Write};
 use std::path::Path;
 use std::process::ExitCode;
 use std::time::{SystemTime, UNIX_EPOCH};
@@ -70,7 +71,8 @@ fn main() -> ExitCode {
     let args: Vec<String> = std::env::args().skip(1).collect();
     match args.split_first() {
         Some((mode, _)) if mode == "--version" => {
-            println!(
+            let _ = writeln!(
+                io::stdout(),
                 "novadeck-relay {} (protocol {PROTOCOL})",
                 env!("CARGO_PKG_VERSION")
             );
@@ -117,8 +119,15 @@ fn main() -> ExitCode {
     }
 }
 
+/// Prints to stderr, where a failed write must not end the relay: `eprintln!` panics on
+/// one, as where the agent closed its end of the pipe, and the release build aborts on a
+/// panic.
+pub fn complain(text: &str) {
+    let _ = writeln!(io::stderr(), "{text}");
+}
+
 fn usage() -> ExitCode {
-    eprintln!("{USAGE}");
+    complain(USAGE);
     ExitCode::from(2)
 }
 
