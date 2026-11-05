@@ -3,6 +3,7 @@ import { createView, loadWebgl, type Terminal } from "@novadeck/emulator/browser
 import { afterEach } from "vitest"
 
 import { describe, expect, it } from "./test"
+import { hasWebgl, requireWebglOnCi } from "./webgl"
 
 // A terminal inside a CSS-scaled container, as the Canvas view puts it at any zoom: a click or
 // a drag must land on the cell under the pointer. xterm maps the pointer in client pixels,
@@ -65,9 +66,9 @@ const lines = Array.from({ length: rows }, (_, row) =>
   Array.from({ length: cols }, (__, col) => String.fromCharCode(65 + ((col + row) % 26))).join(""),
 ).join("\r\n")
 
-const renderers = document.createElement("canvas").getContext("webgl2")
-  ? (["dom", "webgl"] as const)
-  : (["dom"] as const)
+requireWebglOnCi()
+
+const renderers = hasWebgl ? (["dom", "webgl"] as const) : (["dom"] as const)
 
 describe.each(renderers)("a terminal inside a scaled container, drawn with %s", (renderer) => {
   it.each([0.5, 1, 1.5])(
