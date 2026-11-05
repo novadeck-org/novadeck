@@ -19,6 +19,7 @@ const context = (selected?: DemoActionContext["selected"]): DemoActionContext =>
   dispatch: undefined,
   workspace: () => undefined,
   note: () => undefined,
+  crash: () => undefined,
 })
 
 const run = (

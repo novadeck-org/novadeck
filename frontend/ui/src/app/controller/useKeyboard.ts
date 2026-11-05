@@ -99,13 +99,21 @@ export const useKeyboard = (dictation?: Dictation): void => {
     const focusin = (event: FocusEvent): void => {
       if (!navigateHome(event.target)) commands.setNavigate(false)
     }
-    const pointerdown = (): void => commands.setNavigate(false)
+    // What pressed last, for a browser whose click is a plain MouseEvent that doesn't say.
+    let pressedWith = ""
+    const pointerdown = (event: PointerEvent): void => {
+      pressedWith = event.pointerType
+      commands.setNavigate(false)
+    }
     // Only a mouse: a tap that focused a terminal would raise a phone's keyboard. A click
     // whose control moves focus itself, as Zen's do, keeps where it put it, and one in a
     // region that takes its own keys leaves focus to it, even off its controls. A button in a footer
     // notice that takes focus, as Copy does, keeps it so that Escape closes the notice.
     const click = (event: MouseEvent): void => {
-      if (!(event instanceof PointerEvent) || event.pointerType !== "mouse") return
+      // A plain MouseEvent comes of the press before it, and never of a key (detail 0).
+      const by =
+        event instanceof PointerEvent ? event.pointerType : event.detail > 0 ? pressedWith : ""
+      if (by !== "mouse") return
       const clicked = document.activeElement
       const on = classifyKeyTarget(event.target)
       // A chat holds text to select and controls that keep the focus they take.

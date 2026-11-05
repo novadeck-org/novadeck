@@ -3,7 +3,7 @@ import { render } from "@novadeck/test-kit/render"
 import { act, createElement } from "react"
 import { vi } from "vitest"
 
-import { describe, expect, it } from "../test"
+import { describe, eventually, expect, it } from "../test"
 import { MurmurAddon } from "./MurmurAddon"
 
 const unchecked: MurmurState = {
@@ -81,11 +81,8 @@ describe("murmur's card when an uninstall fails", () => {
       await Promise.resolve()
     })
     const dialog = document.querySelector("[role=alertdialog]")
-    await act(async () => {
-      button("Uninstall", dialog ?? document)?.click()
-      await new Promise((resolve) => setTimeout(resolve, 50))
-    })
-    expect(calls.uninstall).toHaveBeenCalledOnce()
+    act(() => button("Uninstall", dialog ?? document)?.click())
+    await eventually(() => expect(calls.uninstall).toHaveBeenCalledOnce())
     expect(button("Removing…", container)?.disabled).toBe(true)
     await act(async () => {
       removal.resolve()
@@ -152,11 +149,8 @@ describe("murmur's card on a computer that can't run it", () => {
       button("Remove", container)?.click()
       await Promise.resolve()
     })
-    await act(async () => {
-      button("Remove", document.querySelector("[role=alertdialog]") ?? document)?.click()
-      await new Promise((resolve) => setTimeout(resolve, 50))
-    })
-    expect(button("Check again", container)?.disabled).toBe(true)
+    act(() => button("Remove", document.querySelector("[role=alertdialog]") ?? document)?.click())
+    await eventually(() => expect(button("Check again", container)?.disabled).toBe(true))
     await act(async () => {
       removal.resolve()
       await removal.promise
@@ -182,11 +176,7 @@ describe("murmur's card on a computer that can't run it", () => {
         murmur: { state: { ...unchecked, enabled: true }, actions: calls },
       }),
     )
-    await act(async () => {
-      await new Promise((resolve) => setTimeout(resolve, 50))
-    })
-
-    expect(document.querySelector("[role=alertdialog]")).toBeNull()
+    await eventually(() => expect(document.querySelector("[role=alertdialog]")).toBeNull())
     expect(calls.uninstall).not.toHaveBeenCalled()
     unmount()
   })
@@ -206,11 +196,8 @@ describe("murmur's card on a computer that can't run it", () => {
     })
     expect(calls.uninstall).not.toHaveBeenCalled()
     const dialog = document.querySelector("[role=alertdialog]")
-    await act(async () => {
-      button("Remove", dialog ?? document)?.click()
-      await new Promise((resolve) => setTimeout(resolve, 50))
-    })
-    expect(calls.uninstall).toHaveBeenCalledOnce()
+    act(() => button("Remove", dialog ?? document)?.click())
+    await eventually(() => expect(calls.uninstall).toHaveBeenCalledOnce())
     unmount()
   })
 

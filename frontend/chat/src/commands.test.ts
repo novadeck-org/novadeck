@@ -11,6 +11,7 @@ import { afterEach, vi } from "vitest"
 
 import { createChatCommands, unseenMs } from "./commands"
 import { chatDraftOf } from "./drafts"
+import { chatReplyOf } from "./replies"
 import { chatSendsOf } from "./sends"
 import { createChat } from "./state"
 import { describe, expect, it } from "./test"
@@ -36,7 +37,16 @@ const userItem = (index: number, text: string): ChatItem => ({
 
 // The chat's commands over a backend that follows prompts, whose conversation the test
 // moves as the runner would: its receipts by the refs the chat sent with.
-const open = (session: string | null = "s1") => {
+const open = (
+  session: string | null = "s1",
+  {
+    interrupt = async () => null,
+    answer = async () => {},
+  }: {
+    readonly interrupt?: () => Promise<string | null>
+    readonly answer?: () => Promise<void>
+  } = {},
+) => {
   const conversation = createStore<Conversation>({ ...noConversation, session, loaded: true })
   const sent: string[] = []
   const refs: string[] = []
@@ -47,8 +57,8 @@ const open = (session: string | null = "s1") => {
       refs.push(options!.ref!)
       return { tracked: true }
     },
-    interrupt: async () => null,
-    answer: async () => {},
+    interrupt,
+    answer,
     refused: refusing(),
   }
   const chat = createChat()
@@ -64,6 +74,7 @@ const open = (session: string | null = "s1") => {
       phase,
     ])
   const draft = () => chatDraftOf(chat.store.getSnapshot().drafts, context, "01")
+  const reply = () => chatReplyOf(chat.store.getSnapshot().replies, context, "01")
   // The receipt of the prompt sent `nth`, as the runner tells it.
   const receipt = (
     nth: number,
@@ -80,7 +91,7 @@ const open = (session: string | null = "s1") => {
     conversation.update((now) => ({ ...now, ...change }))
   // Sends `first`, then queues `second` behind it, with the first's receipt seen pending.
   const two = async (first = "one", second = "two") => {
-    await commands.sendChat(key, first, null)
+    await expect(commands.sendChat(key, first, null)).resolves.toBe(true)
     const queued = commands.sendChat(key, second, null)
     tell({ prompts: [receipt(0, "pending")] })
     expect(phases()).toEqual([
@@ -90,7 +101,7 @@ const open = (session: string | null = "s1") => {
     // In an object, so awaiting the setup doesn't await the queued send too.
     return { queued }
   }
-  return { commands, sent, phases, draft, receipt, tell, two }
+  return { commands, sent, phases, draft, reply, receipt, tell, two }
 }
 
 describe("the chat's send queue", () => {
@@ -98,7 +109,7 @@ describe("the chat's send queue", () => {
     const { sent, phases, receipt, tell, two } = open()
     const { queued } = await two()
     tell({ prompts: [receipt(0, "settled", 0)] })
-    await queued
+    await expect(queued).resolves.toBe(true)
     expect(sent).toEqual(["one", "two"])
     expect(phases()).toEqual([
       ["one", "settled"],
@@ -113,7 +124,8 @@ describe("the chat's send queue", () => {
     const { queued } = await two()
     commands.setChatDraft("01", "typed meanwhile")
     tell({ prompts: [receipt(0, "in-box")] })
-    await queued
+    // Back in the box unsent.
+    await expect(queued).resolves.toBe(false)
     expect(sent).toEqual(["one"])
     expect(phases()).toEqual([])
     expect(draft()).toBe("two\ntyped meanwhile")
@@ -166,5 +178,74 @@ describe("the chat's send queue", () => {
     await vi.advanceTimersByTimeAsync(1)
     await second
     expect(sent).toEqual(["one", "two"])
+  })
+})
+
+describe("a Stop from the chat", () => {
+  it("hands back the queued words after the agent's, before the box's, and sends none after it", async () => {
+    const { commands, sent, phases, draft, two } = open("s1", {
+      interrupt: async () => "in the agent's box",
+    })
+    const { queued } = await two()
+    const third = commands.sendChat(key, "three", null)
+    commands.setChatDraft("01", "typed meanwhile")
+    await commands.stopChat(key)
+    // Back in the box unsent: neither went.
+    await expect(queued).resolves.toBe(false)
+    await expect(third).resolves.toBe(false)
+    expect(draft()).toBe("in the agent's box\ntwo\nthree\ntyped meanwhile")
+    expect(sent).toEqual(["one"])
+    // The prompt that went stays followed.
+    expect(phases()).toEqual([["one", "sent"]])
+  })
+
+  it("hands back the queued words though the interrupt fails, and says why", async () => {
+    const { commands, sent, draft, two } = open("s1", {
+      interrupt: () => Promise.reject(new Error("The runner is offline.")),
+    })
+    const { queued } = await two()
+    await expect(commands.stopChat(key)).rejects.toThrow("The runner is offline.")
+    await expect(queued).resolves.toBe(false)
+    expect(draft()).toBe("two")
+    expect(sent).toEqual(["one"])
+  })
+})
+
+describe("a reply from the chat", () => {
+  const to = { request: "r1", dialog: "q1" }
+
+  it("ends once it took, holding words typed while it went for the person's edit", async () => {
+    let land = (): void => {}
+    const { commands, draft, reply } = open("s1", {
+      answer: () => new Promise<void>((resolve) => (land = resolve)),
+    })
+    commands.setChatReply(context, "01", to)
+    const going = commands.sendChat(key, "pick X", to)
+    commands.setChatDraft("01", "and then Y")
+    land()
+    await expect(going).resolves.toBe(true)
+    expect(draft()).toBe("and then Y")
+    expect(reply()).toBe("held")
+  })
+
+  it("ends once it took, with nothing to hold where nothing was typed", async () => {
+    const { commands, reply } = open()
+    commands.setChatReply(context, "01", to)
+    await expect(commands.sendChat(key, "pick X", to)).resolves.toBe(true)
+    expect(reply()).toBeNull()
+  })
+
+  it("comes back before words typed while it went, when it fails, still a reply", async () => {
+    let fail = (_failure: unknown): void => {}
+    const { commands, draft, reply } = open("s1", {
+      answer: () => new Promise<void>((_resolve, reject) => (fail = reject)),
+    })
+    commands.setChatReply(context, "01", to)
+    const going = commands.sendChat(key, "pick X", to)
+    commands.setChatDraft("01", "and then Y")
+    fail(new Error("The question went."))
+    await expect(going).rejects.toThrow("The question went.")
+    expect(draft()).toBe("pick X\nand then Y")
+    expect(reply()).toEqual(to)
   })
 })

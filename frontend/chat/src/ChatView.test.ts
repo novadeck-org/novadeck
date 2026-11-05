@@ -99,6 +99,7 @@ const inApp = (
     show: (mounted: boolean) => rerender(createElement(App, { mounted })),
     draft: () => chatDraftOf(chat.store.getSnapshot().drafts, context, "01"),
     replyTo: () => chatReplyOf(chat.store.getSnapshot().replies, context, "01"),
+    stop: () => act(() => commands.stopChat(key)),
   }
 }
 
@@ -462,6 +463,31 @@ describe("a shell command sent to an agent that keeps no record of it", () => {
     // The conversation's harness says, not the program the terminal runs.
     await quiet({ ...questioning, agent: null, requests: [] }, "!ls", "agy")
   })
+
+  it("says nothing of one handed back unsent, at a Stop or behind a prompt that didn't go", async () => {
+    // `!ls` queued behind `go`, which is still being typed.
+    const queue = (sending: (text: string) => Promise<SendResult | void>) => {
+      const chat = inApp(createStore<Conversation>({ ...questioning, requests: [] }), {
+        draft: "go",
+        program: "agy",
+        send: sending,
+      })
+      return send(chat.container)
+        .then(() => set(box(chat.container), "!ls"))
+        .then(() => send(chat.container))
+        .then(() => chat)
+    }
+    const stopped = await queue(() => new Promise<void>(() => {}))
+    await stopped.stop()
+    expect(stopped.draft()).toBe("!ls")
+    expect(stopped.container.querySelector(".chat-unrecorded")).toBeNull()
+
+    const failures: ((failure: unknown) => void)[] = []
+    const failed = await queue(() => new Promise<void>((_resolve, reject) => failures.push(reject)))
+    await act(async () => failures[0]!(new Error("The runner is offline.")))
+    expect(failed.draft()).toBe("go\n!ls")
+    expect(failed.container.querySelector(".chat-unrecorded")).toBeNull()
+  })
 })
 
 describe("a reply to the agent's question, as its dialog changes", () => {
@@ -508,6 +534,24 @@ describe("a reply to the agent's question, as its dialog changes", () => {
     expect(chat.replyTo()).toBeNull()
     expect(container.querySelector(".chat-reply")?.textContent).toContain("Runs in")
     expect(sendButton(container).disabled).toBe(false)
+  })
+
+  it("holds words typed while the reply went, once it took", async () => {
+    const lands: (() => void)[] = []
+    const chat = inApp(createStore<Conversation>(questioning), {
+      draft: "pick X",
+      program: "agy",
+      answer: () => new Promise<void>((resolve) => lands.push(resolve)),
+    })
+    const { container } = chat
+    press(container, "Chat about this")
+    await send(container)
+    set(box(container), "and then Y")
+    expect(container.querySelector(".chat-reply")?.textContent).toContain("Replying")
+    await act(async () => lands[0]!())
+    expect(chat.replyTo()).toBe("held")
+    expect(chat.draft()).toBe("and then Y")
+    expect(container.querySelector(".chat-reply")?.textContent).toContain("no longer a reply")
   })
 
   it("lets an edit release words held while an unrelated message is on its way", async () => {

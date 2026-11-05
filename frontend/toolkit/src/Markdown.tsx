@@ -57,10 +57,12 @@ const InlineNodes = ({ nodes }: { readonly nodes: readonly Inline[] }): React.JS
   </>
 )
 
-// The lines of a fenced block coloured, once the parser for its language has loaded.
+// The lines of a fenced block coloured, once the parser for its language has loaded: the
+// lines of this text in this language, never another's while the new ones load.
 const useHighlighted = (lang: string, text: string): readonly HighlightedLine[] | null => {
   const [highlighted, setHighlighted] = useState<{
     readonly of: string
+    readonly language: string
     readonly lines: readonly HighlightedLine[]
   } | null>(null)
   const language = fenceLanguage(lang)
@@ -69,7 +71,7 @@ const useHighlighted = (lang: string, text: string): readonly HighlightedLine[] 
     let current = true
     highlightLines(language, text.split("\n"))
       .then((lines) => {
-        if (current && lines) setHighlighted({ of: text, lines })
+        if (current && lines) setHighlighted({ of: text, language, lines })
       })
       // Plain text is still readable.
       .catch(() => {})
@@ -77,7 +79,7 @@ const useHighlighted = (lang: string, text: string): readonly HighlightedLine[] 
       current = false
     }
   }, [language, text])
-  return highlighted?.of === text ? highlighted.lines : null
+  return highlighted?.of === text && highlighted.language === language ? highlighted.lines : null
 }
 
 const CodeBlock = ({
