@@ -276,7 +276,8 @@ export const mountBrowser: Mount<BrowserContent, BrowserOptions, BrowserViewer> 
 
   let shown = content
   const kept = keptOf(saved, content)
-  const resumed = kept?.at ?? content.url
+  // Where it was kept, unless that's no web page's, which it couldn't attach at.
+  const resumed = kept && webAddress(kept.at) ? kept.at : content.url
   let place: Place = { url: resumed, back: false, forward: false }
   let load: Load = "loading"
   let muted = false

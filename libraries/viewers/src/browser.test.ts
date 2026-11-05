@@ -556,6 +556,22 @@ describe("the browser viewer", () => {
       expect(places.map((place) => place.url)).toEqual(["http://localhost:5173/work"])
     })
 
+    it("opens at its address when where it was kept is no web page's", () => {
+      const first = paneIn()
+      const viewer = live(first)
+      attach(pageOf(first), { url: "about:blank", back: false, forward: false })
+      pageOf(first).dispatchEvent(event("did-navigate"))
+      const again = paneIn()
+      mountBrowser(again, {
+        content: { url: "http://localhost:5173/" },
+        label: "page",
+        saved: viewer.state(),
+        live: true,
+        partition: "pages",
+      })
+      expect(pageOf(again).getAttribute("src")).toBe("http://localhost:5173/")
+    })
+
     it("doesn't load its page again to restore where it already is", () => {
       const pane = paneIn()
       const viewer = live(pane)
