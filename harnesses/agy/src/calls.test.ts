@@ -12,7 +12,7 @@ describe("an Antigravity tool call", () => {
   it.each([
     ["call_mcp_tool", { ServerName: "novadeck_novadeck", ToolName: "send" }, "novadeck"],
     ["call_mcp_tool", { ServerName: '"novadeck_novadeck"', ToolName: "new_tool" }, "novadeck"],
-    ["call_mcp_tool", { ServerName: "novadeck", ToolName: "send" }, "work"],
+    ["call_mcp_tool", { ServerName: "novadeck", ToolName: "send" }, "novadeck"],
     ["call_mcp_tool", { ServerName: "other", ToolName: "send" }, "work"],
     ["call_mcp_tool", {}, "work"],
     ["read_file", { file_path: "/h/.agy/mcp/novadeck_novadeck/tools/send.json" }, "novadeck"],
@@ -30,7 +30,9 @@ describe("an Antigravity tool call", () => {
     ["run_command", {}, "work"],
     ["write_file", { file_path: "/a" }, "work"],
     ["ask_question", {}, "work"],
-    ["mcp_novadeck_novadeck_send", {}, "work"],
+    ["mcp_novadeck_novadeck_send", {}, "novadeck"],
+    ["mcp_novadeck_novadeck_new_tool", {}, "novadeck"],
+    ["mcp_novadeck_other_send", {}, "work"],
   ] as const)("%s %j is %s", (tool, args, kind) => {
     expect(kindOf(tool, args)).toBe(kind)
   })

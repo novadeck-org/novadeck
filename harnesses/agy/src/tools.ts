@@ -225,8 +225,9 @@ export const folderOf = (
  * hook's own: its string values may be quoted a second time.
  */
 export const kindOf = (tool: string, args: Fields): ToolKind => {
-  if (tool === lazy)
-    return textField(args, "ServerName") === "novadeck_novadeck" ? "novadeck" : "work"
+  // Novadeck's own, by its server's name as `describe` reads it, loaded eagerly or lazily.
+  if (eager.test(tool)) return "novadeck"
+  if (tool === lazy) return novadeckServers.has(textField(args, "ServerName")) ? "novadeck" : "work"
   if (tool === "read_file")
     return descriptors.test(textField(args, "file_path", "AbsolutePath", "Path", "path"))
       ? "novadeck"
