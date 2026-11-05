@@ -371,6 +371,12 @@ type Watch = {
    * across a restart is not known as one.
    */
   shellTitled: boolean
+  /**
+   * Whether that shell title was written while its agent was expected: the terminal was
+   * opened or resumed to run one, which was slow to bind. The agent's summary on record is
+   * then its own, and names the terminal when it binds.
+   */
+  expectedTitled: boolean
   /** The timer that asks again for a summary's title that did not run. */
   retryTimer: NodeJS.Timeout | undefined
   /** The program in a plain shell's foreground, as a key, and since when; null at the prompt. */
@@ -481,6 +487,7 @@ export class Murmur {
       watch.named = null
       watch.owed = false
       watch.shellTitled = false
+      watch.expectedTitled = false
       watch.shellOwed = false
       watch.screenKey = null
     }
@@ -517,7 +524,8 @@ export class Murmur {
    *
    * An agent that binds after the catch-up (one resumed when the runner restarted, whose
    * terminal catch-up took for a shell) names a terminal with no title from the summary on
-   * record, as catch-up would have: no new summary may ever come to name it.
+   * record, as catch-up would have: no new summary may ever come to name it. So does one whose
+   * title is a shell's, written before it bound (see `shellish`).
    */
   reported(terminalId: string): void {
     const subject = this.host.subject(terminalId)
@@ -525,7 +533,12 @@ export class Murmur {
     const watch = this.watch(terminalId)
     watch.agentRan = true
     // Reports come often: a title already asked for is not asked again.
-    if (this.usable && !watch.owed && untitled(subject) && this.unnamed(subject, watch))
+    if (
+      this.usable &&
+      !watch.owed &&
+      this.unnamed(subject, watch) &&
+      this.needsName(subject, watch)
+    )
       this.check(terminalId)
   }
 
@@ -536,12 +549,37 @@ export class Murmur {
     return !kept(subject) && !!summary && words(summary) !== watch.named
   }
 
+  // Whether murmur's title is a shell's, not a name of the agent's work: written this run
+  // while the terminal expected its agent, or kept from an earlier run (which is not known
+  // to be one) and sharing no word with the summary it should come from. A title made from
+  // the summary shares one, so a healthy terminal is never asked again; an agent terminal
+  // never keeps a shell's. (One a shell got between two agents is left to the next summary.)
+  private shellish(subject: MurmurSubject, watch: Watch): boolean {
+    const { murmur, summary } = subject.naming
+    if (murmur === null) return false
+    if (watch.expectedTitled) return true
+    return (
+      !watch.shellTitled &&
+      watch.named === null &&
+      !!summary &&
+      !sharesContentWord(murmur.title, summary)
+    )
+  }
+
+  // Whether the agent's terminal wants a name from the summary on record: none yet, or a
+  // shell's.
+  private needsName(subject: MurmurSubject, watch: Watch): boolean {
+    return untitled(subject) || this.shellish(subject, watch)
+  }
+
   // The name a summary's title would replace: murmur's own (an opener's title is never
   // replaced at all). A shell's title names what the shell did, not the agent's work: then
   // there is none to weigh, and the summary's title replaces it.
   private previousOf(subject: MurmurSubject, watch: Watch): string | undefined {
     const { murmur } = subject.naming
-    return murmur === null || watch.shellTitled ? undefined : murmur.title
+    return murmur === null || watch.shellTitled || this.shellish(subject, watch)
+      ? undefined
+      : murmur.title
   }
 
   /**
@@ -609,6 +647,7 @@ export class Murmur {
         named: null,
         owed: false,
         shellTitled: false,
+        expectedTitled: false,
         retryTimer: undefined,
         program: { key: null, since: Date.now() },
         agentRan: false,
@@ -648,9 +687,10 @@ export class Murmur {
     const watch = this.watch(id)
     if (subject.agent) {
       // A summary not named yet: one whose title did not run, or one of a terminal with no
-      // title (as after murmur was turned off and on). A titled one waits for the next.
+      // title (as after murmur was turned off and on) or a shell's. A titled one waits for
+      // the next.
       if (!this.unnamed(subject, watch)) return
-      if (watch.owed || untitled(subject)) this.check(id)
+      if (watch.owed || this.needsName(subject, watch)) this.check(id)
       return
     }
     // A summary's title owed when the agent left is not the shell's.
@@ -732,7 +772,10 @@ export class Murmur {
     watch.owed = words(now.naming.summary) !== watch.named
     if (outcome === null) return
     if (previous !== undefined && sharesContentWord(outcome.title, previous)) return
-    if (this.store(terminalId, outcome.title)) watch.shellTitled = false
+    if (this.store(terminalId, outcome.title)) {
+      watch.shellTitled = false
+      watch.expectedTitled = false
+    }
   }
 
   /**
@@ -763,6 +806,8 @@ export class Murmur {
         const current = this.host.subject(terminalId)
         if (!current || kept(current)) return undefined
         if (current.agent || this.expectedFor(current) > 0) return undefined
+        // Its agent is starting, however slowly: the program in the foreground is it.
+        if (current.expecting && !current.atPrompt) return undefined
         if (options.program !== undefined && programKey(current.program) !== options.program)
           return undefined
         const built = await this.shellDigestOf(current, options.unchanged === true)
@@ -777,7 +822,9 @@ export class Murmur {
     )
   }
 
-  // How much longer a shell opened to run an agent waits for it to bind, in milliseconds.
+  // How much longer a shell opened to run an agent waits for it to bind, in milliseconds,
+  // at its prompt: the command may yet start. Once a program holds the foreground, the wait
+  // lasts as long as it does (see `ask`).
   private expectedFor(subject: MurmurSubject): number {
     if (!subject.expecting) return 0
     const since = this.watch(subject.summary.id).since
@@ -825,6 +872,7 @@ export class Murmur {
     watch.named = null
     watch.owed = false
     watch.shellTitled = true
+    watch.expectedTitled = this.host.subject(terminalId)?.expecting != null
   }
 
   // A title came back: it names the terminal if it can be one and the person gave it none;

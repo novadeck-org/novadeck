@@ -615,7 +615,7 @@ describe("when an agent's terminal is named", () => {
     // A new agent in the terminal, once murmur is usable again, is not named from it.
     made.change({
       agent: "codex",
-      naming: { ...made.subjects.get("a")!.naming, murmur: { title: "Kept" } },
+      naming: { ...made.subjects.get("a")!.naming, murmur: { title: "Addons switch" } },
     })
     made.describer.setUsable(false)
     made.describer.setUsable(true)
@@ -700,7 +700,7 @@ describe("when an agent's terminal is named", () => {
     // A titled terminal, which catch-up names only for a summary still owed.
     made.change({
       agent: "codex",
-      naming: { ...made.subjects.get("a")!.naming, murmur: { title: "Kept" } },
+      naming: { ...made.subjects.get("a")!.naming, murmur: { title: "Addons switch" } },
     })
     made.describer.setUsable(false)
     made.describer.setUsable(true)
@@ -1249,7 +1249,7 @@ describe("when murmur becomes usable", () => {
     // No summary: prompts name nothing.
     agent("c", unnamed)
     // Titled: it waits for its agent's next summary.
-    agent("d", { ...unnamed, murmur: { title: "Had one" }, summary: "Fixes the login." })
+    agent("d", { ...unnamed, murmur: { title: "Login fixes" }, summary: "Fixes the login." })
     agent("e", { ...unnamed, opener: { title: "Opened" }, summary: "Fixes the logout." })
     // Titled by the agent that opened it: never described.
     subjects.set("e", { ...subjects.get("e")!, openedBy: "sable" })
@@ -1334,10 +1334,112 @@ describe("when murmur becomes usable", () => {
     expect(refused.describer.jobs).toHaveLength(1)
 
     // A titled terminal waits for its agent's next summary, as catch-up leaves it.
-    const titled = resumed({ murmur: { title: "Had one" } })
+    const titled = resumed({ murmur: { title: "Comparison pages" } })
     titled.murmur.reported("a")
     await settle()
     expect(titled.describer.jobs).toHaveLength(0)
+  })
+
+  describe.each(["claude", "codex", "agy"] as const)("for %s", (agent) => {
+    const stale = "Claude dev server"
+    const recorded = "Responsive Payload media images on the PL website"
+
+    it("gives an agent that binds after a shell title the title of its summary", async () => {
+      // Resumed with the runner: no summary yet to wait for, so catch-up took it for a shell.
+      const made = create({
+        agent: null,
+        expecting: agent,
+        naming: { ...unnamed, summary: recorded },
+      })
+      made.describer.setUsable(false)
+      made.describer.setUsable(true)
+      await settle(made.times.expectMs + made.times.shellSettleMs + 50)
+      // Binding took longer than the wait, so the screen was titled as a shell.
+      made.change({ expecting: null, program: null, atPrompt: true })
+      made.murmur.prompted("a")
+      await settle(made.times.shellSettleMs + 50)
+      expect(made.written).toEqual([{ title: "Title 1" }])
+      made.change({ agent, work: work(), activity: idle("ok") })
+      made.murmur.reported("a")
+      await settle(made.times.settleMs + 50)
+      expect(made.describer.digests.at(-1)).toEqual({
+        kind: "agent",
+        project: "shop",
+        summary: recorded,
+      })
+      expect(made.written).toHaveLength(2)
+      // Once, however many reports follow.
+      made.murmur.reported("a")
+      await settle(made.times.retryMs)
+      expect(made.written).toHaveLength(2)
+    })
+
+    it("heals a shell's title kept from an earlier run, and leaves a summary's alone", async () => {
+      const healed = create({
+        agent,
+        activity: idle("ok"),
+        work: work(),
+        naming: { ...unnamed, summary: recorded, murmur: { title: stale } },
+      })
+      healed.describer.setUsable(false)
+      healed.describer.setUsable(true)
+      await settle()
+      expect(healed.describer.digests).toEqual([
+        { kind: "agent", project: "shop", summary: recorded },
+      ])
+      expect(healed.written).toEqual([{ title: "Title 1" }])
+
+      // The agent binds after the catch-up, as most do on a restart.
+      const late = create({
+        agent: null,
+        expecting: agent,
+        naming: { ...unnamed, summary: recorded, murmur: { title: stale } },
+      })
+      late.describer.setUsable(false)
+      late.describer.setUsable(true)
+      late.change({
+        agent,
+        expecting: null,
+        work: work(),
+        activity: idle("ok"),
+      })
+      late.murmur.reported("a")
+      await settle()
+      expect(late.written).toEqual([{ title: "Title 1" }])
+
+      // A title that came from its summary costs the model nothing on a restart.
+      const fine = create({
+        agent,
+        activity: idle("ok"),
+        work: work(),
+        naming: {
+          ...unnamed,
+          summary: recorded,
+          murmur: { title: "Payload media images" },
+        },
+      })
+      fine.describer.setUsable(false)
+      fine.describer.setUsable(true)
+      fine.murmur.reported("a")
+      await settle(fine.times.retryMs)
+      expect(fine.describer.jobs).toHaveLength(0)
+    })
+
+    it("does not describe an agent that is still starting as a shell, however long it takes", async () => {
+      const made = create({ agent: null, expecting: agent, atPrompt: true })
+      made.murmur.prompted("a")
+      // The agent's program holds the foreground when the wait ends, and has not bound.
+      made.change({ program: { name: agent, argv: [agent] }, atPrompt: false })
+      await settle(made.times.expectMs + made.times.shellSettleMs + 50)
+      expect(made.describer.jobs).toHaveLength(0)
+      expect(made.written).toEqual([])
+      // It never started: back at the prompt with nothing expected, it is a shell.
+      made.change({ expecting: null, program: null, atPrompt: true })
+      made.murmur.prompted("a")
+      await settle(made.times.shellSettleMs + 50)
+      expect(made.describer.digests).toHaveLength(1)
+      expect(made.describer.digests[0]).toMatchObject({ kind: "shell" })
+    })
   })
 
   it("asks nothing while murmur is unusable, and nothing once stopped", async () => {
