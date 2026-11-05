@@ -8,17 +8,29 @@ import { useUiState, useWorkspaceServices, useWorkspaceState } from "./controlle
 import { currentContext, currentState } from "./selectors"
 import type { UiStore } from "./ui-store"
 
+// How long a team's tabs count as unfolding once it's shown again: past the unroll, so a tab
+// that mounts later, as on a session switch or the sidebar shown again, appears at once.
+const unfoldingMs = 1000
+
 // Folds the lead's team in the current session, or shows it again.
-export const toggleTeamFold = (ui: UiStore, context: string, lead: string): void =>
-  void ui.update((state) => {
-    const unfolds = isFolded(state.foldedTeams, context, lead)
-    return {
-      ...state,
-      foldedTeams: toggleFolded(state.foldedTeams, context, lead),
-      foldPreview: null,
-      unfolding: unfolds ? { context, lead } : null,
-    }
-  })
+export const toggleTeamFold = (ui: UiStore, context: string, lead: string): void => {
+  const unfolds = isFolded(ui.getSnapshot().foldedTeams, context, lead)
+  const unfolding = unfolds ? { context, lead } : null
+  ui.update((state) => ({
+    ...state,
+    foldedTeams: toggleFolded(state.foldedTeams, context, lead),
+    foldPreview: null,
+    unfolding,
+  }))
+  if (unfolding)
+    setTimeout(
+      () =>
+        ui.update((state) =>
+          state.unfolding === unfolding ? { ...state, unfolding: null } : state,
+        ),
+      unfoldingMs,
+    )
+}
 
 // Says which lead's fold the person points at, beside its tab, or that they point at none.
 export const previewTeamFold = (ui: UiStore, preview: UiStoreFoldPreview): void =>

@@ -71,8 +71,8 @@ export const wireShape = (
   }
 }
 
-// Where pointing arms a lead's fold (TeamWire.tsx): the gutter beside its tab, from a few
-// pixels left of the rail's border up to the tab's left edge and not a pixel into it, so
+// Where pointing arms a lead's fold (TeamWire.tsx): the gutter beside its tab, from just left
+// of the rail's border, clear of the rail's buttons, up to the tab's left edge and not a pixel into it, so
 // pointing at the tab never arms it, for the tab's height, within the list's room. None while
 // the tab is out of view.
 export type FoldGutter = {
@@ -82,8 +82,9 @@ export type FoldGutter = {
   readonly height: number
 }
 
-// How far left of the rail's border the gutter reaches.
-const gutterReach = 7
+// How far left of the rail's border the gutter reaches: over the lead's cursor, which spans two
+// pixels each side of it, and short of the rail's buttons, which end five pixels before it.
+const gutterReach = 3
 
 export const foldGutter = (
   x: number,

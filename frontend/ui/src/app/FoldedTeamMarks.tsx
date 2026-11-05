@@ -58,8 +58,10 @@ export const FoldedTeamMarks = ({ lead }: { lead: string }): React.JSX.Element |
       aria-hidden
       className="team-fold-marks"
       data-team-fold-marks
-      // Pressing here would select the lead or start a drag: the marks keep it to themselves.
-      onPointerDown={(event) => event.stopPropagation()}
+      // Pressing here would start dragging the lead, whose sensor listens on its select button
+      // natively, below React's root: the marks keep the press to themselves natively too. A
+      // click is theirs alone as well, so it doesn't select the lead.
+      ref={keepPress}
       onClick={(event) => {
         event.stopPropagation()
         event.preventDefault()
@@ -74,3 +76,10 @@ export const FoldedTeamMarks = ({ lead }: { lead: string }): React.JSX.Element |
   )
 }
 const noWorkers: readonly string[] = []
+
+const stop = (event: Event) => event.stopPropagation()
+const keepPress = (node: HTMLElement | null) => {
+  if (!node) return
+  node.addEventListener("pointerdown", stop)
+  return () => node.removeEventListener("pointerdown", stop)
+}

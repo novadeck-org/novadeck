@@ -1,4 +1,4 @@
-import { userEvent } from "vitest/browser"
+import { page, userEvent } from "vitest/browser"
 
 import { windowMenu } from "../support/companions"
 import { openMessagesDemo } from "../support/messages"
@@ -124,5 +124,33 @@ describe("Folding a lead's teammates out of the list", () => {
     expect(laidOut(worker)).toBe(true)
     await terminalTab("Dev server").click()
     await expect.poll(() => laidOut(worker)).toBe(false)
+  })
+
+  it("ends what pointing armed when the gutter goes away under the pointer", async () => {
+    await openMessagesDemo()
+    await terminalTab("Dev server").click()
+    await pointBeside()
+    await expect.poll(() => foldOf(worker)).toBe("preview")
+    // Hiding the sidebar takes the gutter away with no leave heard.
+    await userEvent.keyboard("{Control>}{Shift>}e{/Shift}{/Control}")
+    await expect.poll(gutterElement).toBeNull()
+    // The pointer moves on to the header while it's hidden, then the sidebar comes back.
+    await userEvent.hover(page.getByRole("radiogroup", { name: "Workspace layout" }))
+    await userEvent.keyboard("{Control>}{Shift>}e{/Shift}{/Control}")
+    await expect.poll(gutterElement).not.toBeNull()
+    await expect.poll(() => foldOf(worker)).toBe("shown")
+    expect(shape()?.hasAttribute("data-armed")).toBe(false)
+  })
+
+  it("unrolls a team once as it comes back, not again when its tabs mount later", async () => {
+    await openMessagesDemo()
+    await terminalTab("Dev server").click()
+    const menu = await windowMenu(lead)
+    await menu.getByRole("menuitem", { name: "Fold 1 teammate", exact: true }).click()
+    await expect.poll(() => laidOut(worker)).toBe(false)
+    const again = await windowMenu(lead)
+    await again.getByRole("menuitem", { name: "Show 1 teammate", exact: true }).click()
+    await expect.poll(() => foldOf(worker)).toBe("unfolding")
+    await expect.poll(() => foldOf(worker), { timeout: 3000 }).toBe("shown")
   })
 })

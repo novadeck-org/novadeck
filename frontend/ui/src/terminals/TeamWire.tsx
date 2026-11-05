@@ -129,7 +129,8 @@ export const TeamWire = ({
   // Folds a lead's team, or shows it again; without it, no gutter takes the pointer.
   onFold?: ((lead: string) => void) | undefined
   // Says which lead's gutter the person points at, so its teammates' tabs show what a click
-  // does, or that they point at none.
+  // does, or that they point at none. Kept the same from render to render: a new one ends the
+  // preview the last one set.
   onPreview?: ((lead: string | null) => void) | undefined
 }): React.JSX.Element => {
   const layer = useRef<HTMLDivElement>(null)
@@ -140,7 +141,7 @@ export const TeamWire = ({
   // The lead whose gutter the person points at, and whether they clicked there since they
   // came, which holds it until they leave.
   const [armed, setArmed] = useState<string | undefined>(undefined)
-  const spent = useRef(false)
+  const spent = useRef<string | undefined>(undefined)
   const [seen, setSeen] = useState(selected)
   if (seen !== selected) {
     setSeen(selected)
@@ -237,6 +238,21 @@ export const TeamWire = ({
   // last, over any resting one it crosses.
   const drawn = teams.length && shown && list ? wires : []
   const lit = drawn.find((wire) => wire.lead === team?.lead)
+  // A gutter that goes away under the pointer, as the sidebar hides, the session changes or the
+  // team ends, hears no leave: what pointing there armed ends with it (here, as the selection's
+  // entrance is forgotten above), the preview it set ends as it does (below), and a click there
+  // no longer holds the next arming back.
+  const gutters = drawn.flatMap(({ lead, gutter }) => (gutter ? [lead] : [])).join(" ")
+  if (armed !== undefined && !gutters.split(" ").includes(armed)) setArmed(undefined)
+  useEffect(() => {
+    if (spent.current !== undefined && !gutters.split(" ").includes(spent.current))
+      spent.current = undefined
+  }, [gutters])
+  // The preview lasts as long as the arming, however that ends, the wires' going included.
+  useEffect(() => {
+    if (armed === undefined) return
+    return () => onPreview?.(null)
+  }, [armed, onPreview])
   return (
     <div
       ref={layer}
@@ -280,20 +296,21 @@ export const TeamWire = ({
                   height: gutter.height,
                 }}
                 onPointerEnter={() => {
-                  if (spent.current) return
+                  if (spent.current === lead) return
                   setArmed(lead)
                   onPreview?.(lead)
                 }}
                 onPointerLeave={() => {
-                  spent.current = false
+                  spent.current = undefined
                   setArmed(undefined)
-                  onPreview?.(null)
                 }}
                 onClick={() => {
-                  spent.current = true
+                  spent.current = lead
                   setArmed(undefined)
                   onFold(lead)
                 }}
+                // The gutter lies over the list's edge: a wheel there scrolls the list.
+                onWheel={(event) => list?.scrollBy({ top: event.deltaY })}
               />
             ),
         )}

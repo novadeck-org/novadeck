@@ -484,7 +484,11 @@
    least height are the tab's utilities' (TerminalTab.tsx), which this layer can't outrank. */
 .terminal-tab[data-team-fold] {
   interpolate-size: allow-keywords;
+  /* The item's own (item.css) first, which a transition here would otherwise replace. */
   transition:
+    background-color var(--motion-feedback) var(--ease-interface),
+    border-color var(--motion-feedback) var(--ease-interface),
+    box-shadow var(--motion-feedback) var(--ease-interface),
     height var(--motion-layout) var(--ease-interface),
     min-height var(--motion-layout) var(--ease-interface),
     opacity var(--motion-layout) var(--ease-interface),

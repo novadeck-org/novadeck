@@ -91,15 +91,15 @@ describe("a folded team's wire", () => {
 describe("where pointing arms a fold", () => {
   it("is the gutter from just left of the border to the tab's edge, never into the tab", () => {
     const gutter = foldGutter(43, view, { top: 120, height: 68, left: 56 })!
-    expect(gutter).toEqual({ left: 36, top: 120, width: 20, height: 68 })
+    expect(gutter).toEqual({ left: 40, top: 120, width: 16, height: 68 })
     expect(gutter.left + gutter.width).toBe(56)
   })
 
   it("keeps within the list's room, and is none for a tab out of view", () => {
     expect(foldGutter(43, view, { top: 80, height: 68, left: 56 })).toEqual({
-      left: 36,
+      left: 40,
       top: 100,
-      width: 20,
+      width: 16,
       height: 48,
     })
     expect(foldGutter(43, view, { top: 720, height: 68, left: 56 })).toBeUndefined()

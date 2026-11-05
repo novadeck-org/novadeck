@@ -1,6 +1,7 @@
 import { allTeams, sameTeam, sameTeams, teamOf } from "@novadeck/core/derivations"
 import type { Backend, BackendSelection, CreateBackend, TerminalKey } from "@novadeck/core/port"
 import {
+  useCallback,
   useEffect,
   useRef,
   useState,
@@ -157,6 +158,11 @@ const TeamWireSection = ({
   const { ui } = useWorkspaceServices()
   const context = useWorkspaceState(currentContext)
   const folded = useFoldedLeads()
+  const onFold = useCallback((lead: string) => toggleTeamFold(ui, context, lead), [ui, context])
+  const onPreview = useCallback(
+    (lead: string | null) => previewTeamFold(ui, lead === null ? null : { context, lead }),
+    [ui, context],
+  )
   return (
     <TeamWire
       teams={teams}
@@ -165,8 +171,8 @@ const TeamWireSection = ({
       shown={shown}
       list={list}
       folded={folded}
-      onFold={(lead) => toggleTeamFold(ui, context, lead)}
-      onPreview={(lead) => previewTeamFold(ui, lead === null ? null : { context, lead })}
+      onFold={onFold}
+      onPreview={onPreview}
     />
   )
 }
