@@ -6,6 +6,8 @@ import { ease, slide } from "./pin-motion"
 
 // Where in a pin the bar's drag of it is held: a little in from its start, halfway down.
 const grip = 20
+// How many frames a handed-over drag has to get under way before the bar gives it up.
+export const arrivalFrames = 60
 
 export type PinHandoffDrag = {
   // The handed-over project whose pin isn't under the pointer yet, and shows unseen.
@@ -39,9 +41,20 @@ export const usePinHandoff = (
   const releasedAt = useRef<Point | null>(null)
   // The handed-over pin is under the pointer.
   const [landed, setLanded] = useState<PinHandoff | null>(null)
+  // Stops following the pointer for the handoff the bar took: its window listeners, and
+  // its wait for the drag to get under way.
   const following = useRef<(() => void) | null>(null)
+  const unfollow = useCallback(() => {
+    const stop = following.current
+    following.current = null
+    took.current = null
+    stop?.()
+  }, [])
 
   useLayoutEffect(() => {
+    // A handoff that went before its drag ended, or another in its place, takes the old
+    // one's listeners with it: its drag can't end through the bar any more.
+    if (took.current && took.current !== handoff) unfollow()
     if (!handoff || !pinned || took.current === handoff) return
     const actions = manager.current?.actions
     const pin = row.current?.querySelector<HTMLElement>(
@@ -65,10 +78,20 @@ export const usePinHandoff = (
       return
     }
     // dnd-kit takes moves only once the drag is under way, a frame or so after it starts.
+    // One that never does, as where the bar's manager was swapped under it, is given up,
+    // so the handoff doesn't hang with the window's pointer and Escape still taken.
     let pointer = handoff.point
+    let waited = 0
     let frame = requestAnimationFrame(function arrive(): void {
       if (!manager.current?.dragOperation.status.dragging) {
-        frame = requestAnimationFrame(arrive)
+        waited += 1
+        if (waited < arrivalFrames) {
+          frame = requestAnimationFrame(arrive)
+          return
+        }
+        unfollow()
+        actions.stop({ canceled: true })
+        abandon()
         return
       }
       actions.move({ to: pointer })
@@ -106,16 +129,14 @@ export const usePinHandoff = (
       window.removeEventListener("pointercancel", cancel, true)
       window.removeEventListener("keydown", escape, true)
     }
-  }, [handoff, pinned, row])
-  useEffect(() => () => following.current?.(), [])
+  }, [handoff, pinned, row, unfollow])
+  useEffect(() => unfollow, [unfollow])
 
   const end = useCallback(() => {
     if (took.current === null) return { handedOver: false, releasedAt: null }
-    following.current?.()
-    following.current = null
-    took.current = null
+    unfollow()
     return { handedOver: true, releasedAt: releasedAt.current }
-  }, [])
+  }, [unfollow])
 
   return {
     arriving: handoff && landed !== handoff ? handoff.id : null,

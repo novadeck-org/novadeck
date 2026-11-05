@@ -166,7 +166,7 @@ const beginHeaderRename = (container: HTMLElement): HTMLInputElement => {
 
 describe("a terminal window across foreground processes", () => {
   context("when the foreground process changes", () => {
-    it("presents Claude and Codex in the same window and returns to the terminal without remounting the surface", async () => {
+    it("presents Claude, Codex and Antigravity in the same window and returns to the terminal without remounting the surface", async () => {
       const page = await open(second)
       try {
         const terminal = visibleWindow(page.container)
@@ -182,6 +182,10 @@ describe("a terminal window across foreground processes", () => {
 
         page.process("codex")
         expect(visibleWindow(page.container).dataset.processWindow).toBe("codex")
+        expect(visibleWindow(page.container).querySelector("[data-terminal-input]")).not.toBeNull()
+
+        page.process("agy")
+        expect(visibleWindow(page.container).dataset.processWindow).toBe("agy")
         expect(visibleWindow(page.container).querySelector("[data-terminal-input]")).not.toBeNull()
 
         page.process("zsh")
@@ -203,7 +207,7 @@ describe("a terminal window across foreground processes", () => {
           visibleWindow(page.container).querySelector(".terminal-host")?.firstElementChild
         const first = surface()
         expect(first).toBeTruthy()
-        for (const program of ["claude", "codex", "zsh"]) {
+        for (const program of ["claude", "codex", "agy", "zsh"]) {
           page.process(program)
           expect(surface()).toBe(first)
         }
@@ -263,7 +267,7 @@ describe("a terminal window across foreground processes", () => {
         field.setSelectionRange(9, 9)
         expect(document.activeElement).toBe(field)
 
-        for (const program of ["claude", "codex", "zsh"]) {
+        for (const program of ["claude", "codex", "agy", "zsh"]) {
           page.process(program)
           const current = visibleWindow(page.container).querySelector("[data-rename-terminal]")
           expect(current).toBe(field)

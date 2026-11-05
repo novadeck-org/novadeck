@@ -67,7 +67,8 @@ export const packages: readonly Pkg[] = [
       "./phases": "./src/phases.ts",
       "./backend-contract": "./src/backend-contract.ts",
     },
-    scripts: { typecheck: "tsc --noEmit -p tsconfig.json" },
+    scripts: unitScripts,
+    vitest: "unit",
   },
   {
     id: "terminal-views",

@@ -37,7 +37,6 @@ import {
   openWorkspace,
   press,
   sidebarPanel,
-  skipWelcome,
   terminal,
   terminalTab,
   view,
@@ -344,7 +343,6 @@ describe("Canvas", () => {
   context("when going to a terminal from its Inbox row", () => {
     it("flies the camera in to it, as a double-click on its header does", async () => {
       await openWorkspace("/?demo=agents")
-      await skipWelcome()
       await chooseView("Canvas")
       await expect.element(terminal("Checkout review")).toBeVisible()
       expect(fillsView(await settled(() => boxOf(terminal("Checkout review"))))).toBe(false)
@@ -364,7 +362,6 @@ describe("Canvas", () => {
 
     it("flies in from the camera its session was left with, when the row is from another", async () => {
       await openWorkspace("/projects/storefront/sessions/initial/canvas?demo=agents")
-      await skipWelcome()
       await expect.element(terminal("Checkout review")).toBeVisible()
       // To docs-site's Grid, leaving storefront's Canvas with its camera.
       window.location.hash = "#/projects/docs-site/sessions/initial/grid"
@@ -386,7 +383,6 @@ describe("Canvas", () => {
 
     it("frames every window when Canvas opens from another view later, flying no more", async () => {
       await openWorkspace("/?demo=agents")
-      await skipWelcome()
       await chooseView("Canvas")
       await sidebarPanel("Inbox").click()
       await page.getByRole("button", { name: /Run pnpm test/ }).click()

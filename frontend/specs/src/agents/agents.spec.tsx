@@ -8,7 +8,6 @@ import {
   expectStaysAbsent,
   openWorkspace,
   sidebarPanel,
-  skipWelcome,
   tabDescription,
   terminal,
   terminalTab,
@@ -28,7 +27,6 @@ describe("An agent waiting on the person", () => {
   it("says so on its terminal's tab and window", async () => {
     // The demo's Codex waits for permission to run a command.
     await openWorkspace("/?demo=agents")
-    await skipWelcome()
     const tab = terminalTab("Checkout review")
     await expect
       .poll(() => tabDescription("Checkout review"))
@@ -46,7 +44,6 @@ describe("An agent waiting on the person", () => {
       // docs-site's asks a question, mobile-app's works, design-system's and infra's work
       // and then finish, done and failed, a moment after the demo opens.
       await openWorkspace("/?demo=agents")
-      await skipWelcome()
       const trigger = workspaceSwitcher()
 
       await expect.element(trigger).toHaveAttribute("data-project-status", "unblock")
@@ -75,7 +72,6 @@ describe("An agent that plans", () => {
   it("says that its plan waits for review, on its tab and window", async () => {
     // The demo's Claude Code planned, and waits for the person to review the plan.
     await openWorkspace("/?demo=agents")
-    await skipWelcome()
     const tab = terminalTab("Checkout implementation")
     await expect
       .poll(() => tabDescription("Checkout implementation"))
@@ -94,7 +90,6 @@ describe("An agent's subagents", () => {
   it("are marked on its tab, and listed by kind under it while it's selected", async () => {
     // The demo's Codex runs two explorers.
     await openWorkspace("/?demo=agents")
-    await skipWelcome()
     const tab = terminalTab("Checkout review")
     const row = () => tab.element().closest(".terminal-tab")!
     await expect.poll(() => row().getAttribute("data-terminal-subagents")).toBe("working")
@@ -115,7 +110,6 @@ describe("An agent's subagents", () => {
   it("are counted on its tab, and left to its terminal in its window", async () => {
     // The demo's Codex runs two explorers.
     await openWorkspace("/?demo=agents")
-    await skipWelcome()
     await terminalTab("Checkout review").click()
     const window = terminal("Checkout review")
     await expect.poll(() => tabDescription("Checkout review")).toContain("2 subagents")
@@ -127,7 +121,6 @@ describe("An agent whose turn left work running", () => {
   it("works on, counting that work on its tab", async () => {
     // The demo's Claude Code waits on two subagents and a command it started.
     await openWorkspace("/?demo=agents")
-    await skipWelcome()
     await terminalTab("Tests").click()
     const window = terminal("Tests")
     await expect.element(window).toHaveAttribute("data-terminal-phase", "running")
@@ -138,7 +131,6 @@ describe("An agent whose turn left work running", () => {
   it("waits, not idle or done, on a command it started, which wakes it once it ends", async () => {
     // The demo's other Claude Code left a build running and ended its turn.
     await openWorkspace("/?demo=agents")
-    await skipWelcome()
     const tab = terminalTab("Build")
     const row = () => tab.element().closest(".terminal-tab")!
     await expect.poll(() => row().getAttribute("data-terminal-phase")).toBe("waiting")
@@ -165,7 +157,6 @@ describe("An agent Novadeck can't hear from", () => {
   it("says so on its terminal's tab and window, never as running", async () => {
     // The demo's Antigravity runs with nothing reaching Novadeck from its hooks.
     await openWorkspace("/?demo=agents")
-    await skipWelcome()
     const said = "Not reporting · Novadeck can't hear from this agent"
     await expect.poll(() => tabDescription("Runtime")).toBe(said)
     await terminalTab("Runtime").click()
@@ -182,7 +173,6 @@ describe("An agent Novadeck can't hear from", () => {
 // usual 1.5 s didn't always leave room for.
 const promptBuild = async (view?: "Grid", text = "Ship the docs"): Promise<void> => {
   await openWorkspace("/?demo=agents&turnMs=5000")
-  await skipWelcome()
   if (view) await chooseView(view)
   await terminalTab("Build").click()
   await typeInto("Build", text)
@@ -304,7 +294,6 @@ describe("An agent's model and context", () => {
   it("show as a ring over its terminal's top right, in words as the ring is hovered", async () => {
     // The demo's Codex reports its model, effort and context, and a five-hour window.
     await openWorkspace("/?demo=agents")
-    await skipWelcome()
     await terminalTab("Checkout review").click()
     const window = terminal("Checkout review")
     const ring = window.getByRole("img", {
@@ -331,7 +320,6 @@ describe("The account's subscriptions", () => {
   it("show as a pill each in the footer, each naming its busiest window and opening its own", async () => {
     // The demo's Claude Code and Codex report their five-hour and weekly windows.
     await openWorkspace("/?demo=agents")
-    await skipWelcome()
     const pills = page.getByRole("group", { name: "Subscriptions" }).getByRole("button")
     expect(pills.elements().map((pill) => pill.getAttribute("aria-label"))).toEqual([
       "Claude Code subscription: 5h 42% used",
@@ -348,7 +336,6 @@ describe("The account's subscriptions", () => {
 
   it("stay where the person moves them, from a pill's menu or by dragging it", async () => {
     await openWorkspace("/?demo=agents")
-    await skipWelcome()
     const pills = page.getByRole("group", { name: "Subscriptions" }).getByRole("button")
     const order = () =>
       pills.elements().map((pill) => pill.getAttribute("aria-label")!.split(" ")[0])
