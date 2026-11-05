@@ -14,7 +14,14 @@ for (const sequence of ligatureSequences) {
   const first = sequence[0] ?? ""
   buckets.set(first, [...(buckets.get(first) ?? []), sequence])
 }
-const trigger = new RegExp(`[${[...buckets.keys()].map((c) => `\\${c}`).join("")}]`)
+
+/**
+ * A class of the characters a sequence may start with. Only what is special inside a class is
+ * escaped: a letter escaped would be a class escape (`\b` a backspace, `\d` any digit).
+ */
+export const triggerFor = (firsts: Iterable<string>): RegExp =>
+  new RegExp(`[${[...firsts].map((c) => c.replace(/[\\\]^-]/g, "\\$&")).join("")}]`)
+const trigger = triggerFor(buckets.keys())
 
 /** The widest run drawn as one glyph, in cells; `runLimit` narrows it for a larger cell. */
 export const maxRunCells = 32
