@@ -1,11 +1,13 @@
-import type { DragDropManager } from "@dnd-kit/dom"
 import { render, type Rendered } from "@novadeck/test-kit/render"
 import { act, createElement, useLayoutEffect, useRef } from "react"
 import { afterEach, beforeEach, expect, it, vi } from "vitest"
 
 import { context, describe } from "../test"
 import type { PinHandoff } from "./pin-drop"
-import { arrivalFrames, usePinHandoff } from "./pin-handoff"
+import { arrivalFrames, usePinHandoff, type PinHandoffDrag } from "./pin-handoff"
+
+// The bar's drag manager, named as the hook takes it: dnd-kit stays in the files that drag.
+type DragDropManager = NonNullable<Parameters<PinHandoffDrag["takeManager"]>[0]>
 
 const handoff: PinHandoff = { id: "p-1", point: { x: 40, y: 10 }, wasPinned: false }
 
