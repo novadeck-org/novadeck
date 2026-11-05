@@ -467,7 +467,7 @@ quits. The runner writes its shell integration to a `shell` folder beside
 
 `@novadeck/protocol` contains runtime-validated Zod schemas, the oRPC contract, and
 inferred TypeScript types. The runner implements that contract; it does not expose
-arbitrary event-name handlers. oRPC is pinned to 1.15.5, once, in the pnpm catalog in
+arbitrary event-name handlers. oRPC is pinned to 1.16.1, once, in the pnpm catalog in
 `pnpm-workspace.yaml`: its installed API uses `eventIterator` and the server's `ws`
 and `message-port` adapters. The connection itself is the `@novadeck/wire` library
 (`libraries/wire`): it keeps oRPC's standard wire protocol over a small channel

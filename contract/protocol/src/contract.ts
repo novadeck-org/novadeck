@@ -22,6 +22,7 @@ import {
 } from "./agents.js"
 import {
   companionChange,
+  companionLimits,
   companionItem,
   companionWindow,
   itemContent,
@@ -355,7 +356,7 @@ export const contract = {
       .input(
         z.strictObject({
           itemId: id,
-          text: z.string().max(256 * 1024),
+          text: z.string().max(companionLimits.plan),
           basedOn: z.string().max(128),
         }),
       )

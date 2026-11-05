@@ -2,7 +2,9 @@ import { createHash, randomBytes, randomInt } from "node:crypto"
 import { stripVTControlCharacters } from "node:util"
 
 import {
+  controlCharacter,
   harnesses,
+  unsafeCharacter,
   type AgentName,
   type MessageParty,
   type MessageRecipient,
@@ -176,17 +178,22 @@ export const freshId = (prefix: "m" | "t"): string => {
   return `${prefix}-${[...bytes].map((byte) => alphabet[byte % alphabet.length]).join("")}`
 }
 
-/** The text without control characters other than newline and tab. */
-export const cleanText = (text: string): string =>
-  // eslint-disable-next-line no-control-regex -- These are the characters it removes.
-  text.replace(/[\x00-\x08\x0b-\x1f\x7f-\x9f]/g, "")
+const controls = new RegExp(controlCharacter.source, "g")
+const unsafe = new RegExp(unsafeCharacter.source, "g")
 
-/** Agent-written Inbox labels and action instructions cannot hide terminal controls, invisible separators or direction changes. */
+/** The text without control characters other than newline and tab (`controlCharacter`). */
+export const cleanText = (text: string): string => text.replace(controls, "")
+
+/**
+ * Agent-written Inbox labels and action instructions cannot hide terminal controls, invisible
+ * separators or direction changes: the text without its escape sequences, its
+ * `unsafeCharacter`s, and the zero-width joiner and non-joiner, which a title keeps for emoji
+ * and scripts that need them, and the Inbox has kept out since it began.
+ */
 export const cleanInboxText = (text: string): string =>
-  cleanText(stripVTControlCharacters(text)).replace(
-    /[\u061c\u180e\u200b-\u200f\u2028-\u202e\u2060\u2066-\u2069\ufeff]/g,
-    "",
-  )
+  stripVTControlCharacters(text)
+    .replace(unsafe, "")
+    .replaceAll(/[\u200c\u200d]/g, "")
 
 export const byteLength = (text: string): number => Buffer.byteLength(text, "utf8")
 

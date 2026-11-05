@@ -2187,6 +2187,47 @@ describe("the messages", () => {
     expect(reopened.threads()).toEqual([])
     expect(reopened.messagingPaused()).toBe(false)
   })
+
+  // As a portable copy opening the workspace of a newer build, which knows more harnesses.
+  it("reads a newer build's harness this one doesn't know without failing the rest", ({
+    directory,
+    kept,
+  }) => {
+    const path = join(directory(), "workspace.sqlite")
+    const original = kept(path)
+    original.saveThread({
+      id: "t-1",
+      projectId: "p",
+      between: ["a", "b"],
+      hops: 3,
+      heldFrom: null,
+      heldFor: null,
+      lastAt: 3,
+      stoppedAt: null,
+    })
+    original.saveMessage(message("m-1", "queued"))
+    original.saveMessage({
+      ...message("m-2", "delivered"),
+      from: { kind: "agent", terminalId: "a", handle: "moth", agent: "claude", sessionId: null },
+    })
+    const to = message("m-3", "queued")
+    original.saveMessage({ ...to, to: { ...to.to, agent: "claude" } })
+    original.close()
+    const raw = new DatabaseSync(path)
+    raw.exec(`UPDATE messages SET from_agent = 'cursor' WHERE id = 'm-2'`)
+    raw.exec(`UPDATE messages SET to_agent = 'cursor' WHERE id = 'm-3'`)
+    raw.close()
+
+    const reopened = kept(path)
+    // The sender stays, unnamed; one to such an agent is left out, but kept for that build.
+    expect(reopened.messages()).toEqual([message("m-1", "queued"), message("m-2", "delivered")])
+    reopened.close()
+    const check = new DatabaseSync(path)
+    expect(check.prepare(`SELECT to_agent FROM messages WHERE id = 'm-3'`).get()).toEqual({
+      to_agent: "cursor",
+    })
+    check.close()
+  })
 })
 
 // A terminal kept in a session, as the terminals save one.
@@ -2391,6 +2432,31 @@ describe("companion items", () => {
     expect(reopened.items()).toEqual([{ ...shown, terminalId: second }])
     reopened.removeTerminal(second)
     expect(reopened.items()).toEqual([])
+  })
+
+  // As a portable copy opening the workspace of a newer build, which knows more harnesses.
+  it("read a plan of a harness this build doesn't know as no plan", async ({
+    directory,
+    store,
+  }) => {
+    const cwd = directory()
+    const path = join(cwd, "workspace.sqlite")
+    const workspace = store(path)
+    const project = await workspace.createProject({ id: randomUUID(), name: "P", cwd })
+    const session = workspace.createSession({ id: randomUUID(), projectId: project.id, name: "S" })
+    const terminal = keptTerminal(workspace, session.id, "moth")
+    const plan = item(session.id, terminal, "plan:s1:", {
+      kind: "plan",
+      plan: { agent: "codex", session: "s1", actor: null, format: "file" },
+    })
+    const file = item(session.id, terminal, "/work/a.ts")
+    for (const each of [plan, file]) workspace.saveItem(each)
+    workspace.close()
+    const raw = new DatabaseSync(path)
+    raw.exec(`UPDATE companion_items SET plan_agent = 'cursor' WHERE id = '${plan.id}'`)
+    raw.close()
+
+    expect(store(path).items()).toEqual([{ ...plan, plan: null }, file])
   })
 })
 
@@ -2610,5 +2676,37 @@ describe("the snapshot taken before a migration", () => {
     } finally {
       workspace.close()
     }
+  })
+})
+
+describe("a saved terminal's command", () => {
+  // Kept before the one-line rule took in C1 controls and the marks that reorder or hide
+  // text, it would fail every summary it is in.
+  it("comes back without what one line may no longer hold, and any other as it was", ({
+    directory,
+    kept,
+  }) => {
+    const path = join(directory(), "workspace.sqlite")
+    const first = kept(path)
+    const terminal = (id: string, command: string) => ({
+      id,
+      sessionId: "s",
+      cwd: "/work",
+      agents: {},
+      promptedAt: null,
+      handle: id === "a" ? "moth" : "fox",
+      naming: { person: null, opener: null, murmur: null, summary: null },
+      openedBy: null,
+      ledBy: null,
+      command,
+      lastProgram: null,
+      work: null,
+    })
+    first.saveTerminal(terminal("a", "echo 'a\u202eb'\u009b"))
+    first.saveTerminal(terminal("b", "echo  'a b' "))
+    first.close()
+    const reopened = kept(path)
+    expect(reopened.terminal("a")?.command).toBe("echo 'ab'")
+    expect(reopened.terminal("b")?.command).toBe("echo  'a b' ")
   })
 })
