@@ -20,11 +20,15 @@ export type DemoTranscript = {
 // What an answer leaves in the conversation, as the harness records it: the records it
 // adds, then either what the agent says as its turn goes on, or the person's words, which
 // become the agent's next prompt.
-export type DemoOutcome =
+export type DemoOutcome = (
   | { readonly items: readonly DemoDraft[]; readonly reply: string }
   | { readonly items: readonly DemoDraft[]; readonly prompt: string }
   // The turn ends there, and the agent waits at its prompt for the person's words.
   | { readonly items: readonly DemoDraft[]; readonly waits: true }
+) & {
+  // The person declined the agent's plan: it stays in plan mode, as Claude Code does.
+  readonly planning?: true
+}
 
 export type DemoDraft = Pick<ChatItem, "role" | "kind" | "text"> &
   Partial<Pick<ChatItem, "tool" | "call" | "author" | "truncated" | "run">>
@@ -209,6 +213,7 @@ export const agentTranscripts = (now: number): Readonly<Record<string, DemoTrans
                 ),
               ],
               reply: `Understood. I'll revise the plan: ${answer.text ?? "your notes"}`,
+              planning: true,
             }
           : {
               items: [got("toolu_01d", "User has approved your plan. You can now start coding.")],
@@ -849,7 +854,7 @@ export const showcaseTranscripts = (now: number): Readonly<Record<string, DemoTr
     outcomes: {
       "01:plan": (answer) =>
         answer.type === "choice" && answer.option === "2"
-          ? { items: [], prompt: answer.text ?? "Keep planning." }
+          ? { items: [], prompt: answer.text ?? "Keep planning.", planning: true }
           : { items: [], reply: "Approved. Starting with the visual direction." },
     },
   },

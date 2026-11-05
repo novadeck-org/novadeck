@@ -149,6 +149,8 @@ export const demoTurns = (turnMs = demoTurnMs) => {
     done?: { readonly subject: string; readonly body: string },
   ): void => {
     const id = terminalKeyId(key)
+    // An agent in plan mode stays in it through the turn, as Claude Code does.
+    const mode = agent.planning ? { planning: true as const } : {}
     const timers: Timers = [
       ...(tools ? [setTimeout(() => emit({ type: "tool", key }), turnMs / 2)] : []),
       setTimeout(() => {
@@ -156,6 +158,7 @@ export const demoTurns = (turnMs = demoTurnMs) => {
         if (done) reported.add(id)
         status(key, {
           working: false,
+          ...mode,
           ...left(agent),
           lastTurn: { outcome: "completed", reply, at: Date.now() },
         })
@@ -165,7 +168,7 @@ export const demoTurns = (turnMs = demoTurnMs) => {
     active.set(id, timers)
     // After the engine's own update: a status is a workspace commit of its own.
     queueMicrotask(() => {
-      if (active.get(id) === timers) status(key, { working: true })
+      if (active.get(id) === timers) status(key, { working: true, ...mode })
     })
   }
   // Starts the turn of an agent idle at its prompt; whether it started. Nothing for any
@@ -204,17 +207,21 @@ export const demoTurns = (turnMs = demoTurnMs) => {
   }
   // Takes an agent past what it asked, once the person answered: it waits no more, and
   // goes on to say `reply`, or, with the person's words as a `prompt`, to a turn on them,
-  // or, where it `waits`, stops at its prompt for the person's next words.
+  // or, where it `waits`, stops at its prompt for the person's next words. One whose plan
+  // the person declined stays `planning`.
   const resume = (
     key: TerminalKey,
     terminal: TerminalMetadata,
-    next: { readonly reply: string } | { readonly prompt: string } | { readonly waits: true },
+    next: ({ readonly reply: string } | { readonly prompt: string } | { readonly waits: true }) & {
+      readonly planning?: true
+    },
   ): void => {
     if (terminal.state !== "running" || active.has(terminalKeyId(key))) return
     const agent = terminal.agent ?? { working: false }
     bump(terminalKeyId(key))
     const resting: AgentStatus = {
       working: false,
+      ...(next.planning ? { planning: true as const } : {}),
       ...left(agent),
     }
     status(key, resting)
