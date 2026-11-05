@@ -2,7 +2,7 @@ import type { Backend } from "@novadeck/core/port"
 import { noTheme } from "@novadeck/terminal-views/theme"
 import { parkMs } from "@novadeck/terminal/view"
 import { describeBackendContract } from "@novadeck/test-kit/backend-contract"
-import { afterAll, expect, vi } from "vitest"
+import { afterAll, vi } from "vitest"
 
 import { pause, runnerBackend, type RunnerBackend } from "./backend"
 import { recordingRunner, startTestRunner } from "./testing/runner"
@@ -39,14 +39,19 @@ afterAll(() => runner.close())
 const made = new WeakMap<Backend, RunnerBackend>()
 
 // The contract closes every terminal it opened: none may still run a shell once it is done.
+// Runs before the runner closes, which afterAll hooks registered earlier do last.
 afterAll(async () => {
-  const sessions = runner.listing.flatMap(({ sessions }) =>
+  const sessionIds = runner.listing.flatMap(({ sessions }) =>
     sessions.map(({ session }) => session.id),
   )
   const listed = await Promise.all(
-    sessions.map((sessionId) => runner.client.terminals.list({ sessionId })),
+    sessionIds.map((sessionId) => runner.client.terminals.list({ sessionId })),
   )
-  expect(listed.flat().filter((terminal) => terminal.started && terminal.exit === null)).toEqual([])
+  const running = listed.flat().filter((terminal) => terminal.started && terminal.exit === null)
+  if (running.length)
+    throw new Error(
+      `The contract left ${running.length} shells running: ${JSON.stringify(running)}`,
+    )
 })
 
 describeBackendContract("runner", {

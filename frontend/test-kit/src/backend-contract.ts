@@ -205,7 +205,7 @@ export const describeBackendContract = (name: string, options: BackendContractOp
 
       it("starts no I/O when created, even twice", async () => {
         const created = [create(), create()]
-        for (const { backend } of created) await settle(backend)
+        await Promise.all(created.map(({ backend }) => settle(backend)))
         expect(created.map(({ probe }) => probe.io())).toEqual([[], []])
       })
 
