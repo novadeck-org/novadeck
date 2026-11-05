@@ -36,12 +36,16 @@ const splitArguments = (text: string): string[] => {
   return parts
 }
 
-/** The line the patch's printf prints for a device with these values and `kind`. */
+/**
+ * The line the patch's printf prints for a device with these values and `kind`. It knows only
+ * `%s`, `%zu` and `\n`, and a printf on one line: anything else fails here, to be taught.
+ */
 const printed = (kind: string): string => {
-  const call = added
+  const calls = added
     .map((text) => /^\s*printf\("((?:[^"\\]|\\.)*)",\s*(.*)\);\s*$/.exec(text))
-    .find((match) => match !== null)
-  if (call == null) throw new Error("The patch has no printf line.")
+    .filter((match) => match !== null)
+  expect(calls, "the patch's printf lines").toHaveLength(1)
+  const call = calls[0]!
   const values = new Map([
     ["ggml_backend_dev_name(dev)", "Vulkan0"],
     ["ggml_backend_dev_description(dev)", "Intel(R) Arc(tm) Graphics (MTL)"],
@@ -65,6 +69,17 @@ const printed = (kind: string): string => {
 
 /** The kinds the patch prints: its default and each type's. */
 const printedKinds = [...patch.matchAll(/^\+.*\btype = "([^"]+)"/gm)].map((match) => match[1]!)
+
+/** Each device type the patch names, with the kind it prints for it. */
+const kindByType = Object.fromEntries(
+  [...patch.matchAll(/^\+.*GGML_BACKEND_DEVICE_TYPE_(\w+):\s*type = "([^"]+)"/gm)].map((match) => [
+    match[1]!,
+    match[2]!,
+  ]),
+)
+
+/** The kinds the parser reads; the rest are skipped. */
+const known = ["cpu", "gpu", "igpu", "accel"]
 
 const output = `Available devices:
   Vulkan0: Intel(R) Arc(tm) Graphics (MTL) (47803 MiB, 43023 MiB free) [igpu]
@@ -117,8 +132,8 @@ describe("listing devices", () => {
   })
 
   it("reads the line the engine's patch prints, for each kind it knows", () => {
-    expect(printedKinds).toEqual(expect.arrayContaining(["cpu", "gpu", "igpu", "accel"]))
-    for (const kind of ["cpu", "gpu", "igpu", "accel"]) {
+    expect(printedKinds).toEqual(expect.arrayContaining(known))
+    for (const kind of known) {
       expect(parseDevices(`Available devices:\n${printed(kind)}`)).toEqual([
         {
           id: "Vulkan0",
@@ -132,9 +147,14 @@ describe("listing devices", () => {
   })
 
   it("skips the patch's lines for the kinds it doesn't know", () => {
-    const unknown = printedKinds.filter((kind) => !["cpu", "gpu", "igpu", "accel"].includes(kind))
+    const unknown = printedKinds.filter((kind) => !known.includes(kind))
     expect(unknown).toEqual(expect.arrayContaining(["other"]))
     for (const kind of unknown) expect(parseDevices(printed(kind))).toEqual([])
+  })
+
+  it("prints each device type the parser knows as its own kind", () => {
+    // Integrated GPUs are tried before dedicated ones, so a swapped kind tries the wrong card.
+    expect(kindByType).toMatchObject({ CPU: "cpu", GPU: "gpu", IGPU: "igpu", ACCEL: "accel" })
   })
 
   it("has no candidates without a GPU", () => {
