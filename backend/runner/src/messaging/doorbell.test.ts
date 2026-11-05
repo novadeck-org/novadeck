@@ -58,6 +58,8 @@ const terminal = (
     settleLost?: boolean
     /** The person's Inbox replies wait there: the line the host gives for them. */
     replies?: (nonce: string) => string
+    /** Its agent holds Novadeck's MCP tools only this long from the start, in milliseconds. */
+    toolsWaitMs?: number
   } = {},
 ) => {
   const rows = options.logo
@@ -82,6 +84,7 @@ const terminal = (
   let resizeAtForeground = options.resizeAtForeground ?? false
   let stalled = options.stalled !== undefined
   let barEnd = Date.now() + (options.barredMs ?? 0)
+  let toolsAt = Date.now() + (options.toolsWaitMs ?? 0)
   let reading: "empty" | "starting" | Waits = options.stalled ?? "empty"
   const emptied: number[] = []
   const blocks: (Waits | null)[] = []
@@ -135,6 +138,7 @@ const terminal = (
     },
     stalled: () => stalled && Date.now() >= barEnd,
     barred: () => Math.max(0, barEnd - Date.now()),
+    toolsWait: () => Math.max(0, toolsAt - Date.now()),
     reading: () => reading,
     emptied: (_, readAt) => {
       emptied.push(readAt)
@@ -251,6 +255,8 @@ const terminal = (
     screensAt,
     // A queued prompt bars the screen from being believed for this long from now.
     bar: (ms: number) => (barEnd = Date.now() + ms),
+    // Its agent's MCP session listed Novadeck's tools.
+    listTools: () => (toolsAt = 0),
     stop: () => {
       clearInterval(ticker)
       clearInterval(streamer)
@@ -424,6 +430,29 @@ describe("the doorbell", () => {
     await ahead
     await vi.waitFor(() => expect(enters(written)).toBe(1))
     expect(events).toEqual(["answer", "words"])
+    doorbell.close()
+  })
+
+  it("waits for its agent to hold Novadeck's MCP tools, unlooked at, and rings once they are listed", async () => {
+    const { host, written, screens, listTools } = terminal({ toolsWaitMs: 10_000 })
+    const doorbell = new Doorbell(host, host.queue, fast)
+    doorbell.changed("t")
+    await sleep(150)
+    expect(written).toEqual([])
+    expect(screens()).toBe(0)
+    listTools()
+    doorbell.changed("t")
+    await vi.waitFor(() => expect(enters(written)).toBe(1))
+    doorbell.close()
+  })
+
+  it("rings once the wait for its agent's MCP tools is over, with nothing else to tell it", async () => {
+    const { host, written, screensAt } = terminal({ toolsWaitMs: 150 })
+    const began = Date.now()
+    const doorbell = new Doorbell(host, host.queue, fast)
+    doorbell.changed("t")
+    await vi.waitFor(() => expect(enters(written)).toBe(1), { timeout: 1_500 })
+    expect(screensAt[0]! - began).toBeGreaterThanOrEqual(140)
     doorbell.close()
   })
 

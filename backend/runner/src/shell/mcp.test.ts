@@ -138,6 +138,7 @@ describe("Novadeck's MCP server in a Novadeck terminal", () => {
         await new Promise((resolve) => setTimeout(resolve, delay))
         return answer
       },
+      tools: () => {},
     })
   })
 
@@ -307,7 +308,7 @@ describe("Novadeck's MCP server in a Novadeck terminal", () => {
       },
     ])
     expect((waits!.result as { content: { text: string }[] }).content[0]?.text).toMatch(
-      /doesn't trust this folder yet, so it started without its task: message m-1 reaches it once the user trusts the folder and its prompt shows\./,
+      /It started without its task: message m-1 reaches it once its prompt shows, after the user trusts the folder if it asks them to\./,
     )
   })
 

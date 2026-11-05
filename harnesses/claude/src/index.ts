@@ -57,6 +57,9 @@ const messaging: MessagingProfile = {
   // A background agent and shell running, it took a typed prompt (fixture
   // `background-prompt.probe.json`, probed 2026-10-19, 2.1.287).
   promptsInBackground: true,
+  // A request made while Novadeck's server still connects names it so, and its tool
+  // search waits for it (seen 2026-11-05, 2.1.316, with that server 3 s slow to start).
+  toolsAtTurnStart: false,
 }
 
 const launch: LaunchProfile = {

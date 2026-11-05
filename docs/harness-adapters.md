@@ -679,11 +679,11 @@ type LaunchProfile = {
 }
 ```
 
-| Harness     | `start`  | `initialPrompt`                        | `resume`                  | `choose`                                    |
-| ----------- | -------- | -------------------------------------- | ------------------------- | ------------------------------------------- |
-| Claude Code | `claude` | `claude "<line>"`                      | `claude --resume <id>`    | `--model <m> --effort <e>`                  |
-| Codex       | `codex`  | `codex "<line>"`                       | `codex resume <id>`       | `--model <m> -c model_reasoning_effort=<e>` |
-| Antigravity | `agy`    | `agy -i "<line>"`, in a trusted folder | `agy --conversation <id>` | `--model <m> --effort <e>`                  |
+| Harness     | `start`  | `initialPrompt`                    | `resume`                  | `choose`                                    |
+| ----------- | -------- | ---------------------------------- | ------------------------- | ------------------------------------------- |
+| Claude Code | `claude` | `claude "<line>"`                  | `claude --resume <id>`    | `--model <m> --effort <e>`                  |
+| Codex       | `codex`  | `codex "<line>"`                   | `codex resume <id>`       | `--model <m> -c model_reasoning_effort=<e>` |
+| Antigravity | `agy`    | none: started plain, the task rung | `agy --conversation <id>` | `--model <m> --effort <e>`                  |
 
 ## Screen readers
 

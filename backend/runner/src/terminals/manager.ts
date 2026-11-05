@@ -48,7 +48,7 @@ import { Bindings } from "./binding/facts.js"
 import { Reports } from "./binding/reports.js"
 import { Shown } from "./binding/shown.js"
 import { savedSession } from "./binding/standing.js"
-import { sameToken } from "./callers.js"
+import { callerOf, sameToken } from "./callers.js"
 import { Calls } from "./calls.js"
 import { type CloseAnswer } from "./closes.js"
 import { coalesced } from "./coalesce.js"
@@ -425,6 +425,9 @@ export class Terminals {
         ask: (report, deadline) => this.reporting.queueAsk(report, deadline),
         ack: (ack) => this.acknowledge(ack),
         call: (call) => this.calls.call(call),
+        tools: (session, listed) => {
+          if (callerOf(this.records, session)) this.typing.mcpSession(session.terminalId, listed)
+        },
       },
     })
     this.claims = new Claims({

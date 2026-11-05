@@ -1,6 +1,10 @@
+import { readFileSync, writeFileSync } from "node:fs"
+import { setTimeout as sleep } from "node:timers/promises"
+
+import { harnesses } from "../harnesses/registry.js"
 import { setups } from "./agents/index.js"
-import { describe, e2e, expect, supported } from "./fixture.js"
-import { latest, type Call } from "./model/script.js"
+import { describe, e2e, expect, gated, supported } from "./fixture.js"
+import { latest, tool, type Call } from "./model/script.js"
 import {
   askedToClose,
   askedToLead,
@@ -29,6 +33,22 @@ import {
 const notified = (call: Call, part: string): boolean =>
   deliveries(call).some((one) => one.from === "novadeck" && one.text.includes(part))
 
+/**
+ * Makes Novadeck's MCP server start `seconds` late in every agent started from now on: its
+ * launcher sleeps first, as a loaded machine's start can take. Windows starts the relay
+ * itself, with no launcher.
+ */
+const slowMcp = (launcher: string, seconds: number): void => {
+  const script = readFileSync(launcher, "utf8")
+  if (!/^exec /m.test(script)) throw new Error(`No exec line in the MCP launcher:\n${script}`)
+  writeFileSync(launcher, script.replace(/^exec /m, `sleep ${seconds}\nexec `))
+}
+
+// The notice Novadeck puts in a terminal's first prompt, which names that terminal's
+// conversation: no other terminal's holds the same one.
+const notice = (call: Call): string | undefined =>
+  /\[Novadeck: [^\]]*\]/.exec(call.turns.find((turn) => turn.role === "user")?.text ?? "")?.[0]
+
 for (const setup of setups) {
   describe.skipIf(!supported)(setup.name, () => {
     const it = e2e(setup)
@@ -50,20 +70,81 @@ for (const setup of setups) {
 
       const t2 = await requests.next()
       expect(t2.handle).toBe("fox")
-      // Its first prompt is the doorbell's line, given on its command line, and its hook
-      // adds the task beside it: the first thing its model is asked.
+      // Its first prompt is the doorbell's line, given on its command line (or rung, for a
+      // harness whose first turn could miss Novadeck's tools), and its hook adds the task
+      // beside it: the first thing its model is asked.
       const task = await run.model.waitFor((call) => delivered(call, "moth"), { after: calls })
       expect(latest(task)).toMatch(ring)
       expect(deliveries(task)).toEqual([{ from: "moth", text: "Count the files in src." }])
       expect(task.turns.filter((one) => one.role !== "user")).toEqual([])
       await t2.until("Counting now.")
       await through(t2, [holds("moth", "fox", "delivered"), "settled"])
-      // It came with the start, never with a ring.
-      expect(t2.history().map((one) => one.delivery)).not.toContain("ringing")
+      // It came with the start, never with a ring, but where its harness takes its MCP
+      // tools only as a turn starts: there the doorbell rings it once they are listed.
+      expect(
+        t2
+          .history()
+          .map((one) => one.delivery)
+          .includes("ringing"),
+      ).toBe(harnesses[setup.agent].messaging.toolsAtTurnStart)
       expect(t2.summary().agent).toBe(setup.agent)
       await t1.until("Started fox.")
       await t1.reached("settled", { after: mark })
     })
+
+    gated(
+      it,
+      process.platform === "win32"
+        ? "Windows starts the relay as the MCP server, with no launcher to slow"
+        : undefined,
+    )(
+      "gives an agent started with a task Novadeck's tools in the task's turn, though its MCP server starts late",
+      async ({ e2e: run }) => {
+        const brief = "List the agents."
+        // The worker's conversation, known by its first request, the one holding the brief.
+        let home: string | undefined
+        const works = (call: Call): boolean => {
+          if (call.side) return false
+          if (
+            home === undefined &&
+            call.turns.some((t) => t.role === "user" && t.text.includes(brief))
+          )
+            home = notice(call)
+          return home !== undefined && notice(call) === home
+        }
+        // The calls of the worker's turn that went without Novadeck's tools.
+        let without = 0
+        const requests = run.deck.answerRequests()
+        run.model.use(
+          opens("Start a lister", setup.agent, brief),
+          own((call) => (opened(call, "fox") ? { text: "Started fox." } : undefined)),
+          own(async (call) => {
+            if (!works(call)) return undefined
+            if (/You are @fox\b/.test(result(call) ?? "")) return { text: "Listed the agents." }
+            // Only the tools its own request offers: the harness refuses any other.
+            const agents = tool(call, "agents")
+            if (agents) return { calls: [{ name: agents, input: {} }] }
+            without += 1
+            // A harness that adds a server's tools to a running turn is given time, a
+            // harmless command at a time; one that takes them as a turn starts gets none.
+            if (harnesses[setup.agent].messaging.toolsAtTurnStart || without > 10 || !setup.shell)
+              return { text: "No Novadeck tools in this turn." }
+            await sleep(500)
+            return setup.shell.run(call, "ls")
+          }),
+        )
+        const t1 = await start(run, setup)
+        // The lead's own server started in time; the worker's starts 2 s late, as a loaded
+        // macOS runner's took over 1 s, past Antigravity's first request.
+        slowMcp(run.deck.shell.mcp, 2)
+        await t1.submit("Start a lister")
+        const t2 = await requests.next()
+        expect(t2.handle).toBe("fox")
+        const shown = await t2.until(/Listed the agents\.|No Novadeck tools in this turn\./, 60_000)
+        expect(shown).toContain("Listed the agents.")
+        await through(t2, [holds("moth", "fox", "delivered"), "settled"])
+      },
+    )
 
     it("closes a terminal of an agent it leads at once", async ({ e2e: run }) => {
       const requests = run.deck.answerRequests()

@@ -71,6 +71,7 @@ const it = base.extend<{ fixture: Fixture }>({
       },
       ack: (ack) => acks.push(ack),
       call: () => Promise.resolve(unanswered),
+      tools: () => {},
     })
     resources.defer(() => listening.close())
     const hook: Fixture["hook"] = (agent, payload, env = {}, event) =>

@@ -1,4 +1,4 @@
-import { mkdirSync, mkdtempSync, rmSync, symlinkSync, writeFileSync } from "node:fs"
+import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs"
 import { tmpdir } from "node:os"
 import { join } from "node:path"
 
@@ -151,7 +151,7 @@ describe("a doorbell prompt", () => {
     expect(promptStart(base, "anything", true)).toMatchObject({ cause: "harness" })
   })
 
-  it("starts each harness with the doorbell line as its first prompt, Antigravity only where trusted", async ({
+  it("starts Claude Code and Codex with the doorbell line as their first prompt, Antigravity never", async ({
     resources,
   }) => {
     const place = { install: undefined, cwd: "/work" }
@@ -163,8 +163,7 @@ describe("a doorbell prompt", () => {
       "codex",
       bell,
     ])
-    // Without its settings, Antigravity trusts nothing.
-    await expect(harnesses.agy.launch.initialPrompt(bell, place)).resolves.toBeUndefined()
+    // Not even in a folder it trusts: the turn its prompt starts could miss Novadeck's tools.
     const home = mkdtempSync(join(tmpdir(), "novadeck-agy-"))
     resources.defer(() => rmSync(home, { recursive: true, force: true }))
     const trusted = join(home, "trusted")
@@ -175,21 +174,14 @@ describe("a doorbell prompt", () => {
       JSON.stringify({ trustedWorkspaces: [trusted] }),
     )
     const install = { env: {}, home, platform: process.platform, plugin: join(home, "plugin") }
+    await expect(harnesses.agy.launch.initialPrompt(bell, place)).resolves.toBeUndefined()
     await expect(
       harnesses.agy.launch.initialPrompt(bell, { install, cwd: trusted }),
-    ).resolves.toEqual(["agy", "-i", bell])
-    await expect(
-      harnesses.agy.launch.initialPrompt(bell, { install, cwd: home }),
-    ).resolves.toBeUndefined()
-    // The same path, written another way, is trusted; a link to it isn't, failing safe.
-    await expect(
-      harnesses.agy.launch.initialPrompt(bell, { install, cwd: `${trusted}/./` }),
-    ).resolves.toEqual(["agy", "-i", bell])
-    symlinkSync(trusted, join(home, "linked"))
-    await expect(
-      harnesses.agy.launch.initialPrompt(bell, { install, cwd: join(home, "linked") }),
     ).resolves.toBeUndefined()
     expect(harnesses.agy.launch.start).toEqual(["agy"])
+    expect(harnesses.agy.messaging.toolsAtTurnStart).toBe(true)
+    expect(harnesses.claude.messaging.toolsAtTurnStart).toBe(false)
+    expect(harnesses.codex.messaging.toolsAtTurnStart).toBe(false)
   })
 })
 
