@@ -3,7 +3,7 @@ import { randomBytes } from "node:crypto"
 import { describe, expect, it } from "vitest"
 
 import { redacted } from "./marks.js"
-import { maskedSpans, redact, redactAs } from "./text.js"
+import { mark, maskedSpans, redact, redactAs } from "./text.js"
 
 describe("redacting secrets", () => {
   it("writes each secret as the placeholder it is given", () => {
@@ -489,6 +489,27 @@ describe("long values and command lines", () => {
     "openssl enc -k hunter2xyz",
   ])("still masks the password in %s", (line) => {
     expect(redact(line)).not.toMatch(/S3cr3t|hunter2/)
+  })
+})
+
+describe("a value that reaches the cap, and the fields after it", () => {
+  const capped = `API_KEY=${"Ab1".repeat(400)}`
+
+  it.each([
+    ["a password", `${capped}/pass=x ; token=hunter2`, "hunter2"],
+    ["a token", `${capped}/pass=x ghp_abcdefghijklmnop1234`, "ghp_abcdefghijklmnop1234"],
+    ["a later field", `${capped}+password=x:secret=y:token=z ; api_key=hunter2`, "hunter2"],
+  ])("keeps the marks in step and masks %s after it", (_name, text, secret) => {
+    expect(mark(text)).toHaveLength(text.length)
+    expect(redact(text)).not.toContain(secret.slice(1))
+    expect(maskedSpans(text).every((span) => text.includes(span))).toBe(true)
+  })
+
+  it("reads a long chain of names once", { timeout: 5000 }, () => {
+    const text = "password=".repeat(20_000)
+
+    expect(mark(text)).toHaveLength(text.length)
+    expect(redact(text)).toBe(`password=${redacted}`)
   })
 })
 

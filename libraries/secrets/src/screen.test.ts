@@ -235,6 +235,15 @@ describe("redacting values across a screen's rows", () => {
   })
 })
 
+describe("a row with a value that reaches the cap", () => {
+  it("masks the cells of a later password, not ones beside them", () => {
+    const row = `API_KEY=${"Ab1".repeat(400)}/pass=x ; token=hunter2`
+
+    expect(redactScreen([row], [false])[0]).not.toContain("unter")
+    expect(maskScreen([row], [false])[0]).toHaveLength(row.length)
+  })
+})
+
 describe("a token after a row that ended in a word character", () => {
   it("is masked to its end, however long", () => {
     const jwt = `eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.${"eyJzdWIiOiIxMjM0NTY3ODkwIiwibmFtZSI6IkpvaG4ifQ".repeat(3)}.SflKxwRJSMeKKF2QT4fwpMeJf36POk6yJV`
