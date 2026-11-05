@@ -80,6 +80,27 @@ describe("a hold on a terminal's screen", () => {
     }
   })
 
+  it("takes back the focus its mount left past a button the person came back with", () => {
+    vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout", "Date"] })
+    try {
+      const screens = screensOf(optionsOf())
+      const { hold, element } = shown(screens, "a")
+      const input = inputOf(element)
+      input.focus()
+      hold.release({ unmount: true })
+      element.replaceChildren()
+      // As a session's row in the sidebar, clicked to come back to it.
+      const row = document.createElement("button")
+      document.body.append(row)
+      row.focus()
+      screens.acquire("a", running).place(element)
+      expect(document.activeElement).toBe(input)
+      row.remove()
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
   it("leaves the focus where the person went after the mount that held it went", () => {
     vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout", "Date"] })
     try {
