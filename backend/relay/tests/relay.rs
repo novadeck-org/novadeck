@@ -2,7 +2,7 @@
 //! where the runner's own end-to-end tests (backend/runner's hook.test.ts, mcp.test.ts)
 //! can't reach.
 
-use std::io::{BufRead, BufReader, Read, Write};
+use std::io::{BufRead, BufReader, Write};
 use std::path::{Path, PathBuf};
 use std::process::{Child, Command, Stdio};
 use std::thread;
@@ -149,6 +149,19 @@ fn initialize(mcp: &mut Child) -> String {
     answer
 }
 
+/// A pipe no one reads any longer: the input of a process that has already ended.
+fn gone() -> Stdio {
+    let mut ended = relay(&["--version"])
+        .stdin(Stdio::piped())
+        .stdout(Stdio::null())
+        .spawn()
+        .unwrap();
+    // Taken first: waiting closes it.
+    let input = ended.stdin.take().unwrap();
+    ended.wait().unwrap();
+    Stdio::from(input)
+}
+
 #[test]
 fn answers_with_no_tools_where_its_stderr_is_gone() {
     let dir = scratch("stderr");
@@ -163,11 +176,9 @@ fn answers_with_no_tools_where_its_stderr_is_gone() {
         .env("NOVADECK_REPORT_TOKEN", "token")
         .stdin(Stdio::piped())
         .stdout(Stdio::piped())
-        .stderr(Stdio::piped())
+        .stderr(gone())
         .spawn()
         .unwrap();
-    // Its reader gone before the relay says why it offers no tools.
-    drop(mcp.stderr.take());
     let answer: serde_json::Value = serde_json::from_str(&initialize(&mut mcp))
         .unwrap_or_else(|_| panic!("no answer: {:?}", mcp.wait()));
     assert_eq!(answer["result"]["serverInfo"]["name"], "novadeck");
@@ -232,6 +243,8 @@ mod runner {
 /// A Stop hook whose answer delivers under a lease, and what the runner then read.
 #[cfg(unix)]
 fn leased_stop(printable: bool) -> (String, String) {
+    use std::io::Read;
+
     let runner = runner::Runner::new(if printable { "acked" } else { "unacked" });
     let mut hook = runner
         .relay(&["hook", "claude", "Stop"])
@@ -269,6 +282,8 @@ fn acknowledges_a_lease_once_printed_and_only_then() {
 #[cfg(unix)]
 #[test]
 fn ends_an_mcp_session_the_runner_closes_after_carrying_what_it_sent() {
+    use std::io::Read;
+
     let runner = runner::Runner::new("closed");
     let mut mcp = runner
         .relay(&["mcp", "1.0.0", "2025-06-18"])
@@ -294,4 +309,48 @@ fn ends_an_mcp_session_the_runner_closes_after_carrying_what_it_sent() {
         .read_to_string(&mut carried)
         .unwrap();
     assert_eq!(carried, message);
+}
+
+#[cfg(unix)]
+#[test]
+fn a_status_line_keeps_ignoring_a_signal_its_relay_was_started_ignoring() {
+    use std::os::unix::process::CommandExt;
+
+    let dir = scratch("nohup");
+    let started = dir.join("started");
+    status_line(
+        &dir,
+        &format!(
+            "cat >/dev/null; touch '{}'; sleep 3; echo mine",
+            sh(&started)
+        ),
+    );
+    let mut hook = relay(&["hook", "claude", "StatusLine"]);
+    // As under `nohup`.
+    unsafe {
+        hook.pre_exec(|| {
+            libc::signal(libc::SIGHUP, libc::SIG_IGN);
+            Ok(())
+        });
+    }
+    let mut hook = hook
+        .env("CLAUDE_CONFIG_DIR", &dir)
+        .stdin(Stdio::piped())
+        .stdout(Stdio::piped())
+        .spawn()
+        .unwrap();
+    let payload = serde_json::json!({ "cwd": dir }).to_string();
+    hook.stdin
+        .take()
+        .unwrap()
+        .write_all(payload.as_bytes())
+        .unwrap();
+    wait_until("the status line started", Duration::from_secs(20), || {
+        started.exists()
+    });
+    unsafe { libc::kill(hook.id() as i32, libc::SIGHUP) };
+    let printed = hook.wait_with_output().unwrap();
+    assert!(printed.status.success());
+    assert_eq!(String::from_utf8_lossy(&printed.stdout).trim(), "mine");
+    let _ = std::fs::remove_dir_all(&dir);
 }

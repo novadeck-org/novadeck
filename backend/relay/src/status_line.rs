@@ -3,10 +3,12 @@
 //! input, in a process group of its own, so a deadline ends everything it started. The
 //! relay finds and runs it itself, beside reporting to the runner, so it shows even when
 //! the runner can't be reached, as from a terminal multiplexer that outlived Novadeck.
-//! A relay ended before its deadline, as Claude Code ends a status line it no longer
-//! needs, ends the command with it: on Windows its job ends every process in it once the
-//! relay's handle closes; elsewhere the signal that ends the relay (TERM, INT or HUP) ends
-//! the group first. Only a SIGKILL, which nothing can catch, leaves it running.
+//! The command never outlives the relay's deadline. A relay itself ended before it ends
+//! the command too: on Windows its job ends every process in it once the relay's handle
+//! closes; elsewhere the signal that ends the relay (TERM, INT or HUP) ends the group
+//! first. Only a SIGKILL, which nothing can catch, leaves the command running. Whether the
+//! relay is ended at all depends on how its caller stops a run: one that ends only the
+//! shell that started the hook leaves the relay to its deadline.
 
 use std::io::{Read, Write};
 use std::path::{Path, PathBuf};
@@ -192,7 +194,9 @@ mod group {
         unsafe { libc::raise(signal) };
     }
 
-    /// From now on, a TERM, INT or HUP that ends the relay ends the group first.
+    /// From now on, a TERM, INT or HUP that ends the relay ends the group first. One the
+    /// relay was started ignoring, as under `nohup`, it goes on ignoring. A signal in the
+    /// microseconds between the command's start and `running` misses its group.
     pub fn watch() {
         static ONCE: Once = Once::new();
         ONCE.call_once(|| {
@@ -202,7 +206,11 @@ mod group {
                     action.sa_sigaction = ended as extern "C" fn(libc::c_int) as usize;
                     action.sa_flags = libc::SA_RESETHAND | libc::SA_NODEFER;
                     libc::sigemptyset(&mut action.sa_mask);
-                    libc::sigaction(signal, &action, std::ptr::null_mut());
+                    let mut before: libc::sigaction = std::mem::zeroed();
+                    libc::sigaction(signal, &action, &mut before);
+                    if before.sa_sigaction == libc::SIG_IGN {
+                        libc::sigaction(signal, &before, std::ptr::null_mut());
+                    }
                 }
             }
         });
