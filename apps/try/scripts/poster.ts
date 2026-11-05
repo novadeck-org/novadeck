@@ -17,14 +17,15 @@ import { chromium, type Browser, type Page } from "playwright"
 // terminal has drawn its opening.
 const boot = async (page: Page, origin: string): Promise<void> => {
   await page.goto(`${origin}/?embed&still`)
-  // Booted means the splash came and has left the page, and the header's view choice shows.
-  const splash = page.locator(".boot-splash")
-  await splash.waitFor({ state: "attached", timeout: bootTimeoutMs })
-  await splash.waitFor({ state: "detached", timeout: bootTimeoutMs })
+  // Booted means the header's view choice shows and the splash has left the page. Only the
+  // end is waited for: a boot quicker than the page's `load` would be over, splash and all,
+  // before a wait for the splash to come began. The view choice shows only once connected,
+  // so the splash was there before it, and is gone or going.
   await page
     .getByRole("radiogroup", { name: "Workspace layout" })
     .first()
     .waitFor({ state: "visible", timeout: bootTimeoutMs })
+  await page.locator(".boot-splash").waitFor({ state: "detached", timeout: bootTimeoutMs })
   // Claude Code's terminal has drawn its opening: its screen reader's tree holds the text the
   // terminal wrote, and the DOM renderer's rows the same, whichever draws.
   await page
