@@ -18,6 +18,7 @@ import {
   followScroll,
   restoreScroll,
   scrollLineToTop,
+  stopJump,
   type Scroll,
   type ScrollRestore,
 } from "./markdown/scroll.js"
@@ -248,6 +249,7 @@ export const mountMarkdown: Mount<MarkdownContent, MarkdownOptions, MarkdownView
     destroy: () => {
       closing = true
       stopRestore()
+      stopJump(view)
       stopFollowing()
       view.destroy()
       root.remove()
