@@ -114,8 +114,8 @@ const switchTouch = async (contents: WebContents, on: boolean): Promise<void> =>
 
 // Turns the switch off through the app's own page, for a phone that's gone: it left the
 // switch on, with no protocol of its own left to turn it off. The app's page is held by the
-// protocol only as long as that takes; where DevTools already holds it, the mouse stays as
-// it is.
+// protocol only as long as that takes, beside DevTools where that's open on it; one already
+// held this way is being asked.
 const pointThrough = async (app: WebContents): Promise<void> => {
   try {
     if (app.isDestroyed() || app.debugger.isAttached()) return
@@ -137,12 +137,13 @@ const point = (app: WebContents): void => {
 }
 
 // The mouse touches the phone's view `page` in the window of `app`, until the pointer is
-// back on the app's own page, there or over what took a gone phone's place.
+// back on the app's own page: moving freely over it, pressing on it, as right where a swipe
+// that left the phone was let go, or doing anything over what took a gone phone's place.
 const touch = (app: WebContents, page: WebContents): void => {
   if (touched.get(app)?.page === page) return
   point(app)
   const back: MouseHeard = (_event, mouse) => {
-    if (page.isDestroyed() || roams(mouse)) point(app)
+    if (page.isDestroyed() || roams(mouse) || mouse.type === "mouseDown") point(app)
   }
   app.on("before-mouse-event", back)
   touched.set(app, { page, unwatch: () => app.off("before-mouse-event", back) })

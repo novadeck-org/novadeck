@@ -12,6 +12,7 @@ import {
   maxRequestOrigins,
   pagesSession,
   countSignIns,
+  emulatePhone,
   holdPhoneLoads,
   passkeyLabels,
   pickPasskeys,
@@ -862,6 +863,18 @@ describe("a page view as a phone's", () => {
       expect(sent).toEqual(["mouse touches", "mouse points"])
     })
 
+    it("leaves the mouse be for a press on the app's page right where such a swipe ended", async () => {
+      const { contents, sent, owner } = await phoneIn()
+      mouse(contents, "mouseMove")
+      mouse(contents, "mouseDown", "left")
+      mouse(owner.contents, "mouseMove", "left")
+      mouse(contents, "mouseUp", "left")
+      // No move between: the press itself is the app's.
+      mouse(owner.contents, "mouseDown", "left")
+      expect(sent).toEqual(["mouse touches", "mouse points"])
+      expect(owner.contents.listenerCount("before-mouse-event")).toBe(0)
+    })
+
     it("leaves the mouse be as the pointer leaves it for anywhere else", async () => {
       const { contents, sent, owner } = await phoneIn()
       mouse(contents, "mouseMove")
@@ -892,6 +905,20 @@ describe("a page view as a phone's", () => {
       expect(sent).toEqual([])
     })
 
+    it("leaves the mouse be where it can't be made a phone's after all", async () => {
+      const owner = windowed()
+      const { contents, sent } = view({ owner: owner.contents, answers: "rejects" })
+      const made = phonePage(owner.contents, 7, true, byId(contents))
+      // The pointer moves over it before its protocol has answered.
+      mouse(contents, "mouseMove")
+      expect(await made).toBe(false)
+      expect(sent.slice(-4)).toEqual(["mouse touches", "mouse points", "detach", "agent Desktop/1"])
+      expect(owner.contents.listenerCount("before-mouse-event")).toBe(0)
+      sent.splice(0)
+      expect(mouse(contents, "mouseMove")).toBe(false)
+      expect(sent).toEqual([])
+    })
+
     it("has the app's page take the mouse back once it's gone, at the mouse's next event", async () => {
       const { contents, sent, owner, destroy } = await phoneIn()
       mouse(contents, "mouseMove")
@@ -904,6 +931,13 @@ describe("a page view as a phone's", () => {
       expect(sent).toEqual(["mouse touches"])
       expect(owner.contents.listenerCount("before-mouse-event")).toBe(0)
     })
+  })
+
+  it("is never touched by the mouse in a window of its own, as a look's, which has none", async () => {
+    const { contents, sent } = view({ owner: null as unknown as WebContents })
+    expect(await emulatePhone(contents)).toBe(true)
+    expect(contents.listenerCount("before-mouse-event")).toBe(0)
+    expect(sent).not.toContain("mouse touches")
   })
 
   context("loading", () => {
