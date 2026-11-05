@@ -215,15 +215,23 @@ const visitorTimings = (): {
   ambient: false
 } => {
   const params = addressParams()
-  const turnMs = Number(params.get("turnMs"))
-  const nudgeMs = Number(params.get("nudgeMs"))
-  const readingMs = Number(params.get("readingMs"))
+  const turnMs = timerMs(params.get("turnMs"))
+  const nudgeMs = timerMs(params.get("nudgeMs"))
   return {
     ...(turnMs > 0 && { turnMs }),
     ...(nudgeMs > 0 && { nudgeMs }),
-    readingMs: readingMs > 0 ? readingMs : 0,
+    readingMs: timerMs(params.get("readingMs")),
     ambient: false,
   }
+}
+
+// The longest wait a timer keeps: a longer one, Infinity among them, fires at once.
+const longestTimerMs = 2_147_483_647
+
+// A wait the address gives, in milliseconds, as a timer keeps it: 0 for none or nonsense.
+const timerMs = (value: string | null): number => {
+  const ms = Number(value)
+  return ms > 0 ? Math.min(ms, longestTimerMs) : 0
 }
 
 // Specs open the Babcia demo with `?demo=babcia`, and ring its cues, as the debug panel does.
