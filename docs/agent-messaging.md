@@ -124,7 +124,7 @@ flowchart LR
 
 | Part         | Where                                                                                                                         | Owns                                                                                |
 | ------------ | ----------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------- |
-| MCP tools    | `shell/mcp.ts`, beside `show`, `showing`, `look`, `close`, `open_terminal`, `open_agent`, `close_terminal`                    | `send`, `agents`, `summarize` and `feedback`; the terminal's token on every call    |
+| MCP tools    | `shell/mcp.ts`, beside `show`, `showing`, `look`, `close`, `open_terminal`, `open_agent`, `close_terminal`                    | `send`, `agents`, `describe` and `feedback`; the terminal's token on every call     |
 | Messages     | Runner, stored with the workspace (`WorkspaceStore`)                                                                          | Messages, threads, guards, pause, retention                                         |
 | Delivery     | Runner, one state machine per recipient terminal                                                                              | When and how a recipient notices: leases to hooks and the doorbell                  |
 | Hook answers | `shell/hook.ts` asks the runner; the runner returns stdout                                                                    | Each harness's output encoding, in its adapter beside its decoder                   |
@@ -416,7 +416,7 @@ like them, only inside Novadeck's terminals.
   1. its handle;
   2. its title, from the runner's terminal record, with "(set by @fox, not the user)" when
      an agent gave it (an agent that opened the terminal), and "(written by Novadeck's local model, not the user)" for murmur's; then
-     "described by its agent:" and the summary its own agent gave through `summarize`,
+     "described by its agent:" and the summary its own agent gave through `describe`,
      when it did;
   3. its agent (Claude Code, Codex or Antigravity);
   4. its folder, relative to the project when inside it, and git branch (read from
@@ -2019,57 +2019,66 @@ the new terminal's Messages view, like any other message.
 ## Naming
 
 Terminals have titles and, for `agents()`, summaries, written by different hands. Murmur,
-an opt-in local model (see [murmur.md](murmur.md)), writes the titles, for agent terminals
-and plain shells. Each agent writes the summary of its own terminal, through its
-`summarize` tool. No agent has a way to set a title: no tool takes one, nothing grants a
-rename, and the only title an agent gives is the one it opens another terminal with.
-Built: the layers in `terminals/titles.ts`, the summary tool in `terminals/summarize-request.ts`
-and `Calls.summarize` (`terminals/calls.ts`), the tool in `shell/mcp.ts`, its nudges
-in `terminals/nudges.ts`, murmur's triggers and digests in `terminals/descriptions.ts`, and the
-model behind a `Describer` (`murmur/`).
+an opt-in local model (see [murmur.md](murmur.md)), writes titles for agent terminals and
+plain shells. Each agent describes its own terminal, through its `describe` tool: a summary
+for `agents()`, and a title of its own that names the terminal where nothing above it has.
+The only other title an agent gives is the one it opens another terminal with; nothing
+grants an agent a rename. Built: the layers in `terminals/titles.ts`, the description tool
+in `terminals/describe-request.ts` and `Calls.describe` (`terminals/calls.ts`), the tool in
+`shell/mcp.ts`, its nudges in `terminals/nudges.ts`, murmur's triggers and digests in
+`terminals/descriptions.ts`, and the model behind a `Describer` (`murmur/`).
 
-- **`summarize(summary)`**, listed like the other tools only inside Novadeck's terminals,
-  summarizes the caller's own terminal only: it takes no target, and the runner knows the
-  caller from its terminal token. The summary is one or two lines of up to 200 characters
-  with words in it, kept with the terminal's record; `agents()` lists it as "described by
-  its agent". A refused summary (empty, three lines) says why. A summary is all murmur
-  names an agent's terminal from (see below), so the tool and its nudges ask for one short
-  line on what the work is about at a high level ("Checkout rounding fix"): its subject,
-  never status or progress (done, merged, in CI), PR or issue numbers, file names or
-  details. It is updated when the work moves to another subject, not as it progresses; the
-  later nudge shows the current summary and asks for an update only then, or when it
-  holds what a summary leaves out.
+- **`describe(title, summary)`**, listed like the other tools only inside Novadeck's
+  terminals, describes the caller's own terminal only: it takes no target, and the runner
+  knows the caller from its terminal token. Both fields are required. The summary is one
+  or two lines of up to 200 characters with words in it, kept with the terminal's record;
+  `agents()` lists it as "described by its agent". The title is one line of up to 80
+  characters with words in it, under the same rules as the person's (no control characters,
+  no marks that reorder text or hide in it). A refused title or summary (empty, three
+  lines, a direction mark) refuses the whole call and says why, so neither is kept. Both
+  name the same thing, so the tool and its nudges ask for one short line on what the work
+  is about at a high level ("Checkout rounding fix"): its subject, never status or progress
+  (done, merged, in CI), PR or issue numbers, file names or details. The tool describes the
+  title as what Novadeck names the terminal with when nothing else has. Murmur still names
+  an agent's terminal from the summary alone. Both are updated when the work moves to
+  another subject, not as it progresses; the later nudge shows the current summary and
+  asks for an update only then, or when it holds what a summary leaves out.
 - **Who wins the title.** The record keeps each layer apart (`naming`: `person`; `opener`,
-  the opener's title, which says who it is from by the terminal's `openedBy`; `murmur`, its title;
-  and `summary`, the agent's own), and the store persists only these (`person_title`,
-  `opener_title`, `murmur_title`, `summary`). The terminal manager
-  derives the title by precedence:
+  the opener's title, which says who it is from by the terminal's `openedBy`; `murmur`, its
+  title; `own`, the title the terminal's own agent gave; and `summary`, the agent's own),
+  and the store persists only these (`person_title`, `opener_title`, `murmur_title`,
+  `own_title`, `summary`). The terminal manager derives the title by precedence:
 
   1. the person's (renaming, or creating the terminal);
   2. the title the opening agent gave through `open_terminal` or `open_agent`: a lead names
      its teammates so it and the person can tell them apart, so it stays until the person
-     renames the terminal;
+     renames the terminal, and the teammate's own title never replaces it;
   3. murmur's latest title;
-  4. the default: the program it was opened to run (`claude`), else "Terminal".
+  4. the title the terminal's own agent gave through `describe`;
+  5. the default: the program it was opened to run (`claude`), else "Terminal".
 
   Clients see who it is from as the summary's `titleSource` (`person`, `murmur`, `agent`
-  with its handle, or `default`). A summary is no part of the title. While a person's or an
-  opener's title is set murmur is not asked about the terminal at all (it could not show),
-  though the agent still summarizes it; the runner API's `terminals.resetTitle` takes the
-  person's title away, so the title is the opener's again, else automatic, and murmur
-  names a terminal no agent titled again: an agent's at once from a summary written while
-  the person's title showed, else at its next summary; a shell's at its next prompt.
+  with its handle, or `default`); the agent's own title says `agent` with the terminal's
+  own handle, where an opener's says the opener's. A summary is no part of the title. While
+  a person's or an opener's title is set murmur is not asked about the terminal at all (it
+  could not show), though the agent still describes it; the runner API's
+  `terminals.resetTitle` takes the person's title away, so the title is the opener's
+  again, else murmur's, else the agent's own, else automatic, and murmur names a terminal
+  no one titled by hand again: an agent's at once from a summary written while the
+  person's title showed, else at its next summary; a shell's at its next prompt.
 
 - **The opener's title.** An opener's title never passes through the client as the
   person's: the request the client gets has no title, and the client creates the terminal
   with the request's `requestId`, from which the runner takes the opener's title, handle
   and command: only for the first terminal created for that request, in the request's own
   session. That is the only way a terminal is known as agent-opened (`openedBy`).
-- **Without murmur** nothing titles a terminal but the person and its opener: terminals
-  keep their default titles. Agents still summarize, nudges included. A plain shell has no
-  summary, with or without murmur. Prompts never title a terminal. When the person turns
+- **Without murmur** an agent terminal is titled by the person, its opener or its own
+  agent; one whose agent has not described it yet, and every plain shell, keeps its
+  default title. Agents still describe, nudges included. A plain shell has no summary or
+  own title, with or without murmur. Prompts never title a terminal. When the person turns
   murmur off or removes it, its titles go: every running terminal loses its murmur title
-  (it shows the opener's, else the default), kept terminals lose theirs in the store, and
+  (it shows the opener's, else its agent's own, else the default), kept terminals lose
+  theirs in the store, and
   what was waiting or owed is dropped. Closing the runner, a failed check or a lost GPU
   clear nothing.
 - **Whose the first prompt is.** "Started with" in `agents()` uses the person's first root
@@ -2111,8 +2120,8 @@ again on each call.
 
 - **The bar.** Once a new root session or a compaction happened, a notice of the bar
   beside the terminal (see [Agent workspace](agent-workspace.md), "Companion pane") says
-  what to show there and what not to. A `summarize` doesn't clear it, so it still comes at
-  the next turn's start when the agent summarized first. Where the prompt's answer stays in
+  what to show there and what not to. A `describe` doesn't clear it, so it still comes at
+  the next turn's start when the agent described first. Where the prompt's answer stays in
   the session's context (`MessagingProfile.lasting`, as for the rules notes), the session
   holds it from then on (`told.bar` in its saved report): the same session resumed after a
   runner restart isn't told again, nor asked for its summary again (`sessionResumed`),
@@ -2126,11 +2135,11 @@ again on each call.
   Antigravity, which reads no server instructions, hears it here once at the prompt (an
   injection lasts one model call there, so `ask`'s description is what lasts); it comes
   back after a compaction where the harness reports one.
-- **The summary.** Due when a trigger fired since the last `summarize`: while there is
-  none it asks for one short line on the work's subject, at once, before the agent goes on
-  with the work it was given, as the terminal has no title until then (left to choose when, agents
-  put it off for minutes); after, it shows the current
-  summary and asks for an update only if the work moved to another subject or the summary
+- **The description.** Due when a trigger fired since the last `describe`: while there is
+  no summary it asks for a title and a summary, each one short line on the work's subject,
+  at once, before the agent goes on with the work it was given, as the terminal has no title
+  of its agent's until then (left to choose when, agents put it off for minutes); after, it
+  shows the current summary and asks for an update of both only if the work moved to another subject or the summary
   holds status, PR or issue numbers, or details. When all are due they share the answer:
   the bar's, the Inbox's, then the summary's. The triggers:
   1. a new root session (start, `/clear`, or a restart or resume of a session that holds
@@ -2140,12 +2149,12 @@ again on each call.
      compaction is internal, see [Harness coverage](harness-coverage.md)), so it has no
      such trigger;
   3. drift: the root's own plan's title (never a subagent's), the folder it writes in
-     most or its branch differ from both the facts at the last `summarize` and those
+     most or its branch differ from both the facts at the last `describe` and those
      drift last fired for, so work going back and forth between two folders fires once.
      A fact not known (no plan, no folder yet, a branch not read in time) is no change.
      They are read only for an answer that delivers no messages and with time left, so a
      delivery never waits on them;
-  4. as a backstop, 5 of the person's prompts since the last `summarize`, or since the
+  4. as a backstop, 5 of the person's prompts since the last `describe`, or since the
      backstop last fired (the doorbell's turns don't count);
   5. every turn's start while the terminal has no summary at all: an agent whose first prompt
      gives it no work yet (a question) puts the first nudge off, as the notice allows, and
@@ -2182,7 +2191,7 @@ again on each call.
      not fit even as the only notice is let go untold, while one that only fails to fit beside
      the messages or the bar's, the Inbox's or the summary's notice waits;
   5. closing or showing the item again drops its entry, and so does a new root session in
-     the terminal, which didn't show the page. A `summarize` and a compaction leave it.
+     the terminal, which didn't show the page. A `describe` and a compaction leave it.
 
   What is pending lives in the runner's memory, and a runner restart drops it.
 
@@ -2275,7 +2284,7 @@ An **agent's terminal** (one with a bound agent) is named from its agent's own s
 alone, never from the person's prompts, the agent's replies, its turns' ends, its branch
 or its plan: those name steps of the work (a critic pass, a merge), and the summary,
 written with the whole session in view, names the work. Murmur is asked when the agent
-calls `summarize` with a summary that says something other than the last one it named
+calls `describe` with a summary that says something other than the last one it named
 the terminal from (not the same text in other letters or spaces, as the summary nudges
 bring it again), 3 seconds after it (`settleMs`) so a burst is one title. The model is
 shown the summary and nothing else, not the previous name, and the new title replaces
@@ -2293,7 +2302,7 @@ once it is usable again. What
 murmur remembers of a terminal (`Watch` in `terminals/descriptions.ts`) is lost with the runner,
 so after a restart a terminal's title stays until its agent's next summary.
 
-A **plain shell** is titled (never summarized) on:
+A **plain shell** is titled (never described) on:
 
 1. every return to its prompt at which a line was entered since the last one
    (`record.lineEntered`: the keys sent left something on the line, counted roughly by
@@ -2328,7 +2337,7 @@ Windows has no such sample, so only the prompt triggers there; none is invented.
 `murmur/describer.ts`); the service redacts secrets from every string before the model
 sees it, and the terminal side never includes a permission's command.
 
-- An agent's: its latest summary (`summarize`), and the project's folder name, which the
+- An agent's: its latest summary (`describe`), and the project's folder name, which the
   model is not shown and is taken out of the title it writes.
 - A shell's: the project (not shown to the model), the foreground program's
   command line (the whole argv where the platform tells it, Linux; else its name; none at
@@ -2499,9 +2508,9 @@ again.
    `frontend/items/src/homes/terminal/messages/MessagesView.tsx`, and the title's source and reset on the tab in
    `terminals/TerminalTab.tsx`.
 4. **Naming:** the title's layers (the person, murmur, the opener, the default) and
-   agents' own `summarize`, which replaced `describe` and the first-prompt title. Built:
-   the layers in `backend/runner/src/terminals/titles.ts`, the summary tool in
-   `terminals/summarize-request.ts`, its nudges in `terminals/nudges.ts`, murmur's triggers and
+   agents' own `describe` (a title and a summary), which replaced the first-prompt title. Built:
+   the layers in `backend/runner/src/terminals/titles.ts`, the description tool in
+   `terminals/describe-request.ts`, its nudges in `terminals/nudges.ts`, murmur's triggers and
    digests in `terminals/descriptions.ts`, their wiring in `terminals/murmur-host.ts`, the person's turn
    (`byPerson`) in `messaging/delivery.ts` and their prompt in `messaging/deliveries.ts`,
    and the runner API as `titleSource`, `terminals.resetTitle` and `create`'s

@@ -271,7 +271,7 @@ own description carries the rule, which every harness reads alike from `tools/li
 and the runner's prompt-time hook adds Novadeck's companion notice, one paragraph, at
 the first turn the person's prompt or the doorbell begins in each root session, and after a compaction
 (`companionNotice` in `terminals/nudges.ts`; it rides with the summary nudge but a
-`summarize` never clears it; see [Agent messaging](agent-messaging.md), "Nudges"), with
+`describe` never clears it; see [Agent messaging](agent-messaging.md), "Nudges"), with
 the Inbox notice beside it (`inboxNotice`): the person rarely watches the terminal, so
 a question the agent's turn ends waiting on goes to the Inbox: through the harness's own
 question tool where the agent would use one, which the Inbox shows as it is, else with
@@ -588,7 +588,7 @@ with every safety check again at that time:
   also answer with, and the message reaches that agent through its own hooks. The runner
   keeps the messages with the workspace and lists, pauses and releases them through
   `messages.list`, `messages.pause` and `messages.release`. Its `agents` listing carries
-  the summaries the terminals' agents gave through `summarize`. See
+  the summaries the terminals' agents gave through `describe`. See
   [Agent messaging](agent-messaging.md).
 - **Pages** are any http(s) address; an address with a user name or password is
   refused. The desktop app loads them live in the pane, in Electron's `<webview>`,
