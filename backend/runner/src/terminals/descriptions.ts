@@ -47,6 +47,14 @@ export type MurmurTimes = {
    */
   readonly expectMs: number
   /**
+   * How long a program in the foreground of a shell opened to run an agent is taken for
+   * that agent, which may bind slowly, in milliseconds from when murmur began watching the
+   * terminal. Past it the shell is described as any, and an agent that binds later renames
+   * the terminal from its summary. Some agents bind only at their first prompt, and one
+   * whose hooks never report never binds.
+   */
+  readonly expectForegroundMs: number
+  /**
    * How long a title that could not be asked for (murmur backed off or busy: it did not
    * run) waits before it is asked again, in milliseconds.
    */
@@ -58,6 +66,7 @@ const defaultTimes: MurmurTimes = {
   shellRunMs: 5_000,
   shellSettleMs: 3_000,
   expectMs: 10_000,
+  expectForegroundMs: 120_000,
   retryMs: 60_000,
 }
 
@@ -830,8 +839,6 @@ export class Murmur {
         const current = this.host.subject(terminalId)
         if (!current || kept(current)) return undefined
         if (current.agent || this.expectedFor(current) > 0) return undefined
-        // Its agent is starting, however slowly: the program in the foreground is it.
-        if (this.expects(current) && !current.atPrompt) return undefined
         if (options.program !== undefined && programKey(current.program) !== options.program)
           return undefined
         const built = await this.shellDigestOf(current, options.unchanged === true)
@@ -857,13 +864,14 @@ export class Murmur {
     return !!subject.expecting && !watch.agentBound
   }
 
-  // How much longer a shell opened to run an agent waits for it to bind, in milliseconds,
-  // at its prompt: the command may yet start. Once a program holds the foreground, the wait
-  // lasts as long as it does (see `ask`).
+  // How much longer a shell opened to run an agent waits for it to bind, in milliseconds:
+  // `expectMs` at its prompt, where the command may yet start, and `expectForegroundMs`
+  // once a program holds the foreground, which is taken for the agent starting slowly.
   private expectedFor(subject: MurmurSubject): number {
     if (!this.expects(subject)) return 0
     const since = this.watch(subject.summary.id).since
-    return Math.max(0, this.times.expectMs - (Date.now() - since))
+    const limit = subject.atPrompt ? this.times.expectMs : this.times.expectForegroundMs
+    return Math.max(0, limit - (Date.now() - since))
   }
 
   private async shellDigestOf(

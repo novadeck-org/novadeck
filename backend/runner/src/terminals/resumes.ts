@@ -48,6 +48,15 @@ export const cancelResume = (record: Pick<Record, "resumeFile">): boolean => {
   }
 }
 
+/** No agent is expected in the terminal: its resume was cancelled or came to nothing. */
+export const endExpecting = (
+  record: Pick<Record, "expecting" | "summary">,
+  messaging: { expect(terminalId: string, agent: null): void },
+): void => {
+  record.expecting = null
+  messaging.expect(record.summary.id, null)
+}
+
 /** Why an agent can't be started on a session an agent asked to resume, in a sentence for it. */
 export const resumeRefusal = (agent: AgentName, reason: UnavailableReason): string => {
   const label = agentLabel(agent)

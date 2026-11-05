@@ -407,6 +407,7 @@ const create = (
     shellRunMs: 500,
     shellSettleMs: 200,
     expectMs: 1_000,
+    expectForegroundMs: 20_000,
     retryMs: 60_000,
     ...more,
   }
@@ -1539,6 +1540,35 @@ describe("when murmur becomes usable", () => {
       made.murmur.reported("a")
       await settle(made.times.settleMs + made.times.retryMs)
       expect(made.written).toEqual([{ title: stale }])
+      expect(made.describer.digests.some(({ kind }) => kind === "agent")).toBe(false)
+    })
+
+    it("describes a long program as a shell once the wait for a slow agent is over", async () => {
+      const made = create({ agent: null, expecting: agent, atPrompt: false })
+      made.describer.setUsable(true)
+      made.change({ program: { name: agent, argv: [agent] }, atPrompt: false })
+      made.murmur.sampled("a")
+      await settle(made.times.expectForegroundMs - 1_000)
+      expect(made.describer.jobs).toHaveLength(0)
+      await settle(made.times.shellRunMs + 2_000)
+      expect(made.describer.digests.at(-1)).toMatchObject({ kind: "shell" })
+    })
+
+    it("does not name an agent started by hand from the summary of a resume that never ran", async () => {
+      // The resume was refused or cancelled, so nothing is expected; the shell is titled.
+      const made = create({
+        agent: null,
+        expecting: null,
+        atPrompt: true,
+        naming: { ...unnamed, summary: "Old session work on payload images" },
+      })
+      made.describer.setUsable(true)
+      await settle(made.times.shellSettleMs + 50)
+      expect(made.written).toHaveLength(1)
+      made.change({ agent, work: work(), activity: idle("ok") })
+      made.murmur.reported("a")
+      await settle(made.times.settleMs + made.times.retryMs)
+      expect(made.written).toHaveLength(1)
       expect(made.describer.digests.some(({ kind }) => kind === "agent")).toBe(false)
     })
 
