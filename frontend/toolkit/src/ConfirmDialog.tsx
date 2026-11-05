@@ -1,10 +1,12 @@
-import { useEffect, useRef, useState, type ReactNode } from "react"
+import { useEffect, useLayoutEffect, useRef, useState, type ReactNode } from "react"
 
 import { Dialog, DialogDescription, DialogTitle } from "./Dialog"
 
 export type ConfirmDialogProps<Subject> = {
   // What the dialog asks about; it is open while this is set, and keeps showing the
-  // last one while it animates out.
+  // last one while it animates out. Another subject, or one set again after it was null,
+  // is another question: an answer to the last one doesn't count for it. Keep its identity
+  // while it asks the same thing.
   readonly subject: Subject | null
   readonly title: (subject: Subject) => string
   readonly description: (subject: Subject) => ReactNode
@@ -46,12 +48,23 @@ export const ConfirmDialog = <Subject,>({
 }: ConfirmDialogProps<Subject>): React.JSX.Element => {
   const [shown, setShown] = useState(subject)
   if (subject !== null && subject !== shown) setShown(subject)
+  // Whether the question up now was confirmed, so closing it neither cancels nor gives
+  // focus back. It may be asked again before the last one has animated out.
   const confirmed = useRef(false)
+  useLayoutEffect(() => {
+    if (subject !== null) confirmed.current = false
+  }, [subject])
   const confirm = useRef<HTMLButtonElement>(null)
   const cancel = useRef<HTMLButtonElement>(null)
-  // The key whose delay has passed; confirming works only for the key now shown.
+  // The key whose delay has passed; confirming works only for the key now shown. Each
+  // time the dialog shows, it waits again.
   const [armedKey, setArmedKey] = useState<string | null>(null)
   const shownNow = subject !== null
+  const [wasShown, setWasShown] = useState(false)
+  if (shownNow !== wasShown) {
+    setWasShown(shownNow)
+    if (shownNow) setArmedKey(null)
+  }
   useEffect(() => {
     if (armMs === 0 || !shownNow) return undefined
     const timer = setTimeout(() => setArmedKey(armKey), armMs)
@@ -66,9 +79,6 @@ export const ConfirmDialog = <Subject,>({
       closeOnInteractOutside
       onOpenChange={(open) => {
         if (!open && !confirmed.current) onCancel()
-      }}
-      onExitComplete={() => {
-        confirmed.current = false
       }}
       label={heading}
       initialFocusEl={() => (focus === "confirm" ? confirm : cancel).current}

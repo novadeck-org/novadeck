@@ -69,8 +69,9 @@ export const ChatView = ({
   readonly sending: readonly ChatSend[]
   // Sends the box's words, as a prompt or as the reply `to` names: the app takes them
   // out of the draft as they go, queues a prompt behind those still on their way, and puts
-  // them back should they not arrive.
-  readonly onSend: (text: string, to: ChatReply | null) => Promise<void>
+  // them back should they not arrive. It resolves whether they went: false once they came
+  // back to the box unsent.
+  readonly onSend: (text: string, to: ChatReply | null) => Promise<boolean>
   readonly onInterrupt: () => Promise<void>
   readonly onAnswer: (request: string, answer: ChatAnswer) => Promise<void>
   readonly onAnswerInTerminal: () => void
@@ -363,8 +364,11 @@ export const ChatView = ({
             throw new Error("The conversation is still loading. Send again in a moment.")
           // The words in the box went: the note that they're there goes with them.
           setLost(false)
-          await onSend(text, reply)
-          if (!reply) setUnrecorded(!recordsShell(harness) && shellCommand(text) !== undefined)
+          const went = await onSend(text, reply)
+          // Only a command that went ran: one handed back unsent, by a Stop or a prompt before
+          // it that didn't go, sits in the box again.
+          if (went && !reply)
+            setUnrecorded(!recordsShell(harness) && shellCommand(text) !== undefined)
         }}
         onStop={onInterrupt}
         focusInput={focusInput}

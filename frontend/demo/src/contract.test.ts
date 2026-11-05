@@ -1,3 +1,4 @@
+import { parkMs } from "@novadeck/terminal/view"
 import { describeBackendContract } from "@novadeck/test-kit/backend-contract"
 import { vi } from "vitest"
 
@@ -31,4 +32,5 @@ describeBackendContract("demo", {
     const engine = createDemoEngine()
     return { backend: demoBackend(engine), probe: { holds: engine.has, io: () => [] } }
   },
+  parkMs,
 })
