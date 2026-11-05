@@ -257,7 +257,7 @@ export const codexVocabulary: readonly Written[] = [
     records: [
       said("Wait, then ask."),
       ...calls("clock", [
-        ["sleep", { duration_ms: 50000 }, "Wall time: 50.0098 seconds\nSleep completed.", "clock"],
+        ["sleep", { duration_ms: 50000 }, "Wall time: 50.0 seconds\nSleep completed.", "clock"],
         [
           "request_user_input_async",
           { questions: [{ title: "Merge it now?", options: ["Merge", "Wait for CI"] }] },

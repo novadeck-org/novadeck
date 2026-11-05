@@ -9,7 +9,7 @@ import { describe, expect, it } from "./test"
 
 // The vocabulary README says which tools the conversations name: every tool each harness's
 // `describe` knows, but for the few below that no recording shows, and every Novadeck tool
-// in each harness's spelling. This holds the README to that, so a tool added to a
+// core's `novadeckTool` knows in each harness's direct spelling. This holds the README to that, so a tool added to a
 // `describe` without a conversation, or a conversation added for a tool still listed here,
 // fails until both say the same.
 
@@ -39,7 +39,7 @@ const source = (path: string): string =>
   readFileSync(join(import.meta.dirname, "../../../harnesses", path), "utf8")
 
 const casesOf = (code: string): string[] =>
-  [...code.matchAll(/^\s*case "([^"]+)":/gm)].map(([, name]) => name!)
+  [...code.matchAll(/\bcase ["']([^"']+)["']:/g)].map(([, name]) => name!)
 
 // The names each harness's `describe` knows, from its own switch.
 const known = (harness: AgentName): string[] => casesOf(source(`${harness}/src/tools.ts`))
@@ -52,16 +52,20 @@ const novadeckTools = ((): string[] => {
 })()
 
 // A recorded name as its `describe` looks it up: a Novadeck tool as `novadeck:<tool>`, and
-// Codex's namespaced tools joined as its `describe` joins them.
+// Codex's namespaced tools joined as its `describe` joins them. Antigravity's lazy
+// `call_mcp_tool` keys as itself, so its rows count toward no Novadeck tool.
 const keyOf: Readonly<Record<AgentName, (tool: string) => string>> = {
-  claude: (tool) => tool.toLowerCase().replace(/^mcp__plugin_novadeck_novadeck__/, "novadeck:"),
+  claude: (tool) => tool.replace(/^mcp__plugin_novadeck_novadeck__/, "novadeck:").toLowerCase(),
   codex: (tool) =>
     tool
-      .toLowerCase()
       .replace(/^mcp__novadeck(?:__|\.)/, "novadeck:")
-      .replace(/^(?:multi_agent_v\d+|collaboration)(?:\.|__)?/, "")
+      .toLowerCase()
+      .replace(
+        /^(?:multi_agent_v\d+|collaboration)(?:\.|__)?(?=(?:spawn_agent|send_message|send_input|followup_task|list_agents|wait_agent|close_agent|resume_agent)$)/,
+        "",
+      )
       .replace(/^(clock|mcp__codex_worktrees)__/, "$1."),
-  agy: (tool) => tool.toLowerCase().replace(/^mcp_novadeck_novadeck_/, "novadeck:"),
+  agy: (tool) => tool.replace(/^mcp_novadeck_novadeck_/, "novadeck:").toLowerCase(),
 }
 
 // The names each harness's recorded fixtures and vocabulary conversations call.

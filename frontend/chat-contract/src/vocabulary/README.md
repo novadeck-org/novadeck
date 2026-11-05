@@ -6,9 +6,10 @@ steps), so they go through that harness's real decoder like any fixture.
 
 They exist because the recorded fixtures are thin: they name a handful of tools, mostly
 redacted, while the chat's vocabulary (each harness's `describe`, `inputText`, the tool kinds,
-the fold) knows many more. With the recorded fixtures, they name every Novadeck tool in each
-harness's spelling, and every tool each harness's `describe` knows but these, which no
-recording shows yet:
+the fold) knows many more. With the recorded fixtures, they name every Novadeck tool core's
+`novadeckTool` knows, in each harness's direct spelling (Antigravity's lazy `call_mcp_tool`
+spelling holds only a few), and every tool each harness's `describe` knows but these, which
+no recording shows yet:
 
 - Claude Code: `PowerShell` (its Windows shell tool).
 - Codex: `clock.curr_time`, `image_generation`, `list_dir`, `list_mcp_resources`,

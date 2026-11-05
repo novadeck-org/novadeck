@@ -110,9 +110,10 @@ const lineOf = (block: Element): { line: string; rows: number } => {
   if (block.matches(".chat-tools")) {
     const fold = block.querySelector("button.chat-tools-fold")
     // A fold that starts open (a live run's) says so; a finished one starts shut.
-    const shut = fold?.getAttribute("aria-expanded") === "false"
-    const folded = fold ? `[${shut ? "" : "open: "}${foldText(fold)}] ` : ""
-    if (fold && shut) click(fold)
+    const state = fold?.getAttribute("aria-expanded")
+    if (fold && state !== "true" && state !== "false") throw unknownBlock(block)
+    const folded = fold ? `[${state === "true" ? "open: " : ""}${foldText(fold)}] ` : ""
+    if (fold && state === "false") click(fold)
     const rows = [...block.querySelectorAll("li.chat-tool")].map(rowOf)
     return { line: `tools: ${folded}${rows.join("; ")}`, rows: rows.length }
   }
