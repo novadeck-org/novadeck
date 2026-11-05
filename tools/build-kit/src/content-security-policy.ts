@@ -12,9 +12,10 @@ export type Build = {
 export const connectSourcesPlaceholder = "__NOVADECK_CONNECT_SOURCES__"
 
 /**
- * Fills the connect-src of the page's Content Security Policy: the placeholder in its
- * index.html becomes the sources `connect` gives for the build. A page without the
- * placeholder fails the build, so a policy can't silently go unfilled.
+ * Fills the connect-src of the page's Content Security Policy: every placeholder in its
+ * index.html becomes the sources `connect` gives for the build, as they are. A page without
+ * the placeholder fails the build, as does one that still holds it once filled, so a policy
+ * can't silently go unfilled.
  */
 export const contentSecurityPolicy = (options: {
   readonly connect: (build: Build) => readonly string[]
@@ -40,7 +41,13 @@ export const contentSecurityPolicy = (options: {
       if (!html.includes(connectSourcesPlaceholder)) {
         throw new Error("Content Security Policy connect-src placeholder is missing")
       }
-      return html.replace(connectSourcesPlaceholder, options.connect(build).join(" "))
+      const sources = options.connect(build).join(" ")
+      // A function, so a source is put in as it is: a string would expand its `$&` and `$'`.
+      const filled = html.replaceAll(connectSourcesPlaceholder, () => sources)
+      if (filled.includes(connectSourcesPlaceholder)) {
+        throw new Error("Content Security Policy connect-src placeholder is left unfilled")
+      }
+      return filled
     },
   }
 }
