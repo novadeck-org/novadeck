@@ -115,6 +115,11 @@ export type TerminalOptions = {
   readonly controller?: string | undefined
   /** How its ptys start: as a test plays them, and where their programs are kept (see `spawnPty`). */
   readonly pty?: PtyOptions
+  /**
+   * Tells of a listener of `event` that threw, once for each event; the terminal carries on,
+   * its other listeners included. To the console unless given.
+   */
+  readonly failed?: (error: unknown, event: keyof Listeners) => void
 }
 
 type Listeners = {
@@ -264,8 +269,23 @@ export const createTerminal = (options: TerminalOptions): HostedTerminal => {
     reset: new Set(),
     keys: new Set(),
   }
+  const failed =
+    options.failed ??
+    ((error: unknown, event: keyof Listeners) =>
+      console.error(`A terminal's ${event} listener failed:`, error))
+  // The events a listener of threw, each told once.
+  const threw = new Set<keyof Listeners>()
+  // A listener's throw would skip the rest, and the work it fired in: out of the screen's
+  // emitters it ends the process, and in its parser it leaves the parse mid-sequence.
   const fire = <K extends keyof Listeners>(event: K, ...args: Parameters<Listeners[K]>) => {
-    for (const listener of listeners[event]) (listener as (...all: typeof args) => void)(...args)
+    for (const listener of listeners[event])
+      try {
+        ;(listener as (...all: typeof args) => void)(...args)
+      } catch (error) {
+        if (threw.has(event)) continue
+        threw.add(event)
+        failed(error, event)
+      }
   }
 
   let size = { cols: options.spec.cols, rows: options.spec.rows }

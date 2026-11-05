@@ -57,6 +57,7 @@ import { Companion } from "./companion.js"
 import { Murmur, type MurmurTimes } from "./descriptions.js"
 import { type DialogsOptions } from "./dialogs.js"
 import { agentWorking } from "./doorbell-host.js"
+import { failed } from "./failures.js"
 import { restored } from "./interrupted.js"
 import { Launcher, startedIn, startFailed } from "./launching.js"
 import { forgetPrompts, markPrompt, murmurHost } from "./murmur-host.js"
@@ -411,14 +412,10 @@ export class Terminals {
         Buffer.byteLength(JSON.stringify({ ...event, terminalId })),
       limits: this.options,
       scrollback: 1000,
-      kill: {
-        graceMs: 1000,
-        treeGraceMs,
-        shutdownTreesMs,
-        shutdownTreeGraceMs,
-      },
+      kill: { graceMs: 1000, treeGraceMs, shutdownTreesMs, shutdownTreeGraceMs },
       trees: this.trees,
       pty: this.pty,
+      failed: failed.listener,
     })
     this.host.on("evicted", (id, terminal) => this.evicted(id, terminal))
     this.launcher = new Launcher(this.options, {

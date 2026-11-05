@@ -21,6 +21,12 @@ export const failed = {
       return fallback
     },
   title: failure("terminals.title-failed", "Novadeck could not read a title"),
+  /** A listener of terminal `terminalId`'s `event` that threw, which its host carried on past. */
+  listener: (error: unknown, event: string, terminalId: string): void =>
+    log.error("terminals.listener-failed", "Novadeck could not handle a terminal's event", {
+      data: { terminalId, event },
+      err: error,
+    }),
   following: failure("harnesses.follow-failed", "Novadeck stopped following an agent"),
   interrupted: failure(
     "terminals.interrupted-notice-failed",
