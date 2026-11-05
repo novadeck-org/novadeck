@@ -1,10 +1,16 @@
+import { appendFileSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs"
+import { tmpdir } from "node:os"
+import { join } from "node:path"
+
 import { callId } from "@novadeck/harness-core/decode"
+import type { HarnessEvent } from "@novadeck/harness-core/events"
 import { loadProbe } from "@novadeck/harness-core/testing/probes"
-import { describe, expect, it } from "vitest"
+import { afterEach, describe, expect, it } from "vitest"
 
 import { decode } from "./decode.js"
+import { claude } from "./index.js"
 import { report } from "./report.test-support.js"
-import { transcriptEvents, type Calls } from "./transcript-watch.js"
+import { followSubagent, subagentEvents, transcriptEvents, type Calls } from "./transcript-watch.js"
 
 type Probe = { scenarios: { [name: string]: object[] } }
 const probe = loadProbe(import.meta.dirname, "transcript.probe.json") as Probe
@@ -218,5 +224,102 @@ describe("a root tool call's result in the transcript", () => {
       "attention-resolved",
       "turn-ended",
     ])
+  })
+})
+
+describe("a subagent's own transcript, as captured", () => {
+  type Subagent = { agentId: string; records: Record<string, unknown>[] }
+  const captured = loadProbe(import.meta.dirname, "subagent.probe.json") as Subagent
+  const { agentId: actor, records } = captured
+  const lines = records.map((record) => JSON.stringify(record))
+  const [use, rejected] = records as [
+    { timestamp: string; message: { content: [{ name: string; input: object }] } },
+    { timestamp: string },
+  ]
+  const asked = Date.parse(use.timestamp) + 50
+  const read = (since = asked, calls: Calls = new Map()) =>
+    lines.flatMap((line) => subagentEvents(line, session, actor, since, calls))
+
+  it("is followed while its request waits", () => {
+    expect(claude.watchActor).toBe(followSubagent)
+  })
+
+  it("settles the request the person rejected, as its own hook asked it, at the result's time", () => {
+    const [{ name, input }] = use.message.content
+    const [request] = decode({
+      ...report("PermissionRequest", { agent_id: actor, tool_name: name, tool_input: input }),
+      seq: asked,
+    })
+    expect(read()).toEqual([
+      {
+        type: "attention-resolved",
+        agent: "claude",
+        sessionId: "s",
+        instance: "7",
+        startedAt: Date.parse(rejected.timestamp),
+        requestId: (request as { requestId: string }).requestId,
+        actor,
+        toolName: name,
+        loose: false,
+        outcome: "settled",
+      },
+    ])
+  })
+
+  it("tells no result from before its oldest request waiting was asked, but pairs it", () => {
+    const calls: Calls = new Map()
+    expect(read(Date.parse(rejected.timestamp) + 1, calls)).toEqual([])
+    expect(calls.size).toBe(0)
+  })
+
+  it("says nothing of a result whose call it never saw, a broken line or one without a time", () => {
+    expect(subagentEvents(lines[1]!, session, actor, asked, new Map())).toEqual([])
+    const calls: Calls = new Map()
+    expect(subagentEvents(lines[0]!, session, actor, asked, calls)).toEqual([])
+    expect(subagentEvents(lines[1]!.slice(0, -3), session, actor, asked, calls)).toEqual([])
+    const untimed = JSON.stringify({ ...records[1], timestamp: "whenever" })
+    expect(subagentEvents(untimed, session, actor, asked, calls)).toEqual([])
+    expect(calls.size).toBe(1)
+  })
+
+  describe("followed", () => {
+    let folder: string | undefined
+    afterEach(() => {
+      if (folder) rmSync(folder, { recursive: true, force: true })
+      folder = undefined
+    })
+
+    it("is found beside its root's, by its id, though written after the follower began", async () => {
+      folder = mkdtempSync(join(tmpdir(), "novadeck-claude-subagent-"))
+      const root = join(folder, "session.jsonl")
+      // The root's own records of the same call settle nothing for the subagent.
+      writeFileSync(root, `${lines.join("\n")}\n`)
+      const controller = new AbortController()
+      const told: HarnessEvent[] = []
+      const run = { ...session, sessionId: "session", transcript: root }
+      const following = followSubagent(run, actor, asked, controller.signal, (event) =>
+        told.push(event),
+      )
+      try {
+        const own = join(folder, "session", "subagents", `agent-${actor}.jsonl`)
+        mkdirSync(join(folder, "session", "subagents"), { recursive: true })
+        writeFileSync(own, `${lines[0]}\n`)
+        appendFileSync(own, `${lines.slice(1).join("\n")}\n`)
+        await expect.poll(() => told, { timeout: 5000 }).toHaveLength(1)
+        expect(told[0]).toMatchObject({ type: "attention-resolved", actor, sessionId: "session" })
+      } finally {
+        controller.abort()
+        await following
+      }
+    })
+
+    it("follows no subagent whose id could leave its folder", async () => {
+      const told: HarnessEvent[] = []
+      const run = { ...session, transcript: "/nowhere/session.jsonl" }
+      await followSubagent(run, "../x", asked, new AbortController().signal, (event) =>
+        told.push(event),
+      )
+      expect(told).toEqual([])
+    })
   })
 })
