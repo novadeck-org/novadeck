@@ -44,12 +44,16 @@ const notSecret = new Set([
   "prefix",
 ])
 
-export const soundsSecret = (name: string): boolean => {
-  const words = name
+// A name's words, lowercase: `dbPassword` and `DB_PASSWORD` are `db`, `password`.
+const wordsOf = (name: string): string[] =>
+  name
     .replace(/([a-z0-9])([A-Z])/g, "$1_$2")
     .toLowerCase()
     .split(/[^\p{L}\p{N}]+/u)
     .filter(Boolean)
+
+export const soundsSecret = (name: string): boolean => {
+  const words = wordsOf(name)
   const last = words.at(-1)
   // npm's `_auth` is a credential; a plain `auth` or `SSH_AUTH_SOCK` is not.
   if (/(^|_)_auth$/i.test(name) || /^_auth$/i.test(name)) return true
@@ -58,3 +62,9 @@ export const soundsSecret = (name: string): boolean => {
   if (words.some((word) => secretWords.has(word))) return true
   return words.some((word, index) => word === "key" && keyOf.has(words[index - 1] ?? ""))
 }
+
+// Whether a name says it holds a secret plainly enough to take a value glued on after a colon
+// (`password:hunter2`), where most names with a colon are code, a scheme, a host, an image or a
+// file with its line: a bare word, no file name, that ends in the secret's own word.
+export const plainlySecret = (name: string): boolean =>
+  !name.includes(".") && /passw|passphrase|^(secret|token|pwd)$/.test(wordsOf(name).at(-1) ?? "")

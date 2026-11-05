@@ -3,7 +3,7 @@ import { randomBytes } from "node:crypto"
 import { describe, expect, it } from "vitest"
 
 import { redacted } from "./marks.js"
-import { maskedSpans, redact, redactAs } from "./text.js"
+import { mark, maskedSpans, redact, redactAs } from "./text.js"
 
 describe("redacting secrets", () => {
   it("writes each secret as the placeholder it is given", () => {
@@ -250,6 +250,34 @@ describe("redacting a text line by line", () => {
   })
 })
 
+describe("tokens with a prefix and a hex or short body", () => {
+  const hex = "0123456789abcdef"
+  it.each([
+    ["a DigitalOcean token", `doctl auth init -t dop_v1_${hex.repeat(4)}`, "dop_v1_"],
+    ["a DigitalOcean refresh token", `dor_v1_${hex.repeat(4)}`, "dor_v1_"],
+    ["a Shopify admin token", `X-Shopify-Access-Token shpat_${hex.repeat(2)}`, "shpat_"],
+    ["a Shopify shared secret", `shpss_${hex.repeat(2).toUpperCase()}`, "shpss_"],
+    ["a Stripe webhook secret", "whsec_aB3dE5gH7jK9mN1pQ3sT5vX7zA9cE1gH", "whsec_"],
+    ["a Google OAuth client secret", "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", "GOCSPX-"],
+  ])("masks %s", (_name, text, prefix) => {
+    const result = redact(text)
+
+    expect(result).toContain(redacted)
+    expect(result).not.toContain(prefix)
+  })
+
+  it.each([
+    "dop_v1_0123abcd",
+    "shpat_ is the prefix of a Shopify token",
+    "whsec_test and whsec_live_mode",
+    "GOCSPX-placeholder",
+    "commit 9fceb02d0ae598e95dc970b74767f19372d61af8",
+    "shop_settings_page and do_v1_release",
+  ])("keeps %s", (text) => {
+    expect(redact(text)).toBe(text)
+  })
+})
+
 describe("redacting tools' output, and code that only reads a secret", () => {
   const gone: [string, string][] = [
     ["$ openssl rand -base64 32\nK7gNU3sdo+OL0wNhqoVWhr3g6s1xYv72ol/pe/Unols=", "K7gNU3sdo"],
@@ -455,6 +483,94 @@ describe("code words as values", () => {
   })
 })
 
+describe("values under a secret name that only look like code or a path", () => {
+  it.each([
+    ["password=correct.horse.battery", "password=[redacted]"],
+    ["DB_PASSWORD=Correct.Horse", "DB_PASSWORD=[redacted]"],
+    ['password: "user.password"', 'password: "[redacted]"'],
+    ['token = "getToken()"', 'token = "[redacted]"'],
+    ["password: ~hunter2", "password: [redacted]"],
+  ])("masks %s", (text, expected) => {
+    expect(redact(text)).toBe(expected)
+  })
+
+  it.each([
+    "const password = req.body.password",
+    "api_key = settings.API_KEY",
+    "password: ~",
+    "SSH_KEY=~/.ssh/id_ed25519",
+    "token: ~deploy/.token",
+    "GOOGLE_APPLICATION_CREDENTIALS=/etc/gcp/key.json",
+    "password = getpass(prompt)",
+    "const token = req.headers.authorization",
+    "const token = response.data;",
+    "token = this.state",
+    "apiKey: props.value,",
+    "self.password = self.encoder.encode",
+  ])("keeps %s", (text) => {
+    expect(redact(text)).toBe(text)
+  })
+})
+
+describe("a plainly secret name with its value glued to the colon", () => {
+  it.each([
+    ["password:hunter2", "password:[redacted]"],
+    ["login ok, db_secret:Zq8rT2mW", "login ok, db_secret:[redacted]"],
+    ["auth token:abc123 sent", "auth token:[redacted] sent"],
+    ["secret:password: hunter2", "secret:password: [redacted]"],
+    ["app:secret:password: hunter2", "app:secret:password: [redacted]"],
+  ])("masks %s", (text, expected) => {
+    expect(redact(text)).toBe(expected)
+  })
+
+  it.each([
+    "https://example.com",
+    "localhost:8080",
+    "SELECT password::text FROM users",
+    "token:string",
+    "session:abc123",
+    "a:hover, std::string",
+    "src/secrets.ts:42:10 - error TS2322: Type 'x' is not assignable",
+    "src/auth/token.ts:15:const x = 1",
+    "    at Object.<anonymous> (/app/src/token.js:10:5)",
+    "token.go:88: undefined: x",
+    "Image: ghcr.io/external-secrets/external-secrets:v0.9.11",
+    "git show origin/secret-rotation:src/app.ts",
+    "arn:aws:secretsmanager:us-east-1:123456789012:secret:prod/db-AbCdEf",
+    '"Action": "secretsmanager:GetSecretValue"',
+    "C:\\Users\\ada",
+  ])("keeps %s", (text) => {
+    expect(redact(text)).toBe(text)
+  })
+})
+
+describe("URL passwords with a slash, and headers at a line's end", () => {
+  it.each([
+    ["postgres://user:pa/ss@host/db", `postgres://${redacted}@host/db`],
+    ["mongodb://admin:a/b/c@db.local:27017", `mongodb://${redacted}@db.local:27017`],
+    ["https://ada:x/y@example.com", `https://${redacted}@example.com`],
+    ["Authorization: Bearer\nabc123def456", `Authorization: Bearer\n${redacted}`],
+  ])("masks %s", (text, expected) => {
+    expect(redact(text)).toBe(expected)
+  })
+
+  it.each([
+    "http://localhost:5173/@vite/client",
+    "http://[::1]:3000/@fs/home/ada/app.ts",
+    "https://host:8443/users/@me/x",
+    "missing Authorization:\nnext line words",
+    "error: no Authorization=\nretrying",
+  ])("keeps %s", (text) => {
+    expect(redact(text)).toBe(text)
+  })
+
+  it("reads a long run of schemes in a time that grows with it", { timeout: 5000 }, () => {
+    const text = "a://x:".repeat(50_000)
+
+    expect(redact(text)).toBe(text)
+  })
+})
+
 describe("the sentinel character in the input", () => {
   it("becomes a question mark", () => {
     expect(redact("a\uE000b TOKEN=abcdefgh")).toBe("a?b TOKEN=[redacted]")
@@ -489,6 +605,27 @@ describe("long values and command lines", () => {
     "openssl enc -k hunter2xyz",
   ])("still masks the password in %s", (line) => {
     expect(redact(line)).not.toMatch(/S3cr3t|hunter2/)
+  })
+})
+
+describe("a value that reaches the cap, and the fields after it", () => {
+  const capped = `API_KEY=${"Ab1".repeat(400)}`
+
+  it.each([
+    ["a password", `${capped}/pass=x ; token=hunter2`, "hunter2"],
+    ["a token", `${capped}/pass=x ghp_abcdefghijklmnop1234`, "ghp_abcdefghijklmnop1234"],
+    ["a later field", `${capped}+password=x:secret=y:token=z ; api_key=hunter2`, "hunter2"],
+  ])("keeps the marks in step and masks %s after it", (_name, text, secret) => {
+    expect(mark(text)).toHaveLength(text.length)
+    expect(redact(text)).not.toContain(secret.slice(1))
+    expect(maskedSpans(text).every((span) => text.includes(span))).toBe(true)
+  })
+
+  it("reads a long chain of names once", { timeout: 5000 }, () => {
+    const text = "password=".repeat(20_000)
+
+    expect(mark(text)).toHaveLength(text.length)
+    expect(redact(text)).toBe(`password=${redacted}`)
   })
 })
 
@@ -638,5 +775,52 @@ describe("the pieces redaction masks", () => {
       "-----BEGIN RSA PRIVATE KEY-----\nMIIEow",
     ])
     expect(maskedSpans("nothing here")).toEqual([])
+  })
+})
+
+describe("marking keeps the text's length", () => {
+  // A fixed sequence of numbers, so a failure comes back the same.
+  const numbers = (seed: number) => () => {
+    seed = (seed * 48_271) % 2_147_483_647
+    return seed / 2_147_483_647
+  }
+  const pick = <T>(next: () => number, items: readonly T[]): T =>
+    items[Math.floor(next() * items.length)] as T
+  const names = [
+    "password",
+    "API_KEY",
+    "token",
+    "user",
+    "pass",
+    "hasło",
+    '"secret"',
+    "--token",
+    "set -x TOKEN",
+  ]
+  const joints = ["=", ": ", ":", " = ", "+", "/", "&", "?", " ; "]
+  const values = [
+    "hunter2",
+    "Ab1".repeat(342),
+    "x".repeat(1100),
+    "ghp_abcdefghijklmnop1234",
+    "-----BEGIN PRIVATE KEY-----",
+    "https://ada:pa/ss@host/db",
+    '"quoted value"',
+    "😀".repeat(520),
+    "",
+  ]
+
+  it("for fields chained around values at and past the cap", () => {
+    const next = numbers(7)
+    for (let round = 0; round < 300; round += 1) {
+      const parts = Array.from(
+        { length: 2 + Math.floor(next() * 6) },
+        () => pick(next, names) + pick(next, joints) + pick(next, values),
+      )
+      const text = parts.join(pick(next, ["", " ", "\n", ",", "/", "+", ":"]))
+
+      expect(mark(text).length, text.slice(0, 80)).toBe(text.length)
+      expect(maskedSpans(text).every((span) => text.includes(span))).toBe(true)
+    }
   })
 })

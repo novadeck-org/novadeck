@@ -47,12 +47,65 @@ export const hookDialect = (platform: NodeJS.Platform): Dialect =>
 export const hook = (platform: NodeJS.Platform, event: string): string =>
   hookCommand(hookDialect(platform), { agent: "codex", event })
 
-// Its configuration's table for the plugin, enabled.
-const enabled = new RegExp(String.raw`\[plugins\."${pluginId}"\][^[]*?\benabled\s*=\s*true`)
+// A TOML key's parts, as `a."b.c"` or `a . 'b'` writes them: split at the dots outside
+// quotes, each part's quotes and the spaces around it dropped.
+const keyParts = (key: string): readonly string[] => {
+  const parts: string[] = []
+  let part = ""
+  let quote: string | undefined
+  for (const char of key) {
+    if (quote) {
+      if (char === quote) quote = undefined
+      else part += char
+    } else if (char === '"' || char === "'") quote = char
+    else if (char === ".") {
+      parts.push(part.trim())
+      part = ""
+    } else part += char
+  }
+  return [...parts, part.trim()]
+}
+
+const same = (a: readonly string[], b: readonly string[]): boolean =>
+  a.length === b.length && a.every((part, at) => part === b[at])
+
+// The table a line opens, `[a.b]`, with a comment after it or none; an array of tables'
+// `[[a.b]]` opens one no key of ours is in.
+const tableLine = /^\s*\[([^[\]]+)\]\s*(?:#.*)?$/
+const arrayTableLine = /^\s*\[\[/
+// A key set to a boolean or an inline table, with a comment after it or none.
+const valueLine = /^\s*([^=#[]+?)\s*=\s*(true|false|\{[^}]*\})\s*(?:#.*)?$/
+const enabledIn = /(?:^|,)\s*enabled\s*=\s*(true|false)\s*(?:,|$)/
+
+/**
+ * Whether a Codex `config.toml` enables Novadeck's plugin: its `enabled` key, however the
+ * file writes it. Codex writes a table of its own, `[plugins."novadeck@novadeck"]` with
+ * `enabled = true`; a hand-edited file may write the key dotted, or the table inline.
+ * Comments, and the keys beside it, say nothing.
+ */
+export const pluginEnabled = (toml: string): boolean => {
+  const key = ["plugins", pluginId, "enabled"]
+  let table: readonly string[] = []
+  for (const line of toml.split(/\r?\n/)) {
+    const opened = tableLine.exec(line)
+    if (opened || arrayTableLine.test(line)) {
+      table = opened ? keyParts(opened[1]!) : ["[["]
+      continue
+    }
+    const set = valueLine.exec(line)
+    if (!set) continue
+    const name = [...table, ...keyParts(set[1]!)]
+    const value = set[2]!
+    if (same(name, key) && !value.startsWith("{")) return value === "true"
+    if (same(name, key.slice(0, -1)) && value.startsWith("{"))
+      return enabledIn.exec(value.slice(1, -1))?.[1] === "true"
+  }
+  return false
+}
 
 /** Whether Codex's configuration has Novadeck's plugin enabled. */
 export const connected: Harness["connected"] = async (install) =>
-  enabled.test(await readFile(join(codexHome(install), "config.toml"), "utf8").catch(() => ""))
+  pluginEnabled(await readFile(join(codexHome(install), "config.toml"), "utf8").catch(() => ""))
 
 /** Codex's commands that install Novadeck's plugin from its marketplace, afresh. */
 export const connect: Harness["connect"] = ({ plugin: directory }) => [
