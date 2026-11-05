@@ -12,7 +12,7 @@ import { models } from "./models.js"
 import { connect, connected, disconnect, files, hook, hookDialect } from "./plugin.js"
 import { conversational, shapes } from "./shapes.js"
 import { cmdShim, commands, posixShim } from "./shim.js"
-import { followTranscript, transcriptPlans } from "./transcript-watch.js"
+import { followSubagent, followTranscript, transcriptPlans } from "./transcript-watch.js"
 import { transcripts } from "./transcripts.js"
 
 // What a hook prints to hand the model `delivery` as context.
@@ -160,4 +160,7 @@ export const claude = {
   messaging,
   box,
   watch: followTranscript,
+  // A subagent's request its person denied, or whose prompt timed out, fires no hook: its own
+  // transcript records the call's result.
+  watchActor: followSubagent,
 } satisfies Harness
