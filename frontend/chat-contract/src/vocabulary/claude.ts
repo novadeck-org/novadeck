@@ -4,7 +4,7 @@ import type { Written } from "../fixtures"
 
 const stamp = "2026-10-01T12:00:00.000Z"
 
-const said = (text: string): object => ({
+export const said = (text: string): object => ({
   type: "user",
   timestamp: stamp,
   message: { role: "user", content: text },
@@ -20,7 +20,7 @@ const replied = (text: string): object => ({
 // is an object (`orphan`) is a result whose call is not in the conversation.
 type Call = readonly [tool: string, input: object, result?: string | object[]]
 
-const calls = (scenario: string, list: readonly Call[]): object[] =>
+export const calls = (scenario: string, list: readonly Call[]): object[] =>
   list.flatMap(([name, input, result], index) => {
     const id = `toolu_${scenario}_${index}`
     return [
@@ -277,6 +277,29 @@ export const claudeVocabulary: readonly Written[] = [
       said(
         '<bash-stderr>Command failed: Working directory "/home/user/gone" was deleted</bash-stderr>',
       ),
+    ],
+  },
+  {
+    // Novadeck's reporting tools, their inputs' keys as Claude Code's transcripts give them
+    // (seen 2026-11: done {subject, body}, feedback {kind, text}, look {} and {page}), each
+    // result a list of text parts.
+    name: "novadeck-reports",
+    records: [
+      said("Wrap up."),
+      ...calls("reports", [
+        [
+          `${novadeck}done`,
+          { subject: "Chat contract hardened", body: "Fixed four findings." },
+          [{ type: "text", text: "Reported." }],
+        ],
+        [
+          `${novadeck}feedback`,
+          { kind: "bug", text: "The pane went blank." },
+          [{ type: "text", text: "Drafted." }],
+        ],
+        [`${novadeck}look`, { page: { url: "http://localhost:5173" } }, "Looked"],
+        [`${novadeck}look`, {}, "Looked"],
+      ]),
     ],
   },
 ]

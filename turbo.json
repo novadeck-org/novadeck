@@ -21,6 +21,7 @@
         "PLAYWRIGHT_BROWSERS_PATH",
         "CI",
         "NOVADECK_UI_TRACE",
+        "NOVADECK_WEBGL_OPTIONAL",
         "CARGO_HOME",
         "RUSTUP_HOME"
       ],

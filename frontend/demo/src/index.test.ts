@@ -4,16 +4,18 @@ import { workspaceFromSeed } from "@novadeck/core/seed"
 import { activeProject, activeSession, workspaceReducer } from "@novadeck/core/state"
 import { createWorkspaceStore } from "@novadeck/core/store"
 import { itemFixture } from "@novadeck/core/testing"
+import { afterEach, vi } from "vitest"
 
 import { demoTurns } from "./agents/turns"
 import { demoHandle } from "./handles"
 import { isDemoInbox } from "./inbox"
 import { demoInboxIds, demoInboxRowsAll, demoPlanStates } from "./inbox/fixtures"
-import { demoBackend, withMessages } from "./index"
+import { createDemoBackend, demoBackend, withMessages } from "./index"
 import { createMockTerminal, defaultName } from "./samples"
 import { createDemoEngine } from "./terminals/engine"
 import { context, describe, expect, it } from "./test"
 import { createDemo, demoVariants } from "./variants"
+import { terminalOf } from "./workspace"
 
 describe("demo backend", () => {
   context("standing in for the runner", () => {
@@ -291,6 +293,96 @@ describe("demo backend", () => {
       })
       expect(texts[0]).toMatch(/^# Checkout flow/)
       unbind()
+      stop()
+    })
+  })
+
+  context("when an agent asks for a plan approval while the Inbox is bound", () => {
+    it("shows the plan once the commit that asked is done, not inside it", async () => {
+      const turns = demoTurns()
+      const backend = createDemo("agents", undefined, turns)
+      const store = createWorkspaceStore(
+        workspaceFromSeed(backend.seed, { view: "grid", windowedView: "grid", now: 0 }),
+        backend.commit,
+      )
+      backend.commit(store.getSnapshot(), [])
+      const stop = backend.start!({
+        dispatch: (actions) => store.transact(actions as never),
+        open: () => {},
+      })
+      const unbind = backend.inbox!.bind!({ workspace: store })
+      const project = store.getSnapshot().projects.find((each) => each.id === "storefront")!
+      const owner = project.history[0]!
+      // A terminal the seed has asking nothing, whose plan the Inbox has yet to show.
+      const terminal = owner.state.roster.terminals.find(
+        (each) => each.state === "running" && each.agent && !each.agent.attention,
+      )!
+      const key = {
+        projectId: project.id,
+        workspaceSessionId: owner.id,
+        terminalId: terminal.id,
+      }
+      const plans = () =>
+        sessionItems(store.getSnapshot(), key).filter(
+          (item) => item.kind === "plan" && item.from?.terminalId === terminal.id,
+        )
+      // Asking first, it is followed: what its conversation asks next is heard in the commit.
+      turns.ask(key, terminal, "question", 1)
+      await Promise.resolve()
+      const asking = terminalOf(store.getSnapshot(), key)
+      const before = plans()
+      expect(() => turns.ask(key, asking, "plan", 1)).not.toThrow()
+      expect(plans()).toEqual(before)
+      await Promise.resolve()
+      expect(plans()).not.toEqual(before)
+      expect(plans()).not.toEqual([])
+      unbind()
+      stop()
+    })
+  })
+
+  context("when the address asks for turns longer than a timer can wait", () => {
+    afterEach(() => {
+      vi.useRealTimers()
+      window.history.replaceState(null, "", "#/")
+    })
+
+    it("works for as long as a timer can, not ending the turn at once", async () => {
+      vi.useFakeTimers()
+      window.history.replaceState(null, "", "#/?demo=agents&turnMs=3000000000")
+      const backend = createDemoBackend()
+      const store = createWorkspaceStore(
+        workspaceFromSeed(backend.seed, { view: "grid", windowedView: "grid", now: 0 }),
+        backend.commit,
+      )
+      backend.commit(store.getSnapshot(), [])
+      const stop = backend.start!({
+        dispatch: (actions) => store.transact(actions as never),
+        open: () => {},
+      })
+      const found = store
+        .getSnapshot()
+        .projects.flatMap((project) =>
+          project.history.flatMap((owner) =>
+            owner.state.roster.terminals.map((terminal) => ({
+              key: { projectId: project.id, workspaceSessionId: owner.id, terminalId: terminal.id },
+              terminal,
+            })),
+          ),
+        )
+        .find(
+          ({ terminal }) =>
+            terminal.state === "running" &&
+            (terminal.process === "claude" || terminal.process === "codex") &&
+            terminal.agent !== undefined &&
+            !terminal.agent.working &&
+            !terminal.agent.attention,
+        )!
+      await backend.conversations!.send(found.key, "Tidy the checkout.")
+      await vi.advanceTimersByTimeAsync(10_000)
+      expect(terminalOf(store.getSnapshot(), found.key)).toMatchObject({
+        agent: { working: true },
+      })
       stop()
     })
   })

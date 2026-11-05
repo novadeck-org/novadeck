@@ -5,6 +5,7 @@ import { afterAll, afterEach, beforeAll } from "vitest"
 import { page } from "vitest/browser"
 
 import { describe, expect, it } from "./test"
+import { requireWebglOnCi } from "./webgl"
 
 // Ligatures drawn by WebGL, in a real browser: one glyph per run of cells the font joins, held
 // to the grid, and left alone where the cells differ. A screen is read as pixels (a screenshot
@@ -155,6 +156,9 @@ const cellOf = (view: View) =>
 /* eslint-enable no-underscore-dangle */
 
 const ratio = window.devicePixelRatio
+
+// Without WebGL2 the pool draws these with the DOM, and they check nothing of WebGL's.
+requireWebglOnCi()
 
 describe("ligatures drawn by WebGL", () => {
   it("joins runs of cells, within the grid, and leaves the rest as they were", async () => {
