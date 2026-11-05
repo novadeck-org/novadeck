@@ -162,6 +162,34 @@ describe("a pane beside its terminal", () => {
     expect(divider?.getAttribute("role")).toBe("separator")
     expect(divider?.getAttribute("aria-label")).toBe("Resize pane")
   })
+
+  context("when a drag on its divider is cancelled", () => {
+    it("stops resizing the pane with the pointer's moves", () => {
+      const { container } = renderTerminal(
+        workspaceReducer(workspaceReducer(workspaceFixture(), shown()), {
+          type: "bar/open",
+          target,
+          terminalId: "01",
+          key: hero.id,
+        }),
+      )
+      const frame = container.querySelector<HTMLElement>(".pane-split")!
+      frame.getBoundingClientRect = () => new DOMRect(0, 0, 1000, 600)
+      const divider = container.querySelector<HTMLElement>(".pane-divider")!
+      divider.setPointerCapture = () => {}
+      const pointer = (type: string, clientX: number) =>
+        act(() => {
+          divider.dispatchEvent(new PointerEvent(type, { bubbles: true, clientX, pointerId: 1 }))
+        })
+      const ratio = () => divider.getAttribute("aria-valuenow")
+      pointer("pointerdown", 500)
+      pointer("pointermove", 400)
+      expect(ratio()).toBe("40")
+      pointer("pointercancel", 400)
+      pointer("pointermove", 600)
+      expect(ratio()).toBe("40")
+    })
+  })
 })
 
 describe("a pane covering its terminal", () => {

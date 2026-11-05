@@ -141,12 +141,14 @@ const SplitPane = ({
           const move = (next: PointerEvent): void =>
             setRatio(clamp((next.clientX - bounds.left) / bounds.width))
           const target = event.currentTarget
+          // A drag ends however the pointer goes: let go, or taken away, as a touch scroll does.
+          const ends = ["pointerup", "pointercancel", "lostpointercapture"] as const
+          const end = (): void => {
+            target.removeEventListener("pointermove", move)
+            for (const each of ends) target.removeEventListener(each, end)
+          }
           target.addEventListener("pointermove", move)
-          target.addEventListener(
-            "pointerup",
-            () => target.removeEventListener("pointermove", move),
-            { once: true },
-          )
+          for (const each of ends) target.addEventListener(each, end)
         }}
       />
       <div
