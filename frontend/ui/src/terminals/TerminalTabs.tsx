@@ -11,7 +11,7 @@ import { DragDropProvider } from "@dnd-kit/react"
 import { isSortable } from "@dnd-kit/react/sortable"
 import type { Tile } from "@novadeck/core/types"
 import { sidebarListClasses } from "@novadeck/toolkit/SidebarItem"
-import { useCallback, useContext, useMemo, useState, type ReactNode } from "react"
+import { Fragment, useCallback, useContext, useMemo, useState, type ReactNode } from "react"
 
 import { TabListContext } from "./tab-list"
 
@@ -50,9 +50,15 @@ export const TerminalTabs = ({
   terminals: readonly Tile[]
   // Renders one sortable tab, usually a TerminalTab, at its position in the list.
   renderTab: (terminal: Tile, index: number) => ReactNode
-  onReorder: (ids: string[]) => void
+  // Saves the order a drag ends on, and says the order it saved where it moved tabs the person
+  // can't see (a folded lead's team, kept right after it).
+  onReorder: (ids: string[]) => readonly string[] | void
 }): React.JSX.Element => {
   const [list, setList] = useState<HTMLDivElement | null>(null)
+  // Bumped when a drop saved another order than the drag showed: the drag library already moved
+  // the tabs to its own, which React's next update can't follow, so the tabs mount anew in the
+  // saved order. Only a drag past a folded lead does that.
+  const [generation, setGeneration] = useState(0)
   // The list, for the drag bounds and for the workspace's store of the list on screen.
   const tabList = useContext(TabListContext)
   const attach = useCallback(
@@ -81,11 +87,15 @@ export const TerminalTabs = ({
         if (from < 0) return
         const [id] = order.splice(from, 1)
         order.splice(source.index, 0, id!)
-        onReorder(order)
+        const saved = onReorder(order)
+        if (saved && saved.some((each, index) => each !== order[index]))
+          setGeneration((current) => current + 1)
       }}
     >
       <div className={`terminal-tab-list ${sidebarListClasses}`} ref={attach}>
-        {terminals.map((terminal, index) => renderTab(terminal, index))}
+        <Fragment key={generation}>
+          {terminals.map((terminal, index) => renderTab(terminal, index))}
+        </Fragment>
         {!terminals.length && (
           <p className="terminal-tab-empty px-3 py-3 text-control">No open sessions</p>
         )}

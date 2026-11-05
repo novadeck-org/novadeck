@@ -328,9 +328,37 @@ export const desktopWindow = {
     ),
 }
 
+// Specs open the messages demo with a nested team with `&nested=on`: @moth (Checkout
+// implementation) leads @owl (Tests) and Runtime, and @owl leads @crow (Checkout review, which
+// needs permission) in turn, a team inside @moth's.
+const nestedRequested = (): boolean => addressParams().get("nested") === "on"
+
+const withNestedTeam = (
+  backend: ReturnType<typeof createDemoBackend>,
+): ReturnType<typeof createDemoBackend> => ({
+  ...backend,
+  seed: {
+    ...backend.seed,
+    projects: backend.seed.projects.map((project) => ({
+      ...project,
+      sessions: project.sessions.map((session) => ({
+        ...session,
+        terminals: session.terminals.map((terminal) =>
+          terminal.handle === "owl" || terminal.name === "Runtime"
+            ? { ...terminal, ledBy: "moth" }
+            : terminal.handle === "crow"
+              ? { ...terminal, ledBy: "owl" }
+              : terminal,
+        ),
+      })),
+    })),
+  },
+})
+
 // The demo a spec opens, as its address's hash asks.
 export const createSpecBackend = (): ReturnType<typeof createDemoBackend> => {
-  const demo = plainSpecBackend()
+  const plain = plainSpecBackend()
+  const demo = nestedRequested() ? withNestedTeam(plain) : plain
   const withApprovals = approvalsRequested() ? { ...demo, approvals: specApprovals() } : demo
   // Keeps no arrangement, as a demo doesn't, but takes the one a spec leaves in storage
   // (`novadeck.project-arrangement`) as an earlier client's, which the app imports.

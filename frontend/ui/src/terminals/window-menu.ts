@@ -27,10 +27,18 @@ export type AskFeedback = {
   readonly onAsk: () => void
 }
 
+// Folding a lead's teammates out of the Terminals list, or showing them again: how many it
+// leads, whether they're folded, and what turns it over. Only on a lead.
+export type FoldTeam = {
+  readonly count: number
+  readonly folded: boolean
+  readonly onToggle: () => void
+}
+
 // A window's own actions, the same in its sidebar tab's menu and its header's: who named
 // it, as a line to read rather than choose, then rename, hand a name the person gave back
 // to Novadeck, dock an undocked window back in its terminal, release a terminal from its
-// lead, and close. The project window is named by its file and has no terminal to dock in:
+// lead, fold a lead's teammates out of the list, and close. The project window is named by its file and has no terminal to dock in:
 // it offers Close alone. A window running an agent, on a backend that takes feedback, can
 // ask it to write some. The menu takes only text for a label, so the handle is plain
 // `@handle` there, not the chip.
@@ -41,6 +49,7 @@ export const windowMenu = ({
   dockIn,
   askFeedback,
   releaseLead,
+  foldTeam,
   onClose,
 }: {
   terminal: Tile
@@ -53,6 +62,9 @@ export const windowMenu = ({
   askFeedback?: AskFeedback | undefined
   // Present on a terminal an agent leads, where the backend lets the person end that.
   releaseLead?: ReleaseLead | undefined
+  // Present on a lead: folds its teammates' tabs out of the list, or shows them again. The
+  // keyboard's way to it, as pointing beside the lead's tab is the pointer's.
+  foldTeam?: FoldTeam | undefined
   onClose: () => void
 }): ContextMenuAction[] =>
   isProjectWindow(terminal)
@@ -100,6 +112,15 @@ export const windowMenu = ({
                 value: "release-lead",
                 label: `Release from @${releaseLead.lead}`,
                 onSelect: releaseLead.onRelease,
+              },
+            ]
+          : []),
+        ...(foldTeam
+          ? [
+              {
+                value: "fold-team",
+                label: `${foldTeam.folded ? "Show" : "Fold"} ${foldTeam.count} ${foldTeam.count === 1 ? "teammate" : "teammates"}`,
+                onSelect: foldTeam.onToggle,
               },
             ]
           : []),

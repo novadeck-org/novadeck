@@ -33,7 +33,13 @@ import { SubagentBranches, SubagentLine } from "./TabSubagents"
 import { TerminalRenameInput, type TerminalRename } from "./TerminalRenameInput"
 import { tabInstructionsId } from "./TerminalTabs"
 import { useRenderAt } from "./useRenderAt"
-import { windowMenu, type AskFeedback, type DockTarget, type ReleaseLead } from "./window-menu"
+import {
+  windowMenu,
+  type AskFeedback,
+  type DockTarget,
+  type FoldTeam,
+  type ReleaseLead,
+} from "./window-menu"
 
 // What a waiting agent's tab draws beyond its glyph loads when one waits, as most never do.
 const WaitingBranches = lazy(() =>
@@ -78,6 +84,10 @@ export const TerminalTab = ({
   dockIn,
   askFeedback,
   releaseLead,
+  fold,
+  level = 0,
+  foldTeam,
+  foldedRows,
   folder,
 }: {
   // A terminal, or a window undocked from a companion, which runs nothing.
@@ -123,6 +133,16 @@ export const TerminalTab = ({
   askFeedback?: AskFeedback | undefined
   // Ends the lead of a terminal an agent leads; absent for any other.
   releaseLead?: ReleaseLead | undefined
+  // How a teammate's tab stands in its lead's fold (app/team-fold.ts): folded away, previewed,
+  // unfolding or shown (tabs.css).
+  fold?: "away" | "preview" | "unfolding" | "shown" | undefined
+  // How many leads stand above it: from two, a nested team's tab, it steps in a little per
+  // level (tabs.css).
+  level?: number
+  // On a lead: its menu's way to fold its teammates out of the list or show them again.
+  foldTeam?: FoldTeam | undefined
+  // On a folded lead: its teammates' rows, under its line.
+  foldedRows?: ReactNode
   // Where a project window's file is, which its line shows where a terminal's program is.
   folder?: string | undefined
 }): React.JSX.Element => {
@@ -172,7 +192,10 @@ export const TerminalTab = ({
         : subagents
       : undefined
   // Its team is a sentence of its own, so it isn't heard as one more of a list before it.
-  const description = [[note, messages, kinds].filter(Boolean).join(", "), teamWords]
+  const folded = foldTeam?.folded
+    ? `${foldTeam.count === 1 ? "its teammate is" : `its ${foldTeam.count} teammates are`} folded out of this list`
+    : undefined
+  const description = [[note, messages, kinds].filter(Boolean).join(", "), teamWords, folded]
     .filter(Boolean)
     .map((part) => capital(part!))
     .join(". ")
@@ -183,6 +206,7 @@ export const TerminalTab = ({
     dockIn,
     askFeedback,
     releaseLead,
+    foldTeam,
     onClose,
   })
   // How long ago a done tab's agent finished, beside its program, kept current.
@@ -259,10 +283,11 @@ export const TerminalTab = ({
             />
           </>
         }
-        {...((marks || waits || passed) && !editing
+        {...((marks || waits || passed || foldedRows) && !editing
           ? {
               below: (
                 <>
+                  {foldedRows}
                   {marks && <SubagentBranches marks={marks} />}
                   <Suspense fallback={null}>
                     {waits && shell && <WaitingBranches terminal={shell} waiting={waits} />}
@@ -289,7 +314,11 @@ export const TerminalTab = ({
         {...(marks ? { "data-terminal-subagents": marks.working ? "working" : "background" } : {})}
         data-terminal-hidden={hidden}
         {...(team ? { "data-team": team } : {})}
-        className={`terminal-tab [--_sidebar-actions-space:76px] ${selected ? "selected" : ""} ${editing ? "editing" : ""} ${isDragSource ? "dragging" : ""}`}
+        {...(fold ? { "data-team-fold": fold } : {})}
+        {...(level ? { "data-team-level": Math.min(level, 3) } : {})}
+        // A teammate folded away leaves the layout, and unrolls from no height: as utilities,
+        // since the tab's own `flex` and least height are (tabs.css has the rest).
+        className={`terminal-tab [--_sidebar-actions-space:76px] data-[team-fold=away]:hidden data-[team-fold=away]:min-h-0 data-[team-fold=unfolding]:starting:min-h-0 ${selected ? "selected" : ""} ${editing ? "editing" : ""} ${isDragSource ? "dragging" : ""}`}
         editing={editing}
         editor={
           rename ? (

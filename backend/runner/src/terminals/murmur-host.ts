@@ -17,6 +17,7 @@ const murmurSubject = (record: Record): MurmurSubject => ({
   program: record.summary.process,
   atPrompt: shellAtPrompt(record),
   expecting: record.bound === null ? record.expecting : null,
+  startupRuns: record.startupRuns,
 })
 
 /**
