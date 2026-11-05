@@ -2,6 +2,7 @@ import { afterEach, vi } from "vitest"
 import { page, userEvent, type Locator } from "vitest/browser"
 
 import { escapeFrom, pressShortcut, newTerminalName } from "../support/keyboard"
+import { expectStaysTrue } from "../support/layouts"
 import {
   currentSessionName,
   emptyWorkspace,
@@ -525,9 +526,12 @@ describe("narrow screens", () => {
       await press("{Alt>}{ArrowDown}{/Alt}")
 
       await expect.poll(place).toBe(1)
+      await expect.poll(() => document.activeElement?.id).toBe("mobile-terminals-toggle")
       // The drawer's focus trap answers the button's move a moment later.
-      await new Promise((resolve) => setTimeout(resolve, 150))
-      expect(document.activeElement?.id).toBe("mobile-terminals-toggle")
+      await expectStaysTrue(
+        () => document.activeElement?.id === "mobile-terminals-toggle",
+        "focus on the moved toggle",
+      )
     })
   })
 

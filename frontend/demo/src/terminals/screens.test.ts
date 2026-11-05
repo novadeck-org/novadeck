@@ -46,7 +46,21 @@ const open = (change?: Partial<TerminalMetadata>) => {
   const screens = createStore<ReadonlyMap<string, DemoScreenState>>(new Map())
   const fails = new Set<string>()
   const restarted: TerminalKey[] = []
-  const { options, start, stop } = demoScreensOptions(engine, {
+  // What still listens to the engine, of what the screens subscribed.
+  const listening = new Set<object>()
+  const heard = {
+    ...engine,
+    subscribe: (key: TerminalKey, listener: () => void) => {
+      const token = {}
+      listening.add(token)
+      const stop = engine.subscribe(key, listener)
+      return () => {
+        listening.delete(token)
+        stop()
+      }
+    },
+  }
+  const { options, start, stop } = demoScreensOptions(heard, {
     runtime: {
       connection: createStore<BackendConnectionState>("connected"),
       screens,
@@ -58,7 +72,17 @@ const open = (change?: Partial<TerminalMetadata>) => {
     void screens.update(() =>
       on ? new Map([[terminalKeyId(shell), { attaching: true as const }]]) : new Map(),
     )
-  return { engine, options, attaching, fails, restarted, start, stop, screens }
+  return {
+    engine,
+    options,
+    attaching,
+    fails,
+    restarted,
+    start,
+    stop,
+    screens,
+    listeners: () => listening.size,
+  }
 }
 
 // The stream's events, one at a time.
@@ -206,6 +230,23 @@ describe("the demo's terminal screens", () => {
       await expect(options.attach(shell)).rejects.toThrow()
       // No longer listening for what the debug layer says its screens do.
       expect(() => screens.update(() => new Map())).not.toThrow()
+    })
+
+    it("stops listening to its terminals, so a stopped screen holds nothing", async () => {
+      const { options, stop, listeners } = open()
+      const next = reader(await options.attach(shell))
+      await next()
+      expect(listeners()).toBeGreaterThan(0)
+      stop()
+      expect(listeners()).toBe(0)
+    })
+
+    it("refuses an attach it stopped before the screen was made, and makes none", async () => {
+      const { options, stop, listeners } = open()
+      const attaching = options.attach(shell)
+      stop()
+      await expect(attaching).rejects.toThrow()
+      expect(listeners()).toBe(0)
     })
 
     it("lets a wait for a starting shell go, and runs again once started again", async () => {

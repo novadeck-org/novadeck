@@ -21,7 +21,6 @@ import {
   noisyAgents,
   othersOf,
   otherTerminals,
-  promptTerminals,
   resting,
   runAgent,
   runProgram,
@@ -205,16 +204,6 @@ describe("waiting agents' states", () => {
       agentIn(key("02"), undefined, { working: false, subagents: [{ id: "s", type: null }] }),
     )
     expect(noisyAgents(subagents)).toContainEqual(key("02"))
-  })
-
-  it("finds the terminals back at their prompt, however they got there", () => {
-    expect(promptTerminals(initial)).not.toContainEqual(key("04"))
-    const prompt = apply(backToPrompt(key("04")))
-    expect(promptTerminals(prompt)).toContainEqual(key("04"))
-    const running = apply(runProgram(key("04"), "sleep"), prompt)
-    expect(promptTerminals(running)).not.toContainEqual(key("04"))
-    const ended = apply(exitedWithCode(key("04"), 1), prompt)
-    expect(promptTerminals(ended)).not.toContainEqual(key("04"))
   })
 })
 

@@ -165,6 +165,13 @@ describe("demo turns", () => {
       }
     })
 
+    it("works on for as long as a timer can wait, asked longer than that", async () => {
+      const { turns, held, agent } = open()
+      turns.finish(key("06"), held(key("06")), "completed", { after: 3_000_000_000 })
+      await vi.advanceTimersByTimeAsync(10_000)
+      expect(agent(key("06"))).toMatchObject({ working: true })
+    })
+
     it("ends after the time asked", async () => {
       const { turns, held, agent } = open()
       turns.finish(key("06"), held(key("06")), "completed", { after: 100 })
@@ -401,13 +408,35 @@ describe("demo turns", () => {
       )
     })
 
-    it("wait at the prompt when a plan is kept", async () => {
+    it("wait at the prompt in plan mode when a plan is kept", async () => {
       const { turns, held, requests, answer, agent } = open()
       turns.ask(key("06"), held(key("06")), "plan", 1)
       const [request] = requests(key("06"))
       await answer(key("06"), request!.id, "3")
       await vi.advanceTimersByTimeAsync(demoTurnMs * 2)
-      expect(agent(key("06"))).toEqual({ working: false })
+      expect(agent(key("06"))).toEqual({ working: false, planning: true })
+    })
+
+    it("keep Claude Code in plan mode as it revises a plan the person declined", async () => {
+      const { requests, answer, agent } = open()
+      expect(agent(key("01"))).toMatchObject({ planning: true, attention: { kind: "plan" } })
+      const [request] = requests(key("01"))
+      await answer(key("01"), request!.id, "3", "Split the payment step out")
+      expect(agent(key("01"))).toMatchObject({ working: true, planning: true })
+      await vi.advanceTimersByTimeAsync(demoTurnMs)
+      expect(agent(key("01"))).toMatchObject({
+        working: false,
+        planning: true,
+        lastTurn: { outcome: "completed" },
+      })
+    })
+
+    it("leave plan mode once a plan is approved", async () => {
+      const { requests, answer, agent } = open()
+      const [request] = requests(key("01"))
+      await answer(key("01"), request!.id, "1")
+      await vi.advanceTimersByTimeAsync(demoTurnMs)
+      expect(agent(key("01"))).not.toHaveProperty("planning")
     })
 
     it("go on to completion after a question's pick", async () => {
@@ -451,6 +480,21 @@ describe("demo turns", () => {
         // eslint-disable-next-line no-await-in-loop -- Each agent's answer takes its time.
         await vi.advanceTimersByTimeAsync(demoTurnMs)
         expect(agent(at)).toMatchObject({ working: false, lastTurn: { outcome: "completed" } })
+      }
+    })
+  })
+
+  describe("the showcase's plans, declined", () => {
+    it("keep Claude Code and Codex in plan mode as they revise them", async () => {
+      const { requests, answer, agent } = open("showcase")
+      for (const [slot, decline] of [
+        ["01", "2"],
+        ["03", "3"],
+      ] as const) {
+        const at = key(slot, "studio")
+        // eslint-disable-next-line no-await-in-loop -- Each agent's answer takes its time.
+        await answer(at, requests(at)[0]!.id, decline, "Smaller steps")
+        expect(agent(at), slot).toMatchObject({ working: true, planning: true })
       }
     })
   })

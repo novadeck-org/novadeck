@@ -2,7 +2,7 @@ import { render, type Rendered } from "@novadeck/test-kit/render"
 import { act, createElement } from "react"
 import { afterEach, vi } from "vitest"
 
-import { context, describe, expect, it } from "../test"
+import { context, describe, eventually, expect, it } from "../test"
 import { CrashLoopDialog } from "./CrashLoopDialog"
 
 const mounted: Rendered[] = []
@@ -20,7 +20,8 @@ const show = (crashes: number | null) => {
   return { button, onRetry, onDismiss }
 }
 
-const settle = () => act(() => new Promise((resolve) => setTimeout(resolve, 50)))
+// The dialog opens on animation frames.
+const settle = () => eventually(() => expect(dialog()).not.toBeNull())
 
 describe("crash loop dialog", () => {
   context("when the guard trips", () => {

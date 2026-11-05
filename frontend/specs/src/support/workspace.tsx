@@ -4,7 +4,7 @@ import { expect } from "vitest"
 import { cleanup, render } from "vitest-browser-react"
 import { page, userEvent, type Locator } from "vitest/browser"
 
-import { createSpecBackend, forgetBabciaCues } from "./backend"
+import { createSpecBackend, forgetEarlierPages } from "./backend"
 
 // The person's vocabulary for behaviour specs. Specs describe what a person sees and
 // does; only this module knows how that maps to accessible roles and names, so a
@@ -39,8 +39,8 @@ export const openWorkspace = async (
   route?: string,
   { embedded = false }: { readonly embedded?: boolean } = {},
 ): Promise<void> => {
+  forgetEarlierPages()
   // A same-page history entry below the app keeps an extra Back inside the test page.
-  forgetBabciaCues()
   window.history.replaceState(null, "", "/")
   window.history.pushState(null, "", route === undefined ? "/" : `/#${route}`)
   await render(
@@ -163,20 +163,26 @@ export const recordChanges = <T,>(
  * it, such as an entrance that plays as a view opens on a slow machine, is still seen.
  */
 export const recordAppearance = (selector: string): (() => boolean) => {
-  let seen = document.querySelector(selector) !== null
-  const observer = new MutationObserver(() => {
-    if (seen || document.querySelector(selector) === null) return
-    seen = true
-    observer.disconnect()
-  })
-  if (!seen) observer.observe(document.body, { subtree: true, childList: true, attributes: true })
-  return () => seen
+  const at = appearsAt(selector)
+  return () => at() !== undefined
 }
 
-/** Closes the first-run welcome, where the demo opens with it. */
-export const skipWelcome = async (): Promise<void> => {
-  const skip = page.getByRole("button", { name: "Skip for now" })
-  if (await skip.query()) await skip.click()
+/**
+ * When anything matching `selector` first came onto the page since this was called, on the
+ * `performance.now()` clock, or undefined while nothing has: a check that something waits a
+ * time before it shows then holds however slowly the page draws, where a check that it stays
+ * away for a while can outlast the wait on a loaded runner.
+ */
+export const appearsAt = (selector: string): (() => number | undefined) => {
+  let seen = document.querySelector(selector) !== null ? performance.now() : undefined
+  const observer = new MutationObserver(() => {
+    if (seen !== undefined || document.querySelector(selector) === null) return
+    seen = performance.now()
+    observer.disconnect()
+  })
+  if (seen === undefined)
+    observer.observe(document.body, { subtree: true, childList: true, attributes: true })
+  return () => seen
 }
 
 /** Reloads the app at its current address: in-memory work starts over, stored preferences stay. */

@@ -1,4 +1,4 @@
-import { expect } from "vitest"
+import { expect, onTestFinished } from "vitest"
 import { page, userEvent, type Locator } from "vitest/browser"
 
 import { noteBarDragTarget } from "./bar-drag"
@@ -167,9 +167,11 @@ export const dragIconToFreeSpace = async (
 /**
  * Has the browser cancel the pointer, as it does when the system takes it over, once a
  * drag carries it over `target`: the drag that's under way gets a `pointercancel`, and
- * the release that follows ends nothing.
+ * the release that follows ends nothing. Gives back whether it did, as a drag that never
+ * reached `target` cancels nothing.
  */
-export const cancelPointerOver = (target: Locator): void => {
+export const cancelPointerOver = (target: Locator): (() => boolean) => {
+  let cancelled = false
   const moved = (pointer: PointerEvent): void => {
     const box = target.query()?.getBoundingClientRect()
     if (!box) return
@@ -178,9 +180,12 @@ export const cancelPointerOver = (target: Locator): void => {
     window.removeEventListener("pointermove", moved, true)
     // After the app has followed this move.
     setTimeout(() => {
+      cancelled = true
       const cancel = { pointerId: pointer.pointerId, pointerType: pointer.pointerType }
       window.dispatchEvent(new PointerEvent("pointercancel", { ...cancel, clientX: x, clientY: y }))
     })
   }
   window.addEventListener("pointermove", moved, true)
+  onTestFinished(() => window.removeEventListener("pointermove", moved, true))
+  return () => cancelled
 }

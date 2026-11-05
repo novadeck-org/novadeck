@@ -76,18 +76,21 @@ describe("workspace dialogs that load on demand", () => {
   it("opens the dialog requested last when an earlier one never finished loading", async () => {
     window.location.hash = ""
     const app = render(createElement(App, { createBackend: createSpecBackend }))
-    press("K", { ctrlKey: true, shiftKey: true })
-    press(",", { ctrlKey: true })
-    expect(window.location.hash).toContain("dialog=preferences")
-    await act(async () => {
-      chunks.release()
-      await chunks.arrived
-      await import("@novadeck/ui/search/TerminalSearch")
-      await import("@novadeck/ui/preferences/Preferences")
-      await new Promise((resolve) => setTimeout(resolve, 0))
-    })
-    expect(dialog("Find a terminal")).toBeNull()
-    expect(dialog("Preferences")).not.toBeNull()
-    app.unmount()
+    try {
+      press("K", { ctrlKey: true, shiftKey: true })
+      press(",", { ctrlKey: true })
+      expect(window.location.hash).toContain("dialog=preferences")
+      await act(async () => {
+        chunks.release()
+        await chunks.arrived
+        await import("@novadeck/ui/search/TerminalSearch")
+        await import("@novadeck/ui/preferences/Preferences")
+        await new Promise((resolve) => setTimeout(resolve, 0))
+      })
+      expect(dialog("Find a terminal")).toBeNull()
+      expect(dialog("Preferences")).not.toBeNull()
+    } finally {
+      app.unmount()
+    }
   })
 })

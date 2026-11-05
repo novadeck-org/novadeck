@@ -79,6 +79,7 @@ export type InboxContextValue = {
   // What the last answer did, which the sheet it moved on to says.
   readonly receipt: Receipt | null
   readonly sent: Readonly<Record<string, Sent>>
+  // The drafts, by `rowKey`: a newer row under the same id is another ask, with none yet.
   readonly drafts: Readonly<Record<string, Draft>>
   // Rows answered and dropped by the backend that keep their row, answered, until the
   // sheet closes.
@@ -91,7 +92,7 @@ export type InboxContextValue = {
   readonly open: (id: string, options?: OpenOptions) => void
   readonly close: () => void
   readonly showHeld: () => void
-  readonly setDraft: (id: string, patch: Partial<Draft>) => void
+  readonly setDraft: (key: string, patch: Partial<Draft>) => void
   readonly submit: (row: InboxRow, answer: InboxAnswer, note: string) => void
   // Changes how a row is handled without answering it, as turning auto-resume on or off.
   readonly change: (row: InboxRow, answer: InboxAnswer) => void
@@ -235,11 +236,13 @@ export const InboxProvider = ({
   )
   // A draft for a row that is gone, and not shown answered, is dropped.
   const gone = Object.keys(drafts).filter(
-    (id) => !(id in ghosts) && !state.items.some((row) => row.id === id),
+    (key) =>
+      !Object.values(ghosts).some((row) => rowKey(row) === key) &&
+      !state.items.some((row) => rowKey(row) === key),
   )
   if (gone.length > 0)
     setDrafts((record) =>
-      Object.fromEntries(Object.entries(record).filter(([id]) => !gone.includes(id))),
+      Object.fromEntries(Object.entries(record).filter(([key]) => !gone.includes(key))),
     )
   const shown = useMemo(
     () => visible(view, state.items, ghosts, arranged),
@@ -346,11 +349,11 @@ export const InboxProvider = ({
     if (done) moveOn(done.row, done.note)
   }, [done, moveOn])
 
-  const setDraft = useCallback((id: string, patch: Partial<Draft>): void => {
+  const setDraft = useCallback((key: string, patch: Partial<Draft>): void => {
     setDrafts((record) => {
-      const merged = { ...(record[id] ?? noDraft), ...patch }
-      const { [id]: _gone, ...rest } = record
-      return started(merged) ? { ...rest, [id]: merged } : rest
+      const merged = { ...(record[key] ?? noDraft), ...patch }
+      const { [key]: _gone, ...rest } = record
+      return started(merged) ? { ...rest, [key]: merged } : rest
     })
   }, [])
 

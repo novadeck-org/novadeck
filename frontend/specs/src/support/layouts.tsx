@@ -49,23 +49,28 @@ export const headerGap = (name: string): { x: number; y: number } => {
 
 /**
  * Confirms that something stays true: the check holds on every one of several
- * rendered frames, so a reaction the app defers by a frame or two still fails it.
+ * rendered frames, so a reaction the app defers by a frame or two still fails it, and for
+ * at least `ms` milliseconds, for one it defers by a timer.
  */
 export const expectStaysTrue = async (
   check: () => boolean,
   description: string,
-  frames = 10,
+  { frames = 10, ms = 0 }: { readonly frames?: number; readonly ms?: number } = {},
 ): Promise<void> => {
   let held = 0
   let broken = false
+  const since = performance.now()
   await expect
-    .poll(async () => {
-      await nextFrame()
-      broken ||= !check()
-      held += 1
-      // Done once it breaks, rather than waiting out every frame it was given.
-      return broken || held >= frames
-    }, stillFor(frames))
+    .poll(
+      async () => {
+        await nextFrame()
+        broken ||= !check()
+        held += 1
+        // Done once it breaks, rather than waiting out every frame it was given.
+        return broken || (held >= frames && performance.now() - since >= ms)
+      },
+      { timeout: ms + stillFor(frames).timeout },
+    )
     .toBe(true)
   expect(broken, `${description} changed`).toBe(false)
 }

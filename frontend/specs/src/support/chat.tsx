@@ -1,13 +1,13 @@
 import { expect } from "vitest"
 import type { Locator } from "vitest/browser"
 
-import { openWorkspace, skipWelcome, terminal, terminalTab } from "./workspace"
+import { openWorkspace, terminal, terminalTab } from "./workspace"
 
 // Vocabulary for a terminal's chat view: the conversation, the composer and the cards for
 // what waits on the person.
 
 /**
- * Opens the agents demo, whose agents have conversations, past the first-run welcome, in an
+ * Opens the agents demo, whose agents have conversations, in an
  * app that follows experimental builds, so the experimental chat view is there; with it on, as
  * Preferences → Experimental turns it on, unless `chatView` is false. With `experimental`
  * false, the app has no update channel, as the browser's, so the flag stays off.
@@ -20,7 +20,6 @@ export const openChatDemo = async (
   await openWorkspace(
     `${route}?demo=agents${experimental ? "&channel=experimental" : ""}${unread ? "&unread=on" : ""}`,
   )
-  await skipWelcome()
 }
 
 /** A terminal's chat, where it shows. */

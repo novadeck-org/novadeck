@@ -528,6 +528,32 @@ describe("a backend with the demo's Source", () => {
     stop()
   })
 
+  it("has no agent write after a restart while it waits on the person", () => {
+    const { clock, advance } = manual()
+    const turns = demoTurns()
+    const source = createDemoSource(now, clock, ["moth", "crow"])
+    const backend = withSource(plainDemo("plain"), turns, source)
+    backend.commit(working, [])
+    const sink = { dispatch: () => {}, open: () => {} }
+    backend.start!(sink)()
+    // Crow asks while the backend is stopped, and no commit comes after the restart.
+    const asking = workspaceReducer(working, {
+      type: "terminal/status",
+      target,
+      terminalId: crowId,
+      status: {
+        state: "running",
+        agent: { working: true, attention: { kind: "permission", count: 1 } },
+      },
+    })
+    backend.commit(asking, [])
+    const stop = backend.start!(sink)
+    advance(60_000)
+    expect(project(source).writing.crow).toBeUndefined()
+    expect(project(source).writing.moth).toBeDefined()
+    stop()
+  })
+
   // What the debug panel does to a terminal: it releases the agent and dispatches a status
   // itself, so the turns never report it.
   const dispatched = (status: TerminalStatus) => {
