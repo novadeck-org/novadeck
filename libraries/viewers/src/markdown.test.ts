@@ -215,9 +215,12 @@ describe("the markdown viewer", () => {
     const text = Array.from({ length: 120 }, (_, at) => `Line ${at + 1}`).join("\n\n")
     const { viewer, pane } = mount({ text })
     await expect.poll(() => pane.scrollHeight).toBeGreaterThan(pane.clientHeight + 500)
-    for (const target of [{ line: Number.NaN }, { offset: Number.NaN }, { line: Infinity }])
+    for (const target of [{ line: Number.NaN }, { offset: Number.NaN }])
       expect(() => viewer.jumpTo(target)).not.toThrow()
     expect(pane.scrollTop).toBe(0)
+    // Past the end, it goes to the end.
+    viewer.jumpTo({ line: Infinity })
+    await expect.poll(() => pane.scrollTop, { timeout: 4000 }).toBeGreaterThan(1000)
   })
 
   it("jumps smoothly where motion isn't reduced, landing on its line", async () => {

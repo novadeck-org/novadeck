@@ -103,7 +103,10 @@ const setup = () => {
   }
 }
 
+const stopCatching: (() => void)[] = []
+
 afterEach(() => {
+  for (const stop of stopCatching.splice(0)) stop()
   vi.unstubAllGlobals()
   for (const scroller of scrollers.splice(0)) scroller.remove()
 })
@@ -214,9 +217,21 @@ describe("jumping to a line", () => {
         return { top: at, height: 20 }
       },
     } as unknown as EditorView
+    // A listener's error reaches the window, not whoever dispatched the event.
+    const errors: unknown[] = []
+    const caught = (event: ErrorEvent) => {
+      errors.push(event.error)
+      event.preventDefault()
+    }
+    window.addEventListener("error", caught)
+    stopCatching.push(() => window.removeEventListener("error", caught))
     return {
       view,
       scroller,
+      errors,
+      passBy: (top: number) => {
+        scroller.scrollTop = top
+      },
       shrink: (to: number) => (length = to),
       // The scroll under way lands and ends; one that starts as it ends lands too.
       ended: () => {
@@ -236,19 +251,31 @@ describe("jumping to a line", () => {
   })
 
   it("corrects for where its line is once the text shrank, without throwing", () => {
-    const { view, scroller, shrink, ended } = jumper()
+    const { view, scroller, errors, shrink, ended } = jumper()
     scrollLineToTop(view, 3_000)
     shrink(2_000)
-    expect(ended).not.toThrow()
+    ended()
+    expect(errors).toEqual([])
     expect(scroller.scrollTop).toBe(2_000 - 24)
   })
 
+  it("stops where it is when a second jump's line passes by as the first scrolls", () => {
+    const { view, scroller, passBy, ended } = jumper()
+    scrollLineToTop(view, 1_000)
+    // Halfway there, the second jump's line is at the top already.
+    passBy(500 - 24)
+    scrollLineToTop(view, 500)
+    ended()
+    expect(scroller.scrollTop).toBe(500 - 24)
+  })
+
   it("corrects nothing once stopped, as its viewer goes", () => {
-    const { view, scroller, shrink, ended } = jumper()
+    const { view, scroller, errors, shrink, ended } = jumper()
     scrollLineToTop(view, 3_000)
     stopJump(view)
     shrink(2_000)
-    expect(ended).not.toThrow()
+    ended()
+    expect(errors).toEqual([])
     expect(scroller.scrollTop).toBe(3_000 - 24)
   })
 })

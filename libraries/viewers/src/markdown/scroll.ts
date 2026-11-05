@@ -15,10 +15,13 @@ const scrollerOf = (element: HTMLElement): HTMLElement | null => {
 // Each view's smooth jump still waiting to correct where it ended.
 const jumps = new WeakMap<EditorView, AbortController>()
 
-// Stops the view's jump under way from correcting where it ends.
-export const stopJump = (view: EditorView): void => {
-  jumps.get(view)?.abort()
+// Stops the view's jump under way from correcting where it ends; whether one was.
+export const stopJump = (view: EditorView): boolean => {
+  const jump = jumps.get(view)
   jumps.delete(view)
+  if (!jump || jump.signal.aborted) return false
+  jump.abort()
+  return true
 }
 
 // Brings the line at `at` to the top of the scroller, smoothly unless motion is reduced.
@@ -30,7 +33,7 @@ export const stopJump = (view: EditorView): void => {
 // A later jump, or the viewer going, ends an earlier one's wait to correct; else it would
 // pull the scroller back to its own line once the later one's scroll ends.
 export const scrollLineToTop = (view: EditorView, at: number): void => {
-  stopJump(view)
+  const jumping = stopJump(view)
   const scroller = scrollerOf(view.dom)
   if (!scroller) return
   // Where the scroller has to be, within what it can reach, for the line at `at` or, as the
@@ -49,8 +52,12 @@ export const scrollLineToTop = (view: EditorView, at: number): void => {
       scroller.scrollHeight - scroller.clientHeight,
     )
   const off = (): boolean => Math.abs(target() - scroller.scrollTop) >= 1
-  // Already there, or as near as it goes: nothing moves, so nothing waits for a stop.
-  if (!off()) return
+  // Already there, or as near as it goes: nothing moves, so nothing waits for a stop. An
+  // earlier jump's scroll passing by stops here, not at its own line.
+  if (!off()) {
+    if (jumping) scroller.scrollTo({ top: scroller.scrollTop, behavior: "instant" })
+    return
+  }
   const smooth = !matchMedia("(prefers-reduced-motion: reduce)").matches
   scroller.scrollTo({ top: target(), behavior: smooth ? "smooth" : "instant" })
   if (!smooth) {
