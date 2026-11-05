@@ -1,7 +1,7 @@
 // Terminals show secrets. These fixed rules mark what looks like one by its shape alone:
 // nothing is learned or configured, so the same text is masked the same on every machine.
 import { hide, hideValue } from "./marks.js"
-import { soundsSecret } from "./names.js"
+import { plainlySecret, soundsSecret } from "./names.js"
 import { closesLiteral, keyLikeRun, worthHiding } from "./values.js"
 
 // What a match becomes: handed the match and its groups, as `String.replace` hands them.
@@ -66,6 +66,10 @@ export const rules: readonly Rule[] = [
   token("pypi-", "A-Za-z0-9_=-", 20),
   token("ya29\\.(?=[A-Za-z0-9_.-]*[A-Z0-9])", `${urlSafe}.`, 20),
   token("AIza", urlSafe, 30),
+  token("GOCSPX-", urlSafe, 24),
+  token("do[opr]_v1_", "0-9a-f", 64),
+  token("shp(?:at|ss|ca|pa)_", "0-9a-fA-F", 32),
+  token("whsec_", "A-Za-z0-9", 24),
   {
     pattern: new RegExp(`(?<![\\w])SG\\.${atLeast(urlSafe, 16)}\\.${atLeast(urlSafe, 16)}`, "g"),
     replace: hide,
@@ -90,9 +94,12 @@ export const rules: readonly Rule[] = [
     pattern: /(hooks\.slack\.com\/services\/|discord(?:app)?\.com\/api\/webhooks\/)([^\s"'<>]+)/gi,
     replace: keepHead,
   },
-  // user:password@host in any URL, even with no user.
+  // user:password@host in any URL, even with no user. A password may hold a `/`, unencoded as
+  // hand-written connection strings have it, when a host follows its `@`; `host:5173/@vite/` is
+  // a port and a path, not one.
   {
-    pattern: /\b([a-z][a-z0-9+.-]{0,31}:\/\/)([^\s/@:]*:[^\s/]*)@/gi,
+    pattern:
+      /\b([a-z][a-z0-9+.-]{0,31}:\/\/)([^\s/@:]*:(?:[^\s/]*|(?!\d*\/)[^\s@:]{1,256}(?=@[^\s/@]+(?:[/?#\s]|$))))@/gi,
     replace: (_all, scheme, info) => `${scheme}${hide(info)}@`,
   },
   // A key as the whole userinfo, as Sentry's DSN has it.
@@ -109,7 +116,8 @@ export const rules: readonly Rule[] = [
   },
   // Whole headers: the credential is everything after the name.
   {
-    pattern: /\b(Authorization\s*[:=]\s*(?:(?:Bearer|Basic|Token|Digest)\s+)?)(?!\uE000)(\S+)/gi,
+    pattern:
+      /\b(Authorization[ \t]*[:=][ \t]*(?:(?:Bearer|Basic|Token|Digest)\s+)?)(?!\uE000)(\S+)/gi,
     replace: keepHead,
   },
   { pattern: /\b((?:Set-)?Cookie\s*:[ \t]*)([^\n]+)/gi, replace: keepHead },
@@ -183,14 +191,20 @@ export const rules: readonly Rule[] = [
         : all,
     field: { name: 3, value: new RegExp(`${quoted}|[^\\s,}\\]]+`, "uy") },
   },
-  // name: value, as YAML and headers have it.
+  // name: value, as YAML and headers have it, and name:value when the name says it plainly and
+  // stands on its own: not the end of a path, a ref or an ARN (`origin/secret-x:src`,
+  // `arn:aws:secretsmanager:…`). A glued value with a colon in it is read again inside
+  // (`secret:password: hunter2`).
   {
     pattern: new RegExp(
-      `(?<![\\p{L}\\p{N}_.-])([\\p{L}_][\\p{L}\\p{N}_.-]*)([ \\t]*:[ \\t]+)`,
+      `(?<![\\p{L}\\p{N}_.-])([\\p{L}_][\\p{L}\\p{N}_.-]*)([ \\t]*:(?:[ \\t]+|(?=[^\\s:/\\\\])))`,
       "gu",
     ),
     judge: ({ offset, text }, all, name, joint, value) =>
-      worthHiding(value, true) && !closesLiteral(value, offset, text)
+      (!joint.endsWith(":") ||
+        (plainlySecret(name) && !/[/:@\\]/.test(text[offset - 1] ?? "") && !value.includes(":"))) &&
+      worthHiding(value, true) &&
+      !closesLiteral(value, offset, text)
         ? `${name}${joint}${hideValue(value)}`
         : all,
     field: { name: 1, value: new RegExp(`${quoted}|[^\\s"',;]{1,${valueCap}}`, "uy") },

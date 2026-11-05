@@ -3,7 +3,7 @@ import { randomBytes } from "node:crypto"
 import { describe, expect, it, vi } from "vitest"
 
 import { redacted } from "./marks.js"
-import { maskScreen, redactScreen } from "./screen.js"
+import { keyBlockLines, maskScreen, redactScreen } from "./screen.js"
 
 // A line in rows of `width` characters.
 const chop = (text: string, width: number): string[] =>
@@ -176,6 +176,126 @@ describe("redacting key blocks across a screen's rows", () => {
   })
 })
 
+describe("text that names a key block's markers", () => {
+  it("keeps a search for a marker and the code it finds", () => {
+    const screen = [
+      '$ grep -rn -- "-----BEGIN" src',
+      'src/a.ts:3: if (pem.startsWith("-----BEGIN")) ok()',
+      'src/b.ts:9: const tail = "-----END"',
+      "$ ls",
+      "README.md  src",
+    ]
+
+    expect(
+      redactScreen(
+        screen,
+        screen.map(() => false),
+      ),
+    ).toEqual(screen)
+  })
+
+  const lines = (count: number): string[] =>
+    Array.from({ length: count }, (_x, i) => `line ${i} of the build log`)
+
+  it("masks no more than so many lines after a BEGIN with no end on screen", () => {
+    const after = lines(keyBlockLines + 40)
+    const screen = ['if (pem.startsWith("-----BEGIN CERTIFICATE-----")) {', ...after]
+
+    const result = redactScreen(
+      screen,
+      screen.map(() => false),
+    )
+
+    expect(result.slice(0, keyBlockLines + 1).every((row) => row === redacted)).toBe(true)
+    expect(result.slice(keyBlockLines + 1)).toEqual(after.slice(keyBlockLines))
+  })
+
+  it("masks no more than so many lines before an END with no BEGIN on screen", () => {
+    const before = lines(keyBlockLines + 40)
+    const screen = [...before, 'const end = "-----END CERTIFICATE-----"', "$ ls"]
+
+    const result = redactScreen(
+      screen,
+      screen.map(() => false),
+    )
+
+    expect(result.slice(0, 40)).toEqual(before.slice(0, 40))
+    expect(result.slice(40, -1).every((row) => row === redacted)).toBe(true)
+    expect(result.at(-1)).toBe("$ ls")
+  })
+
+  const armored = (count: number): string[] => [
+    "-----BEGIN PGP PRIVATE KEY BLOCK-----",
+    "",
+    ...Array.from({ length: count }, () => randomBytes(48).toString("base64")),
+  ]
+
+  const end = ["=Ab12", "-----END PGP PRIVATE KEY BLOCK-----"]
+  // With no end on screen, a short block covers the line after it too.
+  it.each([
+    [150, end, "$ ls"],
+    [700, end, "$ ls"],
+    [150, [], redacted],
+    [700, [], "$ ls"],
+  ])("masks a key block of %s lines whole, ended by %j", (count, ending, after) => {
+    const screen = ["$ gpg --export-secret-keys --armor ada", ...armored(count), ...ending, "$ ls"]
+
+    const result = redactScreen(
+      screen,
+      screen.map(() => false),
+    )
+
+    expect(result.slice(1, -1 - ending.length).every((row) => row === redacted)).toBe(true)
+    expect(result[0]).toBe("$ gpg --export-secret-keys --armor ada")
+    expect(result.at(-1)).toBe(after)
+  })
+
+  it("masks a long block between its markers whatever its lines hold", () => {
+    const body = Array.from(
+      { length: 600 },
+      (_x, i) => `   ${i}\t${randomBytes(48).toString("base64")}`,
+    )
+    const screen = ["$ cat -n key.asc", "-----BEGIN PGP PRIVATE KEY BLOCK-----", ...body]
+    screen.push("-----END PGP PRIVATE KEY BLOCK-----", "$ ls")
+
+    const result = redactScreen(
+      screen,
+      screen.map(() => false),
+    )
+
+    expect(result.slice(1, -1).every((row) => row === redacted)).toBe(true)
+  })
+
+  it("covers no rows above an earlier block's END for an END in code, only those after it", () => {
+    const screen = [
+      "plain0",
+      "-----BEGIN X-----",
+      "MIIB",
+      "-----END X-----",
+      "plain4",
+      'const e = "-----END X-----"',
+      "after",
+    ]
+
+    const result = redactScreen(
+      screen,
+      screen.map(() => false),
+    )
+
+    expect(result).toEqual(["plain0", redacted, redacted, redacted, redacted, redacted, "after"])
+  })
+
+  it(
+    "finds a marker after a long run of spaces in a time that grows with it",
+    { timeout: 5000 },
+    () => {
+      const row = `-----BEGIN${" ".repeat(200_000)}x`
+
+      expect(redactScreen([row], [false])).toEqual([row])
+    },
+  )
+})
+
 describe("redacting values across a screen's rows", () => {
   it.each([
     ["{'debug': False, 'smtp_password': 'Zq8rT2mWx9LpKd3VnB7sYcHt5Gf', 'port': 25}"],
@@ -232,6 +352,15 @@ describe("redacting values across a screen's rows", () => {
     const result = redactDrawn([`outer=${"a=b".repeat(800)}=PASSWORD=Hunter2xyz!`], 40).join("")
     expect(result).not.toMatch(/Hunter|2xyz/)
     expect(result).toContain(redacted)
+  })
+})
+
+describe("a row with a value that reaches the cap", () => {
+  it("masks the cells of a later password, not ones beside them", () => {
+    const row = `API_KEY=${"Ab1".repeat(400)}/pass=x ; token=hunter2`
+
+    expect(redactScreen([row], [false])[0]).not.toContain("unter")
+    expect(maskScreen([row], [false])[0]).toHaveLength(row.length)
   })
 })
 
