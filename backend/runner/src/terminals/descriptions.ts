@@ -42,20 +42,6 @@ export type MurmurTimes = {
    */
   readonly shellSettleMs: number
   /**
-   * How long a shell opened to run an agent is not described as a shell, while the agent
-   * may yet bind, in milliseconds.
-   */
-  readonly expectMs: number
-  /**
-   * How long a program in the foreground of a shell opened to run an agent, other than
-   * that agent's own, is waited out in case it leads to the agent, in milliseconds from
-   * when murmur began watching the terminal. Past it the shell is described as any, and an
-   * agent that binds later renames the terminal from its summary. The agent's own program
-   * is waited for without a limit: some agents bind only at their first prompt, and one
-   * whose hooks never report never binds, and a description of their screen is wrong.
-   */
-  readonly expectForegroundMs: number
-  /**
    * How long a title that could not be asked for (murmur backed off or busy: it did not
    * run) waits before it is asked again, in milliseconds.
    */
@@ -66,8 +52,6 @@ const defaultTimes: MurmurTimes = {
   settleMs: 3_000,
   shellRunMs: 5_000,
   shellSettleMs: 3_000,
-  expectMs: 10_000,
-  expectForegroundMs: 120_000,
   retryMs: 60_000,
 }
 
@@ -337,6 +321,12 @@ export type MurmurSubject = PeerTerminal & {
   readonly atPrompt: boolean
   /** The agent its terminal was opened to run, until one binds or the startup is over. */
   readonly expecting: AgentName | null
+  /**
+   * Whether the startup command its terminal was opened or resumed with has not ended: the
+   * shell is running it, and the first prompt after it ends it. The same on every OS, which
+   * does not tell the foreground everywhere.
+   */
+  readonly startupRuns: boolean
 }
 
 /** What the manager gives murmur's triggers to read and write. */
@@ -386,16 +376,9 @@ type Watch = {
    * across a restart is not known as one.
    */
   shellTitled: boolean
-  /**
-   * The agent that was expected when that shell title was written: the terminal was opened
-   * or resumed to run it, and it was slow to bind. Its summary on record is then its own, and
-   * names the terminal when that same agent binds. Null when none was expected, and once the
-   * expectation is over.
-   */
-  expectedTitledFor: AgentName | null
   /** An agent was bound in this terminal since murmur began watching it: no agent is expected. */
   agentBound: boolean
-  /** A shell's description waits for the agent its terminal expects (see `expectedFor`). */
+  /** A shell's description waits for the agent its terminal expects (see `waits`). */
   waiting: boolean
   /** The timer that asks again for a summary's title that did not run. */
   retryTimer: NodeJS.Timeout | undefined
@@ -407,8 +390,6 @@ type Watch = {
   shellOwed: boolean
   /** A hash of what the last description of the shell was made from (see `screenKey`); null before any. */
   screenKey: string | null
-  /** When murmur first looked at the terminal, from which an expected agent is waited for. */
-  since: number
 }
 
 /**
@@ -459,24 +440,6 @@ const namesAgent = (title: string, agent: AgentName | null): boolean => {
   return [...terms].some((term) =>
     new RegExp(`(?<![\\p{L}\\p{N}])${term.toLowerCase()}(?![\\p{L}\\p{N}])`, "u").test(lower),
   )
-}
-
-// Whether the program is the one the expected agent runs as: its name, or for a node
-// program the script it runs, from the harness table. A node program with no command line
-// (macOS hides it) may be it.
-const runsAgent = (program: ForegroundProcess | null, agent: AgentName | null): boolean => {
-  const harness = harnesses.find(({ id }) => id === agent)
-  if (!program || !harness) return false
-  const name = basename(program.name)
-    .replace(/^-/, "")
-    .replace(/\.exe$/i, "")
-    .toLowerCase()
-  if (name === harness.id) return true
-  if (name !== "node" && name !== "nodejs") return false
-  const script = program.argv?.[1]?.replaceAll("\\", "/")
-  if (script === undefined) return program.argv === null
-  const entry = harness.nodeScript
-  return basename(script) === harness.id || (entry !== undefined && script.endsWith(entry))
 }
 
 const programKey = (program: ForegroundProcess | null): string | null =>
@@ -537,7 +500,6 @@ export class Murmur {
       watch.named = null
       watch.owed = false
       watch.shellTitled = false
-      watch.expectedTitledFor = null
       watch.shellOwed = false
       watch.screenKey = null
     }
@@ -583,6 +545,7 @@ export class Murmur {
     const watch = this.watch(terminalId)
     watch.agentRan = true
     watch.agentBound = true
+    watch.waiting = false
     // Reports come often: a title already asked for is not asked again.
     if (
       this.usable &&
@@ -600,16 +563,14 @@ export class Murmur {
     return !kept(subject) && !!summary && words(summary) !== watch.named
   }
 
-  // Whether murmur's title is a shell's, not a name of the agent's work: written this run
-  // while the terminal expected its agent, or kept from an earlier run (which is not known
-  // to be one) that names the agent's own program, as a shell's does ("Claude dev server"),
-  // and shares no word with the summary it should come from. Any other title is kept, so
-  // a healthy terminal is never asked again. (One a shell got between two agents is left
-  // to the next summary.)
+  // Whether murmur's title is a shell's, not a name of the agent's work: one kept from an
+  // earlier run (which is not known to be one) that names the agent's own program, as a
+  // shell's does ("Claude dev server"), and shares no word with the summary it should come
+  // from. Any other title is kept, so a healthy terminal is never asked again. (One a shell
+  // got this run, between two agents, is left to the next summary.)
   private shellish(subject: MurmurSubject, watch: Watch): boolean {
     const { murmur, summary } = subject.naming
     if (murmur === null) return false
-    if (watch.expectedTitledFor !== null && watch.expectedTitledFor === subject.agent) return true
     return (
       !watch.shellTitled &&
       watch.named === null &&
@@ -652,7 +613,6 @@ export class Murmur {
     const subject = this.host.subject(terminalId)
     if (!subject) return
     const watch = this.watch(terminalId)
-    this.expects(subject)
     // An agent holds the foreground (noted as `agentRan` when it bound): its run is the
     // agent's, whatever program the sampler took it for before.
     if (subject.agent) return
@@ -688,10 +648,9 @@ export class Murmur {
     if (!this.usable) return
     const subject = this.host.subject(terminalId)
     if (!subject || subject.agent) return
-    this.expects(subject)
     // Nothing is expected any more, and the description waited for it: asked for afresh.
     const watch = this.watch(terminalId)
-    const released = watch.waiting && !subject.expecting
+    const released = watch.waiting && !this.waits(subject)
     if (!entered && !released) return
     watch.shellOwed = true
     this.ask(terminalId, this.times.shellSettleMs, { unchanged: true })
@@ -704,7 +663,6 @@ export class Murmur {
         named: null,
         owed: false,
         shellTitled: false,
-        expectedTitledFor: null,
         agentBound: false,
         waiting: false,
         retryTimer: undefined,
@@ -712,7 +670,6 @@ export class Murmur {
         agentRan: false,
         shellOwed: false,
         screenKey: null,
-        since: Date.now(),
       }
       this.watches.set(terminalId, watch)
     }
@@ -833,7 +790,6 @@ export class Murmur {
     if (previous !== undefined && sharesContentWord(outcome.title, previous)) return
     if (this.store(terminalId, outcome.title)) {
       watch.shellTitled = false
-      watch.expectedTitledFor = null
     }
   }
 
@@ -853,20 +809,18 @@ export class Murmur {
     const mine = this.watches.get(terminalId)
     if (mine) mine.owed = false
     const subject = this.host.subject(terminalId)
-    const wait = subject && !subject.agent ? this.expectedFor(subject) : 0
-    if (mine) mine.waiting = wait > 0
+    if (mine) mine.waiting = !!subject && !subject.agent && this.waits(subject)
     let key: string | null = null
     this.descriptions.request(
       terminalId,
-      Math.max(delayMs, Math.min(wait, this.times.expectForegroundMs)),
+      delayMs,
       async () => {
         key = null
         // Nothing is built, read or serialized while murmur isn't usable.
         if (!this.usable) return undefined
         const current = this.host.subject(terminalId)
         if (!current || kept(current)) return undefined
-        // A timer may fire a moment early.
-        if (current.agent || this.expectedFor(current) > 50) return undefined
+        if (current.agent || this.waits(current)) return undefined
         if (options.program !== undefined && programKey(current.program) !== options.program)
           return undefined
         const built = await this.shellDigestOf(current, options.unchanged === true)
@@ -886,23 +840,15 @@ export class Murmur {
   // command ended with none bound, or its resume was cancelled.
   private expects(subject: MurmurSubject): boolean {
     const watch = this.watch(subject.summary.id)
-    // Nothing is expected of an unbound terminal that says so: what was titled while it was
-    // is not its next agent's to heal.
-    if (!subject.expecting && !subject.agent) watch.expectedTitledFor = null
     return !!subject.expecting && !watch.agentBound
   }
 
-  // How much longer a shell opened to run an agent waits for it to bind, in milliseconds:
-  // `expectMs` at its prompt, where the command may yet start; `expectForegroundMs` while
-  // another program holds the foreground; unlimited while the agent's own program does.
-  private expectedFor(subject: MurmurSubject): number {
-    if (!this.expects(subject)) return 0
-    const since = this.watch(subject.summary.id).since
-    // The agent's own program in the foreground is waited for as long as it runs.
-    if (!subject.atPrompt && runsAgent(subject.program, subject.expecting))
-      return Number.POSITIVE_INFINITY
-    const limit = subject.atPrompt ? this.times.expectMs : this.times.expectForegroundMs
-    return Math.max(0, limit - (Date.now() - since))
+  // Whether a shell opened to run an agent waits for it: its startup command runs and no
+  // agent has bound yet, so whatever holds the foreground is the agent starting, however
+  // slowly (a resumed Codex or Antigravity binds only at its next prompt). The manager ends
+  // the expectation at the first prompt after the startup, bound or not.
+  private waits(subject: MurmurSubject): boolean {
+    return this.expects(subject) && subject.startupRuns
   }
 
   private async shellDigestOf(
@@ -951,7 +897,6 @@ export class Murmur {
     watch.named = null
     watch.owed = false
     watch.shellTitled = true
-    watch.expectedTitledFor = this.expects(bound) ? bound.expecting : null
   }
 
   // A title came back: it names the terminal if it can be one and the person gave it none;
