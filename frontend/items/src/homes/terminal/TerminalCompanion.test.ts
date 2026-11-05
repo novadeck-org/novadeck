@@ -670,6 +670,65 @@ describe("a terminal's taskbar", () => {
       expect(dialog()?.textContent).toContain("Your edits couldn't be copied")
     })
 
+    // The plan's close asked for and confirmed, with a clipboard whose write waits to be
+    // answered.
+    const confirmedPending = async () => {
+      const writes: { resolve: () => void; reject: (error: Error) => void }[] = []
+      clipboard(() => new Promise<void>((resolve, reject) => void writes.push({ resolve, reject })))
+      const rendered = await stuck([placed("p1", "first.md")])
+      const close = () =>
+        act(async () =>
+          rendered.container.querySelector<HTMLElement>("[aria-label='Close First']")!.click(),
+        )
+      await act(async () => (icon(rendered.container, "Plan: First") as HTMLElement).click())
+      await close()
+      await answer("Copy my edits and close")
+      return { ...rendered, writes, close }
+    }
+
+    it("copies once however often the person confirms while the copy is under way", async () => {
+      const { writes, workspace } = await confirmedPending()
+      await answer("Copy my edits and close")
+      expect(writes).toHaveLength(1)
+      await act(async () => writes[0]!.resolve())
+      expect(onBar(workspace)).toEqual([])
+    })
+
+    it("lets a copy the person cancelled go, keeping the plan and saying nothing of it", async () => {
+      const { writes, workspace, close } = await confirmedPending()
+      await answer("Cancel")
+      await act(async () => writes[0]!.reject(new Error("Document is not focused")))
+      expect(onBar(workspace)).toEqual(["first.md"])
+      await vi.waitFor(() => expect(dialog()).toBeNull())
+      await close()
+      expect(dialog()?.textContent).toContain("couldn't be saved, and closing it loses them")
+    })
+
+    it("doesn't ask about a stuck plan that left the bar while it waited its turn", async () => {
+      clipboard(async () => {})
+      const { container, workspace } = await stuck([
+        placed("p1", "first.md"),
+        placed("p2", "second.md"),
+      ])
+      const stack = icon(container, "2 plans") as HTMLElement
+      await act(async () =>
+        stack.dispatchEvent(new MouseEvent("contextmenu", { bubbles: true, cancelable: true })),
+      )
+      const close = [...document.querySelectorAll<HTMLElement>("[role='menuitem']")].find(
+        (each) => each.textContent === "Close 2 plans",
+      )!
+      await act(async () => close.click())
+      await vi.waitFor(() => expect(dialog()?.textContent).toContain("Close “first.md”?"))
+      // Its agent closed the second meanwhile.
+      await act(
+        async () =>
+          void workspace.dispatch({ type: "item/close", target, itemId: placed("p2", "").id }),
+      )
+      await answer("Copy my edits and close")
+      await vi.waitFor(() => expect(dialog()).toBeNull())
+      expect(onBar(workspace)).toEqual([])
+    })
+
     it("asks about each of a stack's stuck plans in turn", async () => {
       clipboard(async () => {})
       const { container, workspace } = await stuck([

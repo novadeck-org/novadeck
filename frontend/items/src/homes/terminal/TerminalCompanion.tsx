@@ -263,8 +263,12 @@ export const TerminalCompanion = ({
   const tab = shownTab(bar, members)
   // Plans the person closes while edits in them can't reach their files: asked first, one
   // at a time, since closing loses them. A stack's close may ask about several.
+  // One gone from this bar meanwhile, as its agent closed it, isn't asked about.
   const [closing, setClosing] = useState<readonly Item[]>([])
-  const asking = closing[0] ?? null
+  const asking = closing.find((queued) => items.some((each) => each.id === queued.id)) ?? null
+  // The plan whose edits are being copied, until the copy answers or the person cancels:
+  // a second confirm meanwhile starts no second copy, and a cancelled one's answer is let go.
+  const copying = useRef<ItemId | null>(null)
   // The plan whose edits couldn't be copied, which stays open, and how many tries failed.
   const [uncopied, setUncopied] = useState<{ readonly id: ItemId; readonly tries: number } | null>(
     null,
@@ -460,13 +464,22 @@ export const TerminalCompanion = ({
         confirmLabel="Copy my edits and close"
         cancelLabel="Cancel"
         onCancel={() => {
-          setClosing((queue) => queue.slice(1))
+          copying.current = null
+          setClosing((queue) => queue.filter((queued) => queued.id !== asking?.id))
           setUncopied(null)
         }}
         onConfirm={() => {
           const item = asking
-          if (!item) return
+          if (!item || copying.current !== null) return
+          copying.current = item.id
+          // Whether this copy's answer still counts: the person didn't cancel meanwhile.
+          const answered = (): boolean => {
+            if (copying.current !== item.id) return false
+            copying.current = null
+            return true
+          }
           const copied = (): void => {
+            if (!answered()) return
             setClosing((queue) => queue.filter((queued) => queued.id !== item.id))
             setUncopied(null)
             commands.closeItem(item.id)
@@ -484,11 +497,13 @@ export const TerminalCompanion = ({
               })
           }
           // Not copied, the plan stays, and the dialog says so: closing would lose the edits.
-          const failed = (): void =>
+          const failed = (): void => {
+            if (!answered()) return
             setUncopied((last) => ({
               id: item.id,
               tries: last?.id === item.id ? last.tries + 1 : 1,
             }))
+          }
           const plan = itemStore.store.getSnapshot().plans[item.id]
           if (!plan) return copied()
           const written = navigator.clipboard?.writeText(
