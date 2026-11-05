@@ -41,7 +41,7 @@ const stat = (pid: number): Stat | undefined => {
  * Whether the process works inside the sandbox, by the target of its `cwd`, or, should
  * that not be inside, has the sandbox's home, by its `environ`, searched only for
  * `HOME=<sandbox home>` and neither kept nor printed. False where either can't be read:
- * gone, another user's, or made non-dumpable (as ssh-agent and setuid programs are), which
+ * gone, another user's, or made non-dumpable (as setuid programs and ssh-agent are), which
  * hides both even from its own user while `stat` stays readable; such a process is the
  * sandbox's only through its parent or its group (see `list`).
  */
@@ -69,9 +69,10 @@ const asProcess = ({ pid, comm, start, state }: Stat): Process => ({
  * The sandbox's processes, from /proc: of those that started since the sandbox was made,
  * zombies passed over, each working inside it or with its home, and, as on macOS, every
  * one whose parent is one of those or whose process group holds one, until no more join,
- * but never one in the caller's own group. So a child that left the folder with another
- * HOME (`cd /tmp && env -i …`) is found through its parent, and so is one whose folder and
- * environment can't be read.
+ * never through the caller's own group (see `sandboxed`). So a child that left the folder
+ * with another HOME (`cd /tmp && env -i …`), or whose folder and environment can't be
+ * read, is found while its parent, or one of its group, still runs; one whose parent and
+ * group are gone, as a daemon's are, is not.
  */
 const list = async (sandbox: Scope): Promise<readonly Process[]> => {
   const ownGroup = stat(process.pid)?.pgid

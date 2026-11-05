@@ -122,7 +122,9 @@ describe.skipIf(process.platform !== "linux")("reap on Linux, in a sandbox", () 
     expect(await reap(sandbox)).toEqual([])
   })
 
-  const python = spawnSync("python3", ["-c", ""]).status === 0
+  // The PATH the test runs python3 on.
+  const path = { PATH: "/usr/bin:/bin" }
+  const python = spawnSync("python3", ["-c", ""], { env: path }).status === 0
 
   it.skipIf(!python)(
     "ends a child whose folder and environment can't be read, as a non-dumpable one's can't",
@@ -134,7 +136,7 @@ describe.skipIf(process.platform !== "linux")("reap on Linux, in a sandbox", () 
       const shell = await started(
         spawn("/bin/sh", ["-c", `python3 -c '${hidden}' & wait`], {
           cwd: sandbox.project,
-          env: { PATH: "/usr/bin:/bin" },
+          env: path,
           stdio: ["ignore", "pipe", "ignore"],
           detached: true,
         }),

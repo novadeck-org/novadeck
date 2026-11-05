@@ -10,14 +10,16 @@ started outlives the run. Node only.
   environment made only of what the sandbox sets: HOME and the XDG folders inside it, a PATH of
   the programs under test, Node through a folder of its own and the system's folders, a dead
   D-Bus address, the proxy when given, and an ssh for git that reads none of the user's
-  `~/.ssh`. Should making it fail, its root is removed. On Windows the user's folders (USERPROFILE, APPDATA,
-  LOCALAPPDATA, TEMP) move inside it too, and git and PowerShell 7 come by their own installs.
+  `~/.ssh`. Should making it fail, its root is removed. On Windows the user's folders
+  (USERPROFILE, APPDATA, LOCALAPPDATA, TEMP) move inside it too, and git and PowerShell 7 come
+  by their own installs.
   `gitBash()` finds Git for Windows' bash. The caller removes `root`.
 - `./reap`: `reap(sandbox)` ends what still runs in the sandbox (started since it was made,
   working inside it or with its home, and on Linux and macOS what one of those started or a
-  process in its group, never the caller's own group), asking first, then forcibly, within 15
-  seconds, and returns what had to be ended. Linux reads `/proc`, macOS asks `ps` and `lsof`, Windows compiles a small process lister
-  with the C# compiler every Windows has. On Windows a forcible end goes through the `trees`
+  process in its group, never through the caller's own group), asking first, then forcibly,
+  its waits ending within 15 seconds, and returns what had to be ended. Linux reads `/proc`,
+  macOS asks `ps` and `lsof`, Windows compiles a small process lister with the C# compiler
+  every Windows has. On Windows a forcible end goes through the `trees`
   option, a reader that ends a process and what it started, each only as the one it read;
   without it, a forcible end takes the process alone, as taskkill's tree goes by recorded parent
   pids, which may name an unrelated process, and the next round finds what it started.
@@ -38,10 +40,12 @@ started outlives the run. Node only.
   ssh is told to read none of it, but an `ssh` a program runs itself reads the developer's
   configuration and keys, and writes their `known_hosts`. The agent socket is cut, as
   `SSH_AUTH_SOCK` isn't passed on.
-- **A process that hides and leaves.** On Linux a process made non-dumpable (as ssh-agent and
-  setuid programs are) hides its folder and environment even from its own user; `reap` finds
-  one only through its parent or its group, so one that has left both, as a daemon does, goes
-  unseen. The same holds on macOS for its own programs, whose environment `ps` doesn't show.
+- **A process that leaves.** One that has left the sandbox's folder and has another HOME is
+  found only through its parent or a process in its group, while one of those still runs: a
+  backgrounded job whose shell has exited, or a daemon, as ssh-agent is, goes unseen. On Linux
+  that is so too of any process made non-dumpable (as setuid programs are), which hides its
+  folder and environment even from its own user, and on macOS of its own programs, whose
+  environment `ps` doesn't show. On Windows no process is found through its parent.
 - **The system's folders on PATH.** `/usr/bin` and `/bin` come on PATH as they are; `forbidden`
   is checked against the tool folders Windows adds, not against those. Where Node or a program
   under test is installed there, as some distributions do, a program run by name that isn't in

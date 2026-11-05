@@ -48,8 +48,9 @@ export const pidRunning = (pid: number): boolean => {
 
 /**
  * Those found of the processes, with every one of the processes whose parent is one of
- * them or whose process group holds one of them, until no more join, but never one in
- * `ownGroup`, the caller's own group, which the sandbox's processes have no business in.
+ * them or whose process group holds one of them, until no more join; never one through
+ * `ownGroup`, the caller's own group, which a process found by its folder may share with
+ * the caller's other workers, though a child of a found process in it still joins.
  */
 export const sandboxed = (
   processes: readonly { readonly pid: number; readonly ppid: number; readonly pgid: number }[],
@@ -63,8 +64,7 @@ export const sandboxed = (
     for (const one of processes)
       if (
         !members.has(one.pid) &&
-        one.pgid !== ownGroup &&
-        (members.has(one.ppid) || (one.pgid > 1 && groups.has(one.pgid)))
+        (members.has(one.ppid) || (one.pgid > 1 && one.pgid !== ownGroup && groups.has(one.pgid)))
       ) {
         members.add(one.pid)
         grown = true

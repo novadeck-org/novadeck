@@ -36,7 +36,7 @@ describe("whether a pid still runs", () => {
 })
 
 describe("the processes of a sandbox", () => {
-  it("counts a found process's children and its group's, however deep, but never the caller's group", () => {
+  it("counts a found process's children and its group's, however deep, but never through the caller's group", () => {
     const processes = [
       // A program found by its folder, a child it started elsewhere, and that child's own.
       { pid: 10, ppid: 5, pgid: 10 },
@@ -44,16 +44,18 @@ describe("the processes of a sandbox", () => {
       { pid: 12, ppid: 11, pgid: 11 },
       // A background job of the program's group, its parent gone.
       { pid: 13, ppid: 1, pgid: 10 },
-      // The caller's own group, which holds a found process's parent and a stray of its own.
+      // The caller's own group, which holds a found process's parent and a stray of its own,
+      // and a child of the found one.
       { pid: 20, ppid: 1, pgid: 20 },
       { pid: 21, ppid: 20, pgid: 20 },
       { pid: 22, ppid: 20, pgid: 20 },
+      { pid: 23, ppid: 21, pgid: 20 },
       // Another program altogether.
       { pid: 30, ppid: 1, pgid: 30 },
     ]
 
     expect([...sandboxed(processes, new Set([10, 21]), 20)].toSorted((a, b) => a - b)).toEqual([
-      10, 11, 12, 13, 21,
+      10, 11, 12, 13, 21, 23,
     ])
   })
 })

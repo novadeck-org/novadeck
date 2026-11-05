@@ -341,18 +341,19 @@ network:
   rest does it read where `/proc/<pid>/cwd` points, then, unless that is inside the
   sandbox, `/proc/<pid>/environ`, searched only for `HOME=<sandbox home>` and neither kept
   nor printed. As on macOS, a process one of those started, or one in a process group of
-  one, counts too, never the tests' own group: so a child that left the folder with
-  another HOME is found, and so is one made non-dumpable (as ssh-agent is), whose folder
-  and environment the kernel hides even from its own user. A harness the deck's hangup reached may take a moment
-  to exit (Claude Code takes about 200 to 250 ms), so each gets three seconds to end by itself.
+  one, counts too, never through the tests' own group: so a child that left the folder
+  with another HOME is found while its parent or a process of its group still runs, and
+  so is one made non-dumpable (as setuid programs are), whose folder and environment the
+  kernel hides even from its own user; a daemon (ssh-agent) that has left both is not. A
+  harness the deck's hangup reached may take a moment to exit (Claude Code takes about
+  200 to 250 ms), so each gets three seconds to end by itself.
   One still running then is ended with SIGTERM, then SIGKILL two seconds later, each
   signal sent only once the process is checked to be the same one, and fails the test,
   named by its command and pid, and marked `stopped` should job control have stopped it.
-  It looks again, up to five times and within 15 seconds, inside the fixture's 20 for a
-  cleanup, until it finds no process it hasn't seen; one it hasn't seen still running
-  then is ended forcibly, unwaited, and named so. Should the
-  test end early, its teardown does the same, and fails the test for any process it had
-  to end. On Windows, which has no `/proc`, a small lister (`reap/lister.cs`) finds
+  It looks again, up to five times, until it finds no process it hasn't seen, its waits
+  ending within 15 seconds, inside the fixture's 20 for a cleanup; one it hasn't seen
+  still running then is ended forcibly, unwaited, and named so. Should the test end
+  early, its teardown does the same, and fails the test for any process it had to end. On Windows, which has no `/proc`, a small lister (`reap/lister.cs`) finds
   them: compiled once by its source into the system's temporary folder with the .NET
   Framework's `csc.exe`, and named by its own hash too, checked before it runs, so a
   program there that isn't what its name says is compiled again. It lists the processes

@@ -43,7 +43,7 @@ const mentions = (path: string, texts: readonly string[]): number => {
 }
 
 // How many of the folder's entries have a name that holds any of the texts.
-const named = (path: string, texts: readonly string[]): number => {
+const naming = (path: string, texts: readonly string[]): number => {
   try {
     return readdirSync(path).filter((name) => texts.some((text) => fold(name).includes(fold(text))))
       .length
@@ -55,13 +55,14 @@ const named = (path: string, texts: readonly string[]): number => {
 /**
  * A tripwire over the developer's real home, watching what each of `watches` lists: call it
  * before a run, and call what it returns after, for the paths a program that escaped the
- * sandbox wrote to. Those are the configuration files that now mention the sandbox's root,
- * by its name or its short name (see `spellings`), any case on Windows, and the folders
- * with an entry named after the sandbox, each more often than before, as one may already
- * hold a short name Windows gave an earlier sandbox's root, gone since, and gives this one
- * again; and the stamped paths whose time or size changed, or that
- * appeared or went. Only paths are returned, never anything read. A path absent both times,
- * as all are in CI, is skipped. `home` is the developer's own unless a test gives another.
+ * sandbox wrote to. Those are the configuration files that mention the sandbox's root, by
+ * its name or its short name (see `spellings`), any case on Windows, and the folders with
+ * an entry named after the sandbox, each more often than before: one may already hold a
+ * short name Windows gave an earlier sandbox's root, gone since, and gives this one again,
+ * so a write that replaces such a mention goes unseen. Then the stamped paths whose time
+ * or size changed, or that appeared or went. Only paths are returned, never anything read.
+ * A path absent both times, as all are in CI, is skipped. `home` is the developer's own
+ * unless a test gives another.
  */
 export const tripwire = (
   sandbox: Pick<Sandbox, "root">,
@@ -78,13 +79,13 @@ export const tripwire = (
   const searched = watched("searched")
   const mentioned = new Map(searched.map((path) => [path, mentions(path, written)]))
   const listed = watched("listed")
-  const entries = new Map(listed.map((path) => [path, named(path, own)]))
+  const entries = new Map(listed.map((path) => [path, naming(path, own)]))
   return () => {
     const changed = [...stamps(stamped)]
       .filter(([path, after]) => before.get(path) !== after)
       .map(([path]) => path)
     const rewritten = searched.filter((path) => mentions(path, written) > mentioned.get(path)!)
-    const added = listed.filter((path) => named(path, own) > entries.get(path)!)
+    const added = listed.filter((path) => naming(path, own) > entries.get(path)!)
     return [...changed, ...rewritten, ...added]
   }
 }

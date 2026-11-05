@@ -29,9 +29,10 @@ export type Sandbox = {
    * programs under test and system tools, a dead D-Bus address so no secret service
    * answers, the proxy, when given, as HTTP(S)_PROXY with loopback exempt (Node's fetch
    * included), npm's prefix inside the sandbox so a program that updates itself can't
-   * touch a global install, and an ssh for git that reads none of the user's `~/.ssh`. On Windows also the user's folders, which programs there find
-   * their home and configuration by (USERPROFILE, APPDATA, LOCALAPPDATA, TEMP), all inside
-   * the sandbox, and the system's own variables, which its programs need to start.
+   * touch a global install, and an ssh for git that reads none of the user's `~/.ssh`. On
+   * Windows also the user's folders, which programs there find their home and
+   * configuration by (USERPROFILE, APPDATA, LOCALAPPDATA, TEMP), all inside the sandbox,
+   * and the system's own variables, which its programs need to start.
    */
   readonly env: Readonly<Record<string, string>>
   /**
