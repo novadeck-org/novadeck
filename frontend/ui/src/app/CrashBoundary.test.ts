@@ -28,7 +28,7 @@ describe("CrashBoundary", () => {
     it("says so in place of a blank window, and reloads on a press", () => {
       // React reports what a boundary catches; the test needn't print it.
       vi.spyOn(console, "error").mockImplementation(() => {})
-      const reload = vi.fn()
+      const reload = vi.fn<() => void>()
       rendered = render(createElement(CrashBoundary, { reload }, createElement(Broken)))
       const alert = rendered.container.querySelector("[role=alert]")
       expect(alert?.textContent).toContain("Novadeck ran into an error")

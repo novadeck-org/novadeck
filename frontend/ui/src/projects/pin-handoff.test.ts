@@ -14,7 +14,11 @@ const handoff: PinHandoff = { id: "p-1", point: { x: 40, y: 10 }, wasPinned: fal
 // A drag manager whose drag gets under way only when the test says so.
 const fakeManager = () => {
   const status = { dragging: false }
-  const actions = { start: vi.fn(), move: vi.fn(), stop: vi.fn() }
+  const actions = {
+    start: vi.fn<DragDropManager["actions"]["start"]>(),
+    move: vi.fn<DragDropManager["actions"]["move"]>(),
+    stop: vi.fn<DragDropManager["actions"]["stop"]>(),
+  }
   const manager = { actions, dragOperation: { status } } as unknown as DragDropManager
   return { manager, actions, status }
 }
@@ -32,7 +36,7 @@ let listening: Set<string>
 beforeEach(() => {
   // jsdom has neither; the pin's fade-in needs both.
   vi.stubGlobal("matchMedia", () => ({ matches: false }))
-  Element.prototype.animate = vi.fn()
+  Element.prototype.animate = vi.fn<Element["animate"]>()
   frames = new Map()
   let next = 0
   vi.spyOn(window, "requestAnimationFrame").mockImplementation((callback) => {
@@ -81,11 +85,12 @@ const ManagerOf = ({
   return null
 }
 
-const Bar = ({ handoff, manager, onAbandon }: Props): React.JSX.Element => {
+const Bar = ({ handoff: given, manager, onAbandon }: Props): React.JSX.Element => {
   const row = useRef<HTMLDivElement | null>(null)
-  const { takeManager } = usePinHandoff(handoff, handoff !== null, row, onAbandon)
+  const { takeManager } = usePinHandoff(given, given !== null, row, onAbandon)
   return createElement(
     "div",
+    // oxlint-disable-next-line react/refs -- A ref handed to the element, as JSX's ref={row} does; nothing reads it here.
     { ref: row },
     createElement(ManagerOf, { manager, onManager: takeManager }),
     createElement("button", { className: "pin", "data-pin": "p-1" }, "p-1"),
@@ -104,7 +109,7 @@ describe("usePinHandoff", () => {
   context("when the handed-over drag gets under way", () => {
     it("follows the pointer and keeps the window's listeners", () => {
       const { manager, actions, status } = fakeManager()
-      rendered = render(createElement(Bar, { handoff, manager, onAbandon: vi.fn() }))
+      rendered = render(createElement(Bar, { handoff, manager, onAbandon: vi.fn<() => void>() }))
       expect(actions.start).toHaveBeenCalledOnce()
       status.dragging = true
       for (let frame = 0; frame < arrivalFrames + 5; frame += 1) runFrame()
@@ -117,7 +122,7 @@ describe("usePinHandoff", () => {
   context("when the handed-over drag never gets under way", () => {
     it("gives it up after a while, with no listener or frame left behind", () => {
       const { manager, actions } = fakeManager()
-      const onAbandon = vi.fn()
+      const onAbandon = vi.fn<() => void>()
       rendered = render(createElement(Bar, { handoff, manager, onAbandon }))
       expect([...listening]).toEqual(expect.arrayContaining(followed))
       for (let frame = 0; frame < arrivalFrames; frame += 1) runFrame()
@@ -132,7 +137,7 @@ describe("usePinHandoff", () => {
   context("when the handoff goes before its drag ends", () => {
     it("stops following it, and Escape is the app's again", () => {
       const { manager } = fakeManager()
-      const onAbandon = vi.fn()
+      const onAbandon = vi.fn<() => void>()
       rendered = render(createElement(Bar, { handoff, manager, onAbandon }))
       expect(pressEscape().defaultPrevented).toBe(true)
       rendered.rerender(createElement(Bar, { handoff: null, manager, onAbandon }))
@@ -143,7 +148,7 @@ describe("usePinHandoff", () => {
 
     it("follows only the handoff in its place", () => {
       const { manager, actions } = fakeManager()
-      const onAbandon = vi.fn()
+      const onAbandon = vi.fn<() => void>()
       rendered = render(createElement(Bar, { handoff, manager, onAbandon }))
       const next: PinHandoff = { ...handoff, point: { x: 60, y: 10 } }
       rendered.rerender(createElement(Bar, { handoff: next, manager, onAbandon }))

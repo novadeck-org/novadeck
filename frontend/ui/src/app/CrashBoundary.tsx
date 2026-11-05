@@ -22,7 +22,7 @@ const CrashNotice = ({ reload }: { readonly reload: () => void }): React.JSX.Ele
 // the error itself, as it does every error a boundary catches.
 export class CrashBoundary extends Component<
   {
-    readonly children: ReactNode
+    readonly children?: ReactNode
     // Starts the app over: the page's reload, which fetches its parts again.
     readonly reload?: () => void
   },
