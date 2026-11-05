@@ -9,6 +9,7 @@ import type {
   SourceState,
 } from "@novadeck/core/source"
 import { createStore } from "@novadeck/core/store"
+import type { Workspace } from "@novadeck/core/types"
 
 import type { DemoTurns } from "./agents/turns"
 import { demoHandle } from "./handles"
@@ -358,7 +359,9 @@ export type DemoSource = Source & {
   // until stopped; stopping drops every cursor. Where the visitor asked for less motion, or
   // held the page still, nothing moves, though an agent that stops working still loses its
   // cursor.
-  readonly start: (turns?: DemoTurns) => () => void
+  // Starts the agents that work writing: those `works` says work now, else the ones it was
+  // made with, as the seed opens them.
+  readonly start: (turns?: DemoTurns, works?: (terminalId: string) => boolean) => () => void
   // Stops the agent in a terminal writing for good: its terminal closed, or its project went.
   readonly close: (terminalId: string) => void
   // Stops the agent in a terminal writing because its terminal no longer shows it working,
@@ -457,7 +460,7 @@ export const createDemoSource = (
     if (slot) stopWriting(slot.handle)
   }
 
-  const start = (turns?: DemoTurns): (() => void) => {
+  const start = (turns?: DemoTurns, works?: (terminalId: string) => boolean): (() => void) => {
     // Held still or with less motion, no agent writes; the statuses are still followed, so an
     // agent that stops working loses the cursor it started with.
     const moving = !lessMotion() && !stillRequested()
@@ -472,8 +475,9 @@ export const createDemoSource = (
       endTurn(handle)
     }
     stopWriting = (handle) => setWorking(handle, false)
-    slots.forEach(({ handle }) => {
-      if (working.includes(handle)) setWorking(handle, true)
+    // Started again, an agent writes only if it still works: it may wait on the person now.
+    slots.forEach(({ handle, terminalId }) => {
+      if (works ? works(terminalId) : working.includes(handle)) setWorking(handle, true)
     })
     const unwatch = turns?.watchStatus((key, agent) => {
       if (key.projectId !== projectId || key.workspaceSessionId !== session.workspaceSessionId)
@@ -498,37 +502,48 @@ export const withSource = (
   backend: Backend,
   turns?: DemoTurns,
   source = createDemoSource(Date.now(), undefined, workingInSeed(backend.seed)),
-): Backend => ({
-  ...backend,
-  source,
-  commit: (workspace, actions) => {
-    backend.commit(workspace, actions)
-    // A closed terminal's agent writes no more, nor those of a storefront the workspace no
-    // longer has (the reducer keeps the last project).
-    for (const action of actions) {
-      if (action.type === "terminal/close" && action.target.projectId === projectId)
-        source.close(action.terminalId)
-      if (
-        action.type === "project/remove" &&
-        action.projectId === projectId &&
-        !workspace.projects.some((project) => project.id === projectId)
-      )
-        slots.forEach((slot) => source.close(slot.terminalId))
-    }
-    // Whatever stopped an agent, a verb or a status dispatched directly (the debug panel's
-    // terminal states, a crash), a terminal that no longer shows it working has it write no more.
-    slots.forEach((slot) => {
-      const terminal = terminalOf(workspace, { ...session, terminalId: slot.terminalId })
-      const agent = terminal?.state === "running" ? terminal.agent : undefined
-      if (!agent?.working || agent.attention) source.halt(slot.terminalId)
-    })
-  },
-  start: (sink) => {
-    const stop = backend.start?.(sink)
-    const stopSource = source.start(turns)
-    return () => {
-      stop?.()
-      stopSource()
-    }
-  },
-})
+): Backend => {
+  let latest: Workspace | undefined
+  // Whether the agent in that storefront terminal works now, asking nothing.
+  const works = (terminalId: string): boolean => {
+    const terminal = terminalOf(latest, { ...session, terminalId })
+    const agent = terminal?.state === "running" ? terminal.agent : undefined
+    return agent?.working === true && !agent.attention
+  }
+  return {
+    ...backend,
+    source,
+    commit: (workspace, actions) => {
+      latest = workspace
+      backend.commit(workspace, actions)
+      // A closed terminal's agent writes no more, nor those of a storefront the workspace no
+      // longer has (the reducer keeps the last project).
+      for (const action of actions) {
+        if (action.type === "terminal/close" && action.target.projectId === projectId)
+          source.close(action.terminalId)
+        if (
+          action.type === "project/remove" &&
+          action.projectId === projectId &&
+          !workspace.projects.some((project) => project.id === projectId)
+        )
+          slots.forEach((slot) => source.close(slot.terminalId))
+      }
+      // Whatever stopped an agent, a verb or a status dispatched directly (the debug panel's
+      // terminal states, a crash), a terminal that no longer shows it working has it write no more.
+      slots.forEach((slot) => {
+        const terminal = terminalOf(workspace, { ...session, terminalId: slot.terminalId })
+        const agent = terminal?.state === "running" ? terminal.agent : undefined
+        if (!agent?.working || agent.attention) source.halt(slot.terminalId)
+      })
+    },
+    start: (sink) => {
+      const stop = backend.start?.(sink)
+      // Before the first commit, the seed says who works.
+      const stopSource = source.start(turns, latest ? works : undefined)
+      return () => {
+        stop?.()
+        stopSource()
+      }
+    },
+  }
+}
