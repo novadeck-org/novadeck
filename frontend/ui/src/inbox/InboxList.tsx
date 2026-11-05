@@ -8,7 +8,7 @@ import {
 import { RestrictToElement } from "@dnd-kit/dom/modifiers"
 import { DragDropProvider } from "@dnd-kit/react"
 import { isSortable, useSortable } from "@dnd-kit/react/sortable"
-import { inboxType, type InboxRow, type InboxState } from "@novadeck/core/inbox"
+import { inboxType, rowKey, type InboxRow, type InboxState } from "@novadeck/core/inbox"
 import { NovaMark } from "@novadeck/toolkit/NovaLogo"
 import { sidebarListClasses } from "@novadeck/toolkit/SidebarItem"
 import { Tooltip } from "@novadeck/toolkit/Tooltip"
@@ -115,7 +115,7 @@ const Row = ({
     ? [settledWords[settled.how]]
     : [
         snoozed ? "Snoozed" : null,
-        started(drafts[row.id]) && !answering ? "Draft" : null,
+        started(drafts[rowKey(row)]) && !answering ? "Draft" : null,
         answering ? null : resumesLabel(row),
         readLabel(row),
       ].filter((extra): extra is string => extra !== null)
