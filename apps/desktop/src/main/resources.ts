@@ -58,8 +58,31 @@ export const releaseRepository = async (): Promise<ReturnType<typeof releaseRepo
 export type EngineFiles = { readonly manifest: string; readonly source: string }
 
 /**
+ * Where a development run finds the engine `pnpm build:engine` built in the engine package
+ * `name`, as the package itself says: the app's dependency on it finds it wherever its folder
+ * is, from `appPath`. Loaded as it is, not bundled, so it names its own folder. Where the
+ * package can't be loaded, as before a `pnpm install` that links it, both are empty: the
+ * runner then finds no engine, as it does one never built, and the app still starts.
+ */
+export const builtEngine = async (
+  appPath: string,
+  name: "@novadeck/whisper" | "@novadeck/murmur",
+): Promise<EngineFiles> => {
+  try {
+    const entry = createRequire(join(appPath, "package.json")).resolve(name)
+    const built = (await import(/* @vite-ignore */ pathToFileURL(entry).href)) as {
+      readonly engineDirectory: string
+      readonly engineManifest: string
+    }
+    return { manifest: built.engineManifest, source: built.engineDirectory }
+  } catch {
+    return { manifest: "", source: "" }
+  }
+}
+
+/**
  * Where an engine is found: the manifest shipped beside the UI in `packaged`, or the one
- * `pnpm build:engine` leaves in engines/`built`/dist; and where its archive is downloaded
+ * `pnpm build:engine` built in the engine package `built`; and where its archive is downloaded
  * from, which is the release this build came from once packaged, in the repository
  * app-update.yml names. Without one the source is empty, and installing the engine fails
  * rather than download from a guess. The `sourceVariable` points a build at another folder
@@ -67,14 +90,11 @@ export type EngineFiles = { readonly manifest: string; readonly source: string }
  * download from.
  */
 const engineFiles = async (
-  built: string,
+  built: Parameters<typeof builtEngine>[1],
   packaged: string,
   sourceVariable: string,
 ): Promise<EngineFiles> => {
-  if (!app.isPackaged) {
-    const dist = join(app.getAppPath(), "..", "..", "engines", built, "dist")
-    return { manifest: join(dist, "engine.json"), source: dist }
-  }
+  if (!app.isPackaged) return builtEngine(app.getAppPath(), built)
   const override = process.env[sourceVariable]
   const repository = override ? undefined : await releaseRepository()
   return {
@@ -85,8 +105,8 @@ const engineFiles = async (
 
 /** Where voice input finds its engine; see `engineFiles`. */
 export const voiceEngine = (): Promise<EngineFiles> =>
-  engineFiles("whisper", "voice", "NOVADECK_VOICE_SOURCE")
+  engineFiles("@novadeck/whisper", "voice", "NOVADECK_VOICE_SOURCE")
 
 /** Where murmur finds its engine; see `engineFiles`. */
 export const murmurEngine = (): Promise<EngineFiles> =>
-  engineFiles("murmur", "murmur", "NOVADECK_MURMUR_SOURCE")
+  engineFiles("@novadeck/murmur", "murmur", "NOVADECK_MURMUR_SOURCE")

@@ -90,3 +90,41 @@ describe("the runner's output", () => {
     ])
   })
 })
+
+describe("the runner's output, line by line", () => {
+  // The lines `chunks` make, written to a stream that then ends.
+  const linesOf = async (chunks: string[], limit?: number): Promise<string[]> => {
+    const stream = new PassThrough()
+    const seen: string[] = []
+    const ended = new Promise<void>((resolve) =>
+      eachLine(stream, (line) => seen.push(line), resolve, limit),
+    )
+    for (const chunk of chunks) stream.write(chunk)
+    stream.end()
+    await ended
+    return seen
+  }
+
+  it("passes on each line that holds more than spaces, a line split across chunks whole", async () => {
+    expect(await linesOf(["one\r\ntw", "o\n  \n\nthree"])).toEqual(["one", "two", "three"])
+  })
+
+  it("cuts a line past its limit and drops the rest of it, however long it runs", async () => {
+    // A megabyte with no line break, in 64 KiB chunks.
+    const chunk = "x".repeat(64 * 1024)
+    const seen = await linesOf([
+      "before\n",
+      ...Array.from({ length: 16 }, () => chunk),
+      "still the long line\nafter\n",
+    ])
+    expect(seen).toEqual(["before", `${"x".repeat(16 * 1024)}…`, "after"])
+  })
+
+  it("cuts a long line that ends within one chunk too", async () => {
+    expect(await linesOf([`${"y".repeat(20)}\nshort\n${"z".repeat(12)}`], 10)).toEqual([
+      `${"y".repeat(10)}…`,
+      "short",
+      `${"z".repeat(10)}…`,
+    ])
+  })
+})

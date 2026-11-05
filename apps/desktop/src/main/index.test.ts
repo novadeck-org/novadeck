@@ -67,6 +67,24 @@ describe("the compiled desktop app", () => {
       expect(preload).toContain("pickDirectory")
     })
 
+    it("opens no window, and keeps no server, once a quit began while the app started", async () => {
+      const main = await read("main/index.js")
+
+      // The server that starts after the quit closed what it found is closed in turn, and
+      // the window waits on both checks.
+      const started = main.indexOf("const started = await startHttpServer(")
+      const window = main.indexOf("createWindow(server.origin);\n  void updates")
+      expect(started).toBeGreaterThan(-1)
+      expect(window).toBeGreaterThan(started)
+      const tail = main.slice(started, window)
+      expect(tail).toMatch(
+        /if \(quitting\.stopping\) \{\s*await started\.close\(\)\.catch\([^;]*;\s*return;\s*\}\s*server = started;/u,
+      )
+      expect(tail).toMatch(
+        /await waitForUi\(developmentOrigin\);\s*if \(quitting\.stopping\) return;\s*$/u,
+      )
+    })
+
     it("lets pages save before quitting or closing a window ends the runner's shells", async () => {
       const main = await read("main/index.js")
       const preload = await read("preload/index.cjs")

@@ -116,6 +116,9 @@ importers:
       '@novadeck/log':
         specifier: workspace:*
         version: link:../../libraries/log
+      '@novadeck/murmur':
+        specifier: workspace:*
+        version: link:../../engines/murmur
       '@novadeck/protocol':
         specifier: workspace:*
         version: link:../../contract/protocol
@@ -137,6 +140,9 @@ importers:
       '@novadeck/viewers':
         specifier: workspace:*
         version: link:../../libraries/viewers
+      '@novadeck/whisper':
+        specifier: workspace:*
+        version: link:../../engines/whisper
       '@novadeck/wire':
         specifier: workspace:*
         version: link:../../libraries/wire
