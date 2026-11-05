@@ -34,7 +34,11 @@ describe("lost", () => {
       const cause = new TypeError("Cannot read properties of null")
       const result = lost(cause, session(true))
       expect(result).toBeInstanceOf(WireError)
-      expect(result).toMatchObject({ code: "INTERNAL_SERVER_ERROR", cause })
+      expect(result).toMatchObject({
+        code: "INTERNAL_SERVER_ERROR",
+        message: "Cannot read properties of null",
+        cause,
+      })
     })
   })
 

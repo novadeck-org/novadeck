@@ -90,6 +90,8 @@ describe("a call", () => {
       const listing = runner.projects.list()
       send("not a message")
       const error = await failure(listing)
+      // INTERNAL_SERVER_ERROR while the wire leaves the channel open after an unreadable
+      // frame; DISCONNECTED once it closes the channel, as it is to.
       expect(error).toBeInstanceOf(WireError)
       expect(hasCode(error, "DISCONNECTED", "INTERNAL_SERVER_ERROR")).toBe(true)
     })
