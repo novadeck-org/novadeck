@@ -1,6 +1,12 @@
 import { basename, win32 } from "node:path"
 
-import type { TerminalSummary, TitleSource } from "@novadeck/protocol"
+import {
+  asLine,
+  maxTerminalTitle,
+  titleFrom,
+  type TerminalSummary,
+  type TitleSource,
+} from "@novadeck/protocol"
 
 import { commandWords } from "./commands.js"
 
@@ -51,20 +57,16 @@ const programWord = (words: readonly string[]): string | undefined => {
 
 /**
  * The default title of a terminal nothing named: the program it was opened to run, as
- * `claude` for `claude --resume`, else "Terminal". It is always a valid title: trimmed,
- * at most 200 characters, without control characters.
+ * `claude` for `claude --resume`, else "Terminal". It is always a valid title: one line
+ * (`asLine`) of at most `maxTerminalTitle` characters.
  */
 export const defaultTitle = (command: string | null): string => {
   const first = command === null ? undefined : programWord(commandWords(command))
   if (first === undefined) return "Terminal"
   const base = process.platform === "win32" ? win32.basename(first) : basename(first)
-  const title = [
-    ...base
-      .replace(/\.(?:exe|cmd)$/i, "")
-      .replace(control, "")
-      .trim(),
-  ]
-  return title.length >= 1 && title.length <= 200 ? title.join("") : "Terminal"
+  // A name too long for a title is no program's name worth showing: never half of one.
+  const title = asLine(base.replace(/\.(?:exe|cmd)$/i, ""))
+  return title !== "" && [...title].length <= maxTerminalTitle ? title : "Terminal"
 }
 
 // Characters no summary keeps: C0 and C1 control characters, and DEL.
@@ -89,14 +91,16 @@ export const titleOf = (
   naming: Naming,
   terminal: { readonly command: string | null; readonly openedBy: string | null },
 ): { readonly title: string; readonly source: TitleSource } => {
-  if (naming.person !== null) return { title: naming.person, source: { kind: "person" } }
+  // Each kept title as a title may be now: one kept before the rule took in more holds
+  // what it refuses, which would fail every summary it is in.
+  const person = naming.person !== null ? titleFrom(naming.person) : undefined
+  if (person !== undefined) return { title: person, source: { kind: "person" } }
   // An opener's title needs the terminal that opened it to say who it is from.
-  if (naming.opener && terminal.openedBy !== null)
-    return {
-      title: naming.opener.title,
-      source: { kind: "agent", by: terminal.openedBy },
-    }
-  if (naming.murmur) return { title: naming.murmur.title, source: { kind: "murmur" } }
+  const opener = naming.opener ? titleFrom(naming.opener.title) : undefined
+  if (opener !== undefined && terminal.openedBy !== null)
+    return { title: opener, source: { kind: "agent", by: terminal.openedBy } }
+  const murmur = naming.murmur ? titleFrom(naming.murmur.title) : undefined
+  if (murmur !== undefined) return { title: murmur, source: { kind: "murmur" } }
   return { title: defaultTitle(terminal.command), source: { kind: "default" } }
 }
 

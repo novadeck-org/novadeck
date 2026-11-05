@@ -5,17 +5,15 @@ import {
   type DesktopNotice,
 } from "@novadeck/protocol/bridge"
 import { defaultNoticeSound, noticeSoundOf, type NoticeSound } from "@novadeck/protocol/sounds"
+import { unsafeInLine } from "@novadeck/protocol/text"
 import type { IpcMainEvent } from "electron"
 
 import { noticeChannel, noticeCloseChannel } from "../../bridge.js"
 
-// What a notice may not hold: control characters, and the bidirectional overrides and
-// isolates that could make it read as something else.
-// eslint-disable-next-line no-control-regex -- These are the characters it refuses.
-const unsafe = /[\x00-\x1f\x7f-\x9f\u061c\u200e\u200f\u202a-\u202e\u2066-\u2069]/
-
+// What a notice may not hold is what one line may not: control characters, and the marks
+// that could make it read as something else (`unsafeInLine`).
 const line = (value: unknown, length: number): value is string =>
-  typeof value === "string" && value.length <= length && !unsafe.test(value)
+  typeof value === "string" && value.length <= length && !unsafeInLine.test(value)
 
 /**
  * The page's notice when it is one, or undefined. The page is not trusted with more: a
