@@ -1,6 +1,6 @@
 export { contract, type ErrorCode, errors, type WireClient } from "./contract.js"
 export { hasControlCharacters, normalisedText, promptRefusal, shellCommand } from "./prompts.js"
-export { type AgentName, agentNames, harnesses } from "./harnesses.js"
+export { type AgentName, agentNames, harnesses, isAgentName } from "./harnesses.js"
 export { onThisMachine, pageKey } from "./pages.js"
 export {
   maxVoicePartLength,
@@ -55,6 +55,7 @@ export {
   type CompanionWindow,
   itemContent,
   type ItemContent,
+  lookLimits,
   maxChangedFiles,
   maxChangesBytes,
   maxLookPicture,
@@ -76,7 +77,7 @@ export {
   requestDialog,
   type RequestDialog,
 } from "./dialogs.js"
-export { type FeedbackDraft, feedbackKind, maxFeedbackText } from "./feedback.js"
+export { type FeedbackDraft, feedbackKind, type FeedbackKind, maxFeedbackText } from "./feedback.js"
 export {
   agentAsk,
   type AgentAsk,
@@ -117,6 +118,7 @@ export {
   type ForegroundProcess,
   handle,
   maxStartupCommand,
+  maxTerminalTitle,
   maxUploadBytes,
   maxUploadPartLength,
   startupCommand,
@@ -128,9 +130,20 @@ export {
   type TerminalRequestAnswer,
   type TerminalSummary,
   terminalTitle,
+  titleFrom,
   type TitleSource,
 } from "./terminals.js"
-export { hiddenCharacter, hiddenIn, maxCommandLines } from "./text.js"
+export {
+  asLine,
+  controlCharacter,
+  directionMark,
+  hiddenCharacter,
+  hiddenIn,
+  maxCommandLines,
+  singleLine,
+  unsafeCharacter,
+  unsafeInLine,
+} from "./text.js"
 export {
   type ToolRun,
   type TranscriptChange,

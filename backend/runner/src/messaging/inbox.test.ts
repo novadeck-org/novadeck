@@ -393,6 +393,57 @@ describe("Inbox persistence and identity", () => {
     expect(read.content.files.every((file) => file.length === maxTurnFilePath)).toBe(true)
   })
 
+  // As a portable copy opening the workspace of a newer build, which knows more harnesses.
+  it("leaves out a stored entry of a harness this build doesn't know, and keeps it for that build", () => {
+    const records = memoryInbox()
+    const known = {
+      ...identity,
+      id: randomUUID(),
+      at: 1,
+      state: "open" as const,
+      content: { kind: "tell" as const, subject: "Known", body: "" },
+    }
+    const unknown = { ...known, id: randomUUID(), at: 2, agent: "cursor" as never }
+    records.saveEntry(known)
+    records.saveEntry(unknown)
+    const { inbox, stop } = setup(records)
+    const listed = inbox.list()
+    stop()
+    expect(listed.map((each) => each.id)).toEqual([known.id])
+    expect(listed.every((each) => inboxEntry.safeParse(each).success)).toBe(true)
+    expect(records.entries().map((each) => each.id)).toEqual([known.id, unknown.id])
+  })
+
+  it("takes an action's folder that is only spaces as no folder", () => {
+    const { inbox, create, stop } = setup()
+    // It throws with the reason, were it refused.
+    create({
+      subject: "Build",
+      body: "",
+      shape: { type: "action", command: "make", directory: "  \u202e ", done_label: "Done" },
+    })
+    const [listed] = inbox.list()
+    stop()
+    expect(listed?.content).toMatchObject({
+      kind: "ask",
+      ask: { shape: { type: "action", command: "make", directory: null } },
+    })
+  })
+
+  it("refuses an action's folder of more than one line with the folder's rule", () => {
+    const { inbox, stop } = setup()
+    const result = inbox.call(identity.terminalId, "ask", {
+      subject: "Build",
+      body: "",
+      shape: { type: "action", command: "make", directory: "/repo\tsub", done_label: "Done" },
+    })
+    stop()
+    expect(result).toMatchObject({
+      ok: false,
+      reason: expect.stringContaining("Use one plain line for the folder"),
+    })
+  })
+
   it("retains the complete choice and action instructions in history", () => {
     const { inbox, create, messaging } = setup()
     create({

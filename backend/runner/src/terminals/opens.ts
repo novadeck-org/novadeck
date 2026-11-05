@@ -4,6 +4,7 @@ import { efforts } from "@novadeck/harness-core/harness"
 import {
   agentName,
   agentSessionId,
+  directionMark,
   startupCommand,
   terminalTitle,
   type AgentName,
@@ -131,7 +132,12 @@ export const readOpenRequest = (
   if (parsed.success) return { ok: true, request: parsed.data }
   const [issue] = parsed.error.issues
   if (issue?.path[0] === "command" && issue.code === "invalid_format")
-    return refused("The command must be one line, without control characters.")
+    // What the person is asked to approve must read as it runs: no direction controls.
+    return refused(
+      directionMark.test(String((value as { command?: unknown }).command))
+        ? "The command holds text-direction control characters, which aren't run."
+        : "The command must be one line, without control characters.",
+    )
   if (issue?.code === "custom") return refused(issue.message)
   if (issue?.path[0] === "resume")
     return refused(

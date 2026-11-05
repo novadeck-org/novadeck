@@ -45,8 +45,9 @@ const messageRecipient = z.discriminatedUnion("kind", [
   personParty,
 ])
 
-// One message between two terminals' agents, as sent: its text up to 4 KB, its place in
-// its thread, and where it is on its way. `held` says why a held message waits: messaging
+// One message between two terminals' agents, as sent: its text (an agent's runs up to 4 KB;
+// the bound leaves room for the Inbox history and responses the runner writes), its place
+// in its thread, and where it is on its way. `held` says why a held message waits: messaging
 // is paused, or its thread awaits the person's `messages.release`.
 const agentMessage = z.strictObject({
   id: messageId,
