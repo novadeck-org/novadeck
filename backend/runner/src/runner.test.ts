@@ -21,7 +21,12 @@ describe("a runner that can't be built", () => {
     ]
     resources.defer(() => closes.forEach((spy) => spy.mockRestore()))
     expect(() =>
-      createRunner({ database: join(root, "workspace.sqlite"), terminals: { maxRetained: 0 } }),
+      createRunner({
+        database: join(root, "workspace.sqlite"),
+        terminals: { maxRetained: 0 },
+        // No login shell, and no home but the scratch one.
+        agents: { login: false, home: root, env: { PATH: process.env.PATH, HOME: root } },
+      }),
     ).toThrow(RangeError)
     await vi.waitFor(() => {
       for (const spy of closes) expect(spy).toHaveBeenCalledOnce()

@@ -131,12 +131,13 @@ describe("a project's folder", () => {
   )
 
   it.skipIf(process.platform === "win32")(
-    "marks nothing ignored when git takes too long, and ends it",
+    "marks nothing ignored when git takes too long, and ends it with what it started",
     async ({ resources }) => {
       const root = repository(resources)
       const slow = project(resources)
       const pid = join(slow, "pid")
-      writeFileSync(join(slow, "git"), `#!/bin/sh\necho $$ > "${pid}"\nexec sleep 30\n`, {
+      // It leaves a child of its own holding the output, as a filter's program may.
+      writeFileSync(join(slow, "git"), `#!/bin/sh\nsleep 30 &\necho $! > "${pid}"\nwait\n`, {
         mode: 0o755,
       })
       const saved = process.env.PATH

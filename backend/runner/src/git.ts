@@ -1,7 +1,8 @@
 import { findProgram } from "./programs.js"
 
-// The git found for each PATH the runner had, so a test or a changed PATH looks again.
-const found = new Map<string, string | undefined>()
+// The git found for each PATH the runner had, so a test or a changed PATH looks again. Only
+// a git found is kept: one installed while the runner runs is found at the next look.
+const found = new Map<string, string>()
 
 /**
  * Git, found on the PATH by an absolute entry, so a program of that name in the folder the
@@ -10,8 +11,11 @@ const found = new Map<string, string | undefined>()
  */
 export const gitPath = (env: NodeJS.ProcessEnv = process.env): string | undefined => {
   const key = env.PATH ?? env.Path ?? ""
-  if (!found.has(key)) found.set(key, findProgram("git", { env, extensions: [".exe"] }))
-  return found.get(key)
+  const known = found.get(key)
+  if (known) return known
+  const program = findProgram("git", { env, extensions: [".exe"] })
+  if (program) found.set(key, program)
+  return program
 }
 
 // The variables of the person's environment that point git at another repository, another

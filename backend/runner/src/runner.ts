@@ -136,8 +136,9 @@ export const wire = (options: RunnerOptions) => {
   try {
     return assemble(store, options, started)
   } catch (error) {
-    // A part that can't be built, such as terminals given a limit of 0, leaves nothing
-    // running: what already started ends, then the store, in the order `close` ends them.
+    // A part that can't be built, such as terminals given a limit of 0: what already started
+    // ends, then the store, in the order `close` ends them, as voice and murmur read settings
+    // while they load. The login shell's lookup and a plugin refresh may still finish.
     void Promise.allSettled(started.map((part) => part.close())).finally(() => store.close())
     throw error
   }
