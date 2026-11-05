@@ -68,10 +68,11 @@ const spawn = (args = [ptyChild], options: { useConptyDll?: boolean } = {}) => {
     events.emit("exit")
   })
   onTestFinished(async () => {
-    // Diagnostic for #712, to come out once CI has shown where Windows' time goes.
+    // Diagnostic for #712, to come out once CI has shown where Windows' time goes. Written
+    // to stdout, which Vitest shows for a passing test, unlike the console.
     if (process.platform === "win32")
-      console.info(
-        `PTY ${child.pid} steps (${(options.useConptyDll ?? true) ? "bundled" : "system"} ConPTY):\n${steps.join("\n")}`,
+      process.stdout.write(
+        `PTY ${child.pid} steps (${(options.useConptyDll ?? true) ? "bundled" : "system"} ConPTY):\n${steps.join("\n")}\n`,
       )
     try {
       if (!exited) child.kill()
@@ -235,8 +236,8 @@ describe("installed native PTY dependency", () => {
       }
       // Every line was timed, the last perhaps as over 10 s.
       expect(times.length).toBeGreaterThan(0)
-      console.info(
-        `Input round trips on the ${conpty} ConPTY:\n${times.join("\n")}\n${ptyTrace(30)}`,
+      process.stdout.write(
+        `Input round trips on the ${conpty} ConPTY:\n${times.join("\n")}\n${ptyTrace(30)}\n`,
       )
     },
   )
