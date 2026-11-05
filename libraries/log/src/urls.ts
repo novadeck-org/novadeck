@@ -16,14 +16,17 @@ export type UrlRule = PathRule & {
 const publicForges: readonly string[] = ["github.com", "gitlab.com", "bitbucket.org"]
 
 // An address of any kind but `file://`, which `pathHasher` takes: scheme, user, host, port,
-// path, query and fragment.
+// path, query and fragment. The scheme is bounded, and not anchored to a word's start, so a
+// long dotted run with no `://` is looked at once, not again from each of its words; nor does
+// it start inside `file`.
 const urlPattern =
-  /\b(?<scheme>(?!file:)[a-z][a-z0-9+.-]*):\/\/(?<user>[^\s/@'"]*@)?(?<host>\[[0-9a-f:]+\]|[^\s/:?#'"<>()[\]\\]+)(?<port>:\d+)?(?<path>\/[^\s?#'"<>()[\]\\]*)?(?<query>\?[^\s#'"()[\]\\]*)?(?<fragment>#[^\s'"()[\]\\]*)?/gi
+  /(?<scheme>(?!file:)(?<!f)(?<!fi)(?<!fil)[a-z][a-z0-9+.-]{0,31}):\/\/(?<user>[^\s/@'"]*@)?(?<host>\[[0-9a-f:]+\]|[^\s/:?#'"<>()[\]\\]+)(?<port>:\d+)?(?<path>\/[^\s?#'"<>()[\]\\]*)?(?<query>\?[^\s#'"()[\]\\]*)?(?<fragment>#[^\s'"()[\]\\]*)?/gi
 
 // A Git remote over SSH, `git@github.com:acme/repo.git`: a path after the colon with a slash
-// in it or a `.git` at its end.
+// in it or a `.git` at its end, looked for within the path alone, so text after it isn't read
+// again for each remote-like part before it.
 const remotePattern =
-  /(?<![\w.@-])(?<user>[\w.-]+)@(?<host>[\w-]+(?:\.[\w-]+)+):(?<path>(?=[^\s]*(?:\/|\.git\b))[\w.~-][\w./~-]*)/g
+  /(?<![\w.@-])(?<user>[\w.-]+)@(?<host>[\w-]+(?:\.[\w-]+)+):(?<path>(?=[\w.~-][\w./~-]*?(?:\/|\.git\b))[\w.~-][\w./~-]*)/g
 
 const loopback = /^(?:localhost|127(?:\.\d+){3}|\[::1\])$/i
 
@@ -113,9 +116,12 @@ export const urlHasher = (rule: UrlRule): ((text: string) => string) => {
       const query = strip(groups.query)
       const fragment = strip(groups.fragment)
       // A readable address keeps its path, not what it asked or pointed at; so does the
-      // loopback's, which serves the app's own page and its scripts, as its stack frames name.
-      if (isReadable(host.toLowerCase(), path) || loopback.test(host))
-        return `${scheme}://${user}${host}${port}${path}${query ? "?…" : ""}${fragment ? "#…" : ""}${tail}`
+      // loopback's, which serves the app's own page and its scripts, as its stack frames name,
+      // but for a file a dev server serves from anywhere on disk by its path (`/@fs/home/…`).
+      if (isReadable(host.toLowerCase(), path) || loopback.test(host)) {
+        const kept = /^\/@fs\//i.test(path) ? `/@fs${writePath(path.slice(4))}` : path
+        return `${scheme}://${user}${host}${port}${kept}${query ? "?…" : ""}${fragment ? "#…" : ""}${tail}`
+      }
       return (
         `${scheme}://${user}${writeHost(host)}${port}${writePath(path)}` +
         `${query ? "?…" : ""}${fragment ? "#…" : ""}${tail}`

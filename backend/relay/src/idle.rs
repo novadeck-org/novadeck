@@ -1,6 +1,8 @@
-//! The MCP server as it answers outside Novadeck's terminals, or once their runner is
-//! gone: the handshake, and no tools. Agents start the server in every session, so the
-//! agent sees a working server it has nothing to call.
+//! The MCP server as it answers outside Novadeck's terminals, or where their runner can't
+//! be reached or doesn't take the session when the agent starts it: the handshake, and no
+//! tools. Agents start the server in every session, so the agent sees a working server it
+//! has nothing to call. A runner that goes away once it has taken the session ends the
+//! relay instead, as what the agent was told of its tools no longer holds.
 
 use std::io::{self, BufRead, Write};
 
@@ -27,10 +29,13 @@ fn answer(line: &str, server: &str, versions: &[String]) -> Option<String> {
     };
     // Notifications, such as notifications/initialized, need no answer; nor do answers.
     let id = request.get("id").cloned().unwrap_or(Value::Null);
-    let method = request.get("method").and_then(Value::as_str)?;
-    if id.is_null() {
+    if id.is_null() || request.contains_key("result") || request.contains_key("error") {
         return None;
     }
+    // A request whose method isn't text is answered, so the agent's call doesn't wait on it.
+    let Some(method) = request.get("method").and_then(Value::as_str) else {
+        return reply(id, error(-32600, "Invalid Request".into()));
+    };
     match method {
         "initialize" => {
             let asked = request
@@ -71,13 +76,22 @@ fn answer(line: &str, server: &str, versions: &[String]) -> Option<String> {
 
 /// Answers the agent, one line at a time, until it closes its side.
 pub fn serve(server: &str, versions: &[String]) {
-    let stdin = io::stdin();
-    let mut stdout = io::stdout().lock();
-    for line in stdin.lock().lines() {
-        let Ok(line) = line else { return };
-        if let Some(answer) = answer(&line, server, versions) {
-            if writeln!(stdout, "{answer}")
-                .and_then(|_| stdout.flush())
+    answer_each(io::stdin().lock(), io::stdout().lock(), server, versions);
+}
+
+/// Answers each line of `input` on `output`. A line that isn't UTF-8 is read as it can be
+/// and refused like any other it can't read, rather than ending the session.
+fn answer_each(mut input: impl BufRead, mut output: impl Write, server: &str, versions: &[String]) {
+    let mut line = Vec::new();
+    loop {
+        line.clear();
+        match input.read_until(b'\n', &mut line) {
+            Ok(0) | Err(_) => return,
+            Ok(_) => {}
+        }
+        if let Some(answer) = answer(&String::from_utf8_lossy(&line), server, versions) {
+            if writeln!(output, "{answer}")
+                .and_then(|_| output.flush())
                 .is_err()
             {
                 return;
@@ -142,6 +156,11 @@ mod tests {
             None
         );
         assert_eq!(quiet(r#"{"jsonrpc":"2.0","id":4,"result":{}}"#), None);
+        assert_eq!(
+            quiet(r#"{"jsonrpc":"2.0","id":4,"error":{"code":1,"message":"x"}}"#),
+            None
+        );
+        assert_eq!(quiet(r#"{"jsonrpc":"2.0","method":3}"#), None);
         assert_eq!(quiet("   "), None);
     }
 
@@ -157,11 +176,38 @@ mod tests {
             unknown["error"],
             json!({ "code": -32601, "message": "Method not found: resources/list" })
         );
+        // A request with no method, or one that isn't text, is still answered.
+        assert_eq!(
+            parsed(r#"{"jsonrpc":"2.0","id":7,"method":3}"#),
+            json!({ "jsonrpc": "2.0", "id": 7, "error": { "code": -32600, "message": "Invalid Request" } })
+        );
+        assert_eq!(
+            parsed(r#"{"jsonrpc":"2.0","id":8}"#)["error"]["code"],
+            -32600
+        );
         let call =
             parsed(r#"{"jsonrpc":"2.0","id":6,"method":"tools/call","params":{"name":"show"}}"#);
         assert_eq!(
             call["error"],
             json!({ "code": -32602, "message": "Unknown tool: show" })
+        );
+    }
+
+    #[test]
+    fn answers_on_after_a_line_that_isnt_utf_8() {
+        let input: &[u8] = b"\xff\xfe\n{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"ping\"}\n";
+        let mut output = Vec::new();
+        answer_each(input, &mut output, "1.2.0", &versions());
+        let answers: Vec<Value> = String::from_utf8(output)
+            .unwrap()
+            .lines()
+            .map(|line| serde_json::from_str(line).unwrap())
+            .collect();
+        assert_eq!(answers.len(), 2);
+        assert_eq!(answers[0]["error"]["code"], -32700);
+        assert_eq!(
+            answers[1],
+            json!({ "jsonrpc": "2.0", "id": 1, "result": {} })
         );
     }
 }

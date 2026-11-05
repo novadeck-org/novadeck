@@ -4,6 +4,7 @@
 //! speaks another version of the protocol, leaves the relay to answer by itself, with no
 //! tools: nothing of the agent's has been read yet, so the session is whole.
 
+use std::io;
 use std::time::Duration;
 
 use serde_json::{Value, json};
@@ -16,10 +17,12 @@ use crate::{PROTOCOL, idle};
 /// can't be half closed: the runner answers the calls under way, then closes.
 const END: &str = "{\"relay\":\"eof\"}\n";
 
-/// How long the runner has to take the session before the relay answers by itself: long,
-/// as a runner busy restoring terminals answers late, and a session given up on stays
-/// without tools for as long as its agent runs; within the ten seconds an agent such as
-/// Codex gives a server to start. A runner that refuses the session says so at once.
+/// How long the runner has to take the session before the relay answers by itself,
+/// reaching it included (on Windows, connecting waits up to two seconds while every
+/// instance of the pipe is busy): long, as a runner busy restoring terminals answers late,
+/// and a session given up on stays without tools for as long as its agent runs; within the
+/// ten seconds an agent such as Codex gives a server to start. A runner that refuses the
+/// session says so at once.
 const TAKEN_WITHIN: Duration = Duration::from_millis(8_000);
 
 /// Whether a line is the runner taking the session, in this relay's protocol.
@@ -37,14 +40,15 @@ pub fn run(server: &str, versions: &[String]) {
     };
     // In one, the agent's log says why Novadeck's tools are missing.
     let idle = |why: &str| {
-        eprintln!("Novadeck's relay offers no tools: {why}.");
+        crate::complain(&format!("Novadeck's relay offers no tools: {why}."));
         idle::serve(server, versions);
     };
     let Ok(runtime) = endpoint::runtime() else {
         return idle("it couldn't start");
     };
     let hello = terminal.hello("mcp", json!({}));
-    match runtime.block_on(open(&terminal.endpoint, hello)) {
+    let opened = open(endpoint::connect(&terminal.endpoint), hello, TAKEN_WITHIN);
+    match runtime.block_on(opened) {
         Ok(session) => runtime.block_on(carry(session)),
         Err(why) => {
             runtime.shutdown_background();
@@ -58,23 +62,31 @@ pub fn run(server: &str, versions: &[String]) {
 
 type Session = (BufReader<endpoint::Reader>, endpoint::Writer);
 
-/// Connects, names the terminal, and waits for the runner to take the session.
-async fn open(endpoint: &str, hello: String) -> Result<Session, &'static str> {
-    let (from_runner, mut to_runner) = endpoint::connect(endpoint)
+/// Connects (`connecting`), names the terminal, and waits for the runner to take the
+/// session, all of it `within` that long.
+async fn open(
+    connecting: impl Future<Output = io::Result<(endpoint::Reader, endpoint::Writer)>>,
+    hello: String,
+    within: Duration,
+) -> Result<Session, &'static str> {
+    let opening = async {
+        let (from_runner, mut to_runner) = connecting
+            .await
+            .map_err(|_| "Novadeck's runner can't be reached")?;
+        to_runner
+            .write_all(hello.as_bytes())
+            .await
+            .map_err(|_| "Novadeck's runner went away")?;
+        let mut from_runner = BufReader::new(from_runner);
+        let mut line = String::new();
+        match from_runner.read_line(&mut line).await {
+            Ok(read) if read > 0 && taken(&line) => Ok((from_runner, to_runner)),
+            _ => Err("Novadeck's runner speaks another version of the relay's protocol"),
+        }
+    };
+    tokio::time::timeout(within, opening)
         .await
-        .map_err(|_| "Novadeck's runner can't be reached")?;
-    to_runner
-        .write_all(hello.as_bytes())
-        .await
-        .map_err(|_| "Novadeck's runner went away")?;
-    let mut from_runner = BufReader::new(from_runner);
-    let mut line = String::new();
-    let read = tokio::time::timeout(TAKEN_WITHIN, from_runner.read_line(&mut line)).await;
-    match read {
-        Ok(Ok(read)) if read > 0 && taken(&line) => Ok((from_runner, to_runner)),
-        Ok(_) => Err("Novadeck's runner speaks another version of the relay's protocol"),
-        Err(_) => Err("Novadeck's runner didn't answer"),
-    }
+        .unwrap_or(Err("Novadeck's runner didn't answer"))
 }
 
 async fn carry((mut from_runner, mut to_runner): Session) {
@@ -137,5 +149,43 @@ mod tests {
         assert!(!taken("{\"relay\":2,\"ok\":false}\n"));
         assert!(!taken("{\"jsonrpc\":\"2.0\",\"id\":1,\"result\":{}}\n"));
         assert!(!taken(""));
+    }
+
+    /// A runner that is reached after `reached`, and takes the session `takes` after its
+    /// first line.
+    async fn runner(
+        reached: Duration,
+        takes: Duration,
+    ) -> io::Result<(endpoint::Reader, endpoint::Writer)> {
+        tokio::time::sleep(reached).await;
+        let (relay, runner) = tokio::io::duplex(1024);
+        tokio::spawn(async move {
+            let (from_relay, mut to_relay) = tokio::io::split(runner);
+            let mut hello = String::new();
+            let _ = BufReader::new(from_relay).read_line(&mut hello).await;
+            tokio::time::sleep(takes).await;
+            let _ = to_relay.write_all(b"{\"relay\":2,\"ok\":true}\n").await;
+            std::future::pending::<()>().await;
+        });
+        let (from_runner, to_runner) = tokio::io::split(relay);
+        Ok((Box::new(from_runner), Box::new(to_runner)))
+    }
+
+    #[test]
+    fn waits_for_the_runner_reaching_it_included_no_longer_than_it_may() {
+        let runtime = endpoint::runtime().unwrap();
+        let ms = Duration::from_millis;
+        let opened = |reached, takes, within| {
+            runtime
+                .block_on(open(runner(reached, takes), "{}\n".into(), within))
+                .map(|_| ())
+        };
+        assert_eq!(opened(ms(0), ms(0), ms(2_000)), Ok(()));
+        // Reaching the runner, as Windows' busy pipe waits, counts toward the limit.
+        assert_eq!(
+            opened(ms(300), ms(300), ms(450)),
+            Err("Novadeck's runner didn't answer")
+        );
+        assert_eq!(opened(ms(300), ms(300), ms(2_000)), Ok(()));
     }
 }

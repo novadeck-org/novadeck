@@ -187,7 +187,10 @@ const textsOf = (content: unknown): string[] =>
 const queuedKey = (attachment: Fields): string => {
   const origin = (attachment.origin ?? {}) as Fields
   const kind = typeof origin.kind === "string" ? origin.kind : "none"
-  const mode = typeof attachment.commandMode === "string" ? attachment.commandMode : "none"
+  // No mode is read as a prompt, as the decoder reads it; a mode that is no string is not.
+  const { commandMode } = attachment
+  const mode =
+    typeof commandMode === "string" ? commandMode : commandMode === undefined ? "none" : "untyped"
   return `attachment:queued_command/${kind}/${mode}${attachment.isMeta === true ? "/meta" : ""}`
 }
 

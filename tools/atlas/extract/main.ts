@@ -49,7 +49,7 @@ const resolveFlows = (anchors: Anchors): Flow[] =>
   }))
 
 export const build = async (): Promise<Atlas> => {
-  ensureBuilt(repo)
+  await ensureBuilt(repo)
   const anchors = createAnchors(repo)
   const api = await extractApi(repo, anchors)
   const data = await extractData(repo, anchors)

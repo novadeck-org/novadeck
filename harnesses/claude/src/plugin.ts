@@ -33,9 +33,18 @@ const events = [
 export const hookDialect = (platform: NodeJS.Platform, event?: string): Dialect =>
   platform === "win32" && event !== "StatusLine" ? "powershell" : "sh"
 
-/** Outside Novadeck's shells its hooks print nothing: Claude Code needs no fallback answer. */
+/**
+ * Outside Novadeck's shells its hooks print nothing: Claude Code needs no fallback answer.
+ * On Windows its status line, run in Git Bash, starts the launcher (a batch file, which
+ * Windows starts through `cmd /c` with no `/d`) in a cmd of its own with `/d`, as its
+ * PowerShell hooks do: the machine's or the person's AutoRun would otherwise print ahead
+ * of the status line. Git Bash's path conversion is off for it, as it reads `/d` as a
+ * folder; the launcher is named by its short name, without spaces, and is quoted all the same.
+ */
 export const hook = (platform: NodeJS.Platform, event: string): string =>
-  hookCommand(hookDialect(platform, event), { agent: "claude", event })
+  platform === "win32" && event === "StatusLine"
+    ? `[ -n "$NOVADECK_HOOK" ] && MSYS_NO_PATHCONV=1 MSYS2_ARG_CONV_EXCL='*' "\${COMSPEC:-cmd.exe}" /d /c "$NOVADECK_HOOK" claude ${event} || true`
+    : hookCommand(hookDialect(platform, event), { agent: "claude", event })
 
 /** Whether Claude Code's settings list Novadeck's plugin as enabled. */
 export const connected: Harness["connected"] = async (install) => {
