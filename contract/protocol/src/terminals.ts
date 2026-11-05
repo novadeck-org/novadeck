@@ -3,7 +3,7 @@ import { z } from "zod"
 
 import { agentActivity, agentName, agentTelemetry } from "./agents.js"
 import { directory, id } from "./fields.js"
-import { asLine, oneLine } from "./text.js"
+import { asLine, singleLine } from "./text.js"
 
 /** The largest file a client may paste into a terminal, in bytes. */
 export const maxUploadBytes = 32 * 1024 * 1024
@@ -23,19 +23,19 @@ export const foregroundProcess = z.strictObject({
 })
 
 // A command line a new shell runs at its first prompt, as if typed there: one line of at most
-// `maxStartupCommand` characters (`oneLine`: without what one line may not hold).
+// `maxStartupCommand` characters (`singleLine`: without what one line may not hold).
 export const maxStartupCommand = 4096
 export const startupCommand = z
   .string()
   .min(1)
   .max(maxStartupCommand)
-  .regex(oneLine, "A command must be one line, without control characters.")
+  .regex(singleLine, "A command must be one line, without control characters.")
 
 /** The most characters a terminal's or window's title holds: an emoji counts once. */
 export const maxTerminalTitle = 200
 
 // The title the person gives a terminal: one line, without what one line may not hold
-// (`oneLine`). The runner owns it, keeps it with the terminal, and every client shows it.
+// (`singleLine`). The runner owns it, keeps it with the terminal, and every client shows it.
 export const terminalTitle = z
   .string()
   .trim()
@@ -45,7 +45,7 @@ export const terminalTitle = z
     (title) => [...title].length <= maxTerminalTitle,
     `A title holds at most ${maxTerminalTitle} characters.`,
   )
-  .regex(oneLine, "A title must be one line, without control characters.")
+  .regex(singleLine, "A title must be one line, without control characters.")
 
 /**
  * `text` as a `terminalTitle`: one line (`asLine`), cut to `maxTerminalTitle` characters,

@@ -8,22 +8,22 @@ import { asLine, hiddenAt, hiddenIn, unsafeCharacter, unsafeInLine } from "./tex
 // What the one rule for text a person reads refuses, each a way to make a line read as
 // something it isn't or to reach a terminal as an escape.
 const unsafe = [
-  ["a right-to-left override", "‮"],
-  ["a left-to-right isolate", "⁦"],
-  ["an Arabic letter mark", "؜"],
+  ["a right-to-left override", "\u202e"],
+  ["a left-to-right isolate", "\u2066"],
+  ["an Arabic letter mark", "\u061c"],
   ["a C1 control sequence introducer", "\u009b"],
   ["DEL", "\u007f"],
   ["an escape", "\u001b"],
-  ["a zero-width space", "​"],
-  ["a byte-order mark", "﻿"],
-  ["a line separator", " "],
+  ["a zero-width space", "\u200b"],
+  ["a byte-order mark", "\ufeff"],
+  ["a line separator", "\u2028"],
 ] as const
 
 // What it keeps: text people write, emoji joined into one, and scripts that need a joiner.
 const kept = [
   ["accented letters", "Café déjà vu"],
-  ["a joined emoji", "\u{1f469}‍\u{1f4bb} api"],
-  ["a Persian word with a non-joiner", "برنامه‌نویسی"],
+  ["a joined emoji", "\u{1f469}\u200d\u{1f4bb} api"],
+  ["a Persian word with a non-joiner", "برنامه\u200cنویسی"],
   ["Hebrew", "שלום"],
 ] as const
 
@@ -45,11 +45,11 @@ describe("the rule for text a person reads", () => {
 
   describe("making one line", () => {
     it("turns each run of what a line refuses into one space", () => {
-      expect(asLine(" build‮\u0007\n\tnow ")).toBe("build now")
+      expect(asLine(" build\u202e\u0007\n\tnow ")).toBe("build now")
     })
 
     it("leaves a line that holds nothing it refuses as it is", () => {
-      expect(asLine("\u{1f469}‍\u{1f4bb} api")).toBe("\u{1f469}‍\u{1f4bb} api")
+      expect(asLine("\u{1f469}\u200d\u{1f4bb} api")).toBe("\u{1f469}\u200d\u{1f4bb} api")
     })
   })
 })
@@ -70,7 +70,7 @@ describe("a terminal title", () => {
 
   describe("made from text no title rule checked", () => {
     it("is that text as one line a title takes", () => {
-      const title = titleFrom("notes‮.txt\u009b\n")!
+      const title = titleFrom("notes\u202e.txt\u009b\n")!
       expect(title).toBe("notes .txt")
       expect(terminalTitle.parse(title)).toBe(title)
     })
@@ -82,7 +82,7 @@ describe("a terminal title", () => {
     })
 
     it("is nothing when nothing is left", () => {
-      expect(titleFrom("‮\u0007 ")).toBeUndefined()
+      expect(titleFrom("\u202e\u0007 ")).toBeUndefined()
     })
   })
 })
@@ -120,13 +120,13 @@ describe("a prompt's control characters", () => {
     expect(hasControlCharacters("a\u009bb")).toBe(true)
     expect(hasControlCharacters("a\u007fb")).toBe(true)
     expect(hasControlCharacters("line\r\nline\ttab")).toBe(false)
-    expect(hasControlCharacters("ש‏ל")).toBe(false)
+    expect(hasControlCharacters("ש\u200fל")).toBe(false)
   })
 })
 
 describe("a character that draws as nothing", () => {
   it("is found where it is, as U+XXXX", () => {
-    expect(hiddenIn("rm​ -rf")).toBe("U+200B")
+    expect(hiddenIn("rm\u200b -rf")).toBe("U+200B")
     expect(hiddenIn("ls　-la")).toBe("U+3000")
     expect(hiddenIn("ls -la")).toBeUndefined()
   })

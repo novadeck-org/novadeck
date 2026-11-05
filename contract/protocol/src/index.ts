@@ -140,7 +140,7 @@ export {
   hiddenCharacter,
   hiddenIn,
   maxCommandLines,
-  oneLine,
+  singleLine,
   unsafeCharacter,
   unsafeInLine,
 } from "./text.js"

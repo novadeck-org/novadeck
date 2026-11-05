@@ -14,7 +14,6 @@ import { dirname, isAbsolute, join } from "node:path"
 import { DatabaseSync, type SQLTagStore } from "node:sqlite"
 
 import {
-  asLine,
   isAgentName,
   unsafeInLine,
   type AgentName,
@@ -963,10 +962,11 @@ const listed = (row: Omit<TerminalRow, "transcript" | "interruptions">): ListedT
 })
 
 // A command kept before the rule took in more may hold what one line no longer may, which
-// would fail every summary it is in: that one is kept as one line (`asLine`). Any other is
-// kept as it is.
+// would fail every summary it is in: the C1 controls and marks that rule refuses now, which
+// draw as nothing or as a reordering, are taken out of it. Any other is kept as it is.
+const unsafeInLineAll = new RegExp(unsafeInLine.source, "g")
 const commandOf = (command: string): string | null =>
-  unsafeInLine.test(command) ? asLine(command) || null : command
+  unsafeInLine.test(command) ? command.replace(unsafeInLineAll, "").trim() || null : command
 
 const agentsOf = (text: string): SavedTerminal["agents"] => {
   try {

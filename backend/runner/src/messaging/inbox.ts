@@ -174,9 +174,9 @@ const requestedShape = z.discriminatedUnion("type", [
         z
           .string()
           .max(inboxTextLimits.directory)
-          // One line: the rule for what draws as nothing covers every control but a line feed.
+          // One line, as the protocol's folder is (`unsafeInLine`), with nothing that draws as nothing.
           .refine(
-            (text) => !text.includes("\n") && !hiddenIn(text),
+            (text) => !unsafeInLine.test(text) && !hiddenIn(text),
             "Use one plain line for the folder",
           )
           .nullable(),

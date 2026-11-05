@@ -430,6 +430,20 @@ describe("Inbox persistence and identity", () => {
     })
   })
 
+  it("refuses an action's folder of more than one line with the folder's rule", () => {
+    const { inbox, stop } = setup()
+    const result = inbox.call(identity.terminalId, "ask", {
+      subject: "Build",
+      body: "",
+      shape: { type: "action", command: "make", directory: "/repo\tsub", done_label: "Done" },
+    })
+    stop()
+    expect(result).toMatchObject({
+      ok: false,
+      reason: expect.stringContaining("Use one plain line for the folder"),
+    })
+  })
+
   it("retains the complete choice and action instructions in history", () => {
     const { inbox, create, messaging } = setup()
     create({

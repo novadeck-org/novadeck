@@ -2678,3 +2678,35 @@ describe("the snapshot taken before a migration", () => {
     }
   })
 })
+
+describe("a saved terminal's command", () => {
+  // Kept before the one-line rule took in C1 controls and the marks that reorder or hide
+  // text, it would fail every summary it is in.
+  it("comes back without what one line may no longer hold, and any other as it was", ({
+    directory,
+    kept,
+  }) => {
+    const path = join(directory(), "workspace.sqlite")
+    const first = kept(path)
+    const terminal = (id: string, command: string) => ({
+      id,
+      sessionId: "s",
+      cwd: "/work",
+      agents: {},
+      promptedAt: null,
+      handle: id === "a" ? "moth" : "fox",
+      naming: { person: null, opener: null, murmur: null, summary: null },
+      openedBy: null,
+      ledBy: null,
+      command,
+      lastProgram: null,
+      work: null,
+    })
+    first.saveTerminal(terminal("a", "echo 'a\u202eb'\u009b"))
+    first.saveTerminal(terminal("b", "echo  'a b' "))
+    first.close()
+    const reopened = kept(path)
+    expect(reopened.terminal("a")?.command).toBe("echo 'ab'")
+    expect(reopened.terminal("b")?.command).toBe("echo  'a b' ")
+  })
+})

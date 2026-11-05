@@ -50,8 +50,8 @@ const controls = "\\x00-\\x08\\x0b-\\x1f\\x7f-\\x9f"
 // The marks that reorder text or hide in it: the bidirectional marks, embeddings, overrides
 // and isolates, which can make a title read as something else; the zero-width space, the
 // word joiner, the byte-order mark and the Mongolian vowel separator; and the line and
-// paragraph separators. Not the zero-width joiner and non-joiner: emoji such as 👩‍💻 and
-// scripts such as Persian need them, and they reorder nothing.
+// paragraph separators. Not the zero-width joiner and non-joiner: emoji joined into one, as
+// a person and a laptop, and scripts such as Persian need them, and they reorder nothing.
 const directions = "\\u061c\\u200e\\u200f\\u202a-\\u202e\\u2066-\\u2069"
 const marks = `${directions}\\u180e\\u200b\\u2028\\u2029\\u2060\\ufeff`
 
@@ -80,7 +80,7 @@ export const unsafeCharacter = new RegExp(`[${controls}${marks}]`)
 export const unsafeInLine = new RegExp(`[\\t\\n${controls}${marks}]`)
 
 /** Text that is one line: none of it is what one line may not hold (`unsafeInLine`). */
-export const oneLine = new RegExp(`^[^\\t\\n${controls}${marks}]*$`)
+export const singleLine = new RegExp(`^[^\\t\\n${controls}${marks}]*$`)
 
 const unsafeInLineRuns = new RegExp(`[\\t\\n${controls}${marks}]+`, "g")
 
