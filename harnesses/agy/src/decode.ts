@@ -3,7 +3,9 @@ import { extname, isAbsolute, relative } from "node:path"
 
 import { absolute, errorText, shortName, sessionId, text } from "@novadeck/harness-core/decode"
 import type { BackgroundJob, EventBase, HarnessEvent } from "@novadeck/harness-core/events"
+import { fieldsOf, parseFields, type Fields } from "@novadeck/harness-core/fields"
 import type { Report } from "@novadeck/harness-core/report"
+import { unquote } from "@novadeck/harness-core/tools"
 import { agentLimits, telemetryLimits } from "@novadeck/protocol"
 
 import { ended, forget, pending, remember, running } from "./call-memory.js"
@@ -270,6 +272,15 @@ const answered = (
       ]
     : []
 
+// The file a write or edit call names. A hook's string values may be quoted a second time,
+// as its transcript's are (see `unquote`), and an object given as JSON text.
+const pathOf = (args: ToolCall["args"]): string | undefined => {
+  const path = args.Path ?? args.TargetFile
+  return absolute(typeof path === "string" ? unquote(path) : path)
+}
+const objectField = (value: unknown): Fields | undefined =>
+  typeof value === "string" ? parseFields(value) : fieldsOf(value)
+
 // A plan: Markdown the agent writes, in the conversation's own folder, as an artifact
 // asking for the person's review; one it failed to write is none.
 const artifact = (
@@ -277,14 +288,13 @@ const artifact = (
   { name, args }: ToolCall,
   payload: Report["payload"],
 ): HarnessEvent[] => {
-  const metadata = args.ArtifactMetadata as { RequestFeedback?: unknown } | undefined
   if (
     (name !== "write_file" && name !== "write_to_file") ||
-    metadata?.RequestFeedback !== true ||
+    objectField(args.ArtifactMetadata)?.RequestFeedback !== true ||
     text(payload.error)
   )
     return []
-  const path = absolute(args.Path ?? args.TargetFile)
+  const path = pathOf(args)
   const folder = absolute(payload.artifactDirectoryPath)
   if (!path || !folder || extname(path) !== ".md") return []
   const inside = relative(folder, path)
@@ -298,7 +308,7 @@ const written = (
   { name, args }: ToolCall,
   payload: Report["payload"],
 ): HarnessEvent[] => {
-  const path = absolute(args.Path ?? args.TargetFile)
+  const path = pathOf(args)
   if (!writers.includes(name) || !path || text(payload.error)) return []
   return [{ type: "file-touched", ...base, actor: null, path }]
 }

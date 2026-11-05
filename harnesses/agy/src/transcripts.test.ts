@@ -143,6 +143,29 @@ describe("Antigravity's plans, as captured", () => {
     ).toMatchObject([{ plan: { kind: "file", path: TargetFile } }])
   })
 
+  it("are told when the hook quotes the path, or gives the metadata as JSON text", () => {
+    const plan = hooks.find(
+      ({ payload }) =>
+        (payload.toolCall as { args?: { ArtifactMetadata?: { RequestFeedback?: boolean } } })?.args
+          ?.ArtifactMetadata?.RequestFeedback === true,
+    )
+    const call = plan!.payload.toolCall as { name: string; args: Record<string, unknown> }
+    const { TargetFile, ArtifactMetadata } = call.args
+    const quoted = {
+      ...call,
+      args: {
+        ...call.args,
+        TargetFile: JSON.stringify(TargetFile),
+        ArtifactMetadata: JSON.stringify(ArtifactMetadata),
+      },
+    }
+    expect(
+      postToolUse({ ...plan!.payload, toolCall: quoted }).filter(
+        (event) => event.type === "plan-observed",
+      ),
+    ).toMatchObject([{ plan: { kind: "file", path: TargetFile } }])
+  })
+
   it("name the transcript on every hook", () => {
     expect(postToolUse(hooks[0]!.payload)[0]).toMatchObject({
       type: "session-observed",
