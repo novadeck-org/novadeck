@@ -1,5 +1,15 @@
-import { chmod, readFile, realpath, rename, rm, stat, writeFile } from "node:fs/promises"
-import { join, resolve } from "node:path"
+import {
+  chmod,
+  lstat,
+  readFile,
+  readlink,
+  realpath,
+  rename,
+  rm,
+  stat,
+  writeFile,
+} from "node:fs/promises"
+import { dirname, join, resolve } from "node:path"
 
 import { fieldsOf, type Fields } from "@novadeck/harness-core/fields"
 import type { Install } from "@novadeck/harness-core/harness"
@@ -78,13 +88,23 @@ const read = async (file: string): Promise<Fields | undefined> => {
   }
 }
 
-// The file a path names, through any links, as a dotfile manager makes; the path itself
-// where nothing is there yet.
-const target = (file: string): Promise<string> =>
-  realpath(file).catch((error: unknown) => {
-    if ((error as NodeJS.ErrnoException).code === "ENOENT") return file
+// The file a path names: through its links, as a dotfile manager makes them, to the file
+// they end at, or for a link to nothing yet, to the path it names; the path itself where
+// it is no link, so nothing but a link is resolved.
+const target = async (file: string): Promise<string> => {
+  const found = await lstat(file).catch((error: unknown) => {
+    if ((error as NodeJS.ErrnoException).code === "ENOENT") return undefined
     throw error
   })
+  if (!found?.isSymbolicLink()) return file
+  return realpath(file).catch(async (error: unknown) => {
+    if ((error as NodeJS.ErrnoException).code !== "ENOENT") throw error
+    return resolve(dirname(file), await readlink(file))
+  })
+}
+
+// Errors that say the file a link names can't be written there, as in a read-only store.
+const unwritable: ReadonlySet<string | undefined> = new Set(["EACCES", "EPERM", "EROFS"])
 
 // Replaces the file whole, so Antigravity reads the old settings or the new: the file a link
 // names, so the link stays, with the mode it had (only the person's own, a new one).
@@ -102,6 +122,12 @@ const write = async (file: string, value: unknown): Promise<void> => {
     await rename(temporary, real)
   } catch (error) {
     await rm(temporary, { force: true })
+    if (real !== file && unwritable.has((error as NodeJS.ErrnoException).code))
+      throw new Error(
+        `${file} links to ${real}, which Novadeck can't write. Add Novadeck's status line ` +
+          `where that file comes from, or make it writable, then connect Antigravity again.`,
+        { cause: error },
+      )
     throw error
   }
 }

@@ -60,6 +60,41 @@ describe("Antigravity's settings, as Novadeck writes them", () => {
     },
   )
 
+  it.skipIf(process.platform === "win32")(
+    "write a link to nothing yet as the file it names",
+    async () => {
+      const dotfiles = join(root, "dotfiles")
+      mkdirSync(dotfiles)
+      symlinkSync(join("..", "..", "dotfiles", "settings.json"), settings)
+      await statusLineSettings.apply(install)
+      expect(lstatSync(settings).isSymbolicLink()).toBe(true)
+      expect(statusLine(join(dotfiles, "settings.json"))?.command).toBe(
+        statusLineCommand(undefined),
+      )
+    },
+  )
+
+  it.skipIf(process.platform === "win32" || process.getuid?.() === 0)(
+    "say so where a link names a file they can't write, and leave both as they were",
+    async () => {
+      // As home-manager links into its read-only store.
+      const store = join(root, "store")
+      mkdirSync(store)
+      const real = join(store, "settings.json")
+      writeFileSync(real, "{}")
+      symlinkSync(real, settings)
+      chmodSync(store, 0o555)
+      try {
+        await expect(statusLineSettings.apply(install)).rejects.toThrow(/links to .*can't write/)
+      } finally {
+        chmodSync(store, 0o755)
+      }
+      expect(lstatSync(settings).isSymbolicLink()).toBe(true)
+      expect(readdirSync(store)).toEqual(["settings.json"])
+      expect(readFileSync(real, "utf8")).toBe("{}")
+    },
+  )
+
   it.skipIf(process.platform === "win32")("keep the mode the file had", async () => {
     writeFileSync(settings, "{}")
     chmodSync(settings, 0o644)

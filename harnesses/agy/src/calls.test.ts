@@ -132,6 +132,16 @@ describe("an Antigravity tool call", () => {
     expect(request.safeParse({ subject, choices }).success).toBe(true)
   })
 
+  it("offers no empty choice, as the other harnesses offer none", () => {
+    const asked = hook("PreToolUse", {
+      toolCall: {
+        name: "ask_question",
+        args: { questions: [{ question: "Which?", options: ["", "a", 3, "b"] }] },
+      },
+    }).find(({ type }) => type === "attention-requested")
+    expect(asked).toMatchObject({ choices: ["a", "b"] })
+  })
+
   it("is not reported by its other hooks, or by a PreToolUse naming no call", () => {
     const toolCall = { name: "run_command", args: { CommandLine: "ls" } }
     for (const event of ["PostToolUse", "PreInvocation", "Stop"])

@@ -202,7 +202,9 @@ const questionsOf = (call: ToolCall): { question: string; options: string[] }[] 
           {
             question,
             options: Array.isArray(options)
-              ? options.filter((option): option is string => typeof option === "string")
+              ? options.filter(
+                  (option): option is string => typeof option === "string" && option.length > 0,
+                )
               : [],
           },
         ]
