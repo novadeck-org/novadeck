@@ -683,26 +683,13 @@ describe("demo states", () => {
 const openOver = (variant: "plain" | "agents" | "inbox") => {
   const turns = demoTurns()
   const backend = createDemo(variant, undefined, turns)
-  // The agents variant's plan shows dispatch from inside a commit, once a plan request reaches
-  // the Inbox, which the store refuses; they land just after it here.
-  let committing = false
   const workspace = createWorkspaceStore(
     workspaceFromSeed(backend.seed, { view: "grid", windowedView: "grid", now: 0 }),
-    (next, actions) => {
-      committing = true
-      try {
-        backend.commit(next, actions)
-      } finally {
-        committing = false
-      }
-    },
+    backend.commit,
   )
   backend.commit(workspace.getSnapshot(), [])
   backend.start!({
-    dispatch: (actions) =>
-      committing
-        ? void setTimeout(() => workspace.transact(actions as never))
-        : void workspace.transact(actions as never),
+    dispatch: (actions) => workspace.transact(actions as never),
     open: () => {},
   })
   const first = workspace.getSnapshot().projects[0]!

@@ -30,7 +30,9 @@ const open = () => {
     seed: visitorSeed(Date.now()),
     terminals: { introOf: life.introOf },
   })
-  const backend = life.wrap(story.wrap(withConversations(base, story.transcripts, turns)))
+  const backend = life.wrap(
+    story.wrap(withConversations(base, story.transcripts, turns, story.converse)),
+  )
   const store = createWorkspaceStore(
     workspaceFromSeed(backend.seed, { view: "focus", windowedView: "grid", now: 0 }),
     backend.commit,
@@ -46,7 +48,7 @@ const open = () => {
     const found = state.roster.terminals.find((each) => each.id === codex.terminalId)
     return found?.state === "running" ? found.agent : undefined
   }
-  return { agent, stop, turns, store }
+  return { agent, stop, turns, store, chat: backend.conversations! }
 }
 
 const hide = (hidden: boolean): void => {
@@ -82,6 +84,20 @@ describe("what goes on at the visitor's desk by itself", () => {
     turns.ask(codex, terminal, "permission", 1)
     await vi.advanceTimersByTimeAsync(reviewRestMs + reviewBusyMs + reviewLullMs)
     expect(agent()?.attention).toMatchObject({ kind: "permission" })
+    expect(agent()?.subagents).toBeUndefined()
+  })
+
+  it("leaves Codex's turn on a line the visitor sent it to run to its end", async () => {
+    const { agent, chat } = open()
+    await vi.advanceTimersByTimeAsync(reviewRestMs - 500)
+    await chat.send(codex, "What are you looking at?")
+    // Past when its subagents would have come: the turn is the visitor's.
+    await vi.advanceTimersByTimeAsync(600)
+    expect(agent()).toEqual({ working: true })
+    await vi.advanceTimersByTimeAsync(400)
+    expect(agent()).toMatchObject({ working: false, lastTurn: { outcome: "completed" } })
+    await vi.advanceTimersByTimeAsync(reviewBusyMs + reviewLullMs)
+    expect(agent()).toMatchObject({ working: false })
     expect(agent()?.subagents).toBeUndefined()
   })
 

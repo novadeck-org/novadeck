@@ -1,3 +1,4 @@
+import { promptRefusal } from "@novadeck/core/conversation/prompt-refusal"
 import { workspaceFromSeed } from "@novadeck/core/seed"
 import { createWorkspaceStore } from "@novadeck/core/store"
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
@@ -23,7 +24,7 @@ const open = (readingMs = 0) => {
   const turns = demoTurns(turnMs)
   const story = visitorStory(agentTranscripts(Date.now()), turns, nudgeMs, readingMs)
   const base = demoBackend(createDemoEngine(), { seed: visitorSeed(Date.now(), readingMs > 0) })
-  const backend = story.wrap(withConversations(base, story.transcripts, turns))
+  const backend = story.wrap(withConversations(base, story.transcripts, turns, story.converse))
   const store = createWorkspaceStore(
     workspaceFromSeed(backend.seed, { view: "focus", windowedView: "grid", now: 0 }),
     backend.commit,
@@ -51,7 +52,14 @@ const open = (readingMs = 0) => {
     await vi.advanceTimersByTimeAsync(answerMs + answeredMs)
     await answering
   }
-  return { chat, turns, terminal, asks, answer, items: () => state().items }
+  // What the conversation holds by `role`, oldest first.
+  const said = (key: typeof claude, role: "user" | "assistant") =>
+    chat
+      .conversation(key)
+      .getSnapshot()
+      .items.filter((item) => item.role === role && item.kind === "text")
+      .map((item) => item.text)
+  return { chat, turns, terminal, asks, answer, said, items: () => state().items }
 }
 
 describe("the visitor's story", () => {
@@ -114,5 +122,34 @@ describe("the visitor's story", () => {
     turns.rest(claude, terminal(claude.terminalId))
     await vi.advanceTimersByTimeAsync(0)
     expect(asks(codex.terminalId)).toMatchObject({ kind: "permission" })
+  })
+
+  it("answers a line the visitor sends Codex while it reviews, and asks nothing of it after", async () => {
+    const { chat, turns, terminal, asks, answer, said } = open()
+    await answer(claude, "1")
+    await vi.advanceTimersByTimeAsync(turnMs)
+    // Codex would ask in `nudgeMs`, while the turn on the visitor's line still runs.
+    await vi.advanceTimersByTimeAsync(nudgeMs - turnMs / 2)
+    // A line it refuses, as a slash command, or a shell command, which starts no turn,
+    // leaves the review as it was.
+    await expect(chat.send(codex, "/review")).rejects.toThrow(promptRefusal)
+    expect(terminal(codex.terminalId)).toMatchObject({ agent: { working: true } })
+    await chat.send(codex, "!ls")
+    await vi.advanceTimersByTimeAsync(0)
+    expect(terminal(codex.terminalId)).toMatchObject({ agent: { working: true } })
+    await chat.interrupt(codex)
+    turns.work(codex, terminal(codex.terminalId))
+    expect(said(codex, "user")).not.toContain("/review")
+    await chat.send(codex, "What are you looking at?")
+    await vi.advanceTimersByTimeAsync(0)
+    expect(said(codex, "user").at(-1)).toBe("What are you looking at?")
+    expect(terminal(codex.terminalId)).toMatchObject({ agent: { working: true } })
+    await vi.advanceTimersByTimeAsync(turnMs)
+    expect(said(codex, "assistant").at(-1)).toMatch(/What are you looking at\?/)
+    expect(terminal(codex.terminalId)).toMatchObject({
+      agent: { working: false, lastTurn: { outcome: "completed" } },
+    })
+    await vi.advanceTimersByTimeAsync(nudgeMs * 3)
+    expect(asks(codex.terminalId)).toBeUndefined()
   })
 })

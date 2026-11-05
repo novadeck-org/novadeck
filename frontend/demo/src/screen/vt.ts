@@ -1,5 +1,7 @@
 import { cells } from "@novadeck/emulator/width"
 
+import { graphemesOf } from "./graphemes"
+
 // Text as a terminal draws it: runs of styled characters, laid out in rows no wider than
 // the screen, as the bytes a terminal reads. Pure: what the demo's screens write goes
 // through here, at the column count they have.
@@ -61,10 +63,9 @@ export const widthOf = (line: Line): number => line.reduce((sum, { text }) => su
 export const plain = (line: Line): string => line.map(({ text }) => text).join("")
 
 // A run cut into what the emulator draws in one place each: a letter with its marks, an
-// emoji with its modifiers, a family joined into one.
-const graphemes = new Intl.Segmenter(undefined, { granularity: "grapheme" })
+// emoji with its modifiers, a family joined into one (see `graphemesOf`).
 export const characters = (text: string): string[] =>
-  Array.from(graphemes.segment(text), ({ segment }) => segment)
+  graphemesOf(text).map(({ segment }) => segment)
 
 // The words and the spaces between them. A word may span runs, as a bold name with a
 // plain path after it: it breaks only where there is a space.
