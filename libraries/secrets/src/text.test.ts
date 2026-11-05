@@ -483,6 +483,30 @@ describe("code words as values", () => {
   })
 })
 
+describe("values under a secret name that only look like code or a path", () => {
+  it.each([
+    ["password=correct.horse.battery", "password=[redacted]"],
+    ["DB_PASSWORD=Correct.Horse", "DB_PASSWORD=[redacted]"],
+    ['password: "user.password"', 'password: "[redacted]"'],
+    ['token = "getToken()"', 'token = "[redacted]"'],
+    ["password: ~hunter2", "password: [redacted]"],
+  ])("masks %s", (text, expected) => {
+    expect(redact(text)).toBe(expected)
+  })
+
+  it.each([
+    "const password = req.body.password",
+    "api_key = settings.API_KEY",
+    "password: ~",
+    "SSH_KEY=~/.ssh/id_ed25519",
+    "token: ~deploy/.token",
+    "GOOGLE_APPLICATION_CREDENTIALS=/etc/gcp/key.json",
+    "password = getpass(prompt)",
+  ])("keeps %s", (text) => {
+    expect(redact(text)).toBe(text)
+  })
+})
+
 describe("the sentinel character in the input", () => {
   it("becomes a question mark", () => {
     expect(redact("a\uE000b TOKEN=abcdefgh")).toBe("a?b TOKEN=[redacted]")

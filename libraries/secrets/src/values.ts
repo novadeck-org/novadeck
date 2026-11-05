@@ -1,6 +1,7 @@
 // Whether a value is worth hiding: a field's value, a long run of key material, or a quote that
 // only closes a literal.
 import { redacted, sentinel } from "./marks.js"
+import { soundsSecret } from "./names.js"
 
 // Values that say nothing: a setting, not a secret.
 const plain = new Set([
@@ -42,13 +43,19 @@ export const worthHiding = (value: string, code = false): boolean => {
   if (code && codeWords.has(value)) return false
   const bare = value.replace(/^\\?["']|\\?["']$/g, "").trim()
   if (bare === "" || bare.includes(sentinel) || bare.includes(redacted)) return false
-  if (/^[/~]|^\.\.?\//.test(bare)) return false
+  // A path, a home folder, or YAML's `~` for nothing; `~hunter2` is none of them.
+  if (/^\/|^~(?:[^\s/]*\/|$)|^\.\.?\//.test(bare)) return false
   if (/^\d{1,7}$/.test(bare)) return false
   // A reference, a placeholder or code that reads a secret from elsewhere is not one.
   if (/^(\$|<|\{\{|%[A-Za-z_]+%)/.test(bare)) return false
   if (/process\.env|os\.environ|import\.meta|getenv|secrets\./.test(bare)) return false
-  if (/^[A-Za-z_][\w.]*\(/.test(bare)) return false
-  if (/^[A-Za-z_]+(?:\.[A-Za-z_]+)+[,;)]?$/.test(bare)) return false
+  // Code that calls for a value or reads a secret's field (`user.password`), when it is not in
+  // quotes: a quoted `correct.horse` is the value itself, and so is a bare one whose last part
+  // names no secret.
+  const quoted = /^\\?["']/.test(value)
+  if (!quoted && /^[A-Za-z_][\w.]*\(/.test(bare)) return false
+  const field = /^[A-Za-z_]+(?:\.[A-Za-z_]+)+[,;)]?$/.test(bare) && /\.(\w+)\W?$/.exec(bare)?.[1]
+  if (!quoted && field && soundsSecret(field)) return false
   return !plain.has(bare.toLowerCase())
 }
 
