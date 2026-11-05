@@ -63,6 +63,16 @@ describe("urlHasher", () => {
       "at Hx (http://127.0.0.1:41235/assets/index-BX12abcd.js:1:2345) http://localhost:5173/?…",
     ],
     [
+      "a file a dev server on the loopback serves by its path, hashed as a path's names are",
+      "at x (http://localhost:5173/@fs/home/ana/acme/src/x.ts:3:4)",
+      `at x (http://localhost:5173/@fs/${h("home")}/${h("ana")}/${h("acme")}/${h("src")}/${h("x", ".ts")}:3:4)`,
+    ],
+    [
+      "an address right after a long word",
+      `${"x".repeat(40)}https://acme.io/a`,
+      `${"x".repeat(40)}https://${h("acme.io")}.io/${h("a")}`,
+    ],
+    [
       "a query and a fragment, dropped, and the sentence's end kept",
       "see https://acme.io/a?b=c#d.",
       `see https://${h("acme.io")}.io/${h("a")}?…#….`,

@@ -69,8 +69,10 @@ const secretKey = String.raw`[\w.-]*?(?:token|secret|passw(?:or)?d|pass|pwd|key|
 const shapes: readonly (readonly [RegExp, string])[] = [
   // A key or certificate block, whole, before a rule below can take its BEGIN line for a value.
   [/-----BEGIN [A-Z0-9 ]*-----[\s\S]*?(?:-----END [A-Z0-9 ]*-----|$)/g, "<secret>"],
-  // A URL's user and password: `https://ana:hunter2@host`.
-  [/\b([a-z][\w+.-]*:\/\/)[^\s/@:]*(?::[^\s/@]*)?@/gi, "$1<redacted>@"],
+  // A URL's user and password: `https://ana:hunter2@host`. The scheme is bounded and not
+  // anchored to a word's start, so a long dotted run with no `://` is looked at once, not
+  // again from each of its words.
+  [/([a-z][\w+.-]{0,31}:\/\/)[^\s/@:]*(?::[^\s/@]*)?@/gi, "$1<redacted>@"],
   // Headers that carry credentials, as written in a request or its dump.
   [
     /\b((?:proxy-)?authorization|x-api-key|api-key|cookie|set-cookie)(["']?\s*[:=]\s*["']?)(?:(?:bearer|basic|token|digest)\s+)?[^\s"',;]+/gi,
@@ -91,10 +93,27 @@ const shapes: readonly (readonly [RegExp, string])[] = [
     /(--(?:passw(?:or)?d|secret|token|api-key|access-token|auth-token)[ =])(?!<)[^\s"']+/gi,
     "$1<redacted>",
   ],
-  // What a syntax error quotes of its input, wherever its message is written (a stack, an
-  // error printed to stderr).
-  [/(\bSyntaxError: [^"'`\n]*?)[\s,:]*["'`][^\n]*/g, "$1 (input withheld)"],
+  // What JSON.parse quotes of its input (`Unexpected token 'm', "my private"... is not valid
+  // JSON`), wherever its message is written, as when another error's message wraps it. V8
+  // quotes at most ten characters, so the quote is bounded.
+  [
+    /\b(Unexpected token) '[^\n]{1,4}?', "[^\n]{0,24}?"(?:\.\.\.)? is not valid JSON/g,
+    "$1 (input withheld)",
+  ],
 ]
+
+/**
+ * What a syntax error quotes of its input, wherever its message is written (a stack, an error
+ * printed to stderr): everything from its first quote to the end of the line.
+ */
+const syntaxError = /(\bSyntaxError: [^"'`\n]*)["'`][^\n]*/g
+
+/** `text` without the spaces, commas and colons at its end. */
+export const trimSeparators = (text: string): string => {
+  let end = text.length
+  while (end > 0 && /[\s,:]/.test(text.charAt(end - 1))) end -= 1
+  return text.slice(0, end)
+}
 
 // Keys and tokens by their shapes (see @novadeck/secrets), after the paths and addresses are
 // hashed: a mask inside a path, an address or an email address would end it there for
@@ -103,8 +122,23 @@ const shapes: readonly (readonly [RegExp, string])[] = [
 // as `<user>` and so hide it from them.
 const secrets = redactAs("<secret>")
 
-// Email addresses; not a Git remote's `git@host:`, which `urlHasher` wrote first.
-const email = /[\w.%+-]+@[A-Za-z0-9-]+(?:\.[A-Za-z0-9-]+)*\.[A-Za-z]{2,}\b(?!:[\w#~./<])/g
+// What an email address's local part and domain are made of, in any script.
+const local = String.raw`\p{L}\p{M}\p{N}_.%+\-`
+const label = String.raw`[\p{L}\p{M}\p{N}\-]`
+
+// Email addresses: with a domain (`zoë@exämple.de`), or a host alone (`ana@intranet`). Not a
+// Git remote's `git@host:`, which `urlHasher` wrote first, a package's version or tag
+// (`react@19.3.1`, `vite@latest`, `log@workspace:*`), or a stack frame's `fn@https://…`. The
+// local part starts where a run of its characters starts, so a long run without an `@` is
+// read once, not again from each of its characters.
+const email = new RegExp(
+  String.raw`(?<![${local}])[${local}]+@(?:` +
+    String.raw`${label}+(?:\.${label}+)*\.\p{L}[\p{L}\p{M}]+(?![\p{L}\p{M}\p{N}_])(?!:[\w#~./<])` +
+    String.raw`|(?!(?:latest|next|beta|alpha|canary|rc|lts|stable|nightly|experimental|insiders|main|master|head|v\d)(?![\p{L}\p{M}\p{N}_\-]))` +
+    String.raw`\p{L}${label}*(?![\p{L}\p{M}\p{N}_\-:+/]|\.${label})` +
+    ")",
+  "giu",
+)
 
 /**
  * A redactor for this machine: what it returns of any text is what a log may keep, and what
@@ -135,6 +169,10 @@ export const createRedactor = (options: RedactOptions): Redactor => {
     for (const pattern of held) result = result.replace(pattern, "<secret>")
     for (const pattern of named) result = result.replace(pattern, "$1$2$3<redacted>")
     for (const [pattern, replacement] of shapes) result = result.replace(pattern, replacement)
+    result = result.replace(
+      syntaxError,
+      (_match, head: string) => `${trimSeparators(head)} (input withheld)`,
+    )
     result = urls(result).replace(email, "<email>")
     result = secrets(paths(result))
     return account ? result.replace(account, "<user>") : result

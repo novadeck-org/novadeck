@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest"
 
-import { clip, loggedError, logSchema, textLimit } from "./envelope.js"
+import { clip, keep, loggedError, logSchema, textLimit } from "./envelope.js"
 
 const same = (text: string): string => text
 
@@ -74,11 +74,59 @@ describe("loggedError", () => {
     expect(logged.message.endsWith("…")).toBe(true)
   })
 
+  it("keeps an error whose name, message or stack was set to something other than text", () => {
+    const error = new Error("x")
+    Object.assign(error, { name: 42, message: { toString: () => "told" }, stack: {} })
+    expect(loggedError(error, same)).toEqual({
+      name: "42",
+      message: "told",
+      stack: "[object Object]",
+    })
+  })
+
+  it("keeps an error whose name can't be made text", () => {
+    const error = Object.assign(new Error("x"), { name: Object.create(null) as object })
+    expect(loggedError(error, same)).toEqual({ name: "Error", message: "x" })
+  })
+
+  it("withholds a syntax error's quote where it has no stack", () => {
+    const error = new SyntaxError("Unexpected token 'a', \"abc\" is not valid JSON")
+    Object.defineProperty(error, "stack", { value: undefined })
+    expect(loggedError(error, same)).toEqual({
+      name: "SyntaxError",
+      message: "Unexpected token (input withheld)",
+    })
+  })
+
   it("keeps only the type of anything thrown that is not an Error", () => {
     expect(loggedError("the person's prompt", same)).toEqual({
       name: "string",
       message: "A non-Error was thrown",
     })
+  })
+})
+
+describe("keep", () => {
+  it("redacts no more than a bounded part of a long text", () => {
+    let read = 0
+    const kept = keep(`${"word ".repeat(1_000_000)}`, (text) => {
+      read = text.length
+      return text
+    })
+    expect(read).toBeLessThanOrEqual(8_000)
+    expect(kept).toHaveLength(textLimit)
+  })
+
+  it("cuts before a word that runs past what it reads, so no secret is read cut short", () => {
+    const secret = "sk-proj-abcdefghijklmnop1234"
+    const text = `${"a ".repeat(3_995)}${secret} after`
+    // A redactor that keeps little of the text, so what it reads last is what the line keeps.
+    const kept = keep(text, (read) => read.replaceAll("a ", "").replaceAll(secret, "<secret>"))
+    expect(kept).toBe("…")
+  })
+
+  it("cuts a single word longer than it reads where it stops", () => {
+    expect(keep("x".repeat(20_000), (text) => `${text.length}`)).toBe("8000…")
   })
 })
 
