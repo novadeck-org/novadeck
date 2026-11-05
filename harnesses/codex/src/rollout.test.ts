@@ -3,9 +3,11 @@ import { tmpdir } from "node:os"
 import { join } from "node:path"
 
 import type { HarnessEvent } from "@novadeck/harness-core/events"
+import type { Report } from "@novadeck/harness-core/report"
 import { afterEach, describe, expect, it } from "vitest"
 
-import { followRollout } from "./rollout.js"
+import { decode } from "./decode.js"
+import { followRollout, rolloutEvents, subagentEvents } from "./rollout.js"
 
 const session = { sessionId: "s", instance: "7" }
 
@@ -56,5 +58,61 @@ describe("following a rollout", () => {
       controller.abort()
       await following
     }
+  })
+})
+
+describe("a subagent's MCP tool call, in its own rollout", () => {
+  const input = { name: "a" }
+  // Its approval, as the subagent's PermissionRequest asks it.
+  const [asked] = decode({
+    event: "PermissionRequest",
+    seq: 0,
+    instance: "7",
+    env: {},
+    payload: {
+      session_id: "s",
+      agent_id: "a1",
+      tool_name: "mcp__probe__touch",
+      tool_input: input,
+    },
+  } as unknown as Report) as readonly { requestId?: string }[]
+  const completed = (at: string) =>
+    JSON.stringify({
+      timestamp: at,
+      type: "event_msg",
+      payload: {
+        type: "item_completed",
+        item: { type: "McpToolCall", id: "call_1", server: "probe", tool: "touch", arguments: input },
+      },
+    })
+  const since = Date.parse("2026-11-01T10:00:00Z")
+
+  it("settles its request once the call completes, however its approval went, as no hook says a cancel", () => {
+    expect(subagentEvents(completed("2026-11-01T10:00:05Z"), session, "a1", since)).toEqual([
+      {
+        type: "attention-resolved",
+        agent: "codex",
+        sessionId: "s",
+        instance: "7",
+        startedAt: Date.parse("2026-11-01T10:00:05Z"),
+        requestId: asked!.requestId,
+        actor: "a1",
+        toolName: "mcp__probe__touch",
+        loose: false,
+        outcome: "settled",
+      },
+    ])
+  })
+
+  it("settles nothing for a call completed before its request was asked", () => {
+    expect(subagentEvents(completed("2026-11-01T09:59:59Z"), session, "a1", since)).toEqual([])
+  })
+
+  it("is not the root's: the root's own item names another request", () => {
+    const [root] = rolloutEvents(completed("2026-11-01T10:00:05Z"), session) as readonly {
+      requestId?: string
+    }[]
+    expect(root?.requestId).toBeDefined()
+    expect(root?.requestId).not.toBe(asked!.requestId)
   })
 })

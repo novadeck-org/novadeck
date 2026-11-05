@@ -148,7 +148,7 @@ export const rolloutEvents = (
         cwd?: unknown
         source?: unknown
       }
-      if (kind === "McpToolCall") return mcpSettled(base, fields.item as Fields)
+      if (kind === "McpToolCall") return mcpSettled(base, null, fields.item as Fields)
       // A command the agent ran, in its own folder, which its hook doesn't name (probed
       // 2026-10-31, 0.163.0: `workdir` reaches the rollout's `cwd`, never the hook); the
       // person's own `!` command is theirs.
@@ -192,9 +192,11 @@ export const rolloutEvents = (
   }
 }
 
-// The request an MCP tool call's completed item settles, by the tool its hooks name.
+// The request an MCP tool call's completed item settles, by the tool its hooks name and
+// the actor whose call it is: the root's, or a subagent's in its own rollout.
 const mcpSettled = (
   base: EventBase<"codex">,
+  actor: string | null,
   { server, tool, arguments: input }: Fields,
 ): HarnessEvent[] => {
   if (typeof server !== "string" || !server || typeof tool !== "string" || !tool) return []
@@ -203,8 +205,8 @@ const mcpSettled = (
     {
       type: "attention-resolved",
       ...base,
-      requestId: callId(null, toolName, callOf(input)),
-      actor: null,
+      requestId: callId(actor, toolName, callOf(input)),
+      actor,
       toolName,
       loose: false,
       outcome: "settled",
@@ -300,7 +302,10 @@ export const followRollout: NonNullable<Harness["watch"]> = (run, signal, emit) 
  * Esc on its request does, firing neither `Interrupt` nor `SubagentStop` (probed
  * 2026-10-03, 0.159.3). Its turn over, it waits on the person no longer, though its
  * thread stays open, so it runs on; only an abort from `since` on, when its request was
- * asked, counts.
+ * asked, counts. An MCP tool call of its own completing settles its request too, as the
+ * root's does in the root's rollout: one the person cancelled fires no hook, and its turn
+ * runs on. That a subagent's item is filed in its own rollout is assumed, not probed: its
+ * hooks name it by its own id, and the root's rollout holds its root's items alone.
  */
 export const subagentEvents = (
   line: string,
@@ -308,13 +313,17 @@ export const subagentEvents = (
   actor: string,
   since: number,
 ): readonly HarnessEvent[] => {
-  if (!line.includes('"turn_aborted"')) return []
+  if (!line.includes('"turn_aborted"') && !line.includes('"McpToolCall"')) return []
   const { type, timestamp, payload } = parseFields(line) ?? {}
   if (type !== "event_msg" || typeof timestamp !== "string") return []
-  if ((payload as { type?: unknown } | null)?.type !== "turn_aborted") return []
   const startedAt = Date.parse(timestamp)
   if (!Number.isFinite(startedAt) || startedAt < since) return []
-  return [{ type: "subagent-turn-aborted", agent: "codex", sessionId, instance, actor, startedAt }]
+  const { type: kind, item } = (payload ?? {}) as { type?: unknown; item?: unknown }
+  if (kind === "turn_aborted")
+    return [{ type: "subagent-turn-aborted", agent: "codex", sessionId, instance, actor, startedAt }]
+  if (kind === "item_completed" && isFields(item) && item.type === "McpToolCall")
+    return mcpSettled({ agent: "codex", sessionId, instance, startedAt }, actor, item)
+  return []
 }
 
 // How often a subagent's rollout is looked for until it is found.
@@ -322,7 +331,8 @@ const locateMs = 1000
 
 /**
  * Follows a subagent's own rollout, which Codex files beside its root's under its own
- * id (its hooks name only the root's), for its turn aborting from `since` on. Looked for
+ * id (its hooks name only the root's), for its turn aborting, or its MCP calls
+ * completing, from `since` on. Looked for
  * until found, as Codex may write it after the hook that asks.
  */
 export const followSubagent: NonNullable<Harness["watchActor"]> = async (
