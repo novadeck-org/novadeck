@@ -707,6 +707,9 @@ const plainBackend = (
   )
 }
 
+// The longest delay setTimeout takes as asked, in milliseconds.
+const longestTimerMs = 2 ** 31 - 1
+
 // The variant the address's hash asks for, as specs do with `?demo=`, and how long an
 // agent's turn works with `&turnMs=`, as a spec does that must act on the screen before
 // the turn ends, which a busy machine may not in the usual 1.5 s. `terminals` is where
@@ -720,7 +723,8 @@ export const createDemoBackend = (terminals?: DemoTerminalSetup): Backend => {
       ? demo
       : "plain",
     terminals,
-    turnMs > 0 ? turnMs : undefined,
+    // As long as asked, up to what setTimeout can wait: past 2^31 − 1 ms it fires at once.
+    turnMs > 0 ? Math.min(turnMs, longestTimerMs) : undefined,
   )
   if (isDemoInbox(backend.inbox)) {
     const answer = params.get("inboxAnswer")

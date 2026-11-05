@@ -4,12 +4,13 @@ import { workspaceFromSeed } from "@novadeck/core/seed"
 import { activeProject, activeSession, workspaceReducer } from "@novadeck/core/state"
 import { createWorkspaceStore } from "@novadeck/core/store"
 import { itemFixture } from "@novadeck/core/testing"
+import { afterEach, vi } from "vitest"
 
 import { demoTurns } from "./agents/turns"
 import { demoHandle } from "./handles"
 import { isDemoInbox } from "./inbox"
 import { demoInboxIds, demoInboxRowsAll, demoPlanStates } from "./inbox/fixtures"
-import { demoBackend, withMessages } from "./index"
+import { createDemoBackend, demoBackend, withMessages } from "./index"
 import { createMockTerminal, defaultName } from "./samples"
 import { createDemoEngine } from "./terminals/engine"
 import { context, describe, expect, it } from "./test"
@@ -336,6 +337,52 @@ describe("demo backend", () => {
       expect(plans()).not.toEqual(before)
       expect(plans()).not.toEqual([])
       unbind()
+      stop()
+    })
+  })
+
+  context("when the address asks for turns longer than a timer can wait", () => {
+    afterEach(() => {
+      vi.useRealTimers()
+      window.history.replaceState(null, "", "#/")
+    })
+
+    it("works for as long as a timer can, not ending the turn at once", async () => {
+      vi.useFakeTimers()
+      window.history.replaceState(null, "", "#/?demo=agents&turnMs=3000000000")
+      const backend = createDemoBackend()
+      const store = createWorkspaceStore(
+        workspaceFromSeed(backend.seed, { view: "grid", windowedView: "grid", now: 0 }),
+        backend.commit,
+      )
+      backend.commit(store.getSnapshot(), [])
+      const stop = backend.start!({
+        dispatch: (actions) => store.transact(actions as never),
+        open: () => {},
+      })
+      const found = store
+        .getSnapshot()
+        .projects.flatMap((project) =>
+          project.history.flatMap((owner) =>
+            owner.state.roster.terminals.map((terminal) => ({
+              key: { projectId: project.id, workspaceSessionId: owner.id, terminalId: terminal.id },
+              terminal,
+            })),
+          ),
+        )
+        .find(
+          ({ terminal }) =>
+            terminal.state === "running" &&
+            (terminal.process === "claude" || terminal.process === "codex") &&
+            terminal.agent !== undefined &&
+            !terminal.agent.working &&
+            !terminal.agent.attention,
+        )!
+      await backend.conversations!.send(found.key, "Tidy the checkout.")
+      await vi.advanceTimersByTimeAsync(10_000)
+      expect(terminalOf(store.getSnapshot(), found.key)).toMatchObject({
+        agent: { working: true },
+      })
       stop()
     })
   })
