@@ -16,12 +16,33 @@ const scenarios = (
 
 const at = (index: number): number => 1_000_000 + index * 1000
 
+// The tools each tool event fires for, as Novadeck's plugin registers them: Antigravity
+// fires a tool's PostToolUse only where a matcher names it, so a fixture recorded with
+// every hook on must lose the rest.
+const registered = (() => {
+  const file = harnesses.agy
+    .files("linux", { mcp: { command: "mcp" } })
+    .find(({ path }) => path === "hooks.json")!
+  const { novadeck } = JSON.parse(file.content) as {
+    novadeck: { [event: string]: { matcher?: string }[] }
+  }
+  return (event: string, tool: unknown): boolean => {
+    const groups = novadeck[event]
+    if (!groups) return false
+    if (event !== "PreToolUse" && event !== "PostToolUse") return true
+    const name = (tool as { name?: unknown } | undefined)?.name
+    return groups.some(({ matcher }) => matcher === "*" || matcher === name)
+  }
+})()
+
 /** The activity summary after each hook, as the runner tracks it. */
 const replay = (events: Event[]) => {
   const { conversationId } = events[0]!.payload
   const binding: Binding = { agent: "agy", sessionId: String(conversationId), instance: null }
   let activity: Activity = started(0)
   return events.map((event, index) => {
+    if (event.event !== "StatusLine" && !registered(event.event, event.payload.toolCall))
+      return { event: event.event, ...summary(activity) }
     const report: Report = {
       terminalId: "t",
       token: "0".repeat(48),
@@ -145,6 +166,25 @@ describe("what an Antigravity agent does not wait on", () => {
     ])
     expect(counted!.waiting?.jobs).toHaveLength(1)
     expect(none!.waiting).toBeNull()
+  })
+
+  it("is a command that ran in the foreground, beside one backgrounded", () => {
+    const c = session()
+    const status = { CommandLine: "git status", toolSummary: "Check the tree" }
+    const [idle] = idles([
+      c.prompt(),
+      c.pre(2, "run_command", status),
+      c.post(2, "run_command", status),
+      c.pre(3, "run_command", { CommandLine: "ls" }),
+      c.post(3, "run_command", { CommandLine: "ls" }),
+      c.pre(4, "run_command", sleep),
+      c.stop(false),
+      c.line("idle", 1),
+    ])
+    expect(idle!.waiting?.jobs).toEqual([
+      expect.objectContaining({ id: expect.stringMatching(/:4$/), description: "Sleep a bit" }),
+    ])
+    expect(idle!.background).toEqual({ agents: 0, tasks: 1 })
   })
 
   it("is a command that finished within the wait, or in the foreground", () => {

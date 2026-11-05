@@ -1324,6 +1324,10 @@ pass-through passes any other command on unchanged, AutoRun included).
   unregistered: an Antigravity outside Novadeck's terminals runs the plugin's hooks through the
   person's own `cmd`, where the AutoRun's output breaks the answer. Its other hooks are
   registered and, in Novadeck's terminals, run through the pass-through, so messages arrive.
+  Without PreToolUse Novadeck learns of no call before it runs, so there: an `ask_question`
+  never reaches the Inbox, a confirmation can't be answered from the chat (its dialog is
+  matched to the call PreToolUse named), a Stop lists no job or timer, and the loop guard sees
+  no calls, so it counts every turn as work.
   Set `NOVADECK_CMD_LOG` to a file to make the pass-through append the arguments it passed on.
   The Windows e2e `windows-autorun.e2e.ts` runs a message between two Antigravity agents under
   a printing AutoRun.
@@ -1843,10 +1847,12 @@ output, not that the model acted on it.
     takes (`harnesses/codex/src/tools.ts`); Antigravity sends every MCP call as
     `call_mcp_tool`, Novadeck's with `args.ServerName` `novadeck_novadeck`, its plugin's
     name and its server's (probed on 1.4.2; one added to its own config is named as
-    added). Antigravity reads a server's descriptor files before calling its tools
-    (`read_file` under its `mcp/novadeck_novadeck/`), and those reads are Novadeck's own
-    too. Tests pin each name. A name that doesn't match (a Codex name its collisions
-    hashed, a Claude Code without the plugin) counts as work, which only spares a thread.
+    added, and `novadeck` counts too, as Codex's own config's does), and now and then
+    loads them eagerly as `mcp_novadeck_novadeck_<tool>`. Antigravity reads a server's
+    descriptor files before calling its tools (`read_file` under its
+    `mcp/novadeck_novadeck/`), and those reads are Novadeck's own too. Tests pin each
+    name. A name that doesn't match (a Codex name its collisions hashed, a Claude Code
+    without the plugin) counts as work, which only spares a thread.
   - The harness's bookkeeping, which only loads or tracks: Claude Code's `ToolSearch`,
     `Skill`, `TodoWrite`, `TaskCreate`, `TaskUpdate`, `TaskList` and `TaskGet` (never
     `TaskOutput` or `TaskStop`, which act on work), Codex's `update_plan`.

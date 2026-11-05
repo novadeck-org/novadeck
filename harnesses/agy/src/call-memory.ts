@@ -3,7 +3,7 @@ import type { EventBase, HarnessEvent } from "@novadeck/harness-core/events"
 import { oneLine } from "@novadeck/harness-core/tools"
 import { agentLimits } from "@novadeck/protocol"
 
-import type { ToolCall } from "./tools.js"
+import { outliving, type ToolCall } from "./tools.js"
 
 /**
  * What the decoder holds of each conversation's tool calls from one hook to the next: the
@@ -103,7 +103,7 @@ export const pending = (base: EventBase<"agy">, call: ToolCall, step: number): H
     calls?.clear()
     return killed
   }
-  if (name !== "run_command" && name !== "schedule") return []
+  if (!outliving.includes(name)) return []
   const id = `${conversation}:${step}`
   const daemon = args.IsDaemon === true
   const seconds = args.DurationSeconds
