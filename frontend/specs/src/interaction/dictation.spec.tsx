@@ -1,4 +1,4 @@
-import { afterEach, beforeEach, onTestFailed, vi } from "vitest"
+import { afterEach, beforeEach, onTestFailed, onTestFinished, vi } from "vitest"
 import { page, type Locator } from "vitest/browser"
 
 import { preferencesDialog, pressShortcut } from "../support/keyboard"
@@ -11,7 +11,6 @@ import {
   labelled,
   openWorkspace,
   press,
-  skipWelcome,
   terminal,
   terminalTab,
 } from "../support/workspace"
@@ -168,7 +167,6 @@ describe("dictation", () => {
     // The demo starts it installed, as the try demo shows it; the address asks for it without.
     const openWithoutVoice = async (route = "/?voice=uninstalled"): Promise<void> => {
       await openWorkspace(route)
-      await skipWelcome()
     }
     // The offer, and the rest of voice input's setup, live in the terminal's dictation strip.
     const offer = (): Locator => saying("Talk to your agents")
@@ -278,6 +276,7 @@ describe("dictation", () => {
 
     it("fits in a short chat window, so nothing of it overflows, in each state of the setup", async () => {
       await page.viewport(900, 800)
+      onTestFinished(() => page.viewport(1440, 900))
       localStorage.setItem("novadeck.preferences", JSON.stringify({ chatView: true }))
       await openWithoutVoice("/?demo=agents&voice=failing&channel=experimental")
       await terminalTab("Checkout implementation").click()
@@ -469,7 +468,6 @@ describe("dictation", () => {
     it("shows its strip over a terminal's chat, not under it", async () => {
       localStorage.setItem("novadeck.preferences", JSON.stringify({ chatView: true }))
       await openWorkspace("/?demo=agents&channel=experimental")
-      await skipWelcome()
       await terminalTab("Checkout implementation").click()
       const chat = terminal("Checkout implementation").getByRole("region", {
         name: "Checkout implementation chat",

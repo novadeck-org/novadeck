@@ -19,7 +19,7 @@ import {
   taskbarIcons,
   windowMenu,
 } from "../support/companions"
-import { gridView } from "../support/layouts"
+import { expectStaysTrue, gridView } from "../support/layouts"
 import {
   chooseView,
   expectStaysAbsent,
@@ -523,8 +523,8 @@ describe("Switching views", () => {
     plan().scrollTop += 100
     const chosen = plan().scrollTop
     plan().querySelector<HTMLElement>(".cm-content")!.style.paddingTop = "250px"
-    await new Promise((resolve) => setTimeout(resolve, 600))
-    expect(plan().scrollTop).toBe(chosen)
+    // Past the half second a restore may take.
+    await expectStaysTrue(() => plan().scrollTop === chosen, "the reader's place", { ms: 600 })
   })
 
   it("opens a plan that wasn't scrolled at its very top again", async () => {
@@ -539,8 +539,7 @@ describe("Switching views", () => {
 
     await expect.poll(() => plan()?.querySelector(".cm-content")).toBeTruthy()
     // Past the half second a restore may take.
-    await new Promise((resolve) => setTimeout(resolve, 600))
-    expect(plan()!.scrollTop).toBe(0)
+    await expectStaysTrue(() => plan()!.scrollTop === 0, "the plan at its top", { ms: 600 })
   })
 
   for (const busy of [true, false])
@@ -710,8 +709,9 @@ describe("Placing an item on another terminal's taskbar", () => {
   context("when the pointer is cancelled while an image is dragged over it", () => {
     it("stays where it was", async () => {
       await openShowcase()
-      cancelPointerOver(taskbar("Refactor auth"))
+      const cancelled = cancelPointerOver(taskbar("Refactor auth"))
       await dragCardToBar("Build Studio", "2 images", "hero.png", "Refactor auth")
+      expect(cancelled()).toBe(true)
       await expectStaysAbsent(taskbarIcon("Refactor auth", "hero.png, from @moth · Build Studio"))
       await expect.element(taskbarIcon("Build Studio", "2 images")).toBeVisible()
     })

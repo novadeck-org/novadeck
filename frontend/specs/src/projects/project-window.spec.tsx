@@ -1,13 +1,7 @@
 import { page, userEvent } from "vitest/browser"
 
 import { windowMenu } from "../support/companions"
-import {
-  openWorkspace,
-  sidebarPanel,
-  skipWelcome,
-  terminal,
-  terminalTab,
-} from "../support/workspace"
+import { openWorkspace, sidebarPanel, terminal, terminalTab } from "../support/workspace"
 import { context, describe, expect, it } from "../test"
 
 // The agents demo has the storefront's files in a Source panel. A file opened there lands in
@@ -21,7 +15,6 @@ const row = (name: string) =>
 
 const openSource = async (view: "focus" | "grid" | "canvas" = "grid"): Promise<void> => {
   await openWorkspace(storefront(view))
-  await skipWelcome()
   await sidebarPanel("Source").click()
   await expect.element(page.getByRole("tree", { name: "Project files" })).toBeVisible()
 }
