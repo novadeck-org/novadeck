@@ -1,5 +1,5 @@
 import { describe, expect, it } from "../test.js"
-import { Claims, restartedTask, resumeRefusal } from "./resumes.js"
+import { Claims, restartedTask, resumeNote, resumeRefusal } from "./resumes.js"
 
 describe("the task a restored worker starts again", () => {
   const command = 'codex "[Novadeck: automatic notice, agent messages waiting, k3f9q2]"'
@@ -85,5 +85,46 @@ describe("the session an agent asks to resume in a new terminal", () => {
     expect(resumeRefusal("agy", "unsupported")).toBe(
       "Antigravity can't resume a session by its id here.",
     )
+  })
+})
+
+describe("the session a restore asks to resume", () => {
+  const claims = new Claims({ boundElsewhere: () => false })
+  const saved = { agents: { claude: { sessionId: "s-1", seq: 1 } } }
+
+  it("is judged from the saved row, and not at all for a command given or an agent not asked", () => {
+    const ask = { id: "t1", resume: "claude" as const }
+    expect(claims.judge(ask, saved, true)).toMatchObject({
+      ok: true,
+      key: "claude:s-1",
+    })
+    expect(claims.judge({ id: "t1" }, saved, true)).toBeUndefined()
+    expect(claims.judge({ ...ask, command: "ls" }, saved, true)).toBeUndefined()
+    expect(claims.judge(ask, saved, false)).toEqual({
+      ok: false,
+      reason: "not-connected",
+    })
+    expect(claims.judge(ask, { agents: {} }, true)).toEqual({
+      ok: false,
+      reason: "no-session",
+    })
+    expect(claims.judge(ask, undefined, true)).toEqual({
+      ok: false,
+      reason: "no-session",
+    })
+  })
+
+  it("says to the person why an agent that ran was not resumed, and nothing when it was", () => {
+    const ask = { id: "t1", resume: "codex" as const }
+    expect(resumeNote(claims.judge(ask, saved, true), "codex")).toBe(
+      "Codex was running here, but wasn't resumed: Novadeck has no Codex session saved for this terminal.",
+    )
+    expect(
+      resumeNote(claims.judge({ ...ask, resume: "claude" }, saved, false), "claude"),
+    ).toContain("Novadeck isn't connected to Claude Code")
+    expect(resumeNote(claims.judge({ ...ask, resume: "claude" }, saved, true), "claude")).toBe(
+      undefined,
+    )
+    expect(resumeNote(undefined, undefined)).toBeUndefined()
   })
 })

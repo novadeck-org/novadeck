@@ -132,6 +132,11 @@ export type Record = {
    * its hooks name no prompt; undefined before one was read.
    */
   seenEntry: { readonly transcript: string; readonly id: number } | undefined
+  /**
+   * When the person's keys last reached the terminal, in epoch milliseconds; undefined
+   * before any. The terminal's own reports, as a focus report, are no keys.
+   */
+  keyedAt?: number
   /** The shell's own name, as its foreground sample shows it at its prompt; undefined where none is told. */
   shellName: string | undefined
   /** When its agent is next nudged to summarize its work; kept for this runner's lifetime. */

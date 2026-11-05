@@ -294,13 +294,28 @@ describe("the lead of an agent found gone", () => {
     expect(worker.changed).toBe(true)
   })
 
-  it("ends so too when the agent's process is found gone, on Windows", () => {
+  it("ends so too when the agent's process is found gone, after the person's keys, on Windows", () => {
     on("win32")
     const { ends, worker } = led()
+    worker.keyedAt = Date.now() - 1_000
     ends.endExited(worker)
     expect(worker.summary.ledBy).toBe("moth")
     vi.advanceTimersByTime(pollMs)
     expect(worker.summary.ledBy).toBeNull()
+  })
+
+  it("stays, however long the shell outlives it, when no keys of the person ended an agent that ran", () => {
+    on("win32")
+    const { ends, worker, ended } = led()
+    ends.endExited(worker)
+    vi.advanceTimersByTime(60_000)
+    expect(worker.summary.ledBy).toBe("moth")
+    expect(ended).not.toHaveBeenCalled()
+    // One that never ran, as a failed login, ends all the same.
+    const never = led()
+    never.ends.endLeadGone(never.worker)
+    vi.advanceTimersByTime(pollMs)
+    expect(never.worker.summary.ledBy).toBeNull()
   })
 
   it("stays when the runner stops right after its agent, as Windows shuts down", () => {

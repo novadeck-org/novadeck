@@ -22,6 +22,7 @@ import type { Companion } from "../companion.js"
 import { failed } from "../failures.js"
 import { markTurn } from "../interrupted.js"
 import type { Record } from "../record.js"
+import { endedByPerson } from "../sampling.js"
 import { hasRun } from "../saved-terminals.js"
 import { lastStep } from "../transcripts.js"
 import { TurnEnds, type TurnsHost } from "../turn-ends.js"
@@ -91,7 +92,7 @@ export class Bindings {
     if (!binding?.instance || this.host.alive(binding.instance)) return false
     record.left = binding
     // The agent's process is gone: the lead it had ends with it.
-    this.endLeadGone(record)
+    this.endLeadGone(record, true)
     return this.endBinding(record)
   }
 
@@ -101,12 +102,15 @@ export class Bindings {
    * down, and the runner stops only after: there the lead ends once the shell has outlived
    * its agent for a sample's time, so an agent ended that way resumes still led, as its
    * session resumes (`Sampler.prompted`). The runner stopping, the shell ending or
-   * replaced meanwhile, or another lead meanwhile, keeps it. It is kept with the terminal's next save, as the
-   * session the sampler let go of at the same moment is, so no saved terminal resumes its
-   * agent unled.
+   * replaced meanwhile, or another lead meanwhile, keeps it. So does an agent that had a
+   * session (`ran`) and ended with none of the person's keys before (see `endedByPerson`),
+   * whatever the wait: the system ended it, and the runner may stop after any time. It is
+   * kept with the terminal's next save, as the session the sampler let go of at the same
+   * moment is, so no saved terminal resumes its agent unled.
    */
-  endLeadGone(record: Record): void {
+  endLeadGone(record: Record, ran = false): void {
     if (process.platform !== "win32") return this.endLead(record)
+    if (ran && !endedByPerson(record)) return
     const shell = record.terminal.pty
     const lead = record.summary.ledBy
     setTimeout(() => {
@@ -271,6 +275,12 @@ export class Bindings {
           : []
     if (this.host.trackRoot(record, facts, false)) this.host.save(record)
     this.host.messaging().observe(record.summary.id, facts)
+    this.escaped(record)
+  }
+
+  /** The person's keys reached the terminal: noted, and judged for an Escape (see `escaped`). */
+  keyed(record: Record): void {
+    record.keyedAt = Date.now()
     this.escaped(record)
   }
 

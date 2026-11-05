@@ -67,6 +67,26 @@ export const resumeRefusal = (agent: AgentName, reason: UnavailableReason): stri
   }
 }
 
+/**
+ * What a restored terminal's screen says when the agent that ran there was not resumed, in
+ * a sentence for the person; undefined when it was, or none was asked to be.
+ */
+export const resumeNote = (
+  checked: { readonly ok: boolean; readonly reason?: UnavailableReason } | undefined,
+  agent: AgentName | undefined,
+): string | undefined => {
+  if (!checked || checked.ok || !agent || !checked.reason) return undefined
+  const label = agentLabel(agent)
+  const why = {
+    "not-connected": `Novadeck isn't connected to ${label}`,
+    unsupported: `${label} can't resume a session by its id here`,
+    "no-session": `Novadeck has no ${label} session saved for this terminal`,
+    "invalid-session": `the ${label} session saved for this terminal isn't one it can run`,
+    "in-use": `that ${label} session is already open in another terminal`,
+  }[checked.reason]
+  return `${label} was running here, but wasn't resumed: ${why}.`
+}
+
 /** Whether a session may resume now: its command and claim, or why not. */
 type ResumeCheck =
   | {
@@ -108,6 +128,24 @@ export class Claims {
   ): { argv: readonly string[]; key: string } | undefined {
     const found = this.check(terminalId, agent, session, connected)
     return found.ok ? { argv: found.argv, key: found.key } : undefined
+  }
+
+  /**
+   * What a create judges of the session the app asks to resume in a restored terminal,
+   * with `saved` its saved row: undefined unless it asks, and none for a command given.
+   */
+  judge(
+    input: {
+      readonly id: string
+      readonly command?: string | undefined
+      readonly resume?: AgentName | undefined
+    },
+    saved: Pick<SavedTerminal, "agents"> | undefined,
+    connected: boolean,
+  ): ResumeCheck | undefined {
+    const { id, command, resume } = input
+    if (command !== undefined || !resume) return undefined
+    return this.check(id, resume, saved?.agents[resume]?.sessionId, connected)
   }
 
   /**

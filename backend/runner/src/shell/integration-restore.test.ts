@@ -106,6 +106,9 @@ describe.skipIf(process.platform === "win32" || !existsSync(bash))(
       manager.write({ terminalId: id, data: "report\r" }, "owner")
       const shown = await shell.until(manager, id, "reports sent")
       expect(shown).not.toContain("args:")
+      // Its screen says why, as nothing else shows it.
+      expect(shown).toContain("Claude Code was running here, but wasn't resumed")
+      expect(shown).toContain("Novadeck isn't connected to Claude Code")
       await new Promise((resolve) => setTimeout(resolve, 500))
       expect(manager.reportedSession(id, "claude")).toBe("abc-1")
     })

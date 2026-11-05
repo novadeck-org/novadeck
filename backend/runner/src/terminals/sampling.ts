@@ -8,12 +8,27 @@ import type { Record } from "./record.js"
 /** What sampling reads of a terminal's record, and what it keeps there. */
 export type SampledRecord = Pick<
   Record,
-  "terminal" | "foreground" | "summary" | "changed" | "bound"
+  "terminal" | "foreground" | "summary" | "changed" | "bound" | "keyedAt"
 >
 
 // Whether the platform hides a terminal's foreground program, as Windows does: no sample
 // names it there.
 const foregroundHidden = (): boolean => process.platform === "win32"
+
+/**
+ * How long before its shell showed its prompt the person's keys may have come for an
+ * agent's end to be theirs: `/exit` or a Ctrl+C ends it within moments of the key.
+ */
+export const exitKeysMs = 10_000
+
+/**
+ * Whether the person ended the agent whose shell shows its prompt now, as their keys just
+ * before tell. Where no sample names the foreground program (Windows), a prompt back says
+ * only that the agent is gone, and the system shutting down ends every console program
+ * with nobody at the keys: that agent was running at the quit, and resumes.
+ */
+export const endedByPerson = (record: Pick<Record, "keyedAt">): boolean =>
+  record.keyedAt !== undefined && Date.now() - record.keyedAt <= exitKeysMs
 
 /**
  * An agent's session bound the terminal. Where no sample names the foreground program,
@@ -112,10 +127,12 @@ export class Sampler<R extends SampledRecord> {
    * shell, as Windows ends every console program while it shuts down, has its shell show a
    * prompt for the moment before the runner stops: that agent stays the one to resume. An
    * agent bound again meanwhile, the shell ended or replaced, or the runner stopping keeps
-   * it too.
+   * it too, as does an agent that ended with none of the person's keys before (see
+   * `endedByPerson`), whatever the runner's wait.
    */
   prompted(record: R): void {
     if (!foregroundHidden() || record.summary.lastProgram === null) return
+    if (!endedByPerson(record)) return
     const shell = record.terminal.pty
     setTimeout(() => {
       if (this.host.stopping() || record.bound !== null || record.terminal.pty !== shell) return

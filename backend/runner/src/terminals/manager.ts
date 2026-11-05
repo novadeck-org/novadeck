@@ -67,7 +67,7 @@ import { TerminalPeers } from "./peers-host.js"
 import type { Record } from "./record.js"
 import { createTranscriptRedactor, type TranscriptRedactor } from "./redaction.js"
 import { showRestored } from "./restored.js"
-import { cancelResume, Claims, restartedTask } from "./resumes.js"
+import { cancelResume, Claims, restartedTask, resumeNote } from "./resumes.js"
 import { Sampler, shellProcess } from "./sampling.js"
 import { hasRun, keptState, type TerminalRecords } from "./saved-terminals.js"
 import { Saves } from "./saving.js"
@@ -744,15 +744,8 @@ export class Terminals {
       const work = saved?.work ?? null
       const command = input.command ?? saved?.command ?? null
       const titled = summaryTitle(naming, { command, openedBy })
-      const resume =
-        input.command === undefined &&
-        input.resume &&
-        this.claims.resumable(
-          input.id,
-          input.resume,
-          saved?.agents[input.resume]?.sessionId,
-          connected,
-        )
+      const judged = this.claims.judge(input, saved, connected)
+      const resume = judged?.ok ? judged : undefined
       // The session an agent asked to resume, judged again: another terminal may have taken it.
       const asked = this.claims.recheck(input.id, opener?.resume)
       // A worker lost before its agent's first session starts that agent again, still led.
@@ -842,7 +835,11 @@ export class Terminals {
       this.register(record, expectedAgent(input.command ?? task?.command, input.resume))
       if (unled) this.messaging.endLead(record.summary.id)
       // The resumed agent shows its own history; a shell that resumes none, the transcript.
-      if (opened && !started.resumes) void this.show(record, opened.text, new Date(opened.at))
+      const note = resumeNote(judged, input.resume)
+      if (!started.resumes && (opened || note)) {
+        const [text, at] = [opened?.text ?? "", opened && new Date(opened.at)]
+        void showRestored(record.terminal, text, at, input.id, note)
+      }
       this.listen(record)
       this.announce(record)
       this.sampler.start()
@@ -1010,7 +1007,7 @@ export class Terminals {
       keys.map(({ kind }) => kind),
       blocking(record.bound?.activity.pending).length > 0,
     )
-    this.bindings.escaped(record)
+    this.bindings.keyed(record)
     if (this.messaging.untrustedAgent(record.summary.id)) this.shown.recheckTrust(record)
   }
 
@@ -1664,7 +1661,7 @@ export class Terminals {
         this.bindings.endLeadGone(record)
     } else if (binding.instance && alive(binding.instance)) {
       record.suspended = binding.instance
-    } else this.bindings.endLeadGone(record)
+    } else this.bindings.endLeadGone(record, true)
     // Nothing came of the agent the shell was opened to run: it is a plain shell now.
     if (binding === null && ran) record.expecting = null
     // An agent whose prompt showed, with no session bound, left with it: first, so the

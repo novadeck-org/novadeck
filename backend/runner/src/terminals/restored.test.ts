@@ -29,3 +29,30 @@ describe("showing a terminal's earlier screen", () => {
     await expect(showRestored(ended, "earlier", null, "t1")).resolves.toBeUndefined()
   })
 })
+
+describe("saying why an agent was not resumed", () => {
+  const played = () => {
+    const calls: [string, string | undefined][] = []
+    const terminal = {
+      replay: (text: string, separator?: string) => {
+        calls.push([text, separator])
+        return Promise.resolve()
+      },
+    }
+    return { terminal, calls }
+  }
+
+  it("follows the earlier screen's separator, dim, on the line under it", async () => {
+    const { terminal, calls } = played()
+    await showRestored(terminal, "earlier", null, "t1", "Claude Code wasn't resumed.")
+    expect(calls).toEqual([
+      ["earlier", `${restoredSeparator(null)}\r\n\x1b[0;2mClaude Code wasn't resumed.\x1b[0m`],
+    ])
+  })
+
+  it("stands alone where there is no earlier screen", async () => {
+    const { terminal, calls } = played()
+    await showRestored(terminal, "", null, "t1", "Claude Code wasn't resumed.")
+    expect(calls).toEqual([["", "\x1b[0;2mClaude Code wasn't resumed.\x1b[0m"]])
+  })
+})

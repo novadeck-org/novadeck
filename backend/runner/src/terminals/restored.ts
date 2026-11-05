@@ -11,19 +11,26 @@ export const restoredSeparator = (savedAt: Date | null): string => {
 }
 
 /**
- * Shows a terminal's earlier screen above its new shell's output. A replay that fails, as
- * one whose terminal ends while it draws may, is logged and goes no further: nothing waits on
- * it unhandled, which would end a runner with no handler, and the save after it still runs.
+ * Shows a terminal's earlier screen above its new shell's output, and under it the `note`
+ * of why its agent was not resumed, if one is given. A replay that fails, as one whose
+ * terminal ends while it draws may, is logged and goes no further: nothing waits on it
+ * unhandled, which would end a runner with no handler, and the save after it still runs.
  */
 export const showRestored = (
   terminal: { replay(text: string, separator?: string): Promise<void> },
   transcript: string,
   savedAt: Date | null,
   terminalId: string,
+  note?: string,
 ): Promise<void> =>
-  terminal.replay(transcript, restoredSeparator(savedAt)).catch((error: unknown) =>
-    log.warn("terminals.replay-failed", "Novadeck could not show a terminal's earlier screen", {
-      data: { terminalId },
-      err: error,
-    }),
-  )
+  terminal
+    .replay(
+      transcript,
+      [transcript && restoredSeparator(savedAt), note && dim(note)].filter(Boolean).join("\r\n"),
+    )
+    .catch((error: unknown) =>
+      log.warn("terminals.replay-failed", "Novadeck could not show a terminal's earlier screen", {
+        data: { terminalId },
+        err: error,
+      }),
+    )
