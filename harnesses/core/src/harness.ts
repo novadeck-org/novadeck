@@ -195,6 +195,13 @@ export type Harness = {
   /** The normalized facts in one of its hooks' reports; none for one it ignores. */
   readonly decode: (report: Report) => readonly HarnessEvent[]
   /**
+   * The session and transcript any of its hooks' reports names, where one that is not its
+   * session start names them too (Claude Code's and Codex's), so a session bound without a
+   * transcript learns it from a later report. Absent where its other reports already
+   * observe the session with its transcript, as Antigravity's hooks do.
+   */
+  readonly transcriptOf?: (report: Report) => { sessionId: string; transcript: string } | undefined
+  /**
    * How its TUI's dialogs for requests waiting on the person read on screen and take an
    * answer, so the chat can answer them (see `dialogs.ts`); absent where none can be.
    */

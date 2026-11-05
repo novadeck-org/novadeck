@@ -1,3 +1,4 @@
+import { hookTranscript } from "@novadeck/harness-core/decode"
 import type { Harness, LaunchProfile, MessagingProfile } from "@novadeck/harness-core/harness"
 
 import { bannerMarker, bannerVersion } from "./banner.js"
@@ -143,6 +144,7 @@ export const codex = {
     context: "partial",
   },
   decode,
+  transcriptOf: hookTranscript,
   dialogs,
   title,
   titleWorking,

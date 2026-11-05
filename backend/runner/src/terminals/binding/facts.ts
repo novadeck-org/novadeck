@@ -237,16 +237,30 @@ export class Bindings {
   follow(record: Record, event: SessionObserved): void {
     this.unwatch(record)
     record.transcript = event.transcript ?? null
+    if (event.transcript !== undefined) this.watch(record, event.transcript)
+  }
+
+  /**
+   * The bound session's transcript, learned from a report after the one that bound it, as a
+   * later hook names it: it is read from then on, and followed like one the binding named.
+   * Nothing changes where it is known, or `sessionId` is not the bound session's.
+   */
+  learnTranscript(record: Record, sessionId: string, transcript: string): void {
+    const binding = record.bound?.binding
+    if (!binding || binding.sessionId !== sessionId || record.transcript !== null) return
+    record.transcript = transcript
+    this.watch(record, transcript)
+    // The chat that waits on it asks again at the next detail.
+    this.host.detailed(record)
+  }
+
+  private watch(record: Record, transcript: string): void {
     const binding = record.bound?.binding
     const watch = binding && harnesses[binding.agent].watch
-    if (!binding || !watch || event.transcript === undefined) return
+    if (!binding || !watch) return
     const controller = new AbortController()
     record.watching = controller
-    const run = {
-      sessionId: binding.sessionId,
-      instance: binding.instance,
-      transcript: event.transcript,
-    }
+    const run = { sessionId: binding.sessionId, instance: binding.instance, transcript }
     void watch(run, controller.signal, (fact) => {
       if (record.watching !== controller || fact.type === "session-observed") return
       this.sourceFact(record, fact)

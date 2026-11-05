@@ -1,5 +1,6 @@
 import { join } from "node:path"
 
+import { hookTranscript } from "@novadeck/harness-core/decode"
 import type { Harness, LaunchProfile, MessagingProfile } from "@novadeck/harness-core/harness"
 import { beside } from "@novadeck/harness-core/paths"
 import type { Report } from "@novadeck/harness-core/report"
@@ -122,6 +123,7 @@ export const claude = {
   // Its hooks run with its own process's id in their environment.
   pidVariable: "CLAUDE_PID",
   decode,
+  transcriptOf: hookTranscript,
   dialogs,
   launch,
   messaging,
