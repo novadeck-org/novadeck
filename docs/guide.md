@@ -365,7 +365,8 @@ bell-off button on the row or in the card's head. A snoozed row keeps its place 
 with a gray wash, a dashed bar and a bell-off where its wait shows, and still drags with the
 rest; Next, the arrows and j/k step past it, and the bell, its count, toasts and OS pings
 leave it out. Snoozed from its card, the next card opens. S again, or the bell button, brings
-it back, which rings nothing. A terminal whose every need is snoozed shows a gray bell-off for
+it back, which rings nothing. On a snoozed row the bell button is at the top right, where the
+bell-off shows, in place of the button that dismisses an ask: bring one back before you dismiss it. A terminal whose every need is snoozed shows a gray bell-off for
 its "!" or "?", the tab a gray wash and dashed bar and the window's head a wash, with no warning
 line; a new prompt from it is marked at once. The project switcher's dot leaves snoozed needs
 out. Snoozes are kept across a restart, each for the row it was made on: a message thread held

@@ -716,6 +716,36 @@ describe("The Inbox's list", () => {
       inbox.view.unmount()
     })
 
+    it("has its unsnooze button for a dismiss button while snoozed, and Delete does nothing", async () => {
+      const inbox = mount([agentAsk("a", 1), agentAsk("b", 2)], false, true, false, true)
+      const select = (): HTMLElement => inbox.row("a").querySelector(".inbox-row-select")!
+      const button = (name: string): HTMLElement | null =>
+        inbox.row("a").querySelector<HTMLElement>(`.inbox-row-${name}`)
+      expect(button("dismiss")).not.toBeNull()
+      expect(button("snooze")?.getAttribute("aria-label")).toBe("Snooze: a")
+
+      act(() => button("snooze")!.click())
+      expect(inbox.row("a").dataset).toMatchObject({ snoozed: "true", dismissable: "false" })
+      expect(button("dismiss")).toBeNull()
+      expect(button("snooze")?.getAttribute("aria-label")).toBe("Unsnooze: a")
+      keyOn(select(), "Delete")
+      expect(inbox.row("a").dataset.settled).toBeUndefined()
+      // The other row, not snoozed, keeps its own.
+      expect(inbox.row("b").querySelector(".inbox-row-dismiss")).not.toBeNull()
+
+      // Brought back, it can be dismissed again; a double click's second click dismisses nothing.
+      act(() => button("snooze")!.click())
+      expect(inbox.row("a").dataset.snoozed).toBeUndefined()
+      act(() => {
+        button("dismiss")!.dispatchEvent(new MouseEvent("click", { bubbles: true, detail: 2 }))
+      })
+      expect(inbox.row("a").dataset.settled).toBeUndefined()
+      keyOn(select(), "Delete")
+      expect(inbox.row("a").dataset.settled).toBe("dismissed")
+      await nextFrame()
+      inbox.view.unmount()
+    })
+
     it("is stepped past by the arrows from an open sheet", async () => {
       const inbox = mount(
         [permission("a", 1), permission("b", 2), permission("c", 3)],
