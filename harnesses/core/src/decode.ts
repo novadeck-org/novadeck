@@ -336,6 +336,6 @@ export const maxPlan = 256 * 1024
 
 /** A plan's text cut short to what the protocol takes, a character left whole. */
 export const planText = (value: string): { readonly text: string; readonly truncated: boolean } => {
-  const text = cutText(value, maxPlan)
-  return { text, truncated: text.length < value.length }
+  const kept = cutText(value, maxPlan)
+  return { text: kept, truncated: kept.length < value.length }
 }

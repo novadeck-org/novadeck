@@ -14,6 +14,15 @@ const chunk = 1024 * 1024
 // only appended to still holds them, one rewritten in place mostly doesn't.
 const overlap = 64
 
+// Calls a reader's callback, whose own failure loses that call alone.
+const quietly = (call: () => void) => {
+  try {
+    call()
+  } catch {
+    // Its own failure, not the reading's.
+  }
+}
+
 /**
  * The lines at the end of `path`, its last `bytes` of it, oldest first; the first may be
  * cut short. Undefined when it can't be read.
@@ -85,13 +94,6 @@ export const followLines = async (
   let parts: Buffer[] = []
   let held = 0
   let skipping = false
-  const quietly = (call: () => void) => {
-    try {
-      call()
-    } catch {
-      // The reader's own failure: it loses this call alone.
-    }
-  }
   const restart = () => {
     offset = 0
     seen = Buffer.alloc(0)

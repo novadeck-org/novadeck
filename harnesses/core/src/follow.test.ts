@@ -1,4 +1,12 @@
-import { appendFileSync, closeSync, mkdtempSync, openSync, rmSync, writeFileSync, writeSync } from "node:fs"
+import {
+  appendFileSync,
+  closeSync,
+  mkdtempSync,
+  openSync,
+  rmSync,
+  writeFileSync,
+  writeSync,
+} from "node:fs"
 import { tmpdir } from "node:os"
 import { join } from "node:path"
 
@@ -121,7 +129,10 @@ describe("following a file's lines", () => {
   })
 
   it("counts a byte that isn't UTF-8 as the one byte it is", async () => {
-    writeFileSync(path, Buffer.concat([Buffer.from("a"), Buffer.from([0xff]), Buffer.from("b\nc\n")]))
+    writeFileSync(
+      path,
+      Buffer.concat([Buffer.from("a"), Buffer.from([0xff]), Buffer.from("b\nc\n")]),
+    )
     const reader = follow({ fromStart: true })
     await expect.poll(() => reader.told.length).toBe(2)
     expect(reader.told.map(({ end }) => end)).toEqual([4, 6])
