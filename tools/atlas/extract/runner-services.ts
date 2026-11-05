@@ -138,6 +138,9 @@ const arrowBody = (text: string, from: number): [number, number] => {
   return [start, text.length]
 }
 
+const inside = (ranges: [number, number][], at: number) =>
+  ranges.some(([from, to]) => at > from && at < to)
+
 // The calls in a handler's body (from `api.<id>.handler(`), the likeliest to do the
 // procedure's work first. A call named like the procedure comes first; then one whose
 // value the handler returns; a store read, a call in a callback passed on (`place: (id) =>
@@ -162,8 +165,6 @@ export const rankCalls = (
     before = before.replace(/\basync$/, "").trimEnd()
     return /[(,:]$/.test(before) ? [arrowBody(body, match.index + 2)] : []
   })
-  const inside = (ranges: [number, number][], at: number) =>
-    ranges.some(([from, to]) => at > from && at < to)
   // Whether the handler returns the call's value: on a `return` line, or named by a const
   // the handler returns or spreads.
   const returned = (at: number) => {

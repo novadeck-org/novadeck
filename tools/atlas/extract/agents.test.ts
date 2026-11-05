@@ -4,7 +4,7 @@ import { join } from "node:path"
 
 import { afterAll, expect, test } from "vitest"
 
-import { readLimits } from "./agents.ts"
+import { hookEvents, readLimits } from "./agents.ts"
 import { createAnchors } from "./anchors.ts"
 
 const repo = mkdtempSync(join(tmpdir(), "atlas-limits-"))
@@ -38,5 +38,32 @@ test("reads the protocol's limits, and reports one it cannot evaluate", () => {
       file: "limits.ts",
       reason: "could not evaluate maxCommandLines: maxLines is not defined",
     }),
+  ])
+})
+
+test("marks a hook registered only on some machines as conditional", () => {
+  const plugin = [
+    "  {",
+    '    path: "hooks.json",',
+    "    content: json({",
+    "      novadeck: {",
+    '        Stop: [handler(platform, "Stop")],',
+    '        ...(!(platform === "win32" && machine.cmdPrints) && {',
+    '          PreToolUse: [{ matcher: "*", hooks: [handler(platform, "PreToolUse")] }],',
+    "        }),",
+    '        PostToolUse: [handler(platform, "PostToolUse")],',
+    "      },",
+    "    }),",
+    "  },",
+    "  settings: {}",
+  ].join("\n")
+  expect(hookEvents(plugin).events).toEqual([
+    { event: "Stop", conditional: false },
+    { event: "PreToolUse", conditional: true },
+    { event: "PostToolUse", conditional: false },
+  ])
+  expect(hookEvents('const events = [\n  "SessionStart",\n  "Stop",\n]').events).toEqual([
+    { event: "SessionStart", conditional: false },
+    { event: "Stop", conditional: false },
   ])
 })

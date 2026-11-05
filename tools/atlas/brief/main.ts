@@ -1,3 +1,4 @@
+import { areaOf } from "../extract/areas.ts"
 import type { Atlas } from "../src/atlas.ts"
 import {
   renderAction,
@@ -79,12 +80,18 @@ export const brief = (
       text: `"${name}" is ambiguous; ask for one of: ${exact.map((s) => `${s.kind}:${s.name}`).join(", ")}`,
       found: false,
     }
-  const near = all
-    .filter(
+  // A path (`backend/runner/src/terminals`, or a file in it) suggests the area that owns it.
+  const path = query.replaceAll("\\", "/").replace(/^\.\//, "").replace(/\/$/, "")
+  const owner = areaOf(atlas.areas, `${path}/_`)
+  const near = [
+    ...all.filter((s) => s.kind === "area" && s.name === owner),
+    ...all.filter(
       (s) =>
-        (kind === null || s.kind === kind) && s.name.toLowerCase().includes(name.toLowerCase()),
-    )
-    .slice(0, 15)
+        (kind === null || s.kind === kind) &&
+        s.name !== owner &&
+        s.name.toLowerCase().includes(name.toLowerCase()),
+    ),
+  ].slice(0, 15)
   return {
     text:
       near.length > 0
@@ -96,7 +103,9 @@ export const brief = (
 
 if (import.meta.main) {
   const { build } = await import("../extract/main.ts")
-  const { text, found } = brief(await build(), process.argv[2])
+  // `atlas:brief table terminals` asks for `table:terminals`.
+  const query = process.argv.slice(2).join(":") || undefined
+  const { text, found } = brief(await build(), query)
   process.stdout.write(`${text}\n`)
   if (!found) process.exitCode = 1
 }

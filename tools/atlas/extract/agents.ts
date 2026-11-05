@@ -10,6 +10,7 @@ import type {
   McpTool,
 } from "../src/atlas.ts"
 import { lineAt, type Anchors } from "./anchors.ts"
+import { sourceFiles } from "./files.ts"
 
 const mcpFile = "backend/runner/src/shell/mcp.ts"
 const managerFile = "backend/runner/src/terminals/manager.ts"
@@ -225,25 +226,47 @@ const hookSummaries: Record<string, string> = {
   StatusLine: "The status line refreshes; Novadeck passes on the person's own.",
 }
 
-// The events a harness registers, and where in its source they are written.
-const hookEvents = (source: string, id: string): { events: string[]; from: number } => {
+// The events a harness registers, whether each is registered only on some machines (inside
+// a conditional spread, `...(platform !== "win32" && { … })`), and where in its source they
+// are written.
+export const hookEvents = (
+  source: string,
+): { events: { event: string; conditional: boolean }[]; from: number } => {
   const list = /^const events = \[([^\]]*)\]/m.exec(source)
   if (list?.[1] !== undefined) {
     return {
-      events: [...list[1].matchAll(/"(\w+)"/g)]
-        .map(([, event]) => event ?? "")
-        .concat(id === "claude" ? ["StatusLine"] : []),
+      events: [...list[1].matchAll(/"(\w+)"/g)].map(([, event]) => ({
+        event: event ?? "",
+        conditional: false,
+      })),
       from: list.index,
     }
   }
   const from = source.indexOf('path: "hooks.json"')
   if (from === -1) return { events: [], from: 0 }
   const body = source.slice(from, source.indexOf("settings:", from))
-  return {
-    events: [...new Set([...body.matchAll(/\b([A-Z]\w+): \[/g)].map(([, event]) => event ?? ""))],
-    from,
-  }
+  // Each `...(` and the offset of the parenthesis that closes it.
+  const spreads = [...body.matchAll(/\.\.\.\(/g)].map((match): [number, number] => {
+    let depth = 0
+    for (let i = match.index + 4; i < body.length; i++) {
+      if (body[i] === "(") depth += 1
+      else if (body[i] === ")" && --depth < 0) return [match.index, i]
+    }
+    return [match.index, body.length]
+  })
+  const events = new Map<string, boolean>()
+  for (const match of body.matchAll(/\b([A-Z]\w+): \[/g))
+    if (!events.has(match[1]!))
+      events.set(
+        match[1]!,
+        spreads.some(([open, close]) => match.index > open && match.index < close),
+      )
+  return { events: [...events].map(([event, conditional]) => ({ event, conditional })), from }
 }
+
+// A status line that reports to Novadeck is a hook too, registered apart from the others:
+// Claude Code's `hook(platform, "StatusLine")`, Antigravity's `NOVADECK_HOOK agy StatusLine`.
+const statusLine = /\bhook\(\w+, "StatusLine"\)|NOVADECK_HOOK%?"? \w+ StatusLine\b/
 
 const lineFrom = (source: string, needle: string, from: number): number | null => {
   const index = source.indexOf(needle, from)
@@ -251,6 +274,7 @@ const lineFrom = (source: string, needle: string, from: number): number | null =
 }
 
 const extractHarnesses = (
+  repo: string,
   anchors: Anchors,
   packages: HarnessPackage[],
 ): { harnesses: Harness[]; hooks: Hook[] } => {
@@ -284,17 +308,18 @@ const extractHarnesses = (
     const pluginFile = `harnesses/${id}/src/plugin.ts`
     const pluginSource = anchors.read(pluginFile)
     const hooksFile = pluginSource === null ? file : pluginFile
-    const { events, from } = hookEvents(pluginSource ?? source, id)
+    const { events, from } = hookEvents(pluginSource ?? source)
     if (events.length === 0)
       anchors.report(
         "harnesses",
         hooksFile,
         "found 0 hook events (`const events = [` or hooks.json)",
       )
-    for (const event of events) {
+    for (const { event, conditional } of events) {
       hooks.push({
         harness: id,
         event,
+        conditional,
         summary: hookSummaries[event] ?? "A hook Novadeck registers.",
         anchor: {
           file: hooksFile,
@@ -305,6 +330,20 @@ const extractHarnesses = (
         },
       })
     }
+    if (!events.some(({ event }) => event === "StatusLine"))
+      for (const each of sourceFiles(repo, `harnesses/${id}/src`)) {
+        const text = anchors.read(each) ?? ""
+        const index = text.search(statusLine)
+        if (index === -1) continue
+        hooks.push({
+          harness: id,
+          event: "StatusLine",
+          conditional: false,
+          summary: hookSummaries.StatusLine!,
+          anchor: { file: each, line: lineAt(text, index) },
+        })
+        break
+      }
   }
   return { harnesses, hooks }
 }
@@ -366,7 +405,7 @@ const extractContract = (anchors: Anchors): ContractMember[] => {
 // Novadeck as an agent sees it: MCP tools, hooks, the harness contract and the harnesses.
 export const extractAgents = (repo: string, anchors: Anchors): AgentSurface => {
   const packages = findHarnessPackages(repo, anchors)
-  const { harnesses, hooks } = extractHarnesses(anchors, packages)
+  const { harnesses, hooks } = extractHarnesses(repo, anchors, packages)
   const tools = extractTools(anchors, packages)
   if (tools.length === 0) anchors.report("mcp tools", mcpFile, "found 0 tools")
   return { tools, hooks, contract: extractContract(anchors), harnesses }
