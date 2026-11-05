@@ -572,6 +572,37 @@ describe("the browser viewer", () => {
       expect(pageOf(again).getAttribute("src")).toBe("http://localhost:5173/")
     })
 
+    it("loads no address but an http(s) one it was given, though kept where it attached", () => {
+      const content = { url: "data:text/html,x" }
+      const first = paneIn()
+      const viewer = mountBrowser(first, { content, label: "page", live: true, partition: "pages" })
+      attach(pageOf(first), { url: "http://localhost:5173/", back: false, forward: false })
+      pageOf(first).dispatchEvent(event("did-navigate"))
+      const again = paneIn()
+      const resumed = mountBrowser(again, {
+        content,
+        label: "page",
+        saved: viewer.state(),
+        live: true,
+        partition: "pages",
+      })
+      expect(pageOf(again).getAttribute("src")).toBe("http://localhost:5173/")
+      // Asked to reload before it attached, it goes again once its first load is done.
+      resumed.reload()
+      const calls: string[] = []
+      attach(pageOf(again), { url: "http://localhost:5173/", back: false, forward: false }, calls)
+      Object.assign(pageOf(again), {
+        reloadIgnoringCache: () => calls.push("reload fresh"),
+        loadURL: (address: string) => {
+          calls.push(`load ${address}`)
+          return Promise.resolve()
+        },
+      })
+      pageOf(again).dispatchEvent(event("did-stop-loading"))
+      expect(calls.filter((call) => call.startsWith("load "))).toEqual([])
+      expect(pageOf(again).getAttribute("src")).toBe("http://localhost:5173/")
+    })
+
     it("doesn't load its page again to restore where it already is", () => {
       const pane = paneIn()
       const viewer = live(pane)

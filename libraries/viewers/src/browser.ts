@@ -649,7 +649,10 @@ export const mountBrowser: Mount<BrowserContent, BrowserOptions, BrowserViewer> 
   }
   // Loads an address, once attached, even where its attribute already names it; another
   // fragment of the document it's on only moves within it, as a link to it would.
+  // Only ever to an http(s) address, whatever it was given: a load after it attached is past
+  // the lockdown's check, and the desktop app's guard sees only the page's own navigations.
   const go = (to: string): boolean =>
+    webAddress(to) &&
     attached(() => {
       void page!.loadURL(to).catch(nothing)
       return true
@@ -706,6 +709,8 @@ export const mountBrowser: Mount<BrowserContent, BrowserOptions, BrowserViewer> 
   const refresh = (): void => {
     moving = false
     then = undefined
+    // Mounted for an address no page view loads, it stays where it attached.
+    if (!webAddress(shown.url)) return
     if (first && load === "loading" && place.url === shown.url) {
       // A wake's load isn't the show's: it goes again, afresh, once done. Else this load
       // is the show's, and what goes wrong in it is told with it.
