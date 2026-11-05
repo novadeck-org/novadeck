@@ -353,6 +353,20 @@ describe("agents Novadeck can connect", () => {
   )
 
   it.skipIf(windows)(
+    "tell where the login shell moves a tool's logins, once it answered",
+    async ({ fixture }) => {
+      const moved = join(fixture.home, "gh-elsewhere")
+      const profile = join(fixture.home, "profile.sh")
+      writeFileSync(profile, `export GH_CONFIG_DIR="${moved}"\nexport UNRELATED=1\n`)
+      const agents = fixture.agents({ ENV: profile, GH_CONFIG_DIR: undefined })
+      // The app's own until the shell answers.
+      expect(agents.environment().GH_CONFIG_DIR).toBeUndefined()
+      await expect.poll(() => agents.environment().GH_CONFIG_DIR, { timeout: 10_000 }).toBe(moved)
+      expect(agents.environment().UNRELATED).toBeUndefined()
+    },
+  )
+
+  it.skipIf(windows)(
     "keep the environment they are given as it is when told not to read the login shell's",
     async ({ fixture }) => {
       installed(fixture.home, "codex")

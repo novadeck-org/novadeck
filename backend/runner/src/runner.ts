@@ -189,6 +189,8 @@ const assemble = (store: WorkspaceStore, options: RunnerOptions, started: Starte
       }
     },
     livePlan: (item) => terminals.livePlan(item),
+    // Where the person's tools keep their logins, as their login shell says.
+    environment: () => agents.environment(),
   })
   const voice = new Voice(store.settings, {
     ...(options.softwareGraphics !== undefined && { softwareGraphics: options.softwareGraphics }),

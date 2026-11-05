@@ -89,6 +89,11 @@ type CompanionOptions = {
    * plan's session: read before its transcript or rollout, never instead of it.
    */
   readonly livePlan?: (item: ItemRecord) => PlanText | undefined
+  /**
+   * The person's environment, as far as it is known, which says where tools keep their
+   * logins (see `secret`); the runner's own when omitted.
+   */
+  readonly environment?: () => NodeJS.ProcessEnv
   /** How often `content` looks at what an item points at, in milliseconds. */
   readonly pollMs?: number
   /** How often `content` reads a change again, in milliseconds: git runs each time. */
@@ -253,6 +258,11 @@ export class CompanionItems {
     this.pollMs = options.pollMs ?? 500
     this.changesMs = options.changesMs ?? 2000
     this.lookMs = options.lookMs ?? defaultLookMs
+  }
+
+  /** The environment files are judged by (see `CompanionOptions.environment`). */
+  environment(): NodeJS.ProcessEnv | undefined {
+    return this.options.environment?.()
   }
 
   /**
@@ -525,7 +535,7 @@ export class CompanionItems {
     if (this.stopping) throw new DomainError("CLOSING")
     const folder = this.options.project(input.sessionId)
     if (folder === undefined) throw new DomainError("NOT_FOUND", "Session not found")
-    const pointed = await pointAt(input.path, folder)
+    const pointed = await pointAt(input.path, folder, this.environment())
     if (!pointed.ok) throw new DomainError("INVALID_FILE", pointed.reason)
     if (this.stopping) throw new DomainError("CLOSING")
     const pointer = this.filePointer(pointed, input.path, folder, folder)
@@ -932,7 +942,7 @@ export class CompanionItems {
     if ("changes" in request) {
       const root = await repositoryOf(resolve(place.cwd, request.changes.path ?? "."))
       if (!root.ok) return root
-      const read = await readChange(root.root)
+      const read = await readChange(root.root, this.environment())
       if (!read.ok) return read
       const { name, detail } = describeChange(read.change)
       return {
@@ -952,7 +962,7 @@ export class CompanionItems {
       }
     }
     const { path, lines } = request.file
-    const pointed = await pointAt(path, place.cwd)
+    const pointed = await pointAt(path, place.cwd, this.environment())
     if (!pointed.ok) return pointed
     return {
       ok: true,
@@ -1156,7 +1166,7 @@ export class CompanionItems {
   // A change, read afresh; its item's detail follows the totals it finds, unless the item
   // went or was shown again meanwhile.
   private async readChange(item: ItemRecord): Promise<ItemContent> {
-    const { content, detail } = await changesContent(item.path)
+    const { content, detail } = await changesContent(item.path, this.environment())
     const now = this.records.item(item.id)
     if (detail !== undefined && now && now.version === item.version && now.detail !== detail)
       this.save({ ...now, detail })
@@ -1184,7 +1194,7 @@ export class CompanionItems {
       })
     }
     if (item.kind === "plan") return loadPlan(item, live)
-    return loadFile(item, reveal)
+    return loadFile(item, reveal, this.environment())
   }
 
   private changed(item: ItemRecord): void {

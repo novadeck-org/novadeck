@@ -8,6 +8,7 @@ import type { AgentIntegration, AgentName } from "@novadeck/protocol"
 import { relayPath } from "@novadeck/relay"
 import { refreshPath } from "@novadeck/terminal/shell"
 
+import { secretVariables } from "../companions/secrets.js"
 import { DomainError } from "../errors.js"
 import { exists } from "../files.js"
 import { logs } from "../log.js"
@@ -42,8 +43,9 @@ export type HarnessesOptions = {
 const cmdLine = (argv: readonly string[]): string =>
   argv.map((arg) => (/^[\w@.:\\/-]+$/.test(arg) ? arg : `"${arg}"`)).join(" ")
 
-// Variables the person's terminal has that decide where agents are and live.
-const loginVariables = new Set(["PATH", "CLAUDE_CONFIG_DIR", "CODEX_HOME"])
+// Variables the person's terminal has that decide where agents are and live, and where
+// their tools keep their logins.
+const loginVariables = new Set(["PATH", "CLAUDE_CONFIG_DIR", "CODEX_HOME", ...secretVariables])
 const marker = "__NOVADECK_ENV__"
 
 // What the login shell's startup files set; see `loginEnvironment`.
@@ -319,6 +321,11 @@ export const createHarnesses = (
         return []
       }
     },
+    /**
+     * The person's environment as their terminal has it, as far as it is known: their
+     * login shell's once it answered, the app's own until then.
+     */
+    environment: (): NodeJS.ProcessEnv => latest ?? base,
     /** Where the agent lives on this machine, once the shell files say where its plugin is. */
     install: async (agent: AgentName): Promise<Install | undefined> => (await installs())?.(agent),
     /** The folders the agent keeps the plans it writes as files in (see `Harness.planFolders`). */

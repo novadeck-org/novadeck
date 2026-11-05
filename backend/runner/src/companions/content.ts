@@ -87,9 +87,14 @@ export type Pointed = {
 
 /**
  * A file a request points at, from the terminal's directory: anything but a missing
- * path, a folder, or a pipe or device. What it holds is read only as it loads.
+ * path, a folder, or a pipe or device. What it holds is read only as it loads. `env` is
+ * the person's environment, which says where tools keep their logins (see `secret`).
  */
-export const pointAt = async (given: string, cwd: string): Promise<Pointed | RequestFailure> => {
+export const pointAt = async (
+  given: string,
+  cwd: string,
+  env?: NodeJS.ProcessEnv,
+): Promise<Pointed | RequestFailure> => {
   const path = await realpath(resolve(cwd, given)).catch(() => undefined)
   if (!path) return failure("That file doesn't exist.")
   const stats = await stat(path).catch(() => undefined)
@@ -101,7 +106,7 @@ export const pointAt = async (given: string, cwd: string): Promise<Pointed | Req
     path,
     kind: isImage(path) ? "image" : "file",
     size: stats.size,
-    secret: secret(path),
+    secret: secret(path, env),
   }
 }
 
@@ -258,6 +263,7 @@ const readLines = async (
 export const loadFile = async (
   item: Pick<ItemRecord, "kind" | "path" | "lines" | "secret">,
   reveal: boolean,
+  env?: NodeJS.ProcessEnv,
 ): Promise<ItemContent> => {
   if (item.path === null) return unavailable("missing")
   let path: string
@@ -275,7 +281,7 @@ export const loadFile = async (
   if ("state" in opened) return opened
   const { handle, stats } = opened
   try {
-    if ((item.secret || secret(path)) && !reveal) return unavailable("secret", stats.size)
+    if ((item.secret || secret(path, env)) && !reveal) return unavailable("secret", stats.size)
     const stamp = stampOf(stats)
     if (item.kind === "image") {
       if (stats.size > maxImageBytes) return unavailable("too-large", stats.size)

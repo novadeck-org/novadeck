@@ -359,6 +359,42 @@ describe.skipIf(!hasGit)("a change read from a git repository", () => {
     ])
   })
 
+  it("lists a login in a home a variable moved, or told by what is beside it, by name only", async ({
+    repo,
+  }) => {
+    repo.write("ok.txt", "a\n")
+    repo.git("add", "-A")
+    repo.git("commit", "--quiet", "-m", "base")
+    repo.write("auth.json", '{"note":"HELD_TEXT"}\n')
+    const listed = async (env: NodeJS.ProcessEnv) => {
+      const read = await readChange(repo.root, env)
+      if (!read.ok) throw new Error(read.reason)
+      return {
+        text: JSON.stringify(read.change),
+        files: read.change.files.map(({ path, secret }) => [path, secret]).toSorted(),
+      }
+    }
+    // A plain name, shown as any file, until something says it is a login.
+    expect((await listed({})).files).toEqual([["auth.json", false]])
+    const moved = await listed({ CODEX_HOME: repo.root })
+    expect(moved.files).toEqual([["auth.json", true]])
+    expect(moved.text).not.toContain("HELD_TEXT")
+    repo.write("config.toml", "")
+    const beside = await listed({})
+    expect(beside.files).toEqual([
+      ["auth.json", true],
+      ["config.toml", false],
+    ])
+    expect(beside.text).not.toContain("HELD_TEXT")
+    // Tracked too: its diff is held as its content is.
+    repo.git("add", "-A")
+    repo.git("commit", "--quiet", "-m", "home")
+    repo.write("auth.json", '{"note":"HELD_TEXT again"}\n')
+    const tracked = await listed({})
+    expect(tracked.files).toEqual([["auth.json", true]])
+    expect(tracked.text).not.toContain("HELD_TEXT")
+  })
+
   it("reads again with the same stamp until a file changes", async ({ repo }) => {
     repo.write("a.txt", "1\n")
     repo.git("add", "-A")

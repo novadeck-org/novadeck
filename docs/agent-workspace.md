@@ -409,7 +409,9 @@ with every safety check again at that time:
   (`protocol/src/pages.ts`): its address without the fragment, or for a server on this
   machine (`localhost`, `127.0.0.1`, `[::1]`, `0.0.0.0` and `[::]` alike) its scheme and port
   alone, so a dev server stays one item whatever route the agent shows. A file that often holds secrets (`.env`,
-  keys, credentials, agents' and tools' logins, shell history) is secret: it never opens
+  keys, credentials, agents' and tools' logins, shell history) is secret, a login also where a
+  variable of the person's environment moves its tool's folder (`CODEX_HOME`, `GH_CONFIG_DIR`,
+  `KUBECONFIG` and the like; `companions/secrets.ts`): it never opens
   by itself, even when the agent says the person asked (one the person attached themselves does
   open, onto the pane's gate: they picked it); the pane never falls back to
   it, its taskbar peek shows no preview, and it goes by its own name, not the agent's

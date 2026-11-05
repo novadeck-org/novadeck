@@ -72,6 +72,8 @@ export type PeersOptions = {
   readonly projectFolder: (sessionId: string) => string | undefined
   /** The latest reports of the agent session bound in a terminal. */
   readonly reports: (terminalId: string) => Reports
+  /** The person's environment, by which a file may hold secrets; the runner's own when omitted. */
+  readonly environment?: () => NodeJS.ProcessEnv | undefined
   /** Whether the runner is stopping. */
   readonly stopping: () => boolean
 }
@@ -301,7 +303,9 @@ export class TerminalPeers {
       folders: busiestFolders(terminal.work?.folders ?? {})
         .map(({ folder }) => inside(folder))
         .filter((path) => path !== undefined),
-      files: files.filter((path) => inside(path) && !secret(path)).map((path) => basename(path)),
+      files: files
+        .filter((path) => inside(path) && !secret(path, this.options.environment?.()))
+        .map((path) => basename(path)),
     }
   }
 

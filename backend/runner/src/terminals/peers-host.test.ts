@@ -110,6 +110,30 @@ describe("what a terminal's dictation hint is made of", () => {
     })
   })
 
+  it("names no login the person's environment says a tool keeps in the project", async () => {
+    const moved = new TerminalPeers({
+      messaging: {} as Messaging,
+      caller: () => undefined,
+      terminal: () => undefined,
+      running: () => [],
+      projectFolder: () => "/w/repo",
+      reports: () => ({ tell: null, done: null }),
+      environment: () => ({ GH_CONFIG_DIR: "/w/repo/accounts/work" }),
+      stopping: () => false,
+    })
+    const work = {
+      ...freshWork("claude:s1"),
+      files: ["/w/repo/accounts/work/hosts.yml", "/w/repo/inventory/hosts.yml"],
+    }
+    expect(await moved.hint(terminal({ work }), [])).toMatchObject({ files: ["hosts.yml"] })
+    expect(
+      await moved.hint(
+        terminal({ work: { ...work, files: ["/w/repo/accounts/work/hosts.yml"] } }),
+        [],
+      ),
+    ).toMatchObject({ files: [] })
+  })
+
   it("names what is inside the terminal's folder for a session without a project folder", async () => {
     const loose = new TerminalPeers({
       messaging: {} as Messaging,
