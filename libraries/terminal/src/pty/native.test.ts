@@ -68,6 +68,11 @@ const spawn = (args = [ptyChild], options: { useConptyDll?: boolean } = {}) => {
     events.emit("exit")
   })
   onTestFinished(async () => {
+    // Diagnostic for #712, to come out once CI has shown where Windows' time goes.
+    if (process.platform === "win32")
+      console.info(
+        `PTY ${child.pid} steps (${(options.useConptyDll ?? true) ? "bundled" : "system"} ConPTY):\n${steps.join("\n")}`,
+      )
     try {
       if (!exited) child.kill()
       await bounded(exit, `PTY ${child.pid} cleanup`)
@@ -199,6 +204,41 @@ describe("installed native PTY dependency", () => {
       expect(descriptors()).toEqual(before)
     },
     60_000,
+  )
+
+  // Diagnostic for #712, to come out once CI has shown it: how long a line of input takes to
+  // reach a child by its length, on each ConPTY. Input grows with `pad`, which the child
+  // ignores, while its reply stays a short marker. It reports and asserts nothing.
+  it.runIf(process.platform === "win32").for([
+    { conpty: "system", useConptyDll: false },
+    { conpty: "bundled", useConptyDll: true },
+  ])(
+    "diagnostic: times input round trips by line length ($conpty ConPTY)",
+    async ({ conpty, useConptyDll }) => {
+      const terminal = spawn([ptyChild], { useConptyDll })
+      await terminal.until("PTY_READY")
+      const times: string[] = []
+      for (const pad of [0, 0, 256, 256, 2048, 2048, 0]) {
+        const marker = `PROBE_${times.length}_PAD_${pad}`
+        const line = `${Buffer.from(JSON.stringify({ type: "write", data: marker, pad: "x".repeat(pad) })).toString("base64")}\n`
+        const began = performance.now()
+        terminal.write(line, `${marker} (${line.length} chars)`)
+        try {
+          // eslint-disable-next-line no-await-in-loop -- One line in flight at a time, to time each.
+          await terminal.until(marker)
+          times.push(`${line.length} chars: ${Math.round(performance.now() - began)} ms`)
+        } catch {
+          times.push(`${line.length} chars: over 10 s`)
+          break
+        }
+      }
+      // Every line was timed, the last perhaps as over 10 s.
+      expect(times.length).toBeGreaterThan(0)
+      console.info(
+        `Input round trips on the ${conpty} ConPTY:\n${times.join("\n")}\n${ptyTrace(30)}`,
+      )
+    },
+    120_000,
   )
 
   it.skipIf(process.platform !== "win32").for([
