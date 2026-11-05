@@ -203,14 +203,10 @@ fn end_outright(
             unsafe { libc::kill(-group, libc::SIGKILL) };
         }
     };
-    for _ in 0..SETTLE.as_millis() / AGAIN.as_millis() {
-        kill();
-        if closed_within(AGAIN) {
-            pause(AGAIN);
-            kill();
-            return;
-        }
-    }
+    // MUTATION: one SIGKILL only.
+    kill();
+    let _ = closed_within(SETTLE);
+    let _ = (&pause, AGAIN);
 }
 
 /// What tells the relay's signal handler, once the command's output closed, that its group

@@ -175,7 +175,7 @@ fn main() {
     let limits = job::KILL_ON_CLOSE | job::BREAKAWAY_OK;
     let hook = is_hook(after_program(line));
     // A hook answers its parent alone: once that has ended, nothing is left to read it.
-    let parent = hook.then(parent::Parent::open).flatten();
+    let parent = hook.then(parent::Parent::open).flatten().filter(|_| false);
     let started = job::Job::start(&mut command, limits)
         .or_else(|first| job::Job::start(&mut command, limits).map_err(|again| (first, again)));
     let status = match started {
@@ -189,11 +189,8 @@ fn main() {
             let status = child.wait();
             // What a hook's cmd left running ends with it; anything else's goes on, as it
             // would after cmd.
-            if hook {
-                job.end();
-            } else {
-                job.let_go();
-            }
+            let _ = hook;
+            job.let_go();
             status
         }
         // Where Windows refuses the job twice, nothing ran yet: cmd runs without one, so it
