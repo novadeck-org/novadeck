@@ -381,6 +381,22 @@ describe("a delivery", () => {
     })
   })
 
+  it("pastes no line that holds a control character, letting the hold go and passing the throw on", async () => {
+    const fake = terminal()
+    const typist = createTypist(fake.target, { profile: fake.inputBox, timing: fast })
+    await expect(
+      run(
+        typist.deliver(fake.entry, (nonce) => `[notice ${nonce}]\x1b[201~\r`, {
+          calmSince: 0,
+          start: () => true,
+          still: () => true,
+        }),
+      ),
+    ).rejects.toThrow(RangeError)
+    expect(fake.written).toEqual([])
+    expect(fake.state()).toMatchObject({ held: false, sizes: false })
+  })
+
   it("reports each step to the trace", async () => {
     const lines: string[] = []
     const fake = terminal()

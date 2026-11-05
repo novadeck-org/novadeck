@@ -6,8 +6,26 @@ export const freshNonce = (): string => {
   return [...randomBytes(6)].map((byte) => alphabet[byte % alphabet.length]).join("")
 }
 
-/** The line written as one bracketed paste, which the TUI takes as text, never as keys. */
-export const bracketedPaste = (line: string): string => `\x1b[200~${line}\x1b[201~`
+// C0 controls but the tab, the line feed and the carriage return, DEL, and C1 controls: an
+// escape would end the paste early and have what follows typed as keys, a Ctrl-U clear the box.
+// eslint-disable-next-line no-control-regex -- Control characters are what it finds.
+const controls = /[\x00-\x08\x0b\x0c\x0e-\x1f\x7f-\x9f]/
+
+/** Whether a text can go in a bracketed paste whole, as text: it holds no control character but a tab or line break. */
+export const pasteable = (text: string): boolean => !controls.test(text)
+
+/**
+ * The line written as one bracketed paste, which the TUI takes as text, never as keys. Throws
+ * a `RangeError` for a line that holds a control character but a tab or line break, which
+ * could end the paste and press keys: callers keep them out.
+ */
+export const bracketedPaste = (line: string): string => {
+  if (!pasteable(line))
+    throw new RangeError(
+      "A paste can't hold a control character: the program would take it as keys.",
+    )
+  return `\x1b[200~${line}\x1b[201~`
+}
 
 /** What the gate needs to know of a terminal before it types into it. */
 export type GateFacts = {

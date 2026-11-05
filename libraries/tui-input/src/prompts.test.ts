@@ -896,6 +896,17 @@ describe("the rule a prompt is refused by", () => {
     expect(written).toEqual([])
   })
 
+  it("refuses a control character whatever the rule, before the queue, writing nothing", async () => {
+    const { host, written } = terminal()
+    const prompts = new Prompts(host, host.queue, fast)
+    expect(await refusal(prompts.prompt("t", "Hi\x1b[201~\r!rm -rf x\r"))).toBe("refused")
+    expect(await refusal(prompts.prompt("t", "!ls\x15"))).toBe("refused")
+    expect(written).toEqual([])
+    // Line breaks and tabs are text.
+    await prompts.prompt("t", "one\r\n\ttwo")
+    expect(written).toEqual(["\x1b[200~one\r\ttwo\x1b[201~", "\r"])
+  })
+
   it("lets a text through that it passes", async () => {
     const { host, written } = terminal()
     const prompts = new Prompts(host, host.queue, { ...fast, refuse })

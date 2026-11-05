@@ -5,12 +5,13 @@ import type { ScreenText } from "@novadeck/emulator/headless"
 import { isEmpty, showsTail, type BoxProfile } from "./box/box.js"
 import { sameText, wrappedRows } from "./box/text.js"
 import type { HoldBudget, InputEntry, InputQueue } from "./queue.js"
-import { bracketedPaste } from "./typing.js"
+import { bracketedPaste, pasteable } from "./typing.js"
 
 /**
  * Why a prompt was not given. All but `not-switched`, `not-shown` and `unexpanded` write
  * nothing; those three leave what landed of the text as a draft.
- * - `refused`: the caller's `refuse` rule judged the text, and said why in the message;
+ * - `refused`: the caller's `refuse` rule judged the text, and said why in the message, or
+ *   the text holds a control character (but a tab or line break) that would press keys;
  * - `gone`: the terminal ended, or the hold on the person's input lapsed, while it waited;
  * - `no-paste`: the screen takes no bracketed paste;
  * - `no-box`: the program's input box is not on its screen, or a view of the program covers it;
@@ -194,10 +195,19 @@ export class Prompts {
     await this.give(entry, terminalId, text)
   }
 
-  /** The shape of the text is refused at call time; `admit` is asked in the entry's turn. */
+  /**
+   * The shape of the text is refused at call time; `admit` is asked in the entry's turn. A
+   * control character but a tab or line break is refused whatever the rule, as it would end
+   * the paste and press keys.
+   */
   private refuse(text: string): void {
     const refusal = this.rule?.(text)
     if (refusal !== undefined) throw new PromptRefusal("refused", refusal)
+    if (!pasteable(text))
+      throw new PromptRefusal(
+        "refused",
+        "A prompt can't hold control characters: the program would take them as keys.",
+      )
   }
 
   private async give(entry: InputEntry, terminalId: string, text: string): Promise<void> {
