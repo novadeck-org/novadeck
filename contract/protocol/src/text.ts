@@ -52,7 +52,15 @@ const controls = "\\x00-\\x08\\x0b-\\x1f\\x7f-\\x9f"
 // word joiner, the byte-order mark and the Mongolian vowel separator; and the line and
 // paragraph separators. Not the zero-width joiner and non-joiner: emoji such as 👩‍💻 and
 // scripts such as Persian need them, and they reorder nothing.
-const marks = "\\u061c\\u180e\\u200b\\u200e\\u200f\\u2028-\\u202e\\u2060\\u2066-\\u2069\\ufeff"
+const directions = "\\u061c\\u200e\\u200f\\u202a-\\u202e\\u2066-\\u2069"
+const marks = `${directions}\\u180e\\u200b\\u2028\\u2029\\u2060\\ufeff`
+
+/**
+ * A mark that changes the direction text reads in: the bidirectional marks, embeddings,
+ * overrides and isolates. One of the marks `unsafeCharacter` takes in, which a refusal can
+ * name apart.
+ */
+export const directionMark = new RegExp(`[${directions}]`)
 
 /**
  * A control character other than the tab and the line feed: what an input box would take

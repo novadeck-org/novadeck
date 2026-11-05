@@ -136,6 +136,7 @@ export {
 export {
   asLine,
   controlCharacter,
+  directionMark,
   hiddenCharacter,
   hiddenIn,
   maxCommandLines,
