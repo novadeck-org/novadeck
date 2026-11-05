@@ -21,6 +21,74 @@ const linux = {
   salt,
 }
 
+// A growth of this or more is no linear time: between linear's 1 and a quadratic's 10.
+const superlinear = 3
+
+/**
+ * The milliseconds this thread has run: what a busy machine cannot stretch, as it does the
+ * time on the clock. Linux counts it in steps of a kernel tick, 1 to 4 ms, and macOS finer.
+ * Windows counts it in steps of some 16 ms, too coarse for these samples, so there the
+ * clock is read.
+ */
+const spent = (): number => {
+  if (process.platform === "win32") return performance.now()
+  const { user, system } = process.threadCpuUsage()
+  return (user + system) / 1000
+}
+
+/**
+ * How many times longer `work` takes on a text of `length` than on a tenth of it ten times
+ * over: about 1 where its time is linear in the length, about 10 where it is quadratic.
+ *
+ * Two things keep a busy machine out of it. The time is the thread's own (see `spent`): by
+ * the clock, a sample of a millisecond fits in one of the scheduler's time slices and runs
+ * at full speed while a longer one shares its core, which read as 108 times the time for
+ * ten times the text on a loaded macOS runner. And the two sides are the same amount of
+ * work where it is linear, so what does slow the thread slows them alike.
+ *
+ * The whole text is passed over until 30 ms are spent, and a side is that many passes over
+ * it, or ten times as many over its tenth: several steps of the coarsest clock, which would
+ * read a side of a millisecond as nothing. Each round times one side straight after the
+ * other, and the middle round's ratio counts (the higher of two middle ones), so a load
+ * that comes or goes in one round does not decide. Seven rounds at most: it ends after
+ * three or five that read under `superlinear`, or with the round in which five seconds
+ * have passed, as the first round of a quadratic may take.
+ */
+const growth = (
+  work: (text: string) => unknown,
+  text: (length: number) => string,
+  length: number,
+): { times: number; rounds: readonly number[] } => {
+  const part = text(length / 10)
+  const whole = text(length)
+  const timed = (run: () => void): number => {
+    const started = spent()
+    run()
+    return spent() - started
+  }
+  // Compiled before anything is timed.
+  work(part)
+  const began = performance.now()
+  let passes = 0
+  let once = timed(() => {
+    for (const started = spent(); spent() - started < 30; passes++) work(whole)
+  })
+  const rounds: number[] = []
+  for (;;) {
+    const parts = timed(() => {
+      for (let pass = 0; pass < 10 * passes; pass++) work(part)
+    })
+    rounds.push(once / parts)
+    const times = rounds.toSorted((a, b) => a - b)[Math.floor(rounds.length / 2)] ?? Infinity
+    const settled = rounds.length % 2 === 1 && rounds.length >= 3 && times < superlinear
+    if (settled || rounds.length === 7 || performance.now() - began >= 5_000)
+      return { times, rounds }
+    once = timed(() => {
+      for (let pass = 0; pass < passes; pass++) work(whole)
+    })
+  }
+}
+
 describe("createRedactor", () => {
   const redact = createRedactor({
     ...linux,
@@ -212,11 +280,8 @@ describe("createRedactor", () => {
   })
 
   // Each took seconds at 200,000 characters before: a pattern that looked again from each
-  // character of a long run. What holds is linear time, not a speed a slow machine may not
-  // have: ten times the text takes about ten times as long, where a quadratic takes a
-  // hundred. 40 sits between the two (30 was seen on a loaded macOS runner), each time is
-  // the best of three after a warm-up (the 200,000's stops early once under the bound),
-  // and under 100 ms passes whatever the ratio.
+  // character of a long run. What holds is linear time, not a speed a slow or busy machine
+  // may not have: see `growth`.
   it.each([
     ["a long run of letters", (length: number) => "A".repeat(length)],
     ["a long hex run", (length: number) => "0123456789abcdef".repeat(length / 16)],
@@ -229,22 +294,33 @@ describe("createRedactor", () => {
   ])(
     "redacts %s in time linear in its length, to 200,000 characters",
     (_what, text) => {
-      const timed = (length: number): number => {
-        const shown = text(length)
-        const started = performance.now()
-        redact(shown)
-        return performance.now() - started
-      }
-      timed(20_000)
-      const small = Math.min(timed(20_000), timed(20_000), timed(20_000))
-      const bound = Math.max(40 * small, 100)
-      let large = timed(200_000)
-      for (let tries = 1; tries < 3 && large >= bound; tries++)
-        large = Math.min(large, timed(200_000))
+      const { times, rounds } = growth(redact, text, 200_000)
       expect(
-        large,
-        `${large.toFixed(1)} ms at 200,000, ${small.toFixed(1)} ms at 20,000`,
-      ).toBeLessThan(bound)
+        times,
+        `200,000 against ten of 20,000, by round: ${rounds.map((round) => round.toFixed(1)).join(", ")}`,
+      ).toBeLessThan(superlinear)
+    },
+    60_000,
+  )
+
+  // The measure itself, on the email pattern as it was when it looked again from each
+  // character of a run: were it to read this as linear, the cases above would guard nothing.
+  // Not on Windows, where the clock is read: a quadratic's two sides are not the same work,
+  // so a busy machine stretches the short one more, and read this as 1.2 once.
+  it.skipIf(process.platform === "win32")(
+    "reads a pattern that looks again from each character as no linear time",
+    () => {
+      const rescanning =
+        /[\w.%+-]+@[A-Za-z0-9-]+(?:\.[A-Za-z0-9-]+)*\.[A-Za-z]{2,}\b(?!:[\w#~./<])/g
+      const { times, rounds } = growth(
+        (text) => text.replace(rescanning, "<email>"),
+        (length) => "A".repeat(length),
+        15_000,
+      )
+      expect(
+        times,
+        `15,000 against ten of 1,500, by round: ${rounds.map((round) => round.toFixed(1)).join(", ")}`,
+      ).toBeGreaterThan(superlinear)
     },
     60_000,
   )
