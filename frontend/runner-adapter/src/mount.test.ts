@@ -115,7 +115,7 @@ const mountOver = (
 ): Mounted => {
   const container = document.createElement("div")
   document.body.append(container)
-  const mountTerminal = createTerminalMount({ acquire: screens.acquire, restart: options.restart })
+  const mountTerminal = createTerminalMount(screens)
   const mount = mountTerminal(container, key, props)
   let current = props
   const page: Mounted = {
