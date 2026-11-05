@@ -324,6 +324,15 @@ describe("the WebGL pool", () => {
       state.failing = false
     })
 
+    it("leave out of onDom a screen that lost its context, or failed to load one, with slots free", () => {
+      const { pool, drawing, state } = setup({ cap: 4 })
+      pool.screen("a").take()
+      drawing("a").lose()
+      state.failing = true
+      pool.screen("b").take()
+      expect(pool.stats()).toMatchObject({ lost: 1, failed: 1, onDom: 0 })
+    })
+
     it("leave idle screens out of onDom, whether they lost the context or never had it", () => {
       const first = setup({ cap: 1 })
       const [a, b] = ["a", "b"].map((name) => first.pool.screen(name))
