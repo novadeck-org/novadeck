@@ -129,7 +129,8 @@ describe("a typed prompt where hooks name none", () => {
     await expect(
       told(entry("fix it", 1, Date.parse("2026-10-01T12:00:04Z")), { seen: undefined }),
     ).resolves.toMatchObject({ events: [{ cause: "harness" }], seen: 1 })
-    // With no Enter, only the very line it was started with, as `agy -i "<line>"`.
+    // With no Enter, only the very line it was started with, as `agy -i "<line>"` (an
+    // earlier build's start of a task, kept by a terminal it saved).
     await expect(
       told(entry(line, 0), { seen: undefined, enteredAt: undefined, startedWith: "k3f9q2" }),
     ).resolves.toMatchObject({ events: [{ cause: "doorbell", nonce: "k3f9q2" }] })

@@ -1,7 +1,11 @@
 import { readFileSync, writeFileSync } from "node:fs"
 import { setTimeout as sleep } from "node:timers/promises"
 
+import { onTestFinished } from "vitest"
+
 import { harnesses } from "../harnesses/registry.js"
+import { logs, useLogger } from "../log.js"
+import { tracer } from "../messaging/doorbell.js"
 import { setups } from "./agents/index.js"
 import { describe, e2e, expect, gated, supported } from "./fixture.js"
 import { latest, tool, type Call } from "./model/script.js"
@@ -100,7 +104,35 @@ for (const setup of setups) {
     )(
       "gives an agent started with a task Novadeck's tools in the task's turn, though its MCP server starts late",
       async ({ e2e: run }) => {
+        const atTurnStart = harnesses[setup.agent].messaging.toolsAtTurnStart
         const brief = "List the agents."
+        // The doorbell's word that it waits for an agent's tools, by terminal, and the
+        // runner's that a wait ran out, which only a wait that never heard of them makes.
+        const waited = new Set<string>()
+        const sink = tracer.sink
+        tracer.sink = (terminalId, line, screen) => {
+          if (line.includes("for its MCP tools")) waited.add(terminalId)
+          sink?.(terminalId, line, screen)
+        }
+        onTestFinished(() => {
+          if (sink) tracer.sink = sink
+        })
+        const late: unknown[] = []
+        const before = logs.current()
+        useLogger({
+          ...before,
+          for: (name) => {
+            const inner = before.for(name)
+            return {
+              ...inner,
+              warn: (evt, message, detail) => {
+                if (evt === "doorbell.tools-late") late.push(detail)
+                inner.warn(evt, message, detail)
+              },
+            }
+          },
+        })
+        onTestFinished(() => useLogger(before))
         // The worker's conversation, known by its first request, the one holding the brief.
         let home: string | undefined
         const works = (call: Call): boolean => {
@@ -127,22 +159,27 @@ for (const setup of setups) {
             without += 1
             // A harness that adds a server's tools to a running turn is given time, a
             // harmless command at a time; one that takes them as a turn starts gets none.
-            if (harnesses[setup.agent].messaging.toolsAtTurnStart || without > 10 || !setup.shell)
+            if (atTurnStart || without > 10 || !setup.shell)
               return { text: "No Novadeck tools in this turn." }
             await sleep(500)
             return setup.shell.run(call, "ls")
           }),
         )
         const t1 = await start(run, setup)
-        // The lead's own server started in time; the worker's starts 2 s late, as a loaded
-        // macOS runner's took over 1 s, past Antigravity's first request.
-        slowMcp(run.deck.shell.mcp, 2)
+        // The lead's own server started in time; the worker's starts late, as a loaded macOS
+        // runner's took over 1 s, past Antigravity's first request: for a harness whose ring
+        // waits for its tools, past the doorbell's settle after its prompt shows too, so the
+        // ring goes only once its server has listed them.
+        slowMcp(run.deck.shell.mcp, atTurnStart ? 9 : 2)
         await t1.submit("Start a lister")
         const t2 = await requests.next()
         expect(t2.handle).toBe("fox")
         const shown = await t2.until(/Listed the agents\.|No Novadeck tools in this turn\./, 60_000)
         expect(shown).toContain("Listed the agents.")
         await through(t2, [holds("moth", "fox", "delivered"), "settled"])
+        // Its ring waited for the listing, which reached the doorbell: no wait ran out.
+        expect(waited.has(t2.id)).toBe(atTurnStart)
+        expect(late).toEqual([])
       },
     )
 

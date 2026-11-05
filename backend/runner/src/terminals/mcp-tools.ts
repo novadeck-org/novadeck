@@ -22,8 +22,8 @@ export type McpToolsOptions = {
 export class McpTools {
   private readonly now: () => number
   private readonly waitMs: number
-  /** The sessions open in each terminal that listed the tools. */
-  private readonly listed = new Map<string, number>()
+  /** The sessions open in each terminal that listed the tools, by their ids. */
+  private readonly listed = new Map<string, Set<string>>()
   /** When each terminal's wait for its tools began. */
   private readonly waiting = new Map<string, number>()
   /** The terminals whose wait ran out, which aren't waited for again. */
@@ -35,14 +35,18 @@ export class McpTools {
   }
 
   /**
-   * An MCP session in the terminal listed the tools (`listed`), or closed after that; true
-   * when the terminal holds the tools now and didn't before.
+   * MCP session `session` in the terminal listed the tools (`listed`), or closed after that;
+   * true when the terminal holds the tools now and didn't before. A close of a session it
+   * doesn't know, as one an earlier agent there left, changes nothing.
    */
-  session(terminalId: string, listed: boolean): boolean {
-    const open = (this.listed.get(terminalId) ?? 0) + (listed ? 1 : -1)
-    if (open > 0) this.listed.set(terminalId, open)
+  session(terminalId: string, session: string, listed: boolean): boolean {
+    const open = this.listed.get(terminalId) ?? new Set<string>()
+    const before = open.size
+    if (listed) open.add(session)
+    else open.delete(session)
+    if (open.size > 0) this.listed.set(terminalId, open)
     else this.listed.delete(terminalId)
-    if (!listed || open !== 1) return false
+    if (before > 0 || open.size === 0) return false
     this.waiting.delete(terminalId)
     this.overdue.delete(terminalId)
     return true

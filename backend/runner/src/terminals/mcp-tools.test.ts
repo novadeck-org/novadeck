@@ -11,14 +11,26 @@ const clock = () => {
 describe("a terminal's agent holding Novadeck's MCP tools", () => {
   it("holds them while a session that listed them is open, a nested run's beside the agent's", () => {
     const tools = new McpTools()
-    expect(tools.session("t", true)).toBe(true)
+    expect(tools.session("t", "agent", true)).toBe(true)
     // A nested run lists them too, then ends: the agent's session still holds them.
-    expect(tools.session("t", true)).toBe(false)
-    expect(tools.session("t", false)).toBe(false)
+    expect(tools.session("t", "nested", true)).toBe(false)
+    expect(tools.session("t", "nested", false)).toBe(false)
     expect(tools.wait("t")).toBe(0)
     // The agent's ends too: the next one waits for its own listing.
-    expect(tools.session("t", false)).toBe(false)
+    expect(tools.session("t", "agent", false)).toBe(false)
     expect(tools.wait("t")).toBeGreaterThan(0)
+  })
+
+  it("keeps a new agent's tools when an earlier session's close comes after its listing", () => {
+    const tools = new McpTools()
+    tools.session("t", "old", true)
+    // The agent restarted: its new session listed before the old one's close arrived.
+    tools.session("t", "new", true)
+    tools.session("t", "old", false)
+    expect(tools.wait("t")).toBe(0)
+    // A close of a session never listed changes nothing either.
+    tools.session("t", "unknown", false)
+    expect(tools.wait("t")).toBe(0)
   })
 
   it("waits from the first ask, until a session lists them or the wait runs out", () => {
@@ -29,7 +41,7 @@ describe("a terminal's agent holding Novadeck's MCP tools", () => {
     expect(tools.wait("t")).toBe(6_000)
     // Another terminal waits on its own.
     expect(tools.wait("u")).toBe(10_000)
-    expect(tools.session("t", true)).toBe(true)
+    expect(tools.session("t", "agent", true)).toBe(true)
     expect(tools.wait("t")).toBe(0)
   })
 
@@ -58,8 +70,8 @@ describe("a terminal's agent holding Novadeck's MCP tools", () => {
       { evt: "doorbell.tools-late", data: { terminalId: "t", waitedMs: 10_000 } },
     ])
     // A session lists them and ends: a later agent there is waited for again.
-    tools.session("t", true)
-    tools.session("t", false)
+    tools.session("t", "agent", true)
+    tools.session("t", "agent", false)
     expect(tools.wait("t")).toBe(10_000)
   })
 
@@ -71,7 +83,7 @@ describe("a terminal's agent holding Novadeck's MCP tools", () => {
   it("forgets a terminal that went", () => {
     const { now, pass } = clock()
     const tools = new McpTools({ now, waitMs: 10_000 })
-    tools.session("t", true)
+    tools.session("t", "agent", true)
     tools.forget("t")
     expect(tools.wait("t")).toBe(10_000)
     pass(10_000)

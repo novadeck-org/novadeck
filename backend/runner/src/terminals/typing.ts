@@ -221,11 +221,11 @@ export class Typing {
   }
 
   /**
-   * An MCP session in the terminal listed Novadeck's tools to its agent (`listed`), or
-   * closed after that: a ring that waited for them may go.
+   * MCP session `session` in the terminal listed Novadeck's tools to its agent (`listed`),
+   * or closed after that: a ring that waited for them may go.
    */
-  mcpSession(terminalId: string, listed: boolean): void {
-    if (this.tools.session(terminalId, listed)) this.doorbell?.changed(terminalId)
+  mcpSession(terminalId: string, session: string, listed: boolean): void {
+    if (this.tools.session(terminalId, session, listed)) this.doorbell?.changed(terminalId)
   }
 
   /** The terminal's screen or requests changed: its dialogs are looked at again, and a banner read. */

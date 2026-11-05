@@ -667,7 +667,7 @@ const openAgent: Tool<Opened> = {
             ? " It started without its task: message " +
               answer.task.id +
               " reaches it once its prompt shows, after the user trusts the folder if " +
-              "it asks them to."
+              "the agent asks them to."
             : " Its task, message " +
               answer.task.id +
               ", waits for the agent's first session " +

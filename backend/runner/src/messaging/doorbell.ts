@@ -151,8 +151,9 @@ export type DoorbellOptions = {
   readonly platform?: NodeJS.Platform
   /**
    * How long a ring waits at most for an agent that takes its MCP tools as a turn starts to
-   * hold Novadeck's (see `toolsWait`), in milliseconds: 10 s by default; 0 waits not at all,
-   * as for a stand-in TUI that starts no MCP server.
+   * hold Novadeck's, in milliseconds: 10 s by default; 0 waits not at all, as for a stand-in
+   * TUI that starts no MCP server. The doorbell itself only asks `toolsWait`: the runner's
+   * Typing reads this to answer it (terminals/mcp-tools.ts).
    */
   readonly toolsMs?: number
 }

@@ -295,9 +295,14 @@ export type ReportHandlers = {
   readonly call: (call: Call) => Promise<unknown>
   /**
    * An agent's MCP session in a terminal had its first listing of the tools answered
-   * (`listed`), or closed after that (not); for the terminal and token its relay named.
+   * (`listed`), or closed after that (not): `from` is the terminal and token its relay
+   * named, `session` the connection's own id, the same for both.
    */
-  readonly tools: (session: { terminalId: string; token: string }, listed: boolean) => void
+  readonly tools: (
+    from: { terminalId: string; token: string },
+    session: string,
+    listed: boolean,
+  ) => void
 }
 
 export type Reports = {
@@ -472,12 +477,14 @@ export const listenForReports = async (
         socket.unref()
         socket.off("data", first)
         const from = sender(value)
+        // Its own id, so a close tells which of a terminal's sessions ended.
+        const session = randomUUID()
         serveSession(
           socket,
           text.slice(end + 1),
           from && relayCall(from),
           version,
-          from && ((listed) => handlers.tools(from, listed)),
+          from && ((listed) => handlers.tools(from, session, listed)),
         )
         return
       }

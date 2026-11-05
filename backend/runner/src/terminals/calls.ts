@@ -437,9 +437,10 @@ export class Calls {
   /**
    * The command that starts `agent`: with a task, the doorbell's line, with its `nonce`, as
    * its command-line prompt, which it submits once past its startup screens; plain where
-   * it may not take one (Antigravity in a folder it doesn't trust), when the task arrives
-   * once the person trusts the folder and its prompt shows, rung as any message is. Without
-   * a task, it just starts at its prompt, with the model and effort chosen.
+   * it may not take one (Antigravity, whose prompt would start a turn before Novadeck's
+   * tools load, or behind its trust dialog), when the task arrives once its prompt shows,
+   * rung as any message is. Without a task, it just starts at its prompt, with the model
+   * and effort chosen.
    */
   private async taskCommand(
     agent: AgentName,
@@ -454,7 +455,7 @@ export class Calls {
       ? await launch.initialPrompt(doorbellLine(nonce), { install, cwd }).catch(() => undefined)
       : undefined
     const [program = "", ...rest] = prompted ?? launch.start
-    // Right after the program, so before a flag like Antigravity's `-i` that takes the line.
+    // Right after the program, so before any flag of a prompt's that takes the line.
     const command = commandLine([program, ...launch.choose(choice), ...rest])
     return { command, prompted: prompted !== undefined, ...(withTask && { nonce }) }
   }

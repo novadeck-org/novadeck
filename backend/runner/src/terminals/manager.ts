@@ -425,8 +425,8 @@ export class Terminals {
         ask: (report, deadline) => this.reporting.queueAsk(report, deadline),
         ack: (ack) => this.acknowledge(ack),
         call: (call) => this.calls.call(call),
-        tools: (session, listed) => {
-          if (callerOf(this.records, session)) this.typing.mcpSession(session.terminalId, listed)
+        tools: (from, session, listed) => {
+          if (callerOf(this.records, from)) this.typing.mcpSession(from.terminalId, session, listed)
         },
       },
     })
