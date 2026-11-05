@@ -134,7 +134,7 @@ export type Record = {
   seenEntry: { readonly transcript: string; readonly id: number } | undefined
   /** The shell's own name, as its foreground sample shows it at its prompt; undefined where none is told. */
   shellName: string | undefined
-  /** When its agent is next nudged to summarize its work; kept for this runner's lifetime. */
+  /** When its agent is next nudged to describe its work; kept for this runner's lifetime. */
   nudges: Nudges
   /** The agent its shell was opened or restarted to run, until one binds or its startup ends. */
   expecting: AgentName | null

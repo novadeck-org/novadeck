@@ -95,6 +95,17 @@ suite("what a Codex tool call was", () => {
     expect(run("mcp__novadeck__send", send)).toEqual(labelled)
     expect(run("mcp__novadeck.send", send)).toEqual(labelled)
     expect(run("mcp__novadeck__agents", {})).toMatchObject({ title: "Listed agents" })
+    expect(run("mcp__novadeck__describe", { title: "Cart", summary: "Rounding." })).toEqual({
+      kind: "agent",
+      title: "Described this terminal",
+      detail: "Cart",
+    })
+    // Its old name, in sessions recorded before it, keeps its label.
+    expect(run("mcp__novadeck__summarize", { summary: "Rounding." })).toEqual({
+      kind: "agent",
+      title: "Summarized this terminal",
+      detail: "Rounding.",
+    })
   })
 
   it("leaves another server's tool alone", () => {

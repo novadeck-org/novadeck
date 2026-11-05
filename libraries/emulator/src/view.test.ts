@@ -352,6 +352,24 @@ describe("a view's renderer", () => {
     expect(changed).toHaveBeenCalledTimes(3)
   })
 
+  // xterm's WebGL addon, disposed while its terminal is open, builds a DOM renderer to hand
+  // the screen back to, with a forced layout; once the terminal is gone it builds nothing.
+  it("closes its terminal before it gives its context back", () => {
+    const { pool, drawings } = drawingPool()
+    const { view } = open({ pool })
+    view.renderer.take()
+    const order: string[] = []
+    vi.spyOn(drawings[0]!, "dispose").mockImplementation(() => void order.push("drawing"))
+    const close = view.terminal.dispose.bind(view.terminal)
+    vi.spyOn(view.terminal, "dispose").mockImplementation(() => {
+      order.push("terminal")
+      close()
+    })
+    view.dispose()
+    expect(order).toEqual(["terminal", "drawing"])
+    expect(pool.stats()).toMatchObject({ swaps: 1, onDom: 0 })
+  })
+
   it("leaves a view without a pool on the DOM renderer", () => {
     const { view } = open()
     expect(() => {

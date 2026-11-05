@@ -246,13 +246,14 @@ reported a session in the shell since its last prompt, so a client can name the
 program where `process` cannot; it is `null` otherwise. `cwd` is the directory the
 shell last reported at a prompt, or where it started. `title` is, in this order: the
 name the person gave the terminal with `create` or `terminals.rename({ terminalId,
-title })`; the latest title murmur, the opt-in local model, wrote for it; the one the
-agent that opened it gave through `open_terminal`'s or `open_agent`'s `title`; or the runner's default:
-the program it was opened to run (`claude`), else "Terminal", never derived from its
-handle. `titleSource` says
-which: `{ kind: "person" }`, `{ kind: "murmur" }`, `{ kind: "agent", by: "fox" }` or
-`{ kind: "default" }`. The summary its agent gave through `summarize` is not on the wire: only
-`agents()` lists it. A terminal the client creates for an
+title })`; the one the agent that opened it gave through `open_terminal`'s or
+`open_agent`'s `title`; the latest title murmur, the opt-in local model, wrote for it; the
+one the terminal's own agent gave through `describe`; or the runner's default: the program
+it was opened to run (`claude`), else "Terminal", never derived from its handle.
+`titleSource` says which: `{ kind: "person" }`, `{ kind: "murmur" }`,
+`{ kind: "agent", by: "fox" }` (the opener's handle, or the terminal's own for its agent's
+title) or `{ kind: "default" }`. The summary its agent gave through `describe` is not on
+the wire: only `agents()` lists it. A terminal the client creates for an
 agent's request (`terminals.requests`) passes that request's `requestId` to
 `terminals.create`, and takes the title the agent asked for as the agent's.
 `terminals.resetTitle({ terminalId })` takes the person's name away, so it is automatic

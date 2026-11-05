@@ -23,6 +23,7 @@ import { DomainError } from "../errors.js"
 import { novadeckSender, personSender, type Message, type Thread } from "../messaging/messages.js"
 import { handleOrder, handleWords } from "../terminals/handles.js"
 import { sealedShape } from "../terminals/sealing.js"
+import { unnamed } from "../terminals/titles.js"
 import { describe, expect, it as base } from "../test.js"
 import { fakeClock } from "../testing/clock.js"
 import { sealed as sealedText } from "../testing/sealing.js"
@@ -256,7 +257,7 @@ describe("workspace metadata", () => {
     expect(first.id).toMatch(/^[0-9a-f]{8}-(?:[0-9a-f]{4}-){3}[0-9a-f]{12}$/)
     const database = new DatabaseSync(path)
     try {
-      expect(database.prepare("PRAGMA user_version").get()?.user_version).toBe(9)
+      expect(database.prepare("PRAGMA user_version").get()?.user_version).toBe(10)
       expect(database.prepare("PRAGMA foreign_key_check").all()).toEqual([])
       expect(() =>
         database
@@ -490,13 +491,13 @@ describe("workspace metadata", () => {
     const path = join(directory(), "workspace.sqlite")
     const future = new DatabaseSync(path)
     future.exec(
-      "CREATE TABLE future_data (value TEXT); INSERT INTO future_data VALUES ('saved'); PRAGMA user_version = 10",
+      "CREATE TABLE future_data (value TEXT); INSERT INTO future_data VALUES ('saved'); PRAGMA user_version = 11",
     )
     future.close()
     expect(() => new WorkspaceStore(path)).toThrow(/newer/)
     const database = new DatabaseSync(path)
     try {
-      expect(database.prepare("PRAGMA user_version").get()?.user_version).toBe(10)
+      expect(database.prepare("PRAGMA user_version").get()?.user_version).toBe(11)
       expect(database.prepare("SELECT value FROM future_data").get()?.value).toBe("saved")
     } finally {
       database.close()
@@ -548,7 +549,7 @@ describe("workspace metadata", () => {
     new WorkspaceStore(path).close()
     const database = new DatabaseSync(path)
     try {
-      expect(database.prepare("PRAGMA user_version").get()?.user_version).toBe(9)
+      expect(database.prepare("PRAGMA user_version").get()?.user_version).toBe(10)
       expect(database.prepare("PRAGMA foreign_key_check").all()).toEqual([])
       // Every old table is gone, and so are the old names.
       expect(Object.keys(rowsOf(database)).toSorted()).toEqual(
@@ -1000,6 +1001,7 @@ describe("workspace metadata", () => {
       person: "Mine",
       opener: { title: "Login" },
       murmur: { title: "Fixing login" },
+      own: null,
       summary: "Works on checkout",
     })
     expect(workspace.terminal("u")?.naming.opener).toBeNull()
@@ -1087,6 +1089,61 @@ describe("workspace metadata", () => {
       agents: { agy: { sessionId: "g", seq: 1 } },
       interruptions: [],
     })
+    migrated.close()
+    const fresh = join(directory(), "workspace.sqlite")
+    new WorkspaceStore(fresh).close()
+    const [carried, created] = [path, fresh].map((file) => {
+      const database = new DatabaseSync(file)
+      try {
+        return normalisedSchemaOf(database)
+      } finally {
+        database.close()
+      }
+    })
+    expect(carried).toEqual(created)
+  })
+
+  it("carries a version 9 database to the very tables a new one is made with, its titles and summaries kept", async ({
+    directory,
+  }) => {
+    const path = join(directory(), "workspace.sqlite")
+    const old = new DatabaseSync(path)
+    old.exec(`${readFileSync(new URL("schemas/9.sql", import.meta.url), "utf8")}
+      PRAGMA user_version = 9;
+      INSERT INTO projects (position, id, name, cwd) VALUES (1, 'p', 'P', '/p');
+      INSERT INTO sessions (position, id, project_id, name) VALUES (1, 's', 'p', 'S');
+      INSERT INTO terminals (id, session_id, handle, cwd, agent_reports, saved_at, person_title,
+          murmur_title, summary, interruptions)
+        VALUES ('t', 's', 'moth', '/p', '{"agy":{"sessionId":"g","seq":1}}', 1, 'Mine',
+          'Fixing login', 'Fixes the login bug.', '[{"sessionId":"g","step":3,"at":9}]'),
+        ('u', 's', 'fox', '/p', '{}', 2, NULL, NULL, NULL, NULL);`)
+    old.close()
+    const migrated = new WorkspaceStore(path)
+    expect(migrated.terminal("t")).toMatchObject({
+      handle: "moth",
+      agents: { agy: { sessionId: "g", seq: 1 } },
+      naming: {
+        person: "Mine",
+        opener: null,
+        murmur: { title: "Fixing login" },
+        own: null,
+        summary: "Fixes the login bug.",
+      },
+      interruptions: [{ sessionId: "g", step: 3, at: 9 }],
+    })
+    expect(migrated.terminal("u")?.naming).toEqual({
+      person: null,
+      opener: null,
+      murmur: null,
+      own: null,
+      summary: null,
+    })
+    // The carried database keeps the new layer.
+    migrated.saveTerminal({
+      ...numbered("t", "moth"),
+      naming: { ...unnamed, own: { title: "Login bug" } },
+    })
+    expect(migrated.terminal("t")?.naming.own).toEqual({ title: "Login bug" })
     migrated.close()
     const fresh = join(directory(), "workspace.sqlite")
     new WorkspaceStore(fresh).close()
@@ -1367,8 +1424,8 @@ describe("workspace metadata", () => {
       // and adds a step in store.ts's migrations, from schemas/<version before>.sql, which
       // is added for it. Then record the new digest here.
       expect({ version, digest }).toEqual({
-        version: 9,
-        digest: "a623b4858efc33398395f2077112a529ae95d749471c3976bb2960f9aacf7b3c",
+        version: 10,
+        digest: "2f94d8d0307c08041e50696d0dbc3457068a199446a08aef0ba45463cde97d78",
       })
     } finally {
       database.close()
@@ -1496,7 +1553,7 @@ const numbered = (id: string, handle: string) => ({
   agents: {},
   promptedAt: null,
   handle,
-  naming: { person: null, opener: null, murmur: null, summary: null },
+  naming: { person: null, opener: null, murmur: null, own: null, summary: null },
   openedBy: null,
   ledBy: null,
   command: null,
@@ -1607,6 +1664,7 @@ describe("saved terminals", () => {
         person: null,
         opener: { title: "API author" },
         murmur: { title: "Building the API" },
+        own: { title: "Users API" },
         summary: "Builds the API.\nThen its tests.",
       },
       openedBy: "fox",
@@ -1699,37 +1757,46 @@ describe("saved terminals", () => {
     const workspace = kept(path)
     const opener = { title: "Server" }
     const murmur = { title: "Fixing login" }
+    const own = { title: "Login bug" }
     const summary = "Fixes the login bug."
     workspace.saveTerminal({
       ...numbered("a", "fox"),
-      naming: { person: "Mine", opener, murmur, summary },
+      naming: { person: "Mine", opener, murmur, own, summary },
     })
-    expect(workspace.terminal("a")?.naming).toEqual({ person: "Mine", opener, murmur, summary })
+    expect(workspace.terminal("a")?.naming).toEqual({
+      person: "Mine",
+      opener,
+      murmur,
+      own,
+      summary,
+    })
     // Taking the person's title away leaves the other layers.
     expect(workspace.renameTerminal("a", null)).toBe(true)
     expect(workspace.terminalIdentity("a")?.naming).toEqual({
       person: null,
       opener,
       murmur,
+      own,
       summary,
     })
     // The summary and murmur's title change apart.
     const next = { title: "Fixing signup" }
     workspace.saveTerminal({
       ...numbered("a", "fox"),
-      naming: { person: null, opener, murmur: next, summary },
+      naming: { person: null, opener, murmur: next, own, summary },
     })
     expect(workspace.terminals().map(({ naming }) => naming)).toEqual([
-      { person: null, opener, murmur: next, summary },
+      { person: null, opener, murmur: next, own, summary },
     ])
     workspace.saveTerminal({
       ...numbered("a", "fox"),
-      naming: { person: null, opener, murmur: null, summary: null },
+      naming: { person: null, opener, murmur: null, own: null, summary: null },
     })
     expect(workspace.terminal("a")?.naming).toEqual({
       person: null,
       opener,
       murmur: null,
+      own: null,
       summary: null,
     })
     workspace.close()
@@ -1842,7 +1909,7 @@ describe("saved terminals", () => {
         "murmur's titles",
         "SECRET_MURMUR_TITLE",
         () => {
-          const naming = { person: null, opener: null, summary: null }
+          const naming = { person: null, opener: null, own: null, summary: null }
           workspace.saveTerminal({
             ...numbered(randomUUID(), "raven"),
             sessionId: session.id,
@@ -1882,7 +1949,7 @@ describe("saved terminals", () => {
       agents: {},
       promptedAt: null,
       handle: "moth",
-      naming: { person: null, opener: null, murmur: null, summary: null },
+      naming: { person: null, opener: null, murmur: null, own: null, summary: null },
       openedBy: null,
       ledBy: null,
       command: null,
@@ -1913,7 +1980,7 @@ describe("saved terminals", () => {
         agents: {},
         promptedAt: null,
         handle: `moth${index + 1}`,
-        naming: { person: null, opener: null, murmur: null, summary: null },
+        naming: { person: null, opener: null, murmur: null, own: null, summary: null },
         openedBy: null,
         ledBy: null,
         command: null,
@@ -1971,7 +2038,7 @@ describe("saved terminals", () => {
       agents: {},
       promptedAt: null,
       handle: order[0]!,
-      naming: { person: null, opener: null, murmur: null, summary: null },
+      naming: { person: null, opener: null, murmur: null, own: null, summary: null },
       openedBy: null,
       ledBy: null,
       command: null,
@@ -1986,6 +2053,7 @@ describe("saved terminals", () => {
       person: "API author",
       opener: null,
       murmur: null,
+      own: null,
       summary: null,
     })
     expect(reopened.giveHandle("s")).toBe(order[2])
@@ -2141,7 +2209,7 @@ describe("the messages", () => {
       agents: {},
       promptedAt: null,
       handle: "moth",
-      naming: { person: null, opener: null, murmur: null, summary: null },
+      naming: { person: null, opener: null, murmur: null, own: null, summary: null },
       openedBy: null,
       ledBy: null,
       command: null,
@@ -2240,7 +2308,7 @@ const keptTerminal = (workspace: WorkspaceStore, sessionId: string, handle: stri
     agents: {},
     promptedAt: null,
     handle,
-    naming: { person: null, opener: null, murmur: null, summary: null },
+    naming: { person: null, opener: null, murmur: null, own: null, summary: null },
     openedBy: null,
     ledBy: null,
     command: null,
@@ -2695,7 +2763,7 @@ describe("a saved terminal's command", () => {
       agents: {},
       promptedAt: null,
       handle: id === "a" ? "moth" : "fox",
-      naming: { person: null, opener: null, murmur: null, summary: null },
+      naming: { person: null, opener: null, murmur: null, own: null, summary: null },
       openedBy: null,
       ledBy: null,
       command,

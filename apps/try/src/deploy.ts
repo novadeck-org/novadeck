@@ -1,6 +1,7 @@
 import { configuredSources } from "@novadeck/build-kit/connect-sources"
 import type { Build } from "@novadeck/build-kit/content-security-policy"
 import type { HeaderRule } from "@novadeck/build-kit/hosting-headers"
+import type { Plugin } from "vite"
 
 // How the visitor build is deployed, as vite.config.ts hands it to the build kit: what it may
 // connect to, that it stays out of search results, and what its host serves it with.
@@ -37,3 +38,40 @@ export const headerRules = (mode: string): readonly HeaderRule[] | undefined =>
         { path: "/poster-*", headers: { "Cache-Control": "public, max-age=300" } },
       ]
     : undefined
+
+// Without a top-level 404.html, Cloudflare Pages takes the build for a single-page app and
+// answers every missing path with index.html: a hashed asset gone since a deploy then comes
+// back as a page under /assets/*, kept for good, and would stay broken even if a rollback
+// brought that file back. With one, a missing file is a 404, which Pages serves with no-store
+// and without the rules above (as the website's own missing files show), so the page says
+// what those rules would: it runs nothing and stays out of search results. A person who
+// mistypes an address is sent on to the demo, as the single-page answer took them there
+// before, though to `/` itself: a page without script can't carry the address's query on.
+export const notFoundPage = `<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta http-equiv="Content-Security-Policy" content="default-src 'none'" />
+    <meta http-equiv="refresh" content="0; url=/" />
+    <meta name="robots" content="noindex" />
+    <title>Novadeck</title>
+  </head>
+  <body>
+    <p>Nothing is here. <a href="/">Open the Novadeck demo</a>.</p>
+  </body>
+</html>
+`
+
+/** Gives the visitor build its 404.html, which no other build needs. */
+export const notFound = (): Plugin => {
+  let mode = ""
+  return {
+    name: "try-not-found",
+    apply: "build",
+    configResolved: (config) => void (mode = config.mode),
+    generateBundle() {
+      if (mode === "try")
+        this.emitFile({ type: "asset", fileName: "404.html", source: notFoundPage })
+    },
+  }
+}

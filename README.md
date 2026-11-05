@@ -1,5 +1,5 @@
 <p align="center">
-  <a href="https://novadeck.dev">
+  <a href="https://novadeck.dev/?utm_source=readme">
     <picture>
       <source media="(prefers-color-scheme: dark)" srcset="docs/assets/logo-dark.svg" />
       <img src="docs/assets/logo-light.svg" alt="Novadeck" height="56" />
@@ -9,8 +9,8 @@
 
 <p align="center">
   A desktop terminal workspace for running coding agents side by side.<br />
-  <a href="https://novadeck.dev">Website</a> ·
-  <a href="https://novadeck.dev/download">Download</a> ·
+  <a href="https://novadeck.dev/?utm_source=readme">Website</a> ·
+  <a href="https://novadeck.dev/download?utm_source=readme">Download</a> ·
   <a href="https://try.novadeck.dev">Try it in your browser</a>
 </p>
 
@@ -48,7 +48,7 @@ curl -fsSL https://novadeck.dev/install.sh | sh
 ```
 
 On macOS and x86_64 Linux. For Windows and portable builds, see
-[novadeck.dev/download](https://novadeck.dev/download).
+[novadeck.dev/download](https://novadeck.dev/download?utm_source=readme).
 
 ## Docs
 

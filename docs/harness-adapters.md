@@ -555,7 +555,7 @@ Besides the facts shared with the agent model, decoders give
   call's input itself.
 - `session-observed` has `compacted` when the harness says it compacted the session's
   context: Claude Code's and Codex's `SessionStart` with source `compact`. Antigravity
-  reports no compaction. It nudges the agent to summarize its terminal again (see
+  reports no compaction. It nudges the agent to describe its terminal again (see
   [Nudges](agent-messaging.md#nudges)); murmur retitles it only when that summary
   arrives (see [Naming](agent-messaging.md#when-murmur-titles-a-terminal)).
 - `session-observed` has `atPrompt` when the harness announced the session as its own

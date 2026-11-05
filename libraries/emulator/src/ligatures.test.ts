@@ -1,6 +1,13 @@
 import { describe, expect, it } from "vitest"
 
-import { cutMargin, hasLigatureTable, ligatureRuns, maxRunCells, runLimit } from "./ligatures.js"
+import {
+  cutMargin,
+  hasLigatureTable,
+  ligatureRuns,
+  maxRunCells,
+  runLimit,
+  triggerFor,
+} from "./ligatures.js"
 
 describe("ligatureRuns", () => {
   it("finds the sequences the font joins", () => {
@@ -133,5 +140,14 @@ describe("ligatureRuns", () => {
     expect(hasLigatureTable("JetBrains Mono")).toBe(true)
     expect(hasLigatureTable("'Share Tech Mono', 'JetBrains Mono Variable', monospace")).toBe(false)
     expect(hasLigatureTable("monospace")).toBe(false)
+  })
+})
+
+describe("the characters a sequence starts with", () => {
+  it("are matched as themselves, letters and a class's own specials alike", () => {
+    const trigger = triggerFor(["b", "d", "s", "w", "-", "]", "^", "\\", "="])
+    for (const c of ["b", "d", "s", "w", "-", "]", "^", "\\", "="])
+      expect(trigger.test(c)).toBe(true)
+    for (const c of ["\b", "5", " ", "x", "a", "c"]) expect(trigger.test(c)).toBe(false)
   })
 })

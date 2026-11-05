@@ -114,7 +114,8 @@ for (const setup of setups) {
       await chat.until("Hello, chat.")
       await turn(typed, "Greet the chat", "Hello, chat.")
 
-      // Only murmur, which is off here, or a person or an opening agent, titles a terminal.
+      // Only murmur, which is off here, a person, an opening agent or the agent itself (through
+      // `describe`, which this model never calls) titles a terminal.
       for (const { titleSource } of [chat.summary(), typed.summary()])
         expect(titleSource).toEqual({ kind: "default" })
     })

@@ -420,18 +420,19 @@ export const agentTranscripts = (now: number): Readonly<Record<string, DemoTrans
       got("step:1a", "Sent to moth."),
       use(
         "step:1b",
-        "mcp_novadeck_novadeck_summarize",
+        "mcp_novadeck_novadeck_describe",
         {
+          title: "Duplicate runtime logging",
           summary: "Finds why the runtime logs every request twice.",
-          toolSummary: JSON.stringify("Summarize this terminal"),
+          toolSummary: JSON.stringify("Describe this terminal"),
         },
         {
           kind: "agent",
-          title: "Summarized this terminal",
-          detail: "Finds why the runtime logs every request twice.",
+          title: "Described this terminal",
+          detail: "Duplicate runtime logging",
         },
       ),
-      got("step:1b", "Summarized."),
+      got("step:1b", "Described."),
       say("Before I dig in, I'll close the idle terminal and check what is on show."),
       use(
         "step:1c",

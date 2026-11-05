@@ -40,6 +40,9 @@ const octal = (header: Buffer, offset: number, length: number, value: number): v
   field(header, offset, length, `${value.toString(8).padStart(length - 1, "0")}\0`)
 }
 
+const flatName = (name: string): boolean =>
+  name !== "" && name !== "." && name !== ".." && !/[/\\]/.test(name)
+
 // One ustar entry, with the owner, group and time every build gives it. Staged names are
 // flat and short.
 const record = (entry: Entry): Uint8Array[] => {
@@ -47,6 +50,11 @@ const record = (entry: Entry): Uint8Array[] => {
     throw new Error(`${entry.name} is too long for the archive.`)
   }
   const link = "link" in entry
+  // A link points at a file beside it: ustar holds a target of 100 bytes and cuts a longer
+  // one, and a path in it would dangle or point outside the engine's folder.
+  if (link && (Buffer.byteLength(entry.link) > 100 || !flatName(entry.link))) {
+    throw new Error(`${entry.name} links to ${entry.link}, which is not a file beside it.`)
+  }
   const data = link ? new Uint8Array(0) : entry.data
   const header = Buffer.alloc(block)
   field(header, 0, 100, entry.name)

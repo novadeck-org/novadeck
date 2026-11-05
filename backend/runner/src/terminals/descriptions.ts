@@ -432,7 +432,7 @@ const programKey = (program: ForegroundProcess | null): string | null =>
  * that opened it did, is never asked about; once the person clears theirs, a summary
  * written meanwhile names it at once, unless its opener titled it.
  *
- * An agent's terminal is named from its agent's own summary alone (from `summarize`), each
+ * An agent's terminal is named from its agent's own summary alone (from `describe`), each
  * time the agent writes one that says something new, `settleMs` after it so a burst makes
  * one title. The person's prompts and the agent's replies are never read for it: they name
  * steps (a critic pass, a merge), and the summary names the work. A new title replaces the
@@ -545,7 +545,7 @@ export class Murmur {
   }
 
   /**
-   * The terminal's agent summarized its work: a summary that says something new names the
+   * The terminal's agent described its work: a summary that says something new names the
    * terminal. One that comes while murmur is unusable is owed until it is usable again.
    */
   summarized(terminalId: string): void {

@@ -93,7 +93,7 @@ const agentMessages = (digest: AgentDigest): Message[] => [
     role: "user",
     content: [
       "The agent's summary of its work:",
-      // At most 200 characters, as `summarize` takes it.
+      // At most 200 characters, as `describe` takes it.
       digest.summary.trim(),
       "",
       "Name what the work is about in at most 3 words: its subject, not its label or its progress (merged, done, closed), in the language of the summary.",
