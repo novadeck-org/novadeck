@@ -19,6 +19,7 @@ import { describe, expect, it } from "../test"
 // The copy and paste keys in a runner's terminal, as its shell hears them: on Linux and
 // Windows Ctrl+C copies a selection and interrupts without one, Ctrl+Shift+C only copies, and
 // Ctrl+V or Ctrl+Shift+V paste; on a Mac the Ctrl keys stay the program's, as ⌘ copies and pastes.
+// On every platform a mouse selection copies as the button comes up, and says so.
 
 const input = (name: string) => page.getByRole("textbox", { name: `Input for ${name}` })
 
@@ -55,6 +56,34 @@ const pasteText = (text: string): void => {
     )
 }
 
+// Opens a runner whose first terminal shows `copyme` on its top row, with the clipboard's
+// writes recorded, and double-clicks the word.
+const selectWord = async () => {
+  const runner = await openRunner()
+  const copied = vi.spyOn(navigator.clipboard, "writeText").mockResolvedValue()
+  runner.write(runner.terminalIds[0]!, "copyme\r\n")
+  // Drawn on its top row before the double-click aims at it.
+  await expect.poll(() => terminalLines("Agent 1")[0]).toContain("copyme")
+  const screen = terminal("Agent 1").element().querySelector(".xterm-screen")!
+  // A double-click on the word's first letters selects it.
+  await page.elementLocator(screen).dblClick({ position: { x: 6, y: 6 } })
+  return { runner, copied }
+}
+
+describe("a mouse selection in a runner terminal", () => {
+  it("copies as the button comes up, with no key, and says so", async () => {
+    const { runner, copied } = await selectWord()
+
+    await expect.poll(() => copied.mock.calls).toEqual([["copyme"]])
+    // The notice is drawn for a moment, hidden from assistive technology, which hears it
+    // from the terminal's live region instead.
+    await expect
+      .poll(() => terminal("Agent 1").element().querySelector("[data-paste-notice]")?.textContent)
+      .toBe("Copied")
+    await expectStaysTrue(() => !heard(runner).includes("\x03"), "nothing interrupted")
+  })
+})
+
 describe("the copy and paste keys in a runner terminal", () => {
   it("interrupts the program with Ctrl+C when nothing is selected", async () => {
     const runner = await openRunner()
@@ -69,14 +98,10 @@ describe("the copy and paste keys in a runner terminal", () => {
     ["Ctrl+Shift+C", "{Control>}{Shift>}C{/Shift}{/Control}"],
   ])
     it.skipIf(isMac())(`copies a selection with ${chord}, and doesn't interrupt`, async () => {
-      const runner = await openRunner()
-      const copied = vi.spyOn(navigator.clipboard, "writeText").mockResolvedValue()
-      runner.write(runner.terminalIds[0]!, "copyme\r\n")
-      // Drawn on its top row before the double-click aims at it.
-      await expect.poll(() => terminalLines("Agent 1")[0]).toContain("copyme")
-      const screen = terminal("Agent 1").element().querySelector(".xterm-screen")!
-      // A double-click on the word's first letters selects it.
-      await page.elementLocator(screen).dblClick({ position: { x: 6, y: 6 } })
+      const { runner, copied } = await selectWord()
+      // The selection copied itself as the button came up; the key copies it again.
+      await expect.poll(() => copied.mock.calls).toEqual([["copyme"]])
+      copied.mockClear()
 
       await press(keys!)
 
