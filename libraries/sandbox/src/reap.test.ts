@@ -1,5 +1,6 @@
-import { spawn } from "node:child_process"
-import { mkdtempSync, realpathSync, rmSync } from "node:fs"
+import { spawn, spawnSync, type ChildProcess } from "node:child_process"
+import { once } from "node:events"
+import { mkdtempSync, readlinkSync, realpathSync, renameSync, rmSync } from "node:fs"
 import { tmpdir } from "node:os"
 import { basename, join } from "node:path"
 
@@ -7,6 +8,7 @@ import { describe, expect, it, onTestFinished, vi } from "vitest"
 
 import { reap } from "./reap.js"
 import { list } from "./reap/windows.js"
+import { createSandbox } from "./sandbox.js"
 
 describe.skipIf(process.platform !== "linux")("reap", () => {
   it("ends a process left in the sandbox, naming it, and one stopped as stopped", async () => {
@@ -31,6 +33,124 @@ describe.skipIf(process.platform !== "linux")("reap", () => {
     )
     expect(await reap(sandbox)).toEqual([])
   })
+})
+
+describe.skipIf(process.platform !== "linux")("reap on Linux, in a sandbox", () => {
+  const made = () => {
+    const sandbox = createSandbox({ prefix: "sandbox-reaped-", bins: [] })
+    onTestFinished(() => rmSync(sandbox.root, { recursive: true, force: true }))
+    return sandbox
+  }
+  const elsewhere = () => {
+    const folder = realpathSync.native(mkdtempSync(join(tmpdir(), "sandbox-reaped-elsewhere-")))
+    onTestFinished(() => rmSync(folder, { recursive: true, force: true }))
+    return folder
+  }
+  // Started, and ended should the reaping not have, with its group for one in a group of
+  // its own (`detached`), as a program in a terminal is, and so what it started.
+  const started = async (child: ChildProcess, grouped = false) => {
+    onTestFinished(() => {
+      try {
+        process.kill(grouped ? -child.pid! : child.pid!, "SIGKILL")
+      } catch {
+        // Ended by the reaping, as it should be.
+      }
+    })
+    await once(child, "spawn")
+    return child
+  }
+  const sleep = (cwd: string, env: NodeJS.ProcessEnv) =>
+    started(spawn("sleep", ["60"], { cwd, env, stdio: "ignore" }))
+  // The pids a shell prints, one a line, once it has printed `count` of them.
+  const printed = async (shell: ChildProcess, count: number): Promise<number[]> => {
+    let out = ""
+    for await (const chunk of shell.stdout!) {
+      out += String(chunk)
+      const pids = out.split("\n").filter(Boolean).map(Number)
+      if (pids.length >= count) return pids
+    }
+    throw new Error(`The shell printed ${JSON.stringify(out)} and ended`)
+  }
+
+  it("ends what started since it was made, inside it or with its home, and nothing that started before", async () => {
+    // Started before the sandbox, in a folder moved into it since: inside, but older.
+    const early = elsewhere()
+    const before = await sleep(early, {})
+    // A clock tick (10 ms) and more, so the sandbox's start is past this one's.
+    await new Promise((resolve) => setTimeout(resolve, 50))
+    const sandbox = made()
+    renameSync(early, join(sandbox.project, "early"))
+    expect(readlinkSync(`/proc/${before.pid}/cwd`)).toBe(join(sandbox.project, "early"))
+    const outside = elsewhere()
+    const inside = await sleep(sandbox.project, {})
+    const homed = await sleep(outside, sandbox.env)
+    const other = await sleep(outside, { HOME: outside })
+
+    const leftovers = await reap(sandbox)
+
+    expect(leftovers.toSorted()).toEqual(
+      [`sleep (${inside.pid})`, `sleep (${homed.pid})`].toSorted(),
+    )
+    expect(before.exitCode).toBeNull()
+    expect(other.exitCode).toBeNull()
+    expect(await reap(sandbox)).toEqual([])
+  })
+
+  it("ends a program one of them started elsewhere with no HOME, through its parent", async () => {
+    const sandbox = made()
+    const outside = elsewhere()
+    const shell = await started(
+      spawn(
+        "/bin/sh",
+        ["-c", `sh -c 'cd "$1" && echo $$ && exec env -i sleep 60' _ '${outside}' & wait`],
+        {
+          cwd: sandbox.project,
+          env: {},
+          stdio: ["ignore", "pipe", "ignore"],
+          detached: true,
+        },
+      ),
+      true,
+    )
+    const [sleeping] = await printed(shell, 1)
+    expect(readlinkSync(`/proc/${sleeping}/cwd`)).toBe(outside)
+
+    const leftovers = await reap(sandbox)
+
+    expect(leftovers).toContain(`sleep (${sleeping})`)
+    expect(leftovers).toContain(`sh (${shell.pid})`)
+    expect(await reap(sandbox)).toEqual([])
+  })
+
+  const python = spawnSync("python3", ["-c", ""]).status === 0
+
+  it.skipIf(!python)(
+    "ends a child whose folder and environment can't be read, as a non-dumpable one's can't",
+    async () => {
+      const sandbox = made()
+      // PR_SET_DUMPABLE (4) to 0, as ssh-agent and setuid programs are, then its pid.
+      const hidden =
+        "import ctypes,os,time;ctypes.CDLL(None).prctl(4,0,0,0,0);print(os.getpid(),flush=True);time.sleep(60)"
+      const shell = await started(
+        spawn("/bin/sh", ["-c", `python3 -c '${hidden}' & wait`], {
+          cwd: sandbox.project,
+          env: { PATH: "/usr/bin:/bin" },
+          stdio: ["ignore", "pipe", "ignore"],
+          detached: true,
+        }),
+        true,
+      )
+      const [pid] = await printed(shell, 1)
+      // Hidden from its own user, as the kernel hides a non-dumpable process.
+      expect(() => readlinkSync(`/proc/${pid}/cwd`)).toThrow(/EACCES/)
+
+      const leftovers = await reap(sandbox)
+
+      expect(leftovers.filter((one) => one.includes(`(${pid})`))).toHaveLength(1)
+      expect(leftovers).toContain(`sh (${shell.pid})`)
+      expect(await reap(sandbox)).toEqual([])
+    },
+  )
 })
 
 describe.skipIf(process.platform !== "win32")("reap on Windows", () => {
