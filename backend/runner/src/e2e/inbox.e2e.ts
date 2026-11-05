@@ -156,11 +156,7 @@ for (const setup of setups) {
               ],
             }
           }
-          if (
-            result(call)?.includes(
-              " is in the user's Inbox. Their answer arrives later as a message",
-            )
-          ) {
+          if (/Ask [a-f0-9-]+ is in the user's Inbox\./.test(result(call) ?? "")) {
             const name = tool(call, "tell")
             if (!name)
               throw new Error(
