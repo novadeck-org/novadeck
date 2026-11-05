@@ -840,10 +840,8 @@ export class Terminals {
       // Restored as a shell that resumes nothing, there is no agent left to lead.
       const unled = record.summary.ledBy !== null && !started.resumes
       if (unled) record.summary = { ...record.summary, ledBy: null }
-      this.register(
-        record,
-        expectedAgent(input.command ?? task?.command, started.resumes ? input.resume : undefined),
-      )
+      const resumed = started.resumes ? input.resume : undefined
+      this.register(record, expectedAgent(input.command ?? task?.command, resumed))
       if (unled) this.messaging.endLead(record.summary.id)
       // The resumed agent shows its own history; a shell that resumes none, the transcript.
       if (opened && !started.resumes) void this.show(record, opened.text, new Date(opened.at))
@@ -998,7 +996,7 @@ export class Terminals {
     const claim = record.resumeClaim
     if (cancelResume(record)) {
       record.startupRuns = false
-      endExpecting(record, this.messaging)
+      endExpecting(record, this.messaging, this.murmur)
       // The person took the terminal over before its agent ever ran: nothing to lead.
       this.bindings.endLead(record)
       this.claims.cancel(claim, record.summary.id)
@@ -1672,7 +1670,7 @@ export class Terminals {
       record.suspended = binding.instance
     } else this.bindings.endLeadGone(record)
     // Nothing came of the agent the shell was opened to run: it is a plain shell now.
-    if (binding === null && (ran || cancelled)) endExpecting(record, this.messaging)
+    if (binding === null && (ran || cancelled)) endExpecting(record, this.messaging, this.murmur)
     // An agent whose prompt showed, with no session bound, left with it: first, so the
     // binding's end never shows its prompt ready again.
     this.messaging.unshown(record.summary.id)

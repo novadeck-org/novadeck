@@ -1564,6 +1564,21 @@ describe("when murmur becomes usable", () => {
       expect(made.describer.digests.at(-1)).toMatchObject({ kind: "shell" })
     })
 
+    it("asks at once when a cancelled resume ends the expectation and no prompt comes", async () => {
+      // `exec tmux` in the rc file: tmux holds the foreground and shows no prompt marker.
+      const made = create({ agent: null, expecting: agent, atPrompt: false })
+      made.describer.setUsable(true)
+      made.change({ program: { name: "tmux", argv: ["tmux"] }, atPrompt: false })
+      made.murmur.sampled("a")
+      await settle(600_000)
+      expect(made.describer.jobs).toHaveLength(0)
+      // The person types: the manager cancels the resume and ends the expectation.
+      made.change({ expecting: null })
+      made.murmur.released("a")
+      await settle(made.times.shellSettleMs + 50)
+      expect(made.describer.digests.at(-1)).toMatchObject({ kind: "shell", command: "tmux" })
+    })
+
     it("lets a bound agent's later leave release no stale wait", async () => {
       const made = create({ agent: null, expecting: agent, atPrompt: true })
       made.describer.setUsable(true)

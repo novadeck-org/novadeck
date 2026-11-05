@@ -640,6 +640,21 @@ export class Murmur {
   }
 
   /**
+   * The terminal expects no agent any more (its resume was cancelled, or its startup ended
+   * with none): a description that waited for one is asked for now. A prompt does the same,
+   * but a program that holds the foreground, as tmux does, may never show one.
+   */
+  released(terminalId: string): void {
+    if (!this.usable) return
+    const subject = this.host.subject(terminalId)
+    if (!subject || subject.agent) return
+    const watch = this.watch(terminalId)
+    if (!watch.waiting || this.waits(subject)) return
+    watch.shellOwed = true
+    this.ask(terminalId, this.times.shellSettleMs, { unchanged: true })
+  }
+
+  /**
    * A plain shell showed its prompt, after a command or none: it is described once its
    * quiet passes, unless nothing it is made from changed since the last description.
    */
