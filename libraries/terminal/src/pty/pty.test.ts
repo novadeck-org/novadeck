@@ -111,7 +111,7 @@ const start = (standIn: ReturnType<typeof nativeStandIn>, platform: NodeJS.Platf
   })
 
 describe("a pty", () => {
-  it("runs on node-pty's bundled ConPTY on Windows, as the system's takes input late", () => {
+  it("runs on node-pty's bundled ConPTY on Windows alone, as the built-in one can lose input", () => {
     for (const platform of ["win32", "linux", "darwin"] as const) {
       const standIn = nativeStandIn({ conpty: platform === "win32" })
       const native = vi.fn<NativeSpawn>(standIn.spawn)
