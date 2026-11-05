@@ -18,3 +18,11 @@ test("finds statements in templates and strings, and what they do to which table
     { table: "sessions", verb: "read" },
   ])
 })
+
+// A store method part-way through an edit, or a regex such as `/\/*$/`, can leave a `/*`
+// that never closes: the scan stops there instead of starting over.
+test("returns on a block comment that never closes", () => {
+  expect(
+    sqlIn('const q = "SELECT 1 FROM terminals"\nconst a = 1 /* unterminated\n"SELECT 2"'),
+  ).toEqual([{ sql: "SELECT 1 FROM terminals", at: 10 }])
+})
