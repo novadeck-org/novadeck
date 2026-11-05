@@ -4,10 +4,12 @@ import { activeSession } from "@novadeck/core/state"
 import { createStore, createWorkspaceStore } from "@novadeck/core/store"
 import { workspaceFixture } from "@novadeck/core/testing"
 import { terminalKeyPath } from "@novadeck/core/types"
+import { render } from "@novadeck/test-kit/render"
+import { createElement } from "react"
 import { afterEach } from "vitest"
 
 import { describe, expect, it } from "../../../test"
-import { followMessages } from "./messages"
+import { followMessages, useMessages, type MessagesHandle } from "./messages"
 
 const agent = (handle: string): MessageParty => ({ kind: "agent", handle, agent: null })
 
@@ -146,5 +148,21 @@ describe("a terminal's messages on its taskbar", () => {
     ).not.toThrow()
     await heard()
     expect(bar()).toBeUndefined()
+  })
+})
+
+describe("a terminal's messages as its pane uses them", () => {
+  it("keeps marking what's seen the same way across renders, so effects on it run only as it changes", () => {
+    const handles: MessagesHandle[] = []
+    const Probe = ({ tick }: { tick: number }) => {
+      handles.push(useMessages(undefined, { ...target, terminalId: "01" }))
+      return createElement("span", null, tick)
+    }
+    const { rerender, unmount } = render(createElement(Probe, { tick: 0 }))
+    stops.push(unmount)
+    rerender(createElement(Probe, { tick: 1 }))
+    expect(handles).toHaveLength(2)
+    expect(handles[1]!.seen).toBe(handles[0]!.seen)
+    expect(handles[1]!.pause).toBe(handles[0]!.pause)
   })
 })

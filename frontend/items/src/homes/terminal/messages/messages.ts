@@ -13,7 +13,7 @@ import {
 import type { WorkspaceAction } from "@novadeck/core/state"
 import type { Store, WorkspaceStore } from "@novadeck/core/store"
 import { type TerminalKey, terminalKeyPath, terminalKeyOfPath } from "@novadeck/core/types"
-import { useSyncExternalStore } from "react"
+import { useCallback, useSyncExternalStore } from "react"
 
 import { markSeen, seenAt, seenKey, seenStore } from "./seen"
 
@@ -68,8 +68,16 @@ export const useMessages = (messages: Messages | undefined, key: TerminalKey): M
   const paused = useMessagesPart(messages, (state) => state.paused)
   const pending = useMessagesPart(messages, (state) => state.pending)
   const error = useMessagesPart(messages, (state) => state.error)
-  const seen = seenStore()
-  const record = useSyncExternalStore(seen.subscribe, seen.getSnapshot)
+  const store = seenStore()
+  const record = useSyncExternalStore(store.subscribe, store.getSnapshot)
+  // The same while the terminal is, so an effect that marks what's seen runs only as what's
+  // on screen changes.
+  const pause = useCallback((next: boolean) => messages?.pause(next), [messages])
+  const seen = useCallback(
+    (conversation: string, at: number) =>
+      store.update((current) => markSeen(current, seenKey(id, conversation), at)),
+    [store, id],
+  )
   return {
     threads,
     paused,
@@ -77,10 +85,9 @@ export const useMessages = (messages: Messages | undefined, key: TerminalKey): M
     error,
     hasMessages: hasMessages(threads),
     badge: messageBadge(threads, paused),
-    pause: (next) => messages?.pause(next),
+    pause,
     seenAt: (conversation) => seenAt(record, seenKey(id, conversation)),
-    seen: (conversation, at) =>
-      seen.update((current) => markSeen(current, seenKey(id, conversation), at)),
+    seen,
   }
 }
 
