@@ -29,9 +29,9 @@ policy, so it needs no library fences.
 - `bundleChecks({ utilities, budgets })` (`/bundle-checks`) fails a build that loads the
   terminal emulator with its first chunk, draws terminals without their styles
   (`terminal-xterm.css`), or whose CSS lost a folder the UI's stylesheet scans for Tailwind
-  (`utilities` lists one utility from each: `frontendUtilities` for the visitor build and
-  the preview, `desktopUtilities` for the desktop app, which adds the UI's own; a scanned
-  folder that writes no utility only it writes is in `unguardedFolders` instead). It fails
+  (`utilities` lists one utility from each: `frontendUtilities`, the UI's own among them, for
+  every app; a scanned folder that writes no utility only it writes is in `unguardedFolders`
+  instead). It fails
   too when the build holds nothing for these checks to read. With `budgets` it also fails a
   build that weighs too much: `first`, what the page loads first, its scripts and styles
   gzipped and every woff2 font they declare, and `demo`, the module `demoModule` names with
