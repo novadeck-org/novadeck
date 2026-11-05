@@ -306,6 +306,9 @@ const saveWindows = (windows: readonly BrowserWindow[]): Promise<void> =>
 // What quitting and restarting into an update both run: every page saves before the runner
 // ends its shells, so the saves name what still runs.
 const shutDown = async (): Promise<void> => {
+  // On Windows the runner hears at once that the app is going, as at the session's end, so
+  // no agent the system ends meanwhile counts as ended by the person.
+  if (process.platform === "win32") runner?.persist()
   await saveWindows(appWindows())
   await Promise.allSettled([runner?.close(), server?.close()])
 }

@@ -504,10 +504,12 @@ output every few seconds and when the app quits, so a crash or a power cut loses
 Once the runner starts shutting down it saves nothing more, so shells ending on the way
 out cannot replace what it saved while they ran. On Windows, which doesn't tell which
 program a terminal runs, the agent whose session the terminal reported is the one to
-resume, until its shell has shown its prompt for a second: Windows ends the agents before
-their shells as it shuts down, and an agent ended that way still resumes. The same second
-keeps a worker led there: its lead ends only once its shell has outlived its agent for
-that long, so a team comes back as a team after a reboot. A worker whose agent hadn't
+resume, and a worker stays led, until its shell has outlived the agent by 30 seconds:
+Windows ends the agents before their shells as it shuts down, and an agent ended that way
+still resumes, so a team comes back as a team after a reboot. Once Windows says the
+session is ending, no agent's end counts for 15 minutes. An agent you end yourself with
+Ctrl+C, Ctrl+D or its exit command (`/exit`, `/quit`) lets go after a second. On every
+system, a terminal whose agent Novadeck was asked to resume and couldn't says why. A worker whose agent hadn't
 started its first session yet, as one still at its trust screen, starts that agent again
 with its task, still led.
 

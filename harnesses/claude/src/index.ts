@@ -36,6 +36,7 @@ const stop = (delivery: string, payload?: Report["payload"]): string =>
 // call's context (PostToolUse, or PostToolUseFailure) is a system reminder next to the
 // tool's result, which the model reads on its next request.
 const messaging: MessagingProfile = {
+  exitCommands: ["/exit", "/quit"],
   asks: {
     Stop: "stop",
     UserPromptSubmit: "prompt",
