@@ -296,7 +296,14 @@ const terminal = (
   }
 }
 
-const fast = { pollMs: 5, pasteMs: 150, ringMs: 100, settleMs: 40, emptyMs: 60 }
+// The paste window is only the most a paste or a shell mode is waited for: a test where it
+// shows ends as soon as it does, so the window leaves a loaded runner room (on #685's macOS
+// run the first look at a shell mode came past 150 ms). Only a test that waits it out, as
+// for a paste that never shows, takes a short one; one whose `!` must still switch first,
+// in the same window, takes a second.
+const fast = { pollMs: 5, pasteMs: 3_000, ringMs: 100, settleMs: 40, emptyMs: 60 }
+const lapsing = { ...fast, pasteMs: 150 }
+const switching = { ...fast, pasteMs: 1_000 }
 const enters = (written: readonly string[]) => written.filter((data) => data === "\r").length
 const refusal = async (promise: Promise<unknown>): Promise<string> => {
   try {
@@ -338,7 +345,7 @@ describe("prompts", () => {
 
   it("never take a placeholder for text a TUI would not collapse", async () => {
     const { host, written } = terminal({ takes: "placeholder" })
-    expect(await refusal(new Prompts(host, host.queue, fast).prompt("t", "Hello"))).toBe(
+    expect(await refusal(new Prompts(host, host.queue, lapsing).prompt("t", "Hello"))).toBe(
       "not-shown",
     )
     expect(enters(written)).toBe(0)
@@ -346,7 +353,7 @@ describe("prompts", () => {
 
   it("never press Enter after a paste that did not show, and leave the draft", async () => {
     const { host, written, state } = terminal({ takes: "nothing" })
-    expect(await refusal(new Prompts(host, host.queue, fast).prompt("t", "Hello there"))).toBe(
+    expect(await refusal(new Prompts(host, host.queue, lapsing).prompt("t", "Hello there"))).toBe(
       "not-shown",
     )
     expect(written).toEqual(["\x1b[200~Hello there\x1b[201~"])
@@ -355,7 +362,7 @@ describe("prompts", () => {
 
   it("never press Enter for a multi-line paste that changed nothing", async () => {
     const { host, written } = terminal({ takes: "nothing" })
-    expect(await refusal(new Prompts(host, host.queue, fast).prompt("t", "one\ntwo"))).toBe(
+    expect(await refusal(new Prompts(host, host.queue, lapsing).prompt("t", "one\ntwo"))).toBe(
       "not-shown",
     )
     expect(enters(written)).toBe(0)
@@ -415,7 +422,7 @@ describe("prompts", () => {
   describe("a program that exits before the text is typed", () => {
     it("never press Enter where the screen turns to a shell's prompt holding the text", async () => {
       const { host, written } = terminal({ exits: true })
-      expect(await refusal(new Prompts(host, host.queue, fast).prompt("t", "Hello"))).toBe(
+      expect(await refusal(new Prompts(host, host.queue, lapsing).prompt("t", "Hello"))).toBe(
         "not-shown",
       )
       expect(enters(written)).toBe(0)
@@ -427,7 +434,7 @@ describe("prompts", () => {
     await new Prompts(host, host.queue, { ...fast, bindMs: 300 }).prompt("t", "Hello")
     // The wait for an empty box, a shell command's switch and the paste's wait, and a
     // margin; then the wait for a session to bind, and the settle.
-    const inputMs = 60 + 2 * 150 + 2_000
+    const inputMs = fast.emptyMs + 2 * fast.pasteMs + 2_000
     expect(budgets).toEqual([{ inputMs, sizeMs: inputMs + 300 + 40 }])
   })
 
@@ -457,9 +464,9 @@ describe("prompts", () => {
 
     it("never press Enter where a draft came with the paste, merged into it", async () => {
       const { host, written } = terminal({ lateDraft: "Say hello" })
-      expect(await refusal(new Prompts(host, host.queue, fast).prompt("t", "Shall I go on"))).toBe(
-        "not-shown",
-      )
+      expect(
+        await refusal(new Prompts(host, host.queue, lapsing).prompt("t", "Shall I go on")),
+      ).toBe("not-shown")
       expect(enters(written)).toBe(0)
     })
 
@@ -510,7 +517,7 @@ describe("prompts", () => {
 
     it("is never sent where the box shows its tail but is shorter than its viewport", async () => {
       const { host, written } = terminal({ viewport: 5, shows: 4 })
-      expect(await refusal(new Prompts(host, host.queue, fast).prompt("t", lines(8)))).toBe(
+      expect(await refusal(new Prompts(host, host.queue, lapsing).prompt("t", lines(8)))).toBe(
         "not-shown",
       )
       expect(enters(written)).toBe(0)
@@ -593,7 +600,7 @@ describe("prompts", () => {
 
     it("opened as the text landed takes no Enter", async () => {
       const { host, written } = terminal({ viewOnPaste: true })
-      expect(await refusal(new Prompts(host, host.queue, fast).prompt("t", "Hello"))).toBe(
+      expect(await refusal(new Prompts(host, host.queue, lapsing).prompt("t", "Hello"))).toBe(
         "not-shown",
       )
       expect(enters(written)).toBe(0)
@@ -655,7 +662,9 @@ describe("prompts", () => {
     const { host } = terminal({ takes: "nothing", bindsMs: 60_000 })
     const started = Date.now()
     expect(
-      await refusal(new Prompts(host, host.queue, { ...fast, bindMs: 2_000 }).prompt("t", "First")),
+      await refusal(
+        new Prompts(host, host.queue, { ...lapsing, bindMs: 2_000 }).prompt("t", "First"),
+      ),
     ).toBe("not-shown")
     expect(Date.now() - started).toBeLessThan(1_000)
   })
@@ -673,7 +682,7 @@ describe("prompts", () => {
 
   it("go on with the next prompt after one that failed", async () => {
     const { host, written } = terminal({ takes: "nothing" })
-    const prompts = new Prompts(host, host.queue, fast)
+    const prompts = new Prompts(host, host.queue, lapsing)
     const first = refusal(prompts.prompt("t", "First"))
     const second = refusal(prompts.prompt("t", "Second"))
     expect([await first, await second]).toEqual(["not-shown", "not-shown"])
@@ -757,9 +766,9 @@ describe("shell commands", () => {
 
   it("press no Enter for a collapsed command where the placeholder itself would run", async () => {
     const { host, written } = terminal({ shell: true, takes: "placeholder", expands: false })
-    expect(await refusal(new Prompts(host, host.queue, fast).prompt("t", "!one\ntwo\nthree"))).toBe(
-      "unexpanded",
-    )
+    expect(
+      await refusal(new Prompts(host, host.queue, switching).prompt("t", "!one\ntwo\nthree")),
+    ).toBe("unexpanded")
     expect(enters(written)).toBe(0)
   })
 
@@ -779,7 +788,7 @@ describe("shell commands", () => {
 
   it("fail where the lone ! never shows, pasting and pressing nothing more", async () => {
     const { host, written, state } = terminal({ shell: false })
-    const failure = await new Prompts(host, host.queue, fast)
+    const failure = await new Prompts(host, host.queue, lapsing)
       .prompt("t", "!ls")
       .catch((error: unknown) => error)
     expect(failure).toBeInstanceOf(PromptRefusal)
@@ -790,7 +799,9 @@ describe("shell commands", () => {
 
   it("never press Enter for a command that did not show after the !", async () => {
     const { host, written } = terminal({ shell: true, takes: "nothing" })
-    expect(await refusal(new Prompts(host, host.queue, fast).prompt("t", "!ls"))).toBe("not-shown")
+    expect(await refusal(new Prompts(host, host.queue, switching).prompt("t", "!ls"))).toBe(
+      "not-shown",
+    )
     expect(written).toEqual(["!", `${bang}ls${end}`])
   })
 
@@ -802,7 +813,9 @@ describe("shell commands", () => {
 
   it("press no Enter for a repeated command that never showed again", async () => {
     const { host, written } = terminal({ shell: true, history: ["! ls"], takes: "nothing" })
-    expect(await refusal(new Prompts(host, host.queue, fast).prompt("t", "!ls"))).toBe("not-shown")
+    expect(await refusal(new Prompts(host, host.queue, switching).prompt("t", "!ls"))).toBe(
+      "not-shown",
+    )
     expect(enters(written)).toBe(0)
   })
 
@@ -837,7 +850,7 @@ describe("shell commands", () => {
 
   it("leave a ! that showed only after its time, which then keeps any message out", async () => {
     const { host, written } = terminal({ shell: true, bangMs: 600 })
-    const prompts = new Prompts(host, host.queue, fast)
+    const prompts = new Prompts(host, host.queue, lapsing)
     expect(await refusal(prompts.prompt("t", "!ls"))).toBe("not-switched")
     await sleep(700)
     // The box is in its shell mode now: a message there would run as a command.
@@ -855,7 +868,7 @@ describe("shell commands", () => {
 
   it("press no Enter for a message whose box went into its shell mode as it landed", async () => {
     const { host, written } = terminal({ shellsPaste: true })
-    expect(await refusal(new Prompts(host, host.queue, fast).prompt("t", "touch it.txt"))).toBe(
+    expect(await refusal(new Prompts(host, host.queue, lapsing).prompt("t", "touch it.txt"))).toBe(
       "not-shown",
     )
     expect(enters(written)).toBe(0)
