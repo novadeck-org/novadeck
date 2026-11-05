@@ -36,6 +36,9 @@ export const main = (): Promise<void> =>
     // that is still fetching this engine does not run an older one that would not understand
     // the runner (see olderEngine in backend/runner/src/engines/unpack.ts).
     engineInterface: 1,
+    // In the order they apply: list-device-types changes common/arg.cpp from the lines
+    // exit-with-stdin left.
+    patches: ["exit-with-stdin.patch", "list-device-types.patch"],
     target: "llama-server",
     executable: "llama-server",
     options: [

@@ -15,6 +15,11 @@ export type EngineSpec = {
   readonly sourceSha256: string
   /** The interface the runner launches the server through; bump it with any change to its flags or HTTP surface. */
   readonly engineInterface: number
+  /**
+   * The patches in `patches/`, in the order they apply: a later one may change lines an
+   * earlier one wrote. The folder must hold exactly these.
+   */
+  readonly patches: readonly string[]
   /** The CMake target that builds the server (and, through dependencies, its modules). */
   readonly target: string
   /** The server's executable, without `.exe`. */
@@ -23,6 +28,11 @@ export type EngineSpec = {
   readonly options: readonly string[]
   /** The environment variable that moves the Windows build folder, and that folder's name at the drive's root. */
   readonly windowsBuild: { readonly env: string; readonly folder: string }
+  /**
+   * Checks the patched source before it is built, so a check that fails stops the build
+   * before minutes of compiling. It sees the source as `extras` does.
+   */
+  readonly checkSource?: (source: string) => Promise<void>
   /** Copies the engine's own extra files from the source into the staging folder. */
   readonly extras: (source: string, staging: string) => Promise<void>
 }
