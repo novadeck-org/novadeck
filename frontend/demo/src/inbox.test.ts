@@ -19,6 +19,7 @@ import { plainDemo, type PlainVariant } from "./index"
 import { chatAgent, demoTerminalId } from "./samples"
 import { context, describe, expect, it } from "./test"
 import { createDemo, demoVariants } from "./variants"
+import { terminalOf as terminalIn } from "./workspace"
 
 beforeEach(() => vi.useFakeTimers())
 afterEach(() => vi.useRealTimers())
@@ -425,6 +426,54 @@ describe("the agents demo's Inbox", () => {
     await vi.advanceTimersByTimeAsync(1)
     await backend.conversations!.interrupt(key)
     await vi.advanceTimersByTimeAsync(demoTurnMs * 2)
+    const row = inbox.state.getSnapshot().items.find((each) => each.id === "ask-here")!
+    expect(row.settled).toBeUndefined()
+  })
+
+  it("leaves an agent's open asks open when its turn on the person's words is taken another way", async () => {
+    const { inbox, turns, store, backend } = boot()
+    const terminalAt = () => terminalIn(store.getSnapshot(), key)!
+    const found = store
+      .getSnapshot()
+      .projects.flatMap((project) =>
+        (project.history[0]?.state.roster.terminals ?? []).map((terminal) => ({
+          project: project.id,
+          terminal,
+        })),
+      )
+      .find(
+        ({ terminal }) =>
+          terminal.state === "running" &&
+          chatAgent(terminal) &&
+          terminal.agent !== undefined &&
+          !terminal.agent.working &&
+          !terminal.agent.attention &&
+          !inbox.state.getSnapshot().items.some((each) => each.source.terminalId === terminal.id),
+      )!
+    const key = {
+      projectId: found.project,
+      workspaceSessionId: "initial",
+      terminalId: found.terminal.id,
+    }
+    const question = demoInboxRowsAll(now).find((each) => each.kind === "ask")!
+    inbox.add({ ...question, id: "ask-here", source: { ...question.source, ...key } })
+    expect(turns.prompt("Blue, please.", found.terminal, key, { submittedAt: now + 1 })).toBe(true)
+    await vi.advanceTimersByTimeAsync(1)
+    // The debug panel has it ask, which ends the turn; answered, it goes on to a reply.
+    turns.ask(key, terminalAt(), "question", 1)
+    const [request] = backend.conversations!.conversation(key).getSnapshot().requests
+    const dialog = request!.dialog!
+    if (dialog.type !== "questions") throw new Error("A question asks with questions")
+    const answering = backend.conversations!.answer(key, request!.id, {
+      type: "questions",
+      dialog: dialog.id,
+      answers: [
+        { question: dialog.questions[0]!.id, options: [dialog.questions[0]!.options[0]!.id] },
+      ],
+    })
+    await vi.advanceTimersByTimeAsync(demoTurnMs * 3)
+    await answering
+    expect(terminalAt()).toMatchObject({ agent: { lastTurn: { outcome: "completed" } } })
     const row = inbox.state.getSnapshot().items.find((each) => each.id === "ask-here")!
     expect(row.settled).toBeUndefined()
   })

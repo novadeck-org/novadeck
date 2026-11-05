@@ -361,8 +361,8 @@ export const withInbox = (
     resume: (key, terminal) => turns.resume(key, terminal, { waits: true }),
   })
   // The asks each terminal's agent is yet to be told the person's prompt took out: the
-  // newest prompt's, by when it was submitted.
-  const owed = new Map<string, number>()
+  // newest prompt's, by when it was submitted, and the turn it started (see `turns.epoch`).
+  const owed = new Map<string, { readonly before: number; readonly epoch: number }>()
   // An agent that ends its turn calling `done` reports through the Inbox.
   turns.watch((event) => {
     const id = terminalKeyId(event.key)
@@ -374,15 +374,19 @@ export const withInbox = (
     // stops first, or the agent taken some other way, leaves them open.
     if (event.type === "begin") {
       if (event.prompt !== undefined && !event.automatic)
-        owed.set(id, event.submittedAt ?? Date.now())
+        owed.set(id, {
+          before: event.submittedAt ?? Date.now(),
+          epoch: turns.epoch(event.key),
+        })
       else owed.delete(id)
       return
     }
-    const before = owed.get(id)
+    const debt = owed.get(id)
     owed.delete(id)
-    if (before === undefined) return
+    // Taken some other way since (a verb, an answer), the turn the prompt started is over.
+    if (!debt || debt.epoch !== turns.epoch(event.key)) return
     if (event.type === "tool" || (event.type === "end" && event.outcome === "completed"))
-      inbox.withdrawAsks(event.key, before)
+      inbox.withdrawAsks(event.key, debt.before)
   })
   // Snoozes are kept for as long as the page is.
   return { ...backend, inbox: withSnoozes(inbox, [], () => {}) }
@@ -707,9 +711,6 @@ const plainBackend = (
   )
 }
 
-// The longest delay setTimeout takes as asked, in milliseconds.
-const longestTimerMs = 2 ** 31 - 1
-
 // The variant the address's hash asks for, as specs do with `?demo=`, and how long an
 // agent's turn works with `&turnMs=`, as a spec does that must act on the screen before
 // the turn ends, which a busy machine may not in the usual 1.5 s. `terminals` is where
@@ -723,8 +724,7 @@ export const createDemoBackend = (terminals?: DemoTerminalSetup): Backend => {
       ? demo
       : "plain",
     terminals,
-    // As long as asked, up to what setTimeout can wait: past 2^31 − 1 ms it fires at once.
-    turnMs > 0 ? Math.min(turnMs, longestTimerMs) : undefined,
+    turnMs > 0 ? turnMs : undefined,
   )
   if (isDemoInbox(backend.inbox)) {
     const answer = params.get("inboxAnswer")
