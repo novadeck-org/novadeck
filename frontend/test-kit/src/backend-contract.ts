@@ -38,11 +38,45 @@ export type BackendContractOptions = {
     readonly probe: BackendProbe
     readonly driver?: BackendDriver
   }
-  // Waits for the adapter's asynchronous work to land; defaults to one microtask.
-  readonly settle?: () => Promise<void>
+  // Waits for the backend's asynchronous work to land; defaults to one microtask.
+  readonly settle?: (backend: Backend) => Promise<void>
+  // How long a screen nobody shows follows its terminal before it parks: the contract waits
+  // past it where a wrong release would only show once the screen parks.
+  readonly parkMs: number
 }
 
 const microtask = (): Promise<void> => new Promise((resolve) => queueMicrotask(resolve))
+
+const pause = (ms: number): Promise<void> => new Promise((resolve) => setTimeout(resolve, ms))
+
+// Resolves once the mount draws its terminal's live output; rejects, saying so, if it
+// doesn't within the deadline, which stays under the mount tests' timeout.
+const liveIn = (mount: TerminalMount, deadlineMs = 20_000): Promise<void> =>
+  new Promise((resolve, reject) => {
+    const check = (): void => {
+      if (!mount.state.getSnapshot().live) return
+      clearTimeout(deadline)
+      stop()
+      resolve()
+    }
+    const deadline = setTimeout(() => {
+      stop()
+      reject(
+        new Error(
+          `The mount never went live within ${deadlineMs} ms: ${JSON.stringify(mount.state.getSnapshot())}`,
+        ),
+      )
+    }, deadlineMs)
+    const stop = mount.state.subscribe(check)
+    check()
+  })
+
+// Lets `count` animation frames pass, as a terminal's drawing waits for the next one.
+const frames = async (count: number): Promise<void> => {
+  for (let left = count; left > 0; left -= 1)
+    // eslint-disable-next-line no-await-in-loop -- One frame after the other.
+    await new Promise<void>((resolve) => requestAnimationFrame(() => resolve()))
+}
 
 const seeded = (backend: Backend): Workspace =>
   workspaceFromSeed(backend.seed, { view: "grid", windowedView: "grid", now: 0 })
@@ -53,37 +87,94 @@ const commit = (backend: Backend, workspace: Workspace, actions: WorkspaceAction
   return next
 }
 
+// Runs every step, even after one throws, and throws what they threw once all have run.
+const allOf = async (steps: readonly (() => unknown)[], message: string): Promise<void> => {
+  const errors: unknown[] = []
+  for (const step of steps)
+    try {
+      // eslint-disable-next-line no-await-in-loop -- Each step may wait on the one before.
+      await step()
+    } catch (error) {
+      errors.push(error)
+    }
+  if (errors.length === 1) throw errors[0]
+  if (errors.length)
+    throw new AggregateError(
+      errors,
+      `${message}: ${errors.map((error) => (error instanceof Error ? error.message : String(error))).join("; ")}`,
+    )
+}
+
 // Checks the port contract in core/port.ts against one adapter. Call it from the
 // adapter's colocated contract.test.ts.
 export const describeBackendContract = (name: string, options: BackendContractOptions): void => {
   const settle = options.settle ?? microtask
   // The I/O started so far, once the work already started has landed.
-  const settledIo = async (probe: BackendProbe): Promise<readonly string[]> => {
-    await settle()
+  const settledIo = async (backend: Backend, probe: BackendProbe): Promise<readonly string[]> => {
+    await settle(backend)
     return [...probe.io()]
   }
+
+  // What each test made, which the contract lets go of after it: its mounts, then its
+  // terminals still open, then the sinks it started.
   const mountings: { readonly mount: TerminalMount; readonly element: HTMLElement }[] = []
-  afterEach(() => {
-    mountings.splice(0).forEach(({ mount, element }) => {
-      mount.dispose()
-      element.remove()
-    })
-  })
+  type Made = {
+    readonly backend: Backend
+    readonly open: Set<() => unknown>
+    readonly started: Set<() => void>
+  }
+  const made: Made[] = []
+  const create = (): ReturnType<BackendContractOptions["create"]> & { readonly made: Made } => {
+    const created = options.create()
+    const entry: Made = { backend: created.backend, open: new Set(), started: new Set() }
+    made.push(entry)
+    return { ...created, made: entry }
+  }
+  afterEach(async () => {
+    await allOf(
+      [
+        ...mountings.splice(0).map(({ mount, element }) => () => {
+          try {
+            mount.dispose()
+          } finally {
+            element.remove()
+          }
+        }),
+        // Closed while started: a stopped backend may drop a close it is still sending.
+        ...made.flatMap((entry) => [...entry.open]),
+        ...made.map((entry) => () => settle(entry.backend)),
+        ...made.splice(0).flatMap((entry) => [...entry.started]),
+      ],
+      "the contract's cleanup failed",
+    )
+    // As long as the mount tests may take: closing waits on the far side, as mounting does.
+  }, 30_000)
 
   // A started backend with one terminal the UI just added to the active session.
   const withTerminal = () => {
-    const created = options.create()
+    const created = create()
     const { backend } = created
-    const initial = seeded(backend)
-    backend.commit(initial, [])
-    const project = activeProject(initial)!
-    const session = activeSession(initial)!
+    let workspace = seeded(backend)
+    backend.commit(workspace, [])
+    const project = activeProject(workspace)!
+    const session = activeSession(workspace)!
     const target: WorkspaceTarget = { projectId: project.id, workspaceSessionId: session.id }
-    const terminal = backend.newTerminal({ target, directory: project.directory })
-    const workspace = commit(backend, initial, [{ type: "terminal/add", target, terminal }])
-    const key: TerminalKey = { ...target, terminalId: terminal.id }
-    const close = (): Workspace =>
-      commit(backend, workspace, [{ type: "terminal/close", target, terminalId: terminal.id }])
+    // Adds a terminal as the UI does; the contract closes it after the test unless the test
+    // closed it.
+    const add = () => {
+      const terminal = backend.newTerminal({ target, directory: project.directory })
+      workspace = commit(backend, workspace, [{ type: "terminal/add", target, terminal }])
+      const key: TerminalKey = { ...target, terminalId: terminal.id }
+      const close = (): Workspace => {
+        created.made.open.delete(close)
+        return (workspace = commit(backend, workspace, [
+          { type: "terminal/close", target, terminalId: terminal.id },
+        ]))
+      }
+      created.made.open.add(close)
+      return { terminal, key, close }
+    }
+    const { terminal, key, close } = add()
     // The terminal mounted into an element in the page, as the UI would, and unmounted after
     // the test.
     const mountInto = (
@@ -107,7 +198,18 @@ export const describeBackendContract = (name: string, options: BackendContractOp
         input: () => element.querySelector<HTMLTextAreaElement>("[data-terminal-input]"),
       }
     }
-    return { ...created, target, terminal, key, workspace, close, mountInto }
+    // Starts the backend with `sink`; the contract stops it after the test unless the test
+    // did.
+    const start = (sink: BackendSink): (() => void) => {
+      const stop = backend.start!(sink)
+      const once = (): void => {
+        if (!created.made.started.delete(once)) return
+        stop()
+      }
+      created.made.started.add(once)
+      return once
+    }
+    return { ...created, target, terminal, key, close, add, mountInto, start }
   }
 
   // What an adapter offers beyond the port's minimum: transcripts, and `start`, with which it
@@ -118,41 +220,46 @@ export const describeBackendContract = (name: string, options: BackendContractOp
   describe(`${name} backend contract`, () => {
     context("before the app mounts", () => {
       it("supplies a seed the workspace can start from", () => {
-        const { backend } = options.create()
+        const { backend } = create()
         const workspace = seeded(backend)
         expect(activeSession(workspace)).toBeDefined()
       })
 
-      it("starts no I/O when created, even twice", () => {
-        const probes = [options.create().probe, options.create().probe]
-        expect(probes.map((probe) => probe.io())).toEqual([[], []])
+      it("starts no I/O when created, even twice", async () => {
+        const created = [create(), create()]
+        await Promise.all(created.map(({ backend }) => settle(backend)))
+        expect(created.map(({ probe }) => probe.io())).toEqual([[], []])
       })
 
       it("starts no I/O when it sees the initial workspace", async () => {
-        const { backend, probe } = options.create()
+        const { backend, probe } = create()
         backend.commit(seeded(backend), [])
-        await settle()
+        await settle(backend)
         expect(probe.io()).toEqual([])
       })
     })
 
     context("when it keeps transcripts", () => {
       it.skipIf(!probed.transcripts)("reports the setting and changes it when asked", async () => {
-        const { enabled, set } = options.create().backend.transcripts!
+        const { backend } = create()
+        const { enabled, set } = backend.transcripts!
         const changed = vi.fn<() => void>()
         const stop = enabled.subscribe(changed)
-        const before = enabled.getSnapshot()
-        set(!before)
-        await settle()
-        expect(enabled.getSnapshot()).toBe(!before)
-        expect(changed).toHaveBeenCalled()
-        stop()
+        try {
+          const before = enabled.getSnapshot()
+          set(!before)
+          await settle(backend)
+          expect(enabled.getSnapshot()).toBe(!before)
+          expect(changed).toHaveBeenCalled()
+        } finally {
+          stop()
+        }
       })
     })
 
     context("when the UI creates a terminal", () => {
       it("allocates it synchronously with an id the session does not use", () => {
-        const { backend } = options.create()
+        const { backend } = create()
         const workspace = seeded(backend)
         const session = activeSession(workspace)!
         const terminal = backend.newTerminal({
@@ -177,12 +284,12 @@ export const describeBackendContract = (name: string, options: BackendContractOp
           ]
         expect(held()).toBeUndefined()
         close()
-        await settle()
+        await settle(backend)
         expect(held()).toBeUndefined()
       })
 
       it("keeps its terminal mount for the backend's lifetime, and takes the font", () => {
-        const { backend } = options.create()
+        const { backend } = create()
         expect(backend.setFont).toBeTypeOf("function")
         const mount = backend.mountTerminal
         backend.commit(seeded(backend), [])
@@ -227,9 +334,13 @@ export const describeBackendContract = (name: string, options: BackendContractOp
       })
 
       it("changes nothing when it is given props equal to its own", async () => {
-        const { probe, mountInto } = withTerminal()
+        const { backend, probe, mountInto } = withTerminal()
         const { mount, element, update } = mountInto()
-        const io = await settledIo(probe)
+        // A screen draws as its shell comes up, and once more a frame after its output
+        // arrives, props or not: what it draws then is no change of props.
+        await liveIn(mount)
+        await frames(2)
+        const io = await settledIo(backend, probe)
         const woken = vi.fn<() => void>()
         mount.state.subscribe(woken)
         const records: MutationRecord[] = []
@@ -242,7 +353,7 @@ export const describeBackendContract = (name: string, options: BackendContractOp
         })
         update({})
         update({ view: "focus", onScreen: true })
-        await settle()
+        await settle(backend)
         records.push(...written.takeRecords())
         written.disconnect()
         expect(records).toEqual([])
@@ -251,22 +362,22 @@ export const describeBackendContract = (name: string, options: BackendContractOp
       })
 
       it("starts no I/O when its view changes", async () => {
-        const { probe, mountInto } = withTerminal()
+        const { backend, probe, mountInto } = withTerminal()
         const { update } = mountInto()
-        const io = await settledIo(probe)
+        const io = await settledIo(backend, probe)
         for (const view of ["canvas", "focus"] as const) update({ view })
-        await settle()
+        await settle(backend)
         expect(probe.io()).toEqual(io)
       })
 
       it("hands its terminal to the next mount within the park window, with no new I/O", async () => {
-        const { probe, mountInto } = withTerminal()
+        const { backend, probe, mountInto } = withTerminal()
         const first = mountInto()
-        const io = await settledIo(probe)
+        const io = await settledIo(backend, probe)
         first.mount.dispose()
         const next = document.body.appendChild(document.createElement("div"))
         const second = mountInto({}, next)
-        await settle()
+        await settle(backend)
         expect(probe.io()).toEqual(io)
         expect(next.querySelectorAll("[data-terminal-input]")).toHaveLength(1)
         expect(first.element.querySelector("[data-terminal-input]")).toBeNull()
@@ -274,22 +385,26 @@ export const describeBackendContract = (name: string, options: BackendContractOp
       })
 
       it("lets its screen go and takes it again within the park window, with no new I/O", async () => {
-        const { probe, mountInto } = withTerminal()
+        const { backend, probe, mountInto } = withTerminal()
         const { element, input, update } = mountInto()
-        const io = await settledIo(probe)
+        const io = await settledIo(backend, probe)
         update({ onScreen: false })
         update({ onScreen: true })
-        await settle()
+        await settle(backend)
         expect(probe.io()).toEqual(io)
         expect(element.querySelectorAll("[data-terminal-input]")).toHaveLength(1)
         expect(input()).not.toBeNull()
       })
 
       it("takes no screen when created off screen, and releases nothing twice when disposed there", async () => {
-        const { probe, mountInto } = withTerminal()
-        const io = await settledIo(probe)
+        const { backend, probe, mountInto } = withTerminal()
+        // Another mount shows the terminal throughout: a second release would let go of its
+        // hold, and the screen would park under it once the park window passed.
+        const shown = mountInto()
+        await liveIn(shown.mount)
+        const io = await settledIo(backend, probe)
         const { mount, element, update } = mountInto({ onScreen: false })
-        await settle()
+        await settle(backend)
         expect(probe.io()).toEqual(io)
         expect(element.querySelector("[data-terminal-input]")).toBeNull()
         update({ onScreen: true })
@@ -297,8 +412,17 @@ export const describeBackendContract = (name: string, options: BackendContractOp
         update({ onScreen: false })
         mount.dispose()
         mount.dispose()
-        await settle()
+        await settle(backend)
+        // What it last drew stays in its element.
         expect(element.querySelector("[data-terminal-input]")).not.toBeNull()
+        await pause(options.parkMs + 500)
+        await settle(backend)
+        expect(shown.mount.state.getSnapshot().live).toBe(true)
+        expect(probe.io()).toEqual(io)
+        // A mount now takes the screen the shown one still holds: nothing attaches again.
+        mountInto()
+        await settle(backend)
+        expect(probe.io()).toEqual(io)
       })
 
       it("can be disposed twice, and is quiet after", () => {
@@ -320,18 +444,18 @@ export const describeBackendContract = (name: string, options: BackendContractOp
         expect(() => backend.setFont({ size: 15 })).not.toThrow()
         expect(probe.io()).toEqual(io)
         mountInto()
-        const mountedIo = await settledIo(probe)
+        const mountedIo = await settledIo(backend, probe)
         expect(() => backend.setFont({ size: 12 })).not.toThrow()
-        await settle()
+        await settle(backend)
         expect(probe.io()).toEqual(mountedIo)
       })
 
       it("ignores input to a mount made before the UI closed its terminal", async () => {
-        const { probe, key, close, mountInto } = withTerminal()
+        const { backend, probe, key, close, mountInto } = withTerminal()
         const { input } = mountInto()
         await act(async () => {
           close()
-          await settle()
+          await settle(backend)
         })
         const io = [...probe.io()]
         const errors: unknown[] = []
@@ -343,11 +467,13 @@ export const describeBackendContract = (name: string, options: BackendContractOp
         try {
           const typed = input()!
           const setValue = Object.getOwnPropertyDescriptor(Object.getPrototypeOf(typed), "value")
+          // Without it nothing would be typed, and the check below would hold trivially.
+          expect(setValue?.set).toBeTypeOf("function")
           await act(async () => {
-            setValue?.set?.call(typed, "echo stale")
+            setValue!.set!.call(typed, "echo stale")
             typed.dispatchEvent(new Event("input", { bubbles: true }))
             typed.dispatchEvent(new KeyboardEvent("keydown", { key: "Enter", bubbles: true }))
-            await settle()
+            await settle(backend)
           })
         } finally {
           window.removeEventListener("error", report)
@@ -362,20 +488,23 @@ export const describeBackendContract = (name: string, options: BackendContractOp
       it("lets go of it and does not repeat the close on later commits", async () => {
         const { backend, probe, key, close } = withTerminal()
         const closed = close()
-        await settle()
+        await settle(backend)
         expect(probe.holds(key)).toBe(false)
         const io = [...probe.io()]
         backend.commit(closed, [])
-        await settle()
+        await settle(backend)
         expect(probe.io()).toEqual(io)
       })
     })
 
-    context("when the far side reports terminal status", () => {
+    // A driver may take a few seconds per report: the runner's shell must have run 2 s.
+    context("when the far side reports terminal status", { timeout: 30_000 }, () => {
       it.skipIf(!starts)(
         "delivers each report once through the latest sink and nothing after stop",
         async () => {
-          const { backend, driver, key } = withTerminal()
+          const { backend, driver, key, add, start } = withTerminal()
+          // Still running when the backend stops, so a sink left subscribed would hear of it.
+          const later = add().key
           expect(driver, "an adapter with start needs a driver").toBeDefined()
           const received: { readonly sink: number; readonly action: BackendAction }[] = []
           const sink = (number: number): BackendSink => ({
@@ -384,11 +513,11 @@ export const describeBackendContract = (name: string, options: BackendContractOp
             open: () => {},
           })
           expect(backend.start).toBeTypeOf("function")
-          backend.start!(sink(1))()
-          const stop = backend.start!(sink(2))
+          start(sink(1))()
+          const stop = start(sink(2))
           const exited: TerminalStatus = { state: "exited", exitCode: 3, signal: null }
           await driver!.status(key, exited)
-          await settle()
+          await settle(backend)
           const { terminalId, ...target } = key
           // An adapter may also report what it learns on the way, such as the process running.
           const reports = received.filter(
@@ -403,9 +532,10 @@ export const describeBackendContract = (name: string, options: BackendContractOp
           ])
           stop()
           const count = received.length
-          await driver!.status(key, { state: "failed", message: "lost" })
-          await settle()
-          expect(received).toHaveLength(count)
+          // Reported as the first was, which reached the sink then subscribed.
+          await driver!.status(later, exited)
+          await settle(backend)
+          expect(received.slice(count)).toEqual([])
         },
       )
     })

@@ -9,6 +9,7 @@ import {
 import { afterEach, vi } from "vitest"
 
 import { context, describe, expect, it } from "./test"
+import { hasWebgl, requireWebglOnCi } from "./webgl"
 
 // xterm's WebGL addon in a real browser: what it holds of the page's WebGL contexts, which
 // Chromium caps. Headless Chromium draws WebGL in software, enough to hold a context.
@@ -39,7 +40,7 @@ const terminal = (): { readonly xterm: Terminal; readonly element: HTMLDivElemen
 const webglContexts = (element: HTMLElement): WebGL2RenderingContext[] =>
   [...element.querySelectorAll("canvas")].flatMap((canvas) => canvas.getContext("webgl2") ?? [])
 
-const hasWebgl = Boolean(document.createElement("canvas").getContext("webgl2"))
+requireWebglOnCi()
 
 describe.skipIf(!hasWebgl)("xterm's WebGL renderer", () => {
   context("when a screen goes back to the DOM renderer", () => {

@@ -273,7 +273,7 @@ export const createDemoTerminals = (engine: DemoEngine, setup: DemoTerminalSetup
   const { options, link, start, stop } = demoScreensOptions(engine, setup)
   const screens = createTerminalScreens(options)
   return {
-    mountTerminal: createTerminalMount(screens),
+    mountTerminal: createTerminalMount({ acquire: screens.acquire, restart: options.restart }),
     setFont: screens.setFont,
     typeInto: screens.typeInto,
     link,

@@ -2,15 +2,14 @@ import { expect } from "vitest"
 import { userEvent, type Locator } from "vitest/browser"
 
 import { windowMenu } from "./companions"
-import { literal, openWorkspace, skipWelcome, terminal, terminalTab } from "./workspace"
+import { literal, openWorkspace, terminal, terminalTab } from "./workspace"
 
 // Vocabulary for agents' messages: the counts on terminals' tabs, a terminal's messages
 // in its companion pane, and who named a terminal.
 
-/** Opens the agents demo where its agents message each other, past the first-run welcome. */
+/** Opens the agents demo where its agents message each other. */
 export const openMessagesDemo = async (route = "/"): Promise<void> => {
   await openWorkspace(`${route}?demo=messages`)
-  await skipWelcome()
 }
 
 /** Who named a terminal, as its tab's menu says in a line to read rather than choose. */

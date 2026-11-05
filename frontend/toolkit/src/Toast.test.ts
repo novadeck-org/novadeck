@@ -33,6 +33,14 @@ const mount = (onMore = () => {}, fake = true) => {
         await sleep(30)
       } else await sleep(ms)
     })
+  // Waits, a step at a time, until what the stack does on its own clock, Zag's timers and
+  // frames, has come to pass, so a slow machine waits longer rather than failing.
+  const until = async (done: () => boolean): Promise<void> => {
+    const end = Date.now() + 2000
+    while (!done() && Date.now() < end)
+      // eslint-disable-next-line no-await-in-loop -- Each look comes after the one before.
+      await act(async () => sleep(10))
+  }
   // The pointer travels onto the stack: Zag hears a move over it.
   const hover = () =>
     act(async () => {
@@ -41,7 +49,7 @@ const mount = (onMore = () => {}, fake = true) => {
       doc.querySelector(".toasts")!.dispatchEvent(move)
       await sleep(10)
     })
-  return { toasts, selected, view, standing, all, later, hover, doc }
+  return { toasts, selected, view, standing, all, later, until, hover, doc }
 }
 
 describe("a toast stack", () => {
@@ -58,7 +66,7 @@ describe("a toast stack", () => {
   })
 
   it("ignores a click as a toast lands, and answers one after", async () => {
-    const { toasts, selected, standing, view, later, all } = mount()
+    const { toasts, selected, standing, view, later, until, all } = mount()
     await act(async () => toasts.show("a", "ring"))
     await act(async () => all(".body")[0]!.click())
     expect(selected).toEqual([])
@@ -67,18 +75,20 @@ describe("a toast stack", () => {
     await act(async () => all(".body")[0]!.click())
     expect(selected).toEqual(["ring"])
     await later(300)
+    await until(() => standing().length === 0)
     expect(standing()).toEqual([])
     view.unmount()
   })
 
   it("ignores a click on its close button too, until the guard has passed", async () => {
-    const { toasts, standing, view, later, all } = mount()
+    const { toasts, standing, view, later, until, all } = mount()
     await act(async () => toasts.show("a", "ring"))
     await act(async () => all(".toast-close")[0]!.click())
     expect(standing()).toEqual(["ring"])
     await later(clickGraceMs + 1)
     await act(async () => all(".toast-close")[0]!.click())
     await later(10)
+    await until(() => standing().length === 0)
     expect(standing()).toEqual([])
     view.unmount()
   })
@@ -137,7 +147,7 @@ describe("a toast stack", () => {
   })
 
   it("lets a toast that is leaving fade out where it stood", async () => {
-    const { toasts, view, later, all } = mount()
+    const { toasts, view, later, until, all } = mount()
     await act(async () => {
       toasts.show("a", "back")
       toasts.show("b", "front")
@@ -145,7 +155,9 @@ describe("a toast stack", () => {
     await later(10)
     await act(async () => toasts.close("b"))
     await later(10)
-    const leaving = all(".toast").find((each) => each.textContent?.includes("front"))
+    const front = () => all(".toast").find((each) => each.textContent?.includes("front"))
+    await until(() => front()?.getAttribute("data-state") === "closed")
+    const leaving = front()
     expect(leaving?.getAttribute("data-state")).toBe("closed")
     expect(leaving?.getAttribute("data-rank")).toBe("0")
     view.unmount()
@@ -154,9 +166,10 @@ describe("a toast stack", () => {
 
 describe("a stack the pointer holds", () => {
   it("stops holding once its last toast is gone, so the next runs its own time", async () => {
-    const { toasts, view, later, hover, all } = mount()
+    const { toasts, view, later, until, hover, all } = mount()
     await act(async () => toasts.show("a", "ring"))
     await hover()
+    await until(() => all(".toast")[0]!.hasAttribute("data-paused"))
     expect(all(".toast")[0]!.hasAttribute("data-paused")).toBe(true)
     await later(clickGraceMs + 1)
     await act(async () => all(".toast-close")[0]!.click())
@@ -168,7 +181,7 @@ describe("a stack the pointer holds", () => {
   })
 
   it("spreads a toast that lands while it is held", async () => {
-    const { toasts, view, later, hover, all } = mount()
+    const { toasts, view, later, until, hover, all } = mount()
     const matches = HTMLElement.prototype.matches
     vi.spyOn(HTMLElement.prototype, "matches").mockImplementation(function (
       this: HTMLElement,
@@ -180,8 +193,9 @@ describe("a stack the pointer holds", () => {
     await hover()
     await act(async () => toasts.show("b", "more"))
     await later(50)
-    const front = all(".toast").find((each) => each.textContent?.includes("more"))!
-    expect(front.hasAttribute("data-stack")).toBe(true)
+    const more = () => all(".toast").find((each) => each.textContent?.includes("more"))
+    await until(() => more()?.hasAttribute("data-stack") === true)
+    expect(more()!.hasAttribute("data-stack")).toBe(true)
     view.unmount()
   })
 })
@@ -191,7 +205,7 @@ describe("focus a toast is reached with", () => {
     new KeyboardEvent("keydown", { key: name, bubbles: true, cancelable: true })
 
   const goesBack = async (how: "escape" | "close"): Promise<void> => {
-    const { toasts, view, later, all, doc } = mount(undefined, false)
+    const { toasts, view, later, until, all, doc } = mount(undefined, false)
     const field = doc.createElement("input")
     doc.body.append(field)
     field.focus()
@@ -204,7 +218,7 @@ describe("focus a toast is reached with", () => {
       if (how === "escape") toast.dispatchEvent(key("Escape"))
       else toast.querySelector<HTMLElement>(".toast-close")!.click()
     })
-    await later(10)
+    await until(() => doc.activeElement === field)
     expect(doc.activeElement).toBe(field)
     field.remove()
     view.unmount()
@@ -237,7 +251,7 @@ describe("focus a toast is reached with", () => {
 
 describe("the pill that counts the rest", () => {
   it("lets the stack pause and spread again once the pill is gone from under the pointer", async () => {
-    const { toasts, view, later, all, doc, hover } = mount()
+    const { toasts, view, later, until, all, doc, hover } = mount()
     await act(async () => {
       for (const key of ["a", "b", "c", "d", "e"]) toasts.show(key, key)
     })
@@ -249,6 +263,7 @@ describe("the pill that counts the rest", () => {
     await act(async () => toasts.show("f", "fresh"))
     await later(10)
     await hover()
+    await until(() => doc.querySelector(".toast[data-stack]") !== null)
     expect(doc.querySelector(".toast[data-stack]")).not.toBeNull()
     view.unmount()
   })
@@ -295,7 +310,7 @@ describe("focus in the stack", () => {
   })
 
   it("lets go of the stack once focus is off it, as a key or code takes it away", async () => {
-    const { toasts, view, later, all, doc } = mount(undefined, false)
+    const { toasts, view, later, until, all, doc } = mount(undefined, false)
     await act(async () => {
       toasts.show("a", "back")
       toasts.show("b", "front")
@@ -311,6 +326,7 @@ describe("focus in the stack", () => {
       ;(doc.activeElement as HTMLElement).blur()
     })
     await later(50)
+    await until(() => doc.querySelector(".toast[data-stack]") === null)
     expect(doc.querySelector(".toast[data-stack]")).toBeNull()
     view.unmount()
   })

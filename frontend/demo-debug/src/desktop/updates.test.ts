@@ -1,8 +1,15 @@
-import type { UpdateOffer } from "@novadeck/core/desktop/update"
+import type { UpdateChannel, UpdateOffer } from "@novadeck/core/desktop/update"
 import { afterEach, vi } from "vitest"
 
 import { describe, expect, it } from "../test"
-import { createDemoUpdates, downloadMs, failAfterMs, downloadStep } from "./updates"
+import { portableScenarios, updateScenarios } from "./scenarios"
+import {
+  createDemoUpdates,
+  downloadMs,
+  failAfterMs,
+  downloadStep,
+  pageUpdateChannel,
+} from "./updates"
 
 const ready = (version: string): UpdateOffer => ({
   kind: "ready",
@@ -111,11 +118,52 @@ describe("demo updates", () => {
     expect(heard.at(-1)).toBe("retrying 0.0.81")
   })
 
+  it("lets a later download be when a held failure is called off", () => {
+    vi.useFakeTimers()
+    const { updates, download, failDownload } = createDemoUpdates()
+    const heard: UpdateOffer[] = []
+    updates.onOffer((each) => heard.push(each))
+    failDownload("0.0.80")
+    download("0.0.81")
+    vi.advanceTimersByTime(failAfterMs)
+    expect(heard.some((each) => each.kind === "retrying")).toBe(false)
+    expect(heard.at(-1)).toMatchObject({ kind: "downloading", version: "0.0.81" })
+    vi.advanceTimersByTime(downloadMs * 20)
+    expect(heard.at(-1)).toEqual(ready("0.0.81"))
+  })
+
+  it("holds a download shown held at 40% for a moment before it fails", () => {
+    vi.useFakeTimers()
+    const { updates, offer, failDownload } = createDemoUpdates()
+    const heard: UpdateOffer[] = []
+    updates.onOffer((each) => heard.push(each))
+    offer({ kind: "downloading", version: "0.0.80", percent: 40 })
+    failDownload("0.0.81")
+    expect(heard.at(-1)).toEqual({ kind: "downloading", version: "0.0.81", percent: 40 })
+    vi.advanceTimersByTime(failAfterMs)
+    expect(heard.at(-1)).toEqual({ kind: "retrying", version: "0.0.81" })
+  })
+
   it("starts on the stable channel and keeps the one it is switched to", async () => {
-    const { updates } = createDemoUpdates()
+    const memory: { channel: UpdateChannel } = { channel: "stable" }
+    const { updates } = createDemoUpdates(undefined, memory)
     expect(await updates.channel?.get()).toBe("stable")
     updates.channel?.set("experimental")
     expect(await updates.channel?.get()).toBe("experimental")
+  })
+
+  it("keeps the page's channel for the next boot's updates, until the page reloads", async () => {
+    const first = createDemoUpdates(undefined, pageUpdateChannel)
+    first.updates.channel?.set("experimental")
+    try {
+      const next = createDemoUpdates(undefined, pageUpdateChannel)
+      expect(await next.updates.channel?.get()).toBe("experimental")
+      expect(next.channel()).toBe("experimental")
+      // Without the page's memory, as a spec's backend, each starts stable.
+      expect(createDemoUpdates().channel()).toBe("stable")
+    } finally {
+      first.updates.channel?.set("stable")
+    }
   })
 
   it("answers what's new only once shown, until it is dismissed, and counts what was asked", async () => {
@@ -136,5 +184,15 @@ describe("demo updates", () => {
     expect(await whatsNew.get()).not.toHaveProperty("from")
     showWhatsNew("0.0.80", { from: "0.0.79" })
     expect((await whatsNew.get())?.from).toBe("0.0.79")
+  })
+})
+
+describe("the update scenarios", () => {
+  it("leave a reboot to the panel's mark, never naming it in a hint", () => {
+    for (const { label, hint } of [
+      ...Object.values(updateScenarios),
+      ...Object.values(portableScenarios),
+    ])
+      expect(hint, label).not.toMatch(/\breboots?\b|boots the demo/i)
   })
 })

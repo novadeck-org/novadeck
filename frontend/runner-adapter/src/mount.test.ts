@@ -10,7 +10,12 @@ import type { TerminalMetadata, ViewMode } from "@novadeck/core/types"
 import { createRendererPool, type Drawing, type Terminal } from "@novadeck/emulator/browser"
 import { createTerminalMount } from "@novadeck/terminal-views/mount"
 import { noTheme } from "@novadeck/terminal-views/theme"
-import { createTerminalScreens, type Hold, type TerminalScreens } from "@novadeck/terminal/view"
+import {
+  createTerminalScreens,
+  type Hold,
+  type TerminalScreens,
+  type TerminalScreensOptions,
+} from "@novadeck/terminal/view"
 import { afterEach, vi } from "vitest"
 
 import type { SurfaceRuntime } from "./backend"
@@ -102,16 +107,16 @@ const propsOf = (terminal: TerminalMetadata, view: ViewMode = "focus"): Terminal
   view,
 })
 
-// Mounts a terminal in an element in the page, over `screens`.
+// Mounts a terminal in an element in the page, over the screens `options` open, or `screens`.
 const mountOver = (
-  screens: TerminalScreens<TerminalKey>,
+  options: TerminalScreensOptions<TerminalKey>,
   props: TerminalMountProps,
-  terminalKey = key,
-  mountTerminal = createTerminalMount(screens),
+  screens: TerminalScreens<TerminalKey> = createTerminalScreens(options),
 ): Mounted => {
   const container = document.createElement("div")
   document.body.append(container)
-  const mount = mountTerminal(container, terminalKey, props)
+  const mountTerminal = createTerminalMount({ acquire: screens.acquire, restart: options.restart })
+  const mount = mountTerminal(container, key, props)
   let current = props
   const page: Mounted = {
     container,
@@ -127,7 +132,7 @@ const mountOver = (
 }
 
 const show = (runtime: SurfaceRuntime, terminal: TerminalMetadata = startingTerminal()) =>
-  mountOver(createTerminalScreens(screensOptions(runtime, { theme: noTheme })), propsOf(terminal))
+  mountOver(screensOptions(runtime, { theme: noTheme }), propsOf(terminal))
 
 const input = (page: Mounted) =>
   page.container.querySelector<HTMLTextAreaElement>("[data-terminal-input]")!
@@ -147,7 +152,8 @@ describe("runner terminal mount", () => {
     }
     const surfaces = () => {
       const { runtime } = starting()
-      const screens = createTerminalScreens(screensOptions(runtime, { theme: noTheme }))
+      const screenOptions = screensOptions(runtime, { theme: noTheme })
+      const screens = createTerminalScreens(screenOptions)
       const calls: string[] = []
       const watching: TerminalScreens<TerminalKey> = {
         ...screens,
@@ -164,12 +170,7 @@ describe("runner terminal mount", () => {
         },
       }
       const open = (onScreen: boolean) =>
-        mountOver(
-          watching,
-          { ...propsOf(startingTerminal(), "canvas"), onScreen },
-          key,
-          createTerminalMount(watching),
-        )
+        mountOver(screenOptions, { ...propsOf(startingTerminal(), "canvas"), onScreen }, watching)
       return { screens, calls, open }
     }
 
@@ -271,13 +272,10 @@ describe("runner terminal mount", () => {
     vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout", "Date"] })
     try {
       const { runtime } = starting()
-      const page = mountOver(
-        createTerminalScreens(screensOptions(runtime, { theme: noTheme, cap: 0 })),
-        {
-          ...propsOf(startingTerminal(), "canvas"),
-          onScreen: true,
-        },
-      )
+      const page = mountOver(screensOptions(runtime, { theme: noTheme, cap: 0 }), {
+        ...propsOf(startingTerminal(), "canvas"),
+        onScreen: true,
+      })
       const first = page.container.querySelector(".terminal-xterm")
       page.update({ onScreen: false })
       vi.advanceTimersByTime(6_000)
@@ -361,7 +359,7 @@ describe("a surface's renderer", () => {
       cap: 12,
     })
     const page = mountOver(
-      createTerminalScreens(screensOptions(starting().runtime, { theme: noTheme, pool })),
+      screensOptions(starting().runtime, { theme: noTheme, pool }),
       propsOf(startingTerminal(), "canvas"),
     )
     expect(loaded).toHaveLength(0)

@@ -1,9 +1,9 @@
 import type { Conversation, Conversations } from "@novadeck/core/conversation"
 import type { PortableInstall } from "@novadeck/core/desktop/portable"
 import type { SandboxState } from "@novadeck/core/desktop/sandbox"
-import type { InboxRow } from "@novadeck/core/inbox"
-import type { Backend, Notice } from "@novadeck/core/port"
-import type { Store } from "@novadeck/core/store"
+import type { InboxRow, InboxSource } from "@novadeck/core/inbox"
+import type { Approval, Approvals, Backend, Notice } from "@novadeck/core/port"
+import { createStore, type Store } from "@novadeck/core/store"
 import { createDemoBackend } from "@novadeck/demo"
 import {
   createDemoPortable,
@@ -70,14 +70,10 @@ const demoWithUpdate = (
   return { ...demo, updates: controls.updates, whatsNew: controls.whatsNew }
 }
 
-// The updates of every backend made since `forgetUpdates`: StrictMode makes two and keeps
+// The updates of every backend made since the page opened: StrictMode makes two and keeps
 // one, so what the spec does reaches each, and what the page asked of the app is counted
 // across them.
 const made: ReturnType<typeof createDemoUpdates>[] = []
-
-/** Forgets the updates of earlier pages' backends, so what the page asks of the app about
- * what's new is counted from nothing. */
-export const forgetUpdates = (): void => void (made.length = 0)
 
 /** Has the app's update download begin, in the backend the page uses (and its twin). */
 export const startDownload = (version: string): void =>
@@ -87,11 +83,11 @@ export const startDownload = (version: string): void =>
 export const reportProgress = (version: string, percent: number): void =>
   made.forEach((each) => each.offer({ kind: "downloading", version, percent }))
 
-/** How many times the page has asked the app what is new, since `forgetUpdates`. */
+/** How many times the page has asked the app what is new since the page opened. */
 export const whatsNewAsked = (): number =>
   made.reduce((sum, each) => sum + each.whatsNewCalls.asked, 0)
 
-/** What the page has asked of the app about what's new, since `forgetUpdates`. */
+/** What the page has asked of the app about what's new since the page opened. */
 export const whatsNewCalls = (): { readonly dismissed: number } => ({
   dismissed: made.reduce((sum, each) => sum + each.whatsNewCalls.dismissed, 0),
 })
@@ -148,7 +144,7 @@ export const portableInstall = {
 // debug panel's scenarios (see @novadeck/demo-debug/desktop/uninstall).
 const requestedUninstall = (): Backend["uninstall"] => {
   const name = addressParams().get("uninstall")
-  return name && name in uninstallScenarios
+  return name && Object.hasOwn(uninstallScenarios, name)
     ? createDemoUninstall(uninstallScenarios[name as keyof typeof uninstallScenarios]).uninstall
     : undefined
 }
@@ -219,15 +215,23 @@ const visitorTimings = (): {
   ambient: false
 } => {
   const params = addressParams()
-  const turnMs = Number(params.get("turnMs"))
-  const nudgeMs = Number(params.get("nudgeMs"))
-  const readingMs = Number(params.get("readingMs"))
+  const turnMs = timerMs(params.get("turnMs"))
+  const nudgeMs = timerMs(params.get("nudgeMs"))
   return {
     ...(turnMs > 0 && { turnMs }),
     ...(nudgeMs > 0 && { nudgeMs }),
-    readingMs: readingMs > 0 ? readingMs : 0,
+    readingMs: timerMs(params.get("readingMs")),
     ambient: false,
   }
+}
+
+// The longest wait a timer keeps: a longer one, Infinity among them, fires at once.
+const longestTimerMs = 2_147_483_647
+
+// A wait the address gives, in milliseconds, as a timer keeps it: 0 for none or nonsense.
+const timerMs = (value: string | null): number => {
+  const ms = Number(value)
+  return ms > 0 ? Math.min(ms, longestTimerMs) : 0
 }
 
 // Specs open the Babcia demo with `?demo=babcia`, and ring its cues, as the debug panel does.
@@ -236,9 +240,6 @@ const babciaRequested = (): boolean => addressParams().get("demo") === "babcia"
 // The cues of every Babcia demo made (StrictMode makes two and keeps one; a cue acts only in
 // the one the page started).
 const babciaCues: BabciaCues[] = []
-
-/** Forgets the cues of earlier pages' demos, as a spec opens its own. */
-export const forgetBabciaCues = (): void => void (babciaCues.length = 0)
 
 /** The Babcia demo's seasonal-specials agent shows its page in the pane, with no click. */
 export const agentShowsPage = (): void => babciaCues.forEach((cues) => cues.show())
@@ -254,12 +255,9 @@ type DesktopWindow = {
   readonly shown: Notice[]
 }
 
-// The desktop windows of every backend made since `forgetDesktopWindow`: StrictMode makes two
+// The desktop windows of every backend made since the page opened: StrictMode makes two
 // and keeps one, so what the spec does reaches each, and what the page did is read from them all.
 const desktops: DesktopWindow[] = []
-
-/** Forgets the windows of earlier pages' backends, as a spec opens its own. */
-export const forgetDesktopWindow = (): void => void (desktops.length = 0)
 
 const asDesktop = (
   demo: ReturnType<typeof createDemoBackend>,
@@ -284,6 +282,23 @@ const asDesktop = (
   }
 }
 
+// The demo's Inbox rows (by fixture id) join every window's Inbox now, in the order given,
+// waiting from now, as `change` makes them.
+const arriving = (
+  ids: readonly string[],
+  change: (row: InboxRow) => InboxRow = (row) => row,
+): void => {
+  const now = Date.now()
+  for (const each of desktops) {
+    if (!isDemoInbox(each.inbox)) continue
+    for (const id of ids) {
+      const found = demoInboxRowsAll(now).find((row) => row.id === id)
+      if (!found) throw new Error(`No Inbox fixture ${id}`)
+      each.inbox.add(change({ ...found, at: now }))
+    }
+  }
+}
+
 /** The window of the desktop-like app of `&desktop=on`, and the Inbox behind it. */
 export const desktopWindow = {
   /** The system gives the app's window its focus, or takes it away. */
@@ -292,17 +307,11 @@ export const desktopWindow = {
   /** The OS notifications the page has shown, by title. */
   notices: (): string[] => desktops.flatMap((each) => each.shown.map((notice) => notice.title)),
   /** The demo's Inbox rows (by fixture id) join it now, in the order given, waiting from now. */
-  arrive: (...ids: readonly string[]): void => {
-    const now = Date.now()
-    for (const each of desktops) {
-      if (!isDemoInbox(each.inbox)) continue
-      for (const id of ids) {
-        const found = demoInboxRowsAll(now).find((row) => row.id === id)
-        if (!found) throw new Error(`No Inbox fixture ${id}`)
-        each.inbox.add({ ...found, at: now } satisfies InboxRow)
-      }
-    }
-  },
+  arrive: (...ids: readonly string[]): void => arriving(ids),
+  /** A demo Inbox row (by fixture id) joins it now as `agent`'s, for a harness the demo's own
+   * rows don't come from. */
+  arriveAs: (id: string, agent: InboxSource["agent"]): void =>
+    arriving([id], (row) => ({ ...row, source: { ...row.source, agent } })),
   /** The ids of the rows the page's backend Inbox holds, whether or not it lists them (the
    * first window is the page's: StrictMode's second is dropped and never answered). */
   rowIds: (): string[] => desktops[0]?.inbox?.state.getSnapshot().items.map((row) => row.id) ?? [],
@@ -322,9 +331,53 @@ export const desktopWindow = {
 // The demo a spec opens, as its address's hash asks.
 export const createSpecBackend = (): ReturnType<typeof createDemoBackend> => {
   const demo = plainSpecBackend()
+  const withApprovals = approvalsRequested() ? { ...demo, approvals: specApprovals() } : demo
   // Keeps no arrangement, as a demo doesn't, but takes the one a spec leaves in storage
   // (`novadeck.project-arrangement`) as an earlier client's, which the app imports.
-  return { ...(desktopRequested() ? asDesktop(demo) : demo), arrange: async () => {} }
+  return {
+    ...(desktopRequested() ? asDesktop(withApprovals) : withApprovals),
+    arrange: async () => {},
+  }
+}
+
+// Specs open the demo with a backend that has agents ask the person's approval with
+// `&approvals=on`: the spec makes an agent ask with `approvals.ask`, and reads the person's
+// answers with `approvals.answers`.
+const approvalsRequested = (): boolean => addressParams().get("approvals") === "on"
+
+type SpecApprovals = Approvals & {
+  readonly pending: ReturnType<typeof createStore<readonly Approval[]>>
+  readonly answered: { readonly requestId: string; readonly approved: boolean }[]
+}
+
+// The approvals of every backend made since the page opened: StrictMode makes two and keeps
+// one, so an ask reaches each, and the page's answers are read from them all.
+const approvalBackends: SpecApprovals[] = []
+
+const specApprovals = (): Approvals => {
+  const pending = createStore<readonly Approval[]>([])
+  const answered: SpecApprovals["answered"] = []
+  const asked: SpecApprovals = {
+    pending,
+    answered,
+    answer: (requestId, approved) => {
+      if (!pending.getSnapshot().some((each) => each.requestId === requestId)) return
+      answered.push({ requestId, approved })
+      pending.update((waiting) => waiting.filter((each) => each.requestId !== requestId))
+    },
+  }
+  approvalBackends.push(asked)
+  return asked
+}
+
+/** What agents ask the person to allow, in the app of `&approvals=on`. */
+export const approvals = {
+  /** An agent asks, queued behind the approvals already waiting. */
+  ask: (approval: Approval): void =>
+    approvalBackends.forEach((each) => each.pending.update((waiting) => [...waiting, approval])),
+  /** The person's answers, in the order given. */
+  answers: (): { readonly requestId: string; readonly approved: boolean }[] =>
+    approvalBackends.flatMap((each) => each.answered),
 }
 
 const plainSpecBackend = (): ReturnType<typeof createDemoBackend> => {
@@ -353,4 +406,16 @@ const plainSpecBackend = (): ReturnType<typeof createDemoBackend> => {
         portable: createDemoPortable(portable, stepped() ? { schedule: hold } : {}).portable,
       }
     : withUninstall
+}
+
+/**
+ * Forgets what earlier pages' backends left (their updates, desktop windows, approvals and Babcia
+ * cues), as the workspace opens: what a spec reads and drives is then the page it has open,
+ * though an earlier spec or an earlier page of its own made more.
+ */
+export const forgetEarlierPages = (): void => {
+  approvalBackends.length = 0
+  made.length = 0
+  desktops.length = 0
+  babciaCues.length = 0
 }
