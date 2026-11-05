@@ -11,6 +11,8 @@ mod ancestors;
 mod endpoint;
 mod hook;
 mod idle;
+#[cfg(windows)]
+mod job;
 mod mcp;
 #[cfg(windows)]
 mod processes;
