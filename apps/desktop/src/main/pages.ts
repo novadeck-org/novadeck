@@ -33,6 +33,26 @@ import {
 
 import { pageLookChannel, pagePhoneChannel, pagePictureChannel } from "../bridge.js"
 
+/** What `forgetWhenGone` needs of a page's contents: Electron's `WebContents`, or a test's. */
+type Forgettable = {
+  readonly id: number
+  once(event: "destroyed", listener: () => void): unknown
+  on(
+    event: "did-create-window",
+    listener: (window: { readonly webContents: Forgettable }) => void,
+  ): unknown
+}
+
+/**
+ * Calls `forget` with the id of `contents` once it is destroyed, and the same for every
+ * window it opens, and each window those open, however deep.
+ */
+export const forgetWhenGone = (contents: Forgettable, forget: (id: number) => void): void => {
+  const { id } = contents
+  contents.once("destroyed", () => forget(id))
+  contents.on("did-create-window", (window) => forgetWhenGone(window.webContents, forget))
+}
+
 /** The pages of the companion pane and the agents' looks; see `watch` and `registerIpc`. */
 export const livePages = () => {
   // What a look's failed requests keep by view, set once the pages' session is watched.
@@ -104,7 +124,9 @@ export const livePages = () => {
         if (contents.getType() === "webview") {
           guardPage(contents, (url) => shell.openExternal(url), pagesPartition)
           const { id } = contents
-          contents.once("destroyed", () => pageRequests.forget(id))
+          // Its sign-in windows' failed requests are counted too, under their own ids, as are
+          // those of the windows they open in turn, as an account chooser.
+          forgetWhenGone(contents, pageRequests.forget)
           // Its viewer keeps the page live while a sign-in window of it is open, as the window
           // closes with the page.
           countSignIns(contents, (count) => {
@@ -119,11 +141,6 @@ export const livePages = () => {
                 err: error,
               })
             }
-          })
-          // Its sign-in windows' failed requests are counted too, under their own ids.
-          contents.on("did-create-window", (window) => {
-            const popup = window.webContents.id
-            window.webContents.once("destroyed", () => pageRequests.forget(popup))
           })
         }
         // A page's sign-in window (see `guardPage`) is a page's, not the app's.
