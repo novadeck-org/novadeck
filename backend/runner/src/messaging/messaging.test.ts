@@ -715,6 +715,15 @@ describe("delivery through hooks", () => {
     )
   })
 
+  it("takes a hook named as every object's own, such as constructor, for no ask, and leases nothing", () => {
+    const { send, ask, stop, claude } = create()
+    sent(send("B", "moth", "hello"))
+    // Each carries a turn's start, which a prompt's ask would print the message at.
+    for (const event of ["constructor", "toString", "__proto__"])
+      expect(ask("A", claude, event, [started(claude)]).leaseId).toBeNull()
+    expect(stop("A", claude).stdout).toContain("hello")
+  })
+
   it("is Unknown at the person's Escape during a turn, and a Stop after it still delivers", () => {
     const { messaging, send, prompt, stop, claude } = create()
     prompt("A", claude)
