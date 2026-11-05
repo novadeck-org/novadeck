@@ -1,7 +1,7 @@
-import type { FileContent } from "@novadeck/core/items"
-import { render } from "@novadeck/test-kit/render"
 import { EditorSelection } from "@codemirror/state"
 import { EditorView } from "@codemirror/view"
+import type { FileContent } from "@novadeck/core/items"
+import { render } from "@novadeck/test-kit/render"
 import { act, createElement } from "react"
 import { afterEach, vi } from "vitest"
 

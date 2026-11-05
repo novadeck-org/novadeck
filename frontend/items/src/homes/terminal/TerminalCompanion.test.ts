@@ -52,8 +52,7 @@ const notes = itemFixture("notes", "01", {
 const commandsOf = (workspace: WorkspaceStore): ItemCommands => ({
   undock: () => {},
   place: () => {},
-  closeItem: (itemId) =>
-    void workspace.dispatch({ type: "item/close", target, itemId }),
+  closeItem: (itemId) => void workspace.dispatch({ type: "item/close", target, itemId }),
   markSeen: () => {},
   openBarTab: (terminalId, barKey) =>
     void workspace.dispatch({ type: "bar/open", target, terminalId, key: barKey }),
@@ -638,7 +637,9 @@ describe("a terminal's taskbar", () => {
     })
 
     it("keeps it open and says so when the edits couldn't be copied", async () => {
-      const writeText = vi.fn(() => Promise.reject(new Error("Document is not focused")))
+      const writeText = vi.fn<(text: string) => Promise<void>>(() =>
+        Promise.reject(new Error("Document is not focused")),
+      )
       clipboard(writeText)
       const { container, workspace } = await stuck([placed("p1", "first.md")])
       await act(async () => (icon(container, "Plan: First") as HTMLElement).click())

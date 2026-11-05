@@ -273,7 +273,9 @@ export const TerminalCompanion = ({
   // confirm it stayed open after, or asks again past, doesn't keep it from cancelling. It
   // keeps its last one as it animates out.
   const [askingKey, setAskingKey] = useState("")
-  const nextKey = asking ? `${asking.id}:${uncopied?.id === asking.id ? uncopied.tries : 0}` : askingKey
+  const nextKey = asking
+    ? `${asking.id}:${uncopied?.id === asking.id ? uncopied.tries : 0}`
+    : askingKey
   if (nextKey !== askingKey) setAskingKey(nextKey)
   // Open while there's something to show.
   const open = bar.open && tab !== null
