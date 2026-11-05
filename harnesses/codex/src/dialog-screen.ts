@@ -128,4 +128,4 @@ export const choose = (title: string, picks: readonly Choice[], detail: string |
 export const composerShown = (rows: readonly string[]): boolean =>
   clean(rows)
     .slice(-3)
-    .some((line) => /\? for shortcuts|· (?:\/|~|[A-Za-z]:\\)/.test(line))
+    .some((line) => /\? for shortcuts|· (?:\/|~|[A-Za-z]:\\|\\\\)/.test(line))
