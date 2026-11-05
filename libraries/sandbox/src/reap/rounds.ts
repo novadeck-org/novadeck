@@ -2,9 +2,10 @@ import { waitWhile, type Process, type Scope, type Table } from "./process.js"
 
 // How a leftover is reported: `bash (123)`, or `bash (123, stopped)` for one that could
 // never have exited by itself; on Windows too its recorded parent, `cmd#12 gone`, which
-// tells a program its shell's tree could not reach from one it should have.
+// tells a program its shell's tree could not reach from one it should have, then its
+// program's path and its command line, which tell one `cmd.exe` from another.
 export const named = (one: Process): string =>
-  `${one.comm} (${one.pid}${one.stopped ? ", stopped" : ""}${one.parent ? `, parent ${one.parent}` : ""})`
+  `${one.comm} (${one.pid}${one.stopped ? ", stopped" : ""}${one.parent ? `, parent ${one.parent}` : ""})${one.detail ? ` ${one.detail}` : ""}`
 
 /**
  * One round of `reap` over the processes it found: each gets three seconds to end by

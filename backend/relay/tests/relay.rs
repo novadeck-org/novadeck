@@ -8,6 +8,9 @@ use std::process::{Child, Command, Stdio};
 use std::thread;
 use std::time::{Duration, Instant};
 
+#[cfg(windows)]
+mod leftovers;
+
 const RELAY: &str = env!("CARGO_BIN_EXE_novadeck-relay");
 
 /// The relay, outside any Novadeck terminal and Claude Code folder the tests run in.
@@ -105,6 +108,20 @@ fn a_status_line_ends_with_a_relay_ended_before_its_deadline() {
     end(&mut hook);
     thread::sleep(Duration::from_secs(4));
     assert!(!mark.exists(), "the status line outlived its relay");
+    let _ = std::fs::remove_dir_all(&dir);
+}
+
+/// As Claude Code ends a status line it no longer needs, for a newer one, at whatever
+/// moment that comes: also the one in which the relay has started the person's status line
+/// and nothing else holds it. Windows only: elsewhere the relay's own end ends the group.
+#[cfg(windows)]
+#[test]
+fn a_relay_ended_as_it_starts_a_status_line_leaves_none_behind() {
+    let dir = scratch("ended-starting");
+    status_line(&dir, "cat >/dev/null; sleep 200");
+    leftovers::nothing_is_left_by_one_ended_as_it_starts("the status line", || {
+        status_line_hook(&dir)
+    });
     let _ = std::fs::remove_dir_all(&dir);
 }
 

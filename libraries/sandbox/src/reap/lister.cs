@@ -5,9 +5,11 @@
 // and its RTL_USER_PROCESS_PARAMETERS'), as JSON: their pids, names and starts in
 // milliseconds since the epoch, and how its recorded parent stands (name and pid, then
 // running, gone, taken by a later process, or unreadable), which tells a leftover the
-// shell's tree could not reach from one it should have held. A process it may not
-// read, another user's or the system's, never counts, as a sandbox's is always this user's,
-// nor does one that has exited.
+// shell's tree could not reach from one it should have held; and, to tell what a leftover
+// is, its program's path, its command line, and whether every thread of it is suspended,
+// as those of one started suspended and never resumed are: it can't exit by itself. A
+// process it may not read, another user's or the system's, never counts, as a sandbox's
+// is always this user's, nor does one that has exited.
 // Its arguments: the sandbox's start, root and home, and the caller's pid.
 using System;
 using System.Diagnostics;
@@ -27,7 +29,15 @@ public static class SandboxReap {
     var bytes = Read(handle, address, 8);
     return bytes == null ? IntPtr.Zero : (IntPtr)BitConverter.ToInt64(bytes, 0);
   }
-  // Its working folder, its environment block and its recorded parent's pid.
+  // A UNICODE_STRING of another process, at `address` in it: empty where it can't be read.
+  static string Text(IntPtr handle, IntPtr address) {
+    var counted = Read(handle, address, 16);
+    if (counted == null) return "";
+    var text = Read(handle, (IntPtr)BitConverter.ToInt64(counted, 8), BitConverter.ToUInt16(counted, 0));
+    return text == null ? "" : Encoding.Unicode.GetString(text);
+  }
+  // Its working folder, its environment block, its recorded parent's pid, its program's
+  // path and its command line.
   static string[] Of(int pid) {
     IntPtr handle = OpenProcess(0x0410, false, pid);
     if (handle == IntPtr.Zero) return null;
@@ -37,19 +47,15 @@ public static class SandboxReap {
       if (NtQueryInformationProcess(handle, 0, info, IntPtr.Size * 6, out written) != 0) return null;
       IntPtr parameters = Pointer(handle, info[1] + 0x20);
       if (parameters == IntPtr.Zero) return null;
-      string cwd = "";
-      var folder = Read(handle, parameters + 0x38, 16);
-      if (folder != null) {
-        var name = Read(handle, (IntPtr)BitConverter.ToInt64(folder, 8), BitConverter.ToUInt16(folder, 0));
-        if (name != null) cwd = Encoding.Unicode.GetString(name);
-      }
+      string cwd = Text(handle, parameters + 0x38);
       IntPtr block = Pointer(handle, parameters + 0x80);
       var sized = Read(handle, parameters + 0x3F0, 8);
       long size = sized == null ? 0 : BitConverter.ToInt64(sized, 0);
       if (size <= 0 || size > (1 << 20)) size = 32768;
       var environment = Read(handle, block, (int)size);
       return new[] {
-        cwd, environment == null ? "" : Encoding.Unicode.GetString(environment), ((long)info[5]).ToString()
+        cwd, environment == null ? "" : Encoding.Unicode.GetString(environment), ((long)info[5]).ToString(),
+        Text(handle, parameters + 0x60), Text(handle, parameters + 0x70)
       };
     } finally {
       CloseHandle(handle);
@@ -68,8 +74,28 @@ public static class SandboxReap {
       return name + "#" + pid + " unreadable";
     }
   }
+  // Whether every thread of it is suspended. Never throws: one that exits meanwhile isn't.
+  static bool Suspended(Process process) {
+    try {
+      var threads = process.Threads;
+      if (threads.Count == 0) return false;
+      foreach (ProcessThread thread in threads)
+        if (thread.ThreadState != ThreadState.Wait || thread.WaitReason != ThreadWaitReason.Suspended) return false;
+      return true;
+    } catch (Exception) {
+      return false;
+    }
+  }
+  // As a JSON string, in ASCII alone, whatever code page the output is written in: a
+  // command line may hold a tab, any other control character, or a letter outside it.
   static string Quoted(string text) {
-    return "\"" + text.Replace("\\", "\\\\").Replace("\"", "\\\"") + "\"";
+    var quoted = new StringBuilder("\"");
+    foreach (char one in text) {
+      if (one == '\\' || one == '"') quoted.Append('\\').Append(one);
+      else if (one < ' ' || one > '~') quoted.Append("\\u").Append(((int)one).ToString("x4"));
+      else quoted.Append(one);
+    }
+    return quoted.Append("\"").ToString();
   }
   public static int Main(string[] args) {
     var since = DateTimeOffset.FromUnixTimeMilliseconds(long.Parse(args[0])).UtcDateTime;
@@ -107,7 +133,10 @@ public static class SandboxReap {
         found.Append("{\"pid\":").Append(process.Id)
           .Append(",\"comm\":").Append(Quoted(process.ProcessName + ".exe"))
           .Append(",\"start\":").Append(start)
-          .Append(",\"parent\":").Append(Quoted(kin)).Append("}");
+          .Append(",\"parent\":").Append(Quoted(kin))
+          .Append(",\"stopped\":").Append(Suspended(process) ? "true" : "false")
+          .Append(",\"path\":").Append(Quoted(read[3]))
+          .Append(",\"line\":").Append(Quoted(read[4])).Append("}");
       } catch {
         // Gone meanwhile.
       }

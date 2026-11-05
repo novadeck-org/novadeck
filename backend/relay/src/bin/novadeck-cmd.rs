@@ -10,12 +10,13 @@
 //! (`GetSystemDirectoryW`), never through PATH, which would find itself, nor through
 //! `%SystemRoot%`, which the environment of the process that started it can set.
 //! With `NOVADECK_CMD_LOG` set to a file, it appends the arguments it passes on there, and
-//! why, should Windows refuse cmd its job twice, cmd runs without one (for tests; nothing in
+//! why, should Windows refuse cmd its job, cmd runs without one (for tests; nothing in
 //! Novadeck sets it).
 //!
 //! It stands in for cmd to whatever started it, so ending it ends cmd: the real cmd runs in
-//! a job that ends with the pass-through should it be killed, as a program that cancels a
-//! command ends the `cmd` it started (`a && b` doesn't go on to `b`), and Ctrl+C and
+//! a job that ends with the pass-through should it be killed, at whatever moment (cmd is
+//! created inside the job; see job.rs), as a program that cancels a command ends the `cmd`
+//! it started (`a && b` doesn't go on to `b`), and Ctrl+C and
 //! Ctrl+Break are left to cmd, which shares the console and answers them itself, with its
 //! own exit code passed on. Once cmd exits by itself, what it left running (`start`) goes on,
 //! except after one of Novadeck's own hook commands, which leaves nothing running. A hook's
@@ -118,6 +119,7 @@ fn append_log(path: &std::path::Path, rest: &str) {
 fn main() {
     use std::ffi::OsString;
     use std::os::windows::ffi::OsStringExt;
+    use std::os::windows::io::AsRawHandle;
     use std::os::windows::process::CommandExt;
     use std::path::PathBuf;
     use std::process::Command;
@@ -169,20 +171,16 @@ fn main() {
         |wide| PathBuf::from(OsString::from_wide(&wide)),
     );
     let cmd = system.join("cmd.exe");
-    let mut command = Command::new(&cmd);
-    command.raw_arg(OsString::from_wide(&arguments));
     // Programs cmd starts that ask to leave the job (CREATE_BREAKAWAY_FROM_JOB) still may.
     let limits = job::KILL_ON_CLOSE | job::BREAKAWAY_OK;
     let hook = is_hook(after_program(line));
     // A hook answers its parent alone: once that has ended, nothing is left to read it.
     let parent = hook.then(parent::Parent::open).flatten();
-    let started = job::Job::start(&mut command, limits)
-        .or_else(|first| job::Job::start(&mut command, limits).map_err(|again| (first, again)));
-    let status = match started {
+    let status = match job::Job::start(&cmd, &arguments, job::Streams::Shared, limits) {
         Ok((mut child, job)) => {
             let orphaned = parent
                 .as_ref()
-                .is_some_and(|parent| parent.ends_before(&child));
+                .is_some_and(|parent| parent.ends_before(child.as_raw_handle()));
             if orphaned {
                 job.end();
             }
@@ -196,28 +194,32 @@ fn main() {
             }
             status
         }
-        // Where Windows refuses the job twice, nothing ran yet: cmd runs without one, so it
-        // no longer ends with the pass-through, which the log, where there is one, says.
-        Err((first, again)) => {
+        // Where Windows refuses the job, nothing ran yet: cmd runs without one, so it no
+        // longer ends with the pass-through, which the log, where there is one, says.
+        Err(refused) => {
             if let Some(path) = log.as_deref() {
                 append_log(
                     path,
-                    &format!("novadeck-cmd: cmd runs without a job: {first}; again, {again}"),
+                    &format!("novadeck-cmd: cmd runs without a job: {refused}"),
                 );
             }
-            command.creation_flags(0).spawn().and_then(|mut child| {
-                if parent
-                    .as_ref()
-                    .is_some_and(|parent| parent.ends_before(&child))
-                {
-                    let _ = child.kill();
-                }
-                child.wait()
-            })
+            Command::new(&cmd)
+                .raw_arg(OsString::from_wide(&arguments))
+                .spawn()
+                .and_then(|mut child| {
+                    if parent
+                        .as_ref()
+                        .is_some_and(|parent| parent.ends_before(child.as_raw_handle()))
+                    {
+                        let _ = child.kill();
+                    }
+                    // The code as Windows gave it, which `code()` only reads as signed.
+                    child.wait().map(|status| status.code().unwrap_or(1) as u32)
+                })
         }
     };
     let code = match status {
-        Ok(status) => status.code().unwrap_or(1),
+        Ok(code) => code as i32,
         Err(error) => {
             use std::io::Write;
             let _ = writeln!(
@@ -235,7 +237,7 @@ fn main() {
 #[cfg(windows)]
 mod parent {
     use std::ffi::c_void;
-    use std::os::windows::io::AsRawHandle;
+    use std::os::windows::io::RawHandle;
 
     const SYNCHRONIZE: u32 = 0x0010_0000;
     const QUERY_LIMITED_INFORMATION: u32 = 0x1000;
@@ -324,8 +326,8 @@ mod parent {
         }
 
         /// Waits for `child` to end or for the parent to: true when the parent ended first.
-        pub fn ends_before(&self, child: &std::process::Child) -> bool {
-            let handles = [child.as_raw_handle().cast(), self.0];
+        pub fn ends_before(&self, child: RawHandle) -> bool {
+            let handles = [child.cast(), self.0];
             unsafe { WaitForMultipleObjects(2, handles.as_ptr(), 0, INFINITE) == 1 }
         }
     }

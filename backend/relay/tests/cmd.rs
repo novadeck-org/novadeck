@@ -8,6 +8,8 @@ use std::process::{Command, Stdio};
 use std::thread;
 use std::time::{Duration, Instant};
 
+mod leftovers;
+
 const CMD: &str = env!("CARGO_BIN_EXE_novadeck-cmd");
 
 fn scratch(name: &str) -> PathBuf {
@@ -70,6 +72,18 @@ fn ending_it_ends_the_cmd_it_passed_the_command_on_to() {
     thread::sleep(Duration::from_secs(4));
     assert!(!mark.exists(), "cmd ran on after the pass-through ended");
     let _ = std::fs::remove_dir_all(&dir);
+}
+
+/// As Antigravity ends a hook or a status line it gives up on, at whatever moment that
+/// comes: also the one in which the pass-through has started cmd and nothing else holds it.
+#[test]
+fn ended_as_it_starts_cmd_it_leaves_no_cmd_behind() {
+    leftovers::nothing_is_left_by_one_ended_as_it_starts("cmd", || {
+        cmd("/c ping -n 200 127.0.0.1 >nul")
+            .stdin(Stdio::null())
+            .spawn()
+            .unwrap()
+    });
 }
 
 #[test]

@@ -72,6 +72,14 @@ const underAutoRun = (setup: AgentSetup): AgentSetup => ({
     logs.set(sandbox.root, log)
     onTestFinished(() => {
       logs.delete(sandbox.root)
+      // What the pass-through said for itself, as that cmd ran without its job: a cmd left
+      // behind is then one nothing could end with it, which the run's output should say.
+      const said = existsSync(log)
+        ? readFileSync(log, "utf8")
+            .split("\n")
+            .filter((line) => line.startsWith("novadeck-cmd:"))
+        : []
+      if (said.length > 0) console.warn(`Novadeck's cmd.exe pass-through said:\n${said.join("\n")}`)
       rmSync(folder, { recursive: true, force: true, maxRetries: 10, retryDelay: 200 })
     })
     onTestFinished(printingAutoRun())
