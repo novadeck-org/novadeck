@@ -5,7 +5,10 @@ import { lineAt, type Anchors } from "./anchors.ts"
 import { frontendSources, sourceFiles } from "./files.ts"
 import {
   findDefinition,
+  findFunction,
+  functionsOf,
   handlerBody,
+  rankCalls,
   routerFile,
   servicesOf,
   type Service,
@@ -48,13 +51,14 @@ const toJson = (schema: unknown): JsonSchema | null => {
   }
 }
 
-// `terminals.create` → the line of the service method the router calls for it, else the
-// router's own handler.
+// `terminals.create` → the line of the service method or imported function that does the
+// work of its router handler (`rankCalls`), else the router's own handler.
 const handlerOf = (
   anchors: Anchors,
   runnerFiles: string[],
   router: string,
   known: Service[],
+  functions: Map<string, string>,
   id: string,
 ): Anchor | null => {
   const handler = handlerBody(router, id)
@@ -64,15 +68,12 @@ const handlerOf = (
     const own = sessions.indexOf(`.${id}.handler(`)
     return own === -1 ? null : { file: sessionsFile, line: lineAt(sessions, own) }
   }
-  const rank = (call: RegExpMatchArray): number =>
-    (call[2] === id.split(".").at(-1) ? 0 : 2) + (call[1] === "store" ? 1 : 0)
-  const calls = [...handler.body.matchAll(/\b(\w+)\.(\w+)\(/g)].toSorted(
-    (a, b) => rank(a) - rank(b),
-  )
-  for (const call of calls) {
-    const service = known.find((each) => each.field === call[1])
-    if (!service) continue
-    const found = findDefinition(anchors, runnerFiles, service, call[2]!)
+  for (const call of rankCalls(handler.body, id, new Set(functions.keys()))) {
+    const service = known.find((each) => each.field === call.service)
+    const found =
+      call.service === null
+        ? findFunction(anchors, functions.get(call.name)!, call.name)
+        : service && findDefinition(anchors, runnerFiles, service, call.name)
     if (found) return found
   }
   return { file: routerFile, line: lineAt(router, handler.start) }
@@ -189,12 +190,35 @@ const extractErrors = (anchors: Anchors, source: string): ApiError[] => {
   return errorsIn(body, wire)
 }
 
+// The wire's procedures, which the contract spreads in (`...wireContract`).
+const wireContractFile = "libraries/wire/src/handshake.ts"
+
+// Where a procedure is defined: its line in the contract, or for one the contract spreads in
+// from the wire, its `const` there. A procedure found in neither is reported.
+export const contractAnchor = (anchors: Anchors, source: string, path: string[]): Anchor => {
+  const line = findProcedureLine(source, path)
+  if (line !== null) return { file: contractFile, line }
+  const name = path.at(-1)!
+  const wire = anchors.read(wireContractFile) ?? ""
+  const listed = /^export const wireContract = (.*)$/m.exec(wire)?.[1] ?? ""
+  const defined = wire.search(new RegExp(`^(?:export )?const ${name} =`, "m"))
+  if (
+    source.includes("...wireContract") &&
+    new RegExp(`\\b${name}\\b`).test(listed) &&
+    defined !== -1
+  )
+    return { file: wireContractFile, line: lineAt(wire, defined) }
+  anchors.report("api procedures", contractFile, `no line found for ${path.join(".")}`)
+  return { file: contractFile, line: null }
+}
+
 // Every procedure in the protocol contract, with its schemas, handler and callers.
 export const extractApi = async (repo: string, anchors: Anchors): Promise<Api> => {
   const { contract } = await import("@novadeck/protocol")
   const source = anchors.read(contractFile) ?? ""
   const router = anchors.read(routerFile) ?? ""
   const routed = servicesOf(anchors, router)
+  const functions = functionsOf(router)
   const runnerFiles = sourceFiles(repo, "backend/runner/src")
   // The runner client calls some procedures (write, resize, ack) for the UI.
   const callerFiles = [...frontendSources(repo), ...sourceFiles(repo, "contract/runner-client/src")]
@@ -218,7 +242,7 @@ export const extractApi = async (repo: string, anchors: Anchors): Promise<Api> =
     const id = path.join(".")
     const name = path[path.length - 1]!
     const stream = streamed(definition.outputSchema)
-    const handler = handlerOf(anchors, runnerFiles, router, routed, id)
+    const handler = handlerOf(anchors, runnerFiles, router, routed, functions, id)
     return {
       id,
       namespace: path.slice(0, -1).join("."),
@@ -226,7 +250,7 @@ export const extractApi = async (repo: string, anchors: Anchors): Promise<Api> =
       kind: stream ? "stream" : "call",
       input: toJson(definition.inputSchema),
       output: toJson(stream ? stream.yields : definition.outputSchema),
-      anchor: { file: contractFile, line: findProcedureLine(source, path) },
+      anchor: contractAnchor(anchors, source, path),
       handler,
       errors: errorsOf(anchors, router, handler, id, known, routerWide),
       callers: callersOf(anchors, callerFiles, id),
@@ -280,10 +304,26 @@ export const extractApi = async (repo: string, anchors: Anchors): Promise<Api> =
   return { procedures, errors: apiErrors }
 }
 
-// The `name:` line inside its namespace's block, not an earlier procedure of the same name.
-const findProcedureLine = (source: string, path: string[]): number | null => {
-  const from =
-    path.length > 1 ? source.indexOf(`  ${path[0]}: {`, source.indexOf("export const contract")) : 0
-  const index = source.indexOf(`    ${path[path.length - 1]}: `, Math.max(from, 0))
-  return index === -1 ? null : lineAt(source, index)
+// The `name:` line inside its namespace's block, not an earlier procedure of the same name:
+// each level of the path is a key at its own indent, searched between the line that opens
+// the level above and the line that closes it.
+export const findProcedureLine = (source: string, path: string[]): number | null => {
+  const start = source.indexOf("export const contract")
+  if (start === -1) return null
+  let from = start
+  let to = source.length
+  const at = (pattern: string) => {
+    const index = source.slice(from, to).search(new RegExp(pattern, "m"))
+    return index === -1 ? -1 : from + index
+  }
+  for (const [depth, key] of path.entries()) {
+    const indent = "  ".repeat(depth + 1)
+    const index = at(`^${indent}${key}:${depth === path.length - 1 ? "" : " \\{$"}`)
+    if (index === -1) return null
+    if (depth === path.length - 1) return lineAt(source, index)
+    from = index
+    const close = at(`^${indent}\\},?$`)
+    to = close === -1 ? to : close
+  }
+  return null
 }

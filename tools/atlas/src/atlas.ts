@@ -194,7 +194,14 @@ export type McpTool = {
   handler: Anchor | null
 }
 
-export type Hook = { harness: string; event: string; summary: string; anchor: Anchor }
+// A hook a harness registers; `conditional` when only some machines get it.
+export type Hook = {
+  harness: string
+  event: string
+  conditional: boolean
+  summary: string
+  anchor: Anchor
+}
 
 // A member of the harness contract (`type Harness` in `harnesses/core`).
 export type ContractMember = { name: string; optional: boolean; summary: string; anchor: Anchor }

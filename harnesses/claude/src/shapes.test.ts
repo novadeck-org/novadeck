@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest"
 
 import { conversational, shapes } from "./shapes.js"
+import { transcripts } from "./transcripts.js"
 
 const keys = (record: object) =>
   shapes(JSON.stringify(record)).map(({ key, verdict }) => `${key} ${verdict}`)
@@ -38,6 +39,24 @@ describe("Claude Code's shapes", () => {
     expect(queued({ origin: { kind: "human" }, commandMode: "bash" })).toEqual([
       "attachment:queued_command/human/bash unknown",
     ])
+  })
+
+  it("read a queued prompt as the decoder does, with no mode as a prompt and any other mode not", () => {
+    const record = (attachment: object) => ({
+      type: "attachment",
+      timestamp: "2026-10-26T00:00:00.000Z",
+      attachment: {
+        type: "queued_command",
+        prompt: "go",
+        origin: { kind: "human" },
+        ...attachment,
+      },
+    })
+    for (const mode of [undefined, null, 1, "prompt", "bash"]) {
+      const line = record(mode === undefined ? {} : { commandMode: mode })
+      const read = keys(line).every((key) => key.endsWith(" read"))
+      expect(read, String(mode)).toBe(transcripts.items(JSON.stringify(line)).length > 0)
+    }
   })
 
   it("key what Claude Code writes for itself, and its queue, a level deeper", () => {

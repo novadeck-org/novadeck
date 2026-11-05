@@ -132,7 +132,8 @@ Beside that common set, each keeps what only it has:
 
 - Claude Code (`harnesses/claude`): `status-line.ts` (its status line's report: context,
   rate limits, model), `transcript-watch.ts` (what its transcript says beside its hooks,
-  followed live as its `watch`, and read back for plans), `form-dialog.ts` (an MCP
+  followed live as its `watch`, a subagent's own as its `watchActor`, and read back for
+  plans), `form-dialog.ts` (an MCP
   server's elicitation form), `diffs.ts` (the diff an Edit or Write permission draws) and
   `shim.ts` (the program its shells run, which adds Novadeck's status line).
 - Codex (`harnesses/codex`): `rollout.ts` (its rollout, followed as its `watch` and
@@ -913,9 +914,11 @@ adapter's `watchActor` follows that subagent's own sources (Codex: its rollout, 
 beside the root's by its id), and an abort recorded at or after the request was asked
 settles that subagent's requests asked by then, at the abort's time, the subagent
 still running. It stops following once the subagent has no request waiting, or the
-binding ends. A Claude Code background subagent needs none: a denial reaches it as the
-call's result, and it runs on to its `SubagentStop`. A subagent asking that Novadeck
-never saw start, as its start came before the binding or its harness reported its
+binding ends. A Claude Code background subagent's denied request, or one whose prompt
+timed out, fires no hook either, and it runs on to its `SubagentStop`; its own
+transcript (`<session>/subagents/agent-<id>.jsonl`) records the call's result, which
+settles that request at the result's time, as the root's transcript does the root's.
+A subagent asking that Novadeck never saw start, as its start came before the binding or its harness reported its
 stop at a turn's end, counts as running from that request on, unless a stop after the
 request says it is over. At most 32 subagents are followed; once that many run, the one
 whose turn aborted longest ago, with no request since, makes room for another, which it

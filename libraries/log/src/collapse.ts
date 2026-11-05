@@ -47,7 +47,8 @@ export const due = (repeats: Repeats, now: number, windowMs: number): Collapsed 
 /**
  * What to write for `entry` at `now`: it, the first time it comes in a window of
  * `windowMs`, and nothing while it comes again within it, which is counted and said once the
- * window is over (see `due`). A fatal line is always written.
+ * window is over (see `due`). A fatal line is always written, after every repeat still held,
+ * as the process may die before their windows are over.
  */
 export const collapse = (
   repeats: Repeats,
@@ -56,8 +57,9 @@ export const collapse = (
   windowMs: number,
 ): Collapsed => {
   const settled = due(repeats, now, windowMs)
-  if (entry.level === "fatal" || windowMs <= 0)
-    return { repeats: settled.repeats, write: [...settled.write, entry] }
+  if (entry.level === "fatal")
+    return { repeats: new Map(), write: [...settled.write, ...drain(settled.repeats), entry] }
+  if (windowMs <= 0) return { repeats: settled.repeats, write: [...settled.write, entry] }
   const key = keyOf(entry)
   const held = settled.repeats.get(key)
   const next = new Map(settled.repeats)
