@@ -182,18 +182,22 @@ const folders = (
   // Where the registry can't be read, as where PowerShell may not run, no caller waits on
   // it again for a while: each gets the last answer, however old, or none.
   if (failedUntil !== undefined && now <= failedUntil) return Promise.resolve(last?.folders)
-  reading ??= read(env, timeoutMs, relay).then((found) => {
-    if (Array.isArray(found)) last = { at: now, folders: found }
-    // A read that only ran long, as the first after a cold boot, is tried again soon; where
-    // PowerShell is always that slow, each time later, up to `retryMs`.
-    timeouts = found === "timeout" ? timeouts + 1 : 0
-    failedUntil = Array.isArray(found)
-      ? undefined
-      : Date.now() +
-        (found === "timeout" ? Math.min(timeoutRetryMs * 2 ** (timeouts - 1), retryMs) : retryMs)
-    reading = undefined
-    return Array.isArray(found) ? found : last?.folders
-  })
+  // A read that threw, as `execFile` does for an environment it refuses, failed like any:
+  // kept, it would answer every caller after it the same way.
+  reading ??= read(env, timeoutMs, relay)
+    .catch(() => undefined)
+    .then((found) => {
+      if (Array.isArray(found)) last = { at: now, folders: found }
+      // A read that only ran long, as the first after a cold boot, is tried again soon; where
+      // PowerShell is always that slow, each time later, up to `retryMs`.
+      timeouts = found === "timeout" ? timeouts + 1 : 0
+      failedUntil = Array.isArray(found)
+        ? undefined
+        : Date.now() +
+          (found === "timeout" ? Math.min(timeoutRetryMs * 2 ** (timeouts - 1), retryMs) : retryMs)
+      reading = undefined
+      return Array.isArray(found) ? found : last?.folders
+    })
   return reading
 }
 

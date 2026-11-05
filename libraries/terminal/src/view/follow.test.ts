@@ -1,4 +1,4 @@
-import { describe as context, describe, expect, it, vi } from "vitest"
+import { afterEach, beforeEach, describe as context, describe, expect, it, vi } from "vitest"
 
 import type { AttachStream } from "../contract.js"
 import { exited, optionsOf, output, shell, snapshot, streamOf } from "./fakes.test-support.js"
@@ -15,6 +15,10 @@ const drawing = (drawn: string[]) => ({
   exited: () => {},
   live: () => {},
 })
+
+// Runs whatever the view has waiting, its timers' too, so what hasn't happened by then
+// would not: a check that nothing happened can't pass by being early.
+const idle = () => vi.advanceTimersByTimeAsync(5_000)
 
 // A mock attach, given its streams by each test.
 const attaching = () => vi.fn<FollowOptions<string>["attach"]>()
@@ -48,6 +52,9 @@ describe("following a terminal", () => {
   })
 
   context("parked out of sight", () => {
+    beforeEach(() => vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] }))
+    afterEach(() => vi.useRealTimers())
+
     it("lets go of the stream, and draws the host's screen as it is once shown again", async () => {
       const first = streamOf([snapshot("$ before")])
       const second = streamOf([snapshot("$ after")])
@@ -59,7 +66,7 @@ describe("following a terminal", () => {
       await vi.waitFor(() => expect(drawn).toEqual(["reset", "$ before"]))
       followed.park()
       expect(first.close).toHaveBeenCalled()
-      await new Promise((resolve) => setTimeout(resolve, 10))
+      await idle()
       expect(attach).toHaveBeenCalledTimes(1)
       followed.unpark()
       await vi.waitFor(() => expect(drawn).toEqual(["reset", "$ before", "reset", "$ after"]))
@@ -102,7 +109,7 @@ describe("following a terminal", () => {
       followed.unpark()
       start(true)
       await vi.waitFor(() => expect(drawn).toEqual(["reset", "$ exit 1"]))
-      await new Promise((resolve) => setTimeout(resolve, 10))
+      await idle()
       expect(attach).toHaveBeenCalledTimes(1)
       followed.stop()
     })
@@ -149,7 +156,7 @@ describe("following a terminal", () => {
       )
       await vi.waitFor(() => expect(drawn).toEqual(["reset", "$ before"]))
       followed.park()
-      await new Promise((resolve) => setTimeout(resolve, 10))
+      await idle()
       // A fresh shell while parked: its revival resolves and the next one takes its place.
       const revived = revive
       Object.assign(entry, {
@@ -158,12 +165,12 @@ describe("following a terminal", () => {
         }),
       })
       revived()
-      await new Promise((resolve) => setTimeout(resolve, 10))
+      await idle()
       followed.unpark()
       await vi.waitFor(() =>
         expect(drawn).toEqual(["reset", "$ before", "reset", "$ fresh exited"]),
       )
-      await new Promise((resolve) => setTimeout(resolve, 20))
+      await idle()
       expect(attach).toHaveBeenCalledTimes(2)
       followed.stop()
     })
@@ -190,7 +197,7 @@ describe("following a terminal", () => {
       followed.park()
       Object.assign(entry, { revived: new Promise<void>(() => {}) })
       revive()
-      await new Promise((resolve) => setTimeout(resolve, 10))
+      await idle()
       expect(attach).toHaveBeenCalledTimes(1)
       followed.unpark()
       await vi.waitFor(() => expect(drawn).toEqual(["reset", "$ exit 1", "reset", "$ fresh"]))

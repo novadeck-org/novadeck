@@ -134,7 +134,8 @@ export type Hold = {
   // This screen's state; it is the same store for as long as the screen stays open.
   readonly state: Store<ViewState>
   // Puts the screen in `element`, which holds nothing else, and fits it there now and on
-  // the next frame. Focuses it again when a mount before this one left it focused.
+  // the next frame. Focuses it again when a mount before this one left it focused, unless the
+  // person types elsewhere now.
   readonly place: (element: HTMLElement) => void
   // Changes what differs; equal values write nothing.
   readonly update: (change: {
@@ -201,6 +202,12 @@ export const parkMs = 5_000
 // view; a bigger one loses those parked first. Fewer would close some of a common Grid's, and
 // a closed screen costs a full snapshot resync when it is shown again.
 export const parkedCap = 16
+
+// Whether keys typed now go into `element`: a text field, or editable content.
+const typing = (element: Element | null): boolean =>
+  element !== null &&
+  (element.matches("input, textarea, select") ||
+    element.closest("[contenteditable]:not([contenteditable='false'])") !== null)
 
 // Names the screen's input, writing only when the name changes.
 const writeLabel = (screen: OpenScreen, label: string): void => {
@@ -549,10 +556,13 @@ export const createTerminalScreens = <K>(o: TerminalScreensOptions<K>): Terminal
             frame = undefined
             if (screen.container.isConnected) screen.followed.refit()
           })
-          if (screen.refocus) {
+          // Not once the person types elsewhere, as in another terminal or a field: a screen
+          // shown later would take their keys. A button or a row they clicked to come back,
+          // or the page itself, gives it back.
+          const active = document.activeElement
+          if (screen.refocus && !(typing(active) && !screen.container.contains(active)))
             screen.xterm.focus()
-            screen.refocus = false
-          }
+          screen.refocus = false
         },
         update: ({ label, phase, webgl }) => {
           if (released) return
