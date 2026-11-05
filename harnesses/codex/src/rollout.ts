@@ -258,7 +258,8 @@ const backlogKind = (event: HarnessEvent): string =>
  * Follows a bound session's rollout. Codex writes a turn's mode before the hook that
  * binds the session starts, so what the rollout already holds counts too: its latest
  * mode, as of now, and its latest plan and token count, as of when they were written;
- * then each record appended.
+ * then each record appended. A rollout rewritten, or another put in its place, is read
+ * again the same way, so none of its old records counts as news.
  */
 export const followRollout: NonNullable<Harness["watch"]> = (run, signal, emit) => {
   // The latest of each kind the backlog held, until it has all been read.
@@ -273,6 +274,9 @@ export const followRollout: NonNullable<Harness["watch"]> = (run, signal, emit) 
     },
     {
       fromStart: true,
+      onReset: () => {
+        backlog = new Map()
+      },
       onIdle: () => {
         if (!backlog) return
         // The mode holds until the next turn says otherwise, so it holds now, when the
