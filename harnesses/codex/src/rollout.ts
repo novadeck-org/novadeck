@@ -289,8 +289,9 @@ export const followRollout: NonNullable<Harness["watch"]> = (run, signal, emit) 
         if (backlog) backlog = new Map()
         else after = latest
       },
-      onIdle: () => {
-        if (!backlog) return
+      // Only once the file was there to read: one not written yet holds a backlog still.
+      onIdle: (found) => {
+        if (!backlog || !found) return
         // The mode holds until the next turn says otherwise, so it holds now, when the
         // binding that would otherwise predate it began; the rest keep their age.
         // Oldest first, as telemetry older than the last it took is turned away.

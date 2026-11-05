@@ -7,11 +7,12 @@ import { posix, win32 } from "node:path"
 export const flavourOf = (...paths: (string | undefined)[]): typeof posix =>
   paths.some((path) => path !== undefined && /^[A-Za-z]:[\\/]|^\\\\|\\/.test(path)) ? win32 : posix
 
-// A path as a comparison reads it: separators alike, and case folded where it is a Windows
-// drive's.
+// A path as a comparison reads it: separators alike, and case folded where it is on a
+// Windows drive or share, whose names Windows reads without case.
 const comparable = (path: string): string => {
-  const slashed = flavourOf(path).normalize(path).replace(/\\/g, "/")
-  return /^[A-Za-z]:\//.test(slashed) ? slashed.toLowerCase() : slashed
+  const rules = flavourOf(path)
+  const slashed = rules.normalize(path).replace(/\\/g, "/")
+  return rules === win32 && /^(?:[A-Za-z]:\/|\/\/)/.test(slashed) ? slashed.toLowerCase() : slashed
 }
 
 /** Whether two paths name the same file: whole paths compared, each in its own rules. */

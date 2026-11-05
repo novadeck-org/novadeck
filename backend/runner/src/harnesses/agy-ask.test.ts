@@ -217,7 +217,7 @@ describe("Antigravity's PreToolUse answer", () => {
     // that isn't JSON there, or a non-zero exit, let the tool run unasked, where none leaves
     // it to the person's policy.
     expect(agy.hook("win32", "PreToolUse")).toBe(
-      "cmd /d /c if defined NOVADECK_HOOK (if exist %NOVADECK_HOOK% (%NOVADECK_HOOK% agy PreToolUse)) & exit /b 0",
+      "%ComSpec% /d /c if defined NOVADECK_HOOK (if exist %NOVADECK_HOOK% (%NOVADECK_HOOK% agy PreToolUse)) & exit /b 0",
     )
     expect(agy.hook("win32", "Stop")).toBe(
       "if defined NOVADECK_HOOK (if exist %NOVADECK_HOOK% (%NOVADECK_HOOK% agy Stop) else (echo {})) else (echo {})",

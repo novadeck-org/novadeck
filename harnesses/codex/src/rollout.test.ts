@@ -68,6 +68,30 @@ describe("following a rollout", () => {
       await following
     }
   })
+
+  it("holds its backlog until the file appears, then tells the latest of it alone", async () => {
+    folder = mkdtempSync(join(tmpdir(), "novadeck-rollout-"))
+    const path = join(folder, "rollout.jsonl")
+    const told: HarnessEvent[] = []
+    const controller = new AbortController()
+    const following = followRollout({ ...session, transcript: path }, controller.signal, (event) =>
+      told.push(event),
+    )
+    try {
+      // Polls that find no file go by first.
+      await new Promise((resolve) => setTimeout(resolve, 1000))
+      writeFileSync(
+        path,
+        ["10:00", "10:01", "10:02"]
+          .map((at, index) => `${ended(`t${index + 1}`, `2026-11-01T${at}:00Z`)}\n`)
+          .join(""),
+      )
+      await expect.poll(() => turns(told), { timeout: 5000 }).toEqual(["t3"])
+    } finally {
+      controller.abort()
+      await following
+    }
+  })
 })
 
 describe("a subagent's MCP tool call, in its own rollout", () => {

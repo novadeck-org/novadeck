@@ -13,7 +13,7 @@ import { describe, expect, it } from "../test.js"
 const windows = process.platform === "win32"
 
 /** Runs a hook command in its shell, as the harness that uses it does; its output and exit. */
-const run = (dialect: Dialect, command: string, env: NodeJS.ProcessEnv) => {
+const run = (dialect: Dialect, command: string, env: NodeJS.ProcessEnv, cwd?: string) => {
   const base = {
     PATH: process.env.PATH,
     SystemRoot: process.env.SystemRoot,
@@ -24,9 +24,10 @@ const run = (dialect: Dialect, command: string, env: NodeJS.ProcessEnv) => {
   }
   const ran =
     dialect === "sh"
-      ? spawnSync("sh", ["-c", command], { env: base, encoding: "utf8" })
+      ? spawnSync("sh", ["-c", command], { cwd, env: base, encoding: "utf8" })
       : dialect === "powershell"
         ? spawnSync("pwsh", ["-NoLogo", "-NoProfile", "-NonInteractive", "-Command", command], {
+            cwd,
             env: base,
             encoding: "utf8",
           })
@@ -35,7 +36,7 @@ const run = (dialect: Dialect, command: string, env: NodeJS.ProcessEnv) => {
           spawnSync(
             process.env.COMSPEC ?? "cmd.exe",
             ["/c", `"${command.replaceAll('"', String.raw`\"`)}"`],
-            { env: base, encoding: "utf8", windowsVerbatimArguments: true },
+            { cwd, env: base, encoding: "utf8", windowsVerbatimArguments: true },
           )
   return { status: ran.status, stdout: ran.stdout.trim() }
 }
@@ -124,6 +125,30 @@ describe("a hook command", () => {
       const command = hookCommand("powershell", { agent: "claude", event: "Stop" })
       const { stdout } = run("powershell", command, { NOVADECK_HOOK: hook })
       expect(stdout).toMatch(/ \/d \/s \/c /i)
+    },
+  )
+
+  it("starts cmd by its path in cmd, never by a name the agent's folder could answer", () => {
+    const command = hookCommand("cmd", { agent: "agy", event: "PreToolUse" })
+    expect(command).toMatch(/^%ComSpec% \/d \/c /)
+    expect(command).not.toMatch(/(^|[\s(&])cmd[\s.]/i)
+  })
+
+  it.runIf(windows)(
+    "runs no cmd.bat of the agent's folder in cmd, which looks there first",
+    ({ resources }) => {
+      const folder = mkdtempSync(join(tmpdir(), "novadeck-hook-command-"))
+      resources.defer(() => rmSync(folder, { recursive: true, force: true }))
+      const project = join(folder, "project")
+      mkdirSync(project)
+      writeFileSync(join(project, "cmd.bat"), "@echo planted\r\n")
+      const hook = launcher(folder, "hook")
+      const command = hookCommand("cmd", { agent: "agy", event: "PreToolUse" })
+      expect(run("cmd", command, { NOVADECK_HOOK: hook }, project)).toEqual({
+        status: 0,
+        stdout: "launched agy PreToolUse",
+      })
+      expect(run("cmd", command, {}, project)).toEqual(nothing)
     },
   )
 
