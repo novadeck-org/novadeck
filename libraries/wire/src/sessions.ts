@@ -4,6 +4,7 @@ import { implement, isLazy, ORPCError, os, type AnyRouter } from "@orpc/server"
 
 import { wireErrors } from "./errors.js"
 import { wireContract } from "./handshake.js"
+import { until } from "./until.js"
 
 /** One client's connection, as the app's handlers see it in their context. */
 export type Session = {
@@ -37,6 +38,10 @@ class SessionRecord implements Session {
   authenticated = false
   closed = false
   calls = 0
+  // Times it was refused as unproven, which only a peer that isn't the app's client repeats.
+  refusals = 0
+  // Aborted once it closes, so its streams end even while they wait.
+  readonly ending = new AbortController()
 
   constructor(readonly transport: SessionTransport) {}
 }
@@ -82,10 +87,24 @@ export type Sessions = {
   close(session: Session): void
 }
 
+// Refusals a session may have before it proves itself: the app's client sends one handshake,
+// and a peer that goes on is cut off rather than heard out until its deadline.
+const refusalsAllowed = 3
+
 const isStream = (value: unknown): value is AsyncIterable<unknown> =>
   typeof value === "object" &&
   value !== null &&
   typeof (value as Partial<AsyncIterable<unknown>>)[Symbol.asyncIterator] === "function"
+
+// Asks a stream it no longer reads to finish, without waiting: a generator answers only once
+// the read it's in settles.
+const leave = (items: AsyncIterator<unknown>): void => {
+  try {
+    void Promise.resolve(items.return?.()).catch(() => {})
+  } catch {
+    // A stream that fails to finish is left all the same.
+  }
+}
 
 /** Creates the sessions of one server, which serves the app's `router` to them. */
 export const createSessions = (
@@ -115,9 +134,15 @@ export const createSessions = (
     const own = record(session)
     if (own.closed) return
     own.closed = true
-    if (own.clientId !== undefined && clients.get(own.clientId) === own)
-      clients.delete(own.clientId)
+    own.ending.abort()
+    release(own)
     options.closed?.(own)
+  }
+
+  // Forgets the client a session was, if it's still that client's.
+  const release = (session: SessionRecord) => {
+    if (session.clientId !== undefined && clients.get(session.clientId) === session)
+      clients.delete(session.clientId)
   }
 
   // A client notices a dead connection first; end its stale session now instead of after
@@ -128,6 +153,8 @@ export const createSessions = (
       close(previous)
       previous.transport.terminate()
     }
+    // A session handshaking again as another client is that one now, not both.
+    if (session.clientId !== clientId) release(session)
     session.clientId = clientId
     clients.set(clientId, session)
   }
@@ -138,30 +165,46 @@ export const createSessions = (
     throw error
   }
 
-  // Ends a stream once its session closed, even one that began after, and maps its failures.
+  // Counts a refusal of a session that hasn't proved itself, ending it past the allowance.
+  const unproven = (session: SessionRecord): void => {
+    session.refusals += 1
+    if (session.refusals <= refusalsAllowed) return
+    close(session)
+    session.transport.terminate()
+  }
+
+  // Ends a stream once its session closes, even while it waits for its next item or one that
+  // began after, and maps its failures. One left before its end is told it's done.
   const guard = async function* <T>(
     session: SessionRecord,
     stream: AsyncIterable<T>,
     path: readonly string[],
   ): AsyncGenerator<T> {
+    const items = stream[Symbol.asyncIterator]()
+    let over = false
     try {
-      if (session.closed) {
-        // Never read, but told it's done, as one a reader leaves is.
-        await stream[Symbol.asyncIterator]().return?.()
-        return
-      }
-      for await (const item of stream) {
-        if (session.closed) return
-        yield item
+      while (!session.closed) {
+        // eslint-disable-next-line no-await-in-loop -- Items are read in order.
+        const result = await until(items.next(), session.ending.signal)
+        if (result === undefined || session.closed) return
+        if (result.done) {
+          over = true
+          return
+        }
+        yield result.value
       }
     } catch (error) {
+      over = true
       failed(path, error)
       throw mapError(error)
+    } finally {
+      if (!over) leave(items)
     }
   }
 
   const gate = os.$context<SessionContext>().middleware(async ({ context, next, path }) => {
     const session = record(context.session)
+    if (!session.authenticated && !session.closed) unproven(session)
     if (!session.authenticated || session.closed)
       return refused(
         path,
@@ -203,7 +246,11 @@ export const createSessions = (
     wire: {
       handshake: api.wire.handshake.handler(({ input, context, errors }) => {
         const session = record(context.session)
-        if (session.closed || !session.transport.verify(input.token)) throw errors.UNAUTHORIZED()
+        if (session.closed) throw errors.UNAUTHORIZED()
+        if (!session.transport.verify(input.token)) {
+          if (!session.authenticated) unproven(session)
+          throw errors.UNAUTHORIZED()
+        }
         if (input.protocolVersion !== protocolVersion) throw errors.INCOMPATIBLE_PROTOCOL()
         admit?.(session)
         session.authenticated = true

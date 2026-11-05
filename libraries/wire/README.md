@@ -112,15 +112,20 @@ beside the wire's own handshake.
     (`INCOMPATIBLE_PROTOCOL`), then asks `admit`, which may refuse with a code of the app's.
     A session whose client connects again is closed, and its transport ended, as the new
     one's handshake takes over: a client notices a dead connection before the server does.
+    A session that handshakes again as another client is only that one's from then on.
     `closed(session)` tells the app a session ended, to release what it held, and
     `failed(path, error)` tells it, for a log, each failure of a call or a stream before
     `error` maps it, and each handshake refused, whether for its input, by the wire or by
     `admit`.
   - The gate, in front of every procedure of the app's `router`: a session that hasn't
     authenticated, or has closed, is `UNAUTHORIZED`; one with `maxCalls` calls running is
-    `RESOURCE_LIMIT`. A failure is mapped with `error`, the app's codes beside the wire's. A
-    stream a procedure returns is guarded too: it ends once its session closes, even one
-    that closed before it began, and its failures are mapped the same way. A stream holds
+    `RESOURCE_LIMIT`. A session refused as unproven more than three times, by its handshake's
+    token or the gate, is closed and its transport ended: the app's client handshakes once.
+    A failure is mapped with `error`, the app's codes beside the wire's. A stream a procedure
+    returns is guarded too: it ends once its session closes, even while it waits for its next
+    item or one that closed before it began, and is told it's done (without waiting for a
+    generator, which only hears once the read it's in settles); its failures are mapped the
+    same way. A stream holds
     its call only until the procedure hands it back: open streams don't count against
     `maxCalls`.
   - `serveWebSocket(sessions, { path, token | verify, origins, maxPayloadBytes,
