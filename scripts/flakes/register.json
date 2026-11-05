@@ -314,9 +314,9 @@
       "id": "viewers-diff-marker-frames-timeout",
       "jobs": ["^Test \\((Linux|macOS|Windows)(, (?:[12][/-]2|[1-3][/-]3))?\\)$"],
       "test": "src/diff.test.ts > the diff viewer > with lines wider than the viewer > pins each line's marker with its numbers",
-      "signature": "Error: Test timed out in 15000ms\\.",
+      "signature": "Error: Test timed out in 15000ms\\.|AssertionError: expected -?[\\d.]+ to be -?[\\d.]+",
       "status": "fixed",
-      "cause": "The test waited on two double requestAnimationFrame frames, and the macOS page drew none for over 15 s while other packages' tests ran beside it (other tests of the file that wait on frames ran slow in the same run, one 12 s). It needs no frame: the marker's place after the lines scroll sideways is layout, which getBoundingClientRect reads at once, so the test now reads it synchronously. Reproduced with the page's requestAnimationFrame never firing: the old test timed out at 15 s, the new one passes, and it still fails when the numbers aren't sticky.",
+      "cause": "The test waited on two double requestAnimationFrame frames, and the macOS page drew none for over 15 s while other packages' tests ran beside it (other tests of the file that wait on frames ran slow in the same run, one 12 s). It needs no frame: the marker's place after the lines scroll sideways is layout, which getBoundingClientRect reads at once, so the test now reads it synchronously, as do its three neighbours that read only layout. Reproduced with the page's requestAnimationFrame never firing: the old test timed out at 15 s, the new one passes, and it still fails when the numbers aren't sticky.",
       "seen": ["#672 run 41993632666 attempt 1 job 127131493653 (macOS)"]
     },
     {
@@ -332,7 +332,7 @@
       "id": "runner-doorbell-size-cap-retry",
       "jobs": ["^Test \\((?:macOS|Linux|Windows)(, (?:[12][/-]2|[1-3][/-]3))?\\)$"],
       "test": "src/messaging/doorbell.test.ts > the app's resizes during a ring's wait for its prompt on Windows > releases it at the cap, after the confirmation deadline, when its settle never comes",
-      "signature": "to match object \\{ sizes: false, applied: 1 \\}",
+      "signature": "to match object \\{ (?:holds: 1, )?sizes: false, applied: 1 \\}",
       "status": "fixed",
       "cause": "The failed ring was tried again 2 s after its failure, before the 30.5 s size cap, and the retry held the resizes anew (holds: 2): whether it held before the test's check was up to the typist's watch, whose sleeps are real, so on a busy runner it held them again just after the cap released them. Reproduced pinned to one core with 12 busy loops: 1 of 2 runs of 200 repeats failed this way. The test's doorbell now tries a failed ring again only after the cap (recheckMs 10 s), and checks a single hold: 0 failures in 4 runs of 200 repeats, idle and with 12 loops.",
       "seen": ["#688 run 42017162933 attempt 1 job 127210448869 (macOS)"]
@@ -350,9 +350,9 @@
       "id": "viewers-diff-highlight-poll-stall",
       "jobs": ["^Test \\((Linux|macOS|Windows)(, (?:[12][/-]2|[1-3][/-]3))?\\)$"],
       "test": "src/diff.test.ts > the diff viewer > with highlighting > parses the old and the new side apart",
-      "signature": "Matcher did not succeed in time",
+      "signature": "Matcher did not succeed in time|expected 0 to be greater than 0",
       "status": "fixed",
-      "cause": "expect.poll's 5 s is a timer: a page that stops running for a while, as the macOS page did beside other packages' tests, wakes with that timer due and fails the poll before the work it waits on, here a parse a few milliseconds from done, gets its turn. Reproduced with the page held busy for 6 s during the wait: the old test failed with the CI's message at 6.2 s (CI: 6.1 s). The file's polls now count the page's own turns (eventually, 50 ms apart), so a stall spends none of their budget: it passed with the same 6 s stall, and still fails in 5 s when nothing is highlighted.",
+      "cause": "expect.poll's 5 s is a timer: a page that stops running for a while, as the macOS page did beside other packages' tests (the file's other waiting tests ran 3 to 4 times slower), wakes with that timer due and fails the poll before the work it waits on, here the file's first TypeScript highlight, has had its turn. The log shows the stall (6.1 s against the 5 s limit) but not what was slow; a slow load of the parser's module while the page ran would fail the new wait too. Reproduced with the page held busy for 6 s during the wait: the old test failed with the CI's message at 6.2 s. The file's polls now count the page's own turns (eventually, 50 ms apart), so a stall spends none of their budget: it passed with the same 6 s stall, and still fails in 5 s when nothing is highlighted.",
       "seen": ["#716 run 42085151966 attempt 1 job 127448126469 (macOS)"]
     }
   ]

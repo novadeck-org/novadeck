@@ -26,18 +26,23 @@ const frame = (): Promise<void> =>
  * Waits for `check` to pass, trying it every 50 ms up to `looks` times, 5 s of a page that
  * runs, then throws its last failure. It counts the page's turns, not the clock: a page can go
  * seconds without running on a busy macOS runner, and `expect.poll`'s deadline, a timer, then
- * fires first as the page wakes, failing a check whose work was a moment from done.
+ * fires first as the page wakes, failing a check before the work it waits on has had its turn.
  */
 const eventually = async (check: () => void, looks = 100): Promise<void> => {
   for (let look = 1; ; look += 1) {
+    let answer: unknown
     try {
-      check()
-      return
+      answer = check()
     } catch (error) {
       if (look >= looks) throw error
+      // eslint-disable-next-line no-await-in-loop -- Each look waits for the one before.
+      await new Promise((resolve) => setTimeout(resolve, 50))
+      continue
     }
-    // eslint-disable-next-line no-await-in-loop -- Each look waits for the one before.
-    await new Promise((resolve) => setTimeout(resolve, 50))
+    // An async check would pass here before it had checked anything.
+    if (answer instanceof Promise)
+      throw new TypeError("eventually takes a check that answers at once.")
+    return
   }
 }
 
@@ -348,7 +353,6 @@ describe("the diff viewer", () => {
 
     it("scrolls the file's own lines sideways, not the viewer", async () => {
       const { root } = mount(wide())
-      await frame()
       const [long, short] = scrollers(root)
       expect(long.scrollWidth).toBeGreaterThan(long.clientWidth + 300)
       expect(root.scrollWidth).toBe(root.clientWidth)
@@ -363,7 +367,6 @@ describe("the diff viewer", () => {
 
     it("keeps the line numbers, the headers and the list of files where they are", async () => {
       const { root } = mount(wide())
-      await frame()
       const place = () =>
         Object.fromEntries(
           [".diff-files", ".diff-file-head", ".diff-hunk-head", ".diff-number"].map((selector) => {
@@ -374,7 +377,7 @@ describe("the diff viewer", () => {
       const before = place()
       const [long] = scrollers(root)
       long.scrollLeft = 10_000
-      await frame()
+      expect(long.scrollLeft).toBeGreaterThan(300)
       expect(place()).toEqual(before)
       // The text slid under the numbers, which show on the ground of the lines.
       const text = root.querySelector<HTMLElement>(".diff-text")!
@@ -393,7 +396,6 @@ describe("the diff viewer", () => {
         ],
       })
       const { root } = mount(change([long]))
-      await frame()
       const [first, second] = [...root.querySelectorAll<HTMLElement>(".diff-line")]
       expect(second!.getBoundingClientRect().width).toBe(first!.getBoundingClientRect().width)
       expect(first!.getBoundingClientRect().width).toBeGreaterThan(root.clientWidth)
