@@ -405,6 +405,16 @@ describe("a terminal's screen reads", () => {
     expect((await terminal.readScreen()).rows[0]?.trimEnd()).toBe("restored")
   })
 
+  it("draw a replay on the screen of the run in force as it is drawn, as a restart queued before swaps it", async () => {
+    const { terminal, runs, settled } = terminalOf({ runs: 2 })
+    runs[0]!.exit(0)
+    await settled()
+    void terminal.enqueue(() => terminal.restart(specOf(), undefined, () => {}))
+    await terminal.replay("restored")
+    expect(terminal.run).toBe(2)
+    expect((await terminal.readScreen()).rows[0]?.trimEnd()).toBe("restored")
+  })
+
   it("leave a Windows pseudoconsole a blank screen, as it draws at rows from its top", async () => {
     const { terminal, program } = terminalOf({ platform: "win32" })
     void terminal.replay("restored", "--")
@@ -575,6 +585,27 @@ describe("a terminal's events", () => {
     ])
     const behind = terminal.attach("behind", { after: 1, mode: "observe" })
     expect(await behind.next()).toMatchObject({ type: "snapshot", sequence: 4 })
+  })
+
+  it("give a snapshot for a cursor whose replay is past the attachment's queue, which it would fail", async () => {
+    const chunk = "x".repeat(1000)
+    const bytes = eventBytes({ type: "output", data: chunk, sequence: 1 })
+    const { terminal, program, settled } = terminalOf({
+      limits: { ...limits, historyBytes: bytes * 10, subscriberBytes: bytes * 4 },
+    })
+    for (let index = 0; index < 8; index += 1) {
+      program.draw(chunk)
+      // eslint-disable-next-line no-await-in-loop -- One event a draw.
+      await settled()
+    }
+    // The ring holds all eight events, twice what one attachment may queue.
+    const resumed = terminal.attach("viewer", { after: 0, mode: "observe" })
+    expect(await resumed.next()).toMatchObject({ type: "snapshot", sequence: 8 })
+    // A cursor whose replay fits still replays.
+    const recent = terminal.attach("recent", { after: 5, mode: "observe" })
+    expect((await drain(terminal, "recent", recent, 3)).map((event) => event.sequence)).toEqual([
+      6, 7, 8,
+    ])
   })
 
   it("refuse a cursor past the last event, or not a count", async () => {
