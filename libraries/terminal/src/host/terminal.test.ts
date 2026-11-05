@@ -249,6 +249,35 @@ describe("a terminal's output", () => {
     expect(failed).toHaveBeenCalledTimes(2)
   })
 
+  it("tells of each run's first output its screen could not parse, and draws what follows", async () => {
+    const failed = vi.fn<NonNullable<TerminalOptions["failed"]>>()
+    const { terminal, runs, settled } = terminalOf({ failed, runs: 2 })
+    const broken = () =>
+      terminal.screen.parser.registerOscHandler(1337, () => {
+        throw new Error("parse")
+      })
+    broken()
+    runs[0]!.draw("\u001b]1337;one\u0007")
+    await settled()
+    runs[0]!.draw("\u001b]1337;two\u0007")
+    await settled()
+    // The screen skips the chunk whose parse threw; the next is drawn.
+    runs[0]!.draw("after")
+    await settled()
+    expect(text(terminal.screen)).toContain("after")
+    expect(failed.mock.calls).toEqual([[new Error("parse"), "parse"]])
+    runs[0]!.exit(0)
+    await terminal.exited
+    await terminal.enqueue(() => terminal.restart(specOf(), undefined, () => {}))
+    broken()
+    runs[1]!.draw("\u001b]1337;three\u0007")
+    await settled()
+    expect(failed.mock.calls).toEqual([
+      [new Error("parse"), "parse"],
+      [new Error("parse"), "parse"],
+    ])
+  })
+
   it("answers the screen's device queries, until its exit is queued", async () => {
     const { program, settled } = terminalOf()
     const writes = () => program.calls.filter((call) => call.startsWith("write"))

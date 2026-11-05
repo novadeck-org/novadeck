@@ -415,7 +415,7 @@ export class Terminals {
       kill: { graceMs: 1000, treeGraceMs, shutdownTreesMs, shutdownTreeGraceMs },
       trees: this.trees,
       pty: this.pty,
-      failed: failed.listener,
+      failed: failed.terminal,
     })
     this.host.on("evicted", (id, terminal) => this.evicted(id, terminal))
     this.launcher = new Launcher(this.options, {

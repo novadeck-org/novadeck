@@ -32,7 +32,10 @@ export type TerminalHostOptions = {
   readonly trees: ProcessTrees
   /** How its ptys start: as a test plays them, and where their programs are kept. */
   readonly pty?: PtyOptions
-  /** Tells of a listener of terminal `id`'s `event` that threw (see `TerminalOptions.failed`). */
+  /**
+   * Tells of a listener of terminal `id`'s `event` that threw, or, as `"parse"`, of output its
+   * screen could not parse (see `TerminalOptions.failed`).
+   */
   readonly failed?: (error: unknown, event: string, id: string) => void
 }
 
