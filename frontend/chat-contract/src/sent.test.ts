@@ -1,7 +1,10 @@
+import { readdirSync } from "node:fs"
+import { join } from "node:path"
+
 import { sentBubbles } from "@novadeck/chat/bubbles"
 import type { ChatSend } from "@novadeck/chat/sends"
 import type { ChatPrompt } from "@novadeck/core/conversation"
-import type { AgentName } from "@novadeck/protocol/harnesses"
+import { agentNames, type AgentName } from "@novadeck/protocol/harnesses"
 
 import { chatItemsOf, renderChat } from "./pipeline"
 import { describe, expect, it } from "./test"
@@ -84,7 +87,7 @@ const sends: readonly ChatSend[] = [
 ]
 
 describe("the person's prompts not in the agent's record yet", () => {
-  for (const harness of ["claude", "codex", "agy"] as const)
+  for (const harness of agentNames)
     it(`show among ${harness}'s recorded conversation as its golden`, async () => {
       const items = chatItemsOf(harness, recorded[harness])
       const { lines } = renderChat(items, harness, sentBubbles(sends, prompts, items.length))
@@ -92,21 +95,26 @@ describe("the person's prompts not in the agent's record yet", () => {
     })
 
   it("draws them alike on every harness, but for the agent's name", () => {
-    const shown = (["claude", "codex", "agy"] as const).map((harness) => {
+    const shown = agentNames.map((harness) => {
       const items = chatItemsOf(harness, recorded[harness])
       return renderChat(items, harness, sentBubbles(sends, prompts, items.length)).lines.map(
         (line) => line.replace(/back in \w+(?: Code)?'s box/, "back in the agent's box"),
       )
     })
-    expect(shown[1]).toEqual(shown[0])
-    expect(shown[2]).toEqual(shown[0])
+    for (const other of shown.slice(1)) expect(other).toEqual(shown[0])
   })
 
   it("lets a settled prompt go once its item arrives", () => {
     const items = chatItemsOf("claude", recorded.claude)
     const settled = [receipt("settled000000000", "Open the first", 8, "settled", 2)]
-    expect(renderChat(items, "claude", sentBubbles([], settled, items.length)).lines).not.toContain(
-      expect.stringMatching(/^sent/),
-    )
+    const { lines } = renderChat(items, "claude", sentBubbles([], settled, items.length))
+    // `toContain` compares by `===`, which a matcher never is, so it could never fail here.
+    expect(lines).not.toContainEqual(expect.stringMatching(/^sent/))
+    expect(lines).toContain("user: Open the first")
+  })
+
+  it("keeps a golden for each harness, and no other", () => {
+    const kept = readdirSync(join(import.meta.dirname, "sent")).toSorted()
+    expect(kept).toEqual(agentNames.map((harness) => `${harness}.txt`).toSorted())
   })
 })
