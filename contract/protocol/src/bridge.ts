@@ -1,4 +1,5 @@
 import type { PageTrouble } from "./companions.js"
+import type { FeedbackKind } from "./feedback.js"
 import type { NoticeSound } from "./sounds.js"
 
 /**
@@ -37,7 +38,8 @@ export type DesktopBridge = {
   pathForFile?(file: File): string
   /**
    * Shows a desktop notification that the agent in a terminal finished: `title` and
-   * `body` one line each, without control characters, at most `noticeTitleLength` and
+   * `body` one line each, without control characters (`unsafeInLine` in
+   * `@novadeck/protocol/text`, which the page and the app both check by), at most `noticeTitleLength` and
    * `noticeBodyLength` long, and the terminal's `id`. A newer notice for the same terminal
    * replaces the one still showing. The app drops a notice that breaks these rules.
    * Absent from apps that came before it.
@@ -264,7 +266,7 @@ export type DesktopPageLook =
 
 /** A feedback note as it crosses to the app: the kind the person picked, or none, and the text. */
 export type DesktopFeedbackNote = {
-  readonly kind: "bug" | "idea" | "other" | null
+  readonly kind: FeedbackKind | null
   readonly text: string
 }
 

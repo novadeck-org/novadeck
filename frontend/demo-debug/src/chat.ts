@@ -75,11 +75,11 @@ export const createChatFailures = (): {
   return {
     wrap: (conversations) => ({
       ...conversations,
-      send: async (key, text) => {
+      send: async (key, text, options) => {
         const reason = armed
         armed = undefined
         if (reason !== undefined) throw conflictFailure(reason ?? undefined, "send")
-        return conversations.send(key, text)
+        return conversations.send(key, text, options)
       },
       interrupt: async (key) => {
         const failing = stopping

@@ -1,5 +1,7 @@
 import { pageSights, type PageSights } from "@novadeck/core/items/page-sights"
 import {
+  companionLimits,
+  lookLimits,
   maxLookPicture,
   maxPageTroubles,
   type PageLook,
@@ -52,8 +54,8 @@ export const answerLook = async (
       return {
         lookId,
         picture: seen.picture,
-        url: clip(seen.url, 2048),
-        title: clip(seen.title, 1024),
+        url: clip(seen.url, companionLimits.url),
+        title: clip(seen.title, lookLimits.title),
         taken: "pane",
         size: { width: sized(seen.size.width), height: sized(seen.size.height) },
         troubles: [],
@@ -63,14 +65,14 @@ export const answerLook = async (
   if (!fresh) return { lookId, reason: noPictures }
   try {
     const seen = await fresh({ url: look.url, layout: sights.layout(itemId), before })
-    if ("reason" in seen) return { lookId, reason: clip(seen.reason, 512) }
+    if ("reason" in seen) return { lookId, reason: clip(seen.reason, lookLimits.reason) }
     if (seen.picture.length > maxLookPicture)
       return { lookId, reason: "The page's picture came out too large." }
     return {
       lookId,
       picture: seen.picture,
-      url: clip(seen.url, 2048),
-      title: clip(seen.title, 1024),
+      url: clip(seen.url, companionLimits.url),
+      title: clip(seen.title, lookLimits.title),
       taken: "fresh",
       size: { width: sized(seen.size.width), height: sized(seen.size.height) },
       troubles: seen.troubles.slice(0, maxPageTroubles).map(troubleOf),

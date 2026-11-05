@@ -1,4 +1,4 @@
-import type { Inbox } from "@novadeck/core/inbox"
+import { inboxType, type Inbox, type InboxRow } from "@novadeck/core/inbox"
 import type { BackendAction, TerminalKey } from "@novadeck/core/port"
 import { workspaceFromSeed } from "@novadeck/core/seed"
 import { workspaceReducer } from "@novadeck/core/state"
@@ -339,6 +339,19 @@ describe("demo states", () => {
       expect(terminal("04")).toMatchObject({ state: "exited", signal: "SIGKILL" })
     })
 
+    it("switches it to each harness's agent, resting, letting go of what it had pending", () => {
+      for (const [label, program] of [
+        ["Claude Code", "claude"],
+        ["Codex", "codex"],
+        ["Antigravity", "agy"],
+      ] as const) {
+        const { run, terminal, released } = panel("04")
+        run(label)
+        expect(terminal("04"), label).toMatchObject({ state: "running", process: program })
+        expect(released, label).toEqual([key("04")])
+      }
+    })
+
     it("lets an unheard agent say nothing", () => {
       const { run, terminal, calls } = panel("04")
       run("Unheard agent")
@@ -621,19 +634,17 @@ describe("demo states", () => {
       expect(read).toHaveBeenCalledExactlyOnceWith(finishes)
     })
 
-    it("has an agent work at a prompt that may hold an unread finish, then leave", () => {
+    it("leaves a shell at its prompt a shell, with no turn begun there", () => {
       const { run, calls, actionContext } = panel("04")
       const at = key("02")
       actionContext.dispatch!(backToPrompt(at))
       run("Clear waiting agents")
-      expect(calls).toContainEqual(expect.objectContaining({ verb: "work", key: at }))
       vi.advanceTimersByTime(100)
-      expect(calls).toContainEqual(expect.objectContaining({ verb: "rest", key: at }))
+      expect(calls.filter((call) => call.key.terminalId === at.terminalId)).toEqual([])
       expect(terminalOf(actionContext.workspace(), at)).toMatchObject({
         state: "idle",
         process: "zsh",
       })
-      expect(terminalOf(actionContext.workspace(), at)).not.toHaveProperty("agent")
     })
   })
 
@@ -667,16 +678,29 @@ describe("demo states", () => {
 })
 
 // The panel over the demo's real agents: `demoTurns` and the backend it owns the agents of.
-const openOver = (variant: "plain" | "agents") => {
+const openOver = (variant: "plain" | "agents" | "inbox") => {
   const turns = demoTurns()
   const backend = createDemo(variant, undefined, turns)
+  // The agents variant's plan shows dispatch from inside a commit, once a plan request reaches
+  // the Inbox, which the store refuses; they land just after it here.
+  let committing = false
   const workspace = createWorkspaceStore(
     workspaceFromSeed(backend.seed, { view: "grid", windowedView: "grid", now: 0 }),
-    backend.commit,
+    (next, actions) => {
+      committing = true
+      try {
+        backend.commit(next, actions)
+      } finally {
+        committing = false
+      }
+    },
   )
   backend.commit(workspace.getSnapshot(), [])
   backend.start!({
-    dispatch: (actions) => workspace.transact(actions as never),
+    dispatch: (actions) =>
+      committing
+        ? void setTimeout(() => workspace.transact(actions as never))
+        : void workspace.transact(actions as never),
     open: () => {},
   })
   const first = workspace.getSnapshot().projects[0]!
@@ -686,34 +710,80 @@ const openOver = (variant: "plain" | "agents") => {
     workspaceSessionId: owner.id,
     terminalId: owner.state.roster.terminals[0]!.id,
   }
+  const add = (to: TerminalKey): TerminalKey => {
+    const target = { projectId: to.projectId, workspaceSessionId: to.workspaceSessionId }
+    const terminal = backend.newTerminal({ target, directory: "~" })
+    workspace.transact([{ type: "terminal/add", target, terminal, select: false }])
+    return { ...target, terminalId: terminal.id }
+  }
+  const inbox = backend.inbox!
+  inbox.bind!({ workspace })
   const surface: DemoActionContext = {
     target: "selected",
     selected: () => viewed,
     select: () => {},
-    addTerminal: () => viewed,
-    addInBackground: (to) => {
-      const target = { projectId: to.projectId, workspaceSessionId: to.workspaceSessionId }
-      const terminal = backend.newTerminal({ target, directory: "~" })
-      workspace.transact([{ type: "terminal/add", target, terminal, select: false }])
-      return { ...target, terminalId: terminal.id }
-    },
+    // Not selected, so every finish lands while the person looks at the first terminal.
+    addTerminal: () => add(viewed),
+    addInBackground: add,
     startFresh: () => {},
     dispatch: (batch) => void workspace.transact(batch as never),
     workspace: () => workspace.getSnapshot(),
     note: () => {},
   }
-  const states = createDemoStates(turns)
+  const states = createDemoStates(turns, () => inbox)
   const run = (label: string): void =>
     void states.groups
       .flatMap((group) => group.actions)
       .find((action) => action.label === label)!
       .run(surface)
-  return { backend, workspace, viewed, run }
+  const rows = (): readonly InboxRow[] => inbox.state.getSnapshot().items
+  return { backend, workspace, viewed, run, rows }
 }
+
+// The rows that wait on the person, as the Inbox header counts them (`asks` in
+// frontend/ui/src/inbox/inbox-state.ts, which this package can't import): what asks and
+// hasn't settled, never an update nor a failed turn that only informs.
+const waitingRows = (rows: readonly InboxRow[]): readonly InboxRow[] =>
+  rows.filter(
+    (row) =>
+      !row.settled &&
+      inboxType(row) !== "update" &&
+      !(
+        row.kind === "trouble" &&
+        row.trouble.type === "failed" &&
+        row.trouble.stored &&
+        !row.stopped
+      ),
+  )
+const updateRows = (rows: readonly InboxRow[]): readonly InboxRow[] =>
+  rows.filter((row) => inboxType(row) === "update")
 
 describe("demo states over the real agents", () => {
   beforeEach(() => vi.useFakeTimers())
   afterEach(() => vi.useRealTimers())
+
+  it("clears what the panel and the agents made, leaving the variant's own rows (inbox)", () => {
+    const { run, rows } = openOver("inbox")
+    const own = rows().filter(
+      (row) =>
+        row.kind === "ask" ||
+        (row.kind === "update" && !row.id.startsWith("entry:demo-done-") && !row.settled),
+    )
+    expect(own.length).toBeGreaterThan(0)
+    run("Every state at once")
+    vi.advanceTimersByTime(3_500)
+    run("Clear waiting agents")
+    vi.advanceTimersByTime(10_000)
+    for (const each of own) {
+      const kept = rows().find((row) => row.id === each.id)
+      expect(kept?.kind, each.id).toBe(each.kind)
+      expect(kept?.settled, each.id).toEqual(each.settled)
+    }
+    expect(rows().filter((row) => row.id.startsWith("entry:demo-done-"))).toEqual([])
+    expect(
+      rows().filter((row) => row.kind === "ask" && !own.some((each) => each.id === row.id)),
+    ).toEqual([])
+  })
 
   for (const variant of ["plain", "agents"] as const) {
     it(`keeps a finish due later from undoing an exit (${variant})`, () => {
@@ -726,12 +796,37 @@ describe("demo states over the real agents", () => {
       expect(terminal).not.toHaveProperty("agent")
     })
 
+    it(`adds as many waits and done reports to the Inbox as its hint says (${variant})`, () => {
+      const { run, rows } = openOver(variant)
+      // From an empty Inbox, so what the variant's agents already ask doesn't count.
+      run("Clear waiting agents")
+      vi.advanceTimersByTime(10_000)
+      run("Fill the Inbox")
+      vi.advanceTimersByTime(3_500)
+      expect(waitingRows(rows())).toHaveLength(10)
+      expect(updateRows(rows())).toHaveLength(2)
+    })
+
+    it(`leaves no ask open nor update unread after every state, then Clear (${variant})`, () => {
+      const { run, rows } = openOver(variant)
+      run("Every state at once")
+      vi.advanceTimersByTime(3_500)
+      expect(rows().some((row) => row.kind === "ask")).toBe(true)
+      expect(updateRows(rows()).length).toBeGreaterThan(0)
+      run("Clear waiting agents")
+      vi.advanceTimersByTime(10_000)
+      expect(waitingRows(rows())).toEqual([])
+      expect(updateRows(rows())).toEqual([])
+    })
+
     it(`leaves nothing to read, ask or work after Fill then Clear (${variant})`, () => {
-      const { run, workspace, backend } = openOver(variant)
+      const { run, workspace, backend, rows } = openOver(variant)
       run("Fill the Inbox")
       vi.advanceTimersByTime(3_500)
       run("Clear waiting agents")
       vi.advanceTimersByTime(10_000)
+      expect(waitingRows(rows())).toEqual([])
+      expect(updateRows(rows())).toEqual([])
       for (const each of workspace.getSnapshot().projects)
         for (const owner of each.history)
           for (const terminal of owner.state.roster.terminals) {
