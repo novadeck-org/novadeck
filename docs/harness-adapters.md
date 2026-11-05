@@ -335,9 +335,11 @@ present an old snapshot as current.
 The UI uses runner-supplied resume eligibility and agent classification instead
 of maintaining an independent resumable-agent list. UI process profiles still
 select icons/bodies by stable agent ID; they cannot decide lifecycle semantics.
-The protocol version stays unchanged during this unreleased migration: update
-strict schemas, client types, demo backend and fixtures together, without
-compatibility shapes.
+The runner and the UI ship and update together, so a change to the protocol
+between them updates strict schemas, client types, demo backend and fixtures
+together, without compatibility shapes. That covers only the wire between them;
+what either keeps on a person's computer carries forward (see
+[AGENTS.md](../AGENTS.md#novadeck-has-users)).
 
 ## Adapter contract
 
@@ -1257,10 +1259,11 @@ launcher still prints what Antigravity needs.
 Everything harness-specific happens in the runner (see
 [Hook decoders](#hook-decoders)).
 
-Novadeck has no users yet, so hook definitions change whenever that improves
-the integration. Codex and AGY trust a hook by its definition, so a changed
-definition or a new event registration asks whoever connected them to review
-the hook again; installation and hook trust are distinct states.
+People have connected these hooks, so change a hook definition only when the
+integration needs it, and say so in the change. Codex and AGY trust a hook by its
+definition, so a changed definition or a new event registration asks everyone who
+connected them to review the hook again; installation and hook trust are distinct
+states.
 
 ## Local MCP
 
