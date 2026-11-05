@@ -101,6 +101,9 @@ type Session = {
   readonly followed: Map<ItemId, Followed>
   // Per plan, the text of the save under way, and the one waiting for typing to pause.
   readonly saving: Map<ItemId, string>
+  // Per plan, what lets the save under way go: its answer, or its timing out, then changes
+  // nothing, as for a plan that's gone.
+  readonly dropping: Map<ItemId, () => void>
   readonly waiting: Map<ItemId, ReturnType<typeof setTimeout>>
   // Per plan, a rewrite that came while a save was under way, applied once it answers:
   // until then the base it was written over isn't known.
@@ -218,6 +221,7 @@ const persist = (session: Session, target: WorkspaceTarget, id: ItemId, manual =
     answered = true
     clearTimeout(timer)
     session.saving.delete(id)
+    session.dropping.delete(id)
     return true
   }
   // A rewrite that came meanwhile applies now, over the base the file still has.
@@ -268,6 +272,10 @@ const persist = (session: Session, target: WorkspaceTarget, id: ItemId, manual =
     )
   }
   const timer = setTimeout(failed, saveTimeout)
+  session.dropping.set(id, () => {
+    answered = true
+    clearTimeout(timer)
+  })
   session.companions.save(target, id, text, basedOn).then(
     async (result) => {
       if (!settleAttempt()) return
@@ -432,8 +440,11 @@ const linger = (session: Session, id: ItemId, entry: Followed): void => {
   }, lingerMs)
 }
 
-// A plan that's gone: its saves stop, and what they kept goes.
+// A plan that's gone: its saves stop, and what they kept goes. A save under way is let go,
+// so neither its answer nor its timing out brings any of it back.
 const forgetPlan = (session: Session, id: ItemId): void => {
+  session.dropping.get(id)?.()
+  session.dropping.delete(id)
   clearTimeout(session.waiting.get(id))
   for (const each of [
     session.saving,
@@ -525,6 +536,7 @@ export const createItemStore = ({
     store: createStore<ItemStoreState>(emptyState),
     followed: new Map(),
     saving: new Map(),
+    dropping: new Map(),
     waiting: new Map(),
     pending: new Map(),
     failures: new Map(),
