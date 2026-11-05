@@ -403,8 +403,13 @@ export const createHarnesses = (
               return false
             }
             await writeFile(reinstalling(where), "")
-            await apply(agent, true)
-            await rm(reinstalling(where), { force: true })
+            // The mark is for a reinstall a quit cut short: one that fails, as over settings
+            // that don't parse, is logged and done, not tried again at every start.
+            try {
+              await apply(agent, true)
+            } finally {
+              await rm(reinstalling(where), { force: true })
+            }
             // An agent that rewrites what it copies would be installed again at every start.
             if (await differing(installed, where))
               log.error(

@@ -301,6 +301,18 @@ describe("agents Novadeck can connect", () => {
     expect(await agents.connected("agy")).toBe(false)
   })
 
+  it("try a reinstall that fails only once, not again at every start", async ({ fixture }) => {
+    installed(fixture.home, "agy")
+    const agents = fixture.agents({ FAKE_FAIL: "plugin install" })
+    const marker = `${fixture.paths.plugins.agy}.reinstalling`
+    writeFileSync(marker, "")
+    expect(await agents.refresh()).toEqual([])
+    expect(existsSync(marker)).toBe(false)
+    const tried = fixture.calls().length
+    expect(await agents.refresh()).toEqual([])
+    expect(fixture.calls()).toHaveLength(tried)
+  })
+
   it("drop an unfinished reinstall for an agent uninstalled since", async ({ fixture }) => {
     const agents = fixture.agents()
     const marker = `${fixture.paths.plugins.agy}.reinstalling`
