@@ -1,0 +1,18 @@
+{
+  "$schema": "https://turborepo.com/schema.json",
+  "extends": ["//"],
+  "tasks": {
+    "test": {
+      "inputs": [
+        "$TURBO_DEFAULT$",
+        "$TURBO_ROOT$/frontend/ui/**",
+        "$TURBO_ROOT$/frontend/*/src/**",
+        "$TURBO_ROOT$/libraries/*/src/**/*.css",
+        "$TURBO_ROOT$/pnpm-lock.yaml",
+        "!$TURBO_ROOT$/frontend/*/node_modules/**",
+        "!$TURBO_ROOT$/frontend/*/.turbo/**",
+        "!$TURBO_ROOT$/frontend/**/*.log"
+      ]
+    }
+  }
+}

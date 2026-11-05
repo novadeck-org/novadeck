@@ -2,8 +2,8 @@ import type { TestProjectInlineConfiguration } from "vitest/config"
 
 /**
  * The unit project the UI's packages' tests and the try app's run in: jsdom, over
- * `src/**\/*.test.ts`. A package's own vitest.config.ts lists it with the browser projects
- * it has, if any.
+ * `src/**\/*.test.ts` and `src/**\/*.test.tsx`, as a React package may write either. A
+ * package's own vitest.config.ts lists it with the browser projects it has, if any.
  */
 export const unit = (): TestProjectInlineConfiguration => ({
   extends: true,
@@ -14,6 +14,6 @@ export const unit = (): TestProjectInlineConfiguration => ({
     // on Windows CI it has taken 1.5-5.8s (queries), against a fraction of that on
     // Linux and macOS.
     testTimeout: 20_000,
-    include: ["src/**/*.test.ts"],
+    include: ["src/**/*.test.{ts,tsx}"],
   },
 })

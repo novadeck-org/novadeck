@@ -38,7 +38,13 @@ policy, so it needs no library fences.
   what it loads and the first chunk does not. The visitor build sets them in
   `apps/try/vite.config.ts`; the others have none.
 - `unit()` (`/vitest`), the jsdom `unit` project of the UI's packages' tests and the try
-  app's (`frontend/specs` runs projects of its own, and `frontend/test-kit` has no tests).
+  app's, written as `.test.ts` or `.test.tsx` (`frontend/specs` runs projects of its own,
+  and `frontend/test-kit` has no tests).
+
+`tailwind-guards.test.ts` checks that each guard is a class only its folder can make: it reads
+what the UI's stylesheet scans as git lists it, and every stylesheet the build reads. Those
+files are other packages', so this package's `turbo.json` adds them to its `test` task's
+inputs; without them a local run would replay a cached pass after the guards broke.
 
 Each is a subpath of its own (`@novadeck/build-kit/content-security-policy`, `/connect-sources`,
 `/hosting-headers`, `/search-visibility`, `/fonts`, `/bundle-checks`, `/vitest`). It ships as
