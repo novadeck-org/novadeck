@@ -88,9 +88,9 @@ const statusOf = (terminal: TerminalMetadata | undefined): AgentStatus | undefin
 // put an agent in a state of the seeds' and the debug panel's choosing (see
 // `DemoAgentVerbs`), each cancelling what an earlier one or a turn still had pending;
 // `watch` hears every turn's events; and `start` takes the sink the statuses go to.
-export const demoTurns = (asked = demoTurnMs) => {
+export const demoTurns = (requestedMs = demoTurnMs) => {
   // As long as asked, up to what a timer can wait, as an address may ask for more.
-  const turnMs = Math.min(asked, longestTimerMs)
+  const turnMs = Math.min(requestedMs, longestTimerMs)
   let sink: BackendSink | undefined
   const watchers = new Set<(event: TurnEvent) => void>()
   // Hears every status an agent reports, which `watch`'s events don't carry whole: whether

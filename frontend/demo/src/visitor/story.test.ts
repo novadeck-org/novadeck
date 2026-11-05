@@ -1,3 +1,4 @@
+import { promptRefusal } from "@novadeck/core/conversation/prompt-refusal"
 import { workspaceFromSeed } from "@novadeck/core/seed"
 import { createWorkspaceStore } from "@novadeck/core/store"
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
@@ -131,7 +132,7 @@ describe("the visitor's story", () => {
     await vi.advanceTimersByTimeAsync(nudgeMs - turnMs / 2)
     // A line it refuses, as a slash command, or a shell command, which starts no turn,
     // leaves the review as it was.
-    await expect(chat.send(codex, "/review")).rejects.toThrow()
+    await expect(chat.send(codex, "/review")).rejects.toThrow(promptRefusal)
     expect(terminal(codex.terminalId)).toMatchObject({ agent: { working: true } })
     await chat.send(codex, "!ls")
     await vi.advanceTimersByTimeAsync(0)
