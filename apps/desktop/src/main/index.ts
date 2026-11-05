@@ -660,7 +660,12 @@ const launch = async (): Promise<void> => {
   // A quit that came while the app started closed what had started by then: what starts
   // after it closes too, and no window opens on a runner that is gone.
   if (quitting.stopping) {
-    await started.close()
+    // A server that fails to close is no failed launch: the quit goes on regardless.
+    await started
+      .close()
+      .catch((error: unknown) =>
+        log.warn("server.close-failed", "The app's server did not close.", { err: error }),
+      )
     return
   }
   server = started

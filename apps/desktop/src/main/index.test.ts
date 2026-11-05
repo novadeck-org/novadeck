@@ -78,7 +78,7 @@ describe("the compiled desktop app", () => {
       expect(window).toBeGreaterThan(started)
       const tail = main.slice(started, window)
       expect(tail).toMatch(
-        /if \(quitting\.stopping\) \{\s*await started\.close\(\);\s*return;\s*\}\s*server = started;/u,
+        /if \(quitting\.stopping\) \{\s*await started\.close\(\)\.catch\([^;]*;\s*return;\s*\}\s*server = started;/u,
       )
       expect(tail).toMatch(
         /await waitForUi\(developmentOrigin\);\s*if \(quitting\.stopping\) return;\s*$/u,
