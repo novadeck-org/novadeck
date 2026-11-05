@@ -50,9 +50,10 @@ const cmdSafe = /^[^"&|<>^%()\r\n]*$/
  * - `cmd` holds no double quote, and reads the launcher unquoted, as Novadeck's shells name
  *   it by its short name, without spaces. A launcher whose path still has one, or `&`,
  *   which cmd splits a line at once it has put the path in, breaks the line. Without a
- *   fallback the command runs in a cmd of its own (`/d`, so no AutoRun), then exits 0
- *   whatever that did: with no runnable launcher, a broken line included, it prints
- *   nothing. Antigravity's PreToolUse needs that, as an answer that isn't JSON, or a
+ *   fallback the command runs in a cmd of its own (`/d`, so no AutoRun), started by
+ *   its path in `%ComSpec%`, as a bare `cmd` is looked for in the agent's folder first,
+ *   where a project's own `cmd.bat` would run instead; then it exits 0 whatever that did:
+ *   with no runnable launcher, a broken line included, it prints nothing. Antigravity's PreToolUse needs that, as an answer that isn't JSON, or a
  *   non-zero exit, let the tool run unasked, where none left it to the person's policy.
  */
 export const hookCommand = (dialect: Dialect, { agent, event, fallback }: HookCall): string => {
@@ -76,7 +77,7 @@ export const hookCommand = (dialect: Dialect, { agent, event, fallback }: HookCa
     }
     case "cmd": {
       if (fallback === undefined)
-        return `cmd /d /c if defined NOVADECK_HOOK (if exist %NOVADECK_HOOK% (%NOVADECK_HOOK% ${run})) & exit /b 0`
+        return `%ComSpec% /d /c if defined NOVADECK_HOOK (if exist %NOVADECK_HOOK% (%NOVADECK_HOOK% ${run})) & exit /b 0`
       if (!cmdSafe.test(fallback) || fallback.trim() !== fallback || fallback === "")
         throw new Error(`cmd can't echo this hook's fallback as written: ${fallback}`)
       return `if defined NOVADECK_HOOK (if exist %NOVADECK_HOOK% (%NOVADECK_HOOK% ${run}) else (echo ${fallback})) else (echo ${fallback})`
