@@ -32,17 +32,28 @@ const signMac = async (staging: string, executable: string, run: Run): Promise<v
 // electron-builder installs its own, the newest, to sign the app.
 const trustedSigning = "0.5.8"
 
-// A PowerShell string literal.
-const quote = (value: string): string => `'${value.replaceAll("'", "''")}'`
+/** A PowerShell string literal. */
+export const quote = (value: string): string => `'${value.replaceAll("'", "''")}'`
+
+/** The Azure Artifact Signing account a release names, or nothing when it names none. */
+export const windowsSigning = (
+  env: NodeJS.ProcessEnv,
+):
+  | { readonly endpoint: string; readonly account: string; readonly profile: string }
+  | undefined => {
+  const endpoint = env.AZURE_SIGNING_ENDPOINT
+  const account = env.AZURE_SIGNING_ACCOUNT
+  const profile = env.AZURE_SIGNING_PROFILE
+  return endpoint && account && profile ? { endpoint, account, profile } : undefined
+}
 
 // On Windows the server and its modules are signed through Azure Artifact Signing, as the
 // app is, when the release names the account; the module reads its credentials from
-// AZURE_TENANT_ID, AZURE_CLIENT_ID and AZURE_CLIENT_SECRET.
+// AZURE_TENANT_ID, AZURE_CLIENT_ID and AZURE_CLIENT_SECRET, which only this call is given.
 const signWindows = (staging: string, run: Run): void => {
-  const endpoint = process.env.AZURE_SIGNING_ENDPOINT
-  const account = process.env.AZURE_SIGNING_ACCOUNT
-  const profile = process.env.AZURE_SIGNING_PROFILE
-  if (!endpoint || !account || !profile) return
+  const signing = windowsSigning(process.env)
+  if (!signing) return
+  const { endpoint, account, profile } = signing
   const script = [
     "$ErrorActionPreference = 'Stop'",
     `Install-Module -Name TrustedSigning -RequiredVersion ${trustedSigning} -Force -Repository PSGallery -Scope CurrentUser`,
@@ -59,5 +70,5 @@ const signWindows = (staging: string, run: Run): void => {
       "-TimestampDigest SHA256",
     ].join(" "),
   ].join("\n")
-  run("pwsh", ["-NoProfile", "-NonInteractive", "-Command", script])
+  run("pwsh", ["-NoProfile", "-NonInteractive", "-Command", script], { credentials: true })
 }
