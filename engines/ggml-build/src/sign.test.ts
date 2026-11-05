@@ -1,25 +1,17 @@
 import { describe, expect, it } from "vitest"
 
-import { quote, windowsSigning } from "./sign.ts"
+import { signedOnWindows } from "./sign.ts"
 
-describe("signing on Windows", () => {
-  it("quotes a value as a PowerShell string, doubling its quotes", () => {
-    expect(quote("C:\\nvw\\staging")).toBe("'C:\\nvw\\staging'")
-    expect(quote("it's'; Remove-Item x; '")).toBe("'it''s''; Remove-Item x; '''")
+describe("signing an engine on Windows", () => {
+  it("signs the server and its modules, however their extension is cased", () => {
+    for (const name of ["whisper-server.exe", "ggml-vulkan.dll", "LLAMA.DLL"]) {
+      expect(signedOnWindows(name), name).toBe(true)
+    }
   })
 
-  it("signs only when the release names the endpoint, account and profile", () => {
-    const named = {
-      AZURE_SIGNING_ENDPOINT: "https://weu.codesigning.azure.net",
-      AZURE_SIGNING_ACCOUNT: "novadeck",
-      AZURE_SIGNING_PROFILE: "release",
+  it("leaves the files beside them, which SignTool cannot sign", () => {
+    for (const name of ["LICENSE", "check.wav", "notes.dll.txt"]) {
+      expect(signedOnWindows(name), name).toBe(false)
     }
-    expect(windowsSigning(named)).toEqual({
-      endpoint: "https://weu.codesigning.azure.net",
-      account: "novadeck",
-      profile: "release",
-    })
-    expect(windowsSigning({ ...named, AZURE_SIGNING_PROFILE: "" })).toBeUndefined()
-    expect(windowsSigning({})).toBeUndefined()
   })
 })

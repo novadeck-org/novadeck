@@ -12,7 +12,7 @@ afterEach(() => {
 })
 
 // The environment a command the build runs sees, as it wrote it out.
-const seen = (options: { credentials?: boolean }): NodeJS.ProcessEnv => {
+const seen = (): NodeJS.ProcessEnv => {
   const folder = mkdtempSync(join(tmpdir(), "ggml-build-"))
   folders.push(folder)
   const file = join(folder, "env.json")
@@ -29,23 +29,19 @@ const seen = (options: { credentials?: boolean }): NodeJS.ProcessEnv => {
       "-e",
       `require("node:fs").writeFileSync(${JSON.stringify(file)}, JSON.stringify(process.env))`,
     ],
-    { env, ...options },
+    { env },
   )
   return JSON.parse(readFileSync(file, "utf8")) as NodeJS.ProcessEnv
 }
 
 describe("the build's commands", () => {
   it("run without the signing credentials, as CMake and git run upstream's scripts", () => {
-    const env = seen({})
+    const env = seen()
     expect(env.AZURE_TENANT_ID).toBeUndefined()
     expect(env.AZURE_CLIENT_ID).toBeUndefined()
     expect(env.AZURE_CLIENT_SECRET).toBeUndefined()
     // The account is no secret, and names what to sign with.
     expect(env.AZURE_SIGNING_ACCOUNT).toBe("account")
-  })
-
-  it("give the credentials to the signing call alone", () => {
-    expect(seen({ credentials: true }).AZURE_CLIENT_SECRET).toBe("secret")
   })
 
   it("leave them out however Windows spells them", () => {
