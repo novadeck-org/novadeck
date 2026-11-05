@@ -37,11 +37,14 @@ const scan = (text: string, rule: Extract<Rule, { judge: unknown }>): string => 
     if (found[0] === "") pattern.lastIndex += 1
     let end = found.index + found[0].length
     let masked = replaced
-    // A value that reached the cap goes on to the end of its run, and so does its mask.
+    // A value that reached the cap goes on to the end of its run, and so does its mask. The
+    // next match is looked for after it: one inside the run masked already would write its
+    // text a second time, and the marks would no longer line up with the text.
     if (value.length >= valueCap) {
       const tail = /^[^\s"',;&]*/.exec(text.slice(end))?.[0] ?? ""
       masked += hide(tail)
       end += tail.length
+      pattern.lastIndex = Math.max(pattern.lastIndex, end)
     }
     result += text.slice(last, found.index) + masked
     last = end
