@@ -1,13 +1,14 @@
 import { join } from "node:path"
 
 import { archiveName, pack, publish, readStaging } from "./archive.ts"
-import { compile } from "./cmake.ts"
-import { commands, machine, windows } from "./machine.ts"
+import { type Built, compile } from "./cmake.ts"
+import { commands, machine, type Run, windows } from "./machine.ts"
 import { sign } from "./sign.ts"
 import { download, prepare } from "./source.ts"
 import type { EngineSpec } from "./spec.ts"
 import { stage } from "./stage.ts"
 import { requireTools } from "./toolchain.ts"
+import { merge } from "./universal.ts"
 
 // The build the ggml engines share: whisper.cpp's `whisper-server` for voice input and
 // llama.cpp's `llama-server` for murmur. Each engine's `scripts/build.ts` names what is its
@@ -16,7 +17,8 @@ import { requireTools } from "./toolchain.ts"
 // platform, signs it and packs the engine as `dist/<archive>` and `dist/engine.json`.
 //
 // Linux and Windows build Vulkan and the CPU variants as modules loaded at run time; macOS
-// builds Metal into one universal binary, as the universal app needs.
+// builds Metal in, once per architecture, and merges the two into one universal binary, as
+// the universal app needs.
 
 export type { EngineSpec } from "./spec.ts"
 
@@ -28,8 +30,8 @@ export const buildEngine = async (spec: EngineSpec): Promise<void> => {
   const executable = windows ? `${spec.executable}.exe` : spec.executable
   requireTools(spec.label)
   const { source, build } = await prepare(spec, cache, await download(spec, cache), run)
-  compile(spec, cache, source, build, run)
-  await stage(build, staging, executable)
+  await spec.checkSource?.(source)
+  await stageBuilds(compile(spec, cache, source, build, run), staging, executable, run)
   await spec.extras(source, staging)
   await sign(staging, executable, run)
   await publish(
@@ -37,5 +39,28 @@ export const buildEngine = async (spec: EngineSpec): Promise<void> => {
     archiveName(spec.name, machine.platform, machine.arch),
     pack(await readStaging(staging)),
     spec.engineInterface,
+  )
+}
+
+// Stages the one build, or each macOS slice beside `staging` and then the universal merge of
+// them in it.
+const stageBuilds = async (
+  builds: readonly Built[],
+  staging: string,
+  executable: string,
+  run: Run,
+): Promise<void> => {
+  const slices = builds.flatMap(({ slice, folder }) =>
+    slice ? [{ slice, folder, staged: `${staging}-${slice}` }] : [],
+  )
+  if (slices.length === 0) {
+    await Promise.all(builds.map(({ folder }) => stage(folder, staging, executable)))
+    return
+  }
+  await Promise.all(slices.map(({ folder, staged }) => stage(folder, staged, executable)))
+  await merge(
+    slices.map(({ slice, staged }) => ({ slice, folder: staged })),
+    staging,
+    run,
   )
 }
