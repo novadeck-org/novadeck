@@ -148,12 +148,18 @@ win:
   # The executable, installer and uninstaller icon; builder takes it when nothing more
   # specific is set.
   icon: resources/icon.ico
-  # Signed through Azure Artifact Signing when the release workflow passes
-  # azureSignOptions; see docs/release-signing.md. Executables are signed by default; the
-  # libraries and native modules too, so antivirus heuristics see a known publisher.
+  # Signed through Azure Artifact Signing when the release workflow names the signing hook,
+  # scripts/sign-windows.mjs, as signtoolOptions.sign; see docs/release-signing.md.
+  # Executables are signed by default; the libraries and native modules too, so antivirus
+  # heuristics see a known publisher.
   signExts:
     - .dll
     - .node
+  # One SHA-256 signature for each file: builder calls the hook once for each algorithm
+  # here, and by default for SHA-1 as well, which would sign every file twice.
+  signtoolOptions:
+    signingHashAlgorithms:
+      - sha256
   # Only the x64 PTY binaries: signtool fails on the macOS and Linux prebuilds, and the x64
   # app never loads the arm64 ones, even emulated on an arm64 computer.
   files:

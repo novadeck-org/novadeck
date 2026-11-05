@@ -2,7 +2,7 @@ import { existsSync } from "node:fs"
 import { join } from "node:path"
 
 import { has, type Machine, machine, tarOf } from "./machine.ts"
-import { windowsSigning } from "./sign.ts"
+import { windowsSigning } from "./signtool.ts"
 
 /** What a build on `on` lacks, said as its error, or nothing when the toolchain is whole. */
 export const missingTool = (
@@ -23,9 +23,9 @@ export const missingTool = (
     }
     return undefined
   }
-  // Signing runs last, after many minutes of building.
-  if (windows && windowsSigning(env) && !found("pwsh")) {
-    return `Signing the ${label} needs PowerShell 7 (pwsh) on the PATH.`
+  // Signing runs last, after many minutes of building, and its client runs on .NET.
+  if (windows && windowsSigning(env) && !found("dotnet")) {
+    return `Signing the ${label} needs the .NET runtime, 8 or later (dotnet on the PATH).`
   }
   if (!windows && !found("c++") && !found("g++") && !found("clang++")) {
     return `Building the ${label} needs a C++ compiler, such as g++.`

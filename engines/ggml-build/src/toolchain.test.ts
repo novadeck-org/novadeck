@@ -23,14 +23,14 @@ describe("the toolchain", () => {
   })
 
   context("on Windows", () => {
-    it("needs pwsh before building when the release signs, not after", () => {
-      expect(missingTool("voice engine", win, signing, without("pwsh"))).toBe(
-        "Signing the voice engine needs PowerShell 7 (pwsh) on the PATH.",
+    it("needs .NET before building when the release signs, not after", () => {
+      expect(missingTool("voice engine", win, signing, without("dotnet"))).toBe(
+        "Signing the voice engine needs the .NET runtime, 8 or later (dotnet on the PATH).",
       )
     })
 
-    it("does without pwsh when nothing is signed", () => {
-      expect(missingTool("voice engine", win, {}, without("pwsh"))).toBeUndefined()
+    it("does without .NET when nothing is signed", () => {
+      expect(missingTool("voice engine", win, {}, without("dotnet"))).toBeUndefined()
     })
   })
 })

@@ -31,10 +31,10 @@ export const tarOf = (platform: NodeJS.Platform, env: NodeJS.ProcessEnv): string
 
 export const tar = tarOf(machine.platform, process.env)
 
-// The Azure service principal Windows signing authenticates with. Only the signing call is
-// given it: CMake, the build and git run upstream's scripts, pinned by commit but not audited.
-// A defence in depth, not a boundary: this process still holds them, and a child running as
-// the same user could read them from it.
+// The Azure service principal Windows signing authenticates with. Only SignTool is given it,
+// by signtool.ts: CMake, the build and git run upstream's scripts, pinned by commit but not
+// audited. A defence in depth, not a boundary: this process still holds them, and a child
+// running as the same user could read them from it.
 const credentialNames = new Set(["AZURE_TENANT_ID", "AZURE_CLIENT_ID", "AZURE_CLIENT_SECRET"])
 
 /** The environment without the signing credentials (named in any case, as Windows reads them). */
@@ -49,24 +49,19 @@ export const has = (command: string, flag = "--version"): boolean =>
 export type Run = (
   command: string,
   args: readonly string[],
-  options?: {
-    readonly cwd?: string
-    readonly env?: NodeJS.ProcessEnv
-    /** Whether the command is given the signing credentials: only the signing call is. */
-    readonly credentials?: boolean
-  },
+  options?: { readonly cwd?: string; readonly env?: NodeJS.ProcessEnv },
 ) => void
 
 /**
- * Runs the build's commands in `root` unless told otherwise, without the signing credentials
- * unless told to give them, and throws when one fails.
+ * Runs the build's commands in `root` unless told otherwise, without the signing
+ * credentials, and throws when one fails.
  */
 export const commands =
   (label: string, root: string): Run =>
-  (command, args, { cwd = root, env = process.env, credentials = false } = {}) => {
+  (command, args, { cwd = root, env = process.env } = {}) => {
     const result = spawnSync(command, args, {
       cwd,
-      env: credentials ? env : withoutCredentials(env),
+      env: withoutCredentials(env),
       stdio: "inherit",
     })
     if (result.error) {

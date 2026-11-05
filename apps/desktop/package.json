@@ -29,6 +29,7 @@
     "@electron/fuses": "2.1.3",
     "@novadeck/build-kit": "workspace:*",
     "@novadeck/core": "workspace:*",
+    "@novadeck/ggml-build": "workspace:*",
     "@novadeck/log": "workspace:*",
     "@novadeck/murmur": "workspace:*",
     "@novadeck/protocol": "workspace:*",

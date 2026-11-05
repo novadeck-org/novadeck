@@ -342,14 +342,16 @@ describe("a look at a page", () => {
     expect(await looker.look({ url, layout: "desktop" })).toEqual({
       reason: expect.stringContaining("waiting"),
     })
-    // Each in its turn.
+    // Each in its turn. A look ends a real `lookSettleMs` after its page loads, too close to
+    // `waitFor`'s second for a busy runner, so the wait for the next look's start begins
+    // only once the one before has ended.
     for (let each = 0; each < looks.length; each += 1) {
       // eslint-disable-next-line no-await-in-loop -- Each look starts once the one before ends.
       await vi.waitFor(() => expect(releases).toHaveLength(each + 1))
       releases[each]!()
+      // eslint-disable-next-line no-await-in-loop -- As above.
+      expect(await looks[each]).toHaveProperty("picture")
     }
-    const answers = await Promise.all(looks)
-    expect(answers.every((answer) => "picture" in answer)).toBe(true)
   })
 
   it("is a window of its own, none of the app's, until it is destroyed, and is forgotten after", async () => {

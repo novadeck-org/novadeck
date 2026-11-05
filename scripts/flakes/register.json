@@ -322,10 +322,64 @@
       "id": "viewers-diff-marker-frames-timeout",
       "jobs": ["^Test \\((Linux|macOS|Windows)(, (?:[12][/-]2|[1-3][/-]3))?\\)$"],
       "test": "src/diff.test.ts > the diff viewer > with lines wider than the viewer > pins each line's marker with its numbers",
-      "signature": "Error: Test timed out in 15000ms\\.",
-      "status": "known",
-      "cause": "Unknown, not reproduced: on macOS the test ran past its 15 s timeout (16.9 s). Its only waits are two double requestAnimationFrame frames (diff.test.ts's frame()), one after mounting and one after scrolling the lines sideways, so the page went over 15 s without drawing a frame; other tests in the file that wait on frames ran slow in the same run (one 12 s, several 1 to 2 s), and the viewers' vitest.config.ts already notes macOS pages going seconds without one while other packages' tests ran beside them. Vitest took a failure screenshot, but CI uploads only frontend/specs' attachments, so it wasn't kept.",
+      "signature": "Error: Test timed out in 15000ms\\.|AssertionError: expected -?[\\d.]+ to be -?[\\d.]+",
+      "status": "fixed",
+      "cause": "The test waited on two double requestAnimationFrame frames, and the macOS page drew none for over 15 s while other packages' tests ran beside it (other tests of the file that wait on frames ran slow in the same run, one 12 s). It needs no frame: the marker's place after the lines scroll sideways is layout, which getBoundingClientRect reads at once, so the test now reads it synchronously, as do its three neighbours that read only layout. Reproduced with the page's requestAnimationFrame never firing: the old test timed out at 15 s, the new one passes, and it still fails when the numbers aren't sticky.",
       "seen": ["#672 run 41993632666 attempt 1 job 127131493653 (macOS)"]
+    },
+    {
+      "id": "runner-settle-close-fake-clock",
+      "jobs": ["^Test \\((?:macOS|Linux|Windows)(, (?:[12][/-]2|[1-3][/-]3))?\\)$"],
+      "test": "src/terminals/settle.test.ts > settling a draft kept only by doubt > stops looking when the terminal ends",
+      "signature": "Test timed out in 20000ms",
+      "status": "fixed",
+      "cause": "The test awaited manager.close on the fake clock, with a real PTY. A close hangs the shell up only after looking up its foreground group, which on macOS runs ps, so the child's first output (PTY_READY) arrived after the test's last advance; its draw waits on the screen's write callback, a timer, which never fired on the fake clock, and the exit is drawn behind it, so close never resolved. Reproduced on Linux by having the lookup run ps as on macOS: the old test timed out 4 of 4, idle and with 6 busy loops on its core. The test now checks the looking stopped while the clock is fake (the close forgets the delivery at once), then restores the real clock before awaiting the close: 4 of 4 idle, 4 of 4 with 6 loops, 3 of 3 with 12.",
+      "seen": ["#688 run 42017162933 attempt 1 job 127210448869 (macOS)"]
+    },
+    {
+      "id": "runner-doorbell-size-cap-retry",
+      "jobs": ["^Test \\((?:macOS|Linux|Windows)(, (?:[12][/-]2|[1-3][/-]3))?\\)$"],
+      "test": "src/messaging/doorbell.test.ts > the app's resizes during a ring's wait for its prompt on Windows > releases it at the cap, after the confirmation deadline, when its settle never comes",
+      "signature": "to match object \\{ (?:holds: 1, )?sizes: false, applied: 1 \\}",
+      "status": "fixed",
+      "cause": "The failed ring was tried again 2 s after its failure, before the 30.5 s size cap, and the retry held the resizes anew (holds: 2): whether it held before the test's check was up to the typist's watch, whose sleeps are real, so on a busy runner it held them again just after the cap released them. Reproduced pinned to one core with 12 busy loops: 1 of 2 runs of 200 repeats failed this way. The test's doorbell now tries a failed ring again only after the cap (recheckMs 10 s), and checks a single hold: 0 failures in 4 runs of 200 repeats, idle and with 12 loops.",
+      "seen": ["#688 run 42017162933 attempt 1 job 127210448869 (macOS)"]
+    },
+    {
+      "id": "viewers-look-waiting-turns",
+      "jobs": ["^Test \\((Linux|macOS|Windows)(, (?:[12][/-]2|[1-3][/-]3))?\\)$"],
+      "test": "src/browser/look.test.ts > a look at a page > refuses a look beyond the few that wait",
+      "signature": "to have a length of \\d+ but got \\d+",
+      "status": "fixed",
+      "cause": "Each look ends a real lookSettleMs (800 ms) after its page loads, and the test, releasing each in turn, waited for the next look to start with vi.waitFor's 1 s default, which covered the one before's settle, picture and end: 200 ms to spare. Reproduced with the test at nice 19 beside one busy loop on its core: 2 of 3 failed. The test now awaits each look's end before waiting for the next to start: 4 of 4 passed under the same load.",
+      "seen": ["#692 run 42025034569 attempt 1 job 127236988312 (macOS)"]
+    },
+    {
+      "id": "viewers-diff-highlight-poll-stall",
+      "jobs": ["^Test \\((Linux|macOS|Windows)(, (?:[12][/-]2|[1-3][/-]3))?\\)$"],
+      "test": "src/diff.test.ts > the diff viewer > with highlighting > parses the old and the new side apart",
+      "signature": "Matcher did not succeed in time|expected 0 to be greater than 0",
+      "status": "fixed",
+      "cause": "expect.poll's 5 s is a timer: a page that stops running for a while, as the macOS page did beside other packages' tests (the file's other waiting tests ran 3 to 4 times slower), wakes with that timer due and fails the poll before the work it waits on, here the file's first TypeScript highlight, has had its turn. The log shows the stall (6.1 s against the 5 s limit) but not what was slow; a slow load of the parser's module while the page ran would fail the new wait too. Reproduced with the page held busy for 6 s during the wait: the old test failed with the CI's message at 6.2 s. The file's polls now count the page's own turns (eventually, 50 ms apart), so a stall spends none of their budget: it passed with the same 6 s stall, and still fails in 5 s when nothing is highlighted.",
+      "seen": ["#716 run 42085151966 attempt 1 job 127448126469 (macOS)"]
+    },
+    {
+      "id": "viewers-diff-many-files-timeout",
+      "jobs": ["^Test \\((Linux|macOS|Windows)(, (?:[12][/-]2|[1-3][/-]3))?\\)$"],
+      "test": "src/diff.test.ts > the diff viewer > with many files > updates and reports its place without laying out the files out of sight",
+      "signature": "Test timed out in 15000ms",
+      "status": "fixed",
+      "cause": "The file's 15 s test timeout ended it while it drew its rows, on a macOS page running its tests 10 to 27 times slower than here (\"stays at the row\" 9.5 s against 0.36 s); its own wait allowed 15 s or 30 s, which the test timeout never let it reach. Reproduced with Chromium's CPU throttled 20x: the old tests timed out at 15 s, 3 of 3 (with \"carries on drawing\"). The three drawing tests now have a 60 s timeout, and the long change is 6,000 lines, three of the viewer's 2,000-row batches, not 20,000: they passed at 20x, the long change's at 30x too, and still fail when the viewer draws all rows at once. This one keeps its 100,000 rows, which its bounds on a regression's cost need; at 30x its update took about 800 ms, over its 750 ms bound.",
+      "seen": ["#717 run 42101141316 attempt 1 job 127503942930 (macOS)"]
+    },
+    {
+      "id": "viewers-diff-long-change-timeout",
+      "jobs": ["^Test \\((Linux|macOS|Windows)(, (?:[12][/-]2|[1-3][/-]3))?\\)$"],
+      "test": "src/diff.test.ts > the diff viewer > with a long change > draws a part at a time, without blocking the page",
+      "signature": "Test timed out in 15000ms",
+      "status": "fixed",
+      "cause": "The file's 15 s test timeout ended it while it drew its rows, on a macOS page running its tests 10 to 27 times slower than here (\"stays at the row\" 9.5 s against 0.36 s); its own wait allowed 15 s or 30 s, which the test timeout never let it reach. Reproduced with Chromium's CPU throttled 20x: the old tests timed out at 15 s, 3 of 3 (with \"carries on drawing\"). The three drawing tests now have a 60 s timeout, and the long change is 6,000 lines, three of the viewer's 2,000-row batches, not 20,000: they passed at 20x, the long change's at 30x too, and still fail when the viewer draws all rows at once.",
+      "seen": ["#717 run 42101141316 attempt 1 job 127503942930 (macOS)"]
     }
   ]
 }

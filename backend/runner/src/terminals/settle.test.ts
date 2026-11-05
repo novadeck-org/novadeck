@@ -369,16 +369,22 @@ describe("settling a draft kept only by doubt", () => {
 
   it("stops looking when the terminal ends", async ({ resources }) => {
     const reading = await doubting(fixture(resources), [typed])
-    fakeClock(resources, faked)
+    const clock = fakeClock(resources, faked)
     reading.start()
     await vi.advanceTimersByTimeAsync(500)
     expect(reading.looks()).toBeGreaterThan(1)
+    // A close forgets the terminal's delivery at once, which ends the looking; the look under
+    // way, if any, finishes within one pause.
     const closing = reading.manager.close({ terminalId: reading.id })
-    await vi.advanceTimersByTimeAsync(1_000)
-    await closing
+    await vi.advanceTimersByTimeAsync(100)
     const closed = reading.looks()
     await vi.advanceTimersByTimeAsync(1_000)
     expect(reading.looks()).toBe(closed)
+    // The shell ends on the real clock: its exit is drawn behind its output, each draw waiting
+    // on a timer, and on macOS the hangup waits for `ps` first. Awaited on the fake clock, a
+    // draw or the kill's grace set after the last advance never fires.
+    await clock.restore()
+    await closing
   })
 
   it("stops looking at a key from the person, who leaves a draft", async ({ resources }) => {
