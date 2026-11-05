@@ -917,8 +917,8 @@ still running. It stops following once the subagent has no request waiting, or t
 binding ends. A Claude Code background subagent's denied request, or one whose prompt
 timed out, fires no hook either, and it runs on to its `SubagentStop`; its own
 transcript (`<session>/subagents/agent-<id>.jsonl`) records the call's result, which
-settles that request at the result's time, as the root's transcript does the root's. A subagent asking that Novadeck
-never saw start, as its start came before the binding or its harness reported its
+settles that request at the result's time, as the root's transcript does the root's.
+A subagent asking that Novadeck never saw start, as its start came before the binding or its harness reported its
 stop at a turn's end, counts as running from that request on, unless a stop after the
 request says it is over. At most 32 subagents are followed; once that many run, the one
 whose turn aborted longest ago, with no request since, makes room for another, which it

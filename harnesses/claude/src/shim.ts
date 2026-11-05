@@ -158,7 +158,7 @@ if "%novadeck_arg:~0,1%"=="-" (
   shift
   goto command
 )
-for %%c in (${commands.join(" ")}) do if /i "%novadeck_arg%"=="%%c" exit /b 0
+for %%c in (${commands.join(" ")}) do if "%novadeck_arg%"=="%%c" exit /b 0
 exit /b 1
 :value
 shift

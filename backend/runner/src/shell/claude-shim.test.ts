@@ -170,6 +170,8 @@ describe("claude shim", { timeout: 60_000 }, () => {
       "list",
     ])
     expect(shim.run(["-n"])).toEqual(["--settings", settings, "-n"])
+    // Its commands go by their case, as Claude Code's own reading does.
+    expect(shim.run(["MCP"])).toEqual(["--settings", settings, "MCP"])
   })
 
   it.runIf(windows)(

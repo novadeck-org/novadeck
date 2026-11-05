@@ -175,6 +175,9 @@ export const followTranscript: NonNullable<Harness["watch"]> = (run, signal, emi
   })
 }
 
+// The calls a line's tool results name, as Claude Code writes them, unspaced.
+const resultIds = /"tool_use_id":"([^"\\]+)"/g
+
 /**
  * What one line of a subagent's own transcript (`<session>/subagents/agent-<id>.jsonl`)
  * says that no hook does: a tool call's result came. The person denying its request, with
@@ -191,8 +194,10 @@ export const subagentEvents = (
   since: number,
   calls: Calls,
 ): readonly ActivityEvent[] => {
+  // A tool's result, often long, is parsed only where it names a call still unpaired.
   const called = line.includes('"tool_use"')
-  if (!called && !(calls.size > 0 && line.includes('"tool_result"'))) return []
+  const pairs = () => [...line.matchAll(resultIds)].some(([, id]) => calls.has(id!))
+  if (!called && !(calls.size > 0 && line.includes('"tool_result"') && pairs())) return []
   const fields = parseFields(line)
   if (!fields || typeof fields.timestamp !== "string") return []
   const startedAt = Date.parse(fields.timestamp)
