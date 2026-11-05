@@ -5,7 +5,7 @@ import { render, type Rendered } from "@novadeck/test-kit/render"
 import { act, createElement } from "react"
 import { afterEach, beforeEach, onTestFinished, vi } from "vitest"
 
-import { context, describe, expect, it } from "../test"
+import { context, describe, eventually, expect, it } from "../test"
 import { ApprovalDialog, approvalView, sameApprovalView, type ApprovalView } from "./ApprovalDialog"
 
 const mounted: Rendered[] = []
@@ -333,10 +333,9 @@ describe("approval dialog", () => {
       // The dialog's exit is timed by the browser's animation frames, which fake timers hold.
       vi.useRealTimers()
       const { showNext, onAnswer } = show(view())
-      await act(() => new Promise((resolve) => setTimeout(resolve, 50)))
+      await eventually(() => expect(dialog()).not.toBeNull())
       showNext(null)
-      await act(() => new Promise((resolve) => setTimeout(resolve, 50)))
-      expect(dialog()).toBeNull()
+      await eventually(() => expect(dialog()).toBeNull())
       expect(onAnswer).not.toHaveBeenCalled()
     })
   })
