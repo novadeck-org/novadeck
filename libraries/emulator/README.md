@@ -26,8 +26,12 @@ character-width rule every emulator shares, and helpers that need only an emulat
   xterm's `Terminal`, `ITheme` and `IDisposable` come from here too.
 - `./browser.css`: xterm's stylesheet, for the browser emulator's screens.
 - `./headless` (Node only): the emulator without a view, and what needs only it.
-  - `createScreen({ cols, rows, scrollback })`: a screen that counts widths as `./width` says and
-    has its serializer loaded; the type is `Screen`. Every headless emulator goes through it.
+  - `createScreen({ cols, rows, scrollback, onParseError })`: a screen that counts widths as
+    `./width` says and has its serializer loaded; the type is `Screen`. Every headless emulator
+    goes through it. A chunk whose parse throws is skipped and the sequence it was in ended (see
+    the write patch below); `onParseError` hears of the screen's first such error, from writes
+    made through `write`. Handlers registered on a screen are synchronous: a promise one returns
+    that rejects counts as the handler declining.
   - `readScreen(screen)`: the screen as `ScreenText`: its rows, wrapping, the rows drawn full to
     the last column, dim cells blanked, the cursor, bracketed paste and the alternate screen.
   - `snapshot(screen, { fits, mouse })`: the screen serialized, with the mouse encoding the
@@ -85,6 +89,10 @@ release fixes what it fixes.
   measuring. What a screen still draws is never dropped, so any set of strings up to a generation
   stays measured (a full screen is 2 to 7 thousand cells, several screens mostly share theirs),
   and the memory is bounded at two generations. A set larger than a generation keeps measuring part of it.
+  The document keeps the eight entries used last (each screen's font and clear reach for its own),
+  so stepping through font sizes or moving between screens of other pixel ratios doesn't pile
+  tables up; a screen still holding an entry let go draws from it until its next clear or
+  change of font, which takes the document's again.
   Widths and letter-spacing are what they were, apart from sharing a screen's measurements with
   the others. Like the viewport fix, this is made again on xterm 6.1: the same class, in both
   bundles, unless 6.1 shares its widths itself. `src/width-cache.test.ts` pins it.
@@ -114,14 +122,19 @@ release fixes what it fixes.
   browser at ratios 1, 1.25, 1.5 and 2.
 - `@xterm/xterm` 6.0.0 and `@xterm/headless` 6.0.0, in each package's two bundles:
   `WriteBuffer._innerWrite` catches a chunk whose parsing throws, as one does when a buffer row the cursor or renderer expects is missing. It throws
-  the error again on its own (`queueMicrotask`, as xterm does for an async handler's), calls that
-  chunk's callback with it, and goes on with the next chunk. Unpatched, the throw left the chunk
+  the error again on its own (`queueMicrotask`, as xterm does for an async handler's), the first
+  of a run only, so a broken screen's backlog doesn't throw once a chunk; calls that chunk's
+  callback with it; and goes on with the next chunk, within xterm's 12 ms slice as after any other. Unpatched, the throw left the chunk
   queued and its callback uncalled, and as the queue never emptied no write was parsed again: a
   screen waiting on one stayed on "Loading output…" for good. `writeTo` (`src/write.ts`) rejects
   with the error, and the terminal library's view then draws the host's screen afresh, as the parser
   may be left mid-sequence. The headless bundles skip the chunk the same way but don't throw it
   again: in the runner, as in any Node process, that is an uncaught exception, which ends it and
-  every shell in it. Upstream has the same loop; drop the patch on an upgrade that catches
+  every shell in it. Nothing draws a headless screen afresh, so they also parse a CAN (`\x18`) at
+  once, which ends the OSC, CSI or escape sequence the throw left the parser in: unended, the
+  output after it went into that sequence's payload until the next BEL or ST. An async handler's
+  rejection goes to its chunk's callback, not thrown again, and xterm's check on a slow async
+  handler no longer throws it either (unhandled, in Node). Upstream has the same loop; drop the patch on an upgrade that catches
   there. `src/write.test.ts` pins it in all four bundles.
 - `@xterm/xterm` 6.0.0 and `@xterm/headless` 6.0.0, in each package's two bundles: an empty buffer
   takes the line limit of its size (`_getCorrectBufferLength(this._rows)`) in `fillViewportRows`
@@ -139,7 +152,9 @@ release fixes what it fixes.
   blinking on (DECSET 12), and while the terminal has focus it keeps a 600 ms interval that held the
   disposed renderer alive. Upstream disposes it from 7a6e724b; drop the patch on an upgrade that has it.
 - `@xterm/addon-webgl` 0.19.0, the same two bundles: the glyph atlas draws a run of two or more
-  ASCII punctuation characters (what a joined ligature is) scaled sideways to its cells, by
+  printable ASCII characters (`[!-~]`, letters and digits too; the ligature joiner's runs, all
+  punctuation, are the only ones it is handed: a joiner added later that hands it words gets them
+  squeezed to their cells too) scaled sideways to its cells, by
   `cells * deviceCellWidth / measureText(run).width`, in place of at the font's own advance; an underlined run's descender outline (`strokeText`) takes the same scale. A cell is
   `floor(advance * dpr)` wide, so at 13 px JetBrains Mono (7.8 px) and a ratio of 1 a run of three
   drew 2.4 px past its cells, onto the next glyph; at a ratio of 2 (15 against 15.6 px) it
