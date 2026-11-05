@@ -27,6 +27,15 @@ const path = require("node:path")
 const [agent, ...args] = process.argv.slice(2)
 const home = process.env.HOME
 fs.appendFileSync(process.env.FAKE_LOG, JSON.stringify([agent, ...args]) + "\\n")
+// FAKE_ENV: where it writes the names of the variables it was given.
+if (process.env.FAKE_ENV) fs.writeFileSync(process.env.FAKE_ENV, JSON.stringify(Object.keys(process.env)))
+// FAKE_HANG: a step that never ends, and leaves a child holding its error output open.
+if (process.env.FAKE_HANG && args.join(" ").includes(process.env.FAKE_HANG)) {
+  const child = require("node:child_process").spawn(process.execPath, ["-e", "setTimeout(() => {}, 60000)"], { stdio: ["ignore", "ignore", "inherit"] })
+  fs.writeFileSync(process.env.FAKE_HANG_PID, String(child.pid))
+  setInterval(() => {}, 1000)
+  return
+}
 if (process.env.FAKE_FAIL && args.join(" ").includes(process.env.FAKE_FAIL)) {
   console.error("something went wrong")
   process.exit(1)
@@ -376,6 +385,65 @@ describe("agents Novadeck can connect", () => {
       expect(await fixture.agents().set("claude", true)).toMatchObject({ connected: true })
     },
   )
+
+  it("give up on a step that outlives its time, ending all it started, and go on with the next change", async ({
+    fixture,
+  }) => {
+    installed(fixture.home, "claude")
+    const pidFile = join(fixture.root, "hung.pid")
+    const agents = createHarnesses(() => Promise.resolve(fixture.paths), {
+      home: fixture.home,
+      env: fixture.environment({ FAKE_HANG: "plugin install", FAKE_HANG_PID: pidFile }),
+      login: false,
+      timeoutMs: 500,
+    })
+    const started = Date.now()
+    const connecting = agents.set("claude", true)
+    // Queued behind the step that hangs.
+    const disconnecting = agents.set("claude", false)
+    await expect(connecting).rejects.toMatchObject({
+      code: "AGENT_SETUP_FAILED",
+      message: expect.stringContaining("took longer"),
+    })
+    expect(Date.now() - started).toBeLessThan(5_000)
+    await expect(disconnecting).resolves.toMatchObject({ connected: false })
+    // The child the hung step left holding its output ends with it.
+    const pid = Number(readFileSync(pidFile, "utf8"))
+    const alive = () => {
+      try {
+        process.kill(pid, 0)
+        return true
+      } catch {
+        return false
+      }
+    }
+    await vi.waitFor(() => expect(alive()).toBe(false), { timeout: 5_000 })
+  })
+
+  it("never hand the runner's token or an agent session's markers to an agent's commands or the login shell", async ({
+    fixture,
+  }) => {
+    installed(fixture.home, "claude")
+    const seen = join(fixture.root, "env.json")
+    const shellSeen = join(fixture.root, "shell-env.txt")
+    const shell = join(fixture.home, "recording-shell")
+    writeFileSync(shell, `#!/bin/sh\nenv > "${shellSeen}"\nexec /bin/sh "$@"\n`, { mode: 0o755 })
+    const agents = fixture.agents({
+      FAKE_ENV: seen,
+      NOVADECK_TOKEN: "x".repeat(32),
+      CLAUDECODE: "1",
+      ...(!windows && { SHELL: shell }),
+    })
+    await agents.set("claude", true)
+    const names = JSON.parse(readFileSync(seen, "utf8")) as string[]
+    expect(names).toContain("FAKE_LOG")
+    expect(names.map((name) => name.toUpperCase())).not.toContain("NOVADECK_TOKEN")
+    expect(names).not.toContain("CLAUDECODE")
+    if (windows) return
+    const shellEnv = readFileSync(shellSeen, "utf8")
+    expect(shellEnv).toContain("FAKE_LOG=")
+    expect(shellEnv).not.toContain("NOVADECK_TOKEN")
+  })
 
   it("say why an agent could not be connected", async ({ fixture }) => {
     installed(fixture.home, "claude")

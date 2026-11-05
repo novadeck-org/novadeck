@@ -1,7 +1,7 @@
 import { spawn } from "node:child_process"
 import { readFile, rm, writeFile } from "node:fs/promises"
-import { homedir } from "node:os"
-import { delimiter, join } from "node:path"
+import { homedir, tmpdir } from "node:os"
+import { join } from "node:path"
 
 import type { Harness, Install, Model } from "@novadeck/harness-core/harness"
 import type { AgentIntegration, AgentName } from "@novadeck/protocol"
@@ -11,6 +11,8 @@ import { refreshPath } from "@novadeck/terminal/shell"
 import { DomainError } from "../errors.js"
 import { exists } from "../files.js"
 import { logs } from "../log.js"
+import { cmdPath, findProgram, killTree } from "../programs.js"
+import { withoutInherited } from "../shell/inherited.js"
 import type { ShellPaths } from "../shell/scripts.js"
 import { agents, harnesses } from "./registry.js"
 
@@ -92,20 +94,33 @@ const loginShellEnvironment = (env: NodeJS.ProcessEnv) =>
 const loginEnvironment = (env: NodeJS.ProcessEnv, platform: NodeJS.Platform, relay: string) =>
   platform === "win32" ? refreshPath(env, { platform, relay }) : loginShellEnvironment(env)
 
-// The program to run: the one on PATH, or where the harness's installer puts it otherwise.
-const locate = async (program: string, harness: Harness, install: Install): Promise<string> => {
-  for (const directory of (install.env.PATH ?? "").split(delimiter).filter(Boolean))
-    // eslint-disable-next-line no-await-in-loop -- The first match wins.
-    if (await exists(join(directory, program))) return program
+/**
+ * The program to run, by its absolute path: the one on PATH, or where the harness's installer
+ * puts it otherwise. Never one in the runner's working folder, which Windows would search
+ * first (see `findProgram`); undefined where there is none.
+ */
+const locate = async (
+  program: string,
+  harness: Harness,
+  install: Install,
+): Promise<string | undefined> => {
+  const found = findProgram(program, { env: install.env, platform: install.platform })
+  if (found) return found
   const fallback = program === harness.id ? harness.fallback?.(install.home) : undefined
-  return fallback && (await exists(fallback)) ? fallback : program
+  return fallback && (await exists(fallback)) ? fallback : undefined
 }
 
 /**
  * Runs one of an agent's commands the way the person would in a terminal: with their
  * login environment, and through cmd on Windows, where agents install as .cmd files.
+ * `argv` starts with the program's absolute path (see `locate`); `name` is what the
+ * command calls it, for its failure. It runs in the system's temporary folder, so no
+ * project's own configuration applies. Past `timeoutMs` it fails, and the program ends with
+ * all it started: ending cmd.exe alone leaves the agent running, and a child that holds the
+ * error output open would keep the command from ever settling.
  */
 const run = (
+  name: string,
   argv: readonly string[],
   {
     env,
@@ -115,34 +130,44 @@ const run = (
 ): Promise<void> =>
   new Promise((resolve, reject) => {
     const [program = "", ...args] = argv
+    const what = [name, ...args].slice(0, 3).join(" ")
     const child =
       platform === "win32"
-        ? spawn(env.COMSPEC || "cmd.exe", ["/d", "/s", "/c", `"${cmdLine(argv)}"`], {
+        ? spawn(cmdPath(env), ["/d", "/s", "/c", `"${cmdLine(argv)}"`], {
+            cwd: tmpdir(),
             env,
             stdio: ["ignore", "ignore", "pipe"],
             windowsVerbatimArguments: true,
             windowsHide: true,
           })
-        : spawn(program, args, { env, stdio: ["ignore", "ignore", "pipe"] })
+        : spawn(program, args, {
+            cwd: tmpdir(),
+            env,
+            // Its own group, so the time limit ends what it started too.
+            detached: true,
+            stdio: ["ignore", "ignore", "pipe"],
+          })
     let errors = ""
+    let settled = false
+    const settle = (error?: Error) => {
+      if (settled) return
+      settled = true
+      clearTimeout(timer)
+      if (error) reject(error)
+      else resolve()
+    }
     child.stderr.setEncoding("utf8")
     child.stderr.on("data", (chunk: string) => {
       errors = (errors + chunk).slice(-2000)
     })
-    const timer = setTimeout(() => child.kill(), timeoutMs)
-    child.on("error", (error) => {
-      clearTimeout(timer)
-      reject(error)
-    })
+    const timer = setTimeout(() => {
+      killTree(child.pid, platform)
+      settle(new Error(`${what} took longer than ${Math.round(timeoutMs / 1000)} s.`))
+    }, timeoutMs)
+    child.on("error", settle)
     child.on("close", (code) => {
-      clearTimeout(timer)
-      if (code === 0) resolve()
-      else
-        reject(
-          new Error(
-            `${argv.slice(0, 3).join(" ")} failed: ${errors.trim().split("\n").at(-1) ?? code}`,
-          ),
-        )
+      if (code === 0) return settle()
+      settle(new Error(`${what} failed: ${errors.trim().split("\n").at(-1) ?? code}`))
     })
   })
 
@@ -162,9 +187,11 @@ export const createHarnesses = (
   paths: () => Promise<(ShellPaths & { readonly cmdShimDir?: string | undefined }) | undefined>,
   options: HarnessesOptions = {},
 ) => {
-  const base = options.env ?? process.env
-  const home = options.home ?? base.HOME ?? homedir()
   const platform = options.platform ?? process.platform
+  // The runner's own token, and an agent session's markers, never reach the login shell's
+  // startup files or an agent's commands, as they never reach a terminal (see `inherited`).
+  const base = withoutInherited(options.env ?? process.env, platform)
+  const home = options.home ?? base.HOME ?? homedir()
   const relay = options.relay ?? relayPath
   const timeoutMs = options.timeoutMs ?? 60_000
   // Looked up in the background from the start, and again before each change. Listing
@@ -228,9 +255,10 @@ export const createHarnesses = (
       try {
         const [program = "", ...args] = command.argv
         // eslint-disable-next-line no-await-in-loop -- Each step needs the one before.
-        const located = platform === "win32" ? program : await locate(program, harness, where)
+        const located = await locate(program, harness, where)
+        if (!located) throw new Error(`${program} is not on PATH.`)
         // eslint-disable-next-line no-await-in-loop -- As above.
-        await run([located, ...args], settings)
+        await run(program, [located, ...args], settings)
       } catch (error) {
         if (command.optional) continue
         throw new DomainError(
