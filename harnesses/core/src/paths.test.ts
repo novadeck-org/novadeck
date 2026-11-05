@@ -31,6 +31,11 @@ describe("two paths", () => {
     expect(samePath("C:\\Work\\src\\b.ts", "C:\\Work\\src\\c.ts")).toBe(false)
     expect(samePath("\\\\host\\share\\a.ts", "\\\\host\\share\\a.ts")).toBe(true)
   })
+
+  it("compare a Windows share's paths across separators and case, never a POSIX path's", () => {
+    expect(samePath("\\\\Server\\Share\\a.ts", "\\\\server\\share\\A.ts")).toBe(true)
+    expect(samePath("//Server/x", "//server/x")).toBe(false)
+  })
 })
 
 describe("beside", () => {
