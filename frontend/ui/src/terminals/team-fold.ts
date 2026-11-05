@@ -27,20 +27,17 @@ export const toggleFolded = (folded: FoldedTeams, context: string, lead: string)
   return Object.fromEntries(next.length ? [...kept, [context, next]] : kept)
 }
 
-// Whether a terminal's tab folds away: a teammate of a folded lead, unless it's the selected
-// terminal, which shows in its place while the person is on it (as when an Inbox row took
-// them there) and folds away again once they move on.
+// Whether a terminal's tab folds away: one under a folded lead, at any depth (a fold covers the
+// teams its teammates lead too), unless the person is on it, or on one below it, which shows in
+// its place with the leads between (as when an Inbox row took them there) and folds away again
+// once they move on. `above` is the leads above it, nearest first; `kept` says the person is on
+// it or below it.
 export const foldsAway = (
   folded: FoldedTeams,
   context: string,
-  team: { readonly lead: string } | undefined,
-  terminalId: string,
-  selected: string,
-): boolean =>
-  team !== undefined &&
-  team.lead !== terminalId &&
-  terminalId !== selected &&
-  isFolded(folded, context, team.lead)
+  above: readonly string[],
+  kept: boolean,
+): boolean => !kept && above.some((lead) => isFolded(folded, context, lead))
 
 const isLeads = (value: unknown): value is readonly string[] =>
   Array.isArray(value) && value.length > 0 && value.every((id) => typeof id === "string")

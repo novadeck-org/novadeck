@@ -1,4 +1,4 @@
-import { teamOf } from "@novadeck/core/derivations"
+import { descendantsOf, teamOf } from "@novadeck/core/derivations"
 import { isWindow } from "@novadeck/core/roster"
 import { terminalGlance } from "@novadeck/core/terminals/ending"
 
@@ -34,6 +34,8 @@ const FoldedRow = ({
     currentState(workspace).roster.terminals.find((terminal) => terminal.id === id),
   )
   const selected = useWorkspaceState((workspace) => currentState(workspace).selected === id)
+  // A teammate that leads its own team: how many it folds away with it, at any depth.
+  const leads = useWorkspaceState((workspace) => descendantsOf(workspace, id).length)
   const view = useWorkspaceState((workspace) => currentState(workspace).view)
   const marks = useTerminalMarks(backend.inbox, { ...target, terminalId: id })
   const unread = useUiState((state) => unreadEnd(state.unread, context, id))
@@ -62,6 +64,7 @@ const FoldedRow = ({
         style={markDelay(index)}
       />
       <span className="truncate">{tile.name}</span>
+      {leads > 0 && <span className="team-fold-count shrink-0">+{leads}</span>}
       {need && (
         <span className="terminal-tab-need shrink-0" data-need={need}>
           {need === "unblock" ? "!" : "?"}

@@ -85,6 +85,7 @@ export const TerminalTab = ({
   askFeedback,
   releaseLead,
   fold,
+  level = 0,
   foldTeam,
   foldedRows,
   folder,
@@ -135,6 +136,9 @@ export const TerminalTab = ({
   // How a teammate's tab stands in its lead's fold (app/team-fold.ts): folded away, previewed,
   // unfolding or shown (tabs.css).
   fold?: "away" | "preview" | "unfolding" | "shown" | undefined
+  // How many leads stand above it (nested teams): its tab steps in a little for each, up to
+  // three (tabs.css).
+  level?: number
   // On a lead: its menu's way to fold its teammates out of the list or show them again.
   foldTeam?: FoldTeam | undefined
   // On a folded lead: its teammates' rows, under its line.
@@ -311,6 +315,7 @@ export const TerminalTab = ({
         data-terminal-hidden={hidden}
         {...(team ? { "data-team": team } : {})}
         {...(fold ? { "data-team-fold": fold } : {})}
+        {...(level ? { "data-team-level": Math.min(level, 3) } : {})}
         // A teammate folded away leaves the layout, and unrolls from no height: as utilities,
         // since the tab's own `flex` and least height are (tabs.css has the rest).
         className={`terminal-tab [--_sidebar-actions-space:76px] data-[team-fold=away]:hidden data-[team-fold=away]:min-h-0 data-[team-fold=unfolding]:starting:min-h-0 ${selected ? "selected" : ""} ${editing ? "editing" : ""} ${isDragSource ? "dragging" : ""}`}

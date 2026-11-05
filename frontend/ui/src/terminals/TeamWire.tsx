@@ -1,4 +1,4 @@
-import type { Team } from "@novadeck/core/derivations"
+import type { LitTeams, Team } from "@novadeck/core/derivations"
 import { useEffect, useLayoutEffect, useRef, useState } from "react"
 
 import {
@@ -15,6 +15,13 @@ import {
 const settleMs = 400
 
 const sameWires = (a: Wires, b: Wires) => JSON.stringify(a) === JSON.stringify(b)
+
+// Nested teams (a teammate that leads its own): each level's wire runs in its own lane, a
+// lane's width further from the rail's border than its lead's lead's, as its tabs step in as
+// far (tabs.css). Past three levels, deeper teams share the innermost lane.
+const laneWidth = 6
+const deepestLane = 3
+const laneOf = (level: number) => Math.min(level, deepestLane) * laneWidth
 
 // Whether a tab is laid out: a teammate folded out of the list (team-fold.ts) isn't.
 const laidOut = (tab: Element) => tab.getClientRects().length > 0
@@ -34,6 +41,10 @@ type Measured = {
   readonly shape: WireShape
   readonly gutter: FoldGutter | undefined
   readonly ghost: readonly number[]
+  // What it was measured from, for the lit way up through a lead (`path` in LitTeams).
+  readonly head: WireMember
+  readonly members: readonly WireMember[]
+  readonly view: { readonly top: number; readonly bottom: number }
 }
 
 // Measures the wire for `team` against the page as it is now: none while the rail isn't
@@ -44,6 +55,7 @@ const measureWire = (
   list: Element,
   team: Team,
   folded: boolean,
+  level: number,
 ): Measured | undefined => {
   const rail = layer.parentElement?.querySelector(":scope > .sidebar-tools")
   if (!rail) return undefined
@@ -57,9 +69,10 @@ const measureWire = (
     return each && laidOut(each) ? [memberOf(each, id, origin)] : []
   })
   if (!leadTab || !laidOut(leadTab) || !railRect.width) return undefined
-  const x = railRect.right - origin.left - 1
+  const x = railRect.right - origin.left - 1 + laneOf(level)
   const view = { top: listRect.top - origin.top, bottom: listRect.bottom - origin.top }
-  const shape = wireShape(x, view, memberOf(leadTab, team.lead, origin), workers)
+  const head = memberOf(leadTab, team.lead, origin)
+  const shape = wireShape(x, view, head, workers)
   if (!shape) return undefined
   const leadRect = leadTab.getBoundingClientRect()
   const gutter = foldGutter(x, view, {
@@ -78,7 +91,7 @@ const measureWire = (
           return y > shape.lead! && y <= view.bottom ? [y] : []
         })
       : []
-  return { shape, gutter, ghost }
+  return { shape, gutter, ghost, head, members: workers, view }
 }
 
 // Every team's wire, by its lead, in the teams' order.
@@ -89,9 +102,10 @@ const measureWires = (
   list: Element,
   teams: readonly Team[],
   folded: readonly string[],
+  levels: readonly number[],
 ): Wires =>
-  teams.flatMap((team) => {
-    const measured = measureWire(layer, list, team, folded.includes(team.lead))
+  teams.flatMap((team, index) => {
+    const measured = measureWire(layer, list, team, folded.includes(team.lead), levels[index] ?? 0)
     return measured ? [{ lead: team.lead, ...measured }] : []
   })
 
@@ -108,10 +122,15 @@ const measureWires = (
 // with no words: the wire reels into the lead's cursor as its teammates' tabs dim, or, folded,
 // a dashed ghost of it runs down the lead's rows for its teammates, a tick into each. The pointer has to come to the
 // gutter on purpose: nothing over the tab itself arms it, and after a click it arms again only
-// once the pointer has left. The lead's menu is the keyboard's way to the same fold.
+// once the pointer has left. The lead's menu is the keyboard's way to the same fold. A team
+// inside another (its lead a teammate) runs in a lane further in, and its parent's tick runs
+// into its lead's cursor, so the gutter reads as a tree; what lights is every team the selected
+// terminal leads or works in, and the way up through each lead above it.
 export const TeamWire = ({
   teams,
-  team,
+  levels = noLevels,
+  lit = noLit,
+  above = noLeads,
   selected,
   shown,
   list,
@@ -121,8 +140,12 @@ export const TeamWire = ({
   onPreview,
 }: {
   teams: readonly Team[]
-  // The selected terminal's team, which lights.
-  team: Team | undefined
+  // How many leads stand above each team's lead, in the teams' order: its lane.
+  levels?: readonly number[]
+  // What lights for the selected terminal (core's litTeams), and the leads above it, whose
+  // folded teams show the way down to it.
+  lit?: LitTeams
+  above?: readonly string[]
   // The selected terminal: selecting another member plays the lit wire's entrance again.
   selected: string
   // Whether the Terminals list is on screen.
@@ -164,7 +187,7 @@ export const TeamWire = ({
     const body = element?.parentElement
     if (!element || !body || !list || !teams.length || !shown) return
     const measure = () => {
-      const next = measureWires(element, list, teams, folded)
+      const next = measureWires(element, list, teams, folded, levels)
       setWires((current) => (sameWires(current, next) ? current : next))
     }
     // Measures every frame until `until`, through moves no observer reports: a drag, its
@@ -233,7 +256,7 @@ export const TeamWire = ({
       window.removeEventListener("pointercancel", drop, { capture: true })
       window.removeEventListener("blur", drop)
     }
-  }, [teams, shown, list, folded])
+  }, [teams, shown, list, folded, levels])
 
   // The entrance plays once each time a member is selected; redraws after it, as rows scroll
   // into view, put the wire in place without playing it again.
@@ -245,7 +268,17 @@ export const TeamWire = ({
   // What the last run measured counts only while teams show in a list. The lit wire is drawn
   // last, over any resting one it crosses.
   const drawn = teams.length && shown && list ? wires : []
-  const lit = drawn.find((wire) => wire.lead === team?.lead)
+  const whole = lit.full.flatMap(({ lead }) => drawn.filter((wire) => wire.lead === lead))
+  // The way up: each lead above, its wire from its cursor to the member below it on the way.
+  const path = lit.path.flatMap(({ lead, child }) => {
+    const wire = drawn.find((each) => each.lead === lead)
+    const member = wire?.members.find((each) => each.id === child)
+    const shape = wire && member && wireShape(wire.shape.x, wire.view, wire.head, [member])
+    return wire && shape ? [{ ...wire, shape, ghost: [] }] : []
+  })
+  // A folded team shows no wire but its lead's cursor, unless the selected terminal is in it,
+  // which shows in its place with the way down to it.
+  const faded = (lead: string) => folded.includes(lead) && !above.includes(lead)
   // A gutter that goes away under the pointer, as the sidebar hides, the session changes or the
   // team ends, hears no leave: what pointing there armed ends with it (here, as the selection's
   // entrance is forgotten above), the preview it set ends as it does (below), and a click there
@@ -270,30 +303,40 @@ export const TeamWire = ({
     >
       {drawn.map(
         (wire) =>
-          wire !== lit && (
+          !whole.includes(wire) && (
             <Wire
               key={wire.lead}
               wire={wire}
               lit={false}
               folded={folded.includes(wire.lead)}
-              faded={folded.includes(wire.lead)}
+              faded={faded(wire.lead)}
               unfolding={unfolding === wire.lead}
               armed={armed === wire.lead}
             />
           ),
       )}
-      {lit && (
+      {path.map((wire) => (
         <Wire
-          key={`${lit.lead}:${selected}`}
-          wire={lit}
+          key={`path:${wire.lead}:${selected}`}
+          wire={wire}
           lit
-          folded={folded.includes(lit.lead)}
-          // A folded teammate the person is on shows in its place, its tie to the lead too.
-          faded={folded.includes(lit.lead) && selected === lit.lead}
-          unfolding={unfolding === lit.lead}
-          armed={armed === lit.lead}
+          folded={false}
+          faded={false}
+          unfolding={false}
+          armed={false}
         />
-      )}
+      ))}
+      {whole.map((wire) => (
+        <Wire
+          key={`${wire.lead}:${selected}`}
+          wire={wire}
+          lit
+          folded={folded.includes(wire.lead)}
+          faded={faded(wire.lead)}
+          unfolding={unfolding === wire.lead}
+          armed={armed === wire.lead}
+        />
+      ))}
       {onFold &&
         drawn.map(
           ({ lead, gutter }) =>
@@ -331,6 +374,8 @@ export const TeamWire = ({
   )
 }
 const noLeads: readonly string[] = []
+const noLevels: readonly number[] = []
+const noLit: LitTeams = { full: [], path: [] }
 
 const Wire = ({
   wire: { shape, ghost },

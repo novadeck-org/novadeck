@@ -43,21 +43,27 @@ describe("folding a team", () => {
 
 describe("which tabs fold away", () => {
   const folded = toggleFolded(noFoldedTeams, "p/s", "lead")
-  const team = { lead: "lead" }
 
   it("hides a folded lead's teammates, never the lead", () => {
-    expect(foldsAway(folded, "p/s", team, "worker", "other")).toBe(true)
-    expect(foldsAway(folded, "p/s", team, "lead", "other")).toBe(false)
+    expect(foldsAway(folded, "p/s", ["lead"], false)).toBe(true)
+    expect(foldsAway(folded, "p/s", [], false)).toBe(false)
   })
 
-  it("shows the teammate the person is on, in its place", () => {
-    expect(foldsAway(folded, "p/s", team, "worker", "worker")).toBe(false)
+  it("hides the teams its teammates lead too, at any depth", () => {
+    expect(foldsAway(folded, "p/s", ["sub", "lead"], false)).toBe(true)
+    const inner = toggleFolded(noFoldedTeams, "p/s", "sub")
+    expect(foldsAway(inner, "p/s", ["sub", "lead"], false)).toBe(true)
+    expect(foldsAway(inner, "p/s", ["lead"], false)).toBe(false)
+  })
+
+  it("shows the one the person is on, or is below, in its place", () => {
+    expect(foldsAway(folded, "p/s", ["lead"], true)).toBe(false)
   })
 
   it("leaves a team that isn't folded, and a terminal in no team, alone", () => {
-    expect(foldsAway(noFoldedTeams, "p/s", team, "worker", "other")).toBe(false)
-    expect(foldsAway(folded, "p/other", team, "worker", "other")).toBe(false)
-    expect(foldsAway(folded, "p/s", undefined, "worker", "other")).toBe(false)
+    expect(foldsAway(noFoldedTeams, "p/s", ["lead"], false)).toBe(false)
+    expect(foldsAway(folded, "p/other", ["lead"], false)).toBe(false)
+    expect(foldsAway(folded, "p/s", [], false)).toBe(false)
   })
 })
 

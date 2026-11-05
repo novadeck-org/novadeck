@@ -131,6 +131,77 @@ export const teamOf = (workspace: Workspace, terminalId: string): Team | undefin
   return lead === undefined ? undefined : { lead, workers: workers.get(lead)! }
 }
 
+// The leads above a terminal, nearest first: its lead, its lead's lead, and so on up to a
+// terminal no one leads. Agents can lead agents that lead others (nested teams); a loop of
+// leads, which nothing forbids, ends where it would come round again.
+export const leadChain = (workspace: Workspace, terminalId: string): readonly string[] => {
+  const { leads } = teamsOf(rosterOf(workspace))
+  const chain: string[] = []
+  for (let lead = leads.get(terminalId); lead !== undefined; lead = leads.get(lead)) {
+    if (lead === terminalId || chain.includes(lead)) break
+    chain.push(lead)
+  }
+  return chain
+}
+
+// Every terminal a lead leads, and those they lead in turn, each once.
+export const descendantsOf = (workspace: Workspace, lead: string): readonly string[] => {
+  const { workers } = teamsOf(rosterOf(workspace))
+  const found: string[] = []
+  const walk = (id: string) => {
+    for (const worker of workers.get(id) ?? []) {
+      if (worker === lead || found.includes(worker)) continue
+      found.push(worker)
+      walk(worker)
+    }
+  }
+  walk(lead)
+  return found
+}
+
+// What lights for a selected terminal in the sidebar: every team it leads or works in, whole,
+// and above them the way up through each lead to the top, one lead and the member below it
+// at a time (`path`), its other members left at rest.
+export type LitTeams = {
+  readonly full: readonly Team[]
+  readonly path: readonly { readonly lead: string; readonly child: string }[]
+}
+
+export const litTeams = (workspace: Workspace, selected: string): LitTeams => {
+  const { workers, leads } = teamsOf(rosterOf(workspace))
+  const full: Team[] = []
+  if (workers.has(selected)) full.push({ lead: selected, workers: workers.get(selected)! })
+  const own = leads.get(selected)
+  if (own !== undefined) full.push({ lead: own, workers: workers.get(own)! })
+  const chain = leadChain(workspace, selected)
+  const path = chain.slice(1).map((lead, index) => ({ lead, child: chain[index]! }))
+  return { full, path }
+}
+
+// What a terminal is in what lights for the selected terminal (litTeams): a lead (of a team
+// lit whole, or one on the way up), a worker of a team lit whole, or nothing.
+export const chainRole = (
+  workspace: Workspace,
+  terminalId: string,
+): "lead" | "worker" | undefined => {
+  const { full, path } = litTeams(workspace, activeSession(workspace)!.state.selected)
+  if (
+    full.some((team) => team.lead === terminalId) ||
+    path.some((step) => step.lead === terminalId)
+  )
+    return "lead"
+  return full.some((team) => team.workers.includes(terminalId)) ? "worker" : undefined
+}
+
+// Whether two lit sets are the same.
+export const sameLitTeams = (a: LitTeams, b: LitTeams): boolean =>
+  a === b ||
+  (sameTeams(a.full, b.full) &&
+    a.path.length === b.path.length &&
+    a.path.every(
+      (step, index) => step.lead === b.path[index]!.lead && step.child === b.path[index]!.child,
+    ))
+
 // Every team of the current session's running leads, as Grid and Canvas draw them whatever
 // is selected: in the order each lead's first worker appears in the roster, which Grid
 // routes them in, the earlier ones taking the clearer gutters.

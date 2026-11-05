@@ -19,7 +19,8 @@
    "worker" (its place in the selected terminal's team, which the rail's wire joins:
    TeamWire.tsx), data-team-fold="away" | "preview" | "unfolding" | "shown" (a teammate's
    tab in its lead's fold: folded out of the list, dimmed while a click beside its lead would
-   fold it, unrolling as its team comes back, or shown; app/team-fold.ts). Parts: `.terminal-glyph`,
+   fold it, unrolling as its team comes back, or shown; app/team-fold.ts), data-team-level="1" |
+   "2" | "3" (how many leads stand above it, up to three, nested teams: it steps in). Parts: `.terminal-glyph`,
    `.terminal-tab-process`, `.terminal-tab-need` (`!` or `?` right after the program, its
    data-need the same as the tab's), `.terminal-tab-starting`, `.terminal-tab-age` (how long
    ago a done tab's agent finished, or when a paused one's usage limit resets, after its
@@ -76,6 +77,8 @@
    --tab-empty-fg (muted): the note in an empty list.
    --tab-fold-preview-opacity (0.4): a teammate's tab while a click beside its lead would
    fold it away.
+   --tab-team-step (6px): how far a tab steps in per lead above it; the wire's lanes are as
+   wide (TeamWire.tsx).
    --tab-team-bg (the strong colour at 6% over the tab): the selected terminal's
    teammates. --tab-team-hover-bg (the strong colour at 10% over the hover ground): the
    same under the pointer. --tab-team-handle-fg (strong): their handles, and the lead's
@@ -520,6 +523,18 @@
     translate: 0 -10px;
   }
 }
+/* Nested teams: a tab steps in a lane's width (TeamWire.tsx) for each lead above it, up to
+   three, so each level's wire runs right beside its tabs. A lead steps in only as someone's
+   teammate. Subtle on purpose: enough to see the levels, little of the sidebar's width. */
+.terminal-tab[data-team-level="1"] {
+  margin-left: var(--tab-team-step, 6px);
+}
+.terminal-tab[data-team-level="2"] {
+  margin-left: calc(2 * var(--tab-team-step, 6px));
+}
+.terminal-tab[data-team-level="3"] {
+  margin-left: calc(3 * var(--tab-team-step, 6px));
+}
 /* A folded lead's teammates, under its line: a row each, as a tab's subagent rows are, so the
    tab grows to hold the team it folded in. Each row has its branch, the teammate's glyph as
    its own tab draws it (in the same colours) and its name, then what it needs of the person,
@@ -553,6 +568,10 @@
 .team-fold-row:hover,
 .team-fold-row[data-selected] {
   color: var(--tab-glyph-fg, var(--color-ink));
+}
+/* A teammate that leads its own team: how many it folds away with it. */
+.team-fold-count {
+  color: var(--tab-subagent-fg, var(--color-muted));
 }
 .team-fold-mark {
   display: inline-block;

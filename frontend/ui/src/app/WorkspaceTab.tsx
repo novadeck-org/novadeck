@@ -1,4 +1,4 @@
-import { teamRole, teamText } from "@novadeck/core/derivations"
+import { chainRole, teamText } from "@novadeck/core/derivations"
 import { isWindow } from "@novadeck/core/roster"
 import { activeProject } from "@novadeck/core/state"
 import type { Tile } from "@novadeck/core/types"
@@ -18,7 +18,7 @@ import { useDockTarget } from "./dock-target"
 import { FoldedTeamRows } from "./FoldedTeamRows"
 import { useReleaseLead } from "./release-lead"
 import { currentContext, currentState, currentTarget, sameTarget, shallowEqual } from "./selectors"
-import { useFoldTeam, useTabFold } from "./team-fold"
+import { useFoldTeam, useTabFold, useTeamLevel } from "./team-fold"
 import { useTerminalBar } from "./terminal-bar"
 import { useTerminalMarks } from "./useTerminalMarks"
 
@@ -37,8 +37,9 @@ export const WorkspaceTab = memo(
       }
     }, shallowEqual)
     const target = useWorkspaceState(currentTarget, sameTarget)
-    // Its place in the selected terminal's team, which the tab and the rail's wire show.
-    const team = useWorkspaceState((workspace) => teamRole(workspace, id))
+    // Its place in what lights for the selected terminal (its teams, and the leads above), which
+    // the tab and the rail's wire show.
+    const team = useWorkspaceState((workspace) => chainRole(workspace, id))
     // Its team in words, which assistive technology hears as the wire is only drawn.
     const teamWords = useWorkspaceState((workspace) => teamText(workspace, id))
     const rename = useUiState(
@@ -84,6 +85,7 @@ export const WorkspaceTab = memo(
     // Folding a lead's teammates out of the list: how this tab stands in a fold, and on a
     // lead, its menu's item and, while folded, its teammates' rows.
     const fold = useTabFold(id)
+    const level = useTeamLevel(id)
     const foldTeam = useFoldTeam(terminal)
     return (
       <TerminalTab
@@ -115,6 +117,7 @@ export const WorkspaceTab = memo(
         askFeedback={askFeedback}
         releaseLead={releaseLead}
         fold={fold}
+        level={level}
         foldTeam={foldTeam}
         foldedRows={foldTeam?.folded ? <FoldedTeamRows lead={id} /> : undefined}
         folder={folder}
