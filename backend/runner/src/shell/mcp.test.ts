@@ -508,10 +508,10 @@ describe("Novadeck's MCP server in a Novadeck terminal", () => {
     ])
     const text = (asked!.result as { content: { text: string }[] }).content[0]!.text
     expect(text).toContain(
-      "Ask a1 is in the user's Inbox, held back while they look at this terminal",
+      "Ask a1 is in the user's Inbox. While they look at this terminal it waits there unseen until they look away",
     )
     expect(text).toContain(
-      "your reply is the only place they see it, so put the full question in it too",
+      "so put the full question in your reply too. Their answer arrives later as a message",
     )
   })
 

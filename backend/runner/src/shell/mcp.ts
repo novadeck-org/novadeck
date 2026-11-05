@@ -1176,7 +1176,7 @@ const ask: Tool<{ readonly id: string; readonly withdrawn?: boolean }> = {
   said: (answer) =>
     answer.withdrawn
       ? `Withdrew ask ${answer.id} from the Inbox.`
-      : `Ask ${answer.id} is in the user's Inbox, held back while they look at this terminal: there your reply is the only place they see it, so put the full question in it too. Their answer arrives later as a message; keep working on what doesn't depend on it, and end your turn once nothing else is left.`,
+      : `Ask ${answer.id} is in the user's Inbox. While they look at this terminal it waits there unseen until they look away, so put the full question in your reply too. Their answer arrives later as a message; keep working on what doesn't depend on it, and end your turn once nothing else is left.`,
   failed: "Novadeck couldn't save the ask.",
 }
 const tell: Tool<{ readonly id: string }> = {
