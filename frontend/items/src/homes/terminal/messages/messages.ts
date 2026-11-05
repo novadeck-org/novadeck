@@ -123,7 +123,6 @@ export const followMessages = (workspace: WorkspaceStore, messages: Messages): (
   >()
   const note = (state: MessagesState): void => {
     const actions: WorkspaceAction[] = []
-    for (const id of known.keys()) if (!(id in state.terminals)) known.delete(id)
     for (const [id, threads] of Object.entries(state.terminals)) {
       const before = known.get(id)
       const ids = before?.threads === threads ? before.ids : messageIds(threads)
