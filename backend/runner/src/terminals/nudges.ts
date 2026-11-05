@@ -8,7 +8,7 @@ import { due, noTroubles, pageNotice, spend, type PageEntry, type Troubles } fro
  * reports one; the work drifting from where it was at the last `describe` (its plan's
  * title, the folder it writes in most, or its branch); as a backstop, `backstopPrompts` of
  * the person's prompts since the last `describe`; and every prompt while the terminal has
- * no summary at all (`unsummarized`), since an agent whose first prompt gave it no work yet
+ * no summary or no title of its own (`unsummarized`), since an agent whose first prompt gave it no work yet
  * puts the first nudge off, and the terminal has no title of its own until it describes.
  */
 export type Trigger = "session" | "compaction" | "drift" | "prompts" | "unsummarized"
@@ -212,7 +212,7 @@ export const atTurnStart = (
     readonly person: boolean
     readonly inTime: boolean
     readonly facts?: Facts | undefined
-    /** Whether the terminal has no summary on record. */
+    /** Whether the terminal has no summary, or no title of its own, on record. */
     readonly unsummarized?: boolean
     readonly fits?: Fits
     readonly fitsAlone?: Fits
@@ -238,7 +238,10 @@ export const atTurnStart = (
  * numbers, details). Both name the subject at a high level: the title is what Novadeck
  * names the terminal with when nothing else has, and murmur titles it from the summary.
  */
-export const nudgeText = (current: { readonly summary: string | null }) =>
+export const nudgeText = (current: {
+  readonly summary: string | null
+  readonly title: string | null
+}) =>
   current.summary === null
     ? "Novadeck: automatic notice, not from the user: this terminal has no summary yet. " +
       "Once you've been given work, any task, investigation, review, design discussion or " +
@@ -249,12 +252,21 @@ export const nudgeText = (current: { readonly summary: string | null }) =>
       "read the summary in their agents listing. Until then, such as with only a greeting " +
       "or a quick question you answer at once, let this notice be and make up no title or " +
       "summary to quiet it: it comes with each prompt until you describe."
-    : `Novadeck: automatic notice, not from the user: this terminal's summary is ` +
-      `${JSON.stringify(shorten(current.summary, 200))}; ` +
-      "if the work here is now about something else, or that holds status, PR or issue " +
-      "numbers, or details, update it with Novadeck's describe tool, a title and a summary, " +
-      "each one short line on its subject. Progress alone is no reason to update it; " +
-      "otherwise this notice can be ignored."
+    : current.title === null
+      ? // A summary kept from before agents gave titles: the title is all that is missing.
+        `Novadeck: automatic notice, not from the user: this terminal's summary is ` +
+        `${JSON.stringify(shorten(current.summary, 200))}, but it has no title yet. ` +
+        "Call Novadeck's describe tool now, before you go on, with a title and a summary, each " +
+        "one short line on what the work here is about, at a high level: its subject, with no " +
+        "status, PR or issue numbers, or details. Novadeck names this terminal with the title " +
+        "when nothing else has. It comes with each prompt until you describe."
+      : `Novadeck: automatic notice, not from the user: this terminal's title is ` +
+        `${JSON.stringify(shorten(current.title, 80))} and its summary is ` +
+        `${JSON.stringify(shorten(current.summary, 200))}; ` +
+        "if the work here is now about something else, or that holds status, PR or issue " +
+        "numbers, or details, update them with Novadeck's describe tool, a title and a " +
+        "summary, each one short line on its subject. Progress alone is no reason to update " +
+        "them; otherwise this notice can be ignored."
 
 /**
  * What a session is told once of the bar beside its terminal (see docs/agent-workspace.md,
@@ -320,7 +332,7 @@ export const inboxNotice =
  */
 export const noticesAt = (
   took: Pick<Taken, "companion" | "summarize" | "pages">,
-  current: { readonly summary: string | null },
+  current: { readonly summary: string | null; readonly title: string | null },
 ): string =>
   [
     ...(took.companion ? [companionNotice, inboxNotice] : []),

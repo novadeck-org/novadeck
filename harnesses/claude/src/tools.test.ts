@@ -109,6 +109,14 @@ suite("what a Claude Code tool call was", () => {
       "Described this terminal",
       "Cart rounding",
     ],
+    // Its old name, in sessions recorded before it, keeps its label.
+    [
+      "summarize",
+      { summary: "Fixing the cart rounding" },
+      "agent",
+      "Summarized this terminal",
+      "Fixing the cart rounding",
+    ],
   ])("labels Novadeck's %s", (tool, input, kind, title, detail) => {
     expect(run(`mcp__plugin_novadeck_novadeck__${tool}`, input)).toEqual({ kind, title, detail })
   })

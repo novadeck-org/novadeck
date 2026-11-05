@@ -196,11 +196,12 @@ export const ownTitleChars = 80
  */
 export const titleRefusal = (title: string): string | undefined => {
   if (!title) return "The title is empty: name the work here in a few words."
+  // Its length first: a plain title over the person's limit is too long, not malformed.
+  const chars = [...title].length
+  if (chars > ownTitleChars) return `The title is ${chars} characters; keep it to ${ownTitleChars}.`
   if (!terminalTitle.safeParse(title).success)
     return "The title must be one line of plain text, with no control or direction marks."
   if (!/[\p{L}\p{N}]/u.test(title))
     return "The title needs words, not only symbols or invisible characters."
-  const chars = [...title].length
-  if (chars > ownTitleChars) return `The title is ${chars} characters; keep it to ${ownTitleChars}.`
   return undefined
 }

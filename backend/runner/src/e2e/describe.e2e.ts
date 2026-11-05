@@ -19,6 +19,7 @@ for (const setup of setups) {
 
     it("titles the terminal with the title its agent gave", async ({ e2e: run }) => {
       let answered: string | undefined
+      let listed: string | undefined
       run.model.use(
         own((call) => {
           const describeIt = tool(call, "describe")
@@ -31,6 +32,16 @@ for (const setup of setups) {
           if (!text?.includes("Described this terminal")) return undefined
           answered = text
           return { text: "Described." }
+        }),
+        // A second terminal lists its peers, where the summary shows.
+        own((call) => {
+          const agents = tool(call, "agents")
+          if (agents && asked(call, "List the team"))
+            return { calls: [{ name: agents, input: {} }] }
+          const text = result(call)
+          if (!text?.includes("You are @")) return undefined
+          listed = text
+          return { text: "Listed." }
         }),
       )
       const t1 = await start(run, setup)
@@ -46,6 +57,12 @@ for (const setup of setups) {
         title,
         titleSource: { kind: "agent", by: t1.summary().handle },
       })
+
+      const t2 = await start(run, setup)
+      await t2.submit("List the team")
+      await t2.until("Listed.")
+      expect(listed).toContain(`title: ${title} (set by its own agent, not the user)`)
+      expect(listed).toContain(`described by its agent: ${summary}`)
     })
   })
 }

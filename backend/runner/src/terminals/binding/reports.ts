@@ -454,14 +454,14 @@ export class Reports {
       leaseId === null && (record.nudges.baseline || record.nudges.reseed) && inTime(driftReadMs)
         ? await this.host.peers().facts(peerOf(record))
         : undefined
-    const current = { summary: record.naming.summary }
+    const current = { summary: record.naming.summary, title: record.naming.own?.title ?? null }
     const notices = (took: Parameters<typeof noticesAt>[0]) => noticesAt(took, current)
     const taken = atTurnStart(record.nudges, {
       person,
       // A nudge that may miss the hook's deadline is never spent: its trigger waits.
       inTime: inTime(leaseMargin),
       facts,
-      unsummarized: current.summary === null,
+      unsummarized: current.summary === null || current.title === null,
       // What the hook may not print beside what the answer says waits for the next turn.
       fits: (took) => byteLength(adding(notices(took))) <= maxDeliveryBytes,
       fitsAlone: (took) => byteLength(messaging.prompt(notices(took))) <= maxDeliveryBytes,

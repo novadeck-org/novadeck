@@ -172,6 +172,9 @@ export const novadeckTool = (tool: string, fields: Fields | undefined): ToolRun 
       return { kind: "agent", title: "Drafted feedback", detail: text("kind") }
     case "describe":
       return { kind: "agent", title: "Described this terminal", detail: text("title") }
+    // Its old name, for sessions recorded before `describe`: they keep their label.
+    case "summarize":
+      return { kind: "agent", title: "Summarized this terminal", detail: text("summary") }
     default:
       return undefined
   }

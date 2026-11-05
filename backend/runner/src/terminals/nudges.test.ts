@@ -234,7 +234,7 @@ describe("a prompt's nudge", () => {
 
 describe("a nudge", () => {
   it("asks for a summary while there is none, as one line of Novadeck's notice", () => {
-    const text = nudgeText({ summary: null })
+    const text = nudgeText({ summary: null, title: null })
     expect(text).toMatch(/^Novadeck: automatic notice, not from the user: this terminal has no/)
     expect(text).toContain("describe tool")
     expect(text).not.toContain("\n")
@@ -242,7 +242,7 @@ describe("a nudge", () => {
   })
 
   it("tells a session of the bar and the Inbox when it begins or forgot, then only of the description", () => {
-    const current = { summary: null }
+    const current = { summary: null, title: null }
     for (const trigger of ["session", "compaction"] as const) {
       const taken = quietly(raise(noNudges, trigger))
       expect(taken).toMatchObject({ nudge: true, companion: true, summarize: true })
@@ -298,7 +298,7 @@ describe("a nudge", () => {
   })
 
   it("still tells of the bar after a describe came before the first quiet prompt", () => {
-    const current = { summary: "Builds the API." }
+    const current = { summary: "Builds the API.", title: "API" }
     // The session's first prompt carried a message, then the agent afterSummary itself.
     const busy = take(sessionBegan(noNudges, 0), false)
     const after = afterSummary(busy.nudges, facts)
@@ -310,18 +310,27 @@ describe("a nudge", () => {
   })
 
   it("shows the current description later, to update only for another subject or what a summary leaves out", () => {
-    const text = nudgeText({ summary: "Users API.\nPaging done, #12 in CI." })
+    const text = nudgeText({ summary: "Users API.\nPaging done, #12 in CI.", title: "Users API" })
     expect(text).toBe(
-      "Novadeck: automatic notice, not from the user: this terminal's summary is " +
-        '"Users API. Paging done, #12 in CI."; if the work here is now about something ' +
-        "else, or that holds status, PR or issue numbers, or details, update it with " +
-        "Novadeck's describe tool, a title and a summary, each one short line on its subject. " +
-        "Progress alone is no reason to update it; otherwise this notice can be ignored.",
+      "Novadeck: automatic notice, not from the user: this terminal's title is " +
+        '"Users API" and its summary is "Users API. Paging done, #12 in CI."; if the work ' +
+        "here is now about something else, or that holds status, PR or issue numbers, or " +
+        "details, update them with Novadeck's describe tool, a title and a summary, each one " +
+        "short line on its subject. Progress alone is no reason to update them; otherwise " +
+        "this notice can be ignored.",
     )
   })
 
+  it("asks a terminal with a summary and no title for the title, as it comes with each prompt", () => {
+    const text = nudgeText({ summary: "Users API.", title: null })
+    expect(text).toContain('summary is "Users API.", but it has no title yet')
+    expect(text).toContain("Call Novadeck's describe tool now")
+    expect(text).toContain("until you describe")
+    expect(text).not.toContain("can be ignored")
+  })
+
   it("asks for the first summary as one short line on the work's subject, not its status", () => {
-    const text = nudgeText({ summary: null })
+    const text = nudgeText({ summary: null, title: null })
     expect(text).toMatch(
       /^Novadeck: automatic notice, not from the user: this terminal has no summary yet\./,
     )
@@ -330,7 +339,7 @@ describe("a nudge", () => {
   })
 
   it("asks for a title and a summary at once, before the agent goes on with its work", () => {
-    const text = nudgeText({ summary: null })
+    const text = nudgeText({ summary: null, title: null })
     expect(text).toContain(
       "question you'll dig into, call Novadeck's describe tool now, before you go on with it, with a title and a summary",
     )
@@ -339,7 +348,7 @@ describe("a nudge", () => {
   })
 
   it("lets an agent given no work yet let the first-summary ask be, with no placeholder to quiet it", () => {
-    const text = nudgeText({ summary: null })
+    const text = nudgeText({ summary: null, title: null })
     expect(text).toContain(
       "Once you've been given work, any task, investigation, review, design discussion or " +
         "question you'll dig into, call",

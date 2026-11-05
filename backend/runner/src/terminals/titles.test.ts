@@ -158,6 +158,8 @@ describe("an agent's title", () => {
     expect(titleRefusal("")).toMatch(/empty/)
     expect(titleRefusal("---")).toMatch(/needs words/)
     expect(titleRefusal("x".repeat(81))).toMatch(/81 characters/)
+    // Over the person's limit too, it is too long, not malformed.
+    expect(titleRefusal("x".repeat(250))).toMatch(/250 characters/)
   })
 
   it("refuses what a person's title would: more than one line, control and direction marks", () => {

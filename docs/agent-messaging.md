@@ -280,10 +280,11 @@ The terminal's **title** is the runner's too: it keeps what names the terminal i
 record, every client shows the title from there, and `agents()` reads it from the same
 record. The record says who the title is from: the person (renaming, or creating it), murmur (the
 local model that describes terminals, see [Naming](#naming)), an agent by its terminal's
-handle (through `open_terminal`'s or `open_agent`'s `title`), or the default, which is the program the
+handle (through `open_terminal`'s or `open_agent`'s `title`, or, with the terminal's own handle,
+the title its own agent gave through `describe`), or the default, which is the program the
 terminal was opened to run (`claude`), else "Terminal" and never comes from its handle;
-`agents()` shows an agent's title as that agent's ("set by @fox, not the user"), never as
-the person's. Terminals are kept until closed, with no
+`agents()` shows an agent's title as that agent's ("set by @fox, not the user", or "set by its own
+agent, not the user" for one a terminal's own agent gave), never as the person's. Terminals are kept until closed, with no
 pruning, so a close that never reached the runner brings the terminal back.
 
 **Recipients** are the terminals of the caller's own project and Novadeck session; the
@@ -415,7 +416,8 @@ like them, only inside Novadeck's terminals.
   Each block:
   1. its handle;
   2. its title, from the runner's terminal record, with "(set by @fox, not the user)" when
-     an agent gave it (an agent that opened the terminal), and "(written by Novadeck's local model, not the user)" for murmur's; then
+     an agent gave it (an agent that opened the terminal), "(set by its own agent, not the user)" when
+     the terminal's own agent did, and "(written by Novadeck's local model, not the user)" for murmur's; then
      "described by its agent:" and the summary its own agent gave through `describe`,
      when it did;
   3. its agent (Claude Code, Codex or Antigravity);
@@ -2136,7 +2138,8 @@ again on each call.
   injection lasts one model call there, so `ask`'s description is what lasts); it comes
   back after a compaction where the harness reports one.
 - **The description.** Due when a trigger fired since the last `describe`: while there is
-  no summary it asks for a title and a summary, each one short line on the work's subject,
+  no summary, or no title of the agent's own (a terminal summarized before agents gave
+  titles, whose notice says it has "no title yet" and shows its summary), it asks for a title and a summary, each one short line on the work's subject,
   at once, before the agent goes on with the work it was given, as the terminal has no title
   of its agent's until then (left to choose when, agents put it off for minutes); after, it
   shows the current summary and asks for an update of both only if the work moved to another subject or the summary
@@ -2481,8 +2484,8 @@ the box.
 Naming adds to it: every terminal summary says who its title is from
 (`titleSource`), `terminals.resetTitle` hands a title back to Novadeck, and
 `terminals.create` takes the `requestId` of the agent's request it answers. A tab's
-tooltip says who its title is from: the person, murmur, the agent in `@fox`, or the
-default. When it is the person's, the tab's menu has **Reset to automatic**
+tooltip says who its title is from: the person, murmur, the agent in `@fox` (the opener, or the terminal's own agent by its own
+handle), or the default. When it is the person's, the tab's menu has **Reset to automatic**
 (`commands.resetTitle`, which calls off any rename of that terminal in progress), which
 calls `terminals.resetTitle`; the UI forgets the person's title too, so it never sends it
 again.
@@ -2507,7 +2510,7 @@ again.
    `backend/runner/messages.ts`, the tab's mark in `frontend/items/src/homes/terminal/TabKinds.tsx`, the view in
    `frontend/items/src/homes/terminal/messages/MessagesView.tsx`, and the title's source and reset on the tab in
    `terminals/TerminalTab.tsx`.
-4. **Naming:** the title's layers (the person, murmur, the opener, the default) and
+4. **Naming:** the title's layers (the person, the opener, murmur, the agent's own, the default) and
    agents' own `describe` (a title and a summary), which replaced the first-prompt title. Built:
    the layers in `backend/runner/src/terminals/titles.ts`, the description tool in
    `terminals/describe-request.ts`, its nudges in `terminals/nudges.ts`, murmur's triggers and

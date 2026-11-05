@@ -591,6 +591,82 @@ describe.skipIf(process.platform === "win32" || !existsSync(bash))(
       expect(second.get(terminal.id).titleSource).toEqual({ kind: "murmur" })
     })
 
+    it("asks for a title at each prompt of a terminal summarized before agents gave titles, until it has one", async ({
+      shell,
+    }) => {
+      const bin = standIn(shell.home)
+      const env = { HOME: shell.home, PS1: "$ ", PATH: `${bin}:${process.env.PATH}` }
+      const first = shell.manager({ env })
+      const terminal = await create(first, shell)
+      await first.shutdown()
+      // What a workspace of version 9 holds: a summary, and no title of the agent's.
+      const saved = shell.store.terminal(terminal.id)!
+      shell.store.saveTerminal({
+        ...saved,
+        naming: { ...saved.naming, summary: "Fixes the login bug.", own: null },
+      })
+
+      const manager = shell.manager({ env })
+      await create(manager, shell, { id: terminal.id, restore: true })
+      const { start, step } = driver(shell, manager)
+      await start(terminal.id, "claude", "s-claude")
+      const prompt = async (text: string) =>
+        context(await step(terminal.id, { hook: "UserPromptSubmit", payload: { prompt: text } }))
+      expect(await prompt("Go on")).toMatch(
+        /summary is "Fixes the login bug\.", but it has no title yet.*describe tool/,
+      )
+      await step(terminal.id, { hook: "Stop", payload: {} })
+      expect(await prompt("And then")).toContain("but it has no title yet")
+      await step(terminal.id, { hook: "Stop", payload: {} })
+      await step(terminal.id, {
+        call: "describe",
+        request: { title: "Login bug", summary: "Fixes the login bug." },
+      })
+      // Titled, it asks nothing more until the work moves.
+      expect(await prompt("Once more")).not.toContain("no title yet")
+      expect(manager.get(terminal.id)).toMatchObject({
+        title: "Login bug",
+        titleSource: { kind: "agent", by: manager.get(terminal.id).handle },
+      })
+    })
+
+    it("keeps the title a lead gave a teammate over the one the teammate gives itself", async ({
+      shell,
+    }) => {
+      const bin = standIn(shell.home)
+      const env = { HOME: shell.home, PS1: "$ ", PATH: `${bin}:${process.env.PATH}` }
+      const first = shell.manager({ env })
+      const terminal = await create(first, shell)
+      await first.shutdown()
+      // Opened by @moth, which named it.
+      const saved = shell.store.terminal(terminal.id)!
+      shell.store.saveTerminal({
+        ...saved,
+        naming: { ...saved.naming, opener: { title: "Checkout review" } },
+        openedBy: "moth",
+      })
+
+      const manager = shell.manager({ env })
+      await create(manager, shell, { id: terminal.id, restore: true })
+      const { start, step } = driver(shell, manager)
+      await start(terminal.id, "claude", "s-claude")
+      await expect(
+        step(terminal.id, {
+          call: "describe",
+          request: { title: "Login bug", summary: "Fixes the login bug." },
+        }),
+      ).resolves.toContain("Described this terminal")
+      // The teammate's own title is kept, beneath the lead's.
+      expect(manager.get(terminal.id)).toMatchObject({
+        title: "Checkout review",
+        titleSource: { kind: "agent", by: "moth" },
+      })
+      expect(shell.store.terminalIdentity(terminal.id)?.naming).toMatchObject({
+        opener: { title: "Checkout review" },
+        own: { title: "Login bug" },
+      })
+    })
+
     it("titles a terminal again only when its agent's new session describes", async ({ shell }) => {
       const bin = standIn(shell.home)
       const env = { HOME: shell.home, PS1: "$ ", PATH: `${bin}:${process.env.PATH}` }

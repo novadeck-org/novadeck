@@ -101,7 +101,7 @@ describe("page troubles among a terminal's nudges", () => {
   const held = { ...noNudges, troubles: troubled(noTroubles, page, [error("boom")]) }
 
   it("are told once at a quiet prompt, after the other notices", () => {
-    const current = { summary: null }
+    const current = { summary: null, title: null }
     const bar = sessionBegan(held, 0)
     expect(bar.troubles).toBe(noTroubles)
     const both = take({ ...fired(noNudges, "compaction"), troubles: held.troubles }, true)
@@ -216,7 +216,7 @@ describe("the size of page notices", () => {
       held = troubled(held, { ...page, itemId: `i-${index}`, name: "N".repeat(80) }, heavy(index))
     return { ...noNudges, troubles: held, pending: ["session"], companion: true }
   }
-  const current = { summary: "s".repeat(200) }
+  const current = { summary: "s".repeat(200), title: "t" }
   // What a hook prints, as the delivery budget measures it.
   const printed = (took: Parameters<typeof noticesAt>[0]) =>
     byteLength(harnesses.claude.messaging.prompt(noticesAt(took, current)))

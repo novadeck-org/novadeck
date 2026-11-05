@@ -105,6 +105,14 @@ suite("what an Antigravity tool call was", () => {
       "Described this terminal",
       "Cart rounding",
     ],
+    // Its old name, in sessions recorded before it, keeps its label.
+    [
+      "summarize",
+      { summary: "Fixing the cart rounding" },
+      "agent",
+      "Summarized this terminal",
+      "Fixing the cart rounding",
+    ],
   ])("labels Novadeck's %s, eager or lazy", (tool, input, kind, title, detail) => {
     const expected = { kind, title, detail }
     expect(run(`mcp_novadeck_novadeck_${tool}`, input)).toEqual(expected)
