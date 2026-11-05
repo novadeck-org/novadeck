@@ -1,6 +1,6 @@
 import { transcriptLimits, type ToolRun, type TranscriptItem } from "@novadeck/protocol"
 
-import { ref } from "./decode.js"
+import { cutText, ref } from "./decode.js"
 import type { TranscriptEntry } from "./harness.js"
 
 /** When a record was written, from its ISO timestamp. */
@@ -60,8 +60,8 @@ export function entry(
   text: string,
   fields: EntryFields & { readonly describe?: Describe },
 ): TranscriptEntry {
-  const cut = text.slice(0, transcriptLimits.text)
-  const tool = typeof fields.tool === "string" ? fields.tool.slice(0, transcriptLimits.name) : null
+  const cut = cutText(text, transcriptLimits.text)
+  const tool = typeof fields.tool === "string" ? cutText(fields.tool, transcriptLimits.name) : null
   return {
     at: fields.at,
     role,
@@ -72,7 +72,7 @@ export function entry(
     call: typeof fields.call === "string" && fields.call ? ref("call", fields.call) : null,
     author:
       typeof fields.author === "string" && fields.author
-        ? fields.author.slice(0, transcriptLimits.name)
+        ? cutText(fields.author, transcriptLimits.name)
         : null,
     run: kind === "tool-call" ? (fields.describe?.(tool ?? "tool", cut) ?? null) : null,
     interrupted: role === "user" && kind === "text" && fields.interrupted === true,

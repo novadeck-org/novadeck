@@ -394,9 +394,12 @@ export type UserEntry = {
   readonly id: number | null
 }
 
-/** What `profile`'s hook prints for `event` with nothing to deliver. */
+/**
+ * What `profile`'s hook prints for `event` with nothing to deliver: its own answer, never
+ * one an object inherits (an event named `constructor` gets the `*` answer).
+ */
 export const silentFor = (profile: MessagingProfile, event: string): string =>
-  profile.silent[event] ?? profile.silent["*"]
+  (Object.hasOwn(profile.silent, event) ? profile.silent[event] : undefined) ?? profile.silent["*"]
 
 /** How an agent starts a program of Novadeck's: a file, by its absolute path, and arguments. */
 export type Start = { readonly command: string; readonly args?: readonly string[] }
