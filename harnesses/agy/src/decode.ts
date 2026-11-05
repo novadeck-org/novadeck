@@ -4,7 +4,7 @@ import { extname, isAbsolute, relative } from "node:path"
 import { absolute, errorText, shortName, sessionId, text } from "@novadeck/harness-core/decode"
 import type { BackgroundJob, EventBase, HarnessEvent } from "@novadeck/harness-core/events"
 import type { Report } from "@novadeck/harness-core/report"
-import { telemetryLimits } from "@novadeck/protocol"
+import { agentLimits, telemetryLimits } from "@novadeck/protocol"
 
 import { ended, forget, pending, remember, running } from "./call-memory.js"
 import { statusLine } from "./status-line.js"
@@ -226,8 +226,11 @@ const calling = (
       actor: null,
       toolName: call.name,
       kind: "question",
-      subject: first.question,
-      choices: first.options,
+      // Cut to what the protocol takes, as harness-core's `subjectOf` cuts the others'.
+      subject: first.question.slice(0, agentLimits.subject),
+      choices: first.options
+        .slice(0, agentLimits.choices)
+        .map((option) => option.slice(0, agentLimits.name)),
       input: call,
     },
   ]

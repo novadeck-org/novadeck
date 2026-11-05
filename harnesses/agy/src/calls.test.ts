@@ -1,4 +1,5 @@
 import type { Report } from "@novadeck/harness-core/report"
+import { agentDetail, agentLimits } from "@novadeck/protocol"
 import { describe, expect, it } from "vitest"
 
 import { hook } from "./report.test-support.js"
@@ -102,6 +103,31 @@ describe("an Antigravity tool call", () => {
       "attention-requested",
       "tool-called",
     ])
+  })
+
+  it("asks ask_question's question cut to what the protocol takes, as the other harnesses do", () => {
+    const asked = hook("PreToolUse", {
+      stepIdx: 4,
+      toolCall: {
+        name: "ask_question",
+        args: {
+          questions: [
+            {
+              question: "q".repeat(2000),
+              options: Array.from({ length: 20 }, (_, index) => `${index}`.repeat(300)),
+            },
+          ],
+        },
+      },
+    }).find(({ type }) => type === "attention-requested")
+    if (asked?.type !== "attention-requested") throw new Error("no request")
+    expect(asked.subject).toHaveLength(agentLimits.subject)
+    expect(asked.choices).toHaveLength(agentLimits.choices)
+    expect(asked.choices.every((choice) => choice.length <= agentLimits.name)).toBe(true)
+    // As the agent's detail carries it, which refuses anything longer.
+    const request = agentDetail.shape.requests.element.pick({ subject: true, choices: true })
+    const { subject, choices } = asked
+    expect(request.safeParse({ subject, choices }).success).toBe(true)
   })
 
   it("is not reported by its other hooks, or by a PreToolUse naming no call", () => {
