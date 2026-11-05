@@ -46,11 +46,18 @@ export const feedbackAbout = (options: {
 
 const kinds = new Set(["bug", "idea", "other"])
 
+/**
+ * The longest text a note may have, in UTF-16 units: the website refuses any request body
+ * over 16 KiB, so a longer text could never be taken. Its own limit, 2,000 characters, is
+ * counted after it trims and cleans the text, which only it decides.
+ */
+export const feedbackTextLimit = 16 * 1024
+
 /** A note when it is one the website takes: a kind or none, and text. Otherwise undefined. */
 export const feedbackNoteOf = (value: unknown): DesktopFeedbackNote | undefined => {
   if (typeof value !== "object" || value === null) return undefined
   const { kind, text } = value as Record<string, unknown>
-  if (typeof text !== "string") return undefined
+  if (typeof text !== "string" || text.length > feedbackTextLimit) return undefined
   if (kind === null) return { kind: null, text }
   return typeof kind === "string" && kinds.has(kind)
     ? { kind: kind as DesktopFeedbackNote["kind"], text }

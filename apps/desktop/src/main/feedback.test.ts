@@ -5,6 +5,7 @@ import {
   feedbackAbout,
   feedbackNoteOf,
   feedbackOrigin,
+  feedbackTextLimit,
   feedbackTimeoutMs,
   registerFeedbackIpc,
   sendFeedback,
@@ -65,6 +66,12 @@ describe("a note from the page", () => {
     "is nothing for %j",
     (value) => expect(feedbackNoteOf(value)).toBeUndefined(),
   )
+
+  it("is nothing for a text longer than any request the website takes", () => {
+    const longest = "x".repeat(feedbackTextLimit)
+    expect(feedbackNoteOf({ kind: "bug", text: longest })).toEqual({ kind: "bug", text: longest })
+    expect(feedbackNoteOf({ kind: "bug", text: `${longest}x` })).toBeUndefined()
+  })
 })
 
 describe("sending a note", () => {
