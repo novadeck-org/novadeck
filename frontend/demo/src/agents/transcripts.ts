@@ -927,7 +927,7 @@ export const showcaseTranscripts = (now: number): Readonly<Record<string, DemoTr
     outcomes: {
       "03:plan": (answer) =>
         answer.type === "choice" && answer.option === "3"
-          ? { items: [], prompt: answer.text ?? "Keep planning." }
+          ? { items: [], prompt: answer.text ?? "Keep planning.", planning: true }
           : { items: [], reply: "Approved. Starting with the shared expiry check." },
     },
   },
