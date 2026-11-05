@@ -46,6 +46,8 @@ says as a map, not a proof:
   from the reducer; confirm them in the adapter before relying on them.
 - Error lists come from the handler and the router only; deeper helpers may raise more.
 - Before you act on an absence ("nothing writes this table"), check the source.
+- An anchor printed as `file (anchor not found)` has rotted: the text it points at is gone
+  from that file. `pnpm --filter @novadeck/atlas check` lists every such anchor.
 
 The full data is `tools/atlas/src/generated/atlas.json` after `pnpm --filter @novadeck/atlas
 extract`, for `jq`; it is large, so prefer briefs.
