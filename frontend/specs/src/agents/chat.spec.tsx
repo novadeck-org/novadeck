@@ -9,6 +9,7 @@ import {
   openChatDemo,
   requestCard,
 } from "../support/chat"
+import { expectStaysTrue } from "../support/layouts"
 import {
   chooseView,
   commandInput,
@@ -197,9 +198,9 @@ describe("Reading the chat", () => {
     const chat = await openChat("Build")
     const row = chat.getByRole("button", { name: /^Edited .*total\.ts/ })
     await row.click()
-    // The workspace would send typing back to the composer a frame after a click.
-    await new Promise((resolve) => setTimeout(resolve, 100))
     await expect.element(row).toHaveFocus()
+    // The workspace would send typing back to the composer a frame after a click.
+    await expectStaysTrue(() => document.activeElement === row.element(), "focus on the row")
   })
 
   it("lets the person select text, which stays selected", async () => {
@@ -207,8 +208,11 @@ describe("Reading the chat", () => {
     const chat = await openChat("Build")
     const reply = conversation(chat).getByText("It passes now.", { exact: false })
     await reply.click({ clickCount: 3 })
-    await new Promise((resolve) => setTimeout(resolve, 100))
-    expect(window.getSelection()?.toString()).toContain("It passes now.")
+    await expect.poll(() => window.getSelection()?.toString()).toContain("It passes now.")
+    await expectStaysTrue(
+      () => window.getSelection()?.toString().includes("It passes now.") === true,
+      "the selection",
+    )
   })
 })
 
