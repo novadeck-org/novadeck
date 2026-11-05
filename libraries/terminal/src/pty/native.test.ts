@@ -209,7 +209,7 @@ describe("installed native PTY dependency", () => {
   // Diagnostic for #712, to come out once CI has shown it: how long a line of input takes to
   // reach a child by its length, on each ConPTY. Input grows with `pad`, which the child
   // ignores, while its reply stays a short marker. It reports and asserts nothing.
-  it.runIf(process.platform === "win32").for([
+  it.skipIf(process.platform !== "win32").for([
     { conpty: "system", useConptyDll: false },
     { conpty: "bundled", useConptyDll: true },
   ])(
