@@ -19,6 +19,8 @@ import type {
   TerminalStatus,
   TitleSource,
   Workspace,
+  WorkspaceProject,
+  WorkspaceSession,
 } from "@novadeck/core/types"
 import {
   maxInboxOrder,
@@ -595,6 +597,58 @@ export const runnerBackend = (
       ),
     )
 
+  // The projects and sessions this window asked the runner to create. A commit asks for each
+  // new one once; an attempt that didn't take, as one the runner refused or a stop cut off,
+  // is forgotten, and asked for again only where it is needed: by a terminal, a save or an
+  // item in it, or as the backend starts.
+  const asked = new Set<string>()
+  const attempt = (
+    known: Map<string, Promise<boolean>>,
+    id: string,
+    made: Promise<boolean>,
+  ): Promise<boolean> => {
+    asked.add(id)
+    known.set(id, made)
+    void made.then((ok) => {
+      if (!ok && known.get(id) === made) known.delete(id)
+    })
+    return made
+  }
+  // Whether the project, and the session, exist on the runner, creating them there unless
+  // they do or an attempt is under way.
+  const projectReady = (project: WorkspaceProject): Promise<boolean> =>
+    projects.get(project.id) ??
+    attempt(
+      projects,
+      project.id,
+      after(created, () =>
+        runner.projects.create({ id: project.id, name: project.name, cwd: project.directory }),
+      ),
+    )
+  const sessionReady = (project: WorkspaceProject, session: WorkspaceSession): Promise<boolean> =>
+    sessions.get(session.id) ??
+    attempt(
+      sessions,
+      session.id,
+      after(projectReady(project), () =>
+        runner.sessions.create({ id: session.id, projectId: project.id, name: session.name }),
+      ),
+    )
+  // The same by the session's id; undefined for one the workspace doesn't hold.
+  const sessionById = (id: string): Promise<boolean> | undefined => {
+    const known = sessions.get(id)
+    if (known) return known
+    const project = latest?.projects.find((each) => each.history.some((held) => held.id === id))
+    const session = project?.history.find((held) => held.id === id)
+    return project && session ? sessionReady(project, session) : undefined
+  }
+  // Waits for a terminal's session on the runner; throws when it can't be there.
+  const sessionThere = async (id: string): Promise<void> => {
+    if (await (sessionById(id) ?? created)) return
+    // Cut off by a stop, it is asked for again as the backend starts.
+    throw halted ? new Cancelled() : new Error("The runner could not create this session.")
+  }
+
   // Projects the person removed, whose terminals the runner closes as it removes them.
   const removedProjects = new Set<string>()
   // Removals on their way to the runner, which a quit waits for, as it does for saves.
@@ -854,11 +908,15 @@ export const runnerBackend = (
     if (restartingOften()) throw new CrashLoop()
   }
 
+  // Terminals whose creation a stop cut off, with what they were to launch: created again
+  // as the backend starts.
+  const cutOff = new Map<RunnerEntry, Launch | undefined>()
   // Starts the shell once its session exists; a failure shows on the terminal's tab.
-  const createTerminal = (entry: RunnerEntry): Promise<boolean> => {
+  const createTerminal = (
+    entry: RunnerEntry,
+    launch = launches.get(entry.key.terminalId),
+  ): Promise<boolean> => {
     const { terminalId, workspaceSessionId } = entry.key
-    const session = sessions.get(workspaceSessionId) ?? created
-    const launch = launches.get(terminalId)
     const started = launch
       ? {
           cwd: launch.cwd,
@@ -867,8 +925,7 @@ export const runnerBackend = (
         }
       : {}
     return track(
-      session.then(async (ok) => {
-        if (!ok) throw new Error("The runner could not create this session.")
+      sessionThere(workspaceSessionId).then(async () => {
         const summary = await untilAnswered(
           () => {
             entry.requested = true
@@ -895,7 +952,10 @@ export const runnerBackend = (
       }),
     ).catch((error: unknown) => {
       if (launch) launch.failure = error
-      if (error instanceof Cancelled) return false
+      if (error instanceof Cancelled) {
+        if (!entry.closed) cutOff.set(entry, launch)
+        return false
+      }
       if (hasCode(error, "TERMINAL_NOT_FOUND")) return closedElsewhere(entry)
       settle(entry, error instanceof CrashLoop ? crashLoop : (lostStatus(error) ?? failedToCreate))
       return false
@@ -946,7 +1006,9 @@ export const runnerBackend = (
     const agent = resumableProgram(restoredOf(entry))
     const retry: Retry = { done: ["CONFLICT"], stillWanted, cancelled: () => entry.closed }
     const resume = agent ? { resume: agent } : {}
-    const create = () => {
+    const create = async () => {
+      // Its session too, should its creation not have taken.
+      await sessionThere(workspaceSessionId)
       // A new record counts runs afresh.
       entry.floor = 0
       entry.run = undefined
@@ -1061,7 +1123,7 @@ export const runnerBackend = (
     runner: runner.companions,
     listing,
     latest: () => latest,
-    ready: (sessionId) => sessions.get(sessionId) ?? created,
+    ready: (sessionId) => sessionById(sessionId) ?? created,
     // A terminal this window created exists on the runner once its create answered.
     terminalReady: (terminalId) => entries.get(terminalId)?.ready ?? created,
     call: (operation, done) => track(untilAnswered(operation, { done })),
@@ -1180,7 +1242,7 @@ export const runnerBackend = (
   // Every changed session is sent after a quiet spell, or at once on pagehide.
   const saves = createSessionSaves({
     save: (sessionId, state, visitedAt) => runner.sessions.save({ sessionId, state, visitedAt }),
-    ready: (id) => sessions.get(id),
+    ready: sessionById,
     latest: () => latest,
     track,
     halted: () => halted,
@@ -1202,21 +1264,9 @@ export const runnerBackend = (
     initialized = true
     latest = workspace
     for (const project of workspace.projects) {
-      if (!projects.has(project.id))
-        projects.set(
-          project.id,
-          after(created, () =>
-            runner.projects.create({ id: project.id, name: project.name, cwd: project.directory }),
-          ),
-        )
+      if (!asked.has(project.id)) void projectReady(project)
       for (const session of project.history)
-        if (!sessions.has(session.id))
-          sessions.set(
-            session.id,
-            after(projects.get(project.id)!, () =>
-              runner.sessions.create({ id: session.id, projectId: project.id, name: session.name }),
-            ),
-          )
+        if (!asked.has(session.id)) void sessionReady(project, session)
     }
     // The reducer keeps the last project, so only one gone from the workspace is removed.
     const removed = actions.flatMap((action) =>
@@ -1429,6 +1479,23 @@ export const runnerBackend = (
               ],
       )
     }
+    // What a stop cut off, or the runner refused, is asked for again.
+    for (const project of latest?.projects ?? [])
+      for (const session of project.history) void sessionReady(project, session)
+    for (const [entry, launch] of cutOff) {
+      if (entry.closed) continue
+      // The agent that asked for it heard it didn't open: it goes.
+      if (launch?.requestId !== undefined) {
+        dispatch([
+          { type: "terminal/close", target: target(entry.key), terminalId: entry.key.terminalId },
+        ])
+        continue
+      }
+      entry.ready = createTerminal(entry, launch)
+      reviveSurface(entry)
+      followWhenReady(entry)
+    }
+    cutOff.clear()
     reviveOnScreen()
     boot.begin([...entries.values()].filter(onScreen).map((entry) => entry.key.terminalId))
     // What the runner keeps of shells that exited cleanly while the app was away.
