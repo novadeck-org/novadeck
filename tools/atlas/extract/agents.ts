@@ -54,6 +54,29 @@ const lineOf = (source: string | null, pattern: RegExp): number | null => {
   return index === -1 ? null : lineAt(source, index)
 }
 
+// Each limit's value, read from its `export const <name> = <number or object literal>`. One
+// that is no plain literal (it names another constant, say) is reported, and left undefined.
+export const readLimits = (
+  anchors: Anchors,
+  files: Record<string, string> = limitFiles,
+): (readonly [string, unknown])[] =>
+  Object.entries(files).map(([name, file]) => {
+    const value = new RegExp(`^export const ${name} = ([^{\\n]+|\\{[\\s\\S]*?\\n\\})`, "m")
+      .exec(anchors.read(file) ?? "")?.[1]
+      ?.replace(/\s+as const$/, "")
+    if (!value) {
+      anchors.report("mcp tools", file, `expected \`export const ${name} = \``)
+      return [name, undefined] as const
+    }
+    try {
+      return [name, new Function(`return (${value})`)() as unknown] as const
+    } catch (error) {
+      const reason = error instanceof Error ? error.message : String(error)
+      anchors.report("mcp tools", file, `could not evaluate ${name}: ${reason}`)
+      return [name, undefined] as const
+    }
+  })
+
 // Each `const <tool>: Tool<…> = {…}` literal in the MCP server, evaluated for its name,
 // description and input schema; the arrow functions inside it are never called.
 const extractTools = (anchors: Anchors, packages: HarnessPackage[]): McpTool[] => {
@@ -71,14 +94,7 @@ const extractTools = (anchors: Anchors, packages: HarnessPackage[]): McpTool[] =
     anchors.read(contractFile) ?? "",
   )?.[1]
   if (!effortList) anchors.report("mcp tools", contractFile, "expected `export const efforts = [`")
-  // Each limit's value, read from its `export const <name> = <number or object literal>`.
-  const limits = Object.entries(limitFiles).map(([name, file]) => {
-    const value = new RegExp(`^export const ${name} = ([^{\\n]+|\\{[\\s\\S]*?\\n\\})`, "m").exec(
-      anchors.read(file) ?? "",
-    )?.[1]
-    if (!value) anchors.report("mcp tools", file, `expected \`export const ${name} = \``)
-    return [name, value ? (new Function(`return (${value})`)() as unknown) : undefined] as const
-  })
+  const limits = readLimits(anchors)
   const variables = listed
     .split(",")
     .map((name) => name.trim())
