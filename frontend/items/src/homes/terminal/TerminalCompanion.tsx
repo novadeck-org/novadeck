@@ -141,12 +141,14 @@ const SplitPane = ({
           const move = (next: PointerEvent): void =>
             setRatio(clamp((next.clientX - bounds.left) / bounds.width))
           const target = event.currentTarget
+          // A drag ends however the pointer goes: let go, or taken away, as a touch scroll does.
+          const ends = ["pointerup", "pointercancel", "lostpointercapture"] as const
+          const end = (): void => {
+            target.removeEventListener("pointermove", move)
+            for (const each of ends) target.removeEventListener(each, end)
+          }
           target.addEventListener("pointermove", move)
-          target.addEventListener(
-            "pointerup",
-            () => target.removeEventListener("pointermove", move),
-            { once: true },
-          )
+          for (const each of ends) target.addEventListener(each, end)
         }}
       />
       <div
@@ -259,9 +261,26 @@ export const TerminalCompanion = ({
   )
   const plans = usePlans(itemStore, planIds)
   const tab = shownTab(bar, members)
-  // A plan the person closes while edits in it can't reach its file: asked first, since
-  // closing loses them.
-  const [closing, setClosing] = useState<Item | null>(null)
+  // Plans the person closes while edits in them can't reach their files: asked first, one
+  // at a time, since closing loses them. A stack's close may ask about several.
+  // One gone from this bar meanwhile, as its agent closed it, isn't asked about.
+  const [closing, setClosing] = useState<readonly Item[]>([])
+  const asking = closing.find((queued) => items.some((each) => each.id === queued.id)) ?? null
+  // The plan whose edits are being copied, until the copy answers or the person cancels:
+  // a second confirm meanwhile starts no second copy, and a cancelled one's answer is let go.
+  const copying = useRef<ItemId | null>(null)
+  // The plan whose edits couldn't be copied, which stays open, and how many tries failed.
+  const [uncopied, setUncopied] = useState<{ readonly id: ItemId; readonly tries: number } | null>(
+    null,
+  )
+  // The dialog is built again for each plan it asks about and each failed copy, so a
+  // confirm it stayed open after, or asks again past, doesn't keep it from cancelling. It
+  // keeps its last one as it animates out.
+  const [askingKey, setAskingKey] = useState("")
+  const nextKey = asking
+    ? `${asking.id}:${uncopied?.id === asking.id ? uncopied.tries : 0}`
+    : askingKey
+  if (nextKey !== askingKey) setAskingKey(nextKey)
   // Open while there's something to show.
   const open = bar.open && tab !== null
   const showing = open ? tab : null
@@ -327,7 +346,9 @@ export const TerminalCompanion = ({
         plan &&
         stuckEdits(plan, itemStore.store.getSnapshot().content[each.key])
       )
-        return setClosing(each.item)
+        return setClosing((queue) =>
+          queue.some((queued) => queued.id === each.key) ? queue : [...queue, each.item],
+        )
       commands.closeItem(each.key)
     },
     sendBack: (each) => {
@@ -432,36 +453,64 @@ export const TerminalCompanion = ({
         </div>
       )}
       <ConfirmDialog
-        subject={closing}
+        key={askingKey}
+        subject={asking}
         title={(item) => `Close “${item.name}”?`}
-        description={() =>
-          "Your edits to this plan couldn't be saved, and closing it loses them. Copy them first to keep them."
+        description={(item) =>
+          uncopied?.id === item.id
+            ? "Your edits couldn't be copied, so the plan is still open. Try again, or copy them from the plan yourself."
+            : "Your edits to this plan couldn't be saved, and closing it loses them. Copy them first to keep them."
         }
         confirmLabel="Copy my edits and close"
         cancelLabel="Cancel"
-        onCancel={() => setClosing(null)}
+        onCancel={() => {
+          copying.current = null
+          setClosing((queue) => queue.filter((queued) => queued.id !== asking?.id))
+          setUncopied(null)
+        }}
         onConfirm={() => {
-          const item = closing
-          setClosing(null)
-          if (!item) return
+          const item = asking
+          if (!item || copying.current !== null) return
+          copying.current = item.id
+          // Whether this copy's answer still counts: the person didn't cancel meanwhile.
+          const answered = (): boolean => {
+            if (copying.current !== item.id) return false
+            copying.current = null
+            return true
+          }
+          const copied = (): void => {
+            if (!answered()) return
+            setClosing((queue) => queue.filter((queued) => queued.id !== item.id))
+            setUncopied(null)
+            commands.closeItem(item.id)
+            // Closed from the pane with something behind it: the pane, still out, takes
+            // focus, which the dialog would have put back on a button that's gone.
+            if (item.id === showing && behind.length > 0)
+              requestAnimationFrame(() => {
+                const focused = document.activeElement
+                if (focused && focused !== document.body) return
+                document
+                  .querySelector<HTMLElement>(
+                    `[data-companion-of="${CSS.escape(terminal)}"] .pane-reader`,
+                  )
+                  ?.focus({ preventScroll: true })
+              })
+          }
+          // Not copied, the plan stays, and the dialog says so: closing would lose the edits.
+          const failed = (): void => {
+            if (!answered()) return
+            setUncopied((last) => ({
+              id: item.id,
+              tries: last?.id === item.id ? last.tries + 1 : 1,
+            }))
+          }
           const plan = itemStore.store.getSnapshot().plans[item.id]
-          if (plan)
-            void navigator.clipboard
-              ?.writeText(plan.eol === "\n" ? plan.text : plan.text.replaceAll("\n", plan.eol))
-              .catch(() => undefined)
-          commands.closeItem(item.id)
-          // Closed from the pane with something behind it: the pane, still out, takes
-          // focus, which the dialog would have put back on a button that's gone.
-          if (item.id === showing && behind.length > 0)
-            requestAnimationFrame(() => {
-              const focused = document.activeElement
-              if (focused && focused !== document.body) return
-              document
-                .querySelector<HTMLElement>(
-                  `[data-companion-of="${CSS.escape(terminal)}"] .pane-reader`,
-                )
-                ?.focus({ preventScroll: true })
-            })
+          if (!plan) return copied()
+          const written = navigator.clipboard?.writeText(
+            plan.eol === "\n" ? plan.text : plan.text.replaceAll("\n", plan.eol),
+          )
+          if (!written) return failed()
+          written.then(copied, failed)
         }}
         widthClassName="w-[min(360px,calc(100vw-32px))]"
       />

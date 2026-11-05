@@ -19,6 +19,8 @@ import type {
   TerminalStatus,
   TitleSource,
   Workspace,
+  WorkspaceProject,
+  WorkspaceSession,
 } from "@novadeck/core/types"
 import {
   maxInboxOrder,
@@ -62,6 +64,7 @@ import {
   type RunnerListing,
 } from "./sessions/seed"
 import { createRunnerSource } from "./source"
+import { consume, reportCaught } from "./streams"
 import { runnerSwitches } from "./switches"
 import {
   defaultQuickExitMs,
@@ -251,17 +254,6 @@ export type RunnerBackend = {
 const connectionState = (status: WireStatus): BackendConnectionState => {
   if (status.state === "connected") return "connected"
   return status.state === "reconnecting" ? "reconnecting" : "unavailable"
-}
-
-const consume = async <T>(
-  changes: AsyncIterable<T>,
-  handle: (change: T) => void,
-): Promise<void> => {
-  try {
-    for await (const change of changes) handle(change)
-  } catch {
-    // The runner closed for good; the connection store already says so.
-  }
 }
 
 const target = ({ projectId, workspaceSessionId }: TerminalKey) => ({
@@ -498,24 +490,38 @@ export const runnerBackend = (
     }
   }
 
-  // Resolves once the runner is reachable again, or closed for good.
-  const connected = async (): Promise<void> => {
+  // Resolves once the runner is reachable again, or closed for good, or once `signal` aborts.
+  const connected = async (signal?: AbortSignal): Promise<void> => {
     // The status can still say connected for a moment after the link dropped.
     await pause(250)
-    for await (const status of runner.watch()) {
-      noteRunner(status)
-      if (status.state !== "reconnecting") return
+    if (signal?.aborted) return
+    const statuses = runner.watch()
+    const stop = (): void => void statuses.return?.()
+    signal?.addEventListener("abort", stop, { once: true })
+    try {
+      for await (const status of statuses) {
+        noteRunner(status)
+        if (status.state !== "reconnecting") return
+      }
+    } finally {
+      signal?.removeEventListener("abort", stop)
     }
   }
 
   // Stopped between `start`s, so retries end with the app instead of outliving it.
   let halted = false
   // Waits for the runner to come back, in short slices so a cancelled wait ends soon.
+  // A cancelled wait stops watching the runner's status too.
   const reconnected = async (cancelled: () => boolean): Promise<void> => {
-    const back = connected().then(() => true)
-    // eslint-disable-next-line no-await-in-loop -- Each slice checks for cancellation.
-    while (!(await Promise.race([back, pause(500).then(() => false)])))
-      if (cancelled()) throw new Cancelled()
+    const waiting = new AbortController()
+    const back = connected(waiting.signal).then(() => true)
+    try {
+      // eslint-disable-next-line no-await-in-loop -- Each slice checks for cancellation.
+      while (!(await Promise.race([back, pause(500).then(() => false)])))
+        if (cancelled()) throw new Cancelled()
+    } finally {
+      waiting.abort()
+    }
   }
 
   type Retry = {
@@ -579,17 +585,86 @@ export const runnerBackend = (
   }
 
   // Runs `operation` once `ready` settles well; resolves whether both succeeded.
-  const after = (ready: Promise<boolean>, operation: () => Promise<unknown>): Promise<boolean> =>
+  // A refusal is reported, once per `what`: it is asked for again, and may be refused again.
+  const refusedOnce = new Set<string>()
+  const after = (
+    ready: Promise<boolean>,
+    operation: () => Promise<unknown>,
+    what?: string,
+  ): Promise<boolean> =>
     track(
       ready.then((ok) =>
         ok
           ? untilAnswered(operation, { done: ["CONFLICT"] }).then(
               () => true,
-              () => false,
+              (error: unknown) => {
+                if (what !== undefined && !(error instanceof Cancelled) && !refusedOnce.has(what)) {
+                  refusedOnce.add(what)
+                  reportCaught(error)
+                }
+                return false
+              },
             )
           : false,
       ),
     )
+
+  // The projects and sessions this window asked the runner to create. A commit asks for each
+  // new one once; an attempt that didn't take, as one the runner refused or a stop cut off,
+  // is forgotten, and asked for again only where it is needed: by a terminal, a save or an
+  // item in it, or as the backend starts.
+  const asked = new Set<string>()
+  const attempt = (
+    known: Map<string, Promise<boolean>>,
+    id: string,
+    made: Promise<boolean>,
+  ): Promise<boolean> => {
+    asked.add(id)
+    known.set(id, made)
+    void made.then((ok) => {
+      if (!ok && known.get(id) === made) known.delete(id)
+    })
+    return made
+  }
+  // Whether the project, and the session, exist on the runner, creating them there unless
+  // they do or an attempt is under way.
+  const projectReady = (project: WorkspaceProject): Promise<boolean> =>
+    projects.get(project.id) ??
+    attempt(
+      projects,
+      project.id,
+      after(
+        created,
+        () =>
+          runner.projects.create({ id: project.id, name: project.name, cwd: project.directory }),
+        project.id,
+      ),
+    )
+  const sessionReady = (project: WorkspaceProject, session: WorkspaceSession): Promise<boolean> =>
+    sessions.get(session.id) ??
+    attempt(
+      sessions,
+      session.id,
+      after(
+        projectReady(project),
+        () => runner.sessions.create({ id: session.id, projectId: project.id, name: session.name }),
+        session.id,
+      ),
+    )
+  // The same by the session's id; undefined for one the workspace doesn't hold.
+  const sessionById = (id: string): Promise<boolean> | undefined => {
+    const known = sessions.get(id)
+    if (known) return known
+    const project = latest?.projects.find((each) => each.history.some((held) => held.id === id))
+    const session = project?.history.find((held) => held.id === id)
+    return project && session ? sessionReady(project, session) : undefined
+  }
+  // Waits for a terminal's session on the runner; throws when it can't be there.
+  const sessionThere = async (id: string): Promise<void> => {
+    if (await (sessionById(id) ?? created)) return
+    // Cut off by a stop, it is asked for again as the backend starts.
+    throw halted ? new Cancelled() : new Error("The runner could not create this session.")
+  }
 
   // Projects the person removed, whose terminals the runner closes as it removes them.
   const removedProjects = new Set<string>()
@@ -850,11 +925,15 @@ export const runnerBackend = (
     if (restartingOften()) throw new CrashLoop()
   }
 
+  // Terminals whose creation a stop cut off, with what they were to launch: created again
+  // as the backend starts.
+  const cutOff = new Map<RunnerEntry, Launch | undefined>()
   // Starts the shell once its session exists; a failure shows on the terminal's tab.
-  const createTerminal = (entry: RunnerEntry): Promise<boolean> => {
+  const createTerminal = (
+    entry: RunnerEntry,
+    launch = launches.get(entry.key.terminalId),
+  ): Promise<boolean> => {
     const { terminalId, workspaceSessionId } = entry.key
-    const session = sessions.get(workspaceSessionId) ?? created
-    const launch = launches.get(terminalId)
     const started = launch
       ? {
           cwd: launch.cwd,
@@ -863,8 +942,7 @@ export const runnerBackend = (
         }
       : {}
     return track(
-      session.then(async (ok) => {
-        if (!ok) throw new Error("The runner could not create this session.")
+      sessionThere(workspaceSessionId).then(async () => {
         const summary = await untilAnswered(
           () => {
             entry.requested = true
@@ -891,7 +969,10 @@ export const runnerBackend = (
       }),
     ).catch((error: unknown) => {
       if (launch) launch.failure = error
-      if (error instanceof Cancelled) return false
+      if (error instanceof Cancelled) {
+        if (!entry.closed) cutOff.set(entry, launch)
+        return false
+      }
       if (hasCode(error, "TERMINAL_NOT_FOUND")) return closedElsewhere(entry)
       settle(entry, error instanceof CrashLoop ? crashLoop : (lostStatus(error) ?? failedToCreate))
       return false
@@ -942,7 +1023,9 @@ export const runnerBackend = (
     const agent = resumableProgram(restoredOf(entry))
     const retry: Retry = { done: ["CONFLICT"], stillWanted, cancelled: () => entry.closed }
     const resume = agent ? { resume: agent } : {}
-    const create = () => {
+    const create = async () => {
+      // Its session too, should its creation not have taken.
+      await sessionThere(workspaceSessionId)
       // A new record counts runs afresh.
       entry.floor = 0
       entry.run = undefined
@@ -1057,7 +1140,7 @@ export const runnerBackend = (
     runner: runner.companions,
     listing,
     latest: () => latest,
-    ready: (sessionId) => sessions.get(sessionId) ?? created,
+    ready: (sessionId) => sessionById(sessionId) ?? created,
     // A terminal this window created exists on the runner once its create answered.
     terminalReady: (terminalId) => entries.get(terminalId)?.ready ?? created,
     call: (operation, done) => track(untilAnswered(operation, { done })),
@@ -1176,7 +1259,7 @@ export const runnerBackend = (
   // Every changed session is sent after a quiet spell, or at once on pagehide.
   const saves = createSessionSaves({
     save: (sessionId, state, visitedAt) => runner.sessions.save({ sessionId, state, visitedAt }),
-    ready: (id) => sessions.get(id),
+    ready: sessionById,
     latest: () => latest,
     track,
     halted: () => halted,
@@ -1198,21 +1281,9 @@ export const runnerBackend = (
     initialized = true
     latest = workspace
     for (const project of workspace.projects) {
-      if (!projects.has(project.id))
-        projects.set(
-          project.id,
-          after(created, () =>
-            runner.projects.create({ id: project.id, name: project.name, cwd: project.directory }),
-          ),
-        )
+      if (!asked.has(project.id)) void projectReady(project)
       for (const session of project.history)
-        if (!sessions.has(session.id))
-          sessions.set(
-            session.id,
-            after(projects.get(project.id)!, () =>
-              runner.sessions.create({ id: session.id, projectId: project.id, name: session.name }),
-            ),
-          )
+        if (!asked.has(session.id)) void sessionReady(project, session)
     }
     // The reducer keeps the last project, so only one gone from the workspace is removed.
     const removed = actions.flatMap((action) =>
@@ -1307,6 +1378,10 @@ export const runnerBackend = (
           dispatch([
             { type: "terminal/close", target: target(entry.key), terminalId: change.terminalId },
           ])
+        // Gone for good there, so nothing more is said of it.
+        closedHere.delete(change.terminalId)
+        runnerTitles.delete(change.terminalId)
+        runnerSources.delete(change.terminalId)
         return
       }
       if (change.type === "changed") {
@@ -1363,6 +1438,11 @@ export const runnerBackend = (
     const onRequest = (request: TerminalRequest): void => {
       if (!live) return
       let answered = false
+      const answer = (result: Parameters<typeof answerRequest>[1]): void => {
+        if (answered) return
+        answered = true
+        void track(answerRequest(request, result))
+      }
       // The app adds the terminal as it is asked to, so it is created for this request.
       opening = request.requestId
       try {
@@ -1371,12 +1451,22 @@ export const runnerBackend = (
           directory: request.cwd,
           ...(request.command !== undefined && { command: request.command }),
           focus: request.focus,
-          answer: (result) => {
-            if (answered) return
-            answered = true
-            void track(answerRequest(request, result))
-          },
+          answer,
         })
+      } catch (error) {
+        // The agent hears at once rather than wait out its time limit; the stream goes on. A
+        // terminal the app added before it threw may well start, so the answer follows it.
+        const added = [...launches].find(([, launch]) => launch.requestId === request.requestId)
+        answer(
+          added
+            ? { terminalId: added[0] }
+            : {
+                reason: launchFailure({
+                  ...(request.command !== undefined && { command: request.command }),
+                }),
+              },
+        )
+        throw error
       } finally {
         opening = undefined
       }
@@ -1412,6 +1502,23 @@ export const runnerBackend = (
               ],
       )
     }
+    // What a stop cut off, or the runner refused, is asked for again.
+    for (const project of latest?.projects ?? [])
+      for (const session of project.history) void sessionReady(project, session)
+    for (const [entry, launch] of cutOff) {
+      if (entry.closed) continue
+      // The agent that asked for it heard it didn't open: it goes.
+      if (launch?.requestId !== undefined) {
+        dispatch([
+          { type: "terminal/close", target: target(entry.key), terminalId: entry.key.terminalId },
+        ])
+        continue
+      }
+      entry.ready = createTerminal(entry, launch)
+      reviveSurface(entry)
+      followWhenReady(entry)
+    }
+    cutOff.clear()
     reviveOnScreen()
     boot.begin([...entries.values()].filter(onScreen).map((entry) => entry.key.terminalId))
     // What the runner keeps of shells that exited cleanly while the app was away.
@@ -1431,6 +1538,7 @@ export const runnerBackend = (
     for (const entry of entries.values()) if (!entry.closed) followWhenReady(entry)
     voice.follow()
     murmur.follow()
+    inbox.follow()
     window.addEventListener("pagehide", flush)
     // The app waits for these saves, removals and closes before a close or quit can end
     // the shells, so they name what still runs.
@@ -1505,9 +1613,23 @@ export const runnerBackend = (
     approvals: {
       pending: approvals,
       answer: (requestId, approved) => {
+        const shown = approvals.getSnapshot().find((each) => each.requestId === requestId)
         approvals.update((waiting) => waiting.filter((each) => each.requestId !== requestId))
-        // A runner that no longer waits for the answer needs none.
-        runner.terminals.answerApproval({ requestId, approved }).catch(() => {})
+        // Sent again while too many calls are in flight, as a quit waits for it. A runner that
+        // no longer waits for the answer, as once the link dropped, needs none.
+        void track(
+          untilAnswered(() => runner.terminals.answerApproval({ requestId, approved }), {
+            done: ["NOT_FOUND"],
+          }),
+        ).catch((error: unknown) => {
+          if (error instanceof Cancelled) return
+          reportCaught(error)
+          // Refused, and still waiting on the person: it is theirs to answer again.
+          if (shown && lastStatus?.state === "connected")
+            approvals.update((waiting) =>
+              waiting.some((each) => each.requestId === requestId) ? waiting : [...waiting, shown],
+            )
+        })
       },
     },
     releaseLead: ({ terminalId }) => {

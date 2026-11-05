@@ -3,6 +3,7 @@ import type { AnyContractRouter, ContractRouterClient } from "@orpc/contract"
 import type { Session, Wire } from "./connection.js"
 import { hasCode, normalize, WireError } from "./errors.js"
 import { sleep } from "./sleep.js"
+import { until } from "./until.js"
 
 /**
  * A stream that resumes from a cursor: each item may carry its position, a reconnection asks
@@ -64,14 +65,24 @@ type Open<C extends AnyContractRouter, T> = {
 
 const done = { value: undefined, done: true } as const
 
-const noop = (): void => {}
-
-/** Reports a failure on a closed channel as `DISCONNECTED`, whatever oRPC raised. */
-const lost = <C extends AnyContractRouter>(error: unknown, session: Session<C>): unknown => {
+/**
+ * A session's failure as a wire error: oRPC's as theirs, anything else on a closed channel as
+ * `DISCONNECTED`, whatever oRPC raised, and on an open one as `INTERNAL_SERVER_ERROR`, though
+ * it may be the reader's own code that threw. Either keeps what was raised as its cause.
+ */
+export const lost = (
+  error: unknown,
+  session: { readonly channel: { readonly open: boolean } },
+): WireError => {
   const normalized = normalize(error)
-  if (normalized instanceof WireError || session.channel.open) return normalized
-  return new WireError("DISCONNECTED", "The connection was lost.", { cause: normalized })
+  if (normalized instanceof WireError) return normalized
+  return session.channel.open
+    ? new WireError("INTERNAL_SERVER_ERROR", "The stream failed.", { cause: normalized })
+    : new WireError("DISCONNECTED", "The connection was lost.", { cause: normalized })
 }
+
+/** Milliseconds to wait after `count` failures in a row, from `first`: `min(first·2ⁿ, 3000)`. */
+const backoff = (first: number, count: number): number => Math.min(first * 2 ** count, 3_000)
 
 const isCursor = <C extends AnyContractRouter, T>(
   resume: CursorResume<C, T> | RestartResume<T>,
@@ -88,6 +99,8 @@ class Follower<C extends AnyContractRouter, T> implements Following<C, T> {
   private spent: Session<C> | undefined
   // Consecutive refusals on a live session, which set the next retry's delay.
   private refusals = 0
+  // Consecutive streams that ended before yielding, past the first, which back off the same.
+  private empty = 0
   private opened = false
   private resetDue = false
   private held: { readonly value: T } | undefined
@@ -138,7 +151,8 @@ class Follower<C extends AnyContractRouter, T> implements Following<C, T> {
         const result = await this.until(stream.items.next())
         if (this.finished || !result) break
         if (result.done) {
-          this.ended(stream)
+          // eslint-disable-next-line no-await-in-loop -- Back off before opening again.
+          await this.ended(stream)
           continue
         }
         return this.deliver(result.value)
@@ -157,25 +171,14 @@ class Follower<C extends AnyContractRouter, T> implements Following<C, T> {
   }
 
   /** Waits for `promise`, or resolves undefined once finished. */
-  private async until<V>(promise: Promise<V>): Promise<V | undefined> {
-    const signal = this.stopping.signal
-    if (signal.aborted) return undefined
-    // A listener of its own, removed after: a long stream's reads leave nothing behind.
-    let stop: () => void = noop
-    const stopped = new Promise<undefined>((resolve) => {
-      stop = () => resolve(undefined)
-    })
-    signal.addEventListener("abort", stop, { once: true })
-    try {
-      return await Promise.race([promise, stopped])
-    } finally {
-      signal.removeEventListener("abort", stop)
-    }
+  private until<V>(promise: Promise<V>): Promise<V | undefined> {
+    return until(promise, this.stopping.signal)
   }
 
   private deliver(value: T): IteratorResult<T, undefined> {
     const { resume } = this.options
     this.refusals = 0
+    this.empty = 0
     this.live = true
     if (isCursor(resume)) {
       this.read = true
@@ -250,14 +253,23 @@ class Follower<C extends AnyContractRouter, T> implements Following<C, T> {
   }
 
   /** The server ended the stream. */
-  private ended(stream: Open<C, T>): void {
+  private async ended(stream: Open<C, T>): Promise<void> {
     if (isCursor(this.options.resume)) {
       this.finish("ended")
       return
     }
+    const yielded = this.live
     this.drop()
     // One that can't lose its subject ends as its server goes: wait for the next session.
-    if (!this.options.gone) this.spent = stream.session
+    if (!this.options.gone) {
+      this.spent = stream.session
+      return
+    }
+    // One that can is opened again at once, to learn whether it's still there; but one its
+    // server keeps ending before it yields anything backs off, rather than spin.
+    if (yielded) return
+    this.empty += 1
+    if (this.empty > 1) await sleep(backoff(200, this.empty - 2), this.stopping.signal)
   }
 
   /** Decides what a failure means: open again, now or later, or end with it. */
@@ -265,9 +277,10 @@ class Follower<C extends AnyContractRouter, T> implements Following<C, T> {
     const { resume, gone } = this.options
     if (isCursor(resume)) {
       // A lost connection resumes after the cursor. A reader too slow for the stream starts
-      // afresh, since resuming would bring back the backlog it couldn't keep up with.
-      if (this.read && hasCode(cause, "DISCONNECTED", "SLOW_CONSUMER")) {
-        if (cause.code === "SLOW_CONSUMER") this.position = undefined
+      // afresh, since resuming would bring back the backlog it couldn't keep up with, as does
+      // one whose cursor the server can't resume from.
+      if (this.read && hasCode(cause, "DISCONNECTED", "SLOW_CONSUMER", "INVALID_CURSOR")) {
+        if (cause.code !== "DISCONNECTED") this.position = undefined
         this.drop()
         return
       }
@@ -282,15 +295,16 @@ class Follower<C extends AnyContractRouter, T> implements Following<C, T> {
       this.spent = session
       return
     }
-    const delay = Math.min(200 * 2 ** this.refusals, 3_000)
+    const delay = backoff(200, this.refusals)
     this.refusals += 1
     await sleep(delay, this.stopping.signal)
   }
 
   /**
    * Acknowledgements are cumulative, so at most one is in flight: later ones replace a waiting
-   * position. A refused one is retried, since the server may withhold items until it lands; a
-   * lost connection instead ends in a fresh stream with nothing to acknowledge.
+   * position. A refused one is retried, since the server may withhold items until it lands,
+   * backing off (`min(50·2ⁿ, 3000)` ms) while it goes on refusing; a lost connection instead
+   * ends in a fresh stream with nothing to acknowledge.
    */
   private ack(resume: CursorResume<C, T>): void {
     const stream = this.stream
@@ -299,6 +313,7 @@ class Follower<C extends AnyContractRouter, T> implements Following<C, T> {
     if (this.acking || this.unacked === undefined || !stream) return
     this.acking = true
     void (async () => {
+      let refusals = 0
       try {
         while (this.stream === stream && this.unacked !== undefined) {
           const position = this.unacked
@@ -306,11 +321,13 @@ class Follower<C extends AnyContractRouter, T> implements Following<C, T> {
           try {
             // eslint-disable-next-line no-await-in-loop -- One acknowledgement at a time.
             await resume.ack(stream.session.client, position)
+            refusals = 0
           } catch {
             if (!stream.session.channel.open) return
             this.unacked = Math.max(position, this.unacked ?? position)
             // eslint-disable-next-line no-await-in-loop -- Back off before retrying.
-            await sleep(50, stream.cancel.signal)
+            await sleep(backoff(50, refusals), stream.cancel.signal)
+            refusals += 1
           }
         }
       } finally {

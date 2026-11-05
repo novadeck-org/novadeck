@@ -2,7 +2,7 @@ import type { contract, TerminalAttached, TerminalEvent } from "@novadeck/protoc
 import { WireError } from "@novadeck/wire"
 import { follow, type Session } from "@novadeck/wire/client"
 
-import { lost, type RunnerErrorCode } from "./errors.js"
+import { coded, lost, type RunnerErrorCode } from "./errors.js"
 import type { RunnerWire } from "./follow.js"
 
 export type TerminalMode = "control" | "observe"
@@ -15,7 +15,8 @@ export type TerminalMode = "control" | "observe"
  *
  * Iteration ends when the shell exits or the terminal is detached. It throws a
  * `WireError` when the attachment cannot continue, such as `CONTROL_IN_USE` after
- * another client took control during a disconnection.
+ * another client took control during a disconnection; `write` and `resize` then reject with
+ * the same code.
  */
 export type AttachedTerminal = AsyncIterableIterator<TerminalEvent> & {
   readonly id: string
@@ -58,11 +59,24 @@ export const attachTerminal = async (
       ack: (client, sequence) => client.terminals.ack({ terminalId: id, sequence }),
     },
   })
-  const granted = await stream.next()
+  // Why the attachment couldn't go on, once it couldn't: what its events threw.
+  let failure: WireError | undefined
+  const read = async () => {
+    try {
+      return await stream.next()
+    } catch (error) {
+      failure = coded(error)
+      throw failure
+    }
+  }
+  const granted = await read()
   if (granted.done) throw new WireError<RunnerErrorCode>("CLOSED", "Terminal is detached.")
   // The session to send input on, or why this attachment may not send any.
   const inputSession = (): Session<typeof contract> => {
     if (stream.finished === "ended") throw new WireError<RunnerErrorCode>("TERMINAL_EXITED")
+    if (stream.finished === "failed" && failure) {
+      throw new WireError(failure.code, failure.message, { cause: failure, data: failure.data })
+    }
     if (stream.finished) throw new WireError<RunnerErrorCode>("CLOSED", "Terminal is detached.")
     if (mode !== "control") throw new WireError<RunnerErrorCode>("CONTROL_REQUIRED")
     const session = stream.session
@@ -78,7 +92,7 @@ export const attachTerminal = async (
     async next() {
       while (true) {
         // eslint-disable-next-line no-await-in-loop -- Events are delivered in order.
-        const result = await stream.next()
+        const result = await read()
         if (result.done) return result
         // A reattachment's grant is the stream's own business.
         if (result.value.type !== "attached") return { value: result.value, done: false }

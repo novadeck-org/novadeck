@@ -44,7 +44,7 @@ import { WireError } from "@novadeck/wire"
 import { connect, type Transport, type WireStatus } from "@novadeck/wire/client"
 
 import { lost, type RunnerErrorCode } from "./errors.js"
-import { followAll, followRestarting, type Reset } from "./follow.js"
+import { followAll, followRestarting, followSession, type Reset } from "./follow.js"
 import { base64Parts } from "./parts.js"
 import { attachTerminal, type AttachedTerminal, type TerminalMode } from "./terminal.js"
 
@@ -587,12 +587,12 @@ export const connectRunner = async (
       list: (input) => call((client) => client.terminals.list(input)),
       create: (input) => call((client) => client.terminals.create(input)),
       requests: () =>
-        followRestarting(connection, (client, signal) =>
+        followSession(connection, (client, signal) =>
           client.terminals.requests(undefined, { signal }),
         ),
       answerRequest: (answer) => call((client) => client.terminals.answerRequest(answer)),
       approvals: () =>
-        followRestarting(connection, (client, signal) =>
+        followSession(connection, (client, signal) =>
           client.terminals.approvals(undefined, { signal }),
         ),
       answerApproval: (answer) => call((client) => client.terminals.answerApproval(answer)),
@@ -675,7 +675,7 @@ export const connectRunner = async (
         call((client) => client.companions.resetWindowTitle({ windowId })),
       pageTrouble: (input) => call((client) => client.companions.pageTrouble(input)),
       looks: () =>
-        followRestarting(connection, (client, signal) =>
+        followSession(connection, (client, signal) =>
           client.companions.looks(undefined, { signal }),
         ),
       answerLook: (answer) => call((client) => client.companions.answerLook(answer)),
@@ -683,7 +683,7 @@ export const connectRunner = async (
     inbox: {
       list: () => call((client) => client.inbox.list()),
       watch: () =>
-        followRestarting(connection, (client, signal) => client.inbox.watch(undefined, { signal })),
+        followSession(connection, (client, signal) => client.inbox.watch(undefined, { signal })),
       answer: (id, answer) => call((client) => client.inbox.answer({ id, answer })),
       read: (ids) => call((client) => client.inbox.read({ ids: [...ids] })),
       dismiss: (id) => call((client) => client.inbox.dismiss({ id })),
@@ -691,9 +691,7 @@ export const connectRunner = async (
     },
     feedback: {
       watch: () =>
-        followRestarting(connection, (client, signal) =>
-          client.feedback.watch(undefined, { signal }),
-        ),
+        followSession(connection, (client, signal) => client.feedback.watch(undefined, { signal })),
       settle: (id, outcome) => call((client) => client.feedback.settle({ id, outcome })),
       ask: (terminalId, hint) => call((client) => client.feedback.ask({ terminalId, hint })),
     },
@@ -709,7 +707,7 @@ export const connectRunner = async (
     },
     voice: {
       watch: () =>
-        followRestarting(connection, (client, signal) => client.voice.watch(undefined, { signal })),
+        followSession(connection, (client, signal) => client.voice.watch(undefined, { signal })),
       install: () => call((client) => client.voice.install()),
       cancel: () => call((client) => client.voice.cancel()),
       uninstall: () => call((client) => client.voice.uninstall()),
@@ -727,9 +725,7 @@ export const connectRunner = async (
     },
     murmur: {
       watch: () =>
-        followRestarting(connection, (client, signal) =>
-          client.murmur.watch(undefined, { signal }),
-        ),
+        followSession(connection, (client, signal) => client.murmur.watch(undefined, { signal })),
       install: () => call((client) => client.murmur.install()),
       cancel: () => call((client) => client.murmur.cancel()),
       uninstall: () => call((client) => client.murmur.uninstall()),

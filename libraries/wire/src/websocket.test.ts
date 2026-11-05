@@ -101,6 +101,23 @@ describe("serveWebSocket", () => {
     await expect(client.echo("hi")).resolves.toBe("hi")
   })
 
+  it("cuts off a socket that goes on being refused before it authenticates", async () => {
+    const closed = vi.fn<(session: Session) => void>()
+    const { url } = await serve({}, { closed })
+    const { socket, client } = await raw(url)
+    const ended = once(socket, "close")
+    const wrong = () =>
+      client.wire.handshake({ protocolVersion, token: "wrong" }).catch((error: unknown) => error)
+    for (let attempt = 0; attempt < 3; attempt += 1) {
+      // eslint-disable-next-line no-await-in-loop -- One refusal at a time.
+      expect(await wrong()).toMatchObject({ code: "UNAUTHORIZED" })
+    }
+    expect(closed).not.toHaveBeenCalled()
+    expect(await wrong()).toMatchObject({ code: "DISCONNECTED" })
+    await ended
+    expect(closed).toHaveBeenCalledOnce()
+  })
+
   it("lets `verify` decide in place of a token", async () => {
     const { url } = await serve({ verify: (given) => given === "pass" })
     const { client } = await raw(url)

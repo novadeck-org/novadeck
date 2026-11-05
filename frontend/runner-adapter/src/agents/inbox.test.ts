@@ -16,6 +16,7 @@ import { afterEach, beforeEach, expectTypeOf, vi } from "vitest"
 
 import { describe, expect, it } from "../test"
 import { channel } from "../testing/channel"
+import { catchReports } from "../testing/reported"
 import { createRunnerInbox, detailGraceMs, retryMs, settleMs, type InboxStreams } from "./inbox"
 
 const agentParty = (handle: string): MessageParty => ({ kind: "agent", handle, agent: null })
@@ -854,6 +855,55 @@ describe("Inbox entries", () => {
     entries.push([entry()])
     await settle()
     expect(ids()).toEqual([])
+  })
+
+  it("come back once the backend starts again, bound again or still bound", async () => {
+    const { inbox, streams, entries, workspaceStore, stop, ids } = setup(
+      workspaceOf(agentTerminal(1)),
+    )
+    entries.push([entry()])
+    await settle()
+    expect(ids()).toEqual(["entry-1"])
+    // As React's StrictMode runs the effects in development: the backend stops, the Inbox is
+    // unbound, then the backend starts and the Inbox is bound again.
+    inbox.end()
+    stop()
+    inbox.follow()
+    const again = inbox.bind({ workspace: workspaceStore })
+    entries.push([entry(), told()])
+    await settle()
+    expect(ids().toSorted()).toEqual(["entry-1", "told-1"])
+    // A stop and start while it stays bound opens the entries again too.
+    inbox.end()
+    inbox.follow()
+    expect(streams.inbox.watch).toHaveBeenCalledTimes(3)
+    entries.push([told()])
+    await settle()
+    expect(ids()).toEqual(["told-1"])
+    again()
+  })
+
+  it("keep coming after a listing whose readers throw, which is reported", async () => {
+    const { inbox, entries, ids } = setup(workspaceOf(agentTerminal(1)))
+    const { reported, restore } = catchReports()
+    const broken = new Error("A reader broke.")
+    let breaks = true
+    const unsubscribe = inbox.state.subscribe(() => {
+      if (!breaks) return
+      breaks = false
+      throw broken
+    })
+    try {
+      entries.push([entry()])
+      await settle()
+      entries.push([entry(), told()])
+      await settle()
+    } finally {
+      unsubscribe()
+      restore()
+    }
+    expect(reported).toEqual([broken])
+    expect(ids().toSorted()).toEqual(["entry-1", "told-1"])
   })
 
   it("lists a waiting entry beside trouble, and keeps it once the trouble clears", async () => {

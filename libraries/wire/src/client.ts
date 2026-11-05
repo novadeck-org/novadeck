@@ -7,6 +7,7 @@ export {
 } from "./connection.js"
 export {
   follow,
+  lost,
   type CursorResume,
   type FollowOptions,
   type Following,

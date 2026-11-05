@@ -6,8 +6,9 @@ import { createWorkspaceStore } from "@novadeck/core/store"
 import { itemFixture, workspaceFixture } from "@novadeck/core/testing"
 import { render } from "@novadeck/test-kit/render"
 import { Shown } from "@novadeck/toolkit/shown"
+import { freshenMs, keepMs } from "@novadeck/viewers/browser"
 import { act, createElement } from "react"
-import { afterEach, beforeEach, vi } from "vitest"
+import { afterEach, beforeEach, onTestFinished, vi } from "vitest"
 
 import { AwakeContext, type Awake } from "../../awake"
 import { createItemStore } from "../../store/item-store"
@@ -279,6 +280,8 @@ describe("a page beside a terminal", () => {
     })
 
     it("isn't pictured outside a pane, where it never rests", async () => {
+      vi.useFakeTimers()
+      onTestFinished(() => void vi.useRealTimers())
       const at = "http://localhost:4404/"
       const asked: string[] = []
       const rendered = show({ kind: "page", url: at, shown: 1, live: true }, true, {
@@ -291,7 +294,8 @@ describe("a page beside a terminal", () => {
       })
       attached(pageOf(rendered.container), at)
       fire(pageOf(rendered.container), "did-stop-loading")
-      await act(() => new Promise((resolve) => setTimeout(resolve, 1_200)))
+      // Past the picture a pane takes after a load, and the next one it takes while awake.
+      await act(() => vi.advanceTimersByTimeAsync(freshenMs + keepMs))
       expect(asked).toEqual([])
     })
 
