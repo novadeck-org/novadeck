@@ -1,13 +1,10 @@
-import { createRoster, setTerminalStatus } from "./roster";
-import { describe, expect, it } from "./test";
-import type { TerminalMetadata, TerminalStatus } from "./types";
+import { createRoster, setTerminalStatus } from "./roster"
+import { describe, expect, it } from "./test"
+import type { TerminalMetadata, TerminalStatus } from "./types"
 
 // Every field of a terminal that no status carries: what it is, beside what it is doing.
-type KeysOf<T> = T extends unknown ? keyof T : never;
-type IdentityKey = Exclude<
-  KeysOf<TerminalMetadata>,
-  KeysOf<TerminalStatus> | "itemId"
->;
+type KeysOf<T> = T extends unknown ? keyof T : never
+type IdentityKey = Exclude<KeysOf<TerminalMetadata>, KeysOf<TerminalStatus> | "itemId">
 
 describe("a terminal's status", () => {
   it("keeps every field that is not the status's own", () => {
@@ -25,7 +22,7 @@ describe("a terminal's status", () => {
       openedBy: "owl",
       agentRan: true,
       titleSource: { kind: "agent", by: "fox" },
-    } satisfies Required<Pick<TerminalMetadata, IdentityKey>>;
+    } satisfies Required<Pick<TerminalMetadata, IdentityKey>>
     const roster = createRoster([
       {
         ...identity,
@@ -34,11 +31,11 @@ describe("a terminal's status", () => {
         signal: null,
         cause: "out-of-memory",
       },
-    ]);
+    ])
 
     const [terminal] = setTerminalStatus(roster, "01", {
       state: "starting",
-    }).terminals;
-    expect(terminal).toEqual({ ...identity, state: "starting" });
-  });
-});
+    }).terminals
+    expect(terminal).toEqual({ ...identity, state: "starting" })
+  })
+})

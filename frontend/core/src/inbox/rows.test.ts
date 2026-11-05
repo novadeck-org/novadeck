@@ -570,7 +570,7 @@ describe("The Inbox's rows", () => {
       })
       // Project one's moth and fox run shells; project two's run agents, their thread held.
       const one = project("one", [shell(1), shell(2)])
-      const two = project("two", [agentTerminal(1), agentTerminal(2, {}, "codex")])
+      const two = project("two", [agentTerminal(1), agentTerminal(2, { working: false }, "codex")])
       const messages: MessagesState = {
         ...noMessages,
         terminals: { "two/two-s/01": { handle: "moth", agent: true, threads: [thread()] } },
