@@ -3,7 +3,9 @@ import type { IDisposable, Terminal } from "@novadeck/emulator/browser"
 // A selection made with the mouse goes on the clipboard as the person lets go, in every
 // terminal and on every platform, as copy-on-select terminals do: a drag, a double-click's
 // word or a triple-click's line, with no key after it. Only a selection this press made
-// counts, so a click never copies one left from before, and only the main button: macOS
+// counts: one the emulator told of a change to, or one where there was none at the press,
+// as a drag over the very cells of a cleared one is, which the emulator tells nothing of.
+// A click never copies one left from before, and only the main button: macOS
 // selects a word on a right-click, for its menu, and that copies nothing. A program that
 // takes the mouse for itself gets the plain drags, and its own selection reaches the
 // clipboard through `takeClipboardWrites`. Returns the undo.
@@ -15,8 +17,9 @@ export const copyOnSelect = (
   const page = container.ownerDocument.defaultView ?? window
   // From a press in the terminal until its release has been read.
   let pressed = false
-  // Whether the selection changed since that press.
+  // Whether the selection changed since that press, and whether there was one at it.
   let changed = false
+  let had = false
   let pending: ReturnType<typeof setTimeout> | undefined
   const changes = xterm.onSelectionChange(() => {
     if (pressed) changed = true
@@ -26,6 +29,7 @@ export const copyOnSelect = (
     clearTimeout(pending)
     pressed = true
     changed = false
+    had = xterm.hasSelection()
   }
   // The release may land outside the terminal, as a drag past its edge does, so the page
   // hears it. The emulator tells of the selection's change in its own handler of the same
@@ -35,7 +39,7 @@ export const copyOnSelect = (
     clearTimeout(pending)
     pending = setTimeout(() => {
       pressed = false
-      if (!changed || !xterm.hasSelection()) return
+      if ((had && !changed) || !xterm.hasSelection()) return
       const text = xterm.getSelection()
       if (text) copy(text)
     }, 0)

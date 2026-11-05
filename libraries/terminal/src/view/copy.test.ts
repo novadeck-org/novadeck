@@ -118,6 +118,21 @@ describe("a mouse selection in a terminal", () => {
     expect(page.copied).toEqual([])
   })
 
+  it("copies a drag over the very cells of a cleared selection, which the emulator tells nothing of", () => {
+    const page = selecting()
+    page.press()
+    page.select("same cells")
+    page.release()
+    page.settle()
+    // Ctrl+C's copy clears it; the emulator keeps the range as its last one.
+    page.select("")
+    page.press()
+    page.had("same cells")
+    page.release()
+    page.settle()
+    expect(page.copied).toEqual(["same cells", "same cells"])
+  })
+
   it("copies again when a later press makes a new selection", () => {
     const page = selecting()
     page.press()
