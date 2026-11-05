@@ -160,6 +160,10 @@ const TeamWireSection = ({
     (workspace) => allTeams(workspace).map(({ lead }) => leadChain(workspace, lead).length),
     sameItems,
   )
+  const chains = useWorkspaceState(
+    (workspace) => allTeams(workspace).map(({ lead }) => leadChain(workspace, lead).join(" ")),
+    sameItems,
+  )
   const list = useSyncExternalStore(tabList.subscribe, tabList.getSnapshot)
   // Folding a lead's teammates out of the list, from the gutter beside its tab.
   const { ui } = useWorkspaceServices()
@@ -177,6 +181,7 @@ const TeamWireSection = ({
     <TeamWire
       teams={teams}
       levels={levels}
+      chains={chains}
       lit={lit}
       above={above}
       selected={selected}

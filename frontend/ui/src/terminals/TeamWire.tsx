@@ -130,6 +130,7 @@ const measureWires = (
 export const TeamWire = ({
   teams,
   levels = noLevels,
+  chains = noChains,
   lit = noLit,
   above = noLeads,
   selected,
@@ -141,8 +142,10 @@ export const TeamWire = ({
   onPreview,
 }: {
   teams: readonly Team[]
-  // How many leads stand above each team's lead, in the teams' order: its lane.
+  // How many leads stand above each team's lead, in the teams' order: its lane; and the leads
+  // above it, nearest first, space-separated, whose folds fade its wire too.
   levels?: readonly number[]
+  chains?: readonly string[]
   // What lights for the selected terminal (core's litTeams), and the leads above it, whose
   // folded teams show the way down to it.
   lit?: LitTeams
@@ -278,8 +281,19 @@ export const TeamWire = ({
     return wire && shape ? [{ ...wire, shape, ghost: [] }] : []
   })
   // A folded team shows no wire but its lead's cursor, unless the selected terminal is in it,
-  // which shows in its place with the way down to it.
-  const faded = (lead: string) => folded.includes(lead) && !above.includes(lead)
+  // which shows in its place with the way down to it. A team under a folded lead fades whole
+  // with the fold, resting or lit, unless the person is on its lead or below it, which shows in
+  // place; and fades back in as a lead above it unfolds.
+  const chainOf = (lead: string) =>
+    chains[teams.findIndex((each) => each.lead === lead)]?.split(" ") ?? []
+  const faded = (lead: string) =>
+    folded.includes(lead)
+      ? !above.includes(lead)
+      : chainOf(lead).some((each) => folded.includes(each)) &&
+        selected !== lead &&
+        !above.includes(lead)
+  const unfoldingOf = (lead: string) =>
+    unfolding !== undefined && (unfolding === lead || chainOf(lead).includes(unfolding))
   // A gutter that goes away under the pointer, as the sidebar hides, the session changes or the
   // team ends, hears no leave: what pointing there armed ends with it (here, as the selection's
   // entrance is forgotten above), the preview it set ends as it does (below), and a click there
@@ -311,7 +325,7 @@ export const TeamWire = ({
               lit={false}
               folded={folded.includes(wire.lead)}
               faded={faded(wire.lead)}
-              unfolding={unfolding === wire.lead}
+              unfolding={unfoldingOf(wire.lead)}
               armed={armed === wire.lead}
             />
           ),
@@ -323,7 +337,7 @@ export const TeamWire = ({
           lit
           folded={false}
           faded={false}
-          unfolding={false}
+          unfolding={unfoldingOf(wire.lead)}
           armed={armed === wire.lead}
         />
       ))}
@@ -334,7 +348,7 @@ export const TeamWire = ({
           lit
           folded={folded.includes(wire.lead)}
           faded={faded(wire.lead)}
-          unfolding={unfolding === wire.lead}
+          unfolding={unfoldingOf(wire.lead)}
           armed={armed === wire.lead}
         />
       ))}
@@ -376,6 +390,7 @@ export const TeamWire = ({
 }
 const noLeads: readonly string[] = []
 const noLevels: readonly number[] = []
+const noChains: readonly string[] = []
 const noLit: LitTeams = { full: [], path: [] }
 
 const Wire = ({

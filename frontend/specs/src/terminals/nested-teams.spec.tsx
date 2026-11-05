@@ -119,4 +119,18 @@ describe("A team inside another", () => {
     await expect.poll(() => laidOut(deep)).toBe(false)
     expect(laidOut(sub)).toBe(false)
   })
+
+  it("fades back in with its parent's unfold, as its parent's wire does", async () => {
+    await openNested()
+    await terminalTab("Dev server").click()
+    await foldTop()
+    await expect.poll(() => laidOut(sub)).toBe(false)
+    const menu = await windowMenu(top)
+    await menu.getByRole("menuitem", { name: "Show 3 teammates", exact: true }).click()
+    await expect.poll(() => laidOut(deep)).toBe(true)
+    // The top team's wire and the nested team's both come back fading in.
+    await expect
+      .poll(() => document.querySelectorAll(".team-wire-shape[data-unfolding]").length)
+      .toBe(2)
+  })
 })
