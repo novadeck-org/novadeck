@@ -194,8 +194,12 @@ export const createView = (element: HTMLElement, options: ViewOptions): View => 
     dispose: () => {
       disposed = true
       listeners.clear()
-      terminal.dispose()
-      renderer.dispose()
+      try {
+        terminal.dispose()
+      } finally {
+        // Its slot goes back whatever closing the terminal did.
+        renderer.dispose()
+      }
     },
   }
 }

@@ -134,7 +134,10 @@ release fixes what it fixes.
   once, which ends the OSC, CSI or escape sequence the throw left the parser in: unended, the
   output after it went into that sequence's payload until the next BEL or ST. An async handler's
   rejection goes to its chunk's callback, not thrown again, and xterm's check on a slow async
-  handler no longer throws it either (unhandled, in Node). Upstream has the same loop; drop the patch on an upgrade that catches
+  handler no longer throws it either (unhandled, in Node). What the chunk held after the throw is
+  still lost (a prompt sent in the same read as the OSC 7 whose listener threw), and the CAN
+  can't help a handler that throws while the parser waits on an async one: the resumed parse then
+  fails for good. Headless handlers are synchronous, as its typings say. Upstream has the same loop; drop the patch on an upgrade that catches
   there. `src/write.test.ts` pins it in all four bundles.
 - `@xterm/xterm` 6.0.0 and `@xterm/headless` 6.0.0, in each package's two bundles: an empty buffer
   takes the line limit of its size (`_getCorrectBufferLength(this._rows)`) in `fillViewportRows`

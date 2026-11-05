@@ -30,7 +30,11 @@ describe("a write whose parsing throws", () => {
   it.each(bundles)("is skipped in %s's %s", (name, bundle) => {
     const source = readFileSync(join(dirname(require.resolve(name)), bundle), "utf8")
     const start = source.indexOf("_innerWrite(e=0,")
-    const body = source.slice(start, source.indexOf("setTimeout", start))
+    // The loop, async branch included, up to where it queues what is left.
+    const body = source.slice(
+      start,
+      source.indexOf("this._writeBuffer.length>this._bufferOffset?", start),
+    )
     expect(body).toMatch(
       name === "@xterm/headless"
         ? /try\{\w+=this\._action\(\w+,\w+\)\}catch\((\w+)\)\{this\._failed=void 0;try\{this\._action\("\\x18"\)\}catch\{\}(const|let) \w+=this\._callbacks/
@@ -41,6 +45,10 @@ describe("a write whose parsing throws", () => {
       /if\(\w+&&\w+\(\w+\),this\._bufferOffset\+\+,this\._pendingData-=\w+\.length,performance\.now\(\)-\w+>=\w+\)break;continue\}/,
     )
     if (name !== "@xterm/headless") return
+    // An async handler's rejection goes to its chunk's callback, kept until the chunk is done.
+    expect(body).toMatch(
+      /\.catch\(\(?\w+=>\((void 0===this\._failed|this\._failed===void 0)&&\(this\._failed=\w+\),!1\)/,
+    )
     expect(body).not.toContain("throw")
     // Nor does the check on a slow async handler throw its rejection again, unhandled.
     const slow = source.indexOf("_logSlowResolvingAsync(e){")
