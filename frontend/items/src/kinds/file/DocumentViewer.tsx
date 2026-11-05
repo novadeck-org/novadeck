@@ -14,7 +14,8 @@ export const DocumentViewer = ({
   content,
   actions,
 }: {
-  // The item showing it, whose editor opens again as it was left.
+  // The item showing it. Its editor opens again as it was left for this file: the same
+  // item shown another file, as the project window's is, opens that one at its top.
   id: string
   // The item's name, which labels the document: it reads as the file.
   name: string
@@ -50,7 +51,7 @@ export const DocumentViewer = ({
         )}
         <div className="pane-document-scroll">
           <MarkdownDocument
-            id={id}
+            id={`${id}:${content.path}`}
             readOnly
             text={text}
             label={name}
