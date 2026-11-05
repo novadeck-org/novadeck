@@ -178,19 +178,20 @@ export const litTeams = (workspace: Workspace, selected: string): LitTeams => {
   return { full, path }
 }
 
-// What a terminal is in what lights for the selected terminal (litTeams): a lead (of a team
-// lit whole, or one on the way up), a worker of a team lit whole, or nothing.
-export const chainRole = (
+// What a terminal is in the tree of teams the selected terminal is in (its tabs take the team's
+// tint, nested teams whole): a lead (it leads anyone in it) or a worker, from the top lead
+// down, whichever member is selected; nothing for a terminal outside it, or while the
+// selected terminal is in no team.
+export const treeRole = (
   workspace: Workspace,
   terminalId: string,
 ): "lead" | "worker" | undefined => {
-  const { full, path } = litTeams(workspace, activeSession(workspace)!.state.selected)
-  if (
-    full.some((team) => team.lead === terminalId) ||
-    path.some((step) => step.lead === terminalId)
-  )
-    return "lead"
-  return full.some((team) => team.workers.includes(terminalId)) ? "worker" : undefined
+  const selected = activeSession(workspace)!.state.selected
+  const { workers, leads } = teamsOf(rosterOf(workspace))
+  if (!workers.has(selected) && !leads.has(selected)) return undefined
+  const root = leadChain(workspace, selected).at(-1) ?? selected
+  if (terminalId !== root && !descendantsOf(workspace, root).includes(terminalId)) return undefined
+  return workers.has(terminalId) ? "lead" : "worker"
 }
 
 // Whether two lit sets are the same.

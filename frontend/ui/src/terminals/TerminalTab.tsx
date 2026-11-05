@@ -136,8 +136,8 @@ export const TerminalTab = ({
   // How a teammate's tab stands in its lead's fold (app/team-fold.ts): folded away, previewed,
   // unfolding or shown (tabs.css).
   fold?: "away" | "preview" | "unfolding" | "shown" | undefined
-  // How many leads stand above it (nested teams): its tab steps in a little for each, up to
-  // three (tabs.css).
+  // How many leads stand above it: from two, a nested team's tab, it steps in a little per
+  // level (tabs.css).
   level?: number
   // On a lead: its menu's way to fold its teammates out of the list or show them again.
   foldTeam?: FoldTeam | undefined

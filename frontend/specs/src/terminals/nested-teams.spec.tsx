@@ -28,15 +28,15 @@ const cursors = () =>
 const litShapes = () => document.querySelectorAll(".team-wire-shape[data-lit]").length
 
 describe("A team inside another", () => {
-  it("steps its tabs in a little per lead above them, a lead only as someone's teammate", async () => {
+  it("steps its tabs in a little, its lead's team's staying in line with every tab", async () => {
     await openNested()
     await expect.poll(() => levelOf(deep)).toBe("2")
     expect(levelOf(sub)).toBe("1")
     expect(levelOf(top)).toBeNull()
     expect(levelOf("Dev server")).toBeNull()
     const left = (name: string) => tabOf(name).getBoundingClientRect().left
-    expect(Math.round(left(sub) - left(top))).toBe(6)
-    expect(Math.round(left(deep) - left(top))).toBe(12)
+    expect(Math.round(left(sub) - left(top))).toBe(0)
+    expect(Math.round(left(deep) - left(top))).toBe(6)
   })
 
   it("runs its wire in a lane further in, its lead's cursor where its parent's tick ends", async () => {
@@ -56,6 +56,20 @@ describe("A team inside another", () => {
     expect(roleOf(sub)).toBe("lead")
     expect(roleOf(top)).toBe("lead")
     expect(roleOf("Dev server")).toBeNull()
+  })
+
+  it("tints the whole tree whichever member is selected, the top lead's or a teammate's", async () => {
+    await openNested()
+    const tintedOn = async (name: string) => {
+      await terminalTab(name).click()
+      await expect.poll(() => roleOf(deep)).toBe("worker")
+      expect(roleOf(sub)).toBe("lead")
+      expect(roleOf(top)).toBe("lead")
+      expect(roleOf("Dev server")).toBeNull()
+    }
+    await tintedOn(top)
+    await tintedOn(sub)
+    await tintedOn(deep)
   })
 
   it("folds with its parent's fold, and counts it on its lead's row", async () => {

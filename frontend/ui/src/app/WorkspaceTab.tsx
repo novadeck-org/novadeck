@@ -1,4 +1,4 @@
-import { chainRole, teamText } from "@novadeck/core/derivations"
+import { teamText, treeRole } from "@novadeck/core/derivations"
 import { isWindow } from "@novadeck/core/roster"
 import { activeProject } from "@novadeck/core/state"
 import type { Tile } from "@novadeck/core/types"
@@ -37,9 +37,9 @@ export const WorkspaceTab = memo(
       }
     }, shallowEqual)
     const target = useWorkspaceState(currentTarget, sameTarget)
-    // Its place in what lights for the selected terminal (its teams, and the leads above), which
-    // the tab and the rail's wire show.
-    const team = useWorkspaceState((workspace) => chainRole(workspace, id))
+    // Its place in the tree of teams the selected terminal is in, nested teams whole, which its
+    // tab's tint shows (the rail's wire lights the selection's own way through it).
+    const team = useWorkspaceState((workspace) => treeRole(workspace, id))
     // Its team in words, which assistive technology hears as the wire is only drawn.
     const teamWords = useWorkspaceState((workspace) => teamText(workspace, id))
     const rename = useUiState(

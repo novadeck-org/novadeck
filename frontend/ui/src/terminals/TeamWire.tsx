@@ -17,8 +17,9 @@ const settleMs = 400
 const sameWires = (a: Wires, b: Wires) => JSON.stringify(a) === JSON.stringify(b)
 
 // Nested teams (a teammate that leads its own): each level's wire runs in its own lane, a
-// lane's width further from the rail's border than its lead's lead's, as its tabs step in as
-// far (tabs.css). Past three levels, deeper teams share the innermost lane.
+// lane's width further from the rail's border than its lead's lead's, and a nested team's
+// tabs step in as far (tabs.css), so each sits beside its lane. Past three levels, deeper
+// teams share the innermost lane.
 const laneWidth = 6
 const deepestLane = 3
 const laneOf = (level: number) => Math.min(level, deepestLane) * laneWidth

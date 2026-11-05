@@ -4,6 +4,7 @@ import {
   leadChain,
   ledTerminals,
   litTeams,
+  treeRole,
   messagePeers,
   runningLeads,
   sameTeam,
@@ -418,6 +419,20 @@ describe("nested teams", () => {
     expect(descendantsOf(teams(), "01")).toEqual(["02", "04", "05"])
     expect(descendantsOf(teams(), "04")).toEqual(["05"])
     expect(descendantsOf(teams(), "02")).toEqual([])
+  })
+
+  it("tint the whole tree, from the top lead down, whichever member is selected", () => {
+    for (const selected of ["01", "02", "05"]) {
+      const workspace = select(teams(), selected)
+      expect(["01", "02", "03", "04", "05"].map((id) => treeRole(workspace, id))).toEqual([
+        "lead",
+        "worker",
+        undefined,
+        "lead",
+        "worker",
+      ])
+    }
+    expect(treeRole(select(teams(), "03"), "01")).toBeUndefined()
   })
 
   context("lighting for a selection", () => {
