@@ -52,6 +52,11 @@ export const shellGroups = ({
           hint: "First-run agent setup",
           run: states.openWelcome,
         },
+        {
+          label: "App error",
+          hint: "A view throws: the crash screen, with Reload",
+          run: (context) => context.crash(),
+        },
       ],
     },
     {

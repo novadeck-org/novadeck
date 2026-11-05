@@ -29,6 +29,7 @@ import {
   focusTab,
   focusViewChoice,
   navigateChip,
+  nextFrames,
   openWorkspace,
   press,
   reloadWorkspace,
@@ -475,6 +476,31 @@ describe("navigate mode", () => {
 
       await expectSelected("Checkout implementation")
       await expect.element(navigateChip()).not.toBeInTheDocument()
+    })
+  })
+
+  context("when a browser's click is a plain MouseEvent, saying nothing of the pointer", () => {
+    // Clicks the stage as such a browser does: the press says what pressed, the click doesn't.
+    const clickStage = (pointerType: string): void => {
+      ;(document.activeElement as HTMLElement | null)?.blur()
+      const stage = document.querySelector<HTMLElement>("[data-workspace-viewport]")!
+      stage.dispatchEvent(new PointerEvent("pointerdown", { bubbles: true, pointerType }))
+      stage.dispatchEvent(new MouseEvent("click", { bubbles: true, detail: 1 }))
+    }
+
+    it("hands typing back to the selected terminal after a mouse's press", async () => {
+      await openWorkspace()
+      clickStage("mouse")
+
+      await expect.element(commandInput("Checkout implementation")).toHaveFocus()
+    })
+
+    it("leaves it after a touch, which would raise a phone's keyboard", async () => {
+      await openWorkspace()
+      clickStage("touch")
+      await nextFrames(3)
+
+      expect(document.activeElement).toBe(document.body)
     })
   })
 

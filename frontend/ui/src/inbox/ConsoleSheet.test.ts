@@ -515,6 +515,36 @@ describe("The Console sheet", () => {
       await inbox.done()
     })
 
+    it("arms again for a newer ask under the same id", async () => {
+      const inbox = mount([asked(options, { hard: "It sets the schema." })])
+      inbox.key("2", document.querySelector(".inbox-row-select")!)
+      expect(inbox.row("Test catalog").textContent).toContain("↵ again to send it")
+      // The agent asks again under the same id: another ask, not the one that was armed.
+      act(() =>
+        inbox.state.update((current) => ({
+          ...current,
+          items: [asked(options, { hard: "It sets the schema.", at: 2 })],
+        })),
+      )
+      expect(inbox.row("Test catalog").textContent).not.toContain("↵ again to send it")
+      inbox.key("2")
+
+      expect(inbox.sent).toEqual([])
+      await inbox.done()
+    })
+
+    it("keeps a draft for its own ask only, not a newer one under the same id", async () => {
+      const inbox = mount([asked(options)])
+      inbox.press("Reply in your own words")
+      inbox.type("Neither.")
+      expect(document.querySelector(".inbox-row")?.textContent).toContain("Draft")
+      act(() =>
+        inbox.state.update((current) => ({ ...current, items: [asked(options, { at: 2 })] })),
+      )
+      expect(document.querySelector(".inbox-row")?.textContent).not.toContain("Draft")
+      await inbox.done()
+    })
+
     it("goes to the terminal on the first press, hard to undo or not, answering nothing", async () => {
       const inbox = mount([asked(options, { hard: "It sets the schema." })])
       const away = String(inbox.rows().length)
