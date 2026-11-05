@@ -99,11 +99,11 @@ suite("what an Antigravity tool call was", () => {
       "http://localhost:5173/",
     ],
     [
-      "summarize",
-      { summary: "Fixing the cart rounding" },
+      "describe",
+      { title: "Cart rounding", summary: "Fixing the cart rounding" },
       "agent",
-      "Summarized this terminal",
-      "Fixing the cart rounding",
+      "Described this terminal",
+      "Cart rounding",
     ],
   ])("labels Novadeck's %s, eager or lazy", (tool, input, kind, title, detail) => {
     const expected = { kind, title, detail }

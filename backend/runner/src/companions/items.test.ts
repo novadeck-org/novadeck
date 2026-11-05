@@ -81,7 +81,7 @@ const it = base.extend<{ fixture: Fixture }>({
         agents: {},
         promptedAt: null,
         handle,
-        naming: { person: null, opener: null, murmur: null, summary: null },
+        naming: { person: null, opener: null, murmur: null, own: null, summary: null },
         openedBy: null,
         ledBy: null,
         command: null,

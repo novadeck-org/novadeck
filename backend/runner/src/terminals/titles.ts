@@ -3,6 +3,7 @@ import { basename, win32 } from "node:path"
 import {
   asLine,
   maxTerminalTitle,
+  terminalTitle,
   titleFrom,
   type TerminalSummary,
   type TitleSource,
@@ -17,19 +18,28 @@ export type { TitleSource }
  * own so the title follows their precedence: the person's title; the title the agent that
  * opened the terminal gave through `open_terminal` or `open_agent`, which shows as that
  * terminal's (its `openedBy`) and which murmur never replaces, as it never replaces the
- * person's; and murmur's latest title, written by a local model. The default comes from the program the
- * terminal was opened to run, never from its handle. The summary is the terminal's own
- * agent's, through `summarize`, which `agents()` lists; it is no part of the title.
+ * person's; murmur's latest title, written by a local model; and the title the terminal's
+ * own agent gave through `describe`, which shows when nothing above it has named the
+ * terminal. The default comes from the program the terminal was opened to run, never from
+ * its handle. The summary is the same agent's, through `describe` too, which `agents()`
+ * lists; it is no part of the title.
  */
 export type Naming = {
   readonly person: string | null
   readonly opener: { readonly title: string } | null
   readonly murmur: { readonly title: string } | null
+  readonly own: { readonly title: string } | null
   readonly summary: string | null
 }
 
 /** A terminal nothing named yet. */
-export const unnamed: Naming = { person: null, opener: null, murmur: null, summary: null }
+export const unnamed: Naming = {
+  person: null,
+  opener: null,
+  murmur: null,
+  own: null,
+  summary: null,
+}
 
 /** The most a summary holds, in characters (code points), over at most `summaryLines` lines. */
 export const summaryChars = 200
@@ -84,12 +94,17 @@ export const titledByHand = (
 
 /**
  * The terminal's title and who it is from, by precedence: the person, then the opening
- * agent's, then murmur, then the default. A lead names its teammates so it and the person
- * can tell them apart, so a local model's later title never takes that away.
+ * agent's, then murmur, then the terminal's own agent's, then the default. A lead names its
+ * teammates so it and the person can tell them apart, so a local model's later title never
+ * takes that away, nor does the teammate's own.
  */
 export const titleOf = (
   naming: Naming,
-  terminal: { readonly command: string | null; readonly openedBy: string | null },
+  terminal: {
+    readonly handle: string
+    readonly command: string | null
+    readonly openedBy: string | null
+  },
 ): { readonly title: string; readonly source: TitleSource } => {
   // Each kept title as a title may be now: one kept before the rule took in more holds
   // what it refuses, which would fail every summary it is in.
@@ -101,13 +116,20 @@ export const titleOf = (
     return { title: opener, source: { kind: "agent", by: terminal.openedBy } }
   const murmur = naming.murmur ? titleFrom(naming.murmur.title) : undefined
   if (murmur !== undefined) return { title: murmur, source: { kind: "murmur" } }
+  // The agent's own, whose source is the terminal itself, by its handle.
+  const own = naming.own ? titleFrom(naming.own.title) : undefined
+  if (own !== undefined) return { title: own, source: { kind: "agent", by: terminal.handle } }
   return { title: defaultTitle(terminal.command), source: { kind: "default" } }
 }
 
 /** A terminal's title, and who it is from, as its summary shows them (see `titleOf`). */
 export const summaryTitle = (
   naming: Naming,
-  terminal: { readonly command: string | null; readonly openedBy: string | null },
+  terminal: {
+    readonly handle: string
+    readonly command: string | null
+    readonly openedBy: string | null
+  },
 ): Pick<TerminalSummary, "title" | "titleSource"> => {
   const { title, source } = titleOf(naming, terminal)
   return { title, titleSource: source }
@@ -131,8 +153,12 @@ export const murmured = (naming: Naming, title: string): Naming => ({
   murmur: { title },
 })
 
-/** The summary the terminal's own agent gave of its work. */
-export const summarized = (naming: Naming, summary: string): Naming => ({ ...naming, summary })
+/** The title and summary the terminal's own agent gave of its work. */
+export const described = (naming: Naming, title: string, summary: string): Naming => ({
+  ...naming,
+  own: { title },
+  summary,
+})
 
 /** A summary as kept: each line's spaces collapsed, blank lines dropped, control characters removed. */
 export const cleanSummary = (summary: string): string =>
@@ -157,5 +183,24 @@ export const summaryRefusal = (summary: string): string | undefined => {
       `The summary is ${chars} characters over ${lines} lines; ` +
       `keep it to ${summaryLines} lines and ${summaryChars} characters.`
     )
+  return undefined
+}
+
+/** The most an agent's own title holds, in characters (code points). */
+export const ownTitleChars = 80
+
+/**
+ * Why an agent's title can't be taken; undefined when it can: one line of up to
+ * `ownTitleChars` characters, with words in it, and clean of what a person's title refuses
+ * (`terminalTitle`: control characters, and marks that reorder text or hide in it).
+ */
+export const titleRefusal = (title: string): string | undefined => {
+  if (!title) return "The title is empty: name the work here in a few words."
+  if (!terminalTitle.safeParse(title).success)
+    return "The title must be one line of plain text, with no control or direction marks."
+  if (!/[\p{L}\p{N}]/u.test(title))
+    return "The title needs words, not only symbols or invisible characters."
+  const chars = [...title].length
+  if (chars > ownTitleChars) return `The title is ${chars} characters; keep it to ${ownTitleChars}.`
   return undefined
 }

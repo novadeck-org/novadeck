@@ -3,13 +3,13 @@ import { shorten } from "../text.js"
 import { due, noTroubles, pageNotice, spend, type PageEntry, type Troubles } from "./troubles.js"
 
 /**
- * When Novadeck nudges a terminal's agent to summarize its work (see
+ * When Novadeck nudges a terminal's agent to describe its work (see
  * docs/agent-messaging.md, "Naming"): a new root session; a compaction, where the harness
- * reports one; the work drifting from where it was at the last `summarize` (its plan's
+ * reports one; the work drifting from where it was at the last `describe` (its plan's
  * title, the folder it writes in most, or its branch); as a backstop, `backstopPrompts` of
- * the person's prompts since the last `summarize`; and every prompt while the terminal has
+ * the person's prompts since the last `describe`; and every prompt while the terminal has
  * no summary at all (`unsummarized`), since an agent whose first prompt gave it no work yet
- * puts the first nudge off, and the terminal has no title until it summarizes.
+ * puts the first nudge off, and the terminal has no title of its own until it describes.
  */
 export type Trigger = "session" | "compaction" | "drift" | "prompts" | "unsummarized"
 
@@ -25,12 +25,12 @@ export type Facts = {
 }
 
 /**
- * A terminal's nudges: the triggers that fired since the last `summarize` or nudge, the
- * person's prompts counted toward the backstop, the facts at the last `summarize` (null
+ * A terminal's nudges: the triggers that fired since the last `describe` or nudge, the
+ * person's prompts counted toward the backstop, the facts at the last `describe` (null
  * before any), and those drift last fired for; and, apart from all of these, whether
  * the session has yet to hear of the companion bar beside its terminal
  * (`companionNotice`) and of the Inbox (`inboxNotice`), which only their delivery
- * clears, never a `summarize`; and the troubles the pane told of pages the session
+ * clears, never a `describe`; and the troubles the pane told of pages the session
  * showed (`troubles.ts`), which a new root session drops and only their delivery
  * otherwise clears.
  */
@@ -44,13 +44,13 @@ export type Nudges = {
   /** When the current root session began, in milliseconds; only later shows are told of. */
   readonly since: number
   /**
-   * Whether drift takes the facts it next reads as its baseline, with no `summarize` since
+   * Whether drift takes the facts it next reads as its baseline, with no `describe` since
    * the session came back (`sessionResumed`): its baseline went with the runner before.
    */
   readonly reseed?: boolean
 }
 
-/** How many of the person's prompts since the last `summarize` nudge as a backstop. */
+/** How many of the person's prompts since the last `describe` nudge as a backstop. */
 export const backstopPrompts = 5
 
 export const noNudges: Nudges = {
@@ -119,8 +119,8 @@ export const differs = (a: Facts, b: Facts): boolean =>
 
 /**
  * The facts as they stand: drift fires once they differ from those at the last
- * `summarize` and from those it last fired for, so work going back and forth between two
- * folders fires once, not at each turn. Nothing drifts before a `summarize`, or before a
+ * `describe` and from those it last fired for, so work going back and forth between two
+ * folders fires once, not at each turn. Nothing drifts before a `describe`, or before a
  * session resumed after a restart takes the facts it is first read at (`reseed`).
  */
 export const drifted = (nudges: Nudges, facts: Facts): Nudges => {
@@ -133,7 +133,7 @@ export const drifted = (nudges: Nudges, facts: Facts): Nudges => {
 }
 
 /**
- * The agent summarized its work: no summarize trigger is pending, and drift is measured
+ * The agent described its work: no describe trigger is pending, and drift is measured
  * from `facts`. What the session has yet to hear of its bar stays.
  */
 export const afterSummary = (nudges: Nudges, facts: Facts): Nudges => ({
@@ -229,36 +229,38 @@ export const atTurnStart = (
 }
 
 /**
- * The nudge, one line worded as Novadeck's automatic notice: asking for a summary while
- * there is none, at once, before the agent goes on with its work, as the terminal has no
- * title until then, and to let the notice be while no work was given, as it comes with
- * every prompt until then (an agent only chatting made up a placeholder to quiet it);
- * else showing the current one, to update only when the work's subject
- * moved or it holds what a summary leaves out (status, PR or issue numbers, details). A summary names
- * the subject at a high level, as murmur titles the terminal from it.
+ * The nudge, one line worded as Novadeck's automatic notice: asking for a title and a
+ * summary while there is no summary, at once, before the agent goes on with its work, as
+ * the terminal has no title of the agent's until then, and to let the notice be while no
+ * work was given, as it comes with every prompt until then (an agent only chatting made up
+ * a placeholder to quiet it); else showing the current summary, to update both only when
+ * the work's subject moved or the summary holds what it leaves out (status, PR or issue
+ * numbers, details). Both name the subject at a high level: the title is what Novadeck
+ * names the terminal with when nothing else has, and murmur titles it from the summary.
  */
 export const nudgeText = (current: { readonly summary: string | null }) =>
   current.summary === null
     ? "Novadeck: automatic notice, not from the user: this terminal has no summary yet. " +
       "Once you've been given work, any task, investigation, review, design discussion or " +
-      "question you'll dig into, call Novadeck's summarize tool now, before you go on with " +
-      "it, with one short line on what the work here is about, at a high level: its subject, " +
-      "with no status, PR or issue numbers, or details. Novadeck titles this terminal from " +
-      "it, and other agents read it in their agents listing. Until then, such as with only a " +
-      "greeting or a quick question you answer at once, let this notice be and make up no " +
-      "summary to quiet it: it comes with each prompt until you summarize."
+      "question you'll dig into, call Novadeck's describe tool now, before you go on with " +
+      "it, with a title and a summary, each one short line on what the work here is about, " +
+      "at a high level: its subject, with no status, PR or issue numbers, or details. " +
+      "Novadeck names this terminal with the title when nothing else has, and other agents " +
+      "read the summary in their agents listing. Until then, such as with only a greeting " +
+      "or a quick question you answer at once, let this notice be and make up no title or " +
+      "summary to quiet it: it comes with each prompt until you describe."
     : `Novadeck: automatic notice, not from the user: this terminal's summary is ` +
       `${JSON.stringify(shorten(current.summary, 200))}; ` +
       "if the work here is now about something else, or that holds status, PR or issue " +
-      "numbers, or details, update it with Novadeck's summarize tool to one short line on " +
-      "its subject. Progress alone is no reason to update it; otherwise this notice can be " +
-      "ignored."
+      "numbers, or details, update it with Novadeck's describe tool, a title and a summary, " +
+      "each one short line on its subject. Progress alone is no reason to update it; " +
+      "otherwise this notice can be ignored."
 
 /**
  * What a session is told once of the bar beside its terminal (see docs/agent-workspace.md,
  * "Companion pane"): what to show there and what not to, since an agent left to itself
  * shows nothing until asked, or every file it touches once asked. Worded as Novadeck's
- * automatic notice, one paragraph; independent of `summarize`.
+ * automatic notice, one paragraph; independent of `describe`.
  */
 export const companionNotice =
   "Novadeck: automatic notice, not from the user: beside this terminal is a bar where you " +

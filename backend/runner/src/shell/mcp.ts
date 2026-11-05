@@ -18,7 +18,7 @@
  *   own.
  * - `lead` asks the person to let it lead an agent already running in another terminal,
  *   and `release` ends such a lead; `send` and `agents` message the agents in the
- *   project's other terminals and list them; `summarize` says what the agent's own
+ *   project's other terminals and list them; `describe` names and says what the agent's own
  *   terminal works on.
  * - `ask`, `tell` and `done` put a question, a milestone and a report in the person's
  *   Inbox; `feedback` drafts feedback about Novadeck for the person's feedback card (see
@@ -1002,21 +1002,28 @@ const agents: Tool<Listing> = {
   failed: "Novadeck couldn't list the terminals.",
 }
 
-const summarize: Tool<unknown> = {
-  name: "summarize",
+const describe: Tool<unknown> = {
+  name: "describe",
   description:
-    "Summarize your own Novadeck terminal: one short line on what the work here is about, " +
-    'at a high level, such as "Checkout rounding fix" or "Billing webhook key rotation". ' +
-    "Name the subject only: no status or progress (done, merged, in CI, next), no PR or " +
-    "issue numbers, no file names or details. Other agents read it in their agents listing " +
-    "to tell terminals apart and route work, and Novadeck may name the terminal from it. " +
-    "It only ever summarizes your own terminal. Call it when Novadeck's automatic notice " +
-    "asks, first thing once you are given work, or when the work moves to another subject; " +
-    "progress alone is no reason to update it. It sets no title: titles are Novadeck's and " +
-    "the user's.",
+    "Describe your own Novadeck terminal with a title and a summary, each one short line on " +
+    'what the work here is about, at a high level, such as "Checkout rounding fix" or ' +
+    '"Billing webhook key rotation". Name the subject only: no status or progress (done, ' +
+    "merged, in CI, next), no PR or issue numbers, no file names or details. The title is " +
+    "what Novadeck names the terminal with when nothing else has named it: the user, the " +
+    "agent that opened it, or its local model, which all come first. Other agents read the " +
+    "summary in their agents listing to tell terminals apart and route work, and Novadeck " +
+    "may name the terminal from it. It only ever describes your own terminal. Call it when " +
+    "Novadeck's automatic notice asks, first thing once you are given work, or when the " +
+    "work moves to another subject; progress alone is no reason to update it.",
   inputSchema: {
     type: "object",
     properties: {
+      title: {
+        type: "string",
+        description:
+          "A few words naming what the work here is about: its subject, with no status, PR or issue numbers, or file names.",
+        maxLength: 80,
+      },
       summary: {
         type: "string",
         description:
@@ -1024,13 +1031,13 @@ const summarize: Tool<unknown> = {
         maxLength: 200,
       },
     },
-    required: ["summary"],
+    required: ["title", "summary"],
     additionalProperties: false,
   },
-  call: "summarize",
-  request: (args) => picked(args, ["summary"]),
-  said: () => "Summarized this terminal.",
-  failed: "Novadeck couldn't summarize the terminal.",
+  call: "describe",
+  request: (args) => picked(args, ["title", "summary"]),
+  said: () => "Described this terminal.",
+  failed: "Novadeck couldn't describe the terminal.",
 }
 
 const entryFields = {
@@ -1263,7 +1270,7 @@ const tools: readonly Tool<unknown>[] = [
   release,
   send,
   agents,
-  summarize,
+  describe,
   feedback,
 ]
 

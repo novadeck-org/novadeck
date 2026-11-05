@@ -136,6 +136,7 @@ describe.skipIf(process.platform === "win32" || !existsSync(bash))(
             person: null,
             opener: { title: "Agent" },
             murmur: null,
+            own: null,
             summary: null,
           },
           openedBy: "moth",

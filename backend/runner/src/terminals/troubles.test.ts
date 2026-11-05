@@ -119,7 +119,7 @@ describe("page troubles among a terminal's nudges", () => {
     expect(take(busy.nudges, true).nudge).toBe(true)
   })
 
-  it("survive a summarize, and go with a new root session", () => {
+  it("survive a describe, and go with a new root session", () => {
     expect(afterSummary(held, { plan: null, folder: null, branch: null }).troubles).toBe(
       held.troubles,
     )

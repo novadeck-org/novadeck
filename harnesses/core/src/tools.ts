@@ -170,8 +170,8 @@ export const novadeckTool = (tool: string, fields: Fields | undefined): ToolRun 
       return { kind: "agent", title: "Reported done", detail: text("subject") }
     case "feedback":
       return { kind: "agent", title: "Drafted feedback", detail: text("kind") }
-    case "summarize":
-      return { kind: "agent", title: "Summarized this terminal", detail: text("summary") }
+    case "describe":
+      return { kind: "agent", title: "Described this terminal", detail: text("title") }
     default:
       return undefined
   }

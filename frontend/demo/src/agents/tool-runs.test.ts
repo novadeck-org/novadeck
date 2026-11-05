@@ -256,8 +256,8 @@ const novadeckTool = (tool: string, fields: Fields | null): ToolSummary | undefi
         detail: page ? oneLine(textField(page, "url")) : "",
       }
     }
-    case "summarize":
-      return { kind: "agent", title: "Summarized this terminal", detail: text("summary") }
+    case "describe":
+      return { kind: "agent", title: "Described this terminal", detail: text("title") }
     default:
       return undefined
   }

@@ -677,6 +677,7 @@ export class Terminals {
       remove: (record) => this.remove(record),
       forget: (terminalId) => this.forget(terminalId),
       save: (record) => this.saves.save(record, false),
+      retitle: (record) => this.names.retitle(record),
       summarized: (terminalId) => this.murmur?.summarized(terminalId),
       send: (call) => this.send(call),
       agents: (call) => this.agents(call),
@@ -743,7 +744,7 @@ export class Terminals {
       const ledBy = kept ? kept.ledBy : opener?.leads ? opener.by : null
       const work = saved?.work ?? null
       const command = input.command ?? saved?.command ?? null
-      const titled = summaryTitle(naming, { command, openedBy })
+      const titled = summaryTitle(naming, { handle, command, openedBy })
       const resume =
         input.command === undefined &&
         input.resume &&

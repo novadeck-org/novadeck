@@ -397,15 +397,16 @@ surface({
   },
 })
 
-// An MCP tool with arguments, and a Write over an existing file. Novadeck's `describe` is
-// `summarize` now, its one argument the summary; the fixture's recording is `describe`'s.
+// An MCP tool with arguments, and a Write over an existing file. Novadeck's `describe`, called
+// with the arguments the fixture's recording shows (it took an `asked` flag then): the dialog
+// prints whatever it is called with.
 surface({
   name: "k-mcp-args",
   reply: {
     calls: [
       {
-        name: "mcp__plugin_novadeck_novadeck__summarize",
-        input: { summary: "Doing things" },
+        name: "mcp__plugin_novadeck_novadeck__describe",
+        input: { title: "My title", summary: "Doing things", asked: false },
       },
     ],
   },

@@ -169,7 +169,7 @@ describe("Novadeck's MCP server in a Novadeck terminal", () => {
       "release",
       "send",
       "agents",
-      "summarize",
+      "describe",
       "feedback",
     ])
     // Each as MCP lists a tool, without what the server keeps for itself.
@@ -794,7 +794,7 @@ describe("Novadeck's MCP server in a Novadeck terminal", () => {
     expect(text(released)).toMatch(/^Released @fox/)
   })
 
-  it("summarizes only its own terminal, naming nothing, and says it did", async () => {
+  it("describes only its own terminal, with a title and a summary, and says it did", async () => {
     calls.length = 0
     answer = { ok: true }
     const [, said] = await session(terminal(), [
@@ -803,25 +803,25 @@ describe("Novadeck's MCP server in a Novadeck terminal", () => {
         id: 3,
         method: "tools/call",
         params: {
-          name: "summarize",
-          // No target and no title are arguments it takes.
+          name: "describe",
+          // No target is an argument it takes.
           arguments: {
+            title: "Users API",
             summary: "Builds the users API.",
             to: "fox",
-            title: "Evil",
           },
         },
       },
     ])
     expect((said!.result as { content: { text: string }[] }).content[0]?.text).toBe(
-      "Summarized this terminal.",
+      "Described this terminal.",
     )
     expect(calls).toEqual([
       {
-        type: "summarize",
+        type: "describe",
         terminalId: "3f1c2b1e-0000-4000-8000-000000000001",
         token,
-        request: { summary: "Builds the users API." },
+        request: { title: "Users API", summary: "Builds the users API." },
       },
     ])
     const [, tools] = await session(terminal(), [initialize, list])
@@ -830,19 +830,17 @@ describe("Novadeck's MCP server in a Novadeck terminal", () => {
       description: string
       inputSchema: object
     }[]
-    const tool = offered.find(({ name }) => name === "summarize")!
+    const tool = offered.find(({ name }) => name === "describe")!
     expect(tool.description).toContain("agents listing")
-    expect(tool.description).toContain("sets no title")
+    expect(tool.description).toContain("what Novadeck names the terminal with when nothing else")
     // A high-level subject, never status or details, as murmur titles the terminal from it.
     expect(tool.description).toContain("one short line on what the work here is about")
     expect(tool.description).toContain("no status or progress")
     expect(tool.description).toContain("progress alone is no reason to update it")
     expect(tool.inputSchema).toMatchObject({
-      required: ["summary"],
+      required: ["title", "summary"],
       additionalProperties: false,
     })
-    // Murmur's title is no tool at all.
-    expect(offered.map(({ name }) => name)).not.toContain("describe")
   })
 
   it("forwards a call to the terminal's runner with its token, and says what happened", async () => {
@@ -1528,7 +1526,7 @@ describe("Novadeck's MCP server in a Novadeck terminal", () => {
       "release",
       "send",
       "agents",
-      "summarize",
+      "describe",
       "feedback",
     ])
     expect(shown?.result).toMatchObject({ isError: false })

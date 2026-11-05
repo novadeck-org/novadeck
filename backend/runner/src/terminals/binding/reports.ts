@@ -420,8 +420,8 @@ export class Reports {
   /**
    * A turn's answer, with Novadeck's notices when any is due (see `nudges.ts`): the bar
    * beside the terminal and the Inbox, for a session that begins or lost its context, which
-   * a `summarize` never clears, a nudge to summarize the terminal's work, when a trigger
-   * fired since the last `summarize`, and pages that had troubles; a paragraph each, after
+   * a `describe` never clears, a nudge to describe the terminal's work, when a trigger
+   * fired since the last `describe`, and pages that had troubles; a paragraph each, after
    * what the answer says, at the start of a root turn the person's prompt or the doorbell
    * began (messaging says which, as `adding`), so an agent its lead started and only
    * messages hears them too; never at Stop. Each of the person's prompts counts toward the

@@ -177,7 +177,12 @@ export const codexVocabulary: readonly Written[] = [
         ["close", { file: { path: "/home/user/project/plan.md" } }, "Closed", "mcp__novadeck"],
         ["showing", {}, "Nothing", "mcp__novadeck"],
         ["look", { page: { url: "http://localhost:5173" } }, "Looked", "mcp__novadeck"],
-        ["summarize", { summary: "Pinning the chat." }, "Saved", "mcp__novadeck"],
+        [
+          "describe",
+          { title: "Chat pinning", summary: "Pinning the chat." },
+          "Saved",
+          "mcp__novadeck",
+        ],
         ["mcp__novadeck.send", { to: "reviewer", text: "dotted spelling" }, "Sent"],
         ["mcp__novadeck__agents", {}, "reviewer"],
         ["create_issue", { title: "Flaky test" }, "Created #12", "mcp__github"],

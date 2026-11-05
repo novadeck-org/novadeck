@@ -164,7 +164,11 @@ export const claudeVocabulary: readonly Written[] = [
         [`${novadeck}show`, { file: { path: "/home/user/project/docs/plan.md" } }, "Showing"],
         [`${novadeck}close`, { file: { path: "/home/user/project/docs/plan.md" } }, "Closed"],
         [`${novadeck}showing`, {}, "Nothing"],
-        [`${novadeck}summarize`, { summary: "Fixing the chat contract." }, "Saved"],
+        [
+          `${novadeck}describe`,
+          { title: "Chat contract", summary: "Fixing the chat contract." },
+          "Saved",
+        ],
         ["mcp__github__create_issue", { title: "Flaky test", body: "It flakes" }, "Created #12"],
       ]),
     ],

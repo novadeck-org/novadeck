@@ -262,7 +262,7 @@ export class TerminalPeers {
   }
 
   /**
-   * What tells whether a terminal's work drifted from where its agent last summarized it: its root's own
+   * What tells whether a terminal's work drifted from where its agent last described it: its root's own
    * plan's title (never a subagent's), the folder it writes in most, and its git branch.
    */
   async facts(terminal: PeerTerminal): Promise<Facts> {

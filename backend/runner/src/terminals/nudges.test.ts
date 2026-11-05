@@ -236,7 +236,7 @@ describe("a nudge", () => {
   it("asks for a summary while there is none, as one line of Novadeck's notice", () => {
     const text = nudgeText({ summary: null })
     expect(text).toMatch(/^Novadeck: automatic notice, not from the user: this terminal has no/)
-    expect(text).toContain("summarize tool")
+    expect(text).toContain("describe tool")
     expect(text).not.toContain("\n")
     expect(text).not.toContain("asked")
   })
@@ -315,8 +315,8 @@ describe("a nudge", () => {
       "Novadeck: automatic notice, not from the user: this terminal's summary is " +
         '"Users API. Paging done, #12 in CI."; if the work here is now about something ' +
         "else, or that holds status, PR or issue numbers, or details, update it with " +
-        "Novadeck's summarize tool to one short line on its subject. Progress alone is no " +
-        "reason to update it; otherwise this notice can be ignored.",
+        "Novadeck's describe tool, a title and a summary, each one short line on its subject. " +
+        "Progress alone is no reason to update it; otherwise this notice can be ignored.",
     )
   })
 
@@ -329,12 +329,12 @@ describe("a nudge", () => {
     expect(text).toContain("no status, PR or issue numbers, or details")
   })
 
-  it("asks for the first summary at once, before the agent goes on with its work, as it titles the terminal", () => {
+  it("asks for a title and a summary at once, before the agent goes on with its work", () => {
     const text = nudgeText({ summary: null })
     expect(text).toContain(
-      "question you'll dig into, call Novadeck's summarize tool now, before you go on with it",
+      "question you'll dig into, call Novadeck's describe tool now, before you go on with it, with a title and a summary",
     )
-    expect(text).toContain("Novadeck titles this terminal from it")
+    expect(text).toContain("Novadeck names this terminal with the title when nothing else has")
     expect(text).not.toContain("When it suits")
   })
 
@@ -346,8 +346,8 @@ describe("a nudge", () => {
     )
     expect(text).toContain(
       "Until then, such as with only a greeting or a quick question you answer at once, let " +
-        "this notice be and make up no summary to quiet it: it comes with each prompt until " +
-        "you summarize.",
+        "this notice be and make up no title or summary to quiet it: it comes with each " +
+        "prompt until you describe.",
     )
   })
 })
