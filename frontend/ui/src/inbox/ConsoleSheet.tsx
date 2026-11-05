@@ -8,7 +8,13 @@ import {
   write,
   type Picks,
 } from "@novadeck/core/conversation/picks"
-import type { HeldMessage, InboxAnswer, InboxRow, Trouble } from "@novadeck/core/inbox"
+import {
+  rowKey,
+  type HeldMessage,
+  type InboxAnswer,
+  type InboxRow,
+  type Trouble,
+} from "@novadeck/core/inbox"
 import { unsaidWaits, waitsText } from "@novadeck/core/messages"
 import { HandleChip } from "@novadeck/toolkit/HandleChip"
 import { Markdown } from "@novadeck/toolkit/Markdown"
@@ -373,10 +379,10 @@ const ChoicesMenu = ({
   const [local, setLocal] = useState<Readonly<Record<number, string>>>({})
   const [pressed, setPressed] = useState<number | null>(null)
   const wordsOf = (at: number): string =>
-    row.kind === "ask" ? (drafts[row.id] ?? noDraft).text : (local[at] ?? "")
+    row.kind === "ask" ? (drafts[rowKey(row)] ?? noDraft).text : (local[at] ?? "")
   const setWords = (at: number, text: string): void =>
     row.kind === "ask"
-      ? setDraft(row.id, { text })
+      ? setDraft(rowKey(row), { text })
       : setLocal((record) => ({ ...record, [at]: text }))
   // The rows that answer, the way to the terminal aside.
   const answers = model.rows.filter((menuRow) => menuRow.type !== "reveal").length
@@ -470,10 +476,10 @@ const QuestionsMenu = ({
 }): React.JSX.Element => {
   const { row, answering, submit, reveal } = props
   const { drafts, setDraft } = useInboxContext()
-  const picks: Picks = drafts[row.id]?.picks ?? {}
-  const leftOut = drafts[row.id]?.leftOut ?? []
+  const picks: Picks = drafts[rowKey(row)]?.picks ?? {}
+  const leftOut = drafts[rowKey(row)]?.leftOut ?? []
   const setPicks = (next: Picks, left: readonly string[] = leftOut): void =>
-    setDraft(row.id, { picks: next, leftOut: left })
+    setDraft(rowKey(row), { picks: next, leftOut: left })
   const [pressed, setPressed] = useState<{ question: number; at: number } | null>(null)
   const receipt = `Answered @${row.source.handle}'s ${questions.length > 1 ? "questions" : "question"}.`
   const now = counted(picks, leftOut)
@@ -630,9 +636,9 @@ export const ConsoleSheet = (shown: SheetContentProps): React.JSX.Element => {
   const several = useRef<(MenuHandle | null)[]>([])
   // The picks as of the last render, for the keys below.
   const picks = useRef<Picks>({})
-  const drafted = drafts[row.id]?.picks
+  const drafted = drafts[rowKey(row)]?.picks
   useLayoutEffect(() => {
-    picks.current = counted(drafted ?? {}, drafts[row.id]?.leftOut ?? [])
+    picks.current = counted(drafted ?? {}, drafts[rowKey(row)]?.leftOut ?? [])
   })
 
   // A number or an arrow pressed on the row or the sheet's title goes to the menu: the

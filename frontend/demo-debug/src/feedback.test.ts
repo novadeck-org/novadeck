@@ -26,6 +26,7 @@ const context = (over: Partial<DemoActionContext> = {}): DemoActionContext => ({
   dispatch: undefined,
   workspace: () => undefined,
   note: () => undefined,
+  crash: () => undefined,
   ...over,
 })
 

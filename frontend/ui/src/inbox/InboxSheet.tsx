@@ -1,4 +1,4 @@
-import { inboxType, type InboxRow } from "@novadeck/core/inbox"
+import { inboxType, rowKey, type InboxRow } from "@novadeck/core/inbox"
 import { HandleChip } from "@novadeck/toolkit/HandleChip"
 import { Sheet } from "@novadeck/toolkit/Sheet"
 import { Tooltip } from "@novadeck/toolkit/Tooltip"
@@ -211,7 +211,7 @@ export const InboxSheet = ({ active }: { readonly active: boolean }): React.JSX.
         aria-label={row.source.title}
         tabIndex={-1}
       >
-        <SheetBody key={row.id} row={row} />
+        <SheetBody key={rowKey(row)} row={row} />
       </div>
     ) : null
   return (
@@ -236,7 +236,7 @@ export const InboxSheet = ({ active }: { readonly active: boolean }): React.JSX.
           event.preventDefault()
       }}
     >
-      <SheetBody key={row.id} row={row} />
+      <SheetBody key={rowKey(row)} row={row} />
     </Sheet>
   )
 }
