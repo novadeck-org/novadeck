@@ -44,8 +44,10 @@ One JSON object per line, in one envelope (`Entry`):
 
 `msg`, `err.message` and data text are cut to 500 characters, a stack to 4,000, after
 redaction, so a secret is never cut short before it is looked for. Redaction reads no more
-than 8,000 characters of a text (16,000 of a stack), cut where a word starts, so a long line
-can't hold the process. A `SyntaxError` keeps nothing from its first quote on, as JSON.parse
+than 8,000 characters of a text (16,000 of a stack), so a long line can't hold the process;
+it stops before the word that runs past that, so no key or token is read cut short there (a
+held secret with spaces in it could be, but what follows the cut is shown only where
+redaction shrank thousands of characters to a few hundred). A `SyntaxError` keeps nothing from its first quote on, as JSON.parse
 quotes its input, and what JSON.parse quotes is withheld wherever its message is written.
 
 ## Parts

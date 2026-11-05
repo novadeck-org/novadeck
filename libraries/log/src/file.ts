@@ -75,12 +75,31 @@ const tighten = (folder: string, paths: readonly string[]): void => {
   }
 }
 
-/** Whether the file open at `handle`, `size` bytes long, ends with a whole line. */
+/**
+ * Opens `path` to append to, and to read its last line's end where it may be read: a file
+ * made writable alone still takes lines.
+ */
+const openToAppend = (path: string): number => {
+  try {
+    return openSync(path, "a+", 0o600)
+  } catch {
+    return openSync(path, "a", 0o600)
+  }
+}
+
+/**
+ * Whether the file open at `handle`, `size` bytes long, ends with a whole line; taken to,
+ * where it can't be read.
+ */
 const endsWithLine = (handle: number, size: number): boolean => {
   if (size === 0) return true
-  const last = Buffer.alloc(1)
-  readSync(handle, last, 0, 1, size - 1)
-  return last[0] === 0x0a
+  try {
+    const last = Buffer.alloc(1)
+    readSync(handle, last, 0, 1, size - 1)
+    return last[0] === 0x0a
+  } catch {
+    return true
+  }
 }
 
 /** Writes all of `bytes`, however many calls that takes. */
@@ -119,7 +138,7 @@ export const openLogFile = (options: LogFileOptions): LogFile => {
     if (openFailedAt !== undefined && now() - openFailedAt < retryMs) return undefined
     try {
       mkdirSync(folder, { recursive: true, mode: 0o700 })
-      fd = openSync(path, "a+", 0o600)
+      fd = openToAppend(path)
       size = fstatSync(fd).size
       tighten(
         folder,
@@ -155,6 +174,13 @@ export const openLogFile = (options: LogFileOptions): LogFile => {
     close()
     const aside = rotatingPath(folder, name)
     try {
+      // Left by a rotation a crash cut short: the move below would replace it all the same,
+      // and one that stays held would keep every later move from replacing it.
+      rmSync(aside, { force: true })
+    } catch {
+      // Held: the move below fails, and is tried again later.
+    }
+    try {
       renameSync(path, aside)
     } catch (error) {
       // Nothing to move is a rotation done.
@@ -181,7 +207,11 @@ export const openLogFile = (options: LogFileOptions): LogFile => {
       return true
     } catch {
       // Put back, to be written on and moved again later.
-      renameSync(aside, path)
+      try {
+        renameSync(aside, path)
+      } catch {
+        // Left aside, and lost at the next rotation: a new file is started meanwhile.
+      }
       return false
     }
   }

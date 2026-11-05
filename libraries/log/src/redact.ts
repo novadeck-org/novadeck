@@ -94,19 +94,30 @@ const shapes: readonly (readonly [RegExp, string])[] = [
     "$1<redacted>",
   ],
   // What JSON.parse quotes of its input (`Unexpected token 'm', "my private"... is not valid
-  // JSON`), wherever its message is written, as when another error's message wraps it. V8
-  // quotes at most ten characters, so the quote is bounded.
+  // JSON`, or `..."ssword": hunter2"...` from the middle of a longer one), wherever its message
+  // is written, as when another error's message wraps it. V8 quotes 20 characters at most, so
+  // the quote is bounded; it may hold quotes and line breaks of its own.
   [
-    /\b(Unexpected token) '[^\n]{1,4}?', "[^\n]{0,24}?"(?:\.\.\.)? is not valid JSON/g,
+    /\b(Unexpected token) '[\s\S]{1,4}?', (?:\.\.\.)?"[\s\S]{0,48}?"(?:\.\.\.)? is not valid JSON/g,
     "$1 (input withheld)",
   ],
 ]
 
+const syntaxError = /\bSyntaxError: /
+
 /**
- * What a syntax error quotes of its input, wherever its message is written (a stack, an error
- * printed to stderr): everything from its first quote to the end of the line.
+ * `line` without what a syntax error quotes of its input, wherever its message is written (a
+ * stack, an error printed to stderr): everything from the first quote after its first
+ * `SyntaxError: ` on. Found by hand: a pattern would read the rest of the line again from each
+ * `SyntaxError: ` in it.
  */
-const syntaxError = /(\bSyntaxError: [^"'`\n]*)["'`][^\n]*/g
+const withoutSyntaxQuote = (line: string): string => {
+  const start = line.search(syntaxError)
+  if (start === -1) return line
+  const after = line.slice(start).search(/["'`]/)
+  if (after === -1) return line
+  return `${trimSeparators(line.slice(0, start + after))} (input withheld)`
+}
 
 /** `text` without the spaces, commas and colons at its end. */
 export const trimSeparators = (text: string): string => {
@@ -134,8 +145,8 @@ const label = String.raw`[\p{L}\p{M}\p{N}\-]`
 const email = new RegExp(
   String.raw`(?<![${local}])[${local}]+@(?:` +
     String.raw`${label}+(?:\.${label}+)*\.\p{L}[\p{L}\p{M}]+(?![\p{L}\p{M}\p{N}_])(?!:[\w#~./<])` +
-    String.raw`|(?!(?:latest|next|beta|alpha|canary|rc|lts|stable|nightly|experimental|insiders|main|master|head|v\d)(?![\p{L}\p{M}\p{N}_\-]))` +
-    String.raw`\p{L}${label}*(?![\p{L}\p{M}\p{N}_\-:+/]|\.${label})` +
+    String.raw`|(?!(?:latest|next|beta|alpha|canary|rc|lts|stable|nightly|experimental|insiders|preview|dev|develop|edge|legacy|main|master|head|v\d)(?![\p{L}\p{M}\p{N}_\-]))` +
+    String.raw`\p{L}${label}*(?![\p{L}\p{M}\p{N}_\-:+/@]|\.${label})` +
     ")",
   "giu",
 )
@@ -169,10 +180,7 @@ export const createRedactor = (options: RedactOptions): Redactor => {
     for (const pattern of held) result = result.replace(pattern, "<secret>")
     for (const pattern of named) result = result.replace(pattern, "$1$2$3<redacted>")
     for (const [pattern, replacement] of shapes) result = result.replace(pattern, replacement)
-    result = result.replace(
-      syntaxError,
-      (_match, head: string) => `${trimSeparators(head)} (input withheld)`,
-    )
+    if (syntaxError.test(result)) result = result.split("\n").map(withoutSyntaxQuote).join("\n")
     result = urls(result).replace(email, "<email>")
     result = secrets(paths(result))
     return account ? result.replace(account, "<user>") : result

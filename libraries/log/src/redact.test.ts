@@ -163,6 +163,17 @@ describe("createRedactor", () => {
       `${"x".repeat(40)}https://<redacted>@127.0.0.1/`,
     ],
     [
+      "what JSON.parse quotes from the middle of its input, in another error's message",
+      'Settings could not be read: Unexpected token \'h\', ..."assword": hunter2xyz"... is not valid JSON',
+      "Settings could not be read: Unexpected token (input withheld)",
+    ],
+    [
+      "what JSON.parse quotes across a line break, in another error's message",
+      "Read failed: Unexpected token 'a', \"ab\ncd private\" is not valid JSON",
+      "Read failed: Unexpected token (input withheld)",
+    ],
+    ["an address after another @", "a@b@c.com", "a@<email>"],
+    [
       "what JSON.parse quotes, in another error's message",
       "Settings could not be read: Unexpected token 'm', \"my private\"... is not valid JSON",
       "Settings could not be read: Unexpected token (input withheld)",
@@ -188,7 +199,7 @@ describe("createRedactor", () => {
 
   it.each([
     ["a package's version", "installed react@19.3.1 and @types/node@26.6.6"],
-    ["a package's tag", "npx vite@latest and pnpm add vitest@beta"],
+    ["a package's tag", "npx vite@latest and pnpm add vitest@beta, foo@dev and foo@preview"],
     ["a package's tagged version", "pkg@v1.2.3"],
     ["a workspace package", "@novadeck/log@workspace:*"],
     ["a package in the pnpm store", "node_modules/.pnpm/vite@7.1.2_@types+node@26.6.6/x"],
@@ -208,6 +219,8 @@ describe("createRedactor", () => {
     ["a long dashed host", `a@${"b-".repeat(100_000)}`],
     ["a long run before a remote's path", `a@b.c:${"d".repeat(200_000)}`],
     ["a syntax error with a long gap", `SyntaxError: ${" ".repeat(200_000)}x"`],
+    ["many syntax errors with no quote", "SyntaxError: ".repeat(15_000)],
+    ["many remote-like parts", "a@b.c:".repeat(33_000)],
   ])("redacts %s of 200,000 characters at once", (_what, text) => {
     const started = performance.now()
     redact(text)

@@ -23,9 +23,10 @@ const urlPattern =
   /(?<scheme>(?!file:)(?<!f)(?<!fi)(?<!fil)[a-z][a-z0-9+.-]{0,31}):\/\/(?<user>[^\s/@'"]*@)?(?<host>\[[0-9a-f:]+\]|[^\s/:?#'"<>()[\]\\]+)(?<port>:\d+)?(?<path>\/[^\s?#'"<>()[\]\\]*)?(?<query>\?[^\s#'"()[\]\\]*)?(?<fragment>#[^\s'"()[\]\\]*)?/gi
 
 // A Git remote over SSH, `git@github.com:acme/repo.git`: a path after the colon with a slash
-// in it or a `.git` at its end.
+// in it or a `.git` at its end, looked for within the path alone, so text after it isn't read
+// again for each remote-like part before it.
 const remotePattern =
-  /(?<![\w.@-])(?<user>[\w.-]+)@(?<host>[\w-]+(?:\.[\w-]+)+):(?<path>(?=[^\s]*(?:\/|\.git\b))[\w.~-][\w./~-]*)/g
+  /(?<![\w.@-])(?<user>[\w.-]+)@(?<host>[\w-]+(?:\.[\w-]+)+):(?<path>(?=[\w.~-][\w./~-]*?(?:\/|\.git\b))[\w.~-][\w./~-]*)/g
 
 const loopback = /^(?:localhost|127(?:\.\d+){3}|\[::1\])$/i
 

@@ -76,8 +76,8 @@ const readLimit = (limit: number): number => Math.max(limit * 4, 8_000)
 
 /**
  * `text` as a line keeps it: redacted, then cut to `limit`. Only its first `readLimit`
- * characters are read, cut where a word ends, so no secret is cut short before it is looked
- * for; a single word longer than that is cut where the reading stops.
+ * characters are read, cut where a word starts, so no key or token is cut short before it is
+ * looked for; a single word longer than that is cut where the reading stops.
  */
 export const keep = (text: string, redact: (text: string) => string, limit = textLimit): string => {
   const bound = readLimit(limit)

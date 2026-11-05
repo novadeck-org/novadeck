@@ -225,6 +225,40 @@ describe("openLogFile", () => {
     })
   })
 
+  it("starts a new file where the one it moved aside can't be put back", () => {
+    const logs = folder()
+    const file = openLogFile({ folder: logs, name: "host", maxBytes: 300 })
+    for (let index = 0; index < 3; index += 1) file.write(line(index))
+    faults.held.add(join(logs, "host.rotating.log"))
+    file.write(line(3))
+    file.close()
+    expect(lines(logPath(logs, "host"))).toEqual([line(3)])
+  })
+
+  it("rotates past what a rotation a crash cut short left behind", () => {
+    const logs = folder()
+    writeFileSync(join(logs, "host.rotating.log"), "left\n")
+    const file = openLogFile({ folder: logs, name: "host", maxBytes: 300 })
+    for (let index = 0; index < 4; index += 1) file.write(line(index))
+    file.close()
+    expect(readdirSync(logs).toSorted()).toEqual(["host.1.log", "host.log"])
+    expect(lines(logPath(logs, "host", 1))).toEqual([0, 1, 2].map(line))
+  })
+
+  // Root reads any file, and Windows has no such modes.
+  it.skipIf(process.platform === "win32" || process.getuid?.() === 0)(
+    "appends to a file it may write but not read",
+    () => {
+      const logs = folder()
+      writeFileSync(join(logs, "host.log"), "old\n", { mode: 0o200 })
+      chmodSync(join(logs, "host.log"), 0o200)
+      const file = openLogFile({ folder: logs, name: "host" })
+      file.write("new")
+      file.close()
+      expect(readFileSync(join(logs, "host.log"), "utf8")).toBe("old\nnew\n")
+    },
+  )
+
   it("starts on a line of its own after one an earlier run cut short", () => {
     const logs = folder()
     writeFileSync(join(logs, "host.log"), "cut sh")
