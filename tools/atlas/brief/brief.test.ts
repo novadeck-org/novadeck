@@ -5,9 +5,12 @@ import type { Atlas } from "../src/atlas.ts"
 import { brief, queryOf, subjects } from "./main.ts"
 
 let atlas: Atlas
+// A build takes about 2 s alone, but Test (macOS) runs every package's tests at once on a
+// small runner: there it took 2-28 s before #660 and up to 31.6 s after, which cut it short
+// at 30 s. Two minutes is the most `ensureBuilt` waits for another build's lock as well.
 beforeAll(async () => {
   atlas = await build()
-}, 30_000)
+}, 120_000)
 
 // A copy of the atlas to change one fact in, so a test doesn't depend on today's source.
 const changed = (change: (copy: Atlas) => void): Atlas => {

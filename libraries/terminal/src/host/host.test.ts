@@ -333,6 +333,17 @@ describe("a terminal host's restart", () => {
     expect(terminal.exit).toBeNull()
   })
 
+  it("refuses a terminal a close ended, which stays closing for good", async () => {
+    const { host, programs, open } = hostOf()
+    const terminal = open("a")
+    const closing = host.terminate("a")
+    programs[0]!.exit(0)
+    await closing
+    await expect(restartOf(host)).rejects.toMatchObject({ code: "CLOSING" })
+    expect(terminal.run).toBe(1)
+    expect(host.closing("a")).toBe(true)
+  })
+
   it("asks the caller's check before and in its step, and runs the step's restart", async () => {
     const { host, open, exit } = hostOf()
     const terminal = open("a")

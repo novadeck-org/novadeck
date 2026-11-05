@@ -20,7 +20,7 @@ import {
   type ReactNode,
 } from "react"
 
-// Why typing is paused. A failed paste says why in the same notice.
+// Why typing is paused. A failed paste says why, and a copy that it copied, in the same notice.
 const lockNotices: Record<Lock, string> = {
   starting: "Starting shell…",
   // A shell already running, whose screen is on its way.
@@ -37,7 +37,7 @@ const ignore = (): (() => void) => () => {}
 
 // One terminal drawn by a backend's mount, with what lies over it. The backend draws the
 // terminal into an element this keeps for the terminal's life, and tells its state; this
-// draws the window around it and the lock, the notice of a failed paste and the ending bar
+// draws the window around it and the lock, the notice of a failed paste or a copy and the ending bar
 // from that state. The element moves into the slot of whichever content renders it, so the
 // terminal keeps its emulator, its output and its focus.
 export const MountedTerminal = ({
@@ -175,7 +175,7 @@ export const MountedTerminal = ({
       <span aria-live="polite" aria-atomic className="sr-only">
         {ending ? endingText(ending) : ""}
       </span>
-      {/* A failed paste, announced the same way. */}
+      {/* A failed paste or a copy, announced the same way. */}
       <span aria-live="polite" aria-atomic className="sr-only">
         {notice ?? ""}
       </span>

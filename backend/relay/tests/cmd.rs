@@ -89,3 +89,58 @@ fn what_cmd_started_goes_on_once_cmd_is_done() {
     });
     let _ = std::fs::remove_dir_all(&dir);
 }
+
+/// Novadeck's own hook command, as the Antigravity plugin writes one, running `script`.
+fn hook(script: &Path) -> String {
+    format!(
+        "/c if defined NOVADECK_HOOK (call \"{}\")",
+        script.display()
+    )
+}
+
+#[test]
+fn a_hook_ends_with_the_program_that_started_it_should_that_end_first() {
+    let dir = scratch("orphaned");
+    let (started, mark) = (dir.join("started"), dir.join("mark"));
+    let script = slow(&dir, &started, &mark);
+    // The real cmd starts the pass-through, as Antigravity does, and is then ended alone,
+    // as a program killed without its tree is: nothing waits for the hook's answer then.
+    let comspec = std::env::var_os("ComSpec").unwrap_or_else(|| "cmd.exe".into());
+    let mut parent = Command::new(comspec)
+        .raw_arg(format!("/d /c \"\"{CMD}\" {}\"", hook(&script)))
+        .env("NOVADECK_HOOK", "x")
+        .stdout(Stdio::null())
+        .spawn()
+        .unwrap();
+    wait_until("the hook started", Duration::from_secs(20), || {
+        started.exists()
+    });
+    parent.kill().unwrap();
+    let _ = parent.wait();
+    thread::sleep(Duration::from_secs(4));
+    assert!(
+        !mark.exists(),
+        "the hook ran on after what started it ended"
+    );
+    let _ = std::fs::remove_dir_all(&dir);
+}
+
+/// Unlike any other command's (`what_cmd_started_goes_on_once_cmd_is_done`, which shows the
+/// same `start` runs the script).
+#[test]
+fn what_a_hooks_cmd_started_ends_once_cmd_is_done() {
+    let dir = scratch("hook-started");
+    let (started, mark) = (dir.join("started"), dir.join("mark"));
+    let script = slow(&dir, &started, &mark);
+    let status = cmd(&format!(
+        "/c if defined NOVADECK_HOOK (start \"\" /b cmd /d /c \"{}\")",
+        script.display()
+    ))
+    .env("NOVADECK_HOOK", "x")
+    .status()
+    .unwrap();
+    assert!(status.success());
+    thread::sleep(Duration::from_secs(4));
+    assert!(!mark.exists(), "what the hook's cmd started ran on");
+    let _ = std::fs::remove_dir_all(&dir);
+}

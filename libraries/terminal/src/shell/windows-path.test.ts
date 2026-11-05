@@ -166,6 +166,28 @@ describe("refreshing PATH", () => {
     forgetPath()
   })
 
+  it("takes a read that threw as one that failed, and reads again after the wait", async () => {
+    forgetPath()
+    vi.useFakeTimers({ toFake: ["Date"] })
+    onTestFinished(() => {
+      vi.useRealTimers()
+      forgetPath()
+    })
+    let reads = 0
+    const read = () => {
+      reads += 1
+      return reads === 1 ? Promise.reject(new Error("refused")) : Promise.resolve(["C:\\First"])
+    }
+    const options = { platform: "win32" as const, retryMs: 60_000, read }
+    const env = { Path: "C:\\Here" }
+    expect(await refreshPath(env, options)).toBe(env)
+    expect(await refreshPath(env, options)).toBe(env)
+    expect(reads).toBe(1)
+    vi.advanceTimersByTime(61_000)
+    expect((await refreshPath(env, options)).Path).toBe("C:\\Here;C:\\First")
+    expect(reads).toBe(2)
+  })
+
   it("tries again soon after a read that only ran long, as on a cold boot", async () => {
     forgetPath()
     // The clock alone, so a slow machine can't pass the short wait between two calls.

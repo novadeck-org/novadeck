@@ -69,7 +69,7 @@ describe("what a terminal's dictation hint is made of", () => {
   })
   const terminal = (fields: Partial<PeerTerminal>): PeerTerminal => ({
     summary,
-    naming: { person: null, opener: null, murmur: null, summary: null },
+    naming: { person: null, opener: null, murmur: null, own: null, summary: null },
     work: null,
     activity: null,
     openedBy: null,
@@ -132,7 +132,7 @@ describe("where peers are, as an agent reads it", () => {
   it("shows the end of a long path, never starting on half an emoji", async () => {
     const record = {
       summary: { id: "t1", cwd: "/w", sessionId: "s", title: "t", activity: null },
-      naming: { person: null, opener: null, murmur: null, summary: null },
+      naming: { person: null, opener: null, murmur: null, own: null, summary: null },
       work: null,
       openedBy: null,
       bound: null,
@@ -193,7 +193,7 @@ describe("where a peer's agent works now", () => {
         title: "t",
         activity: null,
       },
-      naming: { person: null, opener: null, murmur: null, summary: null },
+      naming: { person: null, opener: null, murmur: null, own: null, summary: null },
       work: { ...freshWork("claude:s1"), places },
       openedBy: null,
       bound: bound ? { activity: { pending: [], plans: [] } } : null,

@@ -12,3 +12,6 @@ export const pasteNotice =
       ? `Couldn't paste the ${pasted}: it's over ${maxBytes / 1024 / 1024} MB`
       : `Couldn't paste the ${pasted}`
   }
+
+// What a copy from a terminal tells the person once it is on the clipboard.
+export const copiedNotice = "Copied"

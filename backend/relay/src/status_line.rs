@@ -69,8 +69,13 @@ const MOST: usize = 65_536;
 /// How long, once the deadline ended it, what it printed has to come through the pipe: it
 /// closes as soon as everything it started has ended, so this is spent only on a command
 /// that outlives its end. On Unix, the time the group has to end on SIGTERM, before
-/// SIGKILL ends what is left of it.
+/// SIGKILL ends what is left of it, then the most time SIGKILL is sent again for while its
+/// output stays open.
 const SETTLE: Duration = Duration::from_millis(100);
+
+/// How often SIGKILL is sent again to a group whose output stays open.
+#[cfg(unix)]
+const AGAIN: Duration = Duration::from_millis(10);
 
 /// What the command printed by the time it ended, or by `deadline`, when it and whatever
 /// it started are ended.
@@ -89,6 +94,7 @@ pub fn run(command: &str, input: &[u8], deadline: Instant) -> String {
     };
     let (sent, printed) = mpsc::channel::<Vec<u8>>();
     let (ended, closed) = mpsc::channel::<()>();
+    let closing = closing(&started);
     thread::spawn(move || {
         let mut buffer = [0u8; 8192];
         // Read to its end, keeping only what may be shown.
@@ -105,6 +111,7 @@ pub fn run(command: &str, input: &[u8], deadline: Instant) -> String {
                 Ok(_) => {}
             }
         }
+        closing();
         let _ = ended.send(());
     });
     // Its output ends once it and everything it started let go of it.
@@ -157,11 +164,61 @@ fn start(command: &str) -> Option<(std::process::Child, i32)> {
 #[cfg(unix)]
 fn end(group: &i32, closed: &mpsc::Receiver<()>) {
     unsafe { libc::kill(-group, libc::SIGTERM) };
-    let ended = closed.recv_timeout(SETTLE).is_ok();
-    unsafe { libc::kill(-group, libc::SIGKILL) };
-    if !ended {
-        let _ = closed.recv_timeout(SETTLE);
+    let mut ended = closed.recv_timeout(SETTLE).is_ok();
+    end_outright(
+        *group,
+        || true,
+        |wait| {
+            ended = ended || closed.recv_timeout(wait).is_ok();
+            ended
+        },
+        thread::sleep,
+    );
+}
+
+/// Sends the group SIGKILL, then again every `AGAIN` until `closed_within` (which waits up
+/// to the time it is given) says its output closed, for no longer than `SETTLE`; once it
+/// closed, after a `pause` of `AGAIN`, once more, for what forked as the last one came and
+/// never held the output. Each only while the group is still `ours`. Only
+/// async-signal-safe calls, as the relay's signal handler runs it too.
+///
+/// Keep the repeat: one SIGKILL isn't enough on macOS. XNU's killpg(2) (`pgrp_iterate`, in
+/// bsd/kern/kern_proc.c) takes the group's pids, then looks each one up, and a process still
+/// being forked (`P_REF_NEW`) isn't found: it is passed over, and once its fork is done it
+/// runs on, a member of the group that nothing signals again. Linux has no such gap (a fork
+/// that a group's signal meets is started over). A command that ignores SIGTERM is still
+/// running, and may be forking, when SIGKILL comes: on its first macOS run, the test of one
+/// saw what it started outlive the deadline. What a fork makes holds the output open, as
+/// the process it was forked from did, so the output closes only once a later SIGKILL ended
+/// it too.
+#[cfg(unix)]
+fn end_outright(
+    group: i32,
+    ours: impl Fn() -> bool,
+    mut closed_within: impl FnMut(Duration) -> bool,
+    pause: impl Fn(Duration),
+) {
+    let kill = || {
+        if ours() {
+            unsafe { libc::kill(-group, libc::SIGKILL) };
+        }
+    };
+    for _ in 0..SETTLE.as_millis() / AGAIN.as_millis() {
+        kill();
+        if closed_within(AGAIN) {
+            pause(AGAIN);
+            kill();
+            return;
+        }
     }
+}
+
+/// What tells the relay's signal handler, once the command's output closed, that its group
+/// needs no more SIGKILLs.
+#[cfg(unix)]
+fn closing(group: &i32) -> impl FnOnce() + Send + 'static {
+    let group = *group;
+    move || group::closed(group)
 }
 
 #[cfg(unix)]
@@ -174,22 +231,47 @@ fn let_go(_group: &i32) {
 mod group {
     use std::sync::Once;
     use std::sync::atomic::{AtomicI32, Ordering};
+    use std::time::Duration;
 
     /// The group, or 0 while none runs.
     static RUNNING: AtomicI32 = AtomicI32::new(0);
+
+    /// The last group whose output closed.
+    static CLOSED: AtomicI32 = AtomicI32::new(0);
 
     pub fn running(group: i32) {
         RUNNING.store(group, Ordering::SeqCst);
     }
 
+    pub fn closed(group: i32) {
+        CLOSED.store(group, Ordering::SeqCst);
+    }
+
     /// Ends the group, then the relay, by the signal that came: the handler is reset as
     /// it runs (`SA_RESETHAND`), and the signal isn't held back (`SA_NODEFER`), so raising
-    /// it again ends the relay as it would have ended without this. Only async-signal-safe
-    /// calls.
+    /// it again ends the relay as it would have ended without this. The group is sent
+    /// SIGKILL as at the deadline, again while its output stays open, for up to `SETTLE`.
+    /// Only async-signal-safe calls.
     extern "C" fn ended(signal: libc::c_int) {
         let group = RUNNING.load(Ordering::SeqCst);
         if group > 0 {
-            unsafe { libc::kill(-group, libc::SIGKILL) };
+            // poll(2) with nothing to watch, as a sleep that is async-signal-safe.
+            let pause = |wait: Duration| unsafe {
+                libc::poll(std::ptr::null_mut(), 0, wait.as_millis() as libc::c_int);
+            };
+            let closed = || CLOSED.load(Ordering::SeqCst) == group;
+            super::end_outright(
+                group,
+                // Once the run let go of it, its leader may be reaped and its pid another's.
+                || RUNNING.load(Ordering::SeqCst) == group,
+                |wait| {
+                    if !closed() {
+                        pause(wait);
+                    }
+                    closed()
+                },
+                pause,
+            );
         }
         unsafe { libc::raise(signal) };
     }
@@ -233,12 +315,18 @@ fn start(command: &str) -> Option<(std::process::Child, crate::job::Job)> {
             .stderr(Stdio::null()),
         crate::job::KILL_ON_CLOSE,
     )
+    .ok()
 }
 
 #[cfg(windows)]
 fn end(job: &crate::job::Job, closed: &mpsc::Receiver<()>) {
     job.end();
     let _ = closed.recv_timeout(SETTLE);
+}
+
+#[cfg(windows)]
+fn closing(_job: &crate::job::Job) -> impl FnOnce() + Send + 'static {
+    || {}
 }
 
 /// What the command left running once it was done goes on, as it would under Claude Code.
@@ -345,17 +433,61 @@ mod tests {
 
     #[test]
     fn ends_a_command_still_running_at_the_deadline_and_shows_what_it_printed() {
-        ends_at_the_deadline("", "plain");
+        ends_at_the_deadline("plain", |mark, later| {
+            format!("printf partly; ({}); :", leaves_a_mark(mark, later))
+        });
     }
 
     #[test]
     fn ends_a_command_that_ignores_being_asked_to() {
-        ends_at_the_deadline("trap '' TERM; ", "deaf");
+        ends_at_the_deadline("deaf", |mark, later| {
+            format!(
+                "trap '' TERM; printf partly; ({}); :",
+                leaves_a_mark(mark, later)
+            )
+        });
     }
 
-    /// Runs a command that prints, then starts a process that would leave a mark later,
-    /// each after `prefix`, and checks the deadline ended it all and kept what it printed.
-    fn ends_at_the_deadline(prefix: &str, name: &str) {
+    /// As a process macOS' killpg(2) passes over while it is forked: out of the group when
+    /// the first SIGKILL comes, in it again just after (`tests/rejoins.pl`).
+    #[cfg(unix)]
+    #[test]
+    fn ends_what_the_first_kill_passes_over() {
+        let rejoins = concat!(env!("CARGO_MANIFEST_DIR"), "/tests/rejoins.pl");
+        let mark = ends_at_the_deadline("passed-over", |mark, later| {
+            format!(
+                "trap '' TERM; perl '{}' /dev/null '{mark}' {later} '{mark}.rejoined' & \
+                 sleep {later}",
+                quoted(Path::new(rejoins))
+            )
+        });
+        // Else nothing was passed over, and its end proves nothing.
+        let rejoined = mark.with_extension("rejoined");
+        assert!(rejoined.exists(), "it never rejoined the group");
+        let _ = std::fs::remove_file(&rejoined);
+    }
+
+    /// A path as a shell (Git Bash on Windows) reads it in single quotes.
+    fn quoted(path: &Path) -> String {
+        path.to_string_lossy()
+            .replace('\\', "/")
+            .replace('\'', r"'\''")
+    }
+
+    /// After `later` seconds, the mark: the group the command started in, and what of it is
+    /// still running, so a mark found says what outlived the deadline (or, where `ps` can't
+    /// say, as Git Bash's, at least that something did).
+    fn leaves_a_mark(mark: &str, later: &str) -> String {
+        format!(
+            "sleep {later}; {{ echo \"group $$\"; ps -A -o pid=,ppid=,pgid=,stat=,command= \
+             | awk -v group=$$ '$3 == group'; }} > '{mark}' 2>&1"
+        )
+    }
+
+    /// Runs `command`, given its mark's path, quoted, and the time after which a process it
+    /// started leaves it, twice the deadline, and checks the deadline ended it all and kept
+    /// what it printed, "partly", by then. Gives the mark's path, of the run that printed.
+    fn ends_at_the_deadline(name: &str, command: impl Fn(&str, &str) -> String) -> PathBuf {
         // A shell can be slow to start (Git Bash on a busy Windows runner took over 300 ms),
         // and a deadline that comes before it printed shows nothing: each such run is tried
         // again with a longer deadline. A process the command started leaves a mark at twice
@@ -371,27 +503,27 @@ mod tests {
                 std::process::id()
             ));
             let _ = std::fs::remove_file(&mark);
-            let command = format!(
-                "{prefix}printf partly; (sleep {:.1}; touch '{}'); :",
-                (wait * 2).as_secs_f64(),
-                mark.to_string_lossy()
-                    .replace('\\', "/")
-                    .replace('\'', r"'\''")
-            );
+            let command = command(&quoted(&mark), &format!("{:.1}", (wait * 2).as_secs_f64()));
             let began = Instant::now();
             let printed = run(&command, b"", began + wait);
-            assert!(began.elapsed() < wait + Duration::from_secs(5));
+            let ended = began.elapsed();
+            assert!(ended < wait + Duration::from_secs(5));
             if printed == "partly" {
-                // It printed before the deadline, so had it lived it would have left the mark
-                // soon after three times the deadline.
+                // It printed by the time it was ended, so had it lived it would have left
+                // the mark soon after three times the deadline.
                 std::thread::sleep(
                     (began + wait * 3 + Duration::from_secs(1))
                         .saturating_duration_since(Instant::now()),
                 );
-                let left = mark.exists();
+                let left = std::fs::read_to_string(&mark);
                 let _ = std::fs::remove_file(&mark);
-                assert!(!left, "the command outlived its deadline");
-                return;
+                if let Ok(left) = left {
+                    panic!(
+                        "the command outlived its deadline of {wait:?}: run returned after \
+                         {ended:?}, and it left\n{left}"
+                    );
+                }
+                return mark;
             }
             assert_eq!(
                 printed, "",

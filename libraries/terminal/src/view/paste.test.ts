@@ -327,6 +327,22 @@ describe("pasting into a terminal in a browser page", () => {
       expect(page.notices).toEqual(["Couldn't paste the file"])
     })
 
+    it("pastes no path the host saved under a control character, and says so", async () => {
+      const page = terminal((name) =>
+        Promise.resolve(
+          name === "a.txt" ? "/data/uploads/t/a\nrm -rf ~\n.txt" : `/data/uploads/t/${name}`,
+        ),
+      )
+      const error = vi.spyOn(console, "error").mockImplementation(() => {})
+      page.field.dispatchEvent(
+        pasteEvent({ files: [new File(["a"], "a.txt"), new File(["b"], "b.txt")] }),
+      )
+      await vi.waitFor(() => expect(page.notices).toHaveLength(1))
+      expect(page.pasted).toEqual(["/data/uploads/t/b.txt "])
+      expect(error).toHaveBeenCalledOnce()
+      expect(page.notices).toEqual(["Couldn't paste the file"])
+    })
+
     it("saves them one after another, pasting each path once it is saved", async () => {
       const pending: (() => void)[] = []
       const page = terminal(

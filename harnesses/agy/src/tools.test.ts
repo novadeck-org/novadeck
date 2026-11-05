@@ -99,6 +99,14 @@ suite("what an Antigravity tool call was", () => {
       "http://localhost:5173/",
     ],
     [
+      "describe",
+      { title: "Cart rounding", summary: "Fixing the cart rounding" },
+      "agent",
+      "Described this terminal",
+      "Cart rounding",
+    ],
+    // Its old name, in sessions recorded before it, keeps its label.
+    [
       "summarize",
       { summary: "Fixing the cart rounding" },
       "agent",

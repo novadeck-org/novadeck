@@ -148,6 +148,7 @@ export const it = base.extend<{ shell: Fixture }>({
           person: null,
           opener: null,
           murmur: null,
+          own: null,
           summary: null,
         },
         openedBy: null,

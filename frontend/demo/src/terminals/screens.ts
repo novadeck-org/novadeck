@@ -6,7 +6,7 @@ import type { RendererPool } from "@novadeck/emulator/browser"
 import type { AttachStream, TerminalEvent } from "@novadeck/terminal"
 import { openEmulator } from "@novadeck/terminal-views/emulator"
 import { createTerminalMount, screenMarkup } from "@novadeck/terminal-views/mount"
-import { pasteNotice } from "@novadeck/terminal-views/paste-notice"
+import { copiedNotice, pasteNotice } from "@novadeck/terminal-views/paste-notice"
 import { pageRendererPool } from "@novadeck/terminal-views/renderer-pool"
 import { noTheme, terminalTheme } from "@novadeck/terminal-views/theme"
 import { createTerminalScreens, type TerminalScreensOptions } from "@novadeck/terminal/view"
@@ -240,6 +240,7 @@ export const demoScreensOptions = (
     restart: (key) => runtime?.restart(key),
     // A demo screen costs nothing to keep while its terminal lasts.
     retain: { afterMs: Number.POSITIVE_INFINITY, shown: () => true },
+    copied: copiedNotice,
     paste: {
       // Saved nowhere, the demo says where it would be, or fails where the debug layer asks.
       upload: (key, file) =>

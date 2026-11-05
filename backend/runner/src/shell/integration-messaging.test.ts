@@ -64,7 +64,7 @@ describe.skipIf(process.platform === "win32" || !existsSync(bash))(
 
       // Claude is working when Codex answers: its Stop continues the turn with the reply.
       // Its first prompt of a new session, carrying no messages, carries the nudge to
-      // summarize the terminal.
+      // describe the terminal.
       const firstPrompt = await step(claude.id, {
         hook: "UserPromptSubmit",
         payload: { prompt: "ask codex" },

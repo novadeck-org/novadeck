@@ -1,9 +1,9 @@
 # Murmur
 
-Murmur is an opt-in local model that writes terminal titles. (Summaries are the agents' own, written with their `summarize` tool; an agent's title is a short name of its summary.) It runs
+Murmur is an opt-in local model that writes terminal titles. (Summaries are the agents' own, written with their `describe` tool, which also takes a title of the agent's own; murmur's title for an agent's terminal is a short name of its summary and shows over the agent's, which shows when murmur has not titled it, or is off.) It runs
 Qwen3.5-2B (Q4_K_M, 1.28 GB) on llama.cpp's `llama-server`, an engine of its own like
-voice input's, installed from Preferences > Addons. Without it, terminals keep their default
-titles.
+voice input's, installed from Preferences > Addons. Without it, plain shells keep their
+default titles, and agent terminals are titled by their agents.
 
 Code: `backend/runner/src/murmur`, the engine build in `engines/murmur`.
 
@@ -18,7 +18,8 @@ Terminals ask for a description when something worth a new one happened (see
   the person sits in that project already, so naming it says nothing. Nor is the previous
   title, which the model kept against a summary of other work: the terminals side keeps it
   when the new title shares a content word with it (`sharesContentWord`), and an agent with
-  no summary keeps the title it has;
+  no summary keeps the title it has. A `describe` whose summary murmur already named the
+  terminal from (one that only adds the agent's own title) asks murmur nothing;
 - a plain shell: the foreground command and the visible screen rows. The runner says on which
   row the last command was typed (`commandAt`, from the shell integration's prompt report, an
   xterm marker placed at each OSC 7 / OSC 9;9): the rows from it are "the last command and its
@@ -92,8 +93,8 @@ behind a random API key made for each launch and passed in the environment
   passes the OSC 9;9 report through apart from the frames it renders and repaints the screen
   on a resize rather than letting it reflow, so the row there is best effort.
 - A title is only as good as the agent's summary: one that is all progress ("Done: #368 and
-  #370 merged") can give a title of progress, and an agent that never summarizes is never
-  named. On 23 real summaries (2026-10-25) most titles named the work; the misses came from
+  #370 merged") can give a title of progress, and an agent that never describes its terminal is never
+  named by murmur. On 23 real summaries (2026-10-25) most titles named the work; the misses came from
   summaries that open with a label or are all progress ("Lane under moth", "Merge task
   notifications"), and one title was refused.
 - A project name is taken from the project's folder, so `novadeck-website` is stripped from a
