@@ -445,6 +445,28 @@ describe("agents Novadeck can connect", () => {
     expect(shellEnv).not.toContain("NOVADECK_TOKEN")
   })
 
+  it("leave an agent whose settings can't be changed as it was, disconnected or connected", async ({
+    fixture,
+  }) => {
+    installed(fixture.home, "agy")
+    const settings = join(fixture.home, ".gemini", "antigravity-cli", "settings.json")
+    writeFileSync(settings, "{ not json")
+    const agents = fixture.agents()
+    await expect(agents.set("agy", true)).rejects.toMatchObject({
+      code: "AGENT_SETUP_FAILED",
+      message: expect.stringContaining("not valid settings"),
+    })
+    // Its plugin went in, and out again: not connected without its status line.
+    expect(fixture.calls().at(-1)).toEqual(["agy", "plugin", "uninstall", "novadeck"])
+    expect((await agents.list())[2]).toMatchObject({ connected: false })
+    // Connected before, as a refresh finds it, it stays connected.
+    writeFileSync(settings, "{}")
+    await agents.set("agy", true)
+    writeFileSync(settings, "{ not json")
+    await expect(agents.set("agy", true)).rejects.toMatchObject({ code: "AGENT_SETUP_FAILED" })
+    expect((await agents.list())[2]).toMatchObject({ connected: true })
+  })
+
   it("say why an agent could not be connected", async ({ fixture }) => {
     installed(fixture.home, "claude")
     await expect(

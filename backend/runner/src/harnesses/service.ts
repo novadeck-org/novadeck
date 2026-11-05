@@ -1,9 +1,9 @@
 import { spawn } from "node:child_process"
 import { readFile, rm, writeFile } from "node:fs/promises"
-import { homedir, tmpdir } from "node:os"
+import { homedir } from "node:os"
 import { join } from "node:path"
 
-import type { Harness, Install, Model } from "@novadeck/harness-core/harness"
+import type { Command, Harness, Install, Model } from "@novadeck/harness-core/harness"
 import type { AgentIntegration, AgentName } from "@novadeck/protocol"
 import { relayPath } from "@novadeck/relay"
 import { refreshPath } from "@novadeck/terminal/shell"
@@ -110,23 +110,27 @@ const locate = async (
   return fallback && (await exists(fallback)) ? fallback : undefined
 }
 
+/** How an agent's commands run: in `cwd`, the person's home, with `env`, for `timeoutMs` at most. */
+type Settings = {
+  readonly cwd: string
+  readonly env: NodeJS.ProcessEnv
+  readonly platform: NodeJS.Platform
+  readonly timeoutMs: number
+}
+
 /**
  * Runs one of an agent's commands the way the person would in a terminal: with their
  * login environment, and through cmd on Windows, where agents install as .cmd files.
  * `argv` starts with the program's absolute path (see `locate`); `name` is what the
- * command calls it, for its failure. It runs in the system's temporary folder, so no
- * project's own configuration applies. Past `timeoutMs` it fails, and the program ends with
+ * command calls it, for its failure. It runs in the person's home, as their terminal
+ * starts, so no project's own configuration applies. Past `timeoutMs` it fails, and the program ends with
  * all it started: ending cmd.exe alone leaves the agent running, and a child that holds the
  * error output open would keep the command from ever settling.
  */
 const run = (
   name: string,
   argv: readonly string[],
-  {
-    env,
-    platform,
-    timeoutMs,
-  }: { env: NodeJS.ProcessEnv; platform: NodeJS.Platform; timeoutMs: number },
+  { cwd, env, platform, timeoutMs }: Settings,
 ): Promise<void> =>
   new Promise((resolve, reject) => {
     const [program = "", ...args] = argv
@@ -134,14 +138,14 @@ const run = (
     const child =
       platform === "win32"
         ? spawn(cmdPath(env), ["/d", "/s", "/c", `"${cmdLine(argv)}"`], {
-            cwd: tmpdir(),
+            cwd,
             env,
             stdio: ["ignore", "ignore", "pipe"],
             windowsVerbatimArguments: true,
             windowsHide: true,
           })
         : spawn(program, args, {
-            cwd: tmpdir(),
+            cwd,
             env,
             // Its own group, so the time limit ends what it started too.
             detached: true,
@@ -170,6 +174,31 @@ const run = (
       settle(new Error(`${what} failed: ${errors.trim().split("\n").at(-1) ?? code}`))
     })
   })
+
+// Runs an agent's plugin commands in order; a failing one that isn't optional fails them all.
+const steps = async (
+  harness: Harness,
+  where: Install,
+  commands: readonly Command[],
+  settings: Settings,
+): Promise<void> => {
+  for (const command of commands) {
+    try {
+      const [program = "", ...args] = command.argv
+      // eslint-disable-next-line no-await-in-loop -- Each step needs the one before.
+      const located = await locate(program, harness, where)
+      if (!located) throw new Error(`${program} is not on PATH.`)
+      // eslint-disable-next-line no-await-in-loop -- As above.
+      await run(program, [located, ...args], settings)
+    } catch (error) {
+      if (command.optional) continue
+      throw new DomainError(
+        "AGENT_SETUP_FAILED",
+        error instanceof Error ? error.message : String(error),
+      )
+    }
+  }
+}
 
 const state = async (harness: Harness, install: Install): Promise<AgentIntegration> => {
   const connected = await harness.connected(install)
@@ -231,7 +260,7 @@ export const createHarnesses = (
   const apply = async (agent: AgentName, connected: boolean): Promise<AgentIntegration> => {
     const install = await installs(true)
     const env = latest ?? base
-    const settings = { env, platform, timeoutMs }
+    const settings = { cwd: home, env, platform, timeoutMs }
     if (!install) throw new DomainError("AGENT_SETUP_FAILED", "Shell integration is unavailable.")
     const harness = harnesses[agent]
     const where = install(agent)
@@ -251,29 +280,24 @@ export const createHarnesses = (
     if (!connected) await rm(reinstalling(where), { force: true })
     // Its own settings go back before its plugin does, so nothing names a missing hook.
     if (!connected) await settle("revert")
-    for (const command of connected ? harness.connect(where) : harness.disconnect) {
-      try {
-        const [program = "", ...args] = command.argv
-        // eslint-disable-next-line no-await-in-loop -- Each step needs the one before.
-        const located = await locate(program, harness, where)
-        if (!located) throw new Error(`${program} is not on PATH.`)
-        // eslint-disable-next-line no-await-in-loop -- As above.
-        await run(program, [located, ...args], settings)
-      } catch (error) {
-        if (command.optional) continue
-        throw new DomainError(
-          "AGENT_SETUP_FAILED",
-          error instanceof Error ? error.message : String(error),
-        )
-      }
-    }
+    const before = connected && (await harness.connected(where))
+    await steps(harness, where, connected ? harness.connect(where) : harness.disconnect, settings)
     const after = await state(harness, where)
     if (after.connected !== connected)
       throw new DomainError(
         "AGENT_SETUP_FAILED",
         `${agent} did not ${connected ? "install" : "remove"} Novadeck's plugin.`,
       )
-    if (connected) await settle("apply")
+    if (!connected) return after
+    try {
+      await settle("apply")
+    } catch (error) {
+      // Settings it can't change, such as a file that doesn't parse, leave an agent the
+      // person was connecting disconnected, not connected without them; one connected
+      // before, as a refresh finds it, stays so.
+      if (!before) await steps(harness, where, harness.disconnect, settings).catch(() => {})
+      throw error
+    }
     return after
   }
   const api = {
