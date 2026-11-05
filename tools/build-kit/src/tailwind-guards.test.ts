@@ -111,25 +111,26 @@ const ruledGuards = (text: string): string[] =>
     .map(({ utility }) => utility)
 
 // Every stylesheet the build reads by the UI's sheet: the sheets under the scanned folders, and
-// those the UI's sheet imports, and theirs, from wherever they resolve (Tailwind's own aside).
+// what each of them imports, and so on, from wherever they resolve (Tailwind's own aside).
 const sheets = (() => {
-  const found = new Set(underScanned.filter((file) => file.endsWith(".css")))
+  const found = new Set<string>()
   const visit = (file: string): void => {
-    for (const [, path] of readFileSync(join(root, file), "utf8").matchAll(
+    if (found.has(file)) return
+    found.add(file)
+    for (const [, path = ""] of readFileSync(join(root, file), "utf8").matchAll(
       /^@import\s+["']([^"']+)["']/gm,
     )) {
       if (path === "tailwindcss") continue
-      const resolved = path.startsWith(".")
-        ? posix.normalize(posix.join(posix.dirname(file), path))
-        : relative(root, createRequire(join(root, file)).resolve(path))
-            .split(sep)
-            .join("/")
-      if (found.has(resolved) && resolved !== sheet) continue
-      found.add(resolved)
-      visit(resolved)
+      visit(
+        path.startsWith(".")
+          ? posix.normalize(posix.join(posix.dirname(file), path))
+          : relative(root, createRequire(join(root, file)).resolve(path))
+              .split(sep)
+              .join("/"),
+      )
     }
   }
-  visit(sheet)
+  for (const file of [sheet, ...underScanned.filter((each) => each.endsWith(".css"))]) visit(file)
   return [...found]
 })()
 
