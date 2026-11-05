@@ -1,6 +1,6 @@
 import { Popover as ArkPopover, usePopoverContext } from "@ark-ui/react/popover"
 import { Portal } from "@ark-ui/react/portal"
-import { useLayoutEffect, useMemo, useRef, type ReactNode } from "react"
+import { useLayoutEffect, useMemo, useRef, type ReactNode, type RefObject } from "react"
 
 export type SheetProps = {
   readonly label: string
@@ -47,6 +47,39 @@ export const Sheet = ({
   useLayoutEffect(() => {
     reads.current = { anchor, boundary }
   })
+  return (
+    <Placed
+      // A sheet placed for one anchor is placed again, from nothing, for the next: where
+      // the last anchor was counts for nothing.
+      key={anchorKey}
+      label={label}
+      open={open}
+      reads={reads}
+      placeKey={placeKey}
+      onInteractOutside={onInteractOutside}
+      onDismiss={onDismiss}
+      className={className}
+    >
+      {children}
+    </Placed>
+  )
+}
+
+// The sheet as placed for one anchor.
+const Placed = ({
+  label,
+  open,
+  reads,
+  placeKey,
+  onInteractOutside,
+  onDismiss,
+  children,
+  className,
+}: Pick<SheetProps, "label" | "open" | "onInteractOutside" | "onDismiss" | "children"> & {
+  readonly reads: RefObject<Pick<SheetProps, "anchor" | "boundary">>
+  readonly placeKey: string | undefined
+  readonly className: string | undefined
+}): React.JSX.Element => {
   const last = useRef<DOMRect | null>(null)
   const positioning = useMemo(
     () => ({
@@ -66,12 +99,10 @@ export const Sheet = ({
         return last.current
       },
     }),
-    [],
+    [reads],
   )
   return (
     <ArkPopover.Root
-      // A sheet placed for one anchor is placed again, from nothing, for the next.
-      key={anchorKey}
       open={open}
       onOpenChange={({ open: next }) => {
         if (!next) onDismiss()
