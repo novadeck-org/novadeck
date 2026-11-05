@@ -507,22 +507,28 @@ export const watchPageRequests = (
   pages: Session,
   report: (contentsId: number, failure: PageRequestFailure) => void,
 ): { readonly forget: (contentsId: number) => void } => {
-  // By page view, then origin.
-  const told = new Map<number, Map<string, number>>()
+  // By page view: the origin of its main frame's document, and the counts by origin.
+  const told = new Map<number, { readonly page?: string; readonly counts: Map<string, number> }>()
   const tell = (
     details: { url: string; resourceType: string; webContentsId?: number },
     status: number,
   ): void => {
     if (details.webContentsId === undefined) return
-    const view = told.get(details.webContentsId) ?? new Map<string, number>()
+    const view = told.get(details.webContentsId) ?? { counts: new Map<string, number>() }
+    const { counts } = view
     // An address that is no web page's, as ws: or blob:, shares one count, whatever it is,
     // as do origins past the first `maxRequestOrigins`, so a page can't send without end
-    // by failing at ever new ones.
+    // by failing at ever new ones. The page's own origin always has its own.
     const own = originOf(details.url)
-    const origin = own !== null && (view.has(own) || view.size < maxRequestOrigins) ? own : "other"
-    const count = view.get(origin) ?? 0
+    const origins = counts.size - (counts.has("other") ? 1 : 0)
+    const origin =
+      own !== null && (own === view.page || counts.has(own) || origins < maxRequestOrigins)
+        ? own
+        : "other"
+    const count = counts.get(origin) ?? 0
     if (count >= maxForwardedRequests) return
-    told.set(details.webContentsId, view.set(origin, count + 1))
+    told.set(details.webContentsId, view)
+    counts.set(origin, count + 1)
     report(details.webContentsId, {
       url: details.url,
       status,
@@ -530,9 +536,14 @@ export const watchPageRequests = (
     })
   }
   // A new main-frame request is a new document, however it ends.
-  const navigating = (details: { resourceType: string; webContentsId?: number }): void => {
-    if (details.resourceType === "mainFrame" && details.webContentsId !== undefined)
-      told.delete(details.webContentsId)
+  const navigating = (details: {
+    url: string
+    resourceType: string
+    webContentsId?: number
+  }): void => {
+    if (details.resourceType !== "mainFrame" || details.webContentsId === undefined) return
+    const page = originOf(details.url)
+    told.set(details.webContentsId, { ...(page !== null && { page }), counts: new Map() })
   }
   pages.webRequest.onCompleted((details) => {
     navigating(details)

@@ -676,6 +676,16 @@ describe("the requests of a page view that fail", () => {
     expect(told).toHaveLength(maxRequestOrigins + maxForwardedRequests + 1)
   })
 
+  it("keep room for the page's own origin however many other origins failed first", () => {
+    const { told, completed } = watched()
+    completed(200, { url: "https://shop.example/", resourceType: "mainFrame" })
+    for (let each = 0; each < maxRequestOrigins + maxForwardedRequests; each += 1)
+      completed(500, { url: `https://tracker-${each}.example/pixel.gif` })
+    const before = told.length
+    completed(404, { url: "https://shop.example/api/cart" })
+    expect(told).toHaveLength(before + 1)
+  })
+
   it("forget a page view once it's gone, as a rest of its page drops it", () => {
     const { told, completed, forget } = watched()
     for (let each = 0; each < maxForwardedRequests; each += 1) completed(500)
