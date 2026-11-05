@@ -1,4 +1,5 @@
 import { withWords } from "./agent-input"
+import { graphemesOf } from "./graphemes"
 
 // The command line of a demo terminal drawn as terminal output: what the emulator sends
 // for the person's keys, read as the line a shell's readline keeps. Pure, so the terminal
@@ -78,9 +79,8 @@ const wordEnd = (draft: string, cursor: number): number => {
 
 // Where each character the person sees starts, so a cursor never parts an accent from its
 // letter, an emoji from its skin tone, or a surrogate pair.
-const graphemes = new Intl.Segmenter(undefined, { granularity: "grapheme" })
 const starts = (draft: string): number[] => [
-  ...Array.from(graphemes.segment(draft), (each) => each.index),
+  ...graphemesOf(draft).map(({ index }) => index),
   draft.length,
 ]
 
