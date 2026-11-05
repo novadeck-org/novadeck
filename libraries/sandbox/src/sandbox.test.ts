@@ -86,7 +86,8 @@ describe("a sandbox", { timeout: 60_000 }, () => {
 
     expect(env.HTTPS_PROXY).toBe("http://127.0.0.1:9")
     expect(env.https_proxy).toBe("http://127.0.0.1:9")
-    expect(env.NO_PROXY).toBe("127.0.0.1,localhost")
+    expect(env.NO_PROXY).toBe("127.0.0.1,localhost,::1")
+    expect(env.no_proxy).toBe("127.0.0.1,localhost,::1")
     expect(env.NODE_USE_ENV_PROXY).toBe("1")
   })
 
@@ -94,6 +95,14 @@ describe("a sandbox", { timeout: 60_000 }, () => {
     const { env } = made()
 
     expect(Object.keys(env).filter((name) => /proxy/i.test(name))).toEqual([])
+  })
+
+  it("gives git's ssh no configuration or key of the user's, and its known hosts in its home", () => {
+    const { env, home } = made()
+
+    expect(env.GIT_SSH_COMMAND).toBe(
+      `ssh -F none -o IdentitiesOnly=yes -o IdentityFile=none -o UserKnownHostsFile='${join(home, ".ssh", "known_hosts")}'`,
+    )
   })
 
   it("is named with its prefix, a space and all", () => {

@@ -1,7 +1,7 @@
 import { execFile } from "node:child_process"
 import { promisify } from "node:util"
 
-import { pidRunning, signal, type Process, type Scope, type Table } from "./process.js"
+import { pidRunning, sandboxed, signal, type Process, type Scope, type Table } from "./process.js"
 
 /** A process as `ps` lists it on macOS: with its parent, its group, and whether a zombie. */
 type Listed = Process & {
@@ -52,33 +52,6 @@ export const parseFolders = (output: string): ReadonlyMap<number, string> => {
     else if (line.startsWith("n") && pid !== undefined) folders.set(pid, line.slice(1))
   }
   return folders
-}
-
-/**
- * Those found of the processes, with every one of the processes whose parent is one of
- * them or whose process group holds one of them, until no more join, but never one in
- * `ownGroup`, the caller's own group, which the sandbox's processes have no business in.
- */
-export const sandboxed = (
-  processes: readonly { readonly pid: number; readonly ppid: number; readonly pgid: number }[],
-  found: ReadonlySet<number>,
-  ownGroup: number | undefined,
-): ReadonlySet<number> => {
-  const members = new Set(found)
-  for (let grown = true; grown;) {
-    grown = false
-    const groups = new Set(processes.filter(({ pid }) => members.has(pid)).map(({ pgid }) => pgid))
-    for (const one of processes)
-      if (
-        !members.has(one.pid) &&
-        one.pgid !== ownGroup &&
-        (members.has(one.ppid) || (one.pgid > 1 && groups.has(one.pgid)))
-      ) {
-        members.add(one.pid)
-        grown = true
-      }
-  }
-  return members
 }
 
 /**

@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest"
 
-import { parseFolders, parseProcesses, sandboxed } from "./darwin.js"
+import { parseFolders, parseProcesses } from "./darwin.js"
 
 describe("macOS's process listing", () => {
   it("reads each process's pid, parent, group, state, start and command's name", () => {
@@ -39,27 +39,6 @@ describe("macOS's process listing", () => {
         stopped: false,
         zombie: true,
       },
-    ])
-  })
-
-  it("counts a found process's children and its group's, however deep, but never the caller's group", () => {
-    const processes = [
-      // A program found by its folder, a child it started elsewhere, and that child's own.
-      { pid: 10, ppid: 5, pgid: 10 },
-      { pid: 11, ppid: 10, pgid: 11 },
-      { pid: 12, ppid: 11, pgid: 11 },
-      // A background job of the program's group, its parent gone.
-      { pid: 13, ppid: 1, pgid: 10 },
-      // The caller's own group, which holds a found process's parent and a stray of its own.
-      { pid: 20, ppid: 1, pgid: 20 },
-      { pid: 21, ppid: 20, pgid: 20 },
-      { pid: 22, ppid: 20, pgid: 20 },
-      // Another program altogether.
-      { pid: 30, ppid: 1, pgid: 30 },
-    ]
-
-    expect([...sandboxed(processes, new Set([10, 21]), 20)].toSorted((a, b) => a - b)).toEqual([
-      10, 11, 12, 13, 21,
     ])
   })
 

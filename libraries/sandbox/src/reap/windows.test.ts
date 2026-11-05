@@ -86,6 +86,17 @@ describe("ending a Windows process's tree", () => {
     },
   )
 
+  // Waiting its 30 s would take it past this test's time.
+  it("waits for a tree that won't end no later than it is told", { timeout: 2_000 }, async () => {
+    // This worker, which runs throughout.
+    const tree = [{ pid: process.pid, startedAt: 100 }]
+    const { calls, trees } = reader(tree)
+
+    await endTree({ pid: process.pid, start: 100 }, trees, async () => {}, Date.now() + 200)
+
+    expect(calls.end).toEqual([tree])
+  })
+
   it("ends it by recorded parents where its reader can't read the tree", async () => {
     const { trees } = reader(undefined)
     const killed: number[] = []
