@@ -3,6 +3,7 @@ import { languageOf } from "./highlight/languages.js"
 import { highlightLines, paintRows, runsKey, type HighlightedLine } from "./highlight/rows.js"
 import { createHold } from "./hold.js"
 import type { Mount, ViewerState } from "./index.js"
+import { createKept } from "./kept.js"
 
 // A read-only change: a repository's files against a base, each a section under a header
 // (its path, how it changed, what it added and removed) with its hunks as numbered lines
@@ -107,26 +108,15 @@ const highlightedLines = 4_000
 // by a new viewer of the same change, shows highlighted at once. Kept by the size of the
 // text they were parsed from, the one used longest ago going first.
 const keptChars = 2_000_000
-const keptRuns = new Map<string, { runs: readonly HighlightedLine[]; size: number }>()
-let keptRunsChars = 0
+const keptRuns = createKept<{ readonly runs: readonly HighlightedLine[]; readonly size: number }>(
+  keptChars,
+  (each) => each.size,
+)
 
-const knownRuns = (key: string): readonly HighlightedLine[] | undefined => {
-  const known = keptRuns.get(key)
-  if (!known) return undefined
-  keptRuns.delete(key)
-  keptRuns.set(key, known)
-  return known.runs
-}
+const knownRuns = (key: string): readonly HighlightedLine[] | undefined => keptRuns.get(key)?.runs
 
 const keepRuns = (key: string, runs: readonly HighlightedLine[], size: number): void => {
-  if (size > keptChars / 4) return
-  keptRuns.set(key, { runs, size })
-  keptRunsChars += size
-  for (const [oldest, each] of keptRuns) {
-    if (keptRunsChars <= keptChars) break
-    keptRuns.delete(oldest)
-    keptRunsChars -= each.size
-  }
+  if (size <= keptChars / 4) keptRuns.keep(key, { runs, size })
 }
 
 // The files' keys: a file's path, and for each more with the same path, which it is.

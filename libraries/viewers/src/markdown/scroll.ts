@@ -12,30 +12,52 @@ const scrollerOf = (element: HTMLElement): HTMLElement | null => {
   return null
 }
 
+// Each view's smooth jump still waiting to correct where it ended.
+const jumps = new WeakMap<EditorView, AbortController>()
+
+// Stops the view's jump under way from correcting where it ends; whether one was.
+export const stopJump = (view: EditorView): boolean => {
+  const jump = jumps.get(view)
+  jumps.delete(view)
+  if (!jump || jump.signal.aborted) return false
+  jump.abort()
+  return true
+}
+
 // Brings the line at `at` to the top of the scroller, smoothly unless motion is reduced.
 // Only the scroller moves: CodeMirror's scrollIntoView also scrolls every
 // ancestor whose content overflows, clipped ones included, which shifts the whole page.
 // Lines out of view have estimated heights, so once the scroll stops, or a frame after an
 // instant one, it corrects for where the line really is, unless the person took over the
 // scroll meanwhile.
+// A later jump, or the viewer going, ends an earlier one's wait to correct; else it would
+// pull the scroller back to its own line once the later one's scroll ends.
 export const scrollLineToTop = (view: EditorView, at: number): void => {
+  const jumping = stopJump(view)
   const scroller = scrollerOf(view.dom)
   if (!scroller) return
-  // Where the scroller has to be, within what it can reach.
+  // Where the scroller has to be, within what it can reach, for the line at `at` or, as the
+  // text shrank meanwhile, at its end.
   const target = (): number =>
     Math.min(
       Math.max(
         0,
         scroller.scrollTop +
-          (view.documentTop + view.lineBlockAt(at).top - scroller.getBoundingClientRect().top) /
+          (view.documentTop +
+            view.lineBlockAt(Math.min(at, view.state.doc.length)).top -
+            scroller.getBoundingClientRect().top) /
             scaleOf(view) -
           margin,
       ),
       scroller.scrollHeight - scroller.clientHeight,
     )
   const off = (): boolean => Math.abs(target() - scroller.scrollTop) >= 1
-  // Already there, or as near as it goes: nothing moves, so nothing waits for a stop.
-  if (!off()) return
+  // Already there, or as near as it goes: nothing moves, so nothing waits for a stop. An
+  // earlier jump's scroll passing by stops here, not at its own line.
+  if (!off()) {
+    if (jumping) scroller.scrollTo({ top: scroller.scrollTop, behavior: "instant" })
+    return
+  }
   const smooth = !matchMedia("(prefers-reduced-motion: reduce)").matches
   scroller.scrollTo({ top: target(), behavior: smooth ? "smooth" : "instant" })
   if (!smooth) {
@@ -48,6 +70,7 @@ export const scrollLineToTop = (view: EditorView, at: number): void => {
     return
   }
   const done = new AbortController()
+  jumps.set(view, done)
   const { signal } = done
   for (const type of personInputs)
     scroller.addEventListener(type, () => done.abort(), { signal, passive: true })

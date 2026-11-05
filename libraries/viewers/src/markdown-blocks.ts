@@ -331,9 +331,15 @@ const interrupts = (line: string, next: string | undefined): boolean => {
 
 const indentOf = (line: string): number => /^ */.exec(line)![0].length
 
+// Quotes and list items nest at most this deep; deeper marks read as text. Each level is a
+// frame here and in the view that shows it, so a long run of `>` would otherwise overflow the
+// stack.
+const maxDepth = 32
+
 const parseList = (
   lines: readonly string[],
   from: number,
+  depth: number,
 ): { readonly block: MarkdownBlock; readonly next: number } => {
   const first = bullet.exec(lines[from]!)!
   const ordered = /^\d/.test(first[2]!)
@@ -368,7 +374,7 @@ const parseList = (
       else break
       i++
     }
-    items.push(parseBlocks(body))
+    items.push(parseBlocks(body, depth + 1))
     // Blank lines between items don't end the list.
     let ahead = i
     while (ahead < lines.length && isBlank(lines[ahead]!)) ahead++
@@ -389,7 +395,8 @@ const parseList = (
   }
 }
 
-const parseBlocks = (lines: readonly string[]): readonly MarkdownBlock[] => {
+const parseBlocks = (lines: readonly string[], depth: number): readonly MarkdownBlock[] => {
+  const nests = depth < maxDepth
   const blocks: MarkdownBlock[] = []
   let i = 0
   while (i < lines.length) {
@@ -427,7 +434,7 @@ const parseBlocks = (lines: readonly string[]): readonly MarkdownBlock[] => {
       i++
       continue
     }
-    if (quoteLine.test(line)) {
+    if (nests && quoteLine.test(line)) {
       const body: string[] = []
       while (
         i < lines.length &&
@@ -438,11 +445,11 @@ const parseBlocks = (lines: readonly string[]): readonly MarkdownBlock[] => {
         body.push(lines[i]!.replace(quoteLine, ""))
         i++
       }
-      blocks.push({ t: "quote", blocks: parseBlocks(body) })
+      blocks.push({ t: "quote", blocks: parseBlocks(body, depth + 1) })
       continue
     }
-    if (bullet.test(line) && !isBlank(line.replace(bullet, ""))) {
-      const { block, next } = parseList(lines, i)
+    if (nests && bullet.test(line) && !isBlank(line.replace(bullet, ""))) {
+      const { block, next } = parseList(lines, i, depth)
       blocks.push(block)
       i = next
       continue
@@ -485,4 +492,4 @@ const parseBlocks = (lines: readonly string[]): readonly MarkdownBlock[] => {
 }
 
 export const parseMarkdown = (text: string): readonly MarkdownBlock[] =>
-  parseBlocks(text.replace(/\r\n?/g, "\n").split("\n"))
+  parseBlocks(text.replace(/\r\n?/g, "\n").split("\n"), 0)

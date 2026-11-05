@@ -1,7 +1,7 @@
 import type { EditorView } from "@codemirror/view"
 import { afterEach, describe, expect, it, vi } from "vitest"
 
-import { restoreScroll } from "./scroll.js"
+import { restoreScroll, scrollLineToTop, stopJump } from "./scroll.js"
 
 const scrollers: HTMLElement[] = []
 
@@ -103,7 +103,10 @@ const setup = () => {
   }
 }
 
+const stopCatching: (() => void)[] = []
+
 afterEach(() => {
+  for (const stop of stopCatching.splice(0)) stop()
   vi.unstubAllGlobals()
   for (const scroller of scrollers.splice(0)) scroller.remove()
 })
@@ -168,5 +171,111 @@ describe("restoring a scroll", () => {
     expect(app.observers.size).toBe(0)
     app.restore.stop()
     expect(app.done).toHaveBeenCalledOnce()
+  })
+})
+
+describe("jumping to a line", () => {
+  // An editor in a scroller where each offset's line is that many pixels down, scrolled
+  // smoothly: a scroll lands, and its end is told, when the test says.
+  const jumper = () => {
+    vi.stubGlobal("matchMedia", () => ({ matches: false }))
+    const scroller = document.createElement("div")
+    scroller.style.overflowY = "auto"
+    Object.defineProperties(scroller, {
+      scrollTop: { value: 0, writable: true },
+      clientHeight: { value: 100 },
+      scrollHeight: { value: 10_000 },
+    })
+    let heading: number | undefined
+    scroller.scrollTo = (options?: ScrollToOptions | number) => {
+      if (typeof options === "object") heading = options.top
+    }
+    const land = (): void => {
+      if (heading !== undefined) scroller.scrollTop = heading
+      heading = undefined
+    }
+    scroller.getBoundingClientRect = () => ({ top: 0 }) as DOMRect
+    const dom = document.createElement("div")
+    scroller.append(dom)
+    document.body.append(scroller)
+    scrollers.push(scroller)
+    let length = 5_000
+    const view = {
+      dom,
+      state: {
+        doc: {
+          get length() {
+            return length
+          },
+        },
+      },
+      get documentTop() {
+        return -scroller.scrollTop
+      },
+      lineBlockAt: (at: number) => {
+        if (at > length) throw new RangeError(`No line at ${at}`)
+        return { top: at, height: 20 }
+      },
+    } as unknown as EditorView
+    // A listener's error reaches the window, not whoever dispatched the event.
+    const errors: unknown[] = []
+    const caught = (event: ErrorEvent) => {
+      errors.push(event.error)
+      event.preventDefault()
+    }
+    window.addEventListener("error", caught)
+    stopCatching.push(() => window.removeEventListener("error", caught))
+    return {
+      view,
+      scroller,
+      errors,
+      passBy: (top: number) => {
+        scroller.scrollTop = top
+      },
+      shrink: (to: number) => (length = to),
+      // The scroll under way lands and ends; one that starts as it ends lands too.
+      ended: () => {
+        land()
+        scroller.dispatchEvent(new Event("scrollend"))
+        land()
+      },
+    }
+  }
+
+  it("ends at the line jumped to last, when a second jump comes before the first ends", () => {
+    const { view, scroller, ended } = jumper()
+    scrollLineToTop(view, 1_000)
+    scrollLineToTop(view, 3_000)
+    ended()
+    expect(scroller.scrollTop).toBe(3_000 - 24)
+  })
+
+  it("corrects for where its line is once the text shrank, without throwing", () => {
+    const { view, scroller, errors, shrink, ended } = jumper()
+    scrollLineToTop(view, 3_000)
+    shrink(2_000)
+    ended()
+    expect(errors).toEqual([])
+    expect(scroller.scrollTop).toBe(2_000 - 24)
+  })
+
+  it("stops where it is when a second jump's line passes by as the first scrolls", () => {
+    const { view, scroller, passBy, ended } = jumper()
+    scrollLineToTop(view, 1_000)
+    // Halfway there, the second jump's line is at the top already.
+    passBy(500 - 24)
+    scrollLineToTop(view, 500)
+    ended()
+    expect(scroller.scrollTop).toBe(500 - 24)
+  })
+
+  it("corrects nothing once stopped, as its viewer goes", () => {
+    const { view, scroller, errors, shrink, ended } = jumper()
+    scrollLineToTop(view, 3_000)
+    stopJump(view)
+    shrink(2_000)
+    ended()
+    expect(errors).toEqual([])
+    expect(scroller.scrollTop).toBe(3_000 - 24)
   })
 })

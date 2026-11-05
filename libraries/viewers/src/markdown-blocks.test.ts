@@ -1,6 +1,12 @@
 import { describe as context, describe, expect, it } from "vitest"
 
-import { fenceLanguage, parseInline, parseMarkdown, safeHref } from "./markdown-blocks.js"
+import {
+  fenceLanguage,
+  type MarkdownBlock,
+  parseInline,
+  parseMarkdown,
+  safeHref,
+} from "./markdown-blocks.js"
 
 const kinds = (text: string) => parseMarkdown(text).map((block) => block.t)
 
@@ -153,6 +159,13 @@ describe("markdown on pathological text", () => {
     ["links without addresses", "[a](".repeat(size / 4)],
     ["blank lines in a list", "- a\n\n".repeat(size / 5)],
     ["unclosed tildes", "~~a ".repeat(size / 4)],
+    ["deeply nested quotes", ">".repeat(size) + " x"],
+    ["deeply nested bullets", "- ".repeat(size / 2) + "x"],
+    ["deeply nested quotes and bullets", "> - ".repeat(size / 4) + "x"],
+    [
+      "deeply indented bullets",
+      Array.from({ length: 128 }, (_, n) => `${" ".repeat(n * 2)}- a`).join("\n"),
+    ],
   ])("reads %s in well under the second a quadratic reading took", (_name, text) => {
     // Warmed up first, so the bound measures the reading, not the compiler; generous for
     // slow CI machines, yet far below the ~1 s a quadratic reading took here. The quickest
@@ -167,6 +180,37 @@ describe("markdown on pathological text", () => {
       }),
     )
     expect(took).toBeLessThan(400)
+  })
+})
+
+describe("deep nesting", () => {
+  const depthOf = (blocks: readonly MarkdownBlock[]): number =>
+    Math.max(
+      0,
+      ...blocks.map((block) =>
+        block.t === "quote"
+          ? 1 + depthOf(block.blocks)
+          : block.t === "list"
+            ? 1 + Math.max(0, ...block.items.map(depthOf))
+            : 0,
+      ),
+    )
+
+  it("reads quotes nested past the limit as text, not a stack too deep to read or show", () => {
+    const blocks = parseMarkdown(">".repeat(4000) + " x")
+    expect(depthOf(blocks)).toBe(32)
+  })
+
+  it("reads bullets nested past the limit as text", () => {
+    expect(depthOf(parseMarkdown("- ".repeat(6000) + "x"))).toBe(32)
+  })
+
+  it("still nests as deep as the limit", () => {
+    const quote = (depth: number): readonly MarkdownBlock[] =>
+      depth === 0
+        ? [{ t: "p", inline: [{ t: "text", text: "x" }] }]
+        : [{ t: "quote", blocks: quote(depth - 1) }]
+    expect(parseMarkdown(">".repeat(32) + " x")).toEqual(quote(32))
   })
 })
 

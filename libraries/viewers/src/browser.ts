@@ -276,7 +276,8 @@ export const mountBrowser: Mount<BrowserContent, BrowserOptions, BrowserViewer> 
 
   let shown = content
   const kept = keptOf(saved, content)
-  const resumed = kept?.at ?? content.url
+  // Where it was kept, unless that's no web page's, which it couldn't attach at.
+  const resumed = kept && webAddress(kept.at) ? kept.at : content.url
   let place: Place = { url: resumed, back: false, forward: false }
   let load: Load = "loading"
   let muted = false
@@ -648,7 +649,10 @@ export const mountBrowser: Mount<BrowserContent, BrowserOptions, BrowserViewer> 
   }
   // Loads an address, once attached, even where its attribute already names it; another
   // fragment of the document it's on only moves within it, as a link to it would.
+  // Only ever to an http(s) address, whatever it was given: a load after it attached is past
+  // the lockdown's check, and the desktop app's guard sees only the page's own navigations.
   const go = (to: string): boolean =>
+    webAddress(to) &&
     attached(() => {
       void page!.loadURL(to).catch(nothing)
       return true
@@ -705,6 +709,8 @@ export const mountBrowser: Mount<BrowserContent, BrowserOptions, BrowserViewer> 
   const refresh = (): void => {
     moving = false
     then = undefined
+    // Mounted for an address no page view loads, it stays where it attached.
+    if (!webAddress(shown.url)) return
     if (first && load === "loading" && place.url === shown.url) {
       // A wake's load isn't the show's: it goes again, afresh, once done. Else this load
       // is the show's, and what goes wrong in it is told with it.
@@ -979,14 +985,14 @@ export const mountBrowser: Mount<BrowserContent, BrowserOptions, BrowserViewer> 
 
   return {
     update: (next) => {
-      // An older show arriving late changes nothing.
-      if (showOf(next) < showing) return
+      // An older show arriving late changes nothing. Nor does an address but an http(s)
+      // one: loaded after it attached, past the lockdown's check of its first address, and
+      // kept as the shown one, a later reload would go there.
+      if (showOf(next) < showing || !webAddress(next.url)) return
       const previous = shown
       const again = showOf(next) > showing
       shown = next
       showing = showOf(next)
-      // Loaded after it attached, past the lockdown's check of its first address.
-      if (!webAddress(next.url)) return
       if (!again && previous.url === next.url) return
       scrollTo = again ? scrollOf(next) : undefined
       if (page) return refresh()

@@ -64,6 +64,94 @@ describe("markdown sync", () => {
     })
   })
 
+  context("when the text is long", () => {
+    const lines = (count: number, name: string): string =>
+      Array.from({ length: count }, (_, n) => `${name} line ${n}\n`).join("")
+    // The quickest of three runs counts, so one slow moment on a busy machine doesn't fail it.
+    const quickest = (run: () => void): number =>
+      Math.min(
+        ...[1, 2, 3].map(() => {
+          const started = performance.now()
+          run()
+          return performance.now() - started
+        }),
+      )
+
+    it("changes only the line that changed, in a moment", () => {
+      const before = lines(10_000, "plan")
+      const after = before.replace("plan line 5000\n", "plan line 5000, ticked\n")
+      const changes: number[][] = []
+      lineChanges(before, after).iterChanges((fromA, toA, fromB, toB) =>
+        changes.push([fromA, toA, fromB, toB]),
+      )
+      const from = before.indexOf("plan line 5000\n")
+      expect(changes).toEqual([
+        [from, from + "plan line 5000\n".length, from, from + "plan line 5000, ticked\n".length],
+      ])
+      // A table of every line against every other took seconds here, and hundreds of MB.
+      expect(quickest(() => lineChanges(before, after))).toBeLessThan(100)
+    })
+
+    it("still finds the lines kept between scattered changes", () => {
+      const before = lines(4_000, "plan")
+      const after = before
+        .replace("plan line 1000\n", "")
+        .replace("plan line 3000\n", "plan line 3000\nadded\n")
+      expect(lineChanges(before, after).apply(text(before)).toString()).toBe(after)
+      expect(distance(before, after)).toBe("plan line 1000\n".length + "added\n".length)
+      expect(quickest(() => lineChanges(before, after))).toBeLessThan(100)
+    })
+
+    it("replaces a middle too different to compare line by line whole, in a moment", () => {
+      const before = lines(5_000, "old")
+      const after = lines(5_000, "new")
+      expect(lineChanges(before, after).apply(text(before)).toString()).toBe(after)
+      // Every step up to the bound runs: about 150 ms on one core here, 4.3 s for the table
+      // of every line against every other; a slow runner has room.
+      expect(quickest(() => lineChanges(before, after))).toBeLessThan(1_000)
+    })
+
+    it("keeps an edit made meanwhile where it was, when an agent changed many lines", () => {
+      const base = Array.from({ length: 3_000 }, (_, n) => `- [ ] task ${n}\n`).join("")
+      const ticked = base
+        .split("\n")
+        .map((line, n) => (n % 2 === 1 ? line.replace("[ ]", "[x]") : line))
+        .join("\n")
+      const ours = base.replace("- [ ] task 1000\n", "- [ ] task 1000\n  my note\n")
+      const merged = merge(base, ours, ticked)
+      expect(merged.text).toContain("- [ ] task 1000\n  my note\n- [x] task 1001\n")
+      expect(merged.changed).toHaveLength(1_500)
+    })
+  })
+
+  it("turns any text into any other, keeping as many lines as can be kept", () => {
+    // Lines from a small alphabet, so texts share many lines in many orders.
+    let seed = 1
+    const random = (below: number): number => {
+      seed = (seed * 48_271) % 2_147_483_647
+      return seed % below
+    }
+    const textOf = (): string[] => Array.from({ length: random(12) }, () => `${"abc"[random(3)]}\n`)
+    const mostKept = (a: readonly string[], b: readonly string[]): number => {
+      const table = a.map(() => b.map(() => 0))
+      const at = (i: number, j: number): number => (i < 0 || j < 0 ? 0 : table[i]![j]!)
+      a.forEach((line, i) =>
+        b.forEach((other, j) => {
+          table[i]![j] =
+            line === other ? at(i - 1, j - 1) + 1 : Math.max(at(i - 1, j), at(i, j - 1))
+        }),
+      )
+      return at(a.length - 1, b.length - 1)
+    }
+    for (let run = 0; run < 500; run++) {
+      const [a, b] = [textOf(), textOf()]
+      const [before, after] = [a.join(""), b.join("")]
+      expect(lineChanges(before, after).apply(text(before)).toString()).toBe(after)
+      // Each line is two characters, so the distance counts the lines removed and added.
+      expect(distance(before, after) / 2).toBe(a.length + b.length - 2 * mostKept(a, b))
+    }
+  })
+
   it("measures how far apart two texts are by the lines that differ", () => {
     expect(distance("a\nb\n", "a\nb\n")).toBe(0)
     expect(distance("a\nb\n", "a\nB\n")).toBeLessThan(distance("a\nb\n", "A\nB\n"))

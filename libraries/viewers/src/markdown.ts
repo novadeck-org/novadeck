@@ -18,6 +18,7 @@ import {
   followScroll,
   restoreScroll,
   scrollLineToTop,
+  stopJump,
   type Scroll,
   type ScrollRestore,
 } from "./markdown/scroll.js"
@@ -230,6 +231,9 @@ export const mountMarkdown: Mount<MarkdownContent, MarkdownOptions, MarkdownView
     },
     // A jump wins over a restore still under way.
     jumpTo: (target: Target) => {
+      // A line or offset that is no number, as one worked out from a heading not found, goes
+      // nowhere, as in the code viewer; one past the end goes to the end.
+      if (Number.isNaN("offset" in target ? target.offset : target.line)) return
       stopRestore()
       const { doc } = view.state
       scrollLineToTop(
@@ -248,6 +252,7 @@ export const mountMarkdown: Mount<MarkdownContent, MarkdownOptions, MarkdownView
     destroy: () => {
       closing = true
       stopRestore()
+      stopJump(view)
       stopFollowing()
       view.destroy()
       root.remove()
