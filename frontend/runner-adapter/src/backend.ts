@@ -488,24 +488,38 @@ export const runnerBackend = (
     }
   }
 
-  // Resolves once the runner is reachable again, or closed for good.
-  const connected = async (): Promise<void> => {
+  // Resolves once the runner is reachable again, or closed for good, or once `signal` aborts.
+  const connected = async (signal?: AbortSignal): Promise<void> => {
     // The status can still say connected for a moment after the link dropped.
     await pause(250)
-    for await (const status of runner.watch()) {
-      noteRunner(status)
-      if (status.state !== "reconnecting") return
+    if (signal?.aborted) return
+    const statuses = runner.watch()
+    const stop = (): void => void statuses.return?.()
+    signal?.addEventListener("abort", stop, { once: true })
+    try {
+      for await (const status of statuses) {
+        noteRunner(status)
+        if (status.state !== "reconnecting") return
+      }
+    } finally {
+      signal?.removeEventListener("abort", stop)
     }
   }
 
   // Stopped between `start`s, so retries end with the app instead of outliving it.
   let halted = false
   // Waits for the runner to come back, in short slices so a cancelled wait ends soon.
+  // A cancelled wait stops watching the runner's status too.
   const reconnected = async (cancelled: () => boolean): Promise<void> => {
-    const back = connected().then(() => true)
-    // eslint-disable-next-line no-await-in-loop -- Each slice checks for cancellation.
-    while (!(await Promise.race([back, pause(500).then(() => false)])))
-      if (cancelled()) throw new Cancelled()
+    const waiting = new AbortController()
+    const back = connected(waiting.signal).then(() => true)
+    try {
+      // eslint-disable-next-line no-await-in-loop -- Each slice checks for cancellation.
+      while (!(await Promise.race([back, pause(500).then(() => false)])))
+        if (cancelled()) throw new Cancelled()
+    } finally {
+      waiting.abort()
+    }
   }
 
   type Retry = {
@@ -1297,6 +1311,10 @@ export const runnerBackend = (
           dispatch([
             { type: "terminal/close", target: target(entry.key), terminalId: change.terminalId },
           ])
+        // Gone for good there, so nothing more is said of it.
+        closedHere.delete(change.terminalId)
+        runnerTitles.delete(change.terminalId)
+        runnerSources.delete(change.terminalId)
         return
       }
       if (change.type === "changed") {
