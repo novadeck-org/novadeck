@@ -18,10 +18,10 @@ const sameWires = (a: Wires, b: Wires) => JSON.stringify(a) === JSON.stringify(b
 
 // Nested teams (a teammate that leads its own): each level's wire runs in its own lane, a
 // lane's width further from the rail's border than its lead's lead's, and a nested team's
-// tabs step in as far (tabs.css), so each sits beside its lane. Past three levels, deeper
-// teams share the innermost lane.
+// tabs step in as far (tabs.css), so each sits beside its lane. Past two lanes, which keep
+// clear of the tabs' edge, deeper teams share the innermost.
 const laneWidth = 6
-const deepestLane = 3
+const deepestLane = 2
 const laneOf = (level: number) => Math.min(level, deepestLane) * laneWidth
 
 // Whether a tab is laid out: a teammate folded out of the list (team-fold.ts) isn't.
@@ -324,7 +324,7 @@ export const TeamWire = ({
           folded={false}
           faded={false}
           unfolding={false}
-          armed={false}
+          armed={armed === wire.lead}
         />
       ))}
       {whole.map((wire) => (

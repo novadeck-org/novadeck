@@ -34,8 +34,8 @@ const FoldedRow = ({
     currentState(workspace).roster.terminals.find((terminal) => terminal.id === id),
   )
   const selected = useWorkspaceState((workspace) => currentState(workspace).selected === id)
-  // A teammate that leads its own team: how many it folds away with it, at any depth.
-  const leads = useWorkspaceState((workspace) => descendantsOf(workspace, id).length)
+  // A teammate that leads its own team: those it folds away with it, at any depth.
+  const below = useWorkspaceState((workspace) => descendantsOf(workspace, id), sameItems)
   const view = useWorkspaceState((workspace) => currentState(workspace).view)
   const marks = useTerminalMarks(backend.inbox, { ...target, terminalId: id })
   const unread = useUiState((state) => unreadEnd(state.unread, context, id))
@@ -64,12 +64,18 @@ const FoldedRow = ({
         style={markDelay(index)}
       />
       <span className="truncate">{tile.name}</span>
-      {leads > 0 && <span className="team-fold-count shrink-0">+{leads}</span>}
-      {need && (
-        <span className="terminal-tab-need shrink-0" data-need={need}>
-          {need === "unblock" ? "!" : "?"}
-        </span>
-      )}
+      {below.length > 0 && <span className="team-fold-count shrink-0">+{below.length}</span>}
+      {/* What it, or any terminal it folds away with it, needs of the person: the strongest. */}
+      <span className="team-fold-needs">
+        {need && (
+          <span className="terminal-tab-need shrink-0" data-need={need}>
+            {need === "unblock" ? "!" : "?"}
+          </span>
+        )}
+        {below.map((each) => (
+          <UnlistedNeed key={each} id={each} />
+        ))}
+      </span>
     </span>
   )
 }
@@ -110,9 +116,19 @@ export const FoldedTeamRows = ({ lead }: { lead: string }): React.JSX.Element | 
     const team = teamOf(workspace, lead)
     return team?.lead === lead ? team.workers : noWorkers
   }, sameItems)
+  // Every terminal the fold hides, at any depth, for what the unlisted ones need, and those
+  // under each teammate, whose needs show on its row.
+  const folded = useWorkspaceState((workspace) => descendantsOf(workspace, lead), sameItems)
+  const trees = useWorkspaceState(
+    (workspace) => workers.map((id) => descendantsOf(workspace, id).join(" ")),
+    sameItems,
+  )
   if (!workers.length) return null
   const listed = workers.length > listedRows ? workers.slice(0, listedRows - 1) : workers
+  const listedTrees = trees.slice(0, listed.length).map((tree) => tree.split(" "))
   const rest = workers.length - listed.length
+  // A terminal under a listed row shows its need there.
+  const listedBelow = (id: string) => listedTrees.some((tree) => tree.includes(id))
   return (
     <span
       aria-hidden
@@ -139,9 +155,13 @@ export const FoldedTeamRows = ({ lead }: { lead: string }): React.JSX.Element | 
               <span className="terminal-tab-branch shrink-0">└</span>
               <span className="team-fold-mark" />
               <span className="truncate">+{rest} more</span>
-              {workers.slice(listed.length).map((id) => (
-                <UnlistedNeed key={id} id={id} />
-              ))}
+              <span className="team-fold-needs">
+                {folded
+                  .filter((id) => !listed.includes(id) && !listedBelow(id))
+                  .map((id) => (
+                    <UnlistedNeed key={id} id={id} />
+                  ))}
+              </span>
             </span>
           )}
         </span>

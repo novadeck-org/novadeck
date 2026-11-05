@@ -568,6 +568,16 @@
 .team-fold-row[data-selected] {
   color: var(--tab-glyph-fg, var(--color-ink));
 }
+/* What a row's teammate, or any terminal folded away under it, needs of the person: only the
+   strongest shows, a `!` if any can't go on without them, else a `?`. */
+.team-fold-needs {
+  display: inline-flex;
+}
+.team-fold-needs:has(> [data-need="unblock"]) > [data-need="ask"],
+.team-fold-needs > [data-need="unblock"] ~ [data-need="unblock"],
+.team-fold-needs > [data-need="ask"] ~ [data-need="ask"] {
+  display: none;
+}
 /* A teammate that leads its own team: how many it folds away with it. */
 .team-fold-count {
   color: var(--tab-subagent-fg, var(--color-muted));

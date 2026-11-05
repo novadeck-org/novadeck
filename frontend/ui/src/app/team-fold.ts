@@ -1,4 +1,4 @@
-import { leadChain, teamOf } from "@novadeck/core/derivations"
+import { descendantsOf, leadChain } from "@novadeck/core/derivations"
 import { isWindow } from "@novadeck/core/roster"
 import type { Tile } from "@novadeck/core/types"
 
@@ -64,25 +64,45 @@ export type TabFold = "away" | "preview" | "unfolding" | "shown"
 
 export const useTabFold = (id: string): TabFold | undefined => {
   const context = useWorkspaceState(currentContext)
-  // The leads above it, and whether the person is on it or on one below it (which keeps it
-  // and the leads between in place); not which terminal is selected, so a change of
-  // selection elsewhere re-renders no tab.
-  const { above, kept } = useWorkspaceState(
+  // The leads above it, whether the person is on it or on one below it (which keeps it and the
+  // leads between in place), and while the person is on a lead above it, the leads from it up
+  // to that one (whose own folds still count, as the lead shows its own team while there);
+  // not which terminal is selected, so a change of selection elsewhere re-renders no tab.
+  const { above, kept, underSelected, selectedAbove } = useWorkspaceState(
     (workspace) => {
       const selected = currentState(workspace).selected
+      const chain = leadChain(workspace, id)
+      const at = chain.indexOf(selected)
       return {
-        above: leadChain(workspace, id),
+        above: chain,
         kept: selected === id || leadChain(workspace, selected).includes(id),
+        underSelected: at < 0 ? noLeads : chain.slice(0, at + 1),
+        selectedAbove: at < 0 ? noLeads : leadChain(workspace, selected),
       }
     },
-    (a, b) => a.kept === b.kept && sameItems(a.above, b.above),
+    (a, b) =>
+      a.kept === b.kept &&
+      sameItems(a.above, b.above) &&
+      sameItems(a.underSelected, b.underSelected) &&
+      sameItems(a.selectedAbove, b.selectedAbove),
   )
   return useUiState((state): TabFold | undefined => {
     if (!above.length) return undefined
-    if (foldsAway(state.foldedTeams, context, above, kept)) return "away"
+    // On a lead a fold above hides, which shows in its place: its own team shows with it,
+    // unless it, or a lead between, is folded itself.
+    const peeking =
+      underSelected.length > 0 && foldsAway(state.foldedTeams, context, selectedAbove, false)
+    const away = peeking
+      ? foldsAway(state.foldedTeams, context, underSelected, false)
+      : foldsAway(state.foldedTeams, context, above, kept)
+    if (away) return "away"
     const under = (mark: { readonly context: string; readonly lead: string } | null) =>
       mark !== null && mark.context === context && above.includes(mark.lead)
-    if (under(state.foldPreview) && !isFolded(state.foldedTeams, context, state.foldPreview!.lead))
+    if (
+      !kept &&
+      under(state.foldPreview) &&
+      !isFolded(state.foldedTeams, context, state.foldPreview!.lead)
+    )
       return "preview"
     return under(state.unfolding) ? "unfolding" : "shown"
   })
@@ -97,10 +117,8 @@ export const useTeamLevel = (id: string): number =>
 export const useFoldTeam = (tile: Tile): FoldTeam | undefined => {
   const { ui } = useWorkspaceServices()
   const context = useWorkspaceState(currentContext)
-  const count = useWorkspaceState((workspace) => {
-    const team = teamOf(workspace, tile.id)
-    return team?.lead === tile.id ? team.workers.length : 0
-  })
+  // Every terminal the fold hides, at any depth.
+  const count = useWorkspaceState((workspace) => descendantsOf(workspace, tile.id).length)
   const folded = useUiState((state) => isFolded(state.foldedTeams, context, tile.id))
   if (isWindow(tile) || !count) return undefined
   return { count, folded, onToggle: () => toggleTeamFold(ui, context, tile.id) }

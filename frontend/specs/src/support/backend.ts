@@ -328,8 +328,9 @@ export const desktopWindow = {
     ),
 }
 
-// Specs open the messages demo with a nested team with `&nested=on`: the agent in @owl's
-// terminal is led by @crow, itself led by @moth, so @crow leads a team inside @moth's.
+// Specs open the messages demo with a nested team with `&nested=on`: @moth (Checkout
+// implementation) leads @owl (Tests) and Runtime, and @owl leads @crow (Checkout review, which
+// needs permission) in turn, a team inside @moth's.
 const nestedRequested = (): boolean => addressParams().get("nested") === "on"
 
 const withNestedTeam = (
@@ -343,7 +344,11 @@ const withNestedTeam = (
       sessions: project.sessions.map((session) => ({
         ...session,
         terminals: session.terminals.map((terminal) =>
-          terminal.handle === "owl" ? { ...terminal, ledBy: "crow" } : terminal,
+          terminal.handle === "owl" || terminal.name === "Runtime"
+            ? { ...terminal, ledBy: "moth" }
+            : terminal.handle === "crow"
+              ? { ...terminal, ledBy: "owl" }
+              : terminal,
         ),
       })),
     })),
