@@ -451,6 +451,25 @@ describe("the item store", () => {
     expect(plan()).toMatchObject({ unsaved: false, revision: "2" })
   })
 
+  context("when the plan goes while a save is under way", () => {
+    // The plan's edit sent, then the plan closed with its save unanswered.
+    const closedSaving = () => {
+      const { companions, saves } = backend()
+      const { actions, workspace } = connected(companions)
+      actions.edit(`${first}No blog.\n`, [])
+      actions.flush()
+      expect(saves).toHaveLength(1)
+      workspace.dispatch({ type: "item/close", target, itemId: planItem.id })
+    }
+
+    it("leaves nothing waiting behind it, not even the save's timeout", async () => {
+      closedSaving()
+      expect(vi.getTimerCount()).toBe(0)
+      await vi.advanceTimersByTimeAsync(60_000)
+      expect(vi.getTimerCount()).toBe(0)
+    })
+  })
+
   context("when a save timed out but was written", () => {
     it("merges a rewrite over it, so the person's edit stays once", async () => {
       const { companions, saves, emit } = backend()
