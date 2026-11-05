@@ -41,6 +41,19 @@ describe("an agent's usage", () => {
     })
   })
 
+  it("rounds before it picks the unit, so a context just short of a million reads 1M", () => {
+    const at = (occupied: number) =>
+      agentStats({
+        context: { occupied, capacity: 1_000_000 },
+        limits: [],
+        model: null,
+        effort: null,
+      })?.context?.tokens
+    expect(at(999_499)).toBe("999k/1M")
+    expect(at(999_500)).toBe("1M/1M")
+    expect(at(999)).toBe("999/1M")
+  })
+
   it("shows nothing without usage", () => {
     expect(agentStats(undefined)).toBeUndefined()
     expect(

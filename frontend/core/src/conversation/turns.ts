@@ -197,7 +197,9 @@ export const turnStatus = (agent: AgentStatus | undefined): TurnStatus | null =>
   if (!agent) return null
   if (agent.working) {
     const parts = [agent.planning ? "Planning" : "Working"]
-    const subagents = agent.subagents?.length ?? agent.background?.agents ?? 0
+    // As the tab's marks count them (`subagentMarks`): the larger of the listed and the
+    // background count.
+    const subagents = Math.max(agent.subagents?.length ?? 0, agent.background?.agents ?? 0)
     if (subagents > 0) parts.push(`${counted(subagents, "subagent")} running`)
     const tasks = agent.background?.tasks ?? 0
     if (tasks > 0) parts.push(counted(tasks, "background task"))

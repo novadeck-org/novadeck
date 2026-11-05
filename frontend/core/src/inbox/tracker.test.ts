@@ -197,6 +197,36 @@ describe("The Inbox's answer tracker", () => {
       expect(changed).toHaveBeenCalledOnce()
     })
 
+    it("answered again while the first is on its way, speaks only for the latest", async () => {
+      const { tracker } = setup()
+      const first = pending()
+      const second = pending()
+      const onError = vi.fn<() => void>()
+      tracker.call(trouble.id, first.work, { settles: true, onError })
+      tracker.call(trouble.id, second.work, { settles: true })
+
+      first.resolve()
+      await vi.advanceTimersByTimeAsync(settleMs)
+      expect(tracker.view([trouble]).answering).toEqual({ [trouble.id]: true })
+
+      const third = pending()
+      tracker.call(trouble.id, third.work)
+      second.reject(new Error("Late."))
+      await flush()
+      expect(tracker.view([trouble])).toMatchObject({
+        answering: { [trouble.id]: true },
+        failed: {},
+      })
+      expect(onError).not.toHaveBeenCalled()
+
+      third.reject(new Error("No."))
+      await flush()
+      expect(tracker.view([trouble])).toMatchObject({
+        answering: {},
+        failed: { [trouble.id]: "No." },
+      })
+    })
+
     it("says nothing once the tracker was reset, whatever it comes to", async () => {
       const { tracker } = setup()
       const answer = pending()

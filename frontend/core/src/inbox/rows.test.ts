@@ -550,6 +550,46 @@ describe("The Inbox's rows", () => {
       })
     })
 
+    it("finds its agents in the session that lists it, where another session reuses their handles", () => {
+      const shell = (number: number): TerminalMetadata => ({
+        ...agentTerminal(number),
+        command: "bash",
+        process: "bash",
+      })
+      const project = (id: string, terminals: TerminalMetadata[]) => ({
+        ...workspaceOf(...terminals).projects[0]!,
+        id,
+        name: `Project ${id}`,
+        activeSessionId: `${id}-s`,
+        history: [
+          {
+            ...workspaceOf(...terminals).projects[0]!.history[0]!,
+            id: `${id}-s`,
+          },
+        ],
+      })
+      // Project one's moth and fox run shells; project two's run agents, their thread held.
+      const one = project("one", [shell(1), shell(2)])
+      const two = project("two", [agentTerminal(1), agentTerminal(2, { working: false }, "codex")])
+      const messages: MessagesState = {
+        ...noMessages,
+        terminals: { "two/two-s/01": { handle: "moth", agent: true, threads: [thread()] } },
+      }
+
+      for (const projects of [
+        [one, two],
+        [two, one],
+      ]) {
+        const rows = inboxRows(inputs({ activeProjectId: "one", projects }, { messages }))
+        expect(rows).toMatchObject([
+          {
+            id: "held:th1",
+            source: { projectId: "two", workspaceSessionId: "two-s", terminalId: "01" },
+          },
+        ])
+      }
+    })
+
     it("is none while messaging is paused, and none once released", () => {
       const paused = thread({ messages: [message({ held: "paused" })] })
 

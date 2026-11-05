@@ -149,6 +149,18 @@ describe("the agent's turn status", () => {
     ).toBe("Working · 2 subagents running")
   })
 
+  it("counts the subagents as the tab's marks do: the larger of the listed and the background", () => {
+    const working = (listed: number, background: number) =>
+      turnStatus({
+        working: true,
+        subagents: Array.from({ length: listed }, (_, index) => ({ id: `${index}`, type: null })),
+        background: { agents: background, tasks: 0 },
+      })?.text
+    expect(working(0, 3)).toBe("Working · 3 subagents running")
+    expect(working(1, 3)).toBe("Working · 3 subagents running")
+    expect(working(2, 1)).toBe("Working · 2 subagents running")
+  })
+
   it("says how an ended turn stopped, when it didn't just finish", () => {
     expect(end("interrupted")?.text).toBe("Stopped before it finished")
     expect(end("failed")?.text).toBe("Stopped with an error")

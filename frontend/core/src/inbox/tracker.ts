@@ -100,6 +100,8 @@ export const createInboxTracker = ({
   const failed = new Map<string, string>()
   // Per row, when its answer is given up on if the row still stands.
   const settling = new Map<string, ReturnType<typeof setTimeout>>()
+  // Per row, its latest call: an earlier one's answer, landing late, speaks for nothing.
+  const latest = new Map<string, object>()
   let due: ReturnType<typeof setTimeout> | undefined
   let round = 0
 
@@ -145,9 +147,13 @@ export const createInboxTracker = ({
       inFlight.add(id)
       changed()
       const binds = round
+      const self = {}
+      latest.set(id, self)
+      const current = () => binds === round && latest.get(id) === self
       track(work()).then(
         () => {
-          if (binds !== round) return
+          if (!current()) return
+          latest.delete(id)
           inFlight.delete(id)
           changed()
           if (!settles) return
@@ -160,7 +166,8 @@ export const createInboxTracker = ({
           )
         },
         (error: unknown) => {
-          if (binds !== round) return
+          if (!current()) return
+          latest.delete(id)
           inFlight.delete(id)
           onError?.()
           if (silent) {
@@ -192,7 +199,7 @@ export const createInboxTracker = ({
     },
     reset: () => {
       stop()
-      for (const known of [seen, inFlight, submitted, failed]) known.clear()
+      for (const known of [seen, inFlight, submitted, failed, latest]) known.clear()
       round += 1
     },
     stop: () => {

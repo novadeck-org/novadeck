@@ -3,8 +3,9 @@ import type { AgentUsage } from "../types"
 const percent = (fraction: number): string => `${Math.round(fraction * 100)}%`
 
 // Thousands of tokens, the way agents themselves show them: 30k, 1.2M.
+// The unit is picked after rounding, so 999,500 reads 1M, not 1000k.
 const tokens = (count: number): string =>
-  count >= 1_000_000
+  count >= 999_500
     ? `${(count / 1_000_000).toFixed(1).replace(/\.0$/, "")}M`
     : count >= 1000
       ? `${Math.round(count / 1000)}k`

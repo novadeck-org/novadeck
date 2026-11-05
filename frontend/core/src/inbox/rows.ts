@@ -25,6 +25,7 @@ import {
   type Workspace,
   type WorkspaceProject,
   type WorkspaceSession,
+  terminalKeyOfPath,
   terminalKeyPath,
 } from "../types"
 import { second } from "../units"
@@ -327,14 +328,21 @@ export const inboxRows = (inputs: InboxInputs): InboxRow[] => {
 
   // A thread held for release is listed by both its terminals: once, from its oldest
   // held message.
+  // Handles are unique only within a session, so a thread's parties are looked up in the
+  // session of the terminal that lists it.
   const threads = new Map<string, InboxRow>()
-  for (const messages of Object.values(inputs.messages.terminals))
+  for (const [key, messages] of Object.entries(inputs.messages.terminals)) {
+    const { projectId, workspaceSessionId } = terminalKeyOfPath(key)
+    const session = where.filter(
+      (each) => each.project.id === projectId && each.session.id === workspaceSessionId,
+    )
     for (const thread of messages.threads) {
       if (!thread.held || threads.has(thread.id)) continue
       const message = thread.messages.find((each) => each.held === "release")
-      const row = message && heldOf(thread, message, where)
+      const row = message && heldOf(thread, message, session)
       if (row) threads.set(thread.id, row)
     }
+  }
 
   // A terminal's rows all show: nothing replaces or hides another.
   return ordered([...all, ...threads.values()])
