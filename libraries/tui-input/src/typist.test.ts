@@ -1,7 +1,9 @@
+import type { ScreenText } from "@novadeck/emulator/headless"
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 
-import type { BoxProfile } from "./box/box.js"
+import { markedBox, ruledBox, type BoxProfile, type Markers } from "./box/box.js"
 import type { InputEntry } from "./queue.js"
+import { loadFixture } from "./testing/fixtures.js"
 import { screen } from "./testing/screens.js"
 import { createTypist, pasteMsOn, sizeCapMs, type Timing, type Typist } from "./typist.js"
 
@@ -132,12 +134,14 @@ const terminal = (
     },
   }
   const reads = options.inputBox
-  // The profile the box is read by: it shows an empty prompt at each read, as `reads` says.
+  // The profile the box is read by: its row, the placeholder of the first screen as nothing,
+  // and at each read either the box or none, as `reads` says (an empty box where a draft shows).
   const profile = {
-    read: () =>
-      (reads ? reads[((boxReads += 1) - 1) % reads.length]! : true)
-        ? { mode: "prompt", text: "" }
-        : undefined,
+    read: (shown: ScreenText) => {
+      const there = reads ? reads[((boxReads += 1) - 1) % reads.length]! : true
+      const text = (shown.rows[6] ?? "").slice(2).replace(/^Ask anything$/, "")
+      return there ? { mode: "prompt", text, first: 6, last: 6 } : undefined
+    },
     overlay: () => false,
   } as unknown as BoxProfile
   const inputBox = () => profile
@@ -377,6 +381,22 @@ describe("a delivery", () => {
     })
   })
 
+  it("pastes no line that holds a control character, letting the hold go and passing the throw on", async () => {
+    const fake = terminal()
+    const typist = createTypist(fake.target, { profile: fake.inputBox, timing: fast })
+    await expect(
+      run(
+        typist.deliver(fake.entry, (nonce) => `[notice ${nonce}]\x1b[201~\r`, {
+          calmSince: 0,
+          start: () => true,
+          still: () => true,
+        }),
+      ),
+    ).rejects.toThrow(RangeError)
+    expect(fake.written).toEqual([])
+    expect(fake.state()).toMatchObject({ held: false, sizes: false })
+  })
+
   it("reports each step to the trace", async () => {
     const lines: string[] = []
     const fake = terminal()
@@ -393,6 +413,116 @@ describe("a delivery", () => {
       expect.stringMatching(/^ring [A-Za-z0-9]{6}: paste accepted, Enter$/),
     ])
   })
+})
+
+describe("a delivery over the screens each program drew", () => {
+  // The recorded pastes (src/fixtures/paste-*.json): a's box is ruled and led by `❯`, b's has
+  // no frame and is led by `›`, and c's is ruled and led by `>`, as the three harnesses draw.
+  type Recorded = {
+    readonly name: string
+    readonly before: string[]
+    readonly after: string[]
+  }
+  const programs = [
+    { program: "a", read: ruledBox, prompt: "❯" },
+    { program: "b", read: markedBox, prompt: "›" },
+    { program: "c", read: ruledBox, prompt: ">" },
+  ] as const
+  const recorded = (program: string, name: string): Recorded =>
+    loadFixture<{ pairs: Recorded[] }>(`paste-${program}.json`).pairs.find(
+      (pair) => pair.name === name,
+    )!
+  const { line: pastedLine } = loadFixture<{ line: string }>("paste-a.json")
+
+  /**
+   * A recorded screen with the cursor at the end of its box's first row; `empty` draws the box
+   * holding nothing, its placeholder faint (a key the program has not echoed yet).
+   */
+  const shown = (rows: readonly string[], prompt: string, empty = false): ScreenText => {
+    const at = rows.findLastIndex((row) => row.startsWith(prompt))
+    const drawn = rows.map((row, index) => (index === at && empty ? `${prompt} ` : row))
+    return screen({
+      rows: drawn,
+      bright: drawn,
+      columns: 100,
+      cursor: {
+        row: at,
+        column: empty ? prompt.length + 1 : drawn[at]!.trimEnd().length,
+      },
+    })
+  }
+
+  /** Delivers the recorded line to a terminal that shows `before`, then `after` once pasted. */
+  const deliverOver = async (
+    { read, prompt }: (typeof programs)[number],
+    before: ScreenText,
+    after: ScreenText,
+  ) => {
+    const written: string[] = []
+    let pasted = false
+    const target = {
+      type: (data: string) => {
+        written.push(data)
+        if (data.startsWith("\x1b[200~")) pasted = true
+        return true
+      },
+      screen: () => Promise.resolve(pasted ? after : before),
+      resizedAt: 0,
+      holdsForeground: () => Promise.resolve(true),
+    }
+    const markers: Markers = { prompt, shell: "!" }
+    const profile = {
+      read: (drawn: ScreenText) => read(drawn, markers),
+      overlay: () => false,
+    } as unknown as BoxProfile
+    const typist = createTypist(target, {
+      profile: () => profile,
+      timing: fast,
+    })
+    const delivered = await run(
+      typist.deliver(terminal().entry, () => pastedLine, {
+        calmSince: 0,
+        start: () => true,
+        still: () => true,
+      }),
+    )
+    return { delivered, written }
+  }
+
+  for (const program of programs) {
+    it(`presses Enter where the line landed alone in ${program.program}'s empty box`, async () => {
+      const name =
+        program.program === "b"
+          ? "empty prompt, width 100, the footer three rows below"
+          : "empty prompt, width 100"
+      const pair = recorded(program.program, name)
+      const { delivered, written } = await deliverOver(
+        program,
+        shown(pair.before, program.prompt, true),
+        shown(pair.after, program.prompt),
+      )
+      expect(delivered).toMatchObject({ entered: true })
+      expect(enters(written)).toBe(1)
+    })
+
+    it(`presses no Enter where a key of the person's showed in ${program.program}'s box only with the line`, async () => {
+      // The box read empty as the delivery began: the person's draft was still on its way to
+      // the screen, and the line appended to it.
+      const pair = recorded(program.program, "a half-typed draft; the line appends")
+      const { delivered, written } = await deliverOver(
+        program,
+        shown(pair.before, program.prompt, true),
+        shown(pair.after, program.prompt),
+      )
+      expect(delivered).toMatchObject({
+        entered: false,
+        started: true,
+        reason: "not-landed",
+      })
+      expect(written).toHaveLength(1)
+      expect(enters(written)).toBe(0)
+    })
+  }
 })
 
 describe("a submission", () => {

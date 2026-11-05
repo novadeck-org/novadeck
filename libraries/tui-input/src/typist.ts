@@ -4,6 +4,7 @@ import type { ScreenText } from "@novadeck/emulator/headless"
 
 import { isEmpty, type BoxProfile } from "./box/box.js"
 import { changedRows, checkPaste } from "./box/paste.js"
+import { sameText } from "./box/text.js"
 import type { InputEntry } from "./queue.js"
 import { bracketedPaste, calmMs, freshNonce, gate, type Readiness } from "./typing.js"
 
@@ -201,6 +202,24 @@ export const createTypist = (
     )
   }
 
+  /**
+   * Whether the box holds the line and nothing else, taking a prompt, with no view over it, as
+   * the profile reads it: the paste's check finds the line once on the screen, which a key of the
+   * person's that the program echoed only as the line landed shares a row with. True where the
+   * box isn't looked at (no profile option, or `boxCheck` off).
+   */
+  const alone = (screen: ScreenText, text: string): boolean => {
+    if (!options.profile || !boxCheck) return true
+    const profile = options.profile()
+    const box = profile?.read(screen)
+    return (
+      box !== undefined &&
+      box.mode === "prompt" &&
+      sameText(box.text, text) &&
+      profile?.overlay(screen) === false
+    )
+  }
+
   /** The rows as the calm and the paste's check read them (`BoxProfile.still`). */
   const stillRows = (rows: readonly string[]): readonly string[] =>
     options.profile?.()?.still?.(rows) ?? rows
@@ -340,9 +359,11 @@ export const createTypist = (
             ticking: rows,
             still: stillRows,
           })
-          const accepted = checked.accepted
+          const accepted = checked.accepted && alone(after, text)
           if (!accepted && now() >= until)
-            trace(`ring ${nonce}: paste not accepted: ${checked.reason}`)
+            trace(
+              `ring ${nonce}: paste not accepted: ${checked.accepted ? "not alone in the box" : checked.reason}`,
+            )
           // Accepted twice running on the same screen, so it isn't caught mid-draw.
           if (accepted && landed === shown) {
             trace(`ring ${nonce}: paste accepted, Enter`)

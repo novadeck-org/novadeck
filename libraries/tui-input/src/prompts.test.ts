@@ -89,6 +89,20 @@ const terminal = (
     viewport?: number
     /** How many of a taller text's rows the box shows, where not its viewport. */
     shows?: number
+    /** A view of the program over its box (`overlay`), its field drawn as an empty box. */
+    view?: boolean
+    /** How long after the first look the view closes, in milliseconds. */
+    viewClosesMs?: number
+    /** Whether a view opens over the box as a paste lands. */
+    viewOnPaste?: boolean
+    /** A key typed just before the hold, which the box shows from the second look on. */
+    echo?: string
+    /** How long after the first look the person's draft clears, in milliseconds. */
+    clearsDraftMs?: number
+    /** Whether writing the Enter fails, as once the terminal is gone. */
+    enterFails?: boolean
+    /** Whether the hold lapses as a paste is written. */
+    lapsesOnPaste?: boolean
   } = {},
 ) => {
   let box: string[] = options.draft === undefined ? [] : options.draft.split("\n")
@@ -96,9 +110,15 @@ const terminal = (
   let bash = options.drafted !== undefined
   if (options.drafted !== undefined) box = [options.drafted]
   let admits = 0
+  let view = options.view ?? false
+  let firstLook: number | undefined
   const profile: BoxProfile = {
     ...profileOf(options.expands ?? true, options.startsOnShell ?? false, options.command),
-    ...(options.viewport !== undefined && { viewport: () => options.viewport! }),
+    ...(options.viewport !== undefined && {
+      viewport: () => options.viewport!,
+    }),
+    // A view says so in its footer, as each harness's does.
+    overlay: (screen) => screen.rows.at(-1) === "view footer · esc close",
   }
   // A box taller than its viewport shows only the text's tail.
   const tail = (lines: string[]): string[] => {
@@ -136,7 +156,7 @@ const terminal = (
       ...top,
       ...Array<string>(Math.max(0, 14 - top.length - body.length)).fill(""),
       ...body,
-      "footer",
+      view ? "view footer · esc close" : "footer",
     ]
   }
   const host: PromptHost = {
@@ -160,6 +180,16 @@ const terminal = (
         : undefined,
     screen: () => {
       looks += 1
+      firstLook ??= Date.now()
+      if (options.viewClosesMs !== undefined && Date.now() - firstLook >= options.viewClosesMs)
+        view = false
+      if (
+        options.clearsDraftMs !== undefined &&
+        written.length === 0 &&
+        Date.now() - firstLook >= options.clearsDraftMs
+      )
+        box = []
+      if (options.echo !== undefined && looks === 2 && box.length === 0) box = [options.echo]
       const rows = exited
         ? ["header", "", `$ ${written.join("").length > 0 ? "Hello" : ""}`]
         : draw()
@@ -175,6 +205,7 @@ const terminal = (
     },
     type: (_, data) => {
       written.push(data)
+      if (data === "\r" && options.enterFails) return false
       if (data === "!" && options.shell && !bash && box.length === 0) {
         const on = (): void => {
           bash = true
@@ -207,6 +238,8 @@ const terminal = (
         box = [...box.slice(0, -1), `${box.at(-1) ?? ""}${first}`, ...rest]
       }
       if (options.shellsPaste) bash = true
+      if (options.viewOnPaste) view = true
+      if (options.lapsesOnPaste) held = false
       if (options.exits) exited = true
       return true
     },
@@ -505,8 +538,8 @@ describe("prompts", () => {
   })
 
   it("abandon a prompt whose hold lapsed before its Enter, pressing nothing", async () => {
-    const { host, written } = terminal({ holdMs: 20 })
-    // The lapse comes while the screen is looked at, before it has held still.
+    const { host, written } = terminal({ lapsesOnPaste: true })
+    // The lapse comes with the paste, while the screen is looked at, before it has held still.
     const slow: PromptHost = {
       ...host,
       screen: async () => {
@@ -517,7 +550,76 @@ describe("prompts", () => {
     expect(await refusal(new Prompts(slow, host.queue, fast).prompt("t", "Hello"))).toBe(
       "not-shown",
     )
-    expect(enters(written)).toBe(0)
+    expect(written).toEqual(["\x1b[200~Hello\x1b[201~"])
+  })
+
+  it("refuse as gone, writing nothing, where the hold lapsed while the box was waited on", async () => {
+    // The draft would clear in time, but the hold lapses first.
+    const { host, written } = terminal({
+      draft: "Mine",
+      holdMs: 20,
+      clearsDraftMs: 40,
+    })
+    expect(
+      await refusal(new Prompts(host, host.queue, { ...fast, emptyMs: 200 }).prompt("t", "Hello")),
+    ).toBe("gone")
+    expect(written).toEqual([])
+  })
+
+  it("refuse as gone where the Enter can't be written, the terminal gone", async () => {
+    const { host, written } = terminal({ enterFails: true })
+    expect(await refusal(new Prompts(host, host.queue, fast).prompt("t", "Hello"))).toBe("gone")
+    expect(written).toEqual(["\x1b[200~Hello\x1b[201~", "\r"])
+  })
+
+  describe("a view of the program over its box, whose field reads as an empty box", () => {
+    it("is no box: the prompt is refused, writing nothing", async () => {
+      const { host, written } = terminal({ view: true })
+      expect(await refusal(new Prompts(host, host.queue, fast).prompt("t", "Hello"))).toBe("no-box")
+      expect(written).toEqual([])
+    })
+
+    it("refuses a shell command too, typing no !", async () => {
+      const { host, written } = terminal({ view: true, shell: true })
+      expect(await refusal(new Prompts(host, host.queue, fast).prompt("t", "!ls"))).toBe("no-box")
+      expect(written).toEqual([])
+    })
+
+    it("is waited out where it closes in time", async () => {
+      const { host, written } = terminal({ view: true, viewClosesMs: 20 })
+      await new Prompts(host, host.queue, { ...fast, emptyMs: 200 }).prompt("t", "Hello")
+      expect(written).toEqual(["\x1b[200~Hello\x1b[201~", "\r"])
+    })
+
+    it("opened as the text landed takes no Enter", async () => {
+      const { host, written } = terminal({ viewOnPaste: true })
+      expect(await refusal(new Prompts(host, host.queue, fast).prompt("t", "Hello"))).toBe(
+        "not-shown",
+      )
+      expect(enters(written)).toBe(0)
+    })
+  })
+
+  describe("a key the person typed just before the hold, which the box shows a moment late", () => {
+    it("refuse as a draft, writing nothing, where it shows on the second read", async () => {
+      const { host, written } = terminal({ echo: "y" })
+      expect(await refusal(new Prompts(host, host.queue, fast).prompt("t", "Hello"))).toBe("draft")
+      expect(written).toEqual([])
+    })
+
+    it("refuse as a draft a text taller than the box's viewport, whose tail alone would show", async () => {
+      // The person's key would scroll out of view with the head of the text.
+      const tall = lines(6)
+      const { host, written } = terminal({ echo: "y", viewport: 3 })
+      expect(await refusal(new Prompts(host, host.queue, fast).prompt("t", tall))).toBe("draft")
+      expect(written).toEqual([])
+    })
+
+    it("still give the prompt into a box that reads empty twice running", async () => {
+      const { host, written } = terminal()
+      await new Prompts(host, host.queue, { ...fast, emptyMs: 0 }).prompt("t", "Hello")
+      expect(written).toEqual(["\x1b[200~Hello\x1b[201~", "\r"])
+    })
   })
 
   it("take a line while a spinner changes the screen around its box", async () => {
@@ -792,6 +894,17 @@ describe("the rule a prompt is refused by", () => {
       expect(failure).toMatchObject({ reason: "refused", message: "No bad words." })
     }
     expect(written).toEqual([])
+  })
+
+  it("refuses a control character whatever the rule, before the queue, writing nothing", async () => {
+    const { host, written } = terminal()
+    const prompts = new Prompts(host, host.queue, fast)
+    expect(await refusal(prompts.prompt("t", "Hi\x1b[201~\r!rm -rf x\r"))).toBe("refused")
+    expect(await refusal(prompts.prompt("t", "!ls\x15"))).toBe("refused")
+    expect(written).toEqual([])
+    // Line breaks and tabs are text.
+    await prompts.prompt("t", "one\r\n\ttwo")
+    expect(written).toEqual(["\x1b[200~one\r\ttwo\x1b[201~", "\r"])
   })
 
   it("lets a text through that it passes", async () => {

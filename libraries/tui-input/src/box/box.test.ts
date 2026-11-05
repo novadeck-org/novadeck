@@ -117,6 +117,23 @@ describe("markedBox", () => {
     expect(markedBox(screen(["› a", " b"], 1, 2), marked)).toBeUndefined()
     expect(markedBox(screen(["  x"], 0, 3), marked)).toBeUndefined()
   })
+
+  it("reads the lines of a draft below the cursor, down to the blank row above the footer", () => {
+    const marked: Markers = { prompt: "›", shell: "!" }
+    const rows = ["› ", "  hello", "  world", "", "  model · /work/project"]
+    // The draft's first line is empty, the cursor at its start: no empty box.
+    const box = markedBox(screen(rows, 0, 2), marked)
+    expect(box).toEqual({
+      text: "\nhello\nworld",
+      mode: "prompt",
+      first: 0,
+      last: 2,
+    })
+    expect(box && isEmpty(box)).toBe(false)
+    // An empty box, its footer under a blank row, reads empty.
+    const empty = markedBox(screen(["› ", "", "  model · /work/project"], 0, 2), marked)
+    expect(empty).toEqual({ text: "", mode: "prompt", first: 0, last: 0 })
+  })
 })
 
 describe("agreeing", () => {

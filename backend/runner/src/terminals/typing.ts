@@ -199,7 +199,9 @@ export class Typing {
   /** Presses Escape in the terminal's agent as the person would (see `Terminals.interrupt`). */
   async interrupt(terminalId: string): Promise<InterruptResult> {
     this.promptable(terminalId)
-    const result = await this.inputs.run(terminalId, () => this.interrupts.interrupt(terminalId))
+    const result = await this.inputs.run(terminalId, (entry) =>
+      this.interrupts.interrupt(terminalId, entry),
+    )
     // The words handed back are the person's draft again: their prompts no longer wait.
     if (result.returned !== null) this.receipts.withdraw(terminalId, result.returned)
     return result

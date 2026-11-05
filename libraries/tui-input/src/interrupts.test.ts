@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest"
 
 import type { BoxProfile, InputBox } from "./box/box.js"
 import { BoxNotCleared, Interrupts, type InterruptHost } from "./interrupts.js"
+import type { InputEntry } from "./queue.js"
 import { screen as screenOf } from "./testing/screens.js"
 
 const ESC = "\x1b"
@@ -39,12 +40,23 @@ const terminal = (
     /** The most rows the box shows of a taller text, as its TUI's `viewport` says. */
     viewport?: number
     after?: (escapes: number) => string | undefined
+    /** A row far from the box that counts up by itself, which the profile's calm reads without. */
+    ticking?: boolean
+    /** What the person types once the box has read the same text twice, as the clear is decided. */
+    typesOnSteady?: string
+    /** How many reads running of the same text come before they show (2 if absent). */
+    steadyReads?: number
+    /** How long after an interrupt the next one of the terminal waits, in milliseconds. */
+    settleMs?: number
   } = {},
 ) => {
+  const began = Date.now()
   let box = options.draft ?? ""
   let pending = false
   const typed: string[] = []
   const written: string[] = []
+  // Whether the person's keys were held as each key was written.
+  const heldAtWrites: boolean[] = []
   const profile: BoxProfile = {
     read: (screen: ScreenText): InputBox | undefined => {
       const first = screen.rows.findIndex((row) => row.startsWith("> "))
@@ -68,7 +80,14 @@ const terminal = (
     overlay: () => false,
     ...(options.viewport === undefined ? {} : { viewport: () => options.viewport! }),
     room: (rows) => rows - 3,
+    still: (rows) => rows.map((row) => row.replace(/^agent \d+s$/, "agent")),
   }
+  // How many reads running have shown the box holding the same text.
+  let typesOnSteady = options.typesOnSteady
+  let steady = 0
+  let last: string | undefined
+  // The input holds an entry took, and whether one is in force.
+  const holds: { held: boolean; settled: boolean }[] = []
   const host: InterruptHost = {
     admit: () => undefined,
     working: () =>
@@ -76,16 +95,23 @@ const terminal = (
     alive: () => true,
     profile: () => profile,
     prompt: () => options.prompt,
-    screen: () =>
-      Promise.resolve(
+    screen: () => {
+      if (typesOnSteady !== undefined && steady >= (options.steadyReads ?? 2)) {
+        box = typesOnSteady
+        typesOnSteady = undefined
+      }
+      steady = box !== "" && box === last ? steady + 1 : box === "" ? 0 : 1
+      last = box
+      return Promise.resolve(
         screenOf({
           rows: [
-            "header",
+            options.ticking ? `agent ${Math.floor((Date.now() - began) / 50)}s` : "header",
             ...box.split("\n").map((line, index) => `${index === 0 ? ">" : " "} ${line}`),
             pending ? PENDING : "footer",
           ],
         }),
-      ),
+      )
+    },
     type: (_id, data) => {
       typed.push(data)
       const next = options.after?.(typed.length)
@@ -94,6 +120,7 @@ const terminal = (
     },
     write: (_id, data) => {
       written.push(data)
+      heldAtWrites.push(holds.some((hold) => hold.held))
       if (data === CLEAR && options.slow) {
         if (options.hintAfterMs === undefined) pending = true
         else setTimeout(() => (pending = true), options.hintAfterMs).unref()
@@ -108,11 +135,28 @@ const terminal = (
   const interrupts = new Interrupts(host, {
     restoreMs: 600,
     restoreCalmMs: 100,
-    settleMs: 0,
+    settleMs: options.settleMs ?? 0,
     queuedTurnMs: 1_000,
   })
+  const entry: InputEntry = {
+    hold: () => {
+      const hold = { held: true, settled: false }
+      holds.push(hold)
+      return {
+        release: () => (hold.held = false),
+        settle: () => Object.assign(hold, { held: false, settled: true }),
+        settleAfter: () => {},
+        holding: () => hold.held,
+        discard: () => {},
+      }
+    },
+  }
   return {
     interrupt: () => interrupts.interrupt("terminal"),
+    /** The interrupt in its turn of the input queue, which holds the person's keys. */
+    interruptIn: () => interrupts.interrupt("terminal", entry),
+    holds,
+    heldAtWrites,
     typed,
     written,
     // The person's own typing, which the box shows.
@@ -311,6 +355,74 @@ describe("interrupts", () => {
     t.personTypes("mine")
     expect(await stopping).toEqual({ returned: "mine\nQueued beta" })
     expect(t.typed).toEqual([ESC, ESC])
+  })
+
+  it("waits out a TUI slow to take the clear keys while a row far from the box counts up", async () => {
+    // A background agent's elapsed time ticks each 50 ms, which the profile's calm reads
+    // without: no sign of the keys taken, so no second pair goes over the first.
+    const t = terminal({
+      slow: true,
+      hintAfterMs: 300,
+      ticking: true,
+      prompt: "Say hi",
+      after: () => "Say hi",
+    })
+    expect(await t.interrupt()).toEqual({ returned: undefined })
+    expect(t.written).toEqual([CLEAR, ONE])
+  })
+
+  it("leaves the box, and says so, where the person typed into it as the clear was decided", async () => {
+    const t = terminal({
+      prompt: "Say hi",
+      after: () => "Say hi",
+      typesOnSteady: "Say hix",
+    })
+    await expect(t.interrupt()).rejects.toBeInstanceOf(BoxNotCleared)
+    expect(t.written).toEqual([])
+  })
+
+  it("leaves the box where the person's key shows only on its second read under the hold", async () => {
+    const t = terminal({
+      prompt: "Say hi",
+      after: () => "Say hi",
+      typesOnSteady: "Say hix",
+      steadyReads: 3,
+    })
+    await expect(t.interruptIn()).rejects.toBeInstanceOf(BoxNotCleared)
+    expect(t.written).toEqual([])
+    expect(t.holds).toEqual([{ held: false, settled: true }])
+  })
+
+  it("holds the person's keys in its turn of the input queue while it clears, then lets them go", async () => {
+    const t = terminal({
+      slow: true,
+      hintAfterMs: 300,
+      prompt: "Say hi",
+      after: () => "Say hi",
+    })
+    expect(await t.interruptIn()).toEqual({ returned: undefined })
+    expect(t.written).toEqual([CLEAR, ONE])
+    expect(t.heldAtWrites).toEqual([true, true])
+    expect(t.holds).toEqual([{ held: false, settled: true }])
+  })
+
+  it("holds nothing where nothing is cleared", async () => {
+    const t = terminal({ prompt: "Say hi" })
+    expect(await t.interruptIn()).toEqual({ returned: undefined })
+    expect(t.holds).toEqual([])
+  })
+
+  it("keeps the next interrupt waiting only after one that pressed Escape", async () => {
+    const idle = terminal({ working: false, settleMs: 5_000 })
+    await idle.interrupt()
+    const started = Date.now()
+    await idle.interrupt()
+    expect(Date.now() - started).toBeLessThan(1_000)
+    const working = terminal({ settleMs: 300 })
+    await working.interrupt()
+    const next = Date.now()
+    await working.interrupt()
+    expect(Date.now() - next).toBeGreaterThanOrEqual(250)
   })
 
   it("returns nothing where the first Escape alone leaves the box empty and nothing is queued", async () => {

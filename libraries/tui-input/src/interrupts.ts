@@ -4,6 +4,7 @@ import type { ScreenText } from "@novadeck/emulator/headless"
 
 import { isEmpty, showsTail, type BoxProfile, type InputBox } from "./box/box.js"
 import { sameText } from "./box/text.js"
+import type { InputEntry } from "./queue.js"
 
 /** The waits of an interrupt, in milliseconds. */
 export type InterruptOptions = {
@@ -71,8 +72,13 @@ export class BoxNotCleared extends Error {
 /** How often the screen is looked at while an interrupt waits on it, in milliseconds. */
 const pollMs = 50
 
-/** A screen as one string, to tell whether it has changed. */
-const rowsOf = (screen: ScreenText | undefined): string => screen?.rows.join("\n") ?? ""
+/**
+ * A screen as one string, to tell whether it has changed, as its profile's calm reads it
+ * (`BoxProfile.still`): without what the program counts up by itself, as background agents'
+ * elapsed time, which is no sign of keys taken.
+ */
+const rowsOf = (profile: BoxProfile, screen: ScreenText | undefined): string =>
+  screen ? (profile.still?.(screen.rows) ?? screen.rows).join("\n") : ""
 
 /**
  * Stops programs' turns as a person's Escape does, and leaves their boxes as they were. The
@@ -99,23 +105,33 @@ export class Interrupts {
 
   /**
    * Interrupts the terminal's program after the settle wait of the interrupt before it,
-   * which the host may not have caught up with yet.
+   * which the host may not have caught up with yet. `entry`, the interrupt's turn in the
+   * terminal's input queue, holds the person's keys while the box is cleared, so none typed
+   * then is cleared with it; without it they are not held.
    */
-  async interrupt(terminalId: string): Promise<InterruptOutcome> {
+  async interrupt(terminalId: string, entry?: InputEntry): Promise<InterruptOutcome> {
     const settling = (this.settles.get(terminalId) ?? 0) - Date.now()
     if (settling > 0) await sleep(settling)
+    // Only an Escape written calls for the wait: one that stopped nothing leaves nothing to settle.
+    let escaped = false
     try {
-      return await this.once(terminalId)
+      return await this.once(terminalId, entry, () => (escaped = true))
     } finally {
-      const until = Date.now() + this.settleMs
-      this.settles.set(terminalId, until)
-      setTimeout(() => {
-        if (this.settles.get(terminalId) === until) this.settles.delete(terminalId)
-      }, this.settleMs).unref()
+      if (escaped) {
+        const until = Date.now() + this.settleMs
+        this.settles.set(terminalId, until)
+        setTimeout(() => {
+          if (this.settles.get(terminalId) === until) this.settles.delete(terminalId)
+        }, this.settleMs).unref()
+      }
     }
   }
 
-  private async once(terminalId: string): Promise<InterruptOutcome> {
+  private async once(
+    terminalId: string,
+    entry: InputEntry | undefined,
+    escaped: () => void,
+  ): Promise<InterruptOutcome> {
     const { host } = this
     const none = { returned: undefined }
     host.admit(terminalId)
@@ -132,6 +148,7 @@ export class Interrupts {
     const queued = first !== undefined && profile?.queued(first) === true
     if (!host.working(terminalId)) return none
     host.type(terminalId, "\x1b")
+    escaped()
     if (!profile || !emptyBefore) return none
     if (prompt === undefined && !queued) return none
     let box = await this.settled(terminalId, profile)
@@ -171,7 +188,7 @@ export class Interrupts {
     const words = box.mode === "shell" ? `!${box.text.trim()}` : box.text.trim()
     // A placeholder stands for words that clearing would lose: they are left, and said.
     if (!profile.clear || (!restored && profile.collapsed(box))) throw new BoxNotCleared()
-    if (!(await this.cleared(terminalId, profile, box))) throw new BoxNotCleared()
+    if (!(await this.cleared(terminalId, profile, box, entry))) throw new BoxNotCleared()
     return restored ? none : { returned: words }
   }
 
@@ -198,39 +215,65 @@ export class Interrupts {
    * Clears the text of the box with the profile's keys, written, not typed (the box is
    * empty after them, which the person's keys never say), and looks that it reads empty,
    * writing them again up to twice if not, as the screen then calls for. False where it
-   * does not.
+   * does not. The person's keys are held (with `entry`) from the look the clear goes by to
+   * its end, then go on into the box: a box that changed since `box` was read has their
+   * keys in it, and is left as it is.
    */
-  private async cleared(terminalId: string, profile: BoxProfile, box: InputBox): Promise<boolean> {
+  private async cleared(
+    terminalId: string,
+    profile: BoxProfile,
+    box: InputBox,
+    entry: InputEntry | undefined,
+  ): Promise<boolean> {
     const { host } = this
-    let now = box
-    // What the screen shows as each try is made: a profile's keys may need to follow what the
-    // program has taken of the last (a second Escape, once its first has come).
-    let seen = await host.screen(terminalId)
-    for (let attempt = 0; attempt < 3; attempt += 1) {
-      host.write(terminalId, profile.clear!(now, seen))
-      // The same keys are written again only once the screen has changed since they were
-      // (something of them was taken, and says what is left), or `restoreMs` has passed with
-      // no change at all (they were lost): a program slow to take them, as one was on a busy
-      // Windows machine, is not given a second pair over its first (the Escapes of the
-      // second would open its rewind picker, seen in CI after 0.5 s of no change).
-      const before = rowsOf(seen)
-      const wrote = Date.now()
-      while (Date.now() < wrote + this.restoreMs) {
-        // eslint-disable-next-line no-await-in-loop -- The screen is looked at in turn.
-        await sleep(pollMs)
-        // eslint-disable-next-line no-await-in-loop -- As above.
-        const after = await host.screen(terminalId)
-        const read = after && profile.read(after)
-        if (!after || !host.alive(terminalId)) return false
-        seen = after
-        if (read !== undefined) {
-          if (isEmpty(read)) return true
-          now = read
-        }
-        if (Date.now() >= wrote + this.restoreCalmMs && rowsOf(after) !== before) break
+    const capMs = 3 * this.restoreMs + 1_000
+    const hold = entry?.hold({ inputMs: capMs, sizeMs: capMs })
+    const holding = (): boolean => hold === undefined || hold.holding()
+    try {
+      // What the screen shows as each try is made: a profile's keys may need to follow what the
+      // program has taken of the last (a second Escape, once its first has come).
+      // Read twice under the hold, a poll apart, as a key the person typed just before it may
+      // show only on the second.
+      const unchanged = (screen: ScreenText | undefined): InputBox | undefined => {
+        const shown = screen && profile.read(screen)
+        return shown && shown.mode === box.mode && shown.text === box.text ? shown : undefined
       }
+      if (!unchanged(await host.screen(terminalId))) return false
+      await sleep(pollMs)
+      let seen = await host.screen(terminalId)
+      const shown = unchanged(seen)
+      if (!shown || !holding()) return false
+      let now = shown
+      for (let attempt = 0; attempt < 3; attempt += 1) {
+        if (!holding()) return false
+        host.write(terminalId, profile.clear!(now, seen))
+        // The same keys are written again only once the screen has changed since they were
+        // (something of them was taken, and says what is left), or `restoreMs` has passed with
+        // no change at all (they were lost): a program slow to take them, as one was on a busy
+        // Windows machine, is not given a second pair over its first (the Escapes of the
+        // second would open its rewind picker, seen in CI after 0.5 s of no change). What the
+        // program counts up by itself is no change.
+        const before = rowsOf(profile, seen)
+        const wrote = Date.now()
+        while (Date.now() < wrote + this.restoreMs) {
+          // eslint-disable-next-line no-await-in-loop -- The screen is looked at in turn.
+          await sleep(pollMs)
+          // eslint-disable-next-line no-await-in-loop -- As above.
+          const after = await host.screen(terminalId)
+          const read = after && profile.read(after)
+          if (!after || !host.alive(terminalId)) return false
+          seen = after
+          if (read !== undefined) {
+            if (isEmpty(read)) return true
+            now = read
+          }
+          if (Date.now() >= wrote + this.restoreCalmMs && rowsOf(profile, after) !== before) break
+        }
+      }
+      return false
+    } finally {
+      hold?.settle()
     }
-    return false
   }
 
   /**
