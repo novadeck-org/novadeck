@@ -31,8 +31,13 @@ export const agy: AgentSetup = {
   keepsHookText: false,
   // Its own status screen (probed 2026-10-04, 1.2.14).
   idleCommand: "/help",
-  // Its feature flags and its telemetry.
-  refused: ["antigravity-unleash.goog", "play.googleapis.com"],
+  // Its feature flags and its telemetry, and from 1.5.1 its plugin marketplaces' catalogs
+  // (www.gstatic.com/antigravity/plugins/marketplace.json and plugins-partners'), which it
+  // fetches at start, as its plugin manager refreshes the plugins installed; they are its
+  // built-in `agy-plugin-marketplaces` flag's, and no setting was found that turns the
+  // fetch off (seen 2026-11-05 in every e2e run of 1.5.1 and read in its binary; 1.4.12 and
+  // the nightly's 1.5.0 tried none).
+  refused: ["antigravity-unleash.goog", "play.googleapis.com", "www.gstatic.com"],
   watch: {
     searched: [".gemini/antigravity-cli/settings.json"],
     // Its MCP servers' folder, which it rewrites each time it starts.
