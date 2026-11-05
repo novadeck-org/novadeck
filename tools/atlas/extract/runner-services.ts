@@ -139,45 +139,49 @@ const arrowBody = (text: string, from: number): [number, number] => {
 }
 
 const inside = (ranges: [number, number][], at: number) =>
-  ranges.some(([from, to]) => at > from && at < to)
+  ranges.some(([from, to]) => at >= from && at < to)
 
 // The calls in a handler's body (from `api.<id>.handler(`), the likeliest to do the
 // procedure's work first. A call named like the procedure comes first; then one whose
 // value the handler returns; a store read, a call in a callback passed on (`place: (id) =>
-// terminals.place(id)`) and above all a guard in an `if (` condition come last. Ties keep
-// source order.
+// terminals.place(id)`) and above all a guard in an `if (` or `while (` condition come
+// last. A ternary's or an `&&`'s condition is not told apart. Ties keep source order.
 export const rankCalls = (
   body: string,
   procedure: string,
   functions: ReadonlySet<string>,
 ): HandlerCall[] => {
   const name = procedure.split(".").at(-1)
-  const guards = [...body.matchAll(/\bif\s*\(/g)].map((match): [number, number] => {
+  const guards = [...body.matchAll(/\b(?:if|while)\s*\(/g)].map((match): [number, number] => {
     const open = match.index + match[0].length - 1
     return [open, closing(body, open)]
   })
-  // Arrows passed as an argument or a property's value; the first is the handler's own.
-  const callbacks = [...body.matchAll(/=>/g)].slice(1).flatMap((match): [number, number][] => {
+  // Arrows passed as an argument or a property's value, but not the handler's own (a
+  // handler may be an `async function*`, with no arrow of its own).
+  const callbacks = [...body.matchAll(/=>/g)].flatMap((match): [number, number][] => {
     let before = body.slice(0, match.index).trimEnd()
     before = before.endsWith(")")
       ? body.slice(0, before.lastIndexOf("(", before.length - 1)).trimEnd()
       : before.replace(/\w+$/, "").trimEnd()
     before = before.replace(/\basync$/, "").trimEnd()
+    if (before.endsWith(".handler(")) return []
     return /[(,:]$/.test(before) ? [arrowBody(body, match.index + 2)] : []
   })
   // Whether the handler returns the call's value: on a `return` line, or named by a const
-  // the handler returns or spreads.
+  // the handler returns whole or spreads. A callback's own `return` is not the handler's.
   const returned = (at: number) => {
+    if (inside(callbacks, at)) return false
     const line = body.slice(body.lastIndexOf("\n", at) + 1, at).trimStart()
     if (line.startsWith("return ")) return true
     const constant = /^const (\w+) = (?:await )?$/.exec(line)?.[1]
     return (
       constant !== undefined &&
-      new RegExp(`\\breturn ${constant}\\b|\\.\\.\\.${constant}\\b`).test(body)
+      new RegExp(`\\breturn ${constant}\\s*(?:$|[;})])|\\.\\.\\.${constant}\\b`, "m").test(body)
     )
   }
   const calls: HandlerCall[] = [
-    ...[...body.matchAll(/\b(\w+)\.(\w+)\(/g)].map((match) => ({
+    // Not `<name>.handler(` itself, which opens the body.
+    ...[...body.matchAll(/\b(\w+)\.(?!handler\()(\w+)\(/g)].map((match) => ({
       service: match[1]!,
       name: match[2]!,
       at: match.index,

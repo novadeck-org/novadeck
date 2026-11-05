@@ -3,8 +3,12 @@ import { expect, test } from "vitest"
 import { functionsOf, rankCalls } from "./runner-services.ts"
 
 // The router's handlers, as they read in backend/runner/src/router.ts.
+// The first call that is a service's or an imported function, as handlerOf takes it.
+const services = new Set(["store", "projects", "terminals", "uploads", "agents", "items", "queue"])
 const first = (body: string, id: string, functions: string[] = []) => {
-  const call = rankCalls(body, id, new Set(functions))[0]
+  const call = rankCalls(body, id, new Set(functions)).find(
+    (each) => each.service === null || services.has(each.service),
+  )
   return call && `${call.service === null ? "" : `${call.service}.`}${call.name}`
 }
 
@@ -66,4 +70,32 @@ test("reads the functions the router imports by value from the runner's files", 
     ["savePlan", "backend/runner/src/companions/content.ts"],
     ["listFolder", "backend/runner/src/workspaces/folder.ts"],
   ])
+})
+
+test("a callback's own return, a returned member and a loop's condition earn nothing", () => {
+  const filtered = `api.terminals.prune.handler(({ input }) => {
+        const live = input.ids.filter((id) => {
+          return terminals.exists(id)
+        })
+        items.removeAll(live)
+      }),`
+  expect(first(filtered, "terminals.prune")).toBe("items.removeAll")
+  const member = `api.items.get.handler(({ input }) => {
+        const item = store.item(input.id)
+        items.touch(input.id)
+        return item.value
+      }),`
+  expect(first(member, "items.get")).toBe("items.touch")
+  const loop = `api.items.drain.handler(async ({ input }) => {
+        while (queue.pending(input.id)) await items.flush(input.id)
+      }),`
+  expect(first(loop, "items.drain")).toBe("items.flush")
+})
+
+test("a generator handler has no arrow of its own: its first callback is still one", () => {
+  const body = `api.companions.content.handler(async function* ({ input, signal }) {
+        const places = input.ids.map((id) => terminals.place(id))
+        yield* items.stream(places, signal)
+      }),`
+  expect(first(body, "companions.content")).toBe("items.stream")
 })
