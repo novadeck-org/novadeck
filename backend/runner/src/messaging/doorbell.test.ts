@@ -388,7 +388,11 @@ describe("the app's resizes during a ring's wait for its prompt on Windows", () 
     vi.useFakeTimers()
     try {
       const t = terminal({ settleLost: true })
-      const doorbell = new Doorbell(t.host, t.host.queue, win)
+      // The failed ring is tried again only after the cap: a retry holds the resizes anew, and
+      // when it does is up to the typist's watch, whose sleeps are real. By default it is due
+      // 2 s after the failure, before the cap, and on a busy machine it held them again just
+      // after the cap released them.
+      const doorbell = new Doorbell(t.host, t.host.queue, { ...win, recheckMs: 10_000 })
       await pressed(doorbell, t)
       t.send()
       const lapse = t.state().holdAt! + 30_500
@@ -397,7 +401,7 @@ describe("the app's resizes during a ring's wait for its prompt on Windows", () 
       expect(t.failed).toHaveLength(1)
       expect(t.state()).toMatchObject({ sizes: true, applied: 0 })
       await vi.advanceTimersByTimeAsync(2)
-      expect(t.state()).toMatchObject({ sizes: false, applied: 1 })
+      expect(t.state()).toMatchObject({ holds: 1, sizes: false, applied: 1 })
       doorbell.close()
     } finally {
       vi.useRealTimers()
