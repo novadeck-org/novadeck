@@ -64,7 +64,8 @@ type Drag = { readonly index: number; readonly onStep: (by: -1 | 1) => void }
 // asks that end the list, where theirs goes. A settled ask (dismissed, withdrawn or answered in
 // its terminal) stays, struck through, and opens nothing; an open Novadeck ask can be dismissed.
 // A row that asks drags among the others that do, into the person's order (`drag`), and can
-// be snoozed (S): it keeps its place, marked, its bell-off where its wait shows.
+// be snoozed (S): it keeps its place, marked, its bell-off where its wait shows, and there its
+// unsnooze button instead of a dismiss button.
 const Row = ({
   row,
   place,
@@ -105,10 +106,17 @@ const Row = ({
   const answering = pending || answered
   const Icon = pending ? LoaderCircle : answered ? CircleCheck : icons[type]
   const current = view.open === row.id
-  const dismissable =
-    dismiss !== undefined && row.kind === "ask" && !settled && !pending && !answered
   const snoozable = snooze !== undefined && asking(row) && !answering
   const snoozed = Boolean(row.snoozed) && !answering
+  // A snoozed row's unsnooze button has the dismiss button's place: it is brought back before
+  // it is dismissed.
+  const dismissable =
+    dismiss !== undefined &&
+    row.kind === "ask" &&
+    !settled &&
+    !pending &&
+    !answered &&
+    !(snoozed && snoozable)
   const subject = subjectOf(row).replaceAll("`", "")
   const toggleSnooze = (): void => snooze?.(row, !row.snoozed)
   const extras = settled
@@ -247,6 +255,9 @@ const Row = ({
             className="inbox-row-dismiss icon-button dim size-7"
             aria-label={`Dismiss: ${subject}`}
             onClick={(event) => {
+              // The second click of a double one meant for the unsnooze button, whose place this
+              // takes as the row comes back, dismisses nothing.
+              if (event.detail > 1) return
               // The keyboard was on this button, which goes with the click: it stays on the row.
               const keyboard = event.detail === 0
               const select = event.currentTarget.previousElementSibling

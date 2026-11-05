@@ -15,7 +15,8 @@
    the row after the last that asks (the updates' line), data-dismissable while its dismiss
    button shows, data-dragging="true" on a row that asks while it is dragged to a new place,
    data-snoozable while its snooze button (`.inbox-row-snooze`, an icon button) shows,
-   data-snoozed="true" on a snoozed row, data-settled="dismissed" | "withdrawn" | "replied" on an ask that no longer
+   data-snoozed="true" on a snoozed row (its snooze button, which brings it back, then has the
+   dismiss button's place, and it has no dismiss button), data-settled="dismissed" | "withdrawn" | "replied" on an ask that no longer
    waits (it stays, struck through unless replied, its wait time the age since it settled, and
    opens no sheet), data-settled-start on the first of the settled asks that end the list (their
    line, as the updates' line; a row that settles while the panel is on screen keeps its place
@@ -241,8 +242,18 @@
 .inbox-row[data-snoozable="true"]:focus-within .inbox-row-snooze {
   display: inline-flex;
 }
-.inbox-row[data-snoozable="true"] .inbox-row-meta {
+.inbox-row[data-snoozable="true"]:not([data-snoozed="true"]) .inbox-row-meta {
   padding-right: 24px;
+}
+/* On a snoozed row it brings the row back from the dismiss button's place, over the bell-off:
+   such a row has no dismiss button until it is back. */
+.inbox-row[data-snoozable="true"][data-snoozed="true"] .inbox-row-snooze {
+  top: 9px;
+  bottom: auto;
+}
+.inbox-row[data-snoozable="true"][data-snoozed="true"]:hover .inbox-row-wait,
+.inbox-row[data-snoozable="true"][data-snoozed="true"]:focus-within .inbox-row-wait {
+  visibility: hidden;
 }
 /* With both (an open Novadeck ask), each sits nearer its edge, so a one-line row (about 70 px)
    holds both apart. */
@@ -255,6 +266,9 @@
 @media (hover: none) {
   .inbox-row[data-snoozable="true"] .inbox-row-snooze {
     display: inline-flex;
+  }
+  .inbox-row[data-snoozable="true"][data-snoozed="true"] .inbox-row-wait {
+    visibility: hidden;
   }
 }
 /* A snoozed row keeps its place and height, its words as bright as any that asks: a gray

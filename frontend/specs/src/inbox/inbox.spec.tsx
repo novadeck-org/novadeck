@@ -645,6 +645,52 @@ describe("Dismissing an ask", () => {
   })
 })
 
+describe("Snoozing a row", () => {
+  const button = (name: string, subject: string) =>
+    page.getByRole("button", { name: new RegExp(`^${name}: .*${subject}`) })
+  const box = (element: Element): DOMRect => element.getBoundingClientRect()
+
+  it("puts the unsnooze button where the dismiss button was, and the row isn't dismissed until it is back", async () => {
+    await openInbox()
+    await lookAway()
+    await expect.element(rows()).toHaveLength(settledRows)
+    const webhooks = rows().filter({ hasText: "webhooks" })
+    await webhooks.hover()
+    await expect.element(button("Dismiss", "webhooks")).toBeVisible()
+    await button("Snooze", "webhooks").click()
+
+    // The pointer is still on the row: the button is over the bell-off, at the top right.
+    await expect.element(webhooks).toHaveAttribute("data-snoozed", "true")
+    await webhooks.hover()
+    await expect.element(button("Unsnooze", "webhooks")).toBeVisible()
+    await expect.element(button("Dismiss", "webhooks")).not.toBeInTheDocument()
+    const at = box(button("Unsnooze", "webhooks").element())
+    const wait = webhooks.element().querySelector(".inbox-row-wait")!
+    const mark = box(wait.querySelector("svg")!)
+    expect(getComputedStyle(wait).visibility).toBe("hidden")
+    const whole = box(webhooks.element())
+    expect(at.top).toBeLessThan(mark.top)
+    expect(at.bottom).toBeGreaterThan(mark.bottom)
+    expect(Math.abs((at.left + at.right) / 2 - (mark.left + mark.right) / 2)).toBeLessThan(2)
+    expect((at.top + at.bottom) / 2).toBeLessThan((whole.top + whole.bottom) / 2)
+    row("webhooks").element().focus()
+    await userEvent.keyboard("{Delete}")
+    await expectStaysAbsent({
+      shown: () => webhooks.element().hasAttribute("data-settled"),
+      name: "the snoozed row, dismissed",
+    })
+
+    // A double click on it brings the row back and dismisses nothing, though the dismiss
+    // button is under its second click.
+    await button("Unsnooze", "webhooks").dblClick()
+    await expect.element(webhooks).not.toHaveAttribute("data-snoozed")
+    await expect.element(button("Dismiss", "webhooks")).toBeVisible()
+    await expect.element(webhooks).not.toHaveAttribute("data-settled")
+    await button("Dismiss", "webhooks").click()
+    await expect.element(webhooks).toHaveAttribute("data-settled", "dismissed")
+  })
+})
+
 describe("The Inbox on a phone", () => {
   afterEach(async () => {
     await page.viewport(1440, 900)
