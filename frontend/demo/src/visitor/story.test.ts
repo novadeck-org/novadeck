@@ -129,6 +129,10 @@ describe("the visitor's story", () => {
     await vi.advanceTimersByTimeAsync(turnMs)
     // Codex would ask in `nudgeMs`, while the turn on the visitor's line still runs.
     await vi.advanceTimersByTimeAsync(nudgeMs - turnMs / 2)
+    // A line it refuses, as a slash command, leaves the review as it was.
+    await expect(chat.send(codex, "/review")).rejects.toThrow()
+    expect(terminal(codex.terminalId)).toMatchObject({ agent: { working: true } })
+    expect(said(codex, "user")).not.toContain("/review")
     await chat.send(codex, "What are you looking at?")
     await vi.advanceTimersByTimeAsync(0)
     expect(said(codex, "user").at(-1)).toBe("What are you looking at?")

@@ -211,7 +211,9 @@ export const visitorStory = (
     ...conversations,
     send: (key, prompt, options) => {
       const terminal = terminalOf(latest, key)
-      if (same(key, codex) && reviewing(terminal) && !turns.working(codex) && prompt.trim())
+      // A line it would refuse leaves the review as it was.
+      const sent = prompt.trim() !== "" && !conversations.refused(prompt, { shell: true })
+      if (same(key, codex) && reviewing(terminal) && !turns.working(codex) && sent)
         turns.rest(codex, terminal)
       return conversations.send(key, prompt, options)
     },
