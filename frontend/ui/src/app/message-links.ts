@@ -37,8 +37,9 @@ export const useMessageLinks = (): MessageLinks => {
         // to answer it lands it.
         const held = entryRow(backend.inbox?.state.getSnapshot().items ?? [], entry)
         if (held) landing.reveal(held.id)
-        commands.showInbox()
-        openInbox?.((items) => entryRow(items, entry))
+        // For that ask alone: once answered, the sidebar goes back to what it showed.
+        const after = commands.peekInbox()
+        openInbox?.((items) => entryRow(items, entry), { after })
       },
     }),
     [peers, commands, openInbox, backend, landing],

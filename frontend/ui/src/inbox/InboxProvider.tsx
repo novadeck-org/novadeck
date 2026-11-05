@@ -87,7 +87,8 @@ export type InboxContextValue = {
   readonly phone: boolean
   // Whether any agent in the workspace is at work, which the empty list says.
   readonly working: boolean
-  readonly open: (id: string) => void
+  // Opens a row's sheet; with `once`, for that row alone (see `OpenOptions`).
+  readonly open: (id: string, options?: OpenOptions) => void
   readonly close: () => void
   readonly showHeld: () => void
   readonly setDraft: (id: string, patch: Partial<Draft>) => void
@@ -107,12 +108,32 @@ export type InboxContextValue = {
   readonly reveal: (row: InboxRow) => void
 }
 
+// How a sheet opens.
+//
+// A sheet opened `once` with an `after`, while no sheet is open, is a one-off: once its row
+// is answered, snoozed from it, or gone, or the person closes it after the ask settled, the
+// sheet closes instead of going on to what asks next, and `after` runs. Another `once` open
+// while a one-off is open is one too, with the first one's `after`. Any other open, or
+// closing it before then, makes it an ordinary sheet, and `after` never runs.
+export type OpenOptions = {
+  // The rows, where the caller read them newer than the last commit.
+  readonly rows?: readonly InboxRow[]
+  // For its row alone, as a click on a toast or a notice opens it.
+  readonly once?: boolean
+  // Puts back what the Inbox took the place of; absent where the Inbox showed already.
+  readonly after?: (() => void) | undefined
+}
+
 const InboxContext = createContext<InboxContextValue | null>(null)
 
 // Opens the row `pick` finds among those listed now, for a view outside the Inbox: one
 // function for as long as the Inbox lasts, so a view holding it never renders again with
 // the Inbox's every change. None in a view rendered on its own.
-export type InboxOpener = (pick: (rows: readonly InboxRow[]) => InboxRow | undefined) => void
+// Given `once`, it opens for its row alone, with `once.after` (see `OpenOptions`).
+export type InboxOpener = (
+  pick: (rows: readonly InboxRow[]) => InboxRow | undefined,
+  once?: { readonly after: (() => void) | undefined },
+) => void
 
 const OpenerContext = createContext<InboxOpener | null>(null)
 
@@ -172,6 +193,9 @@ export const InboxProvider = ({
   // The answers the sheet has moved on from, by row id and when it started waiting (a newer
   // row may take an old id): opened again, their sheet stays, answered.
   const movedOn = useRef(new Set<string>())
+  // The row whose sheet is open as a one-off, and what runs once it is done with (see
+  // `OpenOptions`).
+  const oneOff = useRef<{ readonly id: string; readonly after: () => void } | null>(null)
   const [drafts, setDrafts] = useState<Readonly<Record<string, Draft>>>({})
   const [now, setNow] = useState(() => Date.now())
 
@@ -241,13 +265,17 @@ export const InboxProvider = ({
   const current = standing ?? (view.open === null ? undefined : sent[view.open]?.row)
 
   const open = useCallback(
-    // `rows` where the caller read them newer than the last commit.
-    (id: string, rows?: readonly InboxRow[]): void => {
+    (id: string, { rows, once = false, after }: OpenOptions = {}): void => {
       const { state: snapshot, view: before, phone: screen, arranged: order } = latest.current
       const list = rows ?? snapshot.items
       const found = list.find((row) => row.id === id)
       // A settled ask has no sheet.
       if (found?.settled) return
+      const kept = once
+        ? (oneOff.current?.after ?? (before.open === null ? after : undefined))
+        : undefined
+      if (kept) oneOff.current = { id, after: kept }
+      else if (oneOff.current?.id !== id) oneOff.current = null
       // Answered rows keep their place, and their answers, until the sheet closes.
       if (before.open !== id) setReceipt(null)
       setView(openRow(before, id, list, order))
@@ -261,11 +289,17 @@ export const InboxProvider = ({
   const close = useCallback((): void => {
     const { state: snapshot, view: before, phone: screen } = latest.current
     if (before.open === null) return
+    const once = oneOff.current
+    oneOff.current = null
     setAnswered({})
     setReceipt(null)
     movedOn.current.clear()
     setView(closeSheet(before, snapshot.items))
     screen?.showList()
+    // A one-off whose ask settled while it was open, as replied to in its terminal, is done
+    // with as well.
+    const settledOpen = snapshot.items.find(({ id }) => id === before.open)?.settled
+    if (once?.id === before.open && settledOpen) once.after()
   }, [])
 
   const showHeld = useCallback((): void => {
@@ -280,6 +314,12 @@ export const InboxProvider = ({
       const { state: snapshot, view: before, arranged: order } = latest.current
       if (before.open !== from.id || movedOn.current.has(answerKey(from))) return
       movedOn.current.add(answerKey(from))
+      // A one-off goes on to nothing: it closes, and gives back what it took the place of.
+      const once = oneOff.current
+      if (once?.id === from.id) {
+        close()
+        return once.after()
+      }
       const target = nextRow(snapshot.items, from.id, snapshot, order)
       if (!target) return close()
       setReceipt({ from: from.id, note })
@@ -372,6 +412,11 @@ export const InboxProvider = ({
             const { view: before, arranged: order } = latest.current
             inbox.snooze?.(row.id, on)
             if (!on || before.open !== row.id) return
+            const once = oneOff.current
+            if (once?.id === row.id) {
+              close()
+              return once.after()
+            }
             const snapshot = inbox.state.getSnapshot()
             const target = nextRow(snapshot.items, row.id, snapshot, order)
             // With nothing left, the keyboard goes back to the snoozed row.
@@ -409,8 +454,12 @@ export const InboxProvider = ({
   )
 
   // An open sheet whose row is gone without an answer of the person's closes with it.
+  // A one-off's goes back to what the Inbox took the place of, as after an answer.
   useEffect(() => {
-    if (view.open !== null && !current) close()
+    if (view.open === null || current) return
+    const once = oneOff.current
+    close()
+    if (once?.id === view.open) once.after()
   }, [view.open, current, close])
 
   // Esc closes the sheet; in one of its fields it first leaves the field (or, in one that
@@ -539,11 +588,11 @@ export const InboxProvider = ({
     ],
   )
   const opener = useCallback<InboxOpener>(
-    (pick) => {
+    (pick, once) => {
       // The Inbox as it is now: a row just revealed is there before the next commit.
       const rows = inbox.state.getSnapshot().items
       const found = pick(rows)
-      if (found) open(found.id, rows)
+      if (found) open(found.id, once ? { rows, once: true, after: once.after } : { rows })
     },
     [open, inbox],
   )

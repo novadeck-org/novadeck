@@ -90,6 +90,24 @@ describe("The Inbox's toasts", () => {
       await expect.poll(toastTexts).toHaveLength(0)
     })
 
+    it("opens its entry alone: once answered, the sidebar goes back to what it showed", async () => {
+      await open()
+      await expect.element(sidebarPanel("Terminals")).toBeChecked()
+      desktopWindow.arrive(demoInboxIds.codexPermission)
+      await expect.poll(toastTexts, rings).toHaveLength(1)
+      await new Promise((resolve) => setTimeout(resolve, 600))
+
+      await userEvent.click(page.elementLocator(document.querySelector('.toast[data-rank="0"]')!))
+      const sheet = page.getByRole("dialog", { name: /\S/ })
+      await expect.element(sidebarPanel("Inbox")).toBeChecked()
+      // Another ask comes in while it is open, which a sheet opened from the list goes on to.
+      desktopWindow.arrive(demoInboxIds.webhook)
+      await sheet.getByRole("menuitem", { name: "Allow" }).click()
+
+      await expect.element(sidebarPanel("Terminals")).toBeChecked()
+      await expect.element(sheet).not.toBeInTheDocument()
+    })
+
     it("shows three of four and counts the rest in a pill, which opens the Inbox", async () => {
       await open()
 

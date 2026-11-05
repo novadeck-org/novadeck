@@ -7,11 +7,11 @@ import {
 } from "@novadeck/core/inbox"
 import { createStore } from "@novadeck/core/store"
 import { nextFrame, render } from "@novadeck/test-kit/render"
-import { act, createElement } from "react"
+import { act, createElement, useLayoutEffect } from "react"
 
 import { context, describe, expect, it } from "../test"
 import { HeldPill, InboxClear, InboxCount, InboxList } from "./InboxList"
-import { InboxProvider } from "./InboxProvider"
+import { InboxProvider, useInboxContext, type InboxContextValue } from "./InboxProvider"
 import { InboxSheet } from "./InboxSheet"
 
 // jsdom has no ResizeObserver, which the sheet's placement watches its anchor with.
@@ -121,6 +121,15 @@ const mount = (
       : {}),
     ...(arranging ? { order, arrange: (ids: readonly string[]) => order.update(() => ids) } : {}),
   }
+  // The Inbox's own handlers, as the views that open its sheets hold them.
+  const handlers: { current: InboxContextValue | null } = { current: null }
+  const Handlers = (): null => {
+    const value = useInboxContext()
+    useLayoutEffect(() => {
+      handlers.current = value
+    })
+    return null
+  }
   const view = render(
     createElement(
       InboxProvider,
@@ -139,6 +148,7 @@ const mount = (
         createElement(InboxList),
       ),
       createElement(InboxSheet, { active: true }),
+      createElement(Handlers),
     ),
   )
   const subjects = (): string[] =>
@@ -169,7 +179,43 @@ const mount = (
         .querySelector(".inbox-row-select")!
         .dispatchEvent(new KeyboardEvent("keydown", { key, altKey: true, bubbles: true }))
     })
-  return { view, subjects, pill, open, arrive, press, answered, row, order, step }
+  // Answers the row from its sheet, and the backend takes it away, as an answer that took.
+  const answer = (id: string): void =>
+    act(() => {
+      const asked = state.getSnapshot().items.find((each) => each.id === id)!
+      handlers.current!.submit(
+        asked,
+        { kind: "request", answer: { type: "choice", dialog: id, option: "yes" } },
+        "Allowed",
+      )
+      state.update((current) => ({
+        ...current,
+        items: current.items.filter((each) => each.id !== id),
+      }))
+    })
+  // The backend takes the row away unanswered, as when its agent withdraws it.
+  const withdraw = (id: string): void =>
+    act(() => {
+      state.update((current) => ({
+        ...current,
+        items: current.items.filter((each) => each.id !== id),
+      }))
+    })
+  return {
+    withdraw,
+    view,
+    subjects,
+    pill,
+    open,
+    arrive,
+    press,
+    answered,
+    row,
+    order,
+    step,
+    handlers: () => handlers.current!,
+    answer,
+  }
 }
 
 describe("The Inbox's list", () => {
@@ -505,6 +551,134 @@ describe("The Inbox's list", () => {
       expect(inbox.subjects()).toEqual(["Run a?", "Run b?"])
       expect(inbox.row("a").querySelector(".inbox-row-select")?.ariaKeyShortcuts).toBeNull()
       await nextFrame()
+      inbox.view.unmount()
+    })
+  })
+
+  context("when a sheet opens for its row alone, as from a toast", () => {
+    const current = (inbox: ReturnType<typeof mount>): string | null =>
+      inbox.view.container
+        .querySelector('[aria-current="true"]')
+        ?.closest("[data-inbox-row]")
+        ?.getAttribute("data-inbox-row") ?? null
+    const sheet = (): Element | null => document.querySelector(".inbox-sheet")
+
+    it("goes on to what asks next once answered, opened from the list", async () => {
+      const inbox = mount([permission("a", 1), permission("b", 2)])
+      inbox.open("a")
+      await nextFrame()
+      inbox.answer("a")
+      await nextFrame()
+      expect(current(inbox)).toBe("b")
+      inbox.view.unmount()
+    })
+
+    it("closes once answered, and puts back what it took the place of", async () => {
+      const inbox = mount([permission("a", 1), permission("b", 2)])
+      const back: string[] = []
+      act(() => inbox.handlers().open("a", { once: true, after: () => void back.push("a") }))
+      await nextFrame()
+      expect(current(inbox)).toBe("a")
+      inbox.answer("a")
+      await nextFrame()
+      expect(current(inbox)).toBeNull()
+      expect(sheet()).toBeNull()
+      expect(back).toEqual(["a"])
+      inbox.view.unmount()
+    })
+
+    it("becomes an ordinary sheet once the person goes on to another row", async () => {
+      const inbox = mount([permission("a", 1), permission("b", 2), permission("c", 3)])
+      const back: string[] = []
+      act(() => inbox.handlers().open("a", { once: true, after: () => void back.push("a") }))
+      await nextFrame()
+      inbox.press("j")
+      await nextFrame()
+      inbox.answer("b")
+      await nextFrame()
+      expect(current(inbox)).not.toBeNull()
+      expect(back).toEqual([])
+      inbox.view.unmount()
+    })
+
+    it("stays one for the next row clicked from a toast, putting back what the first took over", async () => {
+      const inbox = mount([permission("a", 1), permission("b", 2), permission("c", 3)])
+      const back: string[] = []
+      act(() => inbox.handlers().open("a", { once: true, after: () => void back.push("a") }))
+      await nextFrame()
+      // The Inbox shows now, so the second click has nothing of its own to put back.
+      act(() => inbox.handlers().open("b", { once: true, after: undefined }))
+      await nextFrame()
+      inbox.answer("b")
+      await nextFrame()
+      expect(current(inbox)).toBeNull()
+      expect(back).toEqual(["a"])
+      inbox.view.unmount()
+    })
+
+    it("is an ordinary sheet where the person is already going through the Inbox", async () => {
+      const inbox = mount([permission("a", 1), permission("b", 2), permission("c", 3)])
+      const back: string[] = []
+      inbox.open("a")
+      await nextFrame()
+      act(() => inbox.handlers().open("b", { once: true, after: () => void back.push("b") }))
+      await nextFrame()
+      inbox.answer("b")
+      await nextFrame()
+      expect(current(inbox)).not.toBeNull()
+      expect(back).toEqual([])
+      inbox.view.unmount()
+    })
+
+    it("puts back what it took the place of when its row goes unanswered", async () => {
+      const inbox = mount([permission("a", 1), permission("b", 2)])
+      const back: string[] = []
+      act(() => inbox.handlers().open("a", { once: true, after: () => void back.push("a") }))
+      await nextFrame()
+      inbox.withdraw("a")
+      await nextFrame()
+      expect(sheet()).toBeNull()
+      expect(back).toEqual(["a"])
+      inbox.view.unmount()
+    })
+
+    it("puts back what it took the place of when closed after its ask settled", async () => {
+      const inbox = mount([agentAsk("a", 1), agentAsk("b", 2)], false, true)
+      const back: string[] = []
+      act(() => inbox.handlers().open("a", { once: true, after: () => void back.push("a") }))
+      await nextFrame()
+      act(() => inbox.handlers().dismiss!("a"))
+      await nextFrame()
+      // The sheet stays to say so, until the person closes it.
+      expect(back).toEqual([])
+      inbox.press("Escape")
+      await nextFrame()
+      expect(sheet()).toBeNull()
+      expect(back).toEqual(["a"])
+      inbox.view.unmount()
+    })
+
+    it("puts nothing back when closed unanswered", async () => {
+      const inbox = mount([permission("a", 1), permission("b", 2)])
+      const back: string[] = []
+      act(() => inbox.handlers().open("a", { once: true, after: () => void back.push("a") }))
+      await nextFrame()
+      inbox.press("Escape")
+      await nextFrame()
+      expect(sheet()).toBeNull()
+      expect(back).toEqual([])
+      inbox.view.unmount()
+    })
+
+    it("closes when snoozed from, and puts back what it took the place of", async () => {
+      const inbox = mount([permission("a", 1), permission("b", 2)], false, false, false, true)
+      const back: string[] = []
+      act(() => inbox.handlers().open("a", { once: true, after: () => void back.push("a") }))
+      await nextFrame()
+      act(() => document.querySelector<HTMLElement>('.inbox-sheet [aria-label="Snooze"]')!.click())
+      await nextFrame()
+      expect(current(inbox)).toBeNull()
+      expect(back).toEqual(["a"])
       inbox.view.unmount()
     })
   })

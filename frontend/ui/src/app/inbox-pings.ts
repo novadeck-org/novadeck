@@ -97,8 +97,10 @@ export const clickNotice = (
   terminalId: string,
   rows: readonly InboxRow[],
   to: {
-    readonly open: (id: string) => void
-    readonly showInbox: () => void
+    // Opens the row's sheet for that row alone (see the Inbox's `OpenOptions`).
+    readonly open: (id: string, after: (() => void) | undefined) => void
+    // Shows the Inbox for the row; returns what puts the sidebar back, unless it showed already.
+    readonly peekInbox: () => (() => void) | undefined
     readonly reveal: (terminalId: string) => void
     // Lands the row in the Inbox before it opens, where the terminal being viewed held it.
     readonly land?: (id: string) => void
@@ -116,8 +118,7 @@ export const clickNotice = (
     onTerminal[0]
   if (!row) return to.reveal(terminalId)
   to.land?.(row.id)
-  to.showInbox()
-  to.open(row.id)
+  to.open(row.id, to.peekInbox())
 }
 
 // What the app icon's count wears on Windows, where the taskbar takes an image: a filled

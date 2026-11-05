@@ -22,7 +22,7 @@ import { focusWhenReady, watchShowToasts } from "./show-toasts"
 const NoticeClicks = (): null => {
   const { backend, commands, landing, ui } = useWorkspaceServices()
   const opener = useInboxOpener()
-  const { showInbox, reveal } = commands
+  const { peekInbox, reveal } = commands
   useEffect(
     () =>
       backend.notices?.onClick((terminalId) =>
@@ -32,15 +32,15 @@ const NoticeClicks = (): null => {
           terminalId,
           backend.inbox?.state.getSnapshot().items ?? [],
           {
-            open: (id) => opener?.((rows) => rows.find((row) => row.id === id)),
-            showInbox,
+            open: (id, after) => opener?.((rows) => rows.find((row) => row.id === id), { after }),
+            peekInbox,
             reveal,
             land: landing.reveal,
           },
           noticeBoard(backend.notices, dingOf(backend, ui))?.rowIdOf(terminalId),
         ),
       ),
-    [backend, ui, landing, opener, showInbox, reveal],
+    [backend, ui, landing, opener, peekInbox, reveal],
   )
   return null
 }
@@ -62,7 +62,7 @@ export const InboxHost = ({
   const { inbox } = landing
   // Whether an agent is at work in any project, for the empty Inbox to say.
   const working = useWorkspaceState((state) => anyAgentWorking(state.projects))
-  const { hideSidebar, toggleSidebar, reveal, select, showInbox } = commands
+  const { hideSidebar, toggleSidebar, reveal, select, showInbox, peekInbox } = commands
   const phone = useMemo(
     () => (desktop ? undefined : { hideList: hideSidebar, showList: () => toggleSidebar("inbox") }),
     [desktop, hideSidebar, toggleSidebar],
@@ -118,6 +118,7 @@ export const InboxHost = ({
           follow={follow}
           followShows={followShows}
           showInbox={showInbox}
+          peekInbox={peekInbox}
           showTerminal={showTerminal}
         />
       </InboxProvider>
