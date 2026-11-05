@@ -291,6 +291,7 @@ fn start(command: &str) -> Option<(std::process::Child, crate::job::Job)> {
             .stderr(Stdio::null()),
         crate::job::KILL_ON_CLOSE,
     )
+    .ok()
 }
 
 #[cfg(windows)]

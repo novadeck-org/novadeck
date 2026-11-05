@@ -9,8 +9,9 @@
 //! It finds the real `cmd.exe` in the system directory Windows reports
 //! (`GetSystemDirectoryW`), never through PATH, which would find itself, nor through
 //! `%SystemRoot%`, which the environment of the process that started it can set.
-//! With `NOVADECK_CMD_LOG` set to a file, it appends the arguments it passes on there
-//! (for tests; nothing in Novadeck sets it).
+//! With `NOVADECK_CMD_LOG` set to a file, it appends the arguments it passes on there, and
+//! why, should Windows refuse cmd its job twice, cmd runs without one (for tests; nothing in
+//! Novadeck sets it).
 //!
 //! It stands in for cmd to whatever started it, so ending it ends cmd: the real cmd runs in
 //! a job that ends with the pass-through should it be killed, as a program that cancels a
@@ -148,11 +149,11 @@ fn main() {
     };
     let arguments = passed_on(after_program(line));
 
-    if let Some(path) = std::env::var_os("NOVADECK_CMD_LOG").filter(|path| !path.is_empty()) {
-        append_log(
-            &PathBuf::from(path),
-            &OsString::from_wide(&arguments).to_string_lossy(),
-        );
+    let log = std::env::var_os("NOVADECK_CMD_LOG")
+        .filter(|path| !path.is_empty())
+        .map(PathBuf::from);
+    if let Some(path) = log.as_deref() {
+        append_log(path, &OsString::from_wide(&arguments).to_string_lossy());
     }
 
     // SAFETY: the buffer is valid for the size passed with it.
@@ -167,14 +168,26 @@ fn main() {
     let mut command = Command::new(&cmd);
     command.raw_arg(OsString::from_wide(&arguments));
     // Programs cmd starts that ask to leave the job (CREATE_BREAKAWAY_FROM_JOB) still may.
-    let status = match job::Job::start(&mut command, job::KILL_ON_CLOSE | job::BREAKAWAY_OK) {
-        Some((mut child, job)) => {
+    let limits = job::KILL_ON_CLOSE | job::BREAKAWAY_OK;
+    let started = job::Job::start(&mut command, limits)
+        .or_else(|first| job::Job::start(&mut command, limits).map_err(|again| (first, again)));
+    let status = match started {
+        Ok((mut child, job)) => {
             let status = child.wait();
             job.let_go();
             status
         }
-        // Where Windows refuses the job, nothing ran yet: cmd runs without one.
-        None => command.creation_flags(0).status(),
+        // Where Windows refuses the job twice, nothing ran yet: cmd runs without one, so it
+        // no longer ends with the pass-through, which the log, where there is one, says.
+        Err((first, again)) => {
+            if let Some(path) = log.as_deref() {
+                append_log(
+                    path,
+                    &format!("novadeck-cmd: cmd runs without a job: {first}; again, {again}"),
+                );
+            }
+            command.creation_flags(0).status()
+        }
     };
     let code = match status {
         Ok(status) => status.code().unwrap_or(1),
