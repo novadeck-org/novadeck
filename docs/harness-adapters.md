@@ -163,7 +163,8 @@ a package (`pnpm --filter @novadeck/harness-core build`) after changing its cont
 
 What every harness is, as data, is one row of `contract/protocol/src/harnesses.ts`:
 its id (also its program's name), its names, the script a Node CLI runs, the variables
-its sessions set on their children, the paths of its secrets, and whether its
+its sessions set on their children, the login it keeps under a plain name with what
+tells its home (`logins`), and whether its
 conversation records a `!` shell command (`recordsShell`; Antigravity's doesn't, see
 [harness-coverage.md](harness-coverage.md)). The protocol's
 `agentName` comes from it, and so do the lists and labels the UI and the runner show, so

@@ -23,7 +23,9 @@ export const harnesses = [
       "CLAUDE_PID",
       "CLAUDE_PROJECT_DIR",
     ],
-    secretPaths: [],
+    // Its login file, `.credentials.json`, holds secrets by that name wherever
+    // `CLAUDE_CONFIG_DIR` puts its home.
+    logins: [],
     // Whether its conversation records a `!` shell command and its output, so a chat can
     // show them.
     recordsShell: true,
@@ -34,9 +36,18 @@ export const harnesses = [
     shortName: "Codex",
     nodeScript: "/@openai/codex/bin/codex.js",
     inheritedEnv: ["CODEX_THREAD_ID"],
-    // Case-insensitive regex sources, matched against a resolved path: where the
-    // harness keeps a login under a name too plain to hold everywhere.
-    secretPaths: ["[\\\\/]\\.codex[\\\\/]auth\\.json$"],
+    // Where the harness keeps a login under a name too plain to hold everywhere: `file`
+    // in its home, which is a folder named `folder`, the one `variable` names, or any that
+    // holds one of `beside`, which it keeps there: a home moved for one terminal alone, or
+    // a copy of one, which no variable the runner reads names. Its names match in any case.
+    logins: [
+      {
+        file: "auth.json",
+        folder: ".codex",
+        variable: "CODEX_HOME",
+        beside: ["config.toml", "sessions", "history.jsonl", "version.json"],
+      },
+    ],
     recordsShell: true,
   },
   {
@@ -45,7 +56,9 @@ export const harnesses = [
     shortName: "Antigravity",
     nodeScript: undefined,
     inheritedEnv: ["ANTIGRAVITY_CONVERSATION_ID"],
-    secretPaths: [],
+    // It keeps its login in the system's keyring; Gemini's `oauth_creds.json`, beside its
+    // home, holds secrets by that name wherever the folder is.
+    logins: [],
     // It runs the command, but keeps no record of it: the output shows only in the terminal.
     recordsShell: false,
   },
@@ -55,7 +68,12 @@ export const harnesses = [
   readonly shortName: string
   readonly nodeScript: string | undefined
   readonly inheritedEnv: readonly string[]
-  readonly secretPaths: readonly string[]
+  readonly logins: readonly {
+    readonly file: string
+    readonly folder: string
+    readonly variable: string
+    readonly beside: readonly string[]
+  }[]
   readonly recordsShell: boolean
 }[]
 
