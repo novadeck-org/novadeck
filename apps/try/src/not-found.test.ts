@@ -36,9 +36,16 @@ describe("the visitor build's 404 page", () => {
     expect((await built("production")).has("404.html")).toBe(false)
   })
 
-  it("sends a person on to the demo, with no script, which the page's policy wouldn't run", () => {
+  it("sends a person on to the demo", () => {
     expect(notFoundPage).toContain('<meta http-equiv="refresh" content="0; url=/" />')
     expect(notFoundPage).toContain('<a href="/">')
+  })
+
+  it("runs nothing and stays out of search results on its own, as the host's rules skip it", () => {
+    expect(notFoundPage).toContain(
+      '<meta http-equiv="Content-Security-Policy" content="default-src \'none\'" />',
+    )
+    expect(notFoundPage).toContain('<meta name="robots" content="noindex" />')
     expect(notFoundPage).not.toMatch(/<script\b/)
   })
 })
