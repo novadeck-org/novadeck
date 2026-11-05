@@ -1,7 +1,7 @@
 import { collapse, drain, due, type Repeats } from "./collapse.js"
 import {
   atLeast,
-  clip,
+  keep,
   loggedError,
   logSchema,
   type Data,
@@ -63,8 +63,11 @@ export type LoggerOptions = {
   readonly sid: string
   /** Which start of the process within the launch, for one started again. */
   readonly run?: number
-  /** Where lines go: a rotating file (see `openLogFile`), opened at once. Without one, none are kept. */
-  readonly file?: Omit<LogFileOptions, "header">
+  /**
+   * Where lines go: a rotating file (see `openLogFile`), opened with the first line. Without
+   * one, none are kept.
+   */
+  readonly file?: Omit<LogFileOptions, "header" | "dropped">
   /** What every text a line keeps goes through. */
   readonly redact: Redactor
   /** The lowest level written; `info` by default. */
@@ -92,7 +95,7 @@ const cleanData = (data: Data, redact: Redactor): Data =>
   Object.fromEntries(
     Object.entries(data).map(([key, value]) => [
       key,
-      typeof value === "string" ? clip(redact(value)) : value,
+      typeof value === "string" ? keep(value, redact) : value,
     ]),
   )
 
@@ -124,7 +127,7 @@ export const createLogger = (options: LoggerOptions): Logger => {
     pid,
     src: from.src,
     evt,
-    ...(msg !== undefined && { msg: clip(redact(msg)) }),
+    ...(msg !== undefined && { msg: keep(msg, redact) }),
     ...(detail?.data && { data: cleanData(detail.data, redact) }),
     ...(detail?.err !== undefined && { err: loggedError(detail.err, redact) }),
     ...(detail?.verbose && { verbose: true as const }),
@@ -142,6 +145,16 @@ export const createLogger = (options: LoggerOptions): Logger => {
             "session.resume",
             "Continues the file before this one.",
             options.resume && { data: options.resume },
+          ),
+        ),
+      dropped: (count) =>
+        JSON.stringify(
+          entry(
+            "warn",
+            { src: "log", proc },
+            "log.dropped",
+            `${count} ${count === 1 ? "line" : "lines"} before this could not be written.`,
+            { data: { count } },
           ),
         ),
     })
