@@ -203,7 +203,7 @@ describe("the runner's process", () => {
   context("as the app closes it", () => {
     it("asks it to close, and settles once it exits by itself, as expected", async () => {
       const { runner, current, heard } = start()
-      const closed = vi.fn()
+      const closed = vi.fn<() => void>()
       void runner.close().then(closed)
       expect(current().commands().at(-1)).toBe("close")
       await vi.advanceTimersByTimeAsync(0)
@@ -245,7 +245,7 @@ describe("the runner's process", () => {
 
     it("kills it when it doesn't exit in time, and says so", async () => {
       const { runner, current, heard } = start()
-      const closed = vi.fn()
+      const closed = vi.fn<() => void>()
       void runner.close(5_000).then(closed)
       await vi.advanceTimersByTimeAsync(4_999)
       expect(current().kills).toBe(0)
@@ -270,7 +270,7 @@ describe("the runner's process", () => {
 
     it("settles without it when it doesn't exit even after the kill", async () => {
       const { runner, current, heard } = start()
-      const closed = vi.fn()
+      const closed = vi.fn<() => void>()
       void runner.close(5_000, 2_000).then(closed)
       await vi.advanceTimersByTimeAsync(5_000 + 1_999)
       expect(closed).not.toHaveBeenCalled()
