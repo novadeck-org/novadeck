@@ -12,7 +12,7 @@ import type { AgentStatus } from "@novadeck/core/types"
 
 import { context, describe, expect, it } from "../test"
 import { createUiStore, initialUi } from "./ui-store"
-import { watchUnreadTurns, type FinishNotify } from "./unread-turns"
+import { goneKept, remember, watchUnreadTurns, type FinishNotify } from "./unread-turns"
 
 const target = { projectId: "project", workspaceSessionId: "initial" }
 const base = Date.now()
@@ -460,6 +460,32 @@ describe("unread turns", () => {
       expect(app.cleared).toEqual([])
       app.turns.set([])
       expect(app.cleared).toEqual(["02"])
+      stop()
+    })
+  })
+
+  context("the ids it remembers", () => {
+    it("are those listed now and only the latest of those that left", () => {
+      let held = new Set<string>()
+      for (let batch = 0; batch < 100; batch += 1) {
+        const ids = Array.from({ length: 100 }, (_, index) => `t-${batch}-${index}`)
+        held = remember(held, ids)
+      }
+      expect(held.size).toBe(goneKept + 100)
+      expect(held.has("t-99-0")).toBe(true)
+      expect(held.has("t-89-99")).toBe(true)
+      expect(held.has("t-88-99")).toBe(false)
+    })
+
+    it("still tell nothing of a row that leaves the listing and comes back", () => {
+      const app = setup({ rows: [], pageFocused: false, notifyNeeds: false })
+      const stop = app.watch()
+      app.turns.set([row("f", 10, "failed")])
+      expect(app.notices).toHaveLength(1)
+      app.turns.set([])
+      app.focus(false)
+      app.turns.set([row("f", 10, "failed")])
+      expect(app.notices).toHaveLength(1)
       stop()
     })
   })

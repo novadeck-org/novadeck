@@ -476,7 +476,8 @@ App:
 
 - **Startup:** "Hold the splash" keeps it until you press Escape; "Slow attach" counts
   terminals attaching over about 3 s; "Welcome dialog" opens the first-run dialog for
-  connecting agents again (no reboot).
+  connecting agents again (no reboot); "App error" makes a view throw as it draws, for the
+  crash screen that stands in for the app, whose Reload boots the demo again.
 - **Boot failures:** each fails the first attempt as the runner would, so a transient one
   retries on its own and the others wait for Retry (an incompatible runner, or a workspace
   a newer Novadeck has used, only for Quit). Each hint carries the error code, so the search
