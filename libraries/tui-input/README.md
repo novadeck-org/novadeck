@@ -12,8 +12,8 @@ prompt and interrupting its turn.
   - `BoxProfile`, how one program draws its box: how to read it, whether a view covers it, whether
     a paste shows as a placeholder, how much room it has, which keys clear it. Knowledge of a
     particular program comes in as a profile; the library names none.
-  - `ruledBox` (a box between two horizontal rules) and `markedBox` (a box with no frame), the
-    readers a profile builds on, with `Markers`, `rule`, `agreeing` and `footerRows`.
+  - `ruledBox` (a box between two horizontal rules) and `markedBox` (a box with no frame, from its
+    marker through the lines of a draft below the cursor), the readers a profile builds on, with `Markers`, `rule`, `agreeing` and `footerRows`.
   - `isEmpty`, whether a box holds nothing, and `showsTail`, whether it shows the tail of a text
     taller than its viewport.
   - `sameText` and `compact`, which compare a box's text with the text sent, ignoring whitespace a
@@ -32,7 +32,8 @@ prompt and interrupting its turn.
     terminal's own replies are left out (a query's answer, a focus report, a mouse report that
     only moves or scrolls), but a click the program asked for counts as `content`; and a bracketed
     paste is one key, so its carriage returns never submit.
-  - `freshNonce` and `bracketedPaste`, the nonce a pasted line carries and the paste itself.
+  - `freshNonce` and `bracketedPaste`, the nonce a pasted line carries and the paste itself, which
+    throws for a control character (but a tab or line break) that could end it and press keys.
   - `InputQueue`, one writer per terminal at a time, in order, over a host that holds the person's
     input (`InputQueueHost`, `HoldBudget`, `InputHold`); an entry that fails wedges nothing, and
     the input it held is let go however it ends.
@@ -42,7 +43,8 @@ prompt and interrupting its turn.
     screen calm for `calmMs`, bracketed paste on, the program in the foreground, its input box on
     screen), `deliver` pastes a line with a
     fresh nonce into the box and presses Enter only once it shows alone, twice running, with the hold
-    still in force (`Delivered`), `submit` presses Enter alone for a line left behind, and `forget`
+    still in force (`Delivered`): the paste's check passes, and the profile reads the box holding the
+    line and nothing else, in its prompt mode, with no view over it, `submit` presses Enter alone for a line left behind, and `forget`
     drops what it saw. It decides nothing of when to ring: that stays with the caller. `profile` is an
     optional getter, `() => BoxProfile | undefined`, asked at each look as a terminal's agent can
     change; a getter answering undefined says no box shows, and without the option the gate can't
@@ -51,8 +53,8 @@ prompt and interrupting its turn.
   - `Prompts`, giving a program a prompt as a person would, in the terminal's turn in an
     `InputQueue`: the text as one bracketed paste with the person's keys held, and Enter only once
     the box shows exactly that text (or its placeholder) on two reads running. It pastes only into
-    an empty box, never over a draft or into the box's shell mode, and presses no Enter after a
-    check that failed. A text starting with `!` goes the way a person types a shell command: the `!`
+    a box that reads empty twice running, never over a draft, into the box's shell mode or into a
+    view over it (`overlay`), and presses no Enter after a check that failed. A text starting with `!` goes the way a person types a shell command: the `!`
     as a key, then, once the box switches, the command. The caller says what text may be given
     with `refuse` (why it can't be, or undefined), asked before the queue; `PromptRefusal`
     carries the reason (`PromptRefusalReason`) of every prompt not given, and whatever the host's
@@ -61,8 +63,9 @@ prompt and interrupting its turn.
   - `Interrupts`, stopping a turn as a person's Escape does and leaving the box as it was: it waits
     for the box to settle, writes a second Escape for a turn started from queued messages, clears
     what is not the restored prompt and gives the words back as `{ returned }`, or
-    `undefined` where there were none. A box left holding text it could not clear throws
-    `BoxNotCleared`. `InterruptHost` is what it needs of the terminal.
+    `undefined` where there were none. A box left holding text it could not clear, or that
+    changed as the clear was decided, throws `BoxNotCleared`. Given its entry in the terminal's
+    `InputQueue` (`interrupt(terminalId, entry)`), it holds the person's keys while it clears. `InterruptHost` is what it needs of the terminal.
 
 ## Layout
 
