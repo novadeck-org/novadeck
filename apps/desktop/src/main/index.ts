@@ -653,12 +653,20 @@ const launch = async (): Promise<void> => {
     // The runner stores real paths, so a folder opened through a symlink still matches.
     return picked === undefined ? null : realpath(picked).catch(() => picked)
   })
-  server = await startHttpServer({
+  const started = await startHttpServer({
     port: 0,
     origins: app.isPackaged ? ["null"] : [developmentOrigin],
   })
+  // A quit that came while the app started closed what had started by then: what starts
+  // after it closes too, and no window opens on a runner that is gone.
+  if (quitting.stopping) {
+    await started.close()
+    return
+  }
+  server = started
 
   if (!app.isPackaged) await waitForUi(developmentOrigin)
+  if (quitting.stopping) return
 
   createWindow(server.origin)
   void updates
