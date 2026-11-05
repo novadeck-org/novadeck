@@ -1,4 +1,4 @@
-import { afterEach, beforeEach, onTestFailed, vi } from "vitest"
+import { afterEach, beforeEach, onTestFailed, onTestFinished, vi } from "vitest"
 import { page, type Locator } from "vitest/browser"
 
 import { preferencesDialog, pressShortcut } from "../support/keyboard"
@@ -278,6 +278,7 @@ describe("dictation", () => {
 
     it("fits in a short chat window, so nothing of it overflows, in each state of the setup", async () => {
       await page.viewport(900, 800)
+      onTestFinished(() => page.viewport(1440, 900))
       localStorage.setItem("novadeck.preferences", JSON.stringify({ chatView: true }))
       await openWithoutVoice("/?demo=agents&voice=failing&channel=experimental")
       await terminalTab("Checkout implementation").click()

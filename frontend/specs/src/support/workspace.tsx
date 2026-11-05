@@ -163,13 +163,25 @@ export const recordChanges = <T,>(
  * it, such as an entrance that plays as a view opens on a slow machine, is still seen.
  */
 export const recordAppearance = (selector: string): (() => boolean) => {
-  let seen = document.querySelector(selector) !== null
+  const at = appearsAt(selector)
+  return () => at() !== undefined
+}
+
+/**
+ * When anything matching `selector` first came onto the page since this was called, on the
+ * `performance.now()` clock, or undefined while nothing has: a check that something waits a
+ * time before it shows then holds however slowly the page draws, where a check that it stays
+ * away for a while can outlast the wait on a loaded runner.
+ */
+export const appearsAt = (selector: string): (() => number | undefined) => {
+  let seen = document.querySelector(selector) !== null ? performance.now() : undefined
   const observer = new MutationObserver(() => {
-    if (seen || document.querySelector(selector) === null) return
-    seen = true
+    if (seen !== undefined || document.querySelector(selector) === null) return
+    seen = performance.now()
     observer.disconnect()
   })
-  if (!seen) observer.observe(document.body, { subtree: true, childList: true, attributes: true })
+  if (seen === undefined)
+    observer.observe(document.body, { subtree: true, childList: true, attributes: true })
   return () => seen
 }
 

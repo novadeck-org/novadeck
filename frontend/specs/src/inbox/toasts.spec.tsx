@@ -4,7 +4,13 @@ import { page, userEvent } from "vitest/browser"
 
 import { desktopWindow, forgetDesktopWindow } from "../support/backend"
 import { preferencesDialog } from "../support/keyboard"
-import { expectStaysAbsent, openWorkspace, sidebarPanel, skipWelcome } from "../support/workspace"
+import {
+  appearsAt,
+  expectStaysAbsent,
+  openWorkspace,
+  sidebarPanel,
+  skipWelcome,
+} from "../support/workspace"
 import { context, describe, expect, it } from "../test"
 
 // The Inbox's toasts: a new Inbox entry that needs the person rings as a toast while the app has
@@ -23,7 +29,8 @@ const asks = [
   demoInboxIds.stuck,
 ]
 
-// The grace a new entry waits before it rings is 2 s; a toast is waited for past it.
+// The grace a new entry waits before it rings; a toast is waited for past it.
+const graceMs = 2_000
 const rings = { timeout: 8_000 }
 
 const toasts = (): Element[] => [...document.querySelectorAll(".toast")]
@@ -51,11 +58,14 @@ describe("The Inbox's toasts", () => {
     it("rings a new entry that needs them after a grace, and sends no OS notice", async () => {
       await open()
 
+      const toastAt = appearsAt(".toast")
+      const arrived = performance.now()
       desktopWindow.arrive(demoInboxIds.webhook)
-      // Not at once: the person or the agent may settle it in the grace.
-      await expectStaysAbsent({ shown: () => toasts().length > 0, name: "a toast" }, { ms: 1_000 })
 
       await expect.poll(toastTexts, rings).toHaveLength(1)
+      // Not at once: the person or the agent may settle it in the grace. Timed from the arrival,
+      // so a slow runner only widens the gap (a few ms short of 2 s for the clock's grain).
+      expect(toastAt()! - arrived).toBeGreaterThanOrEqual(graceMs - 50)
       expect(toastTexts()[0]).toMatch(/asks you/)
       expect(toastTexts()[0]).toMatch(/api-service/)
       expect(desktopWindow.notices()).toEqual([])
