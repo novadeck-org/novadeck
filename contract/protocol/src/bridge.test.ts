@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest"
 
-import { rendererPoolOf, webglContextsOf } from "./bridge.js"
+import { desktopBadgeOf, parseUpdateOffer, rendererPoolOf, webglContextsOf } from "./bridge.js"
 
 describe("a WebGL context limit", () => {
   it.each([3, 16, 64, 1024])("is %s, a whole number in range", (value) => {
@@ -39,5 +39,58 @@ describe("a renderer pool report", () => {
     ["text", "waits"],
   ])("is dropped for %s", (_name, value) => {
     expect(rendererPoolOf(value)).toBeUndefined()
+  })
+})
+
+describe("an update offer from the app", () => {
+  it.each([
+    { kind: "downloading", version: "1.2.3", percent: 40 },
+    { kind: "available", version: "1.2.3-beta.4", allow: true },
+    { kind: "available", version: "1.2.3" },
+    { kind: "ready", version: "1.2.3" },
+    { kind: "retrying", version: "1.2.3" },
+  ])("is taken as $kind", (offer) => {
+    expect(parseUpdateOffer(offer)).toEqual(offer)
+  })
+
+  it("keeps only what the contract allows", () => {
+    expect(parseUpdateOffer({ kind: "ready", version: "1.2.3", percent: 9, extra: 1 })).toEqual({
+      kind: "ready",
+      version: "1.2.3",
+    })
+    expect(parseUpdateOffer({ kind: "available", version: "1.2.3", allow: "yes" })).toEqual({
+      kind: "available",
+      version: "1.2.3",
+    })
+  })
+
+  it.each([
+    ["a version that is no release's", { kind: "ready", version: "1.2" }],
+    ["a version that runs on", { kind: "ready", version: `1.2.3-${"a".repeat(65)}` }],
+    ["a percent past 100", { kind: "downloading", version: "1.2.3", percent: 101 }],
+    ["a fractional percent", { kind: "downloading", version: "1.2.3", percent: 4.5 }],
+    ["an unknown kind", { kind: "installed", version: "1.2.3" }],
+    ["nothing", null],
+  ])("is nothing with %s", (_name, value) => {
+    expect(parseUpdateOffer(value)).toBeUndefined()
+  })
+})
+
+describe("a badge from the page", () => {
+  it("is a count from 0 to 999, with no image or a small PNG", () => {
+    expect(desktopBadgeOf({ count: 0, image: null })).toEqual({ count: 0, image: null })
+    const image = "data:image/png;base64,iVBORw0KGgo="
+    expect(desktopBadgeOf({ count: 999, image })).toEqual({ count: 999, image })
+  })
+
+  it.each([
+    ["a negative count", { count: -1, image: null }],
+    ["a count past 999", { count: 1000, image: null }],
+    ["a fractional count", { count: 1.5, image: null }],
+    ["an image that isn't a PNG", { count: 1, image: "data:image/svg+xml;base64,PHN2Zz4=" }],
+    ["an image too large", { count: 1, image: `data:image/png;base64,${"A".repeat(16_384)}` }],
+    ["no image at all", { count: 1 }],
+  ])("is nothing with %s", (_name, value) => {
+    expect(desktopBadgeOf(value)).toBeUndefined()
   })
 })
