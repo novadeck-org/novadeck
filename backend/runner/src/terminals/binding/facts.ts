@@ -250,8 +250,8 @@ export class Bindings {
     if (!binding || binding.sessionId !== sessionId || record.transcript !== null) return
     record.transcript = transcript
     this.watch(record, transcript)
-    // The chat that waits on it asks again at the next detail.
-    this.host.detailed(record)
+    // No detail snapshot says so (it carries no transcript): a chat that waits on it asks
+    // again by its own backoff, and at the next snapshot.
   }
 
   private watch(record: Record, transcript: string): void {

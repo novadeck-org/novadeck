@@ -248,12 +248,36 @@ const read = (
   let detail: Stream<AgentDetail> | undefined
   // Settles a read again after a reset once it has been quiet.
   let settling: ReturnType<typeof setTimeout> | undefined
-  // Reads that failed in a row, and the wait before the next.
+  // Reads that failed in a row without getting further than the one before, when the last
+  // began, and the timer of the next, with when it is due.
   let failures = 0
+  let lastAttempt = Number.NEGATIVE_INFINITY
   let retrying: ReturnType<typeof setTimeout> | undefined
+  let due = Number.POSITIVE_INFINITY
 
   const markLoaded = (): void => {
     store.update((current) => (current.loaded ? current : { ...current, loaded: true }))
+  }
+
+  const stopRetrying = (): void => {
+    clearTimeout(retrying)
+    retrying = undefined
+    due = Number.POSITIVE_INFINITY
+  }
+
+  // Asks again at `at` (epoch milliseconds), unless a sooner ask is already due.
+  const retryAt = (session: string, root: string, at: number): void => {
+    if (retrying !== undefined && due <= at) return
+    clearTimeout(retrying)
+    due = at
+    retrying = setTimeout(
+      () => {
+        stopRetrying()
+        if (alive && transcript === undefined && following === `${session}/${root}`)
+          follow(session, root)
+      },
+      Math.max(0, at - Date.now()),
+    )
   }
 
   // A read that threw or was lost while the snapshot still names its session and root: the
@@ -262,18 +286,14 @@ const read = (
   const failed = (session: string, root: string): void => {
     failures += 1
     if (failures >= failuresToLoaded) markLoaded()
-    clearTimeout(retrying)
-    retrying = setTimeout(
-      () => {
-        retrying = undefined
-        if (alive && transcript === undefined && following === `${session}/${root}`)
-          follow(session, root)
-      },
-      Math.min(retryMs * 2 ** (failures - 1), retryMaxMs),
-    )
+    retryAt(session, root, lastAttempt + Math.min(retryMs * 2 ** (failures - 1), retryMaxMs))
   }
 
   const follow = (session: string, root: string): void => {
+    lastAttempt = Date.now()
+    stopRetrying()
+    // What shows now, which a read again must reach before it replaces it.
+    const shown = store.getSnapshot().items.length
     let stream: Stream<TranscriptChange>
     try {
       stream = streams.transcript(terminalId, root)
@@ -285,11 +305,12 @@ const read = (
     // A transcript with nothing in it sends no batch: once it has been quiet a while, what
     // shows is all there is yet.
     const quiet = setTimeout(() => {
-      if (alive && transcript === stream)
-        store.update((current) => (current.loaded ? current : { ...current, loaded: true }))
+      if (!alive || transcript !== stream) return
+      failures = 0
+      markLoaded()
     }, loadedMs)
-    // After a reset the read again builds here while the old items stay on show.
-    let pending: readonly ChatItem[] | null = null
+    // After a reset, or a read again over items on show, it builds here while they stay.
+    let pending: readonly ChatItem[] | null = shown > 0 ? [] : null
     const swap = (): void => {
       clearTimeout(settling)
       settling = undefined
@@ -302,7 +323,6 @@ const read = (
       try {
         for await (const change of stream) {
           if (!alive || transcript !== stream) return
-          failures = 0
           // Kept through a rewrite: the session is the same, and so is what it holds.
           if (change.type === "unread") {
             store.update((current) => (current.unread ? current : { ...current, unread: true }))
@@ -314,6 +334,8 @@ const read = (
             pending = []
             continue
           }
+          // Further than the read before got: the failures so far were of another kind.
+          if (change.items.some((each) => each.index >= shown)) failures = 0
           if (pending === null) {
             store.update((current) => ({
               ...current,
@@ -336,6 +358,9 @@ const read = (
       if (!alive || transcript !== stream) return
       clearTimeout(quiet)
       transcript = undefined
+      // A read lost before it got as far as what shows leaves that as it is.
+      if (lost && pending !== null && pending.length < store.getSnapshot().items.length)
+        pending = null
       swap()
       if (lost) failed(session, root)
       else markLoaded()
@@ -353,9 +378,9 @@ const read = (
       transcript = undefined
       clearTimeout(settling)
       settling = undefined
-      clearTimeout(retrying)
-      retrying = undefined
+      stopRetrying()
       failures = 0
+      lastAttempt = Number.NEGATIVE_INFINITY
     }
     const requests = requestsOf(snapshot, root)
     const prompts = promptsOf(snapshot, changed ? [] : store.getSnapshot().prompts)
@@ -378,13 +403,16 @@ const read = (
       }
     })
     if (session === null || root === null) return
-    // A read that ended or failed meanwhile is asked again at once: the snapshot may be what
-    // the runner now knows the transcript by.
-    if (changed || transcript === undefined) {
-      clearTimeout(retrying)
-      retrying = undefined
+    if (changed) {
       follow(session, root)
+      return
     }
+    // A read that ended or failed meanwhile is asked again, as the snapshot may be what the
+    // runner now knows the transcript by, but no oftener than the wait between reads.
+    if (transcript !== undefined) return
+    const at = lastAttempt + retryMs
+    if (Date.now() >= at) follow(session, root)
+    else retryAt(session, root, at)
   }
 
   try {
@@ -408,7 +436,7 @@ const read = (
     end(transcript)
     transcript = undefined
     clearTimeout(settling)
-    clearTimeout(retrying)
+    stopRetrying()
     store.update(() => noConversation)
   })()
 
@@ -419,7 +447,7 @@ const read = (
       end(transcript)
       transcript = undefined
       clearTimeout(settling)
-      clearTimeout(retrying)
+      stopRetrying()
     },
   }
 }

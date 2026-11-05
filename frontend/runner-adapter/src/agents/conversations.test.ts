@@ -538,12 +538,90 @@ describe("the runner's conversations", () => {
       transcripts[root]!.fail(new WireError("CONNECTION_LOST"))
       await settle()
       expect(store.getSnapshot().items).toHaveLength(2)
+      await vi.advanceTimersByTimeAsync(retryMs)
       details.push(detail({ activity: null, requests: [] }))
       await settle()
       expect(streams.transcript).toHaveBeenCalledTimes(2)
       transcripts[root]!.push(batch(item(0, "new")))
       await settle()
+      // It replaces what showed once it is as long, or quiet for a while.
+      expect(store.getSnapshot().items).toHaveLength(2)
+      await vi.advanceTimersByTimeAsync(settleMs)
       expect(store.getSnapshot().items.map(({ text }) => text)).toEqual(["new"])
+    })
+
+    it("are asked for no oftener than once a wait, however many snapshots come", async () => {
+      const { details, transcripts, streams, store } = setup()
+      store.subscribe(() => {})
+      details.push(detail())
+      await settle()
+      transcripts[root]!.fail(new WireError("NOT_FOUND"))
+      await settle()
+      for (let at = 0; at < 20; at += 1) {
+        details.push(detail({ prompts: [] }))
+        // eslint-disable-next-line no-await-in-loop -- Snapshots arrive over a second.
+        await vi.advanceTimersByTimeAsync(50)
+      }
+      // The snapshots pulled the wait in to its first end, and no further.
+      expect(streams.transcript).toHaveBeenCalledTimes(2)
+    })
+
+    it("stay loading for the time a few reads take, however many snapshots come", async () => {
+      const { details, transcripts, streams, store } = setup()
+      store.subscribe(() => {})
+      details.push(detail())
+      await settle()
+      const started = Date.now()
+      while (streams.transcript.mock.calls.length <= failuresToLoaded + 2) {
+        transcripts[root]!.fail(new WireError("NOT_FOUND"))
+        // eslint-disable-next-line no-await-in-loop -- Fails every read as it opens.
+        await settle()
+        if (store.getSnapshot().loaded) break
+        details.push(detail({ prompts: [] }))
+        // eslint-disable-next-line no-await-in-loop -- Snapshots keep coming meanwhile.
+        await vi.advanceTimersByTimeAsync(100)
+      }
+      expect(store.getSnapshot().loaded).toBe(true)
+      expect(Date.now() - started).toBeGreaterThanOrEqual(2 * retryMs)
+    })
+
+    it("keeps what shows through a read again until it is as long", async () => {
+      const { details, transcripts, store } = setup()
+      store.subscribe(() => {})
+      details.push(detail())
+      await settle()
+      transcripts[root]!.push(batch(...Array.from({ length: 300 }, (_, at) => item(at))))
+      await settle()
+      transcripts[root]!.fail(new WireError("CONNECTION_LOST"))
+      await settle()
+      await vi.advanceTimersByTimeAsync(retryMs)
+      transcripts[root]!.push(batch(...Array.from({ length: 256 }, (_, at) => item(at))))
+      await settle()
+      expect(store.getSnapshot().items).toHaveLength(300)
+      transcripts[root]!.push(batch(...Array.from({ length: 50 }, (_, at) => item(256 + at))))
+      await settle()
+      expect(store.getSnapshot().items).toHaveLength(306)
+    })
+
+    it("go on backing off for a read that fails after the same items every time", async () => {
+      const { details, transcripts, streams, store } = setup()
+      store.subscribe(() => {})
+      details.push(detail())
+      await settle()
+      const first = () => {
+        transcripts[root]!.push(batch(item(0), item(1)))
+        transcripts[root]!.fail(new WireError("CONNECTION_LOST"))
+      }
+      first()
+      await settle()
+      await vi.advanceTimersByTimeAsync(retryMs)
+      first()
+      await settle()
+      // Nothing beyond what showed: this failure counts, and the next wait doubles.
+      await vi.advanceTimersByTimeAsync(retryMs)
+      expect(streams.transcript).toHaveBeenCalledTimes(2)
+      await vi.advanceTimersByTimeAsync(retryMs)
+      expect(streams.transcript).toHaveBeenCalledTimes(3)
     })
 
     it("stop being asked for once the session changes or the reading stops", async () => {
