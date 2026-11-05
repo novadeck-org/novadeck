@@ -15,6 +15,7 @@ import {
 import { useId, useState } from "react"
 
 import { inputText } from "./input-text"
+import { shownControls } from "./shown-controls"
 
 const icons: Readonly<Record<ToolKind, LucideIcon>> = {
   run: SquareTerminal,
@@ -48,7 +49,7 @@ const Detail = ({
     <h4>{label}</h4>
     {/* Focusable, so a long output can be scrolled by keyboard. */}
     <pre tabIndex={0} className="nodrag nopan nowheel">
-      {text || "(empty)"}
+      {shownControls(text) || "(empty)"}
     </pre>
     {truncated && <p className="chat-tool-note">Shortened here; the rest isn't carried over.</p>}
   </section>
@@ -78,8 +79,10 @@ const ToolRow = ({
       >
         <ChevronRight size={12} className="chat-tool-chevron" aria-hidden />
         <Icon size={14} strokeWidth={1.75} className="chat-tool-icon" aria-hidden />
-        <span className="chat-tool-title">{summary.title}</span>
-        {summary.detail && <span className="chat-tool-detail">{summary.detail}</span>}
+        <span className="chat-tool-title">{shownControls(summary.title)}</span>
+        {summary.detail && (
+          <span className="chat-tool-detail">{shownControls(summary.detail)}</span>
+        )}
         {running && <span className="sr-only">(running)</span>}
       </button>
       {open && (
@@ -139,7 +142,10 @@ export const ToolCalls = ({
         <ChevronRight size={12} className="chat-tool-chevron" aria-hidden />
         <span className="chat-tool-title">{entries.length} tool calls</span>
         <span className="chat-tool-detail">
-          {[...new Set(entries.map((entry) => callRun(entry)?.title ?? ""))].slice(0, 4).join(", ")}
+          {[...new Set(entries.flatMap((entry) => callRun(entry)?.title ?? []))]
+            .slice(0, 4)
+            .map(shownControls)
+            .join(", ")}
         </span>
       </button>
       {open && rows}

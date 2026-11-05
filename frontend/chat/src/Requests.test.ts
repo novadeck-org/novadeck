@@ -164,6 +164,21 @@ describe("a request's card", () => {
     expect(button(container, "Answer in terminal")).toBeDefined()
   })
 
+  it("shows each control that would reorder what it asks, as the terminal shows it in order", () => {
+    // A right-to-left override hides `rm -rf ~` behind what reads as harmless.
+    const hidden = "echo hi \u202E~ fr- mr\u202C; ls"
+    const { container, rerender } = show(
+      { ...choices, title: "Run \u2067this\u2069?", detail: hidden },
+      async () => {},
+    )
+    expect(container.querySelector(".chat-dialog-title")?.textContent).toBe(
+      "Run ⟨U+2067⟩this⟨U+2069⟩?",
+    )
+    expect(container.querySelector("pre")?.textContent).toBe("echo hi ⟨U+202E⟩~ fr- mr⟨U+202C⟩; ls")
+    rerender({ type: "raw", text: hidden, reason: "failed" })
+    expect(container.querySelector("pre")?.textContent).toBe("echo hi ⟨U+202E⟩~ fr- mr⟨U+202C⟩; ls")
+  })
+
   it("shows an answered request without its controls", () => {
     const { container } = show(choices, async () => {}, true)
     expect(container.querySelector(".chat-options")).toBeNull()

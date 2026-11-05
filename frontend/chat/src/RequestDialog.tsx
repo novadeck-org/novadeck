@@ -36,6 +36,7 @@ import {
   type Entries,
 } from "./forms"
 import { Hint } from "./Hint"
+import { shownControls } from "./shown-controls"
 import { submitOnEnter } from "./submit-on-enter"
 
 // What a request's dialog offers, as controls the person answers with. Each takes `send`,
@@ -100,12 +101,12 @@ const Choices = ({
     <div className="chat-dialog">
       {dialog.title && (
         <p className="chat-dialog-title" id={label}>
-          {dialog.title}
+          {shownControls(dialog.title)}
         </p>
       )}
       {dialog.detail && (
         <pre className="chat-detail nodrag nopan nowheel" tabIndex={0} aria-label="What it asks">
-          {dialog.detail}
+          {shownControls(dialog.detail)}
         </pre>
       )}
       <div
@@ -456,7 +457,7 @@ const Raw = ({
   <div className="chat-dialog">
     <p className="chat-raw-reason">{reasons[dialog.reason]}</p>
     <pre className="chat-raw nodrag nopan nowheel" tabIndex={0} aria-label="The dialog's text">
-      {dialog.text}
+      {shownControls(dialog.text)}
     </pre>
   </div>
 )
