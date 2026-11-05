@@ -166,14 +166,13 @@ describe("An agent Novadeck can't hear from", () => {
   })
 })
 
-// Hides the page, as the person turning to another window does, or shows it again. A spec
-// that hides it has it shown again as it ends.
+// Hides the page, as the person turning to another window does, or shows it again. The
+// page's own visibility comes back as the spec ends.
 const pageVisibility = (state: "hidden" | "visible"): void => {
-  if (state === "hidden")
-    onTestFinished(() => {
-      Reflect.deleteProperty(document, "visibilityState")
-      document.dispatchEvent(new Event("visibilitychange"))
-    })
+  onTestFinished(() => {
+    Reflect.deleteProperty(document, "visibilityState")
+    document.dispatchEvent(new Event("visibilitychange"))
+  })
   Object.defineProperty(document, "visibilityState", { value: state, configurable: true })
   document.dispatchEvent(new Event("visibilitychange"))
 }
@@ -181,10 +180,11 @@ const pageVisibility = (state: "hidden" | "visible"): void => {
 // The demo's Claude Code in Build is idle at its prompt; a prompt there works a moment,
 // then finishes with a reply, the command it left running still running. A `view` is
 // chosen before the prompt, so the turn's moment goes to looking away from it. The turn
-// works 5 s, which the demo's usual 1.5 s didn't leave room for. A spec whose turn must
-// end unseen has the person turn `away` from the page as they send it: a turn's end in
-// view reads its reply, and no length of turn outlasts a busy machine's click elsewhere
-// (5 s didn't, on a macOS runner).
+// works 5 s, so a busy machine sees it running, and mostly clicks elsewhere before it ends,
+// which the demo's usual 1.5 s didn't leave room for. A spec whose turn must end unseen
+// has the person turn `away` from the page as they send it: a reply listed while its
+// terminal is viewed is read, and no length of turn is sure to outlast a busy machine's
+// click elsewhere (5 s wasn't, on a macOS runner).
 const promptBuild = async (view?: "Grid", text = "Ship the docs", away = false): Promise<void> => {
   await openWorkspace("/?demo=agents&turnMs=5000")
   if (view) await chooseView(view)
