@@ -762,3 +762,50 @@ describe("the pieces redaction masks", () => {
     expect(maskedSpans("nothing here")).toEqual([])
   })
 })
+
+describe("marking keeps the text's length", () => {
+  // A fixed sequence of numbers, so a failure comes back the same.
+  const numbers = (seed: number) => () => {
+    seed = (seed * 48_271) % 2_147_483_647
+    return seed / 2_147_483_647
+  }
+  const pick = <T>(next: () => number, items: readonly T[]): T =>
+    items[Math.floor(next() * items.length)] as T
+  const names = [
+    "password",
+    "API_KEY",
+    "token",
+    "user",
+    "pass",
+    "hasło",
+    '"secret"',
+    "--token",
+    "set -x TOKEN",
+  ]
+  const joints = ["=", ": ", ":", " = ", "+", "/", "&", "?", " ; "]
+  const values = [
+    "hunter2",
+    "Ab1".repeat(342),
+    "x".repeat(1100),
+    "ghp_abcdefghijklmnop1234",
+    "-----BEGIN PRIVATE KEY-----",
+    "https://ada:pa/ss@host/db",
+    '"quoted value"',
+    "😀".repeat(520),
+    "",
+  ]
+
+  it("for fields chained around values at and past the cap", () => {
+    const next = numbers(7)
+    for (let round = 0; round < 300; round += 1) {
+      const parts = Array.from(
+        { length: 2 + Math.floor(next() * 6) },
+        () => pick(next, names) + pick(next, joints) + pick(next, values),
+      )
+      const text = parts.join(pick(next, ["", " ", "\n", ",", "/", "+", ":"]))
+
+      expect(mark(text).length, text.slice(0, 80)).toBe(text.length)
+      expect(maskedSpans(text).every((span) => text.includes(span))).toBe(true)
+    }
+  })
+})
