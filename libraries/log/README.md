@@ -43,8 +43,10 @@ One JSON object per line, in one envelope (`Entry`):
 - `verbose: true` marks a line only verbose logging writes, which may hold what a screen showed.
 
 `msg`, `err.message` and data text are cut to 500 characters, a stack to 4,000, after
-redaction, so a secret is never cut short before it is looked for. A
-`SyntaxError` keeps nothing from its first quote on, as JSON.parse quotes its input.
+redaction, so a secret is never cut short before it is looked for. Redaction reads no more
+than 8,000 characters of a text (16,000 of a stack), cut where a word starts, so a long line
+can't hold the process. A `SyntaxError` keeps nothing from its first quote on, as JSON.parse
+quotes its input, and what JSON.parse quotes is withheld wherever its message is written.
 
 ## Parts
 
@@ -55,9 +57,15 @@ redaction, so a secret is never cut short before it is looked for. A
   warnings and errors on the console, as `consoleEcho` shows a line.
 - Its file (`file.ts`) appends synchronously, so a crash right after loses nothing, and rotates
   `name.log` → `name.1.log` → … by size, keeping `keep` files; `logPath` names them. Each
-  rotated-in file starts with a `session.resume` line, so it reads on its own.
+  rotated-in file starts with a `session.resume` line, so it reads on its own. The file
+  written moves first, and the older ones only once it has: where another program holds it
+  open, every file stays as it was, and it grows to twice its size at most. Lines it can't
+  write are counted, and a `log.dropped` line says how many before the next it can.
+  A fatal line comes after the repeats still held, which a crash would otherwise lose.
 - `createRedactor`: held secrets, named secret variables, URL credentials, credential headers
-  and `key=value` secrets; then addresses; then email addresses; then paths; then keys
+  and `key=value` secrets; then addresses; then email addresses, in any script and to a host
+  alone (`ana@intranet`), though not a package's version or tag (`react@19.3.1`,
+  `vite@latest`); then paths; then keys
   and tokens by their shapes, as [`@novadeck/secrets`](../secrets/README.md) finds them, as
   `<secret>`, after the hashing, so a secret never stops it and one inside a hashed path or
   address goes with it; then the account name as a word of its own. Those shapes take
@@ -69,7 +77,8 @@ redaction, so a secret is never cut short before it is looked for. A
 - Addresses (`urlHasher`): addresses and Git remotes over SSH. Those the app names readable
   (`readableUrls`: a host, `*.` a host and its subdomains, or a host and path) stay whole; public
   forges (`github.com`, `gitlab.com`, `bitbucket.org`) and the loopback keep their host; any
-  other host is hashed but for its top-level domain. Paths are hashed as a path's names are,
+  other host is hashed but for its top-level domain. The loopback keeps its path too, but for
+  a file a dev server serves by its path on disk (`/@fs/…`). Paths are hashed as a path's names are,
   and a query and fragment are dropped.
 - Paths (`pathHasher`): paths in free text (Windows' `\\?\` long paths too), with names hashed
   by a salted HMAC (`#1f2e3d4c.ts`, keeping the extension); the app's folders as placeholders
