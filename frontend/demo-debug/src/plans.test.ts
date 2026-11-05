@@ -75,6 +75,11 @@ describe("the debug panel's Plan group", () => {
       run("Plan back to normal", undefined, companions)
       await navigator.clipboard.writeText("edits")
       expect(copied).toEqual(["edits"])
+      // A new boot, here one with no Plan group, gives the clipboard back too.
+      run("Copying plan edits fails", undefined, companions)
+      expect(planGroups(undefined)).toEqual([])
+      await navigator.clipboard.writeText("again")
+      expect(copied).toEqual(["edits", "again"])
     } finally {
       Reflect.deleteProperty(navigator, "clipboard")
     }

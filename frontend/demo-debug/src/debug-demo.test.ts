@@ -1,11 +1,13 @@
 import type { TerminalKey } from "@novadeck/core/port"
 import { workspaceFromSeed } from "@novadeck/core/seed"
 import { createWorkspaceStore } from "@novadeck/core/store"
+import { terminalOf } from "@novadeck/demo/workspace"
 import { noTheme } from "@novadeck/terminal-views/theme"
 import { vi } from "vitest"
 
 import { createBootRehearsals } from "./boot-rehearsal"
 import { createDebugDemo, type DemoLaunch, type DemoShell } from "./debug-demo"
+import { runProgram } from "./terminals"
 import { describe, expect, it } from "./test"
 import type { DemoActionContext } from "./types"
 
@@ -112,7 +114,14 @@ describe("the debug layer's demo", () => {
             .state.roster.terminals.map((terminal) => terminal.state),
         )
     expect(new Set(states())).toEqual(new Set(["failed"]))
+    // One the person restarted by hand runs on, untouched by Restart terminals.
+    const revived = firsts[0]!
+    workspace.transact(runProgram(revived, "sleep"))
     backend.crashLoop!.retry()
     expect(states()).not.toContain("failed")
+    expect(terminalOf(workspace.getSnapshot(), revived)).toMatchObject({
+      state: "running",
+      process: "sleep",
+    })
   })
 })

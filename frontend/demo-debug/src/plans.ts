@@ -3,8 +3,8 @@ import { isShowcase, type PlanFault } from "@novadeck/demo/showcase/simulation"
 
 import type { DemoAction, DemoActionGroup } from "./types"
 
-// Undoes the clipboard that refuses every copy, while one stands in for the browser's. It
-// outlasts the demo's boots, as the page's clipboard does.
+// Undoes the clipboard that refuses every copy, while one stands in for the browser's. A new
+// boot of the demo undoes it too, as a variant without the Plan group has no way back.
 let restoreClipboard: (() => void) | undefined
 
 // Has the browser refuse to copy, as where it denies the page the clipboard: a write rejects.
@@ -66,14 +66,15 @@ const faults: readonly {
 
 const copyFails: DemoAction = {
   label: "Copying plan edits fails",
-  hint: "With a plan fault above: Copy my edits says Couldn't copy, and closing the plan with Copy my edits and close keeps it open, saying the edits couldn't be copied",
+  hint: "Every copy in the page fails until Plan back to normal or a reboot; with a plan fault above, Copy my edits says Couldn't copy, and closing the plan with Copy my edits and close keeps it open, saying the edits couldn't be copied",
   run: refuseClipboard,
 }
 
 // The panel's group for what can go wrong with a plan the person edits, on the selected
 // terminal's agent. Only a showcase with agents has plans.
-export const planGroups = (companions: Backend["companions"]): readonly DemoActionGroup[] =>
-  companions && isShowcase(companions) && companions.plans
+export const planGroups = (companions: Backend["companions"]): readonly DemoActionGroup[] => {
+  restoreClipboard?.()
+  return companions && isShowcase(companions) && companions.plans
     ? [
         {
           section: "Agents",
@@ -95,3 +96,4 @@ export const planGroups = (companions: Backend["companions"]): readonly DemoActi
         },
       ]
     : []
+}

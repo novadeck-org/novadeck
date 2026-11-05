@@ -20,7 +20,7 @@ import { isDemoSource } from "@novadeck/demo/source"
 import { createDemo, type DemoVariant } from "@novadeck/demo/variants"
 import { babciaCuesOf } from "@novadeck/demo/videos/babcia"
 import { launchCuesOf } from "@novadeck/demo/videos/launch"
-import { sessionOf } from "@novadeck/demo/workspace"
+import { sessionOf, terminalOf } from "@novadeck/demo/workspace"
 
 import { approvalGroups, createDemoApprovals } from "./approvals"
 import { babciaGroups } from "./babcia"
@@ -182,9 +182,10 @@ export const createDebugDemo = (launch: DemoLaunch): Backend => {
     terminals: () => terminalCount(latest),
   }
 
+  // Restarts what a trip failed and still is, not one already restarted by hand.
   const retry = (): void => {
     crashes.update(() => 0)
-    failed.forEach(restart)
+    failed.filter((key) => terminalOf(latest, key)?.state === "failed").forEach(restart)
     failed = []
   }
 

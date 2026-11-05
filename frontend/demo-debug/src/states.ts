@@ -1,4 +1,4 @@
-import type { Inbox } from "@novadeck/core/inbox"
+import type { Inbox, InboxRow } from "@novadeck/core/inbox"
 import type { BackendAction, TerminalKey } from "@novadeck/core/port"
 import { createStore } from "@novadeck/core/store"
 import { isAgentProgram } from "@novadeck/core/terminals/process"
@@ -11,7 +11,7 @@ import { terminalOf } from "@novadeck/demo/workspace"
 
 import { createDemoAgents } from "./agents"
 import { createChatFailures } from "./chat"
-import { createDemoUpdates } from "./desktop/updates"
+import { createDemoUpdates, pageUpdateChannel } from "./desktop/updates"
 import { createDemoFolders } from "./folders"
 import { createDemoNotices } from "./notices"
 import {
@@ -275,7 +275,19 @@ const gallery: readonly {
   },
 ]
 
-const everyState = (verbs: DemoAgentVerbs, inbox: () => Inbox | undefined): DemoAction => ({
+// The ids of the MCP asks the panel opened, which Clear withdraws; the variant's own stay.
+type PanelAsks = Set<string>
+
+// Whether a row is a done report one of the demo's agents wrote, as `inbox.done` names it,
+// not an Update row of the variant's own.
+const agentDone = (row: InboxRow): boolean =>
+  row.kind === "update" && row.update.type === "done" && row.id.startsWith("entry:demo-done-")
+
+const everyState = (
+  verbs: DemoAgentVerbs,
+  inbox: () => Inbox | undefined,
+  panelAsks: PanelAsks,
+): DemoAction => ({
   label: "Every state at once",
   hint: `${gallery.length} terminals, one per state`,
   run: ({ addTerminal, dispatch, workspace }) => {
@@ -294,7 +306,9 @@ const everyState = (verbs: DemoAgentVerbs, inbox: () => Inbox | undefined): Demo
     if (!isDemoInbox(own)) return
     gallery.forEach(({ asks }, index) => {
       const row = asks && mcpAsk(workspace(), keys[index]!, asks, Date.now())
-      if (row) own.add(row)
+      if (!row) return
+      own.add(row)
+      panelAsks.add(row.id)
     })
   },
 })
@@ -303,6 +317,7 @@ const everyState = (verbs: DemoAgentVerbs, inbox: () => Inbox | undefined): Demo
 const createWaitingActions = (
   verbs: DemoAgentVerbs,
   inbox: () => Inbox | undefined,
+  panelAsks: PanelAsks,
 ): readonly [DemoAction, DemoAction] => {
   // Every kind of wait and finish across the workspace's projects and sessions, in terminals
   // the person doesn't view. Takes up to `crowd` terminals, adding some to the session on
@@ -337,9 +352,10 @@ const createWaitingActions = (
   }
 
   // Answers every request and reads every finish: the Inbox reads the finishes it stored and
-  // its Updates, done reports among them, its open MCP asks are withdrawn and cleared, and
-  // each agent works for a moment, then rests, which also calls off a finish still to come.
-  // A terminal back at its shell's prompt holds nothing more: its marks are its stored rows'.
+  // the done reports its agents wrote, the MCP asks the panel opened are withdrawn and
+  // cleared, and each agent works for a moment, then rests, which also calls off a finish
+  // still to come. A terminal back at its shell's prompt holds nothing more: its marks are its
+  // stored rows'. The variant's own rows stay, for the Inbox group's actions.
   const clearWaiting: DemoAction = {
     label: "Clear waiting agents",
     hint: "Answers and reads everything; the Inbox empties of what agents wait on",
@@ -357,13 +373,16 @@ const createWaitingActions = (
         ),
       )
       if (isDemoInbox(own)) {
-        own.readAll()
-        const asks = own.state
-          .getSnapshot()
-          .items.filter((row) => row.kind === "ask" && !row.settled)
+        const { items, answering } = own.state.getSnapshot()
+        for (const row of items.filter(agentDone))
+          own.answer(row.id, { kind: "update", action: "read" })
+        // An ask being answered goes as answered.
+        const asks = items
+          .filter((row) => panelAsks.has(row.id) && !row.settled && !answering[row.id])
           .map((row) => row.id)
         for (const id of asks) own.resolve(id, "withdrawn")
         own.clear?.(asks)
+        for (const id of asks) panelAsks.delete(id)
       }
       const agents = noisyAgents(workspace())
       for (const key of agents) verbs.work(key, terminalOf(workspace(), key))
@@ -386,11 +405,12 @@ export const createDemoStates = (
 ): DemoStates => {
   const { agents, openWelcome, failNext: failAgents, limitAntigravity } = createDemoAgents()
   const { notices, Notices } = createDemoNotices()
-  const updateControls = createDemoUpdates()
+  const updateControls = createDemoUpdates(undefined, pageUpdateChannel)
   const { updates, offer, whatsNew } = updateControls
   const { pickDirectory, failNext: failPick } = createDemoFolders()
   const chat = createChatFailures()
-  const waitingActions = createWaitingActions(verbs, inbox)
+  const panelAsks: PanelAsks = new Set()
+  const waitingActions = createWaitingActions(verbs, inbox, panelAsks)
   const screens = createStore<ReadonlyMap<string, DemoScreenState>>(new Map())
   // The terminals whose next pasted file fails to save.
   const pasteFails = new Set<string>()
@@ -481,7 +501,7 @@ export const createDemoStates = (
       section: "Terminals",
       title: "New terminals",
       actions: [
-        everyState(verbs, inbox),
+        everyState(verbs, inbox, panelAsks),
         failingTerminal(
           "Quick failure",
           "Fails right after starting",

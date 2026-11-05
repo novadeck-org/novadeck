@@ -312,7 +312,7 @@ Agents:
   Messages pane has the rest at rest: the person's entries (an answered ask, an unread tell,
   an open ask with Answer), a thread folded to one line, messages waiting, delivering and
   not delivered, and the critters of agents working (hopping), at rest and gone (dim).
-- **Waiting agents:** "Fill the Inbox" has up to 12 terminals across
+- **Waiting agents:** "Fill the Inbox" has 12 terminals across
   the projects ask for you (questions, permissions, plans), and after 3 s finish with a done
   report or failed, so the Inbox lists every kind: its header counts the 10 that wait, and the
   2 done reports are Updates. It
@@ -320,8 +320,9 @@ Agents:
   them or leaving the Inbox, and leaves the selected terminal alone, since
   a report is read once you have looked at its terminal for a moment. "Clear waiting agents" rests every agent,
   which answers every request and calls off the finishes still to come, reads every finish and
-  every Update (done reports among them), and withdraws and clears the open MCP asks, such as
-  those of "Every state at once", for an Inbox with nothing waiting. The notices for finishes need the Preferences switch
+  the done reports its agents wrote, and withdraws and clears the MCP asks the panel opened
+  (those of "Every state at once"), so nothing the agents or the panel made waits. The rows
+  of the variant's own, as the `inbox` variant's, stay for the Inbox group's actions. The notices for finishes need the Preferences switch
   "Notify when an agent finishes" on.
 - **Chat: next send or Stop fails:** arm the next send from a chat to fail as the runner turns it away: a
   draft in the agent's box, its shell mode, too tall a message, no box on screen, or no
@@ -336,8 +337,9 @@ Agents:
   edits kept; "Plan folder can't be written" and "Plan too large to save" show their
   message once you type, with Copy my edits and Try saving again; "Plan saves keep
   failing" shows "Not saved yet. Trying again." and, after five failures in a row
-  (about 30 s), Retry; "Copying plan edits fails" has the browser refuse the clipboard, so
-  with one of those faults Copy my edits says Couldn't copy, and closing the plan with Copy my
+  (about 30 s), Retry; "Copying plan edits fails" has the browser refuse the clipboard,
+  every copy in the page until "Plan back to normal" or the demo boots again, so with one of
+  those faults Copy my edits says Couldn't copy, and closing the plan with Copy my
   edits and close keeps it open, saying its edits couldn't be copied; "Plan back to normal" lets
   saves and copies work again. Specs open the showcase
   with `&planFault=` `transcript`, `gone`, `folder`, `too-large` or `failing`.

@@ -11,13 +11,14 @@ import { releaseVersions, updateScenarios } from "./scenarios"
 // offered ready; any later offer, or a failed download, calls a running one off.
 // `openPage` does nothing, since a browser has no release page to open. `allow`, on an
 // offer that has it, stands for the administrator's step succeeding: the update downloads.
-// The channel is remembered until the page reloads, across the demo's boots: in `memory`. `showWhatsNew` has the app answer, when
+// The channel is kept in `memory`: the page's (`pageUpdateChannel`) lasts across the demo's
+// boots until the page reloads. `showWhatsNew` has the app answer, when
 // asked, that the app updated to `version`, from `from` when given, whose release names the
 // highlights below, until they are dismissed; `whatsNewCalls` counts what the page asked of
 // the app since.
 export const createDemoUpdates = (
   restart: () => void = () => window.location.reload(),
-  memory: { channel: UpdateChannel } = page,
+  memory: { channel: UpdateChannel } = { channel: "stable" },
 ): {
   readonly updates: DemoStates["updates"]
   readonly offer: (offer: UpdateOffer) => void
@@ -147,7 +148,7 @@ export const downloadStep = 10
 export const failAfterMs = 1500
 
 // The page's update channel, which every boot's updates share until it reloads.
-const page: { channel: UpdateChannel } = { channel: "stable" }
+export const pageUpdateChannel: { channel: UpdateChannel } = { channel: "stable" }
 
 // What the Updates group plays an installed copy's updates with.
 export type DemoUpdates = ReturnType<typeof createDemoUpdates>

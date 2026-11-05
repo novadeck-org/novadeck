@@ -678,7 +678,7 @@ describe("demo states", () => {
 })
 
 // The panel over the demo's real agents: `demoTurns` and the backend it owns the agents of.
-const openOver = (variant: "plain" | "agents") => {
+const openOver = (variant: "plain" | "agents" | "inbox") => {
   const turns = demoTurns()
   const backend = createDemo(variant, undefined, turns)
   // The agents variant's plan shows dispatch from inside a commit, once a plan request reaches
@@ -740,8 +740,9 @@ const openOver = (variant: "plain" | "agents") => {
   return { backend, workspace, viewed, run, rows }
 }
 
-// The rows that wait on the person, as the Inbox header counts them: what asks and hasn't
-// settled, never an update nor a failed turn that only informs.
+// The rows that wait on the person, as the Inbox header counts them (`asks` in
+// frontend/ui/src/inbox/inbox-state.ts, which this package can't import): what asks and
+// hasn't settled, never an update nor a failed turn that only informs.
 const waitingRows = (rows: readonly InboxRow[]): readonly InboxRow[] =>
   rows.filter(
     (row) =>
@@ -760,6 +761,29 @@ const updateRows = (rows: readonly InboxRow[]): readonly InboxRow[] =>
 describe("demo states over the real agents", () => {
   beforeEach(() => vi.useFakeTimers())
   afterEach(() => vi.useRealTimers())
+
+  it("clears what the panel and the agents made, leaving the variant's own rows (inbox)", () => {
+    const { run, rows } = openOver("inbox")
+    const own = rows().filter(
+      (row) =>
+        row.kind === "ask" ||
+        (row.kind === "update" && !row.id.startsWith("entry:demo-done-") && !row.settled),
+    )
+    expect(own.length).toBeGreaterThan(0)
+    run("Every state at once")
+    vi.advanceTimersByTime(3_500)
+    run("Clear waiting agents")
+    vi.advanceTimersByTime(10_000)
+    for (const each of own) {
+      const kept = rows().find((row) => row.id === each.id)
+      expect(kept?.kind, each.id).toBe(each.kind)
+      expect(kept?.settled, each.id).toEqual(each.settled)
+    }
+    expect(rows().filter((row) => row.id.startsWith("entry:demo-done-"))).toEqual([])
+    expect(
+      rows().filter((row) => row.kind === "ask" && !own.some((each) => each.id === row.id)),
+    ).toEqual([])
+  })
 
   for (const variant of ["plain", "agents"] as const) {
     it(`keeps a finish due later from undoing an exit (${variant})`, () => {

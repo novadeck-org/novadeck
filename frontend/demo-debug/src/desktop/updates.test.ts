@@ -3,7 +3,13 @@ import { afterEach, vi } from "vitest"
 
 import { describe, expect, it } from "../test"
 import { portableScenarios, updateScenarios } from "./scenarios"
-import { createDemoUpdates, downloadMs, failAfterMs, downloadStep } from "./updates"
+import {
+  createDemoUpdates,
+  downloadMs,
+  failAfterMs,
+  downloadStep,
+  pageUpdateChannel,
+} from "./updates"
 
 const ready = (version: string): UpdateOffer => ({
   kind: "ready",
@@ -146,13 +152,15 @@ describe("demo updates", () => {
     expect(await updates.channel?.get()).toBe("experimental")
   })
 
-  it("keeps the channel for the next boot's updates, until the page reloads", async () => {
-    const first = createDemoUpdates()
+  it("keeps the page's channel for the next boot's updates, until the page reloads", async () => {
+    const first = createDemoUpdates(undefined, pageUpdateChannel)
     first.updates.channel?.set("experimental")
     try {
-      const next = createDemoUpdates()
+      const next = createDemoUpdates(undefined, pageUpdateChannel)
       expect(await next.updates.channel?.get()).toBe("experimental")
       expect(next.channel()).toBe("experimental")
+      // Without the page's memory, as a spec's backend, each starts stable.
+      expect(createDemoUpdates().channel()).toBe("stable")
     } finally {
       first.updates.channel?.set("stable")
     }
