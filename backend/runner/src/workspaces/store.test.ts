@@ -1504,6 +1504,22 @@ const numbered = (id: string, handle: string) => ({
   work: null,
 })
 
+describe("a store's transactions", () => {
+  it("throw the failure that ended them, even when SQLite already rolled back", ({ store }) => {
+    const workspace = store()
+    // As SQLite does itself after a full disk or an I/O error.
+    const full = new Error("database or disk is full")
+    expect(() =>
+      workspace["transaction"](() => {
+        workspace["database"].exec("ROLLBACK")
+        throw full
+      }),
+    ).toThrow(full)
+    // The store goes on: the next transaction begins and commits.
+    expect(workspace["transaction"](() => "done")).toBe("done")
+  })
+})
+
 describe("saved terminals", () => {
   it("keep where the person interrupted turns, by step, and drop what isn't shaped as one", ({
     directory,
