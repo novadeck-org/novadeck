@@ -2,6 +2,7 @@ import { randomUUID } from "node:crypto"
 import { existsSync, mkdirSync, readdirSync, readFileSync, writeFileSync } from "node:fs"
 import { dirname, join } from "node:path"
 
+import type { Terminals } from "../terminals/index.js"
 import { describe, expect } from "../test.js"
 import {
   bash,
@@ -11,7 +12,22 @@ import {
   reporter,
   fakeAgent,
   fakeClaude,
+  show,
+  showStandIn,
+  type Fixture,
 } from "./integration.test-support.js"
+
+// What the peers of a fresh terminal in the session are told of the others: an agent
+// expected in one, not started yet, is listed so.
+const expecting = async (shell: Fixture, manager: Terminals): Promise<string> => {
+  showStandIn(shell.home)
+  writeFileSync(join(shell.home, ".bashrc"), 'export PATH="$HOME/bin:$PATH"\n')
+  const caller = await create(manager, shell)
+  const [listed] = (await show(shell, manager, caller.id, [
+    { request: {}, type: "agents" as "open" },
+  ])) as { text?: string }[]
+  return listed?.text ?? ""
+}
 
 describe.skipIf(process.platform === "win32" || !existsSync(bash))(
   "bash shell integration: startup and resume",
@@ -188,11 +204,21 @@ describe.skipIf(process.platform === "win32" || !existsSync(bash))(
       await new Promise((resolve) => setTimeout(resolve, 500))
       expect(await screen(manager, id)).not.toContain("args:")
       expect(readdirSync(join(dirname(shell.plugins), "resume"))).toEqual([])
+      // No agent is expected there any more: its peers list none that has not started.
+      expect(await expecting(shell, manager)).not.toContain("not started yet")
       // The session it would have resumed is free for another terminal.
       const other = randomUUID()
       shell.saveSession(other, "claude", "abc-1")
       await create(manager, shell, { id: other, restore: true, resume: "claude" })
       await shell.until(manager, other, "claude args: --resume abc-1")
+    })
+
+    it("expects no agent in a terminal restored without a session to resume", async ({ shell }) => {
+      fakeAgent(shell.home, "claude")
+      const id = randomUUID()
+      const manager = shell.manager()
+      await create(manager, shell, { id, restore: true, resume: "claude" })
+      expect(await expecting(shell, manager)).not.toContain("not started yet")
     })
 
     it("keeps the resume through the mouse's scroll while the screen reports the mouse", async ({

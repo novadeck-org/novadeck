@@ -68,7 +68,7 @@ import { TerminalPeers } from "./peers-host.js"
 import type { Record } from "./record.js"
 import { createTranscriptRedactor, type TranscriptRedactor } from "./redaction.js"
 import { showRestored } from "./restored.js"
-import { cancelResume, Claims, restartedTask, resumeNote } from "./resumes.js"
+import { cancelResume, Claims, endExpecting, restartedTask, resumeNote } from "./resumes.js"
 import { Sampler, shellProcess } from "./sampling.js"
 import { hasRun, keptState, type TerminalRecords } from "./saved-terminals.js"
 import { Saves } from "./saving.js"
@@ -830,7 +830,8 @@ export class Terminals {
       // Restored as a shell that resumes nothing, there is no agent left to lead.
       const unled = record.summary.ledBy !== null && !started.resumes
       if (unled) record.summary = { ...record.summary, ledBy: null }
-      this.register(record, expectedAgent(input.command ?? task?.command, input.resume))
+      const resumed = started.resumes ? input.resume : undefined
+      this.register(record, expectedAgent(input.command ?? task?.command, resumed))
       if (unled) this.messaging.endLead(record.summary.id)
       // The resumed agent shows its own history; a shell that resumes none, the transcript.
       const note = resumeNote(judged, input.resume, started.resumes)
@@ -989,6 +990,7 @@ export class Terminals {
     const claim = record.resumeClaim
     if (cancelResume(record)) {
       record.startupRuns = false
+      endExpecting(record, this.messaging, this.murmur)
       // The person took the terminal over before its agent ever ran: nothing to lead.
       this.bindings.endLead(record)
       this.claims.cancel(claim, record.summary.id)
@@ -1118,7 +1120,7 @@ export class Terminals {
                 if (!started.resumes) this.bindings.endLead(record)
                 // The earlier shell's job and what murmur kept of it are not the new one's.
                 this.murmur?.gone(record.summary.id)
-                this.register(record, input.resume ?? null)
+                this.register(record, started.resumes ? (input.resume ?? null) : null)
               })
             } catch (error) {
               throw startFailed(started, error)
@@ -1646,7 +1648,8 @@ export class Terminals {
     record.readyEntered = false
     // Whether the startup command (an agent opened or resumed there) ran, so this prompt
     // is the first after it ended.
-    const ran = record.startupRuns && !cancelResume(record)
+    const cancelled = record.startupRuns && cancelResume(record)
+    const ran = record.startupRuns && !cancelled
     record.startupRuns = false
     record.changed = true
     const moved = cwd !== record.summary.cwd
@@ -1663,7 +1666,7 @@ export class Terminals {
       record.suspended = binding.instance
     } else this.bindings.endLeadGone(record)
     // Nothing came of the agent the shell was opened to run: it is a plain shell now.
-    if (binding === null && ran) record.expecting = null
+    if (binding === null && (ran || cancelled)) endExpecting(record, this.messaging, this.murmur)
     // An agent whose prompt showed, with no session bound, left with it: first, so the
     // binding's end never shows its prompt ready again.
     this.messaging.unshown(record.summary.id)
