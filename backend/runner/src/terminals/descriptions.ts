@@ -47,11 +47,12 @@ export type MurmurTimes = {
    */
   readonly expectMs: number
   /**
-   * How long a program in the foreground of a shell opened to run an agent is taken for
-   * that agent, which may bind slowly, in milliseconds from when murmur began watching the
-   * terminal. Past it the shell is described as any, and an agent that binds later renames
-   * the terminal from its summary. Some agents bind only at their first prompt, and one
-   * whose hooks never report never binds.
+   * How long a program in the foreground of a shell opened to run an agent, other than
+   * that agent's own, is waited out in case it leads to the agent, in milliseconds from
+   * when murmur began watching the terminal. Past it the shell is described as any, and an
+   * agent that binds later renames the terminal from its summary. The agent's own program
+   * is waited for without a limit: some agents bind only at their first prompt, and one
+   * whose hooks never report never binds, and a description of their screen is wrong.
    */
   readonly expectForegroundMs: number
   /**
@@ -394,6 +395,8 @@ type Watch = {
   expectedTitledFor: AgentName | null
   /** An agent was bound in this terminal since murmur began watching it: no agent is expected. */
   agentBound: boolean
+  /** A shell's description waits for the agent its terminal expects (see `expectedFor`). */
+  waiting: boolean
   /** The timer that asks again for a summary's title that did not run. */
   retryTimer: NodeJS.Timeout | undefined
   /** The program in a plain shell's foreground, as a key, and since when; null at the prompt. */
@@ -456,6 +459,24 @@ const namesAgent = (title: string, agent: AgentName | null): boolean => {
   return [...terms].some((term) =>
     new RegExp(`(?<![\\p{L}\\p{N}])${term.toLowerCase()}(?![\\p{L}\\p{N}])`, "u").test(lower),
   )
+}
+
+// Whether the program is the one the expected agent runs as: its name, or for a node
+// program the script it runs, from the harness table. A node program with no command line
+// (macOS hides it) may be it.
+const runsAgent = (program: ForegroundProcess | null, agent: AgentName | null): boolean => {
+  const harness = harnesses.find(({ id }) => id === agent)
+  if (!program || !harness) return false
+  const name = basename(program.name)
+    .replace(/^-/, "")
+    .replace(/\.exe$/i, "")
+    .toLowerCase()
+  if (name === harness.id) return true
+  if (name !== "node" && name !== "nodejs") return false
+  const script = program.argv?.[1]?.replaceAll("\\", "/")
+  if (script === undefined) return program.argv === null
+  const entry = harness.nodeScript
+  return basename(script) === harness.id || (entry !== undefined && script.endsWith(entry))
 }
 
 const programKey = (program: ForegroundProcess | null): string | null =>
@@ -664,11 +685,15 @@ export class Murmur {
    */
   prompted(terminalId: string, entered = true): void {
     // A prompt no command was entered at (the first one, a redraw) has nothing new on screen.
-    if (!this.usable || !entered) return
+    if (!this.usable) return
     const subject = this.host.subject(terminalId)
     if (!subject || subject.agent) return
     this.expects(subject)
-    this.watch(terminalId).shellOwed = true
+    // Nothing is expected any more, and the description waited for it: asked for afresh.
+    const watch = this.watch(terminalId)
+    const released = watch.waiting && !subject.expecting
+    if (!entered && !released) return
+    watch.shellOwed = true
     this.ask(terminalId, this.times.shellSettleMs, { unchanged: true })
   }
 
@@ -681,6 +706,7 @@ export class Murmur {
         shellTitled: false,
         expectedTitledFor: null,
         agentBound: false,
+        waiting: false,
         retryTimer: undefined,
         program: { key: null, since: Date.now() },
         agentRan: false,
@@ -828,17 +854,19 @@ export class Murmur {
     if (mine) mine.owed = false
     const subject = this.host.subject(terminalId)
     const wait = subject && !subject.agent ? this.expectedFor(subject) : 0
+    if (mine) mine.waiting = wait > 0
     let key: string | null = null
     this.descriptions.request(
       terminalId,
-      Math.max(delayMs, wait),
+      Math.max(delayMs, Math.min(wait, this.times.expectForegroundMs)),
       async () => {
         key = null
         // Nothing is built, read or serialized while murmur isn't usable.
         if (!this.usable) return undefined
         const current = this.host.subject(terminalId)
         if (!current || kept(current)) return undefined
-        if (current.agent || this.expectedFor(current) > 0) return undefined
+        // A timer may fire a moment early.
+        if (current.agent || this.expectedFor(current) > 50) return undefined
         if (options.program !== undefined && programKey(current.program) !== options.program)
           return undefined
         const built = await this.shellDigestOf(current, options.unchanged === true)
@@ -865,11 +893,14 @@ export class Murmur {
   }
 
   // How much longer a shell opened to run an agent waits for it to bind, in milliseconds:
-  // `expectMs` at its prompt, where the command may yet start, and `expectForegroundMs`
-  // once a program holds the foreground, which is taken for the agent starting slowly.
+  // `expectMs` at its prompt, where the command may yet start; `expectForegroundMs` while
+  // another program holds the foreground; unlimited while the agent's own program does.
   private expectedFor(subject: MurmurSubject): number {
     if (!this.expects(subject)) return 0
     const since = this.watch(subject.summary.id).since
+    // The agent's own program in the foreground is waited for as long as it runs.
+    if (!subject.atPrompt && runsAgent(subject.program, subject.expecting))
+      return Number.POSITIVE_INFINITY
     const limit = subject.atPrompt ? this.times.expectMs : this.times.expectForegroundMs
     return Math.max(0, limit - (Date.now() - since))
   }

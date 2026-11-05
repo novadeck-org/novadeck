@@ -1543,14 +1543,52 @@ describe("when murmur becomes usable", () => {
       expect(made.describer.digests.some(({ kind }) => kind === "agent")).toBe(false)
     })
 
-    it("describes a long program as a shell once the wait for a slow agent is over", async () => {
+    it("describes another program as a shell once the wait for a slow agent is over", async () => {
+      // A resume that fell through to another command holds the foreground.
       const made = create({ agent: null, expecting: agent, atPrompt: false })
       made.describer.setUsable(true)
-      made.change({ program: { name: agent, argv: [agent] }, atPrompt: false })
+      made.change({ program: { name: "make", argv: ["make", "dev"] }, atPrompt: false })
       made.murmur.sampled("a")
       await settle(made.times.expectForegroundMs - 1_000)
       expect(made.describer.jobs).toHaveLength(0)
       await settle(made.times.shellRunMs + 2_000)
+      expect(made.describer.digests.at(-1)).toMatchObject({ kind: "shell" })
+    })
+
+    it.each([
+      ["its own process", (name: string) => ({ name, argv: [name] })],
+      ["node running its script", (name: string) => ({ name: "node", argv: ["node", name] })],
+      ["node with its command line hidden", () => ({ name: "node", argv: null })],
+    ])(
+      "keeps its title while %s holds the foreground unbound, however long",
+      async (_, program) => {
+        const made = create({
+          agent: null,
+          expecting: agent,
+          atPrompt: false,
+          naming: { ...unnamed, murmur: { title: "Payload media images" } },
+        })
+        made.describer.setUsable(true)
+        made.change({ program: program(agent), atPrompt: false })
+        made.murmur.sampled("a")
+        await settle(made.times.expectForegroundMs * 10)
+        expect(made.describer.digests).toEqual([])
+        expect(made.written).toEqual([])
+      },
+    )
+
+    it("asks again at once when the expectation ends while a description waited for it", async () => {
+      const made = create({ agent: null, expecting: agent, atPrompt: false })
+      made.describer.setUsable(true)
+      made.change({ program: { name: "make", argv: ["make", "dev"] }, atPrompt: false })
+      made.murmur.sampled("a")
+      await settle(made.times.shellRunMs + 1_000)
+      expect(made.describer.jobs).toHaveLength(0)
+      // The startup ended with no agent: the manager clears `expecting` at the prompt.
+      made.change({ expecting: null, program: { name: "bash", argv: null } })
+      made.rows.current = ["$ make dev", "done", "$ "]
+      made.murmur.prompted("a", false)
+      await settle(made.times.shellSettleMs + 50)
       expect(made.describer.digests.at(-1)).toMatchObject({ kind: "shell" })
     })
 
