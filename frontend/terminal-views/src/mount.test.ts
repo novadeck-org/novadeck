@@ -25,7 +25,6 @@ const recorded = () => {
       place: () => void calls.push("place"),
       update: (change) => void asked.push(change),
       focus: () => true,
-      restart: () => void calls.push("restart held"),
       release: ({ unmount = false } = {}) => void calls.push(unmount ? "unmount" : "release"),
     }
   }
@@ -123,11 +122,11 @@ describe("a terminal's mount", () => {
   })
 
   context("when Restart is clicked", () => {
-    it("restarts through the screen it holds", () => {
+    it("restarts its terminal through the screens while it holds a screen", () => {
       const { calls, screens } = recorded()
       const mount = createTerminalMount(screens)(document.createElement("div"), key, props("grid"))
       mount.restart()
-      expect(calls).toEqual(["acquire t", "place", "restart held"])
+      expect(calls).toEqual(["acquire t", "place", "restart t"])
     })
 
     it("restarts its terminal while it waits for its turn to take a screen", () => {

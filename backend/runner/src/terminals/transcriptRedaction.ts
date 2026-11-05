@@ -7,7 +7,7 @@
 //
 // The work is the secrets library's, and is not bounded: a caller that needs a bound runs this
 // in a worker (see redaction.ts).
-import { createScreen, transcript, type Screen } from "@novadeck/emulator/headless"
+import { createScreen, transcript, written, type Screen } from "@novadeck/emulator/headless"
 import { maskScreen } from "@novadeck/secrets"
 
 export type TranscriptInput = {
@@ -28,9 +28,6 @@ type Cell = ReturnType<Screen["buffer"]["active"]["getNullCell"]>
 
 // A double-width character is masked with this, which is one character of two columns.
 const wideStar = "\uFF0A"
-
-const written = (screen: Screen, data: string): Promise<void> =>
-  new Promise((resolve) => screen.write(data, resolve))
 
 // One line's cells that hold a character, with where each starts in the line's text. A
 // double-width character is one cell here (its second half has no width of its own); a cell

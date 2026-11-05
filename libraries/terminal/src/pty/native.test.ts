@@ -39,6 +39,10 @@ const spawn = (args = [ptyChild], options: { useConptyDll?: boolean } = {}) => {
     ...options,
   })
   const events = new EventEmitter()
+  // The test's own steps, on the clock the children's trace keeps.
+  const steps: string[] = []
+  const step = (entry: string) => steps.push(`${new Date().toISOString()} ${entry}`)
+  step(`spawned ${child.pid}`)
   let output = ""
   let exited = false
   const data = child.onData((chunk) => {
@@ -51,8 +55,10 @@ const spawn = (args = [ptyChild], options: { useConptyDll?: boolean } = {}) => {
   })
   // Whether the input was lost, the child never ended, or node-pty never told of its end.
   const stalled = () =>
-    `; its last output ${JSON.stringify(output.slice(-160))}; the children's trace:\n${ptyTrace()}`
+    `; its last output ${JSON.stringify(output.slice(-160))}; the test's steps:\n${steps.join("\n")}\n` +
+    `the children's trace:\n${ptyTrace(16)}\nnow ${new Date().toISOString()}`
   const ended = child.onExit((event) => {
+    step(`told of the exit ${event.exitCode}`)
     exited = true
     resolveExit(event)
     events.emit("exit")
@@ -68,7 +74,7 @@ const spawn = (args = [ptyChild], options: { useConptyDll?: boolean } = {}) => {
     }
   })
   const until = async (marker: string) => {
-    if (output.includes(marker)) return
+    if (output.includes(marker)) return void step(`saw ${marker}`)
     if (exited) throw new Error(`PTY ${child.pid} exited before output ${marker}`)
     const found = new Promise<void>((resolve, reject) => {
       const check = () => {
@@ -81,6 +87,7 @@ const spawn = (args = [ptyChild], options: { useConptyDll?: boolean } = {}) => {
     })
     try {
       await bounded(found, `PTY ${child.pid} output ${marker}`, stalled)
+      step(`saw ${marker}`)
     } finally {
       events.removeAllListeners("data")
       events.removeAllListeners("exit")
@@ -88,6 +95,11 @@ const spawn = (args = [ptyChild], options: { useConptyDll?: boolean } = {}) => {
   }
   return {
     child,
+    // Writes `data` to the child, as one of the test's steps.
+    write: (input: string, what: string) => {
+      step(`wrote ${what}`)
+      child.write(input)
+    },
     until,
     exit: () => bounded(exit, `PTY ${child.pid} exit`, stalled),
     output: () => output,
@@ -125,12 +137,12 @@ describe("installed native PTY dependency", () => {
       await terminal.until("PTY_READY")
       for (let write = 0; write < 3; write++) {
         const marker = `NATIVE_SESSION_${session}_WRITE_${write}`
-        terminal.child.write(command({ type: "write", data: marker }))
+        terminal.write(command({ type: "write", data: marker }), `write ${marker}`)
         // eslint-disable-next-line no-await-in-loop -- The reply proves the previous write reached a live child.
         await terminal.until(marker)
       }
       const final = `NATIVE_SESSION_${session}_FINAL`
-      terminal.child.write(command({ type: "exit", code: 7, data: final }))
+      terminal.write(command({ type: "exit", code: 7, data: final }), "exit 7")
       // eslint-disable-next-line no-await-in-loop -- Verify complete shutdown before the next native startup.
       expect((await terminal.exit()).exitCode).toBe(7)
       expect(terminal.output()).toContain(final)

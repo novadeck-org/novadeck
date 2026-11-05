@@ -1583,10 +1583,7 @@ export const runnerBackend = (
       return terminal
     },
     commit,
-    mountTerminal: createTerminalMount({
-      acquire: screens.acquire,
-      restart: screenOptions.restart,
-    }),
+    mountTerminal: createTerminalMount(screens),
     setFont: screens.setFont,
     telemetry,
     voice: voice.voice,

@@ -13,7 +13,10 @@ const spec: RunSpec = { file: "shell", args: [], cwd: "/", env: {}, cols: 20, ro
 const noTrees: ProcessTrees = { read: async () => [], end: async () => {} }
 
 /** A host over stand-in programs, one for each terminal it opens, in turn. */
-const hostOf = (limits: Partial<TerminalHostOptions["limits"]> = {}) => {
+const hostOf = (
+  limits: Partial<TerminalHostOptions["limits"]> = {},
+  failed?: TerminalHostOptions["failed"],
+) => {
   const programs: Program[] = []
   const native: NativeSpawn = (...args) => {
     const program = nativeStandIn()
@@ -36,6 +39,7 @@ const hostOf = (limits: Partial<TerminalHostOptions["limits"]> = {}) => {
     kill: { graceMs: 1000, treeGraceMs: 3000, shutdownTreesMs: 3000, shutdownTreeGraceMs: 1000 },
     trees: noTrees,
     pty: { native, platform: "linux" },
+    ...(failed && { failed }),
   })
   // The stand-ins end only when told to.
   onTestFinished(async () => {
@@ -158,6 +162,19 @@ describe("a terminal host's close", () => {
 })
 
 describe("a terminal host's terminals", () => {
+  it("tells of a terminal's listener that threw, with the terminal's id", async () => {
+    const failed: unknown[] = []
+    const { host, programs, open } = hostOf({}, (error, event, id) =>
+      failed.push([(error as Error).message, event, id]),
+    )
+    open("a").on("title", () => {
+      throw new Error("no title")
+    })
+    programs[0]!.draw("\u001b]0;Hello\u0007")
+    await host.terminal("a")!.readScreen()
+    expect(failed).toEqual([["no title", "title", "a"]])
+  })
+
   it("ends one close at a time, its second call the first's", async () => {
     const { host, programs, open } = hostOf()
     open("a")

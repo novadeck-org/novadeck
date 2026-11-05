@@ -511,7 +511,7 @@ describe("a hold on a terminal's screen", () => {
         restart: (key) => void restarts.push(key),
       }),
     )
-    return { ...shown(screens, "01", { phase: "ended" }), restarts, connection }
+    return { ...shown(screens, "01", { phase: "ended" }), restarts, connection, screens }
   }
 
   context("once its shell ended", () => {
@@ -521,12 +521,50 @@ describe("a hold on a terminal's screen", () => {
       expect(inputOf(element).getAttribute("aria-disabled")).toBe("false")
     })
 
-    it("starts a fresh shell from restart()", () => {
-      const { hold, element, restarts } = ended()
-      hold.restart()
+    it("starts a fresh shell from the screens' restart", () => {
+      const { hold, element, restarts, screens } = ended()
+      screens.restart("01")
       expect(restarts).toEqual(["01"])
       expect(hold.state.getSnapshot().waits).toBe(false)
       expect(inputOf(element).getAttribute("aria-disabled")).toBe("false")
+    })
+
+    it("starts a fresh shell through a screen no mount holds, which takes no keys until it arrives", async () => {
+      const restarts: string[] = []
+      const screens = screensOf(
+        optionsOf({
+          // The owner's rule: a shell that exits with a failure waits for Enter.
+          waitsAfter: () => true,
+          // The host ends the attachment after the exit; the fresh shell's never arrives here.
+          attach: (() => {
+            let attached = 0
+            return async () => {
+              attached += 1
+              if (attached > 1) return new Promise<never>(() => {})
+              const exit = { code: 1, signal: null, ranMs: 5_000 }
+              return streamOf([snapshot("$ exit 1", exit)], { ends: true }).attached
+            }
+          })(),
+          restart: (key) => void restarts.push(key),
+        }),
+      )
+      // The stream told of the exit before the terminal's status did.
+      const { hold, element } = shown(screens, "01")
+      await vi.waitFor(() => expect(hold.state.getSnapshot().waits).toBe(true), { timeout: 5_000 })
+      // Out of sight, as a Canvas window waiting for its turn to take a screen again.
+      hold.release()
+      screens.restart("01")
+      expect(restarts).toEqual(["01"])
+      const back = screens.acquire("01", { ...running, phase: "starting" })
+      back.place(element)
+      expect(back.state.getSnapshot().lock).toBe("starting")
+      expect(inputOf(element).getAttribute("aria-disabled")).toBe("true")
+    })
+
+    it("starts a fresh shell through the owner for a terminal with no open screen", () => {
+      const { restarts, screens } = ended()
+      screens.restart("02")
+      expect(restarts).toEqual(["02"])
     })
 
     it("starts a fresh shell at Enter, and sends nothing else", () => {

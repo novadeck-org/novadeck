@@ -4,16 +4,22 @@
 import { spawn } from "node:child_process"
 import { appendFileSync } from "node:fs"
 
-// Records what reached the child and what it finished writing, so a test that times
-// out can tell lost input from lost output.
+// Records what reached the child and what it finished writing, and when, so a test that times
+// out can tell lost input from lost output, and a slow exit from one never reached.
 const trace = (entry) => {
   if (!process.env.PTY_CHILD_TRACE) return
   try {
-    appendFileSync(process.env.PTY_CHILD_TRACE, `${process.pid} ${entry}\n`)
+    appendFileSync(
+      process.env.PTY_CHILD_TRACE,
+      `${new Date().toISOString()} ${process.pid} ${entry}\n`,
+    )
   } catch {
     // Tracing must never change the child's behaviour.
   }
 }
+trace("started")
+// Node has run the exit's handlers: what is left of it is the process's own teardown.
+process.on("exit", (code) => trace(`exited ${code}`))
 process.stdin.setRawMode(true)
 process.stdin.setEncoding("utf8")
 const reportInfo = () => {
