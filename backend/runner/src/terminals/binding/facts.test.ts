@@ -388,6 +388,20 @@ describe("the lead of an agent found gone", () => {
     expect(worker.goneSession).toBeUndefined()
   })
 
+  it("ends the lead when another session binds after the session that ended was forgotten", () => {
+    on("win32")
+    const { ends, worker, ended } = led()
+    ends.endLeadGone(worker)
+    // A cancelled shutdown's persist forgot it, so the new binding didn't end the lead.
+    worker.goneSession = undefined
+    worker.bound = {
+      binding: { agent: "claude", sessionId: "s-other", instance: null },
+    } as Record["bound"]
+    vi.advanceTimersByTime(pollMs * graceSamples)
+    expect(worker.summary.ledBy).toBeNull()
+    expect(ended).toHaveBeenCalledWith("t1")
+  })
+
   it("forgets the session that ended once its shell restarts or exits", () => {
     on("win32")
     for (const end of ["restarted", "exited"] as const) {

@@ -114,14 +114,17 @@ export class Bindings {
     if (process.platform !== "win32") return this.endLead(record)
     const shell = record.terminal.pty
     const lead = record.summary.ledBy
-    const gone = record.bound
-    record.goneSession = record.bound?.binding.sessionId ?? record.left?.sessionId ?? null
+    const ended = record.bound
+    const gone = ended?.binding.sessionId ?? record.left?.sessionId ?? null
+    record.goneSession = gone
     whenEndCounts(record, this.host.pollMs, () => {
       record.goneSession = undefined
       if (this.host.stopping() || record.closed || record.terminal.pty !== shell) return
       if (record.terminal.exit !== null || record.terminal.exiting) return
-      // An agent bound again, as the session resumed, keeps it; another session ended it.
-      if (record.bound !== null && record.bound !== gone) return
+      // The session that ended, bound again (resumed), keeps it; another session never
+      // does, even one `goneSession` no longer marked when it bound.
+      const again = record.bound !== null && record.bound !== ended ? record.bound : null
+      if (gone !== null && again?.binding.sessionId === gone) return
       // A lead the person approved meanwhile is a new one, not the one that ended.
       if (record.summary.ledBy !== lead) return
       this.endLead(record, false)
