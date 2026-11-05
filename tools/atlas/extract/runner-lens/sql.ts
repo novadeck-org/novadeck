@@ -32,10 +32,11 @@ export const sqlIn = (code: string): { sql: string; at: number }[] => {
     if (ch === "/" && code[i + 1] === "/")
       i = code.indexOf("\n", i) === -1 ? code.length : code.indexOf("\n", i)
     else if (ch === "/" && code[i + 1] === "*") {
-      // A comment that never closes (an edit in progress, or a regex such as `/\/*$/`)
-      // runs to the end.
+      // A `/*` that never closes is a regex such as `/\/*$/` (or an edit in progress):
+      // skip its line, not the SQL after it.
       const close = code.indexOf("*/", i + 2)
-      i = close === -1 ? code.length : close + 1
+      const line = code.indexOf("\n", i)
+      i = close !== -1 ? close + 1 : line === -1 ? code.length : line
     } else if (ch === "`") {
       const { text, end } = template(i)
       if (/^\s*(SELECT|INSERT|UPDATE|DELETE|WITH|REPLACE)\b/i.test(text))
