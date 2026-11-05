@@ -183,4 +183,26 @@ describe("Folding a lead's teammates out of the list", () => {
     await expect.poll(() => foldOf(worker)).toBe("unfolding")
     await expect.poll(() => foldOf(worker), { timeout: 3000 }).toBe("shown")
   })
+
+  it("keeps a folded lead's team right after it through drags, on screen and on unfold", async () => {
+    await openMessagesDemo()
+    await terminalTab("Dev server").click()
+    let menu = await windowMenu(lead)
+    await menu.getByRole("menuitem", { name: "Fold 1 teammate", exact: true }).click()
+    await expect.poll(() => laidOut(worker)).toBe(false)
+    // The order on screen, every tab, folded away or not.
+    const onScreen = () =>
+      [...document.querySelectorAll<HTMLElement>("[data-terminal-tab-id]")].map(
+        (tab) => tab.querySelector("strong")?.textContent,
+      )
+    const afterLead = () => onScreen().indexOf(worker) - onScreen().indexOf(lead)
+    await userEvent.dragAndDrop(terminalTab(lead), terminalTab("Runtime"))
+    await expect.poll(afterLead).toBe(1)
+    await userEvent.dragAndDrop(terminalTab(lead), terminalTab("Dev server"))
+    await expect.poll(afterLead).toBe(1)
+    menu = await windowMenu(lead)
+    await menu.getByRole("menuitem", { name: "Show 1 teammate", exact: true }).click()
+    await expect.poll(() => laidOut(worker)).toBe(true)
+    expect(afterLead()).toBe(1)
+  })
 })

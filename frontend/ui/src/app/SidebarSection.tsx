@@ -125,13 +125,16 @@ export const SidebarSection = memo((): React.JSX.Element => {
       onHide={hideSidebar}
       onCreate={() => add()}
       renderTab={renderTab}
-      // A drag past a folded lead keeps its hidden team right after it.
-      onReorder={(tabOrder) =>
-        reorder(
-          target,
-          keepFoldsTogether(tabOrder, foldsOf(workspaceStore.getSnapshot(), ui.getSnapshot())),
+      // A drag past a folded lead keeps its hidden team right after it, and says the order
+      // saved, so the tabs follow it on screen.
+      onReorder={(tabOrder) => {
+        const saved = keepFoldsTogether(
+          tabOrder,
+          foldsOf(workspaceStore.getSnapshot(), ui.getSnapshot()),
         )
-      }
+        reorder(target, saved)
+        return saved
+      }}
     />
   )
 })
