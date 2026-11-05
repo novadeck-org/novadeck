@@ -1,5 +1,5 @@
 import { context, describe, expect, it } from "../test"
-import { wireShape } from "./team-wire"
+import { foldGutter, wireShape } from "./team-wire"
 
 const view = { top: 100, bottom: 700 }
 const at = (id: string, y: number, left = 56) => ({ id, y, left })
@@ -64,5 +64,39 @@ describe("the team's wire", () => {
     it("draws nothing", () => {
       expect(wireShape(43, view, at("lead", 720), [at("a", 800)])).toBeUndefined()
     })
+  })
+})
+
+describe("a folded team's wire", () => {
+  it("keeps the lead's cursor alone while no worker's tab shows", () => {
+    expect(wireShape(43, view, at("lead", 150), [])).toEqual({
+      x: 43,
+      top: 150,
+      height: 0,
+      lead: 150,
+      taps: [],
+    })
+  })
+
+  it("draws nothing for a lead out of view", () => {
+    expect(wireShape(43, view, at("lead", 40), [])).toBeUndefined()
+  })
+})
+
+describe("where pointing arms a fold", () => {
+  it("is the gutter from just left of the border to the tab's edge, never into the tab", () => {
+    const gutter = foldGutter(43, view, { top: 120, height: 68, left: 56 })!
+    expect(gutter).toEqual({ left: 40, top: 120, width: 16, height: 68 })
+    expect(gutter.left + gutter.width).toBe(56)
+  })
+
+  it("keeps within the list's room, and is none for a tab out of view", () => {
+    expect(foldGutter(43, view, { top: 80, height: 68, left: 56 })).toEqual({
+      left: 40,
+      top: 100,
+      width: 16,
+      height: 48,
+    })
+    expect(foldGutter(43, view, { top: 720, height: 68, left: 56 })).toBeUndefined()
   })
 })

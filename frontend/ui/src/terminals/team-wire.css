@@ -7,8 +7,17 @@
 
    Hooks on `.team-wire`: data-settled (the lit wire's entrance has played; what's drawn
    after, as rows scroll into view, appears without playing again). Each team has a
-   `.team-wire-shape`, with data-lit while it is the selected terminal's. Parts:
-   `.team-wire-segment`, `.team-wire-cursor`, `.team-wire-tap`.
+   `.team-wire-shape`, with data-lit while it is the selected terminal's, data-folded while the
+   person folded its teammates out of the list, data-faded while that leaves no teammate's tab
+   showing ("wire": its segment and ticks fade out) or its lead folds away under a lead above
+   ("all": its cursor too), data-reeling while the person points beside a lead above it (it
+   reels in with that lead's wire), data-unfolding while they just unfolded them,
+   and data-armed while they point at the gutter
+   beside its lead's tab. Parts: `.team-wire-segment`, `.team-wire-cursor`, `.team-wire-tap`,
+   `.team-wire-ghost` and each `.team-wire-ghost-tap` (tied to a folded lead's rows for its
+   teammates),
+   and on `.team-wire` itself, a `.team-wire-gutter` beside each lead's tab, the one part that
+   takes the pointer.
 
    Tokens, each optional (its fallback in brackets):
    --team-wire-fg (strong): the lit wire, its cursor and its ticks.
@@ -96,4 +105,100 @@
   75% {
     opacity: 1;
   }
+}
+
+/* Folding a lead's teammates out of the list (TeamWire.tsx, app/team-fold.ts): the gutter
+   beside the lead's tab takes the pointer, and pointing there shows what a click does. The
+   wire reels in: its ticks pull back into the line, then the line winds up into the lead's
+   cursor, which lights and blinks as a cursor does, while the teammates' tabs dim (tabs.css).
+   Folded, a dashed ghost of the wire runs down from the cursor beside the lead's rows for its
+   teammates, a tick into each: what a click unfolds, without guessing where in the list the
+   tabs come back. */
+.team-wire-gutter {
+  position: absolute;
+  pointer-events: auto;
+  cursor: pointer;
+}
+.team-wire-shape > .team-wire-segment {
+  transform-origin: top;
+  transition:
+    transform var(--motion-layout) var(--ease-interface) 120ms,
+    opacity var(--motion-layout) var(--ease-interface);
+}
+.team-wire-shape > .team-wire-tap {
+  transform-origin: left;
+  transition:
+    transform var(--motion-feedback) var(--ease-interface),
+    opacity var(--motion-layout) var(--ease-interface);
+}
+/* A team folding fades its wire out as its tabs collapse, the lead's cursor staying; one
+   unfolding fades it back in as they unroll. */
+.team-wire-shape[data-faded] > :is(.team-wire-segment, .team-wire-tap) {
+  opacity: 0;
+}
+/* A team inside a folded one fades whole, its lead's cursor too, as that lead's tab folds away;
+   unfolding, it fades back in, cursor and all. */
+.team-wire-shape[data-faded="all"] > .team-wire-cursor {
+  opacity: 0;
+}
+@starting-style {
+  .team-wire-shape[data-unfolding] > :is(.team-wire-segment, .team-wire-tap, .team-wire-cursor) {
+    opacity: 0;
+  }
+}
+.team-wire-shape > .team-wire-cursor {
+  transition:
+    transform var(--motion-feedback) var(--ease-interface),
+    opacity var(--motion-layout) var(--ease-interface);
+}
+.team-wire-shape[data-armed]:not([data-folded]) > .team-wire-tap {
+  transform: scaleX(0);
+}
+.team-wire-shape[data-armed]:not([data-folded]) > .team-wire-segment {
+  transform: scaleY(0.12);
+}
+/* Past the settled wire's stillness: the armed cursor blinks however long it has rested. */
+/* A team under that lead reels in with it, the whole fold previewed: its ticks pull back, its
+   line winds up, and its lead's cursor dims with its tab (tabs.css). */
+.team-wire-shape[data-reeling] > .team-wire-tap {
+  transform: scaleX(0);
+}
+.team-wire-shape[data-reeling] > .team-wire-segment {
+  transform: scaleY(0.12);
+}
+.team-wire-shape[data-reeling] > .team-wire-cursor {
+  opacity: var(--tab-fold-preview-opacity, 0.4);
+}
+.team-wire .team-wire-shape[data-armed] > .team-wire-cursor {
+  transform: scale(1.35);
+  background-color: var(--_fg);
+  box-shadow: 0 0 8px color-mix(in srgb, var(--_fg) 60%, transparent);
+  animation: team-wire-armed 600ms steps(1) infinite;
+}
+@keyframes team-wire-armed {
+  50% {
+    opacity: 0.35;
+  }
+}
+.team-wire-ghost {
+  width: 1px;
+  background: repeating-linear-gradient(to bottom, var(--_fg) 0 3px, transparent 3px 6px);
+  opacity: 0.8;
+  transform-origin: top;
+  transform: scaleY(0);
+  transition: transform var(--motion-layout) var(--ease-interface);
+}
+.team-wire-ghost-tap {
+  width: 16px;
+  height: 1px;
+  background: repeating-linear-gradient(to right, var(--_fg) 0 3px, transparent 3px 5px);
+  transform-origin: left;
+  transform: scaleX(0);
+  transition: transform var(--motion-feedback) var(--ease-interface);
+}
+.team-wire-shape[data-armed] > .team-wire-ghost {
+  transform: scaleY(1);
+}
+.team-wire-shape[data-armed] > .team-wire-ghost-tap {
+  transform: scaleX(1);
 }

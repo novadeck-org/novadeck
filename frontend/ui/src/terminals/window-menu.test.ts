@@ -105,4 +105,22 @@ describe("a window's menu", () => {
       ).toEqual(["Close"])
     })
   })
+
+  it("offers a lead to fold its teammates, or show them again, above Close", () => {
+    const toggled: string[] = []
+    const menu = (count: number, folded: boolean) =>
+      windowMenu({
+        terminal: terminalFixture(4, "~/p"),
+        onRename: ignore,
+        foldTeam: { count, folded, onToggle: () => toggled.push(`${count}`) },
+        onClose: ignore,
+      })
+    expect(labels(menu(3, false))).toEqual(["Rename", "Fold 3 teammates", "Close"])
+    expect(labels(menu(3, true))).toEqual(["Rename", "Show 3 teammates", "Close"])
+    expect(labels(menu(1, false))).toEqual(["Rename", "Fold 1 teammate", "Close"])
+    menu(2, false)
+      .find((item) => item.value === "fold-team")!
+      .onSelect()
+    expect(toggled).toEqual(["2"])
+  })
 })

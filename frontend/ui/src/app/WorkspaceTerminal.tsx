@@ -39,6 +39,7 @@ import {
   shallowEqual,
   windowedDestination,
 } from "./selectors"
+import { useFoldTeam } from "./team-fold"
 import { useTerminalBar } from "./terminal-bar"
 import { chatViewOn } from "./ui-store"
 import { useTerminalMarks } from "./useTerminalMarks"
@@ -84,6 +85,7 @@ const useWindowFrame = (
   const dockIn = useDockTarget(tile)
   const askFeedback = useAskFeedback(tile)
   const releaseLead = useReleaseLead(tile)
+  const foldTeam = useFoldTeam(tile)
   return {
     terminal: tile,
     active,
@@ -106,6 +108,7 @@ const useWindowFrame = (
       dockIn,
       askFeedback,
       releaseLead,
+      foldTeam,
       onClose: () => close(id),
     }),
     compact,
