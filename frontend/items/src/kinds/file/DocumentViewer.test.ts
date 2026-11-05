@@ -118,7 +118,9 @@ describe("a Markdown file's document", () => {
       const view = await editorIn(plan.container)
       act(() => view.dispatch({ selection: EditorSelection.cursor(view.state.doc.length) }))
       act(() => plan.unmount())
-      for (let each = 0; each < 13; each += 1) await leave(`file-${each}`, content)
+      for (let each = 0; each < 13; each += 1)
+        // eslint-disable-next-line no-await-in-loop -- Each file is read after the one before.
+        await leave(`file-${each}`, content)
       const again = render(
         createElement(MarkdownDocument, {
           id: "plan",
