@@ -362,6 +362,24 @@
       "status": "fixed",
       "cause": "expect.poll's 5 s is a timer: a page that stops running for a while, as the macOS page did beside other packages' tests (the file's other waiting tests ran 3 to 4 times slower), wakes with that timer due and fails the poll before the work it waits on, here the file's first TypeScript highlight, has had its turn. The log shows the stall (6.1 s against the 5 s limit) but not what was slow; a slow load of the parser's module while the page ran would fail the new wait too. Reproduced with the page held busy for 6 s during the wait: the old test failed with the CI's message at 6.2 s. The file's polls now count the page's own turns (eventually, 50 ms apart), so a stall spends none of their budget: it passed with the same 6 s stall, and still fails in 5 s when nothing is highlighted.",
       "seen": ["#716 run 42085151966 attempt 1 job 127448126469 (macOS)"]
+    },
+    {
+      "id": "viewers-diff-many-files-timeout",
+      "jobs": ["^Test \\((Linux|macOS|Windows)(, (?:[12][/-]2|[1-3][/-]3))?\\)$"],
+      "test": "src/diff.test.ts > the diff viewer > with many files > updates and reports its place without laying out the files out of sight",
+      "signature": "Test timed out in 15000ms",
+      "status": "fixed",
+      "cause": "The file's 15 s test timeout ended it while it drew its rows, on a macOS page running its tests 10 to 27 times slower than here (\"stays at the row\" 9.5 s against 0.36 s); its own wait allowed 15 s or 30 s, which the test timeout never let it reach. Reproduced with Chromium's CPU throttled 20x: the old tests timed out at 15 s, 3 of 3 (with \"carries on drawing\"). The three drawing tests now have a 60 s timeout, and the long change is 6,000 lines, three of the viewer's 2,000-row batches, not 20,000: they passed at 20x, the long change's at 30x too, and still fail when the viewer draws all rows at once. This one keeps its 100,000 rows, which its bounds on a regression's cost need; at 30x its update took about 800 ms, over its 750 ms bound.",
+      "seen": ["#717 run 42101141316 attempt 1 job 127503942930 (macOS)"]
+    },
+    {
+      "id": "viewers-diff-long-change-timeout",
+      "jobs": ["^Test \\((Linux|macOS|Windows)(, (?:[12][/-]2|[1-3][/-]3))?\\)$"],
+      "test": "src/diff.test.ts > the diff viewer > with a long change > draws a part at a time, without blocking the page",
+      "signature": "Test timed out in 15000ms",
+      "status": "fixed",
+      "cause": "The file's 15 s test timeout ended it while it drew its rows, on a macOS page running its tests 10 to 27 times slower than here (\"stays at the row\" 9.5 s against 0.36 s); its own wait allowed 15 s or 30 s, which the test timeout never let it reach. Reproduced with Chromium's CPU throttled 20x: the old tests timed out at 15 s, 3 of 3 (with \"carries on drawing\"). The three drawing tests now have a 60 s timeout, and the long change is 6,000 lines, three of the viewer's 2,000-row batches, not 20,000: they passed at 20x, the long change's at 30x too, and still fail when the viewer draws all rows at once.",
+      "seen": ["#717 run 42101141316 attempt 1 job 127503942930 (macOS)"]
     }
   ]
 }

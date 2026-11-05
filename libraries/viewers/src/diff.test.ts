@@ -636,52 +636,65 @@ describe("the diff viewer", () => {
     })
   })
 
+  // Drawing many rows is what these tests are about, and a busy macOS runner's page drew them 20
+  // or more times slower than an idle one: past the file's 15 s, which cut short their waits'
+  // longer budgets.
+  const drawingMs = 60_000
+
   context("with many files", () => {
-    it("updates and reports its place without laying out the files out of sight", async () => {
-      const files = Array.from({ length: 100 }, (_, at) => sized(`f${at}.txt`, 1_000))
-      const { pane, viewer } = mount(change(files))
-      await eventually(() => expect(pane.querySelectorAll(".diff-line").length).toBe(100_000), 600)
-      await frame()
-      pane.querySelector<HTMLElement>(".diff-viewer")!.scrollTop = 50_000
-      await frame()
-      const measured = performance.now()
-      viewer.state()
-      const state = performance.now() - measured
-      const next = [...files]
-      next[70] = sized("f70.txt", 1_001)
-      const updated = performance.now()
-      viewer.update(change(next))
-      const update = performance.now() - updated
-      // Laying out every file took seconds here (1.3–9.5 s); the bounds catch that with room
-      // for a slow shared CI machine, where this takes 60–160 ms.
-      expect(state).toBeLessThan(500)
-      expect(update).toBeLessThan(750)
-      viewer.destroy()
-    })
+    it(
+      "updates and reports its place without laying out the files out of sight",
+      { timeout: drawingMs },
+      async () => {
+        const files = Array.from({ length: 100 }, (_, at) => sized(`f${at}.txt`, 1_000))
+        const { pane, viewer } = mount(change(files))
+        await eventually(
+          () => expect(pane.querySelectorAll(".diff-line").length).toBe(100_000),
+          600,
+        )
+        await frame()
+        pane.querySelector<HTMLElement>(".diff-viewer")!.scrollTop = 50_000
+        await frame()
+        const measured = performance.now()
+        viewer.state()
+        const state = performance.now() - measured
+        const next = [...files]
+        next[70] = sized("f70.txt", 1_001)
+        const updated = performance.now()
+        viewer.update(change(next))
+        const update = performance.now() - updated
+        // Laying out every file took seconds here (1.3–9.5 s); the bounds catch that with room
+        // for a slow shared CI machine, where this takes 60–160 ms.
+        expect(state).toBeLessThan(500)
+        expect(update).toBeLessThan(750)
+        viewer.destroy()
+      },
+    )
   })
 
   context("with a long change", () => {
+    // Three of the viewer's batches of rows, and more lines than it highlights.
     const long = (): DiffFile => {
-      const lines = Array.from({ length: 20_000 }, (_, at) => ({
+      const lines = Array.from({ length: 6_000 }, (_, at) => ({
         kind: (at % 3 === 0 ? "add" : "context") as "add" | "context",
         text: `const value${at} = ${at}`,
       }))
       return file("big.ts", {
-        added: 6667,
-        hunks: Array.from({ length: 200 }, (_, at) =>
+        added: 2000,
+        hunks: Array.from({ length: 60 }, (_, at) =>
           hunkOf(at * 100 + 1, lines.slice(at * 100, at * 100 + 100)),
         ),
       })
     }
 
-    it("draws a part at a time, without blocking the page", async () => {
+    it("draws a part at a time, without blocking the page", { timeout: drawingMs }, async () => {
       const started = performance.now()
       const { pane, viewer } = mount(change([long()]))
       expect(performance.now() - started).toBeLessThan(1000)
-      expect(pane.querySelectorAll(".diff-line").length).toBeLessThan(20_000)
+      expect(pane.querySelectorAll(".diff-line").length).toBeLessThan(6_000)
       let ticks = 0
       const timer = setInterval(() => (ticks += 1), 5)
-      await eventually(() => expect(pane.querySelectorAll(".diff-line").length).toBe(20_000), 300)
+      await eventually(() => expect(pane.querySelectorAll(".diff-line").length).toBe(6_000), 300)
       clearInterval(timer)
       expect(ticks).toBeGreaterThan(0)
       viewer.destroy()
@@ -693,14 +706,18 @@ describe("the diff viewer", () => {
       const drawn = root.querySelectorAll(".diff-line").length
       await new Promise((resolve) => setTimeout(resolve, 150))
       expect(root.querySelectorAll(".diff-line").length).toBe(drawn)
-      expect(drawn).toBeLessThan(20_000)
+      expect(drawn).toBeLessThan(6_000)
     })
 
-    it("carries on drawing a file it kept when the change is updated", async () => {
-      const { pane, viewer } = mount(change([long()]))
-      viewer.update(change([long(), sized("small.txt", 3)]))
-      await eventually(() => expect(pane.querySelectorAll(".diff-line").length).toBe(20_003), 300)
-      viewer.destroy()
-    })
+    it(
+      "carries on drawing a file it kept when the change is updated",
+      { timeout: drawingMs },
+      async () => {
+        const { pane, viewer } = mount(change([long()]))
+        viewer.update(change([long(), sized("small.txt", 3)]))
+        await eventually(() => expect(pane.querySelectorAll(".diff-line").length).toBe(6_003), 300)
+        viewer.destroy()
+      },
+    )
   })
 })
