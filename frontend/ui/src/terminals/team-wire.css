@@ -9,7 +9,8 @@
    after, as rows scroll into view, appears without playing again). Each team has a
    `.team-wire-shape`, with data-lit while it is the selected terminal's, data-folded while the
    person folded its teammates out of the list, data-faded while that leaves no teammate's tab
-   showing (its segment and ticks fade out), data-unfolding while they just unfolded them,
+   showing ("wire": its segment and ticks fade out) or its lead folds away under a lead above
+   ("all": its cursor too), data-unfolding while they just unfolded them,
    and data-armed while they point at the gutter
    beside its lead's tab. Parts: `.team-wire-segment`, `.team-wire-cursor`, `.team-wire-tap`,
    `.team-wire-ghost` and each `.team-wire-ghost-tap` (tied to a folded lead's rows for its
@@ -134,13 +135,20 @@
 .team-wire-shape[data-faded] > :is(.team-wire-segment, .team-wire-tap) {
   opacity: 0;
 }
+/* A team inside a folded one fades whole, its lead's cursor too, as that lead's tab folds away;
+   unfolding, it fades back in, cursor and all. */
+.team-wire-shape[data-faded="all"] > .team-wire-cursor {
+  opacity: 0;
+}
 @starting-style {
-  .team-wire-shape[data-unfolding] > :is(.team-wire-segment, .team-wire-tap) {
+  .team-wire-shape[data-unfolding] > :is(.team-wire-segment, .team-wire-tap, .team-wire-cursor) {
     opacity: 0;
   }
 }
 .team-wire-shape > .team-wire-cursor {
-  transition: transform var(--motion-feedback) var(--ease-interface);
+  transition:
+    transform var(--motion-feedback) var(--ease-interface),
+    opacity var(--motion-layout) var(--ease-interface);
 }
 .team-wire-shape[data-armed]:not([data-folded]) > .team-wire-tap {
   transform: scaleX(0);

@@ -286,12 +286,18 @@ export const TeamWire = ({
   // place; and fades back in as a lead above it unfolds.
   const chainOf = (lead: string) =>
     chains[teams.findIndex((each) => each.lead === lead)]?.split(" ") ?? []
-  const faded = (lead: string) =>
+  // A folded lead keeps its cursor ("wire": the rest fades); a team folded away under a lead
+  // above it fades whole, its lead's cursor too ("all"), as its lead's tab folds away.
+  const faded = (lead: string): "wire" | "all" | undefined =>
     folded.includes(lead)
-      ? !above.includes(lead)
+      ? above.includes(lead)
+        ? undefined
+        : "wire"
       : chainOf(lead).some((each) => folded.includes(each)) &&
-        selected !== lead &&
-        !above.includes(lead)
+          selected !== lead &&
+          !above.includes(lead)
+        ? "all"
+        : undefined
   const unfoldingOf = (lead: string) =>
     unfolding !== undefined && (unfolding === lead || chainOf(lead).includes(unfolding))
   // A gutter that goes away under the pointer, as the sidebar hides, the session changes or the
@@ -336,7 +342,7 @@ export const TeamWire = ({
           wire={wire}
           lit
           folded={false}
-          faded={false}
+          faded={undefined}
           unfolding={unfoldingOf(wire.lead)}
           armed={armed === wire.lead}
         />
@@ -404,8 +410,9 @@ const Wire = ({
   wire: Measured
   lit: boolean
   folded: boolean
-  // Its segment and ticks faded out, as its team is folded and no teammate shows.
-  faded: boolean
+  // Its segment and ticks faded out, as its team is folded and no teammate shows ("wire"), or
+  // its cursor too, as its lead folds away under a lead above it ("all").
+  faded: "wire" | "all" | undefined
   unfolding: boolean
   armed: boolean
 }): React.JSX.Element => (
@@ -413,7 +420,7 @@ const Wire = ({
     className="team-wire-shape"
     data-lit={lit || undefined}
     data-folded={folded || undefined}
-    data-faded={faded || undefined}
+    data-faded={faded}
     data-unfolding={unfolding || undefined}
     data-armed={armed || undefined}
   >
