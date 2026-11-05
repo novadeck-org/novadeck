@@ -99,4 +99,20 @@ describe("a screen's emulator", () => {
     input.dispatchEvent(new FocusEvent("focusout", { bubbles: true, relatedTarget: null }))
     expect(liveRegion(element)).not.toBeNull()
   })
+
+  it("drops the tree when focus moves to another terminal while the window is away", () => {
+    // As a focus request the app makes before its window is brought forward.
+    const first = open(true)
+    const second = open(true)
+    first.input.focus()
+    vi.spyOn(document, "hasFocus").mockReturnValue(false)
+    first.input.dispatchEvent(
+      new FocusEvent("focusout", { bubbles: true, relatedTarget: second.input }),
+    )
+    second.input.dispatchEvent(
+      new FocusEvent("focusin", { bubbles: true, relatedTarget: first.input }),
+    )
+    expect(liveRegion(first.element)).toBeNull()
+    expect(liveRegion(second.element)).not.toBeNull()
+  })
 })
