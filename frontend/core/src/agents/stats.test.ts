@@ -57,12 +57,7 @@ describe("an agent's usage", () => {
   it("shows nothing without usage", () => {
     expect(agentStats(undefined)).toBeUndefined()
     expect(
-      agentStats({
-        context: null,
-        limits: codex.limits,
-        model: null,
-        effort: null,
-      }),
+      agentStats({ context: null, limits: codex.limits, model: null, effort: null }),
     ).toBeUndefined()
   })
 })

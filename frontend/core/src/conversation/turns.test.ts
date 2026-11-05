@@ -39,11 +39,7 @@ describe("grouping a conversation's items", () => {
 
   it("shows another agent's message with its author", () => {
     const [block] = groupItems([item({ role: "agent", author: "/root/reviewer", text: "done" })])
-    expect(block).toMatchObject({
-      kind: "agent",
-      author: "/root/reviewer",
-      text: "done",
-    })
+    expect(block).toMatchObject({ kind: "agent", author: "/root/reviewer", text: "done" })
   })
 
   it("pairs a result with its call and folds consecutive calls into one run", () => {
@@ -67,10 +63,7 @@ describe("grouping a conversation's items", () => {
     expect(run).toMatchObject({ kind: "tools" })
     const entries = run!.kind === "tools" ? run!.entries : []
     expect(entries).toHaveLength(1)
-    expect(entries[0]).toMatchObject({
-      tool: "Read",
-      result: { text: "early" },
-    })
+    expect(entries[0]).toMatchObject({ tool: "Read", result: { text: "early" } })
   })
 
   it("leaves a call without a result waiting", () => {
@@ -99,11 +92,7 @@ describe("grouping a conversation's items", () => {
 
   it("turns an interrupted user item into a note", () => {
     const [block] = groupItems([
-      item({
-        role: "user",
-        text: "[Request interrupted by user for tool use]",
-        interrupted: true,
-      }),
+      item({ role: "user", text: "[Request interrupted by user for tool use]", interrupted: true }),
     ])
     expect(block).toMatchObject({ kind: "note", text: "Interrupted" })
   })
@@ -147,10 +136,7 @@ const end = (outcome: "completed" | "failed" | "interrupted" | "unknown") =>
 
 describe("the agent's turn status", () => {
   it("says it works, planning, and with the subagents it runs", () => {
-    expect(turnStatus({ working: true })).toEqual({
-      working: true,
-      text: "Working",
-    })
+    expect(turnStatus({ working: true })).toEqual({ working: true, text: "Working" })
     expect(turnStatus({ working: true, planning: true })?.text).toBe("Planning")
     expect(
       turnStatus({
@@ -167,10 +153,7 @@ describe("the agent's turn status", () => {
     const working = (listed: number, background: number) =>
       turnStatus({
         working: true,
-        subagents: Array.from({ length: listed }, (_, index) => ({
-          id: `${index}`,
-          type: null,
-        })),
+        subagents: Array.from({ length: listed }, (_, index) => ({ id: `${index}`, type: null })),
         background: { agents: background, tasks: 0 },
       })?.text
     expect(working(0, 3)).toBe("Working · 3 subagents running")
