@@ -189,11 +189,13 @@ export const createView = (element: HTMLElement, options: ViewOptions): View => 
       listeners.add(listener)
       return { dispose: () => void listeners.delete(listener) }
     },
+    // The terminal goes first: xterm's WebGL addon, disposed while its terminal is open,
+    // builds a DOM renderer to hand the screen back to (a forced layout), for nothing.
     dispose: () => {
       disposed = true
-      renderer.dispose()
       listeners.clear()
       terminal.dispose()
+      renderer.dispose()
     },
   }
 }
