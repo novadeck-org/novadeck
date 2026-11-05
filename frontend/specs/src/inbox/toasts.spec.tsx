@@ -1,8 +1,7 @@
 import { demoInboxIds } from "@novadeck/demo/inbox/fixtures"
-import { beforeEach } from "vitest"
 import { page, userEvent } from "vitest/browser"
 
-import { desktopWindow, forgetDesktopWindow } from "../support/backend"
+import { desktopWindow } from "../support/backend"
 import { preferencesDialog } from "../support/keyboard"
 import {
   appearsAt,
@@ -51,8 +50,6 @@ const open = async (extra?: string): Promise<void> => {
 const nothingToasts = (): Promise<void> =>
   expectStaysAbsent({ shown: () => toasts().length > 0, name: "a toast" }, { ms: 5_000 })
 
-beforeEach(forgetDesktopWindow)
-
 describe("The Inbox's toasts", () => {
   context("while the app has the person's focus", () => {
     it("rings a new entry that needs them after a grace, and sends no OS notice", async () => {
@@ -98,6 +95,22 @@ describe("The Inbox's toasts", () => {
       await expect.element(sidebarPanel("Inbox")).toBeChecked()
       await expect.element(page.getByRole("dialog", { name: /\S/ })).toBeVisible()
       await expect.poll(toastTexts).toHaveLength(0)
+    })
+
+    it("rings an Antigravity ask, whose entry names Antigravity in its words for it", async () => {
+      await open()
+      desktopWindow.arriveAs(demoInboxIds.codexPermission, "agy")
+      await expect.poll(toastTexts, rings).toHaveLength(1)
+      expect(toastTexts()[0]).toMatch(/wants to run a command/)
+      await new Promise((resolve) => setTimeout(resolve, 600))
+
+      await userEvent.click(page.elementLocator(document.querySelector('.toast[data-rank="0"]')!))
+      const sheet = page.getByRole("dialog", { name: /\S/ })
+      await sheet.getByRole("menuitem", { name: "Deny, with your words" }).click()
+
+      await expect
+        .element(sheet.getByRole("textbox", { name: /what Antigravity should do instead/i }))
+        .toBeVisible()
     })
 
     it("opens its entry alone: once answered, the sidebar goes back to what it showed", async () => {

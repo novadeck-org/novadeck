@@ -30,17 +30,21 @@ const switcherRow = (name: string) =>
     .getByRole("dialog", { name: "Switch workspace" })
     .getByRole("button", { name: new RegExp(`^${name}`) })
 // Presses Escape once the bar is dragging the pin a project handed over, before the
-// drag is let go.
-const escapeOnceHandedOver = (name: string): void => {
+// drag is let go; gives back whether it did, as a handover that never came presses nothing.
+const escapeOnceHandedOver = (name: string): (() => boolean) => {
+  let pressed = false
   const moved = (): void => {
     if (!document.querySelector(`.pin[data-pin="${name}"][data-dragging="true"]`)) return
     window.removeEventListener("pointermove", moved, true)
     // After the bar has followed this move.
-    setTimeout(() =>
-      window.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape", bubbles: true })),
-    )
+    setTimeout(() => {
+      pressed = true
+      window.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape", bubbles: true }))
+    })
   }
   window.addEventListener("pointermove", moved, true)
+  onTestFinished(() => window.removeEventListener("pointermove", moved, true))
+  return () => pressed
 }
 
 // The switcher's projects as it lists them, while it is open.
@@ -526,8 +530,9 @@ describe("A pinned project", () => {
       await skipWelcome()
       await workspaceSwitcher().click()
       const before = switcherOrder()
-      escapeOnceHandedOver("mobile-app")
+      const escaped = escapeOnceHandedOver("mobile-app")
       await dragOut("mobile-app")
+      expect(escaped()).toBe(true)
       await expectStaysAbsent(pin("mobile-app"))
       expect(pinsBar().getByRole("button").elements()).toHaveLength(1)
       await workspaceSwitcher().click()

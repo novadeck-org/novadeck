@@ -4,7 +4,7 @@ import { expect } from "vitest"
 import { cleanup, render } from "vitest-browser-react"
 import { page, userEvent, type Locator } from "vitest/browser"
 
-import { createSpecBackend, forgetBabciaCues } from "./backend"
+import { createSpecBackend, forgetEarlierPages } from "./backend"
 
 // The person's vocabulary for behaviour specs. Specs describe what a person sees and
 // does; only this module knows how that maps to accessible roles and names, so a
@@ -39,8 +39,8 @@ export const openWorkspace = async (
   route?: string,
   { embedded = false }: { readonly embedded?: boolean } = {},
 ): Promise<void> => {
+  forgetEarlierPages()
   // A same-page history entry below the app keeps an extra Back inside the test page.
-  forgetBabciaCues()
   window.history.replaceState(null, "", "/")
   window.history.pushState(null, "", route === undefined ? "/" : `/#${route}`)
   await render(

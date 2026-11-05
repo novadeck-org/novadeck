@@ -1,13 +1,6 @@
-import { beforeEach } from "vitest"
 import { page, type Locator } from "vitest/browser"
 
-import {
-  forgetUpdates,
-  reportProgress,
-  startDownload,
-  whatsNewAsked,
-  whatsNewCalls,
-} from "../support/backend"
+import { reportProgress, startDownload, whatsNewAsked, whatsNewCalls } from "../support/backend"
 import { findDialog, pressShortcut } from "../support/keyboard"
 import {
   commandInput,
@@ -35,8 +28,6 @@ const slow = { timeout: 12_000 }
 const cardElement = (): Element | null => document.querySelector(".whats-new")
 
 describe("the what's-new card", () => {
-  beforeEach(forgetUpdates)
-
   it("is absent where the app has no word of it", async () => {
     await openWorkspace()
     await expectStaysAbsent(card())

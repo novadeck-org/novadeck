@@ -1,8 +1,7 @@
 import { demoInboxIds } from "@novadeck/demo/inbox/fixtures"
-import { beforeEach } from "vitest"
 import { page } from "vitest/browser"
 
-import { desktopWindow, forgetDesktopWindow } from "../support/backend"
+import { desktopWindow } from "../support/backend"
 import {
   expectStaysAbsent,
   openWorkspace,
@@ -40,8 +39,6 @@ const nothingLands = (): Promise<void> =>
     { ms: 3_000 },
   )
 
-beforeEach(forgetDesktopWindow)
-
 describe("The landing rule", () => {
   context("when an agent asks from the terminal the person looks at", () => {
     it("lands in the Inbox only once they select another terminal", async () => {
@@ -51,7 +48,8 @@ describe("The landing rule", () => {
 
       await nothingLands()
       await sidebarPanel("Inbox").click()
-      await expect.element(inboxRow("Should the preview show")).not.toBeInTheDocument()
+      await expect.element(page.getByRole("complementary", { name: "Inbox" })).toBeVisible()
+      await expectStaysAbsent(inboxRow("Should the preview show"))
       await sidebarPanel("Terminals").click()
       await terminalTab("Checkout review").click()
 

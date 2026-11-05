@@ -1,5 +1,6 @@
 import { page, userEvent, type Locator } from "vitest/browser"
 
+import { expectStaysTrue } from "../support/layouts"
 import { switchProject } from "../support/sessions"
 import {
   chooseView,
@@ -94,19 +95,24 @@ describe("Murmur's one-time offer", () => {
 
       await terminalTab("Tests").click()
       await expect.element(popover()).not.toBeInTheDocument()
-      await new Promise((resolve) => setTimeout(resolve, 400))
+      await expect.element(terminal("Tests")).toBeVisible()
       // Not taken back to Build: the terminal they pressed is still the one shown, and focus
       // is not on the chip's popover or on the chip.
-      await expect.element(terminal("Tests")).toBeVisible()
-      expect(popover().query()).toBeNull()
-      expect(document.activeElement).not.toBe(chip().query())
+      await expectStaysTrue(
+        () =>
+          terminal("Tests").query()?.checkVisibility() === true &&
+          popover().query() === null &&
+          document.activeElement !== chip().query(),
+        "Tests shown, with focus away from the chip",
+        { ms: 400 },
+      )
     })
 
     it("keeps a right-click in the popover from opening the terminal's own menu", async () => {
       await promptBuild("uninstalled")
       await chip().click({ timeout: 10_000 })
       await popover().getByText("Name terminals from what they do").click({ button: "right" })
-      await expect.element(page.getByRole("menu")).not.toBeInTheDocument()
+      await expectStaysAbsent(page.getByRole("menu"))
 
       // The chip is the window's own, and a right-click there does reach it.
       await chip().click({ button: "right" })

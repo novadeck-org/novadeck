@@ -1,6 +1,12 @@
 import { page } from "vitest/browser"
 
-import { openWorkspace, sidebar, sidebarPanel, skipWelcome } from "../support/workspace"
+import {
+  expectStaysAbsent,
+  openWorkspace,
+  sidebar,
+  sidebarPanel,
+  skipWelcome,
+} from "../support/workspace"
 import { context, describe, expect, it } from "../test"
 
 // The agents demo: its agents wait on plans, permissions and a question in several projects,
@@ -29,7 +35,7 @@ describe("The Inbox bell", () => {
       await openWorkspace()
 
       await expect.element(sidebarPanel("Inbox")).toHaveAccessibleName("Inbox")
-      await expect.element(bell()).not.toBeInTheDocument()
+      await expectStaysAbsent(bell())
     })
   })
 
@@ -70,7 +76,7 @@ describe("The Inbox bell", () => {
       await enterZen().click()
 
       await expect.element(page.getByRole("group", { name: "Zen controls" })).toBeVisible()
-      await expect.element(zenBell()).not.toBeInTheDocument()
+      await expectStaysAbsent(zenBell())
     })
 
     it("opens the panel from the bell and hands focus to the rail", async () => {

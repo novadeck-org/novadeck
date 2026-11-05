@@ -1,5 +1,6 @@
 import { page, userEvent } from "vitest/browser"
 
+import { expectStaysTrue } from "../support/layouts"
 import { layoutSettled, openWorkspace, sidebarPanel, skipWelcome } from "../support/workspace"
 import { context, describe, expect, it } from "../test"
 
@@ -87,7 +88,10 @@ describe("The Source panel", () => {
         strip.element().querySelectorAll("[aria-pressed=true], [aria-pressed=mixed]"),
       ).toHaveLength(0)
       // Focus stayed in the strip rather than going back to the terminal.
-      expect(document.activeElement?.closest(".source-strip")).not.toBeNull()
+      await expectStaysTrue(
+        () => document.activeElement?.closest(".source-strip") != null,
+        "focus in the strip",
+      )
     })
   })
 
