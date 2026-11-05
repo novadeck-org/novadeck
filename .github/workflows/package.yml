@@ -337,6 +337,17 @@ jobs:
           } >> "$GITHUB_OUTPUT"
           echo "Signing: $signed"
 
+      # What signs on Windows, the engines and the app alike: SignTool and the Azure Artifact
+      # Signing client, as the two NuGet packages engines/ggml-build/src/signtool.ts pins by
+      # version and checksum. Nothing else is fetched to sign. They are fetched, checked and
+      # tried here on every run, a pull request's too, which has no credentials: SignTool
+      # must load the client and fail only for want of them. So a pin that nuget.org no
+      # longer answers, or a pair that cannot sign on this runner, fails the pull request
+      # that brings it, not a release.
+      - name: Check Signing Tools (Windows)
+        if: matrix.target == 'win'
+        run: node engines/ggml-build/scripts/signing-tools.ts
+
       # Voice input's engine, whisper.cpp built for this platform (see engines/whisper),
       # and murmur's, llama.cpp (see engines/murmur), are compiled here, not by the
       # Quality workflow's builds: each takes minutes, and its archive is a release asset the
@@ -658,12 +669,86 @@ jobs:
           }
           if ($failed) { exit 1 }
 
+      # The engines' signatures, on every run, whether the build made the engine or the cache
+      # held it. A release that signs must find every binary signed with the Developer ID. Any
+      # other run, a pull request's among them, must find each signed ad hoc, as its cache key
+      # says ("unsigned"): Apple silicon runs nothing less, and an engine of one kind is never
+      # taken for the other. Both architectures are read, though only arm64 runs here.
+      - name: Verify Engine Signatures (macOS)
+        if: matrix.target == 'mac'
+        env:
+          SIGNED: ${{ steps.signing.outputs.signed }}
+        run: |
+          set -euo pipefail
+          failed=false
+          for folder in "$RUNNER_TEMP/voice-engine" "$RUNNER_TEMP/murmur-engine"; do
+            count=0
+            for file in "$folder"/*; do
+              # A link points at a file checked under its own name.
+              if [[ ! -f "$file" || -L "$file" || "$(file -b "$file")" != Mach-O* ]]; then continue; fi
+              count=$((count + 1))
+              if ! codesign --verify --strict --verbose=2 "$file"; then
+                echo "::error::${file#"$RUNNER_TEMP"/} has no valid signature."
+                failed=true
+                continue
+              fi
+              for arch in arm64 x86_64; do
+                details="$(codesign --display --verbose=2 --arch "$arch" "$file" 2>&1)" || details=""
+                if [[ "$SIGNED" == true ]]; then
+                  if ! grep -q '^Authority=Developer ID Application: ' <<< "$details"; then
+                    echo "::error::${file#"$RUNNER_TEMP"/} ($arch) is not signed with a Developer ID."
+                    failed=true
+                  fi
+                elif ! grep -q '^Signature=adhoc$' <<< "$details"; then
+                  echo "::error::${file#"$RUNNER_TEMP"/} ($arch) is not signed ad hoc, as an unsigned build's engine is."
+                  failed=true
+                fi
+              done
+            done
+            echo "Checked $count binaries in $folder."
+            if (( count == 0 )); then
+              echo "::error::No engine binaries were found in $folder."
+              failed=true
+            fi
+          done
+          if [[ "$failed" == true ]]; then exit 1; fi
+
+      # The same on Windows: a release that signs must find every executable and library
+      # validly signed, and any other run must find none signed at all.
+      - name: Verify Engine Signatures (Windows)
+        if: matrix.target == 'win'
+        shell: pwsh
+        env:
+          SIGNED: ${{ steps.signing.outputs.signed }}
+        run: |
+          $expected = if ($env:SIGNED -eq "true") { "Valid" } else { "NotSigned" }
+          $failed = $false
+          foreach ($folder in "$env:RUNNER_TEMP\voice-engine", "$env:RUNNER_TEMP\murmur-engine") {
+            $files = @(Get-ChildItem $folder -Recurse -Include *.dll, *.exe)
+            foreach ($file in $files) {
+              $status = "$((Get-AuthenticodeSignature $file.FullName).Status)"
+              if ($status -ne $expected) {
+                Write-Output "::error::$($file.Name) is $status, not $expected."
+                $failed = $true
+              }
+            }
+            Write-Output "Checked $($files.Count) files in $folder for $expected."
+            if ($files.Count -eq 0) {
+              Write-Output "::error::No engine files were found in $folder."
+              $failed = $true
+            }
+          }
+          if ($failed) { exit 1 }
+
       # The relay (and on Windows novadeck-cmd.exe, built with it and shipped beside it, so
       # signed and checked like it) is built with the Rust its rust-toolchain.toml names; on macOS as one
       # binary for both architectures. macOS signs with the keychain's identity on its own;
-      # Windows signs when given the Azure account, which goes to electron-builder through
-      # `pnpm exec`, as cmd.exe would mangle the quoted publisher in `pnpm run`. The app's
-      # update feed is this repository's releases, whatever the repository is named.
+      # Windows signs when given the Azure account, through the hook that signs each file with
+      # the pinned tools the engines are signed with (apps/desktop/scripts/sign-windows.mjs),
+      # not builder's own Azure signing, which installs the newest signing module there is.
+      # The hook and the publisher go to electron-builder through `pnpm exec`, as cmd.exe
+      # would mangle the quoted publisher in `pnpm run`. The app's update feed is this
+      # repository's releases, whatever the repository is named.
       - name: Package Application
         shell: bash
         env:
@@ -680,10 +765,8 @@ jobs:
           fi
           pnpm --workspace-root exec turbo run build --filter=@novadeck/desktop
           pnpm --dir apps/desktop exec electron-builder --win --x64 --publish never "${feed[@]}" \
-            "-c.win.azureSignOptions.publisherName=$AZURE_SIGNING_PUBLISHER" \
-            "-c.win.azureSignOptions.endpoint=$AZURE_SIGNING_ENDPOINT" \
-            "-c.win.azureSignOptions.codeSigningAccountName=$AZURE_SIGNING_ACCOUNT" \
-            "-c.win.azureSignOptions.certificateProfileName=$AZURE_SIGNING_PROFILE"
+            "-c.win.signtoolOptions.sign=./scripts/sign-windows.mjs" \
+            "-c.win.signtoolOptions.publisherName=$AZURE_SIGNING_PUBLISHER"
 
       # The installers, install.sh and the app's update feed all fetch these names, so a
       # rename in the builder's configuration fails here rather than on a person's computer.
@@ -722,13 +805,14 @@ jobs:
           security delete-keychain "$NOVADECK_SIGNING_KEYCHAIN" || true
 
       # Fails the release, rather than shipping a package Gatekeeper or SmartScreen would
-      # treat as unsigned, when signing was set up but did not take.
+      # treat as unsigned, when signing was set up but did not take. The engines' signatures
+      # were checked above, before packaging.
       - name: Verify Signatures (macOS)
         if: matrix.target == 'mac' && steps.signing.outputs.signed == 'true'
         run: |
           set -euo pipefail
           verify="$RUNNER_TEMP/novadeck-verify"
-          mkdir -p "$verify/engine"
+          mkdir -p "$verify"
           ditto -x -k "$(find apps/desktop/release -maxdepth 1 -name '*.zip' -print -quit)" "$verify"
           bundle="$(find "$verify" -maxdepth 1 -name '*.app' -print -quit)"
           codesign --verify --deep --strict --verbose=2 "$bundle"
@@ -751,28 +835,10 @@ jobs:
             sleep $((attempt * 3))
           done
 
-          mkdir -p "$verify/murmur"
-          tar -xzf engines/whisper/dist/novadeck-whisper-*.tar.gz -C "$verify/engine"
-          tar -xzf engines/murmur/dist/novadeck-murmur-*.tar.gz -C "$verify/murmur"
-          for file in "$verify"/engine/whisper-server "$verify"/murmur/llama-server "$verify"/engine/*.dylib "$verify"/murmur/*.dylib; do
-            if [[ -f "$file" && ! -L "$file" ]]; then
-              codesign --verify --strict --verbose=2 "$file"
-              codesign --display --verbose=2 "$file" 2>&1 | grep '^Authority=Developer ID Application: ' > /dev/null
-            fi
-          done
-
       - name: Verify Signatures (Windows)
         if: matrix.target == 'win' && steps.signing.outputs.signed == 'true'
         shell: pwsh
         run: |
-          $engine = Join-Path $env:RUNNER_TEMP "novadeck-verify-engine"
-          New-Item -ItemType Directory -Force -Path $engine | Out-Null
-          $murmur = Join-Path $env:RUNNER_TEMP "novadeck-verify-murmur"
-          New-Item -ItemType Directory -Force -Path $murmur | Out-Null
-          $archive = Get-ChildItem engines/whisper/dist -Filter "novadeck-whisper-*.tar.gz" | Select-Object -First 1
-          & "$env:SystemRoot\System32\tar.exe" -xzf $archive.FullName -C $engine
-          $archive = Get-ChildItem engines/murmur/dist -Filter "novadeck-murmur-*.tar.gz" | Select-Object -First 1
-          & "$env:SystemRoot\System32\tar.exe" -xzf $archive.FullName -C $murmur
           # The ZIP is made from win-unpacked, but its own contents are what people run.
           $portable = Join-Path $env:RUNNER_TEMP "novadeck-verify-portable"
           New-Item -ItemType Directory -Force -Path $portable | Out-Null
@@ -782,9 +848,7 @@ jobs:
           }
           $files = @(Get-ChildItem apps/desktop/release -Filter *.exe) +
             @(Get-ChildItem apps/desktop/release/win-unpacked -Recurse -Include *.exe, *.dll, *.node) +
-            @(Get-ChildItem $portable -Recurse -Include *.exe, *.dll, *.node) +
-            @(Get-ChildItem $engine -Include *.exe, *.dll -Recurse) +
-            @(Get-ChildItem $murmur -Include *.exe, *.dll -Recurse)
+            @(Get-ChildItem $portable -Recurse -Include *.exe, *.dll, *.node)
           $unsigned = $files | Where-Object { (Get-AuthenticodeSignature $_.FullName).Status -ne "Valid" }
           if ($unsigned) {
             $unsigned | ForEach-Object { Write-Host "::error::Not validly signed: $($_.FullName)" }

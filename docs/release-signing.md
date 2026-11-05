@@ -90,6 +90,38 @@ Polish sole proprietorship validates as an organization, with its CEIDG name.
 A client secret expires; renew it in the app registration before then and update
 `AZURE_CLIENT_SECRET`.
 
+### The signing tools
+
+The engines and the app are signed the same way: SignTool signs each file through the
+Artifact Signing client (its `/dlib` library), which sends the file's digest to the
+service. Both tools come from nuget.org as two packages, pinned by version and SHA-256 in
+`engines/ggml-build/src/signtool.ts`:
+
+| Package                            | What the release uses from it                    |
+| ---------------------------------- | ------------------------------------------------ |
+| `Microsoft.Windows.SDK.BuildTools` | `signtool.exe` and the files beside it           |
+| `Microsoft.Trusted.Signing.Client` | `Azure.CodeSigning.Dlib.dll` and its .NET client |
+
+A build that signs downloads each package (or reads the copy an earlier step kept),
+stops unless its bytes are the pinned ones, and unpacks the tools afresh from those bytes.
+Nothing else is fetched to sign, and no PowerShell module is installed: the engines' build
+calls SignTool itself, and electron-builder calls it through
+`apps/desktop/scripts/sign-windows.mjs` in place of its own Azure signing, which installs
+the newest `TrustedSigning` module there is. The client runs on the runner's .NET runtime
+(8 or later), and is told to take its identity from the environment, where the release puts
+the three secrets above, and from no other sign-in it might find on the computer.
+
+Every Package run, a pull request's too, fetches and checks the two packages and then has
+SignTool sign a scratch file with no credentials (**Check Signing Tools**). That must fail
+for want of credentials, after the client has loaded and gone to submit the digest. So a
+pin that no longer downloads, or a pair of versions that cannot sign together, fails the
+pull request that changes the pins. What a pull request cannot show is a real signature:
+that needs the release's credentials. The step makes every Windows run depend on nuget.org
+answering; a download is tried three times.
+
+To move a pin, download the new `.nupkg`, compare its SHA-512 with the `packageHash`
+nuget.org's catalog lists for that version, and put its SHA-256 in `signtool.ts`.
+
 Signing does not skip SmartScreen at once. No certificate, EV included, does that any
 more: reputation builds for the publisher and each file as people download them. What
 signing gives straight away is a named publisher rather than "Unknown publisher", and
@@ -159,8 +191,13 @@ afresh; pull requests, never signed, keep unsigned engines of their own. A signa
 timestamp makes every signed build different bytes, so a rebuilt engine has a new SHA-256
 and installed apps download it again; that happens only when its cache misses.
 
-The workflow checks each engine after building it (murmur's also lists its devices) and,
-on a signed release, verifies the signatures of both archives' binaries before packaging.
+The workflow checks each engine after building it (murmur's also lists its devices), and
+then its signatures, on every run and before packaging (**Verify Engine Signatures**). A
+release that signs must find every binary signed: with the Developer ID on macOS, in both
+architectures, and validly on Windows. Any other run, a pull request's among them, must
+find what an unsigned build makes: an ad hoc signature on macOS, which Apple silicon needs
+to run anything, and none on Windows. So an engine from the cache is the kind its cache
+key says.
 
 The engines aren't notarized: the runner downloads them with its own HTTP client, so macOS
 doesn't quarantine them and Gatekeeper doesn't assess them. Their Developer ID signature is

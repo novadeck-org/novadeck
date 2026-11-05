@@ -113,6 +113,9 @@ importers:
       '@novadeck/core':
         specifier: workspace:*
         version: link:../../frontend/core
+      '@novadeck/ggml-build':
+        specifier: workspace:*
+        version: link:../../engines/ggml-build
       '@novadeck/log':
         specifier: workspace:*
         version: link:../../libraries/log
