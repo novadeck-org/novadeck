@@ -32,6 +32,32 @@ describe("connectSources", () => {
       connectSources({ runner: runner("https://runner.example.com"), development: false }),
     ).toThrow("RUNNER_URL must be an absolute ws: or wss: URL")
   })
+
+  it("rejects a runner whose host a policy can't name as it is", () => {
+    // A URL's host may hold these, written or percent-encoded: each would end the page's
+    // attribute, start another directive, widen the source or be no source at all.
+    for (const url of [
+      'wss://a"b.example',
+      "wss://a%22b.example",
+      "wss://a'b.example",
+      "wss://x.example;script-src",
+      "wss://a$&b.example",
+      "wss://*.example.com",
+      "wss://a_b.example",
+    ])
+      expect(() => connectSources({ runner: runner(url), development: false }), url).toThrow(
+        "RUNNER_URL must name its host with letters, digits, dots and hyphens",
+      )
+  })
+
+  it("allows a runner on an IPv4 or IPv6 address, or on an international name", () => {
+    const origin = (url: string) =>
+      connectSources({ runner: runner(url), development: false }).at(-1)
+    expect(origin("wss://127.0.0.1:9000/rpc")).toBe("wss://127.0.0.1:9000")
+    expect(origin("ws://[::1]:8080/rpc")).toBe("ws://[::1]:8080")
+    expect(origin("wss://bücher.example")).toBe("wss://xn--bcher-kva.example")
+    expect(origin("wss://Runner.Example.com")).toBe("wss://runner.example.com")
+  })
 })
 
 describe("configuredSources", () => {

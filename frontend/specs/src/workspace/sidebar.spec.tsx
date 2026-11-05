@@ -1,6 +1,7 @@
 import { page, userEvent, type Locator } from "vitest/browser"
 
 import { pressShortcut } from "../support/keyboard"
+import { expectStaysTrue } from "../support/layouts"
 import {
   expectStaysAbsent,
   openWorkspace,
@@ -87,8 +88,12 @@ describe("sidebar settings", () => {
       await expect.poll(order).toEqual(moved)
       // At the end already, it stays.
       await press("{Alt>}{ArrowDown}{/Alt}")
-      expect(order()).toEqual(moved)
-      expect(document.activeElement?.id).toBe("terminals-toggle")
+      await expectStaysTrue(
+        () =>
+          JSON.stringify(order()) === JSON.stringify(moved) &&
+          document.activeElement?.id === "terminals-toggle",
+        "Terminals last, with focus",
+      )
 
       await reloadWorkspace()
 

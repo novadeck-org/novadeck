@@ -69,13 +69,13 @@ export const updateScenarios = {
   },
   whatsNew: {
     label: "What's new, after an update",
-    hint: "Card in the corner with three highlights and the version updated from, until dismissed; reboots, as it is asked once at launch",
+    hint: "Card in the corner with three highlights and the version updated from, until dismissed, as it is asked once at launch",
     play: ({ showWhatsNew }, version) => showWhatsNew(version, fromEarlier(version)),
     reboots: true,
   },
   whatsNewMarkup: {
     label: "What's new, text with markup",
-    hint: "Card whose highlights hold <b> and **stars**: shown as typed, never rendered; no version updated from, as from an install that never noted it; reboots",
+    hint: "Card whose highlights hold <b> and **stars**: shown as typed, never rendered; no version updated from, as from an install that never noted it",
     play: ({ showWhatsNew }, version) =>
       showWhatsNew(version, {
         highlights: [
@@ -89,7 +89,7 @@ export const updateScenarios = {
   },
   whatsNewLong: {
     label: "What's new, longest highlights",
-    hint: "Four highlights at the longest the app allows: the list scrolls in a short window; reboots",
+    hint: "Four highlights at the longest the app allows: the list scrolls in a short window",
     play: ({ showWhatsNew }, version) =>
       showWhatsNew(version, {
         ...fromEarlier(version),
@@ -105,7 +105,7 @@ export const updateScenarios = {
   },
   noHighlights: {
     label: "Updated, no highlights",
-    hint: "The app takes 1.5 s to answer it has nothing to show: no card appears; reboots",
+    hint: "The app takes 1.5 s to answer it has nothing to show: no card appears",
     play: ({ delayWhatsNew }) => delayWhatsNew(1500),
     reboots: true,
   },
@@ -180,7 +180,7 @@ export const portableScenarios = {
     hint: "A Windows-length data folder: the path wraps and Show folder stays inside the card",
     setup: (version) => ({
       ...offered(version),
-      dataFolder: "C:\\Users\\Mateusz.Kowalczyk\\AppData\\Roaming\\novadeck",
+      dataFolder: "C:\\Users\\Alexandra.Konstantinopoulou\\AppData\\Roaming\\novadeck",
     }),
   },
   never: {

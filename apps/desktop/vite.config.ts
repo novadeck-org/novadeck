@@ -1,6 +1,6 @@
 import { resolve } from "node:path"
 
-import { bundleChecks, desktopUtilities } from "@novadeck/build-kit/bundle-checks"
+import { bundleChecks, frontendUtilities } from "@novadeck/build-kit/bundle-checks"
 import { configuredSources } from "@novadeck/build-kit/connect-sources"
 import { contentSecurityPolicy } from "@novadeck/build-kit/content-security-policy"
 import { fontsAsFiles } from "@novadeck/build-kit/fonts"
@@ -44,7 +44,7 @@ export default defineConfig(({ mode }) => ({
     contentSecurityPolicy({ connect: configuredSources }),
     // The demo's and the debug panel's utilities, as every frontend build guards them, and the
     // UI's own folder's, since this config is outside it.
-    bundleChecks({ utilities: desktopUtilities }),
+    bundleChecks({ utilities: frontendUtilities }),
   ],
   resolve: {
     dedupe: ["react", "react-dom"],

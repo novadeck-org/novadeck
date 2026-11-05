@@ -16,18 +16,29 @@ const readWhileFocused = (element: HTMLElement, view: View): (() => void) => {
   }
   const focus = (): void => reading(true)
   // Focus moving between the input and the tree's rows stays in the terminal, and so does
-  // focus the window takes with it, which comes back to the row a reader was on.
-  const blur = (event: FocusEvent): void => {
-    if (!element.ownerDocument.hasFocus()) return
-    if (!(event.relatedTarget instanceof Node && element.contains(event.relatedTarget)))
-      reading(false)
+  // focus the window takes with it (going to nothing in the page while the page loses focus),
+  // which comes back to the row a reader was on. Focus that goes to anything else in the page
+  // has left, even while the window is in the background, or two terminals would talk at once.
+  const blur = ({ relatedTarget }: FocusEvent): void => {
+    if (relatedTarget instanceof Node && element.contains(relatedTarget)) return
+    if (relatedTarget === null && !element.ownerDocument.hasFocus()) return
+    reading(false)
   }
+  // A focus moved while the window was away may tell this terminal nothing (a browser may hold
+  // focus events until the window comes back, and this one kept reading as the window left),
+  // so the window's return checks where focus is now.
+  const back = (): void => {
+    if (!element.contains(element.ownerDocument.activeElement)) reading(false)
+  }
+  const page = element.ownerDocument.defaultView
   element.addEventListener("focusin", focus)
   element.addEventListener("focusout", blur)
+  page?.addEventListener("focus", back)
   if (element.contains(element.ownerDocument.activeElement)) focus()
   return () => {
     element.removeEventListener("focusin", focus)
     element.removeEventListener("focusout", blur)
+    page?.removeEventListener("focus", back)
   }
 }
 

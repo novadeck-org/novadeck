@@ -35,3 +35,8 @@ tools: [6 tool calls · Messaged reviewer, Listed agents, Opened an agent, Descr
 # limits
 user: Be extreme.
 tools: Ran [run] | Call: run_command: 1 line, shortened: {"CommandLine":"echo xxxxxxxxxxxxxxxxxxxxxxxxxx… → 1 line, shortened: yyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyy…; a_very_long_tool_name_zzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzz [other] · …/user/project/f.ts | Call: 1 line: /home/user/project/f.ts → 1 line: fine; unknown_tool [other] · something | Call: 1 line: something → 1 line: result
+
+# novadeck-reports
+user: Wrap up.
+assistant: Reporting.
+tools: Reported done [agent] · Chat contract hardened | Call: mcp_novadeck_novadeck_done: 2 lines: subject: Chat contract hardened → 1 line: Reported.; Drafted feedback [agent] · bug | Call: mcp_novadeck_novadeck_feedback: 2 lines: kind: bug → 1 line: Drafted.; Looked at the page [web] · http://localhost:5173 | Call: mcp_novadeck_novadeck_look: 1 line: {"url":"http://localhost:5173"} → 1 line: Looked

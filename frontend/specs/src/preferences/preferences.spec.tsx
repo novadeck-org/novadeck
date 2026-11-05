@@ -10,6 +10,7 @@ import {
   preferencesDialog,
 } from "../support/keyboard"
 import {
+  expectStaysAbsent,
   openWorkspace,
   outputTextElement,
   reloadWorkspace,
@@ -863,10 +864,10 @@ describe("Appearance preference", () => {
         .toBeVisible()
       await expect.element(soundSwitch()).not.toBeInTheDocument()
       await tab("Appearance").click()
-      await expect.element(soundSwitch()).not.toBeInTheDocument()
       await expect
         .element(preferencesDialog().getByRole("combobox", { name: "Theme" }))
         .toBeVisible()
+      await expectStaysAbsent(soundSwitch())
       await expect
         .element(preferencesDialog().getByRole("combobox", { name: "Sound" }))
         .not.toBeInTheDocument()

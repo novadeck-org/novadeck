@@ -37,6 +37,8 @@ export type DemoActionContext = {
   readonly workspace: () => Workspace | undefined
   // A line for the panel's foot, as "Select a terminal first."
   readonly note: (text: string) => void
+  // Makes the panel's next render throw, as a broken view would: the app's crash screen.
+  readonly crash: () => void
 }
 
 export type DemoAction = {

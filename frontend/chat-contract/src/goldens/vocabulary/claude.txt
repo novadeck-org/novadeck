@@ -21,7 +21,7 @@ tools: [16 tool calls · Messaged reviewer, Messaged, Listed agents, Opened an a
 
 # limits-and-orphans
 user: Be extreme.
-tools: [4 tool calls · Ran, a_very_long_tool_name_zzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzz, CustomThing,] Ran [run] | Call: Bash: 1 line, shortened: {"command":"echo xxxxxxxxxxxxxxxxxxxxxxxxxxxxxx… → 1 line, shortened: yyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyy…; a_very_long_tool_name_zzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzz [other] · …/deep/er/file.ts | Call: 1 line: /home/user/project/src/deep/er/file.ts → 1 line: fine; CustomThing [other] · something unknown | Call: 1 line: something unknown → 1 line: result of a tool nobody knows; Result [other] → 1 line: A result whose call fell outside the window.
+tools: [4 tool calls · Ran, a_very_long_tool_name_zzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzz, CustomThing] Ran [run] | Call: Bash: 1 line, shortened: {"command":"echo xxxxxxxxxxxxxxxxxxxxxxxxxxxxxx… → 1 line, shortened: yyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyy…; a_very_long_tool_name_zzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzz [other] · …/deep/er/file.ts | Call: 1 line: /home/user/project/src/deep/er/file.ts → 1 line: fine; CustomThing [other] · something unknown | Call: 1 line: something unknown → 1 line: result of a tool nobody knows; Result [other] → 1 line: A result whose call fell outside the window.
 
 # messaging-and-scheduling
 user: Coordinate.
@@ -44,3 +44,7 @@ user: /review the open pull request
 assistant: Reviewing it.
 user: !ls gone
 tools: Ran [run] · ls gone | Call: Bash: 1 line: ls gone → 1 line: Command failed: Working directory "/home/user/g…
+
+# novadeck-reports
+user: Wrap up.
+tools: [4 tool calls · Reported done, Drafted feedback, Looked at the page] Reported done [agent] · Chat contract hardened | Call: mcp__plugin_novadeck_novadeck__done: 2 lines: subject: Chat contract hardened → 1 line: Reported.; Drafted feedback [agent] · bug | Call: mcp__plugin_novadeck_novadeck__feedback: 2 lines: kind: bug → 1 line: Drafted.; Looked at the page [web] · http://localhost:5173 | Call: mcp__plugin_novadeck_novadeck__look: 1 line: {"url":"http://localhost:5173"} → 1 line: Looked; Looked at the page [web] | Call: mcp__plugin_novadeck_novadeck__look: empty → 1 line: Looked

@@ -1,0 +1,9 @@
+# long-run
+user: Check it all.
+tools: [4 tool calls · Ran] Ran [run] · ls | Call: exec_command: 1 line: ls → 2 lines: a; Ran [run] · cat a.ts | Call: exec_command: 1 line: cat a.ts → 1 line: a; Ran [run] · cat b.ts | Call: exec_command: 1 line: cat b.ts → 1 line: b; Ran [run] · rg TODO | Call: exec_command: 1 line: rg TODO → 1 line: a.ts:1
+user: And the tests.
+tools: [open: 4 tool calls · Ran] Ran [run] · npm run build | Call: exec_command: 1 line: npm run build → 1 line: built; Ran [run] · cat c.ts | Call: exec_command: 1 line: cat c.ts → 1 line: c; Ran [run] · rg FIXME | Call: exec_command: 1 line: rg FIXME → 1 line: none; Ran [run] · npm test | Call: exec_command: 1 line: npm test → running
+
+# short-run
+user: Run it.
+tools: Ran [run] · cat a.ts | Call: exec_command: 1 line: cat a.ts → 1 line: a; Ran [run] · npm test | Call: exec_command: 1 line: npm test → running

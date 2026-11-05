@@ -12,6 +12,16 @@ import type { UiStore } from "./ui-store"
 // How long before this started a row may have ended and still be new: the same slack as the
 // Inbox pings'.
 const launchSlackMs = 5000
+// How many ids that left the listings are still remembered, so one that comes back isn't new.
+export const goneKept = 1000
+
+// The ids remembered after a listing: the latest `goneKept` of those that left it, then those
+// it holds. An id forgotten and listed again is told of only if it ended since this started.
+export const remember = (before: ReadonlySet<string>, now: readonly string[]): Set<string> => {
+  const current = new Set(now)
+  const gone = [...before].filter((id) => !current.has(id))
+  return new Set([...gone.slice(-goneKept), ...current])
+}
 
 // A desktop notification about one terminal, as a backend shows it.
 // `rowId` is the Inbox row it is about, which a click on it opens.
@@ -84,10 +94,12 @@ export const watchUnreadTurns = (
   const { turns, readFinishes, state: inboxState } = inbox
   if (!turns) return () => {}
   const startedAt = Date.now()
-  // Every row id any listing held since the last baseline.
+  // The row ids the listings held since the last baseline, and the listing they come from.
   let listed: Set<string> | undefined
-  // Every done report id the same listings held.
+  let listedFrom: readonly InboxTurn[] | undefined
+  // The done report ids the same listings held, and the Inbox rows they come from.
   let listedDone: Set<string> | undefined
+  let listedDoneFrom: readonly InboxRow[] | undefined
   // The rows asked to be read, while listed.
   let asked = new Set<string>()
   // The terminals whose notification stands, by id, with their session context and what it is
@@ -102,7 +114,9 @@ export const watchUnreadTurns = (
     const state = ui.getSnapshot()
     if (list === undefined) {
       listed = undefined
+      listedFrom = undefined
       listedDone = undefined
+      listedDoneFrom = undefined
       asked = new Set()
       mirror([])
       sweep([], [])
@@ -111,14 +125,32 @@ export const watchUnreadTurns = (
     const looking = viewedTerminal(snapshot, state, desktop)
     const viewed = (turn: InboxTurn): boolean =>
       looking?.context === turnContext(turn) && looking.id === turn.terminalId
+    // Only a new listing can hold a new row: any other change, as most of the UI store's,
+    // leaves what is remembered as it is.
     const before = listed
-    const fresh = before ? list.filter((turn) => !before.has(turn.id)) : []
-    listed = new Set([...(before ?? []), ...list.map((turn) => turn.id)])
+    const fresh = before && list !== listedFrom ? list.filter((turn) => !before.has(turn.id)) : []
+    if (list !== listedFrom) {
+      listed = remember(
+        before ?? new Set(),
+        list.map((turn) => turn.id),
+      )
+      listedFrom = list
+    }
     const terminals = terminalsOf(snapshot)
-    const entries = doneEntries(inboxState.getSnapshot().items)
+    const { items } = inboxState.getSnapshot()
+    const entries = doneEntries(items)
     const beforeDone = listedDone
-    const freshDone = beforeDone ? entries.filter((entry) => !beforeDone.has(entry.id)) : []
-    listedDone = new Set([...(beforeDone ?? []), ...entries.map((entry) => entry.id)])
+    const freshDone =
+      beforeDone && items !== listedDoneFrom
+        ? entries.filter((entry) => !beforeDone.has(entry.id))
+        : []
+    if (items !== listedDoneFrom) {
+      listedDone = remember(
+        beforeDone ?? new Set(),
+        entries.map((entry) => entry.id),
+      )
+      listedDoneFrom = items
+    }
     // A completed row of a worker whose lead's agent runs is the lead's, as in the Inbox.
     const heard = (turn: InboxTurn): boolean =>
       turn.outcome === "completed" && leadHearsOf(snapshot, turnContext(turn), turn.terminalId)

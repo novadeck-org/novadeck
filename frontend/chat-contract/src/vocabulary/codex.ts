@@ -7,7 +7,7 @@ const stamp = "2026-10-01T12:00:00.000Z"
 
 const item = (payload: object): object => ({ timestamp: stamp, type: "response_item", payload })
 
-const said = (text: string): object =>
+export const said = (text: string): object =>
   item({ type: "message", role: "user", content: [{ type: "input_text", text }] })
 
 const replied = (text: string): object =>
@@ -23,7 +23,7 @@ type Call = readonly [
   namespace?: string,
 ]
 
-const calls = (scenario: string, list: readonly Call[]): object[] =>
+export const calls = (scenario: string, list: readonly Call[]): object[] =>
   list.flatMap(([name, input, output, namespace], index) => {
     const call_id = `call_${scenario}_${index}`
     const custom = typeof input === "string"
@@ -235,6 +235,40 @@ export const codexVocabulary: readonly Written[] = [
         '<hook_prompt hook_run_id="stop:1:/home/user/.codex/plugins/novadeck/hooks.json">&lt;novadeck-messages note="Messages from other agents"&gt;Looks good.&lt;/novadeck-messages&gt;</hook_prompt>',
       ),
       replied("The reviewer approved it."),
+    ],
+  },
+  {
+    // Novadeck's reporting tools (`look` is in novadeck-tools), their inputs' keys as
+    // Novadeck's server defines them and Claude Code's transcripts record them.
+    name: "novadeck-reports",
+    records: [
+      said("Wrap up."),
+      ...calls("reports", [
+        [
+          "done",
+          { subject: "Chat contract hardened", body: "Fixed four findings." },
+          "Reported.",
+          "mcp__novadeck",
+        ],
+        ["feedback", { kind: "bug", text: "The pane went blank." }, "Drafted.", "mcp__novadeck"],
+      ]),
+    ],
+  },
+  {
+    // As rollouts record them (seen 2026-10 and 2026-11): clock's sleep, namespace and name
+    // apart, with {duration_ms} and its wall time as the output; and the async question,
+    // whose questions carry a `title` and maybe `options`.
+    name: "clock-and-questions",
+    records: [
+      said("Wait, then ask."),
+      ...calls("clock", [
+        ["sleep", { duration_ms: 50000 }, "Wall time: 50.0 seconds\nSleep completed.", "clock"],
+        [
+          "request_user_input_async",
+          { questions: [{ title: "Merge it now?", options: ["Merge", "Wait for CI"] }] },
+          "Question queued.",
+        ],
+      ]),
     ],
   },
 ]
