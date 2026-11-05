@@ -502,6 +502,11 @@ describe("values under a secret name that only look like code or a path", () => 
     "token: ~deploy/.token",
     "GOOGLE_APPLICATION_CREDENTIALS=/etc/gcp/key.json",
     "password = getpass(prompt)",
+    "const token = req.headers.authorization",
+    "const token = response.data;",
+    "token = this.state",
+    "apiKey: props.value,",
+    "self.password = self.encoder.encode",
   ])("keeps %s", (text) => {
     expect(redact(text)).toBe(text)
   })
@@ -512,6 +517,8 @@ describe("a plainly secret name with its value glued to the colon", () => {
     ["password:hunter2", "password:[redacted]"],
     ["login ok, db_secret:Zq8rT2mW", "login ok, db_secret:[redacted]"],
     ["auth token:abc123 sent", "auth token:[redacted] sent"],
+    ["secret:password: hunter2", "secret:password: [redacted]"],
+    ["app:secret:password: hunter2", "app:secret:password: [redacted]"],
   ])("masks %s", (text, expected) => {
     expect(redact(text)).toBe(expected)
   })
@@ -523,6 +530,14 @@ describe("a plainly secret name with its value glued to the colon", () => {
     "token:string",
     "session:abc123",
     "a:hover, std::string",
+    "src/secrets.ts:42:10 - error TS2322: Type 'x' is not assignable",
+    "src/auth/token.ts:15:const x = 1",
+    "    at Object.<anonymous> (/app/src/token.js:10:5)",
+    "token.go:88: undefined: x",
+    "Image: ghcr.io/external-secrets/external-secrets:v0.9.11",
+    "git show origin/secret-rotation:src/app.ts",
+    "arn:aws:secretsmanager:us-east-1:123456789012:secret:prod/db-AbCdEf",
+    '"Action": "secretsmanager:GetSecretValue"',
     "C:\\Users\\ada",
   ])("keeps %s", (text) => {
     expect(redact(text)).toBe(text)

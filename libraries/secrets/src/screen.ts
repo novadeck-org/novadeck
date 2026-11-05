@@ -17,10 +17,10 @@ const groups = (length: number, continues: readonly boolean[]): [number, number]
 }
 
 // A key block's marker as it starts or ends a block: whole, or cut short by the pane's width at the
-// end of its text (its dashes on the next row, or lost). A bare `-----BEGIN` in code or in grep's
-// output, with more text after it, is no marker.
+// end of its line (its dashes on the next row, or lost), read with the line's end trimmed. A bare
+// `-----BEGIN` in code or in grep's output, with more text after it, is no marker.
 const marker = (word: string): RegExp =>
-  new RegExp(`-----${word} [A-Z0-9 ]+-----|-----${word}(?: [A-Z0-9 ]*)?-*[ \\t]*$`, "g")
+  new RegExp(`-----${word} [A-Z0-9 ]+-----|-----${word}(?: [A-Z0-9 ]*)?-*$`, "g")
 const begins = marker("BEGIN")
 const ends = marker("END")
 // Where the last marker in `text` starts, or -1.
@@ -29,13 +29,16 @@ const lastMarker = (text: string, pattern: RegExp): number => {
   for (const found of text.matchAll(pattern)) at = found.index
   return at
 }
-// How many lines a block with no end on screen covers, after its BEGIN or before its END: more
-// than a large PGP key holds, so a marker in code costs at most this much of the screen.
+// How many lines a block with one marker on screen covers past it, whatever they hold: more than
+// most keys take, so a marker in code costs at most this much of the screen. A longer block goes
+// on while its lines look like a key's body.
 export const keyBlockLines = 256
+const keyBody = /^[ \t]*[A-Za-z0-9+/=]{16,}$/
 
 // Which rows of the screen a key block covers: every row from a BEGIN marker to its END marker,
-// or `keyBlockLines` lines on if that is not visible. A marker may be split by the end of a
-// row, so rows that go on in the next are read together, as one line; the whole group is covered.
+// or, where one of them is not on the screen, `keyBlockLines` lines past the other (and on through
+// lines of a key's body). A marker may be split by the end of a row, so rows that go on in the
+// next are read together, as one line; the whole group is covered.
 const keyBlockRows = (screen: readonly string[], continues: readonly boolean[]): boolean[] => {
   const covered: boolean[] = screen.map(() => false)
   const lines = groups(screen.length, continues)
@@ -45,19 +48,33 @@ const keyBlockRows = (screen: readonly string[], continues: readonly boolean[]):
       for (let i = first; i <= last; i += 1) covered[i] = true
     }
   }
-  // The line the open block's BEGIN is on, or -1 when no block is open.
-  let opened = -1
+  // The line of the last BEGIN with no END after it, or -1; whether its block still covers the
+  // lines it reaches; and the line of the last END.
+  let begun = -1
+  let covering = false
+  let ended = -1
   for (const [line, [first, last]] of lines.entries()) {
-    const text = screen.slice(first, last + 1).join("")
+    const text = screen
+      .slice(first, last + 1)
+      .join("")
+      .trimEnd()
     // Whichever marker comes last in the line says if a block is open after it.
     const lastBegin = lastMarker(text, begins)
     const lastEnd = lastMarker(text, ends)
-    if (opened >= 0 && line - opened > keyBlockLines) opened = -1
-    if (lastEnd >= 0 && opened < 0 && lastBegin < 0) {
-      // An END with no BEGIN on screen: its block began above, at most so many lines up.
-      cover(line - keyBlockLines, line)
-    } else if (opened >= 0 || lastBegin >= 0) cover(line, line)
-    if (lastBegin >= 0 || lastEnd >= 0) opened = lastBegin > lastEnd ? line : -1
+    if (covering && line - begun > keyBlockLines && !keyBody.test(text)) covering = false
+    if (lastEnd >= 0 && lastBegin < 0 && !covering) {
+      // An END its block no longer reached: the block began at the BEGIN above, or, with none,
+      // above the screen's top, at most so many lines up and never before an earlier END.
+      cover(begun >= 0 ? begun : Math.max(ended + 1, line - keyBlockLines), line)
+    } else if (covering || lastBegin >= 0) cover(line, line)
+    if (lastBegin > lastEnd) {
+      begun = line
+      covering = true
+    } else if (lastEnd >= 0) {
+      begun = -1
+      covering = false
+      ended = line
+    }
   }
   return covered
 }
@@ -71,7 +88,7 @@ const keyBlockRows = (screen: readonly string[], continues: readonly boolean[]):
 const readWindow = 4 * valueCap
 // What a token, a key or a hash is made of.
 const tokenCharacter = /[\w.+/=~-]/
-// The starts of tokens that have a prefix of their own (see the rules), and how long a run of
+// The starts of tokens that have a prefix of their own and may run long (see the rules), and how long a run of
 // token characters after one has to be to be masked on that alone: too long for a window to
 // hold the whole token, which a rule needs to match it.
 const tokenStart = new RegExp(

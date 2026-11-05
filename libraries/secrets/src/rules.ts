@@ -191,14 +191,18 @@ export const rules: readonly Rule[] = [
         : all,
     field: { name: 3, value: new RegExp(`${quoted}|[^\\s,}\\]]+`, "uy") },
   },
-  // name: value, as YAML and headers have it, and name:value when the name says it plainly.
+  // name: value, as YAML and headers have it, and name:value when the name says it plainly and
+  // stands on its own: not the end of a path, a ref or an ARN (`origin/secret-x:src`,
+  // `arn:aws:secretsmanager:…`). A glued value with a colon in it is read again inside
+  // (`secret:password: hunter2`).
   {
     pattern: new RegExp(
       `(?<![\\p{L}\\p{N}_.-])([\\p{L}_][\\p{L}\\p{N}_.-]*)([ \\t]*:(?:[ \\t]+|(?=[^\\s:/\\\\])))`,
       "gu",
     ),
     judge: ({ offset, text }, all, name, joint, value) =>
-      (!joint.endsWith(":") || plainlySecret(name)) &&
+      (!joint.endsWith(":") ||
+        (plainlySecret(name) && !/[/:@\\]/.test(text[offset - 1] ?? "") && !value.includes(":"))) &&
       worthHiding(value, true) &&
       !closesLiteral(value, offset, text)
         ? `${name}${joint}${hideValue(value)}`

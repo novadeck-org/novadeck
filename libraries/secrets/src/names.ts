@@ -63,7 +63,8 @@ export const soundsSecret = (name: string): boolean => {
   return words.some((word, index) => word === "key" && keyOf.has(words[index - 1] ?? ""))
 }
 
-// Whether a name that sounds secret says so plainly enough to take a value glued on after a
-// colon (`password:hunter2`), where most names with a colon are code, a scheme or a host.
+// Whether a name says it holds a secret plainly enough to take a value glued on after a colon
+// (`password:hunter2`), where most names with a colon are code, a scheme, a host, an image or a
+// file with its line: a bare word, no file name, that ends in the secret's own word.
 export const plainlySecret = (name: string): boolean =>
-  wordsOf(name).some((word) => /passw|secret|passphrase/.test(word) || /^(token|pwd)$/.test(word))
+  !name.includes(".") && /passw|passphrase|^(secret|token|pwd)$/.test(wordsOf(name).at(-1) ?? "")

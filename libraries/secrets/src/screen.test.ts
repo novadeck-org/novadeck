@@ -224,9 +224,39 @@ describe("text that names a key block's markers", () => {
     expect(result.at(-1)).toBe("$ ls")
   })
 
-  it("masks a key block of many lines whole", () => {
-    const body = Array.from({ length: 150 }, () => randomBytes(48).toString("base64"))
-    const screen = ["$ cat key.asc", "-----BEGIN PGP PRIVATE KEY BLOCK-----", ...body, "$"]
+  const armored = (count: number): string[] => [
+    "-----BEGIN PGP PRIVATE KEY BLOCK-----",
+    "",
+    ...Array.from({ length: count }, () => randomBytes(48).toString("base64")),
+  ]
+
+  const end = ["=Ab12", "-----END PGP PRIVATE KEY BLOCK-----"]
+  // With no end on screen, a short block covers the line after it too.
+  it.each([
+    [150, end, "$ ls"],
+    [700, end, "$ ls"],
+    [150, [], redacted],
+    [700, [], "$ ls"],
+  ])("masks a key block of %s lines whole, ended by %j", (count, ending, after) => {
+    const screen = ["$ gpg --export-secret-keys --armor ada", ...armored(count), ...ending, "$ ls"]
+
+    const result = redactScreen(
+      screen,
+      screen.map(() => false),
+    )
+
+    expect(result.slice(1, -1 - ending.length).every((row) => row === redacted)).toBe(true)
+    expect(result[0]).toBe("$ gpg --export-secret-keys --armor ada")
+    expect(result.at(-1)).toBe(after)
+  })
+
+  it("masks a long block between its markers whatever its lines hold", () => {
+    const body = Array.from(
+      { length: 600 },
+      (_x, i) => `   ${i}\t${randomBytes(48).toString("base64")}`,
+    )
+    const screen = ["$ cat -n key.asc", "-----BEGIN PGP PRIVATE KEY BLOCK-----", ...body]
+    screen.push("-----END PGP PRIVATE KEY BLOCK-----", "$ ls")
 
     const result = redactScreen(
       screen,
@@ -234,8 +264,36 @@ describe("text that names a key block's markers", () => {
     )
 
     expect(result.slice(1, -1).every((row) => row === redacted)).toBe(true)
-    expect(result[0]).toBe("$ cat key.asc")
   })
+
+  it("covers no rows above an earlier block's END for an END in code, only those after it", () => {
+    const screen = [
+      "plain0",
+      "-----BEGIN X-----",
+      "MIIB",
+      "-----END X-----",
+      "plain4",
+      'const e = "-----END X-----"',
+      "after",
+    ]
+
+    const result = redactScreen(
+      screen,
+      screen.map(() => false),
+    )
+
+    expect(result).toEqual(["plain0", redacted, redacted, redacted, redacted, redacted, "after"])
+  })
+
+  it(
+    "finds a marker after a long run of spaces in a time that grows with it",
+    { timeout: 5000 },
+    () => {
+      const row = `-----BEGIN${" ".repeat(200_000)}x`
+
+      expect(redactScreen([row], [false])).toEqual([row])
+    },
+  )
 })
 
 describe("redacting values across a screen's rows", () => {
