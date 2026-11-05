@@ -1,6 +1,7 @@
 import { page, userEvent } from "vitest/browser"
 
 import { windowMenu } from "../support/companions"
+import { pressShortcut } from "../support/keyboard"
 import { openMessagesDemo } from "../support/messages"
 import { tabDescription, terminalTab } from "../support/workspace"
 import { describe, expect, it } from "../test"
@@ -161,12 +162,13 @@ describe("Folding a lead's teammates out of the list", () => {
     await terminalTab("Dev server").click()
     await pointBeside()
     await expect.poll(() => foldOf(worker)).toBe("preview")
-    // Hiding the sidebar takes the gutter away with no leave heard.
-    await userEvent.keyboard("{Control>}{Shift>}e{/Shift}{/Control}")
+    // Hiding the sidebar takes the gutter away with no leave heard. Its shortcut is the
+    // platform's: ⌘⇧E on a Mac, where Ctrl+Shift+E does nothing.
+    await pressShortcut("terminals")
     await expect.poll(gutterElement).toBeNull()
     // The pointer moves on to the header while it's hidden, then the sidebar comes back.
     await userEvent.hover(page.getByRole("radiogroup", { name: "Workspace layout" }))
-    await userEvent.keyboard("{Control>}{Shift>}e{/Shift}{/Control}")
+    await pressShortcut("terminals")
     await expect.poll(gutterElement).not.toBeNull()
     await expect.poll(() => foldOf(worker)).toBe("shown")
     expect(shape()?.hasAttribute("data-armed")).toBe(false)
