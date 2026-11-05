@@ -202,7 +202,9 @@ export class Companion {
     const records = this.host.records()
     const record = records.get(terminalId)
     if (!record) return undefined
-    const facts = await this.host.peers().hint(peerOf(record), this.items?.bar(terminalId) ?? [])
+    const facts = await this.host
+      .peers()
+      .hint(peerOf(record), this.items?.bar(terminalId) ?? [], this.items?.environment())
     // The session's open terminals' handles, in the order they were given, so dictation
     // spells them.
     const handles = [...records.values()]

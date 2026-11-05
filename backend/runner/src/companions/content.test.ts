@@ -87,6 +87,27 @@ describe("what a show points at", () => {
     await expect(pointAt(".env", directory)).resolves.toMatchObject({ ok: true, secret: true })
   })
 
+  it("may hold secrets where the environment it is given says a tool keeps its login", async ({
+    directory,
+  }) => {
+    const moved = join(directory, "accounts", "work")
+    mkdirSync(moved, { recursive: true })
+    const login = join(moved, "auth.json")
+    writeFileSync(login, "{}\n")
+    writeFileSync(join(moved, "hosts.yml"), "held\n")
+    await expect(pointAt(login, directory, {})).resolves.toMatchObject({ secret: false })
+    await expect(pointAt(login, directory, { CODEX_HOME: moved })).resolves.toMatchObject({
+      secret: true,
+    })
+    await expect(
+      loadFile(file(join(moved, "hosts.yml")), false, { GH_CONFIG_DIR: moved }),
+    ).resolves.toMatchObject({ reason: "secret" })
+    // With no variable to say so, what Codex keeps beside its login tells its home.
+    writeFileSync(join(moved, "config.toml"), "")
+    await expect(pointAt(login, directory, {})).resolves.toMatchObject({ secret: true })
+    await expect(loadFile(file(login), false, {})).resolves.toMatchObject({ reason: "secret" })
+  })
+
   it("is never a missing path, a folder, or a pipe", async ({ directory }) => {
     await expect(pointAt("gone.txt", directory)).resolves.toEqual({
       ok: false,

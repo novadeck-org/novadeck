@@ -45,6 +45,8 @@ type Fixture = {
   items: CompanionItems
   /** What a text plan's live terminal has, as `livePlan` reads it. */
   live: Map<string, PlanText>
+  /** The person's environment, as `environment` reads it: none of the machine's own. */
+  environment: NodeJS.ProcessEnv
 }
 
 const it = base.extend<{ fixture: Fixture }>({
@@ -57,7 +59,9 @@ const it = base.extend<{ fixture: Fixture }>({
     const session = store.createSession({ id: randomUUID(), projectId: project.id, name: "S" })
     const places = new Map<string, TerminalPlace>()
     const live = new Map<string, PlanText>()
+    const environment: NodeJS.ProcessEnv = {}
     const items = new CompanionItems({
+      environment: () => environment,
       records: store,
       terminal: (terminalId) => places.get(terminalId),
       project: (sessionId) => (sessionId === session.id ? directory : undefined),
@@ -96,7 +100,16 @@ const it = base.extend<{ fixture: Fixture }>({
       places.delete(terminalId)
       store.removeTerminal(terminalId)
     }
-    await use({ directory, store, sessionId: session.id, terminal, close, items, live })
+    await use({
+      directory,
+      store,
+      sessionId: session.id,
+      terminal,
+      close,
+      items,
+      live,
+      environment,
+    })
   },
 })
 
@@ -1017,6 +1030,26 @@ describe("an item's content", () => {
       size: 8,
     })
     await expect(fixture.items.load(itemId, true)).resolves.toMatchObject({ state: "ready" })
+  })
+
+  it("holds a login where the person's environment says a tool keeps it", async ({ fixture }) => {
+    const moved = join(fixture.directory, "work")
+    mkdirSync(moved)
+    writeFileSync(join(moved, "hosts.yml"), "held\n")
+    const moth = fixture.terminal("moth")
+    const path = join("work", "hosts.yml")
+    // A plain name, opened as asked, until a variable says the tool's logins are there.
+    await expect(fixture.items.show(moth, { file: { path }, open: true })).resolves.toMatchObject({
+      ok: true,
+      opened: true,
+    })
+    fixture.environment.GH_CONFIG_DIR = moved
+    const shown = await fixture.items.show(moth, { file: { path }, open: true })
+    expect(shown).toMatchObject({ ok: true, opened: false, secret: true })
+    await expect(fixture.items.load(shown.ok ? shown.id : "", false)).resolves.toMatchObject({
+      state: "unavailable",
+      reason: "secret",
+    })
   })
 })
 

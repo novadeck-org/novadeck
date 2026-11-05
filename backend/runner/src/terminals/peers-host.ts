@@ -5,7 +5,7 @@ import { basename, isAbsolute, join, relative } from "node:path"
 import type { CompanionItem, TerminalMessages } from "@novadeck/protocol"
 
 import { planTitle } from "../companions/content.js"
-import { secret } from "../companions/secrets.js"
+import { secrets } from "../companions/secrets.js"
 import { DomainError } from "../errors.js"
 import type { Activity } from "../harnesses/activity.js"
 import type { Messaging } from "../messaging/messaging.js"
@@ -279,11 +279,12 @@ export class TerminalPeers {
    * git branch, the folders its work wrote in most, as paths inside its project (or its
    * own folder, without one), and the names of the files `shown` in its bar, then of
    * those its work wrote in last. Only what is inside counts, and never a file that may
-   * hold secrets.
+   * hold secrets, judged by the person's environment `env`; the runner's own when omitted.
    */
   async hint(
     terminal: PeerTerminal,
     shown: readonly Pick<CompanionItem, "kind" | "path" | "secret">[],
+    env?: NodeJS.ProcessEnv,
   ): Promise<Omit<HintFacts, "project" | "handles">> {
     const { cwd, sessionId } = terminal.summary
     const base = this.options.projectFolder(sessionId) ?? cwd
@@ -295,13 +296,14 @@ export class TerminalPeers {
       ...shown.flatMap((item) => (item.kind === "file" && !item.secret && item.path) || []),
       ...(terminal.work?.files ?? []),
     ]
+    const held = secrets(env)
     return {
       cwd,
       branch: await this.branch(cwd),
       folders: busiestFolders(terminal.work?.folders ?? {})
         .map(({ folder }) => inside(folder))
         .filter((path) => path !== undefined),
-      files: files.filter((path) => inside(path) && !secret(path)).map((path) => basename(path)),
+      files: files.filter((path) => inside(path) && !held(path)).map((path) => basename(path)),
     }
   }
 

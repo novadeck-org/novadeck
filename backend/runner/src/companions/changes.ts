@@ -16,7 +16,7 @@ import { gitEnv, gitPath } from "../git.js"
 import { killTree } from "../programs.js"
 import { cut, ellipsized } from "../text.js"
 import { hashOf } from "./content.js"
-import { secret } from "./secrets.js"
+import { secrets } from "./secrets.js"
 
 /** The empty tree, which a repository with no commit yet is diffed against, by object format. */
 const emptyTrees = {
@@ -423,10 +423,11 @@ const untracked = async (
   path: string,
   budget: Budget,
   reading: { left: number },
+  held: (path: string) => boolean,
 ): Promise<ChangedFile | undefined> => {
   const full = join(root, path)
   const base = { ...emptyFile(path), status: "added" as const }
-  if (secret(full)) return { ...base, secret: true }
+  if (held(full)) return { ...base, secret: true }
   // Once the diff text or the reading is spent, the rest are listed without a look.
   if (budget.left <= 0 || reading.left <= 0) return { ...base, listed: true }
   const stats = await lstat(full).catch(() => undefined)
@@ -578,10 +579,12 @@ const patchOf = async (
  * staged, unstaged and untracked files, but not ignored ones. Files are listed with their
  * counts by git alone, then diffed as far as the encoded diff text fits `maxChangesBytes`,
  * and at most `maxChangedFiles` are carried. Run as `git diff` by the person would, but
- * never prompting or taking a lock.
+ * never prompting or taking a lock. `env` is the person's environment, which says where
+ * tools keep their logins (see `secret`).
  */
 export const readChange = async (
   root: string,
+  env?: NodeJS.ProcessEnv,
 ): Promise<{ readonly ok: true; readonly change: Change } | ChangeFailure> => {
   const configured = await git(
     root,
@@ -623,8 +626,10 @@ export const readChange = async (
   if (!others.ok) return failure("failed", reasonOf(others, "read the changes"))
 
   const entries = parseListing(listing.out)
+  // The environment is read once for every file of the change.
+  const held = secrets(env)
   const secretAt = (path: string, oldPath: string | null) =>
-    secret(join(root, path)) || (oldPath !== null && secret(join(root, oldPath)))
+    held(join(root, path)) || (oldPath !== null && held(join(root, oldPath)))
   // Only files that can fit are diffed, so one that can't (a regenerated lockfile) takes
   // none of the patch's room from those after it: each changed line costs at least
   // `minLineCost`, and a file is wanted while the files wanted so far and it still could.
@@ -712,7 +717,7 @@ export const readChange = async (
   let kept = 0
   for (const name of names.slice(0, slots)) {
     // eslint-disable-next-line no-await-in-loop -- Each file is read in turn, within the budget.
-    const file = await untracked(root, name, budget, reading)
+    const file = await untracked(root, name, budget, reading, held)
     if (!file) continue
     kept += 1
     if (file.listed) truncated = true
@@ -761,13 +766,14 @@ const unavailable = (reason: "missing" | "unreadable") => ({
  */
 export const changesContent = async (
   root: string | null,
+  env?: NodeJS.ProcessEnv,
 ): Promise<{ readonly content: ItemContent; readonly detail?: string }> => {
   if (root === null) return unavailable("missing")
   const found = await repositoryOf(root)
   if (!found.ok) return unavailable(found.kind === "missing" ? "missing" : "unreadable")
   // A repository that lost its own .git is now a folder of another: that is not its change.
   if (!samePlace(found.root, root)) return unavailable("missing")
-  const read = await readChange(found.root)
+  const read = await readChange(found.root, env)
   if (!read.ok) return unavailable("unreadable")
   const { change } = read
   const content = {

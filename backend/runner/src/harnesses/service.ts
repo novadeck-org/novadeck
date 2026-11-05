@@ -8,6 +8,7 @@ import type { AgentIntegration, AgentName } from "@novadeck/protocol"
 import { relayPath } from "@novadeck/relay"
 import { refreshPath } from "@novadeck/terminal/shell"
 
+import { secretVariables } from "../companions/secrets.js"
 import { DomainError } from "../errors.js"
 import { exists } from "../files.js"
 import { logs } from "../log.js"
@@ -44,6 +45,18 @@ const cmdLine = (argv: readonly string[]): string =>
 
 // Variables the person's terminal has that decide where agents are and live.
 const loginVariables = new Set(["PATH", "CLAUDE_CONFIG_DIR", "CODEX_HOME"])
+// Those that say where their tools keep their logins, in any case, as npm writes its own.
+const toolVariables = new Set(secretVariables)
+const kept = (name: string) => loginVariables.has(name) || toolVariables.has(name.toUpperCase())
+// The login shell's environment as agents' own commands get it: only what decides where
+// agents are and live comes from the shell, and the tools' variables stay the app's own.
+const forAgents = (found: NodeJS.ProcessEnv, base: NodeJS.ProcessEnv): NodeJS.ProcessEnv =>
+  Object.fromEntries(
+    Object.entries(found).flatMap(([name, value]) => {
+      if (loginVariables.has(name) || !toolVariables.has(name.toUpperCase())) return [[name, value]]
+      return name in base ? [[name, base[name]]] : []
+    }),
+  )
 const marker = "__NOVADECK_ENV__"
 
 // What the login shell's startup files set; see `loginEnvironment`.
@@ -65,7 +78,7 @@ const loginShellEnvironment = (env: NodeJS.ProcessEnv) =>
       for (const line of lines.slice(start + 1)) {
         const split = line.indexOf("=")
         const name = line.slice(0, split)
-        if (split > 0 && loginVariables.has(name)) found[name] = line.slice(split + 1)
+        if (split > 0 && kept(name)) found[name] = line.slice(split + 1)
       }
       resolve({ ...env, ...found })
     }
@@ -226,13 +239,16 @@ export const createHarnesses = (
   // Looked up in the background from the start, and again before each change. Listing
   // and spawning shells never wait for it: until it answers they use the app's own.
   let latest: NodeJS.ProcessEnv | undefined
+  // The same with the tools' variables as the shell has them, for `environment` alone.
+  let person: NodeJS.ProcessEnv | undefined
   const lookUp = () =>
     (options.login === false
       ? Promise.resolve(base)
       : loginEnvironment(base, platform, relay)
     ).then((found) => {
-      latest = found
-      return found
+      person = found
+      latest = forAgents(found, base)
+      return latest
     })
   void lookUp()
   // Where each harness lives, once the shell files say where its plugin is.
@@ -319,6 +335,11 @@ export const createHarnesses = (
         return []
       }
     },
+    /**
+     * The person's environment as their terminal has it, as far as it is known: their
+     * login shell's once it answered, the app's own until then.
+     */
+    environment: (): NodeJS.ProcessEnv => person ?? base,
     /** Where the agent lives on this machine, once the shell files say where its plugin is. */
     install: async (agent: AgentName): Promise<Install | undefined> => (await installs())?.(agent),
     /** The folders the agent keeps the plans it writes as files in (see `Harness.planFolders`). */
