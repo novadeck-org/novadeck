@@ -21,6 +21,46 @@ const linux = {
   salt,
 }
 
+// A growth at or over this is no linear time: between linear's 1 and a quadratic's 10.
+const superlinear = 3
+
+/**
+ * How many times longer `work` takes on a text of `length` than on a tenth of it ten times
+ * over: about 1 where its time is linear in the length, about 10 where it is quadratic. For
+ * linear work the two sides take as long as each other, so a busy machine slows them alike.
+ * A short sample against a long one is not so: the short one fits in one of the scheduler's
+ * time slices and runs at full speed, while the long one shares its core with whatever else
+ * runs, which read as 108 times the time for ten times the text on a loaded macOS runner.
+ * Each round times one side straight after the other, and the middle round counts, so
+ * neither a cold first round nor a load that comes or goes in one decides: of three rounds
+ * at least and seven at most, ending once under `superlinear` or after five seconds.
+ */
+const growth = (
+  work: (text: string) => unknown,
+  text: (length: number) => string,
+  length: number,
+): { times: number; rounds: readonly number[] } => {
+  const part = text(length / 10)
+  const whole = text(length)
+  const timed = (run: () => void): number => {
+    const started = performance.now()
+    run()
+    return performance.now() - started
+  }
+  const began = performance.now()
+  const rounds: number[] = []
+  let times = Infinity
+  while (rounds.length < 7 && performance.now() - began < 5_000) {
+    const parts = timed(() => {
+      for (let pass = 0; pass < 10; pass++) work(part)
+    })
+    rounds.push(timed(() => work(whole)) / parts)
+    times = rounds.toSorted((a, b) => a - b)[Math.floor(rounds.length / 2)] ?? Infinity
+    if (rounds.length >= 3 && times < superlinear) break
+  }
+  return { times, rounds }
+}
+
 describe("createRedactor", () => {
   const redact = createRedactor({
     ...linux,
@@ -212,11 +252,8 @@ describe("createRedactor", () => {
   })
 
   // Each took seconds at 200,000 characters before: a pattern that looked again from each
-  // character of a long run. What holds is linear time, not a speed a slow machine may not
-  // have: ten times the text takes about ten times as long, where a quadratic takes a
-  // hundred. 40 sits between the two (30 was seen on a loaded macOS runner), each time is
-  // the best of three after a warm-up (the 200,000's stops early once under the bound),
-  // and under 100 ms passes whatever the ratio.
+  // character of a long run. What holds is linear time, not a speed a slow or busy machine
+  // may not have: see `growth`.
   it.each([
     ["a long run of letters", (length: number) => "A".repeat(length)],
     ["a long hex run", (length: number) => "0123456789abcdef".repeat(length / 16)],
@@ -229,25 +266,29 @@ describe("createRedactor", () => {
   ])(
     "redacts %s in time linear in its length, to 200,000 characters",
     (_what, text) => {
-      const timed = (length: number): number => {
-        const shown = text(length)
-        const started = performance.now()
-        redact(shown)
-        return performance.now() - started
-      }
-      timed(20_000)
-      const small = Math.min(timed(20_000), timed(20_000), timed(20_000))
-      const bound = Math.max(40 * small, 100)
-      let large = timed(200_000)
-      for (let tries = 1; tries < 3 && large >= bound; tries++)
-        large = Math.min(large, timed(200_000))
+      const { times, rounds } = growth(redact, text, 200_000)
       expect(
-        large,
-        `${large.toFixed(1)} ms at 200,000, ${small.toFixed(1)} ms at 20,000`,
-      ).toBeLessThan(bound)
+        times,
+        `200,000 against ten of 20,000, by round: ${rounds.map((round) => round.toFixed(1)).join(", ")}`,
+      ).toBeLessThan(superlinear)
     },
     60_000,
   )
+
+  // The measure itself, on the email pattern as it was when it looked again from each
+  // character of a run: were it to read this as linear, the cases above would guard nothing.
+  it("reads a pattern that looks again from each character as no linear time", () => {
+    const rescanning = /[\w.%+-]+@[A-Za-z0-9-]+(?:\.[A-Za-z0-9-]+)*\.[A-Za-z]{2,}\b(?!:[\w#~./<])/g
+    const { times, rounds } = growth(
+      (text) => text.replace(rescanning, "<email>"),
+      (length) => "A".repeat(length),
+      5_000,
+    )
+    expect(
+      times,
+      `5,000 against ten of 500, by round: ${rounds.map((round) => round.toFixed(1)).join(", ")}`,
+    ).toBeGreaterThan(superlinear)
+  })
 
   it.each([
     ["a hex segment", "/home/ana/.config/Code/0123456789abcdef0123456789abcdef/bigbank/state.db"],
