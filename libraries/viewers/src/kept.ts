@@ -5,14 +5,22 @@ export type Kept<Value> = {
   readonly keep: (key: string, value: Value) => void
 }
 
-export const createKept = <Value>(limit: number): Kept<Value> => {
+// Up to `limit` values, or, given `sizeOf`, values up to that much in all.
+export const createKept = <Value>(
+  limit: number,
+  sizeOf: (value: Value) => number = () => 1,
+): Kept<Value> => {
   const kept = new Map<string, Value>()
+  let size = 0
   const keep = (key: string, value: Value): void => {
+    if (kept.has(key)) size -= sizeOf(kept.get(key)!)
     kept.delete(key)
     kept.set(key, value)
-    for (const oldest of kept.keys()) {
-      if (kept.size <= limit) break
+    size += sizeOf(value)
+    for (const [oldest, each] of kept) {
+      if (size <= limit) break
       kept.delete(oldest)
+      size -= sizeOf(each)
     }
   }
   return {
