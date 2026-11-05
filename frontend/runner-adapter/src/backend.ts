@@ -62,6 +62,7 @@ import {
   type RunnerListing,
 } from "./sessions/seed"
 import { createRunnerSource } from "./source"
+import { consume } from "./streams"
 import { runnerSwitches } from "./switches"
 import {
   defaultQuickExitMs,
@@ -251,17 +252,6 @@ export type RunnerBackend = {
 const connectionState = (status: WireStatus): BackendConnectionState => {
   if (status.state === "connected") return "connected"
   return status.state === "reconnecting" ? "reconnecting" : "unavailable"
-}
-
-const consume = async <T>(
-  changes: AsyncIterable<T>,
-  handle: (change: T) => void,
-): Promise<void> => {
-  try {
-    for await (const change of changes) handle(change)
-  } catch {
-    // The runner closed for good; the connection store already says so.
-  }
 }
 
 const target = ({ projectId, workspaceSessionId }: TerminalKey) => ({
@@ -1363,6 +1353,11 @@ export const runnerBackend = (
     const onRequest = (request: TerminalRequest): void => {
       if (!live) return
       let answered = false
+      const answer = (result: Parameters<typeof answerRequest>[1]): void => {
+        if (answered) return
+        answered = true
+        void track(answerRequest(request, result))
+      }
       // The app adds the terminal as it is asked to, so it is created for this request.
       opening = request.requestId
       try {
@@ -1371,12 +1366,16 @@ export const runnerBackend = (
           directory: request.cwd,
           ...(request.command !== undefined && { command: request.command }),
           focus: request.focus,
-          answer: (result) => {
-            if (answered) return
-            answered = true
-            void track(answerRequest(request, result))
-          },
+          answer,
         })
+      } catch (error) {
+        // The agent hears at once rather than wait out its time limit; the stream goes on.
+        answer({
+          reason: launchFailure({
+            ...(request.command !== undefined && { command: request.command }),
+          }),
+        })
+        throw error
       } finally {
         opening = undefined
       }
