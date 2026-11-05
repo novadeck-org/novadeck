@@ -1,3 +1,5 @@
+import { terminalTitle } from "@novadeck/protocol"
+
 import { describe, expect, it } from "../test.js"
 import {
   cleanSummary,
@@ -75,6 +77,23 @@ describe("a terminal's title", () => {
     expect(defaultTitle("A=1")).toBe("Terminal")
     expect(defaultTitle(null)).toBe("Terminal")
     expect(titleOf(unnamed, { command: "claude", openedBy: null }).title).toBe("claude")
+  })
+
+  // A title kept before the rule took in bidirectional marks and C1 controls would fail every
+  // summary it is in, and with it the terminals' stream.
+  it("is a kept title as a title may be now", () => {
+    const title = terminalTitle
+    const kept = { ...unnamed, person: "build\u202eevil\u009b" }
+    expect(titleOf(kept, terminal)).toEqual({ title: "build evil", source: { kind: "person" } })
+    expect(title.safeParse(titleOf(kept, terminal).title).success).toBe(true)
+    const opened = { ...unnamed, opener: { title: "\u2066Server\u2069" } }
+    expect(titleOf(opened, terminal).title).toBe("Server")
+    // One with nothing left gives way to the next.
+    expect(titleOf({ ...kept, person: "\u202e", murmur }, terminal)).toEqual({
+      title: "Fixing login",
+      source: { kind: "murmur" },
+    })
+    expect(title.safeParse(defaultTitle("ec\u202eho hi")).success).toBe(true)
   })
 })
 

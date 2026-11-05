@@ -4,7 +4,7 @@ import { basename, dirname, isAbsolute, join, relative, resolve, sep } from "nod
 import { setTimeout as sleep } from "node:timers/promises"
 
 import type { PlanSource } from "@novadeck/harness-core/events"
-import { companionLimits, onThisMachine, pageKey } from "@novadeck/protocol"
+import { companionLimits, onThisMachine, pageKey, titleFrom } from "@novadeck/protocol"
 import type {
   AgentName,
   CompanionChange,
@@ -156,13 +156,6 @@ const changesKey = (root: string): string =>
 const planKey = (slot: Pick<PlanSlot, "agentSession" | "actor">): string =>
   `plan:${slot.agentSession}:${slot.actor ?? ""}`
 
-/** A window's title by default: its item's name, as one line a title may be. */
-const defaultTitle = (name: string): string => {
-  // eslint-disable-next-line no-control-regex -- These are the characters a title refuses.
-  const line = name.replaceAll(/[\x00-\x1f\x7f]/g, " ").trim()
-  return [...line].slice(0, 200).join("").trim() || "Window"
-}
-
 /** An item as clients see it. */
 const wireItem = (item: ItemRecord): CompanionItem => ({
   id: item.id,
@@ -187,14 +180,24 @@ const wireItem = (item: ItemRecord): CompanionItem => ({
   },
 })
 
+/**
+ * A window's title: the person's, as a title may be now (one kept before the rule took in
+ * more holds what it refuses), else its item's name as one.
+ */
+const windowTitle = (window: WindowRecord): Pick<CompanionWindow, "title" | "titleSource"> => {
+  const person = window.personTitle === null ? undefined : titleFrom(window.personTitle)
+  return person !== undefined
+    ? { title: person, titleSource: { kind: "person" } }
+    : { title: titleFrom(window.itemName) ?? "Window", titleSource: { kind: "default" } }
+}
+
 /** A window as clients see it. */
 const wireWindow = (window: WindowRecord): CompanionWindow => ({
   id: window.id,
   sessionId: window.sessionId,
   home: window.home,
   itemId: window.itemId,
-  title: window.personTitle ?? defaultTitle(window.itemName),
-  titleSource: window.personTitle === null ? { kind: "default" } : { kind: "person" },
+  ...windowTitle(window),
 })
 
 /** What a content reader compares to tell whether to yield again. */

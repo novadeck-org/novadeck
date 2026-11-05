@@ -26,3 +26,4 @@ export const feedbackDraft = z.strictObject({
 })
 
 export type FeedbackDraft = z.infer<typeof feedbackDraft>
+export type FeedbackKind = z.infer<typeof feedbackKind>

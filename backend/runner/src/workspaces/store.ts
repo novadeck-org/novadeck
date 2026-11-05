@@ -13,7 +13,14 @@ import { realpath, stat } from "node:fs/promises"
 import { dirname, isAbsolute, join } from "node:path"
 import { DatabaseSync, type SQLTagStore } from "node:sqlite"
 
-import type { AgentName, Project, WorkspaceSession } from "@novadeck/protocol"
+import {
+  asLine,
+  isAgentName,
+  unsafeInLine,
+  type AgentName,
+  type Project,
+  type WorkspaceSession,
+} from "@novadeck/protocol"
 
 import type { ItemRecord, ItemRecords, Placed, WindowRecord } from "../companions/records.js"
 import { DomainError } from "../errors.js"
@@ -947,13 +954,19 @@ const listed = (row: Omit<TerminalRow, "transcript" | "interruptions">): ListedT
   work: workOf(row.work),
   openedBy: row.opened_by,
   ledBy: row.led_by,
-  command: row.command,
+  command: row.command === null ? null : commandOf(row.command),
   lastProgram: row.last_program,
   cwd: row.cwd,
   agents: agentsOf(row.agent_reports),
   promptedAt: row.prompted_at,
   savedAt: row.saved_at,
 })
+
+// A command kept before the rule took in more may hold what one line no longer may, which
+// would fail every summary it is in: that one is kept as one line (`asLine`). Any other is
+// kept as it is.
+const commandOf = (command: string): string | null =>
+  unsafeInLine.test(command) ? asLine(command) || null : command
 
 const agentsOf = (text: string): SavedTerminal["agents"] => {
   try {
@@ -1010,7 +1023,8 @@ const senderOf = (row: MessageRow): Message["from"] => {
     kind: "agent",
     terminalId: row.from_terminal!,
     handle: row.from_handle!,
-    agent: row.from_agent as AgentName | null,
+    // A newer build's harness this one doesn't know: the sender stays, unnamed.
+    agent: isAgentName(row.from_agent) ? row.from_agent : null,
     sessionId: row.from_agent_session,
   }
 }
@@ -1033,7 +1047,8 @@ const messageOf = (row: MessageRow): Message => ({
   to: {
     terminalId: row.to_terminal,
     handle: row.to_handle,
-    agent: row.to_agent as Message["to"]["agent"],
+    // Checked by `messages`, which leaves out a message to an agent this build doesn't know.
+    agent: row.to_agent as AgentName,
     sessionId: row.to_agent_session,
   },
   text: row.text,
@@ -1103,10 +1118,11 @@ const itemOf = (row: ItemRow): ItemRecord => ({
     row.lines_from !== null && row.lines_to !== null
       ? { from: row.lines_from, to: row.lines_to }
       : null,
+  // A plan of a newer build's harness this one doesn't know reads as no plan: it shows gone.
   plan:
-    row.plan_agent !== null && row.plan_agent_session !== null
+    isAgentName(row.plan_agent) && row.plan_agent_session !== null
       ? {
-          agent: row.plan_agent as AgentName,
+          agent: row.plan_agent,
           session: row.plan_agent_session,
           actor: row.plan_actor || null,
           format: row.plan_format === "text" ? "text" : "file",
@@ -1584,10 +1600,14 @@ export class WorkspaceStore implements TerminalRecords, MessageRecords, InboxRec
     )
   }
 
+  /**
+   * Every message kept, but those to an agent this build doesn't know, which a newer build
+   * may have sent: they stay in the store for it, and out of this build's threads.
+   */
   messages(): Message[] {
-    return (this.queries.all`SELECT * FROM messages ORDER BY sent_at` as MessageRow[]).map(
-      messageOf,
-    )
+    return (this.queries.all`SELECT * FROM messages ORDER BY sent_at` as MessageRow[])
+      .filter((row) => isAgentName(row.to_agent))
+      .map(messageOf)
   }
 
   saveMessage(message: Message): void {
