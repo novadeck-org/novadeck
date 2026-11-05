@@ -115,8 +115,9 @@ beside the wire's own handshake.
     A session that handshakes again as another client is only that one's from then on.
     `closed(session)` tells the app a session ended, to release what it held, and
     `failed(path, error)` tells it, for a log, each failure of a call or a stream before
-    `error` maps it, and each handshake refused, whether for its input, by the wire or by
-    `admit`.
+    `error` maps it, each handshake refused, whether for its input, by the wire or by
+    `admit`, and, by the path `[]`, what a transport met outside any call. The sessions'
+    `failed` tells it the same way.
   - The gate, in front of every procedure of the app's `router`: a session that hasn't
     authenticated, or has closed, is `UNAUTHORIZED`; one with `maxCalls` calls running is
     `RESOURCE_LIMIT`. A session refused as unproven more than three times, by its handshake's
@@ -137,7 +138,9 @@ beside the wire's own handshake.
     other origins 403, and sockets beyond `maxConnections` (32) 429. A peer's close frame
     releases its session before the reply, so it can reconnect at once.
   - `servePort(sessions, port, { maxCalls })`, one trusted client over a DOM `MessagePort`
-    or Electron's `MessagePortMain`: holding the port is the credential, so no token.
+    or Electron's `MessagePortMain`: holding the port is the credential, so no token. A
+    message it can't read, or an answer it can't post, goes to `failed`, never to the host as
+    a rejection nobody handles.
   - `KeyedChanges<Key, Change>`, one reader's stream of keyed state: the current state, then
     `synced`, then later changes, holding only the latest unread change per key, each in the
     place its key first changed. A key the reader was never told of leaves without a removal.

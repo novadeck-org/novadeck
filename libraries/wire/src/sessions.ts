@@ -85,6 +85,8 @@ export type Sessions = {
   open(transport: SessionTransport): Session
   /** Ends a session, once: the app is told it closed. */
   close(session: Session): void
+  /** Tells the app's `failed` of a failure, such as one a transport met outside any call. */
+  failed(path: readonly string[], error: unknown): void
 }
 
 // Refusals a session may have before it proves itself: the app's client sends one handshake,
@@ -266,5 +268,6 @@ export const createSessions = (
     router: { ...os.$context<SessionContext>().use(gate).router(options.router), ...wire },
     open: (transport) => new SessionRecord(transport),
     close,
+    failed,
   }
 }

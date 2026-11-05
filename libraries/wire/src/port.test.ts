@@ -18,16 +18,18 @@ const protocolVersion = 1
 
 const serve = () => {
   const closed = vi.fn<(session: Session) => void>()
+  const failed = vi.fn<(path: readonly string[], error: unknown) => void>()
   const { wire: _, ...app } = contract
   const api = implement(app).$context<SessionContext>()
   const sessions = createSessions({
     protocolVersion,
     router: api.router({ echo: api.echo.handler(({ input }) => input) }),
     closed,
+    failed,
   })
   const [end, client] = memoryPorts()
   const dispose = servePort(sessions, end as ServedPort)
-  return { closed, client, dispose }
+  return { closed, failed, client, dispose }
 }
 
 describe("servePort", () => {
@@ -41,6 +43,19 @@ describe("servePort", () => {
     const { client } = serve()
     const wire = await connect({ contract, transport: messagePort(client), protocolVersion })
     onTestFinished(() => wire.close())
+    await expect(wire.session().client.echo("hi")).resolves.toBe("hi")
+  })
+
+  it("tells the app of a message it can't read, and answers the next call as ever", async () => {
+    const { client, failed } = serve()
+    const wire = await connect({ contract, transport: messagePort(client), protocolVersion })
+    onTestFinished(() => wire.close())
+    // Neither a request nor encoded as one: oRPC's handler rejects on it, outside any call.
+    // eslint-disable-next-line unicorn/require-post-message-target-origin -- A port takes none.
+    client.postMessage({})
+    await vi.waitFor(() => expect(failed).toHaveBeenCalledOnce())
+    expect(failed.mock.calls[0]![0]).toEqual([])
+    expect(failed.mock.calls[0]![1]).toBeInstanceOf(Error)
     await expect(wire.session().client.echo("hi")).resolves.toBe("hi")
   })
 
