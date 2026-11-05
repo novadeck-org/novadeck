@@ -74,7 +74,8 @@ export type RendererPoolStats = {
   readonly resizes: number
   /**
    * A current value, not a total: shown screens wanting WebGL that have no context for lack of
-   * one, not counting those that ran out of tries after losses.
+   * one, not counting those whose context was lost or failed to load (they wait to be shown
+   * afresh, or ran out of tries).
    */
   readonly onDom: number
 }
@@ -165,10 +166,16 @@ export const createRendererPool = <Target>(
       }
     }
   }
-  // Whether a shown screen wanting WebGL lacks a context, as nothing here is holding it back
-  // (an idle one is let go first) but the pool's cap or a context that did not load.
+  // Whether a shown screen wanting WebGL lacks a context for the pool's cap alone (an idle one
+  // is let go first). One whose context was lost or did not load waits to be shown afresh,
+  // whatever slots are free: that is the GPU's doing, which `lost` and `failed` count.
   const lacksContext = (member: Member<Target>): boolean =>
-    member.shown && !member.idle && member.webgl && !member.drawing && member.losses < lossesAllowed
+    member.shown &&
+    !member.idle &&
+    member.webgl &&
+    !member.drawing &&
+    !member.lost &&
+    member.losses < lossesAllowed
   let lastOnDom = 0
   const onDom = (): number => (usable() ? [...members].filter(lacksContext).length : 0)
   // Tells the watchers when the screens on the DOM for lack of a context changed in number.

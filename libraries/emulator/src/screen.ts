@@ -43,20 +43,47 @@ export const serializeWithin = (
 export const written = (screen: Screen, data: string): Promise<void> =>
   new Promise((resolve) => screen.write(data, resolve))
 
+// The patch hands a chunk's callback the error its parse threw, and ends whatever sequence the
+// parser was in. Only the first error is told: a screen broken one way tends to throw on every
+// write after it. A report that throws is its own trouble, not the screen's.
+const reportParseErrors = (screen: Screen, report: (error: unknown) => void): void => {
+  const write = screen.write.bind(screen)
+  let reported = false
+  screen.write = (data, callback) =>
+    write(data, ((error?: unknown) => {
+      if (error !== undefined && !reported) {
+        reported = true
+        try {
+          report(error)
+        } catch {
+          // Its own trouble.
+        }
+      }
+      ;(callback as ((error?: unknown) => void) | undefined)?.(error)
+    }) as () => void)
+}
+
 /**
  * A headless emulator that counts widths as every emulator here does (see `applyWidths`),
- * and can be serialized.
+ * and can be serialized. A chunk whose parse throws (a handler, or a listener behind one) is
+ * skipped and the sequence it was in is ended, so the output after it draws;
+ * `onParseError` hears of the screen's first such error, through `write`. Handlers on it must
+ * be synchronous: one that returns a promise that rejects is taken as declining, and its
+ * error goes to that chunk's callback.
  */
 export const createScreen = (options: {
   cols: number
   rows: number
   scrollback: number
+  onParseError?: (error: unknown) => void
 }): Screen => {
-  const screen = new headless.Terminal({ ...options, allowProposedApi: true })
+  const { onParseError, ...size } = options
+  const screen = new headless.Terminal({ ...size, allowProposedApi: true })
   applyWidths(screen)
   const serializer = new SerializeAddon()
   screen.loadAddon(serializer)
   serializers.set(screen, serializer)
+  if (onParseError) reportParseErrors(screen, onParseError)
   return screen
 }
 
