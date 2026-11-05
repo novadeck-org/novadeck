@@ -127,7 +127,8 @@ export type Hold = {
   // This screen's state; it is the same store for as long as the screen stays open.
   readonly state: Store<ViewState>
   // Puts the screen in `element`, which holds nothing else, and fits it there now and on
-  // the next frame. Focuses it again when a mount before this one left it focused.
+  // the next frame. Focuses it again when a mount before this one left it focused, and the
+  // focus hasn't gone anywhere since.
   readonly place: (element: HTMLElement) => void
   // Changes what differs; equal values write nothing.
   readonly update: (change: {
@@ -509,10 +510,15 @@ export const createTerminalScreens = <K>(o: TerminalScreensOptions<K>): Terminal
             frame = undefined
             if (screen.container.isConnected) screen.followed.refit()
           })
-          if (screen.refocus) {
+          // Only while the focus it left is still nowhere: once the person has gone to
+          // another terminal or field, a screen shown later takes none of it.
+          const active = document.activeElement
+          if (
+            screen.refocus &&
+            (active === null || active === document.body || screen.container.contains(active))
+          )
             screen.xterm.focus()
-            screen.refocus = false
-          }
+          screen.refocus = false
         },
         update: ({ label, phase, webgl }) => {
           if (released) return

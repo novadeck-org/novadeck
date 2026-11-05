@@ -80,6 +80,34 @@ describe("a hold on a terminal's screen", () => {
     }
   })
 
+  it("leaves the focus where the person went after the mount that held it went", () => {
+    vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout", "Date"] })
+    try {
+      const screens = screensOf(optionsOf())
+      const { hold, element } = shown(screens, "a")
+      const input = inputOf(element)
+      input.focus()
+      hold.release({ unmount: true })
+      element.replaceChildren()
+      // The person went on to another field, as another terminal's, before this one came back.
+      const elsewhere = document.createElement("textarea")
+      document.body.append(elsewhere)
+      elsewhere.focus()
+      const back = screens.acquire("a", running)
+      back.place(element)
+      expect(document.activeElement).toBe(elsewhere)
+      // The focus it left is spent: once the person leaves that field, a later hold takes
+      // none either.
+      back.release()
+      elsewhere.blur()
+      screens.acquire("a", running).place(element)
+      expect(document.activeElement).toBe(document.body)
+      elsewhere.remove()
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
   it("tells its state again when it is held again in a new phase", () => {
     vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout", "Date"] })
     try {
