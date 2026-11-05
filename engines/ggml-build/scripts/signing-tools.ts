@@ -15,14 +15,16 @@ import {
 // which the Package workflow does on every run, pull requests included. It fetches the
 // pinned packages, checks them against their pins and unpacks them, as a signing build
 // does. On Windows it then has SignTool sign a scratch file through the signing library
-// for an account that does not exist, with no credentials. That must fail, and only once
-// the library has loaded, read the account's file and gone to submit the digest: so a pair
-// of pins that cannot sign together, or a runner without the .NET runtime, fails here and
-// not in a release. A real signature needs the release's credentials, and only a release
-// has them.
+// for an account that does not exist, with no credentials. That must fail, and for want of
+// credentials alone, once the library has loaded, read the account's file and gone to
+// submit the digest: so a pair of pins that cannot sign together, or a runner without the
+// .NET runtime, fails here and not in a release. A real signature needs the release's
+// credentials, and only a release has them.
 
-// What the signing library prints once it is loaded and is about to ask the service.
+// What the signing library prints once it is loaded and is about to ask the service, and
+// what its Azure client says when the environment holds no credentials for it.
 const submitting = "Submitting digest for signing"
+const noCredentials = "EnvironmentCredential authentication unavailable"
 
 // A reserved name no request can reach.
 const nowhere = { endpoint: "https://signing.invalid", account: "none", profile: "none" }
@@ -48,7 +50,7 @@ const tried = async (signtool: string, dlib: string): Promise<string | undefined
           })
           if (result.error) throw result.error
           printed = `${result.stdout}${result.stderr}`
-          return result.status
+          return { status: result.status, printed }
         },
       )
     } catch (error) {
@@ -57,11 +59,14 @@ const tried = async (signtool: string, dlib: string): Promise<string | undefined
     console.log(printed)
     if (failure === undefined) return "SignTool signed a file with no credentials."
     if (!printed.includes(submitting)) {
-      return `SignTool stopped before the signing library went to sign (${failure}).`
+      return "SignTool stopped before the signing library went to sign."
+    }
+    if (!printed.includes(noCredentials)) {
+      return "SignTool failed, but not for want of credentials."
     }
     if (sha256(readFileSync(scratch)) !== before)
       return "SignTool changed the file it did not sign."
-    console.log(`As expected with no credentials: ${failure}`)
+    console.log("SignTool failed for want of credentials, as it must.")
     return undefined
   } finally {
     rmSync(folder, { recursive: true, force: true })

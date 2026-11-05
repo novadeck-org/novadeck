@@ -161,10 +161,10 @@ export const windowsSigning = (env: NodeJS.ProcessEnv): WindowsSigning | undefin
   return endpoint && account && profile ? { endpoint, account, profile } : undefined
 }
 
-// Every way the client can find an Azure identity but the one a release gives it: the
-// service principal in AZURE_TENANT_ID, AZURE_CLIENT_ID and AZURE_CLIENT_SECRET. Which
-// identity signs is then never the client's choice, and with no credentials it stops at
-// once rather than asking the computer's other sign-ins.
+// Every way the client can find an Azure identity but the environment, where a release puts
+// its service principal (AZURE_TENANT_ID, AZURE_CLIENT_ID and AZURE_CLIENT_SECRET). Which
+// identity signs is then never the client's choice among the computer's sign-ins, and with
+// no credentials it stops at once rather than asking them.
 const otherCredentials = [
   "WorkloadIdentityCredential",
   "ManagedIdentityCredential",
@@ -208,22 +208,47 @@ export const signArguments = (
   ...files,
 ]
 
-/** Runs SignTool and answers its exit code. */
-export type SignTool = (signtool: string, args: readonly string[]) => number | null
+/** Runs SignTool and answers its exit code and what it printed. */
+export type SignTool = (
+  signtool: string,
+  args: readonly string[],
+) => { readonly status: number | null; readonly printed: string }
+
+// The signing service answers in seconds; Microsoft's own module gave SignTool this long.
+const signTimeout = 5 * 60 * 1000
 
 // SignTool is the one command given the whole environment, the Azure credentials with it:
-// the signing client reads them from there.
+// the signing client reads them from there. What it prints is shown and kept for the error.
 const signTool: SignTool = (signtool, args) => {
-  const result = spawnSync(signtool, args, { stdio: "inherit" })
-  if (result.error) throw new Error(`${signtool} failed to start: ${result.error.message}`)
-  return result.status
+  const result = spawnSync(signtool, args, {
+    encoding: "utf8",
+    maxBuffer: 64 * 1024 * 1024,
+    stdio: ["ignore", "pipe", "pipe"],
+    timeout: signTimeout,
+  })
+  const printed = `${result.stdout ?? ""}${result.stderr ?? ""}`
+  process.stdout.write(printed)
+  if (result.error) {
+    const why =
+      (result.error as NodeJS.ErrnoException).code === "ETIMEDOUT"
+        ? `did not finish within ${signTimeout / 60_000} minutes`
+        : `failed to start: ${result.error.message}`
+    throw new Error(`${signtool} ${why}`)
+  }
+  return { status: result.status, printed }
 }
+
+// The end of what SignTool printed, where it says why it failed. electron-builder reads the
+// error for a file another program still holds ("being used by another process") and signs
+// that file again.
+const ending = (printed: string): string => printed.trim().split(/\r?\n/).slice(-15).join("\n")
 
 let fetched: Promise<SigningTools> | undefined
 
 /**
  * Signs the files through the Azure Artifact Signing account, with the pinned tools, which
- * are fetched once for the process. Any exit code but success stops the build.
+ * are fetched once for the process. Any exit code but success stops the build, warnings
+ * (2) too: the error ends with what SignTool printed last.
  */
 export const signWindowsFiles = async (
   files: readonly string[],
@@ -237,8 +262,10 @@ export const signWindowsFiles = async (
   try {
     const metadataFile = join(folder, "metadata.json")
     await writeFile(metadataFile, metadata(signing))
-    const status = run(signtool, signArguments(dlib, metadataFile, files))
-    if (status !== 0) throw new Error(`SignTool failed with exit code ${status}.`)
+    const { status, printed } = run(signtool, signArguments(dlib, metadataFile, files))
+    if (status !== 0) {
+      throw new Error(`SignTool failed with exit code ${status}:\n${ending(printed)}`)
+    }
   } finally {
     await rm(folder, { recursive: true, force: true })
   }

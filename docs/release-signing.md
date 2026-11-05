@@ -108,15 +108,16 @@ Nothing else is fetched to sign, and no PowerShell module is installed: the engi
 calls SignTool itself, and electron-builder calls it through
 `apps/desktop/scripts/sign-windows.mjs` in place of its own Azure signing, which installs
 the newest `TrustedSigning` module there is. The client runs on the runner's .NET runtime
-(8 or later), and is told to use the three secrets above and no other sign-in it might
-find on the computer.
+(8 or later), and is told to take its identity from the environment, where the release puts
+the three secrets above, and from no other sign-in it might find on the computer.
 
 Every Package run, a pull request's too, fetches and checks the two packages and then has
-SignTool sign a scratch file with no credentials (**Check Signing Tools**). That must fail,
-and only after the client has loaded and gone to submit the digest. So a pin that no longer
-downloads, or a pair of versions that cannot sign together, fails the pull request that
-changes the pins. What a pull request cannot show is a real signature: that needs the
-release's credentials.
+SignTool sign a scratch file with no credentials (**Check Signing Tools**). That must fail
+for want of credentials, after the client has loaded and gone to submit the digest. So a
+pin that no longer downloads, or a pair of versions that cannot sign together, fails the
+pull request that changes the pins. What a pull request cannot show is a real signature:
+that needs the release's credentials. The step makes every Windows run depend on nuget.org
+answering; a download is tried three times.
 
 To move a pin, download the new `.nupkg`, compare its SHA-512 with the `packageHash`
 nuget.org's catalog lists for that version, and put its SHA-256 in `signtool.ts`.

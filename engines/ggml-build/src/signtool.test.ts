@@ -190,7 +190,7 @@ describe("signing on Windows", () => {
     const runs: { signtool: string; args: readonly string[]; told: string }[] = []
     await signWindowsFiles(["server.exe", "ggml.dll"], signing, tools, (signtool, args) => {
       runs.push({ signtool, args, told: readFileSync(args[args.indexOf("/dmdf") + 1]!, "utf8") })
-      return 0
+      return { status: 0, printed: "" }
     })
     expect(runs).toHaveLength(1)
     const [run] = runs
@@ -202,13 +202,26 @@ describe("signing on Windows", () => {
   })
 
   it.each([1, 2, null])("stops the build on exit code %s: any but success", async (status) => {
-    await expect(signWindowsFiles(["server.exe"], signing, tools, () => status)).rejects.toThrow(
-      `SignTool failed with exit code ${status}.`,
+    const run = () => ({ status, printed: "" })
+    await expect(signWindowsFiles(["server.exe"], signing, tools, run)).rejects.toThrow(
+      `SignTool failed with exit code ${status}:`,
     )
   })
 
+  it("ends its error with what SignTool printed last, which says why", async () => {
+    // electron-builder signs a file again when the error names this cause.
+    const printed = [
+      ...Array.from({ length: 30 }, (_, line) => `line ${line}`),
+      "SignTool Error: The process cannot access the file because it is being used by another process.",
+      "",
+    ].join("\r\n")
+    const failure = signWindowsFiles(["app.node"], signing, tools, () => ({ status: 1, printed }))
+    await expect(failure).rejects.toThrow(/being used by another process\.$/)
+    await expect(failure).rejects.not.toThrow(/line 10\b/)
+  })
+
   it("stops rather than report a folder with nothing to sign as signed", async () => {
-    const run = (): number => {
+    const run = (): never => {
       throw new Error("SignTool ran")
     }
     await expect(signWindowsFiles([], signing, tools, run)).rejects.toThrow(
