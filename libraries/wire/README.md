@@ -33,10 +33,12 @@ beside the wire's own handshake.
     with oRPC's own error, so a caller that needs the cause asks the channel whether it's
     still open, or reads it with `lost`. A channel whose send throws, or that brings a
     message the client can't read, is closed, so whoever holds it replaces it; its other
-    calls fail as `DISCONNECTED`, with what broke it as the cause.
+    calls and its streams' pending reads fail as `DISCONNECTED`, with what broke it as the
+    cause.
   - `lost(error, session)`, a session's failure as a `WireError`: oRPC's with their code,
     anything else as `DISCONNECTED` once its channel has closed and `INTERNAL_SERVER_ERROR`
-    while it's open, each with what was raised as its cause.
+    while it's open (though the app's own code, such as its `open`, may have thrown it), each
+    with what was raised as its cause.
   - `connect({ contract, transport, protocolVersion, fatal, retryDelay, timeoutMs, signal })`,
     a supervised connection to a server of `contract` (which has `wireContract` in it),
     resolving after the first handshake. Each new channel's handshake sends `protocolVersion`,
@@ -44,7 +46,9 @@ beside the wire's own handshake.
     half-open one) and the transport's token; the server answers its `epoch`, its lifetime,
     which a stream's cursor belongs to, and a server that answers another protocol is
     `INCOMPATIBLE_PROTOCOL`. A connection that drops comes back on its own, after
-    `retryDelay(attempt)` (`min(250·2ⁿ, 5000)` ms by default), until `close()` or a fatal
+    `retryDelay(attempt)` (`min(250·2ⁿ, 5000)` ms by default; `attempt` counts on across
+    sessions lost within 10 s of their handshake, so one that fails each time it resumes
+    doesn't spin, and starts afresh after one that lasted), until `close()` or a fatal
     code: `UNAUTHORIZED`, `INCOMPATIBLE_PROTOCOL`, `CLOSED` and whatever `fatal(code)` adds.
     A connection or handshake taking longer than `timeoutMs` (10 s) fails; the transport
     hears of it through its signal, and must give up when that aborts.

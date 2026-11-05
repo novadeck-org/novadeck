@@ -203,7 +203,8 @@ describe("follow", () => {
       const first = items.next()
       await vi.waitFor(() => expect(opened).toHaveLength(1))
       last().feed.end()
-      await vi.waitFor(() => expect(opened).toHaveLength(2))
+      // The first that ends empty is opened again at once.
+      await vi.waitFor(() => expect(opened).toHaveLength(2), { timeout: 150 })
       const started = Date.now()
       last().feed.end()
       await new Promise((resolve) => setTimeout(resolve, 100))

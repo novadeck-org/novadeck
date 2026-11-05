@@ -67,8 +67,8 @@ const done = { value: undefined, done: true } as const
 
 /**
  * A session's failure as a wire error: oRPC's as theirs, anything else on a closed channel as
- * `DISCONNECTED`, whatever oRPC raised, and on an open one as `INTERNAL_SERVER_ERROR`. Either
- * keeps what was raised as its cause.
+ * `DISCONNECTED`, whatever oRPC raised, and on an open one as `INTERNAL_SERVER_ERROR`, though
+ * it may be the reader's own code that threw. Either keeps what was raised as its cause.
  */
 export const lost = (
   error: unknown,
