@@ -64,7 +64,7 @@ import {
   type RunnerListing,
 } from "./sessions/seed"
 import { createRunnerSource } from "./source"
-import { consume } from "./streams"
+import { consume, reportCaught } from "./streams"
 import { runnerSwitches } from "./switches"
 import {
   defaultQuickExitMs,
@@ -1590,9 +1590,23 @@ export const runnerBackend = (
     approvals: {
       pending: approvals,
       answer: (requestId, approved) => {
+        const shown = approvals.getSnapshot().find((each) => each.requestId === requestId)
         approvals.update((waiting) => waiting.filter((each) => each.requestId !== requestId))
-        // A runner that no longer waits for the answer needs none.
-        runner.terminals.answerApproval({ requestId, approved }).catch(() => {})
+        // Sent again while too many calls are in flight, as a quit waits for it. A runner that
+        // no longer waits for the answer, as once the link dropped, needs none.
+        void track(
+          untilAnswered(() => runner.terminals.answerApproval({ requestId, approved }), {
+            done: ["NOT_FOUND"],
+          }),
+        ).catch((error: unknown) => {
+          if (error instanceof Cancelled) return
+          reportCaught(error)
+          // Refused, and still waiting on the person: it is theirs to answer again.
+          if (shown && lastStatus?.state === "connected")
+            approvals.update((waiting) =>
+              waiting.some((each) => each.requestId === requestId) ? waiting : [...waiting, shown],
+            )
+        })
       },
     },
     releaseLead: ({ terminalId }) => {
