@@ -3,7 +3,6 @@ import { useEffect, useLayoutEffect, useRef, useState } from "react"
 
 import {
   blinkMs,
-  foldGhost,
   foldGutter,
   wireShape,
   type FoldGutter,
@@ -30,7 +29,7 @@ const memberOf = (tab: Element, id: string, origin: DOMRect): WireMember => {
 }
 
 // A team's wire as measured: its shape, the gutter beside its lead's tab where pointing arms
-// its fold, and while it's folded, where its tabs would land as it unfolds.
+// its fold, and while it's folded, the middles of the rows its lead holds for its teammates.
 type Measured = {
   readonly shape: WireShape
   readonly gutter: FoldGutter | undefined
@@ -68,12 +67,16 @@ const measureWire = (
     height: leadRect.height,
     left: leadRect.left - origin.left,
   })
-  // A tab's pitch: the lead's height without the rows its fold added, and the list's gap.
-  const gap = Number.parseFloat(getComputedStyle(list).rowGap) || 0
-  const rows = leadTab.querySelector("[data-team-fold-rows]")?.getBoundingClientRect().height ?? 0
+  // Folded, the rows the lead's tab holds for its teammates, each of which unfolds into a tab:
+  // pointing beside the lead ties a ghost of the wire to them, so it says how much unfolds
+  // without guessing where in the list the tabs come back.
   const ghost =
     folded && !workers.length && shape.lead !== undefined
-      ? foldGhost(shape.lead, leadRect.height - rows + gap, team.workers.length, view)
+      ? [...leadTab.querySelectorAll(".team-fold-row")].flatMap((row) => {
+          const rect = row.getBoundingClientRect()
+          const y = Math.round(rect.top + rect.height / 2 - origin.top)
+          return y > shape.lead! && y <= view.bottom ? [y] : []
+        })
       : []
   return { shape, gutter, ghost }
 }
@@ -103,7 +106,7 @@ const measureWires = (
 // for the gutter beside each lead's tab, which folds its teammates out of the list (or shows
 // them again) for a person who only follows the lead. Pointing there shows what a click does,
 // with no words: the wire reels into the lead's cursor as its teammates' tabs dim, or, folded,
-// a dashed ghost of it runs down to where the tabs would land. The pointer has to come to the
+// a dashed ghost of it runs down the lead's rows for its teammates, a tick into each. The pointer has to come to the
 // gutter on purpose: nothing over the tab itself arms it, and after a click it arms again only
 // once the pointer has left. The lead's menu is the keyboard's way to the same fold.
 export const TeamWire = ({

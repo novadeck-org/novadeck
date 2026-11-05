@@ -97,16 +97,3 @@ export const foldGutter = (
   const width = Math.round(tab.left) - left
   return bottom > top && width > 0 ? { left, top, width, height: bottom - top } : undefined
 }
-
-// Where a folded team's tabs would land as it unfolds, for the ghost wire pointing beside its
-// lead draws: one row under another from the lead's name line, a tab's height and the list's
-// gap apart, as many as it has teammates, those within the list's room.
-export const foldGhost = (
-  lead: number,
-  pitch: number,
-  count: number,
-  view: { readonly bottom: number },
-): readonly number[] =>
-  Array.from({ length: count }, (_, index) => Math.round(lead + pitch * (index + 1))).filter(
-    (y) => y <= Math.round(view.bottom),
-  )

@@ -151,7 +151,8 @@
 .terminal-tab-process,
 .terminal-tab-starting,
 .terminal-tab-subagents,
-.terminal-tab-branches {
+.terminal-tab-branches,
+.team-fold-rows {
   font-family: var(--tab-process-font, var(--font-glyphs));
 }
 .terminal-tab:is(
@@ -523,7 +524,8 @@
    tab grows to hold the team it folded in. Each row has its branch, the teammate's glyph as
    its own tab draws it (in the same colours) and its name, then what it needs of the person,
    the tab's own `!` or `?`. The rows grow in as the team folds; a row is muted, ink under the
-   pointer and while its teammate is the selected terminal. */
+   pointer and while its teammate is the selected terminal. The rows grow in only as the team
+   folds (data-entering), not each time they mount. */
 .team-fold-rows {
   grid-template-rows: 1fr;
   color: var(--tab-subagent-fg, var(--color-muted));
@@ -533,10 +535,10 @@
   transition: opacity var(--motion-layout) var(--ease-interface);
 }
 @starting-style {
-  .team-fold-rows {
+  .team-fold-rows[data-entering] {
     grid-template-rows: 0fr;
   }
-  .team-fold-rows-fold {
+  .team-fold-rows[data-entering] .team-fold-rows-fold {
     opacity: 0;
   }
 }
@@ -551,12 +553,6 @@
 .team-fold-row:hover,
 .team-fold-row[data-selected] {
   color: var(--tab-glyph-fg, var(--color-ink));
-}
-.team-fold-more {
-  cursor: default;
-}
-.team-fold-more:hover {
-  color: inherit;
 }
 .team-fold-mark {
   display: inline-block;

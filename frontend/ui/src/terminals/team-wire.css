@@ -12,7 +12,8 @@
    showing (its segment and ticks fade out), data-unfolding while they just unfolded them,
    and data-armed while they point at the gutter
    beside its lead's tab. Parts: `.team-wire-segment`, `.team-wire-cursor`, `.team-wire-tap`,
-   `.team-wire-ghost` and each `.team-wire-ghost-tap` (where a folded team's tabs would land),
+   `.team-wire-ghost` and each `.team-wire-ghost-tap` (tied to a folded lead's rows for its
+   teammates),
    and on `.team-wire` itself, a `.team-wire-gutter` beside each lead's tab, the one part that
    takes the pointer.
 
@@ -108,8 +109,9 @@
    beside the lead's tab takes the pointer, and pointing there shows what a click does. The
    wire reels in: its ticks pull back into the line, then the line winds up into the lead's
    cursor, which lights and blinks as a cursor does, while the teammates' tabs dim (tabs.css).
-   Folded, a dashed ghost of the wire shoots down from the cursor with a tick where each tab
-   would land. */
+   Folded, a dashed ghost of the wire runs down from the cursor beside the lead's rows for its
+   teammates, a tick into each: what a click unfolds, without guessing where in the list the
+   tabs come back. */
 .team-wire-gutter {
   position: absolute;
   pointer-events: auto;

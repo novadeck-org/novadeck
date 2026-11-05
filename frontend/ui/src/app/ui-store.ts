@@ -92,6 +92,9 @@ export type UiState = {
   // come back, where a tab merely mounting, as on a session switch, appears at once; never
   // persisted.
   readonly unfolding: { readonly context: string; readonly lead: string } | null
+  // The lead whose team the person just folded: the rows its tab grows for its teammates grow
+  // in, where rows merely mounting, as on a session switch, appear at once; never persisted.
+  readonly folding: { readonly context: string; readonly lead: string } | null
   // Which of the app's unfinished parts the person turned on; never persisted, as the desktop app
   // remembers them.
   readonly flags: FeatureFlags
@@ -149,6 +152,7 @@ export const initialUi = ({
   foldedTeams,
   foldPreview: null,
   unfolding: null,
+  folding: null,
   flags: noFeatureFlags,
 })
 

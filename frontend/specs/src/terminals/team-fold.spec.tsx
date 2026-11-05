@@ -86,7 +86,7 @@ describe("Folding a lead's teammates out of the list", () => {
     expect(tabDescription(lead)).toMatch(/Its teammate is folded out of this list$/)
   })
 
-  it("shows them again from the gutter, which draws where they'd land, and fades the wire in", async () => {
+  it("shows them again from the gutter, which ties a ghost wire to the lead's rows, and fades the wire in", async () => {
     await openMessagesDemo()
     await terminalTab("Dev server").click()
     await pointBeside()
@@ -94,7 +94,13 @@ describe("Folding a lead's teammates out of the list", () => {
     await expect.poll(() => laidOut(worker)).toBe(false)
     await pointAway()
     await pointBeside()
+    // A ghost tick into each row the lead holds for a teammate, at the row's middle.
     await expect.poll(() => document.querySelectorAll(".team-wire-ghost-tap").length).toBe(1)
+    const tick = document
+      .querySelector<HTMLElement>(".team-wire-ghost-tap")!
+      .getBoundingClientRect()
+    const row = rows()!.querySelector(".team-fold-row")!.getBoundingClientRect()
+    expect(Math.abs(tick.top - (row.top + row.height / 2))).toBeLessThanOrEqual(1)
     await userEvent.click(gutterElement()!)
     await expect.poll(() => laidOut(worker)).toBe(true)
     expect(rows()).toBeNull()
@@ -113,6 +119,11 @@ describe("Folding a lead's teammates out of the list", () => {
     await expect.poll(() => tabOf(worker).getAttribute("data-selected")).toBe("true")
     expect(laidOut(worker)).toBe(true)
     expect(rowOf(id)!.hasAttribute("data-selected")).toBe(true)
+    // Focus follows the teammate into its terminal, as a click on its tab sends it, never
+    // resting on the lead's button.
+    await expect
+      .poll(() => document.activeElement?.getAttribute("aria-label") ?? "")
+      .toBe(`Input for ${worker}`)
     // The lead isn't selected by it, and its tie to the teammate shows while there.
     expect(tabOf(lead).getAttribute("data-selected")).toBe("false")
     expect(shape()?.hasAttribute("data-faded")).toBe(false)
