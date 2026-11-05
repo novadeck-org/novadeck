@@ -634,7 +634,6 @@ export class Terminals {
           (record) => record.summary.sessionId === sessionId && record.terminal.exit === null,
         ),
       projectFolder: (sessionId) => this.projectFolder(sessionId),
-      environment: () => options.items?.environment(),
       reports: (id) => this.inbox.reports(id, savedSession(this.records.get(id))),
       stopping: () => this.stopping,
     })

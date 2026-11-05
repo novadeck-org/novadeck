@@ -72,8 +72,6 @@ export type PeersOptions = {
   readonly projectFolder: (sessionId: string) => string | undefined
   /** The latest reports of the agent session bound in a terminal. */
   readonly reports: (terminalId: string) => Reports
-  /** The person's environment, by which a file may hold secrets; the runner's own when omitted. */
-  readonly environment?: () => NodeJS.ProcessEnv | undefined
   /** Whether the runner is stopping. */
   readonly stopping: () => boolean
 }
@@ -281,11 +279,12 @@ export class TerminalPeers {
    * git branch, the folders its work wrote in most, as paths inside its project (or its
    * own folder, without one), and the names of the files `shown` in its bar, then of
    * those its work wrote in last. Only what is inside counts, and never a file that may
-   * hold secrets.
+   * hold secrets, judged by the person's environment `env`; the runner's own when omitted.
    */
   async hint(
     terminal: PeerTerminal,
     shown: readonly Pick<CompanionItem, "kind" | "path" | "secret">[],
+    env?: NodeJS.ProcessEnv,
   ): Promise<Omit<HintFacts, "project" | "handles">> {
     const { cwd, sessionId } = terminal.summary
     const base = this.options.projectFolder(sessionId) ?? cwd
@@ -297,7 +296,7 @@ export class TerminalPeers {
       ...shown.flatMap((item) => (item.kind === "file" && !item.secret && item.path) || []),
       ...(terminal.work?.files ?? []),
     ]
-    const held = secrets(this.options.environment?.())
+    const held = secrets(env)
     return {
       cwd,
       branch: await this.branch(cwd),

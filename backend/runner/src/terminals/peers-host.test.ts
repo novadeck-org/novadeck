@@ -111,27 +111,18 @@ describe("what a terminal's dictation hint is made of", () => {
   })
 
   it("names no login the person's environment says a tool keeps in the project", async () => {
-    const moved = new TerminalPeers({
-      messaging: {} as Messaging,
-      caller: () => undefined,
-      terminal: () => undefined,
-      running: () => [],
-      projectFolder: () => "/w/repo",
-      reports: () => ({ tell: null, done: null }),
-      environment: () => ({ GH_CONFIG_DIR: "/w/repo/accounts/work" }),
-      stopping: () => false,
-    })
+    const env = { GH_CONFIG_DIR: "/w/repo/accounts/work" }
     const work = {
       ...freshWork("claude:s1"),
       files: ["/w/repo/accounts/work/hosts.yml", "/w/repo/inventory/hosts.yml"],
     }
-    expect(await moved.hint(terminal({ work }), [])).toMatchObject({ files: ["hosts.yml"] })
-    expect(
-      await moved.hint(
-        terminal({ work: { ...work, files: ["/w/repo/accounts/work/hosts.yml"] } }),
-        [],
-      ),
-    ).toMatchObject({ files: [] })
+    expect(await peers.hint(terminal({ work }), [], env)).toMatchObject({ files: ["hosts.yml"] })
+    const only = { ...work, files: ["/w/repo/accounts/work/hosts.yml"] }
+    expect(await peers.hint(terminal({ work: only }), [], env)).toMatchObject({ files: [] })
+    // Named as any file where no variable says the tool keeps its login there.
+    expect(await peers.hint(terminal({ work: only }), [], {})).toMatchObject({
+      files: ["hosts.yml"],
+    })
   })
 
   it("names what is inside the terminal's folder for a session without a project folder", async () => {
