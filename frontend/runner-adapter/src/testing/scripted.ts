@@ -1,8 +1,13 @@
-import type { Backend, BackendAction } from "@novadeck/core/port"
+import type { Backend, BackendAction, BackendSink } from "@novadeck/core/port"
 import { workspaceFromSeed } from "@novadeck/core/seed"
 import { createTerminalState, workspaceReducer, type WorkspaceAction } from "@novadeck/core/state"
 import type { CanvasLayout, Workspace } from "@novadeck/core/types"
-import type { FeedbackDraft, TerminalSummary } from "@novadeck/protocol"
+import type {
+  FeedbackDraft,
+  InboxEntry,
+  TerminalRequest,
+  TerminalSummary,
+} from "@novadeck/protocol"
 import type { CompanionWatchItem, Runner, TerminalWatchItem } from "@novadeck/runner-client"
 import { noTheme } from "@novadeck/terminal-views/theme"
 import type { WireStatus } from "@novadeck/wire/client"
@@ -113,6 +118,10 @@ export const scripted = ({
   inboxSnoozed,
   feedback,
   feedbackCalls = {},
+  requests = channel<never>().iterator,
+  open = () => {},
+  answerRequest = async () => {},
+  createProject = unused,
 }: {
   shown: readonly Saved[]
   background?: readonly Saved[]
@@ -138,9 +147,17 @@ export const scripted = ({
   feedback?: Backend["feedback"]
   // How the runner answers `feedback.settle` and `feedback.ask` (they take by default).
   feedbackCalls?: { settle?: (id: string) => Promise<void> }
+  // The agents' requests for a terminal, which the app's `open` is handed, and how the
+  // runner takes the answers.
+  requests?: AsyncIterableIterator<TerminalRequest, undefined>
+  open?: BackendSink["open"]
+  answerRequest?: (answer: unknown) => Promise<unknown>
+  // How the runner answers creating a project this window adds.
+  createProject?: () => Promise<unknown>
 }) => {
   const changes = channel<TerminalWatchItem>()
   const items = channel<CompanionWatchItem>()
+  const inbox = channel<InboxEntry[]>()
   // Each `feedback.watch` opens its own stream, the last of which the test pushes drafts to.
   const watches: ReturnType<typeof channel<FeedbackDraft[]>>[] = []
   const received: BackendAction[] = []
@@ -154,7 +171,13 @@ export const scripted = ({
     }
   const api = {
     watch: () => statuses.iterator,
-    projects: { list: unused, create: unused, rename: unused, remove: unused, arrange: unused },
+    projects: {
+      list: unused,
+      create: note("create project", createProject),
+      rename: unused,
+      remove: unused,
+      arrange: unused,
+    },
     sessions: {
       list: unused,
       create: note("create session", createSession),
@@ -162,6 +185,14 @@ export const scripted = ({
       save: async () => {},
     },
     settings: { get: unused, set: note("settings", saveSettings) },
+    // Each `inbox.watch` reads the one stream the test pushes listings to.
+    inbox: {
+      watch: () => inbox.iterator,
+      answer: unused,
+      read: async () => {},
+      dismiss: unused,
+      clear: unused,
+    },
     agents: {
       list: async () => [],
       // No agent is followed here; `prompt`, `interrupt` and `answer` are noted and take.
@@ -178,8 +209,8 @@ export const scripted = ({
     terminals: {
       list: unused,
       watch: () => changes.iterator,
-      // No agent asks for a terminal here.
-      requests: () => channel<never>().iterator,
+      requests: () => requests,
+      answerRequest: note("answer request", answerRequest),
       approvals: () => channel<never>().iterator,
       // Never answers: a fresh shell stays starting.
       create: note("create", () => new Promise(() => {})),
@@ -277,7 +308,7 @@ export const scripted = ({
       received.push(...actions)
       if (apply) commit(...actions)
     },
-    open: () => {},
+    open,
   })
   statuses.push({ state: "connected", epoch: "runner-1" })
   const of = (call: string) => calls.filter((item) => item.call === call).map((item) => item.input)
@@ -286,6 +317,8 @@ export const scripted = ({
     ...created,
     changes,
     items,
+    inbox,
+    statuses,
     watches,
     received,
     calls,
