@@ -37,9 +37,9 @@ policy, so it needs no library fences.
   gzipped and every woff2 font they declare, and `demo`, the module `demoModule` names with
   what it loads and the first chunk does not. The visitor build sets them in
   `apps/try/vite.config.ts`; the others have none.
-- `unit()` (`/vitest`), the jsdom `unit` project of the UI's packages' tests and the try
-  app's, written as `.test.ts` or `.test.tsx` (`frontend/specs` runs projects of its own,
-  and `frontend/test-kit` has no tests).
+- `unit()` (`/vitest`), the jsdom `unit` project of the UI's packages' tests and of each app
+  with unit tests (its `vitest.config.ts` lists it), written as `.test.ts` or `.test.tsx`
+  (`frontend/specs` runs projects of its own, and `frontend/test-kit` has no tests).
 
 `tailwind-guards.test.ts` checks that each guard is a class only its folder can make: it reads
 what the UI's stylesheet scans as git lists it, and every stylesheet the build reads. Those

@@ -1,9 +1,9 @@
 import type { TestProjectInlineConfiguration } from "vitest/config"
 
 /**
- * The unit project the UI's packages' tests and the try app's run in: jsdom, over
- * `src/**\/*.test.ts` and `src/**\/*.test.tsx`, as a React package may write either. A
- * package's own vitest.config.ts lists it with the browser projects it has, if any.
+ * The unit project the UI's packages' tests run in, and those of each app with unit tests:
+ * jsdom, over `src/**\/*.test.ts` and `src/**\/*.test.tsx`, as a React package may write
+ * either. A package's own vitest.config.ts lists it with the browser projects it has, if any.
  */
 export const unit = (): TestProjectInlineConfiguration => ({
   extends: true,
