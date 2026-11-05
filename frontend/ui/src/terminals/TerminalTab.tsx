@@ -86,7 +86,7 @@ export const TerminalTab = ({
   releaseLead,
   fold,
   foldTeam,
-  foldedMarks,
+  foldedRows,
   folder,
 }: {
   // A terminal, or a window undocked from a companion, which runs nothing.
@@ -137,8 +137,8 @@ export const TerminalTab = ({
   fold?: "away" | "preview" | "unfolding" | "shown" | undefined
   // On a lead: its menu's way to fold its teammates out of the list or show them again.
   foldTeam?: FoldTeam | undefined
-  // On a folded lead: its teammates' marks, after its name.
-  foldedMarks?: ReactNode
+  // On a folded lead: its teammates' rows, under its line.
+  foldedRows?: ReactNode
   // Where a project window's file is, which its line shows where a terminal's program is.
   folder?: string | undefined
 }): React.JSX.Element => {
@@ -279,10 +279,11 @@ export const TerminalTab = ({
             />
           </>
         }
-        {...((marks || waits || passed) && !editing
+        {...((marks || waits || passed || foldedRows) && !editing
           ? {
               below: (
                 <>
+                  {foldedRows}
                   {marks && <SubagentBranches marks={marks} />}
                   <Suspense fallback={null}>
                     {waits && shell && <WaitingBranches terminal={shell} waiting={waits} />}
@@ -296,16 +297,7 @@ export const TerminalTab = ({
         emphasized={phase === "done"}
         selectLabel={`Select ${label}${hidden ? " (hidden)" : ""}`}
         {...(description ? { description } : {})}
-        {...(companion || foldedMarks
-          ? {
-              badge: (
-                <>
-                  {foldedMarks}
-                  {companion}
-                </>
-              ),
-            }
-          : {})}
+        {...(companion ? { badge: companion } : {})}
         describedBy={tabInstructionsId}
         onSelect={onSelect}
         data-terminal-tab-id={terminal.id}

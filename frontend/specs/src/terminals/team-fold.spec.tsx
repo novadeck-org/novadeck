@@ -22,7 +22,12 @@ const foldOf = (name: string) => tabOf(name).getAttribute("data-team-fold")
 const laidOut = (name: string) => tabOf(name).getClientRects().length > 0
 const gutterElement = () => document.querySelector<HTMLElement>("[data-team-wire-gutter]")
 const shape = () => document.querySelector<HTMLElement>(".team-wire-shape")
-const marks = () => tabOf(lead).querySelector("[data-team-fold-marks]")
+const rows = () => tabOf(lead).querySelector<HTMLElement>("[data-team-fold-rows]")
+const rowOf = (id: string) => rows()?.querySelector<HTMLElement>(`[data-team-fold-row="${id}"]`)
+const segmentFaded = () => {
+  const segment = shape()?.querySelector(".team-wire-segment")
+  return segment ? getComputedStyle(segment).opacity === "0" : true
+}
 
 // Points at the gutter beside the lead's tab, as a person does on purpose, then away.
 const pointBeside = async () => {
@@ -38,7 +43,7 @@ describe("Folding a lead's teammates out of the list", () => {
     await expect.poll(() => foldOf(worker)).toBe("shown")
     expect(laidOut(worker)).toBe(true)
     expect(foldOf(lead)).toBeNull()
-    expect(marks()).toBeNull()
+    expect(rows()).toBeNull()
   })
 
   it("arms only from the gutter beside the lead's tab, never from the tab itself", async () => {
@@ -59,7 +64,7 @@ describe("Folding a lead's teammates out of the list", () => {
     await expect.poll(() => foldOf(worker)).toBe("shown")
   })
 
-  it("folds them on a click there, keeping the lead's cursor and marking each teammate", async () => {
+  it("folds them on a click there, keeping the lead's cursor, and lists them under the lead", async () => {
     await openMessagesDemo()
     await terminalTab("Dev server").click()
     await pointBeside()
@@ -70,13 +75,18 @@ describe("Folding a lead's teammates out of the list", () => {
     expect(document.querySelectorAll(".team-wire-tap")).toHaveLength(0)
     expect(document.querySelectorAll(".team-wire-cursor")).toHaveLength(1)
     expect(shape()?.hasAttribute("data-armed")).toBe(false)
-    // What the folded teammate needs of the person still shows, on the lead.
-    await expect.poll(marks).not.toBeNull()
-    expect(marks()!.querySelector("[data-need='unblock']")).not.toBeNull()
+    // The lead's tab grows a row for the teammate, with what it needs of the person.
+    await expect.poll(rows).not.toBeNull()
+    const row = rowOf(tabOf(worker).getAttribute("data-terminal-tab-id")!)!
+    expect(row.textContent).toContain(worker)
+    expect(row.querySelector(".terminal-tab-need[data-need='unblock']")).not.toBeNull()
+    // Its wire fades out; the cursor stays.
+    expect(shape()?.hasAttribute("data-faded")).toBe(true)
+    await expect.poll(segmentFaded).toBe(true)
     expect(tabDescription(lead)).toMatch(/Its teammate is folded out of this list$/)
   })
 
-  it("shows them again from the gutter, which draws where they'd land, or from the marks", async () => {
+  it("shows them again from the gutter, which draws where they'd land, and fades the wire in", async () => {
     await openMessagesDemo()
     await terminalTab("Dev server").click()
     await pointBeside()
@@ -87,16 +97,25 @@ describe("Folding a lead's teammates out of the list", () => {
     await expect.poll(() => document.querySelectorAll(".team-wire-ghost-tap").length).toBe(1)
     await userEvent.click(gutterElement()!)
     await expect.poll(() => laidOut(worker)).toBe(true)
-    expect(marks()).toBeNull()
-    // And folded once more, the marks bring them back.
-    await pointAway()
+    expect(rows()).toBeNull()
+    expect(shape()?.hasAttribute("data-faded")).toBe(false)
+    await expect.poll(segmentFaded).toBe(false)
+  })
+
+  it("goes to a folded teammate from its row, which shows its tab in place while there", async () => {
+    await openMessagesDemo()
+    await terminalTab("Dev server").click()
     await pointBeside()
     await userEvent.click(gutterElement()!)
-    await expect.poll(marks).not.toBeNull()
-    await userEvent.click(marks()!)
-    await expect.poll(() => laidOut(worker)).toBe(true)
-    // A click on the marks is the fold's, not a selection of the lead.
-    expect(tabOf("Dev server").getAttribute("data-selected")).toBe("true")
+    await expect.poll(rows).not.toBeNull()
+    const id = tabOf(worker).getAttribute("data-terminal-tab-id")!
+    await userEvent.click(rowOf(id)!)
+    await expect.poll(() => tabOf(worker).getAttribute("data-selected")).toBe("true")
+    expect(laidOut(worker)).toBe(true)
+    expect(rowOf(id)!.hasAttribute("data-selected")).toBe(true)
+    // The lead isn't selected by it, and its tie to the teammate shows while there.
+    expect(tabOf(lead).getAttribute("data-selected")).toBe("false")
+    expect(shape()?.hasAttribute("data-faded")).toBe(false)
   })
 
   it("folds and shows them from the lead's menu, the keyboard's way", async () => {

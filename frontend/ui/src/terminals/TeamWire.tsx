@@ -68,10 +68,12 @@ const measureWire = (
     height: leadRect.height,
     left: leadRect.left - origin.left,
   })
+  // A tab's pitch: the lead's height without the rows its fold added, and the list's gap.
   const gap = Number.parseFloat(getComputedStyle(list).rowGap) || 0
+  const rows = leadTab.querySelector("[data-team-fold-rows]")?.getBoundingClientRect().height ?? 0
   const ghost =
     folded && !workers.length && shape.lead !== undefined
-      ? foldGhost(shape.lead, leadRect.height + gap, team.workers.length, view)
+      ? foldGhost(shape.lead, leadRect.height - rows + gap, team.workers.length, view)
       : []
   return { shape, gutter, ghost }
 }
@@ -111,6 +113,7 @@ export const TeamWire = ({
   shown,
   list,
   folded = noLeads,
+  unfolding,
   onFold,
   onPreview,
 }: {
@@ -124,8 +127,10 @@ export const TeamWire = ({
   // The Terminals list's element, a new one in each session and in each of the drawer and
   // the side pane.
   list: HTMLElement | null
-  // The leads whose teams the person folded out of the list.
+  // The leads whose teams the person folded out of the list, and the one they just unfolded,
+  // whose wire fades back in as its tabs unroll.
   folded?: readonly string[]
+  unfolding?: string | undefined
   // Folds a lead's team, or shows it again; without it, no gutter takes the pointer.
   onFold?: ((lead: string) => void) | undefined
   // Says which lead's gutter the person points at, so its teammates' tabs show what a click
@@ -268,6 +273,8 @@ export const TeamWire = ({
               wire={wire}
               lit={false}
               folded={folded.includes(wire.lead)}
+              faded={folded.includes(wire.lead)}
+              unfolding={unfolding === wire.lead}
               armed={armed === wire.lead}
             />
           ),
@@ -278,6 +285,9 @@ export const TeamWire = ({
           wire={lit}
           lit
           folded={folded.includes(lit.lead)}
+          // A folded teammate the person is on shows in its place, its tie to the lead too.
+          faded={folded.includes(lit.lead) && selected === lit.lead}
+          unfolding={unfolding === lit.lead}
           armed={armed === lit.lead}
         />
       )}
@@ -323,17 +333,24 @@ const Wire = ({
   wire: { shape, ghost },
   lit,
   folded,
+  faded,
+  unfolding,
   armed,
 }: {
   wire: Measured
   lit: boolean
   folded: boolean
+  // Its segment and ticks faded out, as its team is folded and no teammate shows.
+  faded: boolean
+  unfolding: boolean
   armed: boolean
 }): React.JSX.Element => (
   <div
     className="team-wire-shape"
     data-lit={lit || undefined}
     data-folded={folded || undefined}
+    data-faded={faded || undefined}
+    data-unfolding={unfolding || undefined}
     data-armed={armed || undefined}
   >
     <i

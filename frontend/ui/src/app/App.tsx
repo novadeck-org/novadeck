@@ -158,6 +158,9 @@ const TeamWireSection = ({
   const { ui } = useWorkspaceServices()
   const context = useWorkspaceState(currentContext)
   const folded = useFoldedLeads()
+  const unfolding = useUiState((state) =>
+    state.unfolding?.context === context ? state.unfolding.lead : undefined,
+  )
   const onFold = useCallback((lead: string) => toggleTeamFold(ui, context, lead), [ui, context])
   const onPreview = useCallback(
     (lead: string | null) => previewTeamFold(ui, lead === null ? null : { context, lead }),
@@ -171,6 +174,7 @@ const TeamWireSection = ({
       shown={shown}
       list={list}
       folded={folded}
+      unfolding={unfolding}
       onFold={onFold}
       onPreview={onPreview}
     />

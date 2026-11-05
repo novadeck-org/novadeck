@@ -15,7 +15,7 @@ import { unreadEnd } from "../terminals/unread-state"
 import { useAskFeedback } from "./ask-feedback"
 import { useUiState, useWorkspaceServices, useWorkspaceState } from "./controller/context"
 import { useDockTarget } from "./dock-target"
-import { FoldedTeamMarks } from "./FoldedTeamMarks"
+import { FoldedTeamRows } from "./FoldedTeamRows"
 import { useReleaseLead } from "./release-lead"
 import { currentContext, currentState, currentTarget, sameTarget, shallowEqual } from "./selectors"
 import { useFoldTeam, useTabFold } from "./team-fold"
@@ -82,7 +82,7 @@ export const WorkspaceTab = memo(
     const askFeedback = useAskFeedback(terminal)
     const releaseLead = useReleaseLead(terminal)
     // Folding a lead's teammates out of the list: how this tab stands in a fold, and on a
-    // lead, its menu's item and, while folded, its teammates' marks.
+    // lead, its menu's item and, while folded, its teammates' rows.
     const fold = useTabFold(id)
     const foldTeam = useFoldTeam(terminal)
     return (
@@ -116,7 +116,7 @@ export const WorkspaceTab = memo(
         releaseLead={releaseLead}
         fold={fold}
         foldTeam={foldTeam}
-        foldedMarks={foldTeam?.folded ? <FoldedTeamMarks lead={id} /> : undefined}
+        foldedRows={foldTeam?.folded ? <FoldedTeamRows lead={id} /> : undefined}
         folder={folder}
       />
     )

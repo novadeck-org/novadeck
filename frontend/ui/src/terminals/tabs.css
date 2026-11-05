@@ -40,9 +40,11 @@
    `.terminal-tab-waits` (what a waiting agent waits on, in the same place and fold: each
    row's `.terminal-tab-wait` glyph and `.terminal-tab-wait-trail`), `.terminal-tab-passed`
    (the trace of a wake-up that passed),
-   `.terminal-tab-rename`, `.terminal-tab-empty`, `.team-fold-marks` (a folded lead's
-   teammates after its name: each `.team-fold-mark` with data-phase, data-need and
-   data-failed as a tab's own, then `.team-fold-more`).
+   `.terminal-tab-rename`, `.terminal-tab-empty`, `.team-fold-rows` (a folded lead's
+   teammates under its line: `.team-fold-rows-fold`, each `.team-fold-row`, data-selected
+   while its teammate is the selected terminal, with a `.terminal-tab-branch`, a
+   `.team-fold-mark` with data-phase and data-failed as a tab's own, its name and a
+   `.terminal-tab-need`; then `.team-fold-more`).
 
    Tokens, each optional (its fallback in brackets):
    --tab-snoozed-fg (muted), --tab-snoozed-bg (the ink at 6%), --tab-snoozed-bar-color
@@ -517,45 +519,59 @@
     translate: 0 -10px;
   }
 }
-/* A folded lead's teammates, after its name: each one's glyph as its own tab draws it, in the
-   same colours, with what it needs of the person ("!" or "?") in its glyph's place, so nothing
-   it needs folds away. A press on them shows the teammates again. Past four, the rest are
-   counted. */
-.team-fold-marks {
-  display: inline-flex;
-  flex-shrink: 0;
+/* A folded lead's teammates, under its line: a row each, as a tab's subagent rows are, so the
+   tab grows to hold the team it folded in. Each row has its branch, the teammate's glyph as
+   its own tab draws it (in the same colours) and its name, then what it needs of the person,
+   the tab's own `!` or `?`. The rows grow in as the team folds; a row is muted, ink under the
+   pointer and while its teammate is the selected terminal. */
+.team-fold-rows {
+  grid-template-rows: 1fr;
+  color: var(--tab-subagent-fg, var(--color-muted));
+  transition: grid-template-rows var(--motion-layout) var(--ease-interface);
+}
+.team-fold-rows-fold {
+  transition: opacity var(--motion-layout) var(--ease-interface);
+}
+@starting-style {
+  .team-fold-rows {
+    grid-template-rows: 0fr;
+  }
+  .team-fold-rows-fold {
+    opacity: 0;
+  }
+}
+.team-fold-row {
+  display: flex;
+  min-width: 0;
   align-items: center;
-  gap: 3px;
-  margin-left: -2px;
-  padding: 0 3px;
-  border-radius: var(--radius-control);
-  font-family: var(--tab-process-font, var(--font-glyphs));
-  font-size: var(--text-caption);
-  line-height: 18px;
-  color: var(--tab-glyph-fg, var(--color-ink));
+  gap: 0.375rem;
+  white-space: nowrap;
   cursor: pointer;
 }
-.team-fold-marks:hover {
-  background-color: color-mix(in srgb, var(--color-ink) 8%, transparent);
+.team-fold-row:hover,
+.team-fold-row[data-selected] {
+  color: var(--tab-glyph-fg, var(--color-ink));
+}
+.team-fold-more {
+  cursor: default;
+}
+.team-fold-more:hover {
+  color: inherit;
 }
 .team-fold-mark {
   display: inline-block;
+  flex-shrink: 0;
   width: 1ch;
   height: 18px;
   overflow: hidden;
+  font-family: var(--tab-process-font, var(--font-glyphs));
   text-align: center;
+  color: var(--tab-glyph-fg, var(--color-ink));
 }
 .team-fold-mark::before {
   display: block;
   white-space: pre;
   content: "\00a0";
-}
-/* An idle teammate draws no glyph on its tab; here it needs a place of its own, so a short
-   rule on the baseline keeps the count. */
-.team-fold-mark[data-phase="idle"] {
-  height: 11px;
-  margin-top: -7px;
-  border-bottom: 1px solid var(--color-line-strong);
 }
 .team-fold-mark[data-phase="starting"],
 .team-fold-mark[data-phase="unheard"],
@@ -595,23 +611,4 @@
   content: "⠋\A⠙\A⠹\A⠸\A⠼\A⠴\A⠦\A⠧\A⠇\A⠏";
   animation: terminal-spin 800ms steps(10) infinite;
   animation-delay: inherit;
-}
-.team-fold-mark[data-need] {
-  height: 18px;
-  margin-top: 0;
-  border-bottom: 0;
-  font-weight: 700;
-  color: var(--tab-need-fg, var(--color-warning-fg));
-}
-.team-fold-mark[data-need]::before {
-  animation: none;
-}
-.team-fold-mark[data-need="ask"]::before {
-  content: "?";
-}
-.team-fold-mark[data-need="unblock"]::before {
-  content: "!";
-}
-.team-fold-more {
-  color: var(--tab-subagent-fg, var(--color-muted));
 }
