@@ -50,9 +50,10 @@ describe("a run of tool calls", () => {
   })
 
   it("shows each control that would reorder a call's detail, as the terminal shows it in order", () => {
-    const container = show([call("1", "Ran", "echo \u202Ehi\u200F")])
+    // A right-to-left mark, as right-to-left text holds, stays as it is.
+    const container = show([call("1", "Ran", "echo \u202Ehi \u05E9\u200F")])
     expect(container.querySelector(".chat-tool-detail")?.textContent).toBe(
-      "echo ⟨U+202E⟩hi⟨U+200F⟩",
+      "echo ⟨U+202E⟩hi \u05E9\u200F",
     )
   })
 })

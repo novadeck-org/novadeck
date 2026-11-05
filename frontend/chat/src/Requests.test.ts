@@ -168,9 +168,15 @@ describe("a request's card", () => {
     // A right-to-left override hides `rm -rf ~` behind what reads as harmless.
     const hidden = "echo hi \u202E~ fr- mr\u202C; ls"
     const { container, rerender } = show(
-      { ...choices, title: "Run \u2067this\u2069?", detail: hidden },
+      {
+        ...choices,
+        title: "Run \u2067this\u2069?",
+        detail: hidden,
+        options: [{ id: "1", label: "Yes, and allow \u202Eecho", text: null }],
+      },
       async () => {},
     )
+    expect(button(container, "Yes, and allow").textContent).toBe("Yes, and allow ⟨U+202E⟩echo")
     expect(container.querySelector(".chat-dialog-title")?.textContent).toBe(
       "Run ⟨U+2067⟩this⟨U+2069⟩?",
     )

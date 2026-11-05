@@ -129,7 +129,7 @@ const Choices = ({
               else send(choiceAnswer(dialog.id, option.id))
             }}
           >
-            {option.label}
+            {shownControls(option.label)}
             {option.text && "…"}
           </button>
         ))}
@@ -237,7 +237,7 @@ const Questions = ({
           >
             <legend id={`${id}-q`} className="chat-question-text">
               {question.header && <span className="chat-request-tag">{question.header}</span>}
-              {question.question}
+              {shownControls(question.question)}
             </legend>
             {question.options.map((option, at) => (
               <div key={option.id} className="chat-choice">
@@ -253,11 +253,11 @@ const Questions = ({
                       edited()
                     }}
                   />
-                  <span>{option.label}</span>
+                  <span>{shownControls(option.label)}</span>
                 </label>
                 {option.description && (
                   <p className="chat-choice-description" id={`${id}-${at}-d`}>
-                    {option.description}
+                    {shownControls(option.description)}
                   </p>
                 )}
               </div>
