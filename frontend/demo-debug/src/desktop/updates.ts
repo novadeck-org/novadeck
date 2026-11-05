@@ -11,12 +11,13 @@ import { releaseVersions, updateScenarios } from "./scenarios"
 // offered ready; any later offer, or a failed download, calls a running one off.
 // `openPage` does nothing, since a browser has no release page to open. `allow`, on an
 // offer that has it, stands for the administrator's step succeeding: the update downloads.
-// The channel is remembered until the page reloads. `showWhatsNew` has the app answer, when
+// The channel is remembered until the page reloads, across the demo's boots: in `memory`. `showWhatsNew` has the app answer, when
 // asked, that the app updated to `version`, from `from` when given, whose release names the
 // highlights below, until they are dismissed; `whatsNewCalls` counts what the page asked of
 // the app since.
 export const createDemoUpdates = (
   restart: () => void = () => window.location.reload(),
+  memory: { channel: UpdateChannel } = page,
 ): {
   readonly updates: DemoStates["updates"]
   readonly offer: (offer: UpdateOffer) => void
@@ -39,12 +40,15 @@ export const createDemoUpdates = (
   const whatsNewCalls = { dismissed: 0, asked: 0 }
   let answerAfterMs = 0
   let waiting: UpdateOffer | undefined
-  let channel: UpdateChannel = "stable"
   const listeners = new Set<(offer: UpdateOffer) => void>()
   let downloading: ReturnType<typeof setInterval> | undefined
+  // The failure still to come of a download held for failing.
+  let failing: ReturnType<typeof setTimeout> | undefined
   const stop = (): void => {
     clearInterval(downloading)
     downloading = undefined
+    clearTimeout(failing)
+    failing = undefined
   }
   const tell = (offer: UpdateOffer): void => {
     waiting = offer
@@ -73,8 +77,8 @@ export const createDemoUpdates = (
         if (waiting?.kind === "available" && waiting.allow === true) download(waiting.version)
       },
       channel: {
-        get: () => Promise.resolve(channel),
-        set: (next) => void (channel = next),
+        get: () => Promise.resolve(memory.channel),
+        set: (next) => void (memory.channel = next),
       },
     },
     offer: (offer) => {
@@ -91,12 +95,12 @@ export const createDemoUpdates = (
         stop()
         tell({ kind: "retrying", version: waiting.version })
       }
-      if (waiting?.kind === "downloading") return fail()
+      if (downloading !== undefined) return fail()
       stop()
       tell({ kind: "downloading", version, percent: 40 })
-      setTimeout(fail, failAfterMs)
+      failing = setTimeout(fail, failAfterMs)
     },
-    channel: () => channel,
+    channel: () => memory.channel,
     whatsNew: {
       get: () => {
         whatsNewCalls.asked += 1
@@ -141,6 +145,9 @@ export const downloadMs = 300
 export const downloadStep = 10
 // How long a download held for failing stays at 40% first.
 export const failAfterMs = 1500
+
+// The page's update channel, which every boot's updates share until it reloads.
+const page: { channel: UpdateChannel } = { channel: "stable" }
 
 // What the Updates group plays an installed copy's updates with.
 export type DemoUpdates = ReturnType<typeof createDemoUpdates>

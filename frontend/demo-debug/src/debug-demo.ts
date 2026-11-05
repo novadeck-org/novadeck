@@ -8,6 +8,7 @@ import type {
   ThemeSource,
 } from "@novadeck/core/port"
 import { createStore, type MutableStore } from "@novadeck/core/store"
+import { terminalKeyId } from "@novadeck/core/terminals/registry"
 import type { Workspace } from "@novadeck/core/types"
 import { demoTerminalsLife } from "@novadeck/demo"
 import { isDemoMurmur } from "@novadeck/demo/addons/murmur"
@@ -172,7 +173,10 @@ export const createDebugDemo = (launch: DemoLaunch): Backend => {
           status: { state: "failed", message: crashLoopMessage },
         })),
       )
-      failed = terminals.map((terminal) => ({ ...target, terminalId: terminal.id }))
+      // Every session's failed terminals, an earlier trip's too, until Restart terminals.
+      const tripped = terminals.map((terminal) => ({ ...target, terminalId: terminal.id }))
+      const again = new Set(tripped.map(terminalKeyId))
+      failed = [...failed.filter((each) => !again.has(terminalKeyId(each))), ...tripped]
       crashes.update(() => crashCount)
     },
     terminals: () => terminalCount(latest),

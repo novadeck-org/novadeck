@@ -1,7 +1,26 @@
 import type { Backend } from "@novadeck/core/port"
 import { isShowcase, type PlanFault } from "@novadeck/demo/showcase/simulation"
 
-import type { DemoActionGroup } from "./types"
+import type { DemoAction, DemoActionGroup } from "./types"
+
+// Undoes the clipboard that refuses every copy, while one stands in for the browser's. It
+// outlasts the demo's boots, as the page's clipboard does.
+let restoreClipboard: (() => void) | undefined
+
+// Has the browser refuse to copy, as where it denies the page the clipboard: a write rejects.
+const refuseClipboard = (): void => {
+  if (restoreClipboard) return
+  const own = Object.getOwnPropertyDescriptor(navigator, "clipboard")
+  Object.defineProperty(navigator, "clipboard", {
+    value: { writeText: () => Promise.reject(new Error("The clipboard refused the copy.")) },
+    configurable: true,
+  })
+  restoreClipboard = () => {
+    if (own) Object.defineProperty(navigator, "clipboard", own)
+    else Reflect.deleteProperty(navigator, "clipboard")
+    restoreClipboard = undefined
+  }
+}
 
 const faults: readonly {
   readonly label: string
@@ -41,9 +60,15 @@ const faults: readonly {
   {
     label: "Plan back to normal",
     fault: undefined,
-    hint: "The plan saves again; Try saving again and Retry then succeed",
+    hint: "The plan saves again and its edits copy; Try saving again and Retry then succeed",
   },
 ]
+
+const copyFails: DemoAction = {
+  label: "Copying plan edits fails",
+  hint: "With a plan fault above: Copy my edits says Couldn't copy, and closing the plan with Copy my edits and close keeps it open, saying the edits couldn't be copied",
+  run: refuseClipboard,
+}
 
 // The panel's group for what can go wrong with a plan the person edits, on the selected
 // terminal's agent. Only a showcase with agents has plans.
@@ -53,15 +78,20 @@ export const planGroups = (companions: Backend["companions"]): readonly DemoActi
         {
           section: "Agents",
           title: "Plan",
-          actions: faults.map(({ label, fault, hint }) => ({
-            label,
-            hint,
-            run: ({ selected, note }) => {
-              const key = selected()
-              if (!key || !companions.fault(key, fault))
-                note("Select a terminal whose agent wrote a plan first.")
-            },
-          })),
+          actions: faults.flatMap(({ label, fault, hint }): DemoAction[] => {
+            const action: DemoAction = {
+              label,
+              hint,
+              run: ({ selected, note }) => {
+                if (fault === undefined) restoreClipboard?.()
+                const key = selected()
+                if (!key || !companions.fault(key, fault))
+                  note("Select a terminal whose agent wrote a plan first.")
+              },
+            }
+            // Copying fails beside the faults, and the plan back to normal copies again.
+            return fault === undefined ? [copyFails, action] : [action]
+          }),
         },
       ]
     : []

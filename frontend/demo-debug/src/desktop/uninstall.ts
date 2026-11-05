@@ -29,7 +29,7 @@ export const stoppedReason =
 export const trashReason =
   "macOS didn't let Novadeck move itself to the Trash. Allow it under System Settings > Privacy & Security > App Management, then try again."
 
-const dataFolders = ["/home/mzpk/.config/novadeck", "/home/mzpk/Novadeck"] as const
+const dataFolders = ["/home/you/.config/novadeck", "/home/you/Novadeck"] as const
 
 // The browser's stand-in for the desktop app's uninstall: it says what it would do, and
 // every run ends as armed after a moment. `runs` records the `keepData` of each run and

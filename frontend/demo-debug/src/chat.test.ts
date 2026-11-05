@@ -14,6 +14,16 @@ const inner = (sent: string[] = []): Conversations => ({
 })
 
 describe("the debug panel's chat failures", () => {
+  it("hands a send's options to the conversations it wraps", async () => {
+    const given: unknown[] = []
+    const conversations = createChatFailures().wrap({
+      ...inner(),
+      send: async (_key, _text, options) => void given.push(options),
+    })
+    await conversations.send(key, "continue", { automatic: true })
+    expect(given).toEqual([{ automatic: true }])
+  })
+
   it("fail the next send once, as the runner would, then let sends through", async () => {
     const sent: string[] = []
     const chat = createChatFailures()
