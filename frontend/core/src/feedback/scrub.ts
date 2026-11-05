@@ -43,9 +43,12 @@ const word = String.raw`[^\s\\/:,;"'` + "`" + String.raw`<>()\[\]{}|]+`
 const spaced = (separator: string, ends = ""): string =>
   String.raw`(?:${word}(?: ${word}){0,2}(?=${separator}\S${ends})|${word})`
 const unsafe = String.raw`"'` + "`" + String.raw`<>()\[\]{}|`
-// A Windows home's OneDrive for work names the employer, spaced: `OneDrive - Contoso Ltd`.
-const oneDrive = (separator: string): string =>
-  String.raw`(?:${separator}+OneDrive - ${spaced(separator)})?`
+// A Windows home's OneDrive for work names the employer, spaced and punctuated as
+// `OneDrive - Contoso, Inc (EMEA)`: up to six words where a separator and more path, or what
+// else closes a Windows name (`ends`), follow; else one plain word.
+const orgWord = String.raw`[^\s\\/:;"'` + "`" + String.raw`<>\[\]{}|]+`
+const oneDrive = (separator: string, ends = ""): string =>
+  String.raw`(?:${separator}+OneDrive - (?:${orgWord}(?: ${orgWord}){0,5}(?=${separator}\S${ends})|${word}))?`
 const patterns: readonly { readonly kind: StrikeKind; readonly pattern: RegExp }[] = [
   // `~/notes`, `~\notes`, and another's home: `~alice/notes`.
   {
@@ -67,7 +70,7 @@ const patterns: readonly { readonly kind: StrikeKind; readonly pattern: RegExp }
   {
     kind: "path",
     pattern: new RegExp(
-      String.raw`(?<![\w])[A-Za-z]:[\\/]+Users[\\/]+${spaced(String.raw`[\\/]`, String.raw`|>|\\(?:\s|$)`)}${oneDrive(String.raw`[\\/]`)}(?:[\\/]${pathTail})?`,
+      String.raw`(?<![\w])[A-Za-z]:[\\/]+Users[\\/]+${spaced(String.raw`[\\/]`, String.raw`|>|\\(?:\s|$)`)}${oneDrive(String.raw`[\\/]`, String.raw`|>|\\(?:\s|$)`)}(?:[\\/]${pathTail})?`,
       "gi",
     ),
   },

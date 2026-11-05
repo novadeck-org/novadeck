@@ -126,6 +126,18 @@ describe("scrubbing a feedback draft", () => {
       expect(struck(String.raw`C:\Users\alice\OneDrive - Contoso is synced`)).toEqual([
         String.raw`path:C:\Users\alice\OneDrive - Contoso`,
       ])
+      expect(struck(String.raw`C:\Users\alice\OneDrive - Contoso, Inc (EMEA)\x`)).toEqual([
+        String.raw`path:C:\Users\alice\OneDrive - Contoso, Inc (EMEA)\x`,
+      ])
+      expect(struck(String.raw`C:\Users\alice\OneDrive - Contoso Holdings Group Ltd\x`)).toEqual([
+        String.raw`path:C:\Users\alice\OneDrive - Contoso Holdings Group Ltd\x`,
+      ])
+      expect(struck(String.raw`C:\Users\alice\OneDrive - Contoso Ltd> dir`)).toEqual([
+        String.raw`path:C:\Users\alice\OneDrive - Contoso Ltd`,
+      ])
+      expect(struck(String.raw`(in C:\Users\alice\OneDrive - Contoso)`)).toEqual([
+        String.raw`path:C:\Users\alice\OneDrive - Contoso`,
+      ])
       expect(struck("/mnt/c/Users/alice/OneDrive - Contoso/x")).toEqual([
         "path:/mnt/c/Users/alice/OneDrive - Contoso/x",
       ])
