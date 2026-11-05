@@ -377,15 +377,14 @@ type Watch = {
    */
   shellTitled: boolean
   /**
-   * Whether that shell title was written while its agent was expected: the terminal was
-   * opened or resumed to run one, which was slow to bind. The agent's summary on record is
-   * then its own, and names the terminal when it binds.
+   * The agent that was expected when that shell title was written: the terminal was opened
+   * or resumed to run it, and it was slow to bind. Its summary on record is then its own, and
+   * names the terminal when that same agent binds. Null when none was expected, and once the
+   * expectation is over.
    */
-  expectedTitled: boolean
+  expectedTitledFor: AgentName | null
   /** An agent was bound in this terminal since murmur began watching it: no agent is expected. */
   agentBound: boolean
-  /** The program its agent was expected to start ran and returned to the prompt, bound or not. */
-  startupOver: boolean
   /** The timer that asks again for a summary's title that did not run. */
   retryTimer: NodeJS.Timeout | undefined
   /** The program in a plain shell's foreground, as a key, and since when; null at the prompt. */
@@ -508,7 +507,7 @@ export class Murmur {
       watch.named = null
       watch.owed = false
       watch.shellTitled = false
-      watch.expectedTitled = false
+      watch.expectedTitledFor = null
       watch.shellOwed = false
       watch.screenKey = null
     }
@@ -580,7 +579,7 @@ export class Murmur {
   private shellish(subject: MurmurSubject, watch: Watch): boolean {
     const { murmur, summary } = subject.naming
     if (murmur === null) return false
-    if (watch.expectedTitled) return true
+    if (watch.expectedTitledFor !== null && watch.expectedTitledFor === subject.agent) return true
     return (
       !watch.shellTitled &&
       watch.named === null &&
@@ -623,6 +622,7 @@ export class Murmur {
     const subject = this.host.subject(terminalId)
     if (!subject) return
     const watch = this.watch(terminalId)
+    this.expects(subject)
     // An agent holds the foreground (noted as `agentRan` when it bound): its run is the
     // agent's, whatever program the sampler took it for before.
     if (subject.agent) return
@@ -632,8 +632,6 @@ export class Murmur {
     const ranMs = Date.now() - watch.program.since
     const was = watch.program.key
     watch.program = { key, since: Date.now() }
-    // The program the terminal was opened to run ended without an agent: it expects none.
-    if (key === null && was !== null && subject.expecting) watch.startupOver = true
     // What waits is superseded by this change: a command that ended before it ran long
     // enough describes nothing, but a directory change or a catch-up still owed is asked
     // for again at the prompt.
@@ -660,6 +658,7 @@ export class Murmur {
     if (!this.usable || !entered) return
     const subject = this.host.subject(terminalId)
     if (!subject || subject.agent) return
+    this.expects(subject)
     this.watch(terminalId).shellOwed = true
     this.ask(terminalId, this.times.shellSettleMs, { unchanged: true })
   }
@@ -671,9 +670,8 @@ export class Murmur {
         named: null,
         owed: false,
         shellTitled: false,
-        expectedTitled: false,
+        expectedTitledFor: null,
         agentBound: false,
-        startupOver: false,
         retryTimer: undefined,
         program: { key: null, since: Date.now() },
         agentRan: false,
@@ -800,7 +798,7 @@ export class Murmur {
     if (previous !== undefined && sharesContentWord(outcome.title, previous)) return
     if (this.store(terminalId, outcome.title)) {
       watch.shellTitled = false
-      watch.expectedTitled = false
+      watch.expectedTitledFor = null
     }
   }
 
@@ -849,10 +847,14 @@ export class Murmur {
   }
 
   // Whether the terminal still waits for the agent it was opened to run: the record keeps
-  // `expecting` after the agent bound and left, and after its startup command ended.
+  // `expecting` after the agent bound and left; the manager clears it when the startup
+  // command ended with none bound, or its resume was cancelled.
   private expects(subject: MurmurSubject): boolean {
     const watch = this.watch(subject.summary.id)
-    return !!subject.expecting && !watch.agentBound && !watch.startupOver
+    // Nothing is expected of an unbound terminal that says so: what was titled while it was
+    // is not its next agent's to heal.
+    if (!subject.expecting && !subject.agent) watch.expectedTitledFor = null
+    return !!subject.expecting && !watch.agentBound
   }
 
   // How much longer a shell opened to run an agent waits for it to bind, in milliseconds,
@@ -897,7 +899,12 @@ export class Murmur {
 
   // A shell's job ended: its title, if it got one, names the terminal.
   private shellSettled(terminalId: string, outcome: Description | null | undefined): void {
-    if (!outcome || !this.store(terminalId, outcome.title)) return
+    if (!outcome) return
+    // An agent that bound while the model ran owns the terminal: a shell's answer about the
+    // screen it started on would replace a better name, and nothing would heal it.
+    const bound = this.host.subject(terminalId)
+    if (!bound || bound.agent) return
+    if (!this.store(terminalId, outcome.title)) return
     // An agent that starts in this shell, or after the one that left it, is named from its
     // own summary, even one that says what the last agent's did; nothing is owed meanwhile.
     const watch = this.watches.get(terminalId)
@@ -905,8 +912,7 @@ export class Murmur {
     watch.named = null
     watch.owed = false
     watch.shellTitled = true
-    const subject = this.host.subject(terminalId)
-    watch.expectedTitled = !!subject && this.expects(subject)
+    watch.expectedTitledFor = this.expects(bound) ? bound.expecting : null
   }
 
   // A title came back: it names the terminal if it can be one and the person gave it none;

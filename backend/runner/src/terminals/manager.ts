@@ -995,6 +995,8 @@ export class Terminals {
     const claim = record.resumeClaim
     if (cancelResume(record)) {
       record.startupRuns = false
+      record.expecting = null
+      this.messaging.expect(record.summary.id, null)
       // The person took the terminal over before its agent ever ran: nothing to lead.
       this.bindings.endLead(record)
       this.claims.cancel(claim, record.summary.id)

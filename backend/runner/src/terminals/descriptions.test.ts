@@ -1442,8 +1442,8 @@ describe("when murmur becomes usable", () => {
       await settle(made.times.expectMs + made.times.shellSettleMs + 50)
       expect(made.describer.jobs).toHaveLength(0)
       expect(made.written).toEqual([])
-      // It left without binding: back at the prompt, the terminal is a shell.
-      made.change({ program: { name: "bash", argv: null } })
+      // It left without binding: the manager clears the expectation, and the terminal is a shell.
+      made.change({ expecting: null, program: { name: "bash", argv: null } })
       made.murmur.sampled("a")
       await settle(made.times.shellSettleMs + 50)
       expect(made.describer.digests).toHaveLength(1)
@@ -1463,6 +1463,83 @@ describe("when murmur becomes usable", () => {
       made.murmur.sampled("a")
       await settle(made.times.shellRunMs + 50)
       expect(made.describer.digests.at(-1)).toMatchObject({ kind: "shell", command: "pnpm dev" })
+    })
+
+    it("still waits for its agent after a brief program of the shell's startup files", async () => {
+      const made = create({
+        agent: null,
+        expecting: agent,
+        atPrompt: true,
+        naming: { ...unnamed, summary: recorded },
+      })
+      made.describer.setUsable(true)
+      // A banner program ends before the resume command runs.
+      made.change({ program: { name: "fastfetch", argv: ["fastfetch"] }, atPrompt: false })
+      made.murmur.sampled("a")
+      made.change({ program: { name: "bash", argv: null }, atPrompt: true })
+      made.murmur.sampled("a")
+      made.change({ program: { name: agent, argv: [agent, "--resume", "x"] }, atPrompt: false })
+      made.murmur.sampled("a")
+      await settle(made.times.expectMs + made.times.shellRunMs + 50)
+      expect(made.describer.jobs).toHaveLength(0)
+      expect(made.written).toEqual([])
+    })
+
+    it("keeps a good title when a shell's answer lands after the agent bound", async () => {
+      const made = create({
+        agent: null,
+        expecting: agent,
+        atPrompt: true,
+        naming: { ...unnamed, summary: recorded, murmur: { title: "Payload media images" } },
+      })
+      made.describer.setUsable(true)
+      await settle(made.times.expectMs + 50)
+      made.describer.hold = true
+      made.murmur.prompted("a")
+      await settle(made.times.shellSettleMs + 50)
+      expect(made.describer.jobs).toHaveLength(1)
+      made.change({ agent, work: work(), activity: idle("ok") })
+      made.murmur.reported("a")
+      made.describer.jobs[0]!.answer({ title: stale })
+      await settle(made.times.settleMs + 50)
+      made.murmur.reported("a")
+      await settle(made.times.retryMs)
+      expect(made.written).toEqual([])
+      expect(made.subjects.get("a")!.naming.murmur).toEqual({ title: "Payload media images" })
+    })
+
+    it("names a different agent from its own summary, not the one that was expected", async () => {
+      // Titled as a shell while the agent was expected; its startup ended without it, and
+      // the shell's next description was refused.
+      let shells = 0
+      const made = create(
+        {
+          agent: null,
+          expecting: agent,
+          atPrompt: true,
+          naming: { ...unnamed, summary: "Old work on payload images" },
+        },
+        new FakeDescriber({
+          reply: (digest) =>
+            digest.kind === "shell"
+              ? shells++ === 0
+                ? { title: stale }
+                : null
+              : { title: "Agent" },
+        }),
+      )
+      made.describer.setUsable(true)
+      made.murmur.prompted("a")
+      await settle(made.times.expectMs + 300)
+      expect(made.written).toEqual([{ title: stale }])
+      made.change({ expecting: null })
+      made.murmur.prompted("a")
+      await settle(400)
+      made.change({ agent: agent === "codex" ? "claude" : "codex", work: work() })
+      made.murmur.reported("a")
+      await settle(made.times.settleMs + made.times.retryMs)
+      expect(made.written).toEqual([{ title: stale }])
+      expect(made.describer.digests.some(({ kind }) => kind === "agent")).toBe(false)
     })
 
     it("names a new agent from its own summary, not the one that left", async () => {
