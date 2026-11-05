@@ -335,8 +335,9 @@ present an old snapshot as current.
 The UI uses runner-supplied resume eligibility and agent classification instead
 of maintaining an independent resumable-agent list. UI process profiles still
 select icons/bodies by stable agent ID; they cannot decide lifecycle semantics.
-The runner and the UI ship and update together, so a change to the protocol
-between them updates strict schemas, client types, demo backend and fixtures
+The runner and the UI ship and update together (while the desktop app is the only
+backend; a remote runner will need versioned compatibility), so a change to the
+protocol between them updates strict schemas, client types, demo backend and fixtures
 together, without compatibility shapes. That covers only the wire between them;
 what either keeps on a person's computer carries forward (see
 [AGENTS.md](../AGENTS.md#novadeck-has-users)).

@@ -30,7 +30,8 @@ release finds on their computer is theirs, so it carries forward:
 - A hook definition changes only when the integration needs it: Codex and Antigravity
   ask the person to review a changed hook again.
 
-Code moving inside the repository needs no shims; that rule never covers these.
+Code moving inside the repository needs no shims, but nothing on a person's computer is
+code moving inside the repository.
 
 # Demo Debug Panel
 
