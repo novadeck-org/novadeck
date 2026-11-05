@@ -160,9 +160,11 @@ const decodeHook = ({ event, seq, instance, env, payload }: Report): readonly Ha
           ? [asked(base, actor, tool, input, call, "permission")]
           : tool === asyncTool
             ? [
-                // Named by its call alone, so the reply that answers it can find it.
+                // Named by its call alone, so the reply that answers it can find it. A call
+                // its hook doesn't name goes by its question instead, as other calls do, so
+                // two such questions stay two.
                 asked(base, actor, tool, input, call, "question", {
-                  requestId: asyncRequestId(text(payload.tool_use_id) ?? ""),
+                  ...asyncNamed(text(payload.tool_use_id)),
                   ...asyncSubject(input),
                   detached: true,
                 }),
@@ -184,7 +186,9 @@ const decodeHook = ({ event, seq, instance, env, payload }: Report): readonly Ha
                 outcome: "allowed",
               } satisfies HarnessEvent,
             ]),
-        ...(applied(payload.tool_response)
+        // Only a patch's own call wrote what its text names: another tool's text, as a
+        // message or a heredoc, may only quote a patch.
+        ...(tool === "apply_patch" && applied(payload.tool_response)
           ? patched(input, absolute(payload.cwd)).map((path): HarnessEvent => ({
               type: "file-touched",
               ...base,
@@ -204,6 +208,10 @@ const decodeHook = ({ event, seq, instance, env, payload }: Report): readonly Ha
       return []
   }
 }
+
+// An async question's request, by the call its hook names.
+const asyncNamed = (call: string | undefined): { readonly requestId?: string } =>
+  call ? { requestId: asyncRequestId(call) } : {}
 
 // A Stop hook's reason Codex submits to continue the turn, as a prompt of its own.
 const hookPrompt = /^\s*<hook_prompt\b/
@@ -227,7 +235,7 @@ const asked = (
   kind: "permission" | "question",
   own?:
     | {
-        readonly requestId: string
+        readonly requestId?: string
         readonly subject: string | null
         readonly choices: readonly string[]
         readonly parts: readonly string[]

@@ -1,6 +1,7 @@
 import type { Report } from "@novadeck/harness-core/report"
 import { describe, expect, it } from "vitest"
 
+import { asyncRequestId } from "./async-question.js"
 import { hook as reported } from "./report.test-support.js"
 
 const session = "11111111-2222-4333-8444-555555555555"
@@ -55,6 +56,20 @@ describe("Codex's async question", () => {
     expect((second as { requestId: string }).requestId).not.toBe(
       (request as { requestId: string }).requestId,
     )
+  })
+
+  it("is named by its question where its hook names no call, so two such questions stay two", () => {
+    const unnamed = (questions: object) =>
+      hook("PreToolUse", {
+        tool_name: "request_user_input_async",
+        tool_input: { questions },
+      })[0] as { requestId: string; detached?: true }
+    const first = unnamed([{ title: "Which color?", options: ["Blue"] }])
+    const second = unnamed([{ title: "Which size?", options: ["Big"] }])
+    expect(first).toMatchObject({ detached: true, subject: "Which color?" })
+    expect(second.requestId).not.toBe(first.requestId)
+    // None is the request of a call its hook named, nor of a reply naming no call.
+    expect(first.requestId).not.toBe(asyncRequestId(""))
   })
 
   it("is not answered by its own PostToolUse, which comes at once", () => {

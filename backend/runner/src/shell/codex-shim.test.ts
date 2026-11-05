@@ -1,5 +1,5 @@
 import { spawnSync } from "node:child_process"
-import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs"
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs"
 import { tmpdir } from "node:os"
 import { delimiter, join } from "node:path"
 
@@ -8,7 +8,10 @@ import { installShellFiles } from "./install.js"
 
 const windows = process.platform === "win32"
 
-type Fixture = { run: (args: string[], env?: NodeJS.ProcessEnv) => string[] }
+type Fixture = {
+  readonly root: string
+  readonly run: (args: string[], env?: NodeJS.ProcessEnv, cwd?: string) => string[]
+}
 
 // The real codex is a stand-in that records the arguments it received.
 const it = base.extend<{ shim: Fixture }>({
@@ -34,7 +37,7 @@ const it = base.extend<{ shim: Fixture }>({
           mode: 0o755,
         },
       )
-    const run: Fixture["run"] = (args, env = {}) => {
+    const run: Fixture["run"] = (args, env = {}, cwd) => {
       rmSync(log, { force: true })
       const shim = join(paths.bin, windows ? "codex.cmd" : "codex")
       const options = {
@@ -46,6 +49,7 @@ const it = base.extend<{ shim: Fixture }>({
           ...env,
         },
         encoding: "utf8" as const,
+        ...(cwd !== undefined && { cwd }),
       }
       const result = windows
         ? spawnSync(process.env.COMSPEC ?? "cmd.exe", ["/d", "/c", shim, ...args], options)
@@ -53,7 +57,7 @@ const it = base.extend<{ shim: Fixture }>({
       if (result.status !== 0) throw new Error(`codex failed: ${result.stderr}`)
       return JSON.parse(readFileSync(log, "utf8")) as string[]
     }
-    await use({ run })
+    await use({ root, run })
   },
 })
 
@@ -87,4 +91,22 @@ describe("codex shim", { timeout: 60_000 }, () => {
     // Another harness's shim put this folder on PATH.
     expect(shim.run(["exec", "hi"], { NOVADECK_SHIMS: "claude" })).toEqual(["exec", "hi"])
   })
+
+  it.runIf(windows)(
+    "runs the real codex, never a codex.cmd in the current folder, where a plain where looks first",
+    ({ shim }) => {
+      const repo = join(shim.root, "repo")
+      mkdirSync(repo)
+      const marker = join(shim.root, "planted")
+      writeFileSync(join(repo, "codex.cmd"), `@echo planted> "${marker}"\r\n`)
+      expect(shim.run(["exec", "hi"], {}, repo)).toEqual([
+        "--no-daemon",
+        "-c",
+        "tui.terminal_title=['status','thread-id']",
+        "exec",
+        "hi",
+      ])
+      expect(existsSync(marker)).toBe(false)
+    },
+  )
 })

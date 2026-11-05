@@ -401,19 +401,24 @@ export const pictureForApp = async (
 }
 
 /**
- * Tells how many sign-in windows a page view has open as each opens or closes. Electron
- * closes them when the view goes, so its app keeps the view live while any is open. A
- * view gone first, its windows closing after it, has no one left to tell.
+ * Tells how many sign-in windows a page view has open as each opens or closes, with those
+ * they open in turn, as an account chooser. Electron closes them when the view goes, so its
+ * app keeps the view live while any is open. A view gone first, its windows closing after
+ * it, has no one left to tell.
  */
 export const countSignIns = (contents: WebContents, tell: (open: number) => void): void => {
   let open = 0
-  contents.on("did-create-window", (window) => {
-    tell(++open)
-    window.once("closed", () => {
-      open -= 1
-      if (!contents.isDestroyed()) tell(open)
+  const watch = (opener: WebContents): void => {
+    opener.on("did-create-window", (window) => {
+      tell(++open)
+      window.once("closed", () => {
+        open -= 1
+        if (!contents.isDestroyed()) tell(open)
+      })
+      watch(window.webContents)
     })
-  })
+  }
+  watch(contents)
 }
 
 /**
@@ -483,6 +488,9 @@ const requestKinds: Readonly<Record<string, string>> = {
 /** How many failures of one page view, from one origin, are told per navigation of its main frame. */
 export const maxForwardedRequests = 100
 
+/** How many origins of one page view have a count of their own per navigation; those past it share one. */
+export const maxRequestOrigins = 32
+
 /**
  * Tells of each request of the pages' session that fails, with the page view it is for: an
  * HTTP error answer (4xx, 5xx), or none at all (status 0), but not one cancelled, as by a
@@ -493,24 +501,34 @@ export const maxForwardedRequests = 100
  * server that errors, has `maxForwardedRequests` told for each origin and navigation of its
  * main frame and no more, so another site's beacon failing in a loop can't use up what the
  * page's own origin has: far over what a viewer reports for a document, which it decides.
+ * Past `maxRequestOrigins` origins, the rest share one count.
  */
 export const watchPageRequests = (
   pages: Session,
   report: (contentsId: number, failure: PageRequestFailure) => void,
 ): { readonly forget: (contentsId: number) => void } => {
-  // By page view, then origin.
-  const told = new Map<number, Map<string, number>>()
+  // By page view: the origin of its main frame's document, and the counts by origin.
+  const told = new Map<number, { readonly page?: string; readonly counts: Map<string, number> }>()
   const tell = (
     details: { url: string; resourceType: string; webContentsId?: number },
     status: number,
   ): void => {
     if (details.webContentsId === undefined) return
-    const view = told.get(details.webContentsId) ?? new Map<string, number>()
-    // An address that is no web page's, as ws: or blob:, shares one count, whatever it is.
-    const origin = originOf(details.url) ?? "other"
-    const count = view.get(origin) ?? 0
+    const view = told.get(details.webContentsId) ?? { counts: new Map<string, number>() }
+    const { counts } = view
+    // An address that is no web page's, as ws: or blob:, shares one count, whatever it is,
+    // as do origins past the first `maxRequestOrigins`, so a page can't send without end
+    // by failing at ever new ones. The page's own origin always has its own.
+    const own = originOf(details.url)
+    const origins = counts.size - (counts.has("other") ? 1 : 0)
+    const origin =
+      own !== null && (own === view.page || counts.has(own) || origins < maxRequestOrigins)
+        ? own
+        : "other"
+    const count = counts.get(origin) ?? 0
     if (count >= maxForwardedRequests) return
-    told.set(details.webContentsId, view.set(origin, count + 1))
+    told.set(details.webContentsId, view)
+    counts.set(origin, count + 1)
     report(details.webContentsId, {
       url: details.url,
       status,
@@ -518,9 +536,14 @@ export const watchPageRequests = (
     })
   }
   // A new main-frame request is a new document, however it ends.
-  const navigating = (details: { resourceType: string; webContentsId?: number }): void => {
-    if (details.resourceType === "mainFrame" && details.webContentsId !== undefined)
-      told.delete(details.webContentsId)
+  const navigating = (details: {
+    url: string
+    resourceType: string
+    webContentsId?: number
+  }): void => {
+    if (details.resourceType !== "mainFrame" || details.webContentsId === undefined) return
+    const page = originOf(details.url)
+    told.set(details.webContentsId, { ...(page !== null && { page }), counts: new Map() })
   }
   pages.webRequest.onCompleted((details) => {
     navigating(details)

@@ -20,8 +20,11 @@ machine. Pure JavaScript, for Node and the browser alike.
   longest value a rule takes whole). A secret split across them is masked on both sides, a
   longer one by the windows that overlap along it (a token with a prefix, longer than 2048
   characters, is masked to the end of its run), and the work grows with the rows, not with
-  their square. A key block masks every row it covers, to the end of the screen when its end is not
-  on it.
+  their square. A key block masks every row it covers, from its `-----BEGIN … -----` to its
+  `-----END … -----`, or, when only one marker is on the screen, 256 lines past it and on
+  through lines that look like a key's body (an END with none above it reaches no higher than
+  an earlier END). A marker cut short by the pane's edge counts; one with more text after it,
+  as in code or grep's output, does not.
 - `maskScreen(rows, continues)`: the same reading as `redactScreen`, but returning which UTF-16
   units of each row are secret, one array of flags per row as long as the row, for a caller that
   masks the cells themselves and keeps the screen's shape.
@@ -30,13 +33,16 @@ machine. Pure JavaScript, for Node and the browser alike.
 ## What the rules find
 
 - Provider keys and tokens by their prefixes (`sk-`, `sk_live_`, `ghp_`, `github_pat_`,
-  `glpat-`, `hf_`, `hvs.`, `npm_`, `pypi-`, `AIza`, `ya29.`, `AKIA`, `xox`, `SG.`,
+  `glpat-`, `hf_`, `hvs.`, `npm_`, `pypi-`, `AIza`, `GOCSPX-`, `ya29.`, `AKIA`, `xox`, `SG.`,
+  `dop_v1_`/`doo_v1_`/`dor_v1_`, `shpat_`/`shpss_`/`shpca_`/`shppa_`, `whsec_`,
   `AGE-SECRET-KEY-`), each once long enough to be one, Discord bot tokens and JWTs. Key blocks
   (`-----BEGIN … -----`) are masked whole, or to the end of the text when their end is cut off.
 - `Authorization`, `Cookie` and bearer values, webhook URLs, URLs with `user:password@` (an
   empty user too) and secret query parameters.
 - `NAME=value`, `name: value` and `"name": "value"` (a JSON string inside a string too) when
-  the name sounds secret, `set -x NAME value`, exact secret flags (`--password`, `--token`,
+  the name sounds secret, `name:value` with no space when the name is a word ending in
+  `password`, `secret`, `token`, `pwd` or `passphrase` (not a file, path, ref or ARN before a
+  colon), `set -x NAME value`, exact secret flags (`--password`, `--token`,
   `--api-key`, ...), and command lines that take a password their own way: `mysql -p`,
   `docker login -p`, `sshpass -p`, `redis-cli -a`, `htpasswd -b`, `openssl -k`/`-pass` and
   `curl -u`.
@@ -44,7 +50,9 @@ machine. Pure JavaScript, for Node and the browser alike.
     `pass`, `pwd`, an `api`, `private` or `access` before `key`, and so on. `KEY_COUNT`,
     `token_count`, `PRIMARY_KEY`, `auth=required`, `sessionId` and `--sort-key` are not secrets.
     Values that are paths, short numbers, words like `true` or code that reads a secret from
-    elsewhere (`process.env.X`, `$TOKEN`) are kept.
+    elsewhere (`process.env.X`, `$TOKEN`) are kept, and so are unquoted field reads that name a
+    secret or read from what code holds (`user.password`, `req.headers.authorization`); a
+    dotted or quoted value that is neither (`correct.horse.battery`) is masked.
 - Long hex or base64 runs. Base64 never matches inside a path, and needs digits, mixed case and
   no long word, so identifiers and paths survive. A run of 80 characters or more is judged by
   its pieces of 20, and a third of them may hold a word if digits are a twentieth of the run
