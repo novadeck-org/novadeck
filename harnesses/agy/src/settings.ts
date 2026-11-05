@@ -1,4 +1,4 @@
-import { readFile, rename, writeFile } from "node:fs/promises"
+import { chmod, readFile, realpath, rename, rm, stat, writeFile } from "node:fs/promises"
 import { join, resolve } from "node:path"
 
 import { fieldsOf, type Fields } from "@novadeck/harness-core/fields"
@@ -78,11 +78,32 @@ const read = async (file: string): Promise<Fields | undefined> => {
   }
 }
 
-// Replaces the file whole, so Antigravity reads the old settings or the new.
+// The file a path names, through any links, as a dotfile manager makes; the path itself
+// where nothing is there yet.
+const target = (file: string): Promise<string> =>
+  realpath(file).catch((error: unknown) => {
+    if ((error as NodeJS.ErrnoException).code === "ENOENT") return file
+    throw error
+  })
+
+// Replaces the file whole, so Antigravity reads the old settings or the new: the file a link
+// names, so the link stays, with the mode it had (only the person's own, a new one).
 const write = async (file: string, value: unknown): Promise<void> => {
-  const temporary = `${file}.${process.pid}.novadeck`
-  await writeFile(temporary, json(value), { mode: 0o600 })
-  await rename(temporary, file)
+  const real = await target(file)
+  const mode = await stat(real).then(
+    (found) => found.mode & 0o777,
+    () => 0o600,
+  )
+  const temporary = `${real}.${process.pid}.novadeck`
+  try {
+    await writeFile(temporary, json(value), { mode })
+    // Past the umask, which `writeFile`'s mode is not.
+    await chmod(temporary, mode)
+    await rename(temporary, real)
+  } catch (error) {
+    await rm(temporary, { force: true })
+    throw error
+  }
 }
 
 export const statusLineSettings = {
