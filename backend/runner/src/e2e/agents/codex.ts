@@ -434,6 +434,11 @@ const scene = async (
   )
 }
 
+// How long the app-server may take to answer. Its first start in a new home is slow on a
+// Windows runner: it answered `initialize` at +25.5 s and at +40.3 s in the two attempts of
+// one CI job, having made its sqlite files from +5 s to +20 s, and was nowhere stuck.
+const answerMs = process.platform === "win32" ? 60_000 : 20_000
+
 /**
  * A session with Codex's app-server over stdio, as its TUI and Novadeck talk to it: each
  * request resolves to its result, or fails with its error, after `timeoutMs`, or as soon
@@ -442,7 +447,7 @@ const scene = async (
  */
 export const appServer = (
   env: Readonly<Record<string, string>>,
-  timeoutMs = 20_000,
+  timeoutMs = answerMs,
   look: typeof scene = scene,
 ) => {
   const began = Date.now()
