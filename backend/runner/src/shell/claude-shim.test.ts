@@ -3,6 +3,9 @@ import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync
 import { tmpdir } from "node:os"
 import { delimiter, join } from "node:path"
 
+import { claude } from "@novadeck/harness-claude/index"
+import { gitBash } from "@novadeck/sandbox"
+
 import { describe, expect, it as base } from "../test.js"
 import { installShellFiles } from "./install.js"
 
@@ -99,11 +102,35 @@ describe("claude shim", { timeout: 60_000 }, () => {
     expect(JSON.parse(readFileSync(shim.settings, "utf8"))).toEqual({
       statusLine: {
         type: "command",
-        command: '[ -n "$NOVADECK_HOOK" ] && "$NOVADECK_HOOK" claude StatusLine || true',
+        command: windows
+          ? claude.hook("win32", "StatusLine")
+          : '[ -n "$NOVADECK_HOOK" ] && "$NOVADECK_HOOK" claude StatusLine || true',
         padding: 0,
       },
     })
   })
+
+  // Claude Code runs its status line in Git Bash on Windows. A batch file started there runs
+  // through a cmd with no /d, which runs the AutoRun first; cmd says how it was started.
+  it.runIf(windows)(
+    "starts the status line's launcher in a cmd with /d, so no AutoRun prints ahead of it",
+    ({ shim }) => {
+      const bash = gitBash()
+      expect(bash, "Git Bash").toBeDefined()
+      const launcher = join(shim.root, "hook.cmd")
+      writeFileSync(launcher, "@echo cmd=%CMDCMDLINE%\r\n@echo args=%*\r\n")
+      const { statusLine } = JSON.parse(readFileSync(shim.settings, "utf8")) as {
+        statusLine: { command: string }
+      }
+      const result = spawnSync(bash!, ["-c", statusLine.command], {
+        env: { ...process.env, NOVADECK_HOOK: launcher },
+        input: "{}",
+        encoding: "utf8",
+      })
+      expect(result.stdout).toMatch(/^cmd=\S*cmd(?:\.exe)?"? \/d \/c /im)
+      expect(result.stdout).toMatch(/^args=claude StatusLine\s*$/m)
+    },
+  )
 
   it("leaves Claude Code's other commands alone", ({ shim }) => {
     expect(shim.run(["mcp", "list"])).toEqual(["mcp", "list"])
