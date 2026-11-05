@@ -1,4 +1,5 @@
 import type { Conversations } from "@novadeck/core/conversation"
+import { shellCommand } from "@novadeck/core/conversation/prompt-refusal"
 import type { Backend, BackendSink, TerminalKey } from "@novadeck/core/port"
 import type { TerminalMetadata, Workspace } from "@novadeck/core/types"
 
@@ -211,8 +212,12 @@ export const visitorStory = (
     ...conversations,
     send: (key, prompt, options) => {
       const terminal = terminalOf(latest, key)
-      // A line it would refuse leaves the review as it was.
-      const sent = prompt.trim() !== "" && !conversations.refused(prompt, { shell: true })
+      // Only a message starts a turn: a line it would refuse, or a shell command, which runs
+      // with no turn, leaves the review as it was.
+      const sent =
+        prompt.trim() !== "" &&
+        !conversations.refused(prompt, { shell: true }) &&
+        shellCommand(prompt) === undefined
       if (same(key, codex) && reviewing(terminal) && !turns.working(codex) && sent)
         turns.rest(codex, terminal)
       return conversations.send(key, prompt, options)

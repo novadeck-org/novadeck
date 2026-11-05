@@ -124,14 +124,20 @@ describe("the visitor's story", () => {
   })
 
   it("answers a line the visitor sends Codex while it reviews, and asks nothing of it after", async () => {
-    const { chat, terminal, asks, answer, said } = open()
+    const { chat, turns, terminal, asks, answer, said } = open()
     await answer(claude, "1")
     await vi.advanceTimersByTimeAsync(turnMs)
     // Codex would ask in `nudgeMs`, while the turn on the visitor's line still runs.
     await vi.advanceTimersByTimeAsync(nudgeMs - turnMs / 2)
-    // A line it refuses, as a slash command, leaves the review as it was.
+    // A line it refuses, as a slash command, or a shell command, which starts no turn,
+    // leaves the review as it was.
     await expect(chat.send(codex, "/review")).rejects.toThrow()
     expect(terminal(codex.terminalId)).toMatchObject({ agent: { working: true } })
+    await chat.send(codex, "!ls")
+    await vi.advanceTimersByTimeAsync(0)
+    expect(terminal(codex.terminalId)).toMatchObject({ agent: { working: true } })
+    await chat.interrupt(codex)
+    turns.work(codex, terminal(codex.terminalId))
     expect(said(codex, "user")).not.toContain("/review")
     await chat.send(codex, "What are you looking at?")
     await vi.advanceTimersByTimeAsync(0)
