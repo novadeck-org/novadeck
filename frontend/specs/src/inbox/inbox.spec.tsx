@@ -665,7 +665,9 @@ describe("Snoozing a row", () => {
     await expect.element(button("Unsnooze", "webhooks")).toBeVisible()
     await expect.element(button("Dismiss", "webhooks")).not.toBeInTheDocument()
     const at = box(button("Unsnooze", "webhooks").element())
-    const mark = box(webhooks.element().querySelector(".inbox-row-wait svg")!)
+    const wait = webhooks.element().querySelector(".inbox-row-wait")!
+    const mark = box(wait.querySelector("svg")!)
+    expect(getComputedStyle(wait).visibility).toBe("hidden")
     const whole = box(webhooks.element())
     expect(at.top).toBeLessThan(mark.top)
     expect(at.bottom).toBeGreaterThan(mark.bottom)
