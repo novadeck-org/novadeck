@@ -5,6 +5,7 @@ import { apply, started } from "../../harnesses/activity.js"
 import { Inbox, memoryInbox, type TurnOwner } from "../../messaging/inbox.js"
 import { describe, expect, it } from "../../test.js"
 import type { Record } from "../record.js"
+import { endingSamples, exitKeysMs, graceSamples } from "../sampling.js"
 import { Bindings, type BindingsHost } from "./facts.js"
 
 /**
@@ -247,6 +248,7 @@ describe("the lead of an agent found gone", () => {
     const host = {
       messaging: () => ({
         endLead: ended,
+        escaped: () => undefined,
         shownAgent: () => undefined,
         inboxOwner: () => undefined,
         deliveredAt: () => null,
@@ -280,9 +282,10 @@ describe("the lead of an agent found gone", () => {
     expect(save).toHaveBeenCalledWith(worker)
   })
 
-  it("ends once the shell has outlived its agent for a sample's time, on Windows", () => {
+  it("ends a sample's time after the person's Ctrl+C or Ctrl+D, on Windows", () => {
     on("win32")
     const { ends, worker, ended, save } = led()
+    worker.endKeyAt = Date.now() - 1_000
     ends.endLeadGone(worker)
     vi.advanceTimersByTime(pollMs - 1)
     expect(worker.summary.ledBy).toBe("moth")
@@ -294,13 +297,123 @@ describe("the lead of an agent found gone", () => {
     expect(worker.changed).toBe(true)
   })
 
-  it("ends so too when the agent's process is found gone, on Windows", () => {
+  it("ends after the grace when no such key came, by the prompt or the process found gone alike", () => {
     on("win32")
-    const { ends, worker } = led()
-    ends.endExited(worker)
+    const prompt = led()
+    prompt.ends.endLeadGone(prompt.worker)
+    const process = led()
+    process.worker.endKeyAt = Date.now() - exitKeysMs - 1
+    process.ends.endExited(process.worker)
+    vi.advanceTimersByTime(graceSamples * pollMs - 1)
+    for (const { worker } of [prompt, process]) expect(worker.summary.ledBy).toBe("moth")
+    vi.advanceTimersByTime(1)
+    for (const { worker, ended } of [prompt, process]) {
+      expect(worker.summary.ledBy).toBeNull()
+      expect(ended).toHaveBeenCalledWith("t1")
+    }
+  })
+
+  it("ends a sample's time after the person submits their agent's exit command", () => {
+    on("win32")
+    for (const [agent, line] of [
+      ["claude", "/exit"],
+      ["claude", "/quit"],
+      ["codex", "/quit"],
+      ["agy", "/exit"],
+      ["agy", "/quit"],
+    ] as const) {
+      const { ends, worker } = led()
+      worker.bound = { binding: { agent, sessionId: "s1", instance: null } } as Record["bound"]
+      ends.keyed(worker, `${line}\r`)
+      ends.endLeadGone(worker)
+      vi.advanceTimersByTime(pollMs)
+      expect(worker.summary.ledBy).toBeNull()
+    }
+    // Text, another command, and an exit command not yet submitted are none.
+    for (const typed of ["hello\r", "/clear\r", "/exit", "/exits\r"]) {
+      const { ends, worker } = led()
+      worker.bound = {
+        binding: { agent: "agy", sessionId: "s1", instance: null },
+      } as Record["bound"]
+      ends.keyed(worker, typed)
+      expect(worker.endKeyAt).toBeUndefined()
+    }
+  })
+
+  it("waits out the system's word that the session is ending, then decides as ever", () => {
+    on("win32")
+    const hold = endingSamples * pollMs
+    const before = led()
+    before.worker.ending = Date.now()
+    before.ends.endLeadGone(before.worker)
+    const during = led()
+    during.ends.endLeadGone(during.worker)
+    during.worker.ending = Date.now()
+    vi.advanceTimersByTime(hold - 1)
+    for (const { worker, ended } of [before, during]) {
+      expect(worker.summary.ledBy).toBe("moth")
+      expect(ended).not.toHaveBeenCalled()
+    }
+    // A shutdown that was cancelled: the ends that came meanwhile count once it lapses.
+    vi.advanceTimersByTime(1 + pollMs)
+    for (const { worker, ended } of [before, during]) {
+      expect(worker.summary.ledBy).toBeNull()
+      expect(ended).toHaveBeenCalledWith("t1")
+    }
+  })
+
+  it("stays when the runner stops while the system's word holds", () => {
+    on("win32")
+    let stopping = false
+    const { ends, worker, ended } = led(() => stopping)
+    worker.ending = Date.now()
+    ends.endLeadGone(worker)
+    vi.advanceTimersByTime(pollMs * graceSamples)
+    stopping = true
+    vi.advanceTimersByTime(endingSamples * pollMs)
     expect(worker.summary.ledBy).toBe("moth")
-    vi.advanceTimersByTime(pollMs)
+    expect(ended).not.toHaveBeenCalled()
+  })
+
+  it("keeps the lead of an agent bound again meanwhile, as the same session resumed", () => {
+    on("win32")
+    const { ends, worker, ended } = led()
+    ends.endLeadGone(worker)
+    // Its binding ended with the agent, and a new one landed.
+    worker.bound = {
+      binding: { agent: "claude", sessionId: "s1", instance: null },
+    } as Record["bound"]
+    vi.advanceTimersByTime(pollMs * graceSamples)
+    expect(worker.summary.ledBy).toBe("moth")
+    expect(ended).not.toHaveBeenCalled()
+    expect(worker.goneSession).toBeUndefined()
+  })
+
+  it("ends the lead when another session binds after the session that ended was forgotten", () => {
+    on("win32")
+    const { ends, worker, ended } = led()
+    ends.endLeadGone(worker)
+    // Forgotten, as once the same session bound again and then switched to another.
+    worker.goneSession = undefined
+    worker.bound = {
+      binding: { agent: "claude", sessionId: "s-other", instance: null },
+    } as Record["bound"]
+    vi.advanceTimersByTime(pollMs * graceSamples)
     expect(worker.summary.ledBy).toBeNull()
+    expect(ended).toHaveBeenCalledWith("t1")
+  })
+
+  it("forgets the session that ended once its shell restarts or exits", () => {
+    on("win32")
+    for (const end of ["restarted", "exited"] as const) {
+      const { ends, worker } = led()
+      worker.bound = null
+      ends.endLeadGone(worker)
+      expect(worker.goneSession).toBeNull()
+      if (end === "restarted") Object.assign(worker, ends.restarted())
+      else ends.exited(worker)
+      expect(worker.goneSession).toBeUndefined()
+    }
   })
 
   it("stays when the runner stops right after its agent, as Windows shuts down", () => {
@@ -309,7 +422,7 @@ describe("the lead of an agent found gone", () => {
     const { ends, worker, ended } = led(() => stopping)
     ends.endLeadGone(worker)
     stopping = true
-    vi.advanceTimersByTime(pollMs)
+    vi.advanceTimersByTime(graceSamples * pollMs)
     expect(worker.summary.ledBy).toBe("moth")
     expect(ended).not.toHaveBeenCalled()
   })
@@ -322,7 +435,7 @@ describe("the lead of an agent found gone", () => {
     ending!.terminal = { ...ending!.terminal, exiting: true } as Record["terminal"]
     replaced!.terminal = { ...replaced!.terminal, pty: { pid: 2 } } as Record["terminal"]
     closed!.closed = true
-    vi.advanceTimersByTime(pollMs)
+    vi.advanceTimersByTime(graceSamples * pollMs)
     for (const { worker, ended } of runs) {
       expect(worker.summary.ledBy).toBe("moth")
       expect(ended).not.toHaveBeenCalled()
@@ -334,7 +447,7 @@ describe("the lead of an agent found gone", () => {
     const { ends, worker, ended } = led()
     ends.endLeadGone(worker)
     worker.summary = { ...worker.summary, ledBy: "owl" }
-    vi.advanceTimersByTime(pollMs)
+    vi.advanceTimersByTime(graceSamples * pollMs)
     expect(worker.summary.ledBy).toBe("owl")
     expect(ended).not.toHaveBeenCalled()
   })

@@ -29,6 +29,8 @@ export type SavedRecord = Pick<
   | "closed"
   | "terminal"
   | "changed"
+  | "ending"
+  | "goneSession"
   | "screenChanged"
   | "savedAt"
 >
@@ -159,6 +161,10 @@ export class Saves {
    * wait for.
    */
   persist(): void {
+    // The system is ending the session: no agent's end counts from here on.
+    // A pending end's session stays marked, so another session started after a cancelled
+    // shutdown still ends the gone agent's lead at once.
+    for (const record of this.host.records()) record.ending = Date.now()
     this.flush()
     void this.finish()
   }

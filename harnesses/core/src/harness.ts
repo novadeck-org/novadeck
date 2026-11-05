@@ -335,6 +335,11 @@ export type MessagingProfile = {
    * delivery carries the note in full.
    */
   readonly lasting: readonly ("stop" | "prompt" | "tool")[]
+  /**
+   * The lines that, typed and submitted at its prompt, make the agent exit, as the person
+   * leaves it; the runner takes the end that follows for theirs.
+   */
+  readonly exitCommands: readonly string[]
   /** The key that queues the person's prompt for after the turn, as Codex's Tab. */
   readonly queueKey?: string
   /** Whether a failed turn fires nothing, so its turn may only end with its next prompt. */
