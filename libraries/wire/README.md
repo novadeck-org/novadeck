@@ -155,8 +155,14 @@ beside the wire's own handshake.
 
   None holds changes for a reader: changes made while it hasn't read yet come to it as one
   (one per key, for `KeyedChanges`).
-  A remote reader that can't keep up isn't slowed either: the server's socket sends what it
-  reads, and cuts off a reader whose unsent bytes outgrow its send budget.
+  Across the wire, though, the reader is oRPC's, not the app's: it pulls the next item as
+  soon as the last one is sent, and neither a socket's nor a port's send waits for the far
+  end. So only changes within one burst are merged; each later one goes on the wire, and a
+  client that doesn't read yet holds them all, in order, in oRPC's queue for that stream. A
+  client's reads should keep pace, or its stream be bounded as terminal output's is, by
+  acknowledgements. A remote reader that can't keep up isn't slowed either: the server's
+  socket sends what it reads, and cuts off a reader whose unsent bytes outgrow its send
+  budget; a port has no such budget.
 
 - `./testing`: channels held in memory, for tests that need no socket or port.
   `memoryPorts()` is the two ends of a port, delivering on a microtask, cloned, in the same
