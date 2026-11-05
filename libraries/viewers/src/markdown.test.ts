@@ -211,6 +211,15 @@ describe("the markdown viewer", () => {
     await expect.poll(() => pane.scrollTop, { timeout: 4000 }).toBeLessThan(there / 2)
   })
 
+  it("goes nowhere, without throwing, to a line or offset that is no number", async () => {
+    const text = Array.from({ length: 120 }, (_, at) => `Line ${at + 1}`).join("\n\n")
+    const { viewer, pane } = mount({ text })
+    await expect.poll(() => pane.scrollHeight).toBeGreaterThan(pane.clientHeight + 500)
+    for (const target of [{ line: Number.NaN }, { offset: Number.NaN }, { line: Infinity }])
+      expect(() => viewer.jumpTo(target)).not.toThrow()
+    expect(pane.scrollTop).toBe(0)
+  })
+
   it("jumps smoothly where motion isn't reduced, landing on its line", async () => {
     // The tests run with reduced motion, which jumps at once; a person who hasn't asked for
     // it gets the smooth scroll and its correction once it ends.

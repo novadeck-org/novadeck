@@ -231,6 +231,9 @@ export const mountMarkdown: Mount<MarkdownContent, MarkdownOptions, MarkdownView
     },
     // A jump wins over a restore still under way.
     jumpTo: (target: Target) => {
+      // A line or offset that is no number, as one worked out from a heading not found, goes
+      // nowhere, as in the code viewer.
+      if (!Number.isFinite("offset" in target ? target.offset : target.line)) return
       stopRestore()
       const { doc } = view.state
       scrollLineToTop(
