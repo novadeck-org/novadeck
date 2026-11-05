@@ -1,4 +1,4 @@
-import type { Inbox } from "@novadeck/core/inbox"
+import type { Inbox, InboxRow } from "@novadeck/core/inbox"
 import type { BackendAction, TerminalKey } from "@novadeck/core/port"
 import { createStore } from "@novadeck/core/store"
 import { isAgentProgram } from "@novadeck/core/terminals/process"
@@ -11,7 +11,7 @@ import { terminalOf } from "@novadeck/demo/workspace"
 
 import { createDemoAgents } from "./agents"
 import { createChatFailures } from "./chat"
-import { createDemoUpdates } from "./desktop/updates"
+import { createDemoUpdates, pageUpdateChannel } from "./desktop/updates"
 import { createDemoFolders } from "./folders"
 import { createDemoNotices } from "./notices"
 import {
@@ -34,7 +34,6 @@ import {
   openedByAgent,
   othersOf,
   otherTerminals,
-  promptTerminals,
   rename,
   runAgent,
   runProgram,
@@ -51,6 +50,8 @@ const quickFailMs = 400
 const burst = 30
 // How many terminals Fill the Inbox takes: enough to scroll.
 const crowd = 12
+// Of those, the ones that wait on the person; the rest report done, as Updates.
+const crowdWaits = dealKinds(crowd).filter((kind) => kind !== "done").length
 // How long clearing waits between the agents working and resting, for the app to see both.
 const calmMs = 100
 // How long a screen takes to arrive, as the runner's.
@@ -274,7 +275,19 @@ const gallery: readonly {
   },
 ]
 
-const everyState = (verbs: DemoAgentVerbs, inbox: () => Inbox | undefined): DemoAction => ({
+// The ids of the MCP asks the panel opened, which Clear withdraws; the variant's own stay.
+type PanelAsks = Set<string>
+
+// Whether a row is a done report one of the demo's agents wrote, as `inbox.done` names it,
+// not an Update row of the variant's own.
+const agentDone = (row: InboxRow): boolean =>
+  row.kind === "update" && row.update.type === "done" && row.id.startsWith("entry:demo-done-")
+
+const everyState = (
+  verbs: DemoAgentVerbs,
+  inbox: () => Inbox | undefined,
+  panelAsks: PanelAsks,
+): DemoAction => ({
   label: "Every state at once",
   hint: `${gallery.length} terminals, one per state`,
   run: ({ addTerminal, dispatch, workspace }) => {
@@ -293,7 +306,9 @@ const everyState = (verbs: DemoAgentVerbs, inbox: () => Inbox | undefined): Demo
     if (!isDemoInbox(own)) return
     gallery.forEach(({ asks }, index) => {
       const row = asks && mcpAsk(workspace(), keys[index]!, asks, Date.now())
-      if (row) own.add(row)
+      if (!row) return
+      own.add(row)
+      panelAsks.add(row.id)
     })
   },
 })
@@ -302,6 +317,7 @@ const everyState = (verbs: DemoAgentVerbs, inbox: () => Inbox | undefined): Demo
 const createWaitingActions = (
   verbs: DemoAgentVerbs,
   inbox: () => Inbox | undefined,
+  panelAsks: PanelAsks,
 ): readonly [DemoAction, DemoAction] => {
   // Every kind of wait and finish across the workspace's projects and sessions, in terminals
   // the person doesn't view. Takes up to `crowd` terminals, adding some to the session on
@@ -310,7 +326,7 @@ const createWaitingActions = (
   // while the person looks elsewhere.
   const fillInbox: DemoAction = {
     label: "Fill the Inbox",
-    hint: `${crowd} terminals ask or finish; the Inbox header reads ${crowd} waiting`,
+    hint: `${crowd} terminals ask or finish: ${crowdWaits} wait in the Inbox, ${crowd - crowdWaits} report done as Updates`,
     run: ({ selected, workspace, addInBackground, dispatch, note }) => {
       const viewed = selected()
       if (!viewed) return note("Select a terminal first.")
@@ -335,16 +351,18 @@ const createWaitingActions = (
     },
   }
 
-  // Answers every request and reads every finish: the Inbox reads the finishes it stored, and
-  // each agent works for a moment, then rests, which also calls off a finish still to come. A
-  // terminal back at its shell's prompt may hold a finish too, so an agent works there and
-  // leaves again.
+  // Answers every request and reads every finish: the Inbox reads the finishes it stored and
+  // the done reports its agents wrote, the MCP asks the panel opened are withdrawn and
+  // cleared, and each agent works for a moment, then rests, which also calls off a finish
+  // still to come. A terminal back at its shell's prompt holds nothing more: its marks are its
+  // stored rows'. The variant's own rows stay, for the Inbox group's actions.
   const clearWaiting: DemoAction = {
     label: "Clear waiting agents",
     hint: "Answers and reads everything; the Inbox empties of what agents wait on",
     run: ({ workspace, dispatch }) => {
       if (!dispatch) return
-      inbox()?.readFinishes?.(
+      const own = inbox()
+      own?.readFinishes?.(
         (workspace()?.projects ?? []).flatMap((project) =>
           project.history.flatMap((session) =>
             session.state.roster.terminals.map((terminal) => ({
@@ -354,24 +372,25 @@ const createWaitingActions = (
           ),
         ),
       )
+      if (isDemoInbox(own)) {
+        const { items, answering } = own.state.getSnapshot()
+        for (const row of items.filter(agentDone))
+          own.answer(row.id, { kind: "update", action: "read" })
+        // An ask being answered goes as answered.
+        const asks = items
+          .filter((row) => panelAsks.has(row.id) && !row.settled && !answering[row.id])
+          .map((row) => row.id)
+        for (const id of asks) own.resolve(id, "withdrawn")
+        own.clear?.(asks)
+        for (const id of asks) panelAsks.delete(id)
+      }
       const agents = noisyAgents(workspace())
-      const prompts = promptTerminals(workspace()).map((key) => ({
-        key,
-        shell: terminalOf(workspace(), key)?.process ?? "zsh",
-      }))
-      for (const key of [...agents, ...prompts.map((each) => each.key)])
-        verbs.work(key, terminalOf(workspace(), key))
+      for (const key of agents) verbs.work(key, terminalOf(workspace(), key))
       later(calmMs, () => {
         for (const key of agents) {
           const terminal = terminalOf(workspace(), key)
           if (terminal?.state === "running" && isAgentProgram(terminal.process))
             verbs.rest(key, terminal)
-        }
-        for (const { key, shell } of prompts) {
-          const terminal = terminalOf(workspace(), key)
-          if (terminal?.state !== "running" || !isAgentProgram(terminal.process)) continue
-          verbs.rest(key, terminal)
-          dispatch(backToPrompt(key, shell))
         }
       })
     },
@@ -386,11 +405,12 @@ export const createDemoStates = (
 ): DemoStates => {
   const { agents, openWelcome, failNext: failAgents, limitAntigravity } = createDemoAgents()
   const { notices, Notices } = createDemoNotices()
-  const updateControls = createDemoUpdates()
+  const updateControls = createDemoUpdates(undefined, pageUpdateChannel)
   const { updates, offer, whatsNew } = updateControls
   const { pickDirectory, failNext: failPick } = createDemoFolders()
   const chat = createChatFailures()
-  const waitingActions = createWaitingActions(verbs, inbox)
+  const panelAsks: PanelAsks = new Set()
+  const waitingActions = createWaitingActions(verbs, inbox, panelAsks)
   const screens = createStore<ReadonlyMap<string, DemoScreenState>>(new Map())
   // The terminals whose next pasted file fails to save.
   const pasteFails = new Set<string>()
@@ -435,6 +455,9 @@ export const createDemoStates = (
         setting("Codex", "Window switches to Codex", (key, { dispatch }) =>
           dispatch(runAgent(key, "codex")),
         ),
+        setting("Antigravity", "Window switches to Antigravity", (key, { dispatch }) =>
+          dispatch(runAgent(key, "agy")),
+        ),
         leading(
           "Leads the others",
           "Every other terminal joins its team; the wire joins them on the rail, in Grid and Canvas",
@@ -478,7 +501,7 @@ export const createDemoStates = (
       section: "Terminals",
       title: "New terminals",
       actions: [
-        everyState(verbs, inbox),
+        everyState(verbs, inbox, panelAsks),
         failingTerminal(
           "Quick failure",
           "Fails right after starting",
@@ -567,7 +590,7 @@ export const createDemoStates = (
         ),
         verb(
           "Completes",
-          "Works, then calls done; the tab marks it until you look away",
+          "Works, then calls done; the done mark stands once you look away, plus an Update row",
           (v, k, t) => v.finish(k, t, "completed", { after: turnMs, done: doneReport }),
           verbs,
         ),
@@ -630,7 +653,7 @@ export const createDemoStates = (
         ),
         verb(
           "Rest",
-          "Back at its prompt; answered, read, nothing running",
+          "Back at its prompt; answered, nothing running; Inbox rows it wrote stay",
           (v, k, t) => v.rest(k, t),
           verbs,
         ),

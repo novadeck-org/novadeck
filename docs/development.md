@@ -255,7 +255,7 @@ this tab. A ↺ beside an action marks one that boots the demo again.
 Terminals:
 
 - **Selected terminal:** put the selected terminal in each of its states: starting, loading
-  output, back at the prompt, running a long program, Claude Code or Codex, a failed
+  output, back at the prompt, running a long program, Claude Code, Codex or Antigravity, a failed
   paste, and each way to end (clean exit, exit code, killed, killed for memory, failed to
   start). Each one that changes the state calls off what the terminal's agent had
   pending, so a finish due later doesn't bring the agent back. "Leads the others" makes the selected terminal
@@ -294,7 +294,8 @@ Agents:
   the tab failed; Interrupted ends with a short reply (no unread mark); Ends without reply
   has none. Background work (2 tasks counted) and Background, uncounted end the
   turn and leave work running; Finishing subagents keeps the agent working until its 2
-  subagents finish. Rest leaves it at its prompt with everything answered and read.
+  subagents finish. Rest leaves it at its prompt with nothing running or asking; the Inbox
+  rows it wrote (a done report, a failed turn) stay.
 - **Agent fixtures:** what no turn produces: an unheard agent (Claude Code whose hooks say
   nothing), and context and limits or tokens alone, in the tooltip and status; those two set
   only the usage of the selected terminal's agent, so a turn, request or queued prompt stays.
@@ -311,14 +312,17 @@ Agents:
   Messages pane has the rest at rest: the person's entries (an answered ask, an unread tell,
   an open ask with Answer), a thread folded to one line, messages waiting, delivering and
   not delivered, and the critters of agents working (hopping), at rest and gone (dim).
-- **Waiting agents:** "Fill the Inbox" has up to 12 terminals across
+- **Waiting agents:** "Fill the Inbox" has 12 terminals across
   the projects ask for you (questions, permissions, plans), and after 3 s finish with a done
-  report or failed, so the Inbox lists every kind and its header counts 12 waiting. It
+  report or failed, so the Inbox lists every kind: its header counts the 10 that wait, and the
+  2 done reports are Updates. It
   adds terminals to the current session if the workspace has too few, without selecting
   them or leaving the Inbox, and leaves the selected terminal alone, since
   a report is read once you have looked at its terminal for a moment. "Clear waiting agents" rests every agent,
-  which answers every request, reads every finish and calls off those still to come, and
-  has a terminal back at its prompt work for a moment and leave, for an empty Inbox. The notices for finishes need the Preferences switch
+  which answers every request and calls off the finishes still to come, reads every finish and
+  the done reports its agents wrote, and withdraws and clears the MCP asks the panel opened
+  (those of "Every state at once"), so nothing the agents or the panel made waits. The rows
+  of the variant's own, as the `inbox` variant's, stay for the Inbox group's actions. The notices for finishes need the Preferences switch
   "Notify when an agent finishes" on.
 - **Chat: next send or Stop fails:** arm the next send from a chat to fail as the runner turns it away: a
   draft in the agent's box, its shell mode, too tall a message, no box on screen, or no
@@ -333,7 +337,11 @@ Agents:
   edits kept; "Plan folder can't be written" and "Plan too large to save" show their
   message once you type, with Copy my edits and Try saving again; "Plan saves keep
   failing" shows "Not saved yet. Trying again." and, after five failures in a row
-  (about 30 s), Retry; "Plan back to normal" lets saves work again. Specs open the showcase
+  (about 30 s), Retry; "Copying plan edits fails" has the browser refuse the clipboard,
+  every copy in the page until "Plan back to normal" or the demo boots again, so with one of
+  those faults Copy my edits says Couldn't copy, and closing the plan with Copy my
+  edits and close keeps it open, saying its edits couldn't be copied; "Plan back to normal" lets
+  saves and copies work again. Specs open the showcase
   with `&planFault=` `transcript`, `gone`, `folder`, `too-large` or `failing`.
 - **Changes:** only in the `showcase` variant, no action needed: the dev server's terminal
   (`@fox`, the third) holds its items on the bar beside those that can't show, seven of them
@@ -477,7 +485,7 @@ App:
 - **Runner:** lock the terminals with Reconnecting for 5 s; show them Runner offline until
   you toggle it back; or count four crashes, which opens the dialog, puts Restart terminals
   in the footer and fails the selected terminal's session's terminals (Try again or Restart
-  terminals clears the count and restarts them).
+  terminals clears the count and restarts them, in every session a trip failed).
 - **Sandbox:** boot as a desktop app running without Electron's sandbox, for the footer's No
   sandbox chip and its fix command; "No sandbox, no fix" as one with no command to offer;
   and "Sandboxed" back to normal.
@@ -517,7 +525,8 @@ App:
   `failed`, `stopped`, `trash`, `windows`, `windows-failed` or `no-data` for specs.
 - **Updates:** Download counts the floating progress bar above the footer's right end up in
   steps, shows it ready for a few seconds, then fades it; Download, held stops it at 40% to
-  look at. Download failed holds the bar at 40% for a moment, or fails one already running, and
+  look at. Download failed holds the bar at 40% for a moment (a held bar too), or fails one
+  already running, and
   drops it with nothing in the footer, as the app tries again by itself (`retrying`). Release
   to fetch shows the Update available chip alone, which opens the release page (nothing opens
   in a browser). Release, needs an administrator shows the Allow updates chip instead
@@ -525,7 +534,7 @@ App:
   download. Ready at
   launch offers an update downloaded before this run, which shows nothing, as at a launch.
   Finish restart reloads the demo, as the app comes back on the new version. Experimental on
-  and off set the channel; Preferences' Experimental switch, the IS_EXPERIMENTAL flag and the
+  and off set the channel, kept across the demo's boots until the page reloads; Preferences' Experimental switch, the IS_EXPERIMENTAL flag and the
   chat view it holds back follow once Preferences is reopened.
   What's new, after an update shows the card of three highlights until it is dismissed; What's
   new, text with markup shows highlights holding `<b>` and `**stars**` as typed; What's new,

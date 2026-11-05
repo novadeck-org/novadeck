@@ -23,6 +23,13 @@ const groups: readonly DemoActionGroup[] = [
       },
       { label: "Work", hint: "Spinner and the status line", run: () => {} },
       { label: "Again", hint: "Says the same each time", run: ({ note }) => note("Same again.") },
+      {
+        label: "Breaks",
+        hint: "Throws as it starts",
+        run: () => {
+          throw new Error("No such fixture")
+        },
+      },
     ],
   },
   {
@@ -144,7 +151,7 @@ describe("demo debug panel", () => {
       panel.click(panel.handle())
       expect(panel.actions()).toEqual([])
       panel.click(panel.toggle("Selected terminal"))
-      expect(panel.actions()).toEqual(["Exit code 3", "Work", "Again"])
+      expect(panel.actions()).toEqual(["Exit code 3", "Work", "Again", "Breaks"])
       expect(panel.toggle("Selected terminal").getAttribute("aria-expanded")).toBe("true")
       panel.click(panel.toggle("Selected terminal"))
       expect(panel.actions()).toEqual([])
@@ -271,6 +278,19 @@ describe("demo debug panel", () => {
       panel.click(panel.view.container.querySelector<HTMLElement>(".debug-action")!)
       expect(panel.view.container.querySelector('[role="status"]')).toBe(region)
       expect(region?.textContent).toBe("Select a terminal first.")
+    })
+
+    it("says why an action threw as it started", () => {
+      const panel = mount()
+      panel.click(panel.handle())
+      panel.click(panel.toggle("Selected terminal"))
+      const breaks = [...panel.view.container.querySelectorAll<HTMLElement>(".debug-action")].find(
+        (each) => each.textContent?.startsWith("Breaks"),
+      )!
+      panel.click(breaks)
+      expect(panel.view.container.querySelector('[role="status"]')?.textContent).toBe(
+        "Error: No such fixture",
+      )
     })
 
     it("renders a repeated note anew, so it is announced again", () => {
