@@ -529,6 +529,33 @@ describe("a plainly secret name with its value glued to the colon", () => {
   })
 })
 
+describe("URL passwords with a slash, and headers at a line's end", () => {
+  it.each([
+    ["postgres://user:pa/ss@host/db", `postgres://${redacted}@host/db`],
+    ["mongodb://admin:a/b/c@db.local:27017", `mongodb://${redacted}@db.local:27017`],
+    ["https://ada:x/y@example.com", `https://${redacted}@example.com`],
+    ["Authorization: Bearer\nabc123def456", `Authorization: Bearer\n${redacted}`],
+  ])("masks %s", (text, expected) => {
+    expect(redact(text)).toBe(expected)
+  })
+
+  it.each([
+    "http://localhost:5173/@vite/client",
+    "http://[::1]:3000/@fs/home/ada/app.ts",
+    "https://host:8443/users/@me/x",
+    "missing Authorization:\nnext line words",
+    "error: no Authorization=\nretrying",
+  ])("keeps %s", (text) => {
+    expect(redact(text)).toBe(text)
+  })
+
+  it("reads a long run of schemes in a time that grows with it", { timeout: 5000 }, () => {
+    const text = "a://x:".repeat(50_000)
+
+    expect(redact(text)).toBe(text)
+  })
+})
+
 describe("the sentinel character in the input", () => {
   it("becomes a question mark", () => {
     expect(redact("a\uE000b TOKEN=abcdefgh")).toBe("a?b TOKEN=[redacted]")

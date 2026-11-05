@@ -94,9 +94,12 @@ export const rules: readonly Rule[] = [
     pattern: /(hooks\.slack\.com\/services\/|discord(?:app)?\.com\/api\/webhooks\/)([^\s"'<>]+)/gi,
     replace: keepHead,
   },
-  // user:password@host in any URL, even with no user.
+  // user:password@host in any URL, even with no user. A password may hold a `/`, unencoded as
+  // hand-written connection strings have it, when a host follows its `@`; `host:5173/@vite/` is
+  // a port and a path, not one.
   {
-    pattern: /\b([a-z][a-z0-9+.-]{0,31}:\/\/)([^\s/@:]*:[^\s/]*)@/gi,
+    pattern:
+      /\b([a-z][a-z0-9+.-]{0,31}:\/\/)([^\s/@:]*:(?:[^\s/]*|(?!\d*\/)[^\s@:]{1,256}(?=@[^\s/@]+(?:[/?#\s]|$))))@/gi,
     replace: (_all, scheme, info) => `${scheme}${hide(info)}@`,
   },
   // A key as the whole userinfo, as Sentry's DSN has it.
@@ -113,7 +116,8 @@ export const rules: readonly Rule[] = [
   },
   // Whole headers: the credential is everything after the name.
   {
-    pattern: /\b(Authorization\s*[:=]\s*(?:(?:Bearer|Basic|Token|Digest)\s+)?)(?!\uE000)(\S+)/gi,
+    pattern:
+      /\b(Authorization[ \t]*[:=][ \t]*(?:(?:Bearer|Basic|Token|Digest)\s+)?)(?!\uE000)(\S+)/gi,
     replace: keepHead,
   },
   { pattern: /\b((?:Set-)?Cookie\s*:[ \t]*)([^\n]+)/gi, replace: keepHead },
