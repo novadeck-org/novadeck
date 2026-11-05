@@ -10,7 +10,8 @@
    `.team-wire-shape`, with data-lit while it is the selected terminal's, data-folded while the
    person folded its teammates out of the list, data-faded while that leaves no teammate's tab
    showing ("wire": its segment and ticks fade out) or its lead folds away under a lead above
-   ("all": its cursor too), data-unfolding while they just unfolded them,
+   ("all": its cursor too), data-reeling while the person points beside a lead above it (it
+   reels in with that lead's wire), data-unfolding while they just unfolded them,
    and data-armed while they point at the gutter
    beside its lead's tab. Parts: `.team-wire-segment`, `.team-wire-cursor`, `.team-wire-tap`,
    `.team-wire-ghost` and each `.team-wire-ghost-tap` (tied to a folded lead's rows for its
@@ -157,6 +158,17 @@
   transform: scaleY(0.12);
 }
 /* Past the settled wire's stillness: the armed cursor blinks however long it has rested. */
+/* A team under that lead reels in with it, the whole fold previewed: its ticks pull back, its
+   line winds up, and its lead's cursor dims with its tab (tabs.css). */
+.team-wire-shape[data-reeling] > .team-wire-tap {
+  transform: scaleX(0);
+}
+.team-wire-shape[data-reeling] > .team-wire-segment {
+  transform: scaleY(0.12);
+}
+.team-wire-shape[data-reeling] > .team-wire-cursor {
+  opacity: var(--tab-fold-preview-opacity, 0.4);
+}
 .team-wire .team-wire-shape[data-armed] > .team-wire-cursor {
   transform: scale(1.35);
   background-color: var(--_fg);

@@ -298,6 +298,15 @@ export const TeamWire = ({
           !above.includes(lead)
         ? "all"
         : undefined
+  // Pointing beside an unfolded lead previews its fold all the way down: the teams under it
+  // reel in with its own wire, unless the person is on one of them, which the click keeps.
+  const reeling = (lead: string) =>
+    armed !== undefined &&
+    armed !== lead &&
+    !folded.includes(armed) &&
+    chainOf(lead).includes(armed) &&
+    selected !== lead &&
+    !above.includes(lead)
   const unfoldingOf = (lead: string) =>
     unfolding !== undefined && (unfolding === lead || chainOf(lead).includes(unfolding))
   // A gutter that goes away under the pointer, as the sidebar hides, the session changes or the
@@ -333,6 +342,7 @@ export const TeamWire = ({
               faded={faded(wire.lead)}
               unfolding={unfoldingOf(wire.lead)}
               armed={armed === wire.lead}
+              reeling={reeling(wire.lead)}
             />
           ),
       )}
@@ -345,6 +355,7 @@ export const TeamWire = ({
           faded={undefined}
           unfolding={unfoldingOf(wire.lead)}
           armed={armed === wire.lead}
+          reeling={false}
         />
       ))}
       {whole.map((wire) => (
@@ -356,6 +367,7 @@ export const TeamWire = ({
           faded={faded(wire.lead)}
           unfolding={unfoldingOf(wire.lead)}
           armed={armed === wire.lead}
+          reeling={reeling(wire.lead)}
         />
       ))}
       {onFold &&
@@ -406,6 +418,7 @@ const Wire = ({
   faded,
   unfolding,
   armed,
+  reeling,
 }: {
   wire: Measured
   lit: boolean
@@ -415,6 +428,8 @@ const Wire = ({
   faded: "wire" | "all" | undefined
   unfolding: boolean
   armed: boolean
+  // A team under the lead whose gutter the person points at: it reels in with that lead's wire.
+  reeling: boolean
 }): React.JSX.Element => (
   <div
     className="team-wire-shape"
@@ -423,6 +438,7 @@ const Wire = ({
     data-faded={faded}
     data-unfolding={unfolding || undefined}
     data-armed={armed || undefined}
+    data-reeling={reeling || undefined}
   >
     <i
       className="team-wire-segment"

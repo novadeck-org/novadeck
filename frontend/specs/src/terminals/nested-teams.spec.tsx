@@ -133,4 +133,23 @@ describe("A team inside another", () => {
       .poll(() => document.querySelectorAll(".team-wire-shape[data-unfolding]").length)
       .toBe(2)
   })
+
+  it("reels in with its parent's wire while the person points beside the top lead", async () => {
+    await openNested()
+    await terminalTab("Dev server").click()
+    await expect.poll(() => document.querySelectorAll("[data-team-wire-gutter]").length).toBe(2)
+    const gutter = [...document.querySelectorAll<HTMLElement>("[data-team-wire-gutter]")].find(
+      (each) => each.dataset.teamWireGutter === idOf(top),
+    )!
+    await userEvent.hover(gutter)
+    await expect
+      .poll(() => document.querySelectorAll(".team-wire-shape[data-armed]").length)
+      .toBe(1)
+    // Tests' team, under the top lead, previews the fold with it.
+    expect(document.querySelectorAll(".team-wire-shape[data-reeling]")).toHaveLength(1)
+    await userEvent.hover(terminalTab("Dev server"))
+    await expect
+      .poll(() => document.querySelectorAll(".team-wire-shape[data-reeling]").length)
+      .toBe(0)
+  })
 })
