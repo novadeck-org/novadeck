@@ -95,7 +95,10 @@ process.stdin.on("data", (data) => {
       process.stdout.write(`STARTED_PID=${started.pid}\r\n`)
     }
     if (command.type === "exit") {
-      process.stdout.write(command.data ?? "", () => process.exit(command.code ?? 0))
+      process.stdout.write(command.data ?? "", () => {
+        trace(`exiting ${command.code ?? 0}`)
+        process.exit(command.code ?? 0)
+      })
     }
   }
 })
