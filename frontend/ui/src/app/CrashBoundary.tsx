@@ -18,8 +18,9 @@ const CrashNotice = ({ reload }: { readonly reload: () => void }): React.JSX.Ele
 )
 
 // Stands in for the app once a render throws, or a part of it fails to load, with the
-// boot splash's failure and a reload, rather than leaving the window blank. React reports
-// the error itself, as it does every error a boundary catches.
+// boot splash's failure and a reload, rather than leaving the window blank. React only logs
+// to the console what a boundary catches, so the error goes on to the page's `error` event,
+// as an uncaught one would, where the desktop app sends it to its log.
 export class CrashBoundary extends Component<
   {
     readonly children?: ReactNode
@@ -32,6 +33,11 @@ export class CrashBoundary extends Component<
 
   static getDerivedStateFromError(): { crashed: boolean } {
     return { crashed: true }
+  }
+
+  override componentDidCatch(error: unknown): void {
+    const message = error instanceof Error ? error.message : String(error)
+    window.dispatchEvent(new ErrorEvent("error", { error, message }))
   }
 
   override render(): ReactNode {

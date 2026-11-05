@@ -1,12 +1,20 @@
 import { render, type Rendered } from "@novadeck/test-kit/render"
 import { act, createElement } from "react"
-import { afterEach, vi } from "vitest"
+import { afterEach, beforeEach, vi } from "vitest"
 
 import { context, describe, expect, it } from "../test"
 import { CrashBoundary } from "./CrashBoundary"
 
 let rendered: Rendered | undefined
+// What reached the page's error event, as the desktop app's log hears of it.
+let reported: unknown[] = []
+const report = (event: ErrorEvent): void => void reported.push(event.error)
+beforeEach(() => {
+  reported = []
+  window.addEventListener("error", report)
+})
 afterEach(() => {
+  window.removeEventListener("error", report)
   rendered?.unmount()
   rendered = undefined
 })
@@ -40,6 +48,12 @@ describe("CrashBoundary", () => {
       )!
       act(() => button.click())
       expect(reload).toHaveBeenCalledOnce()
+    })
+
+    it("passes the error on to the page's error event, where the desktop app logs it", () => {
+      vi.spyOn(console, "error").mockImplementation(() => {})
+      rendered = render(createElement(CrashBoundary, null, createElement(Broken)))
+      expect(reported).toEqual([expect.objectContaining({ message: "A view that can't draw" })])
     })
   })
 })
