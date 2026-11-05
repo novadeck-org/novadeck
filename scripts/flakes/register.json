@@ -223,10 +223,18 @@
       "id": "terminal-native-pty-session-exit-windows",
       "jobs": ["^Test \\(Windows(, (?:[12][/-]2|[1-3][/-]3))?\\)$"],
       "test": "src/pty/native.test.ts > installed native PTY dependency > keeps repeated child sessions alive for multiple writes and their natural exit",
-      "signature": "Timed out waiting for PTY \\d+ exit",
+      "signature": "Timed out waiting for PTY \\d+ (?:exit|output NATIVE_SESSION_)",
       "status": "known",
-      "cause": "Unknown, not reproduced (Linux only here): on Windows, one of the six sessions had its three writes answered, was sent its exit, and node-pty reported no exit within 10 s. The log shows no more. Lost input, a child that never ended, and an exit node-pty's non-DLL ConPTY path never reported (it waits for 1 s without output after the process exits, then closes the pipe) all fit. The test now reports its last output and the children's trace (what reached each child, what it wrote, and 'exiting' just before it exits), which tells them apart on the next failure.",
-      "seen": ["#649 run 41964174104 job 127037213740 (Windows 1/3)"]
+      "cause": "Input stalls under CI load, on both of Windows' ConPTYs; measured in #720. On a quiet runner a 65-char line reaches the child in 8 ms on the system ConPTY and 3 ms on the bundled one (2801 chars: about 0.2 s and 0.09 s, growing with length, which fits libuv reading one console record per call). On a busy one, as the relay's Rust tests run alongside, each line was held 2 s on the bundled ConPTY, and 3 to 10 s or more on the system one in the seven failures, while output came back within a millisecond. The test ran on the system ConPTY until #720, which moved it to the bundled one spawnPty uses (and pinned that in a pty test) and gave each Windows step 30 s instead of 10 and the test 120 s. A stall longer than that would still fail, so it stays known.",
+      "seen": [
+        "#649 run 41964174104 job 127037213740 (Windows 1/3)",
+        "run 42036458207 job 127276427723 (Windows 1/3)",
+        "run 42048462326 jobs 127317779130 and 127335668430 (Windows 1/3)",
+        "run 42055255519 job 127341787236 (Windows 1/3), output form",
+        "run 42062337575 job 127367149337 (Windows 1/3)",
+        "run 42073767499 job 127408606511 (Windows 1/3)",
+        "#719 run 42078043988 job 127423402983 (Windows 1/3), output form"
+      ]
     },
     {
       "id": "ui-workspace-overlays-windows-timeout",
