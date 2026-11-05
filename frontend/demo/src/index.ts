@@ -17,6 +17,7 @@ import type {
 } from "@novadeck/core/port"
 import type { WorkspaceSeed } from "@novadeck/core/seed"
 import { createStore } from "@novadeck/core/store"
+import { terminalKeyId } from "@novadeck/core/terminals/registry"
 import type { TitleSource, Workspace } from "@novadeck/core/types"
 
 import { createDemoMurmur, heldMurmurTiming, requestedMurmur } from "./addons/murmur"
@@ -359,14 +360,29 @@ export const withInbox = (
     messages,
     resume: (key, terminal) => turns.resume(key, terminal, { waits: true }),
   })
+  // The asks each terminal's agent is yet to be told the person's prompt took out: the
+  // newest prompt's, by when it was submitted.
+  const owed = new Map<string, number>()
   // An agent that ends its turn calling `done` reports through the Inbox.
   turns.watch((event) => {
+    const id = terminalKeyId(event.key)
     if (event.type === "end" && event.done) inbox.done(event.key, event.done)
     // The person's own prompt to an agent takes its open asks out of the Inbox, as the
     // runner's does: only a turn begun on their words carries a prompt, not an Inbox
-    // button's fixed line.
-    if (event.type === "begin" && event.prompt !== undefined && !event.automatic)
-      inbox.withdrawAsks(event.key, event.submittedAt ?? Date.now())
+    // button's fixed line. They go once the agent is told, within that turn: at its tool,
+    // which stands in for the hook that prints the notice, or as it completes. A turn that
+    // stops first, or the agent taken some other way, leaves them open.
+    if (event.type === "begin") {
+      if (event.prompt !== undefined && !event.automatic)
+        owed.set(id, event.submittedAt ?? Date.now())
+      else owed.delete(id)
+      return
+    }
+    const before = owed.get(id)
+    owed.delete(id)
+    if (before === undefined) return
+    if (event.type === "tool" || (event.type === "end" && event.outcome === "completed"))
+      inbox.withdrawAsks(event.key, before)
   })
   // Snoozes are kept for as long as the page is.
   return { ...backend, inbox: withSnoozes(inbox, [], () => {}) }

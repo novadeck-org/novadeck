@@ -12,7 +12,7 @@ import type { AgentTurnEnd, TerminalMetadata } from "@novadeck/core/types"
 import { afterEach, beforeEach, vi } from "vitest"
 
 import { answerMs as chatAnswerMs, answeredMs } from "./agents/chat"
-import { demoTurns } from "./agents/turns"
+import { demoTurnMs, demoTurns } from "./agents/turns"
 import { answerMs, createDemoInbox, isDemoInbox } from "./inbox"
 import { demoInboxIds, demoInboxRows, demoInboxRowsAll } from "./inbox/fixtures"
 import { plainDemo, type PlainVariant } from "./index"
@@ -360,6 +360,7 @@ describe("the agents demo's Inbox", () => {
         ({ terminal }) =>
           terminal.state === "running" &&
           chatAgent(terminal) &&
+          terminal.agent !== undefined &&
           !terminal.agent?.working &&
           !terminal.agent?.attention &&
           !inbox.state.getSnapshot().items.some((each) => each.source.terminalId === terminal.id),
@@ -380,15 +381,52 @@ describe("the agents demo's Inbox", () => {
     // An ask made after a prompt was queued (the demo's lasts from `now`) stays.
     inbox.add({ ...question, id: "ask-later", at: now + 5, source: here })
     expect(turns.prompt("Blue, please.", found.terminal, key, { submittedAt: now + 1 })).toBe(true)
+    const row = (id: string) => inbox.state.getSnapshot().items.find((each) => each.id === id)!
+    // Open until the agent is told, within its turn.
     await vi.advanceTimersByTimeAsync(1)
+    expect(row("ask-here").settled).toBeUndefined()
+    await vi.advanceTimersByTimeAsync(demoTurnMs)
     expect(ids(inbox)).toContain("ask-later")
     const left = ids(inbox)
     // It stays, settled; an ask on another terminal, and an update on this one, are as they were.
-    const row = (id: string) => inbox.state.getSnapshot().items.find((each) => each.id === id)!
     expect(row("ask-here").settled).toMatchObject({ how: "replied" })
     expect(row("ask-elsewhere").settled).toBeUndefined()
     expect(row("update-here").settled).toBeUndefined()
     expect(left).toEqual(expect.arrayContaining(["update-here", "ask-elsewhere"]))
+  })
+
+  it("leaves an agent's open asks open when the turn on the person's words stops before it is told", async () => {
+    const { inbox, turns, store, backend } = boot()
+    const found = store
+      .getSnapshot()
+      .projects.flatMap((project) =>
+        (project.history[0]?.state.roster.terminals ?? []).map((terminal) => ({
+          project: project.id,
+          terminal,
+        })),
+      )
+      .find(
+        ({ terminal }) =>
+          terminal.state === "running" &&
+          chatAgent(terminal) &&
+          terminal.agent !== undefined &&
+          !terminal.agent.working &&
+          !terminal.agent.attention &&
+          !inbox.state.getSnapshot().items.some((each) => each.source.terminalId === terminal.id),
+      )!
+    const key = {
+      projectId: found.project,
+      workspaceSessionId: "initial",
+      terminalId: found.terminal.id,
+    }
+    const question = demoInboxRowsAll(now).find((each) => each.kind === "ask")!
+    inbox.add({ ...question, id: "ask-here", source: { ...question.source, ...key } })
+    expect(turns.prompt("Blue, please.", found.terminal, key, { submittedAt: now + 1 })).toBe(true)
+    await vi.advanceTimersByTimeAsync(1)
+    await backend.conversations!.interrupt(key)
+    await vi.advanceTimersByTimeAsync(demoTurnMs * 2)
+    const row = inbox.state.getSnapshot().items.find((each) => each.id === "ask-here")!
+    expect(row.settled).toBeUndefined()
   })
 
   it("dismisses an open ask in place, lists it last, and clears only settled asks", async () => {
