@@ -1,7 +1,7 @@
 import { spawn } from "node:child_process"
 import { constants, statSync } from "node:fs"
 import { lstat, open, readlink, stat } from "node:fs/promises"
-import { basename, delimiter, dirname, isAbsolute, join, resolve } from "node:path"
+import { basename, dirname, join, resolve } from "node:path"
 
 import {
   companionLimits,
@@ -12,6 +12,8 @@ import {
   type ItemContent,
 } from "@novadeck/protocol"
 
+import { gitEnv, gitPath } from "../git.js"
+import { killTree } from "../programs.js"
 import { cut, ellipsized } from "../text.js"
 import { hashOf } from "./content.js"
 import { secret } from "./secrets.js"
@@ -78,73 +80,6 @@ const oneLine = (text: string, max: number): string => {
 export const displayed = (text: string): string =>
   text.replaceAll(hidden, "\uFFFD").replaceAll(/[\t\n]/g, "\uFFFD")
 
-// Git, found once on the PATH by an absolute entry, so a program of that name in the
-// repository the child runs in (as Windows searches its working folder first) never runs.
-let gitProgram: string | undefined
-const gitPath = (): string | undefined => {
-  if (gitProgram) return gitProgram
-  const names = process.platform === "win32" ? ["git.exe"] : ["git"]
-  for (const folder of (process.env.PATH ?? process.env.Path ?? "").split(delimiter)) {
-    if (folder === "" || !isAbsolute(folder)) continue
-    for (const name of names) {
-      const candidate = join(folder, name)
-      try {
-        if (statSync(candidate).isFile()) return (gitProgram = candidate)
-      } catch {
-        // Not here.
-      }
-    }
-  }
-  return undefined
-}
-
-// The variables of the person's environment that point git at another repository, another
-// configuration or another way to diff, or make it write traces: the runner may have them
-// from wherever it was started, and what it shows is this terminal's repository as the
-// person's git would show it. The rest (GIT_CEILING_DIRECTORIES, GIT_EXEC_PATH…) stay.
-const redirecting =
-  /^GIT_(DIR|WORK_TREE|INDEX_FILE|INDEX_VERSION|OBJECT_DIRECTORY|ALTERNATE_OBJECT_DIRECTORIES|COMMON_DIR|NAMESPACE|PREFIX|CONFIG.*|EXTERNAL_DIFF|DIFF_OPTS|PAGER|EDITOR|SEQUENCE_EDITOR|.*_PATHSPECS|REPLACE_REF_BASE|NO_REPLACE_OBJECTS|SHALLOW_FILE|GRAFT_FILE|ATTR_SOURCE|TRACE.*)$/
-
-// The environment git runs in: the person's own, but for those, with optional locks off so
-// looking never takes the index lock the agent's own git needs, no prompts, and no
-// fetching of missing objects over the network.
-export const gitEnv = (): NodeJS.ProcessEnv => ({
-  ...Object.fromEntries(
-    Object.entries(process.env).filter(([name]) => !redirecting.test(name.toUpperCase())),
-  ),
-  GIT_OPTIONAL_LOCKS: "0",
-  GIT_TERMINAL_PROMPT: "0",
-  GIT_NO_LAZY_FETCH: "1",
-  // Pathspecs are file names, not patterns.
-  GIT_LITERAL_PATHSPECS: "1",
-  // Git's messages are read for "not a git repository", so they are English whatever the
-  // system's locale; names travel as bytes (-z, quotepath off), which the locale never touches.
-  LC_ALL: "C",
-  LANGUAGE: "C",
-})
-
-// Ends git and what it started (a filter's program, a credential helper): its whole group
-// on POSIX, its tree on Windows.
-const killTree = (pid: number | undefined): void => {
-  if (pid === undefined) return
-  if (process.platform === "win32") {
-    const taskkill = `${process.env.SystemRoot ?? "C:\\Windows"}\\System32\\taskkill.exe`
-    spawn(taskkill, ["/pid", String(pid), "/T", "/F"], { stdio: "ignore", windowsHide: true })
-      .on("error", () => {})
-      .unref()
-    return
-  }
-  try {
-    process.kill(-pid, "SIGKILL")
-  } catch {
-    try {
-      process.kill(pid, "SIGKILL")
-    } catch {
-      // Already gone.
-    }
-  }
-}
-
 // Runs git as the person would, with no shell, a fixed argument list and the environment
 // above. Switched off: a repository's file monitor hook program (git's own monitor stays,
 // as `limit.monitor` says), external diff programs, text conversion, a pager and prompts. Not switched off: clean filters (git-lfs, say) of
@@ -176,7 +111,8 @@ const git = (
     timing.saw?.(full)
     const child = spawn(program, full, {
       cwd,
-      env: gitEnv(),
+      // Pathspecs are file names, not patterns.
+      env: { ...gitEnv(), GIT_LITERAL_PATHSPECS: "1" },
       detached: process.platform !== "win32",
       windowsHide: true,
       stdio: ["ignore", "pipe", "pipe"],
