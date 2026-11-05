@@ -115,4 +115,26 @@ describe("a screen's emulator", () => {
     expect(liveRegion(first.element)).toBeNull()
     expect(liveRegion(second.element)).not.toBeNull()
   })
+
+  it("drops the tree on the window's return when focus moved elsewhere while it was away", () => {
+    // The browser told nothing of the move: the window left, then focus changed silently.
+    const { element, input } = open(true)
+    const outside = document.body.appendChild(document.createElement("button"))
+    input.focus()
+    vi.spyOn(document, "hasFocus").mockReturnValue(false)
+    input.dispatchEvent(new FocusEvent("focusout", { bubbles: true, relatedTarget: null }))
+    expect(liveRegion(element)).not.toBeNull()
+    vi.spyOn(document, "activeElement", "get").mockReturnValue(outside)
+    window.dispatchEvent(new FocusEvent("focus"))
+    expect(liveRegion(element)).toBeNull()
+  })
+
+  it("keeps the tree on the window's return when focus is still in it", () => {
+    const { element, input } = open(true)
+    input.focus()
+    vi.spyOn(document, "hasFocus").mockReturnValue(false)
+    input.dispatchEvent(new FocusEvent("focusout", { bubbles: true, relatedTarget: null }))
+    window.dispatchEvent(new FocusEvent("focus"))
+    expect(liveRegion(element)).not.toBeNull()
+  })
 })
