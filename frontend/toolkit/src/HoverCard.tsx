@@ -39,6 +39,12 @@ export const HoverCard = ({
 }: HoverCardProps): React.JSX.Element => {
   const [open, show] = useState(false)
   const [owner] = useState(() => ({}))
+  // The latest, so a peek closed by the next one, or by its trigger going out of sight,
+  // tells what its owner gives it now, not what it gave when the peek opened.
+  const told = useRef(onOpenChange)
+  useEffect(() => {
+    told.current = onOpenChange
+  })
   const setOpen = (next: boolean): void => {
     if (next === open) return
     if (next) {
@@ -47,7 +53,7 @@ export const HoverCard = ({
         owner,
         close: () => {
           show(false)
-          onOpenChange?.(false)
+          told.current?.(false)
         },
       }
     } else if (showing?.owner === owner) showing = undefined
