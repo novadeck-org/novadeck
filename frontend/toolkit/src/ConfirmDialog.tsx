@@ -5,7 +5,8 @@ import { Dialog, DialogDescription, DialogTitle } from "./Dialog"
 export type ConfirmDialogProps<Subject> = {
   // What the dialog asks about; it is open while this is set, and keeps showing the
   // last one while it animates out. Another subject, or one set again after it was null,
-  // is another question: an answer to the last one doesn't count for it.
+  // is another question: an answer to the last one doesn't count for it. Keep its identity
+  // while it asks the same thing.
   readonly subject: Subject | null
   readonly title: (subject: Subject) => string
   readonly description: (subject: Subject) => ReactNode

@@ -27,7 +27,12 @@ const fixup = new MutationObserver(() => {
 beforeEach(() =>
   fixup.observe(document.body, { subtree: true, attributes: true, attributeFilter: ["hidden"] }),
 )
-afterEach(() => fixup.disconnect())
+// Every menu and field a test puts up, taken down after it, passed or not.
+const mounted: (() => void)[] = []
+afterEach(() => {
+  fixup.disconnect()
+  for (const undo of mounted.splice(0)) undo()
+})
 
 const settle = async () => {
   for (let frame = 0; frame < 6; frame += 1)
@@ -68,11 +73,11 @@ const mount = (items: readonly ContextMenuItem[]) => {
     act(() => item(label)!.click())
     await settle()
   }
-  const done = () => {
+  mounted.push(() => {
     view.unmount()
     opener.remove()
-  }
-  return { opener, open, choose, done }
+  })
+  return { opener, open, choose }
 }
 
 const menuOpen = (): boolean =>
@@ -81,7 +86,7 @@ const menuOpen = (): boolean =>
 describe("a context menu", () => {
   it("runs the chosen item once it has closed, with focus back where it was", async () => {
     const seen: { readonly focused: Element | null; readonly open: boolean }[] = []
-    const { opener, open, choose, done } = mount([
+    const { opener, open, choose } = mount([
       {
         value: "rename",
         label: "Rename",
@@ -92,17 +97,15 @@ describe("a context menu", () => {
     expect(menuOpen()).toBe(true)
     await choose("Rename")
     expect(seen).toEqual([{ focused: opener, open: false }])
-    done()
   })
 
   it("runs nothing for a disabled item", async () => {
     let ran = 0
-    const { open, choose, done } = mount([
+    const { open, choose } = mount([
       { value: "move", label: "Move", disabled: true, onSelect: () => void (ran += 1) },
     ])
     await open()
     await choose("Move")
     expect(ran).toBe(0)
-    done()
   })
 })

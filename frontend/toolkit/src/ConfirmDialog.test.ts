@@ -20,7 +20,7 @@ afterEach(() => {
 
 // The dialog animates out, as overlay.css has it, and jsdom never ends the animation, so it
 // stays closing. A browser's computed style is live, and Ark reads it as the dialog closes;
-// jsdom's is a snapshot, so here it is read afresh each time.
+// jsdom's is a snapshot, so here it is read afresh each time, its methods on the fresh one.
 const animateClosing = (): void => {
   const animated = document.createElement("style")
   animated.textContent =
@@ -31,11 +31,23 @@ const animateClosing = (): void => {
     vi.spyOn(window, "getComputedStyle").mockImplementation(
       (element, pseudo) =>
         new Proxy(computed(element, pseudo), {
-          get: (_, key) => Reflect.get(computed(element, pseudo), key),
+          get: (_, key) => {
+            const live = computed(element, pseudo)
+            const value: unknown = Reflect.get(live, key)
+            return typeof value === "function" ? value.bind(live) : value
+          },
         }),
     )
   })
   afterEach(() => animated.remove())
+}
+
+// A field outside the dialog, where focus goes back to.
+const field = (): HTMLInputElement => {
+  const input = document.createElement("input")
+  document.body.append(input)
+  mounted.push(() => input.remove())
+  return input
 }
 
 const mount = (overrides: Partial<Props> = {}) => {
@@ -99,8 +111,7 @@ describe("a confirm dialog", () => {
     })
 
     it("gives focus back where the page asks once cancelled", async () => {
-      const input = document.createElement("input")
-      document.body.append(input)
+      const input = field()
       const { show, press, escape } = mount({ returnFocus: () => input })
       await show(a)
       press("Close")
@@ -110,7 +121,6 @@ describe("a confirm dialog", () => {
       await show(null)
       await nextFrame()
       expect(document.activeElement).toBe(input)
-      input.remove()
     })
   })
 
@@ -137,8 +147,7 @@ describe("a confirm dialog", () => {
 
   context("cancelled with its button", () => {
     it("cancels once and gives focus back where the page asks", async () => {
-      const input = document.createElement("input")
-      document.body.append(input)
+      const input = field()
       const { show, press, answers } = mount({ returnFocus: () => input })
       await show(a)
       press("Cancel")
@@ -146,7 +155,6 @@ describe("a confirm dialog", () => {
       await nextFrame()
       expect(answers).toEqual(["cancel"])
       expect(document.activeElement).toBe(input)
-      input.remove()
     })
   })
 })
