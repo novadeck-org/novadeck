@@ -1,5 +1,3 @@
-import { EditorSelection } from "@codemirror/state"
-import { EditorView } from "@codemirror/view"
 import type { FileContent } from "@novadeck/core/items"
 import { render } from "@novadeck/test-kit/render"
 import { act, createElement } from "react"
@@ -8,6 +6,11 @@ import { afterEach, vi } from "vitest"
 import { MarkdownDocument } from "../../document/MarkdownDocument"
 import { context, describe, expect, it } from "../../test"
 import { DocumentViewer } from "./DocumentViewer"
+
+// CodeMirror, as the editor loads it: lazily, so it stays out of the app's first chunk
+// (scripts/workspace's graph test holds every file here to that).
+const { EditorSelection } = await import("@codemirror/state")
+const { EditorView } = await import("@codemirror/view")
 
 const unmounts: (() => void)[] = []
 afterEach(() => unmounts.splice(0).forEach((unmount) => unmount()))
