@@ -60,4 +60,34 @@ describe("the debug panel's Plan group", () => {
       "Select a terminal whose agent wrote a plan first.",
     ])
   })
+
+  it("has copying refused until the plan is back to normal, with or without a plan selected", async () => {
+    const companions = showcase()
+    const copied: string[] = []
+    Object.defineProperty(navigator, "clipboard", {
+      value: { writeText: async (text: string) => void copied.push(text) },
+      configurable: true,
+    })
+    try {
+      expect(run("Copying plan edits fails", undefined, companions)).toEqual([])
+      run("Copying plan edits fails", undefined, companions)
+      await expect(navigator.clipboard.writeText("edits")).rejects.toThrow("refused")
+      run("Plan back to normal", undefined, companions)
+      await navigator.clipboard.writeText("edits")
+      expect(copied).toEqual(["edits"])
+      // A new boot, here one with no Plan group, gives the clipboard back too.
+      run("Copying plan edits fails", undefined, companions)
+      expect(planGroups(undefined)).toEqual([])
+      await navigator.clipboard.writeText("again")
+      expect(copied).toEqual(["edits", "again"])
+    } finally {
+      Reflect.deleteProperty(navigator, "clipboard")
+    }
+  })
+
+  it("puts the copy failure among the faults, before the way back to normal", () => {
+    const labels = planGroups(showcase())[0]!.actions.map((action) => action.label)
+    expect(labels.at(-2)).toBe("Copying plan edits fails")
+    expect(labels.at(-1)).toBe("Plan back to normal")
+  })
 })
