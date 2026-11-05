@@ -34,8 +34,9 @@ import { FooterSection } from "./FooterSection"
 import { HeaderSection } from "./HeaderSection"
 import { InboxHost } from "./InboxHost"
 import { sourceShown } from "./routing"
-import { currentState, currentTarget, shallowEqual } from "./selectors"
+import { currentContext, currentState, currentTarget, shallowEqual } from "./selectors"
 import { SidebarSection } from "./SidebarSection"
+import { previewTeamFold, toggleTeamFold, useFoldedLeads } from "./team-fold"
 import { useInboxBadge } from "./useInboxBadge"
 import { VisitorBar, VisitorCover } from "./Visitor"
 import { WorkspaceOverlays } from "./WorkspaceOverlays"
@@ -152,7 +153,22 @@ const TeamWireSection = ({
   const teams = useWorkspaceState(allTeams, sameTeams)
   const team = useWorkspaceState((workspace) => teamOf(workspace, selected), sameTeam)
   const list = useSyncExternalStore(tabList.subscribe, tabList.getSnapshot)
-  return <TeamWire teams={teams} team={team} selected={selected} shown={shown} list={list} />
+  // Folding a lead's teammates out of the list, from the gutter beside its tab.
+  const { ui } = useWorkspaceServices()
+  const context = useWorkspaceState(currentContext)
+  const folded = useFoldedLeads()
+  return (
+    <TeamWire
+      teams={teams}
+      team={team}
+      selected={selected}
+      shown={shown}
+      list={list}
+      folded={folded}
+      onFold={(lead) => toggleTeamFold(ui, context, lead)}
+      onPreview={(lead) => previewTeamFold(ui, lead === null ? null : { context, lead })}
+    />
+  )
 }
 
 // The rail and the Zen dock read the bell's badge and rings themselves, so an unread change that

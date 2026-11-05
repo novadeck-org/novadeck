@@ -15,8 +15,10 @@ import { unreadEnd } from "../terminals/unread-state"
 import { useAskFeedback } from "./ask-feedback"
 import { useUiState, useWorkspaceServices, useWorkspaceState } from "./controller/context"
 import { useDockTarget } from "./dock-target"
+import { FoldedTeamMarks } from "./FoldedTeamMarks"
 import { useReleaseLead } from "./release-lead"
 import { currentContext, currentState, currentTarget, sameTarget, shallowEqual } from "./selectors"
+import { useFoldTeam, useTabFold } from "./team-fold"
 import { useTerminalBar } from "./terminal-bar"
 import { useTerminalMarks } from "./useTerminalMarks"
 
@@ -79,6 +81,10 @@ export const WorkspaceTab = memo(
     const dockIn = useDockTarget(terminal)
     const askFeedback = useAskFeedback(terminal)
     const releaseLead = useReleaseLead(terminal)
+    // Folding a lead's teammates out of the list: how this tab stands in a fold, and on a
+    // lead, its menu's item and, while folded, its teammates' marks.
+    const fold = useTabFold(id)
+    const foldTeam = useFoldTeam(terminal)
     return (
       <TerminalTab
         terminal={terminal}
@@ -108,6 +114,9 @@ export const WorkspaceTab = memo(
         dockIn={dockIn}
         askFeedback={askFeedback}
         releaseLead={releaseLead}
+        fold={fold}
+        foldTeam={foldTeam}
+        foldedMarks={foldTeam?.folded ? <FoldedTeamMarks lead={id} /> : undefined}
         folder={folder}
       />
     )

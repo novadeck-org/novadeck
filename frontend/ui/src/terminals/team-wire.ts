@@ -30,7 +30,8 @@ export const blinkMs = 520
 const reach = 3
 
 // The wire for a team, or none while none of it can be drawn: every member out of view on
-// one side, or the list's room too small to show it.
+// one side, or the list's room too small to show it. A lead none of whose workers' tabs show,
+// as when the person folded them away (team-fold.ts), keeps its cursor alone while in view.
 export const wireShape = (
   x: number,
   view: { readonly top: number; readonly bottom: number },
@@ -45,6 +46,10 @@ export const wireShape = (
   })
   const head = at(lead)
   const crew = workers.map(at)
+  if (!crew.length) {
+    const seen = head.y >= Math.round(view.top) && head.y <= Math.round(view.bottom)
+    return seen ? { x: column, top: head.y, height: 0, lead: head.y, taps: [] } : undefined
+  }
   const ys = [head, ...crew].map((member) => member.y)
   const edges = { top: Math.round(view.top), bottom: Math.round(view.bottom) }
   const top = Math.max(edges.top, Math.min(...ys))
@@ -65,3 +70,42 @@ export const wireShape = (
       })),
   }
 }
+
+// Where pointing arms a lead's fold (TeamWire.tsx): the gutter beside its tab, from a few
+// pixels left of the rail's border up to the tab's left edge and not a pixel into it, so
+// pointing at the tab never arms it, for the tab's height, within the list's room. None while
+// the tab is out of view.
+export type FoldGutter = {
+  readonly left: number
+  readonly top: number
+  readonly width: number
+  readonly height: number
+}
+
+// How far left of the rail's border the gutter reaches.
+const gutterReach = 7
+
+export const foldGutter = (
+  x: number,
+  view: { readonly top: number; readonly bottom: number },
+  tab: { readonly top: number; readonly height: number; readonly left: number },
+): FoldGutter | undefined => {
+  const left = Math.round(x) - gutterReach
+  const top = Math.max(Math.round(view.top), Math.round(tab.top))
+  const bottom = Math.min(Math.round(view.bottom), Math.round(tab.top + tab.height))
+  const width = Math.round(tab.left) - left
+  return bottom > top && width > 0 ? { left, top, width, height: bottom - top } : undefined
+}
+
+// Where a folded team's tabs would land as it unfolds, for the ghost wire pointing beside its
+// lead draws: one row under another from the lead's name line, a tab's height and the list's
+// gap apart, as many as it has teammates, those within the list's room.
+export const foldGhost = (
+  lead: number,
+  pitch: number,
+  count: number,
+  view: { readonly bottom: number },
+): readonly number[] =>
+  Array.from({ length: count }, (_, index) => Math.round(lead + pitch * (index + 1))).filter(
+    (y) => y <= Math.round(view.bottom),
+  )
