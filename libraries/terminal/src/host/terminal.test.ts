@@ -234,6 +234,21 @@ describe("a terminal's output", () => {
     ])
   })
 
+  it("tells again of a listener that throws in a restart's run", async () => {
+    const failed = vi.fn<NonNullable<TerminalOptions["failed"]>>()
+    const { terminal, runs, settled } = terminalOf({ failed, runs: 2 })
+    terminal.on("title", () => {
+      throw new Error("title")
+    })
+    runs[0]!.draw("\u001b]0;One\u0007")
+    runs[0]!.exit(0)
+    await terminal.exited
+    await terminal.enqueue(() => terminal.restart(specOf(), undefined, () => {}))
+    runs[1]!.draw("\u001b]0;Two\u0007")
+    await settled()
+    expect(failed).toHaveBeenCalledTimes(2)
+  })
+
   it("answers the screen's device queries, until its exit is queued", async () => {
     const { program, settled } = terminalOf()
     const writes = () => program.calls.filter((call) => call.startsWith("write"))

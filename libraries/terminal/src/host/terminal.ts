@@ -116,8 +116,8 @@ export type TerminalOptions = {
   /** How its ptys start: as a test plays them, and where their programs are kept (see `spawnPty`). */
   readonly pty?: PtyOptions
   /**
-   * Tells of a listener of `event` that threw, once for each event; the terminal carries on,
-   * its other listeners included. To the console unless given.
+   * Tells of a listener of `event` that threw, once for each event in each run; the terminal
+   * carries on, its other listeners included. To the console unless given.
    */
   readonly failed?: (error: unknown, event: keyof Listeners) => void
 }
@@ -740,6 +740,8 @@ export const createTerminal = (options: TerminalOptions): HostedTerminal => {
       history = []
       historyBytes = 0
       controller = next
+      // A fresh run's listeners that throw are told of again.
+      threw.clear()
       dispose()
       run = started
       size = { cols: spec.cols, rows: spec.rows }
