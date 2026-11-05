@@ -4,6 +4,8 @@ import { fileURLToPath } from "node:url"
 
 import { buildEngine } from "@novadeck/ggml-build"
 
+import { requireReviewedFile } from "./reviewed.ts"
+
 // The whisper.cpp engine voice input downloads, built for this platform:
 //
 //   node scripts/build.ts     builds dist/novadeck-whisper-<platform>-<arch>.tar.gz and
@@ -15,6 +17,17 @@ import { buildEngine } from "@novadeck/ggml-build"
 // build itself, shared with the murmur engine, is engines/ggml-build.
 
 const root = fileURLToPath(new URL("..", import.meta.url))
+
+// What to re-check in reuse-language-encode.patch when whisper.cpp changes: it skips the decode
+// loop's first encode on the strength of what language detection just left in the state.
+const encoderReview = [
+  "The patch skips the first encode of whisper_full_with_state's loop because language",
+  "detection has just encoded the window at seek 0. On the new whisper.cpp, check that",
+  "detection still encodes at offset 0 from the same mel, that nothing between it and the",
+  "loop's first pass changes the encoder output, and that the patch's audio context check",
+  "still guards a change of audio_ctx; then re-cut the patch with `git diff`, whose index",
+  "line names the file it was reviewed against (see engines/whisper/README.md).",
+].join(" ")
 
 const version = "v1.9.4"
 const commit = "927cfce34f31707e17f2bff35c349632fb9e2c3a"
@@ -45,6 +58,11 @@ export const main = (): Promise<void> =>
     ],
     windowsBuild: { env: "NOVADECK_WHISPER_BUILD", folder: "nvw" },
     extras: async (source, staging) => {
+      await requireReviewedFile(
+        source,
+        join(root, "patches", "reuse-language-encode.patch"),
+        encoderReview,
+      )
       await cp(join(source, "samples", "jfk.wav"), join(staging, "check.wav"))
       await cp(join(source, "LICENSE"), join(staging, "LICENSE"))
     },
