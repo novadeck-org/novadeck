@@ -15,6 +15,12 @@ const disconnected = () => new WireError("DISCONNECTED", "The connection is clos
 export const createWireClient = <C extends AnyContractRouter>(
   channel: Channel,
 ): ContractRouterClient<C> => {
+  // Closes the channel first, so whoever reads the peer's failures finds it closed, then fails
+  // what's in flight as a lost connection, with what broke it as the cause.
+  const broken = (message: string) => (cause: unknown) => {
+    channel.close()
+    peer.close({ reason: new WireError("DISCONNECTED", message, { cause }) })
+  }
   // oRPC 1.x's stock adapters can reject an async abort listener after a socket closes.
   // Keep oRPC's wire protocol; settle the peer instead of throwing from the send callback.
   const peer = new ClientPeer((message) => {
@@ -30,8 +36,7 @@ export const createWireClient = <C extends AnyContractRouter>(
       )
     } catch (error) {
       // A channel that can't send is done for: close it, so its owner replaces it.
-      peer.close({ reason: error })
-      channel.close()
+      broken("The connection can't send.")(error)
     }
   })
   let received = Promise.resolve()
@@ -42,7 +47,8 @@ export const createWireClient = <C extends AnyContractRouter>(
           data instanceof Blob ? await data.arrayBuffer() : (data as string | ArrayBuffer),
         )
       })
-      .catch((error: unknown) => peer.close({ reason: error }))
+      // A message it can't read leaves the stream out of step: end the channel, to be replaced.
+      .catch(broken("The server sent a message the client couldn't read."))
   })
   void channel.closed.then(() => peer.close({ reason: disconnected() }))
 

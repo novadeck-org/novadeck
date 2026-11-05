@@ -31,7 +31,12 @@ beside the wire's own handshake.
     fail and streams end as soon as the channel closes. A call in flight when it closes
     fails as `DISCONNECTED`; a stream's pending read, and the call whose send threw, fail
     with oRPC's own error, so a caller that needs the cause asks the channel whether it's
-    still open. A channel whose send throws is closed, so whoever holds it replaces it.
+    still open, or reads it with `lost`. A channel whose send throws, or that brings a
+    message the client can't read, is closed, so whoever holds it replaces it; its other
+    calls fail as `DISCONNECTED`, with what broke it as the cause.
+  - `lost(error, session)`, a session's failure as a `WireError`: oRPC's with their code,
+    anything else as `DISCONNECTED` once its channel has closed and `INTERNAL_SERVER_ERROR`
+    while it's open, each with what was raised as its cause.
   - `connect({ contract, transport, protocolVersion, fatal, retryDelay, timeoutMs, signal })`,
     a supervised connection to a server of `contract` (which has `wireContract` in it),
     resolving after the first handshake. Each new channel's handshake sends `protocolVersion`,

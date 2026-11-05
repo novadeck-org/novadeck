@@ -66,11 +66,20 @@ const done = { value: undefined, done: true } as const
 
 const noop = (): void => {}
 
-/** Reports a failure on a closed channel as `DISCONNECTED`, whatever oRPC raised. */
-const lost = <C extends AnyContractRouter>(error: unknown, session: Session<C>): unknown => {
+/**
+ * A session's failure as a wire error: oRPC's as theirs, anything else on a closed channel as
+ * `DISCONNECTED`, whatever oRPC raised, and on an open one as `INTERNAL_SERVER_ERROR`. Either
+ * keeps what was raised as its cause.
+ */
+export const lost = (
+  error: unknown,
+  session: { readonly channel: { readonly open: boolean } },
+): WireError => {
   const normalized = normalize(error)
-  if (normalized instanceof WireError || session.channel.open) return normalized
-  return new WireError("DISCONNECTED", "The connection was lost.", { cause: normalized })
+  if (normalized instanceof WireError) return normalized
+  return session.channel.open
+    ? new WireError("INTERNAL_SERVER_ERROR", "The stream failed.", { cause: normalized })
+    : new WireError("DISCONNECTED", "The connection was lost.", { cause: normalized })
 }
 
 const isCursor = <C extends AnyContractRouter, T>(

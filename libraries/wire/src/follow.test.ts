@@ -1,8 +1,9 @@
+import { ORPCError } from "@orpc/client"
 import { describe as context, describe, expect, it, vi } from "vitest"
 
 import type { Session, Wire, WireStatus } from "./connection.js"
 import { WireError } from "./errors.js"
-import { follow, type FollowOptions } from "./follow.js"
+import { follow, lost, type FollowOptions } from "./follow.js"
 import { Watched } from "./watched.js"
 
 // The streams' contract is the test's own: follow passes the client to `open` and `ack` only.
@@ -511,5 +512,22 @@ describe("follow", () => {
       const again = follow(driven.wire, { open, resume: cursor([]) })
       await expect(again.next()).rejects.toMatchObject({ code: "DISCONNECTED" })
     })
+  })
+})
+
+describe("lost", () => {
+  const open = { channel: { open: true } }
+  const closed = { channel: { open: false } }
+
+  it("keeps a wire error, and reads oRPC's as one", () => {
+    const refused = new WireError("SLOW_CONSUMER")
+    expect(lost(refused, closed)).toBe(refused)
+    expect(lost(new ORPCError("NOT_FOUND"), open)).toMatchObject({ code: "NOT_FOUND" })
+  })
+
+  it("names any other failure by whether its channel is still open, keeping it as the cause", () => {
+    const cause = new TypeError("Cannot read properties of null")
+    expect(lost(cause, closed)).toMatchObject({ code: "DISCONNECTED", cause })
+    expect(lost(cause, open)).toMatchObject({ code: "INTERNAL_SERVER_ERROR", cause })
   })
 })
