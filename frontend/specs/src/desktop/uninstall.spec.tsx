@@ -47,7 +47,7 @@ describe("Preferences' Uninstall Novadeck", () => {
       await expect
         .element(dialog().getByRole("checkbox", { name: "Keep my projects and sessions" }))
         .toBeChecked()
-      await expect.element(dialog().getByText("/home/mzpk/Novadeck")).toBeVisible()
+      await expect.element(dialog().getByText("/home/you/Novadeck")).toBeVisible()
       await expect.element(dialog().getByRole("button", { name: "Cancel" })).toHaveFocus()
       await dialog().getByRole("button", { name: "Cancel" }).click()
       await expect.element(dialog()).not.toBeInTheDocument()

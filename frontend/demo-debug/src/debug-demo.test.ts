@@ -1,9 +1,15 @@
+import type { TerminalKey } from "@novadeck/core/port"
+import { workspaceFromSeed } from "@novadeck/core/seed"
+import { createWorkspaceStore } from "@novadeck/core/store"
+import { terminalOf } from "@novadeck/demo/workspace"
 import { noTheme } from "@novadeck/terminal-views/theme"
 import { vi } from "vitest"
 
 import { createBootRehearsals } from "./boot-rehearsal"
-import { createDebugDemo, type DemoLaunch } from "./debug-demo"
+import { createDebugDemo, type DemoLaunch, type DemoShell } from "./debug-demo"
+import { runProgram } from "./terminals"
 import { describe, expect, it } from "./test"
+import type { DemoActionContext } from "./types"
 
 // What the demo's terminals were told: started or stopped.
 const life = vi.hoisted(() => ({ calls: [] as string[] }))
@@ -25,6 +31,19 @@ vi.mock("@novadeck/demo", async (original) => {
           },
         }
       )
+    },
+  }
+})
+
+// The shell each debug demo hands its panel, the newest last.
+const shells = vi.hoisted(() => [] as unknown[])
+vi.mock("./DebugPanel", async (original) => {
+  const panel = await original<typeof import("./DebugPanel")>()
+  return {
+    ...panel,
+    createDebugPanel: (...args: Parameters<typeof panel.createDebugPanel>) => {
+      shells.push(args[0].shell)
+      return panel.createDebugPanel(...args)
     },
   }
 })
@@ -54,5 +73,55 @@ describe("the debug layer's demo", () => {
     expect(life.calls).toEqual(["start"])
     stop()
     expect(life.calls).toEqual(["start", "stop"])
+  })
+
+  it("restarts the terminals of every session a crash loop failed, not only the last's", () => {
+    const backend = createDebugDemo(launch())
+    const shell = shells.at(-1) as DemoShell
+    const workspace = createWorkspaceStore(
+      workspaceFromSeed(backend.seed, { view: "grid", windowedView: "grid", now: 0 }),
+      backend.commit,
+    )
+    backend.commit(workspace.getSnapshot(), [])
+    backend.start!({ dispatch: (actions) => void workspace.transact(actions), open: () => {} })
+    const sessions = workspace
+      .getSnapshot()
+      .projects.slice(0, 2)
+      .map((project) => project.history.find((each) => each.id === project.activeSessionId)!)
+    const firsts = workspace
+      .getSnapshot()
+      .projects.slice(0, 2)
+      .map((project, index): TerminalKey => ({
+        projectId: project.id,
+        workspaceSessionId: sessions[index]!.id,
+        terminalId: sessions[index]!.state.roster.terminals[0]!.id,
+      }))
+    expect(firsts).toHaveLength(2)
+    for (const selected of firsts)
+      shell.tripCrashLoop({
+        selected: () => selected,
+        workspace: () => workspace.getSnapshot(),
+        dispatch: (actions) => void workspace.transact(actions),
+        note: () => {},
+      } as Partial<DemoActionContext> as DemoActionContext)
+    const states = () =>
+      workspace
+        .getSnapshot()
+        .projects.slice(0, 2)
+        .flatMap((project) =>
+          project.history
+            .find((each) => each.id === project.activeSessionId)!
+            .state.roster.terminals.map((terminal) => terminal.state),
+        )
+    expect(new Set(states())).toEqual(new Set(["failed"]))
+    // One the person restarted by hand runs on, untouched by Restart terminals.
+    const revived = firsts[0]!
+    workspace.transact(runProgram(revived, "sleep"))
+    backend.crashLoop!.retry()
+    expect(states()).not.toContain("failed")
+    expect(terminalOf(workspace.getSnapshot(), revived)).toMatchObject({
+      state: "running",
+      process: "sleep",
+    })
   })
 })

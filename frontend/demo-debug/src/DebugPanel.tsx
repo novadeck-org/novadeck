@@ -194,7 +194,13 @@ export const createDebugPanel = ({
     }
     const run = (action: DemoAction): void => {
       setNote("")
-      void Promise.resolve(action.run(context())).catch((error: unknown) => setNote(String(error)))
+      const fail = (error: unknown): void => setNote(String(error))
+      // A throw as it starts shows as a later rejection does.
+      try {
+        void Promise.resolve(action.run(context())).catch(fail)
+      } catch (error) {
+        fail(error)
+      }
     }
     if (crashed) throw new Error("The demo's debug panel threw, as asked.")
     // Mounted while closed too: the handle, and where the demo's notifications appear.
