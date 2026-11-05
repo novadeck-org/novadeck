@@ -1567,7 +1567,8 @@ export const runnerBackend = (
     }
   }
 
-  const screens = createTerminalScreens(screensOptions(runtime, { theme: options.theme }))
+  const screenOptions = screensOptions(runtime, { theme: options.theme })
+  const screens = createTerminalScreens(screenOptions)
   const backend: Backend = {
     seed,
     newTerminal: ({ directory, launch, title }) => {
@@ -1582,7 +1583,10 @@ export const runnerBackend = (
       return terminal
     },
     commit,
-    mountTerminal: createTerminalMount(screens),
+    mountTerminal: createTerminalMount({
+      acquire: screens.acquire,
+      restart: screenOptions.restart,
+    }),
     setFont: screens.setFont,
     telemetry,
     voice: voice.voice,
