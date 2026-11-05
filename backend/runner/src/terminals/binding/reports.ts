@@ -250,6 +250,10 @@ export class Reports {
         // person started at the prompt, which its lead never directed.
         if (record.suspended !== null && next.binding.instance !== record.suspended)
           this.host.bindings().endLead(record)
+        // Another session than the one that ended, while its lead waits to end: started by
+        // the person, whom that lead never directed. The same session resumed is no other.
+        if (record.goneSession !== undefined && next.binding.sessionId !== record.goneSession)
+          this.host.bindings().endLead(record)
         record.suspended = null
         boundProgram(record, next.binding.agent)
       }

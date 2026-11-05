@@ -5,7 +5,7 @@ import { apply, started } from "../../harnesses/activity.js"
 import { Inbox, memoryInbox, type TurnOwner } from "../../messaging/inbox.js"
 import { describe, expect, it } from "../../test.js"
 import type { Record } from "../record.js"
-import { exitKeysMs, shutdownGraceMs } from "../sampling.js"
+import { endingMs, exitKeysMs, graceSamples } from "../sampling.js"
 import { Bindings, type BindingsHost } from "./facts.js"
 
 /**
@@ -248,6 +248,7 @@ describe("the lead of an agent found gone", () => {
     const host = {
       messaging: () => ({
         endLead: ended,
+        escaped: () => undefined,
         shownAgent: () => undefined,
         inboxOwner: () => undefined,
         deliveredAt: () => null,
@@ -303,7 +304,7 @@ describe("the lead of an agent found gone", () => {
     const process = led()
     process.worker.endKeyAt = Date.now() - exitKeysMs - 1
     process.ends.endExited(process.worker)
-    vi.advanceTimersByTime(shutdownGraceMs - 1)
+    vi.advanceTimersByTime(graceSamples * pollMs - 1)
     for (const { worker } of [prompt, process]) expect(worker.summary.ledBy).toBe("moth")
     vi.advanceTimersByTime(1)
     for (const { worker, ended } of [prompt, process]) {
@@ -312,13 +313,61 @@ describe("the lead of an agent found gone", () => {
     }
   })
 
+  it("ends a sample's time after the person submits their agent's exit command", () => {
+    on("win32")
+    for (const [agent, line] of [
+      ["claude", "/exit"],
+      ["claude", "/quit"],
+      ["codex", "/quit"],
+      ["agy", "/exit"],
+    ] as const) {
+      const { ends, worker } = led()
+      worker.bound = { binding: { agent, sessionId: "s1", instance: null } } as Record["bound"]
+      ends.keyed(worker, `${line}\r`)
+      ends.endLeadGone(worker)
+      vi.advanceTimersByTime(pollMs)
+      expect(worker.summary.ledBy).toBeNull()
+    }
+    // Text, another command, and an exit command of another agent are none.
+    for (const typed of ["hello\r", "/clear\r", "/exit", "/quit\r"]) {
+      const { ends, worker } = led()
+      worker.bound = {
+        binding: { agent: "agy", sessionId: "s1", instance: null },
+      } as Record["bound"]
+      ends.keyed(worker, typed)
+      expect(worker.endKeyAt).toBeUndefined()
+    }
+  })
+
+  it("stays, past the grace, when the system said the session is ending", () => {
+    on("win32")
+    const early = led()
+    early.ends.endLeadGone(early.worker)
+    vi.advanceTimersByTime(60_000)
+    early.worker.ending = Date.now()
+    const late = led()
+    late.worker.ending = Date.now()
+    late.ends.endLeadGone(late.worker)
+    vi.advanceTimersByTime(graceSamples * pollMs)
+    // The grace of the first fired before the word; the second never ran.
+    expect(early.worker.summary.ledBy).toBeNull()
+    expect(late.worker.summary.ledBy).toBe("moth")
+    // A shutdown the person cancels stops holding.
+    vi.advanceTimersByTime(endingMs)
+    const after = led()
+    after.worker.ending = Date.now() - endingMs
+    after.ends.endLeadGone(after.worker)
+    vi.advanceTimersByTime(graceSamples * pollMs)
+    expect(after.worker.summary.ledBy).toBeNull()
+  })
+
   it("stays when the runner stops right after its agent, as Windows shuts down", () => {
     on("win32")
     let stopping = false
     const { ends, worker, ended } = led(() => stopping)
     ends.endLeadGone(worker)
     stopping = true
-    vi.advanceTimersByTime(shutdownGraceMs)
+    vi.advanceTimersByTime(graceSamples * pollMs)
     expect(worker.summary.ledBy).toBe("moth")
     expect(ended).not.toHaveBeenCalled()
   })
@@ -331,7 +380,7 @@ describe("the lead of an agent found gone", () => {
     ending!.terminal = { ...ending!.terminal, exiting: true } as Record["terminal"]
     replaced!.terminal = { ...replaced!.terminal, pty: { pid: 2 } } as Record["terminal"]
     closed!.closed = true
-    vi.advanceTimersByTime(shutdownGraceMs)
+    vi.advanceTimersByTime(graceSamples * pollMs)
     for (const { worker, ended } of runs) {
       expect(worker.summary.ledBy).toBe("moth")
       expect(ended).not.toHaveBeenCalled()
@@ -343,7 +392,7 @@ describe("the lead of an agent found gone", () => {
     const { ends, worker, ended } = led()
     ends.endLeadGone(worker)
     worker.summary = { ...worker.summary, ledBy: "owl" }
-    vi.advanceTimersByTime(shutdownGraceMs)
+    vi.advanceTimersByTime(graceSamples * pollMs)
     expect(worker.summary.ledBy).toBe("owl")
     expect(ended).not.toHaveBeenCalled()
   })

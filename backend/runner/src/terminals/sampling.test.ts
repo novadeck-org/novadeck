@@ -13,7 +13,7 @@ import {
   exitKeysMs,
   Sampler,
   shellBusy,
-  shutdownGraceMs,
+  graceSamples,
   type SampledRecord,
 } from "./sampling.js"
 
@@ -83,7 +83,7 @@ describe("the program a fresh shell resumes where no sample names it", () => {
     const idle = running("claude")
     const earlier = running("claude", Date.now() - exitKeysMs - 1)
     for (const record of [idle, earlier]) sampler().prompted(record)
-    vi.advanceTimersByTime(shutdownGraceMs - 1)
+    vi.advanceTimersByTime(graceSamples * pollMs - 1)
     for (const record of [idle, earlier]) expect(record.summary.lastProgram).toBe("claude")
     vi.advanceTimersByTime(1)
     for (const record of [idle, earlier]) {
@@ -98,9 +98,21 @@ describe("the program a fresh shell resumes where no sample names it", () => {
     let stopping = false
     sampler(() => stopping).prompted(record)
     stopping = true
-    vi.advanceTimersByTime(shutdownGraceMs)
+    vi.advanceTimersByTime(graceSamples * pollMs)
     expect(record.summary.lastProgram).toBe("claude")
     expect(record.changed).toBe(false)
+  })
+
+  it("stays the agent's, past the grace, once the system said the session is ending", () => {
+    on("win32")
+    const before = running("claude")
+    sampler().prompted(before)
+    before.ending = Date.now()
+    const after = running("claude")
+    after.ending = Date.now()
+    sampler().prompted(after)
+    vi.advanceTimersByTime(graceSamples * pollMs)
+    for (const record of [before, after]) expect(record.summary.lastProgram).toBe("claude")
   })
 
   it("stays the agent's when one binds again, or the shell ends or is replaced, meanwhile", () => {

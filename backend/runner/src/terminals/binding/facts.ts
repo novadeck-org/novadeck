@@ -19,10 +19,11 @@ import { limitOf, observeTelemetry, telemetrySummary } from "../../harnesses/tel
 import type { Messaging } from "../../messaging/messaging.js"
 import { standingDone } from "../../messaging/peers.js"
 import type { Companion } from "../companion.js"
+import { afterTyped } from "../exits.js"
 import { failed } from "../failures.js"
 import { markTurn } from "../interrupted.js"
 import type { Record } from "../record.js"
-import { endWaitMs } from "../sampling.js"
+import { endWaitMs, sessionEnding } from "../sampling.js"
 import { hasRun } from "../saved-terminals.js"
 import { lastStep } from "../transcripts.js"
 import { TurnEnds, type TurnsHost } from "../turn-ends.js"
@@ -111,11 +112,15 @@ export class Bindings {
    */
   endLeadGone(record: Record): void {
     if (process.platform !== "win32") return this.endLead(record)
+    if (sessionEnding(record)) return
     const shell = record.terminal.pty
     const lead = record.summary.ledBy
+    record.goneSession = record.bound?.binding.sessionId ?? record.left?.sessionId ?? null
     setTimeout(
       () => {
-        if (this.host.stopping() || record.closed || record.terminal.pty !== shell) return
+        record.goneSession = undefined
+        if (this.host.stopping() || sessionEnding(record) || record.closed) return
+        if (record.terminal.pty !== shell) return
         if (record.terminal.exit !== null || record.terminal.exiting) return
         // A lead the person approved meanwhile is a new one, not the one that ended.
         if (record.summary.ledBy !== lead) return
@@ -281,9 +286,16 @@ export class Bindings {
     this.escaped(record)
   }
 
-  /** The person's keys reached the terminal: an ending key noted, and judged for an Escape (see `escaped`). */
+  /** The person's keys reached the terminal: an ending key or exit command noted, and judged for an Escape (see `escaped`). */
   keyed(record: Record, data: string): void {
-    if (endKeys.some((key) => data.includes(key))) record.endKeyAt = Date.now()
+    const { typed, entered } = afterTyped(record.typed ?? "", data)
+    record.typed = typed
+    const agent = record.bound?.binding.agent
+    const exit =
+      entered !== null &&
+      !!agent &&
+      harnesses[agent].messaging.exitCommands.includes(entered.trim())
+    if (exit || endKeys.some((key) => data.includes(key))) record.endKeyAt = Date.now()
     this.escaped(record)
   }
 

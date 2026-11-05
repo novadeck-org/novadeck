@@ -29,6 +29,7 @@ export type SavedRecord = Pick<
   | "closed"
   | "terminal"
   | "changed"
+  | "ending"
   | "screenChanged"
   | "savedAt"
 >
@@ -159,6 +160,8 @@ export class Saves {
    * wait for.
    */
   persist(): void {
+    // The system is ending the session: no agent's end counts from here on.
+    for (const record of this.host.records()) record.ending = Date.now()
     this.flush()
     void this.finish()
   }

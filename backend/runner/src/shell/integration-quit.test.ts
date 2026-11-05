@@ -28,6 +28,9 @@ const resumed = {
   agy: "agy args: --conversation s-worker",
 }
 
+// The line that makes each agent exit, as its harness lists it.
+const exits = { claude: "/exit", codex: "/quit", agy: "/exit" }
+
 const sample = 100
 
 // Windows as the runner sees it: no sample names a foreground program, so the agent a
@@ -50,14 +53,16 @@ describe.skipIf(process.platform === "win32" || !existsSync(bash))(
     // the shell's prompt follows. The runner is told nothing, and keeps saving. A second
     // runner then restores the terminal as the app does: resuming only the agent the saved
     // row names.
-    type How = "system" | "typed" | "gone" | "person"
-    const quit = async (shell: Fixture, agent: AgentName, how: How) => {
+    type How = "system" | "typed" | "gone" | "person" | "exit" | "signalled"
+    const quit = async (shell: Fixture, agent: AgentName, how: How, then?: "same" | "other") => {
       const bin = showStandIn(shell.home)
       const stand = standIn(shell.home)
       writeFileSync(
         join(stand, agent),
         '#!/bin/sh\nmkdir -p "$HOME/steps-$NOVADECK_TERMINAL_ID"\n' +
           'echo $$ > "$HOME/pid-$NOVADECK_TERMINAL_ID"\n' +
+          // As Claude Code names itself to its hooks.
+          "export CLAUDE_PID=$$\n" +
           // Long enough for the test to be on Windows when the session binds.
           'echo "' +
           agent +
@@ -154,15 +159,37 @@ describe.skipIf(process.platform === "win32" || !existsSync(bash))(
       // Text, arrows and the like are not what ends an agent.
       if (how === "typed")
         manager.write({ terminalId: worker.id, data: "keep going\x1b[A" }, "client")
+      // The person leaves the agent by its exit command, which then ends.
+      if (how === "exit")
+        manager.write({ terminalId: worker.id, data: `${exits[agent]}\r` }, "client")
+      // The system tells the runner the session is ending, then ends the agent.
+      if (how === "signalled") manager.persist()
       if (how === "person") manager.write({ terminalId: worker.id, data: "\x03" }, "client")
       else process.kill(pid, "SIGKILL")
       // The shell outlives its agent by more than a sample, and the runner goes on.
       await shell.until(manager, worker.id, "$ ")
-      await new Promise((resolve) => setTimeout(resolve, sample * 10))
+      // The runner outlives the agent by more than the grace (30 samples) after the signal.
+      await new Promise((resolve) => setTimeout(resolve, sample * (how === "signalled" ? 40 : 10)))
+      if (then) {
+        // The person starts an agent in the shell: another session, or the one that ended.
+        const folder = join(shell.home, `steps-${worker.id}`)
+        const session = then === "same" ? "s-worker" : "s-other"
+        manager.write(
+          { terminalId: worker.id, data: `agent ${agent} ${session} '${folder}'\r` },
+          "client",
+        )
+        await expect.poll(() => manager.get(worker.id).agent, { timeout: 5000 }).toBe(agent)
+        await new Promise((resolve) => setTimeout(resolve, 300))
+        const { ledBy } = manager.get(worker.id)
+        worker.back()
+        controller.abort()
+        await client
+        return { worker: worker.id, options, ledBy }
+      }
       worker.back()
       controller.abort()
       await client
-      return { worker: worker.id, options }
+      return { worker: worker.id, options, ledBy: manager.get(worker.id).ledBy }
     }
 
     // What the app asks of the runner for a terminal it lists: resume the agent the saved
@@ -184,6 +211,10 @@ describe.skipIf(process.platform === "win32" || !existsSync(bash))(
         ["system", "its agent was killed with nobody at the keys"],
         ["typed", "its agent was killed after the person typed into it"],
         ["gone", "its agent's binding ended before the shell's prompt"],
+        [
+          "signalled",
+          "its agent was killed after the system said the session is ending, long before the runner stopped",
+        ],
       ] as const)
         it(`resumes ${agent} in the teammate, still led, when ${when}`, async ({ shell }) => {
           const { worker, options } = await quit(shell, agent, how)
@@ -191,6 +222,28 @@ describe.skipIf(process.platform === "win32" || !existsSync(bash))(
           await shell.until(manager, worker, resumed[agent])
           expect(manager.get(worker)).toMatchObject({ ledBy: "moth" })
         })
+
+      it(`restores a plain shell for ${agent} the person left with its exit command, unled`, async ({
+        shell,
+      }) => {
+        const { worker, options } = await quit(shell, agent, "exit")
+        const manager = await restore(shell, worker, options)
+        await new Promise((resolve) => setTimeout(resolve, 500))
+        expect(await screen(manager, worker)).not.toContain(resumed[agent])
+        expect(manager.get(worker)).toMatchObject({ ledBy: null })
+      })
+
+      it(`ends the lead of a gone ${agent} when the person starts another session there`, async ({
+        shell,
+      }) => {
+        expect((await quit(shell, agent, "system", "other")).ledBy).toBeNull()
+      })
+
+      it(`keeps the lead of a gone ${agent} when the same session resumes there`, async ({
+        shell,
+      }) => {
+        expect((await quit(shell, agent, "system", "same")).ledBy).toBe("moth")
+      })
 
       it(`restores a plain shell for ${agent} the person ended, as they asked`, async ({
         shell,

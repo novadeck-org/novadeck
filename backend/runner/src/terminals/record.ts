@@ -133,7 +133,25 @@ export type Record = {
    */
   seenEntry: { readonly transcript: string; readonly id: number } | undefined
   /**
-   * When the person's Ctrl+C or Ctrl+D last reached the terminal, in epoch milliseconds:
+   * When the system said it is ending the session (the app's `persist`), in epoch
+   * milliseconds; undefined before. Where no sample names the foreground program, no
+   * agent's end counts while it stands (see `sessionEnding`).
+   */
+  ending?: number
+  /**
+   * The line being typed, as far as the keys tell, to find an exit command in; null where
+   * keys may have brought text in (see `afterTyped`); undefined before any.
+   */
+  typed?: string | null
+  /**
+   * The session of the agent whose end is pending while its lead waits to end (null if
+   * none was bound); undefined when none is. A different session bound meanwhile ends
+   * that lead first.
+   */
+  goneSession?: string | null | undefined
+  /**
+   * When the person's Ctrl+C or Ctrl+D, or a line that is its agent's exit command, last
+   * reached the terminal, in epoch milliseconds:
    * the keys that end an agent (see `endWaitMs`); undefined before any.
    */
   endKeyAt?: number
