@@ -27,8 +27,10 @@ export const render = (element: ReactElement): Rendered => {
   }
   try {
     onTestFinished(unmount)
-  } catch {
+  } catch (error) {
     // Not inside a test: the caller unmounts.
+    if (!(error instanceof Error && error.message.includes("can only be called inside a test")))
+      throw error
   }
   return {
     container,

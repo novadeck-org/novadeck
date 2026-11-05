@@ -50,7 +50,8 @@ afterAll(async () => {
   const running = listed.flat().filter((terminal) => terminal.started && terminal.exit === null)
   if (running.length)
     throw new Error(
-      `The contract left ${running.length} shells running: ${JSON.stringify(running)}`,
+      `The contract left ${running.length} shells running (a test that failed after stopping ` +
+        `its backend can't close its own): ${JSON.stringify(running)}`,
     )
 })
 

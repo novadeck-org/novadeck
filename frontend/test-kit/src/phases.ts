@@ -2,6 +2,10 @@ import { monitorEventLoopDelay, PerformanceObserver } from "node:perf_hooks"
 
 import { onTestFinished } from "vitest"
 
+// Taken as the module loads: a test's fake timers fake the global one, and a faked one would
+// never run while they last.
+const realSetImmediate = setImmediate
+
 // Where a test was when it reached a phase: since its start, and the worker's state then.
 type Phase = {
   readonly phase: string
@@ -39,17 +43,21 @@ export const testPhases = (name: string, snapshot?: () => unknown): ((phase: str
   mark("start")
   // Vitest runs a test's onTestFinished before its onTestFailed, so the failure is noted
   // here, while the loop and GC are still watched. Node records a collection a macrotask
-  // after it, so that runs first, and the entries not yet delivered are taken. It comes after
-  // the test's afterEach hooks, so their time counts too.
+  // after it, so that runs first, and the entries not yet delivered are taken. The row comes
+  // after the test's afterEach hooks and the onTestFinished hooks registered after this one
+  // (such as `render`'s unmount), so their time counts too.
   onTestFinished(async ({ task }) => {
-    await new Promise((resolve) => setImmediate(resolve))
-    for (const entry of gc.takeRecords()) gcMs += entry.duration
-    if (task.result?.state === "fail") {
-      mark("failure")
-      console.error("UI_TEST_PHASES", JSON.stringify({ name, phases, snapshot: snapshot?.() }))
+    try {
+      await new Promise((resolve) => realSetImmediate(resolve))
+      for (const entry of gc.takeRecords()) gcMs += entry.duration
+      if (task.result?.state === "fail") {
+        mark("failure")
+        console.error("UI_TEST_PHASES", JSON.stringify({ name, phases, snapshot: snapshot?.() }))
+      }
+    } finally {
+      loop.disable()
+      gc.disconnect()
     }
-    loop.disable()
-    gc.disconnect()
   })
   return mark
 }

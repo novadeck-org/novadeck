@@ -49,17 +49,34 @@ const microtask = (): Promise<void> => new Promise((resolve) => queueMicrotask(r
 
 const pause = (ms: number): Promise<void> => new Promise((resolve) => setTimeout(resolve, ms))
 
-// Resolves once the mount draws its terminal's live output.
-const liveIn = (mount: TerminalMount): Promise<void> =>
-  new Promise((resolve) => {
+// Resolves once the mount draws its terminal's live output; rejects, saying so, if it
+// doesn't within the deadline, which stays under the mount tests' timeout.
+const liveIn = (mount: TerminalMount, deadlineMs = 20_000): Promise<void> =>
+  new Promise((resolve, reject) => {
     const check = (): void => {
       if (!mount.state.getSnapshot().live) return
+      clearTimeout(deadline)
       stop()
       resolve()
     }
+    const deadline = setTimeout(() => {
+      stop()
+      reject(
+        new Error(
+          `The mount never went live within ${deadlineMs} ms: ${JSON.stringify(mount.state.getSnapshot())}`,
+        ),
+      )
+    }, deadlineMs)
     const stop = mount.state.subscribe(check)
     check()
   })
+
+// Lets `count` animation frames pass, as a terminal's drawing waits for the next one.
+const frames = async (count: number): Promise<void> => {
+  for (let left = count; left > 0; left -= 1)
+    // eslint-disable-next-line no-await-in-loop -- One frame after the other.
+    await new Promise<void>((resolve) => requestAnimationFrame(() => resolve()))
+}
 
 const seeded = (backend: Backend): Workspace =>
   workspaceFromSeed(backend.seed, { view: "grid", windowedView: "grid", now: 0 })
@@ -81,7 +98,11 @@ const allOf = async (steps: readonly (() => unknown)[], message: string): Promis
       errors.push(error)
     }
   if (errors.length === 1) throw errors[0]
-  if (errors.length) throw new AggregateError(errors, message)
+  if (errors.length)
+    throw new AggregateError(
+      errors,
+      `${message}: ${errors.map((error) => (error instanceof Error ? error.message : String(error))).join("; ")}`,
+    )
 }
 
 // Checks the port contract in core/port.ts against one adapter. Call it from the
@@ -126,7 +147,8 @@ export const describeBackendContract = (name: string, options: BackendContractOp
       ],
       "the contract's cleanup failed",
     )
-  })
+    // As long as the mount tests may take: closing waits on the far side, as mounting does.
+  }, 30_000)
 
   // A started backend with one terminal the UI just added to the active session.
   const withTerminal = () => {
@@ -314,6 +336,10 @@ export const describeBackendContract = (name: string, options: BackendContractOp
       it("changes nothing when it is given props equal to its own", async () => {
         const { backend, probe, mountInto } = withTerminal()
         const { mount, element, update } = mountInto()
+        // A screen draws as its shell comes up, and once more a frame after its output
+        // arrives, props or not: what it draws then is no change of props.
+        await liveIn(mount)
+        await frames(2)
         const io = await settledIo(backend, probe)
         const woken = vi.fn<() => void>()
         mount.state.subscribe(woken)

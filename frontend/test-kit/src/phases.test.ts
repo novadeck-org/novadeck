@@ -1,7 +1,7 @@
 import { setFlagsFromString } from "node:v8"
 import { runInNewContext } from "node:vm"
 
-import { expect, it, onTestFinished } from "vitest"
+import { expect, it, onTestFinished, vi } from "vitest"
 
 import { testPhases } from "./phases"
 
@@ -45,4 +45,14 @@ it("logs nothing for a test that passes", () => {
   })
   console.error = (...args: unknown[]) => void logged.push(args)
   testPhases("passing")("midway")
+})
+
+it("stops watching though the test left every timer faked", () => {
+  // Registered first, so it runs last: the test's timers stay faked through testPhases' hook.
+  onTestFinished(() => {
+    vi.useRealTimers()
+  })
+  testPhases("faked")
+  vi.useFakeTimers()
+  expect(vi.isFakeTimers()).toBe(true)
 })
