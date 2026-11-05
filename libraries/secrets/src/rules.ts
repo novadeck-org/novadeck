@@ -1,7 +1,7 @@
 // Terminals show secrets. These fixed rules mark what looks like one by its shape alone:
 // nothing is learned or configured, so the same text is masked the same on every machine.
 import { hide, hideValue } from "./marks.js"
-import { soundsSecret } from "./names.js"
+import { plainlySecret, soundsSecret } from "./names.js"
 import { closesLiteral, keyLikeRun, worthHiding } from "./values.js"
 
 // What a match becomes: handed the match and its groups, as `String.replace` hands them.
@@ -187,14 +187,16 @@ export const rules: readonly Rule[] = [
         : all,
     field: { name: 3, value: new RegExp(`${quoted}|[^\\s,}\\]]+`, "uy") },
   },
-  // name: value, as YAML and headers have it.
+  // name: value, as YAML and headers have it, and name:value when the name says it plainly.
   {
     pattern: new RegExp(
-      `(?<![\\p{L}\\p{N}_.-])([\\p{L}_][\\p{L}\\p{N}_.-]*)([ \\t]*:[ \\t]+)`,
+      `(?<![\\p{L}\\p{N}_.-])([\\p{L}_][\\p{L}\\p{N}_.-]*)([ \\t]*:(?:[ \\t]+|(?=[^\\s:/\\\\])))`,
       "gu",
     ),
     judge: ({ offset, text }, all, name, joint, value) =>
-      worthHiding(value, true) && !closesLiteral(value, offset, text)
+      (!joint.endsWith(":") || plainlySecret(name)) &&
+      worthHiding(value, true) &&
+      !closesLiteral(value, offset, text)
         ? `${name}${joint}${hideValue(value)}`
         : all,
     field: { name: 1, value: new RegExp(`${quoted}|[^\\s"',;]{1,${valueCap}}`, "uy") },

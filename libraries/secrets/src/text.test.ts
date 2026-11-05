@@ -507,6 +507,28 @@ describe("values under a secret name that only look like code or a path", () => 
   })
 })
 
+describe("a plainly secret name with its value glued to the colon", () => {
+  it.each([
+    ["password:hunter2", "password:[redacted]"],
+    ["login ok, db_secret:Zq8rT2mW", "login ok, db_secret:[redacted]"],
+    ["auth token:abc123 sent", "auth token:[redacted] sent"],
+  ])("masks %s", (text, expected) => {
+    expect(redact(text)).toBe(expected)
+  })
+
+  it.each([
+    "https://example.com",
+    "localhost:8080",
+    "SELECT password::text FROM users",
+    "token:string",
+    "session:abc123",
+    "a:hover, std::string",
+    "C:\\Users\\ada",
+  ])("keeps %s", (text) => {
+    expect(redact(text)).toBe(text)
+  })
+})
+
 describe("the sentinel character in the input", () => {
   it("becomes a question mark", () => {
     expect(redact("a\uE000b TOKEN=abcdefgh")).toBe("a?b TOKEN=[redacted]")
