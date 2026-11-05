@@ -315,8 +315,3 @@ export const noisyAgents = (workspace: Workspace | undefined): TerminalKey[] =>
         terminal.agent?.background !== undefined ||
         (terminal.agent?.subagents?.length ?? 0) > 0),
   )
-
-// The terminals back at their shell's prompt. One may still hold an unread finish from
-// the agent it ran, which only a new turn of an agent there clears.
-export const promptTerminals = (workspace: Workspace | undefined): TerminalKey[] =>
-  terminalsWhere(workspace, (terminal) => terminal.state === "idle")

@@ -16,6 +16,23 @@ equivalent: a hook, its transcript or rollout, its status line, or the screen. D
 ship a feature for some harnesses and leave the others behind. A gap no source can close
 is a blocker to raise with the person, not an exception to record and move past.
 
+# Novadeck Has Users
+
+People run Novadeck every day, and every installed build updates itself. What a
+release finds on their computer is theirs, so it carries forward:
+
+- A workspace schema change ships with an in-place migration and a test from the
+  version before (see [docs/development.md](docs/development.md)); a bump never sets a
+  workspace aside.
+- Settings, saved window and view state, and files Novadeck writes keep working after an
+  update, or are carried forward by the update; renamed ids keep their old names
+  readable, as themes' `formerIds` do.
+- A hook definition changes only when the integration needs it: Codex and Antigravity
+  ask the person to review a changed hook again.
+
+Code moving inside the repository needs no shims, but nothing on a person's computer is
+code moving inside the repository.
+
 # Demo Debug Panel
 
 Every state a feature adds to the UI MUST be reachable on the demo backend, so it can be

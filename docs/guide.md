@@ -67,8 +67,8 @@ newer release is out until signing lands. An AppImage run from anywhere other th
 install path (`~/.local/share/novadeck/novadeck.AppImage`, or Homebrew's
 `~/Applications/novadeck.AppImage`), a macOS app run from outside an Applications
 folder, and the Windows ZIP (`novadeck-win-x64.zip`, unpacked anywhere), is portable: it only looks for new releases and offers to install Novadeck (from itself on Linux and macOS,
-the latest setup on Windows; see [docs/auto-update.md](auto-update.md)). Those links point to the latest stable release; until
-the first one is promoted, Novadeck's builds are prereleases on the
+the latest setup on Windows; see [docs/auto-update.md](auto-update.md)). Those links point to the latest stable release; newer
+prereleases, the experimental channel, are on the
 [Releases page](https://github.com/novadeck-org/novadeck/releases). See
 [docs/auto-update.md](auto-update.md) for how updates work.
 
