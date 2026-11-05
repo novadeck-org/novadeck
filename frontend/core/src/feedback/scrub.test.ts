@@ -119,6 +119,27 @@ describe("scrubbing a feedback draft", () => {
       ])
     })
 
+    it("strikes the employer a work OneDrive names, spaced, up to the backslash", () => {
+      expect(struck(String.raw`See C:\Users\alice\OneDrive - Contoso Ltd\notes.md.`)).toEqual([
+        String.raw`path:C:\Users\alice\OneDrive - Contoso Ltd\notes.md`,
+      ])
+      expect(struck(String.raw`C:\Users\alice\OneDrive - Contoso is synced`)).toEqual([
+        String.raw`path:C:\Users\alice\OneDrive - Contoso`,
+      ])
+      expect(struck("/mnt/c/Users/alice/OneDrive - Contoso/x")).toEqual([
+        "path:/mnt/c/Users/alice/OneDrive - Contoso/x",
+      ])
+    })
+
+    it("reads a named home and a macOS home on another disk", () => {
+      expect(struck("cat ~alice/notes.txt")).toEqual(["path:~alice/notes.txt"])
+      expect(struck("/Volumes/Macintosh HD/Users/alice/x.ts")).toEqual([
+        "path:/Volumes/Macintosh HD/Users/alice/x.ts",
+      ])
+      expect(struck("/Volumes/Data/Users/bob")).toEqual(["path:/Volumes/Data/Users/bob"])
+      expect(scrub("/Volumes/Backup/photos and a~b/c").total).toBe(0)
+    })
+
     it("strikes a Linux user name with spaces' first word at least", () => {
       expect(struck("/home/alice/My Projects/x")[0]).toBe("path:/home/alice/My")
     })

@@ -43,17 +43,31 @@ const word = String.raw`[^\s\\/:,;"'` + "`" + String.raw`<>()\[\]{}|]+`
 const spaced = (separator: string, ends = ""): string =>
   String.raw`(?:${word}(?: ${word}){0,2}(?=${separator}\S${ends})|${word})`
 const unsafe = String.raw`"'` + "`" + String.raw`<>()\[\]{}|`
+// A Windows home's OneDrive for work names the employer, spaced: `OneDrive - Contoso Ltd`.
+const oneDrive = (separator: string): string =>
+  String.raw`(?:${separator}+OneDrive - ${spaced(separator)})?`
 const patterns: readonly { readonly kind: StrikeKind; readonly pattern: RegExp }[] = [
-  // `~/notes`, `~\notes`.
-  { kind: "path", pattern: new RegExp(String.raw`(?<![\w/~.\\-])~[/\\]${pathTail}`, "g") },
+  // `~/notes`, `~\notes`, and another's home: `~alice/notes`.
+  {
+    kind: "path",
+    pattern: new RegExp(String.raw`(?<![\w/~.\\-])~(?:[A-Za-z_][\w.-]*)?[/\\]${pathTail}`, "g"),
+  },
   // `/home/alice`, `/Users/alice/Work/x.ts`, `file:///home/alice/x`: what comes before
   // may be a slash, not a word, so `src/home/x` is no home.
   { kind: "path", pattern: new RegExp(String.raw`(?<![\w.~\\-])${home}(?:/${pathTail})?`, "g") },
-  // `C:\Users\alice\Work`, `C:/Users/alice`.
+  // A macOS home on another disk: `/Volumes/Macintosh HD/Users/alice/x`.
   {
     kind: "path",
     pattern: new RegExp(
-      String.raw`(?<![\w])[A-Za-z]:[\\/]+Users[\\/]+${spaced(String.raw`[\\/]`, String.raw`|>|\\(?:\s|$)`)}(?:[\\/]${pathTail})?`,
+      String.raw`(?<![\w.~\\-])/Volumes/${spaced("/")}/Users/${spaced("/")}(?:/${pathTail})?`,
+      "g",
+    ),
+  },
+  // `C:\Users\alice\Work`, `C:/Users/alice`, `C:\Users\alice\OneDrive - Contoso\x`.
+  {
+    kind: "path",
+    pattern: new RegExp(
+      String.raw`(?<![\w])[A-Za-z]:[\\/]+Users[\\/]+${spaced(String.raw`[\\/]`, String.raw`|>|\\(?:\s|$)`)}${oneDrive(String.raw`[\\/]`)}(?:[\\/]${pathTail})?`,
       "gi",
     ),
   },
@@ -61,7 +75,7 @@ const patterns: readonly { readonly kind: StrikeKind; readonly pattern: RegExp }
   {
     kind: "path",
     pattern: new RegExp(
-      String.raw`(?<![\w.~\\-])/mnt/[a-z]/Users/${spaced("/")}(?:/${pathTail})?`,
+      String.raw`(?<![\w.~\\-])/mnt/[a-z]/Users/${spaced("/")}${oneDrive("/")}(?:/${pathTail})?`,
       "g",
     ),
   },
