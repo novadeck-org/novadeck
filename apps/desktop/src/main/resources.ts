@@ -60,18 +60,24 @@ export type EngineFiles = { readonly manifest: string; readonly source: string }
 /**
  * Where a development run finds the engine `pnpm build:engine` built in the engine package
  * `name`, as the package itself says: the app's dependency on it finds it wherever its folder
- * is, from `appPath`. Loaded as it is, not bundled, so it names its own folder.
+ * is, from `appPath`. Loaded as it is, not bundled, so it names its own folder. Where the
+ * package can't be loaded, as before a `pnpm install` that links it, both are empty: the
+ * runner then finds no engine, as it does one never built, and the app still starts.
  */
 export const builtEngine = async (
   appPath: string,
   name: "@novadeck/whisper" | "@novadeck/murmur",
 ): Promise<EngineFiles> => {
-  const entry = createRequire(join(appPath, "package.json")).resolve(name)
-  const built = (await import(/* @vite-ignore */ pathToFileURL(entry).href)) as {
-    readonly engineDirectory: string
-    readonly engineManifest: string
+  try {
+    const entry = createRequire(join(appPath, "package.json")).resolve(name)
+    const built = (await import(/* @vite-ignore */ pathToFileURL(entry).href)) as {
+      readonly engineDirectory: string
+      readonly engineManifest: string
+    }
+    return { manifest: built.engineManifest, source: built.engineDirectory }
+  } catch {
+    return { manifest: "", source: "" }
   }
-  return { manifest: built.engineManifest, source: built.engineDirectory }
 }
 
 /**
