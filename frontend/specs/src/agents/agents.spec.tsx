@@ -166,16 +166,31 @@ describe("An agent Novadeck can't hear from", () => {
   })
 })
 
+// Hides the page, as the person turning to another window does, or shows it again. A spec
+// that hides it has it shown again as it ends.
+const pageVisibility = (state: "hidden" | "visible"): void => {
+  if (state === "hidden")
+    onTestFinished(() => {
+      Reflect.deleteProperty(document, "visibilityState")
+      document.dispatchEvent(new Event("visibilitychange"))
+    })
+  Object.defineProperty(document, "visibilityState", { value: state, configurable: true })
+  document.dispatchEvent(new Event("visibilitychange"))
+}
+
 // The demo's Claude Code in Build is idle at its prompt; a prompt there works a moment,
 // then finishes with a reply, the command it left running still running. A `view` is
 // chosen before the prompt, so the turn's moment goes to looking away from it. The turn
-// works 5 s, so a busy machine's click elsewhere lands before it ends, which the demo's
-// usual 1.5 s didn't always leave room for.
-const promptBuild = async (view?: "Grid", text = "Ship the docs"): Promise<void> => {
+// works 5 s, which the demo's usual 1.5 s didn't leave room for. A spec whose turn must
+// end unseen has the person turn `away` from the page as they send it: a turn's end in
+// view reads its reply, and no length of turn outlasts a busy machine's click elsewhere
+// (5 s didn't, on a macOS runner).
+const promptBuild = async (view?: "Grid", text = "Ship the docs", away = false): Promise<void> => {
   await openWorkspace("/?demo=agents&turnMs=5000")
   if (view) await chooseView(view)
   await terminalTab("Build").click()
   await typeInto("Build", text)
+  if (away) pageVisibility("hidden")
   await userEvent.keyboard("{Enter}")
   await expect.element(terminal("Build")).toHaveAttribute("data-terminal-phase", "running")
 }
@@ -218,8 +233,10 @@ describe("An agent that finishes", () => {
 
     it("brightens its program, with no glyph, where it replies without a done call", async () => {
       // A question is answered in the reply; the agent reports no finished task.
-      await promptBuild(undefined, "Is the docs build clean?")
+      await promptBuild(undefined, "Is the docs build clean?", true)
       await terminalTab("Tests").click()
+      // Back on the page, the person looks at Tests, not Build.
+      pageVisibility("visible")
       await expect
         .poll(() => tabDescription("Build"), { timeout: 10_000 })
         .toBe("Reply unread, 1 task")
@@ -238,15 +255,7 @@ describe("An agent that finishes", () => {
     it("keeps its done mark through that turn, and after they look at it", async () => {
       await promptBuild()
       // The person leaves the page with Build selected, as to another window.
-      const visibility = (state: "hidden" | "visible") => {
-        Object.defineProperty(document, "visibilityState", { value: state, configurable: true })
-        document.dispatchEvent(new Event("visibilitychange"))
-      }
-      onTestFinished(() => {
-        Reflect.deleteProperty(document, "visibilityState")
-        document.dispatchEvent(new Event("visibilitychange"))
-      })
-      visibility("hidden")
+      pageVisibility("hidden")
       const window = terminal("Build")
       await expect
         .element(window, { timeout: 10_000 })
@@ -260,7 +269,7 @@ describe("An agent that finishes", () => {
       // Both reports are rows of their own in the Inbox, the first not replaced by the second.
       await sidebarPanel("Inbox").click()
       await expect.element(reports()).toHaveLength(2)
-      visibility("visible")
+      pageVisibility("visible")
       await sidebarPanel("Terminals").click()
       await terminalTab("Build").click()
       await expect.element(window).toHaveAttribute("data-terminal-phase", "done")
