@@ -18,7 +18,8 @@ Terminals ask for a description when something worth a new one happened (see
   the person sits in that project already, so naming it says nothing. Nor is the previous
   title, which the model kept against a summary of other work: the terminals side keeps it
   when the new title shares a content word with it (`sharesContentWord`), and an agent with
-  no summary keeps the title it has;
+  no summary keeps the title it has. A `describe` whose summary murmur already named the
+  terminal from (one that only adds the agent's own title) asks murmur nothing;
 - a plain shell: the foreground command and the visible screen rows. The runner says on which
   row the last command was typed (`commandAt`, from the shell integration's prompt report, an
   xterm marker placed at each OSC 7 / OSC 9;9): the rows from it are "the last command and its

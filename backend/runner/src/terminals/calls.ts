@@ -701,11 +701,14 @@ export class Calls {
     const facts = await this.host.peers().facts(peerOf(record))
     if (this.host.stopping() || this.host.records().get(call.terminalId) !== record)
       return unansweredCalls.describe
+    // A summary murmur already named the terminal from says nothing new to it, as when an
+    // agent that summarized before agents gave titles describes only to add its title.
+    const unchanged = record.naming.summary === summary && record.naming.murmur !== null
     record.naming = described(record.naming, title, summary)
     record.nudges = afterSummary(record.nudges, facts)
     this.host.retitle(record)
     this.host.save(record)
-    this.host.summarized(record.summary.id)
+    if (!unchanged) this.host.summarized(record.summary.id)
     return { ok: true }
   }
 }

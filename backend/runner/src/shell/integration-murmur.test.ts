@@ -630,6 +630,56 @@ describe.skipIf(process.platform === "win32" || !existsSync(bash))(
       })
     })
 
+    it("asks murmur nothing when an agent it named describes only to add its own title", async ({
+      shell,
+    }) => {
+      const bin = standIn(shell.home)
+      const env = { HOME: shell.home, PS1: "$ ", PATH: `${bin}:${process.env.PATH}` }
+      const first = shell.manager({ env })
+      const terminal = await create(first, shell)
+      await first.shutdown()
+      // A workspace of version 9 whose terminal murmur named from its agent's summary.
+      const saved = shell.store.terminal(terminal.id)!
+      shell.store.saveTerminal({
+        ...saved,
+        naming: {
+          ...saved.naming,
+          summary: "Fixes the login bug.",
+          murmur: { title: "Login bug" },
+          own: null,
+        },
+      })
+
+      const describer = new FakeDescriber({
+        reply: (digest, call) => (digest.kind === "shell" ? undefined : { title: `Title ${call}` }),
+      })
+      const manager = shell.manager({ env, describer, murmurTimes })
+      await create(manager, shell, { id: terminal.id, restore: true })
+      const { start, step } = driver(shell, manager)
+      await start(terminal.id, "claude", "s-claude")
+      await step(terminal.id, {
+        call: "describe",
+        request: { title: "Login fix", summary: "Fixes the login bug." },
+      })
+      await new Promise((resolve) => setTimeout(resolve, 400))
+      expect(describer.digests.filter((digest) => digest.kind === "agent")).toHaveLength(0)
+      expect(manager.get(terminal.id)).toMatchObject({
+        title: "Login bug",
+        titleSource: { kind: "murmur" },
+      })
+
+      // A new summary is news to murmur again.
+      await step(terminal.id, {
+        call: "describe",
+        request: { title: "Invoice export", summary: "Builds the PDF export for invoices." },
+      })
+      await expect
+        .poll(() => describer.digests.filter((digest) => digest.kind === "agent").length, {
+          timeout: 30_000,
+        })
+        .toBe(1)
+    })
+
     it("keeps the title a lead gave a teammate over the one the teammate gives itself", async ({
       shell,
     }) => {

@@ -968,8 +968,7 @@ const agents: Tool<Listing> = {
     "you lead, and its latest report, else its agent's summary. Give terminal (a handle, " +
     "as \"@fox\") for that terminal's details, or full true for every terminal's (as all " +
     "show with five or fewer): also its title's source (the user's, else the opening " +
-    "agent's, else " +
-    "Novadeck's local model's, which it says), the summary its agent gave of its work, the " +
+    "agent's, else Novadeck's local model's, else its own agent's, which it says), the summary its agent gave of its work, the " +
     "folder and git branch its agent works in now (and the folder its terminal started in, " +
     "when that differs), the user's first and latest prompts there, its plan, the folders " +
     "it writes in most, and the latest message between you. A terminal whose agent is " +
