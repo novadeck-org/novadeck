@@ -106,7 +106,21 @@ describe("markdown sync", () => {
       const before = lines(5_000, "old")
       const after = lines(5_000, "new")
       expect(lineChanges(before, after).apply(text(before)).toString()).toBe(after)
-      expect(quickest(() => lineChanges(before, after))).toBeLessThan(100)
+      // Every step up to the bound runs: about 150 ms on one core here, 4.3 s for the table
+      // of every line against every other; a slow runner has room.
+      expect(quickest(() => lineChanges(before, after))).toBeLessThan(1_000)
+    })
+
+    it("keeps an edit made meanwhile where it was, when an agent changed many lines", () => {
+      const base = Array.from({ length: 3_000 }, (_, n) => `- [ ] task ${n}\n`).join("")
+      const ticked = base
+        .split("\n")
+        .map((line, n) => (n % 2 === 1 ? line.replace("[ ]", "[x]") : line))
+        .join("\n")
+      const ours = base.replace("- [ ] task 1000\n", "- [ ] task 1000\n  my note\n")
+      const merged = merge(base, ours, ticked)
+      expect(merged.text).toContain("- [ ] task 1000\n  my note\n- [x] task 1001\n")
+      expect(merged.changed).toHaveLength(1_500)
     })
   })
 

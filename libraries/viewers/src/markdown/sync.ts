@@ -5,10 +5,12 @@ import type { Range } from "./ranges.js"
 // Lines with their line breaks, so joining them gives back the exact text.
 const linesOf = (text: string): string[] => text.match(/[^\n]*\n|[^\n]+$/g) ?? []
 
-// The most lines a change may remove and add before its changed middle is replaced whole.
-// Finding the lines kept costs about this squared over two in steps and stored offsets (8 MB,
-// a few tens of milliseconds), however long the text, so a large rewrite can't freeze the app.
-const maxEdits = 2_000
+// The most lines a change may remove and add before its changed middle is replaced whole,
+// which puts an edit made meanwhile inside it at its end: room for an agent ticking every
+// other box of a 3,000-line plan. Finding the lines kept costs about this squared over two
+// in steps and stored offsets (32 MB, and a few hundred milliseconds at worst), however long
+// the text, so a large rewrite can't freeze the app for long.
+const maxEdits = 4_000
 
 // For each line of `a`, the line of `b` it stays as in a longest run of lines kept in both,
 // or -1 where it goes: Myers' diff, so the work grows with how much changed, not with how
