@@ -257,6 +257,9 @@ describe("the runner's process", () => {
       await vi.advanceTimersByTimeAsync(0)
       expect(closed).toHaveBeenCalled()
       expect(heard.at(-1)).toEqual(["exited", 1, 0, false])
+      // It exited after all: it isn't given up on later.
+      await vi.advanceTimersByTimeAsync(10_000)
+      expect(heard.map(([name]) => name)).not.toContain("abandoned")
     })
 
     it("doesn't kill it once it has exited", async () => {
