@@ -34,7 +34,8 @@ const leaving = async (shell: Fixture, next: string) => {
       PATH: `${bin}:${process.env.PATH}`,
       CODEX_HOME: join(shell.home, ".codex"),
     },
-    doorbell: { calmMs: 200, settleMs: 300, watchMs: 100, boxCheck: false },
+    // The stand-in TUIs start no MCP server: no ring waits for one to list its tools.
+    doorbell: { calmMs: 200, settleMs: 300, watchMs: 100, boxCheck: false, toolsMs: 0 },
     hooksTrusted: () => Promise.resolve(true),
   })
   const sender = await create(manager, shell)
@@ -795,7 +796,7 @@ describe.skipIf(process.platform === "win32" || !existsSync(bash))(
           PATH: `${bin}:${process.env.PATH}`,
           CODEX_HOME: join(shell.home, ".codex"),
         },
-        doorbell: { calmMs: 200, settleMs: 300, watchMs: 100, boxCheck: false },
+        doorbell: { calmMs: 200, settleMs: 300, watchMs: 100, boxCheck: false, toolsMs: 0 },
         hooksTrusted: (agent) =>
           agent === "codex"
             ? new Promise((resolve) => setTimeout(() => resolve(true), 2_000))

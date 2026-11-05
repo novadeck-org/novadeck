@@ -351,6 +351,13 @@ export type MessagingProfile = {
    */
   readonly promptsInBackground: boolean
   /**
+   * Whether it takes its MCP servers' tools only as a turn starts, so a turn started before
+   * Novadeck's server listed its tools has none of them to its end: the doorbell then
+   * rings it only once that server has (or after a while, so a ring isn't lost), and a
+   * task never starts it from its command line, whose prompt would go first.
+   */
+  readonly toolsAtTurnStart: boolean
+  /**
    * Where its hooks name no prompt (as Antigravity's, whose every turn decodes as
    * harness-started), what one line of its transcript records as typed into its box, if
    * that is what it records: from it the runner's `typed-prompts.ts` tells a root turn's
@@ -368,8 +375,8 @@ export type LaunchProfile = {
   readonly start: readonly string[]
   /**
    * How it starts with `line` as its first prompt, which it submits only once past its
-   * startup screens; undefined where it may not here, as Antigravity in a folder it
-   * doesn't trust yet, whose trust dialog its prompt doesn't wait for.
+   * startup screens; undefined where it may not here, as Antigravity anywhere, whose
+   * prompt waits neither for its trust dialog nor for its MCP servers' tools.
    */
   readonly initialPrompt: (
     line: string,

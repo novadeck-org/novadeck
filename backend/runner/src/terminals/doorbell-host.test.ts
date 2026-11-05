@@ -48,7 +48,7 @@ const record = (binding: Binding | null = null) => {
 
 /** A manager's view of one terminal "t": live while `current` is set. */
 const world = (initial: DoorbellRecord | undefined) => {
-  const state = { current: initial, shown: undefined as "claude" | "codex" | undefined }
+  const state = { current: initial, shown: undefined as AgentName | undefined, toolsWait: 0 }
   const exits: Binding[] = []
   const tasks: (() => void)[] = []
   const host = {
@@ -61,6 +61,7 @@ const world = (initial: DoorbellRecord | undefined) => {
     messaging: { shownAgent: () => state.shown } as unknown as Messaging,
     working: () => false,
     stopping: () => false,
+    toolsWait: () => state.toolsWait,
   }
   return { state, exits, tasks, host }
 }
@@ -120,6 +121,27 @@ describe("the doorbell's host", () => {
     expect(rings.target("other")).toBeUndefined()
     state.current = undefined
     expect(rings.target("t")).toBeUndefined()
+  })
+
+  it("waits for Novadeck's MCP tools only for an agent that takes them as a turn starts", () => {
+    const { running } = record()
+    const { state, host } = world(running)
+    state.toolsWait = 5_000
+    const rings = doorbellHost(host)
+    // None bound, none shown: nothing to wait for.
+    expect(rings.toolsWait!("t")).toBe(0)
+    state.shown = "agy"
+    expect(rings.toolsWait!("t")).toBe(5_000)
+    // A session bound is the one that counts, whatever is shown.
+    state.current = { ...running, bound: boundTo(bound("codex")) }
+    expect(rings.toolsWait!("t")).toBe(0)
+    state.current = { ...running, bound: boundTo(bound("agy")) }
+    state.shown = "claude"
+    expect(rings.toolsWait!("t")).toBe(5_000)
+    for (const agent of ["claude", "codex"] as const) {
+      state.current = { ...running, bound: boundTo(bound(agent)) }
+      expect(rings.toolsWait!("t")).toBe(0)
+    }
   })
 
   it("answers the profile of the agent bound or shown now, as they change", () => {

@@ -40,6 +40,9 @@ const messaging: MessagingProfile = {
   // A spawned agent running, the root idle, it took a typed prompt (fixture
   // `background-prompt.probe.json`, probed 2026-10-19, 0.163.0).
   promptsInBackground: true,
+  // A turn started before Novadeck's server listed its tools gets them at its next
+  // request once it has (probed 2026-11-05, 0.166.0, with that server 3 s slow to start).
+  toolsAtTurnStart: false,
 }
 
 const launch: LaunchProfile = {

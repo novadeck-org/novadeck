@@ -19,7 +19,7 @@ import {
   pluginId,
   preToolUseAnswer,
 } from "./plugin.js"
-import { statusLineLimit, statusLineSettings, trustsFolder } from "./settings.js"
+import { statusLineLimit, statusLineSettings } from "./settings.js"
 import { conversational, shapes } from "./shapes.js"
 import { makeCmdShim } from "./shim.js"
 import { shown } from "./status-line.js"
@@ -45,6 +45,11 @@ const messaging: MessagingProfile = {
   // A subagent running, it took a typed prompt (fixture
   // `background-prompt.probe.json`, probed 2026-10-19, 1.2.14).
   promptsInBackground: true,
+  // A turn's tools are those its MCP servers had listed as it started: with Novadeck's
+  // server 3 s slow to start, `agy -i`'s first request went 0.3 s in, and none of that
+  // turn's five over 6 s offered Novadeck's tools; its next turn's did, and holding the
+  // turn's first PreInvocation 4 s changed nothing (probed 2026-11-05, 1.4.12 and 1.5.1).
+  toolsAtTurnStart: true,
   // Its hooks name no prompt, but its transcript tells what was typed (a USER_EXPLICIT
   // USER_INPUT step) from what woke it: a subagent's message, a Stop hook's continuation
   // or a notice are SYSTEM_MESSAGE steps, and injected messages EPHEMERAL_MESSAGE ones.
@@ -53,10 +58,12 @@ const messaging: MessagingProfile = {
 
 const launch: LaunchProfile = {
   start: ["agy"],
-  // `-i` submits its prompt about 0.9 s after it starts, even while its "Do you trust
-  // this folder?" dialog is up, so only in a folder it already trusts.
-  initialPrompt: async (line, { install, cwd }) =>
-    install && (await trustsFolder(install, cwd)) ? ["agy", "-i", line] : undefined,
+  // Never with its task: `-i` submits its prompt within a second of its start, before
+  // Novadeck's MCP server may have listed its tools, which that turn then never has
+  // (`toolsAtTurnStart`), and even while its "Do you trust this folder?" dialog is up. It
+  // starts plain, and the doorbell rings its task once its prompt shows and that server
+  // has listed its tools.
+  initialPrompt: () => Promise.resolve(undefined),
   resume: (session, choice = {}) => ["agy", ...launch.choose(choice), "--conversation", session],
   models: () => Promise.resolve(models),
   choose: ({ model, effort }) => [

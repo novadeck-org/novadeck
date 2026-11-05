@@ -3300,7 +3300,8 @@ describe("Antigravity's prompts, told from its transcript", () => {
     sent(send("A", "owl", "Review a.ts"))
     messaging.pause(true)
     follow("G", agy)
-    // `agy -i "<line>"`: its first turn, the line its transcript records as typed.
+    // `agy -i "<line>"`, as an earlier build started a task: its first turn, the line its
+    // transcript records as typed.
     const { events } = await told(doorbellLine("k3f9q2"), 0, { startedWith: "k3f9q2" })
     expect(events).toMatchObject([{ cause: "doorbell", nonce: "k3f9q2" }])
     const answer = ask("G", agy, "PreInvocation", [...events])

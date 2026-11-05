@@ -664,11 +664,10 @@ const openAgent: Tool<Opened> = {
       : !answer.task.ok
         ? " Its task wasn't sent: " + answer.task.reason
         : (answer.taskWaits
-            ? " The agent there doesn't trust this folder yet, so it started without its " +
-              "task: message " +
+            ? " It started without its task: message " +
               answer.task.id +
-              " reaches it once the user trusts the folder " +
-              "and its prompt shows."
+              " reaches it once its prompt shows, after the user trusts the folder if " +
+              "the agent asks them to."
             : " Its task, message " +
               answer.task.id +
               ", waits for the agent's first session " +
@@ -1290,10 +1289,15 @@ export type McpCall = (type: CallType, request: Arguments) => Promise<unknown>
 /**
  * What the server answers one line from the agent with, as a line, or undefined when it
  * needs none. `call` reaches the terminal's runner, or is absent outside a terminal,
- * where the server offers no tools.
+ * where the server offers no tools. `listed` is told when the line was the agent's
+ * listing of the tools, answered with them.
  */
-export const mcpAnswer = async (line: string, call?: McpCall): Promise<string | undefined> => {
-  const reply = await respond(line, call)
+export const mcpAnswer = async (
+  line: string,
+  call?: McpCall,
+  listed?: () => void,
+): Promise<string | undefined> => {
+  const reply = await respond(line, call, listed)
   return reply && JSON.stringify({ jsonrpc: "2.0", ...reply })
 }
 
@@ -1348,7 +1352,11 @@ const listedTools = (call: McpCall) =>
     })),
   )
 
-const respond = async (line: string, call?: McpCall): Promise<Reply | undefined> => {
+const respond = async (
+  line: string,
+  call?: McpCall,
+  listed?: () => void,
+): Promise<Reply | undefined> => {
   if (line.trim() === "") return undefined
   let message: unknown
   try {
@@ -1365,7 +1373,7 @@ const respond = async (line: string, call?: McpCall): Promise<Reply | undefined>
   // A request whose handling fails is still answered, or the agent's call waits for its
   // harness's own timeout, which can be minutes, with nothing to tell it why.
   try {
-    return await answered(id, method, params, call)
+    return await answered(id, method, params, call, listed)
   } catch {
     return { id, error: { code: -32603, message: "Internal error: Novadeck could not answer." } }
   }
@@ -1376,10 +1384,16 @@ const answered = async (
   method: string,
   params: unknown,
   call: McpCall | undefined,
+  listed: (() => void) | undefined,
 ): Promise<Reply> => {
   if (method === "initialize") return { id, result: initialized(params, call !== undefined) }
   if (method === "ping") return { id, result: {} }
-  if (method === "tools/list") return { id, result: { tools: call ? await listedTools(call) : [] } }
+  if (method === "tools/list") {
+    if (!call) return { id, result: { tools: [] } }
+    const listing = await listedTools(call)
+    listed?.()
+    return { id, result: { tools: listing } }
+  }
   if (method === "tools/call") {
     const outcome = await toolCall(object(params) ? params : {}, call)
     return { id, ...outcome }

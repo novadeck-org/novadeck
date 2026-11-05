@@ -22,6 +22,7 @@ const handlers = (given: Partial<ReportHandlers>): ReportHandlers => ({
   ask: () => Promise.resolve(unheard),
   ack: () => {},
   call: () => Promise.resolve(unanswered),
+  tools: () => {},
   ...given,
 })
 
@@ -272,6 +273,43 @@ describe("relay sessions", () => {
       { jsonrpc: "2.0", id: 1, error: { code: -32602, message: "Unknown tool: show" } },
     ])
     expect(calls).toEqual([])
+  })
+
+  it("tells the runner once a terminal's session listed the tools to its agent, and once it closed after that", async ({
+    resources,
+  }) => {
+    const heard: [{ terminalId: string; token: string }, string, boolean][] = []
+    const reports = await listenForReports(
+      handlers({ tools: (from, id, listed) => heard.push([from, id, listed]) }),
+    )
+    resources.defer(() => reports.close())
+    // A session that never lists the tools has nothing to tell, open or closed.
+    await session(reports.endpoint, [hello(), rpc({ id: 1, method: "ping" }), end])
+    // One outside any terminal lists none.
+    await session(reports.endpoint, [
+      hello({ token: "not a token" }),
+      rpc({ id: 1, method: "tools/list" }),
+      end,
+    ])
+    expect(heard).toEqual([])
+    const answers = await session(reports.endpoint, [
+      hello(),
+      rpc({ id: 1, method: "tools/list" }),
+      rpc({ id: 2, method: "tools/list" }),
+      end,
+    ])
+    expect(answers).toHaveLength(2)
+    await vi.waitFor(() =>
+      expect(heard).toEqual([
+        [{ terminalId: "t", token }, expect.any(String), true],
+        [{ terminalId: "t", token }, expect.any(String), false],
+      ]),
+    )
+    // Both name the same session, and another connection is another session.
+    expect(heard[0]![1]).toBe(heard[1]![1])
+    await session(reports.endpoint, [hello(), rpc({ id: 1, method: "tools/list" }), end])
+    await vi.waitFor(() => expect(heard).toHaveLength(4))
+    expect(heard[2]![1]).not.toBe(heard[0]![1])
   })
 
   it("offers no tools to a relay that names no terminal's token", async ({ resources }) => {
@@ -606,6 +644,7 @@ describe("what isn't a relay's", () => {
       ask: async (report) => (taken.push(report), { leaseId: null, stdout: "x" }),
       ack: (ack) => taken.push(ack),
       call: async (asked) => (taken.push(asked), { ok: true }),
+      tools: (from) => taken.push(from),
     })
     resources.defer(() => reports.close())
     const report = {

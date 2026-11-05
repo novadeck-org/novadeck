@@ -21,6 +21,7 @@ import { Answers, type AnswersOptions } from "./answers.js"
 import { bannerDrawn } from "./binding/banners.js"
 import { Dialogs, type DialogsOptions } from "./dialogs.js"
 import { agentWorking, doorbellHost, profileOf } from "./doorbell-host.js"
+import { McpTools } from "./mcp-tools.js"
 import { Interrupts, Prompts } from "./prompting.js"
 import { freshRef, Receipts, type ReceiptsOptions } from "./receipts.js"
 import type { Record } from "./record.js"
@@ -125,6 +126,8 @@ export class Typing {
   readonly receipts: Receipts
   /** The terminals whose box `settleBox` is looking at. */
   private readonly settling = new Set<string>()
+  /** Which terminals' agents hold Novadeck's MCP tools, which the doorbell may wait for. */
+  private readonly tools: McpTools
 
   constructor(
     options: TypingOptions,
@@ -134,6 +137,11 @@ export class Typing {
     this.inputs = new InputQueue({
       hold: (terminalId, budget) => this.holdInput(terminalId, budget),
     })
+    this.tools = new McpTools(
+      options.doorbell === false || options.doorbell?.toolsMs === undefined
+        ? {}
+        : { waitMs: options.doorbell.toolsMs },
+    )
     this.doorbell =
       options.doorbell === false
         ? undefined
@@ -212,6 +220,14 @@ export class Typing {
     this.doorbell?.changed(terminalId)
   }
 
+  /**
+   * MCP session `session` in the terminal listed Novadeck's tools to its agent (`listed`),
+   * or closed after that: a ring that waited for them may go.
+   */
+  mcpSession(terminalId: string, session: string, listed: boolean): void {
+    if (this.tools.session(terminalId, session, listed)) this.doorbell?.changed(terminalId)
+  }
+
   /** The terminal's screen or requests changed: its dialogs are looked at again, and a banner read. */
   dialogsChanged(terminalId: string): void {
     this.dialogs.changed(terminalId)
@@ -228,6 +244,7 @@ export class Typing {
   /** Forgets what the doorbell, the dialogs and the receipts kept of a terminal, as it exits or goes. */
   forget(terminalId: string): void {
     this.doorbell?.forget(terminalId)
+    this.tools.forget(terminalId)
     this.dialogs.forget(terminalId)
     this.receipts.forget(terminalId)
   }
@@ -637,6 +654,7 @@ export class Typing {
       messaging: this.host.messaging(),
       working: (terminalId, bound) => agentWorking(this.host.messaging(), terminalId, bound),
       stopping: () => this.host.stopping(),
+      toolsWait: (terminalId) => this.tools.wait(terminalId),
     })
   }
 }

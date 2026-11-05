@@ -119,9 +119,22 @@
       "jobs": ["^Antigravity \\(macOS\\)$"],
       "test": "src/e2e/lead.e2e.ts > Antigravity > delivers its lead's message at the next tool call",
       "signature": "The harness refused a tool call the fake model made",
+      "status": "fixed",
+      "cause": "A race in the product, not a flake of the fake model's. Novadeck started a briefed Antigravity worker as `agy -i \"<line>\"`, whose first request goes within a second of its start, and Antigravity takes a turn's MCP tools only as the turn starts: when Novadeck's MCP server hadn't listed its tools yet, as on a loaded macOS runner (over 1 s), the whole first turn went without them (owl's requests in both traces had no <mcp_servers> and no call_mcp_tool), so the fake model's agents call, named from another terminal's request, was an unknown tool. Reproduced on Linux with the MCP launcher slowed by 0.1 s or more; probed on 1.4.12 and 1.5.1 that a later-listed server never joins the running turn. Fixed: Antigravity always starts plain, and the doorbell rings it only once a terminal's MCP session has listed Novadeck's tools (10 s at most); tasks.e2e.ts checks every harness's task turn has the tools with the server started 2 s late.",
+      "seen": [
+        "#219 run 39022577489 job 117368580212",
+        "#684 run 42011711027 job 127192813268",
+        "nightly run 42014840237 job 127202880417"
+      ]
+    },
+    {
+      "id": "e2e-claude-macos-mixed-outlived-deck",
+      "jobs": ["^Mixed \\(macOS\\)$"],
+      "test": "src/e2e/team.mixed.e2e.ts > Claude Code leading Claude Code, Codex, Antigravity > sends one message to its whole team",
+      "signature": "a process outlived the deck in the sandbox: claude \\(\\d+\\)",
       "status": "known",
-      "cause": "Unknown: Antigravity refused the fake model's call to mcp_novadeck_novadeck_agents.",
-      "seen": ["#219 run 39022577489 job 117368580212"]
+      "cause": "Unknown: Claude Code 2.1.316 still ran more than 3 s after the deck closed, not stopped, so the fixture's reap ended it and failed a test whose own steps had passed. The trace: the worker @fox (`claude \"<line>\"`, pid 5029) ended its last turn at +12.5 s and drew its status line at +12.8 s; the deck's shutdown ran +17.357 to +17.374 s. On Linux and macOS the shutdown hangs up the terminal's foreground group and waits for its shell alone (libraries/terminal pty.ts `end`), and the reap (@novadeck/sandbox reap.ts) gives each process 3 s to end by itself. Not a hook holding the exit (Novadeck registers no SessionEnd for Claude Code) nor MCP readiness (its turns had Novadeck's tools); nothing after the shutdown is traced. A follow-up is to time Claude Code's exit after the hangup on Linux and macOS, a real app quit's too.",
+      "seen": ["#720 run 42084750623 job 127447038598"]
     },
     {
       "id": "e2e-antigravity-macos-second-approval-unreported",

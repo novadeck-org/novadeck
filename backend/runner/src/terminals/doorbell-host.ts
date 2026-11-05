@@ -113,6 +113,8 @@ type DoorbellTerminals<R extends DoorbellRecord> = TypingTargetHost<R> & {
   /** Whether the activity says the agent works, where that outweighs what messaging knows. */
   readonly working: (terminalId: string, bound: DoorbellBound | null) => boolean
   readonly stopping: () => boolean
+  /** How much longer a ring waits for the terminal's agent to hold Novadeck's MCP tools. */
+  readonly toolsWait: (terminalId: string) => number
 }
 
 /** What the doorbell asks of the terminals and messaging. */
@@ -187,6 +189,11 @@ export const doorbellHost = <R extends DoorbellRecord>(
     },
     stamp: (terminalId) => messaging.stamp(terminalId),
     barred: (terminalId) => messaging.queueBar(terminalId),
+    // Only for an agent that takes its tools as a turn starts: any other gets them later.
+    toolsWait: (terminalId) => {
+      const agent = live(terminalId)?.bound?.binding.agent ?? messaging.shownAgent(terminalId)
+      return agent && harnesses[agent].messaging.toolsAtTurnStart ? host.toolsWait(terminalId) : 0
+    },
     // The agent's own box, read by its harness off the calm screen: empty and taking a
     // prompt makes an idle Fresh, Drafting or Unknown terminal, or one Working on background
     // work only, Ready (see

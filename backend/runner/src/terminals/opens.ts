@@ -100,9 +100,9 @@ export type OpenAnswer =
        */
       readonly task?: SendAnswer
       /**
-       * The agent started without its task as its first prompt, as Antigravity in a folder
-       * it doesn't trust yet: the task reaches it once the person trusts the folder and its
-       * prompt shows, rung as any message is.
+       * The agent started without its task as its first prompt, as Antigravity does: the
+       * task reaches it once its prompt shows (after the person trusts the folder, where it
+       * asks them to), rung as any message is.
        */
       readonly taskWaits?: true
     }

@@ -171,19 +171,26 @@ const tooLong = (head: string, tail: string): string => {
  * relay's own version: each line the agent sent is answered with a line, as it is
  * done, so a slow call holds up no other. Once the relay sends its end, the session
  * answers what is under way and closes. Calls carry the terminal and token the relay
- * named; outside a terminal it named, the server offers no tools.
+ * named; outside a terminal it named, the server offers no tools. `tools` is told once
+ * the session answered its first listing of them, and once it closes after that.
  */
 const serveSession = (
   socket: Socket,
   rest: string,
   call: McpCall | undefined,
   version: number,
+  tools?: (listed: boolean) => void,
 ): void => {
   // The session is taken: the relay carries the agent's lines from here on.
   socket.write(`${JSON.stringify({ relay: version, ok: true })}\n`)
   let buffer = ""
   let pending = 0
   let ended = false
+  // Whether the agent has had the tools' listing, so it holds Novadeck's tools.
+  let listed = false
+  socket.on("close", () => {
+    if (listed) tools?.(false)
+  })
   const settle = () => {
     if (ended && pending === 0) socket.end()
   }
@@ -194,9 +201,15 @@ const serveSession = (
       return
     }
     pending += 1
-    mcpAnswer(line, call)
+    let listing = false
+    mcpAnswer(line, call, () => (listing = true))
       .then((reply) => {
-        if (reply !== undefined && socket.writable) socket.write(`${reply}\n`)
+        if (reply === undefined || !socket.writable) return
+        socket.write(`${reply}\n`)
+        if (listing && !listed) {
+          listed = true
+          tools?.(true)
+        }
       })
       .catch(() => {})
       .finally(() => {
@@ -280,6 +293,16 @@ export type ReportHandlers = {
   readonly ack: (ack: Ack) => void
   /** A tool call, answered within `answerMs` or as unanswered. */
   readonly call: (call: Call) => Promise<unknown>
+  /**
+   * An agent's MCP session in a terminal had its first listing of the tools answered
+   * (`listed`), or closed after that (not): `from` is the terminal and token its relay
+   * named, `session` the connection's own id, the same for both.
+   */
+  readonly tools: (
+    from: { terminalId: string; token: string },
+    session: string,
+    listed: boolean,
+  ) => void
 }
 
 export type Reports = {
@@ -454,7 +477,15 @@ export const listenForReports = async (
         socket.unref()
         socket.off("data", first)
         const from = sender(value)
-        serveSession(socket, text.slice(end + 1), from && relayCall(from), version)
+        // Its own id, so a close tells which of a terminal's sessions ended.
+        const session = randomUUID()
+        serveSession(
+          socket,
+          text.slice(end + 1),
+          from && relayCall(from),
+          version,
+          from && ((listed) => handlers.tools(from, session, listed)),
+        )
         return
       }
       // Not a relay's this runner speaks with: nothing to take or answer.

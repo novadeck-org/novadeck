@@ -183,7 +183,7 @@ describe.skipIf(process.platform === "win32" || !existsSync(bash))(
 describe.skipIf(process.platform === "win32" || !existsSync(bash))(
   "agents opening an agent with a task from a bash terminal",
   () => {
-    it("starts each agent with the doorbell as its prompt, Antigravity only where trusted", async ({
+    it("starts each agent with the doorbell as its prompt, Antigravity never, even where trusted", async ({
       shell,
     }) => {
       const bin = showStandIn(shell.home)
@@ -250,8 +250,9 @@ describe.skipIf(process.platform === "win32" || !existsSync(bash))(
         expect(requests.map(({ command }) => command)).toEqual([
           expect.stringMatching(quoted("claude")),
           expect.stringMatching(quoted("codex")),
-          expect.stringMatching(quoted("agy -i")),
-          // Antigravity would submit its prompt behind its trust dialog: started plain.
+          // Antigravity's prompt would start a turn before Novadeck's tools load, and go
+          // behind its trust dialog: started plain, even in a folder it trusts.
+          "agy",
           "agy",
         ])
         // Each was told its task's message, which waits for the agent there.
@@ -261,12 +262,12 @@ describe.skipIf(process.platform === "win32" || !existsSync(bash))(
             text: expect.stringMatching(/ message m-\S+,? (waits|reaches it once)/),
           })),
         )
-        // Only Antigravity in a folder it doesn't trust started without its task.
-        const trustless = "doesn't trust this folder yet, so it started without its task"
-        expect(answers.slice(0, 4).map(({ text }) => text?.includes(trustless))).toEqual([
+        // Only Antigravity started without its task.
+        const waits = "It started without its task"
+        expect(answers.slice(0, 4).map(({ text }) => text?.includes(waits))).toEqual([
           false,
           false,
-          false,
+          true,
           true,
         ])
         expect(answers.slice(4)).toEqual([
@@ -276,9 +277,8 @@ describe.skipIf(process.platform === "win32" || !existsSync(bash))(
           },
         ])
         // Each started with the line as one argument, which its harness submits.
-        await shell.until(manager, created[0]!, /claude args: \[Novadeck: [^\n]*\]/)
-        const shown = await shell.until(manager, created[2]!, "agy args: -i [Novadeck")
-        expect(shown.split("agy args: -i ")[1]?.split(" prompt=")[0]).toMatch(line)
+        const shown = await shell.until(manager, created[0]!, /claude args: \[Novadeck: [^\n]*\]/)
+        expect(shown.split("claude args: ")[1]?.split(" prompt=")[0]).toMatch(line)
         // The opener's peers say who opened it, with a task, before its agent starts.
         const [listed] = (await show(shell, manager, terminal.id, [
           { type: "agents" as "open", request: {} },
@@ -392,7 +392,8 @@ describe.skipIf(process.platform === "win32" || !existsSync(bash))(
           expect.stringMatching(
             new RegExp(`^codex --model gpt-a -c "model_reasoning_effort=high" ${line}$`),
           ),
-          expect.stringMatching(new RegExp(`^agy --model flash-high --effort high -i ${line}$`)),
+          // Antigravity always starts plain, its task rung once its tools are listed.
+          "agy --model flash-high --effort high",
           "agy --model sonnet",
         ])
         expect(answers.slice(0, 4).map(({ ok }) => ok)).toEqual([true, true, true, true])
@@ -638,7 +639,7 @@ describe.skipIf(process.platform === "win32" || !existsSync(bash))(
       prompt: (text: string, ends?: boolean) => Promise<string>
     }
 
-    // Antigravity's folder here is not one it trusts: it starts without its prompt.
+    // Antigravity starts without its prompt, as it always does.
     for (const agent of ["claude", "codex", "agy"] as const) {
       it(`marks ${agent}'s brief as its lead's, then releases the lead once it is delivered, and tells it`, async ({
         shell,
@@ -649,7 +650,7 @@ describe.skipIf(process.platform === "win32" || !existsSync(bash))(
           { message: "Review a.ts, please.", lead: false },
           async ({ manager, worker, said, command, prompt, started, sends }) => {
             // Antigravity here started plain, its task waiting for the first session.
-            expect(said.includes("doesn't trust this folder yet")).toBe(agent === "agy")
+            expect(said.includes("It started without its task")).toBe(agent === "agy")
             expect(command === agent).toBe(agent === "agy")
             const marked = /lead="[^"]+"[^>]*>Review a.ts, please.<\/message>/
             if (agent === "agy") {

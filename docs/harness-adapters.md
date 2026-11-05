@@ -624,6 +624,11 @@ type MessagingProfile = {
    */
   readonly promptsInBackground: boolean
   /**
+   * Whether it takes its MCP servers' tools only as a turn starts: the doorbell rings it
+   * only once Novadeck's server has listed them, and a task never starts it.
+   */
+  readonly toolsAtTurnStart: boolean
+  /**
    * Where its hooks name no prompt (Antigravity's), what a line of its transcript
    * records as typed into its box, with its time and step: from it `typed-prompts.ts`
    * tells a root turn's prompt.
@@ -632,11 +637,11 @@ type MessagingProfile = {
 }
 ```
 
-| Harness     | `asks`                                                                                    | `call` | `reinjectPerCall` | `root`        | `queueKey` | `silentOnFailure` | `promptsInBackground` | `typedEntry`             |
-| ----------- | ----------------------------------------------------------------------------------------- | ------ | ----------------- | ------------- | ---------- | ----------------- | --------------------- | ------------------------ |
-| Claude Code | `Stop` (stop), `UserPromptSubmit` (prompt), `PostToolUse` and `PostToolUseFailure` (tool) | yes    | no                | `binding`     | none       | no                | yes                   | none: hooks name prompts |
-| Codex       | `Stop` (stop), `UserPromptSubmit` (prompt), `PostToolUse` (tool)                          | yes    | no                | `binding`     | Tab        | yes               | yes                   | none: hooks name prompts |
-| Antigravity | `Stop` (stop), `PreInvocation` (prompt)                                                   | none   | yes               | `status-line` | none       | no                | yes                   | `USER_INPUT` steps       |
+| Harness     | `asks`                                                                                    | `call` | `reinjectPerCall` | `root`        | `queueKey` | `silentOnFailure` | `promptsInBackground` | `toolsAtTurnStart` | `typedEntry`             |
+| ----------- | ----------------------------------------------------------------------------------------- | ------ | ----------------- | ------------- | ---------- | ----------------- | --------------------- | ------------------ | ------------------------ |
+| Claude Code | `Stop` (stop), `UserPromptSubmit` (prompt), `PostToolUse` and `PostToolUseFailure` (tool) | yes    | no                | `binding`     | none       | no                | yes                   | no                 | none: hooks name prompts |
+| Codex       | `Stop` (stop), `UserPromptSubmit` (prompt), `PostToolUse` (tool)                          | yes    | no                | `binding`     | Tab        | yes               | yes                   | no                 | none: hooks name prompts |
+| Antigravity | `Stop` (stop), `PreInvocation` (prompt)                                                   | none   | yes               | `status-line` | none       | no                | yes                   | yes                | `USER_INPUT` steps       |
 
 `call` exists exactly when `asks` has a `tool` entry. A `tool` event fires as a root tool
 call finishes, and delivers only the lead's messages, beside the tool's result (see
@@ -680,11 +685,11 @@ type LaunchProfile = {
 }
 ```
 
-| Harness     | `start`  | `initialPrompt`                        | `resume`                  | `choose`                                    |
-| ----------- | -------- | -------------------------------------- | ------------------------- | ------------------------------------------- |
-| Claude Code | `claude` | `claude "<line>"`                      | `claude --resume <id>`    | `--model <m> --effort <e>`                  |
-| Codex       | `codex`  | `codex "<line>"`                       | `codex resume <id>`       | `--model <m> -c model_reasoning_effort=<e>` |
-| Antigravity | `agy`    | `agy -i "<line>"`, in a trusted folder | `agy --conversation <id>` | `--model <m> --effort <e>`                  |
+| Harness     | `start`  | `initialPrompt`                    | `resume`                  | `choose`                                    |
+| ----------- | -------- | ---------------------------------- | ------------------------- | ------------------------------------------- |
+| Claude Code | `claude` | `claude "<line>"`                  | `claude --resume <id>`    | `--model <m> --effort <e>`                  |
+| Codex       | `codex`  | `codex "<line>"`                   | `codex resume <id>`       | `--model <m> -c model_reasoning_effort=<e>` |
+| Antigravity | `agy`    | none: started plain, the task rung | `agy --conversation <id>` | `--model <m> --effort <e>`                  |
 
 ## Screen readers
 

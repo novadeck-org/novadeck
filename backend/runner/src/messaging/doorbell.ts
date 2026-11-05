@@ -87,6 +87,12 @@ export type DoorbellHost = {
   /** How much longer the screen is not believed, after a Stop that left a prompt queued; 0 if none. */
   readonly barred?: (terminalId: string) => number
   /**
+   * How much longer a ring waits for the agent to hold Novadeck's MCP tools, as one that
+   * takes them only as a turn starts would have none in the turn the ring starts; 0 if it
+   * waits no more.
+   */
+  readonly toolsWait?: (terminalId: string) => number
+  /**
    * Asked right before the foreground is read: the agent bound there, found gone, has its
    * binding ended (in turn with the reports). Nothing for a prompt shown before any binds.
    */
@@ -143,6 +149,13 @@ export type DoorbellOptions = {
   readonly confirmMs?: number
   /** The platform the harnesses' hooks run on, which sets `confirmMs` by default. */
   readonly platform?: NodeJS.Platform
+  /**
+   * How long a ring waits at most for an agent that takes its MCP tools as a turn starts to
+   * hold Novadeck's, in milliseconds: 10 s by default; 0 waits not at all, as for a stand-in
+   * TUI that starts no MCP server. The doorbell itself only asks `toolsWait`: the runner's
+   * Typing reads this to answer it (terminals/mcp-tools.ts).
+   */
+  readonly toolsMs?: number
 }
 
 /**
@@ -399,6 +412,12 @@ export class Doorbell {
     // person's: the doorbell isn't getting through, and trying on would only add lines.
     if (this.capped(terminalId)) {
       this.host.blocked(terminalId, "failed")
+      return undefined
+    }
+    const tools = ringable ? (this.host.toolsWait?.(terminalId) ?? 0) : 0
+    if (tools > 0) {
+      this.note(terminalId, `waiting ${Math.round(tools)} ms for its MCP tools`)
+      this.later(terminalId, tools)
       return undefined
     }
     // A stalled terminal's screen is read at most once a calm window, and after one that was
