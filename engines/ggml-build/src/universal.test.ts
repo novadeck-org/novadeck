@@ -57,37 +57,42 @@ describe("the universal engine", () => {
 
 // Needs Xcode's command line tools, as the macOS build does.
 context.skipIf(process.platform !== "darwin")("merging the slices with lipo", () => {
-  it("makes each binary universal, keeps its mode, and keeps each link a link", async () => {
-    const root = mkdtempSync(join(tmpdir(), "ggml-build-"))
-    folders.push(root)
-    writeFileSync(join(root, "main.c"), "int main(void) { return 0; }\n")
-    const slices: Slice[] = ["arm64", "x86_64"]
-    for (const slice of slices) {
-      const folder = join(root, slice)
-      mkdirSync(folder)
-      const made = spawnSync("cc", [
-        "-arch",
-        slice,
-        "-o",
-        join(folder, "whisper-server"),
-        join(root, "main.c"),
-      ])
-      expect(made.status).toBe(0)
-      symlinkSync("whisper-server", join(folder, "server"))
-    }
-    const staging = join(root, "staging")
-    await merge(
-      slices.map((slice) => ({ slice, folder: join(root, slice) })),
-      staging,
-      commands("voice engine", root),
-    )
-    expect(
-      output("lipo", ["-archs", join(staging, "whisper-server")])
-        .trim()
-        .split(" ")
-        .toSorted(),
-    ).toEqual(slices)
-    expect(statSync(join(staging, "whisper-server")).mode & 0o111).not.toBe(0)
-    expect(readlinkSync(join(staging, "server"))).toBe("whisper-server")
-  })
+  // A fresh runner's first cc call warms Xcode's tools up for seconds (10 s on CI's).
+  it(
+    "makes each binary universal, keeps its mode, and keeps each link a link",
+    { timeout: 60_000 },
+    async () => {
+      const root = mkdtempSync(join(tmpdir(), "ggml-build-"))
+      folders.push(root)
+      writeFileSync(join(root, "main.c"), "int main(void) { return 0; }\n")
+      const slices: Slice[] = ["arm64", "x86_64"]
+      for (const slice of slices) {
+        const folder = join(root, slice)
+        mkdirSync(folder)
+        const made = spawnSync("cc", [
+          "-arch",
+          slice,
+          "-o",
+          join(folder, "whisper-server"),
+          join(root, "main.c"),
+        ])
+        expect(made.status).toBe(0)
+        symlinkSync("whisper-server", join(folder, "server"))
+      }
+      const staging = join(root, "staging")
+      await merge(
+        slices.map((slice) => ({ slice, folder: join(root, slice) })),
+        staging,
+        commands("voice engine", root),
+      )
+      expect(
+        output("lipo", ["-archs", join(staging, "whisper-server")])
+          .trim()
+          .split(" ")
+          .toSorted(),
+      ).toEqual(slices)
+      expect(statSync(join(staging, "whisper-server")).mode & 0o111).not.toBe(0)
+      expect(readlinkSync(join(staging, "server"))).toBe("whisper-server")
+    },
+  )
 })
