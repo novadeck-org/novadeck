@@ -190,6 +190,28 @@ const extractErrors = (anchors: Anchors, source: string): ApiError[] => {
   return errorsIn(body, wire)
 }
 
+// The wire's procedures, which the contract spreads in (`...wireContract`).
+const wireContractFile = "libraries/wire/src/handshake.ts"
+
+// Where a procedure is defined: its line in the contract, or for one the contract spreads in
+// from the wire, its `const` there. A procedure found in neither is reported.
+export const contractAnchor = (anchors: Anchors, source: string, path: string[]): Anchor => {
+  const line = findProcedureLine(source, path)
+  if (line !== null) return { file: contractFile, line }
+  const name = path.at(-1)!
+  const wire = anchors.read(wireContractFile) ?? ""
+  const listed = /^export const wireContract = (.*)$/m.exec(wire)?.[1] ?? ""
+  const defined = wire.search(new RegExp(`^(?:export )?const ${name} =`, "m"))
+  if (
+    source.includes("...wireContract") &&
+    new RegExp(`\\b${name}\\b`).test(listed) &&
+    defined !== -1
+  )
+    return { file: wireContractFile, line: lineAt(wire, defined) }
+  anchors.report("api procedures", contractFile, `no line found for ${path.join(".")}`)
+  return { file: contractFile, line: null }
+}
+
 // Every procedure in the protocol contract, with its schemas, handler and callers.
 export const extractApi = async (repo: string, anchors: Anchors): Promise<Api> => {
   const { contract } = await import("@novadeck/protocol")
@@ -228,7 +250,7 @@ export const extractApi = async (repo: string, anchors: Anchors): Promise<Api> =
       kind: stream ? "stream" : "call",
       input: toJson(definition.inputSchema),
       output: toJson(stream ? stream.yields : definition.outputSchema),
-      anchor: { file: contractFile, line: findProcedureLine(source, path) },
+      anchor: contractAnchor(anchors, source, path),
       handler,
       errors: errorsOf(anchors, router, handler, id, known, routerWide),
       callers: callersOf(anchors, callerFiles, id),
@@ -282,10 +304,26 @@ export const extractApi = async (repo: string, anchors: Anchors): Promise<Api> =
   return { procedures, errors: apiErrors }
 }
 
-// The `name:` line inside its namespace's block, not an earlier procedure of the same name.
-const findProcedureLine = (source: string, path: string[]): number | null => {
-  const from =
-    path.length > 1 ? source.indexOf(`  ${path[0]}: {`, source.indexOf("export const contract")) : 0
-  const index = source.indexOf(`    ${path[path.length - 1]}: `, Math.max(from, 0))
-  return index === -1 ? null : lineAt(source, index)
+// The `name:` line inside its namespace's block, not an earlier procedure of the same name:
+// each level of the path is a key at its own indent, searched between the line that opens
+// the level above and the line that closes it.
+export const findProcedureLine = (source: string, path: string[]): number | null => {
+  const start = source.indexOf("export const contract")
+  if (start === -1) return null
+  let from = start
+  let to = source.length
+  const at = (pattern: string) => {
+    const index = source.slice(from, to).search(new RegExp(pattern, "m"))
+    return index === -1 ? -1 : from + index
+  }
+  for (const [depth, key] of path.entries()) {
+    const indent = "  ".repeat(depth + 1)
+    const index = at(`^${indent}${key}:${depth === path.length - 1 ? "" : " \\{$"}`)
+    if (index === -1) return null
+    if (depth === path.length - 1) return lineAt(source, index)
+    from = index
+    const close = at(`^${indent}\\},?$`)
+    to = close === -1 ? to : close
+  }
+  return null
 }
