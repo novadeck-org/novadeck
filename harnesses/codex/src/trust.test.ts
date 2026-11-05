@@ -11,7 +11,7 @@ import { tmpdir } from "node:os"
 import { join } from "node:path"
 
 import { afterEach, beforeEach } from "vitest"
-import { describe, expect, it } from "vitest"
+import { describe, expect, it, vi } from "vitest"
 
 import { forgetTrust, hooksTrusted, trustedIn } from "./trust.js"
 
@@ -80,7 +80,8 @@ const standIn = (folder: string): string => {
       '  for (const line of buffered.split("\\n").slice(0, -1)) {',
       "    const message = JSON.parse(line)",
       '    if (message.id === 1) process.stdout.write(JSON.stringify({ id: 1, result: {} }) + "\\n")',
-      '    if (message.id === 2 && !answer.silent) process.stdout.write(JSON.stringify({ id: 2, result: answer }) + "\\n")',
+      '    if (message.id === 2 && answer.refused) process.stdout.write(JSON.stringify({ id: 2, error: { code: -32601, message: "Method not found" } }) + "\\n")',
+      '    else if (message.id === 2 && !answer.silent) process.stdout.write(JSON.stringify({ id: 2, result: answer }) + "\\n")',
       "  }",
       '  buffered = buffered.slice(buffered.lastIndexOf("\\n") + 1)',
       "})",
@@ -185,6 +186,32 @@ describe.skipIf(process.platform === "win32")("asking Codex whether Novadeck's h
     writeFileSync(missing.program, readFileSync(where.program!))
     chmodSync(missing.program, 0o755)
     expect(await hooksTrusted(missing, "/work")).toBe(true)
+  })
+
+  it("keeps an answer Codex refused for a while, and asks again once what it rests on changes", async () => {
+    answer({ refused: true })
+    expect(await hooksTrusted(where, "/work")).toBeUndefined()
+    expect(await hooksTrusted(where, "/work")).toBeUndefined()
+    expect(starts()).toBe(1)
+    answer(trusted)
+    touch(join(home, "config.toml"), Date.now() + 5_000)
+    expect(await hooksTrusted(where, "/work")).toBe(true)
+    expect(starts()).toBe(2)
+  })
+
+  it("asks again once a refused answer is old, as a newer release may answer it", async () => {
+    answer({ refused: true })
+    const now = Date.now()
+    const clock = vi.spyOn(Date, "now").mockReturnValue(now)
+    try {
+      expect(await hooksTrusted(where, "/work")).toBeUndefined()
+      answer(trusted)
+      clock.mockReturnValue(now + 11 * 60_000)
+      expect(await hooksTrusted(where, "/work")).toBe(true)
+      expect(starts()).toBe(2)
+    } finally {
+      clock.mockRestore()
+    }
   })
 
   it("shares a timed-out query without keeping its failure once the helper recovers", async () => {

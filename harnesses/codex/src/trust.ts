@@ -47,8 +47,14 @@ export const trustedIn = (result: unknown): boolean => {
  */
 export type Asking = Install & { readonly program?: string }
 
+/**
+ * What Codex's app-server answered `hooks/list`: its result, or `refused` where it answered
+ * with an error, as a release without the method does. Undefined where it gave no answer.
+ */
+type Listed = { readonly result: unknown } | "refused" | undefined
+
 /** Asks Codex's app-server which hooks run in `cwd`, as its `hooks/list` reports them. */
-const listHooks = (where: Asking, cwd: string, timeoutMs: number): Promise<unknown> =>
+const listHooks = (where: Asking, cwd: string, timeoutMs: number): Promise<Listed> =>
   new Promise((resolve) => {
     const program = where.program ?? "codex"
     const child =
@@ -62,7 +68,7 @@ const listHooks = (where: Asking, cwd: string, timeoutMs: number): Promise<unkno
         : spawn(program, ["app-server"], { env: where.env, stdio: ["pipe", "pipe", "ignore"] })
     let buffered = ""
     let finished = false
-    const done = (value: unknown) => {
+    const done = (value: Listed) => {
       if (finished) return
       finished = true
       clearTimeout(timer)
@@ -101,8 +107,9 @@ const listHooks = (where: Asking, cwd: string, timeoutMs: number): Promise<unkno
         buffered = buffered.slice(end + 1)
         end = buffered.indexOf("\n")
         try {
-          const message = JSON.parse(line) as { id?: unknown; result?: unknown }
-          if (message.id === 2) return done(message.result)
+          const message = JSON.parse(line) as { id?: unknown; result?: unknown; error?: unknown }
+          if (message.id === 2)
+            return done(message.error !== undefined ? "refused" : { result: message.result })
         } catch {
           // Not JSON: something else it printed.
         }
@@ -152,8 +159,12 @@ const stateOf = async (home: string): Promise<string> => {
 
 type Known = {
   readonly state: string
-  readonly trusted: boolean
+  readonly trusted: boolean | undefined
+  // Until when an answer Codex refused is kept: a newer release may answer it.
+  readonly until?: number
 }
+// How long an answer Codex refused is kept, so a check doesn't start its app-server each time.
+const refusedMs = 10 * 60_000
 const known = new Map<string, Known>()
 const asking = new Map<string, Promise<boolean | undefined>>()
 
@@ -162,19 +173,26 @@ const asking = new Map<string, Promise<boolean | undefined>>()
  * person trusts them, and no hook says when it doesn't, so its app-server is asked. The
  * answer is kept until Codex's configuration or Novadeck's plugin changes.
  * Undefined when Codex couldn't answer (it couldn't start, or didn't answer within 10 s):
- * unknown, never taken for untrusted or cached, so a later check can recover. Asks under
- * way are shared.
+ * unknown, never taken for untrusted or cached, so a later check can recover. One it
+ * refused with an error is unknown too, and kept for a while (`refusedMs`), as asking
+ * again soon would only start its app-server for the same refusal. Asks under way are
+ * shared.
  */
 export const hooksTrusted = async (where: Asking, cwd: string): Promise<boolean | undefined> => {
   const home = codexHome(where)
   const key = `${where.program ?? "codex"}\0${home}\0${cwd}`
   const state = await stateOf(home)
   const kept = known.get(key)
-  if (kept?.state === state) return kept.trusted
+  if (kept?.state === state && (kept.until === undefined || Date.now() < kept.until))
+    return kept.trusted
   const pending = asking.get(key)
   if (pending) return pending
-  const ask = listHooks(where, cwd, 10_000).then((result) => {
-    const trusted = result === undefined ? undefined : trustedIn(result)
+  const ask = listHooks(where, cwd, 10_000).then((listed) => {
+    if (listed === "refused") {
+      known.set(key, { state, trusted: undefined, until: Date.now() + refusedMs })
+      return undefined
+    }
+    const trusted = listed === undefined ? undefined : trustedIn(listed.result)
     if (trusted !== undefined) known.set(key, { state, trusted })
     return trusted
   })
