@@ -1,4 +1,5 @@
-import { readdirSync, statSync } from "node:fs"
+import { execFileSync } from "node:child_process"
+import { existsSync, readdirSync, statSync } from "node:fs"
 import { join } from "node:path"
 
 const testFile =
@@ -29,3 +30,19 @@ export const sourceFiles = (repo: string, dir: string): string[] =>
     .map((entry) => `${dir}/${entry.replaceAll("\\", "/")}`)
     .filter((file) => /\.tsx?$/.test(file) && !testFile.test(file))
     .toSorted()
+
+// Repository-relative paths of the files in the working tree under `paths` (all of them when
+// none): tracked and untracked alike, but not what .gitignore ignores or what was deleted and
+// not yet `git rm`ed, so areas and links count the same files the folder scans read. NUL
+// separated, so git doesn't quote a path with characters outside ASCII.
+export const workingFiles = (repo: string, paths: string[] = []): string[] => [
+  ...new Set(
+    execFileSync(
+      "git",
+      ["ls-files", "-z", "--cached", "--others", "--exclude-standard", "--", ...paths],
+      { cwd: repo, encoding: "utf8", maxBuffer: 1 << 26 },
+    )
+      .split("\0")
+      .filter((file) => file !== "" && existsSync(join(repo, file))),
+  ),
+]
