@@ -48,8 +48,9 @@ const hotUpdates = [
 // The seconds between two of its updates in the log, as the clock reads them.
 const hotUpdateGapS = 14
 
-const clock = (seconds: number): string =>
-  [Math.floor(seconds / 3600), Math.floor(seconds / 60) % 60, seconds % 60]
+// A time of day, as a log prints it: past midnight it reads 00:00:00 again.
+export const clock = (seconds: number): string =>
+  [Math.floor(seconds / 3600) % 24, Math.floor(seconds / 60) % 60, seconds % 60]
     .map((part) => String(part).padStart(2, "0"))
     .join(":")
 
@@ -150,8 +151,20 @@ const built = [
   ["dist/assets/index.js", "184.32 kB"],
 ] as const
 
+// The most hot updates the dev server's log keeps: as many lines as a terminal's scrollback
+// holds, so what the screen can scroll back to is the same as if it kept them all.
+export const hotUpdatesKept = 1000
+
+// The first hot update its log shows once it has had `count`: past `hotUpdatesKept`, the
+// oldest go half of them at a time, so the screen draws its log anew only that rarely, and
+// a beat otherwise appends the next.
+const firstHotUpdate = (count: number): number => {
+  const half = hotUpdatesKept / 2
+  return count <= hotUpdatesKept ? 0 : Math.ceil((count - hotUpdatesKept) / half) * half
+}
+
 // What a shell opens with, by what it runs. The dev server shows the hot updates it has
-// had so far: its log keeps them all, and a beat appends the next (`hotUpdateBlock`).
+// had so far, up to `hotUpdatesKept` of them, and a beat appends the next (`hotUpdateBlock`).
 export const sampleBlocks = (
   output: SampleOutput,
   { directory, projectName, beats = 0 }: { directory: string; projectName: string; beats?: number },
@@ -192,7 +205,9 @@ export const sampleBlocks = (
         [span("  ➜  Network: use --host to expose", "muted")],
         gap,
       ),
-      ...Array.from({ length: 2 + beats }, (_, index) => hotUpdateBlock(index)),
+      ...Array.from({ length: 2 + beats - firstHotUpdate(2 + beats) }, (_, index) =>
+        hotUpdateBlock(firstHotUpdate(2 + beats) + index),
+      ),
     ]
   if (output === "tests") return [testsBlock(directory, beats)]
   if (output === "git")
