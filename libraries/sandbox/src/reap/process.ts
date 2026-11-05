@@ -6,7 +6,8 @@ export type Scope = Pick<Sandbox, "root" | "home" | "started">
 /**
  * A process of the sandbox: its command's name, its start, which with its pid tells it
  * apart from a later process given the same pid, and whether it was stopped, as by job
- * control, when last read (never on Windows, which has no such state).
+ * control, when last read (on Windows, with every thread of it suspended, as those of a
+ * program started suspended and never resumed are).
  */
 export type Process = {
   readonly pid: number
@@ -15,6 +16,8 @@ export type Process = {
   readonly stopped: boolean
   /** On Windows, how its recorded parent stands, for a leftover's report. */
   readonly parent?: string
+  /** On Windows, its program's path and its command line, for a leftover's report. */
+  readonly detail?: string
 }
 
 /** How a platform finds the sandbox's processes, tells whether one still runs, and ends it. */

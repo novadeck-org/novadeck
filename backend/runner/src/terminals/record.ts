@@ -132,6 +132,29 @@ export type Record = {
    * its hooks name no prompt; undefined before one was read.
    */
   seenEntry: { readonly transcript: string; readonly id: number } | undefined
+  /**
+   * When the system said it is ending the session (the app's `persist`), in epoch
+   * milliseconds; undefined before. Where no sample names the foreground program, no
+   * agent's end counts while it stands (see `sessionEnding`).
+   */
+  ending?: number
+  /**
+   * The line being typed, as far as the keys tell, to find an exit command in; null where
+   * keys may have brought text in (see `afterTyped`); undefined before any.
+   */
+  typed?: string | null
+  /**
+   * The session of the agent whose end is pending while its lead waits to end (null if
+   * none was bound); undefined when none is. A different session bound meanwhile ends
+   * that lead first.
+   */
+  goneSession?: string | null | undefined
+  /**
+   * When the person's Ctrl+C or Ctrl+D, or a line that is its agent's exit command, last
+   * reached the terminal, in epoch milliseconds:
+   * the keys that end an agent (see `endWaitMs`); undefined before any.
+   */
+  endKeyAt?: number
   /** The shell's own name, as its foreground sample shows it at its prompt; undefined where none is told. */
   shellName: string | undefined
   /** When its agent is next nudged to describe its work; kept for this runner's lifetime. */

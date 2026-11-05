@@ -97,9 +97,6 @@ describe("the registry's PATH folders", () => {
   })
 })
 
-// Waits `ms` of real time.
-const pause = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms))
-
 describe("refreshing PATH", () => {
   it("leaves the environment as it is off Windows", async () => {
     const env = { PATH: "/usr/bin" }
@@ -193,6 +190,11 @@ describe("refreshing PATH", () => {
 
   it("tries again soon after a read that only ran long, as on a cold boot", async () => {
     forgetPath()
+    // The clock alone, so a slow machine can't pass the short wait between two calls.
+    vi.useFakeTimers({ toFake: ["Date"] })
+    onTestFinished(() => {
+      vi.useRealTimers()
+    })
     let reads = 0
     let answering: readonly string[] | "timeout" = "timeout"
     const read = () => {
@@ -212,7 +214,7 @@ describe("refreshing PATH", () => {
     expect(await refreshPath(env, options)).toBe(env)
     expect(reads).toBe(1)
     answering = ["C:\\Installed"]
-    await new Promise((resolve) => setTimeout(resolve, 30))
+    vi.advanceTimersByTime(30)
     expect((await refreshPath(env, options)).Path).toBe("C:\\Here;C:\\Installed")
     expect(reads).toBe(2)
     forgetPath()
@@ -220,24 +222,28 @@ describe("refreshing PATH", () => {
 
   it("waits twice as long after each read in a row that ran long", async () => {
     forgetPath()
+    // The clock alone, so a slow machine or a pause of the process can't pass a wait.
+    vi.useFakeTimers({ toFake: ["Date"] })
+    onTestFinished(() => {
+      vi.useRealTimers()
+    })
     let reads = 0
     const read = () => {
       reads += 1
       return Promise.resolve("timeout" as const)
     }
-    // Waits wide enough apart that a slow timer or a pause of the process tells nothing.
     const options = { platform: "win32" as const, retryMs: 60_000, timeoutRetryMs: 200, read }
     const env = { Path: "C:\\Here" }
     await refreshPath(env, options)
-    await pause(300)
+    vi.advanceTimersByTime(300)
     // Past the first wait of 200 ms: read again, and timed out again.
     await refreshPath(env, options)
     expect(reads).toBe(2)
-    await pause(100)
-    // Well within the second wait, of 400 ms: no read.
+    vi.advanceTimersByTime(300)
+    // Past a wait as long as the first, but within the second, of 400 ms: no read.
     await refreshPath(env, options)
     expect(reads).toBe(2)
-    await pause(500)
+    vi.advanceTimersByTime(200)
     await refreshPath(env, options)
     expect(reads).toBe(3)
     forgetPath()

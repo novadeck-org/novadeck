@@ -2094,6 +2094,14 @@ describe("a turn the person's Escape ended", () => {
           })
         // eslint-disable-next-line no-await-in-loop -- As above.
         await vi.advanceTimersByTimeAsync(escapeVerdictMs)
+        // On Windows the verdict reads the reply and then the screen for up to
+        // `escapeScreenMs` of real time, so it lands after the window: the chat is read
+        // once it has.
+        // eslint-disable-next-line no-await-in-loop -- As above.
+        await vi.waitFor(
+          () => expect(record.bound?.activity.lastTurn?.escaped?.settled ?? true).toBe(true),
+          { timeout: escapeScreenMs + 2000 },
+        )
         // The person's next prompt, written after the Escape.
         appendFileSync(record.transcript, step("USER_EXPLICIT", "USER_INPUT", "Go on"))
         if (agent === "claude") continue

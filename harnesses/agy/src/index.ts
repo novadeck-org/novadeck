@@ -29,6 +29,9 @@ import { transcripts, typedEntry } from "./transcripts.js"
 // a model call lasts only for that call, so a turn's delivery is injected again on each
 // of its later calls. Every other answer is an empty object.
 const messaging: MessagingProfile = {
+  // `/exit` as docs/harness-coverage.md has it leave, and `/quit`, the alias its binary
+  // names; a wrong one costs only the grace.
+  exitCommands: ["/exit", "/quit"],
   asks: { Stop: "stop", PreInvocation: "prompt" },
   silent: { PreToolUse: `${preToolUseAnswer}\n`, "*": "{}\n" },
   stop: (delivery) => `${JSON.stringify({ decision: "continue", reason: delivery })}\n`,

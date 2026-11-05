@@ -19,9 +19,11 @@ import { limitOf, observeTelemetry, telemetrySummary } from "../../harnesses/tel
 import type { Messaging } from "../../messaging/messaging.js"
 import { standingDone } from "../../messaging/peers.js"
 import type { Companion } from "../companion.js"
+import { afterTyped } from "../exits.js"
 import { failed } from "../failures.js"
 import { markTurn } from "../interrupted.js"
 import type { Record } from "../record.js"
+import { whenEndCounts } from "../sampling.js"
 import { hasRun } from "../saved-terminals.js"
 import { lastStep } from "../transcripts.js"
 import { TurnEnds, type TurnsHost } from "../turn-ends.js"
@@ -67,6 +69,9 @@ export type BindingsHost = {
   readonly pollMs: number
 }
 
+// Ctrl+C or Ctrl+D, as the terminal sends them, or the keyboard protocol that reports them.
+const endKeys = ["\x03", "\x04", "\x1b[99;5u", "\x1b[100;5u"]
+
 /**
  * The agent bound to each terminal, as its hooks and its own sources tell: what applies
  * their facts to its activity and telemetry, the sources that follow it, the Escape's
@@ -97,25 +102,33 @@ export class Bindings {
 
   /**
    * Ends the terminal's lead as the agent it led is found gone, its process or the shell's
-   * prompt telling. Windows ends every console program just before its shell as it shuts
-   * down, and the runner stops only after: there the lead ends once the shell has outlived
-   * its agent for a sample's time, so an agent ended that way resumes still led, as its
-   * session resumes (`Sampler.prompted`). The runner stopping, the shell ending or
-   * replaced meanwhile, or another lead meanwhile, keeps it. It is kept with the terminal's next save, as the
-   * session the sampler let go of at the same moment is, so no saved terminal resumes its
-   * agent unled.
+   * prompt telling; every path that finds one gone comes here. Windows ends every console
+   * program just before its shell as it shuts down, and the runner stops only after: there
+   * the lead ends only once the shell has outlived its agent for `endWaitMs`, so an agent
+   * the system ended resumes still led, as its session resumes (`Sampler.prompted`). The
+   * runner stopping, the shell ending or replaced meanwhile, or another lead meanwhile,
+   * keeps it. It is kept with the terminal's next save, as the session the sampler let go
+   * of at the same moment is, so no saved terminal resumes its agent unled.
    */
   endLeadGone(record: Record): void {
     if (process.platform !== "win32") return this.endLead(record)
     const shell = record.terminal.pty
     const lead = record.summary.ledBy
-    setTimeout(() => {
+    const ended = record.bound
+    const gone = ended?.binding.sessionId ?? record.left?.sessionId ?? null
+    record.goneSession = gone
+    whenEndCounts(record, this.host.pollMs, () => {
+      record.goneSession = undefined
       if (this.host.stopping() || record.closed || record.terminal.pty !== shell) return
       if (record.terminal.exit !== null || record.terminal.exiting) return
+      // The session that ended, bound again (resumed), keeps it; another session never
+      // does, even one `goneSession` no longer marked when it bound.
+      const again = record.bound !== null && record.bound !== ended ? record.bound : null
+      if (gone !== null && again?.binding.sessionId === gone) return
       // A lead the person approved meanwhile is a new one, not the one that ended.
       if (record.summary.ledBy !== lead) return
       this.endLead(record, false)
-    }, this.host.pollMs).unref()
+    })
   }
 
   /**
@@ -212,7 +225,7 @@ export class Bindings {
    */
   restarted(): Pick<
     Record,
-    "bound" | "suspended" | "root" | "seenEntry" | "watching" | "transcript"
+    "bound" | "suspended" | "root" | "seenEntry" | "watching" | "transcript" | "goneSession"
   > {
     return {
       bound: null,
@@ -226,8 +239,8 @@ export class Bindings {
    * What the shell held of its agents, which ends with it, as it exits or restarts. The rest
    * of a shell's state (its prompts, line, foreground) the restart sets for the new one.
    */
-  private shellEnded(): Pick<Record, "suspended" | "root" | "seenEntry"> {
-    return { suspended: null, root: null, seenEntry: undefined }
+  private shellEnded(): Pick<Record, "suspended" | "root" | "seenEntry" | "goneSession"> {
+    return { suspended: null, root: null, seenEntry: undefined, goneSession: undefined }
   }
 
   /**
@@ -285,6 +298,19 @@ export class Bindings {
           : []
     if (this.host.trackRoot(record, facts, false)) this.host.save(record)
     this.host.messaging().observe(record.summary.id, facts)
+    this.escaped(record)
+  }
+
+  /** The person's keys reached the terminal: an ending key or exit command noted, and judged for an Escape (see `escaped`). */
+  keyed(record: Record, data: string): void {
+    const { typed, entered } = afterTyped(record.typed ?? "", data)
+    record.typed = typed
+    const agent = record.bound?.binding.agent
+    const exit =
+      entered !== null &&
+      !!agent &&
+      harnesses[agent].messaging.exitCommands.includes(entered.trim())
+    if (exit || endKeys.some((key) => data.includes(key))) record.endKeyAt = Date.now()
     this.escaped(record)
   }
 

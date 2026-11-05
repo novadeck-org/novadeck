@@ -8,12 +8,70 @@ import type { Record } from "./record.js"
 /** What sampling reads of a terminal's record, and what it keeps there. */
 export type SampledRecord = Pick<
   Record,
-  "terminal" | "foreground" | "summary" | "changed" | "bound"
+  "terminal" | "foreground" | "summary" | "changed" | "bound" | "endKeyAt" | "ending"
 >
 
 // Whether the platform hides a terminal's foreground program, as Windows does: no sample
 // names it there.
 const foregroundHidden = (): boolean => process.platform === "win32"
+
+/**
+ * How long before an agent's end the person's Ctrl+C or Ctrl+D may have come for the end
+ * to be theirs: they quit an agent within moments of the key.
+ */
+export const exitKeysMs = 5_000
+
+/**
+ * How many samples a Windows terminal's agent that ended without such a key waits before it
+ * counts as ended (its resume and lead let go): 30 of them, 30 s as sampled by default. A
+ * shutdown ends every console program with nobody at the keys, and the app then saves its
+ * pages (1.5 s at most) and closes the runner (killed after 5 s), so the runner is gone well
+ * within it; an agent that really ended, as by a crash, a one-shot run or a slow `/exit`,
+ * only counts later than elsewhere.
+ */
+export const graceSamples = 30
+
+/**
+ * How many samples the system's word that the session is ending (the app's `persist`)
+ * holds: 900, 15 minutes as sampled by default. Long enough for a shutdown screen that
+ * waits on apps, short enough that a shutdown the person cancels stops holding.
+ */
+export const endingSamples = 900
+
+/** Whether the system said lately that it is ending the session, so no agent's end counts yet. */
+export const sessionEnding = (record: Pick<Record, "ending">, pollMs: number): boolean =>
+  record.ending !== undefined && Date.now() - record.ending < endingSamples * pollMs
+
+/**
+ * Runs `decide` once an agent's end counts (see `endWaitMs`), and only once the system's
+ * word that the session is ending has lapsed: held back while it stands, so an end during a
+ * shutdown that was cancelled is decided afterwards, not lost.
+ */
+export const whenEndCounts = (
+  record: Pick<Record, "endKeyAt" | "ending">,
+  pollMs: number,
+  decide: () => void,
+): void => {
+  const fire = (): void => {
+    if (record.ending !== undefined && sessionEnding(record, pollMs)) {
+      const left = record.ending + endingSamples * pollMs - Date.now()
+      setTimeout(fire, Math.max(pollMs, left)).unref()
+      return
+    }
+    decide()
+  }
+  setTimeout(fire, endWaitMs(record, pollMs)).unref()
+}
+
+/**
+ * How long after an agent's end, where no sample names the foreground program (Windows),
+ * it counts as ended: a sample's time after the person's own ending key just before, else
+ * the grace. The one decision of every path that ends an agent there.
+ */
+export const endWaitMs = (record: Pick<Record, "endKeyAt">, pollMs: number): number =>
+  record.endKeyAt !== undefined && Date.now() - record.endKeyAt <= exitKeysMs
+    ? pollMs
+    : pollMs * graceSamples
 
 /**
  * An agent's session bound the terminal. Where no sample names the foreground program,
@@ -112,17 +170,20 @@ export class Sampler<R extends SampledRecord> {
    * shell, as Windows ends every console program while it shuts down, has its shell show a
    * prompt for the moment before the runner stops: that agent stays the one to resume. An
    * agent bound again meanwhile, the shell ended or replaced, or the runner stopping keeps
-   * it too.
+   * it too. The wait is a sample's time after the person's own ending key, else the grace
+   * (see `endWaitMs`), and the system's word that the session is ending holds it back
+   * (see `whenEndCounts`).
    */
   prompted(record: R): void {
     if (!foregroundHidden() || record.summary.lastProgram === null) return
     const shell = record.terminal.pty
-    setTimeout(() => {
-      if (this.host.stopping() || record.bound !== null || record.terminal.pty !== shell) return
+    whenEndCounts(record, this.pollMs, () => {
+      if (this.host.stopping() || record.bound !== null) return
+      if (record.terminal.pty !== shell) return
       if (record.terminal.exit !== null || record.terminal.exiting) return
       record.summary = { ...record.summary, lastProgram: null }
       record.changed = true
-    }, this.pollMs).unref()
+    })
   }
 
   /** Stops sampling, as the runner shuts down. */

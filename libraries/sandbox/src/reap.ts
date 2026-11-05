@@ -24,10 +24,10 @@ const tableFor = (options: ReapOptions = {}): Table =>
       : linux
 
 /**
- * The sandbox's processes now, each named as a leftover is, with its recorded parent on
- * Windows; none elsewhere. Taken while its programs still run, it names the parent a
- * leftover later records as gone, which tells a program started apart from its shell from
- * one the shell's tree should have held.
+ * The sandbox's processes now, each named as a leftover is, with its recorded parent, its
+ * program's path and its command line on Windows; none elsewhere. Taken while its programs
+ * still run, it names the parent a leftover later records as gone, which tells a program
+ * started apart from its shell from one the shell's tree should have held.
  */
 export const census = async (sandbox: Scope): Promise<string[]> =>
   process.platform === "win32" ? (await tableFor().list(sandbox)).map(named) : []

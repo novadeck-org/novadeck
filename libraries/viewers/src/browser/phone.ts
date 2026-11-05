@@ -24,8 +24,9 @@ export const chromeMajorOf = (userAgent: string): string =>
 /**
  * The DevTools protocol commands that make a page view a phone's, for Chromium `version`:
  * its viewport a phone's screen, laid out as a phone lays out (its `<meta viewport>` read,
- * its scrollbars over the page), a pointer that touches, and a phone's browser in its user
- * agent and client hints. Its pixels stay the screen's own.
+ * its scrollbars over the page), a page that is touched, and a phone's browser in its user
+ * agent and client hints. Its pixels stay the screen's own. The mouse touching it is
+ * `phoneTouch`, apart, as that reaches past the view.
  */
 export const phoneEmulation = (
   version: string,
@@ -34,7 +35,6 @@ export const phoneEmulation = (
   return [
     ["Emulation.setDeviceMetricsOverride", { ...phoneScreen, deviceScaleFactor: 0, mobile: true }],
     ["Emulation.setTouchEmulationEnabled", { enabled: true, maxTouchPoints: 5 }],
-    ["Emulation.setEmitTouchEventsForMouse", { enabled: true, configuration: "mobile" }],
     [
       "Emulation.setUserAgentOverride",
       {
@@ -55,3 +55,15 @@ export const phoneEmulation = (
     ],
   ]
 }
+
+/**
+ * The DevTools protocol command that makes the mouse touch, as a finger on a phone would, or
+ * point again. Chromium has one such switch for a whole window, its page views included:
+ * sent to a page view, it turns the mouse to touch over the app's own page too.
+ */
+export const phoneTouch = (
+  on: boolean,
+): readonly [method: string, params: Record<string, unknown>] => [
+  "Emulation.setEmitTouchEventsForMouse",
+  on ? { enabled: true, configuration: "mobile" } : { enabled: false },
+]

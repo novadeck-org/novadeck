@@ -106,8 +106,28 @@ describe.skipIf(process.platform === "win32" || !existsSync(bash))(
       manager.write({ terminalId: id, data: "report\r" }, "owner")
       const shown = await shell.until(manager, id, "reports sent")
       expect(shown).not.toContain("args:")
+      // Its screen says why, as nothing else shows it.
+      expect(shown).toContain("Claude Code was running here, but wasn't resumed")
+      expect(shown).toContain("Novadeck isn't connected to Claude Code")
       await new Promise((resolve) => setTimeout(resolve, 500))
       expect(manager.reportedSession(id, "claude")).toBe("abc-1")
+    })
+
+    it("says on a restarted shell's screen why its agent was not resumed", async ({ shell }) => {
+      const manager = shell.manager()
+      const next = shell.watch(manager)
+      const terminal = await create(manager, shell)
+      manager.write({ terminalId: terminal.id, data: "exit\r" }, "owner")
+      await next((summary) => summary.id === terminal.id && summary.exit !== null)
+      // No Claude Code session was ever saved here, so there is nothing to resume.
+      await manager.restart(
+        { terminalId: terminal.id, cols: 100, rows: 20, resume: "claude" },
+        "owner",
+      )
+      const shown = await shell.until(manager, terminal.id, "wasn't resumed")
+      expect(shown).toContain(
+        "Claude Code was running here, but wasn't resumed: Novadeck has no Claude Code session saved for this terminal.",
+      )
     })
 
     it("lets go of the foreground agent once it is disconnected", async ({ shell }) => {
