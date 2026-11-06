@@ -80,6 +80,40 @@ describe("Novadeck's own tools", () => {
     })
   })
 
+  it("labels an ask by its shape, with its subject", () => {
+    const subject = "Open a pull request?"
+    const ask = (shape?: object) => novadeckTool("ask", { subject, body: "Ready.", shape })
+    expect(ask()).toEqual({ kind: "agent", title: "Asked you", detail: subject })
+    expect(ask({ type: "text" })?.title).toBe("Asked you")
+    expect(ask({ type: "options", options: [{ label: "Yes" }] })?.title).toBe("Asked you to choose")
+    expect(ask({ type: "action", command: "gh auth login", done_label: "Done" })?.title).toBe(
+      "Asked you to run a command",
+    )
+  })
+
+  it("reads an ask's shape from the JSON text Antigravity may wrap it in", () => {
+    const shape = JSON.stringify({ type: "options", options: [{ label: "Yes" }] })
+    expect(novadeckTool("ask", { subject: "Merge?", body: "", shape })?.title).toBe(
+      "Asked you to choose",
+    )
+  })
+
+  it("labels a withdrawn ask, which carries only its id", () => {
+    expect(novadeckTool("ask", { withdraw: "a-1" })).toEqual({
+      kind: "agent",
+      title: "Withdrew an ask",
+      detail: "",
+    })
+  })
+
+  it("labels a tell call as telling, with its subject", () => {
+    expect(novadeckTool("tell", { subject: "CI is green", body: "All checks." })).toEqual({
+      kind: "agent",
+      title: "Told you",
+      detail: "CI is green",
+    })
+  })
+
   it("labels a feedback call as a draft, with its kind", () => {
     expect(novadeckTool("feedback", { kind: "bug", text: "tell failed." })).toEqual({
       kind: "agent",

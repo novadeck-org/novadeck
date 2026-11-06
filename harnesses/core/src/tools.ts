@@ -166,6 +166,20 @@ export const novadeckTool = (tool: string, fields: Fields | undefined): ToolRun 
         detail: page ? oneLine(textField(page, "url")) : "",
       }
     }
+    // A withdrawal carries only the ask's id; an ask, its subject and maybe a shape.
+    case "ask": {
+      if (text("withdraw")) return { kind: "agent", title: "Withdrew an ask", detail: "" }
+      const shape = textField(nested(fields?.shape), "type")
+      const title =
+        shape === "options"
+          ? "Asked you to choose"
+          : shape === "action"
+            ? "Asked you to run a command"
+            : "Asked you"
+      return { kind: "agent", title, detail: text("subject") }
+    }
+    case "tell":
+      return { kind: "agent", title: "Told you", detail: text("subject") }
     case "done":
       return { kind: "agent", title: "Reported done", detail: text("subject") }
     case "feedback":

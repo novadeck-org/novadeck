@@ -231,6 +231,28 @@ export const agyVocabulary: readonly Written[] = [
           "Created #12",
         ],
         ["call_mcp_tool", { ServerName: "github" }, "No tool named"],
+        [
+          "call_mcp_tool",
+          {
+            ServerName: "novadeck",
+            ToolName: "ask",
+            Arguments: {
+              subject: "Which pick?",
+              body: "Two ways.",
+              shape: { type: "options", options: [{ label: "This" }] },
+            },
+          },
+          "Asked.",
+        ],
+        [
+          "call_mcp_tool",
+          {
+            ServerName: "novadeck",
+            ToolName: "tell",
+            Arguments: JSON.stringify({ subject: "CI is green", body: "All checks." }),
+          },
+          "Told.",
+        ],
       ],
       0,
     ),
@@ -263,6 +285,31 @@ export const agyVocabulary: readonly Written[] = [
         ],
         [`${novadeck}feedback`, { kind: "bug", text: "The pane went blank." }, "Drafted."],
         [`${novadeck}look`, { page: { url: "http://localhost:5173" } }, "Looked"],
+        [`${novadeck}tell`, { subject: "CI is green", body: "All checks." }, "Told."],
+        [`${novadeck}ask`, { subject: "Merge it?", body: "It's ready." }, "Asked."],
+        [
+          `${novadeck}ask`,
+          {
+            subject: "Which pick?",
+            body: "Two ways.",
+            shape: { type: "options", options: [{ label: "This" }, { label: "That" }] },
+          },
+          "Asked.",
+        ],
+        [
+          `${novadeck}ask`,
+          {
+            subject: q("Sign in, please"),
+            body: q("It needs you."),
+            shape: JSON.stringify({
+              type: "action",
+              command: "gh auth login",
+              done_label: "Signed in",
+            }),
+          },
+          "Asked.",
+        ],
+        [`${novadeck}ask`, { withdraw: "a-1" }, "Withdrew."],
       ],
       0,
     ),

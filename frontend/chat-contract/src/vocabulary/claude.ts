@@ -286,7 +286,7 @@ export const claudeVocabulary: readonly Written[] = [
   {
     // Novadeck's reporting tools, their inputs' keys as Claude Code's transcripts give them
     // (seen 2026-11: done {subject, body}, feedback {kind, text}, look {} and {page}), each
-    // result a list of text parts.
+    // result a list of text parts; ask and tell as Novadeck's server defines them.
     name: "novadeck-reports",
     records: [
       said("Wrap up."),
@@ -303,6 +303,27 @@ export const claudeVocabulary: readonly Written[] = [
         ],
         [`${novadeck}look`, { page: { url: "http://localhost:5173" } }, "Looked"],
         [`${novadeck}look`, {}, "Looked"],
+        [`${novadeck}tell`, { subject: "CI is green", body: "All checks." }, "Told."],
+        [`${novadeck}ask`, { subject: "Merge it?", body: "It's ready." }, "Asked."],
+        [
+          `${novadeck}ask`,
+          {
+            subject: "Which pick?",
+            body: "Two ways.",
+            shape: { type: "options", options: [{ label: "This" }, { label: "That" }] },
+          },
+          "Asked.",
+        ],
+        [
+          `${novadeck}ask`,
+          {
+            subject: "Sign in, please",
+            body: "It needs you.",
+            shape: { type: "action", command: "gh auth login", done_label: "Signed in" },
+          },
+          "Asked.",
+        ],
+        [`${novadeck}ask`, { withdraw: "a-1" }, "Withdrew."],
       ]),
     ],
   },
