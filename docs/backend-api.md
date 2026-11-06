@@ -1229,7 +1229,7 @@ one from an earlier runner.
   placeholder standing for the words (clearing it would lose them), may hold more than it
   shows (messages queued in a box as tall as its viewport, or one that says it is cut), or
   can't be read, after the Escape stopped the turn, it rejects with `BOX_NOT_CLEARED` and
-  leaves the box as it is, for the next prompt to see to ("A box that isn't empty").
+  leaves the box as it is, for the next prompt to see to where it can ("A box that isn't empty"), and otherwise for the terminal.
   `returned` leaves out Novadeck's own doorbell and reply lines. The call takes up to about half a
   second longer where nothing comes back, and a few seconds more with queued messages. The
   client's `agents.interrupt(terminalId)` is that call, and resolves with the result.

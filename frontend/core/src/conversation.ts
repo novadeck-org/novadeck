@@ -356,8 +356,8 @@ export const returnedBy = (failure: unknown): string | undefined => {
   return typeof returned === "string" ? returned : undefined
 }
 
-// Stop took the turn's Escape, but the words queued behind it are still in the agent's box: the
-// next message sees to them.
+// Stop took the turn's Escape, but the words queued behind it are still in the agent's box, for
+// the terminal or the next message to see to.
 export const notCleared = (): Error =>
   new Error(
     "Stopped. Your queued message is still in the agent's box: send it there, or try it with your next message here.",
