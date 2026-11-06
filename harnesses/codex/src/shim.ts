@@ -69,8 +69,8 @@ rem Only while Codex is connected: Novadeck's shells name the harnesses whose sh
 echo " %NOVADECK_SHIMS% " | findstr /c:" codex " >nul || goto plain
 rem A word that needs the shared server leaves codex alone.
 :words
-set novadeck_arg=%1
-if not defined novadeck_arg goto session
+set novadeck_arg=""%1
+if "%novadeck_arg:"=#%"=="##" goto session
 set "novadeck_arg=%novadeck_arg:"=%"
 shift
 if /i "%novadeck_arg%"=="agents" goto plain
@@ -78,6 +78,7 @@ if /i "%novadeck_arg%"=="--remote" goto plain
 if /i "%novadeck_arg%"=="--no-daemon" goto titled
 goto words
 :session
+set "novadeck_arg="
 "%novadeck_real%" --no-daemon -c "${titleSetting}" %*
 exit /b %ERRORLEVEL%
 rem Already without the shared server: only the title is added.

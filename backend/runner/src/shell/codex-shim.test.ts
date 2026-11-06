@@ -5,7 +5,7 @@ import { delimiter, join } from "node:path"
 
 import { describe, expect, it as base } from "../test.js"
 import { installShellFiles } from "./install.js"
-import { quotedPrompts, splitPrompts } from "./shim-prompts.test-support.js"
+import { pipedPrompt, quotedPrompts, splitPrompt } from "./shim-prompts.test-support.js"
 
 const windows = process.platform === "win32"
 
@@ -57,6 +57,7 @@ const it = base.extend<{ shim: Fixture }>({
           ...env,
         },
         encoding: "utf8" as const,
+        timeout: 30_000,
         ...(cwd !== undefined && { cwd }),
       }
       const result = windows
@@ -138,12 +139,9 @@ describe("codex shim", { timeout: 60_000 }, () => {
     expect(shim.run(["exec", "hi"], { NOVADECK_SHIMS: "claude" })).toEqual(["exec", "hi"])
   })
 
+  // Help that printed would also page at a console, and wait there for a key.
   it("hands on a word that cmd's own commands take as a request for their help", ({ shim }) => {
-    const { result, received } = shim.launch(join(shim.bin, windows ? "codex.cmd" : "codex"), [
-      "/?",
-    ])
-    expect(result.status).toBe(0)
-    expect(received).toEqual([
+    expect(shim.run(["/?"])).toEqual([
       "--no-daemon",
       "-c",
       "tui.terminal_title=['status','thread-id']",
@@ -151,20 +149,28 @@ describe("codex shim", { timeout: 60_000 }, () => {
     ])
   })
 
-  it.runIf(windows).for(splitPrompts)(
-    "takes the prompt %j, which cmd splits first, as the real codex does alone",
-    (prompt, { shim }) => {
-      const alone = shim.launch(join(shim.real, "codex.cmd"), [prompt])
-      const through = shim.launch(join(shim.bin, "codex.cmd"), [prompt])
-      expect(alone.received).toBeDefined()
-      expect(through.received).toEqual([
-        "--no-daemon",
-        "-c",
-        "tui.terminal_title=['status','thread-id']",
-        ...(alone.received ?? []),
-      ])
+  it.runIf(windows)("takes a prompt cmd splits first as the real codex does alone", ({ shim }) => {
+    const alone = shim.launch(join(shim.real, "codex.cmd"), [splitPrompt])
+    const through = shim.launch(join(shim.bin, "codex.cmd"), [splitPrompt])
+    expect(alone.received).toBeDefined()
+    expect(through.received).toEqual([
+      "--no-daemon",
+      "-c",
+      "tui.terminal_title=['status','thread-id']",
+      ...(alone.received ?? []),
+    ])
+    expect(through.result.status).toBe(alone.result.status)
+    expect(through.result.stderr).toBe(alone.result.stderr)
+  })
+
+  it.runIf(windows)(
+    "starts nothing at a pipe cmd splits first, as the real codex alone",
+    ({ shim }) => {
+      const alone = shim.launch(join(shim.real, "codex.cmd"), [pipedPrompt])
+      const through = shim.launch(join(shim.bin, "codex.cmd"), [pipedPrompt])
+      expect(alone.received).toBeUndefined()
+      expect(through.received).toBeUndefined()
       expect(through.result.status).toBe(alone.result.status)
-      expect(through.result.stderr).toBe(alone.result.stderr)
     },
   )
 

@@ -10,4 +10,7 @@ export const quotedPrompts = [
 
 // What cmd takes to be outside quotes, so the cmd that starts a batch file splits the line there
 // before the file runs: no shim can keep these whole, and each must fare as it does without one.
-export const splitPrompts = ['say "a & b" now', 'he said "hi | bye']
+export const splitPrompt = 'say "a & b" now'
+
+// The same at a pipe, where the program doesn't even start, as measured on Windows without a shim.
+export const pipedPrompt = 'he said "hi | bye'

@@ -8,7 +8,7 @@ import { gitBash } from "@novadeck/sandbox"
 
 import { describe, expect, it as base } from "../test.js"
 import { installShellFiles } from "./install.js"
-import { quotedPrompts, splitPrompts } from "./shim-prompts.test-support.js"
+import { pipedPrompt, quotedPrompts, splitPrompt } from "./shim-prompts.test-support.js"
 
 const windows = process.platform === "win32"
 
@@ -67,6 +67,7 @@ const it = base.extend<{ shim: Fixture }>({
           ...env,
         },
         encoding: "utf8" as const,
+        timeout: 30_000,
         ...(cwd !== undefined && { cwd }),
       }
       const result = windows
@@ -235,6 +236,8 @@ describe("claude shim", { timeout: 60_000 }, () => {
       ["--mcp-config=a.json", "plugin", "list"],
       // An empty word is a value like any other, and the list goes on past it.
       ["--add-dir", "a", "", "--verbose", "mcp"],
+      // cmd's delayed expansion would take these two for a variable, and the = form with them.
+      ["--model", "a!b", "--add-dir=c", "mcp", "list", "d!e"],
       // An odd count of quotes after the command keeps it one.
       ["mcp", 'he said "hi'],
       ["--add-dir", 'say "hi there" now', "--verbose", "mcp", "list"],
@@ -259,27 +262,34 @@ describe("claude shim", { timeout: 60_000 }, () => {
     expect(shim.variables()).toEqual([null, null])
   })
 
+  // Help that printed would also page at a console, and wait there for a key.
   it("hands on a word that cmd's own commands take as a request for their help", ({ shim }) => {
-    const { result, received } = shim.launch(join(shim.bin, windows ? "claude.cmd" : "claude"), [
-      "/?",
-    ])
-    expect(result.status).toBe(0)
-    expect(received).toEqual(["--settings", expect.stringMatching(/statusline\.json$/), "/?"])
+    const settings = expect.stringMatching(/statusline\.json$/)
+    for (const args of [["/?"], ["--add-dir", "a", "/?"], ["--verbose", "/?", "mcp"]])
+      expect(shim.run(args)).toEqual(["--settings", settings, ...args])
   })
 
-  it.runIf(windows).for(splitPrompts)(
-    "takes the prompt %j, which cmd splits first, as the real claude does alone",
-    (prompt, { shim }) => {
-      const alone = shim.launch(join(shim.real, "claude.cmd"), [prompt])
-      const through = shim.launch(join(shim.bin, "claude.cmd"), [prompt])
-      expect(alone.received).toBeDefined()
-      expect(through.received).toEqual([
-        "--settings",
-        expect.stringMatching(/statusline\.json$/),
-        ...(alone.received ?? []),
-      ])
+  it.runIf(windows)("takes a prompt cmd splits first as the real claude does alone", ({ shim }) => {
+    const alone = shim.launch(join(shim.real, "claude.cmd"), [splitPrompt])
+    const through = shim.launch(join(shim.bin, "claude.cmd"), [splitPrompt])
+    expect(alone.received).toBeDefined()
+    expect(through.received).toEqual([
+      "--settings",
+      expect.stringMatching(/statusline\.json$/),
+      ...(alone.received ?? []),
+    ])
+    expect(through.result.status).toBe(alone.result.status)
+    expect(through.result.stderr).toBe(alone.result.stderr)
+  })
+
+  it.runIf(windows)(
+    "starts nothing at a pipe cmd splits first, as the real claude alone",
+    ({ shim }) => {
+      const alone = shim.launch(join(shim.real, "claude.cmd"), [pipedPrompt])
+      const through = shim.launch(join(shim.bin, "claude.cmd"), [pipedPrompt])
+      expect(alone.received).toBeUndefined()
+      expect(through.received).toBeUndefined()
       expect(through.result.status).toBe(alone.result.status)
-      expect(through.result.stderr).toBe(alone.result.stderr)
     },
   )
 

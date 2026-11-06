@@ -144,6 +144,9 @@ exec "$novadeck_real" --settings "$novadeck_settings" "$@"
 // A word of `%*` can hold a lone quote, as cmd doesn't know `\"`: `"say \"hi there\" now"` is
 // `"say \"hi` and `there\" now"`, and `"%~1"` then ends the batch with a syntax error. So a word is
 // set as it stands, which parses as the line it came from did, and tested once its quotes are gone.
+// The empty pair ahead of it keeps that count even and `set` from seeing a bare `/?`, which it would
+// answer with its help, and paging at a console. Only the end of the words leaves that pair alone,
+// which tells it from an empty word. A `/?` later in `%*` can still reach `set`, which `>nul` quiets.
 // And `%*` ends its line: after an odd count of quotes, the rest of that line is in quotes too.
 // The walk stays out of a `call`, which reads `%*` a second time: `/?` would print its help, `%~`
 // an error, and a `%` could uncover a `&`. `shift` leaves `%*` as it was, for the line that runs it.
@@ -164,8 +167,8 @@ set "novadeck_settings=%~dp0..\\plugins\\claude\\statusline.json"
 if not exist "%novadeck_settings%" goto plain
 rem The first word that isn't an option or an option's value may be another command.
 :command
-set novadeck_arg=%1
-if not defined novadeck_arg goto session
+set novadeck_arg=""%1
+if "%novadeck_arg:"=#%"=="##" goto session
 set "novadeck_arg=%novadeck_arg:"=%"
 if not defined novadeck_arg goto session
 for %%v in (${many.join(" ")}) do if "%novadeck_arg%"=="%%v" goto list
@@ -187,17 +190,19 @@ rem too: where either misleads, a session goes without the status line, or a com
 :list
 shift
 shift
+>nul set novadeck_line=""%*
 setlocal enabledelayedexpansion
-set novadeck_line=%*
 set "novadeck_after=!novadeck_line:*%novadeck_arg%=!"
 if "!novadeck_after:~0,1!"=="=" (
   endlocal
+  set "novadeck_line="
   goto command
 )
 endlocal
+set "novadeck_line="
 :more
-set novadeck_arg=%1
-if not defined novadeck_arg goto session
+set novadeck_arg=""%1
+if "%novadeck_arg:"=#%"=="##" goto session
 set "novadeck_arg=%novadeck_arg:"=%"
 if defined novadeck_arg if "%novadeck_arg:~0,1%"=="-" if not "%novadeck_arg%"=="-" goto command
 shift

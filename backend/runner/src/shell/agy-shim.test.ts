@@ -5,7 +5,7 @@ import { delimiter, join } from "node:path"
 
 import { describe, expect, it as base } from "../test.js"
 import { shellFiles, shellPaths } from "./scripts.js"
-import { quotedPrompts, splitPrompts } from "./shim-prompts.test-support.js"
+import { pipedPrompt, quotedPrompts, splitPrompt } from "./shim-prompts.test-support.js"
 
 type Fixture = {
   readonly shim: string
@@ -48,6 +48,7 @@ const it = base.extend<{ fixture: Fixture }>({
           NOVADECK_SHIMS: "agy",
         },
         encoding: "utf8",
+        timeout: 30_000,
       })
       return {
         result,
@@ -67,15 +68,29 @@ describe.runIf(process.platform === "win32")("agy shim", { timeout: 60_000 }, ()
     expect(received).toEqual([prompt])
   })
 
-  it.for(splitPrompts)(
-    "takes the prompt %j, which cmd splits first, as the real agy does alone",
-    (prompt, { fixture }) => {
-      const alone = fixture.launch(join(fixture.real, "agy.cmd"), [prompt])
-      const through = fixture.launch(fixture.shim, [prompt])
-      expect(alone.received).toBeDefined()
-      expect(through.received).toEqual(alone.received)
-      expect(through.result.status).toBe(alone.result.status)
-      expect(through.result.stderr).toBe(alone.result.stderr)
-    },
-  )
+  // Help that printed would also page at a console, and wait there for a key.
+  it("hands on a word that cmd's own commands take as a request for their help", ({ fixture }) => {
+    const { result, received } = fixture.launch(fixture.shim, ["/?"])
+    expect(result.stdout).toBe("")
+    expect(result.stderr).toBe("")
+    expect(result.status).toBe(0)
+    expect(received).toEqual(["/?"])
+  })
+
+  it("takes a prompt cmd splits first as the real agy does alone", ({ fixture }) => {
+    const alone = fixture.launch(join(fixture.real, "agy.cmd"), [splitPrompt])
+    const through = fixture.launch(fixture.shim, [splitPrompt])
+    expect(alone.received).toBeDefined()
+    expect(through.received).toEqual(alone.received)
+    expect(through.result.status).toBe(alone.result.status)
+    expect(through.result.stderr).toBe(alone.result.stderr)
+  })
+
+  it("starts nothing at a pipe cmd splits first, as the real agy alone", ({ fixture }) => {
+    const alone = fixture.launch(join(fixture.real, "agy.cmd"), [pipedPrompt])
+    const through = fixture.launch(fixture.shim, [pipedPrompt])
+    expect(alone.received).toBeUndefined()
+    expect(through.received).toBeUndefined()
+    expect(through.result.status).toBe(alone.result.status)
+  })
 })
