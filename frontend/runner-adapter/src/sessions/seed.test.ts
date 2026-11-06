@@ -191,7 +191,7 @@ describe("runner seed", () => {
         { id: uuid(22), name: "Terminal", command: "vim", state: "running" },
         { id: uuid(23), name: "Terminal", state: "exited", exitCode: 1 },
       ])
-      expect(state.layout.canvas.geometry[uuid(22)]).toBeDefined()
+      expect(state.layout.sizePresets.grid[uuid(22)]).toBe("small")
     })
 
     it("drops what it kept of a terminal the runner no longer has, handing selection on", () => {

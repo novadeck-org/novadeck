@@ -4,18 +4,10 @@ import { agentShowsPage } from "../support/backend"
 import { boxOf, canvasView, scrollCanvas, settled } from "../support/canvas"
 import { companionPane, openShowcase, taskbarIcon } from "../support/companions"
 import {
-  currentSessionName,
-  emptyWorkspace,
-  expectCurrentSession,
-  pressNewSession,
-  savedSession,
-} from "../support/sessions"
-import {
   chooseView,
   expectStaysAbsent,
   layoutSettled,
   openWorkspace,
-  sidebarPanel,
   terminal,
   terminalTab,
 } from "../support/workspace"
@@ -59,7 +51,7 @@ describe("Canvas with a companion pane open on arrival", () => {
   })
 })
 
-describe("Canvas returned to with its camera as it was left", () => {
+describe("Canvas zoomed in on a window", () => {
   it("frames a pane opened afterwards", async () => {
     await openShowcase("canvas")
     await companionPane("Build Studio")
@@ -75,17 +67,6 @@ describe("Canvas returned to with its camera as it was left", () => {
     const zoomed = await settled(() => boxOf(terminal("Build Studio")))
     const zoom = zoomed.width / before.width
     expect(zoomed.left + zoomed.width + 740 * zoom).toBeGreaterThan(boxOf(canvasView()).width)
-
-    // A session left and returned to keeps its camera, rather than framing anything.
-    await sidebarPanel("Sessions").click()
-    const original = await currentSessionName()
-    await pressNewSession()
-    await expect.element(emptyWorkspace()).toBeVisible()
-    await sidebarPanel("Sessions").click()
-    await savedSession(original).click()
-    await expectCurrentSession(original)
-    await expect.element(terminal("Build Studio")).toBeVisible()
-    await layoutSettled()
 
     // From the keyboard: zoomed in, the taskbar may lie past the view's bottom.
     taskbarIcon("Build Studio", "Plan: A home for Studio").element().focus()

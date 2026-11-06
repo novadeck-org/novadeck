@@ -1,6 +1,15 @@
 import type { CanvasLayout, GridBreakpoint, GridItem, GridLayouts } from "../types"
-import { canvasPointPosition } from "./canvas-placement"
 import type { WindowSize } from "./terminal-size"
+
+// A point on the canvas, settled onto its 24 px grid.
+const step = 24
+export const canvasPointPosition = (point: {
+  readonly x: number
+  readonly y: number
+}): { x: number; y: number } => ({
+  x: Math.round(point.x / step) * step,
+  y: Math.round(point.y / step) * step,
+})
 
 export type GridCell = {
   readonly x: number

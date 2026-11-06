@@ -158,7 +158,8 @@ nothing takes it, or with Escape, it settles back into the icon it came from.
 Drop a plan or a single artifact in a view to undock it right there. On Canvas,
 over its empty space, a ghost window joins the canvas under the pointer and follows it
 freely, as a dragged window does; dropped, the window opens where the ghost was and
-settles onto the canvas's grid. On Grid, a placeholder window joins the grid under
+settles onto the canvas's grid, where it stays until Canvas next arranges its windows
+afresh. On Grid, a placeholder window joins the grid under
 the pointer as soon as the icon is over it, and the grid makes room for it like any
 window: the window it's over moves aside. It goes as the icon leaves the grid; dropped,
 the window takes its place. In

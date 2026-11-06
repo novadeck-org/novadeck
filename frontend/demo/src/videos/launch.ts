@@ -1087,11 +1087,7 @@ export const createLaunch = (turns: DemoTurns, now: number) => {
             lead,
             true,
           ),
-          // Placed by the Canvas itself: the free place most in view, nearest the middle of
-          // the viewport, not beside its anchor. They land by the lead because the layout
-          // leaves room there, at the size the person last gave a window, which the app passes
-          // as `canvasWindowSize`; here the deck's size (at the default 864x576 they don't).
-          canvasSize: windowSize,
+          // Placed by the Canvas itself, in their lead's team.
           anchor: keyOf(launch.lead).terminalId,
           select: false,
         })),

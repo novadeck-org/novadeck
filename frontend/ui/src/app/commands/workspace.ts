@@ -398,7 +398,6 @@ export const createWorkspaceCommands = (ctx: CommandContext): WorkspaceCommands 
           target,
           terminal,
           gridLayouts: addCompactGridTerminal(tilesOf(roster), layout.grid, terminal),
-          canvasSize: ui.getSnapshot().canvasWindowSize,
         },
       ]
       navigateWorkspace(actions, { panel: "terminals" })
@@ -431,7 +430,6 @@ export const createWorkspaceCommands = (ctx: CommandContext): WorkspaceCommands 
         target,
         terminal,
         gridLayouts: addCompactGridTerminal(tilesOf(roster), layout.grid, terminal),
-        canvasSize: ui.getSnapshot().canvasWindowSize,
         anchor: request.from,
         select: request.focus,
       }

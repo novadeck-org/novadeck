@@ -1,6 +1,6 @@
 /* The workspace recipe: the ground behind Focus, Grid and Canvas, its grain, its dot
-   grid and the spotlight that follows the pointer, how idle terminals fade in Canvas, the
-   windows' resize grips, and the ghost of a window a drop would open. Zen
+   grid and the spotlight that follows the pointer, how idle terminals fade in Canvas,
+   Grid's resize grip, and the ghost of a window a drop would open. Zen
    (data-zen="true" on `.workspace`) quiets the ground.
 
    `.workspace-background` clips what overflows it and never scrolls; its pseudo-elements
@@ -9,8 +9,7 @@
    Hooks: `.workspace-background` and data-pointer-inside="true" on it;
    `.workspace-dots`, `.canvas-grid` and `.canvas-grid-spotlight` (the dot grid and its
    spotlight); `.grid-terminal` and `.canvas-node`, `.selected` when selected;
-   `.drop-ghost` and `.drop-ghost-header`; `.terminal-resize-grip` (Canvas) and Grid's
-   resize handle.
+   `.drop-ghost` and `.drop-ghost-header`; Grid's resize handle.
 
    Tokens, each optional (its fallback in brackets):
    --workspace-bg (canvas): the ground. --workspace-glow-bg (paper),
@@ -142,20 +141,16 @@
 .canvas-node:not(.selected):hover {
   --_recede: var(--terminal-hover-opacity);
 }
-/* A window's resize grip, in Canvas a button holding the hatch and in Grid
-   react-grid-layout's handle, which draws it after itself: a triangle of hatching in
-   the corner, faint until the pointer reaches it. */
-.canvas-node .terminal-resize-grip,
+/* A window's resize grip in Grid, react-grid-layout's handle, which draws it after
+   itself: a triangle of hatching in the corner, faint until the pointer reaches it. */
 .terminal-grid .react-resizable-handle {
   color: var(--workspace-grip-fg, var(--color-muted));
   opacity: var(--workspace-grip-opacity, 0.35);
   transition: opacity var(--motion-feedback) var(--ease-interface);
 }
-.canvas-node .terminal-resize-grip:hover,
 .terminal-grid .react-resizable-handle:hover {
   opacity: var(--workspace-grip-hover-opacity, 0.8);
 }
-.terminal-resize-pattern,
 .terminal-grid .react-resizable-handle::after {
   width: 11px;
   height: 11px;

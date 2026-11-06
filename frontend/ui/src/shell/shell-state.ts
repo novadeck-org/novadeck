@@ -26,8 +26,12 @@ export type ShellState = {
   readonly sidebarCollapsed: boolean
   // Zen hides the chrome and remembers the sidebar to restore on exit.
   readonly zen: ZenState | null
-  // Canvas centres on the selection when it next mounts.
+  // Canvas opens as it was left, with its camera on the selection, when it next mounts:
+  // the person comes back to it from Focus by a window's own button.
   readonly revealCanvas: boolean
+  // Each increment says the person reordered the Terminals list, which Canvas arranges
+  // its windows by: it arranges them afresh.
+  readonly reordered: number
   // The terminal whose input takes keyboard focus once it shows in this view.
   readonly keyboardFocus: KeyboardFocus | null
   readonly canvasKeyboardFocus: CanvasKeyboardFocus | null
@@ -47,6 +51,7 @@ export const initialShell = (sidebarCollapsed: boolean): ShellState => ({
   sidebarCollapsed,
   zen: null,
   revealCanvas: false,
+  reordered: 0,
   keyboardFocus: null,
   canvasKeyboardFocus: null,
   navigation: { count: 1, move: "center" },
@@ -133,6 +138,12 @@ export const flies = (
   !flight.spent &&
   flight.context === context &&
   flight.view === view
+
+// The person reordered the Terminals list.
+export const markReordered = (shell: ShellState): ShellState => ({
+  ...shell,
+  reordered: shell.reordered + 1,
+})
 
 export const bumpNavigation = (shell: ShellState, move: NavigationMove = "center"): ShellState => ({
   ...shell,

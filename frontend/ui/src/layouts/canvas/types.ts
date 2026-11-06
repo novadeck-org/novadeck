@@ -1,38 +1,38 @@
 import type { Team } from "@novadeck/core/derivations"
-import type { WindowSize } from "@novadeck/core/layout/terminal-size"
 import type { Tile, CanvasLayout } from "@novadeck/core/types"
 import type { Node } from "@xyflow/react"
 import type { Dispatch, SetStateAction, Ref, ReactNode } from "react"
 
 import type { TerminalLayoutControls } from "../../terminals/WindowShell"
+import type { HeldStay } from "./stay"
 
 export type TerminalNode = Node<
   {
-    compactHeader: boolean
     hiding: boolean
     preview: boolean
     // What the window is in the selected terminal's team, if it is in it: those windows stay
     // bright.
     team: "lead" | "worker" | undefined
     focusRequest: number | null
-    onResizeStart: () => void
-    onResizeEnd: (width: number, height: number) => void
   },
   "terminal"
 >
 export type CanvasProps = {
-  // The size a new window opens at, and where a window the person resized says its size,
-  // which new windows open at from then on.
-  windowSize: WindowSize
-  onWindowResize: (size: WindowSize) => void
+  // Its camera, which it saves, and where a window was dropped on it; it arranges its
+  // windows itself and saves nothing of that.
   layout: CanvasLayout
+  // Come back to from Focus by a window's own button: it opens as it was left, its camera
+  // and its windows. Otherwise it arranges its windows afresh and frames them all.
   revealOnMount: boolean
-  // Opened from another view: it frames every visible window as it mounts.
-  fitOnMount: boolean
+  // The session's stay on Canvas, which outlives this view.
+  stay: HeldStay
+  // Each increment says the person reordered the sidebar: the windows are arranged afresh.
+  reordered: number
   fitOnNavigate: boolean
   // Navigation flies the camera in to the selection, as a header's double-click does.
   flyOnNavigate: boolean
   onLayoutChange: Dispatch<SetStateAction<CanvasLayout>>
+  // The session's terminals and windows, in the sidebar's order.
   terminals: readonly Tile[]
   hidden: Record<string, boolean>
   preview: string
@@ -45,7 +45,6 @@ export type CanvasProps = {
   keyboardFocusRequest: number | null
   navigation: number
   onSelect: (id: string) => void
-  onCreate: () => string
   render: (terminal: Tile, controls: TerminalLayoutControls) => ReactNode
 }
 export type CanvasViewport = NonNullable<CanvasLayout["viewport"]>

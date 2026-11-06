@@ -1,9 +1,9 @@
 import "./canvas.css"
-import { canvasPointPosition, viewportCanvasPosition } from "@novadeck/core/layout/canvas-placement"
+import type { Arranged } from "@novadeck/core/layout/canvas-arrangement"
+import { canvasPointPosition } from "@novadeck/core/layout/window-place"
 import { isWindow } from "@novadeck/core/roster"
-import type { Tile, CanvasLayout } from "@novadeck/core/types"
+import type { Tile } from "@novadeck/core/types"
 import { useDrag, useDragSession } from "@novadeck/items/drag-session"
-import { ContextMenu } from "@novadeck/toolkit/ContextMenu"
 import {
   Background,
   getViewportForBounds,
@@ -13,21 +13,22 @@ import {
   useStore,
   ViewportPortal,
   useStoreApi,
-  type ReactFlowState,
+  type OnNodesChange,
   type XYPosition,
 } from "@xyflow/react"
-import { Plus } from "lucide-react"
 import {
   forwardRef,
   useCallback,
   useEffect,
   useLayoutEffect,
+  useMemo,
   useRef,
   useState,
   type CSSProperties,
   type ReactNode,
 } from "react"
 
+import { prefersReducedMotion } from "../../interaction/reduced-motion"
 import { workspaceOverlayOpen, workspaceShortcutTarget } from "../../interaction/shortcuts"
 import { backgroundPointerHandlers } from "../background"
 import { useTerminalVisibility } from "../useTerminalVisibility"
@@ -35,12 +36,14 @@ import { CanvasTeamWire } from "./CanvasTeamWire"
 import {
   canvasStep,
   chromeScaleAt,
-  fallbackPosition,
-  fallbackSize,
   fitOptions,
+  inSight,
+  snap,
   terminalHeaderHeight,
+  windowSize,
 } from "./geometry"
 import { createNodeVisibility } from "./nodeVisibility"
+import { beginStay, continueStay, moveInStay, stayPlaces, type CanvasStay } from "./stay"
 import { NodeVisibilityContext, TerminalContent, nodeTypes } from "./TerminalNode"
 import type {
   CanvasProps,
@@ -49,26 +52,33 @@ import type {
   TerminalCanvasProps,
   TerminalNode,
 } from "./types"
-import { useCanvasGeometry } from "./useCanvasGeometry"
 import { useCanvasNavigation } from "./useCanvasNavigation"
 import { useCanvasPersistence } from "./useCanvasPersistence"
 import { useCanvasVisit } from "./useCanvasVisit"
 export type { CanvasHandle } from "./types"
 
 // The chrome that reads `--_canvas-chrome-scale` (canvas.css, terminal-status.css).
-const chromeReaders = ".terminal-heading, .terminal-resize-grip, .terminal-ending"
+const chromeReaders = ".terminal-heading, .terminal-ending"
 
 // How long a window dropped from a taskbar takes to settle onto the canvas's grid.
 const settleMs = 160
 
-const samePoint = (a: XYPosition, b: XYPosition): boolean => a.x === b.x && a.y === b.y
+// How long the windows take to glide where the canvas arranged them (canvas.css).
+const glideMs = 160
+
+// The room the canvas arranges for where it can't measure its own, as under a test.
+const unmeasured = { width: 1280, height: 800 }
+
+const origin: Readonly<XYPosition> = { x: 0, y: 0 }
+
+const samePoint = (a: XYPosition | undefined, b: XYPosition | undefined): boolean =>
+  a?.x === b?.x && a?.y === b?.y
 
 const TerminalCanvas = ({
-  windowSize,
-  onWindowResize,
   layout,
   revealOnMount,
-  fitOnMount,
+  stay: held,
+  reordered,
   fitOnNavigate,
   flyOnNavigate,
   onLayoutChange,
@@ -81,11 +91,9 @@ const TerminalCanvas = ({
   keyboardFocusRequest,
   navigation,
   onSelect,
-  onCreate,
   render,
   handleRef,
 }: TerminalCanvasProps): React.JSX.Element => {
-  const { geometry } = layout
   const removed = useTerminalVisibility(hidden)
   const {
     fitView,
@@ -93,6 +101,7 @@ const TerminalCanvas = ({
     zoomIn,
     zoomOut,
     getViewport,
+    setViewport,
     getNode,
     setNodes,
     updateNode,
@@ -101,13 +110,11 @@ const TerminalCanvas = ({
   const store = useStoreApi<TerminalNode>()
   // The viewport's size is read where it's needed, never subscribed to: it changes every
   // frame while the sidebar slides, and a render per frame rebuilds every window. What
-  // renders from it subscribes coarsely: whether it's measured, and the zoom limit in
-  // whole steps.
+  // renders from it subscribes coarsely: the zoom limit in whole steps.
   const viewportSize = useCallback((): { width: number; height: number } => {
     const { width, height } = store.getState()
     return { width, height }
   }, [store])
-  const measured = useStore((state) => state.width > 0 && state.height > 0)
   const fitZoom = useStore(
     (state) => Math.floor(Math.min(state.width / 320, state.height / 200) * 2) / 2,
   )
@@ -116,17 +123,10 @@ const TerminalCanvas = ({
   const [visibility] = useState(createNodeVisibility)
   const [initialViewport] = useState(layout.viewport)
   const { visit, animateVisit } = useCanvasVisit(handleRef)
-  const persistence = useCanvasPersistence({ layout, terminals, onLayoutChange })
-  const {
-    geometryRef,
-    dirtyGeometry,
-    resizing,
-    viewportRef,
-    mounted,
-    commitGeometry,
-    trackViewport,
-    commitViewport,
-  } = persistence
+  const { viewportRef, mounted, trackViewport, commitViewport } = useCanvasPersistence({
+    layout,
+    onLayoutChange,
+  })
   // Leaving Canvas ends a visit as though the person came back from it: the camera it
   // keeps is where the visit began, so a double-click on returning flies in again, not to
   // where the camera already is. After the unmount snapshot above, so it wins.
@@ -139,24 +139,6 @@ const TerminalCanvas = ({
     },
     [visit, trackViewport, commitViewport],
   )
-  // Zoom reaches the nodes only where it changes them: a header turning compact. The
-  // chrome itself scales in CSS (below), so zooming rerenders no terminal until one does.
-  useStore(
-    useCallback(
-      (state: ReactFlowState) => {
-        const scale = chromeScaleAt(state.transform[2])
-        return terminals
-          .map((terminal) =>
-            (geometryRef.current[terminal.id]?.width ?? fallbackSize.width) / scale < 240
-              ? "1"
-              : "0",
-          )
-          .join("")
-      },
-      [terminals, geometryRef],
-    ),
-  )
-  const chromeScale = chromeScaleAt(store.getState().transform[2])
   // The chrome's scale is a CSS variable, but setting it on the canvas restyles everything
   // inside, thousands of terminal rows included, on every frame of a zoom. So a zoom sets
   // it only on the chrome that reads it, and the canvas takes it once the zoom rests, for
@@ -181,11 +163,52 @@ const TerminalCanvas = ({
       clearTimeout(resting)
     }
   }, [store])
+  // The windows the canvas arranges: those not hidden, in the sidebar's order, each with
+  // the window that leads it. A hidden terminal shown while it is selected (`preview`) is
+  // not one of them: looking at it arranges nothing.
+  const tiles = useMemo((): readonly Arranged[] => {
+    const leads = new Map(
+      teams.flatMap((each) => each.workers.map((worker) => [worker, each.lead] as const)),
+    )
+    return terminals
+      .filter((terminal) => !hidden[terminal.id] && terminal.id !== preview)
+      .map((terminal) => ({ id: terminal.id, lead: leads.get(terminal.id) }))
+  }, [terminals, hidden, preview, teams])
+  // The room the canvas has, which decides how its windows are packed. Read when they are
+  // arranged afresh, never followed: it changes every frame while the sidebar slides.
+  const room = useCallback((): { width: number; height: number } => {
+    const element = container.current
+    return {
+      width: element?.clientWidth || unmeasured.width,
+      height: element?.clientHeight || unmeasured.height,
+    }
+  }, [])
+  // This stay on Canvas (stay.ts): as it was left, come back to from Focus by a window's own
+  // button, and afresh otherwise. It begins once the canvas has its room, before the first
+  // paint, and its windows mount where it puts them.
+  const stay = useRef<CanvasStay | null>(null)
+  const [opened, setOpened] = useState<ReadonlyMap<string, XYPosition> | null>(null)
+  // Whether it opens as it was left: only then does it keep the camera it was left with.
+  const [restored] = useState(() => revealOnMount && held.kept(reordered) !== undefined)
+  useLayoutEffect(() => {
+    if (stay.current) return
+    const kept = restored ? held.kept(reordered) : undefined
+    const first = kept ? continueStay(kept, tiles) : beginStay(tiles, room())
+    stay.current = first
+    held.keep(first, reordered)
+    setOpened(stayPlaces(first))
+  }, [held, reordered, restored, room, tiles])
+  // The sidebar's order the windows were last arranged afresh for.
+  const arrangedFor = useRef(reordered)
   const knownTerminals = useRef(new Set(terminals.map((terminal) => terminal.id)))
   const createdPositions = useRef(new Map<string, XYPosition>())
-  const pointerCreated = useRef(new Set<string>())
-  const pendingCreatedPositions = useRef(new Map<string, XYPosition>())
-  const contextPosition = useRef<XYPosition | null>(null)
+  // What the layout last saved of each window, where one was dropped on the canvas: a
+  // newer saving is a drop to honor, even onto the same point. What was saved before this
+  // canvas opened is not.
+  const [drops] = useState(() => new Map(Object.entries(layout.geometry)))
+  const dragging = useRef(new Set<string>())
+  const arranging = useRef<ReturnType<typeof setTimeout>>(undefined)
+  useEffect(() => () => clearTimeout(arranging.current), [])
   // Something dragged off a terminal's taskbar can be dropped on the empty canvas: a ghost
   // of its window follows the pointer there, freely, as a dragged window does; dropped,
   // its window opens where the ghost was and settles onto the canvas's grid. The canvas
@@ -205,7 +228,7 @@ const TerminalCanvas = ({
           canvas: { x: point.x - windowSize.width / 2, y: point.y - terminalHeaderHeight / 2 },
         }
       }),
-    [session, screenToFlowPosition, windowSize.width],
+    [session, screenToFlowPosition],
   )
   const ghost = useDrag((drag) =>
     drag?.place && "canvas" in drag.place ? drag.place.canvas : null,
@@ -218,7 +241,6 @@ const TerminalCanvas = ({
   useLayoutEffect(() => {
     if (ghost) lastGhost.current = ghost
   }, [ghost])
-  const settling = useRef(new Map<string, XYPosition>())
   const stacking = useRef<string[]>([])
   // The terminal whose sheet revealed itself last, kept above the rest (the selection too)
   // until the selection moves, so no window draws over its sheet. Not a selection.
@@ -241,8 +263,7 @@ const TerminalCanvas = ({
       return getViewportForBounds(
         {
           ...node.position,
-          width: node.width ?? fallbackSize.width,
-          height: node.height ?? fallbackSize.height,
+          ...windowSize,
         },
         size.width,
         size.height,
@@ -276,14 +297,11 @@ const TerminalCanvas = ({
     hidden,
     fitOnNavigate,
     flyOnNavigate,
-    revealOnMount,
-    fitOnMount,
+    revealOnMount: restored,
     initialViewport,
     viewportSize,
     container,
-    geometryRef,
     createdPositions,
-    pointerCreated,
     visit,
     takeEntrySheets,
     flyIn,
@@ -297,10 +315,24 @@ const TerminalCanvas = ({
         .map((terminal) => ({ id: terminal.id })),
     })
   }, [fitView, terminals, hidden, visit])
-  const { beginResize, finishResize, onNodesChange } = useCanvasGeometry(
-    persistence,
-    onSelect,
-    onWindowResize,
+  // XYFlow owns a drag while it lasts. The window stays where the person leaves it, on the
+  // canvas's grid, until this stay ends: nothing of it is saved.
+  const onNodesChange: OnNodesChange<TerminalNode> = useCallback(
+    (changes) => {
+      for (const change of changes) {
+        if (change.type === "position" && change.position) {
+          if (change.dragging) dragging.current.add(change.id)
+          else if (dragging.current.delete(change.id) && stay.current) {
+            const position = { x: snap(change.position.x), y: snap(change.position.y) }
+            stay.current = moveInStay(stay.current, change.id, position)
+            held.keep(stay.current, arrangedFor.current)
+            updateNode(change.id, (node) => ({ ...node, position }))
+          }
+        }
+        if (change.type === "select" && change.selected) onSelect(change.id)
+      }
+    },
+    [held, onSelect, updateNode],
   )
 
   const flyTo = useCallback(
@@ -318,51 +350,31 @@ const TerminalCanvas = ({
   )
 
   const nodeFrom = useCallback(
-    (terminal: Tile, source: CanvasLayout["geometry"][string] | undefined): TerminalNode => {
-      const width = source?.width ?? fallbackSize.width
-      return {
-        id: terminal.id,
-        type: "terminal",
-        hidden: removed[terminal.id] ?? false,
-        position: source?.position ?? fallbackPosition,
-        width,
-        height: Math.max(
-          source?.height ?? fallbackSize.height,
-          (terminalHeaderHeight + 4) * chromeScale,
-        ),
-        dragHandle: ".terminal-header",
-        draggable: selected === terminal.id && !hidden[terminal.id],
-        selectable: !hidden[terminal.id],
-        focusable: !hidden[terminal.id],
-        selected: selected === terminal.id,
-        ariaLabel: `${terminal.name} terminal`,
-        data: {
-          preview: preview === terminal.id,
-          team:
-            team?.lead === terminal.id
-              ? "lead"
-              : team?.workers.includes(terminal.id)
-                ? "worker"
-                : undefined,
-          focusRequest: selected === terminal.id ? keyboardFocusRequest : null,
-          hiding: hidden[terminal.id] ?? false,
-          compactHeader: width / chromeScale < 240,
-          onResizeStart: () => beginResize(terminal.id),
-          onResizeEnd: (nextWidth, nextHeight) => finishResize(terminal.id, nextWidth, nextHeight),
-        },
-      }
-    },
-    [
-      beginResize,
-      chromeScale,
-      finishResize,
-      hidden,
-      preview,
-      removed,
-      selected,
-      team,
-      keyboardFocusRequest,
-    ],
+    (terminal: Tile, position: XYPosition | undefined): TerminalNode => ({
+      id: terminal.id,
+      type: "terminal",
+      hidden: removed[terminal.id] ?? false,
+      position: position ?? origin,
+      ...windowSize,
+      dragHandle: ".terminal-header",
+      draggable: selected === terminal.id && !hidden[terminal.id],
+      selectable: !hidden[terminal.id],
+      focusable: !hidden[terminal.id],
+      selected: selected === terminal.id,
+      ariaLabel: `${terminal.name} terminal`,
+      data: {
+        preview: preview === terminal.id,
+        team:
+          team?.lead === terminal.id
+            ? "lead"
+            : team?.workers.includes(terminal.id)
+              ? "worker"
+              : undefined,
+        focusRequest: selected === terminal.id ? keyboardFocusRequest : null,
+        hiding: hidden[terminal.id] ?? false,
+      },
+    }),
+    [hidden, preview, removed, selected, team, keyboardFocusRequest],
   )
 
   const contentOf = useCallback(
@@ -415,105 +427,56 @@ const TerminalCanvas = ({
     [fitBounds, flyTo, getNode, render, setNodes, terminals],
   )
 
-  // XYFlow owns pointer-time geometry so dragging does not rerender the application or terminals.
-  // Parent updates refresh terminal content and selection while retaining any in-progress gesture.
+  // The canvas places its windows: where this stay has them, as its windows, their teams
+  // and the sidebar's order change. Parent updates refresh terminal content and selection
+  // while a drag in progress stays XYFlow's.
   useEffect(() => {
+    if (!stay.current || !opened) return
+    const afresh = arrangedFor.current !== reordered
+    arrangedFor.current = reordered
+    let next = afresh ? beginStay(tiles, room()) : continueStay(stay.current, tiles)
     const terminalIds = new Set(terminals.map((terminal) => terminal.id))
-    for (const id of Object.keys(geometryRef.current)) {
-      if (!terminalIds.has(id)) {
-        delete geometryRef.current[id]
-        dirtyGeometry.current.delete(id)
-        resizing.current.delete(id)
-      }
-    }
+    for (const id of drops.keys()) if (!terminalIds.has(id)) drops.delete(id)
+    // A window dropped from a taskbar where the ghost was opens exactly there, then settles
+    // onto the place it was given.
+    const settling = new Map<string, XYPosition>()
     for (const terminal of terminals) {
-      if (!dirtyGeometry.current.has(terminal.id))
-        geometryRef.current[terminal.id] = geometry[terminal.id] ?? {
-          position: fallbackPosition,
-        }
+      const saved = layout.geometry[terminal.id]
+      if (!saved || drops.get(terminal.id) === saved) continue
+      drops.set(terminal.id, saved)
+      const dropped = saved.position
+      next = moveInStay(next, terminal.id, dropped)
+      if (
+        isWindow(terminal) &&
+        !knownTerminals.current.has(terminal.id) &&
+        lastGhost.current &&
+        samePoint(canvasPointPosition(lastGhost.current), dropped)
+      ) {
+        settling.set(terminal.id, lastGhost.current)
+        lastGhost.current = null
+      }
     }
-    const created = terminals.filter((terminal) => !knownTerminals.current.has(terminal.id))
-    const { width: viewportWidth, height: viewportHeight } = viewportSize()
-    if (created.length && measured) {
-      const viewport = getViewport()
-      const occupied = terminals
-        .filter((terminal) => knownTerminals.current.has(terminal.id))
-        .map((terminal) => {
-          const saved = geometryRef.current[terminal.id]
-          const live = getNode(terminal.id)
-          return {
-            position: live?.position ?? saved?.position ?? fallbackPosition,
-            width: live?.width ?? saved?.width ?? fallbackSize.width,
-            height: saved?.height ?? fallbackSize.height,
-          }
-        })
-      for (const terminal of created) {
-        const saved = geometryRef.current[terminal.id]
-        const size = {
-          width: saved?.width ?? windowSize.width,
-          height: saved?.height ?? windowSize.height,
-        }
-        // Dropped from a taskbar where the ghost was, its window opens exactly there, then
-        // settles onto the place it was given.
-        const ghostAt =
-          isWindow(terminal) &&
-          lastGhost.current &&
-          saved?.position &&
-          samePoint(canvasPointPosition(lastGhost.current), saved.position)
-            ? lastGhost.current
-            : null
-        if (ghostAt) {
-          settling.current.set(terminal.id, saved!.position)
-          lastGhost.current = null
-        }
-        const requested = pendingCreatedPositions.current.get(terminal.id)
-        const position = ghostAt
-          ? ghostAt
-          : requested
-            ? canvasPointPosition(requested)
-            : viewportCanvasPosition(
-                occupied,
-                viewport,
-                { width: viewportWidth, height: viewportHeight },
-                size,
-              )
-        geometryRef.current[terminal.id] = { ...saved, position, ...size }
-        dirtyGeometry.current.add(terminal.id)
-        if (requested) {
-          pendingCreatedPositions.current.delete(terminal.id)
-          pointerCreated.current.add(terminal.id)
-        } else createdPositions.current.set(terminal.id, position)
-        knownTerminals.current.add(terminal.id)
-        occupied.push({ position, ...size })
-      }
-      commitGeometry(created.map((terminal) => terminal.id))
-      // A window dropped from a taskbar glides onto the grid from where its ghost was.
-      for (const terminal of created) {
-        const snapped = settling.current.get(terminal.id)
-        if (!snapped) continue
-        settling.current.delete(terminal.id)
-        requestAnimationFrame(() => {
-          geometryRef.current[terminal.id] = {
-            ...geometryRef.current[terminal.id],
-            position: snapped,
-          }
-          updateNode(terminal.id, (node) => ({
-            ...node,
-            position: snapped,
-            className: "canvas-drop-settle",
-          }))
-          commitGeometry([terminal.id])
-          setTimeout(
-            () => updateNode(terminal.id, (node) => ({ ...node, className: "" })),
-            settleMs,
-          )
-        })
-      }
+    stay.current = next
+    held.keep(next, reordered)
+    const arranged = stayPlaces(next)
+    // A hidden terminal looked at is shown where it would go, last in the block, unless
+    // this stay still has the place it had; the stay itself keeps nothing of it.
+    const places =
+      preview && !arranged.has(preview)
+        ? new Map([...arranged, ...stayPlaces(continueStay(next, [...tiles, { id: preview }]))])
+        : arranged
+    // A window that opened is revealed where the canvas put it, if that is out of sight.
+    for (const terminal of terminals) {
+      if (knownTerminals.current.has(terminal.id)) continue
+      knownTerminals.current.add(terminal.id)
+      const place = places.get(terminal.id)
+      if (place) createdPositions.current.set(terminal.id, place)
     }
     for (const id of knownTerminals.current) {
       if (!terminalIds.has(id)) {
         knownTerminals.current.delete(id)
         createdPositions.current.delete(id)
+        dragging.current.delete(id)
       }
     }
     // Keep activation history instead of temporarily elevating only the selected node.
@@ -529,40 +492,80 @@ const TerminalCanvas = ({
     const above = revealed.current?.id
     const levels = new Map(stack.map((id, index) => [id, index]))
     if (above && levels.has(above)) levels.set(above, stack.length)
+    // Windows the arrangement moves glide there; the team wires wait for them (canvas.css).
+    const moves = terminals.some((terminal) => {
+      const current = getNode(terminal.id)
+      return (
+        current !== undefined &&
+        !dragging.current.has(terminal.id) &&
+        !samePoint(current.position, places.get(terminal.id) ?? origin)
+      )
+    })
+    if (moves && container.current) {
+      const element = container.current
+      element.dataset.arranging = ""
+      clearTimeout(arranging.current)
+      arranging.current = setTimeout(() => delete element.dataset.arranging, glideMs + 40)
+    }
+    // The camera goes with the selected window when the arrangement moves it while it is
+    // in sight, so the person keeps what they were looking at. A reorder moves them all,
+    // and the camera stays.
+    const was = getNode(selected)?.position
+    const now = places.get(selected)
+    if (!afresh && was && now && !samePoint(was, now) && !dragging.current.has(selected)) {
+      const viewport = getViewport()
+      if (inSight(was, viewport, viewportSize()))
+        void setViewport(
+          {
+            x: viewport.x - (now.x - was.x) * viewport.zoom,
+            y: viewport.y - (now.y - was.y) * viewport.zoom,
+            zoom: viewport.zoom,
+          },
+          { duration: prefersReducedMotion() ? 0 : glideMs },
+        )
+    }
     setNodes((previous) => {
       const existing = new Map(previous.map((node) => [node.id, node]))
       return terminals.map((terminal) => {
-        const next = {
-          ...nodeFrom(terminal, geometryRef.current[terminal.id]),
+        const placed = {
+          ...nodeFrom(terminal, settling.get(terminal.id) ?? places.get(terminal.id)),
           zIndex: levels.get(terminal.id) ?? 0,
         }
         const current = existing.get(terminal.id)
-        if (!current || !dirtyGeometry.current.has(terminal.id)) return next
-        const retained = {
-          ...next,
-          position: current.position,
-          width: current.width ?? next.width ?? fallbackSize.width,
-          height: current.height ?? next.height ?? fallbackSize.height,
-        }
-        return current.className ? { ...retained, className: current.className } : retained
+        if (!current) return placed
+        const kept = dragging.current.has(terminal.id)
+          ? { ...placed, position: current.position }
+          : placed
+        return current.className ? { ...kept, className: current.className } : kept
       })
     })
+    // A window dropped from a taskbar glides onto the grid from where its ghost was.
+    for (const id of settling.keys()) {
+      const snapped = places.get(id)
+      if (!snapped) continue
+      requestAnimationFrame(() => {
+        updateNode(id, (node) => ({ ...node, position: snapped, className: "canvas-drop-settle" }))
+        setTimeout(() => updateNode(id, (node) => ({ ...node, className: "" })), settleMs)
+      })
+    }
   }, [
-    commitGeometry,
-    geometryRef,
-    dirtyGeometry,
-    resizing,
-    geometry,
+    drops,
     getNode,
     getViewport,
+    held,
+    layout.geometry,
     nodeFrom,
+    opened,
+    preview,
+    reordered,
+    room,
     selected,
-    terminals,
     setNodes,
+    setViewport,
+    terminals,
+    tiles,
     updateNode,
     viewportSize,
-    measured,
-    windowSize,
   ])
 
   const canvas = (
@@ -579,9 +582,6 @@ const TerminalCanvas = ({
       data-has-selection={Boolean(selected)}
       tabIndex={0}
       {...backgroundPointerHandlers}
-      onContextMenu={(event) => {
-        contextPosition.current = screenToFlowPosition({ x: event.clientX, y: event.clientY })
-      }}
       onKeyDown={(event) => {
         if (
           event.defaultPrevented ||
@@ -613,111 +613,98 @@ const TerminalCanvas = ({
     >
       <NodeVisibilityContext.Provider value={visibility}>
         <TerminalContent.Provider value={contentOf}>
-          <ReactFlow<TerminalNode>
-            defaultNodes={terminals.map((terminal) => nodeFrom(terminal, geometry[terminal.id]))}
-            nodeTypes={nodeTypes}
-            onNodesChange={onNodesChange}
-            onNodeClick={(_, node) => onSelect(node.id)}
-            onPaneClick={(event) => {
-              onSelect("")
-              event.currentTarget
-                .closest<HTMLElement>(".canvas-viewport")
-                ?.focus({ preventScroll: true })
-            }}
-            elevateNodesOnSelect={false}
-            nodesConnectable={false}
-            deleteKeyCode={null}
-            multiSelectionKeyCode={null}
-            selectionKeyCode={null}
-            disableKeyboardA11y
-            minZoom={0.15}
-            maxZoom={maxZoom}
-            defaultViewport={initialViewport ?? { x: 0, y: 0, zoom: 1 }}
-            onInit={initializeViewport}
-            onMoveStart={(_, viewport) => trackViewport(viewport)}
-            onMove={(event, viewport) => {
-              const previous = viewportRef.current
-              if (
-                event &&
-                (viewport.x !== previous.x ||
-                  viewport.y !== previous.y ||
-                  viewport.zoom !== previous.zoom)
-              )
-                visit.clear()
-              trackViewport(viewport)
-            }}
-            onMoveEnd={(_, viewport) => {
-              const current = getViewport()
-              if (
-                !mounted.current ||
-                current.x !== viewport.x ||
-                current.y !== viewport.y ||
-                current.zoom !== viewport.zoom
-              )
-                return
-              trackViewport(viewport)
-              commitViewport()
-            }}
-            panOnDrag
-            panOnScroll={false}
-            zoomOnScroll
-            zoomOnDoubleClick={false}
-            zoomActivationKeyCode={["Control", "Meta"]}
-            proOptions={{ hideAttribution: true }}
-          >
-            <Background
-              id="grid"
-              className="canvas-grid"
-              gap={canvasStep}
-              size={1.6}
-              bgColor="transparent"
-            />
-            <Background
-              id="grid-spotlight"
-              className="canvas-grid-spotlight"
-              gap={canvasStep}
-              size={1.6}
-              bgColor="transparent"
-            />
-            <CanvasTeamWire teams={teams} team={team} selected={selected} />
-            {ghost && (
-              <ViewportPortal>
-                <div
-                  className="drop-ghost canvas-drop-ghost"
-                  aria-hidden="true"
-                  style={{
-                    transform: `translate(${ghost.x}px, ${ghost.y}px)`,
-                    width: windowSize.width,
-                    height: windowSize.height,
-                  }}
-                >
-                  <span className="drop-ghost-header">{ghostName}</span>
-                </div>
-              </ViewportPortal>
-            )}
-          </ReactFlow>
+          {opened && (
+            <ReactFlow<TerminalNode>
+              defaultNodes={terminals.map((terminal) =>
+                nodeFrom(terminal, opened.get(terminal.id)),
+              )}
+              nodeTypes={nodeTypes}
+              onNodesChange={onNodesChange}
+              onNodeClick={(_, node) => onSelect(node.id)}
+              onPaneClick={(event) => {
+                onSelect("")
+                event.currentTarget
+                  .closest<HTMLElement>(".canvas-viewport")
+                  ?.focus({ preventScroll: true })
+              }}
+              elevateNodesOnSelect={false}
+              nodesConnectable={false}
+              deleteKeyCode={null}
+              multiSelectionKeyCode={null}
+              selectionKeyCode={null}
+              disableKeyboardA11y
+              minZoom={0.15}
+              maxZoom={maxZoom}
+              defaultViewport={initialViewport ?? { x: 0, y: 0, zoom: 1 }}
+              onInit={initializeViewport}
+              onMoveStart={(_, viewport) => trackViewport(viewport)}
+              onMove={(event, viewport) => {
+                const previous = viewportRef.current
+                if (
+                  event &&
+                  (viewport.x !== previous.x ||
+                    viewport.y !== previous.y ||
+                    viewport.zoom !== previous.zoom)
+                )
+                  visit.clear()
+                trackViewport(viewport)
+              }}
+              onMoveEnd={(_, viewport) => {
+                const current = getViewport()
+                if (
+                  !mounted.current ||
+                  current.x !== viewport.x ||
+                  current.y !== viewport.y ||
+                  current.zoom !== viewport.zoom
+                )
+                  return
+                trackViewport(viewport)
+                commitViewport()
+              }}
+              panOnDrag
+              panOnScroll={false}
+              zoomOnScroll
+              zoomOnDoubleClick={false}
+              zoomActivationKeyCode={["Control", "Meta"]}
+              proOptions={{ hideAttribution: true }}
+            >
+              <Background
+                id="grid"
+                className="canvas-grid"
+                gap={canvasStep}
+                size={1.6}
+                bgColor="transparent"
+              />
+              <Background
+                id="grid-spotlight"
+                className="canvas-grid-spotlight"
+                gap={canvasStep}
+                size={1.6}
+                bgColor="transparent"
+              />
+              <CanvasTeamWire teams={teams} team={team} selected={selected} />
+              {ghost && (
+                <ViewportPortal>
+                  <div
+                    className="drop-ghost canvas-drop-ghost"
+                    aria-hidden="true"
+                    style={{
+                      transform: `translate(${ghost.x}px, ${ghost.y}px)`,
+                      width: windowSize.width,
+                      height: windowSize.height,
+                    }}
+                  >
+                    <span className="drop-ghost-header">{ghostName}</span>
+                  </div>
+                </ViewportPortal>
+              )}
+            </ReactFlow>
+          )}
         </TerminalContent.Provider>
       </NodeVisibilityContext.Provider>
     </div>
   )
-  return (
-    <ContextMenu
-      label="Canvas actions"
-      items={[
-        {
-          value: "terminal",
-          label: "Terminal",
-          icon: <Plus size={14} aria-hidden="true" />,
-          onSelect: () => {
-            if (!contextPosition.current) return
-            const id = onCreate()
-            pendingCreatedPositions.current.set(id, contextPosition.current)
-          },
-        },
-      ]}
-      trigger={canvas}
-    />
-  )
+  return canvas
 }
 
 export const Canvas = forwardRef<CanvasHandle, CanvasProps>((props, ref) => (

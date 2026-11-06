@@ -5,14 +5,12 @@ import {
 } from "@novadeck/core/desktop/portable-card-raised"
 import type { SandboxState } from "@novadeck/core/desktop/sandbox"
 import type { UpdateOffer, WhatsNew } from "@novadeck/core/desktop/update"
-import { defaultCanvasWindowSize, type WindowSize } from "@novadeck/core/layout/terminal-size"
 import type { Backend } from "@novadeck/core/port"
 import { orderedTiles } from "@novadeck/core/roster"
 import { activeProject } from "@novadeck/core/state"
 import { createStore, type MutableStore, type Store } from "@novadeck/core/store"
 import type { PreferencesValue, Workspace } from "@novadeck/core/types"
 
-import { writeCanvasWindowSize } from "../layouts/canvas/window-size-storage"
 import { writePreferences } from "../preferences/preferences-storage"
 import { noArrangement, type ProjectArrangement } from "../projects/project-arrangement"
 import {
@@ -81,8 +79,6 @@ export type UiState = {
   readonly unread: Unread
   // How the person arranged the switcher's projects: their order and the pinned ones.
   readonly projectArrangement: ProjectArrangement
-  // The size the person last gave a window on Canvas, which new windows open at.
-  readonly canvasWindowSize: WindowSize
   // The teams the person folded into their leads in the Terminals list (team-fold.ts).
   readonly foldedTeams: FoldedTeams
   // The lead whose team folds or unfolds if the person clicks where they point now, beside its
@@ -117,14 +113,12 @@ export const initialUi = ({
   preferences,
   sidebarCollapsed = false,
   projectArrangement = noArrangement,
-  canvasWindowSize = defaultCanvasWindowSize,
   foldedTeams = noFoldedTeams,
 }: {
   location: UiLocation
   preferences: PreferencesValue
   sidebarCollapsed?: boolean
   projectArrangement?: ProjectArrangement
-  canvasWindowSize?: WindowSize
   foldedTeams?: FoldedTeams
 }): UiState => ({
   location,
@@ -148,7 +142,6 @@ export const initialUi = ({
   bellRings: 0,
   unread: noUnread,
   projectArrangement,
-  canvasWindowSize,
   foldedTeams,
   foldPreview: null,
   unfolding: null,
@@ -183,7 +176,6 @@ export const persistUi = (ui: Store<UiState>, workspace: Store<Workspace>): (() 
   const stops = [
     persist(ui, (state) => state.preferences, writePreferences),
     persist(ui, (state) => state.shell.sidebarCollapsed, writeSidebarCollapsed),
-    persist(ui, (state) => state.canvasWindowSize, writeCanvasWindowSize),
     persist(ui, (state) => state.foldedTeams, writeFoldedTeams),
     persist(workspace, (snapshot) => currentState(snapshot).windowedView, writeWindowedView),
   ]
