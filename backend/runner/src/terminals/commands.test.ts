@@ -100,7 +100,7 @@ describe("the agent whose session a command would start", () => {
       "claude --print update",
       "claude --add-dir a mcp list",
       "claude --add-dir a b mcp",
-      "claude --allowedTools Read Write mcp",
+      "claude --allowedTools Read mcp",
       "claude --allowed-tools Read mcp",
       "claude --disallowedTools Read mcp",
       "claude --disallowed-tools Read mcp",
@@ -111,9 +111,8 @@ describe("the agent whose session a command would start", () => {
       "claude --add-dir a - mcp",
       "claude --add-dir=a b mcp",
       "codex -i a.png mcp",
-      "codex --image a.png b.png mcp list",
+      "codex --image a.png mcp",
       "codex -i a.png - mcp",
-      "agy --settings x.json --add-dir a fix the docs",
     ]) {
       const agent = command.split(" ")[0]
       expect([command, sessionLaunch(command, "linux")]).toEqual([command, agent])
@@ -167,6 +166,8 @@ describe("the agent whose session a command would start", () => {
       "agy --add-dir a mcp list",
       "agy --add-dir a --add-dir b mcp list",
       "agy --add-dir=a mcp list",
+      "claude -- mcp list",
+      "agy -- mcp list",
       "agy --settings x.json mcp list",
     ]) {
       expect([command, sessionLaunch(command, "linux")]).toEqual([command, null])

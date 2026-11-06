@@ -65,7 +65,7 @@ export const valued = [
   "--tools",
 ]
 
-// Those of them that take a list, as `<directories...>` in the same `--help`: more words are
+// Those of them that take a list, as `<directories...>` in 2.1.316's `--help`: more words are
 // theirs up to the next option. A lone `-` is a value and `--add-dir=a` takes that one only.
 export const many = [
   "--add-dir",
@@ -157,7 +157,11 @@ set "novadeck_settings=%~dp0..\\plugins\\claude\\statusline.json"
 if not exist "%novadeck_settings%" goto plain
 rem Set beside the line that runs claude, the line as typed parses as that one does.
 set novadeck_line=%*
-call :command %* && goto plain
+call :command %* && (
+  set "novadeck_line="
+  goto plain
+)
+set "novadeck_line="
 "%novadeck_real%" --settings "%novadeck_settings%" %*
 exit /b %ERRORLEVEL%
 :plain

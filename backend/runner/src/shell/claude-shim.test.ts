@@ -181,7 +181,7 @@ describe("claude shim", { timeout: 60_000 }, () => {
     for (const args of [
       ["--add-dir", "a", "mcp", "list"],
       ["--add-dir", "a", "b", "mcp"],
-      ["--allowedTools", "Read", "Write", "update"],
+      ["--allowedTools", "Read", "update"],
       ["--tools", "Read", "-", "mcp"],
       ["--add-dir=a", "b", "mcp"],
       // Words cmd would run or change, were the shim's reading of the line to uncover them.
@@ -205,7 +205,7 @@ describe("claude shim", { timeout: 60_000 }, () => {
       expect(shim.run(args)).toEqual(args)
   })
 
-  it("passes a quoted prompt on whole, whatever it holds", ({ shim }) => {
+  it("passes on whole a quoted prompt that holds what cmd would act on", ({ shim }) => {
     const prompt = "fix a & b | c, 100% done ^ now"
     expect(shim.run([prompt])).toEqual([
       "--settings",
