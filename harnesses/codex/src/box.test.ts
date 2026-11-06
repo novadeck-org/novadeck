@@ -117,11 +117,16 @@ describe("Codex's turn not yet on its screen", () => {
     "• Working (3s • esc to in…",
     "• Queued follow-up inputs",
     "• Ran ls",
+    "⚠ Heads up, you have less than 25% of your 5h limit left. Run /status for a breakdown.",
+    "⚠ MCP startup incomplete (failed: alpha)",
+    "3 files changed",
+    "• Ran it: 2 background terminals running · /ps to view",
   ])("doesn't hold anything of the turn under the prompt: %s", (row) => {
     expect(holds(under(row), "Take your time 1")).toBe(false)
   })
 
   it("doesn't take a prompt mark inside the reply for a prompt", () => {
+    expect(holds(under("  › quoted"))).toBe(false)
     expect(holds(under("  › quoted"), "quoted")).toBe(false)
   })
 
@@ -138,15 +143,15 @@ describe("Codex's turn not yet on its screen", () => {
     "  12 background terminals running",
     "  1 background terminal",
     "                                   ⚠ 5h limit: 40% left · resets at 17:00 · /status",
-    "                                       ⚠ Weekly limit: only 3% left · /status",
+    "                                       ⚠ weekly limit: only 3% left · /status",
     "                                                      ⚠ 5h limit: <1% left",
     "                                                            ⚠ 5h 40% left",
-  ])("doesn't take a row of the idle screen for the turn's: %s", (row) => {
+  ])("holds past a row of the idle screen: %s", (row) => {
     expect(holds(under(row))).toBe(true)
     expect(holds(under(row), "Take your time 1")).toBe(true)
   })
 
-  it("doesn't take a row of the idle screen for a turn", () => {
+  it("doesn't hold on a row of the idle screen alone, with no prompt of a turn", () => {
     for (const state of ["earlyBackground", "earlyLimit"]) {
       const row = states[state]!.rows.find((one) => /background terminal|% left/.test(one))!
       expect(

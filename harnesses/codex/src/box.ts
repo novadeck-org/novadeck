@@ -57,9 +57,10 @@ const read = (screen: ScreenText) => agreeing(markedBox(screen, markers), shellF
  * The rows it keeps above its box whether or not a turn runs, so none of a turn's: the commands
  * an earlier turn left running, while no status row is up to carry those words (cut short on a
  * narrow screen), and its warning of a rate limit nearly used, at the row's right end, in its
- * longest form that fits (probed 2026-11-06, 0.167.0).
+ * longest form that fits. Both were seen on 0.167.0 at 120 columns (2026-11-06); the other forms
+ * are read from its source.
  */
-const idleRow = /^\s*(?:\d+ background terminal|⚠ .*(?:<1|\d+)% left)/
+const idleRow = /^\s*(?:\d+ background terminal|⚠ .*\d+% left)/
 
 /**
  * Whether its screen shows the turn's prompt and nothing of the turn: the last rows above its
