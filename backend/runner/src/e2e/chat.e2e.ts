@@ -264,6 +264,29 @@ for (const setup of setups) {
       box.stop()
     })
 
+    it("follows each of two messages given at once over a draft, the first going along", async ({
+      e2e: run,
+    }) => {
+      run.model.use(
+        replies("Second of two", "Second done."),
+        replies("First of two", "First done."),
+      )
+      const t1 = await start(run, setup)
+      t1.press("Half a thought")
+      await t1.until("Half a thought")
+
+      const [first, second] = await Promise.all([
+        prompted(t1, "First of two"),
+        prompted(t1, "Second of two"),
+      ])
+      await t1.until("Second done.")
+      await first()
+      await second()
+      expect(await item(t1, "user", (text) => text.includes("First of two"))).toContain(
+        along(setup, "Half a thought", "First of two"),
+      )
+    })
+
     it("puts the cursor after a draft before a message goes along with it", async ({
       e2e: run,
     }) => {

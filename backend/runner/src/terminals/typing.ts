@@ -176,8 +176,6 @@ export class Typing {
   readonly boxes: BoxStates
   /** Moves what the person is writing between an agent's box and a client's draft. */
   readonly handovers: Handovers
-  /** The ref of the prompt each terminal was last given, whose turn in its queue may be now. */
-  private readonly giving = new Map<string, string>()
   /** When each terminal's last prompt had its Enter, whose text its box may still show. */
   private readonly entered = new Map<string, number>()
   /** The terminals whose box `settleBox` is looking at. */
@@ -241,7 +239,6 @@ export class Typing {
     // the record was is looked at long before any key of it lands.
     const claimed = ref ?? freshRef()
     this.receipts.claim(terminalId, claimed)
-    this.giving.set(terminalId, claimed)
     const following = this.receipts.expect(terminalId, text, claimed)
     // A fixed line from an Inbox button: the turn it starts withdraws no ask (see `automatic`).
     if (automatic) this.host.messaging().automatic(terminalId, text)
@@ -252,6 +249,12 @@ export class Typing {
         terminalId,
         text,
         along && !automatic ? "freed" : "alone",
+        // Its receipt is set up by then, or as soon as it is: before its Enter, in either case.
+        () =>
+          void following.then(
+            () => this.receipts.joined(terminalId, claimed),
+            () => undefined,
+          ),
       )
       returned = given?.returned ?? null
       went = given?.along
@@ -350,7 +353,6 @@ export class Typing {
     this.receipts.forget(terminalId)
     this.boxes.forget(terminalId)
     this.entered.delete(terminalId)
-    this.giving.delete(terminalId)
   }
 
   /** Stops the doorbell and the receipts, as the runner shuts down. */
@@ -533,10 +535,6 @@ export class Typing {
       known: (terminalId, text) => this.receipts.known(terminalId, text),
       ringLine: (_terminalId, text) => leftoverNonce(text) !== undefined,
       note: (terminalId, note) => this.noted(terminalId, note),
-      joined: (terminalId) => {
-        const ref = this.giving.get(terminalId)
-        if (ref !== undefined) this.receipts.joined(terminalId, ref)
-      },
       refused: (terminalId, reason) => {
         const binding = this.host.live(terminalId)?.bound?.binding
         const version = binding ? versionOf(binding) : null

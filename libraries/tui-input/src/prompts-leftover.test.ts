@@ -181,7 +181,6 @@ const fake = (options: Options = {}) => {
       known: () => options.known,
       ringLine: () => options.ringLine ?? false,
       note: (_id, note) => notes.push(note),
-      joined: () => void (joins += 1),
     },
     new InputQueue({
       hold: () => ({
@@ -194,7 +193,11 @@ const fake = (options: Options = {}) => {
     }),
     { pollMs: 1, emptyMs: 10, pasteMs: 150, keysMs: 60, settleMs: 0, bindMs: 0 },
   )
-  const give = (words: string, mode: PromptMode = "freed") => prompts.prompt("t", words, mode)
+  const give = (
+    words: string,
+    mode: PromptMode = "freed",
+    joined: () => void = () => void (joins += 1),
+  ) => prompts.prompt("t", words, mode, joined)
   return {
     give,
     written,
@@ -314,6 +317,16 @@ describe("a prompt over text where a paste is keys", () => {
     expect(tui.pasted()).toEqual(["\x1b[200~ the message\x1b[201~"])
     expect(tui.sent).toEqual(["half typed the message"])
     expect(tui.joins()).toBe(1)
+  })
+
+  it("tells the prompt being typed, not the one queued behind it", async () => {
+    const tui = fake({ text: "half typed", pasteKeys: true })
+    const told: string[] = []
+    await Promise.all([
+      tui.give("the first", "freed", () => told.push("first")),
+      tui.give("the second", "freed", () => told.push("second")),
+    ])
+    expect(told).toEqual(["first"])
   })
 
   it("goes with a long first line, whose line breaks come in a burst of typing", async () => {

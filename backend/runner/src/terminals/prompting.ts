@@ -151,8 +151,13 @@ export class Prompts extends Prompter {
     super(host, queue, { ...options, refuse: (text) => promptRefusal(text, { shell: true }) })
   }
 
-  override async prompt(terminalId: string, text: string, mode?: PromptMode): Promise<PromptGiven> {
-    return await asDomain(super.prompt(terminalId, text, mode))
+  override async prompt(
+    terminalId: string,
+    text: string,
+    mode?: PromptMode,
+    joined?: () => void,
+  ): Promise<PromptGiven> {
+    return await asDomain(super.prompt(terminalId, text, mode, joined))
   }
 
   override async promptIn(entry: InputEntry, terminalId: string, text: string): Promise<void> {

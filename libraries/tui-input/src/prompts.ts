@@ -143,8 +143,6 @@ export type PromptHost = {
   readonly ringLine?: (terminalId: string, text: string) => boolean
   /** Says what a prompt did about what the box held. */
   readonly note?: (terminalId: string, note: BoxNote) => void
-  /** The prompt on its way goes on the same line as what the box holds, not on lines of its own. */
-  readonly joined?: (terminalId: string) => void
   /** Says why a prompt was refused, whatever the box held. */
   readonly refused?: (terminalId: string, reason: PromptRefusalReason) => void
 }
@@ -275,10 +273,19 @@ export class Prompts {
    * already or has no room for the text, or where the paste never showed as exactly the
    * text, or as its tail in a full box (or the box never switched to its shell mode at a
    * typed `!`), leaving what landed of it as a draft. All but the last write nothing.
+   * `joined` is told, before its paste, that this prompt goes on the same line as what the box
+   * holds, not on lines of its own.
    */
-  async prompt(terminalId: string, text: string, mode: PromptMode = "alone"): Promise<PromptGiven> {
+  async prompt(
+    terminalId: string,
+    text: string,
+    mode: PromptMode = "alone",
+    joined?: () => void,
+  ): Promise<PromptGiven> {
     this.refuse(text)
-    return await this.queue.run(terminalId, (entry) => this.give(entry, terminalId, text, mode))
+    return await this.queue.run(terminalId, (entry) =>
+      this.give(entry, terminalId, text, mode, joined),
+    )
   }
 
   /**
@@ -310,13 +317,14 @@ export class Prompts {
     terminalId: string,
     text: string,
     mode: PromptMode = "alone",
+    joined?: () => void,
   ): Promise<PromptGiven> {
     // A message's edges are no part of it, and no TUI shows them: the cursor of a trailing
     // line break would sit below its box.
     const command = shellCommand(text)
     return command === undefined
-      ? await this.send(entry, terminalId, normalised(text).trim(), false, mode)
-      : await this.send(entry, terminalId, command, true, mode)
+      ? await this.send(entry, terminalId, normalised(text).trim(), false, mode, joined)
+      : await this.send(entry, terminalId, command, true, mode, joined)
   }
 
   /** `text` is the message, or with `shell` the command after its `!`. */
@@ -326,6 +334,7 @@ export class Prompts {
     text: string,
     shell: boolean,
     mode: PromptMode,
+    joined: (() => void) | undefined,
   ): Promise<PromptGiven> {
     await this.ringDone(terminalId)
     const profile = this.host.admit(terminalId)
@@ -416,7 +425,7 @@ export class Prompts {
         this.host.note?.(terminalId, "draft-kept")
         throw this.draft()
       }
-      if (keys) this.host.joined?.(terminalId)
+      if (keys) joined?.()
       const pasted = left ? `${keys ? " " : "\n\n"}${typed}` : typed
       if (!this.host.type(terminalId, bracketedPaste(inPaste(pasted)))) throw this.notShown()
       const landed = await this.landed(

@@ -1051,6 +1051,9 @@ facts above, so the prompt's emptiness is known before any message arrives:
   the Stop hook's ask gets a lease (below) and the turn continues, still Working, unless
   the person's replies wait and ride the line, when the turn ends for the doorbell to ring
   them ("The reply line").
+  A draft the chat took out of the box mid-turn still counts as a draft here, as one the
+  person cleared by hand does, until the screen is read at an idle prompt: such a reply
+  comes as the Stop's context.
   Novadeck continues a root turn at most twice, by its own count, then lets it end. A
   prompt right after a Stop Novadeck continued is that continuation, keeping the count,
   as Antigravity starts its model calls from the first again. If the person did submit
