@@ -3,10 +3,11 @@
 // Antigravity, idle and mid-turn, closing the terminal and shutting the runner down, calm
 // and with every core busy, it times the hangup to the agent's exit and to the last
 // descendant's, each process with its group, so whether MCP servers and helpers share the
-// agent's group shows. A stand-in that ignores SIGHUP and has a child is the control. Then
-// it ends the agent forcibly a moment after the hangup and resumes its session, to see
-// whether a kill during its save breaks that, and kills the agent's group alone, to see what
-// that leaves. Its stopwatch is its own, as the sandbox's reap kills at 3 s and would hide
+// agent's group shows, and on Linux its cgroup, whether a scope would hold it. A stand-in
+// that ignores SIGHUP and has a child is the control; a tool that ignores SIGHUP and SIGTERM
+// shows what an agent leaves of what won't end. Then it ends the agent forcibly a moment
+// after the hangup and resumes its session, to see whether a kill during its save breaks
+// that, and kills the agent's group alone, to see what that leaves. Its stopwatch is its own, as the sandbox's reap kills at 3 s and would hide
 // the real time, and starts as the close is called: on macOS a `ps` comes before the hangup.
 //
 // On Windows, which hangs up no group, the number is the tree's exit, from a clock that also
@@ -19,7 +20,7 @@
 // its summary.
 /* eslint-disable no-await-in-loop -- A probe's runs go one at a time, each watched to its end. */
 import { execFile, spawn } from "node:child_process"
-import { mkdirSync, writeFileSync } from "node:fs"
+import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs"
 import { availableParallelism } from "node:os"
 import { join } from "node:path"
 import { promisify } from "node:util"
@@ -63,6 +64,8 @@ type Watched = {
   readonly parent?: number
   readonly group?: number
   readonly name: string
+  /** On Linux, its cgroup when first seen, which a scope of the terminal's would hold it by. */
+  readonly cgroup?: string
   goneMs?: number
 }
 
@@ -79,6 +82,15 @@ const answers = (pid: number): boolean => anyRunning([{ pid, startedAt: 0 }])
 
 const shown = (run: E2E, line: string): string =>
   line.replaceAll(run.sandbox.root, "<sandbox>").slice(0, 200)
+
+const cgroupOf = (pid: number): { readonly cgroup?: string } => {
+  if (process.platform !== "linux") return {}
+  try {
+    return { cgroup: readFileSync(`/proc/${pid}/cgroup`, "utf8").trim() }
+  } catch {
+    return {}
+  }
+}
 
 // Linux and macOS: from one `ps` of every process, those under the shell or in the group
 // of one that is, however it was orphaned on its way out.
@@ -114,13 +126,13 @@ const posixCensus = (run: E2E, shell: number): Census => {
           !watched.has(row.pid) &&
           (row.pid === shell || watched.has(row.parent) || (row.group > 1 && groups.has(row.group)))
         ) {
-          watched.set(row.pid, row)
+          watched.set(row.pid, { ...row, ...cgroupOf(row.pid) })
           grown = true
         }
     }
     const shellRow = rows.find((row) => row.pid === shell)
     if (shellRow && watched.get(shell)?.group === undefined)
-      watched.set(shell, { ...shellRow, name: "shell" })
+      watched.set(shell, { ...shellRow, name: "shell", ...cgroupOf(shell) })
     for (const { pid, zombie } of rows) {
       const one = watched.get(pid)
       if (zombie && one && one.goneMs === undefined) one.goneMs = now()
@@ -249,6 +261,7 @@ const stopwatch = async (
   const lead =
     all.find((one) => one.pid === group && group !== shell) ??
     all.find((one) => one.pid !== shell && agent.test(one.name))
+  const shellGroup = watched.get(shell)?.cgroup
   const latest = (ones: readonly Watched[]) =>
     ones.length === 0 ? undefined : Math.max(...ones.map((one) => one.goneMs ?? capMs))
   return {
@@ -257,6 +270,12 @@ const stopwatch = async (
     groupMs: latest(inGroup),
     lastMs: latest(all),
     outlived: outlived.map((one) => one.name),
+    // Those no scope of the shell's would hold: a descendant in another cgroup. Linux only.
+    ...(shellGroup !== undefined && {
+      escaped: all
+        .filter((one) => one.cgroup !== undefined && one.cgroup !== shellGroup)
+        .map((one) => one.name),
+    }),
     apart: all
       .filter((one) => one.pid !== shell && group !== undefined && one.group !== group)
       .map((one) => one.name),
@@ -324,6 +343,8 @@ const lab = (run: E2E, file: string) => {
     }),
     own((call) => (result(call) !== undefined ? { text: "Done." } : undefined)),
   )
+  // Whether the harness asked before it ran the stubborn tool, which may then run differently.
+  let toolAsked: boolean | undefined
   const rows: Row[] = []
   const resumes: unknown[] = []
   // The terminals open now, for a case that fails before it closes its own.
@@ -344,7 +365,8 @@ const lab = (run: E2E, file: string) => {
         terminals.map((terminalId) => run.deck.terminals.close({ terminalId }).catch(() => {})),
       )
     })
-    await run.deck.restart()
+    // A first that finds a leftover ends it and throws, before it starts a runner.
+    await run.deck.restart().catch(() => run.deck.restart())
   }
   const save = () => {
     const dir = process.env.PROBE_OUT ?? join(run.sandbox.root, "probe-out")
@@ -401,11 +423,46 @@ const lab = (run: E2E, file: string) => {
       first: string,
       shows: string,
     ): Promise<DeckTerminal> => {
+      toolAsked = undefined
       const terminal = opened(await start(run, setup))
       await turn(terminal, first, shows)
       if (moment === "idle") return terminal
       const mark = terminal.mark()
       const after = run.model.mark()
+      if (moment === "stubborn tool") {
+        rmSync(join(run.sandbox.project, "exit-tool.ready"), { force: true })
+        await terminal.prompt("Run the stubborn tool")
+        const running = () => {
+          if (existsSync(join(run.sandbox.project, "exit-tool.ready"))) return true
+          // The tool's end, as its harness's sandbox refusing it, ends the wait, in its words.
+          const ended = run.model.calls.slice(after).map(result).find(Boolean)
+          if (ended) throw new Error(`The stubborn tool ended: ${ended.slice(0, 500)}`)
+          return false
+        }
+        // A command no seed allows: the chat allows it, as the person would, where the harness
+        // asks; Codex's sandbox runs it unasked.
+        const asking = await terminal.poll(
+          async () => {
+            if (running()) return "running"
+            const [request] = (await terminal.detail()).requests
+            return request?.dialog?.type === "choices"
+              ? { ref: request.ref, dialog: request.dialog }
+              : undefined
+          },
+          "its tool to run or ask",
+          60_000,
+        )
+        toolAsked = asking !== "running"
+        if (asking === "running") return terminal
+        const { ref, dialog } = asking
+        const yes = dialog.options.find(
+          (each) => each.label.startsWith("Yes") && each.text === null,
+        )
+        if (!yes) throw new Error(`No yes in ${JSON.stringify(dialog)}`)
+        await terminal.answer(ref, { dialog: dialog.id, type: "choice", option: yes.id })
+        await terminal.poll(() => (running() ? true : undefined), "its tool to start", 60_000)
+        return terminal
+      }
       await terminal.prompt(moment === "mid-tool" ? "Run the nested agent" : "Hold on")
       await run.model.waitFor(
         (call) => (moment === "mid-tool" ? nested(call) : !call.side && asked(call, "Hold on")),
@@ -450,6 +507,7 @@ const lab = (run: E2E, file: string) => {
               return {
                 ...timed,
                 harness,
+                ...(toolAsked !== undefined && { toolAsked }),
                 ...(windows && { atRunnerEnd: (timed.lastMs ?? 0) >= ending - 150 }),
               }
             }),
@@ -479,6 +537,15 @@ const lab = (run: E2E, file: string) => {
   }
 }
 
+// A tool that outstays its agent: it ignores SIGHUP and SIGTERM, as does its child, and
+// says so by a file once its child, the last to start, has its handlers.
+const stubbornTool = `import { spawn } from "node:child_process"
+const stay = "for (const signal of ['SIGHUP', 'SIGTERM']) process.on(signal, () => {}); require('node:fs').writeFileSync('exit-tool.ready', ''); setInterval(() => {}, 1000)"
+for (const signal of ["SIGHUP", "SIGTERM"]) process.on(signal, () => {})
+spawn(process.execPath, ["-e", stay], { stdio: "ignore" })
+setInterval(() => {}, 1000)
+`
+
 for (const setup of setups) {
   describe.skipIf(!supported || !probing)(`probe: exit after a hangup in ${setup.name}`, () => {
     const it = e2e(setup)
@@ -503,6 +570,9 @@ for (const setup of setups) {
             ? shell.run(call, shell.nested(nestedRuns.inTurn))
             : undefined,
         ),
+        own((call) =>
+          asked(call, "Run the stubborn tool") ? shell.run(call, "node exit-tool.mjs") : undefined,
+        ),
       )
       for (const pressure of ["calm", "load"])
         for (const moment of ["idle", "mid-turn", "mid-tool"])
@@ -526,6 +596,17 @@ for (const setup of setups) {
           const one = { id: terminal.id, taken, agent: /node/i, harness }
           return hangUp(kind, [one], controlCapMs, false)
         })
+
+      // The agent exits, promptly or not: what of a tool that doesn't is left behind?
+      writeFileSync(join(run.sandbox.project, "exit-tool.mjs"), stubbornTool)
+      for (const kind of ["close", "quit"] as const)
+        for (let index = 0; index < repeats; index += 1)
+          await attempt(`${kind} stubborn tool`, async () => {
+            const terminal = await ready(setup, "stubborn tool", "Say ok", "Okay then.")
+            const taken = await census(run, terminal)
+            const one = { id: terminal.id, taken, agent, harness }
+            return hangUp(kind, [one], agentCapMs, false)
+          })
 
       // What a kill of the agent's group alone leaves: the hangup's reach, and a bound's.
       // Windows ends trees, which have no such gap.
