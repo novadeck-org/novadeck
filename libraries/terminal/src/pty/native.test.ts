@@ -10,6 +10,8 @@ import { command, ptyChild, ptyChildEnv, ptyTrace } from "../testing.js"
 // hold input for seconds at a time while output flows (#712): a line that reaches a child in
 // milliseconds on a quiet machine took 2 s, and past 10 s, on a busy runner.
 const stepMs = process.platform === "win32" ? 30_000 : 10_000
+// A test of several sessions, each of which may take its steps' time.
+const sessionsMs = process.platform === "win32" ? 120_000 : 60_000
 
 // Waits at most `stepMs`, then fails with `label` and what `stalled` tells of the terminal.
 const bounded = async <T>(
@@ -145,35 +147,43 @@ describe("installed native PTY dependency", () => {
     stepMs * 2,
   )
 
-  it("keeps repeated child sessions alive for multiple writes and their natural exit", async () => {
-    for (let session = 0; session < 6; session++) {
-      const terminal = spawn()
-      // eslint-disable-next-line no-await-in-loop -- Each session must finish before its successor starts.
-      await terminal.until("PTY_READY")
-      for (let write = 0; write < 3; write++) {
-        const marker = `NATIVE_SESSION_${session}_WRITE_${write}`
-        terminal.write(command({ type: "write", data: marker }), `write ${marker}`)
-        // eslint-disable-next-line no-await-in-loop -- The reply proves the previous write reached a live child.
-        await terminal.until(marker)
+  it(
+    "keeps repeated child sessions alive for multiple writes and their natural exit",
+    async () => {
+      for (let session = 0; session < 6; session++) {
+        const terminal = spawn()
+        // eslint-disable-next-line no-await-in-loop -- Each session must finish before its successor starts.
+        await terminal.until("PTY_READY")
+        for (let write = 0; write < 3; write++) {
+          const marker = `NATIVE_SESSION_${session}_WRITE_${write}`
+          terminal.write(command({ type: "write", data: marker }), `write ${marker}`)
+          // eslint-disable-next-line no-await-in-loop -- The reply proves the previous write reached a live child.
+          await terminal.until(marker)
+        }
+        const final = `NATIVE_SESSION_${session}_FINAL`
+        terminal.write(command({ type: "exit", code: 7, data: final }), "exit 7")
+        // eslint-disable-next-line no-await-in-loop -- Verify complete shutdown before the next native startup.
+        expect((await terminal.exit()).exitCode).toBe(7)
+        expect(terminal.output()).toContain(final)
       }
-      const final = `NATIVE_SESSION_${session}_FINAL`
-      terminal.write(command({ type: "exit", code: 7, data: final }), "exit 7")
-      // eslint-disable-next-line no-await-in-loop -- Verify complete shutdown before the next native startup.
-      expect((await terminal.exit()).exitCode).toBe(7)
-      expect(terminal.output()).toContain(final)
-    }
-  }, 60_000)
+    },
+    sessionsMs,
+  )
 
-  it("closes repeated running children after their first output", async () => {
-    for (let session = 0; session < 6; session++) {
-      const terminal = spawn()
-      // eslint-disable-next-line no-await-in-loop -- Wait for native startup before explicitly closing this child.
-      await terminal.until("PTY_READY")
-      terminal.child.kill()
-      // eslint-disable-next-line no-await-in-loop -- Every child must exit before starting its successor.
-      expect(await terminal.exit()).toHaveProperty("exitCode")
-    }
-  }, 60_000)
+  it(
+    "closes repeated running children after their first output",
+    async () => {
+      for (let session = 0; session < 6; session++) {
+        const terminal = spawn()
+        // eslint-disable-next-line no-await-in-loop -- Wait for native startup before explicitly closing this child.
+        await terminal.until("PTY_READY")
+        terminal.child.kill()
+        // eslint-disable-next-line no-await-in-loop -- Every child must exit before starting its successor.
+        expect(await terminal.exit()).toHaveProperty("exitCode")
+      }
+    },
+    sessionsMs,
+  )
 
   it.skipIf(process.platform !== "darwin")(
     "releases PTY and kqueue descriptors across successful native spawns",
