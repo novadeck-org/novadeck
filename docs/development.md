@@ -267,7 +267,7 @@ Terminals:
 - **New terminals:** "Every state at once" adds one terminal per state, named after it, so
   the tabs and the windows in Grid and Canvas show done, replied (unread), failed, working,
   planning, subagents, asking, waiting, paused at its limit, ended and the rest side by
-side. Its agents are of the harness the group's switch chose (see Agent). "Asks (MCP)" and
+  side. Its agents are of the harness the group's switch chose (see Agent). "Asks (MCP)" and
   "Needs a sign-in" are agents with an `ask` open in the Inbox (a
   question, and an action ask), so their "?" and "!" show beside "Working, a side question",
   an agent that works on with a question open. You stay on one that needs permission, and the
