@@ -49,6 +49,36 @@ const agentRow = /^(\s*(?:❯ )?◯ .*?)\s+(?:\d+d )?(?:\d+h )?(?:\d+m )?\d+(?:\
 const still = (rows: readonly string[]): readonly string[] =>
   rows.map((row) => row.replace(agentRow, "$1"))
 
+/** How its box reads off a screen. */
+const read = (screen: ScreenText) => agreeing(ruledBox(screen, markers), shellFooter(screen.rows))
+
+/** Whether the screen shows messages queued behind the running turn. */
+const queued = (screen: ScreenText): boolean =>
+  screen.rows.some((row) => row.includes("Press up to edit queued messages"))
+
+/**
+ * Whether messages queued behind the turn may still be in their `UserPromptSubmit` hooks:
+ * its spinner, under the latest of them, says "running UserPromptSubmit hooks… 1/2" (hooks
+ * of the event, not messages), and "ctrl+x ctrl+s to send now" stands under that message
+ * once they are through (fixtures/queued-hooks.probe.json, 2.1.316). The spinner names only
+ * the latest event, so a tool's hook takes it over while theirs still run: any hook's words
+ * count. The hooks of two messages overlap. Escape meanwhile kills them and runs them again
+ * one message at a time, so that the second Escape gives back only the first, or both with
+ * the chat left reading `working` (probed 2026-11-06, 2.1.316).
+ * The hint beside a hook's words is that hook's alone: the messages are through, or, beside
+ * the turn's own hook, run theirs only as they are sent, whenever Escape comes, so there is
+ * nothing to wait for. Only the hint's last words are read, as its keys can be rebound.
+ */
+const queueing = (screen: ScreenText): boolean => {
+  if (!queued(screen)) return false
+  const above = screen.rows.slice(0, read(screen)?.first ?? 0)
+  const under = above.slice(above.findLastIndex((row) => row.startsWith("❯ ")) + 1)
+  return (
+    under.some((row) => /running \w+ hook/.test(row)) &&
+    !under.some((row) => row.includes("to send now"))
+  )
+}
+
 /**
  * Claude Code's input box: between two `─` rules, `❯ ` leading its first row and the rest
  * indented (probed 2.1.287 and 2.1.292, fixtures/input-box.probe.json). It sits at the
@@ -59,7 +89,7 @@ const still = (rows: readonly string[]): readonly string[] =>
  * background agents run.
  */
 export const box: BoxProfile = {
-  read: (screen) => agreeing(ruledBox(screen, markers), shellFooter(screen.rows)),
+  read,
   // Enter runs a command shown as a placeholder as the text it stands for. It binds its session
   // before any command, so none starts one (`starts`).
   shell: { expands: true, starts: false, footer: shellFooter },
@@ -71,7 +101,10 @@ export const box: BoxProfile = {
   // Windows CI, when the first pair was still being taken after half a second).
   clear: (_box, screen) => (clearPending(screen?.rows ?? []) ? "\x1b" : "\x1b\x1b"),
   overlay,
-  queued: (screen) => screen.rows.some((row) => row.includes("Press up to edit queued messages")),
+  queued,
+  // Hooks overlap, so this is a slow hook's time however many messages are queued (probed
+  // 2026-11-06, a hook 1.3 s slow; one on Windows CI took about 1.25 s to start).
+  escapeHold: { holds: queueing, ms: 5_000 },
   collapses: (text) => text.split("\n").length > 3 || text.length > 900,
   room: (rows) => rows - 4,
   // Probed on 24, 40 and 60 rows: 7, 15 and 25 (2.1.287, `e2e/probes/interrupted-paste.e2e.ts`).

@@ -28,6 +28,15 @@ export type Seed = {
    * ignores them.
    */
   readonly commands?: readonly string[]
+  /**
+   * A script in the project, which the test writes, that Node runs besides Novadeck's on the
+   * hook its prompts go through (Antigravity's runs before each model call). It prints `{}`,
+   * as Antigravity reads every hook's answer as JSON. Named, not quoted, so that no shell's
+   * quoting comes into it (Antigravity's cmd on Windows keeps a command's escaped quotes).
+   */
+  readonly promptHook?: string
+  /** A script in the project that Node runs after each tool, where a harness's spinner tells of it (Claude Code's). */
+  readonly toolHook?: string
 }
 
 /**
@@ -345,6 +354,14 @@ export type AgentSetup = {
    * harness runs before it can send it, where the harness runs anything then.
    */
   readonly queued?: (prompt: string) => RegExp
+  /**
+   * What the screen shows while prompts queued behind a running turn go through that, the
+   * latest out of the box. A tool's hook may stand in for theirs, as Claude Code's spinner
+   * names only the latest event.
+   */
+  readonly queueing?: RegExp
+  /** What it shows while a tool's hook has taken over that, where one can. */
+  readonly toolHooking?: RegExp
   /** What it shows when a seed leaves the folder or Novadeck's hooks untrusted. */
   readonly trust?: Trust
   /**

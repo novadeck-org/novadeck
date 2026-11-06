@@ -142,11 +142,19 @@ export class Interrupts {
     const prompt = host.prompt(terminalId)
     // Only an empty box has text put back alone: text the person has typed there would be
     // merged with it, and is theirs.
-    const first = profile ? await host.screen(terminalId) : undefined
+    const seen = profile ? await host.screen(terminalId) : undefined
+    const queuedBefore = seen !== undefined && profile?.queued(seen) === true
+    const held = seen !== undefined && profile?.escapeHold?.holds(seen) === true
+    const first = held ? await this.heldScreen(terminalId, profile!, seen) : seen
     const boxBefore = first && profile?.read(first)
     const emptyBefore = boxBefore !== undefined && isEmpty(boxBefore)
-    const queued = first !== undefined && profile?.queued(first) === true
-    if (!host.working(terminalId)) return none
+    const queuedNow = first !== undefined && profile?.queued(first) === true
+    // A turn that ended during the hold had its queued messages behind it, which the program
+    // may be sending by now with no word to the host: the Stop was for those too.
+    const sending =
+      held && (queuedBefore || queuedNow) && !host.working(terminalId) && host.alive(terminalId)
+    const queued = queuedNow || sending
+    if (!sending && !host.working(terminalId)) return none
     host.type(terminalId, "\x1b")
     escaped()
     if (!profile || !emptyBefore) return none
@@ -154,7 +162,7 @@ export class Interrupts {
     let box = await this.settled(terminalId, profile)
     // Programs send what was queued as the next turn, or a steer, which a second Escape
     // stops; some then put that message back in their box. One Escape does nothing at an idle
-    // prompt, and two are never written here. That turn may start only after the box has
+    // prompt, and two are never written here so close together that they open a picker. That turn may start only after the box has
     // settled, as once the stopped turn took a busy machine longer to end (one program on
     // Windows CI: its queued turn began 0.8 s after the first Escape, and a second Escape
     // 0.6 s after it stopped nothing): it is waited for first.
@@ -184,12 +192,37 @@ export class Interrupts {
       !queued &&
       prompt !== undefined &&
       (sameText(box.text, prompt) || showsTail(profile, box, rows, prompt))
-    // Words given back in the box's shell mode are a shell command, `!` and all.
-    const words = box.mode === "shell" ? `!${box.text.trim()}` : box.text.trim()
     // A placeholder stands for words that clearing would lose: they are left, and said.
     if (!profile.clear || (!restored && profile.collapsed(box))) throw new BoxNotCleared()
-    if (!(await this.cleared(terminalId, profile, box, entry))) throw new BoxNotCleared()
+    const gone = await this.cleared(terminalId, profile, box, entry)
+    if (gone === undefined) throw new BoxNotCleared()
+    // Words given back in the box's shell mode are a shell command, `!` and all.
+    const words = gone.mode === "shell" ? `!${gone.text.trim()}` : gone.text.trim()
     return restored ? none : { returned: words }
+  }
+
+  /**
+   * The screen to stop the turn by, from `screen`, which the profile's `escapeHold` holds:
+   * once it no longer does, or its time has passed. The Escape is let through again, as a
+   * dialog may have come up meanwhile. Undefined once the terminal is gone.
+   */
+  private async heldScreen(
+    terminalId: string,
+    profile: BoxProfile,
+    screen: ScreenText,
+  ): Promise<ScreenText | undefined> {
+    const { host } = this
+    const { holds, ms } = profile.escapeHold!
+    const until = Date.now() + ms
+    let now: ScreenText | undefined = screen
+    while (now && holds(now) && host.working(terminalId) && Date.now() < until) {
+      // eslint-disable-next-line no-await-in-loop -- The screen is looked at in turn.
+      await sleep(pollMs)
+      // eslint-disable-next-line no-await-in-loop -- As above.
+      now = await host.screen(terminalId)
+    }
+    host.admit(terminalId)
+    return now
   }
 
   /**
@@ -214,17 +247,20 @@ export class Interrupts {
   /**
    * Clears the text of the box with the profile's keys, written, not typed (the box is
    * empty after them, which the person's keys never say), and looks that it reads empty,
-   * writing them again up to twice if not, as the screen then calls for. False where it
-   * does not. The person's keys are held (with `entry`) from the look the clear goes by to
-   * its end, then go on into the box: a box that changed since `box` was read has their
-   * keys in it, and is left as it is.
+   * writing them again up to twice if not, as the screen then calls for. Returns what it
+   * cleared: `box`, or more where the keys themselves brought more back (an Escape that
+   * stops a turn a queued message had started puts that message under what is there, seen
+   * on Windows CI, and the next clears both); undefined where the box doesn't read empty.
+   * The person's keys are held (with `entry`) from the look the clear goes by to its end,
+   * then go on into the box: a box that changed since `box` was read has their keys in it,
+   * and is left as it is.
    */
   private async cleared(
     terminalId: string,
     profile: BoxProfile,
     box: InputBox,
     entry: InputEntry | undefined,
-  ): Promise<boolean> {
+  ): Promise<InputBox | undefined> {
     const { host } = this
     const capMs = 3 * this.restoreMs + 1_000
     const hold = entry?.hold({ inputMs: capMs, sizeMs: capMs })
@@ -238,14 +274,15 @@ export class Interrupts {
         const shown = screen && profile.read(screen)
         return shown && shown.mode === box.mode && shown.text === box.text ? shown : undefined
       }
-      if (!unchanged(await host.screen(terminalId))) return false
+      if (!unchanged(await host.screen(terminalId))) return undefined
       await sleep(pollMs)
       let seen = await host.screen(terminalId)
       const shown = unchanged(seen)
-      if (!shown || !holding()) return false
+      if (!shown || !holding()) return undefined
       let now = shown
+      let gone = shown
       for (let attempt = 0; attempt < 3; attempt += 1) {
-        if (!holding()) return false
+        if (!holding()) return undefined
         host.write(terminalId, profile.clear!(now, seen))
         // The same keys are written again only once the screen has changed since they were
         // (something of them was taken, and says what is left), or `restoreMs` has passed with
@@ -261,16 +298,17 @@ export class Interrupts {
           // eslint-disable-next-line no-await-in-loop -- As above.
           const after = await host.screen(terminalId)
           const read = after && profile.read(after)
-          if (!after || !host.alive(terminalId)) return false
+          if (!after || !host.alive(terminalId)) return undefined
           seen = after
           if (read !== undefined) {
-            if (isEmpty(read)) return true
+            if (isEmpty(read)) return gone
             now = read
+            if (read.mode === gone.mode && read.text.startsWith(gone.text)) gone = read
           }
           if (Date.now() >= wrote + this.restoreCalmMs && rowsOf(profile, after) !== before) break
         }
       }
-      return false
+      return undefined
     } finally {
       hold?.settle()
     }
