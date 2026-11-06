@@ -95,6 +95,8 @@ const draftOf = (draft: DemoDraft): Omit<ChatItem, "id" | "at" | "truncated"> =>
   call: draft.call ?? null,
   author: draft.author ?? null,
   run: draft.run ?? null,
+  outcome: null,
+  scripted: false,
   interrupted: false,
 })
 
@@ -106,6 +108,8 @@ const text = (role: ChatItem["role"], value: string) => ({
   call: null,
   author: null,
   run: null,
+  outcome: null,
+  scripted: false,
   interrupted: false,
 })
 
@@ -390,6 +394,8 @@ export const createDemoChat = (
           tool: "Bash",
           call: null,
           author: null,
+          outcome: null,
+          scripted: false,
           interrupted: false,
         },
         {
@@ -400,6 +406,8 @@ export const createDemoChat = (
           call: null,
           author: null,
           run: null,
+          outcome: null,
+          scripted: false,
           interrupted: false,
         },
       )
@@ -457,6 +465,8 @@ export const createDemoChat = (
           call: run.call,
           author: null,
           run: run.run,
+          outcome: null,
+          scripted: false,
           interrupted: false,
         },
         {
@@ -467,6 +477,8 @@ export const createDemoChat = (
           call: run.call,
           author: null,
           run: null,
+          outcome: null,
+          scripted: false,
           interrupted: false,
         },
       )

@@ -853,7 +853,17 @@ one from an earlier runner.
   agent's text, a tool call with its input as text, or a tool's result, numbered from
   the record's start, with when it was written; `call` pairs a result with its call by a
   runner-issued ref. Text past 16 KiB is cut short and marked `truncated`, and reasoning
-  never appears. It reads Claude Code's session transcript and its per-subagent ones,
+  never appears. `outcome` says what came of a tool call, as its harness's decoder read it
+  from the record, before any cut, and null where the harness says nothing: `failed`
+  (true, false, or null where unknown), `exit`, `running` (it goes on past this result, a
+  command in the background, whose `failed` stays null), `size` (a count and its unit) and
+  `change` (lines `added` and `removed`, and the first 40 diff lines, with a number where
+  the harness records one). A call's item holds what its input says, `change` alone, its
+  result's the rest; the chat's core joins them by `call`, keeps an input's `change` only once
+  the result says `failed: false`, and holds what is marked `opening` (read from the words a
+  result opens with) only for a call of kind `run`, `read` or `write`.
+  `scripted` marks a call Codex made inside a script of the agent's (code mode), recorded as
+  an event of its own after the script's call, in order, with nothing naming the script. It reads Claude Code's session transcript and its per-subagent ones,
   and Codex's rollouts (a subagent's found on its parent's day or up to a week later),
   without the context either harness writes in the person's place, their developer or
   meta records, and Antigravity's (the step log its hooks name: the person's request
@@ -1115,7 +1125,8 @@ one from an earlier runner.
   `agents.answer(terminalId, request, answer)` is that call.
 
 - `agents.interrupt({ terminalId })` presses Escape in the terminal's agent, which stops
-  its turn in every harness (the turn ends without a normal Stop: its activity is
+  its turn in every harness, after up to 5 s where Claude Code's queued messages are still
+  in their prompt hooks (the turn ends without a normal Stop: its activity is
   `unknown` until the next prompt, see `agent-messaging.md`, and the agent's `lastTurn`
   reads `interrupted`; `lastTurn` also tells a failed turn's `error` as its harness said it,
   the usage-limit window the turn ran into as `limit` (`minutes`, `resetsAt`; kept for that

@@ -20,6 +20,8 @@ const user = (text: string, at: number): ChatItem => ({
   call: null,
   author: null,
   run: null,
+  outcome: null,
+  scripted: false,
   interrupted: false,
 })
 

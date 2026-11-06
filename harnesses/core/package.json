@@ -53,6 +53,11 @@
       "types": "./dist/items.d.ts",
       "default": "./dist/items.js"
     },
+    "./outcomes": {
+      "development": "./src/outcomes.ts",
+      "types": "./dist/outcomes.d.ts",
+      "default": "./dist/outcomes.js"
+    },
     "./paths": {
       "development": "./src/paths.ts",
       "types": "./dist/paths.d.ts",

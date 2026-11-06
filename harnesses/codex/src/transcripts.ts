@@ -4,10 +4,12 @@ import { dirname, join } from "node:path"
 import { parseFields, type Fields } from "@novadeck/harness-core/fields"
 import type { TranscriptDecoder, TranscriptEntry } from "@novadeck/harness-core/harness"
 import { at, entry, joined, textOf } from "@novadeck/harness-core/items"
-import { shellCall } from "@novadeck/harness-core/tools"
+import { exited } from "@novadeck/harness-core/outcomes"
+import { fileList, shellCall } from "@novadeck/harness-core/tools"
 
 import { asyncReplyText } from "./async-question.js"
-import { describe } from "./tools.js"
+import { callChange, commandOutcome, fileChangeOutcome, outputOutcome } from "./outcomes.js"
+import { describe, scriptOf } from "./tools.js"
 
 // Context Codex writes into the conversation as the person's message; the note that tells
 // the model a turn was interrupted, which 0.166.0 writes as the person's (0.165.0 and before
@@ -129,6 +131,55 @@ const interruption = (fields: Fields): readonly TranscriptEntry[] => {
     : []
 }
 
+// One file of a `FileChange` as a person reads a call: its path, then its diff or its text.
+const changeText = ([path, change]: readonly [string, unknown]): string => {
+  const { unified_diff: diff, content } = (change ?? {}) as Fields
+  return [path, stringOf(diff) ?? stringOf(content) ?? ""].join("\n")
+}
+
+// A command or a patch a script of the agent's ran (`exec`, code mode, every model Codex lists
+// since 0.16x), which Codex records as an event of its own, under an id of its own: no tool
+// call, and nothing that names the script's. A call of the agent's own has its call's id on
+// such an event, and a person's shell command another again; the call's item already tells
+// those, so reading them too would show each twice. A patch that didn't apply leaves no event
+// but the script's failure.
+const scripted = (fields: Fields): readonly TranscriptEntry[] => {
+  const payload = (fields.payload ?? {}) as Fields
+  const item = (payload.item ?? {}) as Fields
+  if (payload.type !== "item_completed" || !stringOf(item.id)?.startsWith("exec-")) return []
+  const time = at(fields.timestamp)
+  const row = { at: time, call: item.id, scripted: true }
+  if (item.type === "CommandExecution") {
+    return [
+      entry("assistant", "tool-call", JSON.stringify({ cmd: scriptOf(item) }), {
+        ...row,
+        tool: "exec_command",
+        describe,
+      }),
+      entry("tool", "tool-result", stringOf(item.aggregated_output) ?? "", {
+        ...row,
+        outcome: commandOutcome(item),
+      }),
+    ]
+  }
+  if (item.type === "FileChange") {
+    const changes = Object.entries((item.changes ?? {}) as Fields)
+    const files = changes.map(([path]) => path)
+    return [
+      entry("assistant", "tool-call", changes.map(changeText).join("\n"), {
+        ...row,
+        tool: "apply_patch",
+        describe: () => ({ kind: "write", title: "Patched", detail: fileList(files) }),
+      }),
+      entry("tool", "tool-result", stringOf(item.stdout) || stringOf(item.stderr) || "", {
+        ...row,
+        outcome: fileChangeOutcome(item),
+      }),
+    ]
+  }
+  return []
+}
+
 /**
  * Codex's transcripts are its rollouts: the session's, and one per subagent, named for
  * its thread and kept under the day it started, its parent's or a later one. Each response
@@ -138,7 +189,8 @@ const interruption = (fields: Fields): readonly TranscriptEntry[] => {
  * as the person's `!command` and a Bash run with its output, and its exit code when not
  * zero. The person's answer to an async question is a user message of Codex's own, which
  * reads as its history shows it: `Re: ` and the question, then the answer. A turn the person
- * interrupted reads as their interruption, where it ended.
+ * interrupted reads as their interruption, where it ended. A command or a patch a script ran
+ * reads as a call of its own, after the script's, marked `scripted`.
  */
 export const transcripts: TranscriptDecoder = {
   locate: async (root, _sessionId, subagent) => {
@@ -154,7 +206,7 @@ export const transcripts: TranscriptDecoder = {
   },
   items: (line) => {
     const fields = parseFields(line)
-    if (fields?.type === "event_msg") return interruption(fields)
+    if (fields?.type === "event_msg") return [...interruption(fields), ...scripted(fields)]
     if (fields?.type !== "response_item") return []
     const payload = (fields.payload ?? {}) as Fields
     const time = at(fields.timestamp)
@@ -179,21 +231,29 @@ export const transcripts: TranscriptDecoder = {
               call: payload.id,
               describe: shellCall,
             }),
-            entry("tool", "tool-result", output || "(no output)", { at: time, call: payload.id }),
+            entry("tool", "tool-result", output || "(no output)", {
+              at: time,
+              call: payload.id,
+              outcome: exited(Number(code)),
+            }),
           ]
         }
         return text && !context.test(text) ? [entry(role, "text", text, { at: time })] : []
       }
       case "function_call":
-      case "custom_tool_call":
+      case "custom_tool_call": {
+        const input = textOf(payload.type === "function_call" ? payload.arguments : payload.input)
+        const tool = toolName(payload)
         return [
-          entry(
-            "assistant",
-            "tool-call",
-            textOf(payload.type === "function_call" ? payload.arguments : payload.input),
-            { at: time, tool: toolName(payload), call: payload.call_id, describe },
-          ),
+          entry("assistant", "tool-call", input, {
+            at: time,
+            tool,
+            call: payload.call_id,
+            outcome: callChange(tool, input),
+            describe,
+          }),
         ]
+      }
       // A call of the Responses API's own tools, which Codex records as items of their own
       // (field names from the 0.166.0 binary). A shell call's output is a
       // `function_call_output` of its call, its command an argv. A search's results and an
@@ -223,7 +283,13 @@ export const transcripts: TranscriptDecoder = {
       case "custom_tool_call_output": {
         const { output } = payload
         const text = Array.isArray(output) ? joined(output, ["input_text"]) : textOf(output)
-        return [entry("tool", "tool-result", text, { at: time, call: payload.call_id })]
+        return [
+          entry("tool", "tool-result", text, {
+            at: time,
+            call: payload.call_id,
+            outcome: outputOutcome(text),
+          }),
+        ]
       }
       // Another agent's message to this one: a subagent's rollout holds its parent's, the
       // root's its subagents', each named by its path (`/root/<name>`).

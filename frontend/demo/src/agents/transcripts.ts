@@ -80,6 +80,8 @@ export const written = (
     call: draft.call ?? null,
     author: draft.author ?? null,
     run: draft.run ?? null,
+    outcome: null,
+    scripted: false,
     interrupted: false,
   }))
 

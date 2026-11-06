@@ -7,6 +7,7 @@ import { box, slice } from "./box.js"
 import { decode } from "./decode.js"
 import { dialogs } from "./dialogs.js"
 import { antigravityHome } from "./home.js"
+import { followHolds } from "./listing.js"
 import { models } from "./models.js"
 import {
   connect,
@@ -154,6 +155,7 @@ export const agy = {
     context: "partial",
   },
   decode,
+  watch: followHolds,
   dialogs,
   shown,
   launch,

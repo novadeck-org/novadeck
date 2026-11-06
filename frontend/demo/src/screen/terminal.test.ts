@@ -115,6 +115,8 @@ const item = (id: string, fields: Partial<ChatItem>): ChatItem => ({
   call: null,
   author: null,
   run: null,
+  outcome: null,
+  scripted: false,
   interrupted: false,
   ...fields,
 })
