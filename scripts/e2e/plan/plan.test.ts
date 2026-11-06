@@ -233,7 +233,7 @@ describe("E2E systems", () => {
 
   it.each([
     "contract/protocol/src/harnesses.ts",
-    "engines/whisper/src/index.ts",
+    "engines/whisper/index.js",
     "pnpm-lock.yaml",
     "package.json",
     "pnpm-workspace.yaml",

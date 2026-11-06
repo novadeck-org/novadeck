@@ -766,9 +766,10 @@ harness.
   vanishing counts as taken only where the screen moved on from the dialog read before the
   keys.
 - **Limits and raw dialogs.** What an adapter reads is cut to the protocol's limits before
-  it shows (a long question or description). A `choices` `detail` past 4 KiB is never
-  approved from a cut view: it reads as nothing and shows raw, as does a dialog whose ids
-  or counts exceed the limits. A request raw for good (locked) still keeps another's
+  it shows (a long question or description). Novadeck never cuts a `choices` `detail`: one
+  past 4 KiB reads as nothing and shows raw, as does a dialog whose ids or counts exceed
+  the limits. A harness may cut its own form: Codex's cuts any long value, and for its
+  task tools alone the `detail` tells that form as it is, `...` and all. A request raw for good (locked) still keeps another's
   identical-looking dialog from being answerable; an answered one doesn't. An answer to a
   request whose dialog shows `raw` without a lock (the screen reads as nothing now) is a
   `CONFLICT` that locks nothing. Request dialogs only show raw, for want of one the adapter

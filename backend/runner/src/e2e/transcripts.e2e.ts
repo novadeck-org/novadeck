@@ -409,6 +409,15 @@ for (const setup of setups) {
         for (const step of steps) {
           const call = calls.find((one) => one.text.includes(step.marker))
           expect(call, `the call holding ${step.marker}`).toBeDefined()
+          // `transcript.jsonl` encodes each argument as JSON in a string, and the chat undoes
+          // nothing: the file Antigravity's hooks name has to hold them plain.
+          if (setup.agent === "agy")
+            expect(
+              Object.values(JSON.parse(call!.text) as object).filter(
+                (value) => typeof value === "string" && value.startsWith('"'),
+              ),
+              `${call!.tool}: ${call!.text}`,
+            ).toEqual([])
           expect(call!.run, `${call!.tool}: ${call!.text}`).not.toBeNull()
           expect(call!.run!.kind).not.toBe("other")
           expect(step.kinds, `${call!.tool}: ${JSON.stringify(call!.run)}`).toContain(
