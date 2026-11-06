@@ -422,6 +422,7 @@ export class Terminals {
     this.host.on("evicted", (id, terminal) => this.evicted(id, terminal))
     this.launcher = new Launcher(this.options, {
       stopping: () => this.stopping,
+      scopes: this.pty.scopes,
       handlers: {
         report: (report) => this.reporting.queueReport(report),
         ask: (report, deadline) => this.reporting.queueAsk(report, deadline),

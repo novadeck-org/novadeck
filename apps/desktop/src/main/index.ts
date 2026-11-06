@@ -556,6 +556,7 @@ const launch = async (): Promise<void> => {
     window: (event) => appWindow(event)?.webContents,
     whatsNew: news.whatsNew.whatsNew,
     dismiss: news.whatsNew.dismiss,
+    dismissHeadsUp: news.whatsNew.dismissHeadsUp,
   })
   // The page learns whether this is a portable copy and may install the app from it,
   // while this copy keeps running, and is told how the install goes.

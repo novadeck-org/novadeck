@@ -30,10 +30,11 @@ const reaching = [
   "probes/interrupt-held-reply.e2e.ts",
   "probes/startup-screens.e2e.ts",
   "probes/version.e2e.ts",
+  "scope.e2e.ts",
   "transcripts.e2e.ts",
 ]
 
-type Process = { write: unknown; onData: unknown }
+type Process = { write: unknown; onData: unknown; pid: unknown }
 type Inside = {
   readonly records: Map<string, { bound: unknown; terminal: { pty: Process } }>
   readonly bindings: { applyFact: unknown }
@@ -111,6 +112,12 @@ describe("the e2e reach-ins", () => {
     expect(record).toHaveProperty("prompts")
     expect(record).toHaveProperty("expecting", null)
     expect(record).toHaveProperty("terminal.screen.buffer.active.baseY")
+  })
+
+  it("scope's: records and a live terminal's shell", async ({ resources }) => {
+    const { inside, id } = await running(resources)
+    // Undefined on Windows until the shell has drawn: that it's there is what counts.
+    expect("pid" in inside.records.get(id)!.terminal.pty).toBe(true)
   })
 
   it("interrupt-held-reply's: the bindings' applyFact", async ({ resources }) => {
