@@ -31,30 +31,38 @@ const timed = async (
   deck: Deck,
   command: string | undefined,
   steps: (terminal: DeckTerminal) => Record<string, Promise<void>>,
+  closing: (work: () => Promise<void>) => Promise<void> = (work) => work(),
 ): Promise<string | undefined> => {
   const began = performance.now()
   const marks: string[] = []
   const mark = (step: string) => marks.push(`${step} ${Math.round(performance.now() - began)} ms`)
+  const failures: string[] = []
+  const failed = (error: unknown) => {
+    const message = (error as Error).message
+    marks.push(`failed: ${message}`)
+    failures.push(`${name}: ${message}`)
+  }
   let terminal: DeckTerminal | undefined
-  let failure: string | undefined
   try {
     terminal = await deck.open(command)
     mark("open")
-    // Each on its own, so one that comes later hides no earlier one.
     const opened = terminal
+    // Each on its own, so one that comes later or never hides no other.
     await Promise.all(
       Object.entries({ "first text": drawn(opened, /\S/), ...steps(opened) }).map(([step, wait]) =>
-        wait.then(() => mark(step)),
+        wait.then(() => mark(step), failed),
       ),
     )
   } catch (error) {
-    failure = `${name}: ${(error as Error).message}`
-    marks.push(`failed: ${(error as Error).message}`)
+    failed(error)
+  }
+  // Each ends before the next, so none starts beside the ones before it.
+  if (terminal) {
+    const { id } = terminal
+    await closing(() => deck.terminals.close({ terminalId: id })).catch(failed)
   }
   process.stdout.write(`New terminal, ${name}: ${marks.join(", ")}\n`)
-  // Each ends before the next, so none starts beside the ones before it.
-  if (terminal) await deck.terminals.close({ terminalId: terminal.id })
-  return failure
+  return failures[0]
 }
 
 describe.runIf(process.platform === "win32" && supported)("a new Windows terminal", () => {
@@ -63,7 +71,7 @@ describe.runIf(process.platform === "win32" && supported)("a new Windows termina
   it(
     "logs how long each shell and each agent take to draw",
     { timeout: 420_000 },
-    async ({ e2e: run, resources }) => {
+    async ({ e2e: run }) => {
       const failures: (string | undefined)[] = []
       const shells = [
         ["cmd", run.sandbox.env.ComSpec ?? "cmd.exe"],
@@ -84,23 +92,34 @@ describe.runIf(process.platform === "win32" && supported)("a new Windows termina
           freshPath: true,
           shell,
         })
-        resources.defer(() => deck.close())
-        for (let round = 1; round <= rounds; round++)
-          failures.push(
-            // eslint-disable-next-line no-await-in-loop -- As above.
-            await timed(`${name} #${round}`, deck, undefined, (terminal) => ({
-              prompt: drawn(terminal, />\s*$/m),
-            })),
-          )
+        try {
+          for (let round = 1; round <= rounds; round++)
+            failures.push(
+              // eslint-disable-next-line no-await-in-loop -- As above.
+              await timed(`${name} #${round}`, deck, undefined, (terminal) => ({
+                prompt: drawn(terminal, />\s*$/m),
+              })),
+            )
+        } finally {
+          // eslint-disable-next-line no-await-in-loop -- As above.
+          await deck.close()
+        }
       }
       for (const setup of order)
         for (let round = 1; round <= rounds; round++)
           failures.push(
             // eslint-disable-next-line no-await-in-loop -- As above.
-            await timed(`${setup.name} #${round}`, run.deck, setup.agent, (terminal) => ({
-              ready: terminal.reached("ready", { timeoutMs: 60_000 }).then(() => {}),
-              "at its prompt": prompted(terminal, setup),
-            })),
+            await timed(
+              `${setup.name} #${round}`,
+              run.deck,
+              setup.agent,
+              (terminal) => ({
+                ready: terminal.reached("ready", { timeoutMs: 60_000 }).then(() => {}),
+                "at its prompt": prompted(terminal, setup),
+              }),
+              // It may be mid-request as it ends, which the fake model forgives only here.
+              run.model.ending,
+            ),
           )
       expect(failures.filter((failure) => failure !== undefined)).toEqual([])
     },
