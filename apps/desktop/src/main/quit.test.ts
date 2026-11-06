@@ -5,7 +5,15 @@ import { afterEach, beforeEach, vi } from "vitest"
 
 import { saveBeforeQuitChannel } from "../bridge.js"
 import { context, describe, expect, it } from "../test"
-import { quitOnShutdown, saveBeforeClose, saveOnSessionEnd, savePages } from "./quit"
+import {
+  beforeQuit,
+  quitOnShutdown,
+  saveBeforeClose,
+  saveOnSessionEnd,
+  savePages,
+  shutDownInOrder,
+} from "./quit"
+import { notQuitting, type Quitting } from "./quitting"
 
 // A page's WebContents as saving sees it: the requests it gets and its lifecycle events.
 class FakePage extends EventEmitter {
@@ -181,6 +189,242 @@ describe("the operating system ending the session", () => {
       expect(calls).toEqual(["save"])
       window.emit("session-end", {})
       expect(calls).toEqual(["save", "quit"])
+    })
+  })
+})
+
+// A quit whose steps write down what ran, in order, over the real shutdown; a step named in
+// `fails` rejects as it runs.
+const quit = ({
+  held = false,
+  hosting = true,
+  platform = "linux",
+  state = notQuitting(),
+  fails = [],
+  closeRunner,
+  closeServer,
+}: {
+  readonly held?: boolean
+  readonly hosting?: boolean
+  readonly platform?: NodeJS.Platform
+  readonly state?: Quitting
+  readonly fails?: readonly string[]
+  readonly closeRunner?: () => Promise<void> | undefined
+  readonly closeServer?: () => Promise<void> | undefined
+} = {}) => {
+  const calls: string[] = []
+  const step = (name: string) => (): void => {
+    calls.push(name)
+  }
+  const waited = (name: string) => async (): Promise<void> => {
+    calls.push(name)
+    if (fails.includes(name)) throw new Error(`${name} failed`)
+  }
+  const run = () =>
+    beforeQuit(
+      { preventDefault: step("hold") },
+      {
+        quitting: state,
+        held: () => held,
+        announce: step("announce"),
+        // Named apart once the app is marked as stopping: on Linux this is what swaps the
+        // AppImage, which it does only before that.
+        begin: () => {
+          calls.push(state.stopping ? "begin again" : "begin")
+        },
+        hosting: () => hosting,
+        shutDown: () =>
+          shutDownInOrder({
+            platform,
+            persist: () => {
+              calls.push("persist")
+              if (fails.includes("persist")) throw new Error("persist failed")
+            },
+            // Named apart if the app isn't marked as stopping yet, which a shutdown must see.
+            save: async () => {
+              calls.push(state.stopping ? "save" : "save before stopping")
+              if (fails.includes("save")) throw new Error("save failed")
+            },
+            closeRunner: closeRunner ?? waited("close runner"),
+            closeServer: closeServer ?? waited("close server"),
+          }),
+        installMacUpdate: waited("install"),
+        reopenAppImage: waited("reopen"),
+        quit: step("quit"),
+      },
+    )
+  return { calls, state, run }
+}
+
+describe("the app's quit", () => {
+  it("saves, closes the runner and the server, installs, reopens and quits, in that order", async () => {
+    const { calls, run } = quit()
+    await run()
+    expect(calls).toEqual([
+      "announce",
+      "begin",
+      "hold",
+      "save",
+      "close runner",
+      "close server",
+      "install",
+      "reopen",
+      "quit",
+    ])
+  })
+
+  it("marks the app as stopping", async () => {
+    const { state, run } = quit()
+    await run()
+    expect(state.stopping).toBe(true)
+  })
+
+  it("closes nothing until the pages have saved", async () => {
+    const calls: string[] = []
+    let saved = (): void => {}
+    const shutDown = shutDownInOrder({
+      platform: "linux",
+      persist: () => {},
+      save: () => new Promise((resolve) => (saved = resolve)),
+      closeRunner: async () => {
+        calls.push("runner")
+      },
+      closeServer: async () => {
+        calls.push("server")
+      },
+    })
+    await vi.advanceTimersByTimeAsync(0)
+    expect(calls).toEqual([])
+    saved()
+    await shutDown
+    expect(calls).toEqual(["runner", "server"])
+  })
+
+  it("waits for the runner to end before the update", async () => {
+    let closed = (): void => {}
+    const { calls, run } = quit({
+      closeRunner: () => new Promise((resolve) => (closed = resolve)),
+    })
+    const finished = run()
+    await vi.advanceTimersByTimeAsync(0)
+    expect(calls).not.toContain("install")
+    closed()
+    await finished
+    expect(calls).toContain("install")
+  })
+
+  it("waits for the server to end before the update", async () => {
+    let closed = (): void => {}
+    const { calls, run } = quit({
+      closeServer: () => new Promise((resolve) => (closed = resolve)),
+    })
+    const finished = run()
+    await vi.advanceTimersByTimeAsync(0)
+    expect(calls).not.toContain("install")
+    closed()
+    await finished
+    expect(calls).toContain("install")
+  })
+
+  it("closes the server while the runner is still closing", async () => {
+    let closed = (): void => {}
+    const { calls, run } = quit({
+      closeRunner: () => new Promise((resolve) => (closed = resolve)),
+    })
+    const finished = run()
+    await vi.advanceTimersByTimeAsync(0)
+    expect(calls).toContain("close server")
+    closed()
+    await finished
+  })
+
+  context("with a server but no runner", () => {
+    it("closes the server and goes on to the update", async () => {
+      const { calls, run } = quit({ closeRunner: () => undefined })
+      await run()
+      expect(calls.slice(-4)).toEqual(["close server", "install", "reopen", "quit"])
+    })
+  })
+
+  context("on Windows", () => {
+    it("tells the runner the app is going before the pages save", async () => {
+      const { calls, run } = quit({ platform: "win32" })
+      await run()
+      expect(calls.indexOf("persist")).toBeGreaterThan(-1)
+      expect(calls.indexOf("persist")).toBeLessThan(calls.indexOf("save"))
+    })
+  })
+
+  context("elsewhere", () => {
+    it.each(["linux", "darwin"] as const)("tells the runner nothing early on %s", async (os) => {
+      const { calls, run } = quit({ platform: os })
+      await run()
+      expect(calls).not.toContain("persist")
+    })
+  })
+
+  context("while an update goes into place", () => {
+    // The app is stopping by then: a second quit, as a logout's, is what this holds back. Not
+    // stopping, this keeps the check ahead of the others.
+    it.each([true, false])("holds the quit and does nothing else (stopping: %s)", (stopping) => {
+      const { calls, run } = quit({ held: true, state: { ...notQuitting(), stopping } })
+      expect(run()).toBeUndefined()
+      expect(calls).toEqual(["hold"])
+    })
+  })
+
+  context("with no runner and no server", () => {
+    it("begins the quit and lets it go on", () => {
+      const { calls, state, run } = quit({ hosting: false })
+      expect(run()).toBeUndefined()
+      expect(calls).toEqual(["announce", "begin"])
+      expect(state.stopping).toBe(false)
+    })
+  })
+
+  context("when the quit comes back once it finished", () => {
+    it("begins again but lets the app end", async () => {
+      const { calls, run } = quit()
+      await run()
+      calls.length = 0
+      expect(run()).toBeUndefined()
+      expect(calls).toEqual(["begin again"])
+    })
+  })
+
+  context("when the uninstall already stopped the app", () => {
+    it("begins but neither says so again nor shuts down twice", () => {
+      const { calls, run } = quit({ state: { ...notQuitting(), stopping: true } })
+      expect(run()).toBeUndefined()
+      expect(calls).toEqual(["begin again"])
+    })
+  })
+
+  context("when a step fails", () => {
+    it.each([
+      ["save", ["save", "quit"]],
+      ["install", ["save", "close runner", "close server", "install", "quit"]],
+      ["reopen", ["save", "close runner", "close server", "install", "reopen", "quit"]],
+    ])("still quits after %s fails", async (name, ran) => {
+      const { calls, run } = quit({ fails: [name] })
+      await expect(run()).rejects.toThrow(`${name} failed`)
+      expect(calls.slice(3)).toEqual(ran)
+    })
+
+    it("still quits when telling the runner throws on Windows", async () => {
+      const { calls, run } = quit({ platform: "win32", fails: ["persist"] })
+      await expect(run()).rejects.toThrow("persist failed")
+      expect(calls.at(-1)).toBe("quit")
+    })
+
+    it.each([
+      ["close runner", "close server"],
+      ["close server", "close runner"],
+    ])("goes on to the update after %s, with %s done too", async (name, other) => {
+      const { calls, run } = quit({ fails: [name] })
+      await run()
+      expect(calls).toContain(other)
+      expect(calls.slice(-3)).toEqual(["install", "reopen", "quit"])
     })
   })
 })
