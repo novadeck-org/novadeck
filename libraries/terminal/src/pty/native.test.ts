@@ -1,10 +1,14 @@
 import { execFileSync } from "node:child_process"
 import { EventEmitter } from "node:events"
+import { tmpdir } from "node:os"
 
 import * as pty from "node-pty"
 import { describe, expect, it, onTestFinished, vi } from "vitest"
 
 import { command, ptyChild, ptyChildEnv, ptyTrace } from "../testing.js"
+// @ts-expect-error -- A diagnostic for #722 in plain JavaScript, to come out with it.
+import { timeStart } from "../testing/conpty-probe.mjs"
+import { spawnPty } from "./pty.js"
 
 // How long a step may take. Under CI load, Windows' ConPTYs (the bundled one and the system's)
 // hold input for seconds at a time while output flows (#712): a line that reaches a child in
@@ -217,6 +221,74 @@ describe("installed native PTY dependency", () => {
       expect(descriptors()).toEqual(before)
     },
     60_000,
+  )
+
+  // Diagnostic for #722, to come out once CI has shown it: which variable explains a child's
+  // first ~3 s on the bundled ConPTY. Written to stdout, which Vitest shows for a passing test.
+  it.runIf(process.platform === "win32")(
+    "diagnostic: times a child's start by how it was spawned",
+    { timeout: 420_000 },
+    async () => {
+      const raw = (useConptyDll: boolean) => () => {
+        const child = pty.spawn(process.execPath, [ptyChild], {
+          cwd: process.cwd(),
+          env: { ...process.env, ...ptyChildEnv },
+          cols: 80,
+          rows: 24,
+          useConptyDll,
+        })
+        return { terminal: child, native: child }
+      }
+      const product = (cwd: string, env: NodeJS.ProcessEnv) => () => {
+        let native: pty.IPty | undefined
+        const terminal = spawnPty({
+          file: process.execPath,
+          args: [ptyChild],
+          cwd,
+          env,
+          cols: 80,
+          rows: 24,
+          native: (...args) => (native = pty.spawn(...args)),
+        })
+        return { terminal, native }
+      }
+      const whole = { ...process.env, ...ptyChildEnv, TERM: "xterm-256color" }
+      const { Path, PATH, SystemRoot, TEMP, TMP } = process.env
+      const minimal = {
+        PATH: PATH ?? Path,
+        SystemRoot,
+        TEMP,
+        TMP,
+        TERM: "xterm-256color",
+      }
+      const here = process.cwd()
+      const variants = [
+        ["(a) raw, bundled", raw(true), {}],
+        ["(a+) raw, bundled, answered", raw(true), { answerAfterMs: 0 }],
+        ["(a+1s) raw, bundled, answered after 1 s", raw(true), { answerAfterMs: 1_000 }],
+        ["(system) raw, system", raw(false), {}],
+        ["(b) spawnPty", product(here, whole), {}],
+        ["(b+) spawnPty, answered", product(here, whole), { answerAfterMs: 0 }],
+        ["(c) spawnPty, temp cwd", product(tmpdir(), whole), {}],
+        ["(d) spawnPty, minimal env", product(here, minimal), {}],
+        [
+          "(d+) spawnPty, temp cwd, minimal env, answered",
+          product(tmpdir(), minimal),
+          { answerAfterMs: 0 },
+        ],
+      ] as const
+      let runs = 0
+      for (const [label, start, how] of variants)
+        for (let run = 1; run <= 3; run++) {
+          // eslint-disable-next-line no-await-in-loop -- One start at a time, for clean times.
+          const line = (await timeStart(`${label} #${run}`, start, how)) as string
+          // Each as it comes, so a timeout loses none of those before it.
+          process.stdout.write(`ConPTY start: ${line}\n`)
+          runs++
+        }
+      process.stdout.write(`The children's trace:\n${ptyTrace(60)}\n`)
+      expect(runs).toBeGreaterThan(0)
+    },
   )
 
   it.skipIf(process.platform !== "win32").for([
