@@ -338,8 +338,8 @@ const cells: Readonly<Record<number, readonly [number, number, number, number]>>
   10: [1, 3, 0, 0],
 }
 const windowSize = { width: 660, height: 280 }
-// The space between windows' corners, wide enough that the Canvas finds free places in the
-// middle of the deck (it keeps 60 clear of a window and snaps to 24).
+// The space between windows' corners in the deck's saved layout, which Canvas, arranging
+// its windows itself, no longer reads.
 const columnPitch = 730
 const rowPitch = 380
 const place = (number: number) => {

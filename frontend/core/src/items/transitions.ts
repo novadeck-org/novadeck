@@ -261,7 +261,7 @@ export const openInProject = (
   state: WorkspaceState,
   action: Extract<WorkspaceAction, { type: "project/open" }>,
 ): WorkspaceState => {
-  const { gridLayouts, canvasGeometry } = action
+  const { gridLayouts } = action
   if (action.window.itemId !== action.item.id || hasTerminal(state.roster, action.window.id))
     return state
   // A later re-point the watch reported first is not undone by this older answer.
@@ -293,7 +293,6 @@ export const openInProject = (
       terminal: window,
       terminals: tiles,
       gridLayouts: gridLayouts ?? addCompactGridTerminal(tiles, apart.layout.grid, window),
-      canvasGeometry,
     }),
     selected: window.id,
   }

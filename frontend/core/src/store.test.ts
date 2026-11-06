@@ -93,14 +93,13 @@ describe("workspace commands", () => {
     expect(terminalState.roster).toEqual({ terminals: [terminal], windows: [], order: [] })
   })
 
-  it("adding a terminal selects it and places it in every layout", () => {
+  it("adding a terminal selects it and places it in Grid's layouts", () => {
     const store = createWorkspaceStore(initial())
     const before = state(store.getSnapshot())
     store.dispatch({
       type: "terminal/add",
       target,
       terminal: terminalFixture(2, "~/project"),
-      canvasGeometry: { position: { x: 900, y: 500 }, width: 600, height: 400 },
       gridLayouts: {
         desktop: [
           { i: "02", x: 0, y: 0, w: 3, h: 4 },
@@ -111,7 +110,6 @@ describe("workspace commands", () => {
     const added = state(store.getSnapshot())
     expect(added.selected).toBe("02")
     expect(added.roster.terminals).toHaveLength(before.roster.terminals.length + 1)
-    expect(added.layout.canvas.geometry["02"]!.position).toEqual({ x: 900, y: 500 })
     expect(added.layout.grid.desktop!.map((item) => item.i)).toEqual(["02"])
     expect(added.layout.sizePresets).toEqual({ grid: { "02": "small" } })
     expect(added.layout).toMatchObject({ hidden: {}, gridRestoreWidths: {} })

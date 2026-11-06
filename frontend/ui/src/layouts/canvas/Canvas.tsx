@@ -38,7 +38,6 @@ import {
   chromeScaleAt,
   fitOptions,
   inSight,
-  snap,
   terminalHeaderHeight,
   windowSize,
 } from "./geometry"
@@ -191,11 +190,17 @@ const TerminalCanvas = ({
     if (stay.current) return
     const first = kept ? continueStay(kept, tiles) : beginStay(tiles, room())
     stay.current = first
-    held.keep(first, reordered)
     setOpened(stayPlaces(first))
-  }, [held, kept, reordered, room, tiles])
+  }, [kept, room, tiles])
   // The sidebar's order the windows were last arranged afresh for.
   const arrangedFor = useRef(reordered)
+  // Leaving, it hands its stay to the stage, for coming back by a window's own button.
+  useEffect(
+    () => () => {
+      if (stay.current) held.keep(stay.current, arrangedFor.current)
+    },
+    [held],
+  )
   const knownTerminals = useRef(new Set(terminals.map((terminal) => terminal.id)))
   const createdPositions = useRef(new Map<string, XYPosition>())
   // What the layout last saved of each window, where one was dropped on the canvas: a
@@ -319,16 +324,15 @@ const TerminalCanvas = ({
         if (change.type === "position" && change.position) {
           if (change.dragging) dragging.current.add(change.id)
           else if (dragging.current.delete(change.id) && stay.current) {
-            const position = { x: snap(change.position.x), y: snap(change.position.y) }
+            const position = canvasPointPosition(change.position)
             stay.current = moveInStay(stay.current, change.id, position)
-            held.keep(stay.current, arrangedFor.current)
             updateNode(change.id, (node) => ({ ...node, position }))
           }
         }
         if (change.type === "select" && change.selected) onSelect(change.id)
       }
     },
-    [held, onSelect, updateNode],
+    [onSelect, updateNode],
   )
 
   const flyTo = useCallback(
@@ -453,7 +457,6 @@ const TerminalCanvas = ({
       }
     }
     stay.current = next
-    held.keep(next, reordered)
     const arranged = stayPlaces(next)
     // A hidden terminal looked at is shown where it would go if it were shown, unless this
     // stay still has the place it had. Only its own place is taken from that: the stay
@@ -550,7 +553,6 @@ const TerminalCanvas = ({
     drops,
     getNode,
     getViewport,
-    held,
     layout.geometry,
     nodeFrom,
     opened,

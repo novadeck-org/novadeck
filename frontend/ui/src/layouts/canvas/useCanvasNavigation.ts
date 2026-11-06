@@ -183,7 +183,6 @@ export const useCanvasNavigation = ({
       ),
     )
     if (!flyOnNavigate) return
-    createdPositions.current.delete(selected)
     void framed.then(() => flyIn(selected))
   }
   return initializeViewport

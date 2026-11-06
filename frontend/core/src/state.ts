@@ -121,7 +121,6 @@ export type WorkspaceAction =
       target: WorkspaceTarget
       terminal: TerminalMetadata
       gridLayouts?: GridLayouts
-      canvasGeometry?: CanvasLayout["geometry"][string]
       // The terminal that opened it, which it is listed under in the sidebar.
       anchor?: string
       // Whether it becomes the session's selection, as it does by default.
@@ -171,7 +170,6 @@ export type WorkspaceAction =
       item: Item
       window: CompanionWindowMeta
       gridLayouts?: GridLayouts
-      canvasGeometry?: CanvasLayout["geometry"][string]
       // The session had no such window before this open, so it is placed as asked even if
       // the watch placed it a moment earlier, which the person has not touched.
       made?: boolean
@@ -510,7 +508,6 @@ export const workspaceReducer = (workspace: Workspace, action: WorkspaceAction):
             terminal: action.terminal,
             terminals: tiles,
             gridLayouts: action.gridLayouts,
-            canvasGeometry: action.canvasGeometry,
           }),
           selected: action.select === false ? state.selected : action.terminal.id,
         }

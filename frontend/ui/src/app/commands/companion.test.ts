@@ -74,12 +74,6 @@ describe("companion commands", () => {
       })
     })
 
-    it("leaves a window opened without a drop for Canvas to arrange", () => {
-      const app = open()
-      app.commands.undock(hero.id)
-      expect(app.state().layout.canvas.geometry).not.toHaveProperty("session-1")
-    })
-
     it("moves a window already open to where it was dropped", () => {
       const app = open()
       app.commands.undock(hero.id)

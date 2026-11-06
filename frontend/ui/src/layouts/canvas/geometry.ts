@@ -6,7 +6,6 @@ import type { CanvasViewport, TerminalNode } from "./types"
 type Size = { readonly width: number; readonly height: number }
 
 export const canvasStep = 24
-export const snap = (value: number): number => Math.round(value / canvasStep) * canvasStep
 export const terminalHeaderHeight = 52
 // Apply half the canvas zoom strength to node headers.
 export const chromeScaleAt = (zoom: number): number => 1 / Math.sqrt(zoom)

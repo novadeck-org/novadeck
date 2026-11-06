@@ -29,8 +29,7 @@ const paneInView = (): boolean => {
 }
 
 describe("Canvas with a companion pane open on arrival", () => {
-  // The showcase's terminals stand in one column, whose fit is limited by its height, so the
-  // pane fits beside them however the camera is chosen: this guards the switch itself.
+  // This guards the switch itself: the first camera takes in the pane open on a window.
   it("frames the pane when switched to from Grid", async () => {
     await openShowcase("grid")
     await terminalTab("Build Studio").click()

@@ -488,14 +488,13 @@ describe("workspace commands", () => {
       expect(answers).toEqual([{ terminalId: "new-3" }])
     })
 
-    it("lists it under the asking terminal, not the selected one, and leaves Canvas to place it", () => {
+    it("lists it under the asking terminal, not the selected one", () => {
       const app = openCommands({
         workspace: workspaceFixture(),
         url: "/projects/project/sessions/initial/canvas?terminal=02",
       })
       app.commands.openRequested(asking({ from: "01" }).asked)
       expect(orderedTiles(app.state().roster).map((tile) => tile.id)).toEqual(["01", "new-3", "02"])
-      expect(app.state().layout.canvas.geometry).not.toHaveProperty("new-3")
     })
 
     it("lists it under the asking terminal, after the ones it opened before", () => {
