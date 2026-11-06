@@ -119,6 +119,7 @@ const kind = z.enum(["release", "promote"])
 const highlightFields = { title: text(80), line: text(240), prs }
 const changeFields = { area: noteArea, line: text(240), prs }
 const maxHighlights = 4
+const maxHeadsUps = 3
 const maxChanges = 200
 const fixes = z.number().int().min(0).max(10_000)
 
@@ -137,6 +138,15 @@ const releaseNotes = z.strictObject({
   highlights: z
     .array(z.strictObject({ ...highlightFields, icon: highlightIcon.optional() }))
     .max(maxHighlights),
+  /**
+   * What works differently for someone who used the app before: each comes from a pull
+   * request's `## Heads-up` section, and the app tells them on a card of their own, ahead of
+   * the highlights. Notes written before this have none.
+   */
+  headsUp: z
+    .array(z.strictObject({ ...highlightFields, icon: highlightIcon.optional() }))
+    .max(maxHeadsUps)
+    .default([]),
   changes: z.array(z.strictObject(changeFields)).max(maxChanges),
   /** How many smaller fixes and speedups the lines above leave unnamed. */
   fixes,
@@ -165,6 +175,7 @@ const lenient = z.object({
   version: z.unknown(),
   kind,
   highlights: z.array(z.unknown()),
+  headsUp: z.array(z.unknown()).optional(),
   changes: z.array(z.unknown()),
   fixes: z.unknown(),
 })
@@ -199,6 +210,7 @@ export const readNotesBlock = (body: string): ReleaseNotes | undefined => {
       version: named.data,
       kind: parsed.data.kind,
       highlights: keep(parsed.data.highlights, highlight, maxHighlights),
+      headsUp: keep(parsed.data.headsUp ?? [], highlight, maxHeadsUps),
       changes: keep(parsed.data.changes, change, maxChanges),
       fixes: counted.success ? counted.data : 0,
     }

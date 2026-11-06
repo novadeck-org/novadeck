@@ -1,0 +1,88 @@
+# direct: command-passes
+Ran · echo hello → failed false, exit 0
+
+# direct: command-fails
+Ran · sh -c 'echo boom >&2; exit 3' → failed true, exit 3
+
+# direct: read
+Ran · cat sample.txt → failed false, exit 0
+
+# direct: tool-error
+Ran · cat missing.txt → failed true, exit 1
+
+# direct: search
+Ran · grep -n beta sample.txt → failed false, exit 0
+
+# direct: no-match
+Ran · grep -n zzz sample.txt → failed true, exit 1
+
+# direct: runs-on
+Ran · sleep 3; echo done → failed unknown, running
+
+# direct: poll-ends
+Sent input ·  → failed false, exit 0
+
+# direct: not-found
+Ran · no-such-program-here → failed true, exit 127
+
+# direct: patch-add
+Ran · apply_patch <<'EOF' → failed false, exit 0, +2 -0 [2 lines: 1+one | 2+two]
+
+# direct: patch-update
+Ran · apply_patch <<'EOF' → failed false, exit 0, +2 -1 [5 lines: ? const a = 1 | ?-const b = 2 | ?+const b = 20]
+
+# direct: patch-no-match
+Ran · apply_patch <<'EOF' → failed true
+
+# patch tool: add
+Patched · new.txt → failed false, exit 0, +2 -0 [2 lines: 1+one | 2+two]
+
+# patch tool: update
+Patched · src/auth.ts → failed false, exit 0, +2 -1 [5 lines: ? const a = 1 | ?-const b = 2 | ?+const b = 20]
+
+# patch tool: no-match
+Patched · src/auth.ts → failed true
+
+# patch tool: move
+Patched · new.txt → failed false, exit 0, +1 -1 [2 lines: ?-one | ?+uno]
+
+# patch tool: delete
+Patched · moved.txt → failed false, exit 0
+
+# code mode: command-passes
+Ran · text(await tools.exec_command({cmd:"echo → nothing known
+  in script: Ran · echo hello → failed false, exit 0
+
+# code mode: command-fails
+Ran · text(await tools.exec_command({cmd:"exit → nothing known
+  in script: Ran · exit 3 → failed true, exit 3
+
+# code mode: script-fails
+Ran · throw new Error("boom in the script"); → failed true
+
+# code mode: two-commands
+Ran · const r = await Promise.allSettled([tool → nothing known
+  in script: Ran · cat missing.txt → failed true, exit 1
+  in script: Ran · echo one → failed false, exit 0
+
+# code mode: read
+Ran · text(await tools.exec_command({cmd:"cat  → nothing known
+  in script: Ran · cat sample.txt → failed false, exit 0, 6 lines
+
+# code mode: search
+Ran · text(await tools.exec_command({cmd:"grep → nothing known
+  in script: Ran · grep -n beta sample.txt → failed false, exit 0
+
+# code mode: add
+Ran · text(await tools.apply_patch("*** Begin  → nothing known
+  in script: Patched · …/user/project/new.txt → failed false, +2 -0 [2 lines: 1+one | 2+two]
+
+# code mode: update
+Ran · text(await tools.apply_patch("*** Begin  → nothing known
+  in script: Patched · …/project/src/auth.ts → failed false, +2 -1 [5 lines: 1 const a = 1 | 2-const b = 2 | 2+const b = 20]
+
+# code mode: no-match
+Ran · text(await tools.apply_patch("*** Begin  → failed true
+
+# code mode: runs-on
+Ran · text(await tools.exec_command({cmd:"slee → nothing known

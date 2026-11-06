@@ -1,0 +1,50 @@
+# read
+tools: Read [read] · …/user/project/sample.txt | Call: read_file: 1 line: /home/user/project/sample.txt → 9 lines: Created At: 2026-11-06T14:29:25+01:00
+
+# read-part
+tools: Read [read] · …/user/project/sample.txt | Call: read_file: 3 lines: EndLine: 3 → 5 lines: Created At: 2026-11-06T14:29:25+01:00
+
+# tool-error
+tools: Read [read] · …/user/project/missing.txt | Call: read_file: 1 line: /home/user/project/missing.txt → 3 lines: Created At: 2026-11-06T14:29:25+01:00
+
+# command-passes
+tools: Ran [run] · echo hello | Call: run_command: 3 lines: CommandLine: echo hello → 6 lines: Created At: 2026-11-06T14:29:25+01:00
+
+# command-fails
+tools: Ran [run] · exit 3 | Call: run_command: 3 lines: CommandLine: exit 3 → 5 lines: Created At: 2026-11-06T14:29:26+01:00
+
+# no-match
+tools: Ran [run] · grep -n zzz sample.txt | Call: run_command: 3 lines: CommandLine: grep -n zzz sample.txt → 5 lines: Created At: 2026-11-06T14:29:28+01:00
+
+# not-found
+tools: Ran [run] · no-such-program-here | Call: run_command: 3 lines: CommandLine: no-such-program-here → 6 lines: Created At: 2026-11-06T14:29:29+01:00
+
+# search
+tools: Ran [run] · grep -rn beta . | Call: run_command: 3 lines: CommandLine: grep -rn beta . → 6 lines: Created At: 2026-11-06T14:29:30+01:00
+
+# edit
+tools: Edited [write] · …/project/src/auth.ts | Call: edit_file: 7 lines: Path: /home/user/project/src/auth.ts → 3 lines: Created At: 2026-11-06T14:29:31+01:00
+
+# edit-no-match
+tools: Edited [write] · …/project/src/auth.ts | Call: edit_file: 3 lines: Path: /home/user/project/src/auth.ts → 3 lines: Created At: 2026-11-06T14:29:32+01:00
+
+# new-file
+tools: Wrote [write] · …/user/project/new.txt | Call: write_file: 5 lines: Content: → 3 lines: Created At: 2026-11-06T14:29:33+01:00
+
+# file-exists
+tools: Wrote [write] · …/user/project/new.txt | Call: write_file: 4 lines: Content: → 3 lines: Created At: 2026-11-06T14:29:34+01:00
+
+# long-edit
+tools: Edited [write] | Call: edit_file: 1 line, shortened: {"Path":"/home/user/project/long.txt","Replacem… → 3 lines: Created At: 2026-11-06T14:29:35+01:00
+
+# long-write
+tools: Wrote [write] | Call: write_file: 1 line, shortened: {"Content":"line 0 xxxxxxxxxxxxxxxxxxxxxxxxxxxx… → 3 lines: Created At: 2026-11-06T14:29:37+01:00
+
+# overwrite
+tools: Wrote [write] · …/user/project/new.txt | Call: write_file: 5 lines: Content: → 3 lines: Created At: 2026-11-06T14:29:38+01:00
+
+# background
+tools: Ran [run] · sleep 3; echo done | Call: run_command: 3 lines: CommandLine: sleep 3; echo done → 4 lines: Created At: 2026-11-06T14:29:39+01:00
+
+# background-fails
+tools: Ran [run] · sh -c 'sleep 2; exit 4' | Call: run_command: 3 lines: CommandLine: sh -c 'sleep 2; exit 4' → 4 lines: Created At: 2026-11-06T14:29:45+01:00

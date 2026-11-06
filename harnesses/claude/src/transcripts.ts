@@ -1,12 +1,13 @@
 import { dirname, join } from "node:path"
 
-import { parseFields } from "@novadeck/harness-core/fields"
+import { isFields, parseFields } from "@novadeck/harness-core/fields"
 import type { TranscriptDecoder, TranscriptEntry } from "@novadeck/harness-core/harness"
 import { at, entry, joined, textOf } from "@novadeck/harness-core/items"
 import { shellCall } from "@novadeck/harness-core/tools"
 
 import { taskNotification } from "./decode.js"
 import { interruption } from "./interruption.js"
+import { outcomeOf } from "./outcomes.js"
 import { describe } from "./tools.js"
 
 // A subagent id Claude Code names its transcript by, as it writes them.
@@ -170,7 +171,10 @@ export const transcripts: TranscriptDecoder = {
     const time = at(fields.timestamp)
     const content = (fields.message as { content?: unknown } | undefined)?.content
     if (typeof content === "string") return textItems(role, content, time, fields)
-    return (Array.isArray(content) ? content : []).flatMap((part) => {
+    const parts = Array.isArray(content) ? content : []
+    // The record's detail of a result speaks for one result alone.
+    const results = parts.filter((part) => isFields(part) && part.type === "tool_result")
+    return parts.flatMap((part) => {
       const {
         type,
         text,
@@ -179,6 +183,7 @@ export const transcripts: TranscriptDecoder = {
         id,
         content: result,
         tool_use_id: call,
+        is_error: failed,
       } = (part ?? {}) as Record<string, unknown>
       // The person's text block reads as their text content does, wrappers and all.
       if (type === "text" && typeof text === "string" && text)
@@ -194,15 +199,20 @@ export const transcripts: TranscriptDecoder = {
             describe,
           }),
         ]
-      if (type === "tool_result")
+      if (type === "tool_result") {
+        const output = typeof result === "string" ? result : joined(result, ["text"])
         return [
-          entry(
-            "tool",
-            "tool-result",
-            typeof result === "string" ? result : joined(result, ["text"]),
-            { at: time, call },
-          ),
+          entry("tool", "tool-result", output, {
+            at: time,
+            call,
+            outcome: outcomeOf(
+              failed === true,
+              output,
+              results.length === 1 ? fields.toolUseResult : undefined,
+            ),
+          }),
         ]
+      }
       return []
     })
   },

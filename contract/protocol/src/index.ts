@@ -145,6 +145,11 @@ export {
   unsafeInLine,
 } from "./text.js"
 export {
+  outcomeLimits,
+  toolChange,
+  type ToolChange,
+  toolOutcome,
+  type ToolOutcome,
   type ToolRun,
   type TranscriptChange,
   transcriptItem,

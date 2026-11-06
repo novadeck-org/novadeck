@@ -13,6 +13,11 @@ export type Commit = {
   readonly what: string
   /** Its `## Why`, trimmed: what the change is for, which a line may say when it isn't plain. */
   readonly why: string
+  /**
+   * Its `## Heads-up`, trimmed: what works differently or is gone for someone who used the app
+   * before. Empty when the pull request has none, or left the template's prompt unfilled.
+   */
+  readonly headsUp: string
 }
 
 // The scopes of changes that are not the app: the try demo, the wire between processes, the
@@ -45,6 +50,8 @@ const conventional =
 export const maxWhat = 700
 /** The longest `## Why`: the reason, not the case for it. */
 export const maxWhy = 400
+/** The longest `## Heads-up`: it names what is gone and what to do instead, so it gets room. */
+export const maxHeadsUp = 500
 
 /**
  * The chat view ships behind a flag, and the try demo is not the app: neither is announced.
@@ -68,7 +75,13 @@ const reference = /#\d+\b/
  * The text under a pull request body's `## <heading>`, up to the next heading, cut at `max`.
  * `references` keeps the sentences that point at an issue or a pull request.
  */
-const sectionOf = (body: string, heading: string, max: number, references = true): string => {
+const sectionOf = (
+  body: string,
+  heading: string,
+  max: number,
+  references = true,
+  announced = true,
+): string => {
   const found = new RegExp(
     `^## ${heading}[ \\t]*\\r?\\n(?<text>[\\s\\S]*?)(?=^## |(?![\\s\\S]))`,
     "m",
@@ -98,7 +111,10 @@ const sectionOf = (body: string, heading: string, max: number, references = true
     .flatMap((block) => {
       const kept = block
         .split(/(?<=[.!?])\s+/)
-        .filter((sentence) => !unannounced(sentence) && (references || !reference.test(sentence)))
+        .filter(
+          (sentence) =>
+            (!announced || !unannounced(sentence)) && (references || !reference.test(sentence)),
+        )
         .join(" ")
       // A block that was all about it goes whole; a blank line stays a blank line.
       return block && !kept ? [] : [kept]
@@ -115,6 +131,30 @@ export const whatOf = (body: string): string => sectionOf(body, "What", maxWhat)
 /** The text under its `## Why` heading, the same way. */
 export const whyOf = (body: string): string => sectionOf(body, "Why", maxWhy, false)
 
+// What an author writes for no heads-up at all, rather than removing the section.
+const noHeadsUp =
+  /^(?:[-*]\s*)?(?:none|no|nothing|n\/?a|not applicable|no heads-?up)(?: here)?[.!]?$/i
+
+/**
+ * Its `## Heads-up` heading, the same way, however its case or hyphen is written. A pull request
+ * without one, with the template's comment left in place, or saying there is none reads as
+ * empty. So does one that names what is never announced, anywhere in it: unlike the sections
+ * above it goes whole, as a sentence left without the one before it would be told to everyone. A
+ * sentence that cites a number stays: what it warns of matters more than the citation, which
+ * the model leaves out.
+ */
+export const headsUpOf = (body: string): string => {
+  const text = sectionOf(
+    body.replace(/^##\s+heads[- ]up[:!]?\s*$/gim, "## Heads-up"),
+    "Heads-up",
+    Number.POSITIVE_INFINITY,
+    true,
+    false,
+  )
+  if (noHeadsUp.test(text) || unannounced(text)) return ""
+  return text.length > maxHeadsUp ? `${text.slice(0, maxHeadsUp).trimEnd()}...` : text
+}
+
 /**
  * The commit, when it is a feat, fix or perf change a person could see; `undefined` for any
  * other type, for the excluded scopes, and for a subject that isn't a conventional one.
@@ -125,7 +165,13 @@ export const parseCommit = (raw: RawCommit): Commit | undefined => {
   const { type, scope, subject, pr } = found
   if (type !== "feat" && type !== "fix" && type !== "perf") return undefined
   if (unannounced(subject!)) return undefined
-  if (scope?.split(",").some((part) => excludedScopes.has(part.trim()))) return undefined
+  const scopes = scope?.split(",").map((part) => part.trim()) ?? []
+  const headsUp = scopes.some(unannounced) ? "" : headsUpOf(raw.body)
+  // The harnesses' scope is left out for being plumbing, but a Heads-up there says a person will
+  // notice. The other excluded scopes hold nothing a person sees, whatever a section says.
+  const shown = (part: string): boolean =>
+    !excludedScopes.has(part) || (part === "harnesses" && headsUp !== "")
+  if (!scopes.every(shown)) return undefined
   return {
     sha: raw.sha,
     type,
@@ -134,6 +180,7 @@ export const parseCommit = (raw: RawCommit): Commit | undefined => {
     pr: pr ? Number(pr) : undefined,
     what: whatOf(raw.body),
     why: whyOf(raw.body),
+    headsUp,
   }
 }
 

@@ -48,6 +48,16 @@ describe("a shell's launch", () => {
     expect(launch("bash", { env: { PATH: "/usr/bin" } }).env).toEqual({ PATH: "/usr/bin" })
   })
 
+  it("holds a startup command for a scope in the shells that wait for one", () => {
+    const startup = { command: "make", file: "/data/resume/1" }
+    for (const shell of ["bash", "zsh", "fish"])
+      expect(launch(shell, { env: {}, startup, scoped: true }).env.ACME_SCOPE).toBe("1")
+    // Nothing to hold, nothing on its way, or a shell that doesn't wait.
+    expect(launch("bash", { env: {}, scoped: true }).env).not.toHaveProperty("ACME_SCOPE")
+    expect(launch("bash", { env: {}, startup }).env).not.toHaveProperty("ACME_SCOPE")
+    expect(launch("pwsh", { env: {}, startup, scoped: true }).env).not.toHaveProperty("ACME_SCOPE")
+  })
+
   it("names the startup command's file, for every shell but cmd", () => {
     const startup = { command: "make", file: "/data/resume/1" }
     for (const shell of ["bash", "zsh", "fish", "pwsh"]) {

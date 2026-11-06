@@ -11,14 +11,16 @@ import {
   windowsStatusLine,
 } from "@novadeck/harness-agy/settings"
 import { shown } from "@novadeck/harness-agy/status-line"
-import type { ActivityEvent } from "@novadeck/harness-core/events"
+import type { ActivityEvent, HarnessEvent } from "@novadeck/harness-core/events"
 import type { Install } from "@novadeck/harness-core/harness"
 import type { Report } from "@novadeck/harness-core/report"
 import { loadProbe } from "@novadeck/harness-core/testing/probes"
+import { afterEach, beforeEach, vi } from "vitest"
 
 import { describe, expect, it as base } from "../test.js"
 import { adapterFolder } from "../testing/adapters.js"
 import { apply as applyActivity, started, summary } from "./activity.js"
+import { harnesses } from "./registry.js"
 
 const { payloads } = loadProbe(adapterFolder("agy"), "statusline.probe.json") as {
   payloads: Report["payload"][]
@@ -326,7 +328,8 @@ describe("Antigravity's status line, listing its subagents", () => {
     readFileSync(join(adapterFolder("agy"), "fixtures", "subagents.probe.json"), "utf8"),
   ) as { payloads: Report["payload"][] }
   const conversationId = snapshots[0]!.conversation_id as string
-  const binding = { agent: "agy", sessionId: conversationId, instance: "7" } as const
+  type Bound = { agent: "agy"; sessionId: string; instance: string }
+  const binding: Bound = { agent: "agy", sessionId: conversationId, instance: "7" }
   // Snapshots in the order captured: idle, then working with none, one, two running, the
   // list's order flipping; the root's Stop between the 6th and 7th, whose idle lists one
   // still running; a wake turn, in which the other ends; idle.
@@ -338,20 +341,23 @@ describe("Antigravity's status line, listing its subagents", () => {
   const preInvocation = (seq: number) => hook("PreInvocation", seq, { invocationNum: 0 })
   const stop = (seq: number, fullyIdle: boolean) => hook("Stop", seq, { fullyIdle })
   // The activity as clients see it after each report, in the order given.
-  const seen = (reports: Report[]) =>
+  const activityOf = (reported: Report) =>
+    decode(reported).filter((event): event is ActivityEvent =>
+      ["turn-started", "turn-ended", "turn-idle", "turn-working"].includes(event.type),
+    )
+  const seen = (reports: Report[], bound: Bound = binding) =>
     reports.reduce(
       (state, reported) => {
-        const next = decode(reported)
-          .filter((event): event is ActivityEvent =>
-            ["turn-started", "turn-ended", "turn-idle", "turn-working"].includes(event.type),
-          )
-          .reduce((each, event) => applyActivity(each, binding, event) ?? each, state.activity)
+        const next = activityOf(reported).reduce(
+          (each, event) => applyActivity(each, bound, event) ?? each,
+          state.activity,
+        )
         return { activity: next, shown: [...state.shown, summary(next)] }
       },
       { activity: started(0), shown: [] as ReturnType<typeof summary>[] },
     ).shown
-  const counts = (reports: Report[]) =>
-    seen(reports).map(({ state, background }) => [state, background?.agents ?? null])
+  const counts = (reports: Report[], bound: Bound = binding) =>
+    seen(reports, bound).map(({ state, background }) => [state, background?.agents ?? null])
 
   it("counts the subagents running by status, whatever order it lists them in", () => {
     const decoded = (payload: Report["payload"]) =>
@@ -401,6 +407,335 @@ describe("Antigravity's status line, listing its subagents", () => {
       ["idle", null],
       ["idle", null],
     ])
+  })
+
+  describe("listing them late (1.5)", () => {
+    const { payloads: late } = JSON.parse(
+      readFileSync(join(adapterFolder("agy"), "fixtures", "subagents.probe.1.5.2.json"), "utf8"),
+    ) as { payloads: Report["payload"][] }
+    const [bare, listed, ended, task, both] = late
+
+    // What's remembered is each conversation's, so each test has its own, followed as
+    // Novadeck follows a bound one.
+    let conversations = 100
+    const opened: AbortController[] = []
+    const follow = (id: string, instance = "7") => {
+      const told: HarnessEvent[] = []
+      const following = new AbortController()
+      opened.push(following)
+      void harnesses.agy.watch!(
+        { sessionId: id, instance, transcript: "/t" },
+        following.signal,
+        (event) => told.push(event),
+      )
+      return { told, following }
+    }
+    const conversation = ({ followed = true } = {}) => {
+      conversations += 1
+      const id = `00000000-0000-4000-8000-${String(conversations).padStart(12, "0")}`
+      const bound = { agent: "agy", sessionId: id, instance: "7" } as const
+      const at = (event: string, seq: number, payload: Report["payload"]) =>
+        hook(event, seq, { conversationId: id, ...payload })
+      return {
+        id,
+        bound,
+        told: followed ? follow(id).told : [],
+        invocation: (seq: number) => at("PreInvocation", seq, { invocationNum: 0 }),
+        ended: (seq: number, fullyIdle: boolean) => at("Stop", seq, { fullyIdle }),
+        called: (seq: number, name = "invoke_subagent") =>
+          at("PreToolUse", seq, { toolCall: { name, args: {} } }),
+        snapshot: (payload: Report["payload"], seq: number) =>
+          report({ ...payload, conversation_id: id, session_id: id }, seq),
+        counts: (reports: Report[]) => counts(reports, bound),
+      }
+    }
+    afterEach(() => {
+      for (const following of opened.splice(0)) following.abort()
+      vi.useRealTimers()
+    })
+
+    // On Windows without PreToolUse (`cmdPrints`) no call is seen.
+    for (const tells of [true, false])
+      it(`stays working past snapshots that don't list it yet, its call ${tells ? "" : "not "}seen`, () => {
+        const c = conversation()
+        const start = [c.invocation(1), ...(tells ? [c.called(2)] : []), c.ended(3, false)]
+        expect(
+          c
+            .counts([
+              ...start,
+              c.snapshot(bare!, 4),
+              c.snapshot(bare!, 5),
+              c.snapshot(listed!, 6),
+              c.invocation(7),
+              c.ended(8, true),
+              c.snapshot(ended!, 9),
+            ])
+            .slice(start.length),
+        ).toEqual([
+          ["working", 0],
+          ["working", 0],
+          ["working", 1],
+          ["working", null],
+          ["idle", null],
+          ["idle", null],
+        ])
+      })
+
+    it("settles at the first snapshot that counts the command a turn left, calling no subagent", () => {
+      const c = conversation()
+      expect(
+        c.counts([
+          c.invocation(1),
+          c.called(2, "run_command"),
+          c.ended(3, false),
+          c.snapshot(task!, 4),
+        ]),
+      ).toMatchObject([expect.anything(), expect.anything(), ["working", 0], ["idle", 0]])
+    })
+
+    it("counts the subagent of a turn that left a command too", () => {
+      const c = conversation()
+      expect(
+        c.counts([c.invocation(1), c.called(2), c.ended(3, false), c.snapshot(both!, 4)]).at(-1),
+      ).toEqual(["working", 1])
+    })
+
+    it("doesn't take a task for the subagent its turn called", () => {
+      // A dev server an earlier turn left: a task counted, this turn's subagent not listed.
+      const c = conversation()
+      expect(
+        c.counts([c.invocation(1), c.called(2), c.ended(3, false), c.snapshot(task!, 4)]).at(-1),
+      ).toEqual(["working", 0])
+    })
+
+    it("minds the subagent a turn called, whatever it calls next", () => {
+      const c = conversation()
+      expect(
+        c
+          .counts([
+            c.invocation(1),
+            c.called(2),
+            c.called(3, "read_file"),
+            c.ended(4, false),
+            c.snapshot(task!, 5),
+          ])
+          .at(-1),
+      ).toEqual(["working", 0])
+    })
+
+    it("forgets a subagent that a Stop says no longer runs", () => {
+      const c = conversation()
+      expect(
+        c
+          .counts([
+            c.invocation(1),
+            c.called(2),
+            c.ended(3, true),
+            c.invocation(4),
+            c.ended(5, false),
+            c.snapshot(task!, 6),
+          ])
+          .at(-1),
+      ).toEqual(["idle", 0])
+    })
+
+    it("keeps calling it the subagent's through a continuation of the turn that called it", () => {
+      const c = conversation()
+      expect(
+        c
+          .counts([
+            c.invocation(1),
+            c.called(2),
+            c.ended(3, false),
+            c.invocation(4),
+            c.ended(5, false),
+            c.snapshot(task!, 6),
+          ])
+          .at(-1),
+      ).toEqual(["working", 0])
+    })
+
+    it("takes a task for what a later turn left, once its subagent has been listed", () => {
+      const c = conversation()
+      expect(
+        c
+          .counts([
+            c.invocation(1),
+            c.called(2),
+            c.ended(3, false),
+            c.snapshot(listed!, 4),
+            c.invocation(5),
+            c.ended(6, false),
+            c.snapshot(task!, 7),
+          ])
+          .at(-1),
+      ).toEqual(["idle", 0])
+    })
+
+    it("takes no task for what a turn left where no PreToolUse hook tells what it called", () => {
+      const c = conversation()
+      expect(
+        c
+          .counts([c.invocation(2), c.ended(3, false), c.snapshot(task!, 4), c.snapshot(both!, 5)])
+          .slice(-2),
+      ).toEqual([
+        ["working", 0],
+        ["working", 1],
+      ])
+    })
+
+    it("holds nothing after a Stop that says nothing runs on", () => {
+      const c = conversation()
+      expect(c.counts([c.invocation(1), c.ended(3, true), c.snapshot(bare!, 4)]).at(-1)).toEqual([
+        "idle",
+        null,
+      ])
+    })
+
+    it("holds nothing past a model call, so a later idle snapshot ends an Escaped turn", () => {
+      const c = conversation()
+      expect(
+        c
+          .counts([c.invocation(1), c.ended(3, false), c.invocation(4), c.snapshot(bare!, 5)])
+          .at(-1),
+      ).toEqual(["idle", null])
+    })
+
+    it("holds nothing after a turn seen to call no subagent, whatever a snapshot counts", () => {
+      const c = conversation()
+      expect(
+        c
+          .counts([
+            c.invocation(1),
+            c.called(2, "run_command"),
+            c.ended(3, false),
+            c.snapshot(bare!, 4),
+          ])
+          .at(-1),
+      ).toEqual(["idle", 0])
+    })
+
+    it("takes nothing of a snapshot drawn before its Stop for what that Stop left", () => {
+      vi.useFakeTimers()
+      const c = conversation()
+      for (const reported of [
+        c.invocation(1),
+        c.called(2),
+        c.ended(4, false),
+        c.snapshot(listed!, 3),
+      ])
+        activityOf(reported)
+      // Its time still runs: activity would drop that snapshot, and nothing else may come.
+      vi.advanceTimersByTime(5000)
+      expect(c.told).toHaveLength(1)
+    })
+
+    it("stops holding once nothing follows it, and for its latest follower alone", () => {
+      const c = conversation({ followed: false })
+      const first = follow(c.id)
+      const second = follow(c.id)
+      first.following.abort()
+      expect(c.counts([c.ended(1, false), c.snapshot(bare!, 2)]).at(-1)).toEqual(["working", 0])
+      activityOf(c.invocation(3))
+      second.following.abort()
+      expect(c.counts([c.ended(4, false), c.snapshot(bare!, 5)]).at(-1)).toEqual(["idle", 0])
+    })
+
+    it("holds nothing nobody would hear the end of, so no terminal stays working", () => {
+      const c = conversation({ followed: false })
+      expect(c.counts([c.invocation(1), c.ended(3, false), c.snapshot(bare!, 4)]).at(-1)).toEqual([
+        "idle",
+        0,
+      ])
+    })
+
+    describe("when nothing ever accounts for it", () => {
+      beforeEach(() => {
+        vi.useFakeTimers()
+      })
+
+      it("takes the latest idle snapshot's count once its time is up, on its own", () => {
+        const c = conversation()
+        const reports = [c.invocation(1), c.ended(3, false), c.snapshot(bare!, 4)]
+        const held = reports
+          .flatMap((reported) => activityOf(reported))
+          .reduce((state, event) => applyActivity(state, c.bound, event) ?? state, started(0))
+        expect(summary(held).state).toBe("working")
+        vi.advanceTimersByTime(4999)
+        expect(c.told).toEqual([])
+        vi.advanceTimersByTime(1)
+        expect(c.told).toMatchObject([
+          { type: "turn-idle", sessionId: c.id, background: { agents: 0, tasks: 0 } },
+        ])
+        expect(summary(applyActivity(held, c.bound, c.told[0] as ActivityEvent)!).state).toBe(
+          "idle",
+        )
+      })
+
+      it("gives up on a subagent never listed once its time is up", () => {
+        const c = conversation()
+        activityOf(c.invocation(1))
+        activityOf(c.called(2))
+        activityOf(c.ended(3, false))
+        vi.advanceTimersByTime(5000)
+        expect(c.counts([c.invocation(4), c.ended(5, false), c.snapshot(task!, 6)]).at(-1)).toEqual(
+          ["idle", 0],
+        )
+      })
+
+      it("repeats the latest idle snapshot's count, as one listing may come before the Stop", () => {
+        const c = conversation()
+        for (const reported of [c.snapshot(listed!, 2), c.invocation(1), c.ended(3, false)])
+          activityOf(reported)
+        vi.advanceTimersByTime(5000)
+        expect(c.told).toMatchObject([{ background: { agents: 1, tasks: 0 } }])
+      })
+
+      it("keeps each process's hold apart, as two may run one conversation", () => {
+        const c = conversation()
+        const other = follow(c.id, "8")
+        const in8 = (reported: Report): Report => ({ ...reported, instance: "8" })
+        activityOf(c.ended(3, false))
+        activityOf(in8(c.ended(4, false)))
+        activityOf(in8(c.invocation(5)))
+        vi.advanceTimersByTime(5000)
+        expect(c.told).toMatchObject([{ instance: "7" }])
+        expect(other.told).toEqual([])
+      })
+
+      it("fails its follower, not the runner, when telling it throws", async () => {
+        const c = conversation({ followed: false })
+        const following = new AbortController()
+        opened.push(following)
+        const followed = harnesses.agy.watch!(
+          { sessionId: c.id, instance: "7", transcript: "/t" },
+          following.signal,
+          () => {
+            throw new Error("told")
+          },
+        )
+        activityOf(c.ended(3, false))
+        vi.advanceTimersByTime(5000)
+        await expect(followed).rejects.toThrow("told")
+        // Nothing hears any more, so nothing holds.
+        expect(c.counts([c.ended(4, false), c.snapshot(bare!, 5)]).at(-1)).toEqual(["idle", 0])
+      })
+
+      it("runs out for no hold a snapshot, a turn or another Stop ended", () => {
+        const c = conversation()
+        for (const reported of [
+          c.ended(3, false),
+          c.snapshot(listed!, 4),
+          c.ended(5, false),
+          c.invocation(6),
+          c.ended(7, false),
+          c.ended(8, true),
+        ])
+          activityOf(reported)
+        vi.advanceTimersByTime(60_000)
+        expect(c.told).toEqual([])
+      })
+    })
   })
 
   it("lets no working snapshot of an earlier turn show a count, or a Stop's turn resume", () => {

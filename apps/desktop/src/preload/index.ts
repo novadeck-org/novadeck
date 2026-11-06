@@ -37,6 +37,7 @@ import {
   appearanceChannel,
   badgeChannel,
   directoryPickerChannel,
+  dismissHeadsUpChannel,
   dismissWhatsNewChannel,
   feedbackAboutChannel,
   feedbackArgumentPrefix,
@@ -323,6 +324,9 @@ const bridge = {
   whatsNew: async () => parseWhatsNew(await ipcRenderer.invoke(whatsNewChannel)),
   dismissWhatsNew: () => {
     ipcRenderer.send(dismissWhatsNewChannel)
+  },
+  dismissHeadsUp: () => {
+    ipcRenderer.send(dismissHeadsUpChannel)
   },
   version: async () => {
     const version: unknown = await ipcRenderer.invoke(versionChannel)

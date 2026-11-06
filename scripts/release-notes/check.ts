@@ -21,6 +21,7 @@ export const maxHighlightLine = 90
 // The most the notes' schema holds (contract/protocol/src/release-notes.ts): an answer past
 // these would pass here and throw when the block is written.
 export const maxHighlights = 4
+export const maxHeadsUps = 3
 // A prerelease's card leads with fewer, experimental builds coming several a day. A release's
 // highlights repeat lines of its changes, so past these they are dropped, not the answer,
 // and the changes still tell them.
@@ -78,15 +79,20 @@ const isArea = (area: string): area is NoteArea => (noteAreas as readonly string
 // and a generic icon is a small loss next to a lost highlight.
 const fallbackIcon: HighlightIcon = "sparkles"
 
+type Titled = { title: string; line: string; prs: number[]; icon: HighlightIcon }
+
 export type Checked =
   | {
       readonly ok: true
       readonly output: {
-        readonly highlights: { title: string; line: string; prs: number[]; icon: HighlightIcon }[]
+        readonly highlights: Titled[]
+        readonly headsUp: Titled[]
         readonly changes: { area: NoteArea; line: string; prs: number[] }[]
       }
       /** Why each dropped line was dropped, never the line: logs and summaries are public. */
       readonly dropped: readonly string[]
+      /** The pull requests with a Heads-up that no surviving heads-up tells. */
+      readonly lost: readonly number[]
     }
   | { readonly ok: false; readonly reason: string }
 
@@ -98,18 +104,24 @@ const fail = (reason: string): Checked => ({ ok: false, reason })
  * script other than English's. A line that breaks a softer rule (a citation the notes can't
  * hold or a pull request that was not given, too long, markup, an excluded topic, a line mostly
  * in another script, an unknown area, a release's highlight past `releaseHighlights` or citing
- * no feature) is dropped, and `dropped` says why. A highlight whose icon is missing or not in
- * the set keeps its place with "sparkles". `allowed` holds the pull requests the model was
- * given, and `features` those of them that are `feat` changes: a cheap model can make a
- * highlight of nearly any change, fixes too, whatever it is told (DeepSeek v4 Pro did), so a
- * release's highlight has to tell a feature.
+ * no feature, a heads-up past `maxHeadsUps`) is dropped, and `dropped` says why. A highlight or
+ * heads-up whose icon is missing or not in the set keeps its place with "sparkles". `allowed`
+ * holds the pull requests the model was given, and `features` those of them that are `feat`
+ * changes: a cheap model can make a highlight of nearly any change, fixes too, whatever it is
+ * told (DeepSeek v4 Pro did), so a release's highlight has to tell a feature.
+ *
+ * `headsUps` holds the pull requests that have a `## Heads-up`. A heads-up has to cite one, and
+ * `lost` names those that no surviving heads-up cites, numbers and never text, for `compose` to
+ * ask again and the run to warn.
  */
 export const checkOutput = (
   output: ModelOutput,
   kind: "release" | "promote",
   allowed: ReadonlySet<number>,
   features: ReadonlySet<number> = allowed,
+  headsUps: ReadonlySet<number> = new Set(),
 ): Checked => {
+  const shownHeadsUp = output.headsUp ?? []
   if (kind === "promote" && output.highlights.length > maxHighlights)
     return fail(`At most ${maxHighlights} highlights, got ${output.highlights.length}`)
   if (output.changes.length > maxChanges)
@@ -117,7 +129,7 @@ export const checkOutput = (
   // A highlight tells one of its changes again, so the lines are counted by the pull requests
   // they tell: a change is foreign when every line telling it is.
   const told = new Map<string, boolean>()
-  for (const item of [...output.highlights, ...output.changes]) {
+  for (const item of [...output.highlights, ...shownHeadsUp, ...output.changes]) {
     const key = item.prs.toSorted((a, b) => a - b).join(",")
     const alien = foreign(["title" in item ? item.title : "", item.line].join("\n"))
     told.set(key, (told.get(key) ?? true) && alien)
@@ -125,9 +137,12 @@ export const checkOutput = (
   const alienChanges = [...told.values()].filter(Boolean).length
   if (alienChanges * 2 > told.size) return fail("The answer is not written in English")
   const dropped: string[] = []
-  const highlights: { title: string; line: string; prs: number[]; icon: HighlightIcon }[] = []
+  const highlights: Titled[] = []
+  const headsUp: Titled[] = []
   const changes: { area: NoteArea; line: string; prs: number[] }[] = []
-  for (const item of [...output.highlights, ...output.changes]) {
+  const heads = new Set<object>(shownHeadsUp)
+  for (const item of [...output.highlights, ...shownHeadsUp, ...output.changes]) {
+    const isHeadsUp = heads.has(item)
     const title = "title" in item ? item.title.trim() : undefined
     const line = item.line.trim()
     const text = [title, line].join("\n")
@@ -140,36 +155,56 @@ export const checkOutput = (
         ? `a line citing no pull request or more than ${maxPrs}`
         : item.prs.some((pr) => !allowed.has(pr))
           ? "a line citing a pull request that was not given"
-          : title !== undefined &&
-              (!title || title.length > maxTitle || !line || line.length > maxHighlightLine)
-            ? `a highlight's title or line outside 1 to ${maxTitle}/${maxHighlightLine} characters`
-            : !line || line.length > maxLine
-              ? `a line outside 1 to ${maxLine} characters`
-              : markup.test(text) ||
-                  autolinked.test(text) ||
-                  [title, line].some((part) => part !== undefined && structural.test(part))
-                ? "a markup character"
-                : topic
-                  ? `an excluded topic ${topic}`
-                  : foreign(text)
-                    ? "a line in another script"
-                    : title === undefined && !isArea("area" in item ? item.area : "")
-                      ? "an area that is not one of ours"
-                      : title !== undefined &&
-                          kind === "release" &&
-                          !item.prs.some((pr) => features.has(pr))
-                        ? "a release's highlight that tells no feature"
-                        : undefined
+          : isHeadsUp && !item.prs.some((pr) => headsUps.has(pr))
+            ? "a heads-up citing no pull request that has one"
+            : title !== undefined && !isHeadsUp && item.prs.every((pr) => headsUps.has(pr))
+              ? "a highlight repeating a heads-up"
+              : title !== undefined &&
+                  (!title ||
+                    title.length > maxTitle ||
+                    !line ||
+                    line.length > (isHeadsUp ? maxLine : maxHighlightLine))
+                ? `a ${isHeadsUp ? "heads-up" : "highlight"}'s title or line outside 1 to ${maxTitle}/${isHeadsUp ? maxLine : maxHighlightLine} characters`
+                : !line || line.length > maxLine
+                  ? `a line outside 1 to ${maxLine} characters`
+                  : markup.test(text) ||
+                      autolinked.test(text) ||
+                      [title, line].some((part) => part !== undefined && structural.test(part))
+                    ? "a markup character"
+                    : topic
+                      ? `an excluded topic ${topic}`
+                      : foreign(text)
+                        ? "a line in another script"
+                        : title === undefined && !isArea("area" in item ? item.area : "")
+                          ? "an area that is not one of ours"
+                          : title !== undefined &&
+                              !isHeadsUp &&
+                              kind === "release" &&
+                              !item.prs.some((pr) => features.has(pr))
+                            ? "a release's highlight that tells no feature"
+                            : undefined
     if (reason) {
       dropped.push(reason)
       continue
     }
-    if (title !== undefined && kind === "release" && highlights.length === releaseHighlights)
+    if (isHeadsUp && headsUp.length === maxHeadsUps)
+      dropped.push(`a heads-up past the ${maxHeadsUps} the notes hold`)
+    else if (
+      !isHeadsUp &&
+      title !== undefined &&
+      kind === "release" &&
+      highlights.length === releaseHighlights
+    )
       dropped.push(`a highlight past the ${releaseHighlights} a release leads with`)
     else if (title !== undefined) {
       const icon = highlightIcon.safeParse("icon" in item ? item.icon : undefined)
-      highlights.push({ title, line, prs: item.prs, icon: icon.success ? icon.data : fallbackIcon })
+      const kept = { title, line, prs: item.prs, icon: icon.success ? icon.data : fallbackIcon }
+      if (isHeadsUp) headsUp.push(kept)
+      else highlights.push(kept)
     } else changes.push({ area: (item as { area: NoteArea }).area, line, prs: item.prs })
   }
-  return { ok: true, output: { highlights, changes }, dropped }
+  const lost = [...headsUps]
+    .filter((pr) => !headsUp.some((item) => item.prs.includes(pr)))
+    .toSorted((a, b) => a - b)
+  return { ok: true, output: { highlights, headsUp, changes }, dropped, lost }
 }

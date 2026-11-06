@@ -261,7 +261,7 @@ Other facts:
 - Denying a confirmation fires nothing more for that turn: no `PostToolUse`, `PostInvocation` or `Stop` (probed).
 - Esc fires nothing: pressed during a reply, no `PostInvocation` or `Stop` followed; pressed while an approved command ran in the foreground, no `PostToolUse` or `Stop` followed (probed). The transcript drops the cancelled steps.
 - An approved command still running after about 2 s moves to the background: the turn ends with `Stop` and `fullyIdle: false` while it runs (probed). `run_command`'s `WaitMsBeforeAsync` sets how long it waits first, from 500 ms. The command's end wakes the agent with a message, starting a turn of its own (probed 2026-10-04, 1.2.14).
-- A subagent from `invoke_subagent` runs on after the root's `Stop` (`fullyIdle: false`), and its end wakes the root the same way. The status line lists it under `subagents` (`{name, role, status}`, `running` then `completed`), but never lists a command it backgrounded (probed 2026-10-04, 1.2.14). The list is on `working` snapshots too, not only `idle` ones: a live interactive session whose root started two subagents saw `idle` `[]`, `working` `[]`, then `working` with one and two `running`, one `completed`, the root's `Stop` (`fullyIdle: false`) and an `idle` still listing one `running`, a `working` wake turn with it still `running`, then both `completed` and `idle` (71 snapshots, 1.2.16, probed 2026-10-07). The list's order flips between snapshots, so count by `status`, never position, and a `completed` entry stays listed. Print mode (`agy -p`) never leaves `initializing`, so it shows none of this.
+- A subagent from `invoke_subagent` runs on after the root's `Stop` (`fullyIdle: false`), and its end wakes the root the same way. The status line lists it under `subagents` (`{name, role, status}`, `running` then `completed`), but never lists a command it backgrounded (probed 2026-10-04, 1.2.14). The list is on `working` snapshots too, not only `idle` ones: a live interactive session whose root started two subagents saw `idle` `[]`, `working` `[]`, then `working` with one and two `running`, one `completed`, the root's `Stop` (`fullyIdle: false`) and an `idle` still listing one `running`, a `working` wake turn with it still `running`, then both `completed` and `idle` (71 snapshots, 1.2.16, probed 2026-10-07). The list's order flips between snapshots, so count by `status`, never position, and a `completed` entry stays listed. On 1.5.1 and 1.5.2 it lists a subagent late: the first `idle` after the root's `Stop` (`fullyIdle: false`) may have no `subagents` at all, the listing coming about 0.5 s after the `Stop` on Linux and macOS and 0.7 to 0.85 s on Windows, behind two bare snapshots there, while a command left running shows as `task_count: 1` in the first (probed 2026-11-06, 1.5.2, fixtures/subagents.probe.1.5.2.json). It draws a snapshot only when something changed: none came in the 11 s a subagent ran. Print mode (`agy -p`) never leaves `initializing`, so it shows none of this.
 
 **Attention.**
 
@@ -354,16 +354,16 @@ command run in the background, shows as left running (a badge, "1 task"), but ke
 nothing working: a dev server, a watcher or `tail -f` may run for ever. `wakes` on each
 harness says whether anything wakes it. Antigravity's status line counts its running subagents while the turn runs too, so they show as left running mid-turn and through a wake turn, where Claude Code's and Codex's show only once the turn has ended.
 
-| Harness     | What a turn leaves running                                                                                       | How Novadeck counts it                                                                                                                                                                                                                                            |
-| ----------- | ---------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Claude Code | Background subagents and commands, listed by `Stop`, each waking it once done                                    | `Stop`'s running `background_tasks`: `subagent` ones as agents, which keep it working, the rest as tasks, which don't; where no `Stop` says, its running subagents                                                                                                |
-| Codex       | Nothing that wakes it: its subagents and commands finish with the root idle                                      | Never waits: its turn's end is the end of Working                                                                                                                                                                                                                 |
-| Antigravity | Subagents and backgrounded commands, which `Stop` says only exist (`fullyIdle: false`), each waking it once done | While the turn runs, its working status line's running `subagents`, shown as `background`; after `Stop`, working until its next idle status line counts them, then only while it counts one; what else `Stop` said runs shows as background work, keeping nothing |
+| Harness     | What a turn leaves running                                                                                       | How Novadeck counts it                                                                                                                                                                                                                                                                                                                   |
+| ----------- | ---------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Claude Code | Background subagents and commands, listed by `Stop`, each waking it once done                                    | `Stop`'s running `background_tasks`: `subagent` ones as agents, which keep it working, the rest as tasks, which don't; where no `Stop` says, its running subagents                                                                                                                                                                       |
+| Codex       | Nothing that wakes it: its subagents and commands finish with the root idle                                      | Never waits: its turn's end is the end of Working                                                                                                                                                                                                                                                                                        |
+| Antigravity | Subagents and backgrounded commands, which `Stop` says only exist (`fullyIdle: false`), each waking it once done | While the turn runs, its working status line's running `subagents`, shown as `background`; after `Stop`, working until an idle status line counts them, for 5 s at most after a `Stop` that may have left a subagent not listed yet, then only while it counts one; what else `Stop` said runs shows as background work, keeping nothing |
 
 The wait ends with the turn the work's end starts, at that turn's own end with nothing
 running, or with any later turn, as the person's. Antigravity's idle status line
 listing no subagent running ends it too, leaving any command it backgrounded shown but
-not waited on. Codex's parity gap is the harness's own: nothing there wakes, so nothing
+not waited on, though after a `Stop` that may have left a subagent not listed yet only a line naming one running counts, for 5 s at most. Codex's parity gap is the harness's own: nothing there wakes, so nothing
 is waited on. Delivery waits the same way, so the doorbell may ring an agent with only a
 command left running, and `agents` calls it busy only while it works. Each harness's box
 takes a typed prompt while that work runs, its model called with a background subagent's
@@ -428,6 +428,60 @@ Parity gap: Antigravity's only fallback end, an idle status line where its `Stop
 came, is `unknown`, which can't be told from an Escape or a refusal, so it never counts as
 a finish. A lost Antigravity `Stop` therefore gives no done signal, where Claude Code's
 transcript and Codex's rollout still give one.
+
+## What a tool call came to
+
+What the chat's tool lines rest on (`toolOutcome` in `contract/protocol/src/transcripts.ts`), all
+of it the harness's own word, never read from what a tool printed. Probed 2026-11-06 with the
+real harnesses, interactive, against the fake model (`e2e/probes/tool-outcomes.e2e.ts`): Claude
+Code 2.1.316 and 2.1.318, Codex 0.166.0 and 0.167.0, Antigravity 1.4.12 and 1.5.2, each pair
+recording the same shapes. Fixtures are `harnesses/<id>/src/fixtures/tool-outcomes.probe.json`;
+`e2e/outcomes.e2e.ts` holds the latest release to them.
+
+| Case       | Claude Code                                                                                        | Codex                                                                                                                                                         | Antigravity                                                                                                        |
+| ---------- | -------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------ |
+| failed     | `is_error` on the result                                                                           | a command's code, a patch's `apply_patch verification failed:`, a script's `Script failed`; in a script, a `CommandExecution` or `FileChange` item's `status` | step `status` `ERROR` or `INVALID`, `error`; a command's code                                                      |
+| exit code  | `Exit code N` opening a failure; none for a pass                                                   | `Process exited with code N` above the output, `Exit code: N` above a patch's; in a script, `exit_code`                                                       | `Command exited with code N.`                                                                                      |
+| running on | `backgroundTaskId` (with `timedOutAfterMs` when a timeout moves it there, seen in 2.1.319 records) | `Process running with session ID N`, `Script running with cell ID N`                                                                                          | step `status: RUNNING`                                                                                             |
+| size       | a Read's `file.numLines`, less the line it counts after a final break                              | in a script, the output's lines where `parsed_cmd` is one `read` that passed                                                                                  | `Showing lines A-B of N`                                                                                           |
+| change     | `structuredPatch`, numbered; a new file's `content`, from 1                                        | a patch's text, unnumbered but for a new file's; in a script, `FileChange`'s `unified_diff`, numbered, and `content`                                          | `(+A/-R lines)`, with its lines diffed from `Target` and `Replacement`, unnumbered; a new file's `Content`, from 1 |
+
+**Codex's scripts.** Every model in Codex's catalog is `tool_mode: code_mode_only`, so an agent's
+tools are offered to it only inside `exec`, a JavaScript program: one call and one output, whose
+first line says `Script completed` even when a command in it exited 3. What each command and
+patch came to is an `item_completed` event, `CommandExecution` or `FileChange`, whose id starts
+`exec-`, and nothing in it names the script: the decoder reads each as a call and its result
+marked `scripted`, in record order after the script's. A call of the agent's own has its `call_id`
+on the same event, and a person's `!` command another id again, each with an item of its own,
+so those events stay out. A patch that doesn't apply leaves no event: the script's failure is
+all there is. A command still running has none until it ends. `McpToolCall` and other items in a
+script aren't read.
+
+An outcome is read a line at a time, so a result doesn't know its tool. What comes from the words
+a result opens with (`Process exited with code N`, `Command exited with code N.`, `Showing lines`)
+is marked `opening`, and `groupItems` holds it only for a call of kind `run`, `read` or `write`:
+another tool could print the same. A code holds only there too, as Claude Code's comes from the
+text of a failure, whose mark stands for any tool. An input's change is a plan until the result
+says `failed: false`: a patch the person refused comes back in words no decoder reads, and is
+told as nothing rather than as lines changed.
+
+What stays null:
+
+- Claude Code: a command's `exit` where it passed, as a grep that finds nothing is also no error;
+  a search's `size`, as Grep and Glob are offered only on Windows and no record of theirs has
+  been seen.
+- Codex: outside a script, every `size`, a patch's line numbers (a new file's still count from 1)
+  and a deleted file's `change`. Its `item_completed` events hold them under the call's own id, but
+  they aren't read: only `exec-` ones are, as rows, and joining the others to a call would need an
+  item that holds an outcome alone. Every catalog model is in a script, so this is a non-catalog
+  model's. A script's own row knows only `failed: true` or `running`, and its `size` and `change`
+  are its calls'. A patch the person refused or stopped reads as nothing, not as failed.
+- Antigravity: an edit's line numbers (it gives only the line it starts at), and an overwrite's
+  `change` (it calls it `Created file.`). It offers no search tool, so a search is a command.
+  `replace_file_content`, its edit tool before 1.4, has no `change`.
+- Every harness: how a command that ran on ended, which is recorded elsewhere (Claude Code's task
+  notice, Codex's event or poll, Antigravity's system step) and isn't joined to its row, which stays
+  `running`.
 
 ## Still to probe
 

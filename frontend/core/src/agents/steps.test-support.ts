@@ -28,6 +28,8 @@ export const recorded = {
         call: null,
         author: null,
         run: null,
+        outcome: null,
+        scripted: false,
         interrupted: false,
       },
       {
@@ -41,6 +43,8 @@ export const recorded = {
         call: "LUs0plJGA633e3bZ",
         author: null,
         run: { kind: "read", title: "Read", detail: "…/user/project/a.txt" },
+        outcome: null,
+        scripted: false,
         interrupted: false,
       },
       {
@@ -54,6 +58,8 @@ export const recorded = {
         call: "LUs0plJGA633e3bZ",
         author: null,
         run: null,
+        outcome: null,
+        scripted: false,
         interrupted: false,
       },
       {
@@ -67,6 +73,8 @@ export const recorded = {
         call: "OSl68EjM5x4xlc_V",
         author: null,
         run: { kind: "write", title: "Edited", detail: "…/user/project/a.txt" },
+        outcome: null,
+        scripted: false,
         interrupted: false,
       },
       {
@@ -80,6 +88,8 @@ export const recorded = {
         call: "OSl68EjM5x4xlc_V",
         author: null,
         run: null,
+        outcome: null,
+        scripted: false,
         interrupted: false,
       },
       {
@@ -93,6 +103,8 @@ export const recorded = {
         call: "31lDyfwpHeNgjh2q",
         author: null,
         run: { kind: "write", title: "Edited", detail: "…/user/project/a.txt" },
+        outcome: null,
+        scripted: false,
         interrupted: false,
       },
       {
@@ -106,6 +118,8 @@ export const recorded = {
         call: "31lDyfwpHeNgjh2q",
         author: null,
         run: null,
+        outcome: null,
+        scripted: false,
         interrupted: false,
       },
       {
@@ -119,6 +133,8 @@ export const recorded = {
         call: "EIZQ-e4Oxu-579uV",
         author: null,
         run: { kind: "write", title: "Wrote", detail: "…/user/project/b.txt" },
+        outcome: null,
+        scripted: false,
         interrupted: false,
       },
       {
@@ -132,6 +148,8 @@ export const recorded = {
         call: "EIZQ-e4Oxu-579uV",
         author: null,
         run: null,
+        outcome: null,
+        scripted: false,
         interrupted: false,
       },
       {
@@ -145,6 +163,8 @@ export const recorded = {
         call: "1L6H3vAXL8RPFqy0",
         author: null,
         run: { kind: "run", title: "Ran", detail: "ls no-such-file" },
+        outcome: null,
+        scripted: false,
         interrupted: false,
       },
       {
@@ -158,6 +178,8 @@ export const recorded = {
         call: "1L6H3vAXL8RPFqy0",
         author: null,
         run: null,
+        outcome: null,
+        scripted: false,
         interrupted: false,
       },
       {
@@ -171,6 +193,8 @@ export const recorded = {
         call: "_eEC9Ahv78s8pp7z",
         author: null,
         run: { kind: "run", title: "Ran", detail: "wc -l a.txt b.txt" },
+        outcome: null,
+        scripted: false,
         interrupted: false,
       },
       {
@@ -184,6 +208,8 @@ export const recorded = {
         call: "_eEC9Ahv78s8pp7z",
         author: null,
         run: null,
+        outcome: null,
+        scripted: false,
         interrupted: false,
       },
       {
@@ -197,6 +223,8 @@ export const recorded = {
         call: "qpqkU_SCvLV6W6fK",
         author: null,
         run: { kind: "write", title: "Edited", detail: "…/user/project/a.txt" },
+        outcome: null,
+        scripted: false,
         interrupted: false,
       },
       {
@@ -210,6 +238,8 @@ export const recorded = {
         call: "qpqkU_SCvLV6W6fK",
         author: null,
         run: null,
+        outcome: null,
+        scripted: false,
         interrupted: false,
       },
       {
@@ -223,6 +253,8 @@ export const recorded = {
         call: null,
         author: null,
         run: null,
+        outcome: null,
+        scripted: false,
         interrupted: false,
       },
     ],
@@ -243,6 +275,8 @@ export const recorded = {
         call: null,
         author: null,
         run: null,
+        outcome: null,
+        scripted: false,
         interrupted: false,
       },
       {
@@ -256,6 +290,8 @@ export const recorded = {
         call: null,
         author: null,
         run: null,
+        outcome: null,
+        scripted: false,
         interrupted: false,
       },
       {
@@ -274,6 +310,8 @@ export const recorded = {
           detail:
             'text(await tools.apply_patch("*** Begin Patch\\n*** Update File: a.txt\\n@@\\n-beta\\n+BETA\\n@@\\n-delta\\n+DELTA\\n*** End Patch"));',
         },
+        outcome: null,
+        scripted: false,
         interrupted: false,
       },
       {
@@ -287,6 +325,8 @@ export const recorded = {
         call: "4tUv13VoTX_UsFzs",
         author: null,
         run: null,
+        outcome: null,
+        scripted: false,
         interrupted: false,
       },
       {
@@ -305,6 +345,8 @@ export const recorded = {
           detail:
             'text(await tools.apply_patch("*** Begin Patch\\n*** Add File: b.txt\\n+one\\n+two\\n+three\\n*** End Patch"));',
         },
+        outcome: null,
+        scripted: false,
         interrupted: false,
       },
       {
@@ -318,6 +360,8 @@ export const recorded = {
         call: "WA1JoW6okUE_QxyW",
         author: null,
         run: null,
+        outcome: null,
+        scripted: false,
         interrupted: false,
       },
       {
@@ -335,6 +379,8 @@ export const recorded = {
           title: "Ran",
           detail: 'text(await tools.exec_command({cmd:"ls no-such-file",max_output_tokens:1000}));',
         },
+        outcome: null,
+        scripted: false,
         interrupted: false,
       },
       {
@@ -348,6 +394,8 @@ export const recorded = {
         call: "kGAdSyhHDBxtf6nI",
         author: null,
         run: null,
+        outcome: null,
+        scripted: false,
         interrupted: false,
       },
       {
@@ -366,6 +414,8 @@ export const recorded = {
           detail:
             'text(await tools.exec_command({cmd:"wc -l a.txt b.txt",max_output_tokens:1000}));',
         },
+        outcome: null,
+        scripted: false,
         interrupted: false,
       },
       {
@@ -379,6 +429,8 @@ export const recorded = {
         call: "_gXjj5eMIeig5ld5",
         author: null,
         run: null,
+        outcome: null,
+        scripted: false,
         interrupted: false,
       },
       {
@@ -397,6 +449,8 @@ export const recorded = {
           detail:
             'text(await tools.apply_patch("*** Begin Patch\\n*** Update File: a.txt\\n@@\\n-zzz-not-there\\n+x\\n*** End Patch"));',
         },
+        outcome: null,
+        scripted: false,
         interrupted: false,
       },
       {
@@ -410,6 +464,8 @@ export const recorded = {
         call: "ScvNIoII4ac_eM1S",
         author: null,
         run: null,
+        outcome: null,
+        scripted: false,
         interrupted: false,
       },
       {
@@ -423,6 +479,8 @@ export const recorded = {
         call: null,
         author: null,
         run: null,
+        outcome: null,
+        scripted: false,
         interrupted: false,
       },
     ],
@@ -443,6 +501,8 @@ export const recorded = {
         call: "f9yQejsLv-qSE92s",
         author: null,
         run: { kind: "run", title: "Ran", detail: "echo approved > probe-out.txt" },
+        outcome: null,
+        scripted: false,
         interrupted: false,
       },
       {
@@ -456,6 +516,8 @@ export const recorded = {
         call: "f9yQejsLv-qSE92s",
         author: null,
         run: null,
+        outcome: null,
+        scripted: false,
         interrupted: false,
       },
       {
@@ -469,6 +531,8 @@ export const recorded = {
         call: "llda4032X9tPZsR2",
         author: null,
         run: { kind: "run", title: "Ran", detail: "apply_patch <<'EOF'" },
+        outcome: null,
+        scripted: false,
         interrupted: false,
       },
       {
@@ -482,6 +546,8 @@ export const recorded = {
         call: "llda4032X9tPZsR2",
         author: null,
         run: null,
+        outcome: null,
+        scripted: false,
         interrupted: false,
       },
       {
@@ -495,6 +561,8 @@ export const recorded = {
         call: "T2CDyaegQ0i7I1DS",
         author: null,
         run: { kind: "run", title: "Ran", detail: "echo approved > probe-out.txt" },
+        outcome: null,
+        scripted: false,
         interrupted: false,
       },
       {
@@ -508,6 +576,8 @@ export const recorded = {
         call: "T2CDyaegQ0i7I1DS",
         author: null,
         run: null,
+        outcome: null,
+        scripted: false,
         interrupted: false,
       },
       {
@@ -521,6 +591,8 @@ export const recorded = {
         call: "_f8XBxBc6NKnOrlO",
         author: null,
         run: { kind: "run", title: "Ran", detail: "echo approved > probe-out.txt" },
+        outcome: null,
+        scripted: false,
         interrupted: false,
       },
       {
@@ -534,6 +606,8 @@ export const recorded = {
         call: "_f8XBxBc6NKnOrlO",
         author: null,
         run: null,
+        outcome: null,
+        scripted: false,
         interrupted: false,
       },
     ],
@@ -554,6 +628,8 @@ export const recorded = {
         call: null,
         author: null,
         run: null,
+        outcome: null,
+        scripted: false,
         interrupted: false,
       },
       {
@@ -567,6 +643,8 @@ export const recorded = {
         call: "m6db2Fxpeo6BuI5N",
         author: null,
         run: { kind: "read", title: "Read", detail: "…/user/project/a.txt" },
+        outcome: null,
+        scripted: false,
         interrupted: false,
       },
       {
@@ -580,6 +658,8 @@ export const recorded = {
         call: "m6db2Fxpeo6BuI5N",
         author: null,
         run: null,
+        outcome: null,
+        scripted: false,
         interrupted: false,
       },
       {
@@ -593,6 +673,8 @@ export const recorded = {
         call: "HGVak16kHIizWRP7",
         author: null,
         run: { kind: "write", title: "Edited", detail: "…/user/project/a.txt" },
+        outcome: null,
+        scripted: false,
         interrupted: false,
       },
       {
@@ -606,6 +688,8 @@ export const recorded = {
         call: "HGVak16kHIizWRP7",
         author: null,
         run: null,
+        outcome: null,
+        scripted: false,
         interrupted: false,
       },
       {
@@ -619,6 +703,8 @@ export const recorded = {
         call: "IGkP0-HRinSZliuy",
         author: null,
         run: { kind: "write", title: "Edited", detail: "…/user/project/a.txt" },
+        outcome: null,
+        scripted: false,
         interrupted: false,
       },
       {
@@ -632,6 +718,8 @@ export const recorded = {
         call: "IGkP0-HRinSZliuy",
         author: null,
         run: null,
+        outcome: null,
+        scripted: false,
         interrupted: false,
       },
       {
@@ -645,6 +733,8 @@ export const recorded = {
         call: "Afo-w5fdf43kM8BV",
         author: null,
         run: { kind: "write", title: "Wrote", detail: "…/user/project/b.txt" },
+        outcome: null,
+        scripted: false,
         interrupted: false,
       },
       {
@@ -658,6 +748,8 @@ export const recorded = {
         call: "Afo-w5fdf43kM8BV",
         author: null,
         run: null,
+        outcome: null,
+        scripted: false,
         interrupted: false,
       },
       {
@@ -671,6 +763,8 @@ export const recorded = {
         call: "gsqaBZ-fviLZdIVH",
         author: null,
         run: { kind: "write", title: "Edited", detail: "…/user/project/a.txt" },
+        outcome: null,
+        scripted: false,
         interrupted: false,
       },
       {
@@ -684,6 +778,8 @@ export const recorded = {
         call: "gsqaBZ-fviLZdIVH",
         author: null,
         run: null,
+        outcome: null,
+        scripted: false,
         interrupted: false,
       },
       {
@@ -697,6 +793,8 @@ export const recorded = {
         call: null,
         author: null,
         run: null,
+        outcome: null,
+        scripted: false,
         interrupted: false,
       },
       {
@@ -710,6 +808,8 @@ export const recorded = {
         call: "Gb2TiiqHAYF2w2bU",
         author: null,
         run: { kind: "run", title: "Ran", detail: "touch yes.txt" },
+        outcome: null,
+        scripted: false,
         interrupted: false,
       },
       {
@@ -723,6 +823,8 @@ export const recorded = {
         call: "Gb2TiiqHAYF2w2bU",
         author: null,
         run: null,
+        outcome: null,
+        scripted: false,
         interrupted: false,
       },
     ],

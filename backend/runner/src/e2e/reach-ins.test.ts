@@ -30,6 +30,7 @@ const reaching = [
   "probes/codex-banner.e2e.ts",
   "probes/interrupt-held-reply.e2e.ts",
   "probes/version.e2e.ts",
+  "scope.e2e.ts",
   "transcripts.e2e.ts",
 ]
 
@@ -111,6 +112,12 @@ describe("the e2e reach-ins", () => {
     // Undefined on Windows until the shell has drawn: that it's there is what counts.
     expect("pid" in inside.records.get(id)!.terminal.pty).toBe(true)
     expect(inside.trees.end).toBeTypeOf("function")
+  })
+
+  it("scope's: records and a live terminal's shell", async ({ resources }) => {
+    const { inside, id } = await running(resources)
+    // Undefined on Windows until the shell has drawn: that it's there is what counts.
+    expect("pid" in inside.records.get(id)!.terminal.pty).toBe(true)
   })
 
   it("interrupt-held-reply's: the bindings' applyFact", async ({ resources }) => {
