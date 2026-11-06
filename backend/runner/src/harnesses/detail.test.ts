@@ -91,6 +91,7 @@ describe("an agent's detail", () => {
       requests: [],
       coverage: null,
       prompts: [],
+      box: null,
     })
   })
 

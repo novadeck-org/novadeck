@@ -2,6 +2,7 @@ import {
   noConversation,
   type ChatAction,
   type ChatAnswer,
+  type ChatBox,
   type ChatDialog,
   type ChatItem,
   type ChatPrompt,
@@ -9,6 +10,7 @@ import {
   conflictFailure,
   notCleared,
   SettleInTerminal,
+  withReturned,
   WordsLost,
   type Conversation,
   type Conversations,
@@ -18,6 +20,7 @@ import { createStore, type MutableStore, type Store } from "@novadeck/core/store
 import {
   conflictReason,
   normalisedText,
+  promptFailure,
   promptRefusal as protocolRefusal,
   type AgentDetail,
   type RequestAnswer,
@@ -40,9 +43,15 @@ export type ConversationStreams = {
   readonly prompt: (
     terminalId: string,
     text: string,
-    options?: { readonly automatic?: true; readonly ref?: string },
-  ) => Promise<{ readonly ref: string; readonly tracked: boolean }>
+    options?: { readonly automatic?: true; readonly along?: true; readonly ref?: string },
+  ) => Promise<{
+    readonly ref: string
+    readonly tracked: boolean
+    readonly returned?: string | null | undefined
+  }>
   readonly interrupt: (terminalId: string) => Promise<{ readonly returned: string | null }>
+  readonly takeBox: (terminalId: string) => Promise<{ readonly returned: string | null }>
+  readonly putBox: (terminalId: string, text: string) => Promise<{ readonly placed: boolean }>
   readonly answer: (terminalId: string, request: string, answer: RequestAnswer) => Promise<void>
 }
 
@@ -152,6 +161,15 @@ const samePrompts = (a: readonly ChatPrompt[], b: readonly ChatPrompt[]): boolea
       prompt.item === b[index]!.item,
   )
 
+const sameBox = (a: ChatBox | null, b: ChatBox | null): boolean =>
+  a === b ||
+  (a !== null &&
+    b !== null &&
+    a.text === b.text &&
+    a.mode === b.mode &&
+    a.tail === b.tail &&
+    a.known === b.known)
+
 // Dialogs are plain data a snapshot sends again whole, so they are the same when they read
 // the same.
 const sameDialog = (a: ChatDialog | null, b: ChatDialog | null): boolean =>
@@ -184,18 +202,26 @@ const said = (error: unknown): string | undefined =>
 const conflictReasonOf = (error: { readonly data: unknown }) =>
   conflictReason.safeParse(error.data).data?.reason
 
+// The words a prompt took out of the agent's box before it failed, where it says.
+const wordsOf = (error: { readonly data: unknown }) =>
+  promptFailure.safeParse(error.data).data?.returned
+
 // What the person is told when the agent can't take what they sent.
 const failure = (error: unknown, what: string, action: ChatAction): Error => {
   if (hasCode(error, "DISCONNECTED", "CLOSED")) return new Error("The runner is offline.")
   // Refused before anything was written: the text has a shape the agent reads as more than
   // a message, or the agent can't take one now, for the reason the runner gives.
   if (hasCode(error, "PROMPT_REFUSED")) return new Error(said(error) ?? promptRefusal)
-  if (hasCode(error, "CONFLICT")) return conflictFailure(conflictReasonOf(error), action)
+  if (hasCode(error, "CONFLICT"))
+    return withReturned(conflictFailure(conflictReasonOf(error), action), wordsOf(error))
   // Stopped, but the words queued behind the turn stay in the agent's own box.
   if (hasCode(error, "BOX_NOT_CLEARED")) return notCleared()
   if (hasCode(error, "PROMPT_FAILED"))
-    return new SettleInTerminal(
-      "The prompt didn't land in the agent's box. It may be there as a draft.",
+    return withReturned(
+      new SettleInTerminal(
+        "The prompt didn't land in the agent's box. It may be there as a draft.",
+      ),
+      wordsOf(error),
     )
   return new Error(`Couldn't ${what} the agent.`)
 }
@@ -384,17 +410,20 @@ const read = (
     }
     const requests = requestsOf(snapshot, root)
     const prompts = promptsOf(snapshot, changed ? [] : store.getSnapshot().prompts)
+    const box = snapshot.box ?? null
     store.update((current) => {
       const same =
         !changed &&
         current.agent === snapshot.agent &&
         current.session === session &&
+        sameBox(current.box, box) &&
         sameRequests(current.requests, requests) &&
         samePrompts(current.prompts, prompts)
       if (same) return current
       return {
         agent: snapshot.agent,
         session,
+        box: sameBox(current.box, box) ? current.box : box,
         requests: sameRequests(current.requests, requests) ? current.requests : requests,
         prompts: samePrompts(current.prompts, prompts) ? current.prompts : prompts,
         ...(changed
@@ -511,10 +540,21 @@ export const createRunnerConversations = (
     conversation: ({ terminalId }) => entryOf(terminalId).conversation,
     send: ({ terminalId }, text, options) =>
       track(streams.prompt(terminalId, text, options)).then(
-        ({ tracked }) => ({ tracked }),
+        ({ tracked, returned }) => ({ tracked, returned: returned ?? null }),
         (error: unknown) => {
           throw failure(error, "reach", "send")
         },
+      ),
+    // Nothing here is the person's to act on: words not moved stay where they are.
+    takeBox: ({ terminalId }) =>
+      track(streams.takeBox(terminalId)).then(
+        ({ returned }) => returned,
+        () => null,
+      ),
+    putBox: ({ terminalId }, text) =>
+      track(streams.putBox(terminalId, text)).then(
+        ({ placed }) => placed,
+        () => false,
       ),
     interrupt: ({ terminalId }) =>
       track(streams.interrupt(terminalId)).then(

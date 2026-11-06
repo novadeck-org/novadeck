@@ -175,6 +175,18 @@ export type ChatPrompt = {
   readonly item: number | null
 }
 
+// What the agent's own input box holds on its screen, which a message sent now goes out with,
+// so that nothing goes unseen: `text` as the box shows it, `mode` whether that is its shell
+// mode's, `tail` where that may be only the end of it, and `known` where all of it is a prompt
+// of the person's that came back there, which the next message takes out and hands back to the
+// chat's box rather than sending along.
+export type ChatBox = {
+  readonly text: string
+  readonly mode: "prompt" | "shell"
+  readonly tail: boolean
+  readonly known: boolean
+}
+
 // A terminal's conversation now. `agent` and `session` name the agent's session bound to
 // the terminal whose transcript is read, its harness's name for the agent (`claude`,
 // `codex`, `agy`); both null while none is. `loaded` once the session's records so far
@@ -182,7 +194,8 @@ export type ChatPrompt = {
 // own. `requests` wait on the person, oldest first. `prompts` are the session's prompts
 // given through `send`, oldest first, as far as the backend follows them. `unread` once the
 // session's records hold a part of the conversation the backend can't read, which `items`
-// leave out and the terminal shows.
+// leave out and the terminal shows. `box` is what the agent's input box holds, null while there
+// is nothing to show.
 export type Conversation = {
   readonly agent: string | null
   readonly session: string | null
@@ -191,6 +204,7 @@ export type Conversation = {
   readonly requests: readonly ChatRequest[]
   readonly prompts: readonly ChatPrompt[]
   readonly unread: boolean
+  readonly box: ChatBox | null
 }
 
 export const noConversation: Conversation = {
@@ -201,12 +215,14 @@ export const noConversation: Conversation = {
   requests: [],
   prompts: [],
   unread: false,
+  box: null,
 }
 
 // What `Conversations.send` resolves with, where its backend follows prompts: whether a
 // receipt for it (`Conversation.prompts`, by the `ref` it was sent with) follows. A backend
-// that follows none resolves with nothing.
-export type SendResult = { readonly tracked: boolean }
+// that follows none resolves with nothing. `returned`, where the message took words out of the
+// agent's box to go (see `ChatBox`), are those words, for the chat's box.
+export type SendResult = { readonly tracked: boolean; readonly returned?: string | null }
 
 // Where a backend's conversations come from, and how the chat talks back to the agent.
 export type Conversations = {
@@ -219,16 +235,25 @@ export type Conversations = {
   // `automatic` marks a fixed line an Inbox button sends, not words the person wrote: the
   // agent's turn on it takes no open ask out of the Inbox. `ref` names its receipt in
   // `Conversation.prompts` (16 letters, digits, `_` or `-`; see `promptRef`), where the
-  // backend follows it.
+  // backend follows it. `along` is the chat's own send, whose person can see what the agent's
+  // box holds (`Conversation.box`): that goes out with it where it can. Without it, the box must
+  // be empty.
   readonly send: (
     key: TerminalKey,
     text: string,
-    options?: { readonly automatic?: true; readonly ref?: string },
+    options?: { readonly automatic?: true; readonly along?: true; readonly ref?: string },
   ) => Promise<SendResult | void>
   // Stops the agent's turn, as Escape in its TUI does. Resolves with the words the person
   // had queued behind the turn, which the agent gave back and the chat's box takes again,
   // or null. Rejects as `send` does.
   readonly interrupt: (key: TerminalKey) => Promise<string | null>
+  // Takes what the agent's own box holds out of it for the chat's, where it can be read whole
+  // and the backend has a box: the words, or null where nothing was taken, which `box` then
+  // still shows.
+  readonly takeBox?: (key: TerminalKey) => Promise<string | null>
+  // Puts the chat's draft in the agent's own box, with no Enter, as the person goes to its
+  // terminal: whether it went. Where not, the draft stays the chat's.
+  readonly putBox?: (key: TerminalKey, text: string) => Promise<boolean>
   // Answers a request through its dialog in the agent's TUI, as the person would with its
   // keys, resolving once it took. Rejects as `send` does; a dialog that can't be answered
   // safely turns `raw`, for the person to answer in the terminal.
@@ -259,10 +284,11 @@ export class WordsLost extends Error {
 
 // Why the agent couldn't take what was typed into its terminal for the person, as the
 // backend says: a request waits on the person (`pending`), another agent's message is
-// reaching it (`ringing`), its input box holds text already (`draft`), is in its shell mode
-// (`shell`) or isn't found on its screen (`no-box`), no agent is running there (`no-agent`),
-// the text has no room in the box on this screen (`too-tall`), or the screen takes no pasted
-// text yet (`no-paste`).
+// reaching it (`ringing`), its input box holds text that can't go along (`draft`), holds a
+// command of the agent's own (`command`), is in a shell mode it can't be taken out of (`shell`)
+// or isn't found on its screen (`no-box`), no agent is running there (`no-agent`), the text has
+// no room in the box on this screen (`too-tall`), or the screen takes no pasted text yet
+// (`no-paste`).
 export type ConflictReason =
   | "pending"
   | "ringing"
@@ -272,6 +298,7 @@ export type ConflictReason =
   | "too-tall"
   | "shell"
   | "no-paste"
+  | "command"
 
 // What the person did that the agent couldn't take: sent a message, pressed Stop, or picked
 // an option of a request.
@@ -285,10 +312,22 @@ export class SettleInTerminal extends Error {
   }
 }
 
-// Stop took the turn's Escape, but the words queued behind it are still in the agent's box.
-export const notCleared = (): SettleInTerminal =>
-  new SettleInTerminal(
-    "Stopped. Your queued message is still in the agent's box: clear it in the terminal.",
+// A failure with the words the message took out of the agent's box before it failed, which the
+// chat's box takes all the same: they are in the agent's no longer.
+export const withReturned = <E extends Error>(failure: E, returned: string | undefined): E =>
+  returned === undefined ? failure : Object.assign(failure, { returned })
+
+// The words a failure came with (`withReturned`), if any.
+export const returnedBy = (failure: unknown): string | undefined => {
+  const { returned } = (failure ?? {}) as { readonly returned?: unknown }
+  return typeof returned === "string" ? returned : undefined
+}
+
+// Stop took the turn's Escape, but the words queued behind it are still in the agent's box: the
+// next message sees to them.
+export const notCleared = (): Error =>
+  new Error(
+    "Stopped. Your queued message is still in the agent's box, and comes back here or goes out with your next message.",
   )
 
 // What the person is told when the agent couldn't take what the chat typed for them, by
@@ -321,6 +360,10 @@ export const conflictFailure = (reason: ConflictReason | undefined, action: Chat
     case "shell":
       return new SettleInTerminal(
         `The agent's input box is in shell mode. Leave it in the terminal, then ${again}.`,
+      )
+    case "command":
+      return new SettleInTerminal(
+        `The agent's input box holds a command it hasn't run. Clear it in the terminal, then ${again}.`,
       )
     case "too-tall":
       return new SettleInTerminal(

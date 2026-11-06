@@ -76,7 +76,13 @@ driven in a PTY. Hook names are the ones Novadeck's plugins already register.
 
 So every harness can receive a message through a hook without it appearing as the
 person's prompt, and typing Enter is safe only when Novadeck can see nothing but an
-empty prompt. Codex's hooks run only once the person trusts them in its "Hooks need
+empty prompt. The chat is the exception: a prompt the person sends goes along with a draft
+in the box where the screen shows that's safe, which the doorbell doesn't do: a ring still
+waits on a draft. Where the first probe had the paste "append", it lands at the cursor,
+and only with the cursor at the end does it append (probed 2026-11-06; `docs/backend-api.md`,
+"A box that isn't empty", holds the rules, and `leftoverOf` and `Prompts.room`, in
+`libraries/tui-input`, the mechanism, which takes no part of the doorbell's timing and which
+the doorbell could use if that is ever decided). Codex's hooks run only once the person trusts them in its "Hooks need
 review" screen; Novadeck already depends on that, and this design changes no hook
 command, so no new trust is asked for. What the probes did not establish is listed in
 [Before building](#before-building).

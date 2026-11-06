@@ -70,6 +70,27 @@ export const inBox = (box: string, lines: readonly string[]): boolean => {
   return words !== "" && compact(box).includes(words)
 }
 
+/** A prompt whose words may be in the box: as given, and its lines (`promptLines`). */
+export type Back = { readonly text: string; readonly lines: readonly string[] }
+
+/**
+ * The words of `back`, as given and a line break between, where they are all the box's `text`,
+ * white space aside; undefined where the box holds anything else, or none of them. Anything
+ * beside them is the person's, and the box isn't Novadeck's to empty.
+ */
+export const knownWords = (back: readonly Back[], text: string): string | undefined => {
+  let rest = compact(text)
+  const words: string[] = []
+  for (const prompt of back) {
+    const own = compact(prompt.lines.join(""))
+    const at = own === "" ? -1 : rest.indexOf(own)
+    if (at < 0) continue
+    rest = rest.slice(0, at) + rest.slice(at + own.length)
+    words.push(prompt.text)
+  }
+  return rest === "" && words.length > 0 ? words.join("\n") : undefined
+}
+
 /** What the deadline reads of the root agent's turns. */
 export type Turns = {
   /** Whether its turn runs now. */

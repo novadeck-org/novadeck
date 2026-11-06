@@ -1,7 +1,14 @@
 import { doorbellLine, replyLine } from "@novadeck/harness-core/prompts"
 
 import { describe, expect, it } from "../test.js"
-import { inBox, missingAt, promptLines, settledBy, type Turns } from "./receipt-match.js"
+import {
+  inBox,
+  knownWords,
+  missingAt,
+  promptLines,
+  settledBy,
+  type Turns,
+} from "./receipt-match.js"
 
 const waiting = (...texts: string[]) =>
   texts.map((text, index) => ({ ref: `r${index}`, lines: promptLines(text) }))
@@ -119,5 +126,21 @@ describe("missingAt", () => {
   it("waits for a read to the end after the due time", () => {
     expect(missingAt(100, idle(null), null, 2_000, slack)).toBeNull()
     expect(missingAt(100, idle(null), 1_000, 2_000, slack)).toBeNull()
+  })
+})
+
+describe("knownWords", () => {
+  const back = (text: string) => ({ text, lines: promptLines(text) })
+
+  it("gives the words of the prompts that are all the box holds, white space aside", () => {
+    expect(knownWords([back("one two")], "one\n  two")).toBe("one two")
+    expect(knownWords([back("one"), back("two")], "one\ntwo")).toBe("one\ntwo")
+    expect(knownWords([back("one"), back("two")], "one")).toBe("one")
+  })
+
+  it("gives nothing where anything else is there, or nothing is back", () => {
+    expect(knownWords([back("one")], "one and more")).toBeUndefined()
+    expect(knownWords([], "one")).toBeUndefined()
+    expect(knownWords([back("")], "")).toBeUndefined()
   })
 })

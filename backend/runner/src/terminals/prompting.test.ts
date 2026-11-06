@@ -5,6 +5,7 @@ import {
   BoxNotCleared,
   InputQueue,
   PromptRefusal,
+  WordsTaken,
   type InputHold,
   type PromptHost,
   type PromptRefusalReason,
@@ -13,7 +14,7 @@ import type { BoxProfile, InputBox } from "@novadeck/tui-input/box"
 
 import { DomainError } from "../errors.js"
 import { describe, expect, it } from "../test.js"
-import { Interrupts, Prompts, promptError } from "./prompting.js"
+import { asFailure, Interrupts, Prompts, promptError } from "./prompting.js"
 
 const refused = (text: string, options?: { shell?: boolean }) => refusedBy(text, options)
 
@@ -126,6 +127,8 @@ const typing = () => {
       const mode = screen.rows[first]!.startsWith("!") ? "shell" : "prompt"
       return { text: lines.join("\n").trimEnd(), mode, first, last }
     },
+    stands: () => false,
+    textWidth: (columns) => columns - 3,
     collapsed: () => false,
     shell: { expands: true, starts: false, footer: () => false },
     queued: () => false,
@@ -262,6 +265,28 @@ describe("the contract's errors for what the library refuses", () => {
   const error = (reason: PromptRefusalReason, message = "library's wording") =>
     promptError(new PromptRefusal(reason, message))
 
+  it("carry the words a prompt took out of the box before it failed", () => {
+    const taken = (failure: unknown) => asFailure(new WordsTaken(failure, "came back"))
+    expect(taken(new PromptRefusal("not-shown", "x"))).toMatchObject({
+      code: "PROMPT_FAILED",
+      data: { returned: "came back" },
+    })
+    expect(taken(new PromptRefusal("no-box", "x"))).toMatchObject({
+      code: "CONFLICT",
+      reason: "no-box",
+      data: { reason: "no-box", returned: "came back" },
+    })
+    expect(taken(new DomainError("CONFLICT", "x", undefined, "pending"))).toMatchObject({
+      data: { reason: "pending", returned: "came back" },
+    })
+    expect(taken(new PromptRefusal("gone", "x"))).toMatchObject({
+      code: "TERMINAL_NOT_FOUND",
+      data: undefined,
+    })
+    const other = new Error("not ours")
+    expect(taken(other)).toBe(other)
+  })
+
   it("keep the codes, reasons and wording clients read", () => {
     const conflict = (reason: string, message: string) =>
       expect.objectContaining({ code: "CONFLICT", reason, message, data: undefined })
@@ -274,7 +299,7 @@ describe("the contract's errors for what the library refuses", () => {
     expect(error("shell-mode")).toEqual(
       conflict(
         "shell",
-        "The agent's input box is in its shell mode: clear it in the terminal first.",
+        "The agent's input box is in its shell mode, and what it holds can't be taken out.",
       ),
     )
     expect(error("draft")).toEqual(
@@ -333,6 +358,8 @@ describe("interrupts", () => {
           ? undefined
           : { text: screen.rows[first]!.slice(2).trimEnd(), mode: "prompt", first, last: first }
       },
+      stands: () => false,
+      textWidth: (columns) => columns - 3,
       collapsed: () => false,
       ...(options.clear ? { clear: () => "\x15" } : {}),
       shell: { expands: true, starts: false, footer: () => false },
@@ -371,8 +398,7 @@ describe("interrupts", () => {
     expect((failure as DomainError).cause).toBeInstanceOf(BoxNotCleared)
     expect(failure).toMatchObject({
       code: "BOX_NOT_CLEARED",
-      message:
-        "The turn is stopped, but the agent's input box holds the message you queued: clear it in the terminal.",
+      message: "The turn is stopped, but the agent's input box holds the message you queued.",
     })
   })
 

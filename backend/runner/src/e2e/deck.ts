@@ -21,6 +21,7 @@ import { wire } from "../runner.js"
 import { shellPaths, type ShellPaths } from "../shell/scripts.js"
 import { handleWords } from "../terminals/handles.js"
 import type { Terminals } from "../terminals/index.js"
+import type { Prompted } from "../terminals/typing.js"
 import type { WorkspaceStore } from "../workspaces/store.js"
 import { createHistory, type Reach, type ReachOptions, type Snapshot } from "./history.js"
 
@@ -112,7 +113,7 @@ export type DeckTerminal = {
    * Enter once it shows; resolves once that Enter is out, with the ref of its receipt in
    * `detail` and whether one follows, and rejects as the call would.
    */
-  readonly prompt: (text: string) => Promise<{ readonly ref: string; readonly tracked: boolean }>
+  readonly prompt: (text: string) => Promise<Prompted>
   /** Presses Escape in its agent as the chat does, `agents.interrupt`. */
   readonly interrupt: () => Promise<InterruptResult>
   /**
@@ -784,7 +785,7 @@ export const createDeck = async (options: DeckOptions): Promise<Deck> => {
       messages: () => terminals.messages(id),
       prompt: async (text) => {
         prompted = undefined
-        return await terminals.prompt({ terminalId: id, text })
+        return await terminals.prompt({ terminalId: id, text, along: true })
       },
       interrupt: async () => {
         prompted = undefined

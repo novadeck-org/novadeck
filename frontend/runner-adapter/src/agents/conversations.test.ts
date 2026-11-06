@@ -1,4 +1,9 @@
-import { noConversation, SettleInTerminal, WordsLost } from "@novadeck/core/conversation"
+import {
+  noConversation,
+  returnedBy,
+  SettleInTerminal,
+  WordsLost,
+} from "@novadeck/core/conversation"
 import { promptRefusal } from "@novadeck/core/conversation/prompt-refusal"
 import type { AgentDetail, TranscriptChange, TranscriptItem } from "@novadeck/protocol"
 import { WireError } from "@novadeck/wire"
@@ -68,6 +73,8 @@ const setup = () => {
       tracked: true,
     })),
     interrupt: vi.fn<ConversationStreams["interrupt"]>(async () => ({ returned: null })),
+    takeBox: vi.fn<ConversationStreams["takeBox"]>(async () => ({ returned: null })),
+    putBox: vi.fn<ConversationStreams["putBox"]>(async () => ({ placed: false })),
     answer: vi.fn<ConversationStreams["answer"]>(async () => {}),
   }
   const conversations = createRunnerConversations(streams)
@@ -652,10 +659,78 @@ describe("the runner's conversations", () => {
     })
   })
 
+  describe("the agent's box", () => {
+    it("shows what it holds, as the detail says, and nothing once it's empty", async () => {
+      const { details, store } = setup()
+      store.subscribe(() => {})
+      const box = { text: "half typed", mode: "prompt", tail: true, known: false } as const
+      details.push(detail({ box }))
+      await settle()
+      expect(store.getSnapshot().box).toEqual(box)
+      const held = store.getSnapshot()
+      details.push(detail({ box: { ...box } }))
+      await settle()
+      expect(store.getSnapshot()).toBe(held)
+      details.push(detail({ box: null }))
+      await settle()
+      expect(store.getSnapshot().box).toBeNull()
+    })
+
+    it("takes a runner that sends none for nothing to show", async () => {
+      const { details, store } = setup()
+      store.subscribe(() => {})
+      details.push(detail({}))
+      await settle()
+      expect(store.getSnapshot().box).toBeNull()
+    })
+  })
+
   describe("sending", () => {
+    it("gives a failure the words it took out of the agent's box, whatever it was", async () => {
+      const { conversations, streams } = setup()
+      streams.prompt.mockRejectedValueOnce(
+        new WireError("PROMPT_FAILED", undefined, { data: { returned: "came back" } }),
+      )
+      await expect(conversations.send(key, "hello")).rejects.toMatchObject({
+        returned: "came back",
+      })
+      streams.prompt.mockRejectedValueOnce(
+        new WireError("CONFLICT", undefined, { data: { reason: "pending", returned: "!ls" } }),
+      )
+      const conflict = await conversations.send(key, "hello").catch((error: unknown) => error)
+      expect(conflict).toMatchObject({ returned: "!ls" })
+      expect(returnedBy(conflict)).toBe("!ls")
+      expect(returnedBy(new Error("plain"))).toBeUndefined()
+    })
+
+    it("takes the agent's box, and puts in it, leaving words where they are on a failure", async () => {
+      const { conversations, streams } = setup()
+      streams.takeBox.mockResolvedValueOnce({ returned: "words" })
+      await expect(conversations.takeBox?.(key)).resolves.toBe("words")
+      streams.takeBox.mockRejectedValueOnce(new WireError("CONFLICT"))
+      await expect(conversations.takeBox?.(key)).resolves.toBeNull()
+      streams.putBox.mockResolvedValueOnce({ placed: true })
+      await expect(conversations.putBox?.(key, "draft")).resolves.toBe(true)
+      expect(streams.putBox).toHaveBeenCalledWith("t", "draft")
+      streams.putBox.mockRejectedValueOnce(new WireError("CONFLICT"))
+      await expect(conversations.putBox?.(key, "draft")).resolves.toBe(false)
+    })
+
+    it("hands on the words a prompt took out of the agent's box", async () => {
+      const { conversations, streams } = setup()
+      streams.prompt.mockResolvedValueOnce({ ref: "r", tracked: true, returned: "came back" })
+      await expect(conversations.send(key, "hello")).resolves.toEqual({
+        tracked: true,
+        returned: "came back",
+      })
+    })
+
     it("gives the prompt to the runner and stops the turn on interrupt", async () => {
       const { conversations, streams } = setup()
-      await expect(conversations.send(key, "hello")).resolves.toEqual({ tracked: true })
+      await expect(conversations.send(key, "hello")).resolves.toEqual({
+        tracked: true,
+        returned: null,
+      })
       await conversations.interrupt(key)
       expect(streams.prompt).toHaveBeenCalledWith("t", "hello", undefined)
       expect(streams.interrupt).toHaveBeenCalledWith("t")

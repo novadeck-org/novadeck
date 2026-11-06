@@ -27,3 +27,8 @@ export const joinDraft = (earlier: string, later: string): string => {
   if (!later.trimStart().startsWith("!")) return `${later}\n${earlier}`
   return `${earlier}\n${later.trimStart().slice(1).trimStart()}`
 }
+
+// Words taken out of the agent's box and what the chat's holds, as they would have gone out: the
+// box's first, then a blank line, then the chat's.
+export const takenDraft = (taken: string, draft: string): string =>
+  draft.trim() ? `${taken}\n\n${draft}` : taken

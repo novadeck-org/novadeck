@@ -2,8 +2,10 @@ import { setTimeout as sleep } from "node:timers/promises"
 
 import type { ScreenText } from "@novadeck/emulator/headless"
 
-import { isEmpty, showsTail, type BoxProfile } from "./box/box.js"
-import { sameText, wrappedRows } from "./box/text.js"
+import { fillsViewport, isEmpty, showsTail, type BoxProfile, type InputBox } from "./box/box.js"
+import { cursorEnded, pressKeys, type BoxKeysHost } from "./box/keys.js"
+import { leftoverOf } from "./box/leftover.js"
+import { endsText, sameText, unwrapped, wentFrom, wrappedRows } from "./box/text.js"
 import type { HoldBudget, InputEntry, InputQueue } from "./queue.js"
 import { bracketedPaste, pasteable } from "./typing.js"
 
@@ -16,7 +18,9 @@ import { bracketedPaste, pasteable } from "./typing.js"
  * - `no-paste`: the screen takes no bracketed paste;
  * - `no-box`: the program's input box is not on its screen, or a view of the program covers it;
  * - `shell-mode`: the box is in its shell mode already, where a message would run;
- * - `draft`: the box holds text already, which the prompt would merge into;
+ * - `draft`: the box holds text already, which the prompt would merge into, and it may not go
+ *   along with it (see `PromptMode`), or the cursor can't be put after it;
+ * - `command`: the box holds a command of its program's, which the text would only add to;
  * - `too-tall`: the text shows whole in a box with no room for it on this screen;
  * - `ringing`: a delivery to the terminal outlasted the wait for it;
  * - `unrunnable`: a shell command that its shell mode can't run as written;
@@ -32,6 +36,7 @@ export type PromptRefusalReason =
   | "no-box"
   | "shell-mode"
   | "draft"
+  | "command"
   | "too-tall"
   | "ringing"
   | "unrunnable"
@@ -49,6 +54,52 @@ export class PromptRefusal extends Error {
     this.name = "PromptRefusal"
   }
 }
+
+/**
+ * A prompt that failed after it took words out of the box: they are on neither side now, so
+ * `failure`, what it failed with, goes with them for whoever hands them back.
+ */
+export class WordsTaken extends Error {
+  constructor(
+    readonly failure: unknown,
+    readonly returned: string,
+  ) {
+    super("The prompt failed after it took words out of the box.")
+    this.name = "WordsTaken"
+  }
+}
+
+/**
+ * What a prompt did about what the box held, or why it could not, for the owner's log: each
+ * fallback and refusal it says, so that a harness that changed shows up there.
+ */
+export type BoxNote =
+  /** It went out with what the box held. */
+  | "sent-along"
+  /** Its keys emptied the box of text known to be Novadeck's. */
+  | "cleared"
+  /** The box left its shell mode. */
+  | "left-shell"
+  /** The box didn't read empty after its keys, once: it goes along with what is there. */
+  | "clear-unconfirmed"
+  /** The box stayed in its shell mode after its keys, once. */
+  | "shell-unconfirmed"
+  /** The cursor wasn't seen after the box's text: nothing was pasted. */
+  | "cursor-unconfirmed"
+  /** The box held a command of its program's. */
+  | "command"
+  /** The box in its shell mode holds what can't be handed back, or has no keys to leave it. */
+  | "shell-kept"
+  /** What it held can't go along with a shell command. */
+  | "draft-kept"
+  /** It showed no box or a view over it. */
+  | "no-box"
+  /** The text never showed after what the box held. */
+  | "not-shown"
+  /** A delivery's line is in the box, which is its own to finish. */
+  | "ringing"
+  /** The text has no room beside what the box holds. */
+  | "too-tall"
 
 /** What prompts need of the terminal and its owner, by terminal. */
 export type PromptHost = {
@@ -74,7 +125,32 @@ export type PromptHost = {
    * ahead of anything their held input waits to send; false once the terminal is gone.
    */
   readonly type: (terminalId: string, data: string) => boolean
+  /** Writes keys to the terminal as they are, with none of that bookkeeping; false once it is gone. */
+  readonly write?: (terminalId: string, data: string) => boolean
+  /**
+   * The words the box's text stands for, where all of it is text Novadeck typed and knows,
+   * which can leave the box and go back to who wrote them; undefined otherwise.
+   */
+  readonly known?: (terminalId: string, text: string) => string | undefined
+  /** Whether the text is a line a delivery left in the box, which is its own to finish. */
+  readonly ringLine?: (terminalId: string, text: string) => boolean
+  /** Says what a prompt did about what the box held. */
+  readonly note?: (terminalId: string, note: BoxNote) => void
+  /** Says why a prompt was refused, whatever the box held. */
+  readonly refused?: (terminalId: string, reason: PromptRefusalReason) => void
 }
+
+/**
+ * How a prompt takes a box that doesn't read empty:
+ * - `alone`: it doesn't: it is refused;
+ * - `along`: it goes out with what the box holds, as long as the screen shows that's safe;
+ * - `freed`: that, and first it takes out of the box what can go back to its writer: text
+ *   Novadeck knows (`known`) and a shell mode's command, which the prompt returns.
+ */
+export type PromptMode = "alone" | "along" | "freed"
+
+/** What a prompt gave back: the words it took out of the box; undefined where none. */
+export type PromptGiven = { readonly returned: string | undefined }
 
 export type PromptOptions = {
   /** How often the screen is looked at after the paste, in milliseconds. */
@@ -89,6 +165,8 @@ export type PromptOptions = {
   readonly bindMs?: number
   /** How long a box holding text is waited on to read empty before the prompt is refused. */
   readonly emptyMs?: number
+  /** How long keys that move the cursor or empty the box may take to show, in milliseconds. */
+  readonly keysMs?: number
   /**
    * The caller's rule for the text a prompt may carry: why it can't be given, or undefined
    * where it can. It judges the text as it was given, and a leading `!` is a shell command
@@ -149,6 +227,7 @@ export class Prompts {
   private readonly settleMs: number
   private readonly emptyMs: number
   private readonly bindMs: number
+  private readonly keysMs: number
   private readonly budget: HoldBudget
   private readonly rule: ((text: string) => string | undefined) | undefined
 
@@ -163,11 +242,12 @@ export class Prompts {
     this.settleMs = options.settleMs ?? 1_000
     this.emptyMs = options.emptyMs ?? 3_000
     this.bindMs = options.bindMs ?? 5_000
+    this.keysMs = options.keysMs ?? 2_000
     this.rule = options.refuse
-    // The held phase is the wait for the box to read empty, for a shell command's `!` to
-    // switch it, and for the paste to show, with a margin; the terminal's resizes stay held
-    // a while longer, past the Enter.
-    const inputMs = this.emptyMs + 2 * this.pasteMs + 2_000
+    // The held phase is the wait for the box to read empty, for what it holds to be moved
+    // past or taken out, for a shell command's `!` to switch it, and for the paste to show,
+    // with a margin; the terminal's resizes stay held a while longer, past the Enter.
+    const inputMs = this.emptyMs + 3 * this.keysMs + 2 * this.pasteMs + 2_000
     // The resizes stay held through the wait for a session to bind, too.
     this.budget = { inputMs, sizeMs: inputMs + this.bindMs + this.settleMs }
   }
@@ -181,9 +261,9 @@ export class Prompts {
    * text, or as its tail in a full box (or the box never switched to its shell mode at a
    * typed `!`), leaving what landed of it as a draft. All but the last write nothing.
    */
-  async prompt(terminalId: string, text: string): Promise<void> {
+  async prompt(terminalId: string, text: string, mode: PromptMode = "alone"): Promise<PromptGiven> {
     this.refuse(text)
-    await this.queue.run(terminalId, (entry) => this.give(entry, terminalId, text))
+    return await this.queue.run(terminalId, (entry) => this.give(entry, terminalId, text, mode))
   }
 
   /**
@@ -210,13 +290,18 @@ export class Prompts {
       )
   }
 
-  private async give(entry: InputEntry, terminalId: string, text: string): Promise<void> {
+  private async give(
+    entry: InputEntry,
+    terminalId: string,
+    text: string,
+    mode: PromptMode = "alone",
+  ): Promise<PromptGiven> {
     // A message's edges are no part of it, and no TUI shows them: the cursor of a trailing
     // line break would sit below its box.
     const command = shellCommand(text)
     return command === undefined
-      ? await this.send(entry, terminalId, normalised(text).trim(), false)
-      : await this.send(entry, terminalId, command, true)
+      ? await this.send(entry, terminalId, normalised(text).trim(), false, mode)
+      : await this.send(entry, terminalId, command, true, mode)
   }
 
   /** `text` is the message, or with `shell` the command after its `!`. */
@@ -225,7 +310,8 @@ export class Prompts {
     terminalId: string,
     text: string,
     shell: boolean,
-  ): Promise<void> {
+    mode: PromptMode,
+  ): Promise<PromptGiven> {
     await this.ringDone(terminalId)
     const profile = this.host.admit(terminalId)
     // A command as its TUI's shell mode runs it the way sh runs what was written; one its
@@ -246,6 +332,12 @@ export class Prompts {
     let pressed = false
     // Whether the box showed the command only as a placeholder its shell would run as text.
     let unexpanded = false
+    let returned: string | undefined
+    let left: InputBox | undefined
+    const taken = (error: unknown): unknown => {
+      if (error instanceof PromptRefusal) this.host.refused?.(terminalId, error.reason)
+      return returned === undefined ? error : new WordsTaken(error, returned)
+    }
     try {
       const first = await this.host.screen(terminalId)
       if (!first) throw this.gone()
@@ -255,17 +347,28 @@ export class Prompts {
       // prompt before this one may still show as the TUI clears it after its Enter, and a
       // command's shell mode ends a moment after its Enter. A screen it is not found on,
       // as a shell's after the program exited, refuses the prompt before any key.
-      const before = await this.emptied(terminalId, profile, first, hold.holding)
+      let before = await this.emptied(terminalId, profile, first, hold.holding, mode !== "alone")
+      if (mode !== "alone") {
+        // A request may have come while the box was waited on: no key into its dialog.
+        this.host.admit(terminalId)
+        const room = await this.room(terminalId, profile, before, shell, mode, hold.holding)
+        ;({ screen: before, returned, left } = room)
+      }
       // A text that shows whole in a box with no room for it has no first row to read,
-      // and would stay as a draft the next prompt is refused for.
+      // and would stay as a draft the next prompt is refused for. Beside what the box holds,
+      // and a blank line, a box that shows a tail needs no more room: its end is what's read.
+      const held = left ? left.last - left.first + 3 : 0
       if (
         !profile.collapses(typed) &&
-        wrappedRows(typed, before.columns) + wrapMargin > profile.room(before.rows.length)
-      )
+        !(left && profile.viewport) &&
+        held + wrappedRows(typed, before.columns) + wrapMargin > profile.room(before.rows.length)
+      ) {
+        if (mode !== "alone") this.host.note?.(terminalId, "too-tall")
         throw new PromptRefusal(
           "too-tall",
           "The text is too tall for the input box on this screen.",
         )
+      }
       // A request may have come while the hold was taken: no paste into its dialog.
       this.host.admit(terminalId)
       if (shell) {
@@ -287,13 +390,18 @@ export class Prompts {
         }
       }
       // A person's paste, whose line breaks the TUI takes as text, never as Enter.
-      if (!this.host.type(terminalId, bracketedPaste(inPaste(typed)))) throw this.notShown()
+      // After text the box holds, a blank line sets it apart, keeps the prompt's lines its own
+      // for its record, and closes a picker that text may have open, whose Enter would pick
+      // from it (probed 2026-11-06 on all three harnesses).
+      const pasted = left ? `\n\n${typed}` : typed
+      if (!this.host.type(terminalId, bracketedPaste(inPaste(pasted)))) throw this.notShown()
       const landed = await this.landed(
         terminalId,
         typed,
         profile,
         shell ? "shell" : "prompt",
         hold.holding,
+        left,
       )
       unexpanded = landed === "unexpanded"
       pressed = landed === true
@@ -311,19 +419,23 @@ export class Prompts {
       if (pressed && !this.host.type(terminalId, "\r")) throw this.gone()
     } catch (error) {
       hold.settle()
-      throw error
+      throw taken(error)
     } finally {
       hold.release()
     }
     if (!pressed) {
       hold.settle()
       if (unexpanded)
-        throw new PromptRefusal(
-          "unexpanded",
-          "The box shows a command this long as a placeholder, which its shell would run as text: it stays in the box, unsent.",
+        throw taken(
+          new PromptRefusal(
+            "unexpanded",
+            "The box shows a command this long as a placeholder, which its shell would run as text: it stays in the box, unsent.",
+          ),
         )
-      throw this.notShown()
+      if (left) this.host.note?.(terminalId, "not-shown")
+      throw taken(this.notShown())
     }
+    if (left) this.host.note?.(terminalId, "sent-along")
     // The next prompt waits until the session it started is there: a program given one while
     // it still starts its conversation may start another with it, and the first is lost
     // (one TUI did, 160 ms apart: about 1 in 60 CI runs, a few percent under heavy local
@@ -333,6 +445,162 @@ export class Prompts {
     // A resize as the turn starts may crash a TUI, as a delivery's ring found of one. The
     // next entry there takes this hold over, with the resizes it holds.
     hold.settleAfter(this.settleMs)
+    return { returned }
+  }
+
+  /**
+   * Makes the box ready for a prompt that needn't find it empty, from the screen `emptied`
+   * left: takes out what it may, and puts the cursor after what stays. Each step goes once and
+   * is read back: where it doesn't confirm, the prompt goes on from what the screen shows, or
+   * is refused with nothing pasted, never pressing the keys again.
+   */
+  private async room(
+    terminalId: string,
+    profile: BoxProfile,
+    screen: ScreenText,
+    shell: boolean,
+    mode: PromptMode,
+    holding: () => boolean,
+  ): Promise<{
+    readonly screen: ScreenText
+    readonly returned: string | undefined
+    readonly left: InputBox | undefined
+  }> {
+    const none = { screen, returned: undefined, left: undefined }
+    const state = leftoverOf(profile, screen)
+    switch (state.kind) {
+      case "none":
+        this.host.note?.(terminalId, "no-box")
+        throw new PromptRefusal("no-box", "The input box is not on the screen.")
+      case "empty":
+        return none
+      case "command":
+        this.host.note?.(terminalId, "command")
+        throw new PromptRefusal("command", "The input box holds a command of the program's.")
+      case "shell":
+        return await this.leftShell(terminalId, profile, screen, state, mode, holding)
+      case "text":
+        break
+    }
+    const { box } = state
+    if (this.host.ringLine?.(terminalId, box.text)) {
+      this.host.note?.(terminalId, "ringing")
+      throw new PromptRefusal("ringing", "A line is being delivered to the terminal.")
+    }
+    const words = mode === "freed" ? this.host.known?.(terminalId, box.text) : undefined
+    let now = screen
+    if (words !== undefined && profile.erase) {
+      now = await this.cursorEnd(terminalId, profile, box, screen, holding)
+      const emptied = await this.keyed(
+        terminalId,
+        profile.erase(box),
+        holding,
+        (after) => leftoverOf(profile, after).kind === "empty",
+      )
+      if (emptied) {
+        this.host.note?.(terminalId, "cleared")
+        return { screen: emptied, returned: words, left: undefined }
+      }
+      this.host.note?.(terminalId, "clear-unconfirmed")
+      now = (await this.host.screen(terminalId)) ?? now
+    }
+    const still = leftoverOf(profile, now)
+    const same = still.kind === "text" && sameText(still.box.text, box.text) ? still : undefined
+    // What the keys left of it is no longer what the box held: nothing goes on over it, and
+    // what they took goes back all the same, or it would be nowhere.
+    const read = words !== undefined && !same ? profile.read(now) : undefined
+    const went = read && wentFrom(words!, read.text)
+    if (went !== undefined) {
+      this.host.note?.(terminalId, "draft-kept")
+      throw new WordsTaken(this.draft(), went)
+    }
+    if (shell || !same) {
+      this.host.note?.(terminalId, "draft-kept")
+      throw this.draft()
+    }
+    const after = await this.cursorEnd(terminalId, profile, same.box, now, holding)
+    return { screen: after, returned: undefined, left: same.box }
+  }
+
+  /**
+   * Leaves the box's shell mode: empty, by its keys; holding a command, by the same, which then
+   * goes back to who typed it. One that shows only as a placeholder or its tail can't, and
+   * stays there; it is refused, as is a program with no such keys.
+   */
+  private async leftShell(
+    terminalId: string,
+    profile: BoxProfile,
+    screen: ScreenText,
+    state: { readonly box: InputBox; readonly tail: boolean },
+    mode: PromptMode,
+    holding: () => boolean,
+  ): Promise<{
+    readonly screen: ScreenText
+    readonly returned: string | undefined
+    readonly left: undefined
+  }> {
+    const { box, tail } = state
+    const { leave } = profile.shell
+    const empty = isEmpty(box)
+    const unknown = tail || profile.collapsed(box)
+    if (!leave || (!empty && (mode !== "freed" || unknown))) {
+      this.host.note?.(terminalId, "shell-kept")
+      throw this.inShell()
+    }
+    if (!empty) await this.cursorEnd(terminalId, profile, box, screen, holding)
+    const emptied = await this.keyed(
+      terminalId,
+      leave(box),
+      holding,
+      (after) => leftoverOf(profile, after).kind === "empty",
+    )
+    const words = unwrapped(box.text, profile.textWidth(screen.columns)).trim()
+    if (!emptied) {
+      this.host.note?.(terminalId, "shell-unconfirmed")
+      // What the keys took of a command goes back all the same, or it would be nowhere.
+      const now = await this.host.screen(terminalId)
+      const read = now && profile.read(now)
+      const went = read && !empty ? wentFrom(words, read.text) : undefined
+      throw went === undefined ? this.inShell() : new WordsTaken(this.inShell(), `!${went}`)
+    }
+    this.host.note?.(terminalId, "left-shell")
+    return { screen: emptied, returned: empty ? undefined : `!${words}`, left: undefined }
+  }
+
+  /** The screen with the cursor after what the box holds, or refused with nothing pasted. */
+  private async cursorEnd(
+    terminalId: string,
+    profile: BoxProfile,
+    box: InputBox,
+    screen: ScreenText,
+    holding: () => boolean,
+  ): Promise<ScreenText> {
+    const timing = { pollMs: this.pollMs, keysMs: this.keysMs }
+    const keys = this.keysHost(terminalId, holding)
+    const moved = await cursorEnded(keys, timing, profile, box, screen)
+    if (moved) return moved
+    this.host.note?.(terminalId, "cursor-unconfirmed")
+    throw this.draft()
+  }
+
+  /** See `pressKeys`. */
+  private async keyed(
+    terminalId: string,
+    keys: string,
+    holding: () => boolean,
+    reached: (screen: ScreenText) => boolean,
+  ): Promise<ScreenText | undefined> {
+    const timing = { pollMs: this.pollMs, keysMs: this.keysMs }
+    return await pressKeys(this.keysHost(terminalId, holding), timing, keys, reached)
+  }
+
+  private keysHost(terminalId: string, holding: () => boolean): BoxKeysHost {
+    return {
+      admit: () => void this.host.admit(terminalId),
+      write: (keys) => this.host.write?.(terminalId, keys) ?? false,
+      screen: () => this.host.screen(terminalId),
+      holding,
+    }
   }
 
   /**
@@ -342,15 +610,17 @@ export class Prompts {
    * just sent does, as does a shell mode that a command's Enter is leaving. One empty read is
    * not enough, as a key the person typed just before the hold may not show on it yet. A box
    * left in its shell mode, even empty, would run a message as a command: refused all the
-   * same, to be cleared in the terminal. An empty box read off a view (`BoxProfile.overlay`,
-   * a history search or a transcript) is no box: the paste would go to the view, and its
-   * Enter act in it. A hold that lapsed meanwhile refuses it as `gone`, whatever the box.
+   * same. An empty box read off a view (`BoxProfile.overlay`, a history search or a transcript)
+   * is no box: the paste would go to the view, and its Enter act in it. A hold that lapsed
+   * meanwhile refuses it as `gone`, whatever the box. With `leftover`, a box still holding text
+   * or in its shell mode once `emptyMs` passed is no refusal here: the screen is given back.
    */
   private async emptied(
     terminalId: string,
     profile: BoxProfile,
     first: ScreenText,
     holding: () => boolean,
+    leftover = false,
   ): Promise<ScreenText> {
     const until = Date.now() + this.emptyMs
     let now = first
@@ -364,15 +634,14 @@ export class Prompts {
       const key = empty ? `${box.first}:${box.last}` : undefined
       if (key !== undefined && key === seen) return now
       // A box first seen empty as the time is up is given its second read.
-      if (Date.now() >= until && (key === undefined || seen !== undefined))
-        throw !box || view || empty
-          ? new PromptRefusal("no-box", "The input box is not on the screen.")
-          : box.mode === "shell"
-            ? new PromptRefusal("shell-mode", "The input box is in its shell mode.")
-            : new PromptRefusal(
-                "draft",
-                "The input box holds text already: a draft the prompt would merge into.",
-              )
+      if (Date.now() >= until && (key === undefined || seen !== undefined)) {
+        if (!box || view || empty) {
+          if (leftover) this.host.note?.(terminalId, "no-box")
+          throw new PromptRefusal("no-box", "The input box is not on the screen.")
+        }
+        if (leftover) return now
+        throw box.mode === "shell" ? this.inShell() : this.draft()
+      }
       seen = key
       // eslint-disable-next-line no-await-in-loop -- The screen is looked at in turn.
       await sleep(this.pollMs)
@@ -419,6 +688,17 @@ export class Prompts {
     if (box && box.mode === "shell" && isEmpty(box)) this.host.type(terminalId, "\x7f")
   }
 
+  private draft(): PromptRefusal {
+    return new PromptRefusal(
+      "draft",
+      "The input box holds text already: a draft the prompt would merge into.",
+    )
+  }
+
+  private inShell(): PromptRefusal {
+    return new PromptRefusal("shell-mode", "The input box is in its shell mode.")
+  }
+
   private notShown(): PromptRefusal {
     return new PromptRefusal("not-shown", "The prompt did not show in the input box.")
   }
@@ -448,12 +728,25 @@ export class Prompts {
   }
 
   /**
+   * Whether the box holds `left`, what it held, then nothing but the placeholder of what was
+   * pasted after it, which the blank line the paste leads with goes into (probed 2026-11-06: the
+   * record holds both whole, that line between).
+   */
+  private follows(profile: BoxProfile, box: InputBox, left: InputBox): boolean {
+    const at = box.text.lastIndexOf("[")
+    if (at <= 0) return false
+    const placeholder = { ...box, text: box.text.slice(at).replace(/\s+/g, " ") }
+    return profile.collapsed(placeholder) && sameText(box.text.slice(0, at), left.text)
+  }
+
+  /**
    * Whether the pasted text showed in time, steady on two reads running: the box, in the
    * mode asked, holds exactly the text, or only its tail where the box is as tall as its
    * viewport (see `showsTail`), or only the placeholder its TUI shows for a
    * long paste (for a command, only where its shell runs the text the placeholder stands
    * for: `unexpanded` where it showed only a placeholder it would run as text). A box that
-   * went into its shell mode as a message landed never counts, nor one under a view.
+   * went into its shell mode as a message landed never counts, nor one under a view. After
+   * `left`, what the box held, the box must hold that and then the text.
    */
   private async landed(
     terminalId: string,
@@ -461,6 +754,7 @@ export class Prompts {
     profile: BoxProfile,
     mode: "prompt" | "shell",
     holding: () => boolean,
+    left?: InputBox,
   ): Promise<boolean | "unexpanded"> {
     const until = Date.now() + this.pasteMs
     let last: string | undefined
@@ -475,9 +769,18 @@ export class Prompts {
       // A view opened over the box as the text landed would take the Enter.
       const right = box !== undefined && box.mode === mode && !profile.overlay(after)
       // A text taller than the box's viewport shows only its tail, the box then full.
+      const whole = left ? `${left.text}\n\n${text}` : text
       const holds =
-        right && (sameText(box.text, text) || showsTail(profile, box, after.rows.length, text))
-      const placeholder = right && collapsible(text) && profile.collapsed(box)
+        right &&
+        (sameText(box.text, whole) ||
+          showsTail(profile, box, after.rows.length, whole) ||
+          (left !== undefined &&
+            fillsViewport(profile, left, after.rows.length) &&
+            endsText(box.text, text)))
+      const placeholder =
+        right &&
+        collapsible(text) &&
+        (left ? this.follows(profile, box, left) : profile.collapsed(box))
       unexpanded = placeholder && mode === "shell" && !profile.shell.expands
       const fits = holds || (placeholder && (mode === "prompt" || profile.shell.expands))
       const key = fits ? `${box.first}:${box.last}:${box.text}` : undefined

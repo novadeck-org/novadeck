@@ -37,6 +37,12 @@ export type BoxProfile = {
    */
   readonly collapsed: (box: InputBox) => boolean
   /**
+   * Whether a box's text holds, anywhere in it, what stands for more than it shows: a paste's
+   * placeholder or an attached image. Words read off the box then aren't all it holds, and
+   * erasing it loses the rest.
+   */
+  readonly stands: (text: string) => boolean
+  /**
    * The keys that clear the text a box holds, for a program that puts text back in its box
    * (an interrupted prompt, messages queued behind a turn): written only over text seen
    * there, as a program's Escape twice may open a picker over an empty box. Omitted where
@@ -46,6 +52,20 @@ export type BoxProfile = {
    * then opens a picker.
    */
   readonly clear?: (box: InputBox, screen?: ScreenText) => string
+  /**
+   * The keys that empty the box whether or not a turn runs, for text Novadeck left there:
+   * `clear` may be Escape, which stops a running turn. Written once, with the cursor on the
+   * box's last row, and read back: a program that took them otherwise shows it. Omitted where
+   * no such keys are known: its box is never emptied so.
+   */
+  readonly erase?: (box: InputBox) => string
+  /**
+   * How many columns before the end of the text a program draws its cursor there; none where
+   * omitted.
+   */
+  readonly caret?: number
+  /** How many columns of a screen `columns` wide a row of the box's text takes at most. */
+  readonly textWidth: (columns: number) => number
   /**
    * How the box takes a shell command (`!` typed in an empty box, then the command pasted):
    * `expands` where Enter runs a command it shows as a placeholder as the text the
@@ -69,6 +89,11 @@ export type BoxProfile = {
      * undefined for one that can't run there as written means.
      */
     readonly command?: (command: string, platform?: NodeJS.Platform) => string | undefined
+    /**
+     * The keys that leave its shell mode, emptying the box, whether or not a turn runs, with
+     * the cursor on the box's last row. Omitted where no such keys are known.
+     */
+    readonly leave?: (box: InputBox) => string
   }
   /**
    * Whether the screen shows, just above the box, the program's word that whoever types
@@ -117,19 +142,40 @@ export type BoxProfile = {
 const minViewport = 2
 
 /**
- * Whether the box shows the tail of `text`, as a box shows a text taller than its viewport:
- * it is as tall as the viewport lets it be on a screen of `rows` rows, and what it shows ends
- * the text. A viewport of one row is every box's: on a screen too small to know it, none is.
+ * Whether the box is as tall as the viewport lets it be on a screen of `rows` rows, so it may
+ * show only the tail of what it holds. A text exactly that tall shows whole, which can't be
+ * told from one taller. A viewport of one row is every box's: on a screen too small to know
+ * it, none is.
  */
+export const fillsViewport = (profile: BoxProfile, box: InputBox, rows: number): boolean => {
+  const viewport = profile.viewport?.(rows) ?? Infinity
+  return viewport >= minViewport && box.last - box.first + 1 >= viewport
+}
+
+/** Whether the box shows the tail of `text`, as a box shows a text taller than its viewport. */
 export const showsTail = (
   profile: BoxProfile,
   box: InputBox,
   rows: number,
   text: string,
-): boolean => {
-  const viewport = profile.viewport?.(rows) ?? Infinity
-  return viewport >= minViewport && box.last - box.first + 1 >= viewport && endsText(box.text, text)
-}
+): boolean => fillsViewport(profile, box, rows) && endsText(box.text, text)
+
+/**
+ * Ctrl-U from the box's last row up, Backspace joining each row to the one above: Ctrl-U kills
+ * no more than the row the cursor is on. It stops no turn, as Escape or Ctrl-C would (probed
+ * 2026-11-06 on all three harnesses, idle and mid-turn, on one line, several, a wrapped line and
+ * a placeholder, fixtures/leftover.probe.json).
+ */
+export const eraseRows = ({ first, last }: InputBox): string =>
+  `${"\x15\x7f".repeat(last - first)}\x15`
+
+/**
+ * Leaves a box's shell mode: a Backspace in the empty box, as it leaves the mode where a
+ * command typed the `!` back out; a command is erased first (same probe). Escape would stop a
+ * running turn, and leaves the mode in only one harness then.
+ */
+export const leaveShell = (box: InputBox): string =>
+  isEmpty(box) ? "\x7f" : `${eraseRows(box)}\x7f`
 
 /** Whether the box holds nothing. */
 export const isEmpty = (box: InputBox): boolean => compact(box.text) === ""

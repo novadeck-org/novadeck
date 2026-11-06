@@ -1,7 +1,9 @@
 import type { ScreenText } from "@novadeck/emulator/headless"
 import {
   agreeing,
+  eraseRows,
   footerRows,
+  leaveShell,
   markedBox,
   type BoxProfile,
   type Markers,
@@ -26,11 +28,13 @@ export const shellFooter = (rows: readonly string[]): boolean => {
  * `/side` conversation ("Side from main thread · ctrl+/ to switch · ctrl+c to close", `^`
  * for ctrl in 0.161.0, and `⌃` on macOS in 0.163.0, seen in CI 2026-10-18), whose turns
  * are no root's: all drawn with its empty box on screen (probed 0.159.3 in the e2e
- * sandbox, 2026-10-16).
+ * sandbox, 2026-10-16). Also its menus (`/model`, `/permissions`, `/config`), whose first row
+ * leads with the box's marker and whose rows read as a box holding text: their hint row ends
+ * "esc back", or "esc clear search/close" (probed 0.166.0, 2026-11-06, fixtures/leftover.probe.json).
  */
 const overlay = (screen: ScreenText): boolean =>
   footerRows(screen).some((row) =>
-    /(^|\s)reverse-i-search:|\? \/ esc close|Side from main thread · (?:ctrl\+|\^|⌃)\/ to switch/.test(
+    /(^|\s)reverse-i-search:|\? \/ esc close|Side from main thread · (?:ctrl\+|\^|⌃)\/ to switch|· esc (?:back|clear search\/close)\s*$/.test(
       row,
     ),
   )
@@ -64,8 +68,12 @@ export const box: BoxProfile = {
   read: (screen) => agreeing(markedBox(screen, markers), shellFooter(screen.rows)),
   // Enter runs a command shown as a placeholder as the text it stands for. Its commands run
   // without a session, as it binds none (`starts`).
-  shell: { expands: true, starts: false, footer: shellFooter },
+  shell: { expands: true, starts: false, footer: shellFooter, leave: leaveShell },
+  // Its marker and indent, and the column it keeps free (fixtures/leftover.probe.json).
+  textWidth: (columns) => columns - 3,
+  stands: (text) => /\[(?:Pasted Content \d+|Image #\d+|image\b)/.test(text),
   collapsed: ({ text }) => /^\[Pasted Content \d+ chars?\]$/.test(text.trim()),
+  erase: eraseRows,
   overlay,
   // A queued message waits "to be submitted after next tool call", and an Escape sends it
   // at once as a steer, which a second Escape stops; the box stays empty (probed). One under

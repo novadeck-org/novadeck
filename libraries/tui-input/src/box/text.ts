@@ -29,6 +29,24 @@ export const endsText = (shown: string, sent: string): boolean => {
   return x !== "" && y.endsWith(x)
 }
 
+/**
+ * What of `before` went from a box that now holds `after`, keys having taken it from the end,
+ * row by row: all of it from an empty box, the rest of it where `after` is how it began;
+ * undefined where nothing went, or `after` is no part of it, so nothing can be said.
+ */
+export const wentFrom = (before: string, after: string): string | undefined => {
+  const left = compact(after)
+  if (left === "") return before
+  if (!compact(before).startsWith(left) || compact(before) === left) return undefined
+  let seen = 0
+  let at = 0
+  while (seen < left.length) {
+    if (!/\s/.test(before[at]!)) seen += 1
+    at += 1
+  }
+  return before.slice(at).trim()
+}
+
 /** A line with its tabs spread to the next multiple of eight columns. */
 const untabbed = (line: string): string => {
   let out = ""
@@ -75,4 +93,27 @@ const wrappedLine = (line: string, width: number): number => {
 export const wrappedRows = (text: string, columns: number): number => {
   const width = Math.max(columns - 2, 1)
   return text.split("\n").reduce((rows, line) => rows + wrappedLine(line, width), 0)
+}
+
+/**
+ * How a box's rows read as what was typed: a row the next one's first word wouldn't have fit
+ * on wrapped there, and joins it, and one as wide as the box broke mid-word; any other break
+ * was a line break. `width` is how many columns the box's text takes (`BoxProfile.textWidth`).
+ * Which it was can't be read off the screen where a line break falls just where a wrap would:
+ * that one reads as a wrap, a space for a line break, and no word is lost.
+ */
+export const unwrapped = (text: string, width: number): string => {
+  const rows = text.split("\n")
+  let out = rows[0] ?? ""
+  for (let at = 1; at < rows.length; at += 1) {
+    const before = rows[at - 1]!
+    const row = rows[at]!
+    const next = row.trimStart().split(" ")[0] ?? ""
+    const wide = cells(before)
+    if (row.trim() === "" || before.trim() === "") out += `\n${row}`
+    else if (wide >= width) out += row
+    else if (wide + 1 + cells(next) > width) out += ` ${row}`
+    else out += `\n${row}`
+  }
+  return out
 }

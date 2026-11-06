@@ -119,6 +119,60 @@ describe("prompt receipts", () => {
     expect(state("r1")).toBe("withdrawn")
   })
 
+  it("leaves the prompt that took words out, and any still on its way, whatever they say", async ({
+    resources,
+  }) => {
+    const { host, receipts, state, give, pass } = await setup(resources)
+    host.box = "continue"
+    await give("continue", "r1")
+    await pass()
+    await vi.waitFor(() => expect(state("r1")).toBe("in-box"))
+    await give("continue", "r2")
+    await give("ok", "r3")
+    receipts.taken(terminal, "continue and ok", "r2")
+    expect(state("r1")).toBe("withdrawn")
+    expect(state("r2")).toBe("pending")
+    expect(state("r3")).toBe("pending")
+  })
+
+  it("takes a prompt not yet known to be back for words that are exactly its own", async ({
+    resources,
+  }) => {
+    const { receipts, state, give } = await setup(resources)
+    await give("came right back", "r1")
+    receipts.taken(terminal, "came right back")
+    expect(state("r1")).toBe("withdrawn")
+  })
+
+  it("knows the words of prompts back in the box, only where they are all it holds", async ({
+    resources,
+  }) => {
+    const { host, receipts, state, give, pass } = await setup(resources)
+    host.box = "check the logs\nand the disk"
+    await give("check the logs", "r1")
+    await give("and the disk", "r2")
+    expect(receipts.known(terminal, "check the logs")).toBeUndefined()
+    await pass()
+    await vi.waitFor(() => expect(state("r2")).toBe("in-box"))
+    expect(receipts.known(terminal, "check the logs\nand the disk")).toBe(
+      "check the logs\nand the disk",
+    )
+    expect(receipts.known(terminal, "check the logs")).toBe("check the logs")
+    expect(receipts.known(terminal, "check the logs and my words")).toBeUndefined()
+    expect(receipts.known("no such terminal", "check the logs")).toBeUndefined()
+  })
+
+  it("calls prompts a Stop left in the box in-box at once, and no other", async ({ resources }) => {
+    const { host, receipts, state, give } = await setup(resources)
+    host.box = "queued words"
+    await give("queued words", "r1")
+    await give("gone to the record", "r2")
+    await receipts.putBack(terminal)
+    expect(state("r1")).toBe("in-box")
+    expect(state("r2")).toBe("pending")
+    expect(host.changes).toBeGreaterThan(0)
+  })
+
   it("lets a late record settle a missing prompt only within the cap", async ({ resources }) => {
     const { path, clock, state, give, pass } = await setup(resources)
     await give("late", "r1")

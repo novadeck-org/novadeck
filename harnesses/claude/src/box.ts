@@ -1,7 +1,9 @@
 import type { ScreenText } from "@novadeck/emulator/headless"
 import {
   agreeing,
+  eraseRows,
   footerRows,
+  leaveShell,
   rule,
   ruledBox,
   type BoxProfile,
@@ -62,7 +64,10 @@ export const box: BoxProfile = {
   read: (screen) => agreeing(ruledBox(screen, markers), shellFooter(screen.rows)),
   // Enter runs a command shown as a placeholder as the text it stands for. It binds its session
   // before any command, so none starts one (`starts`).
-  shell: { expands: true, starts: false, footer: shellFooter },
+  shell: { expands: true, starts: false, footer: shellFooter, leave: leaveShell },
+  // Its marker and indent, and the column it keeps free (fixtures/leftover.probe.json).
+  textWidth: (columns) => columns - 3,
+  stands: (text) => /\[(?:Pasted text #\d+|Image #\d+)/.test(text),
   collapsed: ({ text }) => /^\[Pasted text #\d+(?: \+\d+ lines?)?\]$/.test(text.trim()),
   // Escape twice, over text seen in the box only; it clears a restored prompt or the queued
   // messages an Escape put back, of any number of lines (probed 2026-10-07). Where its footer
@@ -70,6 +75,7 @@ export const box: BoxProfile = {
   // more clears it: a second would land on the empty box and open the rewind picker (seen on
   // Windows CI, when the first pair was still being taken after half a second).
   clear: (_box, screen) => (clearPending(screen?.rows ?? []) ? "\x1b" : "\x1b\x1b"),
+  erase: eraseRows,
   overlay,
   queued: (screen) => screen.rows.some((row) => row.includes("Press up to edit queued messages")),
   collapses: (text) => text.split("\n").length > 3 || text.length > 900,

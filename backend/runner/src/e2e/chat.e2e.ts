@@ -3,13 +3,14 @@ import { existsSync, readFileSync, writeFileSync } from "node:fs"
 import { join } from "node:path"
 import { setTimeout as sleep } from "node:timers/promises"
 
-import type { TranscriptItem } from "@novadeck/protocol"
+import type { AgentBox, TranscriptItem } from "@novadeck/protocol"
 import { isEmpty } from "@novadeck/tui-input/box"
 
 import { harnesses } from "../harnesses/registry.js"
+import type { Receipts } from "../terminals/receipts.js"
 import { setups } from "./agents/index.js"
 import { occurrences, type DeckTerminal } from "./deck.js"
-import { describe, e2e, expect, gated, supported } from "./fixture.js"
+import { describe, e2e, expect, gated, supported, type E2E } from "./fixture.js"
 import { losesAstral } from "./known-gaps.js"
 import { asked, gate, latest, type Call } from "./model/script.js"
 import { lacking, nestedRuns, own, replies, start, through, turn } from "./scenarios.js"
@@ -79,6 +80,26 @@ const prompted = async (terminal: DeckTerminal, text: string): Promise<() => Pro
     const at = items.find((each) => each.index === settled.item)
     expect(at?.role, `${label}: settled by`).toBe("user")
     expect(at?.text, `${label}: settled by`).toContain(label)
+  }
+}
+
+/**
+ * What a client that keeps reading the terminal's `agents.detail` sees of its box, as only
+ * those are followed. `shows` waits until the box fits, and gives what it holds.
+ */
+const following = (run: E2E, terminal: DeckTerminal) => {
+  const controller = new AbortController()
+  const stream = run.deck.terminals.detail(terminal.id, controller.signal)
+  let latestBox: AgentBox | null = null
+  void (async () => {
+    for await (const detail of stream) latestBox = detail.box ?? null
+  })().catch(() => undefined)
+  return {
+    shows: async (fits: (box: AgentBox | null) => boolean): Promise<AgentBox | null> => {
+      await terminal.poll(() => fits(latestBox) || undefined, "its box to show that")
+      return latestBox
+    },
+    stop: () => controller.abort(),
   }
 }
 
@@ -204,37 +225,230 @@ for (const setup of setups) {
       expect(await item(t1, "user", (text) => text === "yes")).toBe("yes")
     })
 
-    it("refuses a prompt while a draft is in the box, rather than merging into it", async ({
+    it("sends a message along with a draft in the box, the record holding both", async ({
       e2e: run,
     }) => {
       run.model.use(replies("Shall I go on", "Going on."))
       const t1 = await start(run, setup)
       const write = (data: string) => run.deck.terminals.write({ terminalId: t1.id, data }, "e2e")
+      const box = following(run, t1)
 
-      // What a failed send leaves: text in the box that no Enter followed.
+      // What the person left, or a failed send: text in the box that no Enter followed.
       write("\x1b[200~Say hello\x1b[201~")
       await t1.until("Say hello")
-      await expect(t1.prompt("Shall I go on")).rejects.toMatchObject({ code: "CONFLICT" })
-      await sleep(500)
-      // Nothing was pasted or pressed: the box holds the draft alone, and no turn started.
-      const shown = await t1.screen()
-      expect(shown).not.toContain("Shall I go on")
-      expect(shown.split("Say hello")).toHaveLength(2)
-      expect(await texts(t1, "user")).toEqual([])
+      // The chat can show it before anything goes with it.
+      expect(await box.shows((shown) => shown?.text === "Say hello")).toEqual({
+        text: "Say hello",
+        mode: "prompt",
+        tail: false,
+        known: false,
+      })
 
-      // The person clears it, line by line as every harness's box takes, and the next
-      // prompt goes alone.
-      for (let step = 0; step < 4; step += 1) {
-        write("\x15\x7f".repeat(5))
-        await sleep(150)
-      }
-      write("\x15")
-      await sleep(500)
       const mark = t1.mark()
-      await t1.prompt("Shall I go on")
+      const settled = await prompted(t1, "Shall I go on")
       await t1.until("Going on.")
       await through(t1, ["working", "settled"], { after: mark })
-      expect(await item(t1, "user", (text) => text.includes("Shall I go on"))).toBe("Shall I go on")
+      await settled()
+      expect(await item(t1, "user", (text) => text.includes("Shall I go on"))).toBe(
+        "Say hello\n\nShall I go on",
+      )
+      await box.shows((shown) => shown === null)
+      box.stop()
+    })
+
+    it("puts the cursor after a draft before a message goes along with it", async ({
+      e2e: run,
+    }) => {
+      run.model.use(replies("second word", "Noted."))
+      const t1 = await start(run, setup)
+      t1.press("first line")
+      await t1.until("first line")
+      t1.press("\x1b[D\x1b[D\x1b[D")
+      await sleep(500)
+
+      await t1.prompt("second word")
+      await t1.until("Noted.")
+      expect(await item(t1, "user", (text) => text.includes("second word"))).toBe(
+        "first line\n\nsecond word",
+      )
+    })
+
+    it("closes a picker a draft holds open, so its Enter sends rather than picks", async ({
+      e2e: run,
+    }) => {
+      writeFileSync(join(run.sandbox.project, "notes.md"), "Notes.\n")
+      run.model.use(replies("Look at it", "Looked."))
+      const t1 = await start(run, setup)
+      t1.press("see @notes")
+      await t1.until("see @notes")
+      await sleep(1000)
+
+      await t1.prompt("Look at it")
+      await t1.until("Looked.")
+      expect(await item(t1, "user", (text) => text.includes("Look at it"))).toContain("Look at it")
+    })
+
+    it("sends a long message along with a draft, and one over a pasted placeholder", async ({
+      e2e: run,
+    }) => {
+      const lines = Array.from(
+        { length: 40 },
+        (_, at) => `Line ${at + 1} of a long paste, in words`,
+      )
+      run.model.use(replies("And this", "Read that."), replies("Line 40", "Read it."))
+      const t1 = await start(run, setup)
+      t1.press("Before it")
+      await t1.until("Before it")
+      await t1.prompt(lines.join("\n"))
+      await t1.until("Read it.")
+      const merged = await item(t1, "user", (text) => text.includes("Line 40"))
+      expect(merged.split("\n").map((line) => line.trim())).toEqual(["Before it", "", ...lines])
+
+      const write = (data: string) => run.deck.terminals.write({ terminalId: t1.id, data }, "e2e")
+      await sleep(500)
+      write(`\x1b[200~${lines.join("\r")}\x1b[201~`)
+      await sleep(1500)
+      await t1.prompt("And this")
+      await t1.until("Read that.")
+      const over = await item(t1, "user", (text) => text.includes("And this"))
+      expect(over.split("\n").map((line) => line.trim())).toEqual([...lines, "", "And this"])
+    })
+
+    it("sends a message along mid-turn, where it goes behind the turn", async ({ e2e: run }) => {
+      const held = gate()
+      run.model.use(
+        // First, as a steered call holds the words of the turn it steers.
+        replies("And then", "Then done."),
+        own(async (call) => {
+          if (!asked(call, "Hold on")) return undefined
+          await held.opened
+          return { text: "Held." }
+        }),
+      )
+      const t1 = await start(run, setup)
+      const mark = t1.mark()
+      await t1.prompt("Hold on")
+      await t1.reached("working", { after: mark })
+      t1.press("Half a thought")
+      await t1.until("Half a thought")
+
+      await t1.prompt("And then")
+      held.open()
+      await t1.until("Then done.")
+      expect(await item(t1, "user", (text) => text.includes("And then"))).toContain(
+        "Half a thought",
+      )
+    })
+
+    it("refuses a message over a command in the box, which it would become the arguments of", async ({
+      e2e: run,
+    }) => {
+      const t1 = await start(run, setup)
+      const calls = run.model.mark()
+      t1.press("/he")
+      await t1.until("/he")
+
+      await expect(t1.prompt("Shall I go on")).rejects.toMatchObject({
+        code: "CONFLICT",
+        reason: "command",
+      })
+      await sleep(500)
+      expect(await t1.screen()).not.toContain("Shall I go on")
+      expect(run.model.calls.slice(calls).filter((call) => !call.side)).toEqual([])
+    })
+
+    it("keeps what no one can see the box from out of a draft: the Inbox's lines", async ({
+      e2e: run,
+    }) => {
+      const t1 = await start(run, setup)
+      t1.press("Half a thought")
+      await t1.until("Half a thought")
+
+      await expect(
+        run.deck.terminals.prompt({ terminalId: t1.id, text: "continue", automatic: true }),
+      ).rejects.toMatchObject({ code: "CONFLICT", reason: "draft" })
+      await expect(
+        run.deck.terminals.prompt({ terminalId: t1.id, text: "my reply" }),
+      ).rejects.toMatchObject({ code: "CONFLICT", reason: "draft" })
+      await sleep(500)
+      const shown = await t1.screen()
+      expect(shown).not.toContain("continue")
+      expect(shown).not.toContain("my reply")
+    })
+
+    it("takes a prompt that came back to the box out of it, handing its words back", async ({
+      e2e: run,
+    }) => {
+      run.model.use(replies("First of all", "First done."), replies("The next one", "Next done."))
+      const t1 = await start(run, setup)
+      const box = following(run, t1)
+      const first = t1.mark()
+      await t1.prompt("First of all")
+      await t1.until("First done.")
+      await through(t1, ["working", "settled"], { after: first })
+      // How a prompt gets back there varies by harness, and on a timing no test can hold: its
+      // words are in the real box, and the receipts are told as a Stop would tell them.
+      run.deck.terminals.write({ terminalId: t1.id, data: "\x1b[200~Queued words\x1b[201~" }, "e2e")
+      await t1.until("Queued words")
+      const { receipts } = (run.deck.terminals as unknown as { typing: { receipts: Receipts } })
+        .typing
+      const { ref } = await receipts.expect(t1.id, "Queued words")
+      receipts.sent(t1.id, ref)
+      await receipts.putBack(t1.id)
+      expect(await box.shows((shown) => shown?.known === true)).toEqual({
+        text: "Queued words",
+        mode: "prompt",
+        tail: false,
+        known: true,
+      })
+
+      const next = t1.mark()
+      const { returned } = await t1.prompt("The next one")
+      await t1.until("Next done.")
+      await through(t1, ["working", "settled"], { after: next })
+      expect(returned).toBe("Queued words")
+      expect(await item(t1, "user", (text) => text.includes("The next one"))).toBe("The next one")
+      const receipt = (await t1.detail()).prompts?.find((each) => each.ref === ref)
+      expect(receipt?.state).toBe("withdrawn")
+      await box.shows((shown) => shown === null)
+      box.stop()
+    })
+
+    it("leaves an empty shell mode and sends the message", async ({ e2e: run }) => {
+      run.model.use(replies("Out of it", "Out."))
+      const t1 = await start(run, setup)
+      t1.press("!")
+      await t1.poll(
+        async () =>
+          harnesses[setup.agent].box.shell.footer((await t1.screen()).split("\n")) || undefined,
+        "its box in its shell mode",
+      )
+      const { returned } = await t1.prompt("Out of it")
+      await t1.until("Out.")
+      expect(returned).toBeNull()
+      expect(await item(t1, "user", (text) => text.includes("Out of it"))).toBe("Out of it")
+    })
+
+    it("leaves a shell mode holding a command, handing the command back, and runs none of it", async ({
+      e2e: run,
+    }) => {
+      run.model.use(replies("Instead", "Instead then."))
+      const t1 = await start(run, setup)
+      const left = join(run.sandbox.project, "left.txt")
+      t1.press("!")
+      await t1.poll(
+        async () =>
+          harnesses[setup.agent].box.shell.footer((await t1.screen()).split("\n")) || undefined,
+        "its box in its shell mode",
+      )
+      t1.press("echo left > left.txt")
+      await t1.until("left.txt")
+
+      const { returned } = await t1.prompt("Instead")
+      await t1.until("Instead then.")
+      expect(returned).toBe("!echo left > left.txt")
+      expect(await item(t1, "user", (text) => text.includes("Instead"))).toBe("Instead")
+      expect(existsSync(left)).toBe(false)
     })
 
     it("refuses a prompt a TUI would read as a command, writing nothing", async ({ e2e: run }) => {
@@ -735,30 +949,142 @@ for (const setup of setups) {
       }
     })
 
-    it("keeps a message out of a box left in its shell mode, and takes it once that's undone", async ({
+    it("hands what the box holds to the chat, and a draft back, with nothing sent", async ({
+      e2e: run,
+    }) => {
+      const t1 = await start(run, setup)
+      const calls = run.model.mark()
+      const write = (data: string) => run.deck.terminals.write({ terminalId: t1.id, data }, "e2e")
+      const taken = async () => (await run.deck.terminals.takeBox(t1.id)).returned
+      const put = async (text: string) =>
+        (await run.deck.terminals.putBox({ terminalId: t1.id, text })).placed
+      const empty = () =>
+        t1.poll(async () => {
+          const screen = await t1.screenText()
+          const box = screen && harnesses[setup.agent].box.read(screen)
+          return box && box.mode === "prompt" && isEmpty(box) ? true : undefined
+        }, "its box to read empty")
+
+      // A paragraph that wraps, a blank line and a line, short of what a box shows as a placeholder.
+      const words = `${"a paragraph that goes on ".repeat(8).trim()}\n\nits last`
+      write(`\x1b[200~${words.replaceAll("\n", "\r")}\x1b[201~`)
+      await t1.until("its last")
+      expect(await taken()).toBe(words)
+      await empty()
+
+      // The same words there and back, as the person switches between the two.
+      expect(await put(words)).toBe(true)
+      await t1.until("its last")
+      expect(await taken()).toBe(words)
+      await empty()
+
+      // A picker open, a command of the program's.
+      t1.press("/he")
+      await t1.until("/he")
+      expect(await taken()).toBe("/he")
+      await empty()
+
+      // A shell mode's command goes with its `!`, and comes back to it.
+      t1.press("!")
+      await t1.poll(
+        async () =>
+          harnesses[setup.agent].box.shell.footer((await t1.screen()).split("\n")) || undefined,
+        "its box in its shell mode",
+      )
+      t1.press("ls -la")
+      await t1.until("ls -la")
+      expect(await taken()).toBe("!ls -la")
+      await empty()
+      expect(await put("!ls -la")).toBe(true)
+      expect(await taken()).toBe("!ls -la")
+      await empty()
+      expect(run.model.calls.slice(calls).filter((call) => !call.side)).toEqual([])
+    })
+
+    it("leaves in the box what it can't read whole, and keeps a draft that would open a picker", async ({
+      e2e: run,
+    }) => {
+      writeFileSync(join(run.sandbox.project, "notes.md"), "Notes.\n")
+      run.model.use(replies("And this", "Got both."))
+      const t1 = await start(run, setup)
+      const box = following(run, t1)
+      const lines = Array.from(
+        { length: 40 },
+        (_, at) => `Line ${at + 1} of a long paste, in words`,
+      )
+      const placed = (text: string) => run.deck.terminals.putBox({ terminalId: t1.id, text })
+
+      await expect(placed("/help me")).resolves.toEqual({ placed: false })
+      await expect(placed("see @notes")).resolves.toEqual({ placed: false })
+      await expect(placed("see $skill")).resolves.toEqual({ placed: false })
+      expect(await t1.screen()).not.toContain("help me")
+
+      const write = (data: string) => run.deck.terminals.write({ terminalId: t1.id, data }, "e2e")
+      write(`\x1b[200~${lines.join("\r")}\x1b[201~`)
+      await box.shows((shown) => shown !== null)
+      await expect(run.deck.terminals.takeBox(t1.id)).resolves.toEqual({ returned: null })
+      // There's something in the box: a draft stays where it is, and the box's text as well.
+      await expect(placed("a draft")).resolves.toEqual({ placed: false })
+      await t1.prompt("And this")
+      await t1.until("Got both.")
+      const over = await item(t1, "user", (text) => text.includes("And this"))
+      expect(over.split("\n").map((line) => line.trim())).toEqual([...lines, "", "And this"])
+      box.stop()
+    })
+
+    it("hands what the box holds to the chat mid-turn, the turn going on", async ({ e2e: run }) => {
+      const held = gate()
+      run.model.use(
+        own(async (call) => {
+          if (!asked(call, "Hold on")) return undefined
+          await held.opened
+          return { text: "Held." }
+        }),
+      )
+      const t1 = await start(run, setup)
+      const mark = t1.mark()
+      await t1.prompt("Hold on")
+      await t1.reached("working", { after: mark })
+      t1.press("half a thought")
+      await t1.until("half a thought")
+
+      await expect(run.deck.terminals.takeBox(t1.id)).resolves.toEqual({
+        returned: "half a thought",
+      })
+      expect(t1.summary().activity?.state).toBe("working")
+      held.open()
+      await t1.until("Held.")
+      expect(await t1.screen()).not.toContain("half a thought")
+    })
+
+    it("refuses a shell command over a draft, which it can't go along with", async ({
       e2e: run,
     }) => {
       const t1 = await start(run, setup)
       const left = join(run.sandbox.project, "left.txt")
-      const shelled = async (on: boolean) =>
-        await t1.poll(
-          async () =>
-            harnesses[setup.agent].box.shell.footer((await t1.screen()).split("\n")) === on ||
-            undefined,
-          on ? "its box in its shell mode" : "its box out of its shell mode",
-        )
-      // The person's own `!`, typed in the terminal and left there.
-      t1.press("!")
-      await shelled(true)
-      // A command that makes the file in every harness's shell: bash, PowerShell or cmd.
-      const make = "echo left > left.txt"
-      await expect(t1.prompt(make)).rejects.toMatchObject({ code: "CONFLICT" })
-      await expect(t1.prompt(`!${make}`)).rejects.toMatchObject({ code: "CONFLICT" })
+      t1.press("Half a thought")
+      await t1.until("Half a thought")
+
+      await expect(t1.prompt("!echo left > left.txt")).rejects.toMatchObject({
+        code: "CONFLICT",
+        reason: "draft",
+      })
       await sleep(1000)
       expect(existsSync(left)).toBe(false)
-      t1.press("\x7f")
-      await shelled(false)
-      await t1.prompt(`!${make}`)
+      expect(await t1.screen()).toContain("Half a thought")
+    })
+
+    it("runs a ! command from a box left in its shell mode", async ({ e2e: run }) => {
+      const t1 = await start(run, setup)
+      const left = join(run.sandbox.project, "left.txt")
+      t1.press("!")
+      await t1.poll(
+        async () =>
+          harnesses[setup.agent].box.shell.footer((await t1.screen()).split("\n")) || undefined,
+        "its box in its shell mode",
+      )
+      // A command that makes the file in every harness's shell: bash, PowerShell or cmd.
+      await t1.prompt("!echo left > left.txt")
       await t1.poll(() => existsSync(left) || undefined, "left.txt to be made", 15_000)
     })
 
