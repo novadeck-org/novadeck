@@ -134,6 +134,38 @@ describe("voice.record", () => {
 })
 
 describe("an attached terminal", () => {
+  context("sent a frame it can't read", () => {
+    it("resumes after the last event it read, and takes input again", async () => {
+      const terminalId = crypto.randomUUID()
+      const resumed: (number | undefined)[] = []
+      const written: string[] = []
+      const { runner, send } = await fakeRunner({
+        terminals: {
+          attach: api.terminals.attach.handler(async function* ({ input }) {
+            resumed.push(input.afterSequence)
+            yield { terminalId, type: "attached", mode: "control" } as const
+            const sequence = (input.afterSequence ?? 0) + 1
+            yield { terminalId, type: "output", sequence, data: `event ${sequence}` } as const
+            await never
+          }),
+          ack: api.terminals.ack.handler(() => {}),
+          write: api.terminals.write.handler(({ input }) => {
+            written.push(input.data)
+          }),
+        },
+      })
+      const terminal = await runner.terminals.attach(terminalId)
+      onTestFinished(() => terminal.detach())
+      expect((await terminal.next()).value).toMatchObject({ sequence: 1, data: "event 1" })
+
+      send("not a message")
+      expect((await terminal.next()).value).toMatchObject({ sequence: 2, data: "event 2" })
+      expect(resumed).toEqual([undefined, 1])
+      await terminal.write("x")
+      expect(written).toEqual(["x"])
+    })
+  })
+
   context("whose reattachment is refused", () => {
     it("ends, and its input rejects with why", async () => {
       const terminalId = crypto.randomUUID()

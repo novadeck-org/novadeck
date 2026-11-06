@@ -139,9 +139,9 @@ export const runCall = (job: Pick<Job, "agent" | "command" | "plan">, call: stri
           call,
           "run_command",
           {
-            CommandLine: JSON.stringify(job.command),
-            Cwd: JSON.stringify(home),
-            toolAction: JSON.stringify(job.plan),
+            CommandLine: job.command,
+            Cwd: home,
+            toolAction: job.plan,
           },
           { kind: "run", title: "Ran", detail: job.command },
         )

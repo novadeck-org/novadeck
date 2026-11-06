@@ -113,7 +113,7 @@ const clamp = (value: unknown, key?: string): unknown => {
  * check, and reads as nothing.
  */
 const clamped = (dialog: AnswerableDialog): AnswerableDialog | undefined => {
-  // What the person approves from is never cut: a detail past its limit reads as nothing.
+  // Novadeck never cuts what the person approves from: a detail past its limit reads as nothing.
   if (dialog.type === "choices" && (dialog.detail?.length ?? 0) > dialogTextLimits.detail)
     return undefined
   return clamp(dialog) as AnswerableDialog

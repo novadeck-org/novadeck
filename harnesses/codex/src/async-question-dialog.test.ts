@@ -16,7 +16,7 @@ import {
 } from "./dialogs.test-support.js"
 
 describe("Codex's async question", () => {
-  // Its screens as the pin (0.166.0) drew them; 0.165.0's read the same, but for the `•`
+  // Its screens as 0.166.0 drew them; 0.165.0's read the same, but for the `•`
   // that headed the question in the chat where 0.166.0 draws `?` (fixtures/ask.probe*.json).
   const newest = load("ask.probe.0.166.0.json")
   type Steps = { readonly label: string; readonly screen: ScreenText }[]

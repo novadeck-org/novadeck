@@ -135,9 +135,12 @@ const sheets = (() => {
 })()
 
 describe("the Tailwind guards", () => {
-  it("leave out only what the sheet leaves out: each scanned folder's tests, as `.test.ts`", () => {
-    expect(left.length).toBeGreaterThan(0)
-    expect(files.filter((file) => /^frontend\/[^/]+\/src\/.*\.test\.ts$/.test(file))).toEqual([])
+  it("leave out only what the sheet leaves out: each scanned folder's `.test.ts` and `.test.tsx`", () => {
+    const folders = (kind: string) =>
+      left.filter(({ suffix }) => suffix === kind).map(({ folder }) => folder)
+    expect(folders(".test.ts").length).toBeGreaterThan(0)
+    expect(folders(".test.tsx")).toEqual(folders(".test.ts"))
+    expect(files.filter((file) => /^frontend\/[^/]+\/src\/.*\.test\.tsx?$/.test(file))).toEqual([])
     // Every other kind of file, a test of another kind among them, is read as Tailwind reads it.
     expect(files.some((file) => /\.(?:tsx|mts|json|md|html)$/.test(file))).toBe(true)
   })
