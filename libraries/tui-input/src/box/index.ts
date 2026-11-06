@@ -6,6 +6,7 @@ export {
   isEmpty,
   leaveShell,
   markedBox,
+  pastesWhole,
   rule,
   ruledBox,
   showsTail,

@@ -26,16 +26,30 @@ export const promptLines = (text: string): readonly string[] => {
   return lines.slice(first, last)
 }
 
-/** Where a run of `needle` starts in `lines` at or after `from`; -1 where it doesn't. */
-const runAt = (lines: readonly string[], needle: readonly string[], from: number): number => {
+/**
+ * Where a run of `needle` starts in `lines` at or after `from`; -1 where it doesn't. With
+ * `joined`, its first line may end a line, after a space, as text the box held comes first.
+ */
+const runAt = (
+  lines: readonly string[],
+  needle: readonly string[],
+  from: number,
+  joined = false,
+): number => {
   if (needle.length === 0) return -1
+  const fits = (line: string, own: string, first: boolean): boolean =>
+    line.trim() === own.trim() || (joined && first && line.trim().endsWith(` ${own.trim()}`))
   for (let at = from; at + needle.length <= lines.length; at += 1)
-    if (needle.every((line, offset) => lines[at + offset]!.trim() === line.trim())) return at
+    if (needle.every((own, offset) => fits(lines[at + offset]!, own, offset === 0))) return at
   return -1
 }
 
-/** A prompt still waiting for its record: its ref, and its lines (`promptLines`). */
-export type Waiting = { readonly ref: string; readonly lines: readonly string[] }
+/** A prompt still waiting for its record: its ref, its lines (`promptLines`), and `Receipts.joined`. */
+export type Waiting = {
+  readonly ref: string
+  readonly lines: readonly string[]
+  readonly joined?: boolean
+}
 
 /**
  * The prompts a user item of the record settles, of `waiting` in the order they were sent:
@@ -50,7 +64,7 @@ export const settledBy = (waiting: readonly Waiting[], item: string): readonly s
   const settled: string[] = []
   let cursor = 0
   for (const prompt of waiting) {
-    const at = runAt(lines, prompt.lines, cursor)
+    const at = runAt(lines, prompt.lines, cursor, prompt.joined)
     if (at < 0) continue
     settled.push(prompt.ref)
     cursor = at + prompt.lines.length

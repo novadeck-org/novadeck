@@ -983,7 +983,11 @@ one from an earlier runner.
     scrolled up inside so tall a draft gets the message at the cursor, both still sent. The paste leads with a blank line, which
     keeps the prompt's lines its own, so its receipt settles against the record's merged item,
     and closes a picker the text holds open, whose Enter would pick from it (Codex and
-    Antigravity did). Enter goes once the box holds the text and then the prompt, or the
+    Antigravity did). Where a paste is keys (`pastesAsKeys`, Codex on Windows, which reads the
+    console's), a line break is an Enter unless it comes in what the program takes for a burst of
+    typing: one leading the paste submitted the box and left the prompt behind. So a space sets
+    the prompt apart there, the record told it shares a line, and a prompt of several lines
+    with a first line under 16 characters is a `CONFLICT` (`draft`), written nowhere. Enter goes once the box holds the text and then the prompt, or the
     prompt's placeholder, or in a box as tall as it gets the prompt's tail.
   - **What is Novadeck's goes back.** Where all the box holds is prompts whose receipts are
     `in-box` (`known`), it is erased first and handed back as `returned`, its receipts
@@ -1028,7 +1032,7 @@ one from an earlier runner.
     the box isn't empty, or the text has a shape `promptRefusal` refuses: a leading `/`, or a
     trailing `@name` or `$name`, whose picker would open there and take the next Enter, or a
     command long enough for a placeholder where the harness's shell mode would run that as
-    text (Antigravity). It is false too where the words never showed, a `!` that was typed taken
+    text (Antigravity), or text whose first line break would be an Enter (above). It is false too where the words never showed, a `!` that was typed taken
     back out. The client keeps its draft unless it is true.
 
   Both hold the person's keys for as long as they take: 0.3 s, as long as what a prompt just sent

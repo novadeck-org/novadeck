@@ -135,6 +135,14 @@ describe("prompt receipts", () => {
     expect(state("r3")).toBe("pending")
   })
 
+  it("settles a prompt that went on the same line as the box's text", async ({ resources }) => {
+    const { path, receipts, state, give } = await setup(resources)
+    await give("the message", "r1")
+    receipts.joined(terminal, "r1")
+    await appendFile(path, row("half typed the message"))
+    await vi.waitFor(() => expect(state("r1")).toBe("settled"))
+  })
+
   it("takes a prompt not yet known to be back for words that are exactly its own", async ({
     resources,
   }) => {

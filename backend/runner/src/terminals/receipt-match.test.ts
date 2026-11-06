@@ -129,6 +129,20 @@ describe("missingAt", () => {
   })
 })
 
+describe("a prompt that went on the same line as what the box held", () => {
+  it("settles by a line that ends with its first, after a space", () => {
+    const joined = { ref: "r", lines: promptLines("the message\nits second"), joined: true }
+    expect(settledBy([joined], "half typed the message\nits second")).toEqual(["r"])
+    expect(settledBy([joined], "half typedthe message\nits second")).toEqual([])
+    expect(settledBy([joined], "half typed the message\nsomething else")).toEqual([])
+  })
+
+  it("is the only one that does, as any other's words may just end a line", () => {
+    const other = { ref: "r", lines: promptLines("ok") }
+    expect(settledBy([other], "that is ok")).toEqual([])
+  })
+})
+
 describe("knownWords", () => {
   const back = (text: string) => ({ text, lines: promptLines(text) })
 

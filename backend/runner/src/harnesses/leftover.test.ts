@@ -101,6 +101,13 @@ describe.each(harnesses)("what %s's box holds", (harness, profile) => {
     )
   })
 
+  it("takes a paste as keys only where it reads the console's: Codex on Windows", () => {
+    for (const platform of ["linux", "darwin", "win32"] as const)
+      expect(profile.pastesAsKeys?.(platform) ?? false).toBe(
+        harness === "codex" && platform === "win32",
+      )
+  })
+
   it("reads the merged text whole, with what was pasted after a placeholder", () => {
     expect(box("merged").text).toMatch(/half typed\n+the message/)
     expect(box("placeholder merged").text).toMatch(/the message$/)

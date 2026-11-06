@@ -32,6 +32,8 @@ type Options = {
   /** The keys of the profile; none where false. */
   readonly keys?: boolean
   readonly viewport?: number
+  /** Whether a paste is keys, as Codex's on Windows, a line break in one an Enter at its start. */
+  readonly pasteKeys?: boolean
   /** Refuses from this `admit` on, as a request that came. */
   readonly refusesFrom?: number
   readonly known?: string
@@ -47,6 +49,7 @@ const fake = (options: Options = {}) => {
   const sent: string[] = []
   const notes: BoxNote[] = []
   let admits = 0
+  let joins = 0
 
   const lines = (): string[] => {
     const shown = text.split("\n")
@@ -95,6 +98,7 @@ const fake = (options: Options = {}) => {
     collapses: () => false,
     room: () => 30,
     ...(options.keys !== false && { erase: eraseRows }),
+    ...(options.pasteKeys && { pastesAsKeys: () => true }),
     ...(options.viewport !== undefined && { viewport: () => options.viewport! }),
   }
 
@@ -155,6 +159,13 @@ const fake = (options: Options = {}) => {
         }
         // eslint-disable-next-line no-control-regex -- A paste's brackets are what it reads.
         const pasted = /^\x1b\[200~(.*)\x1b\[201~$/s.exec(data)?.[1]?.replaceAll("\r", "\n")
+        // Keys: what the paste starts with is pressed, Enter and all, as it was on Windows.
+        if (options.pasteKeys && pasted?.startsWith("\n")) {
+          sent.push(text)
+          text = pasted.trimStart()
+          cursor = text.length
+          return true
+        }
         if (pasted !== undefined && !options.pasteLost) {
           const shown = options.placeholder ? "[Pasted #1]" : pasted
           text = text.slice(0, cursor) + shown + text.slice(cursor)
@@ -170,6 +181,7 @@ const fake = (options: Options = {}) => {
       known: () => options.known,
       ringLine: () => options.ringLine ?? false,
       note: (_id, note) => notes.push(note),
+      joined: () => void (joins += 1),
     },
     new InputQueue({
       hold: () => ({
@@ -191,6 +203,7 @@ const fake = (options: Options = {}) => {
     notes,
     box: () => text,
     shell: () => shell,
+    joins: () => joins,
     pasted: () => typed.filter((data) => data.startsWith("\x1b[200~")),
   }
 }
@@ -291,6 +304,36 @@ describe("a prompt over text in the box", () => {
     await expect(tui.give("the message")).rejects.toThrow("A request came.")
     expect(tui.written).toEqual([])
     expect(tui.typed).toEqual([])
+  })
+})
+
+describe("a prompt over text where a paste is keys", () => {
+  it("presses no Enter with the paste: a space sets it apart, and its record is told", async () => {
+    const tui = fake({ text: "half typed", pasteKeys: true })
+    await tui.give("the message")
+    expect(tui.pasted()).toEqual(["\x1b[200~ the message\x1b[201~"])
+    expect(tui.sent).toEqual(["half typed the message"])
+    expect(tui.joins()).toBe(1)
+  })
+
+  it("goes with a long first line, whose line breaks come in a burst of typing", async () => {
+    const tui = fake({ text: "half typed", pasteKeys: true })
+    await tui.give("a first line long enough\nthe second")
+    expect(tui.sent).toEqual(["half typed a first line long enough\nthe second"])
+  })
+
+  it("is refused with a short first line, whose line break would be an Enter", async () => {
+    const tui = fake({ text: "half typed", pasteKeys: true })
+    await refused(tui.give("short\nthe second"), "draft")
+    expect(tui.pasted()).toEqual([])
+    expect(tui.notes).toEqual(["draft-kept"])
+  })
+
+  it("leaves a blank line where a paste is text", async () => {
+    const tui = fake({ text: "half typed" })
+    await tui.give("the message")
+    expect(tui.pasted()).toEqual(["\x1b[200~\r\rthe message\x1b[201~"])
+    expect(tui.joins()).toBe(0)
   })
 })
 

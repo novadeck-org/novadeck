@@ -8,6 +8,7 @@ import { isEmpty } from "@novadeck/tui-input/box"
 
 import { harnesses } from "../harnesses/registry.js"
 import type { Receipts } from "../terminals/receipts.js"
+import type { AgentSetup } from "./agents/agent.js"
 import { setups } from "./agents/index.js"
 import { occurrences, type DeckTerminal } from "./deck.js"
 import { describe, e2e, expect, gated, supported, type E2E } from "./fixture.js"
@@ -82,6 +83,13 @@ const prompted = async (terminal: DeckTerminal, text: string): Promise<() => Pro
     expect(at?.text, `${label}: settled by`).toContain(label)
   }
 }
+
+/**
+ * What the record holds of a message sent along with text in the box: a blank line between,
+ * and a space where a paste is keys, whose line break would be an Enter.
+ */
+const along = (setup: AgentSetup, box: string, message: string): string =>
+  `${box}${harnesses[setup.agent].box.pastesAsKeys?.() ? " " : "\n\n"}${message}`
 
 /**
  * What a client that keeps reading the terminal's `agents.detail` sees of its box, as only
@@ -250,7 +258,7 @@ for (const setup of setups) {
       await through(t1, ["working", "settled"], { after: mark })
       await settled()
       expect(await item(t1, "user", (text) => text.includes("Shall I go on"))).toBe(
-        "Say hello\n\nShall I go on",
+        along(setup, "Say hello", "Shall I go on"),
       )
       await box.shows((shown) => shown === null)
       box.stop()
@@ -269,7 +277,7 @@ for (const setup of setups) {
       await t1.prompt("second word")
       await t1.until("Noted.")
       expect(await item(t1, "user", (text) => text.includes("second word"))).toBe(
-        "first line\n\nsecond word",
+        along(setup, "first line", "second word"),
       )
     })
 
@@ -302,7 +310,9 @@ for (const setup of setups) {
       await t1.prompt(lines.join("\n"))
       await t1.until("Read it.")
       const merged = await item(t1, "user", (text) => text.includes("Line 40"))
-      expect(merged.split("\n").map((line) => line.trim())).toEqual(["Before it", "", ...lines])
+      expect(merged.split("\n").map((line) => line.trim())).toEqual(
+        along(setup, "Before it", lines.join("\n")).split("\n"),
+      )
 
       const write = (data: string) => run.deck.terminals.write({ terminalId: t1.id, data }, "e2e")
       await sleep(500)
@@ -311,7 +321,9 @@ for (const setup of setups) {
       await t1.prompt("And this")
       await t1.until("Read that.")
       const over = await item(t1, "user", (text) => text.includes("And this"))
-      expect(over.split("\n").map((line) => line.trim())).toEqual([...lines, "", "And this"])
+      expect(over.split("\n").map((line) => line.trim())).toEqual(
+        along(setup, lines.join("\n"), "And this").split("\n"),
+      )
     })
 
     it("sends a message along mid-turn, where it goes behind the turn", async ({ e2e: run }) => {
@@ -499,12 +511,10 @@ for (const setup of setups) {
         )
         if (failure !== undefined) {
           expect(failure).toMatchObject({ code: "PROMPT_FAILED" })
-          // What the paste left stays in the box, a draft the next prompt is refused for,
-          // until the person clears it (probed 2026-10-11, Codex 0.159.3).
-          await expect(t1.prompt("Carry on")).rejects.toMatchObject({
-            code: "CONFLICT",
-            reason: "draft",
-          })
+          // What the paste left stays in the box (probed 2026-10-11, Codex 0.159.3), and the
+          // next prompt goes along with it.
+          await t1.prompt("Carry on")
+          await t1.until("You are welcome.")
           return
         }
       } else await t1.prompt(prompt)
@@ -1032,7 +1042,9 @@ for (const setup of setups) {
       await t1.prompt("And this")
       await t1.until("Got both.")
       const over = await item(t1, "user", (text) => text.includes("And this"))
-      expect(over.split("\n").map((line) => line.trim())).toEqual([...lines, "", "And this"])
+      expect(over.split("\n").map((line) => line.trim())).toEqual(
+        along(setup, lines.join("\n"), "And this").split("\n"),
+      )
       box.stop()
     })
 

@@ -2,7 +2,14 @@ import { setTimeout as sleep } from "node:timers/promises"
 
 import type { ScreenText } from "@novadeck/emulator/headless"
 
-import { fillsViewport, isEmpty, showsTail, type BoxProfile, type InputBox } from "./box/box.js"
+import {
+  fillsViewport,
+  isEmpty,
+  pastesWhole,
+  showsTail,
+  type BoxProfile,
+  type InputBox,
+} from "./box/box.js"
 import { cursorEnded, pressKeys, type BoxKeysHost } from "./box/keys.js"
 import { leftoverOf } from "./box/leftover.js"
 import { endsText, sameText, unwrapped, wentFrom, wrappedRows } from "./box/text.js"
@@ -136,6 +143,8 @@ export type PromptHost = {
   readonly ringLine?: (terminalId: string, text: string) => boolean
   /** Says what a prompt did about what the box held. */
   readonly note?: (terminalId: string, note: BoxNote) => void
+  /** The prompt on its way goes on the same line as what the box holds, not on lines of its own. */
+  readonly joined?: (terminalId: string) => void
   /** Says why a prompt was refused, whatever the box held. */
   readonly refused?: (terminalId: string, reason: PromptRefusalReason) => void
 }
@@ -399,8 +408,16 @@ export class Prompts {
       // A person's paste, whose line breaks the TUI takes as text, never as Enter.
       // After text the box holds, a blank line sets it apart, keeps the prompt's lines its own
       // for its record, and closes a picker that text may have open, whose Enter would pick
-      // from it (probed 2026-11-06 on all three harnesses).
-      const pasted = left ? `\n\n${typed}` : typed
+      // from it (probed 2026-11-06 on all three harnesses). Where a paste is keys, that line
+      // break would be an Enter, which submits what the box holds and leaves the prompt behind:
+      // a space does the same but for the prompt's lines, which its record is told of.
+      const keys = left !== undefined && profile.pastesAsKeys?.() === true
+      if (left && !pastesWhole(profile, typed)) {
+        this.host.note?.(terminalId, "draft-kept")
+        throw this.draft()
+      }
+      if (keys) this.host.joined?.(terminalId)
+      const pasted = left ? `${keys ? " " : "\n\n"}${typed}` : typed
       if (!this.host.type(terminalId, bracketedPaste(inPaste(pasted)))) throw this.notShown()
       const landed = await this.landed(
         terminalId,

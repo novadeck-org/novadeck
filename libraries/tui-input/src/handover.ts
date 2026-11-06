@@ -2,7 +2,7 @@ import { setTimeout as sleep } from "node:timers/promises"
 
 import type { ScreenText } from "@novadeck/emulator/headless"
 
-import { isEmpty, showsTail, type BoxProfile, type InputBox } from "./box/box.js"
+import { isEmpty, pastesWhole, showsTail, type BoxProfile, type InputBox } from "./box/box.js"
 import { cursorEnded, pressKeys, type BoxKeysHost } from "./box/keys.js"
 import { leftoverOf } from "./box/leftover.js"
 import { sameText, unwrapped, wentFrom, wrappedRows } from "./box/text.js"
@@ -252,8 +252,10 @@ export class Handovers {
     }
     const shell = words.startsWith("!")
     const body = shell ? words.slice(1).trim() : words
-    // Its shell mode would run the placeholder of a long command as text.
-    if (shell && !profile.shell.expands && (collapsible(body) || profile.collapses(body))) {
+    // Its shell mode would run the placeholder of a long command as text, and a line break
+    // that's an Enter would submit what the person only meant to go on writing.
+    const placeholder = !profile.shell.expands && (collapsible(body) || profile.collapses(body))
+    if ((shell && placeholder) || !pastesWhole(profile, body)) {
       this.host.note(terminalId, "shape")
       return false
     }

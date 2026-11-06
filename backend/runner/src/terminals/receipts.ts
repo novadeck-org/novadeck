@@ -108,6 +108,8 @@ type Entry = {
   checking: boolean
   /** When it was found missing, or back in the box; null before. */
   missedAt: number | null
+  /** Whether it went on the same line as what the box held (`Receipts.joined`). */
+  joined?: boolean
 }
 
 /** What is read of a terminal's record, while any prompt there waits on it. */
@@ -244,6 +246,15 @@ export class Receipts {
     track.entries.push(entry)
     if (track.source) this.read(terminalId, track)
     return { ref, tracked: true }
+  }
+
+  /**
+   * The prompt goes on the same line as what the box held, so its record's item holds its first
+   * line at the end of one of its own.
+   */
+  joined(terminalId: string, ref: string): void {
+    const entry = this.entry(terminalId, ref)
+    if (entry) entry.joined = true
   }
 
   /** The prompt's Enter was pressed: it is pending, as its receipt shows. */

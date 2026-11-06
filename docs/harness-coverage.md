@@ -321,6 +321,7 @@ Probed 2026-11-06 on Claude Code 2.1.316 and 2.1.318, Codex 0.166.0 and 0.167.0,
 - Its menus: Claude Code's and Antigravity's read as no box or a view. Codex's `/model`, `/config` and `/permissions` read as a box holding text, its first row leading with the marker, unless its hint row says otherwise (`overlay`).
 - A word reaches `columns - 4` on a row on Claude Code and Antigravity, `columns - 3` on Codex (the same on 80 and 120 columns), the space at a wrap left out. One too long for a row starts a new row and breaks at `columns - 3` on Codex and Antigravity; on Claude Code it fills the row it starts on, to `columns - 4`.
 - Antigravity draws its cursor on the text's last cell, the others after it (`caret`).
+- Codex on Windows reads the console's keys, so a bracketed paste is typing to it, and a line break is an Enter unless it comes in what it takes for a burst of typing (Windows CI, 0.167.0, 2026-11-06). A paste of `\r\r` and a message over a draft submitted the draft alone, in every case, and left the message in the box. With a picker open the first Enter picked and the second submitted. Long first lines have always come through whole in CI; nothing shorter than 16 characters is relied on (`pastesWhole`). Claude Code and Antigravity took the same paste as text on Windows.
 
 ## Consequences for the design
 

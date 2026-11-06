@@ -75,6 +75,10 @@ export const box: BoxProfile = {
   stands: (text) => /\[(?:Pasted Content \d+|Image #\d+|image\b)/.test(text),
   collapsed: ({ text }) => /^\[Pasted Content \d+ chars?\]$/.test(text.trim()),
   erase: eraseRows,
+  // On Windows it reads the console's keys, and a line break is an Enter unless it comes in what
+  // it takes for a burst of typing: leading a paste, it submitted the box (seen on Windows CI,
+  // 0.167.0, 2026-11-06, in every chat send over a draft).
+  pastesAsKeys: (platform = process.platform) => platform === "win32",
   overlay,
   // A queued message waits "to be submitted after next tool call", and an Escape sends it
   // at once as a steer, which a second Escape stops; the box stays empty (probed). One under

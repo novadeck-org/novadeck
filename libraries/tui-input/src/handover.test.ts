@@ -38,6 +38,8 @@ type Options = {
   readonly ringEnds?: number
   /** Whether the screen takes no bracketed paste. */
   readonly noPaste?: boolean
+  /** Whether a paste is keys, as Codex's on Windows. */
+  readonly pasteKeys?: boolean
 }
 
 const fake = (options: Options = {}) => {
@@ -95,6 +97,7 @@ const fake = (options: Options = {}) => {
     collapses: () => false,
     room: () => 30,
     ...(!options.noKeys && { erase: eraseRows }),
+    ...(options.pasteKeys && { pastesAsKeys: () => true }),
     ...(options.viewport !== undefined && { viewport: () => options.viewport! }),
   }
 
@@ -295,6 +298,19 @@ describe("putting a draft in the box", () => {
   it("takes a tail of it for its having shown, in a box that shows no more", async () => {
     const tui = fake({ viewport: 2, tailOnly: true })
     await expect(tui.handovers.put("t", "one\ntwo\nthree")).resolves.toBe(true)
+  })
+
+  it("keeps lines whose first break would be an Enter, where a paste is keys", async () => {
+    const short = fake({ pasteKeys: true })
+    await expect(short.handovers.put("t", "short\nthe second")).resolves.toBe(false)
+    expect(short.typed).toEqual([])
+    expect(short.notes).toEqual(["shape"])
+    const long = fake({ pasteKeys: true })
+    await expect(long.handovers.put("t", "a first line long enough\nthe second")).resolves.toBe(
+      true,
+    )
+    const one = fake({ pasteKeys: true })
+    await expect(one.handovers.put("t", "one line")).resolves.toBe(true)
   })
 
   it("keeps a long command where its shell mode would run the placeholder", async () => {

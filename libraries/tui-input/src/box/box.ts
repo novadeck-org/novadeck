@@ -60,6 +60,13 @@ export type BoxProfile = {
    */
   readonly erase?: (box: InputBox) => string
   /**
+   * Whether the program takes a bracketed paste as keys, on `platform` (this one where left
+   * out), so that a line break in a paste is an Enter unless it comes in what the program takes
+   * for a burst of typing: it submits what the box holds, with nothing of the paste. Omitted
+   * where a paste is always text.
+   */
+  readonly pastesAsKeys?: (platform?: NodeJS.Platform) => boolean
+  /**
    * How many columns before the end of the text a program draws its cursor there; none where
    * omitted.
    */
@@ -176,6 +183,23 @@ export const eraseRows = ({ first, last }: InputBox): string =>
  */
 export const leaveShell = (box: InputBox): string =>
   isEmpty(box) ? "\x7f" : `${eraseRows(box)}\x7f`
+
+/**
+ * How long a first line must be for a program that takes a paste as keys to have taken it for a
+ * paste by the first line break, which is an Enter otherwise. Long lines always were on Codex
+ * on Windows in CI, and no shorter one is known to be, so what is shorter goes no further.
+ */
+const pasteFirstLine = 16
+
+/**
+ * Whether `text` can go in a paste to this program with no line break in it becoming an Enter:
+ * always where a paste is text, and where it's keys, with one line, or a long first one.
+ */
+export const pastesWhole = (profile: BoxProfile, text: string): boolean => {
+  if (!profile.pastesAsKeys?.()) return true
+  const lines = text.split(/\r\n?|\n/)
+  return lines.length === 1 || (lines[0]?.length ?? 0) >= pasteFirstLine
+}
 
 /** Whether the box holds nothing. */
 export const isEmpty = (box: InputBox): boolean => compact(box.text) === ""
