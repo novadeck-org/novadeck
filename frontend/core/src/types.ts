@@ -65,6 +65,9 @@ export type AgentStatus = {
   // Its `done` report still stands: nothing the person prompted or a message delivered to it
   // came after. Looking at the terminal does not end it, so its done mark stays until then.
   readonly reported?: true
+  // One of its own screens holds it for the person before its first session, as a
+  // folder-trust or sign-in screen. No request stands behind it, so no Inbox row does either.
+  readonly startup?: "startup" | "sign-in"
 }
 
 // What an idle agent waits on: jobs it left running and picks up once they finish, each in

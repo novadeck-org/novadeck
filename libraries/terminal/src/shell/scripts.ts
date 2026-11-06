@@ -215,7 +215,12 @@ function __${p}_resume --on-event fish_prompt
     if test -f $__${p}_file
         set -l __${p}_command (string collect < $__${p}_file)
         command rm -f -- $__${p}_file
+        # fish 3 has bracketed paste on by now, from its first prompt, as no other shell does
+        # here. Off, as for any command it runs: then the mode says what the command itself
+        # turned on.
+        printf '\\e[?2004l'
         eval $__${p}_command
+        printf '\\e[?2004h'
     end
     __${p}_prompt
 end

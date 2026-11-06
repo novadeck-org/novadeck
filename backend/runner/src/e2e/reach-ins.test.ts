@@ -30,6 +30,7 @@ const reaching = [
   "probes/agy-stop-boundary.e2e.ts",
   "probes/codex-banner.e2e.ts",
   "probes/interrupt-held-reply.e2e.ts",
+  "probes/startup-screens.e2e.ts",
   "probes/version.e2e.ts",
   "scope.e2e.ts",
   "transcripts.e2e.ts",
@@ -111,6 +112,17 @@ describe("the e2e reach-ins", () => {
     const { inside, id } = await running(resources)
     expect(inside.records.get(id)).toHaveProperty("bound", null)
     expect(inside.reporting.report).toBeTypeOf("function")
+  })
+
+  it("startup-screens': a record's prompts, expectation, binding and screen's buffer", async ({
+    resources,
+  }) => {
+    const { inside, id } = await running(resources)
+    const record = inside.records.get(id)!
+    expect(record).toHaveProperty("prompts")
+    expect(record).toHaveProperty("expecting", null)
+    expect(record).toHaveProperty("bound", null)
+    expect(record).toHaveProperty("terminal.screen.buffer.active.baseY")
   })
 
   it("agent-exit's: records, a live terminal's shell, and the trees it ends", async ({

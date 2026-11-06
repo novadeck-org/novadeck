@@ -4,7 +4,7 @@ import type { BackendAction, TerminalKey } from "@novadeck/core/port"
 import { workspaceFromSeed } from "@novadeck/core/seed"
 import { workspaceReducer } from "@novadeck/core/state"
 import { createWorkspaceStore } from "@novadeck/core/store"
-import { terminalPhase } from "@novadeck/core/terminals/ending"
+import { terminalNote, terminalPhase } from "@novadeck/core/terminals/ending"
 import { isAgentProgram } from "@novadeck/core/terminals/process"
 import type { AgentStatus, AgentUsage, TerminalMetadata, Workspace } from "@novadeck/core/types"
 import type { DemoAgentVerbs } from "@novadeck/demo/agents/link"
@@ -367,6 +367,20 @@ describe("demo states", () => {
       }
     })
 
+    it("holds an agent at its startup screen, with the need mark's words and no call", () => {
+      const { run, terminal, calls } = panel("04")
+      run("At its startup screen")
+      expect(terminalNote(terminal("04")!, { need: undefined }, undefined)).toMatchObject({
+        need: "unblock",
+        text: "Waiting at its startup screen",
+      })
+      run("At its sign-in screen")
+      expect(terminalNote(terminal("04")!, { need: undefined }, undefined).text).toBe(
+        "Waiting at its sign-in screen",
+      )
+      expect(calls).toEqual([])
+    })
+
     it("lets an unheard agent say nothing", () => {
       const { run, terminal, calls } = panel("04")
       run("Unheard agent")
@@ -436,12 +450,12 @@ describe("demo states", () => {
     it("lets go of the terminals of the gallery's metadata tiles, not its agents'", async () => {
       const { run, released, added } = panel("04")
       await run("Every state at once")
-      // The ten that set no agent verb: two that ask through MCP (their Inbox rows are the
-      // demo's own), unheard, program, a shell an agent opened, one an
+      // The eleven that set no agent verb: two that ask through MCP (their Inbox rows are the
+      // demo's own), unheard, at its startup screen, program, a shell an agent opened, one an
       // agent exited from, starting, and the three ways to end.
-      expect(released).toHaveLength(10)
+      expect(released).toHaveLength(11)
       for (const each of released) expect(added).toContainEqual(each)
-      expect(new Set(released.map((each) => each.terminalId)).size).toBe(10)
+      expect(new Set(released.map((each) => each.terminalId)).size).toBe(11)
     })
 
     it("calls its verbs without letting go", () => {
@@ -809,6 +823,14 @@ describe("demo states over the real agents", () => {
       const terminal = terminalOf(workspace.getSnapshot(), viewed)!
       expect(terminal.process).toBe(harness)
       expect(terminalPhase(terminal)).toBe("unheard")
+    })
+
+    it("holds an agent of that harness at its startup screen", () => {
+      const { run, workspace, viewed } = openOver("plain", harness)
+      run("At its startup screen")
+      const terminal = terminalOf(workspace.getSnapshot(), viewed)!
+      expect(terminal.process).toBe(harness)
+      expect(terminal).toMatchObject({ state: "running", agent: { startup: "startup" } })
     })
 
     it("makes every agent of the gallery that harness, with its asks in the Inbox", () => {

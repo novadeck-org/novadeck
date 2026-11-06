@@ -252,6 +252,7 @@ export class TerminalPeers {
             waitsOn: terminal.summary.activity?.waiting
               ? waitsOnNote(terminal.summary.activity.waiting, Date.now())
               : null,
+            startup: terminal.summary.startup?.screen ?? null,
             reports: this.options.reports(terminal.summary.id),
             place: (path) => tail(place(path), 80),
           }

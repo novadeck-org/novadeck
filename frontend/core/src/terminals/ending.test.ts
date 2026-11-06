@@ -227,6 +227,12 @@ describe("terminal need mark", () => {
     ["a permission over an ask row", running("permission"), "ask", "unblock"],
     ["a question over an ask row", running("question"), "ask", "ask"],
     ["nothing", running(), undefined, undefined],
+    [
+      "a startup screen",
+      { ...running(), agent: { working: false, startup: "startup" } },
+      undefined,
+      "unblock",
+    ],
     ["a dialog of an ended terminal", { ...running("plan"), state: "idle" }, undefined, undefined],
   ] as const)("reads %s", (_, metadata, inbox, need) => {
     expect(terminalNeedMark(metadata as TerminalMetadata, inbox)).toBe(need)
@@ -337,6 +343,17 @@ describe("a terminal's note", () => {
     agent: { working: false, ...fields },
   })
   const quiet = { need: undefined } as const
+
+  it("says which screen holds an agent before its first session, marked as needing the person", () => {
+    expect(terminalNote(agent({ startup: "startup" }), quiet, undefined, now)).toMatchObject({
+      phase: "idle",
+      need: "unblock",
+      text: "Waiting at its startup screen",
+    })
+    expect(terminalNote(agent({ startup: "sign-in" }), quiet, undefined, now).text).toBe(
+      "Waiting at its sign-in screen",
+    )
+  })
 
   it("is a bare idle terminal with nothing to say", () => {
     expect(terminalNote(agent(), quiet, undefined, now)).toEqual({

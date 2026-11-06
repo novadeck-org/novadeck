@@ -46,6 +46,7 @@ const summary = (
   process: { name: "zsh", argv: null },
   agent: null,
   ready: null,
+  startup: null,
   activity: null,
   telemetry: null,
   reported: null,

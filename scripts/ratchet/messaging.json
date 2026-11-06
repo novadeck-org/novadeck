@@ -6,14 +6,14 @@
     "New behaviour goes in a sibling module under backend/runner/src/messaging/, as delivery.ts, leases.ts and loops.ts do, with the class calling it. Work that can't is raised in the same pull request, written { \"budget\": n, \"reason\": \"why\", \"from\": \"#PR or commit\" }."
   ],
   "lines": {
-    "budget": 520,
-    "reason": "A reply waiting at a turn's end rings as the prompt (+4): ringsPlain forwards the doorbell's word that it rings the plain line to messaging/deliveries.ts, which a Stop reads, as the doorbell's other reports (ringFailed, blocked) are forwarded.",
-    "from": "#744"
+    "budget": 524,
+    "reason": "Startup screens (+4, +1 method): expected, as shownAgent and untrustedAgent are, tells terminals/startup-watch.ts which agent a terminal still waits for, which only Deliveries knows once a session bound and left; the logic is in deliveries.ts and startup-watch.ts.",
+    "from": "#739"
   },
   "methods": {
-    "budget": 78,
-    "reason": "A reply waiting at a turn's end rings as the prompt (+1): ringsPlain, a forwarder to messaging/deliveries.ts.",
-    "from": "#744"
+    "budget": 79,
+    "reason": "Startup screens (+4, +1 method): expected, as shownAgent and untrustedAgent are, tells terminals/startup-watch.ts which agent a terminal still waits for, which only Deliveries knows once a session bound and left; the logic is in deliveries.ts and startup-watch.ts.",
+    "from": "#739"
   },
   "slack": {
     "lines": 100,

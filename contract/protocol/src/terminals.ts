@@ -76,6 +76,10 @@ export const titleSource = z.discriminatedUnion("kind", [
 
 // The runner owns every terminal's identity and facts: which terminals a session has, their
 // titles, directories, what they run and ran. Clients keep only how they show them.
+// The kind of screen that holds an agent for the person before its first session.
+export const startupScreen = z.enum(["startup", "sign-in"])
+export type StartupScreen = z.infer<typeof startupScreen>
+
 export const terminalSummary = z.strictObject({
   id,
   sessionId: id,
@@ -127,6 +131,10 @@ export const terminalSummary = z.strictObject({
   // before it reported a session, as Codex and Antigravity do only with their first
   // prompt. Null otherwise, and once a session is reported.
   ready: agentName.nullable(),
+  // The agent expected there, held at one of its own screens that wait for the person, a
+  // folder-trust, update, sign-in or onboarding screen, before it reported a session. Null
+  // otherwise, and once a session is reported or its prompt shows.
+  startup: z.strictObject({ agent: agentName, screen: startupScreen }).nullable(),
   // What that agent is doing; null without one.
   activity: agentActivity.nullable(),
   // Its tokens and quotas, once its records named any; null otherwise.
