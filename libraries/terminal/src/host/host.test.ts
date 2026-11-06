@@ -1,6 +1,9 @@
-import { describe, expect, it, onTestFinished } from "vitest"
+import { spawn } from "node:child_process"
+
+import { describe, expect, it, onTestFinished, vi } from "vitest"
 
 import type { TerminalEvent } from "../contract.js"
+import type { Listing } from "../pty/descendants.js"
 import type { NativeSpawn, ProcessTrees } from "../pty/pty.js"
 import { nativeStandIn } from "../testing.js"
 import { createTerminalHost, type TerminalHostOptions } from "./host.js"
@@ -12,14 +15,18 @@ const spec: RunSpec = { file: "shell", args: [], cwd: "/", env: {}, cols: 20, ro
 
 const noTrees: ProcessTrees = { read: async () => [], end: async () => {} }
 
+// The stand-in shell: a pid nothing has, so a signal for it reaches no one.
+const shellPid = 2 ** 30
+
 /** A host over stand-in programs, one for each terminal it opens, in turn. */
 const hostOf = (
   limits: Partial<TerminalHostOptions["limits"]> = {},
   failed?: TerminalHostOptions["failed"],
+  more: Partial<Pick<TerminalHostOptions, "follows" | "listing" | "kill">> = {},
 ) => {
   const programs: Program[] = []
   const native: NativeSpawn = (...args) => {
-    const program = nativeStandIn()
+    const program = nativeStandIn({ pid: shellPid })
     programs.push(program)
     return program.spawn(...args)
   }
@@ -40,6 +47,7 @@ const hostOf = (
     trees: noTrees,
     pty: { native, platform: "linux" },
     ...(failed && { failed }),
+    ...more,
   })
   // The stand-ins end only when told to.
   onTestFinished(async () => {
@@ -64,6 +72,88 @@ const hostOf = (
   }
   return { host, programs, evicted, open, exit }
 }
+
+// An end held open by a real process, ended by its exact pid: one in a group of its own that
+// ignores the hangup and answers SIGTERM, as an agent's tool, with the listing a shell would give.
+describe.skipIf(process.platform === "win32")("a terminal's end that follows its agent", () => {
+  const tool = () => {
+    const child = spawn(
+      process.execPath,
+      ["-e", 'process.on("SIGHUP", () => {}); console.log("up"); setInterval(() => {}, 1000)'],
+      { detached: true, stdio: ["ignore", "pipe", "ignore"] },
+    )
+    onTestFinished(() => void child.kill("SIGKILL"))
+    const pid = child.pid!
+    const row = { foreground: pid, started: "same", zombie: false }
+    const rows = [
+      { ...row, pid: shellPid, parent: 1, group: shellPid },
+      { ...row, pid, parent: shellPid, group: pid },
+    ]
+    let hungUp = () => {}
+    // Once the walk is done and the hangup sent: a shell gone sooner leaves nothing to follow.
+    const walked = new Promise<void>((resolve) => {
+      hungUp = () => setTimeout(resolve, 20)
+    })
+    const listing: Listing = () => {
+      hungUp()
+      return Promise.resolve(rows)
+    }
+    return new Promise<{
+      pid: number
+      listing: Listing
+      gone: Promise<unknown>
+      walked: Promise<void>
+    }>((resolve) => {
+      const gone = new Promise((end) => {
+        child.once("exit", end)
+      })
+      child.stdout.once("data", () => resolve({ pid, gone, listing, walked }))
+    })
+  }
+  const kill = { graceMs: 1000, treeGraceMs: 60_000, shutdownTreesMs: 300, shutdownTreeGraceMs: 50 }
+
+  it("asks who runs there, and isn't evicted while it waits", async () => {
+    const { pid, gone, listing, walked } = await tool()
+    const follows = vi.fn<(id: string) => number | undefined>((id) =>
+      id === "a" ? pid : undefined,
+    )
+    const { host, evicted, open, exit } = hostOf({ maxRetained: 0 }, undefined, {
+      follows,
+      listing,
+      kill,
+    })
+    open("a")
+    const closing = host.terminate("a")
+    await walked
+    await exit("a", 0)
+    open("b")
+    await exit("b", 1)
+    expect(follows).toHaveBeenCalledWith("a")
+    expect(evicted).toEqual(["b"])
+    expect(host.terminal("a")).toBeDefined()
+    process.kill(pid, "SIGKILL")
+    await gone
+    await closing
+    open("c")
+    expect(evicted).toEqual(["b", "a"])
+  })
+
+  it("is brought forward by a shutdown", async () => {
+    const { pid, gone, listing, walked } = await tool()
+    const { host, open, programs } = hostOf({}, undefined, {
+      follows: () => pid,
+      listing,
+      kill,
+    })
+    open("a")
+    void host.terminate("a")
+    await walked
+    programs[0]!.exit(0)
+    const began = Date.now()
+    await Promise.all([host.shutdown(), gone])
+    expect(Date.now() - began).toBeLessThan(10_000)
+  })
+})
 
 describe("a terminal host's limits", () => {
   it("refuses a terminal past maxTerminals, counting those starting", () => {

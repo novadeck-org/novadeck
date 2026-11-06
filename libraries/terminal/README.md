@@ -116,7 +116,8 @@ resolve it.
     `__acme_prompt`), and the comment each file opens with.
   - `shellLaunch` gives a shell the arguments and environment that load them (cmd reports
     through its `PROMPT` and takes the command with `/k`), with a folder put first and a
-    startup command; `startsCommands` says which shells run one. `shQuote` and `cmdQuote` quote
+    startup command, which with `scoped` bash, zsh and fish hold for their scope (see
+    `userScopes`); `startsCommands` says which shells run one. `shQuote` and `cmdQuote` quote
     a value as one word of sh and cmd.
   - `refreshPath` merges the folders the Windows registry's PATH has now into an environment,
     read through the relay where it's given one, else through PowerShell, cached and backed off

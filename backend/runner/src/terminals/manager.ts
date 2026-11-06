@@ -57,6 +57,7 @@ import { Companion } from "./companion.js"
 import { Murmur, type MurmurTimes } from "./descriptions.js"
 import { type DialogsOptions } from "./dialogs.js"
 import { agentWorking } from "./doorbell-host.js"
+import { agentProcess, shutdownTreeGraceMs, shutdownTreesMs, treeGraceMs } from "./ending.js"
 import { failed } from "./failures.js"
 import { restored } from "./interrupted.js"
 import { Launcher, startedIn, startFailed } from "./launching.js"
@@ -230,20 +231,6 @@ const alive = (pid: string): boolean => {
   }
 }
 
-// How long a closed Windows terminal's programs have to end by themselves once its
-// console closes, as they do on its CTRL_CLOSE_EVENT, saving what they were writing, in
-// milliseconds: within the five seconds Windows gives them. What is left of the terminal's
-// tree then, as a hook's shell in a console of its own, is ended. Shorter as the runner
-// shuts down, which the app gives five seconds in all (apps/desktop/src/main/runner.ts).
-const treeGraceMs = 3_000
-const shutdownTreeGraceMs = 1_000
-
-// How long ending terminals' trees may take in all as the runner shuts down, in
-// milliseconds: every relay run, taskkill and grace then takes its time from this, within
-// the five seconds the app gives the runner, with room for a shell's exit (its own 1 s wait)
-// and for closing the rest of the runner after.
-const shutdownTreesMs = 3_000
-
 const positive = (value: number | undefined, fallback: number): number => {
   const result = value ?? fallback
   if (!Number.isSafeInteger(result) || result < 1)
@@ -416,6 +403,7 @@ export class Terminals {
       scrollback: 1000,
       kill: { graceMs: 1000, treeGraceMs, shutdownTreesMs, shutdownTreeGraceMs },
       trees: this.trees,
+      follows: (id) => agentProcess(this.records.get(id)),
       pty: this.pty,
       failed: failed.terminal,
     })
