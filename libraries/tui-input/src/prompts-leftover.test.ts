@@ -34,6 +34,12 @@ type Options = {
   readonly viewport?: number
   /** Whether the box says it shows only part of its text. */
   readonly cut?: boolean
+  /** What a paste shows as, where that isn't what was pasted. */
+  readonly landsAs?: string
+  /** How many rows a cut box shows of its text, the rest under a row that counts them. */
+  readonly window?: number
+  /** Whether a cut box is scrolled to its start, the rest under a row below. */
+  readonly scrolled?: boolean
   /** Whether a paste is keys, as Codex's on Windows, a line break in one an Enter at its start. */
   readonly pasteKeys?: boolean
   /** Refuses from this `admit` on, as a request that came. */
@@ -54,7 +60,15 @@ const fake = (options: Options = {}) => {
   let joins = 0
 
   const lines = (): string[] => {
-    const shown = text.split("\n")
+    const whole = text.split("\n")
+    const { window } = options
+    const cut = window !== undefined && whole.length > window
+    const shown =
+      cut && options.scrolled
+        ? [...whole.slice(0, window), `↓ ${whole.length - window} more lines`]
+        : cut
+          ? [`↑ ${whole.length - window} more lines`, ...whole.slice(-window)]
+          : whole
     return shown.map((line, at) => (at === 0 ? `${shell ? "!" : ">"} ${line}` : `  ${line}`))
   }
 
@@ -62,7 +76,8 @@ const fake = (options: Options = {}) => {
     if (options.noBox) return screen({ rows: ["a dialog", ""], columns: 40 })
     const body = lines()
     const before = text.slice(0, cursor).split("\n")
-    const row = before.length - 1
+    const row =
+      options.window === undefined || options.scrolled ? before.length - 1 : body.length - 1
     const rows = ["header", ...body, "footer", ""]
     return screen({
       rows,
@@ -101,7 +116,10 @@ const fake = (options: Options = {}) => {
     room: () => 30,
     ...(options.keys !== false && { erase: eraseRows }),
     ...(options.pasteKeys && { pastesAsKeys: () => true }),
-    ...(options.cut === true && { cut: () => true }),
+    ...(options.cut === true && {
+      cut: ({ text: shown }: InputBox) => /^↑ |\n↓ \d+ more lines?$/.test(shown),
+      uncut: (shown: string) => shown.replace(/^↑ \d+ more lines?\n/, ""),
+    }),
     ...(options.viewport !== undefined && { viewport: () => options.viewport! }),
   }
 
@@ -170,7 +188,7 @@ const fake = (options: Options = {}) => {
           return true
         }
         if (pasted !== undefined && !options.pasteLost) {
-          const shown = options.placeholder ? "[Pasted #1]" : pasted
+          const shown = options.placeholder ? "[Pasted #1]" : (options.landsAs ?? pasted)
           text = text.slice(0, cursor) + shown + text.slice(cursor)
           cursor += shown.length
         }
@@ -264,11 +282,58 @@ describe("a prompt over text in the box", () => {
     expect(tui.pasted()).toHaveLength(1)
   })
 
-  it("is refused over a box that says it is cut, as no paste there could be seen", async () => {
-    const tui = fake({ text: "↑ 2 more lines\nthree", cut: true, known: "three" })
-    await refused(tui.give("the message"), "draft")
-    expect(tui.written).toEqual([])
-    expect(tui.pasted()).toEqual([])
+  describe("over a box that says it is cut", () => {
+    const queue = Array.from({ length: 6 }, (_, at) => `line ${at + 1}`).join("\n")
+    const over = (extra: Options = {}) => fake({ text: queue, cut: true, window: 3, ...extra })
+
+    it("goes along, its row counting more lines and the rest moved on", async () => {
+      const tui = over()
+      await tui.give("the message")
+      expect(tui.written).toEqual([])
+      expect(tui.sent).toEqual([`${queue}\n\nthe message`])
+    })
+
+    it("goes along though the message is taller than what the box shows", async () => {
+      const tall = Array.from({ length: 9 }, (_, at) => `para ${at + 1}`).join("\n")
+      const tui = over()
+      await tui.give(tall)
+      expect(tui.sent).toEqual([`${queue}\n\n${tall}`])
+    })
+
+    it("is refused where the paste doesn't show, however the words repeat", async () => {
+      const same = "again\nagain\nagain\nagain\nagain\nagain"
+      for (const text of [queue, same]) {
+        const tui = over({ text, pasteLost: true })
+        // eslint-disable-next-line no-await-in-loop -- One after another.
+        await refused(tui.give("again"), "not-shown")
+        expect(tui.sent).toEqual([])
+      }
+    })
+
+    it("is refused where the box moved on but doesn't show the message", async () => {
+      const tui = over({ landsAs: "\n\nsomething else" })
+      await refused(tui.give("the message"), "not-shown")
+      expect(tui.sent).toEqual([])
+    })
+
+    it("goes along as a placeholder, where the paste shows as one", async () => {
+      const tui = over({ landsAs: "\n\n[Pasted #1]" })
+      await tui.give("x".repeat(2_000))
+      expect(tui.sent).toHaveLength(1)
+    })
+
+    it("is refused where a placeholder doesn't follow what the box held", async () => {
+      const tui = over({ landsAs: "\n\nsomething else\n\n[Pasted #1]" })
+      await refused(tui.give("x".repeat(2_000)), "not-shown")
+      expect(tui.sent).toEqual([])
+    })
+
+    it("pastes nothing where it is scrolled up, its cursor away from the end", async () => {
+      const tui = over({ scrolled: true, cursor: 1 })
+      await refused(tui.give("the message"), "draft")
+      expect(tui.written).toEqual([])
+      expect(tui.pasted()).toEqual([])
+    })
   })
 
   it("doesn't move a cursor in a box that may show only a tail", async () => {
