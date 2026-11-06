@@ -13,9 +13,9 @@
 //
 // On Windows, which hangs up no group, the number is the tree's exit, from a clock that also
 // holds the relay's read before the console closes (the shell's own row tells how long),
-// and it can't pass the runner's own end of what is left: `atRunnerEnd` marks a row the
-// runner ended, which says that much and no more of how long the tree would have run. Rows
-// of a quit with terminals of every harness have no such mark: they share one return.
+// and it can't pass the runner's own end of what is left: `atRunnerEnd` marks a row where the
+// runner ended some of it, as seen at its call, which says that much and no more of how long
+// the tree would have run.
 //
 // Runs only with NOVADECK_E2E_PROBES=1, by path; PROBE_RUNS is each case's repeats (3
 // unless set). Writes $PROBE_OUT/<agent>-exit-<platform>.json after every case, and logs
@@ -65,9 +65,6 @@ const agentNames: { readonly [agent in AgentSetup["agent"]]: RegExp } = {
   codex: /codex/i,
   agy: /agy|antigravity/i,
 }
-
-/** When the runner ends what is left of a Windows tree, closed or quitting (manager.ts). */
-const runnerEndMs = { close: 3000, quit: 1000 }
 
 /** A process of the terminal, as first seen, and when it went. */
 type Watched = {
@@ -266,10 +263,6 @@ const leadOf = (all: readonly Watched[], { shell, group }: Taken, agent: RegExp)
  */
 const stopwatch = async (taken: Taken, end: () => Promise<void>, capMs: number, agent: RegExp) => {
   const { watched, look, end: endThem, shell, group } = taken
-  // What one more walk of the processes costs just now, as under load, on the way to a hangup.
-  const walking = performance.now()
-  await look(() => 0).catch(() => {})
-  const walkMs = Math.round(performance.now() - walking)
   const began = performance.now()
   const now = () => Math.round(performance.now() - began)
   let closedMs: number | undefined
@@ -318,7 +311,6 @@ const stopwatch = async (taken: Taken, end: () => Promise<void>, capMs: number, 
   const latest = (ones: readonly Watched[]) =>
     ones.length === 0 ? undefined : Math.max(...ones.map((one) => one.goneMs ?? capMs))
   return {
-    ...(!windows && { walkMs }),
     closedMs,
     agentMs: lead?.goneMs ?? (lead ? capMs : undefined),
     groupMs: latest(inGroup),
@@ -342,12 +334,14 @@ const stopwatch = async (taken: Taken, end: () => Promise<void>, capMs: number, 
 
 type Timed = Awaited<ReturnType<typeof stopwatch>> & {
   readonly harness: string
+  readonly walkMs?: number
   readonly atRunnerEnd?: boolean
 }
 type Row = { readonly case: string } & Partial<Timed> & { readonly error?: string }
 type Resume = {
   readonly case: string
   readonly resumed?: boolean
+  readonly killed?: readonly string[]
   readonly agentMet?: boolean
   readonly sameSession?: boolean
   readonly kept?: boolean
@@ -357,7 +351,6 @@ type Resume = {
 const percentile = (values: readonly number[], at: number): number | undefined =>
   values.toSorted((a, b) => a - b)[Math.floor((values.length - 1) * at)]
 
-/** Each case's median and worst, by what was timed, and how many left something behind. */
 /** What a resume after a forced end says: only those whose kill met the agent test one. */
 const resumeSummary = (resumes: readonly Resume[]) => {
   const met = resumes.filter((one) => one.agentMet)
@@ -373,6 +366,7 @@ const resumeSummary = (resumes: readonly Resume[]) => {
   }
 }
 
+/** Each case's median and worst, by what was timed, and how many left something behind. */
 const summary = (rows: readonly Row[]) =>
   [...new Set(rows.map((row) => row.case))].map((name) => {
     const runs = rows.filter((row) => row.case === name)
@@ -461,7 +455,7 @@ const lab = (run: E2E, file: string) => {
           cores: availableParallelism(),
           harness: process.env.NOVADECK_E2E_HARNESS ?? "pinned",
           runs: repeats,
-          rcSleep: process.env.PROBE_RC_SLEEP ?? null,
+          rcSleep: process.env.PROBE_RC_SLEEP || null,
           summary: summary(rows),
           resumeSummary: resumeSummary(resumes),
           resumes,
@@ -573,11 +567,29 @@ const lab = (run: E2E, file: string) => {
     ): Promise<readonly Omit<Row, "case">[]> => {
       let measured: Timed[] = []
       const calm = busy ? load() : () => {}
+      // What the runner itself ends, past its bound, at its own call: its trees are Windows'.
+      const { trees } = run.deck.terminals as unknown as { trees: Pick<Trees, "end"> }
+      const ended = new Set<number>()
+      const runnerEnd = trees.end
+      if (windows)
+        trees.end = async (members, timeoutMs) => {
+          for (const { pid } of members) ended.add(pid)
+          return runnerEnd.call(trees, members, timeoutMs)
+        }
       try {
         if (busy) await sleep(500)
+        // One more walk of the processes, as a hangup would take under this row's load; before
+        // any clock, which all start at once.
+        const walks = await Promise.all(
+          terminals.map(async ({ taken }) => {
+            const walking = performance.now()
+            await taken.look(() => 0).catch(() => {})
+            return Math.round(performance.now() - walking)
+          }),
+        )
         await run.model.ending(async () => {
           measured = await Promise.all(
-            terminals.map(async ({ id, taken, agent, harness }) => {
+            terminals.map(async ({ id, taken, agent, harness }, at) => {
               const timed = await stopwatch(
                 taken,
                 () => {
@@ -588,24 +600,20 @@ const lab = (run: E2E, file: string) => {
                 capMs,
                 agent,
               )
-              const ending = runnerEndMs[kind === "close" ? "close" : "quit"]
               return {
                 ...timed,
                 harness,
+                ...(!windows && { walkMs: walks[at]! }),
                 ...(toolAsked !== undefined && { toolAsked }),
-                // It ends what is left past its bound, from past the relay's read, then waits
-                // 200 ms; with what is gone by itself it returns at once.
-                ...(windows &&
-                  terminals.length === 1 && {
-                    atRunnerEnd:
-                      (timed.lastMs ?? 0) >= ending - 150 &&
-                      (timed.closedMs ?? 0) - (timed.lastMs ?? 0) >= 150,
-                  }),
+                ...(windows && {
+                  atRunnerEnd: [...taken.watched.keys()].some((pid) => ended.has(pid)),
+                }),
               }
             }),
           )
         })
       } finally {
+        if (windows) trees.end = runnerEnd
         calm()
       }
       held.open()
@@ -715,14 +723,15 @@ for (const setup of setups) {
 
       const forced = async (moment: string, delayMs: number, busy: boolean) => {
         const name = `forced ${moment} +${delayMs} ms${busy ? " load" : ""}`
+        // Outside the work, as a resume that fails is the record that needs them most.
+        let killed: readonly string[] = []
+        let agentMet = false
         const outcome = await guarded<object>(
           async () => {
             const terminal = await ready(setup, moment, "Remember the word heron", "Heron noted.")
             const before = (await terminal.detail()).sessionId
             const taken = await census(run, terminal)
             const lead = leadOf([...taken.watched.values()], taken, agent)
-            let killed: readonly string[] = []
-            let agentMet = false
             const calm = busy ? load() : () => {}
             try {
               if (busy) await sleep(500)
@@ -761,8 +770,6 @@ for (const setup of setups) {
             const inFlight = inFlightPrompts[moment]
             const row = {
               resumed: true,
-              killed,
-              agentMet,
               before,
               sameSession: before !== null && session === before,
               kept: said("Remember the word heron"),
@@ -775,7 +782,7 @@ for (const setup of setups) {
           },
           (error) => ({ resumed: false, error }),
         )
-        resumes.push({ case: name, ...outcome })
+        resumes.push({ case: name, killed, agentMet, ...outcome })
         save()
       }
       for (const moment of ["idle", "mid-turn", "mid-tool"])
