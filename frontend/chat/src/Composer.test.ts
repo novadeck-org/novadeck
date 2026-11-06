@@ -1,10 +1,10 @@
-import { SettleInTerminal } from "@novadeck/core/conversation"
+import { SettleInTerminal, type ChatBox } from "@novadeck/core/conversation"
 import { refusing } from "@novadeck/core/testing"
 import { render } from "@novadeck/test-kit/render"
 import { act, createElement } from "react"
 import { afterEach } from "vitest"
 
-import { Composer } from "./Composer"
+import { boxNote, Composer } from "./Composer"
 import { composerMode } from "./composer-mode"
 import { describe, expect, it } from "./test"
 
@@ -17,14 +17,17 @@ const show = (
   {
     send = async (text: string) => void sent.push(text),
     onOpenTerminal = () => {},
+    box = null,
   }: {
     readonly send?: (text: string) => Promise<void>
     readonly onOpenTerminal?: () => void
+    readonly box?: ChatBox | null
   } = {},
 ): HTMLElement => {
   const { container, unmount } = render(
     createElement(Composer, {
       label: "Claude",
+      box,
       draft,
       onDraft: () => {},
       mode: composerMode(draft, null, [], true),
@@ -120,5 +123,34 @@ describe("the composer's failed send", () => {
     )
     expect(container.querySelector('[role="alert"]')?.textContent).toBe("Send again in a moment.")
     expect(container.querySelector('[role="alert"] button')).toBeNull()
+  })
+})
+
+describe("what the agent's own box holds", () => {
+  const box = (over: Partial<ChatBox> = {}): ChatBox => ({
+    text: "half a thought",
+    mode: "prompt",
+    tail: false,
+    known: false,
+    ...over,
+  })
+
+  it("shows over the composer, with what happens to it, its end marked when that's all it is", () => {
+    const whole = show("", [], { box: box() })
+    expect(whole.querySelector(".chat-box")?.textContent).toContain("half a thought")
+    expect(whole.querySelector(".chat-box")?.textContent).toContain("goes with your next message")
+    const end = show("", [], { box: box({ tail: true }) })
+    expect(end.querySelector(".chat-box-text")?.textContent).toBe("…half a thought")
+  })
+
+  it("shows nothing where the box holds nothing", () => {
+    expect(show("").querySelector(".chat-box")).toBeNull()
+  })
+
+  it("says what becomes of each kind of text", () => {
+    expect(boxNote("Claude", box({ tail: true }))).toContain("ends with this")
+    expect(boxNote("Claude", box({ known: true }))).toContain("comes back here")
+    expect(boxNote("Claude", box({ mode: "shell" }))).toContain("shell mode")
+    expect(boxNote("Claude", box({ text: "/model" }))).toContain("Clear it in the terminal")
   })
 })

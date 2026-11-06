@@ -76,6 +76,8 @@ const terminal = (
       const lines = screen.rows.slice(first, last + 1).map((row) => row.slice(2))
       return { text: lines.join("\n").trimEnd(), mode: "prompt", first, last }
     },
+    stands: () => false,
+    textWidth: (columns) => columns - 3,
     collapsed: ({ text }) => /^\[Pasted text #\d+ \+\d+ lines\]$/.test(text),
     ...(options.clear === false
       ? {}

@@ -32,7 +32,7 @@ export const has = (gap: Gap, setup: AgentSetup): boolean =>
  * OpenConsole 1.25.260303002; Windows' own ConPTY delivers it, as both deliver it to
  * cmd). A prompt holding one never shows whole in its box, so Novadeck presses no Enter
  * and the prompt fails (PROMPT_FAILED), what was pasted left in the box as a draft the
- * next prompt is refused for until the person clears it. Not every time: one CI run of
+ * next prompt goes along with. Not every time: one CI run of
  * many (2026-10-10) got it through, the prompt landing as on Linux. Pinned by chat.e2e.ts, "gives its agent
  * emoji sequences and CJK, then the next prompt", which takes either. Once fixed, the
  * prompt lands every time and its turn runs as on Linux.
