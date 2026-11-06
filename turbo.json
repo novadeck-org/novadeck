@@ -22,6 +22,7 @@
         "CI",
         "NOVADECK_UI_TRACE",
         "NOVADECK_WEBGL_OPTIONAL",
+        "NOVADECK_REQUIRE_FISH",
         "CARGO_HOME",
         "RUSTUP_HOME"
       ],

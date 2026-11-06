@@ -23,6 +23,9 @@ const header = (comment: string, what: string) => `${comment} Acme ${what}.`
 const onPath = (shell: string) =>
   spawnSync("sh", ["-c", `command -v ${shell}`], { encoding: "utf8" }).stdout?.trim()
 
+// The Linux job that runs these tests installs fish and sets this, so they can't skip there.
+const fishRequired = process.env.NOVADECK_REQUIRE_FISH === "1"
+
 // One bash for the check and the run, which gets only the launch's PATH.
 const bash = onPath("bash")
 
@@ -128,49 +131,66 @@ describe.skipIf(process.platform !== "linux")("a scope that doesn't come", () =>
     ["zsh", onPath("zsh")],
     ["fish", onPath("fish")],
   ] as const)
-    it.skipIf(!path)(`leaves ${name} running its startup command, with no word of it`, async () => {
-      const root = realpathSync.native(mkdtempSync(join(tmpdir(), "terminal-shell-")))
-      onTestFinished(() => rmSync(root, { recursive: true, force: true }))
-      const home = join(root, "home")
-      mkdirSync(home)
-      const scripts = shellScriptPaths(join(root, "shell"), "acme")
-      for (const file of shellScripts(scripts, header)) {
-        mkdirSync(dirname(file.path), { recursive: true })
-        writeFileSync(file.path, file.content, { mode: file.mode })
-      }
-      const out = join(root, "out")
-      const startup = {
-        command: `echo "scope=[$ACME_SCOPE]" > '${out}'; exit`,
-        file: join(root, "startup"),
-      }
-      writeFileSync(startup.file, startup.command)
-      const launch = shellLaunch({
-        shell: name,
-        scripts,
-        env: { HOME: home, PATH: `${dirname(path!)}:/usr/bin:/bin`, TERM: "xterm-256color" },
-        startup,
-        scoped: true,
-      })
-      const began = performance.now()
-      const pty = spawnPty({
-        file: path!,
-        args: launch.args,
-        cwd: root,
-        env: launch.env,
-        cols: 80,
-        rows: 24,
-      })
-      await new Promise<void>((resolve, reject) => {
-        const timer = setTimeout(() => reject(new Error(`${name} never ended`)), 15_000)
-        pty.onExit(() => {
-          clearTimeout(timer)
-          resolve()
+    it.skipIf(!path && !(name === "fish" && fishRequired))(
+      `leaves ${name} running its startup command, with no word of it`,
+      async () => {
+        expect(path, "the job sets NOVADECK_REQUIRE_FISH, so it must install fish").toBeTruthy()
+        const root = realpathSync.native(mkdtempSync(join(tmpdir(), "terminal-shell-")))
+        onTestFinished(() => rmSync(root, { recursive: true, force: true }))
+        const home = join(root, "home")
+        mkdirSync(home)
+        const scripts = shellScriptPaths(join(root, "shell"), "acme")
+        for (const file of shellScripts(scripts, header)) {
+          mkdirSync(dirname(file.path), { recursive: true })
+          writeFileSync(file.path, file.content, { mode: file.mode })
+        }
+        const out = join(root, "out")
+        const startup = {
+          command: `echo "scope=[$ACME_SCOPE]" > '${out}'; exit`,
+          file: join(root, "startup"),
+        }
+        writeFileSync(startup.file, startup.command)
+        const launch = shellLaunch({
+          shell: name,
+          scripts,
+          env: { HOME: home, PATH: `${dirname(path!)}:/usr/bin:/bin`, TERM: "xterm-256color" },
+          startup,
+          scoped: true,
         })
-      })
-      expect(readFileSync(out, "utf8")).toBe("scope=[]\n")
-      // This shell is in no scope of that name, so it waited its whole time, and no more.
-      const waited = performance.now() - began
-      expect(waited).toBeGreaterThanOrEqual(200)
-      expect(waited).toBeLessThan(10_000)
-    })
+        const began = performance.now()
+        const pty = spawnPty({
+          file: path!,
+          args: launch.args,
+          cwd: root,
+          env: launch.env,
+          cols: 80,
+          rows: 24,
+        })
+        let drawn = ""
+        pty.onData((data) => {
+          drawn += data
+        })
+        await new Promise<void>((resolve, reject) => {
+          const timer = setTimeout(() => {
+            // Whether its wait ended, and whether the command ran, and what it last drew.
+            const told = {
+              startupFileLeft: existsSync(startup.file),
+              commandWrote: existsSync(out),
+              drew: drawn.slice(-600),
+            }
+            if (pty.pid) process.kill(pty.pid, "SIGKILL")
+            reject(new Error(`${name} never ended: ${JSON.stringify(told)}`))
+          }, 15_000)
+          pty.onExit(() => {
+            clearTimeout(timer)
+            resolve()
+          })
+        })
+        expect(readFileSync(out, "utf8")).toBe("scope=[]\n")
+        // This shell is in no scope of that name, so it waited its whole time, and no more.
+        const waited = performance.now() - began
+        expect(waited).toBeGreaterThanOrEqual(200)
+        expect(waited).toBeLessThan(10_000)
+      },
+    )
 })
