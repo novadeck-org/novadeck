@@ -79,6 +79,10 @@ export type Live = Scope & {
    * is the person's: put back by their Escape, or recalled from the prompt's history.
    */
   unconfirmed: readonly string[]
+  /** Whether the doorbell rings it with the plain line, after a ring failed (`ringsPlain`). */
+  ringsPlain: boolean
+  /** When a reply line last started a turn: the replies waiting then have been said. */
+  lineAt: number | null
   /** Whether it is Ready because its screen showed the box empty, not a session's start. */
   viaScreen: boolean
   /**
@@ -114,6 +118,8 @@ export const started = (
   waits: null,
   idleSince: null,
   unconfirmed: [],
+  ringsPlain: false,
+  lineAt: null,
   viaScreen: false,
   held: {},
 })

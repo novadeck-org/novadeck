@@ -6,14 +6,14 @@
     "New behaviour goes in a sibling module under backend/runner/src/messaging/, as delivery.ts, leases.ts and loops.ts do, with the class calling it. Work that can't is raised in the same pull request, written { \"budget\": n, \"reason\": \"why\", \"from\": \"#PR or commit\" }."
   ],
   "lines": {
-    "budget": 520,
-    "reason": "Inbox replies as the doorbell's prompt (+4): replyLine forwards the doorbell host's ask to messaging/deliveries.ts, which builds the line from the replies waiting, as the doorbell's other questions (ringable, ringing, unconfirmed) are forwarded. Startup screens (+4, +1 method): expected, as shownAgent and untrustedAgent are, tells terminals/startup-watch.ts which agent a terminal still waits for, which only Deliveries knows once a session bound and left; the logic is in deliveries.ts and startup-watch.ts.",
-    "from": "#628, startup-screen"
+    "budget": 524,
+    "reason": "Startup screens (+4, +1 method): expected, as shownAgent and untrustedAgent are, tells terminals/startup-watch.ts which agent a terminal still waits for, which only Deliveries knows once a session bound and left; the logic is in deliveries.ts and startup-watch.ts.",
+    "from": "#739"
   },
   "methods": {
-    "budget": 78,
-    "reason": "Inbox replies as the doorbell's prompt (+1): replyLine, a forwarder to messaging/deliveries.ts. Startup screens (+4, +1 method): expected, as shownAgent and untrustedAgent are, tells terminals/startup-watch.ts which agent a terminal still waits for, which only Deliveries knows once a session bound and left; the logic is in deliveries.ts and startup-watch.ts.",
-    "from": "#628, startup-screen"
+    "budget": 79,
+    "reason": "Startup screens (+4, +1 method): expected, as shownAgent and untrustedAgent are, tells terminals/startup-watch.ts which agent a terminal still waits for, which only Deliveries knows once a session bound and left; the logic is in deliveries.ts and startup-watch.ts.",
+    "from": "#739"
   },
   "slack": {
     "lines": 100,
