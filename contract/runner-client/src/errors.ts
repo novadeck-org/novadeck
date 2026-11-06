@@ -1,6 +1,6 @@
 import type { contract, ErrorCode } from "@novadeck/protocol"
 import { hasCode as wireHasCode, normalize, WireError, type WireErrorCode } from "@novadeck/wire"
-import type { Session } from "@novadeck/wire/client"
+import { lost as wireLost, type Session } from "@novadeck/wire/client"
 
 /** Every code a runner client reports: the runner's own, and the wire's. */
 export type RunnerErrorCode = ErrorCode | WireErrorCode
@@ -23,11 +23,9 @@ export const coded = (error: unknown): WireError => {
   return new WireError<RunnerErrorCode>("INTERNAL_SERVER_ERROR", message, { cause: normalized })
 }
 
-/** A call's failure as `coded` says, except that a non-wire one on a closed channel is `DISCONNECTED`. */
-export const lost = (error: unknown, session: Session<typeof contract>): WireError => {
-  const normalized = normalize(error)
-  if (normalized instanceof WireError || session.channel.open) return coded(normalized)
-  return new WireError<RunnerErrorCode>("DISCONNECTED", "Runner connection was lost.", {
-    cause: normalized,
-  })
-}
+/**
+ * A call's failure as wire's `lost` says on a closed channel. On an open one it is `coded`'s
+ * instead: what failed is a call, not a stream, and the failure's own message reaches the person.
+ */
+export const lost = (error: unknown, session: Session<typeof contract>): WireError =>
+  session.channel.open ? coded(error) : wireLost(error, session)
