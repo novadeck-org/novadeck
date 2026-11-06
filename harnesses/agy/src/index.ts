@@ -132,8 +132,10 @@ export const agy = {
       "--print-timeout",
       "--project",
       "--prompt-interactive",
+      "--settings",
       "-v",
     ],
+    takesMany: [],
   },
   transcripts: { ...transcripts, shapes, conversational },
   // Its hooks name no subagents; its status line counts them; see docs/harness-coverage.md.

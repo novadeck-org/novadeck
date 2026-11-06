@@ -65,6 +65,20 @@ export const valued = [
   "--tools",
 ]
 
+// Those of them that take a list, as `<directories...>` in 2.1.316's `--help`: more words are
+// theirs up to the next option. A lone `-` is a value and `--add-dir=a` takes that one only.
+export const many = [
+  "--add-dir",
+  "--allowed-tools",
+  "--allowedTools",
+  "--betas",
+  "--disallowed-tools",
+  "--disallowedTools",
+  "--file",
+  "--mcp-config",
+  "--tools",
+]
+
 // While Claude Code is connected, Novadeck's shells run it through this shim, which adds
 // Novadeck's settings: a status line that tells Novadeck the session's rate limits and
 // context, then shows the person's own status line. Its other commands, and anything
@@ -98,12 +112,20 @@ case " \${NOVADECK_SHIMS:-} " in *" claude "*) ;; *) exec "$novadeck_real" "$@" 
 novadeck_settings=$(dirname "$0")/../plugins/claude/statusline.json
 [ -f "$novadeck_settings" ] || exec "$novadeck_real" "$@"
 novadeck_value=
+novadeck_list=
 for novadeck_arg in "$@"; do
   if [ -n "$novadeck_value" ]; then
     novadeck_value=
     continue
   fi
+  if [ -n "$novadeck_list" ]; then
+    case $novadeck_arg in
+      -?*) novadeck_list= ;;
+      *) continue ;;
+    esac
+  fi
   case $novadeck_arg in
+    ${many.join(" | ")}) novadeck_value=1 novadeck_list=1 ;;
     ${valued.join(" | ")}) novadeck_value=1 ;;
     -*) ;;
     ${commands.join(" | ")}) exec "$novadeck_real" "$@" ;;
@@ -133,6 +155,8 @@ rem Only while Claude Code is connected: Novadeck's shells name the harnesses wh
 echo " %NOVADECK_SHIMS% " | findstr /c:" claude " >nul || goto plain
 set "novadeck_settings=%~dp0..\\plugins\\claude\\statusline.json"
 if not exist "%novadeck_settings%" goto plain
+rem Set beside the line that runs claude, the line as typed parses as that one does.
+set novadeck_line=%*
 call :command %* && goto plain
 "%novadeck_real%" --settings "%novadeck_settings%" %*
 exit /b %ERRORLEVEL%
@@ -153,6 +177,7 @@ rem of its commands.
 :command
 if "%~1"=="" exit /b 1
 set "novadeck_arg=%~1"
+for %%v in (${many.join(" ")}) do if "%novadeck_arg%"=="%%v" goto list
 for %%v in (${valued.join(" ")}) do if "%novadeck_arg%"=="%%v" goto value
 if "%novadeck_arg:~0,1%"=="-" (
   shift
@@ -164,4 +189,24 @@ exit /b 1
 shift
 shift
 goto command
+rem cmd splits a word at =, so --add-dir=a arrives as two, and that form takes one value: only
+rem the line as typed tells it from --add-dir a, read delayed so that no quote in it can expose
+rem a command separator. That is the option's first mention, and cmd splits its value at a comma
+rem too: where either misleads, a session goes without the status line, or a command gets one.
+:list
+shift
+shift
+setlocal enabledelayedexpansion
+set "novadeck_after=!novadeck_line:*%novadeck_arg%=!"
+if "!novadeck_after:~0,1!"=="=" (
+  endlocal
+  goto command
+)
+endlocal
+:more
+if "%~1"=="" exit /b 1
+set "novadeck_arg=%~1"
+if "%novadeck_arg:~0,1%"=="-" if not "%novadeck_arg%"=="-" goto command
+shift
+goto more
 `

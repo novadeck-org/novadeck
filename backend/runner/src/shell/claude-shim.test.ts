@@ -63,6 +63,8 @@ const it = base.extend<{ shim: Fixture }>({
         ? spawnSync(process.env.COMSPEC ?? "cmd.exe", ["/d", "/c", shim, ...args], options)
         : spawnSync(shim, args, options)
       if (result.status !== 0) throw new Error(`claude failed: ${result.stderr}`)
+      // cmd only says so here when a shim's label is missing, and goes on.
+      expect(result.stderr).toBe("")
       return JSON.parse(readFileSync(log, "utf8")) as string[]
     }
     await use({ root, run, bin: paths.bin, real, settings, remove: () => rmSync(settings) })
@@ -172,6 +174,44 @@ describe("claude shim", { timeout: 60_000 }, () => {
     expect(shim.run(["-n"])).toEqual(["--settings", settings, "-n"])
     // Its commands go by their case, as Claude Code's own reading does.
     expect(shim.run(["MCP"])).toEqual(["--settings", settings, "MCP"])
+  })
+
+  it("reads an option's list of values as values, up to the next option", ({ shim }) => {
+    const settings = expect.stringMatching(/statusline\.json$/)
+    for (const args of [
+      ["--add-dir", "a", "mcp", "list"],
+      ["--add-dir", "a", "b", "mcp"],
+      ["--allowedTools", "Read", "update"],
+      ["--tools", "Read", "-", "mcp"],
+      ["--add-dir=a", "b", "mcp"],
+      // Words cmd would run or change, were the shim's reading of the line to uncover them.
+      ["--add-dir", "a & b", "mcp"],
+      ["--add-dir", "a!b", "mcp"],
+      // Nothing after it: the shim's reading of the line finds no value there.
+      ["--add-dir"],
+      // cmd splits a word at a comma too, into more of the list.
+      ["--tools", "Read,Write", "mcp"],
+    ])
+      expect(shim.run(args)).toEqual(["--settings", settings, ...args])
+    // The next option ends it, so a command after that is still one.
+    for (const args of [
+      ["--add-dir", "a", "--verbose", "mcp", "list"],
+      ["--add-dir", "a", "b", "--model", "haiku", "mcp", "list"],
+      ["--add-dir", "a", "--", "mcp", "list"],
+      // That form takes the one value, though cmd splits it from its option.
+      ["--add-dir=a", "mcp", "list"],
+      ["--mcp-config=a.json", "plugin", "list"],
+    ])
+      expect(shim.run(args)).toEqual(args)
+  })
+
+  it("passes on whole a quoted prompt that holds what cmd would act on", ({ shim }) => {
+    const prompt = "fix a & b | c, 100% done ^ now"
+    expect(shim.run([prompt])).toEqual([
+      "--settings",
+      expect.stringMatching(/statusline\.json$/),
+      prompt,
+    ])
   })
 
   it.runIf(windows)(
