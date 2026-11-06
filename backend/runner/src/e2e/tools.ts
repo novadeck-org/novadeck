@@ -50,8 +50,12 @@ const lists: { readonly [agent in AgentName]: Classes } = {
       "Write",
     ],
   },
-  // Recorded from Codex 0.163.0, and checked on 0.166.0 (the pin, 2026-10-31), with the fake
+  // Recorded from Codex 0.163.0, and checked on 0.167.0 (the pin, 2026-11-06), with the fake
   // model's catalog entry as OpenAI's gives its models (agents/codex.ts).
+  // 0.167.0 offers mcp__codex_tui to a TUI without a daemon, where 0.166.0 offered only
+  // mcp__codex_worktrees. create_thread, send_message_to_thread and fork_thread ask the
+  // person to approve them, through its MCP approval form, which Novadeck reads for every
+  // tool; they are not questions of their own.
   // request_permissions is Codex's, offered only to a model that supports it; Novadeck
   // handles it all the same.
   codex: {
@@ -64,6 +68,18 @@ const lists: { readonly [agent in AgentName]: Classes } = {
       "get_goal",
       "list_mcp_resource_templates",
       "list_mcp_resources",
+      "mcp__codex_tui.create_thread",
+      "mcp__codex_tui.create_worktree",
+      "mcp__codex_tui.fork_thread",
+      "mcp__codex_tui.get_worktree_creation_status",
+      "mcp__codex_tui.list_archived_threads",
+      "mcp__codex_tui.list_threads",
+      "mcp__codex_tui.list_worktrees",
+      "mcp__codex_tui.read_thread",
+      "mcp__codex_tui.send_message_to_thread",
+      "mcp__codex_tui.set_thread_archived",
+      "mcp__codex_tui.set_thread_title",
+      "mcp__codex_tui.wait_threads",
       "mcp__codex_worktrees.create_worktree",
       "mcp__codex_worktrees.get_worktree_creation_status",
       "mcp__codex_worktrees.list_worktrees",

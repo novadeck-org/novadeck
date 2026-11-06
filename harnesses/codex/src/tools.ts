@@ -169,12 +169,52 @@ const known = (name: string, fields: Fields | undefined, input: string): ToolRun
       return { kind: "run", title: "Checked the time", detail: "" }
     case "clock.sleep":
       return { kind: "run", title: "Waited", detail: "" }
-    case "mcp__codex_worktrees.create_worktree":
+    // Its TUI's own tools, `mcp__codex_tui` from 0.167.0, and for worktrees
+    // `mcp__codex_worktrees` before it. A thread of these is a task on Codex's screens.
+    case "codex_tui.create_worktree":
       return { kind: "run", title: "Created a worktree", detail: "" }
-    case "mcp__codex_worktrees.get_worktree_creation_status":
+    case "codex_tui.get_worktree_creation_status":
       return { kind: "run", title: "Checked a worktree", detail: "" }
-    case "mcp__codex_worktrees.list_worktrees":
+    case "codex_tui.list_worktrees":
       return { kind: "run", title: "Listed worktrees", detail: "" }
+    case "codex_tui.create_thread":
+      return {
+        kind: "agent",
+        title: "Started a task",
+        detail: oneLine(textField(fields, "title", "prompt")),
+      }
+    case "codex_tui.send_message_to_thread":
+      return {
+        kind: "agent",
+        title: "Messaged a task",
+        detail: oneLine(textField(fields, "prompt")),
+      }
+    case "codex_tui.fork_thread":
+      return {
+        kind: "agent",
+        title: "Forked a task",
+        detail: oneLine(textField(fields, "threadId")),
+      }
+    case "codex_tui.read_thread":
+      return { kind: "agent", title: "Read a task", detail: oneLine(textField(fields, "threadId")) }
+    case "codex_tui.list_threads":
+      return { kind: "agent", title: "Listed tasks", detail: "" }
+    case "codex_tui.list_archived_threads":
+      return { kind: "agent", title: "Listed archived tasks", detail: "" }
+    case "codex_tui.wait_threads":
+      return { kind: "agent", title: "Waited for tasks", detail: "" }
+    case "codex_tui.set_thread_archived":
+      return {
+        kind: "agent",
+        title: fields?.archived === false ? "Restored a task" : "Archived a task",
+        detail: oneLine(textField(fields, "threadId")),
+      }
+    case "codex_tui.set_thread_title":
+      return {
+        kind: "agent",
+        title: "Renamed a task",
+        detail: oneLine(textField(fields, "title")),
+      }
     case "list_mcp_resources":
     case "list_mcp_resource_templates":
       return { kind: "read", title: "Listed MCP resources", detail: "" }
@@ -242,7 +282,9 @@ export const describe = (tool: string, input: string): ToolRun => {
   return (
     (mcp === undefined ? undefined : novadeckTool(mcp, fields)) ??
     known(
-      subagentTool(tool.toLowerCase()).replace(/^(clock|mcp__codex_worktrees)__/, "$1."),
+      subagentTool(tool.toLowerCase())
+        .replace(/^clock__/, "clock.")
+        .replace(/^mcp__codex_(?:tui|worktrees)(?:__|\.)/, "codex_tui."),
       fields,
       input,
     ) ??
