@@ -164,8 +164,10 @@ export class HookAnswers {
   }
 
   /**
-   * A root Stop: the turn continues with the messages waiting, when it may, else ends. A
-   * report with no root Stop of the session says nothing.
+   * A root Stop: the turn continues with the messages waiting, when it may, else ends. It
+   * ends with the person's replies waiting where they ride the line (`ridesLine`), so they
+   * reach the agent as its prompt, the ring's hook carrying every message. A report with no
+   * root Stop of the session says nothing.
    */
   private askStop(
     { live, root, profile, silent, time }: Asked,
@@ -178,6 +180,7 @@ export class HookAnswers {
     const lease =
       time &&
       continues(live.delivery) &&
+      !this.host.deliveries.ridesLine(live.terminalId, background) &&
       this.host.leasing.lease(live, root, {
         kind: "stop",
         background,
