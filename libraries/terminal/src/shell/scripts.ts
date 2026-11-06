@@ -76,7 +76,7 @@ __${p}_resume() {
   unset ${v}_RESUME ${v}_SCOPE
   # ${v}_SCOPE said this shell is on its way to a scope of its own, which takes only the
   # shell: what it starts before it gets there stays behind. So the command waits for
-  # that, about a quarter of a second at most, and runs either way.
+  # that, forty tries, about a quarter of a second, and runs either way.
   command -v sleep >/dev/null 2>&1 || __${p}_tries=0
   while [ -n "$__${p}_scope" ] && [ -f "$__${p}_file" ] && (( __${p}_tries-- > 0 )); do
     [[ $(</proc/$$/cgroup) == *-term$$.scope* ]] && break
@@ -158,7 +158,7 @@ __${p}_resume() {
   unset ${v}_RESUME ${v}_SCOPE
   # ${v}_SCOPE said this shell is on its way to a scope of its own, which takes only the
   # shell: what it starts before it gets there stays behind. So the command waits for
-  # that, about a quarter of a second at most, and runs either way.
+  # that, forty tries, about a quarter of a second, and runs either way.
   command -v sleep >/dev/null 2>&1 || __${p}_tries=0
   while [[ -n "$__${p}_scope" && -f "$__${p}_file" ]] && (( __${p}_tries-- > 0 )); do
     [[ "$(</proc/$$/cgroup)" == *-term$$.scope* ]] && break
@@ -204,7 +204,7 @@ function __${p}_resume --on-event fish_prompt
     set -e ${v}_SCOPE
     # ${v}_SCOPE said this shell is on its way to a scope of its own, which takes only the
     # shell: what it starts before it gets there stays behind. So the command waits for
-    # that, about a quarter of a second at most, and runs either way.
+    # that, forty tries, about a quarter of a second, and runs either way.
     set -l __${p}_tries 40
     command -q sleep; or set __${p}_tries 0
     while test -n "$__${p}_scope"; and test -f $__${p}_file; and test $__${p}_tries -gt 0
