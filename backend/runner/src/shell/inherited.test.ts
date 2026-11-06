@@ -9,6 +9,11 @@ describe("withoutInherited", () => {
     expect(withoutInherited(env, "darwin")).toEqual({ novadeck_token: "b", PATH: "/bin" })
   })
 
+  it("drops what a shell was told of its start, should a program pass it on", () => {
+    const env = { NOVADECK_RESUME: "/r", NOVADECK_SCOPE: "1", PATH: "/bin" }
+    expect(withoutInherited(env, "linux")).toEqual({ PATH: "/bin" })
+  })
+
   it("drops them in any case on Windows, where names have none", () => {
     const env = { Novadeck_Token: "a", novadeck_terminal_id: "b", claudecode: "1", Path: "C:\\" }
     expect(withoutInherited(env, "win32")).toEqual({ Path: "C:\\" })

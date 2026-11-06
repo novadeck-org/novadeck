@@ -72,8 +72,16 @@ fi
 __${p}_resume() {
   [ -n "\${${v}_RESUME:-}" ] || return 0
   # Named so the command, which runs in here, sees none of its own as yours.
-  local __${p}_file=$${v}_RESUME __${p}_command
-  unset ${v}_RESUME
+  local __${p}_file=$${v}_RESUME __${p}_command __${p}_scope=\${${v}_SCOPE:-} __${p}_tries=40
+  unset ${v}_RESUME ${v}_SCOPE
+  # ${v}_SCOPE said this shell is on its way to a scope of its own, which takes only the
+  # shell: what it starts before it gets there stays behind. So the command waits for
+  # that, about a quarter of a second at most, and runs either way.
+  command -v sleep >/dev/null 2>&1 || __${p}_tries=0
+  while [ -n "$__${p}_scope" ] && [ -f "$__${p}_file" ] && (( __${p}_tries-- > 0 )); do
+    [[ $(</proc/$$/cgroup) == *-term$$.scope* ]] && break
+    command sleep 0.005 || :
+  done 2>/dev/null
   if [ -f "$__${p}_file" ]; then
     __${p}_command=$(<"$__${p}_file")
     command rm -f -- "$__${p}_file"
@@ -146,8 +154,16 @@ __${p}_resume() {
   add-zsh-hook -d precmd __${p}_resume
   [[ -n "$${v}_RESUME" ]] || return 0
   # Named so the command, which runs in here, sees none of its own as yours.
-  local __${p}_file=$${v}_RESUME __${p}_command __${p}_tty
-  unset ${v}_RESUME
+  local __${p}_file=$${v}_RESUME __${p}_command __${p}_tty __${p}_scope=\${${v}_SCOPE:-} __${p}_tries=40
+  unset ${v}_RESUME ${v}_SCOPE
+  # ${v}_SCOPE said this shell is on its way to a scope of its own, which takes only the
+  # shell: what it starts before it gets there stays behind. So the command waits for
+  # that, about a quarter of a second at most, and runs either way.
+  command -v sleep >/dev/null 2>&1 || __${p}_tries=0
+  while [[ -n "$__${p}_scope" && -f "$__${p}_file" ]] && (( __${p}_tries-- > 0 )); do
+    [[ "$(</proc/$$/cgroup)" == *-term$$.scope* ]] && break
+    command sleep 0.005 || :
+  done 2>/dev/null
   if [[ -f "$__${p}_file" ]]; then
     __${p}_command=$(<"$__${p}_file")
     command rm -f -- "$__${p}_file"
@@ -184,6 +200,18 @@ function __${p}_resume --on-event fish_prompt
     set -l __${p}_file $${v}_RESUME
     set -e ${v}_RESUME
     functions -e __${p}_resume
+    set -l __${p}_scope $${v}_SCOPE
+    set -e ${v}_SCOPE
+    # ${v}_SCOPE said this shell is on its way to a scope of its own, which takes only the
+    # shell: what it starts before it gets there stays behind. So the command waits for
+    # that, about a quarter of a second at most, and runs either way.
+    set -l __${p}_tries 40
+    command -q sleep; or set __${p}_tries 0
+    while test -n "$__${p}_scope"; and test -f $__${p}_file; and test $__${p}_tries -gt 0
+        string match -q -- "*-term$fish_pid.scope*" (string collect < /proc/$fish_pid/cgroup); and break
+        command sleep 0.005
+        set __${p}_tries (math $__${p}_tries - 1)
+    end 2>/dev/null
     if test -f $__${p}_file
         set -l __${p}_command (string collect < $__${p}_file)
         command rm -f -- $__${p}_file
