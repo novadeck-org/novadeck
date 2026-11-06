@@ -19,6 +19,7 @@ const fixtures: Record<string, string> = {
   "e2e-antigravity-macos-lead-tool-call": "Antigravity (macOS)",
   "e2e-claude-windows-interrupted-draft": "Claude Code (Windows)",
   "e2e-claude-windows-interrupt-draft": "Claude Code (Windows)",
+  "e2e-claude-queued-turn-ends-in-hold": "Claude Code (Windows, 2/2)",
   "e2e-claude-macos-continuation-stop": "Claude Code (macOS)",
   "release-quality-wait-window": "macOS",
   "runner-engines-server-port-picked-again": "Test (Linux, 3/3)",
@@ -33,6 +34,15 @@ describe("the known-flake register", () => {
     // Each log matches its own flake and no other.
     it.each(Object.entries(fixtures))("knows %s by its log alone", (id, job) => {
       expect(judgeJob(register, job, fixture(id))).toEqual({ job, flakes: [id], unknown: [] })
+    })
+  })
+
+  context("when the queued Stop gives back part of what it should", () => {
+    it("takes it for no flake, as only `null` is excused", () => {
+      const job = "Claude Code (Windows, 2/2)"
+      const log = fixture("e2e-claude-queued-turn-ends-in-hold")
+      const partial = log.replace("expected null to be", "expected 'Queued gamma' to be")
+      expect(judgeJob(register, job, partial).flakes).toEqual([])
     })
   })
 
