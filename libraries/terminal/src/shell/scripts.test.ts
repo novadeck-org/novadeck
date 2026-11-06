@@ -208,7 +208,7 @@ describe.skipIf(process.platform !== "linux")("a scope that doesn't come", () =>
       }
       const out = join(root, "out")
       const startup = {
-        command: `echo "scope=[$ACME_SCOPE]" > '${out}'; exit`,
+        command: `echo "scope=[$ACME_SCOPE]" > '${out}'`,
         file: join(root, "startup"),
       }
       writeFileSync(startup.file, startup.command)
@@ -228,11 +228,38 @@ describe.skipIf(process.platform !== "linux")("a scope that doesn't come", () =>
         cols: 80,
         rows: 24,
       })
+      let ended = false
+      onTestFinished(() => {
+        if (!ended && pty.pid) process.kill(pty.pid, "SIGKILL")
+      })
+      let output = ""
+      let typed = false
       await new Promise<void>((resolve, reject) => {
-        const timer = setTimeout(() => reject(new Error(`${name} never ended`)), 15_000)
+        const timer = setTimeout(
+          () =>
+            reject(
+              new Error(
+                `${name} never ended: ${JSON.stringify({
+                  startupFileLeft: existsSync(startup.file),
+                  commandWrote: existsSync(out),
+                  drew: output.slice(-600),
+                })}`,
+              ),
+            ),
+          15_000,
+        )
         pty.onExit(() => {
+          ended = true
           clearTimeout(timer)
           resolve()
+        })
+        // The command has run, and the shell draws its prompt next: leave as a person would, as
+        // `exit` in the command itself doesn't end fish 4.2.1, which carries on to its prompt.
+        pty.onData((data) => {
+          output += data
+          if (typed || !existsSync(out)) return
+          typed = true
+          pty.write("exit\r")
         })
       })
       expect(readFileSync(out, "utf8")).toBe("scope=[]\n")
