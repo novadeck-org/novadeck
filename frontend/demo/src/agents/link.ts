@@ -1,4 +1,5 @@
 import type { Conversations } from "@novadeck/core/conversation"
+import type { AgentName } from "@novadeck/core/harnesses"
 import type { TerminalKey } from "@novadeck/core/port"
 import type { AgentTurnEnd, AgentUsage, TerminalMetadata } from "@novadeck/core/types"
 
@@ -24,7 +25,7 @@ export type DemoWaiting =
 
 export type DemoAgentVerbs = {
   // Starts a turn that works until another verb ends it: in plan mode, or with three
-  // subagents running. A terminal that runs no agent becomes Claude Code first.
+  // subagents running. A terminal that runs no agent becomes one first (see `as`).
   readonly work: (
     key: TerminalKey,
     terminal: TerminalMetadata | undefined,
@@ -63,7 +64,7 @@ export type DemoAgentVerbs = {
   readonly rest: (key: TerminalKey, terminal: TerminalMetadata | undefined) => void
   // Sets the agent's context and limits in the telemetry: its status stays as it was, a
   // turn or request included, and later turns keep them. A terminal that runs no agent
-  // becomes Claude Code first.
+  // becomes one first (see `as`).
   readonly usage: (
     key: TerminalKey,
     terminal: TerminalMetadata | undefined,
@@ -73,6 +74,9 @@ export type DemoAgentVerbs = {
   // and its usage forgotten, as before the panel sets its state some other way (an exit, a
   // shell, a fixture).
   readonly release: (key: TerminalKey) => void
+  // These verbs for a terminal that runs no agent to become `harness`, as the panel chooses;
+  // Claude Code unless asked. A terminal already running an agent stays that agent.
+  readonly as: (harness: AgentName) => DemoAgentVerbs
 }
 
 // What a demo terminal's screen reads of its agent: its conversation, as the chat reads

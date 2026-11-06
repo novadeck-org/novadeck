@@ -251,7 +251,38 @@ export const codexVocabulary: readonly Written[] = [
           "mcp__novadeck",
         ],
         ["feedback", { kind: "bug", text: "The pane went blank." }, "Drafted.", "mcp__novadeck"],
+        ["tell", { subject: "CI is green", body: "All checks." }, "Told.", "mcp__novadeck"],
+        ["ask", { subject: "Merge it?", body: "It's ready." }, "Asked.", "mcp__novadeck"],
+        [
+          "ask",
+          {
+            subject: "Which pick?",
+            body: "Two ways.",
+            shape: { type: "options", options: [{ label: "This" }, { label: "That" }] },
+          },
+          "Asked.",
+          "mcp__novadeck",
+        ],
+        [
+          "ask",
+          {
+            subject: "Sign in, please",
+            body: "It needs you.",
+            shape: { type: "action", command: "gh auth login", done_label: "Signed in" },
+          },
+          "Asked.",
+          "mcp__novadeck",
+        ],
+        ["ask", { withdraw: "00000000-0000-4000-8000-000000000001" }, "Withdrew.", "mcp__novadeck"],
       ]),
+    ],
+  },
+  {
+    // A call of one argument, a string all in quotes: what the agent wrote, quotes and all.
+    name: "one-quoted-argument",
+    records: [
+      said("Run the quoted one."),
+      ...calls("quoted", [["exec_command", { cmd: '"/usr/bin/tool"' }, "ran"]]),
     ],
   },
   {

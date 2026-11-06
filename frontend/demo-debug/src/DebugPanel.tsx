@@ -4,6 +4,7 @@
 // their sections, folded until opened; a search finds an action by its words. See
 // docs/development.md, "Debug panel".
 import "./debug-panel.css"
+import { harnesses, type AgentName } from "@novadeck/core/harnesses"
 import type { BackendConnectionState, BackendSink, TerminalKey } from "@novadeck/core/port"
 import type { Workspace } from "@novadeck/core/types"
 import { demoVariants } from "@novadeck/demo/variants"
@@ -76,6 +77,24 @@ const keepTarget = (target: DemoTarget): void => {
   }
 }
 
+// The harness the agent actions make, chosen in this tab and kept the same way.
+const harnessKey = "novadeck.debug-panel.harness"
+const readHarness = (): AgentName => {
+  try {
+    const stored = window.sessionStorage.getItem(harnessKey)
+    return harnesses.find(({ id }) => id === stored)?.id ?? "claude"
+  } catch {
+    return "claude"
+  }
+}
+const keepHarness = (harness: AgentName): void => {
+  try {
+    window.sessionStorage.setItem(harnessKey, harness)
+  } catch {
+    // Without storage, the harness is Claude Code again at the next boot.
+  }
+}
+
 // Whether an action has every word of the search in its group, label or hint.
 const matches = (words: readonly string[], group: DemoActionGroup, action: DemoAction) => {
   const text = `${group.title} ${action.label} ${action.hint}`.toLowerCase()
@@ -124,6 +143,7 @@ export const createDebugPanel = ({
     const [query, setQuery] = useState("")
     const [opened, setOpened] = useState(readOpened)
     const [target, setTarget] = useState(readTarget)
+    const [harness, setHarness] = useState(readHarness)
     const [crashed, setCrashed] = useState(false)
     const toggle = useRef<HTMLButtonElement>(null)
     const search = useRef<HTMLInputElement>(null)
@@ -153,6 +173,7 @@ export const createDebugPanel = ({
 
     const context = (): DemoActionContext => ({
       target,
+      harness,
       selected,
       select,
       addTerminal,
@@ -385,6 +406,28 @@ export const createDebugPanel = ({
                                     }}
                                   >
                                     {targetLabels[each]}
+                                  </button>
+                                ))}
+                              </div>
+                            )}
+                            {group.harnesses && (
+                              <div
+                                role="group"
+                                aria-label="Harness"
+                                className="segmented flex gap-0.5 px-2.5 pb-1"
+                              >
+                                {harnesses.map(({ id, name }) => (
+                                  <button
+                                    key={id}
+                                    type="button"
+                                    aria-pressed={id === harness}
+                                    className="segment flex h-6 flex-1 items-center justify-center px-1.5 text-control"
+                                    onClick={() => {
+                                      keepHarness(id)
+                                      setHarness(id)
+                                    }}
+                                  >
+                                    {name}
                                   </button>
                                 ))}
                               </div>

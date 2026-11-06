@@ -186,7 +186,38 @@ suite("what Codex's subagent tools were", () => {
     expect(run("multi_agent_v1__close_agent", { id: "a1" }).detail).toBe("a1")
     expect(run("clock__sleep", { duration_ms: 5 })).toMatchObject({ kind: "run", title: "Waited" })
     expect(run("mcp__codex_worktrees__list_worktrees", {}).title).toBe("Listed worktrees")
+    expect(run("mcp__codex_worktrees.list_worktrees", {}).title).toBe("Listed worktrees")
+    expect(run("mcp__codex_tui__list_worktrees", {}).title).toBe("Listed worktrees")
+    expect(run("mcp__codex_tui.create_worktree", {}).title).toBe("Created a worktree")
+    // The old namespace was never reserved: anything else there is a server's own.
+    expect(run("mcp__codex_worktrees__create_thread", {}).kind).toBe("other")
     expect(run("list_mcp_resources", {}).title).toBe("Listed MCP resources")
+  })
+
+  it("reads its TUI's task tools, however the name is spelled", () => {
+    expect(run("mcp__codex_tui__create_thread", { prompt: "Fix it", title: "Fixes" })).toEqual({
+      kind: "agent",
+      title: "Started a task",
+      detail: "Fixes",
+    })
+    expect(run("mcp__codex_tui.create_thread", { prompt: "Fix it" }).detail).toBe("Fix it")
+    expect(run("mcp__codex_tui__send_message_to_thread", { threadId: "t", prompt: "Go" })).toEqual({
+      kind: "agent",
+      title: "Messaged a task",
+      detail: "Go",
+    })
+    expect(run("mcp__codex_tui__fork_thread", { threadId: "t" }).title).toBe("Forked a task")
+    expect(run("mcp__codex_tui__read_thread", { threadId: "t" }).detail).toBe("t")
+    expect(run("mcp__codex_tui__list_threads", {}).title).toBe("Listed tasks")
+    expect(run("mcp__codex_tui__list_archived_threads", {}).title).toBe("Listed archived tasks")
+    expect(run("mcp__codex_tui__wait_threads", { targets: [] }).title).toBe("Waited for tasks")
+    expect(run("mcp__codex_tui__set_thread_archived", { archived: true }).title).toBe(
+      "Archived a task",
+    )
+    expect(run("mcp__codex_tui__set_thread_archived", { archived: false }).title).toBe(
+      "Restored a task",
+    )
+    expect(run("mcp__codex_tui__set_thread_title", { title: "New" }).detail).toBe("New")
   })
 
   it("reads code mode's wait on a running cell", () => {

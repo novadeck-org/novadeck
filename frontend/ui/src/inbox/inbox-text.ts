@@ -56,11 +56,14 @@ export const recommended = (label: string): { readonly label: string; readonly p
 
 const runs = /^(bash|shell|exec|run|command|powershell|run_command)/i
 const edits = /(edit|write|patch|create|replace|notebook)/i
+// An MCP server's tool, named by its server: its name says nothing of files or commands.
+const mcpTool = /^mcp_/i
 
 // What a permission is for, from the tool the harness names.
 export type Action = "run" | "edit" | "plan" | "other"
 export const actionOf = (request: ChatRequest): Action => {
   if (request.kind === "plan") return "plan"
+  if (mcpTool.test(request.tool)) return "other"
   if (runs.test(request.tool)) return "run"
   if (edits.test(request.tool)) return "edit"
   return "other"

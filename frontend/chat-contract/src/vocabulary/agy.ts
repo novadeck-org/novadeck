@@ -43,9 +43,6 @@ export const turn = (
   ),
 ]
 
-// Antigravity wraps the strings of its arguments in JSON quotes.
-const q = (value: string): string => JSON.stringify(value)
-
 const novadeck = "mcp_novadeck_novadeck_"
 
 export const agyVocabulary: readonly Written[] = [
@@ -55,8 +52,8 @@ export const agyVocabulary: readonly Written[] = [
       "Look at the project.",
       "On it.",
       [
-        ["run_command", { CommandLine: q("npm test"), Cwd: q("/home/user/project") }, "ok"],
-        ["view_file", { AbsolutePath: q("/home/user/project/src/index.ts") }, "export {}"],
+        ["run_command", { CommandLine: "npm test", Cwd: "/home/user/project" }, "ok"],
+        ["view_file", { AbsolutePath: "/home/user/project/src/index.ts" }, "export {}"],
         ["read_file", { AbsolutePath: "/home/user/project/src/a.ts" }, "a"],
         ["list_dir", { DirectoryPath: "/home/user/project/src" }, "a.ts"],
         [
@@ -86,8 +83,8 @@ export const agyVocabulary: readonly Written[] = [
       "Tidy the notes.",
       "Tidying.",
       [
-        ["run_command", { CommandLine: q("npm test"), toolSummary: q("Test run") }, "ok"],
-        ["read_file", { Path: q("/home/user/project/notes.md") }, "# notes"],
+        ["run_command", { CommandLine: "npm test", toolSummary: "Test run" }, "ok"],
+        ["read_file", { Path: "/home/user/project/notes.md" }, "# notes"],
         ["write_file", { Path: "/home/user/project/n.md", Content: "# n" }, "Created file"],
         [
           "edit_file",
@@ -196,9 +193,9 @@ export const agyVocabulary: readonly Written[] = [
         [
           "call_mcp_tool",
           {
-            ServerName: q("novadeck"),
-            ToolName: q("send"),
-            Arguments: q(JSON.stringify({ to: "reviewer", text: "Lazily" })),
+            ServerName: "novadeck",
+            ToolName: "send",
+            Arguments: JSON.stringify({ to: "reviewer", text: "Lazily" }),
           },
           "Sent",
         ],
@@ -231,6 +228,28 @@ export const agyVocabulary: readonly Written[] = [
           "Created #12",
         ],
         ["call_mcp_tool", { ServerName: "github" }, "No tool named"],
+        [
+          "call_mcp_tool",
+          {
+            ServerName: "novadeck",
+            ToolName: "ask",
+            Arguments: {
+              subject: "Which pick?",
+              body: "Two ways.",
+              shape: { type: "options", options: [{ label: "This" }] },
+            },
+          },
+          "Asked.",
+        ],
+        [
+          "call_mcp_tool",
+          {
+            ServerName: "novadeck",
+            ToolName: "tell",
+            Arguments: { subject: "CI is green", body: "All checks." },
+          },
+          "Told.",
+        ],
       ],
       0,
     ),
@@ -263,7 +282,38 @@ export const agyVocabulary: readonly Written[] = [
         ],
         [`${novadeck}feedback`, { kind: "bug", text: "The pane went blank." }, "Drafted."],
         [`${novadeck}look`, { page: { url: "http://localhost:5173" } }, "Looked"],
+        [`${novadeck}tell`, { subject: "CI is green", body: "All checks." }, "Told."],
+        [`${novadeck}ask`, { subject: "Merge it?", body: "It's ready." }, "Asked."],
+        [
+          `${novadeck}ask`,
+          {
+            subject: "Which pick?",
+            body: "Two ways.",
+            shape: { type: "options", options: [{ label: "This" }, { label: "That" }] },
+          },
+          "Asked.",
+        ],
+        [
+          `${novadeck}ask`,
+          {
+            subject: "Sign in, please",
+            body: "It needs you.",
+            shape: { type: "action", command: "gh auth login", done_label: "Signed in" },
+          },
+          "Asked.",
+        ],
+        [`${novadeck}ask`, { withdraw: "00000000-0000-4000-8000-000000000001" }, "Withdrew."],
       ],
+      0,
+    ),
+  },
+  {
+    // A call of one argument, a string all in quotes: what the agent wrote, quotes and all.
+    name: "one-quoted-argument",
+    records: turn(
+      "Run the quoted one.",
+      "Running.",
+      [["run_command", { CommandLine: '"/usr/bin/tool"' }, "ok"]],
       0,
     ),
   },

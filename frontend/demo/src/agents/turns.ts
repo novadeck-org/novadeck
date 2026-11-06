@@ -1,4 +1,5 @@
 import { createTelemetryStore, dropTerminal, setUsage } from "@novadeck/core/agents/telemetry"
+import type { AgentName } from "@novadeck/core/harnesses"
 import type { BackendAction, BackendSink, TerminalKey } from "@novadeck/core/port"
 import { isAgentProgram } from "@novadeck/core/terminals/process"
 import { terminalKeyId } from "@novadeck/core/terminals/registry"
@@ -235,113 +236,118 @@ export const demoTurns = (requestedMs = demoTurnMs) => {
     else run(key, resting, next.reply, false)
   }
 
-  // What every verb starts with: it cancels what the terminal had pending, and says whether
-  // the terminal's process must become an agent, and whether a turn begins.
-  const take = (key: TerminalKey, terminal: TerminalMetadata | undefined) => {
-    cancel(terminalKeyId(key))
-    bump(terminalKeyId(key))
-    const agent = statusOf(terminal)
-    const program = terminal && isAgentProgram(terminal.process) ? undefined : "claude"
-    return { agent, program, began: !agent?.working || program !== undefined }
-  }
-  const verbs: DemoAgentVerbs = {
-    work: (key, terminal, how) => {
-      const { program, began } = take(key, terminal)
-      if (began) emit({ type: "begin", key })
-      status(
-        key,
-        {
-          working: true,
-          ...(how?.planning ? { planning: true as const } : {}),
-          ...(how?.subagents ? { subagents } : {}),
-        },
-        program,
-      )
-    },
-    ask: (key, terminal, kind, count) => {
-      const { agent, program, began } = take(key, terminal)
-      if (began) emit({ type: "begin", key })
-      status(
-        key,
-        {
-          working: true,
-          ...(kind === "plan" ? { planning: true as const } : {}),
-          attention: { kind, count },
-          // What it runs beside the request keeps running.
-          ...(agent?.working && agent.subagents ? { subagents: agent.subagents } : {}),
-        },
-        program,
-      )
-    },
-    finish: (key, terminal, outcome, options) => {
-      const { program, began } = take(key, terminal)
-      const id = terminalKeyId(key)
-      const after = Math.min(options?.after ?? turnMs, longestTimerMs)
-      const { background, error, waiting: waits, done, limit } = options ?? {}
-      // A turn that ends in the harness's or the API's error has said nothing of its own.
-      const reply = error ? undefined : (options?.reply ?? replies[outcome])
-      if (began) emit({ type: "begin", key })
-      status(key, { working: true }, program)
-      active.set(id, [
-        setTimeout(() => {
-          const lastTurn: AgentTurnEnd = {
-            outcome,
-            ...(reply ? { reply } : {}),
-            ...(error ? { error } : {}),
-            ...(limit ? { limit } : {}),
-            at: Date.now(),
-          }
-          if (done) reported.add(id)
-          // Its subagents keep it working until they finish, as the runner reports it.
-          const waiting = background !== undefined && background.agents > 0
-          status(key, {
-            working: waiting,
-            ...(background ? { background } : {}),
-            ...(waits ? { waiting: waitingOf(waits, lastTurn.at) } : {}),
-            lastTurn,
-          })
-          emit({
-            type: "end",
-            key,
-            outcome,
-            ...(reply ? { reply } : {}),
-            ...(done ? { done } : {}),
-          })
-          if (!waiting) {
-            active.delete(id)
-            return
-          }
-          active.set(id, [
-            setTimeout(() => {
-              active.delete(id)
-              status(key, { working: false, lastTurn })
-            }, after),
-          ])
-        }, after),
-      ])
-    },
-    rest: (key, terminal) => {
-      const { program } = take(key, terminal)
-      status(key, { working: false }, program)
-      emit({ type: "rest", key })
-    },
-    usage: (key, terminal, usage) => {
-      const agent = statusOf(terminal)
-      // An agent Novadeck hears nothing from has no status to set it in.
-      if (terminal?.state === "running" && !terminal.agent && isAgentProgram(terminal.process))
-        return
-      const program = terminal && isAgentProgram(terminal.process) ? undefined : "claude"
-      telemetry.update((held) => setUsage(held, contextOf(key), key.terminalId, usage))
-      // Only a terminal that is no running agent needs a status; an agent's stays as it was.
-      if (program || terminal?.state !== "running")
-        status(key, agent ?? { working: false }, program)
-    },
-    release: (key) => {
+  // The verbs for a terminal that runs no agent to become `harness`.
+  const verbsAs = (harness: AgentName): DemoAgentVerbs => {
+    // What every verb starts with: it cancels what the terminal had pending, and says whether
+    // the terminal's process must become an agent, and whether a turn begins.
+    const take = (key: TerminalKey, terminal: TerminalMetadata | undefined) => {
       cancel(terminalKeyId(key))
       bump(terminalKeyId(key))
-      telemetry.update((held) => dropTerminal(held, contextOf(key), key.terminalId))
-    },
+      const agent = statusOf(terminal)
+      const program = terminal && isAgentProgram(terminal.process) ? undefined : harness
+      return { agent, program, began: !agent?.working || program !== undefined }
+    }
+    return {
+      work: (key, terminal, how) => {
+        const { program, began } = take(key, terminal)
+        if (began) emit({ type: "begin", key })
+        status(
+          key,
+          {
+            working: true,
+            ...(how?.planning ? { planning: true as const } : {}),
+            ...(how?.subagents ? { subagents } : {}),
+          },
+          program,
+        )
+      },
+      ask: (key, terminal, kind, count) => {
+        const { agent, program, began } = take(key, terminal)
+        if (began) emit({ type: "begin", key })
+        status(
+          key,
+          {
+            working: true,
+            ...(kind === "plan" ? { planning: true as const } : {}),
+            attention: { kind, count },
+            // What it runs beside the request keeps running.
+            ...(agent?.working && agent.subagents ? { subagents: agent.subagents } : {}),
+          },
+          program,
+        )
+      },
+      finish: (key, terminal, outcome, options) => {
+        const { program, began } = take(key, terminal)
+        const id = terminalKeyId(key)
+        const after = Math.min(options?.after ?? turnMs, longestTimerMs)
+        const { background, error, waiting: waits, done, limit } = options ?? {}
+        // A turn that ends in the harness's or the API's error has said nothing of its own.
+        const reply = error ? undefined : (options?.reply ?? replies[outcome])
+        if (began) emit({ type: "begin", key })
+        status(key, { working: true }, program)
+        active.set(id, [
+          setTimeout(() => {
+            const lastTurn: AgentTurnEnd = {
+              outcome,
+              ...(reply ? { reply } : {}),
+              ...(error ? { error } : {}),
+              ...(limit ? { limit } : {}),
+              at: Date.now(),
+            }
+            if (done) reported.add(id)
+            // Its subagents keep it working until they finish, as the runner reports it.
+            const waiting = background !== undefined && background.agents > 0
+            status(key, {
+              working: waiting,
+              ...(background ? { background } : {}),
+              ...(waits ? { waiting: waitingOf(waits, lastTurn.at) } : {}),
+              lastTurn,
+            })
+            emit({
+              type: "end",
+              key,
+              outcome,
+              ...(reply ? { reply } : {}),
+              ...(done ? { done } : {}),
+            })
+            if (!waiting) {
+              active.delete(id)
+              return
+            }
+            active.set(id, [
+              setTimeout(() => {
+                active.delete(id)
+                status(key, { working: false, lastTurn })
+              }, after),
+            ])
+          }, after),
+        ])
+      },
+      rest: (key, terminal) => {
+        const { program } = take(key, terminal)
+        status(key, { working: false }, program)
+        emit({ type: "rest", key })
+      },
+      usage: (key, terminal, usage) => {
+        const agent = statusOf(terminal)
+        // An agent Novadeck hears nothing from has no status to set it in.
+        if (terminal?.state === "running" && !terminal.agent && isAgentProgram(terminal.process))
+          return
+        const program = terminal && isAgentProgram(terminal.process) ? undefined : harness
+        telemetry.update((held) => setUsage(held, contextOf(key), key.terminalId, usage))
+        // Only a terminal that is no running agent needs a status; an agent's stays as it was.
+        if (program || terminal?.state !== "running")
+          status(key, agent ?? { working: false }, program)
+      },
+      release: (key) => {
+        cancel(terminalKeyId(key))
+        bump(terminalKeyId(key))
+        telemetry.update((held) => dropTerminal(held, contextOf(key), key.terminalId))
+      },
+      as: verbsAs,
+    }
   }
+  const verbs = verbsAs("claude")
   return {
     ...verbs,
     // How long a turn works, which a request of the demo's own may scale.
