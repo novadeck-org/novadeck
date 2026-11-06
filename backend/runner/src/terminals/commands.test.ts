@@ -113,6 +113,7 @@ describe("the agent whose session a command would start", () => {
       "codex -i a.png mcp",
       "codex --image a.png b.png mcp list",
       "codex -i a.png - mcp",
+      "agy --settings x.json --add-dir a fix the docs",
     ]) {
       const agent = command.split(" ")[0]
       expect([command, sessionLaunch(command, "linux")]).toEqual([command, agent])
@@ -165,6 +166,8 @@ describe("the agent whose session a command would start", () => {
       "codex --image=a.png mcp list",
       "agy --add-dir a mcp list",
       "agy --add-dir a --add-dir b mcp list",
+      "agy --add-dir=a mcp list",
+      "agy --settings x.json mcp list",
     ]) {
       expect([command, sessionLaunch(command, "linux")]).toEqual([command, null])
     }

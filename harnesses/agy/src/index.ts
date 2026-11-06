@@ -132,6 +132,7 @@ export const agy = {
       "--print-timeout",
       "--project",
       "--prompt-interactive",
+      "--settings",
       "-v",
     ],
     takesMany: [],
