@@ -46,6 +46,20 @@ and remaining limits; mention checks run when useful. Link related issues; use a
 closing keyword only when the PR fully resolves one. Remove instructional comments
 and the Screenshot section when it does not apply. Keep the title and body current.
 
+The Heads-up section is for the people using Novadeck, not for reviewers: its text
+becomes the Heads-up card they see after updating, and it appears on the release
+page. Fill it only when someone who used the app yesterday would be surprised or
+has to do something differently, such as a moved or removed control, or a changed
+key, default or layout. Say what they'll notice, what's gone, and what to do
+instead, in the words the app uses:
+
+> Canvas windows follow the Terminals list and teams, all one size. Where you
+> placed them is no longer kept.
+
+Write `None` for everything else, which is most pull requests: additions, fixes
+that restore what people expected, and internal changes. Refactors, tests, CI,
+file names, API changes and notes for contributors belong in Impact.
+
 With `gh`, write the body to a Markdown file and pass `--body-file`. Read the
 submitted PR back to confirm its title, body, base, and head branch.
 

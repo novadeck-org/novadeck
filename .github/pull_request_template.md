@@ -20,7 +20,13 @@ Fill What, Why, Impact, and Heads-up. Remove these comments before submitting.
 
 ## Heads-up
 
-<!-- Would someone who used this yesterday be surprised, or have to do something differently (a moved or removed control, a changed key, default or layout)? Say what they'll notice, what's gone and what to do instead, in plain words for a user. Otherwise write None, as for additions and fixes that restore what people expected. -->
+<!--
+This text goes to the people using Novadeck: it becomes the Heads-up card they see after updating. Write it for someone who uses the app every day and has never seen its code.
+
+Would someone who used this yesterday be surprised, or have to do something differently? That means a control moved or removed, or a changed key, default or layout. If so, say what they'll notice, what's gone, and what to do instead, using the names the app shows.
+
+Otherwise write None. Most pull requests are None: anything added, a fix that restores what people expected, and every internal change. Nothing a user wouldn't care about goes here: no refactors, tests, CI, file, package or API names, or notes for contributors. Those belong in Impact.
+-->
 
 ## Screenshot
 
