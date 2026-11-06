@@ -1,6 +1,14 @@
-import type { ChatItem, ToolOutcome } from "../conversation"
+import type { ChatItem, ChatPrompt, ToolOutcome } from "../conversation"
 import { describe, expect, it } from "../test"
-import { agentName, groupItems, recordsShell, sameBlock, turnStatus, type ToolEntry } from "./turns"
+import {
+  agentName,
+  groupItems,
+  recordsShell,
+  sameBlock,
+  turnStatus,
+  wentItems,
+  type ToolEntry,
+} from "./turns"
 
 let count = 0
 const item = (fields: Partial<ChatItem>): ChatItem => ({
@@ -331,5 +339,29 @@ describe("the agent's turn status", () => {
       recordsShell(null),
     ]).toEqual([true, true, false, true])
     expect(recordsShell("unknown")).toBe(true)
+  })
+})
+
+describe("the items of a conversation that went", () => {
+  const items = [{ text: "one" }, { text: "two" }, { text: "three" }] as unknown as ChatItem[]
+  const prompt = (state: ChatPrompt["state"], at: number | null): ChatPrompt => ({
+    ref: "r",
+    text: null,
+    sentAt: 1,
+    state,
+    item: at,
+  })
+
+  it("leaves out those of prompts a Stop handed back, and only those", () => {
+    expect(wentItems(items, [prompt("withdrawn", 1), prompt("settled", 2)])).toEqual([
+      items[0],
+      items[2],
+    ])
+  })
+
+  it("is the items as they are where no item was handed back", () => {
+    expect(wentItems(items, [])).toBe(items)
+    expect(wentItems(items, [prompt("settled", 1)])).toEqual(items)
+    expect(wentItems(items, [prompt("withdrawn", null)])).toEqual(items)
   })
 })

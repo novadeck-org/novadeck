@@ -115,8 +115,32 @@ describe("prompt receipts", () => {
     await give("check the logs", "r1")
     await pass()
     await vi.waitFor(() => expect(state("r1")).toBe("in-box"))
-    receipts.withdraw(terminal, "check the logs")
+    receipts.withdraw(terminal, "check the logs", 0)
     expect(state("r1")).toBe("withdrawn")
+  })
+
+  it("withdraws a prompt settled during a Stop that hands its words back, keeping its item", async ({
+    resources,
+  }) => {
+    const { clock, path, receipts, give, state } = await setup(resources)
+    const itemOf = (ref: string) => receipts.view(terminal).find((each) => each.ref === ref)?.item
+    await give("continue", "r1")
+    await appendFile(path, row("continue"))
+    await vi.waitFor(() => expect(state("r1")).toBe("settled"))
+    clock.now += 1_000
+    const since = clock.now
+    clock.now += 1_000
+    await give("continue", "r2")
+    await appendFile(path, row("continue"))
+    await vi.waitFor(() => expect(state("r2")).toBe("settled"))
+    const item = itemOf("r2")
+
+    receipts.withdraw(terminal, "continue", since)
+    // The same words settled before it are a message that went.
+    expect(state("r1")).toBe("settled")
+    expect(state("r2")).toBe("withdrawn")
+    expect(itemOf("r2")).toBe(item)
+    expect(item).toEqual(expect.any(Number))
   })
 
   it("leaves the prompt that took words out, and any still on its way, whatever they say", async ({
@@ -431,7 +455,7 @@ describe("prompt receipts", () => {
     const { receipts, state, give } = await setup(resources)
     await give("take this back", "r1")
     await give("keep this", "r2")
-    receipts.withdraw(terminal, "> take this back")
+    receipts.withdraw(terminal, "> take this back", 0)
     expect(state("r1")).toBe("withdrawn")
     expect(receipts.view(terminal)[0]).toMatchObject({ ref: "r1", text: null })
     expect(state("r2")).toBe("pending")

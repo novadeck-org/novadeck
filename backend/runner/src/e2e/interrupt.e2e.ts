@@ -186,13 +186,16 @@ for (const setup of setups) {
       onStopped?.()
 
       expect(stopped.returned).toBe(setup.agent === "codex" ? null : "Queued beta\nQueued gamma")
-      // Neither prompt given back waits on the record: Claude Code's record already holds both,
-      // written as the queued turn started, and the others' words are the person's draft again.
+      // Words given back are the person's draft again, and none went: Claude Code's record
+      // holds them, written as the queued turn started, which the chat shows no more.
       if (stopped.returned !== null) {
         const { prompts = [] } = await t1.detail()
         const left = prompts.filter(({ ref }) => ref === beta.ref || ref === gamma.ref)
-        expect(left).toHaveLength(2)
-        for (const { state } of left) expect(state).toMatch(/^(settled|withdrawn)$/)
+        expect(left.map(({ state }) => state)).toEqual(["withdrawn", "withdrawn"])
+        const items = await t1.transcript()
+        for (const { item } of left)
+          if (item !== null)
+            expect(items.find((each) => each.index === item)?.text).toContain("Queued")
       }
       const shown = await t1.screen()
       if (!replyMidStop) expect(shown).not.toContain("Too late.")
@@ -202,6 +205,11 @@ for (const setup of setups) {
       await t1.prompt("Carry on")
       await t1.until("Carried on.")
       await through(t1, ["working", "settled"], { after: next })
+      // What the chat leaves out rests on this: a harness that starts to send them breaks it.
+      if (stopped.returned !== null) {
+        const last = run.model.calls.findLast((call) => !call.side)!
+        expect(JSON.stringify(last.turns)).not.toContain("Queued")
+      }
     }
 
     it("gives back both of two queued messages, or what was left of them", ({ e2e: run }) =>

@@ -305,8 +305,12 @@ export class Typing {
   /** Presses Escape in the terminal's agent as the person would (see `Terminals.interrupt`). */
   async interrupt(terminalId: string): Promise<InterruptResult> {
     this.promptable(terminalId)
+    let since = Date.now()
     const result = await this.inputs
-      .run(terminalId, (entry) => this.interrupts.interrupt(terminalId, entry))
+      .run(terminalId, (entry) => {
+        since = Date.now()
+        return this.interrupts.interrupt(terminalId, entry)
+      })
       .catch(async (error: unknown) => {
         // Words it couldn't take out are back in the box, which the next prompt sees to.
         if (error instanceof DomainError && error.code === "BOX_NOT_CLEARED")
@@ -314,7 +318,7 @@ export class Typing {
         throw error
       })
     // The words handed back are the person's draft again: their prompts no longer wait.
-    if (result.returned !== null) this.receipts.withdraw(terminalId, result.returned)
+    if (result.returned !== null) this.receipts.withdraw(terminalId, result.returned, since)
     return result
   }
 

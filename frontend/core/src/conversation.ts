@@ -197,7 +197,8 @@ export type ChatRequest = {
 // until it does; `settled` once it does, as the person's words of the item at `item` (its
 // index in `items`), which a chat may show it as until that item arrives; `unrecorded`
 // when the agent's turns went by and the record never got it; `in-box` when it didn't, and
-// the words are back in the agent's own box; `withdrawn` when a Stop handed them back.
+// the words are back in the agent's own box; `withdrawn` when a Stop handed them back, with
+// the `item` the record wrote for them where it did, which is no message that went.
 // `text` is the prompt as given, null once withdrawn, or settled before its words were seen. `sentAt` is when it went,
 // on the backend's clock.
 export type ChatPrompt = {
