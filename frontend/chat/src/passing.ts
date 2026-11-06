@@ -1,4 +1,5 @@
 import type { ChatBox, ChatSlice } from "@novadeck/core/conversation"
+import { hasControlCharacters } from "@novadeck/core/conversation/prompt-refusal"
 import { isAgentName, opensMenu } from "@novadeck/core/harnesses"
 import { useCallback, useEffect, useRef, useState } from "react"
 
@@ -36,7 +37,8 @@ export const terminalKey = (event: KeyPress): string | undefined => {
   if (event.metaKey || event.altKey) return undefined
   if (event.key === "Tab" && event.shiftKey) return "\x1b[Z"
   if (event.ctrlKey) {
-    if (!/^[a-z]$/i.test(event.key)) return undefined
+    // Ctrl+Shift is the app's, and Ctrl+V a paste, which comes as one.
+    if (event.shiftKey || event.key === "v" || !/^[a-z]$/i.test(event.key)) return undefined
     return String.fromCharCode(event.key.toLowerCase().charCodeAt(0) - 96)
   }
   return named[event.key] ?? ([...event.key].length === 1 ? event.key : undefined)
@@ -46,27 +48,39 @@ export const terminalKey = (event: KeyPress): string | undefined => {
 // Backspaces for what went, or the line cleared and written again for an edit in between.
 export const editKeys = (before: string, after: string): string => {
   if (after.startsWith(before)) return after.slice(before.length)
-  if (before.startsWith(after)) return "\x7f".repeat(before.length - after.length)
+  // A Backspace to a character, as a box takes them, not to a UTF-16 unit.
+  if (before.startsWith(after)) return "\x7f".repeat(Array.from(before.slice(after.length)).length)
   return `\x15${after}`
 }
 
 // How long a box's text may lag what a key did, in milliseconds (`agents.detail`, throttled).
 export const boxLagMs = 400
 
+// The most one write takes (`agents.keys`).
+const keysMax = 1024
+
+// Clears the box's line, as far as its cursor is at the end.
+const clearLine = "\x15"
+
 export type Passing = {
   // Whether what is typed goes to the terminal.
   readonly on: boolean
-  // Whether text would call up a menu the terminal can answer, so it is no refused shape.
-  readonly opens: (text: string) => boolean
   // Takes the draft as it changed.
   readonly edit: (text: string) => void
   // A key of the field's that the terminal takes while passing: true where it went.
   readonly press: (keys: string) => boolean
+  // Stops passing, the box cleared, once that went: a Stop finds no menu in its way.
+  readonly leave: () => Promise<void>
 }
 
-// The chat's draft while it calls up a harness's menu. The box's text is the harness's after
-// Tab or Enter, which may complete, run or keep it: the draft then mirrors it, and goes when
-// it reads empty. `write` is absent where the backend takes no keys.
+type Following = { readonly at: number; readonly keys: string }
+
+// The chat's draft while it calls up a harness's menu. Passing lasts while the text does, and
+// the words are the chat's again as it stops: a message that goes on past a mention is a
+// message. The box's text is the harness's after Tab or Enter, which may complete, run or keep
+// it: the draft then mirrors it, and goes when it reads empty. `write` is absent where the
+// backend takes no keys; `onKept` tells of an Enter that left the box holding text, which ran
+// nothing.
 export const usePassing = (input: {
   readonly agent: string | null
   readonly open: boolean
@@ -75,38 +89,59 @@ export const usePassing = (input: {
   readonly box: ChatBox | null
   readonly slice: ChatSlice | null
   readonly write: ((keys: string) => Promise<void>) | undefined
+  readonly onKept?: () => void
 }): Passing => {
-  const { agent, open, draft, onDraft, box, slice, write } = input
+  const { agent, open, draft, onDraft, box, slice, write, onKept } = input
   const [passing, setPassing] = useState(false)
-  // Waiting to hear what the harness made of Tab or Enter, since when.
-  const [following, setFollowing] = useState<number | null>(null)
+  // Waiting to hear what the harness made of Tab or Enter.
+  const [following, setFollowing] = useState<Following | null>(null)
+  // Passing stopped here: what still shows is on its way out, no menu to go back to.
+  const [ended, setEnded] = useState(false)
+  if (ended && box === null && slice === null) setEnded(false)
 
-  const answers = agent !== null && isAgentName(agent) && open && write !== undefined
-  const opens = useCallback(
-    (text: string): boolean =>
-      answers && !text.includes("\n") && isAgentName(agent) && opensMenu(text, agent),
-    [answers, agent],
-  )
+  const opens = (text: string): boolean =>
+    open &&
+    agent !== null &&
+    isAgentName(agent) &&
+    write !== undefined &&
+    text.length <= keysMax &&
+    !text.includes("\n") &&
+    !hasControlCharacters(text) &&
+    opensMenu(text, agent)
+
   // The box held a menu as the chat came back: it goes on from what the box holds.
-  const resumed = !passing && draft === "" && slice?.reason === "menu" && opens(box?.text ?? "")
+  const resumed =
+    !passing &&
+    !ended &&
+    draft === "" &&
+    slice?.reason === "menu" &&
+    box !== null &&
+    opens(box.text)
   if (resumed) setPassing(true)
-  const on = passing || resumed
+  const on = (passing || resumed) && open
+
+  const stop = (): void => {
+    setPassing(false)
+    setFollowing(null)
+    setEnded(true)
+  }
 
   const send = (keys: string): void => {
     write?.(keys).catch(() => {
       // The terminal took none of it: the words stay the chat's, and its rule judges them.
-      setPassing(false)
-      setFollowing(null)
+      stop()
     })
   }
 
   const edit = (text: string): void => {
     setFollowing(null)
     if (on) {
-      const keys = editKeys(draft, text)
-      if (keys !== "") send(keys)
-      if (text === "") setPassing(false)
-    } else if (opens(text) && box === null) {
+      const keys = opens(text) ? editKeys(draft, text) : clearLine
+      if (keys === clearLine || keys.length > keysMax) {
+        send(clearLine)
+        stop()
+      } else if (keys !== "") send(keys)
+    } else if (opens(text) && box === null && slice?.reason !== "view") {
       send(text)
       setPassing(true)
     }
@@ -115,12 +150,18 @@ export const usePassing = (input: {
 
   const press = (keys: string): boolean => {
     if (!on) return false
-    // One Esc, only while something it closes shows: on an empty box Codex arms it, and
-    // mid-turn a further one stops the turn.
-    if (keys === "\x1b" && slice === null) return false
+    // Only Enter goes with nothing of its own up. Esc on an empty box arms Codex's transcript,
+    // and mid-turn stops the turn; Up recalls an earlier prompt; Tab queues on Codex.
+    if (keys !== "\r" && slice === null) return false
     send(keys)
-    if (keys === "\r" || keys === "\t") setFollowing(Date.now())
+    if (keys === "\r" || keys === "\t") setFollowing({ at: Date.now(), keys })
     return true
+  }
+
+  const leave = async (): Promise<void> => {
+    if (!on) return
+    stop()
+    await write?.(clearLine).catch(() => {})
   }
 
   // The harness's word on Tab or Enter, or on the box as the chat came back: the draft is what
@@ -133,26 +174,36 @@ export const usePassing = (input: {
     if (mirrored !== null) onDraft(mirrored)
   }, [mirrored, onDraft])
 
-  // Once the box can have told, it says so by reading empty: the words went.
+  const latest = useRef({ on, onDraft, onKept })
   useEffect(() => {
-    if (following === null) return undefined
+    latest.current = { on, onDraft, onKept }
+  }, [on, onDraft, onKept])
+
+  // The box reads empty once it can have told, however late that is: the words went.
+  const stopped = useCallback(() => {
+    setPassing(false)
+    setFollowing(null)
+    setEnded(true)
+    latest.current.onDraft("")
+  }, [])
+  const empty = box === null
+  useEffect(() => {
+    if (following === null || !empty) return undefined
+    const timer = setTimeout(stopped, Math.max(following.at + boxLagMs - Date.now(), 0))
+    return () => clearTimeout(timer)
+  }, [following, empty, stopped])
+
+  // An Enter the box still holds text after ran nothing, or completed the row.
+  useEffect(() => {
+    if (following?.keys !== "\r" || empty) return undefined
     const timer = setTimeout(
-      () => {
-        setFollowing(null)
-        if (box !== null) return
-        setPassing(false)
-        onDraft("")
-      },
-      Math.max(following + boxLagMs - Date.now(), 0),
+      () => latest.current.onKept?.(),
+      Math.max(following.at + boxLagMs - Date.now(), 0),
     )
     return () => clearTimeout(timer)
-  }, [following, box, onDraft])
+  }, [following, empty])
 
   // The person left with a menu up: the box holds its text, and the draft goes.
-  const latest = useRef({ on, onDraft })
-  useEffect(() => {
-    latest.current = { on, onDraft }
-  }, [on, onDraft])
   useEffect(
     () => () => {
       if (latest.current.on) latest.current.onDraft("")
@@ -160,5 +211,5 @@ export const usePassing = (input: {
     [],
   )
 
-  return { on, opens, edit, press }
+  return { on, edit, press, leave }
 }

@@ -323,10 +323,15 @@ export const createChatCommands = ({
       }),
     takeBox: async (key) => {
       // A shell command and a message don't make one draft: the box stays, and shows.
-      const box = conversations?.conversation(key).getSnapshot().box
+      const shown = conversations?.conversation(key).getSnapshot()
+      const box = shown?.box
       const held = box && `${box.mode === "shell" ? "!" : ""}${box.text}`
       const draft = chatDraftOf(chat.store.getSnapshot().drafts, contextOf(key), key.terminalId)
       if (held && !mixes(held, draft)) return
+      // What a menu of the harness's own stands on is its own to keep, and text the draft
+      // holds too is the chat's own keys on their way: taking it would empty the box under them.
+      if (shown?.slice?.reason === "menu") return
+      if (held && draft !== "" && (held.startsWith(draft) || draft.startsWith(held))) return
       const taking = (conversations?.takeBox?.(key) ?? Promise.resolve(null)).then((words) => {
         if (!words || !terminalOpen(key)) return
         const context = contextOf(key)

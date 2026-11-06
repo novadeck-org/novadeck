@@ -93,12 +93,6 @@ export const agentNames = harnesses.map(({ id }) => id) as unknown as readonly [
   ...AgentName[],
 ]
 
-/**
- * Whether `name` is an agent this build knows. A newer build may know more harnesses and
- * keep their names in data an older one reads, as a portable copy opening the newer one's
- * workspace: what reads a kept name checks it, so an unknown one degrades, never fails a
- * whole listing.
- */
 /** Whether text at a harness's input calls up a menu of its own. */
 export const opensMenu = (text: string, agent: AgentName): boolean => {
   const { leading, words } = harnesses.find(({ id }) => id === agent)!.menus
@@ -107,5 +101,11 @@ export const opensMenu = (text: string, agent: AgentName): boolean => {
   return words.some((key) => word.startsWith(key))
 }
 
+/**
+ * Whether `name` is an agent this build knows. A newer build may know more harnesses and
+ * keep their names in data an older one reads, as a portable copy opening the newer one's
+ * workspace: what reads a kept name checks it, so an unknown one degrades, never fails a
+ * whole listing.
+ */
 export const isAgentName = (name: unknown): name is AgentName =>
   (agentNames as readonly unknown[]).includes(name)

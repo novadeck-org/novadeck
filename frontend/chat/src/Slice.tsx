@@ -1,4 +1,5 @@
 import type { ChatSlice } from "@novadeck/core/conversation"
+import { hasControlCharacters } from "@novadeck/core/conversation/prompt-refusal"
 import { sliceRunStyle } from "@novadeck/core/conversation/slice"
 import { createContext, useContext, useEffect, useRef } from "react"
 
@@ -38,10 +39,22 @@ export const Slice = ({
       onKeyDown={
         taking
           ? (event) => {
+              // What is selected of it is the person's to copy.
+              if (event.key === "c" && !window.getSelection()?.isCollapsed) return
               const pressed = terminalKey(event)
-              if (pressed === undefined) return
+              if (pressed === undefined || event.nativeEvent.isComposing) return
               event.preventDefault()
               keys(pressed)
+            }
+          : undefined
+      }
+      onPaste={
+        taking
+          ? (event) => {
+              // A view's field: what `/login` asks to have pasted, a line at most.
+              const text = event.clipboardData.getData("text/plain").trim()
+              event.preventDefault()
+              if (text !== "" && text.length <= 1024 && !hasControlCharacters(text)) keys(text)
             }
           : undefined
       }

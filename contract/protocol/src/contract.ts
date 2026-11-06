@@ -314,10 +314,11 @@ export const contract = {
         }),
       )
       .output(promptResult),
-    // Writes keys to the agent's terminal as the person's, through its input queue, for what
-    // shows in `agents.slice`: a chat holds no control of the terminal (`terminals.write`). A
-    // terminal with no agent is a CONFLICT. A client sends one key or edit a call, in order, and
-    // Enter on its own: a harness reads Enter right behind text as part of a paste.
+    // Writes keys to the agent's terminal as the person's, for what shows in `agents.slice`: a
+    // chat holds no control of the terminal (`terminals.write`). A terminal with no agent, or
+    // one held by a request whose dialog the chat answers, is a CONFLICT. A client sends one key
+    // or edit a call, in order, and Enter on its own: a harness reads Enter right behind text
+    // as part of a paste.
     keys: procedure
       .input(z.strictObject({ terminalId: id, keys: z.string().min(1).max(1024) }))
       .output(z.void()),

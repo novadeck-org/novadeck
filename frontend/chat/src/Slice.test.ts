@@ -86,6 +86,19 @@ describe("a slice that takes the keys", () => {
     expect(pressed).toEqual(["\x1b", "a"])
   })
 
+  it("leaves what is selected to copy, and a modified key to the app", async () => {
+    const pressed: string[] = []
+    const { container } = await live("view", (keys) => pressed.push(keys))
+    const element = container.querySelector<HTMLElement>(".chat-slice")!
+    window.getSelection()?.selectAllChildren(element)
+    element.dispatchEvent(new KeyboardEvent("keydown", { key: "c", ctrlKey: true, bubbles: true }))
+    window.getSelection()?.removeAllRanges()
+    element.dispatchEvent(
+      new KeyboardEvent("keydown", { key: "T", ctrlKey: true, shiftKey: true, bubbles: true }),
+    )
+    expect(pressed).toEqual([])
+  })
+
   it("leaves a menu's keys to the box", async () => {
     const pressed: string[] = []
     const { container } = await live("menu", (keys) => pressed.push(keys))

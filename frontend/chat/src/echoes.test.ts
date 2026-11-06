@@ -44,6 +44,7 @@ describe("useEchoes", () => {
     const last = { ...view(), columns: 90 }
     rerender({ slice: first, items: [] })
     rerender({ slice: last, items: [] })
+    expect(result.current.shown[0]?.slice).toBeNull()
     rerender({ slice: null, items: [] })
     expect(result.current.shown[0]?.slice).toBe(last)
   })
@@ -54,6 +55,7 @@ describe("useEchoes", () => {
     rerender({ slice: view(), items: [] })
     rerender({ slice: view(true), items: [] })
     rerender({ slice: view(), items: [] })
+    rerender({ slice: null, items: [] })
     expect(result.current.shown[0]?.slice).toBeNull()
   })
 
@@ -70,6 +72,13 @@ describe("useEchoes", () => {
     act(() => result.current.echo("/mo"))
     rerender({ slice: { ...view(), reason: "menu" }, items: [] })
     expect(result.current.shown[0]?.slice).toBeNull()
+  })
+
+  it("takes back one that ran nothing", () => {
+    const { result } = setup()
+    act(() => result.current.echo("/nothing"))
+    act(() => result.current.drop())
+    expect(result.current.shown).toEqual([])
   })
 
   it("gives way to a transcript that records the command", () => {

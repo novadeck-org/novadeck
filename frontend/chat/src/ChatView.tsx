@@ -194,16 +194,18 @@ export const ChatView = ({
       ?.querySelector<HTMLElement>(".chat-input")
       ?.focus({ preventScroll: true })
 
+  const echoes = useEchoes(slice, items)
   const passing = usePassing({
-    agent: harness,
+    // Its program until a session binds, as Codex and Antigravity do only at a first prompt.
+    agent: harness ?? program,
     open: mode === "message",
     draft,
     onDraft,
     box,
     slice,
     write: onKeys,
+    onKept: echoes.drop,
   })
-  const echoes = useEchoes(slice, items)
   const sliceKeys = useMemo(
     () => onKeys && ((keys: string) => void onKeys(keys).catch(() => {})),
     [onKeys],
@@ -412,7 +414,10 @@ export const ChatView = ({
             if (went && !reply)
               setUnrecorded(!recordsShell(harness) && shellCommand(text) !== undefined)
           }}
-          onStop={onInterrupt}
+          onStop={async () => {
+            await passing.leave()
+            await onInterrupt()
+          }}
           focusInput={focusInput}
           onInputFocused={onInputFocused}
           onCancelReply={() => {
@@ -420,9 +425,7 @@ export const ChatView = ({
             focusBox()
           }}
           onOpenTerminal={onAnswerInTerminal}
-          refused={(text, options) =>
-            !passing.on && !(passing.opens(text) && box === null) && refused(text, options)
-          }
+          refused={(text, options) => !passing.on && refused(text, options)}
           passing={passing.on}
           onPress={(keys) => {
             const went = passing.press(keys)

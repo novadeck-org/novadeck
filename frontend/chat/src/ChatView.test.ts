@@ -274,18 +274,32 @@ describe("a chat over a harness's own menu", () => {
     expect(container.querySelector(".chat-echo")?.textContent).toBe("/status")
   })
 
-  it("passes a menu's keys, and Esc only while one shows", () => {
+  it("follows the terminal's program before a session binds", () => {
+    const conversation = createStore(noConversation)
+    const keys: string[] = []
+    const { container } = inApp(conversation, {
+      program: "codex",
+      onKeys: async (written) => {
+        keys.push(written)
+      },
+    })
+    set(container.querySelector("textarea")!, "/")
+    expect(keys).toEqual(["/"])
+  })
+
+  it("passes a menu's keys only while one shows", () => {
     const { field, keys, down, conversation } = open()
     set(field, "/")
     down("ArrowDown")
     down("Escape")
-    expect(keys).toEqual(["/", "\x1b[B"])
+    expect(keys).toEqual(["/"])
     act(() =>
       conversation.update((current) => ({
         ...current,
         slice: { reason: "menu", columns: 80, rows: [[]], cursor: null, secret: false },
       })),
     )
+    down("ArrowDown")
     down("Escape")
     expect(keys).toEqual(["/", "\x1b[B", "\x1b"])
   })

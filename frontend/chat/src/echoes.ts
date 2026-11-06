@@ -33,44 +33,60 @@ export const useEchoes = (
 ): {
   readonly shown: readonly Echo[]
   readonly echo: (text: string) => void
+  readonly drop: () => void
 } => {
   const [echoes, setEchoes] = useState<readonly Echo[]>([])
   // The command whose view may still come or stay, and whether it came.
-  const open = useRef<{ readonly id: number; readonly until: number; seen: boolean } | null>(null)
+  const open = useRef<{
+    readonly id: number
+    readonly until: number
+    seen: boolean
+    last: ChatSlice | null
+  } | null>(null)
   const count = useRef(0)
 
   const echo = useCallback((text: string): void => {
     count.current += 1
     const id = count.current
     const at = Date.now()
-    open.current = { id, until: at + viewMs, seen: false }
+    open.current = { id, until: at + viewMs, seen: false, last: null }
     setEchoes((current) => [...current, { id, text, at, slice: null }].slice(-most))
+  }, [])
+
+  // The last one ran nothing: an Enter the harness kept the text through.
+  const drop = useCallback((): void => {
+    const command = open.current
+    if (!command || command.seen) return
+    open.current = null
+    setEchoes((current) => current.filter((each) => each.id !== command.id))
   }, [])
 
   useEffect(() => {
     const command = open.current
     if (!command) return
-    const held = (kept: ChatSlice | null): void =>
-      setEchoes((current) =>
-        current.map((each) => (each.id === command.id ? { ...each, slice: kept } : each)),
-      )
-    if (slice?.reason !== "view") {
-      // Its view went, or never came in time.
-      if (command.seen || Date.now() > command.until) open.current = null
+    if (slice?.reason === "view") {
+      if (!command.seen && Date.now() > command.until) {
+        open.current = null
+        return
+      }
+      command.seen = true
+      // Nothing keeps a copy of a secret prompt, an earlier row of the same view neither.
+      command.last = slice.secret ? null : slice
+      if (slice.secret) open.current = null
       return
     }
-    if (!command.seen && Date.now() > command.until) {
-      open.current = null
+    if (!command.seen) {
+      if (Date.now() > command.until) open.current = null
       return
     }
-    command.seen = true
-    // Nothing keeps a copy of a secret prompt, an earlier row of the same view neither.
-    if (slice.secret) {
-      open.current = null
-      held(null)
-    } else held(slice)
+    // Its view went: the last of it stays as what it printed, where the live rows were.
+    open.current = null
+    const { id, last } = command
+    setEchoes((current) =>
+      current.map((each) => (each.id === id ? { ...each, slice: last } : each)),
+    )
   }, [slice])
 
   const shown = useMemo(() => echoes.filter((each) => !recorded(each, items)), [echoes, items])
-  return { shown, echo }
+  return { shown, echo, drop }
 }

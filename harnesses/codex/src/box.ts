@@ -46,7 +46,7 @@ const overlay = (screen: ScreenText): boolean =>
     /(^|\s)reverse-i-search:|\? \/ esc close|Side from main thread · (?:ctrl\+|\^|⌃)\/ to switch|· esc (?:back|clear search\/close)\s*$/.test(
       row,
     ),
-  ) || /\besc (to )?(back|close|cancel|clear)\b/.test(lastDrawn(screen))
+  ) || /\besc (to )?(back|close|cancel|clear search\/close)\s*$/.test(lastDrawn(screen))
 
 /**
  * Whether it shows a prompt given mid-turn as waiting. It draws one of two lists by when the

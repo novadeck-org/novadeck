@@ -253,9 +253,13 @@ export const Composer = ({
           }}
           onKeyDown={(event) => {
             if (passing && !event.nativeEvent.isComposing) {
-              const keys = menuKeys[event.key]
+              // A modified key stays the app's, and the field's; Shift+Enter has no line to start.
               if (event.key === "Enter" && event.shiftKey) event.preventDefault()
-              else if (keys !== undefined && onPress(keys)) event.preventDefault()
+              if (event.shiftKey || event.ctrlKey || event.metaKey || event.altKey) return
+              const keys = menuKeys[event.key]
+              // Tab stays in the box with no menu to take it, as what is typed still goes.
+              if ((keys !== undefined && onPress(keys)) || event.key === "Tab")
+                event.preventDefault()
               return
             }
             // The agent's field takes one line.
