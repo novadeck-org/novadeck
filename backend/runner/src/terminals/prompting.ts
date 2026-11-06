@@ -1,3 +1,4 @@
+import { withoutDoorbellLines } from "@novadeck/harness-core/prompts"
 import { promptRefusal, type InterruptResult } from "@novadeck/protocol"
 import {
   BoxNotCleared,
@@ -145,6 +146,6 @@ export class Interrupts {
   /** `entry`, its turn in the terminal's input queue, holds the person's keys as the box is cleared. */
   async interrupt(terminalId: string, entry?: InputEntry): Promise<InterruptResult> {
     const { returned } = await asDomain(this.interrupts.interrupt(terminalId, entry))
-    return { returned: returned ?? null }
+    return { returned: (returned && withoutDoorbellLines(returned)) || null }
   }
 }

@@ -10,6 +10,7 @@ import {
   replyDoorbell,
   replyLine,
   withoutDoorbell,
+  withoutDoorbellLines,
 } from "./prompts.js"
 
 describe("the reply line", () => {
@@ -172,5 +173,32 @@ describe("quotedLine", () => {
       "*",
     ])
       expect(() => quotedLine(bad), bad).toThrow(RangeError)
+  })
+})
+
+describe("words given back from the box", () => {
+  const ring = doorbellLine("Ab12")
+  const reply = replyLine([{ subject: "Merge it?", option: "Merge it", text: "Yes" }])!("Ab12")
+
+  it("leaves out a doorbell line and a reply line, each on a line of its own", () => {
+    expect(withoutDoorbellLines(`Queued beta\n${ring}\nQueued gamma`)).toBe(
+      "Queued beta\nQueued gamma",
+    )
+    expect(withoutDoorbellLines(`${reply}\nQueued beta`)).toBe("Queued beta")
+  })
+
+  it("leaves nothing where nothing else was queued", () => {
+    expect(withoutDoorbellLines(ring)).toBe("")
+    expect(withoutDoorbellLines(reply)).toBe("")
+  })
+
+  it("keeps the person's words as they are, spaces and all", () => {
+    const words = "two  spaces\n\n  and an indent"
+    expect(withoutDoorbellLines(words)).toBe(words.trim())
+  })
+
+  it("keeps a line that only speaks of a doorbell, the person's", () => {
+    const words = `what does ${ring} mean?`
+    expect(withoutDoorbellLines(words)).toBe(words)
   })
 })

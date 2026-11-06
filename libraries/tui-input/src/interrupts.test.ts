@@ -1,5 +1,5 @@
 import type { ScreenText } from "@novadeck/emulator/headless"
-import { describe, expect, it } from "vitest"
+import { describe, expect, it, vi } from "vitest"
 
 import type { BoxProfile, InputBox } from "./box/box.js"
 import { BoxNotCleared, Interrupts, type InterruptHost } from "./interrupts.js"
@@ -7,6 +7,9 @@ import type { InputEntry } from "./queue.js"
 import { screen as screenOf } from "./testing/screens.js"
 
 const ESC = "\x1b"
+const UP = "\x1b[A"
+const DOWN = "\x1b[B"
+const RECALLED = "history row"
 const CLEAR = "<clear>"
 const ONE = "<one>"
 const PENDING = "Esc again to clear"
@@ -27,6 +30,12 @@ const terminal = (
     queued?: boolean | (() => boolean)
     /** How the screen says an Escape must wait yet, as it's read. */
     holds?: (screen: ScreenText, prompt?: string) => boolean
+    /** Up, as its program takes what is queued: what it does to the box, by the nth Up. */
+    takes?: (ups: number) => string | "recall" | undefined
+    /** Whether a view stands over the box. */
+    overlay?: boolean
+    /** The box's mode. */
+    mode?: "prompt" | "shell"
     /** How long the Escape waits on that, in milliseconds. */
     holdMs?: number
     /** What refuses keys to the terminal, as it's asked. */
@@ -61,6 +70,8 @@ const terminal = (
   const began = Date.now()
   let box = options.draft ?? ""
   let pending = false
+  let recalled = false
+  let ups = 0
   const typed: string[] = []
   // When each key was typed, in milliseconds since the terminal was made.
   const typedAt: number[] = []
@@ -74,7 +85,7 @@ const terminal = (
       let last = first
       while (screen.rows[last + 1]?.startsWith("  ")) last += 1
       const lines = screen.rows.slice(first, last + 1).map((row) => row.slice(2))
-      return { text: lines.join("\n").trimEnd(), mode: "prompt", first, last }
+      return { text: lines.join("\n").trimEnd(), mode: options.mode ?? "prompt", first, last }
     },
     collapsed: ({ text }) => /^\[Pasted text #\d+ \+\d+ lines\]$/.test(text),
     ...(options.clear === false
@@ -86,17 +97,27 @@ const terminal = (
     shell: { expands: true, starts: false, footer: () => false },
     queued: () =>
       typeof options.queued === "function" ? options.queued() : options.queued === true,
+    ...(options.takes === undefined
+      ? {}
+      : {
+          takeQueued: {
+            keys: UP,
+            recalled: (screen: ScreenText) => screen.rows.includes(RECALLED),
+            leave: DOWN,
+          },
+        }),
     ...(options.holds === undefined
       ? {}
       : { escapeHold: { holds: options.holds, ms: options.holdMs ?? 60_000 } }),
     collapses: () => false,
-    overlay: () => false,
+    overlay: () => options.overlay === true,
     ...(options.viewport === undefined ? {} : { viewport: () => options.viewport! }),
     room: (rows) => rows - 3,
     still: (rows) => rows.map((row) => row.replace(/^agent \d+s$/, "agent")),
   }
   // How many reads running have shown the box holding the same text.
   let typesOnSteady = options.typesOnSteady
+  let typesAfter: { looks: number; text: string } | undefined
   let steady = 0
   let last: string | undefined
   // The input holds an entry took, and whether one is in force.
@@ -109,6 +130,10 @@ const terminal = (
     profile: () => profile,
     prompt: () => options.prompt,
     screen: () => {
+      if (typesAfter && (typesAfter.looks -= 1) < 0) {
+        box = typesAfter.text
+        typesAfter = undefined
+      }
       if (typesOnSteady !== undefined && steady >= (options.steadyReads ?? 2)) {
         box = typesOnSteady
         typesOnSteady = undefined
@@ -120,7 +145,7 @@ const terminal = (
           rows: [
             options.ticking ? `agent ${Math.floor((Date.now() - began) / 50)}s` : "header",
             ...box.split("\n").map((line, index) => `${index === 0 ? ">" : " "} ${line}`),
-            pending ? PENDING : "footer",
+            recalled ? RECALLED : pending ? PENDING : "footer",
           ],
         }),
       )
@@ -135,6 +160,20 @@ const terminal = (
     write: (_id, data) => {
       written.push(data)
       heldAtWrites.push(holds.some((hold) => hold.held))
+      if (data === UP) {
+        ups += 1
+        const took = options.takes?.(ups)
+        if (took === "recall") {
+          recalled = true
+          box = options.prompt ?? "An earlier prompt"
+        } else if (took !== undefined) box = took
+        return true
+      }
+      if (data === DOWN) {
+        recalled = false
+        box = ""
+        return true
+      }
       if (data === CLEAR && options.clearBrings !== undefined && written.length === 1)
         box = options.clearBrings
       else if (data === CLEAR && options.slow) {
@@ -179,6 +218,14 @@ const terminal = (
     // The person's own typing, which the box shows.
     personTypes: (text: string) => {
       box = text
+    },
+    /** The box as the nth look at the screen from now finds it, as a key just typed. */
+    personTypesAfter: (looks: number, text: string) => {
+      typesAfter = { looks, text }
+    },
+    /** What the program puts in the box this long from now. */
+    boxAfter: (ms: number, text: string) => {
+      setTimeout(() => (box = text), ms).unref()
     },
   }
 }
@@ -317,6 +364,161 @@ describe("interrupts", () => {
     const t = terminal({ holds: (_screen, prompt) => prompts.push(prompt) < 0 })
     await t.interrupt()
     expect(prompts).toEqual([undefined])
+  })
+
+  describe("taking what is queued", () => {
+    const taken = (extra: Parameters<typeof terminal>[0] = {}) => {
+      let took = false
+      return terminal({
+        queued: () => !took,
+        prompt: "Hold on",
+        takes: () => {
+          took = true
+          return "Queued beta\nQueued gamma"
+        },
+        ...extra,
+      })
+    }
+
+    it("takes it into the box before any Escape, stops the turn and gives it back", async () => {
+      const t = taken()
+      expect(await t.interruptIn()).toEqual({ returned: "Queued beta\nQueued gamma" })
+      expect(t.written).toEqual([UP, CLEAR])
+      expect(t.typed).toEqual([ESC])
+    })
+
+    it("holds the person's keys from before it takes to the end of the clear, by one hold", async () => {
+      const t = taken()
+      await t.interruptIn()
+      expect(t.heldAtWrites).toEqual([true, true])
+      expect(t.holds).toEqual([{ held: false, settled: true }])
+    })
+
+    it("needs no Escape where the turn ended as it took", async () => {
+      let took = false
+      const t = terminal({
+        queued: () => !took,
+        working: () => !took,
+        takes: () => {
+          took = true
+          return "Queued beta"
+        },
+      })
+      expect(await t.interruptIn()).toEqual({ returned: "Queued beta" })
+      expect(t.typed).toEqual([])
+      expect(t.written).toEqual([UP, CLEAR])
+    })
+
+    it("gives no hold to wait out where it took: the Escape needs none", async () => {
+      const holds = vi.fn(() => true)
+      const t = taken({ holds })
+      await t.interruptIn()
+      expect(holds).not.toHaveBeenCalled()
+    })
+
+    it.each([
+      ["over a draft", { draft: "my draft" }],
+      ["with no queue shown", { queued: false }],
+      ["in a shell mode's box", { mode: "shell" as const }],
+      ["under a view", { overlay: true }],
+    ])("presses no Up %s", async (_what, extra) => {
+      const t = taken(extra)
+      await t.interruptIn()
+      expect(t.written).not.toContain(UP)
+    })
+
+    it("presses no Up where a key of the person's shows at the look under the hold", async () => {
+      let looks = 0
+      const t = terminal({
+        queued: () => (looks += 1) < 2,
+        prompt: "Hold on",
+        takes: () => "Queued beta",
+      })
+      t.personTypesAfter(1, "my draft")
+      await t.interruptIn()
+      expect(t.written).not.toContain(UP)
+    })
+
+    it("leaves a recall where the queue had gone by the key, and stops the turn as ever", async () => {
+      let took = false
+      const t = terminal({
+        queued: () => !took,
+        prompt: "Hold on",
+        takes: () => {
+          took = true
+          return "recall"
+        },
+      })
+      expect(await t.interruptIn()).toEqual({ returned: undefined })
+      expect(t.written[0]).toBe(UP)
+      expect(t.written[1]).toBe(DOWN)
+      expect(t.typed).toEqual([ESC])
+    })
+
+    it("falls back on the hold where the key took nothing, its row still up", async () => {
+      const started = Date.now()
+      const t = terminal({
+        queued: true,
+        prompt: "Hold on",
+        takes: () => undefined,
+        holds: () => Date.now() - started < 900,
+        after: (escapes) => (escapes === 2 ? "Queued beta" : undefined),
+      })
+      expect(await t.interruptIn()).toEqual({ returned: "Queued beta" })
+      expect(t.written.filter((key) => key === UP)).toHaveLength(1)
+      expect(t.typed).toEqual([ESC, ESC])
+      expect(t.typedAt[0]).toBeGreaterThanOrEqual(880)
+    })
+
+    it("lets the person's keys go where the key took nothing, before the fallback's wait", async () => {
+      const t = terminal({ queued: true, prompt: "Hold on", takes: () => undefined })
+      await t.interruptIn()
+      expect(t.holds[0]?.settled).toBe(true)
+    })
+
+    it("says so where what it took can't be cleared", async () => {
+      const t = taken({ clear: false })
+      await expect(t.interruptIn()).rejects.toBeInstanceOf(BoxNotCleared)
+      expect(t.typed).toEqual([ESC])
+    })
+
+    it("leaves a queue alone where the profile takes none", async () => {
+      const t = terminal({ queued: true, prompt: "Hold on", after: () => "Queued beta" })
+      await t.interruptIn()
+      expect(t.written).not.toContain(UP)
+    })
+  })
+
+  describe("what comes back to the box late", () => {
+    // The Escape put nothing back as the box settled, and no turn started: the words are in
+    // the box only by the wait's end.
+    it("is given back with the person's keys held from before the Escape", async () => {
+      const t = terminal({
+        queued: () => true,
+        prompt: "Hold on",
+        working: (() => {
+          let looks = 0
+          return () => (looks += 1) < 3
+        })(),
+      })
+      t.boxAfter(400, "Queued beta\nQueued gamma")
+      expect(await t.interruptIn()).toEqual({ returned: "Queued beta\nQueued gamma" })
+      expect(t.typed).toEqual([ESC])
+    })
+
+    it("is left as the person's where nothing held their keys", async () => {
+      const t = terminal({
+        queued: () => true,
+        prompt: "Hold on",
+        working: (() => {
+          let looks = 0
+          return () => (looks += 1) < 3
+        })(),
+      })
+      t.boxAfter(400, "their words")
+      expect(await t.interrupt()).toEqual({ returned: undefined })
+      expect(t.written).toEqual([])
+    })
   })
 
   it("presses its Escape at once where the profile doesn't hold it", async () => {

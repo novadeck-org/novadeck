@@ -89,6 +89,17 @@ export type BoxProfile = {
    */
   readonly queued: (screen: ScreenText) => boolean
   /**
+   * How an interrupt takes what is queued into the empty box, before its first Escape, where
+   * the program drains its queue as its turn ends, faster than any Escape: `keys` move it,
+   * and where nothing was queued by then they recall an earlier prompt instead, which
+   * `recalled` reads off the screen and `leave` undoes. Omitted where Escape does it.
+   */
+  readonly takeQueued?: {
+    readonly keys: string
+    readonly recalled: (screen: ScreenText) => boolean
+    readonly leave: string
+  }
+  /**
    * When the screen says an interrupt's first Escape would go wrong yet, and how long, in
    * milliseconds, that Escape waits for it to say otherwise, then goes all the same. A turn
    * that ends during the wait takes the Escape with it, unless messages were queued behind
@@ -144,6 +155,23 @@ export const showsTail = (
 
 /** Whether the box holds nothing. */
 export const isEmpty = (box: InputBox): boolean => compact(box.text) === ""
+
+/**
+ * Whether the keys that take what is queued may go on `screen`: only where it shows a queue,
+ * in a box that reads empty in its prompt mode with no view over it. Over a draft they would
+ * merge it with what they bring, and a queued row alone doesn't rule that out everywhere:
+ * Claude Code draws it in its shell mode's box and under its shortcuts panel too.
+ */
+export const takesQueue = (profile: BoxProfile, screen: ScreenText): boolean => {
+  const box = profile.read(screen)
+  return (
+    box !== undefined &&
+    box.mode === "prompt" &&
+    isEmpty(box) &&
+    profile.queued(screen) &&
+    !profile.overlay(screen)
+  )
+}
 
 /**
  * The text of the rows `first` to `last`, whose first row starts with one of `markers`: the rows

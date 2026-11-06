@@ -1,5 +1,6 @@
 import type { ScreenText } from "@novadeck/emulator/headless"
 import { loadProbe } from "@novadeck/harness-core/testing/probes"
+import { takesQueue } from "@novadeck/tui-input/box"
 import { describe, expect, it } from "vitest"
 
 import { box, clearPending } from "./box.js"
@@ -61,6 +62,48 @@ describe("Claude Code's queued messages", () => {
     })
     expect(box.read({ ...screen, rows })).toBeDefined()
     expect(box.escapeHold?.holds({ ...screen, rows })).toBe(false)
+  })
+})
+
+describe("taking what Claude Code has queued", () => {
+  const { states } = loadProbe<{ states: Record<string, ScreenText> }>(
+    import.meta.dirname,
+    "queued-box.probe.json",
+  )
+
+  it.each([
+    ["emptyQueue", true],
+    ["typedThenDeleted", true],
+    ["plan", true],
+    ["oneLine", false],
+    ["twoLines", false],
+    ["threeLines", false],
+    ["fourLines", false],
+    ["placeholder", false],
+    ["longPaste", false],
+    ["image", false],
+    ["space", false],
+    ["hash", false],
+    ["amp", false],
+    ["slash", false],
+    ["historySearch", false],
+    ["shell", false],
+    ["shortcuts", false],
+    ["recall", false],
+  ])("reads %s as a screen Up may go on: %s", (state, expected) => {
+    expect(takesQueue(box, states[state]!)).toBe(expected)
+  })
+
+  it("draws the queued row in a shell mode's box and under the shortcuts, so that row can't decide", () => {
+    expect(box.queued(states.shell!)).toBe(true)
+    expect(box.queued(states.shortcuts!)).toBe(true)
+  })
+
+  it("reads an Up that found no queue, and only that", () => {
+    const { recalled } = box.takeQueued!
+    expect(recalled(states.recall!)).toBe(true)
+    expect(recalled(states.emptyQueue!)).toBe(false)
+    expect(recalled(states.oneLine!)).toBe(false)
   })
 })
 

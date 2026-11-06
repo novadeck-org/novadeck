@@ -1,0 +1,517 @@
+{
+  "probed": "2026-11-06, src/e2e/probes/queued-box.e2e.ts, Claude Code 2.1.316, Linux, 120 columns: a turn held with a message queued, then each state's keys, cursor keys in normal mode throughout. recall is Up with nothing queued.",
+  "states": {
+    "emptyQueue": {
+      "height": 40,
+      "columns": 120,
+      "cursor": {
+        "row": 36,
+        "column": 2
+      },
+      "rows": {
+        "1": " ▐▛███▛█   Claude Code v2.1.316",
+        "2": "▝▜██████▀  Opus 5.5 · API Usage Billing",
+        "3": " ▝▝   ▝▝   /tmp/novadeck-e2e-ckqYZ8/project",
+        "6": "❯ Hold on                                                                                                               ",
+        "8": "❯ Queued beta                                                                                                           ",
+        "9": "  ctrl+x ctrl+s to send now",
+        "33": "* Simmering… (3s · ↓ 200 tokens)",
+        "34": "                                                                                                    ◐ medium · /effort",
+        "35": "────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────",
+        "36": "❯ Press up to edit queued messages",
+        "37": "────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────",
+        "39": "  ⏸ manual mode on · ← for agents"
+      },
+      "bright": {
+        "6": "❯ Hold on",
+        "8": "❯ Queued beta",
+        "36": "❯ P"
+      }
+    },
+    "oneLine": {
+      "height": 40,
+      "columns": 120,
+      "cursor": {
+        "row": 36,
+        "column": 10
+      },
+      "rows": {
+        "1": " ▐▛███▛█   Claude Code v2.1.316",
+        "2": "▝▜██████▀  Opus 5.5 · API Usage Billing",
+        "3": " ▝▝   ▝▝   /tmp/novadeck-e2e-Khe58N/project",
+        "6": "❯ Hold on                                                                                                               ",
+        "8": "❯ Queued beta                                                                                                           ",
+        "9": "  ctrl+x ctrl+s to send now",
+        "33": "✶ Leavening… (3s · ↓ 200 tokens)",
+        "34": "                                                                                                    ◐ medium · /effort",
+        "35": "────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────",
+        "36": "❯ my draft ",
+        "37": "────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────",
+        "39": "  ⏸ manual mode on"
+      },
+      "bright": {
+        "6": "❯ Hold on",
+        "8": "❯ Queued beta",
+        "36": "❯ my draft"
+      }
+    },
+    "space": {
+      "height": 40,
+      "columns": 120,
+      "cursor": {
+        "row": 36,
+        "column": 3
+      },
+      "rows": {
+        "1": " ▐▛███▛█   Claude Code v2.1.316",
+        "2": "▝▜██████▀  Opus 5.5 · API Usage Billing",
+        "3": " ▝▝   ▝▝   /tmp/novadeck-e2e-0ioFxd/project",
+        "6": "❯ Hold on                                                                                                               ",
+        "8": "❯ Queued beta                                                                                                           ",
+        "9": "  ctrl+x ctrl+s to send now",
+        "33": "✶ Simmering… (3s · ↓ 200 tokens)",
+        "34": "                                                                                                    ◐ medium · /effort",
+        "35": "────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────",
+        "36": "❯   ",
+        "37": "────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────",
+        "39": "  ⏸ manual mode on"
+      },
+      "bright": {
+        "6": "❯ Hold on",
+        "8": "❯ Queued beta",
+        "36": "❯"
+      }
+    },
+    "twoLines": {
+      "height": 40,
+      "columns": 120,
+      "cursor": {
+        "row": 36,
+        "column": 14
+      },
+      "rows": {
+        "1": " ▐▛███▛█   Claude Code v2.1.316",
+        "2": "▝▜██████▀  Opus 5.5 · API Usage Billing",
+        "3": " ▝▝   ▝▝   /tmp/novadeck-e2e-NVt93E/project",
+        "6": "❯ Hold on                                                                                                               ",
+        "8": "❯ Queued beta                                                                                                           ",
+        "9": "  ctrl+x ctrl+s to send now",
+        "32": "✶ Boogieing… (3s · ↓ 200 tokens)",
+        "33": "                                                                                                 ctrl+g to edit in Vim",
+        "34": "────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────",
+        "35": "❯ draft line 1",
+        "36": "  draft line 2 ",
+        "37": "────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────",
+        "39": "  ⏸ manual mode on"
+      },
+      "bright": {
+        "6": "❯ Hold on",
+        "8": "❯ Queued beta",
+        "36": "  draft line 2"
+      }
+    },
+    "threeLines": {
+      "height": 40,
+      "columns": 120,
+      "cursor": {
+        "row": 36,
+        "column": 14
+      },
+      "rows": {
+        "1": " ▐▛███▛█   Claude Code v2.1.316",
+        "2": "▝▜██████▀  Opus 5.5 · API Usage Billing",
+        "3": " ▝▝   ▝▝   /tmp/novadeck-e2e-eUbdFa/project",
+        "6": "❯ Hold on                                                                                                               ",
+        "8": "❯ Queued beta                                                                                                           ",
+        "9": "  ctrl+x ctrl+s to send now",
+        "31": "✶ Billowing… (3s · ↓ 200 tokens)",
+        "32": "                                                                                                 ctrl+g to edit in Vim",
+        "33": "────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────",
+        "34": "❯ draft line 1",
+        "35": "  draft line 2",
+        "36": "  draft line 3 ",
+        "37": "────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────",
+        "39": "  ⏸ manual mode on"
+      },
+      "bright": {
+        "6": "❯ Hold on",
+        "8": "❯ Queued beta",
+        "36": "  draft line 3"
+      }
+    },
+    "placeholder": {
+      "height": 40,
+      "columns": 120,
+      "cursor": {
+        "row": 36,
+        "column": 27
+      },
+      "rows": {
+        "1": " ▐▛███▛█   Claude Code v2.1.316",
+        "2": "▝▜██████▀  Opus 5.5 · API Usage Billing",
+        "3": " ▝▝   ▝▝   /tmp/novadeck-e2e-lBVPND/project",
+        "6": "❯ Hold on                                                                                                               ",
+        "8": "❯ Queued beta                                                                                                           ",
+        "9": "  ctrl+x ctrl+s to send now",
+        "33": "✶ Transfiguring… (3s · ↓ 200 tokens)",
+        "34": "                                                                                                    ◐ medium · /effort",
+        "35": "────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────",
+        "36": "❯ [Pasted text #1 +9 lines] ",
+        "37": "────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────",
+        "39": "  paste again to expand"
+      },
+      "bright": {
+        "6": "❯ Hold on",
+        "8": "❯ Queued beta",
+        "36": "❯ [Pasted text #1 +9 lines]"
+      }
+    },
+    "longPaste": {
+      "height": 40,
+      "columns": 120,
+      "cursor": {
+        "row": 36,
+        "column": 18
+      },
+      "rows": {
+        "1": " ▐▛███▛█   Claude Code v2.1.316",
+        "2": "▝▜██████▀  Opus 5.5 · API Usage Billing",
+        "3": " ▝▝   ▝▝   /tmp/novadeck-e2e-H2jFFr/project",
+        "6": "❯ Hold on                                                                                                               ",
+        "8": "❯ Queued beta                                                                                                           ",
+        "9": "  ctrl+x ctrl+s to send now",
+        "33": "✶ Slithering… (3s · ↓ 200 tokens)",
+        "34": "                                                                                                    ◐ medium · /effort",
+        "35": "────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────",
+        "36": "❯ [Pasted text #1] ",
+        "37": "────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────",
+        "39": "  paste again to expand"
+      },
+      "bright": {
+        "6": "❯ Hold on",
+        "8": "❯ Queued beta",
+        "36": "❯ [Pasted text #1]"
+      }
+    },
+    "slash": {
+      "height": 40,
+      "columns": 120,
+      "cursor": {
+        "row": 36,
+        "column": 3
+      },
+      "rows": {
+        "1": " ▐▛███▛█   Claude Code v2.1.316",
+        "2": "▝▜██████▀  Opus 5.5 · API Usage Billing",
+        "3": " ▝▝   ▝▝   /tmp/novadeck-e2e-9w9vhC/project",
+        "6": "❯ Hold on                                                                                                               ",
+        "8": "❯ Queued beta                                                                                                           ",
+        "9": "  ctrl+x ctrl+s to send now",
+        "30": "  ❯ /add-dir                    Add a new working directory",
+        "31": "    /auto-mode-setup            Teach auto mode about your environment, plus optional rule tweaks",
+        "32": "    /autocompact                Set how full the context gets before auto-summarizing",
+        "33": "    /background                 Send this session to the background and free the terminal",
+        "34": "    /branch                     Create a branch of the current conversation at this point",
+        "35": "────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────",
+        "36": "❯ / ",
+        "37": "────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────",
+        "39": "  ⏸ manual mode on"
+      },
+      "bright": {
+        "6": "❯ Hold on",
+        "8": "❯ Queued beta",
+        "36": "❯ /"
+      }
+    },
+    "shell": {
+      "height": 40,
+      "columns": 120,
+      "cursor": {
+        "row": 37,
+        "column": 2
+      },
+      "rows": {
+        "1": " ▐▛███▛█   Claude Code v2.1.316",
+        "2": "▝▜██████▀  Opus 5.5 · API Usage Billing",
+        "3": " ▝▝   ▝▝   /tmp/novadeck-e2e-dsVSKw/project",
+        "6": "❯ Hold on                                                                                                               ",
+        "8": "❯ Queued beta                                                                                                           ",
+        "9": "  ctrl+x ctrl+s to send now",
+        "34": "✶ Infusing… (3s · ↓ 200 tokens)",
+        "35": "                                                                                                    ◐ medium · /effort",
+        "36": "────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────",
+        "37": "! Press up to edit queued messages",
+        "38": "────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────",
+        "39": "  ! for shell mode"
+      },
+      "bright": {
+        "6": "❯ Hold on",
+        "8": "❯ Queued beta",
+        "37": "! P"
+      }
+    },
+    "image": {
+      "height": 40,
+      "columns": 120,
+      "cursor": {
+        "row": 36,
+        "column": 12
+      },
+      "rows": {
+        "1": " ▐▛███▛█   Claude Code v2.1.316",
+        "2": "▝▜██████▀  Opus 5.5 · API Usage Billing",
+        "3": " ▝▝   ▝▝   /tmp/novadeck-e2e-ZMZyfJ/project",
+        "6": "❯ Hold on                                                                                                               ",
+        "8": "❯ Queued beta                                                                                                           ",
+        "9": "  ctrl+x ctrl+s to send now",
+        "33": "✶ Improvising… (3s · ↓ 200 tokens)",
+        "34": "                                                                                                    ◐ medium · /effort",
+        "35": "────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────",
+        "36": "❯ [Image #1] ",
+        "37": "────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────",
+        "39": "  ⏸ manual mode on"
+      },
+      "bright": {
+        "6": "❯ Hold on",
+        "8": "❯ Queued beta",
+        "36": "❯ [Image #1]"
+      }
+    },
+    "typedThenDeleted": {
+      "height": 40,
+      "columns": 120,
+      "cursor": {
+        "row": 36,
+        "column": 2
+      },
+      "rows": {
+        "1": " ▐▛███▛█   Claude Code v2.1.316",
+        "2": "▝▜██████▀  Opus 5.5 · API Usage Billing",
+        "3": " ▝▝   ▝▝   /tmp/novadeck-e2e-jDycFK/project",
+        "6": "❯ Hold on                                                                                                               ",
+        "8": "❯ Queued beta                                                                                                           ",
+        "9": "  ctrl+x ctrl+s to send now",
+        "33": "✶ Orbiting… (3s · ↓ 200 tokens)",
+        "34": "                                                                                                    ◐ medium · /effort",
+        "35": "────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────",
+        "36": "❯ Press up to edit queued messages",
+        "37": "────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────",
+        "39": "  ⏸ manual mode on · ← for agents"
+      },
+      "bright": {
+        "6": "❯ Hold on",
+        "8": "❯ Queued beta",
+        "36": "❯ P"
+      }
+    },
+    "fourLines": {
+      "height": 40,
+      "columns": 120,
+      "cursor": {
+        "row": 36,
+        "column": 27
+      },
+      "rows": {
+        "1": " ▐▛███▛█   Claude Code v2.1.316",
+        "2": "▝▜██████▀  Opus 5.5 · API Usage Billing",
+        "3": " ▝▝   ▝▝   /tmp/novadeck-e2e-pRjgtA/project",
+        "6": "❯ Hold on                                                                                                               ",
+        "8": "❯ Queued beta                                                                                                           ",
+        "9": "  ctrl+x ctrl+s to send now",
+        "33": "✶ Flowing… (3s · ↓ 200 tokens)",
+        "34": "                                                                                                    ◐ medium · /effort",
+        "35": "────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────",
+        "36": "❯ [Pasted text #1 +3 lines] ",
+        "37": "────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────",
+        "39": "  paste again to expand"
+      },
+      "bright": {
+        "6": "❯ Hold on",
+        "8": "❯ Queued beta",
+        "36": "❯ [Pasted text #1 +3 lines]"
+      }
+    },
+    "hash": {
+      "height": 40,
+      "columns": 120,
+      "cursor": {
+        "row": 36,
+        "column": 3
+      },
+      "rows": {
+        "1": " ▐▛███▛█   Claude Code v2.1.316",
+        "2": "▝▜██████▀  Opus 5.5 · API Usage Billing",
+        "3": " ▝▝   ▝▝   /tmp/novadeck-e2e-yi9vJE/project",
+        "6": "❯ Hold on                                                                                                               ",
+        "8": "❯ Queued beta                                                                                                           ",
+        "9": "  ctrl+x ctrl+s to send now",
+        "33": "✶ Bloviating… (3s · ↓ 200 tokens)",
+        "34": "                                                                                                    ◐ medium · /effort",
+        "35": "────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────",
+        "36": "❯ # ",
+        "37": "────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────",
+        "39": "  ⏸ manual mode on"
+      },
+      "bright": {
+        "6": "❯ Hold on",
+        "8": "❯ Queued beta",
+        "36": "❯ #"
+      }
+    },
+    "amp": {
+      "height": 40,
+      "columns": 120,
+      "cursor": {
+        "row": 36,
+        "column": 3
+      },
+      "rows": {
+        "1": " ▐▛███▛█   Claude Code v2.1.316",
+        "2": "▝▜██████▀  Opus 5.5 · API Usage Billing",
+        "3": " ▝▝   ▝▝   /tmp/novadeck-e2e-qRJo8f/project",
+        "6": "❯ Hold on                                                                                                               ",
+        "8": "❯ Queued beta                                                                                                           ",
+        "9": "  ctrl+x ctrl+s to send now",
+        "33": "✶ Thundering… (3s · ↓ 200 tokens)",
+        "34": "                                                                                                    ◐ medium · /effort",
+        "35": "────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────",
+        "36": "❯ & ",
+        "37": "────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────",
+        "39": "  ⏸ manual mode on"
+      },
+      "bright": {
+        "6": "❯ Hold on",
+        "8": "❯ Queued beta",
+        "36": "❯ &"
+      }
+    },
+    "plan": {
+      "height": 40,
+      "columns": 120,
+      "cursor": {
+        "row": 36,
+        "column": 2
+      },
+      "rows": {
+        "1": " ▐▛███▛█   Claude Code v2.1.316",
+        "2": "▝▜██████▀  Opus 5.5 · API Usage Billing",
+        "3": " ▝▝   ▝▝   /tmp/novadeck-e2e-iNDCbA/project",
+        "6": "❯ Hold on                                                                                                               ",
+        "8": "❯ Queued beta                                                                                                           ",
+        "9": "  ctrl+x ctrl+s to send now",
+        "33": "✶ Inferring… (3s · ↓ 200 tokens)",
+        "34": "                                                                                                    ◐ medium · /effort",
+        "35": "────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────",
+        "36": "❯ Press up to edit queued messages",
+        "37": "────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────",
+        "39": "  ⏵⏵ accept edits on (shift+tab to cycle) · ← for agents"
+      },
+      "bright": {
+        "6": "❯ Hold on",
+        "8": "❯ Queued beta",
+        "36": "❯ P"
+      }
+    },
+    "historySearch": {
+      "height": 40,
+      "columns": 120,
+      "cursor": {
+        "row": 37,
+        "column": 6
+      },
+      "rows": {
+        "1": " ▐▛███▛█   Claude Code v2.1.316",
+        "2": "▝▜██████▀  Opus 5.5 · API Usage Billing",
+        "3": " ▝▝   ▝▝   /tmp/novadeck-e2e-NVIAW9/project",
+        "6": "❯ Hold on                                                                                                               ",
+        "8": "❯ Queued beta                                                                                                           ",
+        "9": "  ctrl+x ctrl+s to send now",
+        "24": "✶ Thundering… (3s · ↓ 200 tokens)",
+        "26": "────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────",
+        "27": "  Search prompts · everywhere",
+        "28": "                      ╭──────────────────────────────────────────────────────────────────────────────────────────────╮",
+        "29": "                      │ Hold on                                                                                      │",
+        "30": "                      │                                                                                              │",
+        "31": "                      │                                                                                              │",
+        "32": "                      │                                                                                              │",
+        "33": "                      │                                                                                              │",
+        "34": "                      │                                                                                              │",
+        "35": "  ❯ 1s ago   Hold on  ╰──────────────────────────────────────────────────────────────────────────────────────────────╯",
+        "36": "  ╭──────────────────────────────────────────────────────────────────────────────────────────────────────────────────╮",
+        "37": "  │ ⌕ Filter history…                                                                                                │",
+        "38": "  ╰──────────────────────────────────────────────────────────────────────────────────────────────────────────────────╯",
+        "39": "  ↑/↓ to navigate · Enter to use · Esc to cancel · ctrl+s to scope"
+      },
+      "bright": {
+        "6": "❯ Hold on",
+        "8": "❯ Queued beta",
+        "28": "",
+        "29": "                        Hold on",
+        "30": "",
+        "31": "",
+        "32": "",
+        "33": "",
+        "34": "",
+        "35": "  ❯ 1s ago   Hold on"
+      }
+    },
+    "shortcuts": {
+      "height": 40,
+      "columns": 120,
+      "cursor": {
+        "row": 31,
+        "column": 2
+      },
+      "rows": {
+        "1": " ▐▛███▛█   Claude Code v2.1.316",
+        "2": "▝▜██████▀  Opus 5.5 · API Usage Billing",
+        "3": " ▝▝   ▝▝   /tmp/novadeck-e2e-5eRuul/project",
+        "6": "❯ Hold on                                                                                                               ",
+        "8": "❯ Queued beta                                                                                                           ",
+        "9": "  ctrl+x ctrl+s to send now",
+        "28": "✶ Scurrying… (3s · ↓ 200 tokens)",
+        "29": "                                                                                                    ◐ medium · /effort",
+        "30": "────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────",
+        "31": "❯ Press up to edit queued messages",
+        "32": "────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────",
+        "33": "  ! for shell mode        double tap esc to clear input      ctrl + shift + _ to undo",
+        "34": "  / for commands          shift + tab to auto-accept edits   ctrl + z to suspend",
+        "35": "  @ for file paths        ctrl + o for verbose output        ctrl + v to paste images",
+        "36": "  /btw for side question  ctrl + t to toggle tasks           alt + p to switch model",
+        "37": "                          backslash (\\) + return (⏎) for     ctrl + s to stash prompt",
+        "38": "                          newline                            ctrl + g to edit in $EDITOR",
+        "39": "                                                             /keybindings to customize"
+      },
+      "bright": {
+        "6": "❯ Hold on",
+        "8": "❯ Queued beta",
+        "31": "❯ P"
+      }
+    },
+    "recall": {
+      "height": 40,
+      "columns": 120,
+      "cursor": {
+        "row": 36,
+        "column": 9
+      },
+      "rows": {
+        "1": " ▐▛███▛█   Claude Code v2.1.316",
+        "2": "▝▜██████▀  Opus 5.5 · API Usage Billing",
+        "3": " ▝▝   ▝▝   /tmp/novadeck-e2e-U122Nm/project",
+        "6": "❯ Hold on                                                                                                               ",
+        "33": "✻ Cooking… (2s · ↓ 200 tokens)",
+        "34": "                                                                                                    ◐ medium · /effort",
+        "35": "─── History 1/1 ────────────────────────────────────────────────────────────────────────────────────────────────────────",
+        "36": "❯ Hold on ",
+        "37": "────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────",
+        "39": "  ⏸ manual mode on"
+      },
+      "bright": {
+        "6": "❯ Hold on",
+        "35": "───             ────────────────────────────────────────────────────────────────────────────────────────────────────────",
+        "36": "❯ Hold on"
+      }
+    }
+  }
+}
