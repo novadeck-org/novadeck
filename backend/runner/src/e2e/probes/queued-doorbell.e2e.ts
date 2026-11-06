@@ -9,7 +9,7 @@ import { doorbellLine } from "@novadeck/harness-core/prompts"
 
 import { claude } from "../agents/claude.js"
 import { describe, e2e, supported } from "../fixture.js"
-import { asked, gate, latest } from "../model/script.js"
+import { asked, gate } from "../model/script.js"
 import { delivered, holds, own, sends, sent, start } from "../scenarios.js"
 import { probing, sleep } from "./support.js"
 
@@ -77,6 +77,7 @@ describe.skipIf(!supported || !probing)("probe: a ring's line queued", () => {
     if (variant === "plain" || variant === "keeps") {
       note("reply let go, no Stop")
       held.open()
+      // eslint-disable-next-line no-unmodified-loop-condition -- `got` is set by the model.
       for (let i = 0; variant === "keeps" && i < 4 && !got; i++) {
         await sleep(1800)
         await t1

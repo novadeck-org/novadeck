@@ -6406,9 +6406,9 @@ describe("the person's reply at a turn's end", () => {
     const { messaging, terminal, bound, prompt, reply, stop } = working(harness)
     messaging.keys(terminal, ["content", "enter"], false)
     reply("Yes")
-    const stopped = stop()
-    expect(stopped.stdout).toContain("Yes")
-    messaging.acknowledge(terminal, stopped.leaseId!)
+    const atStop = stop()
+    expect(atStop.stdout).toContain("Yes")
+    messaging.acknowledge(terminal, atStop.leaseId!)
     expect(prompt(terminal, bound).stdout).not.toContain("Yes")
   })
 

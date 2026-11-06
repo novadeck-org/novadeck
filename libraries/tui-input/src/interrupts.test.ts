@@ -410,7 +410,7 @@ describe("interrupts", () => {
     })
 
     it("gives no hold to wait out where it took: the Escape needs none", async () => {
-      const holds = vi.fn(() => true)
+      const holds = vi.fn<() => boolean>(() => true)
       const t = taken({ holds })
       await t.interruptIn()
       expect(holds).not.toHaveBeenCalled()

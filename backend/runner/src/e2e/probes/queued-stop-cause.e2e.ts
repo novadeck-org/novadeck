@@ -115,6 +115,7 @@ setTimeout(() => { line("end"); console.log("{}") }, ${stopMs})
       let seenLines = 0
       const watcher = (async () => {
         let last = ""
+        // eslint-disable-next-line no-unmodified-loop-condition -- Set from outside the loop.
         while (watching) {
           if (queueFile) {
             const lines = readFileSync(queueFile, "utf8")
