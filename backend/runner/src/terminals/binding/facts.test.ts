@@ -40,6 +40,7 @@ const record = (summary: Partial<Record["summary"]> = {}) =>
       id: "t1",
       agent: null,
       ready: null,
+      startup: null,
       activity: null,
       telemetry: null,
       reported: null,
@@ -125,6 +126,8 @@ describe("the ends of a session", () => {
     const { bound: session, suspended, root, seenEntry } = ends.restarted()
     expect(bound).toMatchObject({ bound: session, suspended, root })
     expect(bound.seenEntry).toBe(seenEntry)
+    // A screen its agent named is the old shell's, so a resume starts with none.
+    expect(ends.restarted()).toHaveProperty("startupScreen", undefined)
   })
 })
 

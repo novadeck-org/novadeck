@@ -47,6 +47,9 @@ describe("answers in the terminal", () => {
       expect(chatShown(true, noTerminalAnswers, "p/s", running)).toBe(true)
       expect(chatShown(false, noTerminalAnswers, "p/s", running)).toBe(false)
       expect(chatShown(true, answering, "p/s", running)).toBe(false)
+      // A startup screen is answered on the screen, which the chat would cover.
+      const held = { ...running, agent: { working: false, startup: "startup" } } as const
+      expect(chatShown(true, noTerminalAnswers, "p/s", held)).toBe(false)
       expect(chatShown(true, noTerminalAnswers, "p/s", { ...terminal, state: "idle" })).toBe(false)
     })
   })

@@ -10,7 +10,7 @@ import {
   statusLineSettings,
   windowsStatusLine,
 } from "@novadeck/harness-agy/settings"
-import { shown } from "@novadeck/harness-agy/status-line"
+import { shown, startupScreen } from "@novadeck/harness-agy/status-line"
 import type { ActivityEvent, HarnessEvent } from "@novadeck/harness-core/events"
 import type { Install } from "@novadeck/harness-core/harness"
 import type { Report } from "@novadeck/harness-core/report"
@@ -45,6 +45,15 @@ const telemetry = (payload: Report["payload"]) =>
 describe("Antigravity's status line, as captured", () => {
   it("says nothing before a conversation starts", () => {
     for (const payload of payloads.slice(0, 3)) expect(decode(report(payload))).toEqual([])
+  })
+
+  it("names the screen it is at before a conversation, and no other's", () => {
+    const [authenticating, initializing, idle] = payloads
+    expect(startupScreen(report(authenticating!))).toBe("sign-in")
+    expect(startupScreen(report(initializing!))).toBe("startup")
+    expect(startupScreen(report(idle!))).toBeUndefined()
+    expect(startupScreen(report(payloads[5]!))).toBeUndefined()
+    expect(startupScreen({ ...report(authenticating!), event: "Stop" })).toBeUndefined()
   })
 
   it("shows its prompt, before any conversation, only once it says idle", () => {

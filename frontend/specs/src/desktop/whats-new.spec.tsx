@@ -420,6 +420,8 @@ describe("the heads-up card", () => {
     // Opening it dismisses nothing and tells the app nothing.
     expect(headsUpDismissals()).toBe(0)
     expect(whatsNewCalls()).toEqual({ dismissed: 0 })
+    // Escape goes where focus is, and the popover moves it there a moment after it shows.
+    await expect.element(feedbackBox()).toHaveFocus()
     await press("{Escape}")
     await expect.element(feedbackBox()).not.toBeInTheDocument()
     await expect.element(headsUp()).toBeVisible()

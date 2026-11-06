@@ -113,7 +113,10 @@ export const terminalActivity = (
   quickExitMs = defaultQuickExitMs,
 ): TerminalActivity => {
   if (summary.exit) return { status: exitStatus(summary.exit, quickExitMs) }
-  const program = runningProgram(summary.process, summary.agent)
+  const startup = summary.agent ? null : summary.startup
+  const named = runningProgram(summary.process, summary.agent ?? startup?.agent ?? null)
+  // A launcher script of the shell's own may hold the foreground over the agent it started.
+  const program = startup && isShellProcess(named) ? startup.agent : named
   if (!program || isShellProcess(program)) return { status: { state: "idle" }, process: program }
   const agent =
     summary.agent && summary.activity
@@ -121,9 +124,11 @@ export const terminalActivity = (
           ...agentStatus(summary.activity),
           ...(summary.reported ? { reported: true as const } : {}),
         }
-      : !summary.agent && summary.ready === program
-        ? { working: false, ...(summary.reported ? { reported: true as const } : {}) }
-        : undefined
+      : startup
+        ? { working: false, startup: startup.screen }
+        : !summary.agent && summary.ready === program
+          ? { working: false, ...(summary.reported ? { reported: true as const } : {}) }
+          : undefined
   const usage = summary.agent && summary.activity ? usageOf(summary.telemetry) : undefined
   return {
     status: { state: "running", ...(agent ? { agent } : {}) },

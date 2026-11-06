@@ -7,6 +7,16 @@ import { summaryTitle } from "./titles.js"
 /** A terminal's summary without what its host keeps: its size, its exit and its run. */
 export type AgentSummary = Omit<TerminalSummary, "cols" | "rows" | "exit" | "run">
 
+/** What a summary says of an agent where none is known: a new shell's, or an ended one's. */
+export const noAgent = {
+  agent: null,
+  ready: null,
+  startup: null,
+  activity: null,
+  telemetry: null,
+  reported: null,
+} as const
+
 /** A terminal's whole summary: its record's half and its host's. */
 export const summaryOf = (record: {
   readonly summary: AgentSummary
@@ -36,9 +46,5 @@ export const savedSummaryOf = (terminal: ListedTerminal): TerminalSummary => ({
   run: 0,
   exit: null,
   process: null,
-  agent: null,
-  ready: null,
-  activity: null,
-  telemetry: null,
-  reported: null,
+  ...noAgent,
 })

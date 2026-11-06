@@ -133,6 +133,8 @@ export {
   type TerminalExit,
   type TerminalRequest,
   type TerminalRequestAnswer,
+  startupScreen,
+  type StartupScreen,
   type TerminalSummary,
   terminalTitle,
   titleFrom,
