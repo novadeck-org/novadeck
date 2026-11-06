@@ -186,7 +186,11 @@ suite("what Codex's subagent tools were", () => {
     expect(run("multi_agent_v1__close_agent", { id: "a1" }).detail).toBe("a1")
     expect(run("clock__sleep", { duration_ms: 5 })).toMatchObject({ kind: "run", title: "Waited" })
     expect(run("mcp__codex_worktrees__list_worktrees", {}).title).toBe("Listed worktrees")
+    expect(run("mcp__codex_worktrees.list_worktrees", {}).title).toBe("Listed worktrees")
     expect(run("mcp__codex_tui__list_worktrees", {}).title).toBe("Listed worktrees")
+    expect(run("mcp__codex_tui.create_worktree", {}).title).toBe("Created a worktree")
+    // The old namespace was never reserved: anything else there is a server's own.
+    expect(run("mcp__codex_worktrees__create_thread", {}).kind).toBe("other")
     expect(run("list_mcp_resources", {}).title).toBe("Listed MCP resources")
   })
 

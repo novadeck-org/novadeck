@@ -179,6 +179,21 @@ const mcpWordings = [
   { label: "Cancel", description: "Cancel this tool call" },
 ] as const
 
+// How Codex's form prints an argument's value: the graphemes it keeps, and of those how many
+// are its own "..." where it cuts one (0.167.0, `format_tool_approval_display_param_value`).
+const valueGraphemes = 60
+const cutMark = "..."
+const graphemes = new Intl.Segmenter()
+
+const shownValue = (value: string): string => {
+  const parts = Array.from(graphemes.segment(value), ({ segment }) => segment)
+  if (parts.length <= valueGraphemes) return value
+  return `${parts.slice(0, valueGraphemes - cutMark.length).join("")}${cutMark}`
+}
+
+// The arguments the form prints, the rest left out (0.167.0).
+const shownArguments = 3
+
 /** An MCP tool's approval form, each row by its digit. */
 const mcpApproval = (lines: readonly string[], facts: RequestFacts): Parsed | undefined => {
   if (facts.kind !== "permission" || !facts.tool.startsWith("mcp__")) return undefined
@@ -194,16 +209,21 @@ const mcpApproval = (lines: readonly string[], facts: RequestFacts): Parsed | un
   if (server !== undefined && facts.tool !== mcpTool(server, tool)) return undefined
   const first = firstOption(lines, form + 2)
   if (first < 0) return undefined
-  // The arguments the form prints, one `name: value` line each in name order.
+  // The arguments, one `name: value` line each in name order, as the form prints them and
+  // whole for the person, who sees all of what they allow.
   const given = facts.input === null || facts.input === undefined ? {} : fieldsOf(facts.input)
   if (!given) return undefined
-  const printed = Object.keys(given)
+  const named = Object.keys(given)
     .toSorted()
     .map((key) => {
       const value = given[key]
-      return `${key}: ${typeof value === "string" ? collapse(value) : JSON.stringify(value)}`
+      return { key, value: typeof value === "string" ? collapse(value) : JSON.stringify(value) }
     })
-  if (!wrapped(lines.slice(form + 2, first), printed.join(" "))) return undefined
+  const printed = named.map(({ key, value }) => `${key}: ${value}`)
+  const shown = named
+    .slice(0, shownArguments)
+    .map(({ key, value }) => `${key}: ${shownValue(value)}`)
+  if (!wrapped(lines.slice(form + 2, first), shown.join(" "))) return undefined
   const { rows } = optionsAt(lines, first)
   const known = rows.map((row) => mcpWordings.find(({ label }) => labelled(row.head, label)))
   if (rows.length < 2 || known.some((each) => each === undefined)) return undefined

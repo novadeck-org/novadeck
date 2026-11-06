@@ -307,6 +307,73 @@ describe("Codex's MCP tool approval", () => {
     expect(read(rows, facts)).toBeUndefined()
   })
 
+  describe("with a value it cuts", () => {
+    const prompt =
+      "Background task: echo outside and then carry on with a rather longer description of the work, — here"
+    const asked: RequestFacts = {
+      kind: "permission",
+      tool: "mcp__codex_tui__create_thread",
+      input: { prompt, title: "bg" },
+      cwd: null,
+    }
+    // As 0.167.0 drew it (probed 2026-11-06).
+    const form = (...values: readonly string[]) => [
+      "• Calling codex_tui.create_thread",
+      "  Field 1/1",
+      '  Allow the codex_tui MCP server to run tool "create_thread"?',
+      ...values,
+      "  › 1. Allow   Run the tool and continue",
+      "    2. Cancel  Cancel this tool call",
+      "  enter to submit | esc to cancel",
+    ]
+    const cut = "  prompt: Background task: echo outside and then carry on with a ra..."
+
+    it("reads it, giving the person the whole value", () => {
+      expect(read(form(cut, "  title: bg"), asked)?.dialog).toMatchObject({
+        title: 'Allow the codex_tui MCP server to run tool "create_thread"?',
+        detail: `prompt: ${prompt}\ntitle: bg`,
+        options: [{ label: "Allow" }, { label: "Cancel" }],
+      })
+    })
+
+    it("reads it wrapped by a narrow terminal", () => {
+      expect(
+        read(
+          form(
+            "  prompt: Background task: echo outside and",
+            "  then carry on with a ra...",
+            "  title: bg",
+          ),
+          asked,
+        ),
+      ).toBeDefined()
+    })
+
+    it("is no dialog where the words shown aren't the value's", () => {
+      expect(read(form(cut.replace("carry", "hurry"), "  title: bg"), asked)).toBeUndefined()
+      expect(
+        read(
+          form("  prompt: Something else that is not at all what the hook said...", "  title: bg"),
+          asked,
+        ),
+      ).toBeUndefined()
+    })
+
+    it("leaves a value of 60 graphemes whole, counting a grapheme once", () => {
+      const whole = "é".repeat(30) + "👍🏽".repeat(30)
+      expect(
+        read(form(`  prompt: ${whole}`), { ...asked, input: { prompt: whole } })?.dialog,
+      ).toMatchObject({ detail: `prompt: ${whole}` })
+    })
+
+    it("reads only the three arguments the form prints, and tells all of them", () => {
+      const input = { a: "1", b: "2", c: "3", d: "4" }
+      expect(read(form("  a: 1", "  b: 2", "  c: 3"), { ...asked, input })?.dialog).toMatchObject({
+        detail: "a: 1\nb: 2\nc: 3\nd: 4",
+      })
+    })
+  })
+
   it("leaves a server's own elicitation form raw", () => {
     const asked: RequestFacts = {
       kind: "permission",

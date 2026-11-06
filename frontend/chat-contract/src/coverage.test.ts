@@ -21,13 +21,22 @@ const unrecorded: Readonly<Record<AgentName, readonly string[]>> = {
   claude: ["powershell"],
   codex: [
     "clock.curr_time",
+    "codex_tui.create_thread",
+    "codex_tui.create_worktree",
+    "codex_tui.fork_thread",
+    "codex_tui.get_worktree_creation_status",
+    "codex_tui.list_archived_threads",
+    "codex_tui.list_threads",
+    "codex_tui.list_worktrees",
+    "codex_tui.read_thread",
+    "codex_tui.send_message_to_thread",
+    "codex_tui.set_thread_archived",
+    "codex_tui.set_thread_title",
+    "codex_tui.wait_threads",
     "image_generation",
     "list_dir",
     "list_mcp_resource_templates",
     "list_mcp_resources",
-    "mcp__codex_worktrees.create_worktree",
-    "mcp__codex_worktrees.get_worktree_creation_status",
-    "mcp__codex_worktrees.list_worktrees",
     "read_file",
     "read_mcp_resource",
     "update_goal",
@@ -68,7 +77,8 @@ const keyOf: Readonly<Record<AgentName, (tool: string) => string>> = {
         /^(?:multi_agent_v\d+|collaboration)(?:\.|__)?(?=(?:spawn_agent|send_message|send_input|followup_task|list_agents|wait_agent|close_agent|resume_agent)$)/,
         "",
       )
-      .replace(/^(clock|mcp__codex_worktrees)__/, "$1."),
+      .replace(/^clock__/, "clock.")
+      .replace(/^mcp__codex_(?:tui|worktrees)(?:__|\.)/, "codex_tui."),
   agy: (tool) => tool.replace(/^mcp_novadeck_novadeck_/, "novadeck:").toLowerCase(),
 }
 

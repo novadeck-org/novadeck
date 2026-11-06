@@ -271,6 +271,11 @@ const subagentTool = (name: string): string =>
     name,
   )?.[1] ?? name
 
+// The old namespace's worktree tools alone: Codex never reserved that name, so any other
+// tool under it belongs to a server the person named so.
+const oldWorktreeTool =
+  /^mcp__codex_worktrees(?:__|\.)(?=(?:create_worktree|get_worktree_creation_status|list_worktrees)$)/
+
 /**
  * What a Codex tool call was, from its name and its input as text (JSON, or the raw patch
  * of `apply_patch`). Names match without regard to case; one it doesn't know shows its
@@ -284,7 +289,8 @@ export const describe = (tool: string, input: string): ToolRun => {
     known(
       subagentTool(tool.toLowerCase())
         .replace(/^clock__/, "clock.")
-        .replace(/^mcp__codex_(?:tui|worktrees)(?:__|\.)/, "codex_tui."),
+        .replace(/^mcp__codex_tui(?:__|\.)/, "codex_tui.")
+        .replace(oldWorktreeTool, "codex_tui."),
       fields,
       input,
     ) ??
