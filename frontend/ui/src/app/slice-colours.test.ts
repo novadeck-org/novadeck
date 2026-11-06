@@ -1,7 +1,7 @@
 import { paletteColour } from "@novadeck/core/conversation/slice"
 
 import { describe, expect, it } from "../test"
-import { requiredTokens } from "./tokens"
+import { requiredTokens } from "../theme/tokens"
 
 // The chat's live slice draws a terminal's sixteen colours with the theme's: each must be a
 // token every theme defines, for each scheme it offers.
