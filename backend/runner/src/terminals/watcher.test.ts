@@ -21,6 +21,7 @@ const terminal = (id: string, changes: Partial<TerminalSummary> = {}): TerminalS
   exit: null,
   agent: null,
   ready: null,
+  startup: null,
   activity: null,
   telemetry: null,
   reported: null,

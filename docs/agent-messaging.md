@@ -326,7 +326,9 @@ agent session; never a name the model passes.
   there, or the terminal closes first, by the person or an agent's `close_terminal`.
   The expectation ends once any session binds there: from then on only a bound session
   takes messages, and one that waited is never handed to a later session. `agents()`
-  shows such a terminal as "expecting Codex, not started yet".
+  shows such a terminal as "expecting Codex, not started yet", or, once one of the agent's
+  own screens holds it for the person, as "expecting Codex, waiting on the user: its startup
+  screen" (see [Startup screens](#startup-screens)).
 - **Threads.** A message continues the thread of the latest message between the same
   two handles, in either direction, within the last ten minutes; otherwise it starts
   one. Agents never name threads.
@@ -1162,7 +1164,7 @@ dialog is a pending request in all three (Codex's `request_user_input` through i
 `PreToolUse` hook), so `asking` comes first; read off the screen alone, Claude Code's
 question list reads as a box holding "1. Blue…" (a draft), its MCP form and Antigravity's
 question and folder-trust screens as no box, and Codex's as one holding the whole
-question. A Codex note field and Antigravity's login screen were not probed. Three rings in a row that
+question. A Codex note field was not probed; Antigravity's login screen reads as no box. Three rings in a row that
 failed after pasting something stop the doorbell (`failed`) until a root turn event or a
 key of the person's; one given up before it pasted, because the box no longer read empty,
 doesn't count. A terminal made Ready by its screen has had turns, so the ring's allowance
@@ -2068,6 +2070,56 @@ path), so it arrives with the lead's mark and note, and the agent acts on it wit
 waiting for the person to confirm, though what it would ask the person before doing, it
 still asks, in its own terminal. The person sees it in
 the new terminal's Messages view, like any other message.
+
+### Startup screens
+
+An agent can stop at a screen of its own before its first session: folder trust, an update,
+a hooks review, sign-in, onboarding, a resume picker. No harness reports anything Novadeck
+binds on there, so nothing but the screen tells that from a slow start. `StartupWatch`
+(`terminals/startup-watch.ts`) looks once a second at each terminal expecting an agent, while
+no session bound and its prompt never showed, and counts a screen as holding the agent when
+all of these stand for 5 s (15 s on Windows, which starts agents far slower):
+
+- Bracketed paste is on. A startup command runs before the shell's line editor turns that on
+  (fish 3, whose line editor has it on already, turns it off for the command), so the agent has taken
+  the terminal, and whatever the shell printed before it does not count. A foreground program
+  can't say this: an agent's process holds the foreground all the while it loads, and Windows
+  names none. Probed with agents held back 9 s (2026-11-06, Claude Code 2.1.316, Codex 0.167.0,
+  Antigravity 1.5.2, Linux under bash); macOS and Windows rest on the e2e case in
+  `controls.e2e.ts`. Codex turns paste on about 0.2 s before it first draws, so one that stalled
+  just there for the whole delay would have the shell's own text read as its screen; no run has
+  done so. Nor is a load that draws no box of its own after paste comes on told from a screen,
+  should one stand for the delay, but none does: restored by a restarted runner, sessions of
+  159 MB (Claude Code), 328 MB (Codex) and 127 MB (Antigravity) each drew a box within 0.8 s of
+  the shell's start, 0.2 s after paste came on at most, and on one core (Linux, warm disk cache,
+  text turns only).
+- The screen isn't blank, and its text doesn't change. Its text, so that a console's repaints
+  count for nothing.
+- The expected harness's own box doesn't read on it. `startup.probe.json` beside each harness
+  keeps the screens probed: Claude Code's trust, onboarding and resume picker; Codex's trust,
+  hooks review, sign-in, update and resume picker; Antigravity's trust, onboarding and
+  sign-in. Each harness's prompt reads as a box, and none of those as one. An MCP server slow
+  to start holds none of the three behind such a screen: each draws its box first. Claude
+  Code's sign-in and update screens and Antigravity's update screen are not probed: Claude
+  Code stops at a connectivity check without a key, and the sandbox raises neither update
+  screen. Antigravity has no resume picker. All these were read on Linux; macOS and Windows
+  run only the folder-trust case.
+
+Antigravity also says which it is: its status line reads `authenticating` behind its login
+screen, which the state names as "its sign-in screen", and `initializing` behind its trust
+dialog and on the way to any prompt, so that says nothing by itself. Either only names a
+screen the rules above already count. The others' screens read as "its startup screen".
+
+The state ends at once at a bound session or the agent's prompt, at the next look (a second at
+most) at a box or the agent leaving, and once the screen
+has moved for as long as the delay: a key the person presses moves it for one look, so its mark
+doesn't flicker, and a spinner after they answer does end it, as a screen that changes at
+every look. One that steps slower than that keeps the mark until a box or a bound session. A box that stands for six delays
+ends the watch of that shell: an agent that never binds may open a dialog of its own later,
+and Codex may raise a screen over a prompt it drew a few seconds before. It reaches `agents()` and, as
+`TerminalSummary.startup`, the terminal's tab: the need mark, with "Waiting at its startup
+screen" in its tooltip, and the chat view gives way to the screen. It raises no Inbox row: no
+request stands behind it.
 
 ## Naming
 

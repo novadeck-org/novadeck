@@ -73,8 +73,9 @@ import { Sampler, shellProcess } from "./sampling.js"
 import { hasRun, keptState, type TerminalRecords } from "./saved-terminals.js"
 import { Saves } from "./saving.js"
 import type { TranscriptSealer } from "./sealing.js"
+import { StartupWatch } from "./startup-watch.js"
 import { Streams } from "./streams.js"
-import { savedSummaryOf, summaryOf, type AgentSummary } from "./summary.js"
+import { noAgent, savedSummaryOf, summaryOf, type AgentSummary } from "./summary.js"
 import { openedWith, renamed as renamedTo, summaryTitle, unnamed, type Naming } from "./titles.js"
 import { readingOf, transcriptChanges } from "./transcripts.js"
 import { Typing, type Prompted, type PromptInput } from "./typing.js"
@@ -263,6 +264,7 @@ export class Terminals {
   private readonly confirms = new Approvals()
   /** Samples running terminals' foreground processes. */
   private readonly sampler: Sampler<Record>
+  private readonly startups: StartupWatch<Record>
   /** Who reads the terminals: their watchers, and each one's detail and messages readers. */
   private readonly streams: Streams<Record>
   /** Names terminals: their handles, and the titles people give them. */
@@ -471,6 +473,13 @@ export class Terminals {
         this.announce(record)
         this.murmur?.sampled(record.summary.id)
       },
+    })
+    this.startups = new StartupWatch<Record>({
+      stopping: () => this.stopping,
+      records: () => this.records.values(),
+      expected: (terminalId) => this.messaging.expected(terminalId),
+      screen: (terminalId) => this.typing.screenOf(terminalId),
+      changed: (record) => this.announce(record),
     })
     this.streams = new Streams<Record>({
       stopping: () => this.stopping,
@@ -791,11 +800,7 @@ export class Terminals {
           lastProgram: saved?.lastProgram ?? null,
           cwd,
           process: shellProcess(shell),
-          agent: null,
-          ready: null,
-          activity: null,
-          telemetry: null,
-          reported: null,
+          ...noAgent,
         },
         ...started,
         terminal,
@@ -838,7 +843,8 @@ export class Terminals {
       const unled = record.summary.ledBy !== null && !started.resumes
       if (unled) record.summary = { ...record.summary, ledBy: null }
       const resumed = started.resumes ? input.resume : undefined
-      this.register(record, expectedAgent(input.command ?? task?.command, resumed))
+      const expected = expectedAgent(input.command ?? task?.command, resumed)
+      this.register(record, started.resumes ? expected : null)
       if (unled) this.messaging.endLead(record.summary.id)
       // The resumed agent shows its own history; a shell that resumes none, the transcript.
       const note = resumeNote(judged, input.resume, started.resumes)
@@ -904,6 +910,7 @@ export class Terminals {
     )
     this.messaging.expect(id, agent)
     record.expecting = agent
+    if (agent) this.startups.start()
   }
 
   /**
@@ -1104,11 +1111,7 @@ export class Terminals {
                     ...record.summary,
                     cwd,
                     process: shellProcess(shell),
-                    agent: null,
-                    ready: null,
-                    activity: null,
-                    telemetry: null,
-                    reported: null,
+                    ...noAgent,
                   } satisfies AgentSummary,
                   foreground: undefined,
                   ...this.bindings.restarted(),
@@ -1548,6 +1551,7 @@ export class Terminals {
     const last = this.saves.shutdown()
     this.stopping = true
     this.sampler.stop()
+    this.startups.stop()
     this.saves.stop()
     this.streams.finishWatchers()
     this.opens.finish()
@@ -1710,11 +1714,7 @@ export class Terminals {
     record.summary = {
       ...record.summary,
       process: null,
-      agent: null,
-      ready: null,
-      activity: null,
-      telemetry: null,
-      reported: null,
+      ...noAgent,
     }
     cancelResume(record)
     this.saves.save(record, true)

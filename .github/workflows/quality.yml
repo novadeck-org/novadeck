@@ -174,12 +174,27 @@ jobs:
         working-directory: backend/relay
         run: cargo test --locked --no-run
 
+      # The shells' integration tests run fish here, and fail rather than skip without it. The
+      # Test Browser steps above have just refreshed apt's lists, and the job has about two
+      # minutes to spare beside its tests, so a slow mirror costs this run its fish and no more.
+      - name: Install fish
+        id: fish
+        if: matrix.shard == 1 && runner.os == 'Linux'
+        timeout-minutes: 2
+        continue-on-error: true
+        run: sudo apt-get install -y --no-install-recommends fish
+
+      - name: Warn That fish Is Missing
+        if: matrix.shard == 1 && runner.os == 'Linux' && steps.fish.outcome != 'success'
+        run: echo "::warning::fish could not be installed in this run; its shell tests were skipped"
+
       # Three minutes inside the job's own limit, so a hung test ends this step and the
       # failures' upload below still runs, rather than the whole job being cancelled.
       - name: Run ${{ matrix.name }}
         run: ${{ matrix.command }}
         timeout-minutes: ${{ matrix.timeout && 37 || (matrix.browser || matrix.shard) && 17 || 7 }}
         env:
+          NOVADECK_REQUIRE_FISH: ${{ steps.fish.outcome == 'success' && '1' || '' }}
           # A re-run with debug logging records Playwright traces of failed UI specs.
           NOVADECK_UI_TRACE: ${{ runner.debug == '1' && '1' || '' }}
           # Each test file's line as it finishes, not a package's whole log once it ends, so

@@ -147,6 +147,14 @@ export class Reports {
           )
     // Its prompt shows before any session of its binds, as Antigravity's status line says.
     const promptShown = harnesses[report.agent].shown?.(report)
+    // Which of its screens the agent expected there says it is at, not a job of its shell. A
+    // snapshot's hook may run after the next one's, so the newest says.
+    const screen =
+      report.agent === record.expecting
+        ? harnesses[report.agent].startupScreen?.(report)
+        : undefined
+    if (screen && report.seq >= (record.startupScreen?.seq ?? 0))
+      record.startupScreen = { screen, seq: report.seq }
     const shown = promptShown && firedFacts([promptShown], report)[0]
     if (events.length === 0 && !shown) return silent
     const child = record.terminal.pty
