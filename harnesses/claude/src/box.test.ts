@@ -31,6 +31,22 @@ describe("Claude Code's queued messages", () => {
     expect(box.escapeHold?.holds({ ...screen, rows })).toBe(false)
   })
 
+  it("reads no queueing where the hint stands beside a tool's hook", () => {
+    const screen = states.through!
+    const rows = screen.rows.map((row) =>
+      row.replace(/\(\d+s ·/, "(running PostToolUse hooks… 1/2 · 3s ·"),
+    )
+    expect(rows.some((row) => row.includes("running PostToolUse hooks"))).toBe(true)
+    expect(box.escapeHold?.holds({ ...screen, rows })).toBe(false)
+  })
+
+  it("reads the hint under other keys", () => {
+    const screen = states.ownHook!
+    const rows = screen.rows.map((row) => row.replace("ctrl+x ctrl+s", "ctrl+g"))
+    expect(rows.some((row) => row.includes("ctrl+g to send now"))).toBe(true)
+    expect(box.escapeHold?.holds({ ...screen, rows })).toBe(false)
+  })
+
   it("reads no queueing where nothing is queued", () => {
     const screen = states.running!
     const rows = screen.rows.map((row) => row.replace("Press up to edit queued messages", ""))

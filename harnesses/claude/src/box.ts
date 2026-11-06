@@ -65,8 +65,9 @@ const queued = (screen: ScreenText): boolean =>
  * count. The hooks of two messages overlap. Escape meanwhile kills them and runs them again
  * one message at a time, so that the second Escape gives back only the first, or both with
  * the chat left reading `working` (probed 2026-11-06, 2.1.316).
- * The hint with the spinner is the turn's own hook: its messages run theirs only as they
- * are sent, whenever Escape comes, so there is nothing to wait for.
+ * The hint beside a hook's words is that hook's alone: the messages are through, or, beside
+ * the turn's own hook, run theirs only as they are sent, whenever Escape comes, so there is
+ * nothing to wait for. Only the hint's last words are read, as its keys can be rebound.
  */
 const queueing = (screen: ScreenText): boolean => {
   if (!queued(screen)) return false
@@ -74,7 +75,7 @@ const queueing = (screen: ScreenText): boolean => {
   const under = above.slice(above.findLastIndex((row) => row.startsWith("❯ ")) + 1)
   return (
     under.some((row) => /running \w+ hook/.test(row)) &&
-    !under.some((row) => row.includes("ctrl+x ctrl+s to send now"))
+    !under.some((row) => row.includes("to send now"))
   )
 }
 

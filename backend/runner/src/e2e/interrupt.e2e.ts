@@ -229,7 +229,7 @@ for (const setup of setups) {
     gated(slowTool, setup.toolHooking ? undefined : "its spinner tells of no tool's hook")(
       "gives back both of two queued messages where a tool's hook has taken over their spinner",
       async ({ e2e: run }) => {
-        seedSlowHook(run, 3000)
+        seedSlowHook(run, 3500)
         seedSlowToolHook(run)
         let ran = ""
         const onSpinner = (terminal: DeckTerminal) => terminal.until(setup.toolHooking!)
