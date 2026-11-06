@@ -3,6 +3,7 @@ import { setTimeout as sleep } from "node:timers/promises"
 
 import type { ScreenText } from "@novadeck/emulator/headless"
 import type { Background, HarnessEvent } from "@novadeck/harness-core/events"
+import { doorbellLine } from "@novadeck/harness-core/prompts"
 import { loadProbe } from "@novadeck/harness-core/testing/probes"
 import { screen } from "@novadeck/harness-core/testing/screens"
 import type { AgentName } from "@novadeck/protocol"
@@ -311,6 +312,25 @@ describe.each([
     }
     expect(rings.leftover("t", drawn(alone.after))).toBe("n7Q2")
     expect(rings.leftover("t", drawn(queued))).toBeUndefined()
+  })
+
+  it.runIf(agent === "claude")("is finished though it fills the box of a small pane", () => {
+    // 14 rows, a viewport of 2: its line wrapped to fill that. Nothing is known to be out of
+    // sight, and a message left waiting for good is worse than any words going out with it.
+    const rule = "─".repeat(40)
+    const line = doorbellLine("n7Q2")
+    const cut = line.indexOf(" ", 30)
+    const rows = [
+      ...Array.from({ length: 8 }, () => ""),
+      rule,
+      `❯ ${line.slice(0, cut)}`,
+      `  ${line.slice(cut + 1)}`,
+      rule,
+      "  footer",
+      "",
+    ]
+    const full = screen({ rows, cursor: { row: 10, column: 10 } })
+    expect(rings.leftover("t", full)).toBe("n7Q2")
   })
 
   it("is the person's once its ring was confirmed: put back by Escape, or recalled", () => {

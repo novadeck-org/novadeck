@@ -25,6 +25,8 @@ const terminal = (
     working?: boolean | (() => boolean)
     /** Whether the screen shows messages queued behind the turn, or how it does as it's read. */
     queued?: boolean | (() => boolean)
+    /** Whether the box says it is cut. */
+    cut?: boolean
     /** How the screen says an Escape must wait yet, as it's read. */
     holds?: (screen: ScreenText, prompt?: string) => boolean
     /** How long the Escape waits on that, in milliseconds. */
@@ -79,6 +81,7 @@ const terminal = (
     stands: () => false,
     textWidth: (columns) => columns - 3,
     collapsed: ({ text }) => /^\[Pasted text #\d+ \+\d+ lines\]$/.test(text),
+    ...(options.cut ? { cut: ({ text }: InputBox) => text.startsWith("↑") } : {}),
     ...(options.clear === false
       ? {}
       : {
@@ -237,6 +240,36 @@ describe("interrupts", () => {
     const t = terminal({ viewport: 3, prompt, after: () => "four\nfive" })
     expect(await t.interrupt()).toEqual({ returned: "four\nfive" })
     expect(t.written).toEqual([CLEAR])
+  })
+
+  it("leaves words queued in the box, and says so, where it may show only their tail", async () => {
+    const t = terminal({
+      queued: true,
+      viewport: 2,
+      prompt: "Hold on",
+      after: () => "Queued eight\nQueued nine",
+    })
+    await expect(t.interrupt()).rejects.toBeInstanceOf(BoxNotCleared)
+    expect(t.written).toEqual([])
+  })
+
+  it.each([
+    ["queued", { queued: true }],
+    ["the turn's own, too tall to tell", { queued: false }],
+  ])("leaves a box that says it is cut, and says so: %s", async (_what, extra) => {
+    const t = terminal({
+      ...extra,
+      cut: true,
+      prompt: "Hold on",
+      after: () => "↑ 10 more lines\nline eleven",
+    })
+    await expect(t.interrupt()).rejects.toBeInstanceOf(BoxNotCleared)
+    expect(t.written).toEqual([])
+  })
+
+  it("gives back words queued that are shorter than the box's viewport", async () => {
+    const t = terminal({ queued: true, viewport: 3, prompt: "Hold on", after: () => "Queued beta" })
+    expect(await t.interrupt()).toEqual({ returned: "Queued beta" })
   })
 
   it("takes no box for full on a screen too small to know its viewport, returning the words that end the prompt", async () => {

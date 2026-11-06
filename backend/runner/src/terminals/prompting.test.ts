@@ -1,4 +1,5 @@
 import type { ScreenText } from "@novadeck/emulator/headless"
+import { doorbellLine, replyLine } from "@novadeck/harness-core/prompts"
 import { screen as screenOf } from "@novadeck/harness-core/testing/screens"
 import { promptRefusal as refusedBy, shellCommand } from "@novadeck/protocol"
 import {
@@ -405,6 +406,16 @@ describe("interrupts", () => {
   it("answer returned: null where nothing is given back", async () => {
     expect(await stopped("the turn's own", { clear: true }).interrupt("t")).toEqual({
       returned: null,
+    })
+  })
+
+  it("gives no doorbell or reply line back as the person's words", async () => {
+    const reply = replyLine([{ subject: "Merge it?", option: "Merge it", text: "Yes" }])!("Ab12")
+    const line = doorbellLine("Ab12")
+    expect(await stopped(line, { clear: true }).interrupt("t")).toEqual({ returned: null })
+    expect(await stopped(reply, { clear: true }).interrupt("t")).toEqual({ returned: null })
+    expect(await stopped(`queued words\n${line}`, { clear: true }).interrupt("t")).toEqual({
+      returned: "queued words",
     })
   })
 

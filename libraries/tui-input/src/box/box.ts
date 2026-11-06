@@ -37,6 +37,11 @@ export type BoxProfile = {
    */
   readonly collapsed: (box: InputBox) => boolean
   /**
+   * Whether the box says it shows only part of its text, where it has words for that, as
+   * Antigravity's `↑ 10 more lines`. Omitted where it doesn't.
+   */
+  readonly cut?: (box: InputBox) => boolean
+  /**
    * Whether a box's text holds, anywhere in it, what stands for more than it shows: a paste's
    * placeholder or an attached image. Words read off the box then aren't all it holds, and
    * erasing it loses the rest.
@@ -169,6 +174,13 @@ export const fillsViewport = (profile: BoxProfile, box: InputBox, rows: number):
   const viewport = profile.viewport?.(rows) ?? Infinity
   return viewport >= minViewport && box.last - box.first + 1 >= viewport
 }
+
+/**
+ * Whether the box may hold more than it shows: as tall as its viewport, or saying so itself.
+ * What it shows then isn't all that keys would act on, so nothing may go by those words alone.
+ */
+export const hidesText = (profile: BoxProfile, box: InputBox, rows: number): boolean =>
+  fillsViewport(profile, box, rows) || profile.cut?.(box) === true
 
 /** Whether the box shows the tail of `text`, as a box shows a text taller than its viewport. */
 export const showsTail = (

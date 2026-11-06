@@ -521,7 +521,14 @@ export class Prompts {
       this.host.note?.(terminalId, "ringing")
       throw new PromptRefusal("ringing", "A line is being delivered to the terminal.")
     }
-    const words = mode === "freed" ? this.host.known?.(terminalId, box.text) : undefined
+    // A box that says it is cut can't show what a paste did to it, so nothing goes over it.
+    if (profile.cut?.(box) === true) {
+      this.host.note?.(terminalId, "draft-kept")
+      throw this.draft()
+    }
+    // Words known of a box that may hold more say nothing of the rest, which erasing would take.
+    const words =
+      mode === "freed" && !state.tail ? this.host.known?.(terminalId, box.text) : undefined
     let now = screen
     if (words !== undefined && profile.erase) {
       now = await this.cursorEnd(terminalId, profile, box, screen, holding)
