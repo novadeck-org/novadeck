@@ -2,7 +2,14 @@ import { setTimeout as sleep } from "node:timers/promises"
 
 import type { ScreenText } from "@novadeck/emulator/headless"
 
-import { isEmpty, showsTail, takesQueue, type BoxProfile, type InputBox } from "./box/box.js"
+import {
+  isEmpty,
+  mayShowTail,
+  showsTail,
+  takesQueue,
+  type BoxProfile,
+  type InputBox,
+} from "./box/box.js"
 import { sameText } from "./box/text.js"
 import type { InputEntry, InputHold } from "./queue.js"
 
@@ -179,54 +186,60 @@ export class Interrupts {
     // comes back only after the box has seemed settled is told from what they typed.
     const budget = this.restoreMs + this.queuedTurnMs + this.clearCapMs()
     const waiting =
-      profile && emptyBefore && queued
+      profile?.takeQueued && emptyBefore && queued
         ? entry?.hold({ inputMs: budget, sizeMs: budget })
         : undefined
-    host.type(terminalId, "\x1b")
-    escaped()
-    if (!profile || !emptyBefore) return none
-    if (prompt === undefined && !queued) return none
-    let box = await this.settled(terminalId, profile)
-    // Programs send what was queued as the next turn, or a steer, which a second Escape
-    // stops; some then put that message back in their box. One Escape does nothing at an idle
-    // prompt, and two are never written here so close together that they open a picker. That turn may start only after the box has
-    // settled, as once the stopped turn took a busy machine longer to end (one program on
-    // Windows CI: its queued turn began 0.8 s after the first Escape, and a second Escape
-    // 0.6 s after it stopped nothing): it is waited for first.
-    // Text the box holds by then, with no such turn, is the person's, typed meanwhile, as
-    // nothing was put back yet: it is left as it is, as no second Escape goes over it.
-    if (box !== undefined && isEmpty(box) && queued && host.alive(terminalId)) {
-      const started = await this.turnStarts(terminalId)
-      const screen = started ? undefined : await host.screen(terminalId)
-      const now = screen && profile.read(screen)
-      if (now !== undefined && !isEmpty(now)) {
-        // Held from before the Escape, it can't be theirs: what was queued, come back late.
-        if (!waiting?.holding()) return none
-        box = now
-      } else {
-        host.type(terminalId, "\x1b")
-        box = await this.settled(terminalId, profile)
+    try {
+      host.type(terminalId, "\x1b")
+      escaped()
+      if (!profile || !emptyBefore) return none
+      if (prompt === undefined && !queued) return none
+      let box = await this.settled(terminalId, profile)
+      // Programs send what was queued as the next turn, or a steer, which a second Escape
+      // stops; some then put that message back in their box. One Escape does nothing at an idle
+      // prompt, and two are never written here so close together that they open a picker. That turn may start only after the box has
+      // settled, as once the stopped turn took a busy machine longer to end (one program on
+      // Windows CI: its queued turn began 0.8 s after the first Escape, and a second Escape
+      // 0.6 s after it stopped nothing): it is waited for first.
+      // Text the box holds by then, with no such turn, is the person's, typed meanwhile, as
+      // nothing was put back yet: it is left as it is, as no second Escape goes over it.
+      if (box !== undefined && isEmpty(box) && queued && host.alive(terminalId)) {
+        const started = await this.turnStarts(terminalId)
+        const screen = started ? undefined : await host.screen(terminalId)
+        const now = screen && profile.read(screen)
+        if (now !== undefined && !isEmpty(now)) {
+          // Held from before the Escape, it isn't theirs: what was queued, come back late.
+          if (!waiting?.holding()) return none
+          box = now
+        } else {
+          host.type(terminalId, "\x1b")
+          box = await this.settled(terminalId, profile)
+        }
       }
+      if (!host.alive(terminalId)) return none
+      // Text that may be there and can't be seen is left, and said.
+      if (box === undefined && queued) throw new BoxNotCleared()
+      if (box === undefined || isEmpty(box)) return none
+      // The prompt put back is the turn's own, which the chat shows already; with messages
+      // queued, what is there is theirs (the host names the queued one the person's latest).
+      // A program puts it back as its text, never as a "[Pasted text]" placeholder, however
+      // long (probed 2026-10-07); a prompt taller than its box shows only its tail, the box
+      // then as tall as it gets.
+      const rows = first?.rows.length ?? 0
+      const restored =
+        !queued &&
+        prompt !== undefined &&
+        (sameText(box.text, prompt) || showsTail(profile, box, rows, prompt))
+      // A placeholder stands for words that clearing would lose: they are left, and said. So
+      // does a box that may hold more than it shows, where those words aren't known in full.
+      if (!profile.clear || (!restored && profile.collapsed(box))) throw new BoxNotCleared()
+      if (queued && mayShowTail(profile, box, rows)) throw new BoxNotCleared()
+      const gone = await this.cleared(terminalId, profile, box, entry, waiting)
+      if (gone === undefined) throw new BoxNotCleared()
+      return restored ? none : { returned: wordsOf(gone) }
+    } finally {
+      waiting?.settle()
     }
-    if (!host.alive(terminalId)) return none
-    // Text that may be there and can't be seen is left, and said.
-    if (box === undefined && queued) throw new BoxNotCleared()
-    if (box === undefined || isEmpty(box)) return none
-    // The prompt put back is the turn's own, which the chat shows already; with messages
-    // queued, what is there is theirs (the host names the queued one the person's latest).
-    // A program puts it back as its text, never as a "[Pasted text]" placeholder, however
-    // long (probed 2026-10-07); a prompt taller than its box shows only its tail, the box
-    // then as tall as it gets.
-    const rows = first?.rows.length ?? 0
-    const restored =
-      !queued &&
-      prompt !== undefined &&
-      (sameText(box.text, prompt) || showsTail(profile, box, rows, prompt))
-    // A placeholder stands for words that clearing would lose: they are left, and said.
-    if (!profile.clear || (!restored && profile.collapsed(box))) throw new BoxNotCleared()
-    const gone = await this.cleared(terminalId, profile, box, entry, waiting)
-    if (gone === undefined) throw new BoxNotCleared()
-    return restored ? none : { returned: wordsOf(gone) }
   }
 
   /**
@@ -275,6 +288,9 @@ export class Interrupts {
       if (box !== undefined && !isEmpty(box)) return { hold: hold ?? inert, screen }
     }
     hold?.settle()
+    // What the hold let go is on its way to the box: the look at it mustn't miss that, or the
+    // words go for what was queued.
+    await sleep(2 * pollMs)
     return { screen: await host.screen(terminalId) }
   }
 
@@ -289,19 +305,31 @@ export class Interrupts {
     escaped: () => void,
   ): Promise<InterruptOutcome> {
     const { host } = this
-    if (host.working(terminalId)) {
-      host.admit(terminalId)
-      host.type(terminalId, "\x1b")
-      escaped()
+    try {
+      if (host.working(terminalId)) {
+        host.admit(terminalId)
+        host.type(terminalId, "\x1b")
+        escaped()
+      }
+      const box = await this.settled(terminalId, profile)
+      if (!host.alive(terminalId)) return { returned: undefined }
+      if (box === undefined) throw new BoxNotCleared()
+      if (isEmpty(box)) return { returned: undefined }
+      const rows = (await host.screen(terminalId))?.rows.length ?? 0
+      // Words it can't give back whole stay in the box, and are said.
+      if (
+        !profile.clear ||
+        profile.collapsed(box) ||
+        profile.takeQueued?.lossy(box) === true ||
+        mayShowTail(profile, box, rows)
+      )
+        throw new BoxNotCleared()
+      const gone = await this.cleared(terminalId, profile, box, undefined, hold)
+      if (gone === undefined) throw new BoxNotCleared()
+      return { returned: wordsOf(gone) }
+    } finally {
+      hold.settle()
     }
-    const box = await this.settled(terminalId, profile)
-    if (!host.alive(terminalId)) return { returned: undefined }
-    if (box === undefined) throw new BoxNotCleared()
-    if (isEmpty(box)) return { returned: undefined }
-    if (!profile.clear || profile.collapsed(box)) throw new BoxNotCleared()
-    const gone = await this.cleared(terminalId, profile, box, undefined, hold)
-    if (gone === undefined) throw new BoxNotCleared()
-    return { returned: wordsOf(gone) }
   }
 
   /** How long clearing the box may hold the person's input. */

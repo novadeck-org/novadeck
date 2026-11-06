@@ -28,12 +28,11 @@ export const clearPending = (rows: readonly string[]): boolean =>
  * Whether it shows a view over its conversation: the agents view Left opens, whose "describe
  * a task for a new session" field reads as an empty box and whose Enter starts a session;
  * the prompt history search Ctrl-R opens; the detailed transcript Ctrl-O toggles (probed
- * 2.1.287 in the e2e sandbox, 2026-10-16); the shortcuts panel `?` opens under an empty box,
- * whose last row this reads (fixtures/queued-box.probe.json, 2.1.316).
+ * 2.1.287 in the e2e sandbox, 2026-10-16).
  */
 const overlay = (screen: ScreenText): boolean =>
   footerRows(screen).some((row) =>
-    /enter to return · space to reply|Esc to cancel · ctrl\+s to scope|Showing detailed transcript|\/keybindings to customize/.test(
+    /enter to return · space to reply|Esc to cancel · ctrl\+s to scope|Showing detailed transcript/.test(
       row,
     ),
   )
@@ -54,8 +53,14 @@ const still = (rows: readonly string[]): readonly string[] =>
 const read = (screen: ScreenText) => agreeing(ruledBox(screen, markers), shellFooter(screen.rows))
 
 /** Whether the screen shows messages queued behind the running turn. */
-const queued = (screen: ScreenText): boolean =>
-  screen.rows.some((row) => row.includes("Press up to edit queued messages"))
+const queued = (screen: ScreenText): boolean => {
+  // In its box or under it: the same words may stand in the conversation above.
+  const first = read(screen)?.first
+  return (
+    first !== undefined &&
+    screen.rows.slice(first).some((row) => row.includes("Press up to edit queued messages"))
+  )
+}
 
 /**
  * Whether messages queued behind the turn may still be in their `UserPromptSubmit` hooks:
@@ -101,6 +106,11 @@ export const box: BoxProfile = {
     // With nothing queued Up recalls the latest prompt, under this rule, which Down leaves.
     recalled: (screen) => screen.rows.some((row) => /^─+ History \d+\/\d+ ─+$/.test(row.trim())),
     leave: "\x1b[B",
+    // Its shortcuts panel, `?`, shows under an empty box, the queued row still up; this row of
+    // it stays whole however narrow the screen wraps the rest (fixtures/queued-box.probe.json).
+    blocked: (screen) => footerRows(screen).some((row) => row.includes("/ for commands")),
+    // An image stands in the box as this: clearing it would lose the image.
+    lossy: ({ text }) => /\[Image #\d+\]/.test(text),
   },
   // Enter runs a command shown as a placeholder as the text it stands for. It binds its session
   // before any command, so none starts one (`starts`).

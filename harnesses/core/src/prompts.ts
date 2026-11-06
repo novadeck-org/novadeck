@@ -167,12 +167,19 @@ export const withoutDoorbell = (prompt: string): string =>
  * Words given back from the box without the doorbell and reply lines among them: a line of
  * Novadeck's that was queued comes back with the person's, and isn't theirs to get.
  */
-export const withoutDoorbellLines = (words: string): string =>
-  words
-    .split("\n")
-    .filter((line) => doorbellNonce(line) === undefined)
-    .join("\n")
-    .trim()
+export const withoutDoorbellLines = (words: string): string => {
+  const kept: string[] = []
+  const lines = words.split("\n")
+  for (let at = 0; at < lines.length;) {
+    // A box wraps a long reply line over rows, which come back as lines.
+    const span = [1, 2, 3, 4, 5, 6].find(
+      (rows) => doorbellNonce(lines.slice(at, at + rows).join(" ")) !== undefined,
+    )
+    if (span === undefined) kept.push(lines[at]!)
+    at += span ?? 1
+  }
+  return kept.join("\n").trim()
+}
 
 /**
  * The characters a quoted line may hold: none that sh, zsh, fish, PowerShell or cmd expand

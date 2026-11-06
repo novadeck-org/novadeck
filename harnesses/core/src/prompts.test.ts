@@ -187,6 +187,14 @@ describe("words given back from the box", () => {
     expect(withoutDoorbellLines(`${reply}\nQueued beta`)).toBe("Queued beta")
   })
 
+  it("leaves out a reply line a box wrapped over rows", () => {
+    const wrapped = reply.replace(/ ([^ ]+ [^ ]+)$/, "\n$1").replace(" ", "\n")
+    expect(wrapped.split("\n").length).toBeGreaterThan(2)
+    expect(withoutDoorbellLines(`Queued beta\n${wrapped}\nQueued gamma`)).toBe(
+      "Queued beta\nQueued gamma",
+    )
+  })
+
   it("leaves nothing where nothing else was queued", () => {
     expect(withoutDoorbellLines(ring)).toBe("")
     expect(withoutDoorbellLines(reply)).toBe("")

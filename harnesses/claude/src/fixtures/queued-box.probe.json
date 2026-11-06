@@ -1,5 +1,5 @@
 {
-  "probed": "2026-11-06, src/e2e/probes/queued-box.e2e.ts, Claude Code 2.1.316, Linux, 120 columns: a turn held with a message queued, then each state's keys, cursor keys in normal mode throughout. recall is Up with nothing queued.",
+  "probed": "2026-11-06, src/e2e/probes/queued-box.e2e.ts, Claude Code 2.1.316, Linux, 120 columns, shortcutsNarrow 80: a turn held with a message queued, then each state's keys, cursor keys in normal mode throughout. recall is Up with nothing queued.",
   "states": {
     "emptyQueue": {
       "height": 40,
@@ -511,6 +511,42 @@
         "6": "❯ Hold on",
         "35": "───             ────────────────────────────────────────────────────────────────────────────────────────────────────────",
         "36": "❯ Hold on"
+      }
+    },
+    "shortcutsNarrow": {
+      "height": 24,
+      "columns": 80,
+      "cursor": {
+        "row": 14,
+        "column": 2
+      },
+      "rows": {
+        "1": " ▐▛███▛█   Claude Code v2.1.316",
+        "2": "▝▜██████▀  Opus 5.5 · API Usage Billing",
+        "3": " ▝▝   ▝▝   /tmp/novadeck-e2e-4N0OtP/project",
+        "6": "❯ Hold on                                                                       ",
+        "8": "❯ Queued beta                                                                   ",
+        "9": "  ctrl+x ctrl+s to send now",
+        "11": "· Wrangling… (3s · ↓ 200 tokens)",
+        "12": "                                                            ◐ medium · /effort",
+        "13": "────────────────────────────────────────────────────────────────────────────────",
+        "14": "❯ Press up to edit queued messages",
+        "15": "────────────────────────────────────────────────────────────────────────────────",
+        "16": "  ! for shell mode     double tap esc to clear input  ctrl + shift + _ to undo",
+        "17": "  / for commands       shift + tab to auto-accept     ctrl + z to suspend",
+        "18": "  @ for file paths     edits                          ctrl + v to paste images",
+        "19": "  /btw for side        ctrl + o for verbose output    alt + p to switch model",
+        "20": "  question             ctrl + t to toggle tasks       ctrl + s to stash prompt",
+        "21": "                       backslash (\\) + return (⏎) for ctrl + g to edit in ",
+        "22": "                       newline                        $EDITOR",
+        "23": "                                                      /keybindings to "
+      },
+      "bright": {
+        "6": "❯ Hold on",
+        "8": "❯ Queued beta",
+        "14": "❯ P",
+        "21": "                       backslash (\\) + return (⏎) for ctrl + g to edit in",
+        "23": "                                                      /keybindings to"
       }
     }
   }

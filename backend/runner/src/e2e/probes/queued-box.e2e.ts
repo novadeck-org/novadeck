@@ -46,6 +46,7 @@ const contents: Record<string, string> = {
   plan: "\u001b[Z",
   historySearch: "\u0012",
   shortcuts: "?",
+  shortcutsNarrow: "?",
   recall: "\u001b[A",
   fourLines: paste(lines(4)),
 }
@@ -67,6 +68,10 @@ describe.skipIf(!supported || !probing)("probe: Claude Code's box with a queue",
       await t1.prompt("Hold on")
       await t1.reached("working", { after: mark })
       await sleep(1500)
+      if (name === "shortcutsNarrow") {
+        t1.resize(80, 24)
+        await sleep(500)
+      }
       if (name !== "recall") {
         await t1.prompt("Queued beta")
         await t1.until(/Press up to edit queued messages/)

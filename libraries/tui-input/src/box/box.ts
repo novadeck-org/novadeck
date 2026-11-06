@@ -92,12 +92,16 @@ export type BoxProfile = {
    * How an interrupt takes what is queued into the empty box, before its first Escape, where
    * the program drains its queue as its turn ends, faster than any Escape: `keys` move it,
    * and where nothing was queued by then they recall an earlier prompt instead, which
-   * `recalled` reads off the screen and `leave` undoes. Omitted where Escape does it.
+   * `recalled` reads off the screen and `leave` undoes. They don't go where `blocked` says, a
+   * panel of the program's being up, and what `lossy` says clearing would lose stays in the
+   * box. Omitted where Escape does it.
    */
   readonly takeQueued?: {
     readonly keys: string
     readonly recalled: (screen: ScreenText) => boolean
     readonly leave: string
+    readonly blocked: (screen: ScreenText) => boolean
+    readonly lossy: (box: InputBox) => boolean
   }
   /**
    * When the screen says an interrupt's first Escape would go wrong yet, and how long, in
@@ -148,9 +152,12 @@ export const showsTail = (
   box: InputBox,
   rows: number,
   text: string,
-): boolean => {
+): boolean => mayShowTail(profile, box, rows) && endsText(box.text, text)
+
+/** Whether the box is as tall as its viewport lets it be, so it may show only its text's tail. */
+export const mayShowTail = (profile: BoxProfile, box: InputBox, rows: number): boolean => {
   const viewport = profile.viewport?.(rows) ?? Infinity
-  return viewport >= minViewport && box.last - box.first + 1 >= viewport && endsText(box.text, text)
+  return viewport >= minViewport && box.last - box.first + 1 >= viewport
 }
 
 /** Whether the box holds nothing. */
@@ -160,7 +167,7 @@ export const isEmpty = (box: InputBox): boolean => compact(box.text) === ""
  * Whether the keys that take what is queued may go on `screen`: only where it shows a queue,
  * in a box that reads empty in its prompt mode with no view over it. Over a draft they would
  * merge it with what they bring, and a queued row alone doesn't rule that out everywhere:
- * Claude Code draws it in its shell mode's box and under its shortcuts panel too.
+ * Claude Code draws it in its shell mode's box and under its shortcuts panel too (`blocked`).
  */
 export const takesQueue = (profile: BoxProfile, screen: ScreenText): boolean => {
   const box = profile.read(screen)
@@ -169,7 +176,8 @@ export const takesQueue = (profile: BoxProfile, screen: ScreenText): boolean => 
     box.mode === "prompt" &&
     isEmpty(box) &&
     profile.queued(screen) &&
-    !profile.overlay(screen)
+    !profile.overlay(screen) &&
+    profile.takeQueued?.blocked(screen) !== true
   )
 }
 

@@ -34,6 +34,8 @@ const terminal = (
     takes?: (ups: number) => string | "recall" | undefined
     /** Whether a view stands over the box. */
     overlay?: boolean
+    /** Whether a panel stands by it, the keys that take the queue not to go. */
+    blocked?: boolean
     /** The box's mode. */
     mode?: "prompt" | "shell"
     /** How long the Escape waits on that, in milliseconds. */
@@ -104,6 +106,8 @@ const terminal = (
             keys: UP,
             recalled: (screen: ScreenText) => screen.rows.includes(RECALLED),
             leave: DOWN,
+            blocked: () => options.blocked === true,
+            lossy: ({ text }: InputBox) => text.includes("[Image"),
           },
         }),
     ...(options.holds === undefined
@@ -421,6 +425,7 @@ describe("interrupts", () => {
       ["with no queue shown", { queued: false }],
       ["in a shell mode's box", { mode: "shell" as const }],
       ["under a view", { overlay: true }],
+      ["beside a panel of its own", { blocked: true }],
     ])("presses no Up %s", async (_what, extra) => {
       const t = taken(extra)
       await t.interruptIn()
@@ -482,10 +487,65 @@ describe("interrupts", () => {
       expect(t.typed).toEqual([ESC])
     })
 
-    it("leaves a queue alone where the profile takes none", async () => {
+    it("leaves it in the box, and says so, where the box may hold more than it shows", async () => {
+      let took = false
+      const t = terminal({
+        queued: () => !took,
+        viewport: 2,
+        takes: () => {
+          took = true
+          return "Queued eight\nQueued nine"
+        },
+      })
+      await expect(t.interruptIn()).rejects.toBeInstanceOf(BoxNotCleared)
+      expect(t.written).toEqual([UP])
+      expect(t.holds[0]?.settled).toBe(true)
+    })
+
+    it("leaves it in the box, and says so, where clearing would lose an image", async () => {
+      let took = false
+      const t = terminal({
+        queued: () => !took,
+        takes: () => {
+          took = true
+          return "[Image #1] look at this"
+        },
+      })
+      await expect(t.interruptIn()).rejects.toBeInstanceOf(BoxNotCleared)
+      expect(t.written).toEqual([UP])
+    })
+
+    it("gives the screen time to show what the hold let go, and leaves that as a draft", async () => {
+      const t = terminal({ queued: true, prompt: "Hold on", takes: () => undefined })
+      // Held while the keys took nothing, the person's words reach the box once let go.
+      t.boxAfter(700, "my own words")
+      expect(await t.interruptIn()).toEqual({ returned: undefined })
+      expect(t.written).toEqual([UP])
+    })
+
+    it("settles what it holds where the turn's Escape is refused", async () => {
+      let took = false
+      let looks = 0
+      const t = terminal({
+        queued: () => !took,
+        admit: () => {
+          if (took && (looks += 1) > 0) throw new Error("A dialog came up")
+        },
+        takes: () => {
+          took = true
+          return "Queued beta"
+        },
+      })
+      await expect(t.interruptIn()).rejects.toThrow("A dialog came up")
+      expect(t.holds[0]?.settled).toBe(true)
+    })
+
+    it("leaves a queue alone where the profile takes none, and the person's keys free", async () => {
       const t = terminal({ queued: true, prompt: "Hold on", after: () => "Queued beta" })
       await t.interruptIn()
       expect(t.written).not.toContain(UP)
+      // Only the clear holds them, as ever, not the wait for the queued turn.
+      expect(t.holds).toEqual([{ held: false, settled: true }])
     })
   })
 
@@ -496,14 +556,16 @@ describe("interrupts", () => {
       const t = terminal({
         queued: () => true,
         prompt: "Hold on",
+        takes: () => undefined,
         working: (() => {
           let looks = 0
           return () => (looks += 1) < 3
         })(),
       })
-      t.boxAfter(400, "Queued beta\nQueued gamma")
+      t.boxAfter(1_100, "Queued beta\nQueued gamma")
       expect(await t.interruptIn()).toEqual({ returned: "Queued beta\nQueued gamma" })
       expect(t.typed).toEqual([ESC])
+      expect(t.holds.every(({ settled }) => settled)).toBe(true)
     })
 
     it("is left as the person's where nothing held their keys", async () => {

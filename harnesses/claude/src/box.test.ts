@@ -89,6 +89,7 @@ describe("taking what Claude Code has queued", () => {
     ["historySearch", false],
     ["shell", false],
     ["shortcuts", false],
+    ["shortcutsNarrow", false],
     ["recall", false],
   ])("reads %s as a screen Up may go on: %s", (state, expected) => {
     expect(takesQueue(box, states[state]!)).toBe(expected)
@@ -97,6 +98,19 @@ describe("taking what Claude Code has queued", () => {
   it("draws the queued row in a shell mode's box and under the shortcuts, so that row can't decide", () => {
     expect(box.queued(states.shell!)).toBe(true)
     expect(box.queued(states.shortcuts!)).toBe(true)
+  })
+
+  it("doesn't take the row's words in the conversation for a queue", () => {
+    const screen = states.oneLine!
+    const rows = screen.rows.with(8, "● Press up to edit queued messages, it says")
+    expect(box.queued({ ...screen, rows })).toBe(false)
+  })
+
+  it("says clearing would lose an image in the box, and no text", () => {
+    const { lossy } = box.takeQueued!
+    const of = (text: string) => ({ text, mode: "prompt" as const, first: 0, last: 0 })
+    expect(lossy(of("[Image #1] look at this"))).toBe(true)
+    expect(lossy(of("look at this"))).toBe(false)
   })
 
   it("reads an Up that found no queue, and only that", () => {
