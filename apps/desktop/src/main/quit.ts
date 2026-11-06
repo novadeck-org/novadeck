@@ -1,6 +1,7 @@
 import type { IpcMainEvent } from "electron"
 
 import { saveBeforeQuitChannel } from "../bridge.js"
+import type { Quitting } from "./quitting.js"
 
 type QuitIpc = {
   on(channel: string, listener: (event: IpcMainEvent) => void): unknown
@@ -134,4 +135,76 @@ export const saveBeforeClose = (
       if (!window.isDestroyed()) window.close()
     })
   })
+}
+
+/**
+ * Every page saves before the runner ends its shells, so the saves name what still runs.
+ * The runner and the server then close side by side, and one's close failing leaves the
+ * other's to finish.
+ */
+export const shutDownInOrder = async ({
+  platform,
+  persist,
+  save,
+  closeRunner,
+  closeServer,
+}: {
+  readonly platform: NodeJS.Platform
+  readonly persist: () => void
+  readonly save: () => Promise<void>
+  readonly closeRunner: () => Promise<void> | undefined
+  readonly closeServer: () => Promise<void> | undefined
+}): Promise<void> => {
+  // On Windows the runner hears at once that the app is going, as at the session's end, so
+  // no agent the system ends meanwhile counts as ended by the person.
+  if (platform === "win32") persist()
+  await save()
+  await Promise.allSettled([closeRunner(), closeServer()])
+}
+
+/** What a quit runs; `beforeQuit` holds their order. */
+export type QuitSteps = {
+  readonly quitting: Quitting
+  /** Whether an update going into place holds this quit back. */
+  readonly held: () => boolean
+  /** Says that the app is quitting, once. */
+  readonly announce: () => void
+  /** Runs on every pass, the last too. */
+  readonly begin: () => void
+  /** Whether the app has a runner or a server to shut down. */
+  readonly hosting: () => boolean
+  readonly shutDown: () => Promise<void>
+  readonly installMacUpdate: () => Promise<void>
+  readonly reopenAppImage: () => Promise<void>
+  /** Quits again, which comes back here with nothing left to do and lets the app end. */
+  readonly quit: () => void
+}
+
+/**
+ * The app's `before-quit`: holds the quit back until everything that ends with the app has
+ * ended, and quits again whatever failed on the way, so a failure never leaves the app
+ * running with its shells gone. Returns that work, which ends with the failure if one came,
+ * or nothing when this pass lets the quit go on or holds it.
+ */
+export const beforeQuit = (
+  event: { preventDefault(): void },
+  steps: QuitSteps,
+): Promise<void> | undefined => {
+  const { quitting } = steps
+  // The quit already under way ends the app once the update is in place.
+  if (steps.held()) {
+    event.preventDefault()
+    return undefined
+  }
+  if (!quitting.stopping) steps.announce()
+  steps.begin()
+  if (!steps.hosting() || quitting.stopping) return undefined
+
+  event.preventDefault()
+  quitting.stopping = true
+  return steps
+    .shutDown()
+    .then(steps.installMacUpdate)
+    .then(steps.reopenAppImage)
+    .finally(steps.quit)
 }
