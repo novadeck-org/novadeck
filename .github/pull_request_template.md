@@ -3,7 +3,7 @@ Read CONTRIBUTING.md first. Keep this scannable.
 Lead with the outcome. Leave routine implementation details in the diff.
 Title: type(optional-scope): concise imperative summary.
 Types: build, chore, ci, docs, feat, fix, perf, poc, refactor, revert, style, test.
-Fill What, Why, and Impact. Remove these comments before submitting.
+Fill What, Why, Impact, and Heads-up. Remove these comments before submitting.
 -->
 
 ## What
@@ -20,7 +20,7 @@ Fill What, Why, and Impact. Remove these comments before submitting.
 
 ## Heads-up
 
-<!-- Only if someone who used this yesterday would be surprised or has to do something differently (a moved or removed control, a changed key, default or layout): what they'll notice, what's gone, what to do instead, in plain words for a user. Otherwise remove this section. Not for additions, or fixes that restore what people expected. -->
+<!-- Would someone who used this yesterday be surprised, or have to do something differently (a moved or removed control, a changed key, default or layout)? Say what they'll notice, what's gone and what to do instead, in plain words for a user. Otherwise write None, as for additions and fixes that restore what people expected. -->
 
 ## Screenshot
 

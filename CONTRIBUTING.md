@@ -41,7 +41,7 @@ through a CLI or API. Titles use `type(optional-scope): concise imperative summa
 Allowed types are `build`, `chore`, `ci`, `docs`, `feat`, `fix`, `perf`, `refactor`,
 `poc`, `revert`, `style`, and `test`.
 
-Fill the required What, Why, and Impact sections. State the outcome, tradeoffs,
+Fill the required What, Why, Impact, and Heads-up sections. State the outcome, tradeoffs,
 and remaining limits; mention checks run when useful. Link related issues; use a
 closing keyword only when the PR fully resolves one. Remove instructional comments
 and the Screenshot section when it does not apply. Keep the title and body current.
