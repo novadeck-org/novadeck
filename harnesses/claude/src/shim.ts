@@ -155,6 +155,8 @@ rem Only while Claude Code is connected: Novadeck's shells name the harnesses wh
 echo " %NOVADECK_SHIMS% " | findstr /c:" claude " >nul || goto plain
 set "novadeck_settings=%~dp0..\\plugins\\claude\\statusline.json"
 if not exist "%novadeck_settings%" goto plain
+rem Set beside the line that runs claude, the line as typed parses as that one does.
+set novadeck_line=%*
 call :command %* && goto plain
 "%novadeck_real%" --settings "%novadeck_settings%" %*
 exit /b %ERRORLEVEL%
@@ -188,12 +190,12 @@ shift
 shift
 goto command
 rem cmd splits a word at =, so --add-dir=a arrives as two, and that form takes one value: only
-rem the line as typed tells it from --add-dir a. Set bare and read delayed, it is parsed no
-rem differently from the call above, and no quote in it can expose a command separator.
+rem the line as typed tells it from --add-dir a, read delayed so that no quote in it can expose
+rem a command separator. That is the option's first mention, and cmd splits its value at a comma
+rem too: where either misleads, a session goes without the status line, or a command gets one.
 :list
 shift
 shift
-set novadeck_line=%*
 setlocal enabledelayedexpansion
 set "novadeck_after=!novadeck_line:*%novadeck_arg%=!"
 if "!novadeck_after:~0,1!"=="=" (

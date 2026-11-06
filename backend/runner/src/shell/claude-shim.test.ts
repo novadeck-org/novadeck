@@ -184,10 +184,11 @@ describe("claude shim", { timeout: 60_000 }, () => {
       ["--allowedTools", "Read", "Write", "update"],
       ["--tools", "Read", "-", "mcp"],
       ["--add-dir=a", "b", "mcp"],
-      // Only this word's own form counts, whatever a later one says.
-      ["--add-dir", "a", "mcp", "--add-dir=b"],
-      // Words cmd would run, were the shim's reading of the line to uncover them.
+      // Words cmd would run or change, were the shim's reading of the line to uncover them.
       ["--add-dir", "a & b", "mcp"],
+      ["--add-dir", "a!b", "mcp"],
+      // Nothing after it: the shim's reading of the line finds no value there.
+      ["--add-dir"],
       // cmd splits a word at a comma too, into more of the list.
       ["--tools", "Read,Write", "mcp"],
     ])
