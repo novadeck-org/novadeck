@@ -23,6 +23,12 @@ export const startupDelayMs = (platform: NodeJS.Platform): number =>
   platform === "win32" ? 15_000 : 5_000
 
 /**
+ * How many delays an agent's box stands before the watch leaves it alone. Codex draws its
+ * prompt first and may raise its hooks review or update screen over it a few seconds later.
+ */
+const promptedDelays = 6
+
+/**
  * What a screen says of the agent expected there: its own `box`, which it takes prompts in;
  * a `screen` it drew with none, which can only be waiting on the person; or `nothing` of it
  * yet. Until an agent takes the terminal for itself, turning on bracketed paste, what shows is
@@ -52,7 +58,7 @@ export type Track = {
   readonly held: boolean
   /** Since when its agent's box has stood; null while none does. */
   readonly box: number | null
-  /** Its box stood for the delay: the agent is past any startup screen, and is left alone. */
+  /** Its box stood long enough: the agent is past any startup screen, and is left alone. */
   readonly prompted: boolean
 }
 
@@ -69,9 +75,9 @@ export const freshTrack = (now: number): Track => ({
  * The track after a look. A screen holds its agent once it stood for `delayMs`, and stops
  * only at a box, or once it moved for as long: a key the person presses at it moves it for a
  * look, so its mark doesn't flicker, and a spinner after they answer does end it. A box that
- * stands as long ends the watch: one that never binds, its hooks silent, may open a dialog of
- * its own much later. Only standing does: Codex's logo reads as a box for a moment, right
- * before its trust question.
+ * stands for `promptedDelays` ends the watch: an agent that never binds, its hooks silent, may
+ * open a dialog of its own much later. Only standing does: Codex's logo reads as a box for a
+ * moment, right before its trust question.
  */
 export const nextTrack = (
   track: Track,
@@ -82,7 +88,7 @@ export const nextTrack = (
 ): Track => {
   if (look === "box") {
     const box = track.box ?? now
-    return { ...freshTrack(now), text, box, prompted: now - box >= delayMs }
+    return { ...freshTrack(now), text, box, prompted: now - box >= delayMs * promptedDelays }
   }
   if (look === "screen" && text === track.text)
     return { ...track, moving: null, held: track.held || now - track.still >= delayMs, box: null }

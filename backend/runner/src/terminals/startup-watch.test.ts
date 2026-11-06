@@ -93,10 +93,15 @@ describe("the startup watch", () => {
       return track
     }
 
-    it("leaves an agent alone once its box stood for the delay", () => {
-      const prompt = Array.from({ length: 6 }, () => ["box", "❯"] as const)
-      const track = after(prompt)
-      expect(track.prompted).toBe(true)
+    const prompt = (looks: number) => Array.from({ length: looks }, () => ["box", "❯"] as const)
+
+    it("leaves an agent alone once its box stood for six delays", () => {
+      expect(after(prompt(30)).prompted).toBe(false)
+      expect(after(prompt(31)).prompted).toBe(true)
+    })
+
+    it("still sees a screen raised over a prompt that just drew, as Codex's hooks review", () => {
+      expect(after([...prompt(5), ...still(7)])).toMatchObject({ held: true, prompted: false })
     })
 
     it("isn't fooled by a box that shows for a moment, as Codex's logo reads", () => {
@@ -258,7 +263,7 @@ describe("the startup watch", () => {
         "startup.probe.json",
       )
       drawn = prompt
-      await pass(7000)
+      await pass(33_000)
       drawn = shown(["/model"])
       watch.start()
       await pass(9000)
@@ -271,7 +276,7 @@ describe("the startup watch", () => {
         adapterFolder("codex"),
         "startup.probe.json",
       ).prompt
-      await pass(7000)
+      await pass(33_000)
       expect(vi.getTimerCount()).toBe(0)
     })
 

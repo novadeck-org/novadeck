@@ -48,6 +48,7 @@ type Inside = {
         startup: unknown
       }
       expecting: string | null
+      startupScreen?: string
       terminal: { screen: { buffer: { active: { viewportY: number; baseY: number } } } }
     }
   >
@@ -79,6 +80,7 @@ const watch = async (
           process: record?.summary.process?.name ?? null,
           ready: record?.summary.ready ?? null,
           startup: record?.summary.startup ?? null,
+          startupScreen: record?.startupScreen ?? null,
           expecting: record?.expecting ?? null,
           promptLines: record?.prompts.map((one) => one.line) ?? [],
           base: record?.terminal.screen.buffer.active.baseY ?? null,

@@ -225,7 +225,14 @@ export class Bindings {
    */
   restarted(): Pick<
     Record,
-    "bound" | "suspended" | "root" | "seenEntry" | "watching" | "transcript" | "goneSession"
+    | "bound"
+    | "suspended"
+    | "root"
+    | "seenEntry"
+    | "watching"
+    | "transcript"
+    | "goneSession"
+    | "startupScreen"
   > {
     return {
       bound: null,

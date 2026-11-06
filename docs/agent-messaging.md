@@ -2046,7 +2046,7 @@ no session bound and its prompt never showed, and counts a screen as holding the
 all of these stand for 5 s (15 s on Windows, which starts agents far slower):
 
 - Bracketed paste is on. A startup command runs before the shell's line editor turns that on
-  (fish, whose editor has it on already, turns it off for the command), so the agent has taken
+  (fish 3, whose line editor has it on already, turns it off for the command), so the agent has taken
   the terminal, and whatever the shell printed before it does not count. A foreground program
   can't say this: an agent's process holds the foreground all the while it loads, and Windows
   names none. Probed with agents held back 9 s (2026-11-06, Claude Code 2.1.316, Codex 0.166.0,
@@ -2059,8 +2059,10 @@ all of these stand for 5 s (15 s on Windows, which starts agents far slower):
   hooks review, sign-in, update and resume picker; Antigravity's trust, onboarding and
   sign-in. Each harness's prompt reads as a box, and none of those as one. An MCP server slow
   to start holds none of the three behind such a screen: each draws its box first. Claude
-  Code's sign-in and update screens are not probed: it stops at a connectivity check without
-  a key, and the sandbox can't raise the other.
+  Code's sign-in and update screens and Antigravity's update screen are not probed: Claude
+  Code stops at a connectivity check without a key, and the sandbox raises neither update
+  screen. Antigravity has no resume picker. All these were read on Linux; macOS and Windows
+  run only the folder-trust case.
 
 Antigravity also says which it is: its status line reads `authenticating` behind its login
 screen, which the state names as "its sign-in screen", and `initializing` behind its trust
@@ -2069,8 +2071,10 @@ screen the rules above already count. The others' screens read as "its startup s
 
 The state ends at once at a box, a bound session or the agent's prompt, and once the screen
 has moved for as long as the delay: a key the person presses moves it for one look, so its mark
-doesn't flicker, and a spinner after they answer does end it. A box that stands for the delay
-ends the watch of that shell: an agent that never binds may open a dialog of its own later. It reaches `agents()` and, as
+doesn't flicker, and a spinner after they answer does end it, as a screen that changes at
+every look. One that steps slower than that keeps the mark until a box or a bound session. A box that stands for six delays
+ends the watch of that shell: an agent that never binds may open a dialog of its own later,
+and Codex may raise a screen over a prompt it drew a few seconds before. It reaches `agents()` and, as
 `TerminalSummary.startup`, the terminal's tab: the need mark, with "Waiting at its startup
 screen" in its tooltip, and the chat view gives way to the screen. It raises no Inbox row: no
 request stands behind it.

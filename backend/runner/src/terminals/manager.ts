@@ -839,7 +839,8 @@ export class Terminals {
       const unled = record.summary.ledBy !== null && !started.resumes
       if (unled) record.summary = { ...record.summary, ledBy: null }
       const resumed = started.resumes ? input.resume : undefined
-      this.register(record, expectedAgent(input.command ?? task?.command, resumed))
+      const expected = expectedAgent(input.command ?? task?.command, resumed)
+      this.register(record, started.resumes ? expected : null)
       if (unled) this.messaging.endLead(record.summary.id)
       // The resumed agent shows its own history; a shell that resumes none, the transcript.
       const note = resumeNote(judged, input.resume, started.resumes)

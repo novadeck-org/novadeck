@@ -147,7 +147,9 @@ export class Reports {
           )
     // Its prompt shows before any session of its binds, as Antigravity's status line says.
     const promptShown = harnesses[report.agent].shown?.(report)
-    record.startupScreen = harnesses[report.agent].startupScreen?.(report) ?? record.startupScreen
+    // Which of its screens the agent expected there says it is at, not a job of its shell.
+    if (report.agent === record.expecting)
+      record.startupScreen = harnesses[report.agent].startupScreen?.(report) ?? record.startupScreen
     const shown = promptShown && firedFacts([promptShown], report)[0]
     if (events.length === 0 && !shown) return silent
     const child = record.terminal.pty
