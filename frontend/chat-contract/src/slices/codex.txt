@@ -223,8 +223,7 @@ mid-turn: none
   | 
   | 
   |   enter/tab insert · esc close · ↑/↓ select · ←/→ filter
-<esc>: menu 33-33
-  | ◦ Working (6s • esc to interrupt)
+<esc>: none
 <kill>: none
 
 # narrow

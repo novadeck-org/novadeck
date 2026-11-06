@@ -1,8 +1,9 @@
 import type { ChatSlice, ChatSliceRun } from "@novadeck/core/conversation"
+import { paletteColour } from "@novadeck/core/conversation/slice"
 import { render } from "@novadeck/test-kit/render"
 import { createElement } from "react"
 
-import { paletteColour, Slice } from "./Slice"
+import { Slice } from "./Slice"
 import { describe, expect, it } from "./test"
 
 const run = (text: string, fields: Partial<ChatSliceRun> = {}): ChatSliceRun => ({
@@ -53,6 +54,15 @@ describe("Slice", () => {
     )
     const span = container.querySelector<HTMLElement>(".chat-slice span")!
     expect(span.style.backgroundColor).toBe("rgb(17, 34, 51)")
+  })
+
+  it("keeps an inverse run of default colours readable", async () => {
+    const { container } = await render(
+      createElement(Slice, { slice: slice([[run("x", { inverse: true })]]) }),
+    )
+    const span = container.querySelector<HTMLElement>(".chat-slice span")!
+    expect(span.style.backgroundColor).not.toContain("currentcolor")
+    expect(span.style.backgroundColor).not.toBe(span.style.color)
   })
 })
 

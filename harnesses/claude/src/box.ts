@@ -92,5 +92,10 @@ export const slice: SliceProfile = {
   leading: ["/"],
   words: ["@"],
   side: (screen) => (screen.alternate ? "above" : "below"),
-  secret: (rows) => rows.some((row) => row.includes("Paste code here")),
+  // Whole across rows, as a narrow screen wraps it.
+  secret: (rows) =>
+    rows
+      .map((row) => row.trim())
+      .join(" ")
+      .includes("Paste code here"),
 }

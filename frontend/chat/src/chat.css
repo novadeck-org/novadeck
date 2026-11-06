@@ -487,10 +487,6 @@
   min-width: 0;
 }
 .chat-dialog-title,
-.chat-slice {
-  max-height: 24em;
-  white-space: pre;
-}
 .chat-raw-reason,
 .chat-request-waiting {
   margin: 0;
@@ -702,6 +698,9 @@
 }
 .chat[data-compact] .chat-raw {
   max-height: 8em;
+}
+.chat .chat-raw.chat-slice {
+  max-height: 24em;
 }
 
 /* The composer */

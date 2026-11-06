@@ -3,8 +3,10 @@ import { sliceLimits, type SliceChange } from "@novadeck/protocol"
 import type { BoxProfile } from "@novadeck/tui-input/box"
 import { vi } from "vitest"
 
+import { requestRef } from "../harnesses/detail.js"
 import { describe, expect, it } from "../test.js"
-import { Slices, type Slicing } from "./slices.js"
+import type { Record } from "./record.js"
+import { slicingOf, Slices, type Slicing } from "./slices.js"
 
 const box = {
   read: ({ rows }: { rows: readonly string[] }) => {
@@ -81,12 +83,52 @@ const setup = async () => {
 const texts = (change: SliceChange | undefined) =>
   change?.slice?.rows.map((row) => row.map(({ text }) => text).join(""))
 
+describe("slicingOf", () => {
+  const binding = { agent: "codex", sessionId: "s" }
+  const request = (requestId: string, detached?: true) => ({
+    requestId,
+    askedAt: 1,
+    ...(detached && { detached }),
+  })
+  const of = (pending: readonly unknown[]) =>
+    ({
+      terminal: { pty: {} },
+      bound: { binding, activity: { pending } },
+    }) as unknown as Record
+  const raw = { type: "raw", text: "", reason: "unrecognized" } as const
+
+  it("follows an agent shown at its prompt before a session binds", () => {
+    const record = { terminal: { pty: {} }, bound: null } as unknown as Record
+    expect(slicingOf(record, new Map(), "agy")?.waiting).toBe(false)
+    expect(slicingOf(record, new Map(), undefined)).toBeUndefined()
+  })
+
+  it("lets a detached request's menus show: it leaves the prompt free", () => {
+    expect(slicingOf(of([request("a", true)]), new Map(), undefined)?.waiting).toBe(false)
+  })
+
+  it("counts only a request that holds the agent as unread", () => {
+    const held = slicingOf(
+      of([request("a"), request("b", true)]),
+      new Map([[requestRef(binding as never, request("b", true) as never), raw]]),
+      undefined,
+    )
+    expect(held).toMatchObject({ waiting: true, unread: false })
+    const unread = slicingOf(
+      of([request("a")]),
+      new Map([[requestRef(binding as never, request("a") as never), raw]]),
+      undefined,
+    )
+    expect(unread).toMatchObject({ waiting: true, unread: true })
+  })
+})
+
 describe("Slices", () => {
   it("starts with none, and tells a menu as it opens and as it closes", async () => {
     const { seen, show } = await setup()
     await show(["one", "> "])
     expect(seen).toEqual([{ slice: null }])
-    await show(["one", "menu", "> /"])
+    await show(["one", "menu", "", "> /"])
     expect(texts(seen.at(-1))).toEqual(["menu"])
     expect(seen.at(-1)?.slice).toMatchObject({ reason: "menu", columns: 20, secret: false })
     await show(["one", "> "])
@@ -96,8 +138,8 @@ describe("Slices", () => {
   it("tells no change twice", async () => {
     const { seen, show } = await setup()
     await show(["one", "> "])
-    await show(["one", "menu", "> /"])
-    await show(["one", "menu", "> /"])
+    await show(["one", "menu", "", "> /"])
+    await show(["one", "menu", "", "> /"])
     expect(seen).toHaveLength(2)
   })
 
@@ -105,8 +147,8 @@ describe("Slices", () => {
     const { reads, seen, draw, slices, show } = await setup()
     await show(["one", "> "])
     reads.mockClear()
-    await draw(["one", "first", "> /"])
-    await draw(["one", "second", "> /"])
+    await draw(["one", "first", "", "> /"])
+    await draw(["one", "second", "", "> /"])
     slices.changed("t")
     slices.changed("t")
     await settle()
@@ -165,14 +207,14 @@ describe("Slices", () => {
   it("marks a slice the harness knows as a secret prompt", async () => {
     const { seen, show } = await setup()
     await show(["one", "> "])
-    await show(["one", "Paste code", "> /"])
+    await show(["one", "Paste code", "", "> /"])
     expect(seen.at(-1)?.slice?.secret).toBe(true)
   })
 
   it("gives the cursor in the slice's rows, null when it is elsewhere", async () => {
     const { seen, show, pass } = await setup()
     await show(["one", "> "])
-    await show(["one", "menu", "> /"])
+    await show(["one", "menu", "", "> /"])
     expect(seen.at(-1)?.slice?.cursor).toBeNull()
     await show(["one", "view"])
     await pass(120)
@@ -182,9 +224,19 @@ describe("Slices", () => {
   it("tells none with no agent bound, and forgets the screen at rest", async () => {
     const { seen, show, set, draw, slices } = await setup()
     await show(["one", "> "])
-    await show(["one", "menu", "> /"])
+    await show(["one", "menu", "", "> /"])
     set(undefined)
     await draw(["$ "])
+    slices.changed("t")
+    await settle()
+    expect(seen.at(-1)).toEqual({ slice: null })
+  })
+
+  it("shows nothing of a terminal whose look throws", async () => {
+    const { seen, show, set, slices } = await setup()
+    await show(["one", "> "])
+    await show(["one", "menu", "", "> /"])
+    set({ read: () => Promise.reject(new Error("gone")) })
     slices.changed("t")
     await settle()
     expect(seen.at(-1)).toEqual({ slice: null })
@@ -197,7 +249,7 @@ describe("Slices", () => {
     set({ read: async (read) => read(wide) })
     slices.changed("t")
     await settle()
-    await written(wide, "\x1b[2J\x1b[Hone\r\nmenu\r\n> /")
+    await written(wide, "\x1b[2J\x1b[Hone\r\nmenu\r\n\r\n> /")
     await show(["unused"])
     expect(seen).toEqual([{ slice: null }])
   })

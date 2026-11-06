@@ -165,19 +165,9 @@ export const box: BoxProfile = {
 }
 
 /**
- * Whether it shows a view under its box, which stays, empty: at rest one footer row is all
- * that shows under the box's closing rule, once its panel of subagents is set aside.
- */
-const viewUnder = (screen: ScreenText): boolean => {
-  const { rows } = withoutPanel(screen)
-  const closing = rows.findIndex((row, at) => at > screen.cursor.row && rule(row))
-  return closing >= 0 && rows.slice(closing + 1).filter((row) => row.trim() !== "").length > 1
-}
-
-/**
  * Where it draws its own: `/` and `@` under the box on the normal screen, which scrolls up to
- * make room, and a view under the box as well; one too tall for the rows left goes to the
- * alternate screen. `$` is plain text (probed 1.4.12 and 1.5.2,
+ * make room, and a view under the box as well, which stays, empty; one too tall for the rows
+ * left goes to the alternate screen. `$` is plain text (probed 1.4.12 and 1.5.2,
  * fixtures/live-slice.probe.json). No prompt for a secret was reached: a session under an
  * API key has no login.
  */
@@ -185,6 +175,6 @@ export const slice: SliceProfile = {
   leading: ["/"],
   words: ["@"],
   side: () => "below",
-  view: viewUnder,
+  viewsUnder: true,
   secret: () => false,
 }

@@ -34,7 +34,7 @@ export const replaySlices = (
       waiting: false,
       unread: false,
     })
-    if (resting) rest = { rows: screen.rows }
+    rest = resting ?? rest
     const rows = bounds ? screen.rows.slice(bounds.first, bounds.last + 1) : []
     return {
       label,

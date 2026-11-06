@@ -51,6 +51,13 @@ describe("styledRows", () => {
     expect(styledRows(screen, 0, 0)[0]).toEqual([{ ...plain, text: "a界b", width: 4 }])
   })
 
+  it("keeps a wide blank's two columns, and those of an invisible wide cell", async () => {
+    const ideographic = await screenWith("a\u3000")
+    expect(styledRows(ideographic, 0, 0)[0]).toEqual([{ ...plain, text: "a\u3000", width: 3 }])
+    const hidden = await screenWith("\x1b[8m界\x1b[0mb")
+    expect(styledRows(hidden, 0, 0)[0]).toEqual([{ ...plain, text: "  b", width: 3 }])
+  })
+
   it("draws an invisible cell as a space", async () => {
     const screen = await screenWith("a\x1b[8mhidden\x1b[0mb")
     expect(

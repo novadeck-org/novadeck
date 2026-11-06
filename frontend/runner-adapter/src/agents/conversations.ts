@@ -437,6 +437,8 @@ const read = (
     } catch {
       // The terminal is gone, or the runner closed: `detail` tells the same.
     }
+    // What its stream last said no longer holds.
+    if (alive) store.update((current) => (current.slice ? { ...current, slice: null } : current))
   })()
   void (async () => {
     try {
@@ -450,6 +452,7 @@ const read = (
     // Its terminal went: so did its conversation, and what waited on it hears so.
     if (!alive) return
     following = null
+    end(slices)
     end(transcript)
     transcript = undefined
     clearTimeout(settling)

@@ -2,7 +2,8 @@
 // that stand for something of its harness's own at its input. The screen is looked at only
 // while someone reads, so a terminal nobody watches costs nothing; the screen at rest is kept
 // meanwhile, which is what tells where a thing drawn over it starts. Rows go to the readers
-// and nowhere else: nothing here logs them, keeps them past the next look, or traces them.
+// and nowhere else: nothing here logs them or traces them, and what it holds meanwhile (the
+// screen at rest, what the readers have) goes with the last reader.
 import { readScreen, styledRows, type Screen } from "@novadeck/emulator/headless"
 import { readSlice, type Resting, type SliceProfile } from "@novadeck/harness-core/slices"
 import {
@@ -15,6 +16,8 @@ import {
 import type { BoxProfile } from "@novadeck/tui-input/box"
 import { Latest } from "@novadeck/wire/server"
 
+import { blocking } from "../harnesses/activity.js"
+import { requestRef } from "../harnesses/detail.js"
 import { harnesses } from "../harnesses/registry.js"
 import type { Record } from "./record.js"
 
@@ -22,7 +25,7 @@ import type { Record } from "./record.js"
 export type Slicing = {
   readonly box: BoxProfile
   readonly profile: SliceProfile
-  /** Whether a request waits on the person, whose dialog is the chat's to show. */
+  /** Whether a request holds the agent, whose dialog is the chat's to show. */
   readonly waiting: boolean
   /** Whether that dialog is one no adapter read. */
   readonly unread: boolean
@@ -40,15 +43,20 @@ export const slicingOf = (
   dialogs: ReadonlyMap<string, RequestDialog>,
   shown: AgentName | undefined,
 ): Slicing | undefined => {
-  const agent = record?.bound?.binding.agent ?? shown
+  const bound = record?.bound
+  const agent = bound?.binding.agent ?? shown
   if (!record || !agent) return undefined
   const { box, slice } = harnesses[agent]
   const child = record.terminal.pty
+  // A detached request leaves its prompt free, and its menus go on showing.
+  const held = bound ? blocking(bound.activity.pending) : []
   return {
     box,
     profile: slice,
-    waiting: (record.bound?.activity.pending.length ?? 0) > 0,
-    unread: [...dialogs.values()].some((dialog) => dialog.type === "raw"),
+    waiting: held.length > 0,
+    unread: held.some(
+      (request) => dialogs.get(requestRef(bound!.binding, request))?.type === "raw",
+    ),
     read: async (read) => {
       const taken = await record.terminal.readScreen(read)
       return record.terminal.pty === child ? taken : undefined
@@ -94,8 +102,7 @@ const take = (
   const text = readScreen(screen)
   const { box, profile, waiting, unread } = slicing
   const { bounds, resting } = readSlice({ screen: text, rest, box, profile, waiting, unread })
-  const at = resting ? { rows: text.rows } : undefined
-  if (!bounds) return { slice: null, resting: at }
+  if (!bounds) return { slice: null, resting }
   const { reason, first, last } = bounds
   const { row, column } = text.cursor
   const parsed = liveSlice.safeParse({
@@ -106,7 +113,7 @@ const take = (
     secret: profile.secret(text.rows.slice(first, last + 1)),
   })
   // Past the limits it is no slice: rows cut short would be the wrong rows.
-  return { slice: parsed.success ? parsed.data : null, resting: at }
+  return { slice: parsed.success ? parsed.data : null, resting }
 }
 
 export class Slices {
@@ -218,24 +225,23 @@ export class Slices {
   }
 
   private async look(terminalId: string, state: State): Promise<void> {
-    const slicing = this.slicing(terminalId)
-    if (!slicing) {
+    state.looking = true
+    state.lastLook = this.now()
+    // What can't be read shows nothing: a look that throws leaves no stale rows up.
+    const taken = await (async () => {
+      const slicing = this.slicing(terminalId)
+      return slicing && slicing.read((screen) => take(screen, state.rest, slicing))
+    })().catch(() => undefined)
+    state.looking = false
+    if (this.states.get(terminalId) !== state) return
+    if (taken) {
+      state.rest = taken.resting ?? state.rest
+      this.settle(terminalId, state, taken.slice)
+    } else {
       // Nothing of a harness's own is at an input no agent draws, and its rest is another's.
       state.rest = undefined
       state.viewSince = undefined
       this.tell(state, null)
-      return
-    }
-    state.looking = true
-    state.lastLook = this.now()
-    const taken = await slicing
-      .read((screen) => take(screen, state.rest, slicing))
-      .catch(() => undefined)
-    state.looking = false
-    if (this.states.get(terminalId) !== state) return
-    if (taken) {
-      if (taken.resting) state.rest = taken.resting
-      this.settle(terminalId, state, taken.slice)
     }
     if (state.again) {
       state.again = false

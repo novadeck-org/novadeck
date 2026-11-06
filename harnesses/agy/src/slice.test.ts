@@ -36,7 +36,7 @@ describe("Antigravity's live slice", () => {
   })
 
   it("shows a view too tall for the rows left, on the alternate screen", () => {
-    const { bounds, rows } = at("views", "<enter>")
+    const { bounds, rows } = at("views", "<enter>", 1)
     expect(bounds?.reason).toBe("view")
     expect(rows.join("\n")).toContain("Antigravity CLI understands")
   })

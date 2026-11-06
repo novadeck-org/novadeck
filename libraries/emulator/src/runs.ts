@@ -52,7 +52,8 @@ const withoutEnd = (runs: readonly StyleRun[]): StyleRun[] => {
   while (kept.length > 0) {
     const tail = kept.at(-1)!
     if (!unmarked(tail)) break
-    const text = tail.text.trimEnd()
+    // Spaces, of a column each: a wide blank is a character that draws its two columns.
+    const text = tail.text.replace(/ +$/, "")
     if (text !== "") {
       kept[kept.length - 1] = {
         ...tail,
@@ -84,7 +85,7 @@ export const styledRows = (screen: Screen, first: number, last: number): StyleRu
       // The second half of a double-width character, which the first half counted.
       if (width === 0) continue
       const style = styleOf(at)
-      const text = at.isInvisible() ? " " : at.getChars() || " "
+      const text = at.isInvisible() ? " ".repeat(width) : at.getChars() || " "
       const previous = runs.at(-1)
       if (previous && sameStyle(previous, style))
         runs[runs.length - 1] = {

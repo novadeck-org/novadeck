@@ -92,7 +92,7 @@ export const box: BoxProfile = {
  */
 const viewOverBox = ({ rows }: ScreenText): boolean => {
   const last = rows.findLast((row) => row.trim() !== "")
-  return last !== undefined && /\besc (back|close|cancel|clear)\b/.test(last)
+  return last !== undefined && /\besc (to )?(back|close|cancel|clear)\b/.test(last)
 }
 
 /**

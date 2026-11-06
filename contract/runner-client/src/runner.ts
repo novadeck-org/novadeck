@@ -28,6 +28,7 @@ import {
   type RequestAnswer,
   type RunnerSettings,
   type RunnerSettingsState,
+  type SliceChange,
   type TerminalChange,
   type TerminalMessages,
   type TerminalRequest,
@@ -39,7 +40,6 @@ import {
   type VoiceTranscript,
   type WireClient,
   type WorkspaceSession,
-  SliceChange,
 } from "@novadeck/protocol"
 import { WireError } from "@novadeck/wire"
 import { connect, type Transport, type WireStatus } from "@novadeck/wire/client"

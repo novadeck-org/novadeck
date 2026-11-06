@@ -935,7 +935,7 @@
     ],
     "views": [
       {
-        "label": "after a reply",
+        "label": "#closed",
         "screen": {
           "height": 40,
           "columns": 120,
@@ -945,18 +945,18 @@
           },
           "alternate": false,
           "rows": {
-            "0": "To run a command as administrator (user \"root\"), use \"sudo <command>\".",
-            "1": "See \"man sudo_root\" for details.",
-            "4": "      ▄▀▀▄        Antigravity CLI 1.4.12",
-            "5": "     ▀▀▀▀▀▀       Gemini API key",
-            "6": "    ▀▀▀▀▀▀▀▀      Gemini 3.1 Pro (Low)",
-            "7": "   ▄▀▀    ▀▀▄     /project-root/project",
-            "8": "  ▄▀▀      ▀▀▄",
-            "10": "────────────────────────────────────────────────────────────",
-            "11": "> Say hello",
-            "13": "  Hello there.",
-            "15": "  A reply with a few lines.",
-            "17": "  And one more.",
+            "1": "      ▄▀▀▄        Antigravity CLI 1.4.12",
+            "2": "     ▀▀▀▀▀▀       Gemini API key",
+            "3": "    ▀▀▀▀▀▀▀▀      Gemini 3.1 Pro (Low)",
+            "4": "   ▄▀▀    ▀▀▄     /project-root/project",
+            "5": "  ▄▀▀      ▀▀▄",
+            "7": "────────────────────────────────────────────────────────────",
+            "8": "> Say hello",
+            "10": "  Hello there.",
+            "12": "  A reply with a few lines.",
+            "14": "  And one more.",
+            "16": "> /model",
+            "17": "  ⎿  Exited /model command",
             "19": "────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────",
             "20": ">",
             "21": "────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────",
@@ -964,6 +964,244 @@
           },
           "bright": {
             "22": "? for shortcuts"
+          }
+        }
+      },
+      {
+        "label": "/context",
+        "screen": {
+          "height": 40,
+          "columns": 120,
+          "cursor": {
+            "row": 23,
+            "column": 9
+          },
+          "alternate": false,
+          "rows": {
+            "1": "      ▄▀▀▄        Antigravity CLI 1.4.12",
+            "2": "     ▀▀▀▀▀▀       Gemini API key",
+            "3": "    ▀▀▀▀▀▀▀▀      Gemini 3.1 Pro (Low)",
+            "4": "   ▄▀▀    ▀▀▄     /project-root/project",
+            "5": "  ▄▀▀      ▀▀▄",
+            "7": "────────────────────────────────────────────────────────────",
+            "8": "> Say hello",
+            "10": "  Hello there.",
+            "12": "  A reply with a few lines.",
+            "14": "  And one more.",
+            "16": "> /model",
+            "17": "  ⎿  Exited /model command",
+            "19": "> /config",
+            "20": "  ⎿  Exited /config command",
+            "22": "────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────",
+            "23": "> /context",
+            "24": "────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────",
+            "25": "> /context  Visualize current context usage",
+            "27": "  ↑/↓ Navigate · enter Select · tab Complete",
+            "28": "esc to cancel                                                                                       Gemini 3.1 Pro · low"
+          },
+          "bright": {
+            "25": "> /context",
+            "28": "esc to cancel"
+          }
+        }
+      },
+      {
+        "label": "<enter>",
+        "screen": {
+          "height": 40,
+          "columns": 120,
+          "cursor": {
+            "row": 39,
+            "column": 0
+          },
+          "alternate": false,
+          "rows": {
+            "0": "   ▄▀▀    ▀▀▄     /project-root/project",
+            "1": "  ▄▀▀      ▀▀▄",
+            "3": "────────────────────────────────────────────────────────────",
+            "4": "> Say hello",
+            "6": "  Hello there.",
+            "8": "  A reply with a few lines.",
+            "10": "  And one more.",
+            "12": "> /model",
+            "13": "  ⎿  Exited /model command",
+            "15": "> /config",
+            "16": "  ⎿  Exited /config command",
+            "18": "────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────",
+            "19": ">",
+            "20": "────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────",
+            "21": "└ Context Usage",
+            "22": "◉ ◉ ◉ ◉ □ □ □ □ □ □ □ □ □ □ □ □ □ □ □ □ □ □ □ □     Gemini 3.1 Pro (Low) · 10.8k/1.0M tokens",
+            "23": "□ □ □ □ □ □ □ □ □ □ □ □ □ □ □ □ □ □ □ □ □ □ □ □      (1.0%)",
+            "24": "□ □ □ □ □ □ □ □ □ □ □ □ □ □ □ □ □ □ □ □ □ □ □ □     Token usage by category",
+            "25": "□ □ □ □ □ □ □ □ □ □ □ □ □ □ □ □ □ □ □ □ □ □ □ □     ◉ User messages: 148 tokens (0.0%)",
+            "26": "□ □ □ □ □ □ □ □ □ □ □ □ □ □ □ □ □ □ □ □ □ □ □ □     ◉ Agent responses: 0 tokens (0.0%)",
+            "27": "□ □ □ □ □ □ □ □ □ □ □ □ □ □ □ □ □ □ □ □ □ □ □ □     ◉ Tool calls: 0 tokens (0.0%)",
+            "28": "□ □ □ □ □ □ □ □ □ □ □ □ □ □ □ □ □ □ □ □ □ □ □ □     ⛁ System prompt: 4.1k tokens (0.4%)",
+            "29": "□ □ □ □ □ □ □ □ □ □ □ □ □ □ □ □ □ □ □ □ □ □ □ □     ⛁ System tools: 5.1k tokens (0.5%)",
+            "30": "□ □ □ □ □ □ □ □ □ □ □ □ □ □ □ □ □ □ □ □ □ □ □ □     ⛁ Skills: 732 tokens (0.1%)",
+            "31": "□ □ □ □ □ □ □ □ □ □ □ □ □ □ □ □ □ □ □ □ □ □ □ □     ⛁ Subagents: 689 tokens (0.1%)",
+            "32": "□ □ □ □ □ □ □ □ □ □ □ □ □ □ □ □ □ □ □ □ □ □ □ □     □ Free space: 1.0M (99.0%)",
+            "34": "System files · auto-loaded",
+            "35": " └ .agents/skills/",
+            "37": "Related: /artifact · /skill · /rewind",
+            "38": "  ↑/↓ Scroll · pgup/pgdown Page · ctrl+end Bottom · ctrl+home Top · esc Close",
+            "39": "                                                                                                    Gemini 3.1 Pro · low"
+          },
+          "bright": {
+            "22": "◉ ◉ ◉ ◉                                             Gemini 3.1 Pro (Low) · 10.8k/1.0M tokens",
+            "23": "                                                     (1.0%)",
+            "24": "                                                    Token usage by category",
+            "25": "                                                    ◉ User messages: 148 tokens (0.0%)",
+            "26": "                                                    ◉ Agent responses: 0 tokens (0.0%)",
+            "27": "                                                    ◉ Tool calls: 0 tokens (0.0%)",
+            "28": "                                                    ⛁ System prompt: 4.1k tokens (0.4%)",
+            "29": "                                                    ⛁ System tools: 5.1k tokens (0.5%)",
+            "30": "                                                    ⛁ Skills: 732 tokens (0.1%)",
+            "31": "                                                    ⛁ Subagents: 689 tokens (0.1%)",
+            "32": "                                                    □ Free space: 1.0M (99.0%)",
+            "35": "",
+            "39": ""
+          }
+        }
+      },
+      {
+        "label": "<esc>",
+        "screen": {
+          "height": 40,
+          "columns": 120,
+          "cursor": {
+            "row": 23,
+            "column": 1
+          },
+          "alternate": false,
+          "rows": {
+            "1": "      ▄▀▀▄        Antigravity CLI 1.4.12",
+            "2": "     ▀▀▀▀▀▀       Gemini API key",
+            "3": "    ▀▀▀▀▀▀▀▀      Gemini 3.1 Pro (Low)",
+            "4": "   ▄▀▀    ▀▀▄     /project-root/project",
+            "5": "  ▄▀▀      ▀▀▄",
+            "7": "────────────────────────────────────────────────────────────",
+            "8": "> Say hello",
+            "10": "  Hello there.",
+            "12": "  A reply with a few lines.",
+            "14": "  And one more.",
+            "16": "> /model",
+            "17": "  ⎿  Exited /model command",
+            "19": "> /config",
+            "20": "  ⎿  Exited /config command",
+            "22": "────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────",
+            "23": ">",
+            "24": "────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────",
+            "25": "? for shortcuts                                                                                     Gemini 3.1 Pro · low"
+          },
+          "bright": {
+            "25": "? for shortcuts"
+          }
+        }
+      },
+      {
+        "label": "#after esc",
+        "screen": {
+          "height": 40,
+          "columns": 120,
+          "cursor": {
+            "row": 23,
+            "column": 1
+          },
+          "alternate": false,
+          "rows": {
+            "1": "      ▄▀▀▄        Antigravity CLI 1.4.12",
+            "2": "     ▀▀▀▀▀▀       Gemini API key",
+            "3": "    ▀▀▀▀▀▀▀▀      Gemini 3.1 Pro (Low)",
+            "4": "   ▄▀▀    ▀▀▄     /project-root/project",
+            "5": "  ▄▀▀      ▀▀▄",
+            "7": "────────────────────────────────────────────────────────────",
+            "8": "> Say hello",
+            "10": "  Hello there.",
+            "12": "  A reply with a few lines.",
+            "14": "  And one more.",
+            "16": "> /model",
+            "17": "  ⎿  Exited /model command",
+            "19": "> /config",
+            "20": "  ⎿  Exited /config command",
+            "22": "────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────",
+            "23": ">",
+            "24": "────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────",
+            "25": "? for shortcuts                                                                                     Gemini 3.1 Pro · low"
+          },
+          "bright": {
+            "25": "? for shortcuts"
+          }
+        }
+      },
+      {
+        "label": "<kill>",
+        "screen": {
+          "height": 40,
+          "columns": 120,
+          "cursor": {
+            "row": 23,
+            "column": 1
+          },
+          "alternate": false,
+          "rows": {
+            "1": "      ▄▀▀▄        Antigravity CLI 1.4.12",
+            "2": "     ▀▀▀▀▀▀       Gemini API key",
+            "3": "    ▀▀▀▀▀▀▀▀      Gemini 3.1 Pro (Low)",
+            "4": "   ▄▀▀    ▀▀▄     /project-root/project",
+            "5": "  ▄▀▀      ▀▀▄",
+            "7": "────────────────────────────────────────────────────────────",
+            "8": "> Say hello",
+            "10": "  Hello there.",
+            "12": "  A reply with a few lines.",
+            "14": "  And one more.",
+            "16": "> /model",
+            "17": "  ⎿  Exited /model command",
+            "19": "> /config",
+            "20": "  ⎿  Exited /config command",
+            "22": "────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────",
+            "23": ">",
+            "24": "────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────",
+            "25": "? for shortcuts                                                                                     Gemini 3.1 Pro · low"
+          },
+          "bright": {
+            "25": "? for shortcuts"
+          }
+        }
+      },
+      {
+        "label": "#closed",
+        "screen": {
+          "height": 40,
+          "columns": 120,
+          "cursor": {
+            "row": 23,
+            "column": 1
+          },
+          "alternate": false,
+          "rows": {
+            "1": "      ▄▀▀▄        Antigravity CLI 1.4.12",
+            "2": "     ▀▀▀▀▀▀       Gemini API key",
+            "3": "    ▀▀▀▀▀▀▀▀      Gemini 3.1 Pro (Low)",
+            "4": "   ▄▀▀    ▀▀▄     /project-root/project",
+            "5": "  ▄▀▀      ▀▀▄",
+            "7": "────────────────────────────────────────────────────────────",
+            "8": "> Say hello",
+            "10": "  Hello there.",
+            "12": "  A reply with a few lines.",
+            "14": "  And one more.",
+            "16": "> /model",
+            "17": "  ⎿  Exited /model command",
+            "19": "> /config",
+            "20": "  ⎿  Exited /config command",
+            "22": "────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────",
+            "23": ">",
+            "24": "────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────",
+            "25": "? for shortcuts                                                                                     Gemini 3.1 Pro · low"
+          },
+          "bright": {
+            "25": "? for shortcuts"
           }
         }
       },
@@ -1126,6 +1364,43 @@
         }
       },
       {
+        "label": "#closed",
+        "screen": {
+          "height": 40,
+          "columns": 120,
+          "cursor": {
+            "row": 26,
+            "column": 1
+          },
+          "alternate": false,
+          "rows": {
+            "1": "      ▄▀▀▄        Antigravity CLI 1.4.12",
+            "2": "     ▀▀▀▀▀▀       Gemini API key",
+            "3": "    ▀▀▀▀▀▀▀▀      Gemini 3.1 Pro (Low)",
+            "4": "   ▄▀▀    ▀▀▄     /project-root/project",
+            "5": "  ▄▀▀      ▀▀▄",
+            "7": "────────────────────────────────────────────────────────────",
+            "8": "> Say hello",
+            "10": "  Hello there.",
+            "12": "  A reply with a few lines.",
+            "14": "  And one more.",
+            "16": "> /model",
+            "17": "  ⎿  Exited /model command",
+            "19": "> /config",
+            "20": "  ⎿  Exited /config command",
+            "22": "> /help",
+            "23": "  ⎿  Exited /help command",
+            "25": "────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────",
+            "26": ">",
+            "27": "────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────",
+            "28": "? for shortcuts                                                                                     Gemini 3.1 Pro · low"
+          },
+          "bright": {
+            "28": "? for shortcuts"
+          }
+        }
+      },
+      {
         "label": "/mcp",
         "screen": {
           "height": 40,
@@ -1246,6 +1521,43 @@
       },
       {
         "label": "<kill>",
+        "screen": {
+          "height": 40,
+          "columns": 120,
+          "cursor": {
+            "row": 26,
+            "column": 1
+          },
+          "alternate": false,
+          "rows": {
+            "1": "      ▄▀▀▄        Antigravity CLI 1.4.12",
+            "2": "     ▀▀▀▀▀▀       Gemini API key",
+            "3": "    ▀▀▀▀▀▀▀▀      Gemini 3.1 Pro (Low)",
+            "4": "   ▄▀▀    ▀▀▄     /project-root/project",
+            "5": "  ▄▀▀      ▀▀▄",
+            "7": "────────────────────────────────────────────────────────────",
+            "8": "> Say hello",
+            "10": "  Hello there.",
+            "12": "  A reply with a few lines.",
+            "14": "  And one more.",
+            "16": "> /model",
+            "17": "  ⎿  Exited /model command",
+            "19": "> /config",
+            "20": "  ⎿  Exited /config command",
+            "22": "> /help",
+            "23": "  ⎿  Exited /help command",
+            "25": "────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────",
+            "26": ">",
+            "27": "────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────",
+            "28": "? for shortcuts                                                                                     Gemini 3.1 Pro · low"
+          },
+          "bright": {
+            "28": "? for shortcuts"
+          }
+        }
+      },
+      {
+        "label": "#closed",
         "screen": {
           "height": 40,
           "columns": 120,

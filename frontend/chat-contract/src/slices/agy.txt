@@ -144,22 +144,48 @@ mid-turn: none
 <kill>: none
 
 # views
-after a reply: none
-/help: menu 25-28
-  | > /help  Show available commands and keybindings
+#closed: none
+/context: menu 25-28
+  | > /context  Visualize current context usage
   | 
   |   ↑/↓ Navigate · enter Select · tab Complete
   | esc to cancel                                                                                       Gemini 3.1 Pro · low
-<enter>: view 14-39
-  | > /model
-  |   ⎿  Exited /model command
-  | 
+<enter>: view 15-39
   | > /config
   |   ⎿  Exited /config command
   | 
   | ────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
   | >
   | ────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+  | └ Context Usage
+  | ◉ ◉ ◉ ◉ □ □ □ □ □ □ □ □ □ □ □ □ □ □ □ □ □ □ □ □     Gemini 3.1 Pro (Low) · 10.8k/1.0M tokens
+  | □ □ □ □ □ □ □ □ □ □ □ □ □ □ □ □ □ □ □ □ □ □ □ □      (1.0%)
+  | □ □ □ □ □ □ □ □ □ □ □ □ □ □ □ □ □ □ □ □ □ □ □ □     Token usage by category
+  | □ □ □ □ □ □ □ □ □ □ □ □ □ □ □ □ □ □ □ □ □ □ □ □     ◉ User messages: 148 tokens (0.0%)
+  | □ □ □ □ □ □ □ □ □ □ □ □ □ □ □ □ □ □ □ □ □ □ □ □     ◉ Agent responses: 0 tokens (0.0%)
+  | □ □ □ □ □ □ □ □ □ □ □ □ □ □ □ □ □ □ □ □ □ □ □ □     ◉ Tool calls: 0 tokens (0.0%)
+  | □ □ □ □ □ □ □ □ □ □ □ □ □ □ □ □ □ □ □ □ □ □ □ □     ⛁ System prompt: 4.1k tokens (0.4%)
+  | □ □ □ □ □ □ □ □ □ □ □ □ □ □ □ □ □ □ □ □ □ □ □ □     ⛁ System tools: 5.1k tokens (0.5%)
+  | □ □ □ □ □ □ □ □ □ □ □ □ □ □ □ □ □ □ □ □ □ □ □ □     ⛁ Skills: 732 tokens (0.1%)
+  | □ □ □ □ □ □ □ □ □ □ □ □ □ □ □ □ □ □ □ □ □ □ □ □     ⛁ Subagents: 689 tokens (0.1%)
+  | □ □ □ □ □ □ □ □ □ □ □ □ □ □ □ □ □ □ □ □ □ □ □ □     □ Free space: 1.0M (99.0%)
+  | 
+  | System files · auto-loaded
+  |  └ .agents/skills/
+  | 
+  | Related: /artifact · /skill · /rewind
+  |   ↑/↓ Scroll · pgup/pgdown Page · ctrl+end Bottom · ctrl+home Top · esc Close
+  |                                                                                                     Gemini 3.1 Pro · low
+<esc>: none
+#after esc: none
+<kill>: none
+#closed: none
+/help: menu 25-28
+  | > /help  Show available commands and keybindings
+  | 
+  |   ↑/↓ Navigate · enter Select · tab Complete
+  | esc to cancel                                                                                       Gemini 3.1 Pro · low
+<enter>: view 23-39
   | Antigravity CLI   general    commands    shortcuts   (←/→ or tab to cycle)
   | Antigravity CLI understands your codebase, makes edits with your permission,
   | and executes commands — right from your terminal.
@@ -179,6 +205,7 @@ after a reply: none
   |                                                                                                     Gemini 3.1 Pro · low
 <esc>: none
 <kill>: none
+#closed: none
 /mcp: menu 28-31
   | > /mcp  Manage MCP servers
   | 
@@ -195,6 +222,7 @@ after a reply: none
   |                                                                                                     Gemini 3.1 Pro · low
 <esc>: none
 <kill>: none
+#closed: none
 /resume: menu 28-31
   | > /resume  Browse and resume past conversations
   | 
