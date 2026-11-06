@@ -184,17 +184,17 @@ describe("A team's wire", () => {
     )
   // Past the fold's motion and the wire's entrance.
   const settled = () => new Promise((done) => setTimeout(done, 800))
-  // How far the lit wires reach, frame by frame, over the entrance's length after `act`, from
-  // its first frame, which a slow runner paints late.
+  // How far the lit wires reach, frame by frame, from `act` to the end of their entrance, however
+  // late a slow runner paints it: half a second past its first frame and any hold.
   const reachWhile = (act: () => void) =>
     new Promise<number>((done) => {
       act()
       let start: number | undefined
       let furthest = 0
       const step = (now: number) => {
-        start ??= now
+        if (start === undefined || document.querySelector(".team-wire[data-holding]")) start = now
         furthest = Math.max(furthest, litBottom())
-        if (now - start < 700) requestAnimationFrame(step)
+        if (now - start < 500) requestAnimationFrame(step)
         else done(furthest)
       }
       requestAnimationFrame(step)

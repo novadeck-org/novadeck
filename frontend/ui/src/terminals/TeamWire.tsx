@@ -14,7 +14,8 @@ import {
 const settleMs = 400
 
 // How long after a selection the lit wire's entrance counts as played: past a held entrance's
-// last tick (640ms), with room for its first frame to come late.
+// last tick (640ms), with room for its first frame to come late. It also ends a hold, should
+// the tab it waits for never go.
 const entranceMs = 1000
 
 const sameWires = (a: Wires, b: Wires) => JSON.stringify(a) === JSON.stringify(b)
@@ -273,12 +274,14 @@ export const TeamWire = ({
     }
   }, [teams, shown, list, folded, levels])
 
-  // A selection that swaps the tabs a fold shows holds its entrance until they settle, so the wire
-  // draws to where they end up, not to a tab on its way out (team-wire.css).
+  // A selection that swaps the tabs a fold shows holds its entrance (team-wire.css) until the tab
+  // going away has left and the wire has been measured without it, in the commit that drew it so:
+  // however slow the frames, it draws to where the tabs end up.
   useLayoutEffect(() => {
-    if (heldFor.current === selected) return
+    const element = layer.current
+    if (!element || (heldFor.current === selected && !element.hasAttribute("data-holding"))) return
     heldFor.current = selected
-    layer.current?.toggleAttribute("data-holding", !!list && anyGoingAway(list))
+    element.toggleAttribute("data-holding", !!list && anyGoingAway(list))
   })
 
   // The entrance plays once each time a member is selected; redraws after it, as rows scroll

@@ -7,7 +7,7 @@
 
    Hooks on `.team-wire`: data-settled (the lit wire's entrance has played; what's drawn
    after, as rows scroll into view, appears without playing again), data-holding (the lit
-   wire's entrance waits for a fold's tabs to swap). Each team has a
+   wire's entrance waits while a fold's tab goes away). Each team has a
    `.team-wire-shape`, with data-lit while it is the selected terminal's, data-folded while the
    person folded its teammates out of the list, data-faded while that leaves no teammate's tab
    showing ("wire": its segment and ticks fade out) or its lead folds away under a lead above
@@ -80,12 +80,9 @@
   transform-origin: left;
   animation: team-wire-reach 180ms var(--ease-interface) 260ms both;
 }
-/* A selection that swaps the tabs a fold shows: the entrance waits for them to settle. */
-.team-wire[data-holding] .team-wire-shape[data-lit] > .team-wire-segment {
-  animation-delay: var(--motion-layout);
-}
-.team-wire[data-holding] .team-wire-shape[data-lit] > .team-wire-tap {
-  animation-delay: calc(260ms + var(--motion-layout));
+/* A selection that swaps the tabs a fold shows: the entrance waits for them to leave. */
+.team-wire[data-holding] .team-wire-shape[data-lit] > :is(.team-wire-segment, .team-wire-tap) {
+  animation-play-state: paused;
 }
 .team-wire[data-settled] .team-wire-shape > i {
   animation: none;
