@@ -102,6 +102,8 @@ describe("Folding a lead's teammates out of the list", () => {
       .getBoundingClientRect()
     const row = rows()!.querySelector(".team-fold-row")!.getBoundingClientRect()
     expect(Math.abs(tick.top - (row.top + row.height / 2))).toBeLessThanOrEqual(1)
+    // It ends on the lead's tab's edge, drawing nothing over the tab.
+    expect(Math.round(tick.right)).toBe(Math.round(tabOf(lead).getBoundingClientRect().left))
     await userEvent.click(gutterElement()!)
     await expect.poll(() => laidOut(worker)).toBe(true)
     expect(rows()).toBeNull()

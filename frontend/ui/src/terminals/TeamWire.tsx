@@ -2,7 +2,6 @@ import type { LitTeams, Team } from "@novadeck/core/derivations"
 import { useEffect, useLayoutEffect, useRef, useState } from "react"
 
 import {
-  blinkMs,
   foldGutter,
   wireShape,
   type FoldGutter,
@@ -13,6 +12,10 @@ import {
 // How long the wire keeps measuring after something that moves the tabs without a layout
 // change it can observe: a drop's settle (180ms) and the sidebar's first frames once shown.
 const settleMs = 400
+
+// How long after a selection the lit wire's entrance counts as played: past a held entrance's
+// last tick (640ms), with room for its first frame to come late.
+const entranceMs = 1000
 
 const sameWires = (a: Wires, b: Wires) => JSON.stringify(a) === JSON.stringify(b)
 
@@ -26,6 +29,10 @@ const laneOf = (level: number) => Math.min(level, deepestLane) * laneWidth
 
 // Whether a tab is laid out: a teammate folded out of the list (team-fold.ts) isn't.
 const laidOut = (tab: Element) => tab.getClientRects().length > 0
+
+// Whether a teammate's tab is on its way out of the list: it stays laid out while it collapses.
+const anyGoingAway = (list: Element) =>
+  [...list.querySelectorAll('[data-team-fold="away"]')].some(laidOut)
 
 // Where a tab's name line sits, and its left edge, in the wire layer's frame. While the tab is
 // renamed its name gives way to a field, so the line is taken from the tab's top.
@@ -42,6 +49,8 @@ type Measured = {
   readonly shape: WireShape
   readonly gutter: FoldGutter | undefined
   readonly ghost: readonly number[]
+  // How far a tick reaches from the wire to the lead's tab, for those rows.
+  readonly ghostWidth: number
   // What it was measured from, for the lit way up through a lead (`path` in LitTeams).
   readonly head: WireMember
   readonly members: readonly WireMember[]
@@ -92,7 +101,8 @@ const measureWire = (
           return y > shape.lead! && y <= view.bottom ? [y] : []
         })
       : []
-  return { shape, gutter, ghost, head, members: workers, view }
+  const ghostWidth = Math.max(0, Math.round(leadRect.left - origin.left) - shape.x)
+  return { shape, gutter, ghost, ghostWidth, head, members: workers, view }
 }
 
 // Every team's wire, by its lead, in the teams' order.
@@ -112,10 +122,10 @@ const measureWires = (
 
 // Every team's wire on the rail's border, while the Terminals list shows: the border between
 // the rail and the sidebar is drawn from each team's topmost tab to its bottommost, a block
-// cursor marks the lead, and a tick runs from the wire into each worker's tab. Every wire
+// cursor marks the lead, and a tick runs from the wire to each worker's tab. Every wire
 // rests, dim, so who leads whom shows without selecting anything; the selected terminal's
 // team lights, and plays its entrance each time one of its members is selected: the segment
-// grows, the ticks reach out and the cursor blinks. It sits over the workspace body, beside
+// grows and the ticks reach out. It sits over the workspace body, beside
 // the rail and the sidebar, as the sidebar clips what's drawn outside it; it takes no
 // pointer and is only drawn, as the window's header says who leads a terminal in words, but
 // for the gutter beside each lead's tab, which folds its teammates out of the list (or shows
@@ -177,6 +187,7 @@ export const TeamWire = ({
   // came, which holds it until they leave.
   const [armed, setArmed] = useState<string | undefined>(undefined)
   const spent = useRef<string | undefined>(undefined)
+  const heldFor = useRef(selected)
   const [seen, setSeen] = useState(selected)
   if (seen !== selected) {
     setSeen(selected)
@@ -262,10 +273,18 @@ export const TeamWire = ({
     }
   }, [teams, shown, list, folded, levels])
 
+  // A selection that swaps the tabs a fold shows holds its entrance until they settle, so the wire
+  // draws to where they end up, not to a tab on its way out (team-wire.css).
+  useLayoutEffect(() => {
+    if (heldFor.current === selected) return
+    heldFor.current = selected
+    layer.current?.toggleAttribute("data-holding", !!list && anyGoingAway(list))
+  })
+
   // The entrance plays once each time a member is selected; redraws after it, as rows scroll
   // into view, put the wire in place without playing it again.
   useEffect(() => {
-    const timer = setTimeout(() => setPlayed(selected), blinkMs + 200)
+    const timer = setTimeout(() => setPlayed(selected), entranceMs)
     return () => clearTimeout(timer)
   }, [selected])
 
@@ -412,7 +431,7 @@ const noChains: readonly string[] = []
 const noLit: LitTeams = { full: [], path: [] }
 
 const Wire = ({
-  wire: { shape, ghost },
+  wire: { shape, ghost, ghostWidth },
   lit,
   folded,
   faded,
@@ -461,7 +480,12 @@ const Wire = ({
           <i
             key={y}
             className="team-wire-ghost-tap"
-            style={{ left: shape.x, top: y, transitionDelay: `${180 + index * 90}ms` }}
+            style={{
+              left: shape.x,
+              top: y,
+              width: ghostWidth,
+              transitionDelay: `${180 + index * 90}ms`,
+            }}
           />
         ))}
       </>
