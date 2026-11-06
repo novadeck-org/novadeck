@@ -1,0 +1,32 @@
+2026-11-06T11:58:43.0828020Z @novadeck/viewers:test:  [32m✓[39m [30m[42m browser (chromium) [49m[39m src/react.test.ts [2m([22m[2m5 tests[22m[2m)[22m[32m 37[2mms[22m[39m
+2026-11-06T11:58:43.2497620Z @novadeck/viewers:test:  [32m✓[39m [30m[42m browser (chromium) [49m[39m src/highlight/lines.test.ts [2m([22m[2m8 tests[22m[2m)[22m[32m 17[2mms[22m[39m
+2026-11-06T11:58:43.4215470Z @novadeck/viewers:test:  [32m✓[39m [30m[42m browser (chromium) [49m[39m src/kept.test.ts [2m([22m[2m7 tests[22m[2m)[22m[32m 2[2mms[22m[39m
+2026-11-06T11:58:46.2657260Z @novadeck/viewers:test:  [32m✓[39m [30m[42m browser (chromium) [49m[39m src/hold.test.ts [2m([22m[2m3 tests[22m[2m)[22m[33m 2723[2mms[22m[39m
+2026-11-06T11:58:46.2761030Z @novadeck/viewers:test:    [32m✓[39m holding a place [2m(3)[22m
+2026-11-06T11:58:46.2945250Z @novadeck/viewers:test:      [33m[2m✓[22m[39m sets it again as what it watches gets its size, however late, once that's ready[33m 1328[2mms[22m[39m
+2026-11-06T11:58:46.3060760Z @novadeck/viewers:test:      [33m[2m✓[22m[39m lets go a moment after it's ready and has a size[33m 1277[2mms[22m[39m
+2026-11-06T11:58:46.5411950Z @novadeck/viewers:test:  [32m✓[39m [30m[42m browser (chromium) [49m[39m src/browser/sign-in.test.ts [2m([22m[2m2 tests[22m[2m)[22m[32m 1[2mms[22m[39m
+2026-11-06T11:58:46.7188900Z @novadeck/viewers:test:  [32m✓[39m [30m[42m browser (chromium) [49m[39m src/text.test.ts [2m([22m[2m1 test[22m[2m)[22m[32m 1[2mms[22m[39m
+2026-11-06T11:58:46.7289930Z @novadeck/viewers:test: 
+2026-11-06T11:58:46.7402390Z @novadeck/viewers:test: [31m⎯⎯⎯⎯⎯⎯⎯[39m[1m[41m Failed Tests 1 [49m[22m[31m⎯⎯⎯⎯⎯⎯⎯[39m
+2026-11-06T11:58:46.7503740Z @novadeck/viewers:test: 
+2026-11-06T11:58:46.7622120Z @novadeck/viewers:test: [41m[1m FAIL [22m[49m [30m[42m browser (chromium) [49m[39m src/diff.test.ts[2m > [22mthe diff viewer[2m > [22mwith many files[2m > [22mupdates and reports its place without laying out the files out of sight
+2026-11-06T11:58:46.7754520Z @novadeck/viewers:test: [31m[1mAssertionError[22m: expected 1481.0999999999767 to be less than 750[39m
+2026-11-06T11:58:46.7856740Z @novadeck/viewers:test: 
+2026-11-06T11:58:46.7958060Z @novadeck/viewers:test: Failure screenshot:
+2026-11-06T11:58:46.8094000Z @novadeck/viewers:test:   - [2m.vitest/attachments/failure-screenshots/diff.test.ts/the-diff-viewer---with-many-files---updates-and-reports-its-place-without-laying-out-the-files-out-of-sight.png[22m
+2026-11-06T11:58:46.8202220Z @novadeck/viewers:test: 
+2026-11-06T11:58:46.8548170Z @novadeck/viewers:test: [36m [2m❯[22m src/diff.test.ts:[2m669:24[22m[39m
+2026-11-06T11:58:46.8708570Z @novadeck/viewers:test:     [90m667|[39m         // for a slow shared CI machine, where this takes 60–160 ms.
+2026-11-06T11:58:46.9007000Z @novadeck/viewers:test:     [90m668|[39m         expect(state).toBeLessThan(500)
+2026-11-06T11:58:46.9008230Z @novadeck/viewers:test:     [90m669|[39m         expect(update).toBeLessThan(750)
+2026-11-06T11:58:46.9203390Z @novadeck/viewers:test:     [90m   |[39m                        [31m^[39m
+2026-11-06T11:58:46.9320600Z @novadeck/viewers:test:     [90m670|[39m         viewer.destroy()
+2026-11-06T11:58:46.9422750Z @novadeck/viewers:test:     [90m671|[39m       },
+2026-11-06T11:58:46.9526090Z @novadeck/viewers:test: 
+2026-11-06T11:58:46.9634280Z @novadeck/viewers:test: [31m[2m⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/1]⎯[22m[39m
+2026-11-06T11:58:46.9813660Z @novadeck/viewers:test: 
+2026-11-06T11:58:46.9975210Z @novadeck/viewers:test: 
+2026-11-06T11:58:47.0112950Z @novadeck/viewers:test: [2m Test Files [22m [1m[31m1 failed[39m[22m[2m | [22m[1m[32m16 passed[39m[22m[90m (17)[39m
+2026-11-06T11:58:47.0243050Z @novadeck/viewers:test: [2m      Tests [22m [1m[31m1 failed[39m[22m[2m | [22m[1m[32m410 passed[39m[22m[90m (411)[39m
+2026-11-06T11:58:47.0627860Z @novadeck/viewers:test: [2m   Start at [22m 11:56:55

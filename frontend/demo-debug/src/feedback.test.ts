@@ -14,6 +14,7 @@ const launch = { rehearsals: { rehearse } } as unknown as DemoLaunch
 
 const context = (over: Partial<DemoActionContext> = {}): DemoActionContext => ({
   target: "selected",
+  harness: "claude",
   selected: () => undefined,
   select: () => {},
   addTerminal: () => {

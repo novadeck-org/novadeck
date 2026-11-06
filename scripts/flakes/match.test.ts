@@ -24,6 +24,8 @@ const fixtures: Record<string, string> = {
   "runner-engines-server-port-picked-again": "Test (Linux, 3/3)",
   "sandbox-reap-macos-ps-timeout": "Test (macOS)",
   "adapter-restore-macos-shell-exited": "Test (macOS)",
+  "secrets-macos-hex-group-timeout": "Test (macOS)",
+  "viewers-macos-diff-update-budget": "Test (macOS)",
 }
 
 describe("the known-flake register", () => {

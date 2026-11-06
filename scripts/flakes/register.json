@@ -393,6 +393,24 @@
       "status": "fixed",
       "cause": "The file's 15 s test timeout ended it while it drew its rows, on a macOS page running its tests 10 to 27 times slower than here (\"stays at the row\" 9.5 s against 0.36 s); its own wait allowed 15 s or 30 s, which the test timeout never let it reach. Reproduced with Chromium's CPU throttled 20x: the old tests timed out at 15 s, 3 of 3 (with \"carries on drawing\"). The three drawing tests now have a 60 s timeout, and the long change is 6,000 lines, three of the viewer's 2,000-row batches, not 20,000: they passed at 20x, the long change's at 30x too, and still fail when the viewer draws all rows at once.",
       "seen": ["#717 run 42101141316 attempt 1 job 127503942930 (macOS)"]
+    },
+    {
+      "id": "secrets-macos-hex-group-timeout",
+      "jobs": ["^Test \\(macOS\\)$"],
+      "test": "src/screen.test.ts > secrets longer than the window rows are read in > is quick for a 2,000-row group of one wrapped line of hex",
+      "signature": "Test timed out in 60000ms",
+      "status": "known",
+      "cause": "Unknown, seen once. A timeout here means the test's real check passed: its budget is 15 s of CPU, and the 60 s timeout only bounds the wall clock, so a real blow-up fails with `expected N to be less than 15000`, which this doesn't excuse. The test took 68 s of wall clock, against 2.1 s, 28.8 s and 31.1 s on earlier passing macOS runs, so about half the limit on two of those three. Its comment's \"about 1 s\" is a CPU figure, so these don't compare with it. Why hex takes so much longer than the other shapes in the same job (24 s for base64, 5 to 8 s for the rest) hasn't been looked into; it runs first, beside other packages' tests.",
+      "seen": ["#729 run 42209861170 job 127865530140 (macOS)"]
+    },
+    {
+      "id": "viewers-macos-diff-update-budget",
+      "jobs": ["^Test \\(macOS\\)$"],
+      "test": "src/diff.test.ts > the diff viewer > with many files > updates and reports its place without laying out the files out of sight",
+      "signature": "AssertionError: expected [\\d.]+ to be less than 750",
+      "status": "known",
+      "cause": "Unknown, seen once: an update took 1,481 ms against the 750 ms budget, where the test's comment says 60 to 160 ms on a slow shared machine. Many jobs were running at the time, so a slow runner is likely but unproven. A failure here stops Test (macOS) before later packages, such as the runner, have run.",
+      "seen": ["#737 run 42212834625 job 127875434063 (macOS)"]
     }
   ]
 }

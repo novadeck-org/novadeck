@@ -7,6 +7,7 @@ import type { DemoActionContext } from "./types"
 
 const context = (selected?: DemoActionContext["selected"]): DemoActionContext => ({
   target: "selected",
+  harness: "claude",
   selected: selected ?? (() => undefined),
   select: () => {},
   addTerminal: () => {
