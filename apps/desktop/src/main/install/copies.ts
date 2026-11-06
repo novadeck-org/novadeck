@@ -548,7 +548,7 @@ export type MachineCopies = ReturnType<typeof machineCopies>
 export type MachineUninstallHost = {
   readonly portable: boolean
   /** Quits as usual, less the install of a waiting update, which would put the app back. */
-  readonly shutdown: () => Promise<void>
+  readonly shutdown: () => Promise<unknown>
   readonly stopping: () => boolean
   readonly log: (message: string, error: unknown) => void
 }

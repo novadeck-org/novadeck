@@ -378,6 +378,25 @@ export const quitWithoutInstalling =
   }
 
 /**
+ * Leaves a waiting update for later, on a quit whose runner may still be there: `installs`
+ * are the switches an install on quitting reads, one way, as nothing switches them on again.
+ * No mark is written and electron-updater's copy stays, so a later launch finds the update
+ * again. One the quit `swapped` in as it began is in place already. See docs/auto-update.md,
+ * "A runner that does not exit".
+ */
+export const keepUpdateOnQuit = (
+  installs: readonly (Pick<Updater, "autoInstallOnAppQuit"> | undefined)[],
+  { swapped, log }: { readonly swapped: boolean; readonly log: (line: string) => void },
+): void => {
+  for (const install of installs) if (install) install.autoInstallOnAppQuit = false
+  log(
+    swapped
+      ? "The runner may still be running, so nothing opens; the update starts at the next launch."
+      : "The runner may still be running, so nothing installs or opens on this quit.",
+  )
+}
+
+/**
  * Switches installing on quit off for a quit that is not an orderly one, on Linux, where
  * Electron turns SIGTERM, SIGINT and SIGHUP into an ordinary quit with exit code 0, which
  * electron-updater installs on. A desktop logout or `kill` would then swap the AppImage in

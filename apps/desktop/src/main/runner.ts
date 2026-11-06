@@ -30,15 +30,21 @@ export type RunnerProcess = {
   /**
    * Ends the runner's shells, then the process; forcibly after `timeoutMs`, and settles
    * `exitGraceMs` after that even if the process never exits, so a quit can't hang on it.
-   * Final: later ports aren't delivered.
+   * Says how it ended. Final: later ports aren't delivered.
    */
-  close(timeoutMs?: number, exitGraceMs?: number): Promise<void>
+  close(timeoutMs?: number, exitGraceMs?: number): Promise<RunnerEnd>
   /** Saves every terminal's restore state now, as when the system session is ending. */
   persist(): void
 }
 
 const send = (worker: UtilityProcess, command: RunnerCommand, ports: MessagePortMain[] = []) =>
   worker.postMessage(command, ports)
+
+/**
+ * How the runner ended as the app closed it: by itself (or it wasn't running), only once it
+ * was killed, or not at all, past its kill, so the process may still be there.
+ */
+export type RunnerEnd = "closed" | "killed" | "abandoned"
 
 /** What the app hears of each start of the runner, numbered from 1 within the launch. */
 export type RunnerEvents = {
@@ -143,7 +149,7 @@ export const startRunner = (options: {
     fork = (entry, args, forkOptions) => utilityProcess.fork(entry, args, forkOptions),
   } = options
   let child: UtilityProcess | undefined
-  let closing: Promise<void> | undefined
+  let closing: Promise<RunnerEnd> | undefined
   // Whether closing had to kill the runner, which then didn't end as asked.
   let killed = false
   let runs = 0
@@ -209,10 +215,10 @@ export const startRunner = (options: {
     },
     close(timeoutMs = 5_000, exitGraceMs = 2_000) {
       clearInterval(beats)
-      closing ??= new Promise<void>((resolve) => {
+      closing ??= new Promise<RunnerEnd>((resolve) => {
         const worker = child
         if (!worker) {
-          resolve()
+          resolve("closed")
           return
         }
         const run = runs
@@ -225,13 +231,13 @@ export const startRunner = (options: {
           // must not hold the quit for ever.
           abandon = setTimeout(() => {
             events.abandoned?.(run, exitGraceMs)
-            resolve()
+            resolve("abandoned")
           }, exitGraceMs)
         }, timeoutMs)
         worker.once("exit", () => {
           clearTimeout(timer)
           clearTimeout(abandon)
-          resolve()
+          resolve(killed ? "killed" : "closed")
         })
         send(worker, { type: "close" })
       })

@@ -325,13 +325,39 @@ from signals by marking them before they begin:
 The app has no tray and no page command that quits. A `before-quit` without the mark, which
 is what a signal gives, switches installing on quit off.
 
+### A runner that does not exit
+
+The runner gets 5 seconds to close and is killed, and the quit goes on 2 seconds later
+whether it has gone or not. One that was killed and did exit is gone, so the quit goes on as
+usual. One still there may hold the data folder and the install folder: the Windows installer
+can't stop a process stuck in the kernel and ends unfinished, which marks the release failed,
+and a copy opened beside it would run a second runner on the same database. So that quit
+installs no update and opens nothing, on every system, with a line in the log saying so
+(`keepUpdateOnQuit`), and a launch that came during the quit is dropped. A close that failed
+counts the same, as it says nothing of whether the runner ended, which is why the line says
+the runner may still be running.
+
+Nothing is lost. Skipping writes nothing to `update.json`, so the next launch counts no
+failure, and its check finds the update again: electron-updater's copy, checked by its hash,
+so nothing downloads again unless the copy went, and macOS prepares it anew. On Linux a
+person's quit has usually swapped the AppImage as it began; then only the reopening is
+dropped, and the next launch runs the new file and settles the install as usual. An update
+not swapped by then, as a signal's quit leaves it or a download that finished during the
+shutdown, waits in electron-updater's copy as on the other systems.
+
+The update then installs at a later quit whose runner exits, once that launch has found it
+again. A runner that hangs at every quit holds it back for as long as it does, with the log line as the only sign. A stuck
+process that outlives the next launch can still fail that install on Windows, and the release
+is then told of as "Update available" until a newer one comes.
+
 ### Opening Novadeck while it quits into an update
 
 The person may open Novadeck again while their quit is still putting an update in place, as
 shutting down takes a moment. That launch is theirs, and it is honoured: it opens once the
 update is in place, as the new version. This is not a restart of the app on its own; a quit
 nobody reopens leaves Novadeck closed on every system. Nor does it apply to a quit that
-installs nothing, as a signal's or the session ending, or to a quit with no update.
+installs nothing, as a signal's, the session ending or one whose runner stayed behind (see
+"A runner that does not exit"), or to a quit with no update.
 
 - **Linux** swaps the AppImage at the start of an orderly quit, not after the shutdown
   (`installNow` in `updates/updater.ts`, called from `before-quit` only for the person's quit; see

@@ -2,6 +2,7 @@ import type { IpcMainEvent } from "electron"
 
 import { saveBeforeQuitChannel } from "../bridge.js"
 import type { Quitting } from "./quitting.js"
+import type { RunnerEnd } from "./runner.js"
 
 type QuitIpc = {
   on(channel: string, listener: (event: IpcMainEvent) => void): unknown
@@ -140,7 +141,8 @@ export const saveBeforeClose = (
 /**
  * Every page saves before the runner ends its shells, so the saves name what still runs.
  * The runner and the server then close side by side, and one's close failing leaves the
- * other's to finish.
+ * other's to finish. Says how the runner ended, a close that failed saying nothing of that,
+ * so it counts as one that didn't end.
  */
 export const shutDownInOrder = async ({
   platform,
@@ -152,14 +154,15 @@ export const shutDownInOrder = async ({
   readonly platform: NodeJS.Platform
   readonly persist: () => void
   readonly save: () => Promise<void>
-  readonly closeRunner: () => Promise<void> | undefined
+  readonly closeRunner: () => Promise<RunnerEnd> | undefined
   readonly closeServer: () => Promise<void> | undefined
-}): Promise<void> => {
+}): Promise<RunnerEnd> => {
   // On Windows the runner hears at once that the app is going, as at the session's end, so
   // no agent the system ends meanwhile counts as ended by the person.
   if (platform === "win32") persist()
   await save()
-  await Promise.allSettled([closeRunner(), closeServer()])
+  const [runner] = await Promise.allSettled([closeRunner(), closeServer()])
+  return runner.status === "rejected" ? "abandoned" : (runner.value ?? "closed")
 }
 
 /** What a quit runs; `beforeQuit` holds their order. */
@@ -173,9 +176,11 @@ export type QuitSteps = {
   readonly begin: () => void
   /** Whether the app has a runner or a server to shut down. */
   readonly hosting: () => boolean
-  readonly shutDown: () => Promise<void>
+  readonly shutDown: () => Promise<RunnerEnd>
   readonly installMacUpdate: () => Promise<void>
   readonly reopenAppImage: () => Promise<void>
+  /** Leaves a waiting update for a later quit, and installs and opens nothing on this one. */
+  readonly keepUpdate: () => void
   /** Quits again, which comes back here with nothing left to do and lets the app end. */
   readonly quit: () => void
 }
@@ -183,8 +188,11 @@ export type QuitSteps = {
 /**
  * The app's `before-quit`: holds the quit back until everything that ends with the app has
  * ended, and quits again whatever failed on the way, so a failure never leaves the app
- * running with its shells gone. Returns that work, which ends with the failure if one came,
- * or nothing when this pass lets the quit go on or holds it.
+ * running with its shells gone. A runner that didn't exit even when killed may still hold
+ * the data folder and the install folder, so no update goes in and no new copy opens beside
+ * it; one that was killed and did exit is gone, and the quit goes on as usual. Returns that
+ * work, which ends with the failure if one came, or nothing when this pass lets the quit go
+ * on or holds it.
  */
 export const beforeQuit = (
   event: { preventDefault(): void },
@@ -204,7 +212,10 @@ export const beforeQuit = (
   quitting.stopping = true
   return steps
     .shutDown()
-    .then(steps.installMacUpdate)
-    .then(steps.reopenAppImage)
+    .then(async (ended) => {
+      if (ended === "abandoned") return steps.keepUpdate()
+      await steps.installMacUpdate()
+      await steps.reopenAppImage()
+    })
     .finally(steps.quit)
 }
