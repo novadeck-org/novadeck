@@ -510,6 +510,14 @@ jobs:
             fi
             exit "$status"' "$engines"
 
+      # The checks below run the macOS engines' Intel slice too, which an arm64 runner needs
+      # Rosetta for; the image may not have it.
+      - name: Set Up Rosetta
+        if: matrix.target == 'mac'
+        timeout-minutes: 10
+        shell: bash
+        run: arch -x86_64 /usr/bin/true 2> /dev/null || sudo softwareupdate --install-rosetta --agree-to-license
+
       # Unpacks the engine with the tar the runner uses on this platform and runs it, so a
       # missing library or backend module fails here rather than on a person's machine.
       - name: Check Voice Engine
@@ -530,36 +538,44 @@ jobs:
           if [[ "$RUNNER_OS" == "Linux" ]]; then
             run=(docker run --rm -i --network none -v "$engine:$engine:ro" novadeck-engine-check)
           fi
-          "${run[@]}" "$server" --help > /dev/null
-          # The flags the runner starts the server with (backend/runner/src/voice/engine.ts):
-          # with a model that is not there, the server must complain of the model and exit with
-          # a failure within moments, even though its stdin stays open, as the runner holds it.
-          # The sleep holds stdin open; a server that is still there when it ends has not exited
-          # on its own, and exits 0 as its stdin closes. (A server that does not know a flag
-          # prints its usage and exits 0.) Its own time is taken by the subshell around it, as
-          # the pipeline waits for the sleep. The build checks that the patch applies.
-          flags=(--host 127.0.0.1 --port 0 --request-path /check -l en -nt -t 2 --vad --exit-with-stdin)
-          model="$engine/absent.bin"
-          if [[ "$RUNNER_OS" == "Windows" ]]; then model="$(cygpath -m "$engine")/absent.bin"; fi
-          start=$(date +%s)
-          sleep 15 | { code=0; "${run[@]}" "$server" "${flags[@]}" -m "$model" -vm "$model" > "$RUNNER_TEMP/voice-flags.txt" 2>&1 || code=$?; echo "$code $(date +%s)" > "$RUNNER_TEMP/voice-end.txt"; }
-          read -r status ended < "$RUNNER_TEMP/voice-end.txt"
-          tr -d '\r' < "$RUNNER_TEMP/voice-flags.txt" | tail -n 20
-          if [[ "$status" == 0 ]]; then
-            if grep -q -i -E 'unknown argument|usage:' "$RUNNER_TEMP/voice-flags.txt"; then
-              echo "::error::The server does not take the flags the runner starts it with (it printed its usage)."
-            else
-              echo "::error::The server did not fail on a missing model while its stdin was open."
+          check() {
+            "${run[@]}" "$server" --help > /dev/null
+            # The flags the runner starts the server with (backend/runner/src/voice/engine.ts):
+            # with a model that is not there, the server must complain of the model and exit with
+            # a failure within moments, even though its stdin stays open, as the runner holds it.
+            # The sleep holds stdin open; a server that is still there when it ends has not exited
+            # on its own, and exits 0 as its stdin closes. (A server that does not know a flag
+            # prints its usage and exits 0.) Its own time is taken by the subshell around it, as
+            # the pipeline waits for the sleep. The build checks that the patch applies.
+            flags=(--host 127.0.0.1 --port 0 --request-path /check -l en -nt -t 2 --vad --exit-with-stdin)
+            model="$engine/absent.bin"
+            if [[ "$RUNNER_OS" == "Windows" ]]; then model="$(cygpath -m "$engine")/absent.bin"; fi
+            start=$(date +%s)
+            sleep 15 | { code=0; "${run[@]}" "$server" "${flags[@]}" -m "$model" -vm "$model" > "$RUNNER_TEMP/voice-flags.txt" 2>&1 || code=$?; echo "$code $(date +%s)" > "$RUNNER_TEMP/voice-end.txt"; }
+            read -r status ended < "$RUNNER_TEMP/voice-end.txt"
+            tr -d '\r' < "$RUNNER_TEMP/voice-flags.txt" | tail -n 20
+            if [[ "$status" == 0 ]]; then
+              if grep -q -i -E 'unknown argument|usage:' "$RUNNER_TEMP/voice-flags.txt"; then
+                echo "::error::The server does not take the flags the runner starts it with (it printed its usage)."
+              else
+                echo "::error::The server did not fail on a missing model while its stdin was open."
+              fi
+              exit 1
             fi
-            exit 1
-          fi
-          if (( ended - start > 10 )); then
-            echo "::error::The server took $((ended - start)) s to fail on a missing model."
-            exit 1
-          fi
-          if ! grep -q -i -E 'absent\.bin|failed to initialize whisper context' "$RUNNER_TEMP/voice-flags.txt"; then
-            echo "::error::The server did not complain of the missing model."
-            exit 1
+            if (( ended - start > 10 )); then
+              echo "::error::The server took $((ended - start)) s to fail on a missing model."
+              exit 1
+            fi
+            if ! grep -q -i -E 'absent\.bin|failed to initialize whisper context' "$RUNNER_TEMP/voice-flags.txt"; then
+              echo "::error::The server did not complain of the missing model."
+              exit 1
+            fi
+          }
+          check
+          # The macOS engine is universal: the same again for its Intel slice.
+          if [[ "$RUNNER_OS" == "macOS" ]]; then
+            run=(arch -x86_64)
+            check
           fi
 
       # The same for murmur's server, which must also list its devices with their types:
@@ -582,52 +598,60 @@ jobs:
           if [[ "$RUNNER_OS" == "Linux" ]]; then
             run=(docker run --rm -i --network none -v "$engine:$engine:ro" novadeck-engine-check)
           fi
-          "${run[@]}" "$server" --help > /dev/null
-          "${run[@]}" "$server" --list-devices | tr -d '\r' | tee "$RUNNER_TEMP/murmur-devices.txt"
-          grep -q '^Available devices:' "$RUNNER_TEMP/murmur-devices.txt"
-          # A runner without a GPU prints "  (none)", which is not a device.
-          if grep -E '^  [^ (]' "$RUNNER_TEMP/murmur-devices.txt" | grep -v -E ' \[(cpu|gpu|igpu|accel)\]$'; then
-            echo "::error::A device line has no type."
-            exit 1
-          fi
-          # The flags the runner starts the server with (backend/runner/src/murmur/service.ts):
-          # with a model that is not there, the server must get as far as complaining of the
-          # model, not of an argument it does not know or cannot read, and exit with a failure
-          # at once even though its stdin stays open, as the runner holds it. The sleep holds
-          # stdin open; a server that is still there when it ends has not exited on its own,
-          # and exits 0 as its stdin closes. Its own time is taken by the subshell around it,
-          # as the pipeline waits for the sleep.
-          flags=(--host 127.0.0.1 --port 0 --device none -ngl 999 -c 4096 -np 1 --reasoning off --exit-with-stdin)
-          model="$engine/absent.gguf"
-          if [[ "$RUNNER_OS" == "Windows" ]]; then model="$(cygpath -m "$engine")/absent.gguf"; fi
-          start=$(date +%s)
-          sleep 15 | { code=0; "${run[@]}" "$server" "${flags[@]}" -m "$model" > "$RUNNER_TEMP/murmur-flags.txt" 2>&1 || code=$?; echo "$code $(date +%s)" > "$RUNNER_TEMP/murmur-end.txt"; }
-          read -r status ended < "$RUNNER_TEMP/murmur-end.txt"
-          tr -d '\r' < "$RUNNER_TEMP/murmur-flags.txt" | tail -n 20
-          if [[ "$status" == 0 ]]; then
-            echo "::error::The server did not fail on a missing model while its stdin was open."
-            exit 1
-          fi
-          if (( ended - start > 10 )); then
-            echo "::error::The server took $((ended - start)) s to fail on a missing model."
-            exit 1
-          fi
-          if grep -q -i -E 'invalid argument|unknown argument|unrecognized|unrecognised|error while handling argument|invalid value|usage:' "$RUNNER_TEMP/murmur-flags.txt"; then
-            echo "::error::The server does not take the flags the runner starts it with."
-            exit 1
-          fi
-          if ! grep -q -i -E 'absent\.gguf|failed to load model|error loading model|failed to open' "$RUNNER_TEMP/murmur-flags.txt"; then
-            echo "::error::The server did not complain of the missing model."
-            exit 1
-          fi
-          # With stdin closed the patched server ends at once and cleanly; an unpatched one
-          # rejects the flag.
-          status=0
-          "${run[@]}" "$server" "${flags[@]}" -m "$model" < /dev/null > "$RUNNER_TEMP/murmur-stdin.txt" 2>&1 || status=$?
-          if [[ "$status" != 0 ]]; then
-            cat "$RUNNER_TEMP/murmur-stdin.txt"
-            echo "::error::The server did not end cleanly when its stdin closed."
-            exit 1
+          check() {
+            "${run[@]}" "$server" --help > /dev/null
+            "${run[@]}" "$server" --list-devices | tr -d '\r' | tee "$RUNNER_TEMP/murmur-devices.txt"
+            grep -q '^Available devices:' "$RUNNER_TEMP/murmur-devices.txt"
+            # A runner without a GPU prints "  (none)", which is not a device.
+            if grep -E '^  [^ (]' "$RUNNER_TEMP/murmur-devices.txt" | grep -v -E ' \[(cpu|gpu|igpu|accel)\]$'; then
+              echo "::error::A device line has no type."
+              exit 1
+            fi
+            # The flags the runner starts the server with (backend/runner/src/murmur/service.ts):
+            # with a model that is not there, the server must get as far as complaining of the
+            # model, not of an argument it does not know or cannot read, and exit with a failure
+            # at once even though its stdin stays open, as the runner holds it. The sleep holds
+            # stdin open; a server that is still there when it ends has not exited on its own,
+            # and exits 0 as its stdin closes. Its own time is taken by the subshell around it,
+            # as the pipeline waits for the sleep.
+            flags=(--host 127.0.0.1 --port 0 --device none -ngl 999 -c 4096 -np 1 --reasoning off --exit-with-stdin)
+            model="$engine/absent.gguf"
+            if [[ "$RUNNER_OS" == "Windows" ]]; then model="$(cygpath -m "$engine")/absent.gguf"; fi
+            start=$(date +%s)
+            sleep 15 | { code=0; "${run[@]}" "$server" "${flags[@]}" -m "$model" > "$RUNNER_TEMP/murmur-flags.txt" 2>&1 || code=$?; echo "$code $(date +%s)" > "$RUNNER_TEMP/murmur-end.txt"; }
+            read -r status ended < "$RUNNER_TEMP/murmur-end.txt"
+            tr -d '\r' < "$RUNNER_TEMP/murmur-flags.txt" | tail -n 20
+            if [[ "$status" == 0 ]]; then
+              echo "::error::The server did not fail on a missing model while its stdin was open."
+              exit 1
+            fi
+            if (( ended - start > 10 )); then
+              echo "::error::The server took $((ended - start)) s to fail on a missing model."
+              exit 1
+            fi
+            if grep -q -i -E 'invalid argument|unknown argument|unrecognized|unrecognised|error while handling argument|invalid value|usage:' "$RUNNER_TEMP/murmur-flags.txt"; then
+              echo "::error::The server does not take the flags the runner starts it with."
+              exit 1
+            fi
+            if ! grep -q -i -E 'absent\.gguf|failed to load model|error loading model|failed to open' "$RUNNER_TEMP/murmur-flags.txt"; then
+              echo "::error::The server did not complain of the missing model."
+              exit 1
+            fi
+            # With stdin closed the patched server ends at once and cleanly; an unpatched one
+            # rejects the flag.
+            status=0
+            "${run[@]}" "$server" "${flags[@]}" -m "$model" < /dev/null > "$RUNNER_TEMP/murmur-stdin.txt" 2>&1 || status=$?
+            if [[ "$status" != 0 ]]; then
+              cat "$RUNNER_TEMP/murmur-stdin.txt"
+              echo "::error::The server did not end cleanly when its stdin closed."
+              exit 1
+            fi
+          }
+          check
+          # The macOS engine is universal: the same again for its Intel slice.
+          if [[ "$RUNNER_OS" == "macOS" ]]; then
+            run=(arch -x86_64)
+            check
           fi
 
       # The engines carry the C runtime inside them (engines/ggml-build): one that imports it
@@ -673,7 +697,7 @@ jobs:
       # held it. A release that signs must find every binary signed with the Developer ID. Any
       # other run, a pull request's among them, must find each signed ad hoc, as its cache key
       # says ("unsigned"): Apple silicon runs nothing less, and an engine of one kind is never
-      # taken for the other. Both architectures are read, though only arm64 runs here.
+      # taken for the other. Both architectures are read.
       - name: Verify Engine Signatures (macOS)
         if: matrix.target == 'mac'
         env:
