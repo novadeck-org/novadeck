@@ -154,7 +154,14 @@ describe.runIf(process.platform === "win32" && supported)("a new Windows termina
                 `cmd restored, ${saved()} characters saved, #${round}`,
                 deck,
                 () => deck.restore(earlier),
-                toPrompt,
+                (terminal) => ({
+                  // A Windows pseudoconsole's replay leaves the screen to the new shell, so
+                  // these are its times; a saved prompt still on show would make them nothing.
+                  prompt: drawn(terminal, />\s*$/m).then(async () => {
+                    if ((await terminal.screen()).includes("printed all"))
+                      throw new Error("The saved screen is still on show")
+                  }),
+                }),
                 // It stays, for the next round.
                 async () => {},
               ),
