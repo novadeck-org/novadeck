@@ -14,6 +14,7 @@ import { vi } from "vitest"
 
 import { describe, expect, it } from "../test.js"
 import { cmdPrints, installRelay, installShellFiles } from "./install.js"
+import { shellFiles, shellPaths } from "./scripts.js"
 
 const missing = () => Object.assign(new Error("missing"), { code: "ENOENT" })
 
@@ -107,6 +108,29 @@ describe("whether cmd prints of its own before a command", () => {
       await expect(cmdPrints()).resolves.toBeUndefined()
     },
   )
+})
+
+describe("the Windows shims", () => {
+  it("are written with CRLF line endings, whatever writes them", () => {
+    const paths = shellPaths("C:\\data", "win32")
+    const shims = shellFiles(paths, "win32", undefined, {
+      cmdShimDir: "C:\\data\\agy-cmd",
+    }).filter((file) => file.path.endsWith(".cmd") && file.path.startsWith(paths.bin))
+    expect(shims.map((file) => file.path).toSorted()).toEqual(
+      ["agy.cmd", "claude.cmd", "codex.cmd"].map((name) => join(paths.bin, name)),
+    )
+    for (const { content } of shims) {
+      expect(content).toContain("\r\n")
+      expect(content).not.toMatch(/(?<!\r)\n/)
+    }
+  })
+
+  it("keeps the POSIX shims' line endings", () => {
+    const paths = shellPaths("/data", "linux")
+    const shims = shellFiles(paths, "linux").filter((file) => file.path.startsWith(paths.bin))
+    expect(shims.length).toBeGreaterThan(0)
+    for (const { content } of shims) expect(content).not.toContain("\r")
+  })
 })
 
 describe("installing the relay", () => {
