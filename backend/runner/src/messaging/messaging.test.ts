@@ -6328,17 +6328,46 @@ describe("the person's reply at a turn's end", () => {
     },
   )
 
-  it("leaves a person's queued prompt to carry it, as any message", () => {
-    const { messaging, terminal, bound, prompt, reply, stop } = working(harnessesAtStop[0])
-    messaging.keys(terminal, ["enter"], false)
+  it.each(harnessesAtStop)(
+    "leaves a prompt the person queued in $name to carry it, as any message",
+    (harness) => {
+      const { messaging, terminal, bound, prompt, reply, stop } = working(harness)
+      messaging.keys(terminal, ["content", "enter"], false)
+      reply("Yes")
+      expect(stop().leaseId).toBeNull()
+      expect(messaging.delivery(terminal)?.box.queued).toBe(true)
+      expect(messaging.ringable(terminal)).toBe(false)
+      expect(prompt(terminal, bound).stdout).toContain("Yes")
+    },
+  )
+
+  it.each(harnessesAtStop)(
+    "gives it at the Stop over keys typed while a request waited in $name",
+    (harness) => {
+      const { messaging, terminal, reply, stop } = working(harness)
+      messaging.keys(terminal, ["content"], true)
+      expect(messaging.delivery(terminal)?.box.draftWhileAsked).toBe(true)
+      reply("Yes")
+      expect(stop().stdout).toContain("Yes")
+    },
+  )
+
+  it("gives it at the Stop where Antigravity says only that something runs on", () => {
+    const { bound, terminal, ask, reply } = working(harnessesAtStop[2])
     reply("Yes")
-    expect(stop().leaseId).toBeNull()
-    expect(prompt(terminal, bound).stdout).toContain("Yes")
+    const event = {
+      ...(stopped(bound) as Extract<HarnessEvent, { type: "turn-ended" }>),
+      background: { agents: 0, tasks: 0, more: true as const },
+    }
+    expect(ask(terminal, bound, "Stop", [event]).stdout).toContain("Yes")
   })
 
-  it("gives a request for feedback at the Stop, as it rides no line", () => {
-    const { messaging, terminal, stop } = working(harnessesAtStop[0])
-    messaging.personFeedbackRequest(terminal, "request-1", "Be blunt")
-    expect(stop().stdout).toContain("Be blunt")
-  })
+  it.each(harnessesAtStop)(
+    "gives a request for feedback at $name's Stop, as it rides no line",
+    (harness) => {
+      const { messaging, terminal, stop } = working(harness)
+      messaging.personFeedbackRequest(terminal, "request-1", "Be blunt")
+      expect(stop().stdout).toContain("Be blunt")
+    },
+  )
 })

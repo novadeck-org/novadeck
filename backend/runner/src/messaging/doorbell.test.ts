@@ -612,7 +612,7 @@ describe("the doorbell", () => {
     doorbell.close()
   })
 
-  it("tells a confirmed ring ends the plain line, and only its own confirmation", async () => {
+  it("tells a confirmed ring ends the plain line", async () => {
     const { host, written, failed, rearm, confirm, plains } = terminal()
     const doorbell = new Doorbell(host, host.queue, fast)
     doorbell.changed("t")

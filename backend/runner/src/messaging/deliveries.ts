@@ -324,8 +324,9 @@ export class Deliveries {
    */
   ridesLine(terminalId: string, background: boolean): boolean {
     const live = this.host.sessions.get(terminalId)
-    if (!live || background || !live.delivery.box.empty || live.ringsPlain) return false
-    return this.replyLine(terminalId) !== undefined
+    if (!live || background || live.ringsPlain) return false
+    const { box } = live.delivery
+    return box.empty && !box.draftWhileAsked && this.replyLine(terminalId) !== undefined
   }
 
   /** Whether the doorbell rings the terminal with the plain line now, as it tells. */

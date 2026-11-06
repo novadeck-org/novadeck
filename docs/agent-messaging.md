@@ -1557,22 +1557,24 @@ person's mark.
   messages beside it included, the turn is Settled, and the ring's prompt hook carries them
   all, oldest first. So the reply is the agent's prompt, about 8 s after the Stop (the 6 s
   settle below, the screen's calm and watch, the ring), in every harness. A line says a
-  reply once, as said twice it could be acted on twice: what its turn's hook didn't carry,
+  reply once, as said twice it could be acted on twice (one a failed ring left in the box and
+  a later look submits may say it again, as it always could): what its turn's hook didn't carry,
   for lack of time or room in the delivery, comes as context, at that turn's Stop or under
   a later ring, whose line says only replies not said yet. Where a ring can't be counted on,
   the Stop continues the turn as with any message, the reply context alone: a draft in the
   box (a ring would wait on it, and never types over it), subagents the turn leaves running
   or, in Antigravity, whatever its Stop says still runs (their output can keep the screen
   from the calm a ring needs), or the doorbell ringing plain after a ring failed with its
-  paste counted. A command alone left running doesn't count, and Codex's Stop says nothing
-  of what runs on. Once the turn has ended no hook is left to carry a reply: a draft the
-  person starts before the ring, or a dialog, holds it as any message to an idle agent,
-  their prompt carrying it, and rings stop at the third failure until a key or a turn event.
+  paste counted. Elsewhere a command alone left running doesn't count, and Codex's Stop
+  says nothing of what runs on. Once the turn has ended no hook is left to carry a reply: a
+  draft the person starts before the ring, or a dialog, holds it as any message to an idle agent,
+  their prompt carrying it; rings stop at the third failure until a key or a turn event; and
+  a session that ends first (a `/clear`, `/exit` or close in those seconds) takes it with it,
+  gone, and the Inbox tells the person it wasn't delivered.
 - **Its limits.** Replies that a Stop gives (above), that a person's queued prompt or a
   plain ring's prompt carries, that came too late for the line whose turn's hook carries
-  them, that don't fit or hold what no line holds, and the rings after a failed one (until a
-  ring of a new line is confirmed; a line left in the box and submitted later ends none)
-  come as context alone, where Claude Code's auto mode doesn't count them. A reply never
+  them, that don't fit or hold what no line holds, and the rings after a failed one, come as
+  context alone, where Claude Code's auto mode doesn't count them. A reply never
   comes at a tool call: only a lead's messages do. Auto mode's check is given the
   conversation's user messages and tool calls (`e2e/probes/auto-mode-reply.e2e.ts` shows a
   typed reply in its transcript and a Stop's absent, on 2.1.316). A reply line the person
