@@ -17,6 +17,8 @@ const call = (id: string, title: string, detail = ""): ToolEntry => ({
   input: "{}",
   truncated: false,
   result: { id: `${id}:result`, text: "ok", truncated: false },
+  outcome: null,
+  scripted: false,
 })
 
 // A result whose call is outside the window.
@@ -28,6 +30,8 @@ const orphan = (id: string): ToolEntry => ({
   input: "",
   truncated: false,
   result: { id: `${id}:result`, text: "ok", truncated: false },
+  outcome: null,
+  scripted: false,
 })
 
 const show = (entries: readonly ToolEntry[]) => {

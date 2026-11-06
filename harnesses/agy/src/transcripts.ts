@@ -2,6 +2,7 @@ import { parseFields, type Fields } from "@novadeck/harness-core/fields"
 import type { TranscriptDecoder, UserEntry } from "@novadeck/harness-core/harness"
 import { at, entry, textOf } from "@novadeck/harness-core/items"
 
+import { callChange, stepOutcome } from "./outcomes.js"
 import { describe } from "./tools.js"
 
 // The person's words within the context Antigravity wraps a prompt in.
@@ -44,6 +45,7 @@ export const transcripts: TranscriptDecoder = {
         entry("tool", "tool-result", content, {
           at: time,
           call: step === undefined ? undefined : `step:${step}`,
+          outcome: stepOutcome(fields.status, fields.error, content),
         }),
       ]
     if (fields.type !== "PLANNER_RESPONSE") return []
@@ -53,6 +55,7 @@ export const transcripts: TranscriptDecoder = {
         at: time,
         tool: name,
         call: step === undefined ? undefined : `step:${step + 1 + index}`,
+        outcome: callChange(name, args),
         describe,
       })
     })

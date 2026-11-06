@@ -88,6 +88,8 @@ const itemOf = (session: string, item: TranscriptItem): ChatItem => ({
   call: item.call,
   author: item.author,
   run: item.run,
+  outcome: item.outcome,
+  scripted: item.scripted,
   interrupted: item.interrupted,
 })
 

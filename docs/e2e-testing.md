@@ -678,6 +678,13 @@ for (const setup of setups) {
   release that renamed or reshaped a tool. A failure copies the harness's raw transcript
   (Claude Code's session JSONL, Codex's rollout, Antigravity's steps) to
   `NOVADECK_E2E_TRACES`, found by the first prompt's text in the sandbox's store.
+- **`outcomes.e2e.ts`**: each harness takes the `expected` steps of `outcomes.ts`, one call a model
+  turn (a read, a command that passes and one that exits 3, an edit, a new file, a tool error, an
+  edit that fails to match, a command in the background), and `t.transcript()` must say what came of
+  each: `failed`, `exit`, `running`, `size`, the change's counts. Codex runs twice: with a patch
+  tool, and with its model's catalog entry set to `tool_mode: code_mode_only`, as every real model
+  is, where each script's calls must follow it, marked `scripted`. The steps' commands suit every
+  platform. In the nightly it is the alarm for a release that changed a word these are read from.
 - **The Escape race** (`escape-race.e2e.ts`), a raw Escape pressed as a held reply is
   let go, a few ms ahead of it where that loses the key (per harness; probed): retried
   until the reply wins, the turn reads `completed` with that reply as `lastTurn` once the
