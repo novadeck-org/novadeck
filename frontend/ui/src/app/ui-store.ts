@@ -368,6 +368,27 @@ export const dismissWhatsNew = (whatsNew: Backend["whatsNew"], ui: UiStore): voi
   ui.update((state) => (state.whatsNew ? { ...state, whatsNew: null } : state))
 }
 
+// The person got the heads-ups: the desktop app remembers, so no later launch tells them again.
+// The highlights, when there are any, take the corner at once; with none the heads-ups were all
+// there was, and that settles the version as dismissing the card does.
+export const dismissHeadsUp = (whatsNew: Backend["whatsNew"], ui: UiStore): void => {
+  const notes = ui.getSnapshot().whatsNew
+  if (!notes?.headsUp) return
+  whatsNew?.dismissHeadsUp()
+  if (notes.highlights.length === 0) {
+    dismissWhatsNew(whatsNew, ui)
+    return
+  }
+  const { version, from, highlights } = notes
+  ui.update((state) => ({
+    ...state,
+    whatsNew:
+      state.whatsNew === notes
+        ? { version, ...(from === undefined ? {} : { from }), highlights }
+        : state.whatsNew,
+  }))
+}
+
 // Notes that the portable copy's card showed, for the rest of the run.
 export const notePortableCardShown = (portable: PortableState | null): void => {
   if (portable?.portable) writePortableCardRaised(portable.run)

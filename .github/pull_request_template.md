@@ -18,6 +18,10 @@ Fill What, Why, and Impact. Remove these comments before submitting.
 
 <!-- Say who benefits, what changes, and what remains limited. -->
 
+## Heads-up
+
+<!-- Only if someone who used this yesterday would be surprised or has to do something differently (a moved or removed control, a changed key, default or layout): what they'll notice, what's gone, what to do instead, in plain words for a user. Otherwise remove this section. Not for additions, or fixes that restore what people expected. -->
+
 ## Screenshot
 
 <!-- For visible changes, add focused visual evidence. Otherwise remove this section. -->

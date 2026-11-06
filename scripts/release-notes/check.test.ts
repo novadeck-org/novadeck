@@ -32,7 +32,12 @@ const droppedFor = (output: ModelOutput) => {
 
 describe("the checks on a model's answer", () => {
   it("passes a good one untouched", () => {
-    expect(check(good)).toEqual({ ok: true, output: good, dropped: [] })
+    expect(check(good)).toEqual({
+      ok: true,
+      output: { ...good, headsUp: [] },
+      dropped: [],
+      lost: [],
+    })
   })
 
   it("allows a promotion with no highlights, and refuses more than four", () => {
@@ -325,6 +330,107 @@ describe("the checks on a model's answer", () => {
       ok: true,
       output: { changes: [] },
       dropped: ["an area that is not one of ours"],
+    })
+  })
+
+  describe("heads-ups", () => {
+    const heads = {
+      title: "Ctrl+V pastes on Linux",
+      line: "Programs no longer get Ctrl+V, so vim's block select won't start with it.",
+      prs: [261],
+      icon: "keyboard" as const,
+    }
+    const withHeads = (...headsUp: (typeof heads)[]): ModelOutput => ({ ...good, headsUp })
+    const run = (
+      output: ModelOutput,
+      headsUps: number[],
+      kind: "release" | "promote" = "promote",
+    ) => checkOutput(output, kind, allowed, allowed, new Set(headsUps))
+
+    it("keeps one, with the longer line a heads-up has room for, in both modes", () => {
+      const long = { ...heads, line: "x".repeat(130) }
+      for (const kind of ["release", "promote"] as const)
+        expect(run(withHeads(long), [261], kind)).toMatchObject({
+          ok: true,
+          output: { headsUp: [long], highlights: good.highlights },
+          dropped: [],
+        })
+      expect(run(withHeads({ ...heads, line: "x".repeat(141) }), [])).toMatchObject({
+        ok: true,
+        output: { headsUp: [] },
+        dropped: [expect.stringContaining("heads-up")],
+      })
+    })
+
+    it("holds a heads-up to the soft rules of a line, and falls back on the icon", () => {
+      expect(run(withHeads({ ...heads, icon: "nope" as never }), [261])).toMatchObject({
+        output: { headsUp: [{ icon: "sparkles" }] },
+      })
+      for (const bad of [
+        { ...heads, prs: [999] },
+        { ...heads, prs: [] },
+        { ...heads, line: "It `breaks`." },
+        { ...heads, title: "Chat view" },
+        { ...heads, title: "t".repeat(37) },
+      ])
+        expect(run(withHeads(bad), [])).toMatchObject({ ok: true, output: { headsUp: [] } })
+      expect(run(withHeads({ ...heads, line: "See https://x.dev" }), [])).toMatchObject({
+        ok: false,
+      })
+    })
+
+    it("drops one that cites no pull request with a Heads-up, as the model made it up", () => {
+      expect(run(withHeads({ ...heads, prs: [195] }), [])).toMatchObject({
+        ok: true,
+        output: { headsUp: [] },
+        dropped: ["a heads-up citing no pull request that has one"],
+      })
+    })
+
+    it("keeps at most three", () => {
+      const checked = run(withHeads(heads, heads, heads, heads), [261])
+      expect(checked).toMatchObject({ ok: true, dropped: [expect.stringContaining("past the 3")] })
+      expect(checked.ok && checked.output.headsUp).toHaveLength(3)
+    })
+
+    it("says which pull requests with a heads-up no surviving line tells, naming no text", () => {
+      for (const output of [
+        good,
+        { ...good, headsUp: undefined },
+        withHeads({ ...heads, prs: [195] }),
+      ]) {
+        const checked = run(output, [261])
+        expect(checked).toMatchObject({ ok: true, lost: [261] })
+        expect(JSON.stringify(checked && "lost" in checked ? checked.lost : [])).not.toContain(
+          "Ctrl",
+        )
+      }
+      // One dropped for a soft reason no longer cites it.
+      expect(run(withHeads({ ...heads, line: "It `breaks`." }), [261])).toMatchObject({
+        lost: [261],
+      })
+      // A change citing it does not tell it.
+      expect(run(withChange("A line.", [261]), [261])).toMatchObject({ lost: [261] })
+    })
+
+    it("drops a highlight that repeats a heads-up, so the news card doesn't", () => {
+      const repeated = {
+        ...withHeads(heads),
+        highlights: [{ ...good.highlights[0]!, prs: [261] }],
+      }
+      expect(run(repeated, [261])).toMatchObject({
+        ok: true,
+        output: { highlights: [] },
+        dropped: ["a highlight repeating a heads-up"],
+      })
+    })
+
+    it("passes when four or more are folded into one item", () => {
+      const four = new Set([181, 195, 261, 300])
+      const folded = { ...heads, prs: [181, 195, 261, 300] }
+      expect(
+        checkOutput(withHeads(folded), "promote", new Set(four), new Set(four), four),
+      ).toMatchObject({ ok: true, output: { headsUp: [folded] } })
     })
   })
 })

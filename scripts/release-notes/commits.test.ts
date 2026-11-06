@@ -1,6 +1,14 @@
 import { describe, expect, it } from "vitest"
 
-import { maxWhy, parseCommit, parseCommits, whatOf, whyOf } from "./commits.ts"
+import {
+  headsUpOf,
+  maxHeadsUp,
+  maxWhy,
+  parseCommit,
+  parseCommits,
+  whatOf,
+  whyOf,
+} from "./commits.ts"
 import { commit, commits } from "./fixtures.ts"
 
 describe("the commits a release is written from", () => {
@@ -222,5 +230,85 @@ describe("the commits a release is written from", () => {
     const long = whyOf(`## Why\n\n${"word ".repeat(400)}`)
     expect(long.length).toBeLessThanOrEqual(maxWhy + 3)
     expect(long.endsWith("...")).toBe(true)
+  })
+
+  describe("the Heads-up", () => {
+    const body = (headsUp: string) =>
+      `## What\n\nx\n\n## Heads-up\n\n${headsUp}\n\n## Screenshot\n\ny`
+    const raw = (subject: string, text: string) => ({ sha: "a", subject, body: body(text) })
+
+    it("is read as the What is: unwrapped, to the next heading, without links, cut", () => {
+      expect(
+        headsUpOf(body("Ctrl+V no longer reaches programs.\nUse Ctrl+Shift+V https://x.dev ok.")),
+      ).toBe("Ctrl+V no longer reaches programs. Use Ctrl+Shift+V  ok.")
+      expect(headsUpOf(body("a".repeat(maxHeadsUp + 50)))).toHaveLength(maxHeadsUp + 3)
+      expect(headsUpOf("## What\n\nx")).toBe("")
+    })
+
+    it("is empty when the template's prompt was left unfilled", () => {
+      const template =
+        "<!-- Only if someone who used this yesterday would be surprised. Otherwise remove this section. -->"
+      expect(headsUpOf(body(template))).toBe("")
+      expect(parseCommit(raw("fix(ui): a thing (#1)", template))!.headsUp).toBe("")
+    })
+
+    it("rides on its commit", () => {
+      expect(
+        parseCommit(raw("fix(ui): paste (#641)", "Ctrl+V no longer reaches programs."))!.headsUp,
+      ).toBe("Ctrl+V no longer reaches programs.")
+    })
+
+    it("does not count on a commit a revert cancels, or one the notes drop", () => {
+      const paste = raw("fix(ui): paste (#641)", "Ctrl+V no longer reaches programs.")
+      const undo = { sha: "b", subject: 'Revert "fix(ui): paste (#641)" (#650)', body: "" }
+      expect(parseCommits([paste, undo])).toEqual([])
+      expect(
+        parseCommits([
+          paste,
+          undo,
+          { sha: "c", subject: 'Revert "Revert "fix(ui): paste (#641)"" (#651)', body: "" },
+        ]).map((each) => each.headsUp),
+      ).toEqual(["Ctrl+V no longer reaches programs."])
+      for (const subject of [
+        "refactor(ui): paste (#2)",
+        "fix(chat): paste (#3)",
+        "feat(demo): paste (#4)",
+        "fix(ui): the chat view pastes (#5)",
+      ])
+        expect(parseCommit(raw(subject, "Something is gone."))).toBeUndefined()
+    })
+  })
+})
+
+describe("headsUpOf", () => {
+  it("reads the section however its heading is written", () => {
+    for (const heading of ["## Heads-up", "## Heads up", "## Heads-Up", "## heads up"])
+      expect(headsUpOf(`${heading}\n\nThe button is gone.\n`)).toBe("The button is gone.")
+  })
+
+  it("reads a section saying there is none as none", () => {
+    for (const none of ["None", "none.", "N/A", "n/a", "Nothing", "No"])
+      expect(headsUpOf(`## Heads-up\n\n${none}\n`)).toBe("")
+  })
+
+  it("keeps a sentence that cites a number", () => {
+    expect(headsUpOf("## Heads-up\n\nCtrl+V pastes, as in #641. Use another key.\n")).toBe(
+      "Ctrl+V pastes, as in #641. Use another key.",
+    )
+  })
+})
+
+describe("parseCommit and a Heads-up", () => {
+  const raw = (subject: string, body: string) => ({ sha: "a", subject, body })
+  const body = "## Heads-up\n\nThe flag is gone.\n"
+
+  it("keeps a change in an excluded scope that has one", () => {
+    expect(parseCommit(raw("fix(harnesses): x (#1)", body))?.headsUp).toBe("The flag is gone.")
+    expect(parseCommit(raw("fix(harnesses): x (#1)", ""))).toBeUndefined()
+  })
+
+  it("never keeps what is not announced", () => {
+    expect(parseCommit(raw("fix(chat): x (#1)", body))).toBeUndefined()
+    expect(parseCommit(raw("fix(demo): x (#1)", body))).toBeUndefined()
   })
 })

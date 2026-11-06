@@ -25,6 +25,14 @@ export const modelOutput = z.object({
       icon: highlightIcon,
     }),
   ),
+  headsUp: z.array(
+    z.object({
+      title: z.string(),
+      line: z.string(),
+      prs: z.array(z.number().int()),
+      icon: highlightIcon,
+    }),
+  ),
   changes: z.array(z.object({ area: noteArea, line: z.string(), prs: z.array(z.number().int()) })),
 })
 
@@ -40,6 +48,18 @@ const answer = z.object({
       icon: z.unknown().optional(),
     }),
   ),
+  // Optional, so an answer without the list (a model that skipped it) reads as having none; the
+  // check's hard rule then fails it if a pull request had a heads-up.
+  headsUp: z
+    .array(
+      z.object({
+        title: z.string(),
+        line: z.string(),
+        prs: z.array(z.number().int()),
+        icon: z.unknown().optional(),
+      }),
+    )
+    .optional(),
   changes: z.array(
     z.object({ area: z.string(), line: z.string(), prs: z.array(z.number().int()) }),
   ),
@@ -106,6 +126,7 @@ export const userMessage = (kind: "release" | "promote", version: string, items:
     ...items.flatMap((item) => [
       `${item.prs.map((pr) => `#${pr}`).join(" ")} [${item.label}] ${item.line}`,
       ...(item.detail ? [`What: ${item.detail.replaceAll("\n", "\n  ")}`] : []),
+      ...(item.headsUp ? [`Heads-up: ${item.headsUp.replaceAll("\n", "\n  ")}`] : []),
       ...(item.reason ? [`Why: ${item.reason.replaceAll("\n", "\n  ")}`] : []),
       "",
     ]),

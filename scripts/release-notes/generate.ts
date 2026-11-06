@@ -1,5 +1,5 @@
 import { readNotesBlock, type ReleaseNotes } from "../../contract/protocol/src/release-notes.ts"
-import { checkOutput } from "./check.ts"
+import { checkOutput, tellable, type Checked } from "./check.ts"
 import { parseCommits } from "./commits.ts"
 import { commitItem, type Item } from "./items.ts"
 import { parseOutput, type Answer } from "./model.ts"
@@ -27,6 +27,8 @@ export type Generated = {
   readonly model: string
   /** The lines the checks dropped, and why. */
   readonly dropped: readonly string[]
+  /** The pull requests whose Heads-up no line tells, after asking twice. */
+  readonly lost: readonly number[]
   /** How many items the model was asked about. */
   readonly considered: number
 }
@@ -71,40 +73,60 @@ const compose = async (
   items: readonly Item[],
   ask: Ask,
 ): Promise<
-  Pick<Generated, "notes" | "raw" | "outputTokens" | "model" | "dropped" | "considered">
+  Pick<Generated, "notes" | "raw" | "outputTokens" | "model" | "dropped" | "lost" | "considered">
 > => {
   const version = tag.slice(1)
   // Only a change with a pull request can be cited, so only those are put to the model.
   const given = items.filter((item) => item.prs.length > 0)
   if (given.length === 0)
     return {
-      notes: { version, kind, highlights: [], changes: [], fixes: 0 },
+      notes: { version, kind, highlights: [], headsUp: [], changes: [], fixes: 0 },
       raw: "(nothing was asked)",
       outputTokens: 0,
       model: "(none asked)",
       dropped: [],
+      lost: [],
       considered: given.length,
     }
-  const { text, outputTokens, model } = await ask(kind, version, given)
-  const output = parseOutput(text)
-  const checked = checkOutput(
-    output,
-    kind,
-    new Set(given.flatMap((item) => item.prs)),
-    new Set(given.filter((item) => !item.fix).flatMap((item) => item.prs)),
-  )
+  const attempt = async (): Promise<Answer & { checked: Checked }> => {
+    const answer = await ask(kind, version, given)
+    const checked = checkOutput(
+      parseOutput(answer.text),
+      kind,
+      new Set(given.flatMap((item) => item.prs)),
+      new Set(given.filter((item) => !item.fix).flatMap((item) => item.prs)),
+      new Set(
+        given.filter((item) => item.headsUp && tellable(item.headsUp)).flatMap((item) => item.prs),
+      ),
+    )
+    return { ...answer, checked }
+  }
+  // A lost heads-up is a slip the next answer rarely repeats, so it gets one more ask. Failing
+  // the answer over it would be worse than the loss: no notes means no card, with every other
+  // heads-up and highlight gone too. So what is still lost is published without, and `lost`
+  // has the run warn of it. An answer the second ask spoils doesn't replace the first.
+  const first = await attempt()
+  const again =
+    first.checked.ok && first.checked.lost.length > 0
+      ? await attempt().catch((error: unknown) => {
+          if (error instanceof Skip) return first
+          throw error
+        })
+      : first
+  const { text, outputTokens, model, checked } = again.checked.ok ? again : first
   if (!checked.ok) throw new Skip(checked.reason, text)
   // A highlight is the short telling, for the card; its change keeps the whole line, for the
-  // release's page, so both stay.
-  const { highlights, changes } = checked.output
-  const cited = new Set([...highlights, ...changes].flatMap((line) => line.prs))
+  // release's page, so both stay. A heads-up keeps its line in `changes` the same way.
+  const { highlights, headsUp, changes } = checked.output
+  const cited = new Set([...highlights, ...headsUp, ...changes].flatMap((line) => line.prs))
   const unnamed = given.filter((item) => item.fix && !item.prs.some((pr) => cited.has(pr))).length
   return {
-    notes: { version, kind, highlights, changes, fixes: unnamed },
+    notes: { version, kind, highlights, headsUp, changes, fixes: unnamed },
     raw: text,
     outputTokens,
     model,
     dropped: checked.dropped,
+    lost: checked.lost,
     considered: given.length,
   }
 }

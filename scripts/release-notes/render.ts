@@ -47,13 +47,14 @@ export const renderBody = (
           : ""
       }`,
   )
-  const highlights = notes.highlights
-    .map(
-      (highlight) =>
-        `- **${plain(highlight.title)}**: ${plain(highlight.line)}${links(highlight.prs, repo)}`,
-    )
-    .join("\n")
+  const titled = (items: ReleaseNotes["highlights"]): string =>
+    items
+      .map((item) => `- **${plain(item.title)}**: ${plain(item.line)}${links(item.prs, repo)}`)
+      .join("\n")
+  const highlights = titled(notes.highlights)
+  const headsUp = titled(notes.headsUp)
   if (notes.kind === "promote") {
+    if (notes.headsUp.length > 0) sections.push(`## Heads-up\n\n${headsUp}`)
     if (notes.highlights.length > 0) sections.push(`## Highlights\n\n${highlights}`)
     if (areas.length > 0) sections.push(`## What's new\n\n${areas.join("\n\n")}`)
     if (notes.fixes > 0 && !fixesIn)
@@ -64,6 +65,7 @@ export const renderBody = (
       sections.push("Nothing in this build changes what you see in the app.")
   } else {
     // A release's areas are its top headings, so its highlights lead as one of them.
+    if (notes.headsUp.length > 0) sections.push(`### Heads-up\n\n${headsUp}`)
     if (notes.highlights.length > 0) sections.push(`### Highlights\n\n${highlights}`)
     sections.push(...areas)
     if (notes.fixes > 0 && !fixesIn)

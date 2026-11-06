@@ -21,12 +21,16 @@ export type UpdateChannel = "stable" | "experimental"
 // A highlight may lead with an icon, by its Lucide name (a `HighlightIcon`); the page draws a
 // name it doesn't know as its fallback. `from` is the version they are new since, when the
 // desktop app knows it: the one updated from, or the newest whose notes were already seen.
+// `headsUp` is what works differently for someone who used the app before, in the same shape,
+// told on a card of its own ahead of the highlights. Either list may be the empty one.
+export type WhatsNewItem = {
+  readonly title: string
+  readonly line: string
+  readonly icon?: string
+}
 export type WhatsNew = {
   readonly version: string
   readonly from?: string
-  readonly highlights: readonly {
-    readonly title: string
-    readonly line: string
-    readonly icon?: string
-  }[]
+  readonly highlights: readonly WhatsNewItem[]
+  readonly headsUp?: readonly WhatsNewItem[]
 }

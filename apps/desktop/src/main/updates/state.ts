@@ -53,6 +53,13 @@ export type UpdateState = {
    * launch; see ./whats-new.ts.
    */
   readonly whatsNewCheckedAt: number | undefined
+  /**
+   * The newest version whose heads-ups the person got ("Got it" on their card). Heads-ups of
+   * a release at or below it are not told again, whether or not the highlights were
+   * dismissed, so quitting between the two shows only the highlights; a later release's are
+   * told as usual.
+   */
+  readonly whatsNewHeadsUpSeen: string | undefined
 }
 
 const defaults: UpdateState = {
@@ -66,6 +73,7 @@ const defaults: UpdateState = {
   whatsNewFrom: undefined,
   whatsNewSettled: undefined,
   whatsNewCheckedAt: undefined,
+  whatsNewHeadsUpSeen: undefined,
 }
 
 // A version as a release names it, else unset: a corrupt one must not stand for a version
@@ -97,6 +105,7 @@ export const updateStateOf = (text: string): UpdateState => {
     whatsNewFrom,
     whatsNewSettled,
     whatsNewCheckedAt,
+    whatsNewHeadsUpSeen,
   } = kept as Record<string, unknown>
   return {
     channel: updateChannels.find((known) => known === channel) ?? defaults.channel,
@@ -112,6 +121,7 @@ export const updateStateOf = (text: string): UpdateState => {
       typeof whatsNewCheckedAt === "number" && Number.isFinite(whatsNewCheckedAt)
         ? whatsNewCheckedAt
         : undefined,
+    whatsNewHeadsUpSeen: versionOf(whatsNewHeadsUpSeen),
   }
 }
 
@@ -237,6 +247,16 @@ export const keepUpdateState = (file: string) => {
       }),
     /** Marks when a prerelease's release was read and had no highlights yet. */
     recordWhatsNewCheck: (whatsNewCheckedAt: number): void => change({ whatsNewCheckedAt }),
+    /**
+     * Marks that the person got the heads-ups of `version`. The newest version is kept, so a
+     * mark made after a downgrade moves nothing back. `newer` tells whether its first version
+     * is newer than its second.
+     */
+    recordHeadsUpSeen: (version: string, newer: (a: string, b: string) => boolean): void => {
+      const { whatsNewHeadsUpSeen } = read()
+      if (whatsNewHeadsUpSeen !== undefined && newer(whatsNewHeadsUpSeen, version)) return
+      change({ whatsNewHeadsUpSeen: version })
+    },
     /**
      * Marks that the notes of `version` are settled: seen, or none to see. The newest
      * version settled is kept, so settling an older one after a downgrade moves nothing back.
