@@ -13,11 +13,17 @@
 @source "../../items/src";
 @source "../../chat/src";
 @source not "../../terminal-views/src/**/*.test.ts";
+@source not "../../terminal-views/src/**/*.test.tsx";
 @source not "../../demo/src/**/*.test.ts";
+@source not "../../demo/src/**/*.test.tsx";
 @source not "../../demo-debug/src/**/*.test.ts";
+@source not "../../demo-debug/src/**/*.test.tsx";
 @source not "../../toolkit/src/**/*.test.ts";
+@source not "../../toolkit/src/**/*.test.tsx";
 @source not "../../items/src/**/*.test.ts";
+@source not "../../items/src/**/*.test.tsx";
 @source not "../../chat/src/**/*.test.ts";
+@source not "../../chat/src/**/*.test.tsx";
 @import "./theme/contract.css";
 @import "allotment/dist/style.css" layer(base);
 @import "./theme/base.css" layer(base);
@@ -102,4 +108,5 @@
    filter, a view's transition); built, they would be look utilities no recipe
    controls. */
 @source not "./**/*.test.ts";
+@source not "./**/*.test.tsx";
 @source not inline("border filter outline transition");
