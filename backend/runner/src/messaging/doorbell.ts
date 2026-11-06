@@ -106,6 +106,11 @@ export type DoorbellHost = {
    */
   readonly replies?: (terminalId: string) => ((nonce: string) => string) | undefined
   /**
+   * Whether its next ring takes the plain line, after a ring that failed with its paste
+   * counted: told as that changes, so a Stop doesn't count on a reply line that won't come.
+   */
+  readonly ringsPlain?: (terminalId: string, plain: boolean) => void
+  /**
    * How the agent bound there, or shown at its prompt before one binds, draws its input box;
    * undefined where there is none, and the gate finds no box. A host without it (a test's)
    * leaves the gate unable to tell.
@@ -267,7 +272,7 @@ export class Doorbell {
     // Its prompt confirmed the ring, or the ring failed: the app's resizes go on.
     if (pressed && this.host.ringing(terminalId) !== pressed.nonce) {
       // Confirmed (no failure of its nonce was told): the failures before it are over.
-      if (this.failures.get(terminalId)?.nonce !== pressed.nonce) this.failures.delete(terminalId)
+      if (this.failures.get(terminalId)?.nonce !== pressed.nonce) this.failuresOver(terminalId)
       this.settle(terminalId)
     }
     if (!this.closed) this.schedule(terminalId)
@@ -507,8 +512,14 @@ export class Doorbell {
     const failed = this.failures.get(terminalId)
     if (!failed || failed.count < this.maxFailures) return false
     if (failed.stamp === this.host.stamp(terminalId)) return true
-    this.failures.delete(terminalId)
+    this.failuresOver(terminalId)
     return false
+  }
+
+  /** The terminal's failures in a row are over: its next ring takes its line again. */
+  private failuresOver(terminalId: string): void {
+    this.failures.delete(terminalId)
+    this.host.ringsPlain?.(terminalId, false)
   }
 
   /**
@@ -530,6 +541,7 @@ export class Doorbell {
       terminalId,
       `ring ${nonce} failed (counted ${counted}); count ${count}, next try in ${wait} ms`,
     )
+    this.host.ringsPlain?.(terminalId, count > 0)
     this.host.ringFailed(terminalId, nonce)
     // Unknown and idle, it is looked at again once the wait is over.
     this.later(terminalId, wait)

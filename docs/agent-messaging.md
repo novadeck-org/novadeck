@@ -1042,7 +1042,9 @@ facts above, so the prompt's emptiness is known before any message arrives:
   2026-10-19, Claude Code 2.1.287, Codex 0.163.0, Antigravity 1.2.14, in
   `e2e/probes/background-prompt.e2e.ts`), so the doorbell looks at its screen as at an
   idle Drafting one's, and an empty box makes it Ready (#325). At a root Stop, if the person didn't submit during the turn,
-  the Stop hook's ask gets a lease (below) and the turn continues, still Working.
+  the Stop hook's ask gets a lease (below) and the turn continues, still Working, unless
+  the person's replies wait and ride the line, when the turn ends for the doorbell to ring
+  them ("The reply line").
   Novadeck continues a root turn at most twice, by its own count, then lets it end. A
   prompt right after a Stop Novadeck continued is that continuation, keeping the count,
   as Antigravity starts its model calls from the first again. If the person did submit
@@ -1062,10 +1064,11 @@ facts above, so the prompt's emptiness is known before any message arrives:
   While subagents of it run the terminal stays Working: the turn their end starts, or
   the person's, ends the wait, and that turn's own end, with nothing running, ends it as
   Settled or Drafting; so does Antigravity's status line saying idle with no subagent
-  running (its Stop says only that something runs). A command left running alone, as a
-  dev server, never holds it: the turn ends Settled, and the doorbell may ring it. Only
-  background tasks whose status is running count. Codex never waits: nothing it starts
-  wakes it once its turn has ended. The agent's activity tells the same, and an agent
+  running (its Stop says only that something runs), though for up to 5 s after a Stop
+  that may have left a subagent it lists late, only a line naming one counts. A command
+  left running alone, as a dev server, never holds it: the turn ends Settled, and the
+  doorbell may ring it. Only background tasks whose status is running count. Codex never
+  waits: nothing it starts wakes it once its turn has ended. The agent's activity tells the same, and an agent
   `agents` lists as busy is one Working here, or one whose terminal shows it working
   past an abnormal end, as on a background subagent an Esc left running.
 - **Ringing**: the doorbell is being rung (below), from its test paste until its
@@ -1550,11 +1553,34 @@ person's mark.
   theirs, and one the doorbell no longer knows is left to them too). After a ring of the
   terminal fails with its paste counted, the next rings with the plain line, which every
   harness takes, until one is confirmed.
-- **Its limits.** Replies that reach a working agent (a tool call's or its Stop's hook),
-  replies that don't fit or hold what no line holds, and the rings after a failed one come
-  as context alone, where Claude Code's auto mode doesn't count them. A reply line the
-  person edits in the box and submits themselves still reads as Novadeck's by its frame,
-  so their prompt withdraws no ask.
+- **At a turn's end.** A reply no line has said yet, waiting at a root Stop, ends the turn
+  rather than continue it, where it rides the line: the Stop leases nothing, agents'
+  messages beside it included, the turn is Settled, and the ring's prompt hook carries them
+  all, oldest first. So the reply is the agent's prompt, about 8 s after the Stop (the 6 s
+  settle below, the screen's calm and watch, the ring), in every harness. A line says a
+  reply once, as said twice it could be acted on twice (one a failed ring left in the box and
+  a later look submits may say it again, as it always could): what its turn's hook didn't carry,
+  for lack of time or room in the delivery, comes as context, at that turn's Stop or under
+  a later ring, whose line says only replies not said yet. Where a ring can't be counted on,
+  the Stop continues the turn as with any message, the reply context alone: a draft in the
+  box (a ring would wait on it, and never types over it), subagents the turn leaves running
+  or, in Antigravity, whatever its Stop says still runs (their output can keep the screen
+  from the calm a ring needs), or the doorbell ringing plain after a ring failed with its
+  paste counted. Elsewhere a command alone left running doesn't count, and Codex's Stop
+  says nothing of what runs on. Once the turn has ended no hook is left to carry a reply: a
+  draft the person starts before the ring, or a dialog, holds it as any message to an idle agent,
+  their prompt carrying it; rings stop at the third failure until a key or a turn event; and
+  a session that ends first (a `/clear`, `/exit` or close in those seconds) takes it with it,
+  gone, and the Inbox tells the person it wasn't delivered.
+- **Its limits.** Replies that a Stop gives (above), that a person's queued prompt or a
+  plain ring's prompt carries, that came too late for the line whose turn's hook carries
+  them, that don't fit or hold what no line holds, and the rings after a failed one, come as
+  context alone, where Claude Code's auto mode doesn't count them. A reply never
+  comes at a tool call: only a lead's messages do. Auto mode's check is given the
+  conversation's user messages and tool calls (`e2e/probes/auto-mode-reply.e2e.ts` shows a
+  typed reply in its transcript and a Stop's absent, on 2.1.316). A reply line the person
+  edits in the box and submits themselves still reads as Novadeck's by its frame, so their
+  prompt withdraws no ask.
 - **Its rows.** It wraps over several rows where the plain line takes one, and the paste
   check lets the box grow a row for each. The rows near it then span more of the screen,
   so a popup closing there would go unseen by the check; the box reader's check that the

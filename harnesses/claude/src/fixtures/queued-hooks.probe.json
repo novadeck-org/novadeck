@@ -1,0 +1,186 @@
+{
+  "probed": "2026-11-06, src/e2e/probes/queued-hooks.e2e.ts (Claude Code's queued screens), 2.1.316: messages queued behind a held turn with a prompt hook 1.3 s slow, `ownHook`'s while the turn's own prompt hook still ran; toolHook is a Bash tool ended while their hooks run, its PostToolUse hook on the spinner.",
+  "states": {
+    "running": {
+      "height": 40,
+      "columns": 120,
+      "cursor": {
+        "row": 36,
+        "column": 2
+      },
+      "rows": {
+        "1": " ▐▛███▛█   Claude Code v2.1.316",
+        "2": "▝▜██████▀  Opus 5.5 · API Usage Billing",
+        "3": " ▝▝   ▝▝   /tmp/novadeck-e2e/project",
+        "6": "❯ Hold on                                                                                                               ",
+        "8": "❯ Queued beta                                                                                                           ",
+        "10": "❯ Queued gamma                                                                                                          ",
+        "33": "✢ Quantumizing… (running UserPromptSubmit hooks… 1/2 · 1s · ↓ 138 tokens)",
+        "34": "                                                                                                    ◐ medium · /effort",
+        "35": "────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────",
+        "36": "❯ Press up to edit queued messages",
+        "37": "────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────",
+        "39": "  ⏸ manual mode on · ← for agents"
+      },
+      "bright": {
+        "6": "❯ Hold on",
+        "8": "❯ Queued beta",
+        "10": "❯ Queued gamma",
+        "36": "❯ P"
+      }
+    },
+    "through": {
+      "height": 40,
+      "columns": 120,
+      "cursor": {
+        "row": 36,
+        "column": 2
+      },
+      "rows": {
+        "1": " ▐▛███▛█   Claude Code v2.1.316",
+        "2": "▝▜██████▀  Opus 5.5 · API Usage Billing",
+        "3": " ▝▝   ▝▝   /tmp/novadeck-e2e/project",
+        "6": "❯ Hold on                                                                                                               ",
+        "8": "❯ Queued beta                                                                                                           ",
+        "10": "❯ Queued gamma                                                                                                          ",
+        "11": "  ctrl+x ctrl+s to send now",
+        "33": "✶ Quantumizing… (3s · ↓ 197 tokens)",
+        "34": "                                                                                                    ◐ medium · /effort",
+        "35": "────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────",
+        "36": "❯ Press up to edit queued messages",
+        "37": "────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────",
+        "39": "  ⏸ manual mode on · ← for agents"
+      },
+      "bright": {
+        "6": "❯ Hold on",
+        "8": "❯ Queued beta",
+        "10": "❯ Queued gamma",
+        "36": "❯ P"
+      }
+    },
+    "wrappedRunning": {
+      "height": 40,
+      "columns": 120,
+      "cursor": {
+        "row": 36,
+        "column": 2
+      },
+      "rows": {
+        "1": " ▐▛███▛█   Claude Code v2.1.316",
+        "2": "▝▜██████▀  Opus 5.5 · API Usage Billing",
+        "3": " ▝▝   ▝▝   /tmp/novadeck-e2e/project",
+        "6": "❯ Hold on                                                                                                               ",
+        "8": "❯ Queued long word word word word word word word word word word word word word word word word word word word word word  ",
+        "9": "  word word word word word word word word word word word word word word word word word word word                        ",
+        "11": "❯ Queued gamma                                                                                                          ",
+        "12": "  its second line                                                                                                       ",
+        "33": "✢ Vibing… (running UserPromptSubmit hooks… 1/2 · 1s · ↓ 168 tokens)",
+        "34": "                                                                                                    ◐ medium · /effort",
+        "35": "────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────",
+        "36": "❯ Press up to edit queued messages",
+        "37": "────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────",
+        "39": "  ⏸ manual mode on · ← for agents"
+      },
+      "bright": {
+        "6": "❯ Hold on",
+        "8": "❯ Queued long word word word word word word word word word word word word word word word word word word word word word",
+        "9": "  word word word word word word word word word word word word word word word word word word word",
+        "11": "❯ Queued gamma",
+        "12": "  its second line",
+        "36": "❯ P"
+      }
+    },
+    "wrappedThrough": {
+      "height": 40,
+      "columns": 120,
+      "cursor": {
+        "row": 36,
+        "column": 2
+      },
+      "rows": {
+        "1": " ▐▛███▛█   Claude Code v2.1.316",
+        "2": "▝▜██████▀  Opus 5.5 · API Usage Billing",
+        "3": " ▝▝   ▝▝   /tmp/novadeck-e2e/project",
+        "6": "❯ Hold on                                                                                                               ",
+        "8": "❯ Queued long word word word word word word word word word word word word word word word word word word word word word  ",
+        "9": "  word word word word word word word word word word word word word word word word word word word                        ",
+        "11": "❯ Queued gamma                                                                                                          ",
+        "12": "  its second line                                                                                                       ",
+        "13": "  ctrl+x ctrl+s to send now",
+        "33": "✶ Vibing… (3s · ↓ 199 tokens)",
+        "34": "                                                                                                    ◐ medium · /effort",
+        "35": "────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────",
+        "36": "❯ Press up to edit queued messages",
+        "37": "────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────",
+        "39": "  ⏸ manual mode on · ← for agents"
+      },
+      "bright": {
+        "6": "❯ Hold on",
+        "8": "❯ Queued long word word word word word word word word word word word word word word word word word word word word word",
+        "9": "  word word word word word word word word word word word word word word word word word word word",
+        "11": "❯ Queued gamma",
+        "12": "  its second line",
+        "36": "❯ P"
+      }
+    },
+    "ownHook": {
+      "height": 40,
+      "columns": 120,
+      "cursor": {
+        "row": 36,
+        "column": 2
+      },
+      "rows": {
+        "1": " ▐▛███▛█   Claude Code v2.1.316",
+        "2": "▝▜██████▀  Opus 5.5 · API Usage Billing",
+        "3": " ▝▝   ▝▝   /tmp/novadeck-e2e/project",
+        "6": "❯ Hold on                                                                                                               ",
+        "8": "❯ Queued beta                                                                                                           ",
+        "10": "❯ Queued gamma                                                                                                          ",
+        "11": "  ctrl+x ctrl+s to send now",
+        "33": "✻ Seasoning… (running UserPromptSubmit hooks… 1/2 · 0s)",
+        "34": "                                                                                                    ◐ medium · /effort",
+        "35": "────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────",
+        "36": "❯ Press up to edit queued messages",
+        "37": "────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────",
+        "39": "  ⏸ manual mode on · ← for agents"
+      },
+      "bright": {
+        "6": "❯ Hold on",
+        "8": "❯ Queued beta",
+        "10": "❯ Queued gamma",
+        "36": "❯ P"
+      }
+    },
+    "toolHook": {
+      "height": 40,
+      "columns": 120,
+      "cursor": {
+        "row": 36,
+        "column": 2
+      },
+      "rows": {
+        "1": " ▐▛███▛█   Claude Code v2.1.316",
+        "2": "▝▜██████▀  Opus 5.5 · API Usage Billing",
+        "3": " ▝▝   ▝▝   /tmp/novadeck-e2e/project",
+        "6": "❯ In a tool                                                                                                             ",
+        "8": "  Running 1 shell command…",
+        "9": "  ⎿  $ sleep 1",
+        "11": "❯ Queued beta                                                                                                           ",
+        "13": "❯ Queued gamma                                                                                                          ",
+        "33": "✢ Drizzling… (running PostToolUse hooks… 1/2 · 3s · ↓ 210 tokens)",
+        "34": "                                                                                                    ◐ medium · /effort",
+        "35": "────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────",
+        "36": "❯ Press up to edit queued messages",
+        "37": "────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────",
+        "39": "  ⏸ manual mode on · ← for agents"
+      },
+      "bright": {
+        "6": "❯ In a tool",
+        "11": "❯ Queued beta",
+        "13": "❯ Queued gamma",
+        "36": "❯ P"
+      }
+    }
+  }
+}
