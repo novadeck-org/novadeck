@@ -1,0 +1,46 @@
+2026-11-06T17:35:51.0883286Z [31m⎯⎯⎯⎯⎯⎯⎯[39m[1m[41m Failed Tests 1 [49m[22m[31m⎯⎯⎯⎯⎯⎯⎯[39m
+2026-11-06T17:35:51.0883837Z 
+2026-11-06T17:35:51.0886857Z [41m[1m FAIL [22m[49m src/e2e/transcripts.e2e.ts[2m > [22mCodex[2m > [22mserves every tool call its harness made as a classified call paired with its result
+2026-11-06T17:35:51.0892838Z [31m[1mError[22m: Timed out after 60000 ms waiting for moth: its turn to end with "Finished Transcript step 2.". Its agent: working, no request waiting. Its screen:
+2026-11-06T17:35:51.0894032Z   >_ OpenAI Codex (v0.167.0)
+2026-11-06T17:35:51.0894428Z      ~\AppData\Local\Temp\novadeck-e2e-xlVjvK\project
+2026-11-06T17:35:51.0894921Z › Transcript step 1
+2026-11-06T17:35:51.0895257Z • Ran echo transcripts-command
+2026-11-06T17:35:51.0895594Z   └ transcripts-command
+2026-11-06T17:35:51.0895992Z • Finished Transcript step 1.
+2026-11-06T17:35:51.0896334Z   Worked for 5s • 5:28 PM
+2026-11-06T17:35:51.0896668Z › Transcript step 2
+2026-11-06T17:35:51.0896999Z • Added transcripts-patch.txt (+1 -0)
+2026-11-06T17:35:51.0897324Z     1 +patched
+2026-11-06T17:35:51.0897561Z     + Show details
+2026-11-06T17:35:51.0897894Z Working (30s • esc to interrupt)
+2026-11-06T17:35:51.0898330Z   └ Tip: When plugins are enabled, use /plugins to browse plugins.
+2026-11-06T17:35:51.0898782Z › Ask Codex to do anything
+2026-11-06T17:35:51.0899354Z   fake-model default · ~\AppData\Local\Temp\novadeck-e2e-xlVjvK\project
+2026-11-06T17:35:51.0899888Z   ← for agents · ? for shortcuts
+2026-11-06T17:35:51.0900185Z Last 5 of 5 model calls:
+2026-11-06T17:35:51.0901145Z   1. user "<environment_context> <cwd>C:\\Users\\runneradmin\\AppData\\Local\\Temp\\novadeck-e2e-xlVjvK\\project</cwd> <shell>powershell</shell> <current_date>2026-11-06</current…"
+2026-11-06T17:35:51.0902526Z   2. (side) user "<environment_context> <current_date>2026-11-06</current_date> <timezone>Etc/UTC</timezone> </environment_context> Generate a concise, single-line task title of …"
+2026-11-06T17:35:51.0904016Z   3. result of exec_command {"cmd":"echo transcripts-command","yield_time_ms":10000}: "Chunk ID: 3ed14f Wall time: 0.2728 seconds Process exited with code 0 Original token count: 6 Output: transcripts-command"
+2026-11-06T17:35:51.0905451Z   4. user "Transcript step 2 Novadeck: automatic notice, not from the user: this terminal has no summary yet. Once you've been given work, any task, investigation, review,…"
+2026-11-06T17:35:51.0906792Z   5. (side) user "<environment_context> <current_date>2026-11-06</current_date> <timezone>Etc/UTC</timezone> </environment_context> Generate a concise, single-line task title of …"[39m
+2026-11-06T17:35:51.0908431Z [36m [2m❯[22m withScreen src/e2e/deck.ts:[2m397:10[22m[39m
+2026-11-06T17:35:51.1108784Z     [90m395|[39m       calls = `\nThe fake model's latest calls: ${unread(cause)}`
+2026-11-06T17:35:51.1110409Z     [90m396|[39m     }
+2026-11-06T17:35:51.1111288Z     [90m397|[39m   return new Error(`${message}${doing}. Its screen:\n${shown}${calls}`…
+2026-11-06T17:35:51.1112477Z     [90m   |[39m          [31m^[39m
+2026-11-06T17:35:51.1114564Z     [90m398|[39m }
+2026-11-06T17:35:51.1115273Z     [90m399|[39m
+2026-11-06T17:35:51.1115936Z [90m [2m❯[22m src/e2e/deck.ts:[2m788:17[22m[39m
+2026-11-06T17:35:51.1116743Z [90m [2m❯[22m src/e2e/transcripts.e2e.ts:[2m322:11[22m[39m
+2026-11-06T17:35:51.1117235Z 
+2026-11-06T17:35:51.1118194Z [31m[1mCaused by: Error[22m: Timed out after 60000 ms waiting for moth: its turn to end with "Finished Transcript step 2."[39m
+2026-11-06T17:35:51.1120188Z [36m [2m❯[22m poll src/e2e/deck.ts:[2m502:9[22m[39m
+2026-11-06T17:35:51.1121039Z [90m [2m❯[22m src/e2e/transcripts.e2e.ts:[2m322:11[22m[39m
+2026-11-06T17:35:51.1122095Z 
+2026-11-06T17:35:51.1122487Z [31m[2m⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/1]⎯[22m[39m
+2026-11-06T17:35:51.1122895Z 
+2026-11-06T17:35:51.1126813Z 
+2026-11-06T17:35:51.1133678Z [2m Test Files [22m [1m[31m1 failed[39m[22m[2m | [22m[1m[32m13 passed[39m[22m[2m | [22m[33m6 skipped[39m[90m (20)[39m
+2026-11-06T17:35:51.1135312Z [2m      Tests [22m [1m[31m1 failed[39m[22m[2m | [22m[1m[32m51 passed[39m[22m[2m | [22m[33m119 skipped[39m[90m (171)[39m
+2026-11-06T17:35:51.1136765Z [2m   Start at [22m 17:21:19

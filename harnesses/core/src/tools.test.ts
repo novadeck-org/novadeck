@@ -128,3 +128,12 @@ describe("Novadeck's own tools", () => {
     )
   })
 })
+
+describe("a command too long to be a wait", () => {
+  it("is work, and is told at once however it's spaced", () => {
+    const started = performance.now()
+    expect(sleepOnly(`start-sleep -s${" ".repeat(65_536)}x`)).toBe(false)
+    expect(sleepOnly(`sleep 1;${" ".repeat(2_000)}sleep 2`)).toBe(false)
+    expect(performance.now() - started).toBeLessThan(100)
+  })
+})

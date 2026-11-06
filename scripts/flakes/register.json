@@ -180,6 +180,18 @@
       "seen": ["#738 run 42254380158 job 128017862149 (Windows)"]
     },
     {
+      "id": "e2e-codex-windows-patch-never-returns",
+      "jobs": ["^Codex \\(Windows(, (?:[12][/-]2|[1-3][/-]3))?\\)$"],
+      "test": "src/e2e/transcripts.e2e.ts > Codex > serves every tool call its harness made as a classified call paired with its result",
+      "signature": "Timed out after 60000 ms waiting for \\S+: its turn to end with \"Finished Transcript step 2\\.\"",
+      "status": "known",
+      "cause": "Codex on Windows sometimes never finishes the test's `apply_patch` heredoc. In both sightings its rollout ends on that `exec_command` with no output, and nothing more happens until shutdown 60 s later: no PostToolUse, no model call, the screen at `Working (30s)`. Two processes, parent and child, started about 0.5 s after the call and were still under Codex at shutdown; the trace doesn't name them. Step 1's plain `echo` passed in both. `yield_time_ms` doesn't apply, as Codex intercepts the patch before unified exec. Read from its source, not seen: on Windows a patch goes through a sandboxed fs helper, and Codex waits for that helper's response with no timeout (`read_helper_response`), so a stuck helper would hang the turn for good; that the helper is what stuck is inferred. That code is identical in 0.166.0 and 0.167.0, so why it starts now isn't known. Seen only on 0.167.0: this test appears in none of the 12 other failed Codex Windows jobs since 2026-11-01. No Novadeck code is on that path, so this looks like Codex's, and an agent can hang this way for a person too. Both sightings are on unrelated branches.",
+      "seen": [
+        "#752 run 42260465596 job 128039010311 (Windows)",
+        "#738 run 42273575092 job 128084330754 (Windows)"
+      ]
+    },
+    {
       "id": "e2e-claude-macos-continuation-stop",
       "jobs": ["^Claude Code \\(macOS\\)$"],
       "test": "src/e2e/messaging.e2e.ts > Claude Code > ends a continuation whose own Stop hook's report never came",

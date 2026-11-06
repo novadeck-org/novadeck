@@ -195,6 +195,7 @@ export const novadeckTool = (tool: string, fields: Fields | undefined): ToolRun 
 }
 
 const number = String.raw`\d+(?:\.\d+)?`
+const maxSleepCommand = 1024
 // One command that only waits: Unix `sleep` (numbers with an optional s, m, h or d, GNU's
 // several summing), PowerShell's `Start-Sleep` (a number, or `-Seconds`/`-Milliseconds`),
 // and cmd's `timeout /t N` with `/nobreak`. Unix `timeout 30 cmd` runs a command: no match.
@@ -213,6 +214,8 @@ const sleeping: readonly RegExp[] = [
  * work, as is any command this doesn't recognise whole.
  */
 export const sleepOnly = (command: string): boolean => {
+  // No wait runs this long, and these patterns slow down on a long run of spaces.
+  if (command.length > maxSleepCommand) return false
   const parts = command
     .split(/;|&&|\r?\n/)
     .map((part) => part.trim())
