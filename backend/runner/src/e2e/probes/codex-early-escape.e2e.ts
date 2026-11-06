@@ -4,7 +4,8 @@
 // it: every thread of Codex shares one CPU with busy loops (SIGSTOP doesn't do, as the runner
 // then counts the agent gone). Stop comes through the runner's own `interrupt` as soon as the
 // runner hears the turn start. Runs only with NOVADECK_E2E_PROBES=1, by path; writes
-// $PROBE_OUT/codex-early-escape.json with PROBE_ROUNDS rounds and PROBE_HOGS loops.
+// $PROBE_OUT/codex-early-escape.json with PROBE_ROUNDS rounds and PROBE_HOGS loops, and with
+// PROBE_BACKGROUND=1 or PROBE_LIMIT=1 a command left running or a limit's warning above the box.
 /* eslint-disable no-await-in-loop -- A probe's steps run in order. */
 import { execFileSync, spawn, type ChildProcess } from "node:child_process"
 import { mkdirSync, writeFileSync } from "node:fs"
@@ -96,6 +97,7 @@ describe.skipIf(!supported || !probing || platform() !== "linux")("probe: Codex 
       const never = gate()
       run.model.use(
         own(async (call) => {
+          if (asked(call, "Use up the limit")) return { text: "Used.", limits: { usedPercent: 80 } }
           if (asked(call, "Leave a terminal"))
             return {
               calls: [{ name: "exec_command", input: { cmd: "sleep 600", yield_time_ms: 500 } }],
@@ -113,6 +115,13 @@ describe.skipIf(!supported || !probing || platform() !== "linux")("probe: Codex 
         await t1.prompt("Leave a terminal")
         await t1.reached("settled", { after: mark })
         await t1.until(/background terminal running/, 30_000)
+      }
+      // Its warning of a rate limit nearly used stands there too, turn or no turn.
+      if (process.env.PROBE_LIMIT === "1") {
+        const mark = t1.mark()
+        await t1.prompt("Use up the limit")
+        await t1.reached("settled", { after: mark })
+        await t1.until(/limit: \d+% left/, 30_000)
       }
       const cpu = cpus().length - 1
       execFileSync("taskset", ["-a", "-c", "-p", String(cpu), String(codexes()[0])], {

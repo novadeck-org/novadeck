@@ -54,29 +54,32 @@ const queued = (screen: ScreenText): boolean =>
 const read = (screen: ScreenText) => agreeing(markedBox(screen, markers), shellFooter(screen.rows))
 
 /**
- * The row it keeps above its box for commands an earlier turn left running, while no status
- * row is up to carry those words: of its idle screen, so none of the turn's.
+ * The rows it keeps above its box whether or not a turn runs, so none of a turn's: the commands
+ * an earlier turn left running, while no status row is up to carry those words (cut short on a
+ * narrow screen), and its warning of a rate limit nearly used, at the row's right end, in its
+ * longest form that fits (probed 2026-11-06, 0.167.0).
  */
-const backgroundTerminals = /^\s*\d+ background terminals? running · /
+const idleRow = /^\s*(?:\d+ background terminal|⚠ .*(?:<1|\d+)% left)/
 
 /**
  * Whether its screen shows the turn's prompt and nothing of the turn: the last rows above its
  * box, from the latest `› `, are that prompt alone. It draws the prompt as it sends it, and
  * its status row only once it hears the turn start, which can be tens of milliseconds after
- * the prompt hook tells the runner of the turn (every Stop on a starved Codex found this
- * screen, fixtures/early-escape.probe.json). Till then Escape is an idle one: it offers to
+ * the prompt hook tells the runner of the turn (Stops on a starved Codex found this screen,
+ * fixtures/early-escape.probe.json). Till then Escape is an idle one: it offers to
  * edit the previous message, and the turn runs on.
  * It reads what is drawn, not whether the row is, as a turn can run on with no row: a reply
  * streaming takes its place, with only the reply's tail drawn, right under the prompt and
  * indented as a prompt's next line is, so only the prompt's words tell them apart. A row
  * without `esc to interrupt` (reconnecting, a key rebound, a narrow screen) is drawn too.
  * `prompt` is the person's: without it, as for an agent's message, only a prompt of one row
- * is read. A prompt whose first row has scrolled away, or no box, is no hold.
+ * is read. A prompt whose first row has scrolled away, a banner above the box, or no box, is
+ * no hold.
  */
 const turnUnseen = (screen: ScreenText, prompt?: string): boolean => {
   const above = screen.rows
     .slice(0, read(screen)?.first ?? 0)
-    .filter((row) => row.trim() !== "" && !backgroundTerminals.test(row))
+    .filter((row) => row.trim() !== "" && !idleRow.test(row))
   const at = above.findLastIndex((row) => row.startsWith(`${markers.prompt} `))
   if (at < 0) return false
   const shown = above.slice(at)

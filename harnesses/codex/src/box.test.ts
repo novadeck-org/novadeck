@@ -83,6 +83,7 @@ describe("Codex's turn not yet on its screen", () => {
     ["earlyBackground", "Take your time 1"],
     ["earlyBackground", undefined],
     ["earlyBackgroundLines", lines],
+    ["earlyLimit", "Take your time 1"],
   ])("holds Stop on %s, the prompt known as %j", (state, prompt) => {
     expect(states[state]!.rows.join("\n")).not.toContain("to interrupt")
     expect(holds(states[state]!, prompt)).toBe(true)
@@ -98,9 +99,9 @@ describe("Codex's turn not yet on its screen", () => {
     expect(holds(states.working!, "Take your time\nwith these\nthree lines")).toBe(false)
   })
 
-  it.each(["replyTail", "replyLastLine"])("doesn't hold %s, a turn with no row", (state) => {
-    expect(states[state]!.rows.join("\n")).not.toContain("to interrupt")
-    expect(holds(states[state]!, "Say a lot")).toBe(false)
+  it("doesn't hold a reply's tail, a turn with no row", () => {
+    expect(states.replyTail!.rows.join("\n")).not.toContain("to interrupt")
+    expect(holds(states.replyTail!, "Say a lot")).toBe(false)
   })
 
   it("doesn't hold a prompt of several rows it can't tell from a reply", () => {
@@ -132,17 +133,30 @@ describe("Codex's turn not yet on its screen", () => {
     expect(holds(screen)).toBe(false)
   })
 
-  it("doesn't take a command left running for anything of the turn, nor for a turn", () => {
-    const row = states.earlyBackground!.rows[33]!
-    expect(row).toContain("1 background terminal running")
-    expect(
-      holds(
-        changed("afterTurn", (rows) => rows.with(33, row)),
-        "Say a lot",
-      ),
-    ).toBe(false)
-    expect(holds(changed("ready", (rows) => rows.with(33, row)))).toBe(false)
-    expect(holds(under("  2 background terminals running · /ps to view"))).toBe(true)
+  it.each([
+    "  2 background terminals running · /ps to view",
+    "  12 background terminals running",
+    "  1 background terminal",
+    "                                   ⚠ 5h limit: 40% left · resets at 17:00 · /status",
+    "                                       ⚠ Weekly limit: only 3% left · /status",
+    "                                                      ⚠ 5h limit: <1% left",
+    "                                                            ⚠ 5h 40% left",
+  ])("doesn't take a row of the idle screen for the turn's: %s", (row) => {
+    expect(holds(under(row))).toBe(true)
+    expect(holds(under(row), "Take your time 1")).toBe(true)
+  })
+
+  it("doesn't take a row of the idle screen for a turn", () => {
+    for (const state of ["earlyBackground", "earlyLimit"]) {
+      const row = states[state]!.rows.find((one) => /background terminal|% left/.test(one))!
+      expect(
+        holds(
+          changed("afterTurn", (rows) => rows.with(33, row)),
+          "Say a lot",
+        ),
+      ).toBe(false)
+      expect(holds(changed("ready", (rows) => rows.with(33, row)))).toBe(false)
+    }
   })
 
   it("doesn't hold a prompt of one row that isn't the turn's, as a steer into a turn with no row", () => {
