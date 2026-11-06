@@ -31,6 +31,7 @@ const laneOf = (level: number) => Math.min(level, deepestLane) * laneWidth
 const laidOut = (tab: Element) => tab.getClientRects().length > 0
 
 // Whether a teammate's tab is on its way out of the list: it stays laid out while it collapses.
+const goingAway = (tab: Element) => tab.getAttribute("data-team-fold") === "away"
 const anyGoingAway = (list: Element) =>
   [...list.querySelectorAll('[data-team-fold="away"]')].some(laidOut)
 
@@ -74,10 +75,16 @@ const measureWire = (
   const listRect = list.getBoundingClientRect()
   const tab = (id: string) => list.querySelector(`[data-terminal-tab-id="${CSS.escape(id)}"]`)
   const leadTab = tab(team.lead)
-  const workers = team.workers.flatMap((id) => {
+  const shown = team.workers.flatMap((id) => {
     const each = tab(id)
-    return each && laidOut(each) ? [memberOf(each, id, origin)] : []
+    return each && laidOut(each) ? [{ id, element: each }] : []
   })
+  // A teammate going away while another stays leaves the wire at once, its tick riding no tab as
+  // it collapses; a team going whole keeps them, its wire fading where it is.
+  const staying = shown.filter(({ element }) => !goingAway(element))
+  const workers = (staying.length ? staying : shown).map(({ id, element }) =>
+    memberOf(element, id, origin),
+  )
   if (!leadTab || !laidOut(leadTab) || !railRect.width) return undefined
   const x = railRect.right - origin.left - 1 + laneOf(level)
   const view = { top: listRect.top - origin.top, bottom: listRect.bottom - origin.top }

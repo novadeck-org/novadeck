@@ -222,6 +222,32 @@ describe("A team's wire", () => {
     await moveTo("Tests")
   })
 
+  it("drops a teammate's tick at once as its team folds around the selected one", async () => {
+    await openWorkspace("/?demo=messages&nested=on")
+    await terminalTab("Runtime").click()
+    await expect.poll(gutter).not.toBeNull()
+    await settled()
+    await userEvent.hover(gutter()!)
+    await settled()
+    const ticks = () =>
+      document.querySelectorAll(".team-wire-shape[data-lit] > .team-wire-tap").length
+    // Only the selected teammate's: no tick rides a collapsing tab, wherever the list stands.
+    const most = await new Promise<number>((done) => {
+      gutter()!.click()
+      let start: number | undefined
+      let furthest = 0
+      const step = (now: number) => {
+        start ??= now
+        furthest = Math.max(furthest, ticks())
+        if (now - start < 400) requestAnimationFrame(step)
+        else done(furthest)
+      }
+      requestAnimationFrame(step)
+    })
+    expect(most).toBe(1)
+    expect(laidOut("Runtime")).toBe(true)
+  })
+
   it("ends a hold as its tab leaves, with its team's wire out of view", async () => {
     await openWorkspace("/?demo=messages&nested=on")
     await terminalTab("Dev server").click()
