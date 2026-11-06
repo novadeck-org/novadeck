@@ -63,6 +63,8 @@ const it = base.extend<{ shim: Fixture }>({
         ? spawnSync(process.env.COMSPEC ?? "cmd.exe", ["/d", "/c", shim, ...args], options)
         : spawnSync(shim, args, options)
       if (result.status !== 0) throw new Error(`claude failed: ${result.stderr}`)
+      // cmd only says so here when a shim's label is missing, and goes on.
+      expect(result.stderr).toBe("")
       return JSON.parse(readFileSync(log, "utf8")) as string[]
     }
     await use({ root, run, bin: paths.bin, real, settings, remove: () => rmSync(settings) })
@@ -182,6 +184,10 @@ describe("claude shim", { timeout: 60_000 }, () => {
       ["--allowedTools", "Read", "Write", "update"],
       ["--tools", "Read", "-", "mcp"],
       ["--add-dir=a", "b", "mcp"],
+      // Only this word's own form counts, whatever a later one says.
+      ["--add-dir", "a", "mcp", "--add-dir=b"],
+      // Words cmd would run, were the shim's reading of the line to uncover them.
+      ["--add-dir", "a & b", "mcp"],
       // cmd splits a word at a comma too, into more of the list.
       ["--tools", "Read,Write", "mcp"],
     ])

@@ -187,4 +187,24 @@ exit /b 1
 shift
 shift
 goto command
+rem cmd splits a word at =, so --add-dir=a arrives as two, and that form takes one value: only
+rem the line as typed tells it from --add-dir a. Set bare and read delayed, it is parsed no
+rem differently from the call above, and no quote in it can expose a command separator.
+:list
+shift
+shift
+set novadeck_line=%*
+setlocal enabledelayedexpansion
+set "novadeck_after=!novadeck_line:*%novadeck_arg%=!"
+if "!novadeck_after:~0,1!"=="=" (
+  endlocal
+  goto command
+)
+endlocal
+:more
+if "%~1"=="" exit /b 1
+set "novadeck_arg=%~1"
+if "%novadeck_arg:~0,1%"=="-" if not "%novadeck_arg%"=="-" goto command
+shift
+goto more
 `
