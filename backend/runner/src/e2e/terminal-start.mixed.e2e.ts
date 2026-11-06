@@ -1,6 +1,7 @@
-import { mkdirSync } from "node:fs"
+import { mkdirSync, writeFileSync } from "node:fs"
 import { join } from "node:path"
 
+import { unsealed } from "../testing/sealing.js"
 import { agy } from "./agents/agy.js"
 import { claude } from "./agents/claude.js"
 import { codex } from "./agents/codex.js"
@@ -17,6 +18,13 @@ const rounds = 3
 
 const order = [claude, codex, agy]
 
+// The screen a restored terminal draws first: colours on every other cell, past what a saved
+// transcript keeps (256 K characters), and a last line that says it all came.
+const colourful = (): string =>
+  `${Array.from({ length: 1_200 }, (_, line) =>
+    Array.from({ length: 58 }, (__, cell) => `\x1b[3${1 + ((line + cell) % 6)}m#-`).join(""),
+  ).join("\r\n")}\x1b[0m\r\nprinted all\r\n`
+
 const drawn = async (terminal: DeckTerminal, text: RegExp): Promise<void> => {
   await poll(
     async () => (text.test(await terminal.screen()) ? true : undefined),
@@ -25,11 +33,11 @@ const drawn = async (terminal: DeckTerminal, text: RegExp): Promise<void> => {
   )
 }
 
-/** One terminal opened on `deck`, timed to what `steps` wait for, logged, and closed. */
+/** One terminal `open` gives on `deck`, timed to what `steps` wait for, logged, and closed. */
 const timed = async (
   name: string,
   deck: Deck,
-  command: string | undefined,
+  open: () => Promise<DeckTerminal>,
   steps: (terminal: DeckTerminal) => Record<string, Promise<void>>,
   closing: (work: () => Promise<void>) => Promise<void> = (work) => work(),
 ): Promise<string | undefined> => {
@@ -44,7 +52,7 @@ const timed = async (
   }
   let terminal: DeckTerminal | undefined
   try {
-    terminal = await deck.open(command)
+    terminal = await open()
     mark("open")
     const opened = terminal
     // Each on its own, so one that comes later or never hides no other.
@@ -70,11 +78,13 @@ describe.runIf(process.platform === "win32" && supported)("a new Windows termina
 
   it(
     "logs how long each shell and each agent take to draw",
-    { timeout: 420_000 },
+    { timeout: 600_000 },
     async ({ e2e: run }) => {
       const failures: (string | undefined)[] = []
+      const toPrompt = (terminal: DeckTerminal) => ({ prompt: drawn(terminal, />\s*$/m) })
+      const cmd = run.sandbox.env.ComSpec ?? "cmd.exe"
       const shells = [
-        ["cmd", run.sandbox.env.ComSpec ?? "cmd.exe"],
+        ["cmd", cmd],
         [
           "PowerShell",
           join(process.env.SystemRoot!, "System32", "WindowsPowerShell", "v1.0", "powershell.exe"),
@@ -96,14 +106,56 @@ describe.runIf(process.platform === "win32" && supported)("a new Windows termina
           for (let round = 1; round <= rounds; round++)
             failures.push(
               // eslint-disable-next-line no-await-in-loop -- As above.
-              await timed(`${name} #${round}`, deck, undefined, (terminal) => ({
-                prompt: drawn(terminal, />\s*$/m),
-              })),
+              await timed(`${name} #${round}`, deck, () => deck.open(), toPrompt),
             )
         } finally {
           // eslint-disable-next-line no-await-in-loop -- As above.
           await deck.close()
         }
+      }
+      // A restored terminal: its earlier screen is drawn on the chain the console host's request
+      // waits behind, so a long one may hold back the answer, and with it the new shell.
+      const root = join(run.sandbox.root, "start-restored")
+      mkdirSync(root)
+      writeFileSync(join(root, "short.txt"), "printed all\r\n")
+      writeFileSync(join(root, "long.txt"), colourful())
+      const deck = await createDeck({
+        data: join(root, "data"),
+        project: root,
+        env: run.sandbox.env,
+        freshPath: true,
+        shell: cmd,
+        // `unsealed`'s, so the log can say how much was saved.
+        transcriptKey: Promise.resolve(new Uint8Array(32).fill(7)),
+      })
+      try {
+        for (const size of ["short", "long"]) {
+          // eslint-disable-next-line no-await-in-loop -- One terminal at a time, for clean times.
+          const earlier = await deck.open(`type ${size}.txt`)
+          // eslint-disable-next-line no-await-in-loop -- As above.
+          await drawn(earlier, /printed all/)
+          for (let round = 1; round <= rounds; round++) {
+            // eslint-disable-next-line no-await-in-loop -- As above.
+            await deck.restart()
+            const { id } = earlier
+            const saved = unsealed(deck.store.terminal(id)?.transcript, id)?.length ?? 0
+            failures.push(
+              // eslint-disable-next-line no-await-in-loop -- As above.
+              await timed(
+                `cmd restored, ${saved} characters saved, #${round}`,
+                deck,
+                () => deck.restore(earlier),
+                toPrompt,
+                // It stays, for the next round.
+                async () => {},
+              ),
+            )
+          }
+          // eslint-disable-next-line no-await-in-loop -- As above.
+          await deck.terminals.close({ terminalId: earlier.id })
+        }
+      } finally {
+        await deck.close()
       }
       for (const setup of order)
         for (let round = 1; round <= rounds; round++)
@@ -112,7 +164,7 @@ describe.runIf(process.platform === "win32" && supported)("a new Windows termina
             await timed(
               `${setup.name} #${round}`,
               run.deck,
-              setup.agent,
+              () => run.deck.open(setup.agent),
               (terminal) => ({
                 ready: terminal.reached("ready", { timeoutMs: 60_000 }).then(() => {}),
                 "at its prompt": prompted(terminal, setup),
