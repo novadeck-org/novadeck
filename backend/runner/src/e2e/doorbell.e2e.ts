@@ -133,6 +133,48 @@ for (const setup of setups) {
       })
     }
 
+    // A queued prompt's hook runs as it is queued, and a Stop takes the prompt back out: a
+    // message printed there would go with it, unseen, though held as delivered.
+    const slowQueue = e2e.seeded({}, setup)
+    gated(slowQueue, setup.queueing ? undefined : "its queued prompts' hooks don't run early")(
+      "brings a message to an agent whose queued prompt a Stop took back, and no doorbell line back to the person",
+      async ({ e2e: run }) => {
+        const held = gate()
+        run.model.use(
+          sends("Tell moth the news", "moth", "The build is green."),
+          own((call) => (sent(call, "moth") ? { text: "Told moth." } : undefined)),
+          own((call) => (delivered(call, "fox") ? { text: "Noted the news." } : undefined)),
+          own(async (call) => {
+            if (!asked(call, "Hold on")) return undefined
+            await held.opened
+            return { text: "Too late." }
+          }),
+        )
+        const t1 = await start(run, setup)
+        const t2 = await start(run, setup)
+        const mark = t1.mark()
+        await t1.prompt("Hold on")
+        await t1.reached("working", { after: mark })
+        await message(t2, t1)
+        await t1.prompt("Queued beta")
+        const { pty } = internals(run).live(t1.id).terminal
+        pty.write(`\x1b[200~${doorbellLine("abc123def")}\x1b[201~`)
+        await sleep(300)
+        pty.write("\r")
+        await t1.until(/Press up to edit queued messages/)
+        const calls = run.model.mark()
+        const stopped = await t1.interrupt()
+        held.open()
+        expect(stopped.returned).toBe("Queued beta")
+        // Nothing more from the person: the doorbell brings it.
+        await run.model.waitFor((call) => delivered(call, "fox"), {
+          after: calls,
+          timeoutMs: 60_000,
+        })
+        await t1.until("Noted the news.")
+      },
+    )
+
     gated(it, lacking(setup, "questions"))(
       "rings an agent idle after the person answered its question in the terminal",
       async ({ e2e: run }) => {

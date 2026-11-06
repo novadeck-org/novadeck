@@ -325,6 +325,13 @@ export type MessagingProfile = {
    */
   readonly reinjectPerCall: boolean
   /**
+   * Whether a prompt given while a turn runs runs its prompt hook as it is queued, not as it
+   * is sent. What that hook prints rides the queued prompt, which the person or a Stop may
+   * still take back out of the queue, so it delivers nothing; the running turn's Stop does.
+   * Omitted where the prompt hook runs with the prompt that goes to the model.
+   */
+  readonly promptHookOnQueueing?: true
+  /**
    * Which session its messages are for: the one bound (`binding`), or, where its hooks
    * name subagents' sessions alike, the one its status line names (`status-line`).
    */

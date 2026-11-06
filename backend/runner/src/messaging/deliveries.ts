@@ -499,6 +499,7 @@ export class Deliveries {
     const before = live.delivery
     // A doorbell prompt submitted its line: one in the box again is the person's.
     const confirmed = event.type === "prompt" && event.by === "doorbell" ? event.nonce : undefined
+    if (event.type === "prompt" && event.by !== "call") live.promptBehindTurn = running(before)
     if (confirmed !== undefined)
       live.unconfirmed = live.unconfirmed.filter((each) => each !== confirmed)
     live.delivery = transition(before, event, this.host.slackMs)

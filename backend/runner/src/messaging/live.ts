@@ -79,6 +79,8 @@ export type Live = Scope & {
    * is the person's: put back by their Escape, or recalled from the prompt's history.
    */
   unconfirmed: readonly string[]
+  /** Whether the latest prompt's hook came while a turn ran: queued behind it, as far as told. */
+  promptBehindTurn: boolean
   /** Whether the doorbell rings it with the plain line, after a ring failed (`ringsPlain`). */
   ringsPlain: boolean
   /** When a reply line last started a turn: the replies waiting then have been said. */
@@ -118,6 +120,7 @@ export const started = (
   waits: null,
   idleSince: null,
   unconfirmed: [],
+  promptBehindTurn: false,
   ringsPlain: false,
   lineAt: null,
   viaScreen: false,

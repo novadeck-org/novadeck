@@ -179,7 +179,7 @@ export class HookAnswers {
     const background = runsOn(stop.background)
     const lease =
       time &&
-      continues(live.delivery) &&
+      continues(live.delivery, profile.promptHookOnQueueing === true) &&
       !this.host.deliveries.ridesLine(live.terminalId, background) &&
       this.host.leasing.lease(live, root, {
         kind: "stop",
@@ -265,8 +265,12 @@ export class HookAnswers {
       stdout: text || holds.length > 0 ? print(text) : silent.stdout,
       ...(begun && { adding: (extra: string) => print(withNotices(text, extra)) }),
     })
+    // A prompt queued behind the running turn may be taken back out of the queue, and all its
+    // hook printed with it: what waits stays waiting, for that turn's Stop.
+    const behind = profile.promptHookOnQueueing === true && live.promptBehindTurn
     const lease =
       time &&
+      !behind &&
       leasing.lease(live, root, {
         kind: "prompt",
         print,
@@ -277,12 +281,14 @@ export class HookAnswers {
     if (lease) return answered(lease.id, lease.text)
     // Else a lease of the notices alone, whose acknowledgement withdraws the asks and, for a
     // harness whose injected messages last one call, keeps the notice for each later call.
-    const only = leasing.noticed(
-      live,
-      "prompt",
-      noticed,
-      noting ? joined(kept, noted("", notes)) : undefined,
-    )
+    const only = behind
+      ? undefined
+      : leasing.noticed(
+          live,
+          "prompt",
+          noticed,
+          noting ? joined(kept, noted("", notes)) : undefined,
+        )
     if (kept !== undefined) return answered(only?.id ?? null, kept)
     if (start.cause !== "doorbell") return answered(only?.id ?? null, "")
     // A doorbell whose messages couldn't be leased now, as too late or while paused, says
