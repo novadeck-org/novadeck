@@ -291,7 +291,7 @@ export type Runner = {
     prompt(
       terminalId: string,
       text: string,
-      options?: { readonly automatic?: true; readonly ref?: string },
+      options?: { readonly automatic?: true; readonly along?: true; readonly ref?: string },
     ): Promise<{ readonly ref: string; readonly tracked: boolean }>
     /**
      * Answers a request waiting on the person through its dialog in the agent's TUI, by the
@@ -313,6 +313,8 @@ export type Runner = {
      * the person is to clear the box in the terminal.
      */
     interrupt(terminalId: string): Promise<InterruptResult>
+    takeBox(terminalId: string): Promise<{ readonly returned: string | null }>
+    putBox(terminalId: string, text: string): Promise<{ readonly placed: boolean }>
     /**
      * Installs or removes Novadeck's plugin in the agent through its own commands;
      * rejects with `AGENT_SETUP_FAILED` saying why when that did not work.
@@ -636,18 +638,21 @@ export const connectRunner = async (
           (client, signal) => client.agents.transcript({ terminalId, actor }, { signal }),
           { type: "reset" },
         ),
-      prompt: (terminalId, text, { automatic, ref } = {}) =>
+      prompt: (terminalId, text, { automatic, along, ref } = {}) =>
         call((client) =>
           client.agents.prompt({
             terminalId,
             text,
             ...(automatic && { automatic }),
+            ...(along && { along }),
             ...(ref !== undefined && { ref }),
           }),
         ),
       answer: (terminalId, request, answer) =>
         call((client) => client.agents.answer({ terminalId, request, answer })),
       interrupt: (terminalId) => call((client) => client.agents.interrupt({ terminalId })),
+      takeBox: (terminalId) => call((client) => client.agents.takeBox({ terminalId })),
+      putBox: (terminalId, text) => call((client) => client.agents.putBox({ terminalId, text })),
       set: (agent, connected) => call((client) => client.agents.set({ agent, connected })),
     },
     companions: {

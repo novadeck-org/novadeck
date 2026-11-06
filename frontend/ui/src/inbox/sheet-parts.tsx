@@ -52,8 +52,8 @@ export const Disclosure = ({
 
 // A command, word for word, in the sheet's mono box, with the folder it runs in where the
 // sheet says so and a Copy for what the person runs themselves. Whatever in it draws as
-// nothing shows as a mark (`command-view.ts`), and a command of more than one line says how
-// many and scrolls in its box, so nothing Copy copies or Allow runs is out of reach.
+// nothing shows as a mark (`command-view.ts`), a command of more than one line says how many,
+// and a long one scrolls in its box, so nothing Copy copies or Allow runs is out of reach.
 export const CommandBox = ({
   command,
   folder = null,
@@ -64,7 +64,8 @@ export const CommandBox = ({
   readonly copy?: boolean
 }): React.JSX.Element => {
   const view = commandView(command)
-  const long = view.lines > 8
+  // One line can run as far as many: a chain of commands wraps past what the box holds.
+  const long = view.lines > 8 || command.length > 1200
   return (
     <div className="console-box console-command" data-long={long || undefined}>
       {(folder || view.lines > 1 || copy) && (

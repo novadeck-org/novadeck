@@ -7,7 +7,14 @@ import { agentLimits, shellCommand, type AgentName, type PromptReceipt } from "@
 
 import { DomainError } from "../errors.js"
 import { logs } from "../log.js"
-import { inBox, missingAt, promptLines, settledBy, type Turns } from "./receipt-match.js"
+import {
+  inBox,
+  knownWords,
+  missingAt,
+  promptLines,
+  settledBy,
+  type Turns,
+} from "./receipt-match.js"
 
 const log = logs.for("chat")
 
@@ -101,6 +108,8 @@ type Entry = {
   checking: boolean
   /** When it was found missing, or back in the box; null before. */
   missedAt: number | null
+  /** Whether it went on the same line as what the box held (`Receipts.joined`). */
+  joined?: boolean
 }
 
 /** What is read of a terminal's record, while any prompt there waits on it. */
@@ -239,6 +248,15 @@ export class Receipts {
     return { ref, tracked: true }
   }
 
+  /**
+   * The prompt goes on the same line as what the box held, so its record's item holds its first
+   * line at the end of one of its own.
+   */
+  joined(terminalId: string, ref: string): void {
+    const entry = this.entry(terminalId, ref)
+    if (entry) entry.joined = true
+  }
+
   /** The prompt's Enter was pressed: it is pending, as its receipt shows. */
   sent(terminalId: string, ref: string): void {
     const entry = this.entry(terminalId, ref)
@@ -274,6 +292,58 @@ export class Receipts {
       }
     if (changed) this.host.changed(terminalId)
     this.idle(terminalId, track)
+  }
+
+  /**
+   * Words went out of the agent's box other than by a Stop: the prompts it held are the
+   * person's draft again. A prompt not yet known to be back counts only where they are its
+   * words and nothing else, as one on its way may just say what they hold; `except`, the prompt
+   * that took them out, never does.
+   */
+  taken(terminalId: string, returned: string, except?: string): void {
+    const track = this.tracks.get(terminalId)
+    if (!track) return
+    let changed = false
+    for (const entry of track.entries)
+      if (
+        entry.ref !== except &&
+        ((entry.state === "in-box" && inBox(returned, entry.lines)) ||
+          (entry.state === "pending" &&
+            entry.sentAt !== null &&
+            knownWords([entry], returned) !== undefined))
+      ) {
+        done(entry, "withdrawn")
+        changed = true
+      }
+    if (changed) this.host.changed(terminalId)
+    this.idle(terminalId, track)
+  }
+
+  /**
+   * The words of the prompts back in the agent's box, where they are all the box's `text`, as
+   * they were given; undefined where any of it is not theirs, or none is back.
+   */
+  known(terminalId: string, text: string): string | undefined {
+    const back = this.tracks.get(terminalId)?.entries.filter((entry) => entry.state === "in-box")
+    return back && knownWords(back, text)
+  }
+
+  /**
+   * A Stop couldn't take out of the agent's box what it put there: the prompts sent whose words
+   * the box holds are back in it now, rather than once their turns went by.
+   */
+  async putBack(terminalId: string): Promise<void> {
+    const box = await this.host.box(terminalId).catch(() => undefined)
+    const track = this.tracks.get(terminalId)
+    if (!track || box === undefined) return
+    let changed = false
+    for (const entry of track.entries)
+      if (entry.state === "pending" && entry.sentAt !== null && inBox(box, entry.lines)) {
+        this.missed(terminalId, track, entry)
+        entry.state = "in-box"
+        changed = true
+      }
+    if (changed) this.host.changed(terminalId)
   }
 
   /**
@@ -523,17 +593,21 @@ export class Receipts {
       track.timer = setTimeout(() => this.check(terminalId), Math.max(0, next - now))
   }
 
+  /** The prompt was found missing now. Past the time a late record may still settle it, the record is read for it no more. */
+  private missed(terminalId: string, track: Track, entry: Entry): void {
+    entry.missedAt = this.now()
+    setTimeout(() => {
+      if (this.tracks.get(terminalId) === track) this.idle(terminalId, track)
+    }, this.lateMs).unref?.()
+  }
+
   /** The prompt's turns went by without it: back in the box, or missing from the record. */
   private async missing(terminalId: string, track: Track, entry: Entry): Promise<void> {
     entry.checking = true
     const box = await this.host.box(terminalId).catch(() => undefined)
     entry.checking = false
     if (this.tracks.get(terminalId) !== track || entry.state !== "pending") return
-    entry.missedAt = this.now()
-    // Past the time a late record may still settle it, the record is read for it no more.
-    setTimeout(() => {
-      if (this.tracks.get(terminalId) === track) this.idle(terminalId, track)
-    }, this.lateMs).unref?.()
+    this.missed(terminalId, track, entry)
     if (box !== undefined && inBox(box, entry.lines)) entry.state = "in-box"
     else {
       entry.state = "unrecorded"

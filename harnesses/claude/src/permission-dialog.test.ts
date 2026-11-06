@@ -1,4 +1,6 @@
+import type { ScreenText } from "@novadeck/emulator/headless"
 import type { RequestFacts } from "@novadeck/harness-core/dialogs"
+import { loadProbe } from "@novadeck/harness-core/testing/probes"
 import { describe, expect, it } from "vitest"
 
 import { dialogs } from "./dialogs.js"
@@ -1461,5 +1463,81 @@ describe("Claude Code's Read permission", () => {
     expect(dialogs.read(swap(rows, "Read(", "Get("), facts)).toBeUndefined()
     expect(dialogs.read(rows, { ...facts, tool: "Glob" })).toBeUndefined()
     expect(dialogs.read(rows, { ...facts, tool: "Grep" })).toBeUndefined()
+  })
+})
+
+describe("Claude Code's dialog for a command taller than the screen", () => {
+  const { scenarios } = loadProbe(import.meta.dirname, "tall.probe.json") as {
+    scenarios: { [name: string]: { commands: string[]; screens: { [size: string]: ScreenText } } }
+  }
+  const tall = scenarios.tall!
+  const command = tall.commands[0]!
+  const facts = (asked: string): RequestFacts => ({
+    kind: "permission",
+    tool: "Bash",
+    input: { command: asked, description: "Make a file" },
+    cwd: null,
+  })
+  const rows = (size: string): string[] => [...tall.screens[size]!.rows]
+
+  it.each(["120x40", "60x20"])("reads the whole command by its end, at %s", (size) => {
+    const read = need(dialogs.read(rows(size), facts(command)))
+    expect(read.dialog).toMatchObject({
+      detail: command,
+      options: [{ label: "Yes" }, { label: "No" }, { label: "No, and tell Claude what to do" }],
+    })
+    expect(read.keys({ type: "choice", dialog: "id", option: "1" })).toEqual([{ press: "1" }])
+  })
+
+  it("reads it under the countdown to blocking the request, which ticks", () => {
+    const drawn = rows("120x40")
+    const question = drawn.findIndex((row) => row.includes("Do you want to proceed?"))
+    const counting = (left: string): string[] => [
+      ...drawn.slice(1, question - 1),
+      ` ⚠ Claude Code will automatically block this request in ${left}, to avoid holding up an unattended session`,
+      "",
+      ...drawn.slice(question),
+    ]
+    const first = dialogs.read(counting("0:56"), facts(command))
+    const second = dialogs.read(counting("0:55"), facts(command))
+    expect(need(first).dialog).toEqual(need(second).dialog)
+  })
+
+  it("tells two commands apart by how they end", () => {
+    const [mine, theirs] = scenarios.twins!.commands
+    const drawn = [...scenarios.twins!.screens["120x40"]!.rows]
+    expect(dialogs.read(drawn, facts(mine!))).toBeDefined()
+    expect(dialogs.read(drawn, facts(theirs!))).toBeUndefined()
+  })
+
+  it("reads a command that only just fits, its header scrolled away", () => {
+    const asked = "touch one\ntouch two"
+    const drawn = (...above: string[]): string[] => [
+      ...above,
+      " │ touch one",
+      " │ touch two",
+      "╌".repeat(40),
+      " Do you want to proceed?",
+      " ❯ 1. Yes",
+      "   2. No",
+      "",
+      " Esc to cancel · Tab to amend",
+    ]
+    const rule = "╌".repeat(40)
+    for (const above of [[rule], [" Make a file", rule], [" Bash command", " Make a file", rule]])
+      expect(need(dialogs.read(drawn(...above), facts(asked))).dialog).toMatchObject({
+        detail: asked,
+      })
+    // A header on screen must be a command's.
+    expect(
+      dialogs.read(drawn("─".repeat(40), " Fetch", " Make a file", rule), facts(asked)),
+    ).toBeUndefined()
+  })
+
+  it("reads no end that isn't the request's, nor rows that aren't its quote", () => {
+    expect(dialogs.read(rows("120x40"), facts(`${command}\ntouch more`))).toBeUndefined()
+    const drawn = rows("120x40")
+    drawn[3] = " Some other row"
+    expect(dialogs.read(drawn, facts(command))).toBeUndefined()
   })
 })

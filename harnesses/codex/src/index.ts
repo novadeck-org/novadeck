@@ -151,6 +151,7 @@ export const codex = {
   decode,
   transcriptOf: hookTranscript,
   dialogs,
+  commandFields: ["command"],
   title,
   titleWorking,
   screenVersion: bannerVersion,

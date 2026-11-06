@@ -7,7 +7,9 @@ import {
   collapse,
   firstOption,
   labelled,
+  lastOptions,
   optionsAt,
+  opens,
   type Parsed,
   squash,
   type Wording,
@@ -27,6 +29,9 @@ const keyOf = (hint: string): string | undefined => {
   if (control) return String.fromCharCode(control[1]!.charCodeAt(0) - 96)
   return hint.length === 1 && hint >= "!" && hint <= "~" ? hint : undefined
 }
+
+// The no that sends the person's words, as the next prompt.
+const telling = "No, and tell Codex what to do differently"
 
 const execWordings: readonly Wording[] = [
   { label: /^Yes, proceed$/ },
@@ -54,6 +59,14 @@ const approvals = {
   "Would you like to make the following edits?": patchWordings,
   "Would you like to grant these permissions?": permissionWordings,
 } as const
+
+// The row that ends a command too tall for the dialog: how many rows it holds back, and the
+// key that shows them, as Codex draws ctrl (see `keyOf`) or the person rebound it.
+const heldBack = /^\s*\[… \d+ lines?\]\s+\S+ view all\s*$/
+
+// The footer of a dialog, and the key that refuses it, which a tall command's options may be
+// pushed off the screen before they reach.
+const cancelled = /^\s*Press \S+ to confirm or (\S+) to cancel\s*$/
 
 const slashes = (path: string): string => squash(path).replace(/\\/g, "/")
 
@@ -101,16 +114,23 @@ const approval = (lines: readonly string[], facts: RequestFacts): Parsed | undef
   const title = lines.findLastIndex((line) => line.trim() in approvals)
   if (title < 0) return undefined
   const name = lines[title]!.trim() as keyof typeof approvals
-  const first = firstOption(lines, title + 1)
+  // Its own options, at the bottom: rows of a command above them may read as options.
+  const first = lastOptions(lines, title + 1)
   if (first < 0) return undefined
   const body = lines.slice(title + 1, first)
   const input = fieldsOf(facts.input)
   let detail: string | null = null
+  // A command the dialog cut short, which also pushes its last options off the screen.
+  let cut = false
 
   if (name === "Would you like to run the following command?") {
     if (facts.tool !== "Bash" || typeof input?.command !== "string") return undefined
     const shown = shownCommand(body)
-    if (!shown || !wrapped(shown, input.command)) return undefined
+    if (!shown) return undefined
+    cut = heldBack.test(shown.at(-1) ?? "")
+    // Cut, its start must be the request's: the hook told the rest, for this very dialog.
+    if (cut ? !opens(shown.slice(0, -1), input.command) : !wrapped(shown, input.command))
+      return undefined
     // As Codex will run it: its line breaks and characters stay, for the Inbox to show.
     detail = input.command
   } else if (name === "Would you like to make the following edits?") {
@@ -154,13 +174,25 @@ const approval = (lines: readonly string[], facts: RequestFacts): Parsed | undef
     const hinted = /^(.*\S) \(([^()]+)\)$/.exec(row.text)
     const label = hinted?.[1] ?? row.text
     const wording = wordings.find(({ label: pattern }) => pattern.test(label))
-    if (!wording) return undefined
+    if (!wording) {
+      // The screen's bottom may cut the last option it has room for.
+      if (cut && row === rows.at(-1)) continue
+      return undefined
+    }
     const key = hinted ? keyOf(hinted[2]!) : undefined
     // An option whose shortcut isn't printed, or isn't one to press, can't be answered.
     if (key !== undefined) {
       picks.push({ id: String(row.n), label, key, text: wording.prompt ? "prompt" : null })
     }
   }
+  // Its way to say no went off the screen with them: the footer says which key that is.
+  const refusal = cancelled.exec(footer ?? "")?.[1]
+  const refuse = cut && refusal !== undefined ? keyOf(refusal) : undefined
+  const refuses = picks.some(({ label }) => label.startsWith("No"))
+  if (refuse !== undefined && !refuses)
+    picks.push({ id: "no", label: telling, key: refuse, text: "prompt" })
+  // A card that can only say yes is no way to ask.
+  else if (cut && !refuses) return undefined
   if (picks.length === 0 || new Set(picks.map(({ key }) => key)).size !== picks.length)
     return undefined
   return choose(name, picks, detail)

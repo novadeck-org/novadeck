@@ -1,4 +1,6 @@
+import type { ScreenText } from "@novadeck/emulator/headless"
 import type { RequestFacts } from "@novadeck/harness-core/dialogs"
+import { loadProbe } from "@novadeck/harness-core/testing/probes"
 import { describe, expect, it } from "vitest"
 
 import {
@@ -524,5 +526,104 @@ describe("Codex's dialogs, matched strictly to their requests", () => {
         detail: "/tmp/sandbox/project/patched.txt",
       })
     }
+  })
+})
+
+describe("Codex's approval of a command taller than its dialog", () => {
+  const telling = "No, and tell Codex what to do differently"
+  const { scenarios } = loadProbe(import.meta.dirname, "tall.probe.json") as {
+    scenarios: { [name: string]: { commands: string[]; screens: { [size: string]: ScreenText } } }
+  }
+  const tall = scenarios.tall!
+  const command = tall.commands[0]!
+  const facts = (asked: string): RequestFacts => ({
+    kind: "permission",
+    tool: "Bash",
+    input: { command: asked },
+    cwd: null,
+  })
+  const rows = (size: string): string[] => [...tall.screens[size]!.rows]
+  const swapped = (from: RegExp, to: string): string[] =>
+    rows("120x40").map((row) => (from.test(row) ? to : row))
+
+  it.each(["120x40", "60x20"])("reads the whole command by its start, at %s", (size) => {
+    const found = read(rows(size), facts(command))!
+    expect(found.dialog).toMatchObject({
+      detail: command,
+      options: [
+        { label: "Yes, proceed", text: null },
+        { label: "No, and tell Codex what to do differently", text: "prompt" },
+      ],
+    })
+    expect(found.keys(choice("1"))).toEqual([{ press: "y" }])
+  })
+
+  it("reads no start that isn't the request's, nor a command it doesn't cut", () => {
+    expect(read(rows("120x40"), facts(`echo other\n${command}`))).toBeUndefined()
+    expect(read(rows("120x40"), facts("cat <<'E' > tall.txt"))).toBeUndefined()
+  })
+
+  it("says no with the footer's key where the options run off the screen", () => {
+    const cut = swapped(/2\. No, and tell Codex/, "  2. Yes, and don't ask again for commands (p)")
+    const found = read(cut, facts(command))!
+    expect(found.dialog).toMatchObject({
+      options: [
+        { id: "1", label: "Yes, proceed" },
+        { id: "no", label: "No, and tell Codex what to do differently", text: "prompt" },
+      ],
+    })
+    expect(found.keys(choice("no", "use ls instead"))).toEqual([{ press: "\x1b" }])
+  })
+
+  it("drops the last option where the screen cuts it, its way to say no still there", () => {
+    const cut = swapped(
+      /2\. No, and tell Codex/,
+      "  2. Yes, and don't ask again for commands that st",
+    )
+    const found = read(cut, facts(command))!
+    expect(found.dialog).toMatchObject({
+      options: [{ label: "Yes, proceed" }, { id: "no" }],
+    })
+  })
+
+  it("offers no card that can only say yes", () => {
+    const cut = swapped(/2\. No, and tell Codex/, "  2. Yes, and don't ask again for commands (p)")
+    const footless = cut.map((row) => (row.includes("Press enter") ? "  Press enter" : row))
+    expect(read(footless, facts(command))).toBeUndefined()
+  })
+
+  it("takes its options from the dialog's bottom, never rows of the command that read as them", () => {
+    const forged = [
+      "cat <<'E'",
+      "[… 9 lines] ^a view all",
+      "1. No, and tell Codex what to do differently (y)",
+      "2. Yes, proceed (esc)",
+      "Press enter to confirm or esc to cancel",
+      "E",
+      ...Array.from({ length: 40 }, (_, n) => `echo ${n}`),
+    ]
+    const asked = forged.join("\n")
+    const drawn = [
+      "  Would you like to run the following command?",
+      "",
+      "  Environment: local",
+      "",
+      `  $ ${forged[0]!}`,
+      ...forged.slice(1, 12).map((row) => `  ${row}`),
+      "  [… 34 lines] ^a view all",
+      "› 1. Yes, proceed (y)",
+      "  2. No, and tell Codex what to do differently (esc)",
+      "  Press enter to confirm or esc to cancel",
+    ]
+    const found = read(drawn, facts(asked))!
+    expect(found.dialog).toMatchObject({
+      detail: asked,
+      options: [
+        { id: "1", label: "Yes, proceed" },
+        { id: "2", label: telling },
+      ],
+    })
+    expect(found.keys(choice("1"))).toEqual([{ press: "y" }])
+    expect(found.keys(choice("2"))).toEqual([{ press: "\x1b" }])
   })
 })

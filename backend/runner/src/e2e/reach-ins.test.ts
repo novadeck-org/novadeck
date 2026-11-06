@@ -23,6 +23,7 @@ const here = dirname(fileURLToPath(import.meta.url))
  * it, or the deck), each checked below.
  */
 const reaching = [
+  "chat.e2e.ts",
   "doorbell.e2e.ts",
   "person.e2e.ts",
   "probes/agy-stop-boundary.e2e.ts",
@@ -38,6 +39,7 @@ type Inside = {
   readonly records: Map<string, { bound: unknown; terminal: { pty: Process } }>
   readonly bindings: { applyFact: unknown }
   readonly reporting: { report: unknown }
+  readonly typing: { receipts: { expect: unknown; sent: unknown; putBack: unknown } }
   readonly messaging: { delivery(id: string): unknown; ring: unknown; ringFailed: unknown }
   live(id: string): { terminal: { screen: Parameters<typeof readScreen>[0]; pty: Process } }
 }
@@ -64,6 +66,12 @@ describe("the e2e reach-ins", () => {
         ),
     )
     expect(files.map((file) => file.replaceAll("\\", "/")).toSorted()).toEqual(reaching)
+  })
+
+  it("chat's: the receipts of the terminal's typing", async ({ resources }) => {
+    const { inside } = await running(resources)
+    const { expect: expected, sent, putBack } = inside.typing.receipts
+    for (const member of [expected, sent, putBack]) expect(member).toBeTypeOf("function")
   })
 
   it("doorbell's: messaging's ring, a live terminal's screen and pty", async ({ resources }) => {

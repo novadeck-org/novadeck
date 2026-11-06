@@ -406,3 +406,21 @@ export const messages = (terminal: DeckTerminal) =>
     .messages()
     .threads.flatMap((thread) => thread.messages)
     .map((each) => ({ ...each, from: nameOf(each.from), to: nameOf(each.to) }))
+
+/** `reply`'s first call, running each of `commands` in place of its own, at once. */
+export const running = (reply: Reply, ...commands: readonly string[]): Reply => {
+  const [call] = reply.calls ?? []
+  if (!call) throw new Error("Expected a call")
+  return {
+    ...reply,
+    calls: commands.map((command) => ({
+      ...call,
+      input: Object.fromEntries(
+        Object.entries(call.input).map(([key, value]) => [
+          key,
+          ["command", "cmd", "CommandLine"].includes(key) ? command : value,
+        ]),
+      ),
+    })),
+  }
+}

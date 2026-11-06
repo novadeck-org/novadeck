@@ -807,8 +807,9 @@ one from an earlier runner.
   tells (`unsupported`, `partial`, `complete`). Actors and requests have runner-issued
   refs, never a harness's own ids; the summary's subagents use the same refs. Its `prompts`
   are the receipts of the prompts given through `agents.prompt` in the bound session (see
-  "Prompt receipts" below). Without an agent bound, only `terminalId` is set, and the
-  receipts of prompts given an agent at its own prompt before its session binds. The stream follows the terminal from agent to
+  "Prompt receipts" below), and its `box` what the agent's input box holds (see "A box that
+  isn't empty" below). Without an agent bound, only `terminalId` is set, with the receipts of
+  prompts given an agent at its own prompt before its session binds, and its `box`. The stream follows the terminal from agent to
   agent and ends when the terminal is closed; an unknown one is `TERMINAL_NOT_FOUND`.
   The client's `agents.detail(terminalId)` resubscribes across reconnections and ends
   once the terminal is gone.
@@ -889,13 +890,11 @@ one from an earlier runner.
   The runner holds the person's keys and reads the agent's input box off its screen,
   through the harness's adapter (`harnesses/*/src/box.ts`, which knows how that harness draws it,
   which of its text is a faint suggestion, not the person's, and whether it is in its shell
-  mode): where the box is not on the screen, or still holds anything after waiting up to 3 s
-  for it to read empty and in its prompt mode (the TUI may be clearing the text of the
-  prompt just sent before, or leaving its shell mode after a command's Enter; the person's
-  draft, or what a failed paste left, never clears), the call is a `CONFLICT` that wrote
-  nothing, as the text would merge into it. A box left in its shell mode, even empty, would
-  run any text as a command: a message or command there is a `CONFLICT` writing nothing
-  ("clear it in the terminal first"). Otherwise it writes the text as one bracketed paste
+  mode): where the box is not on the screen, or a view, menu or dialog covers it, the call is a
+  `CONFLICT` that wrote nothing. It waits up to 3 s for the box to read empty and in its
+  prompt mode (the TUI may be clearing the text of the prompt just sent before, or leaving
+  its shell mode after a command's Enter). Whatever the box still holds then is seen to as
+  "A box that isn't empty" says below. Otherwise it writes the text as one bracketed paste
   and presses Enter once the box holds exactly the text (whitespace aside: the TUI wraps and
   indents it) or, for text a TUI may collapse (several lines, or over 200 characters), only
   the placeholder it shows for it, on two reads running; the words already on the screen
@@ -968,10 +967,97 @@ one from an earlier runner.
   them over and keeps that deadline, so one that is refused at once lets none go earlier. The
   client's `agents.prompt(terminalId, text, { automatic?, ref? })` is that call.
 
-  It resolves with `{ ref, tracked }`: the ref of the prompt's receipt (the `ref` given, 16
-  letters, digits, `_` or `-`, which a client picks so its own copy of the prompt has the
-  same key from the start; one the terminal's receipts already hold is a `CONFLICT` writing
-  nothing; the runner's own without one), and whether a receipt follows it.
+  It resolves with `{ ref, tracked, returned }`: the ref of the prompt's receipt (the `ref`
+  given, 16 letters, digits, `_` or `-`, which a client picks so its own copy of the prompt
+  has the same key from the start; one the terminal's receipts already hold is a `CONFLICT`
+  writing nothing; the runner's own without one), whether a receipt follows it, and the words
+  it took out of the agent's box to go, for the client's draft, null for none.
+
+  **A box that isn't empty** (`libraries/tui-input/src/box/leftover.ts`,
+  `Prompts.room`) never sends the person to the terminal where the screen shows it needn't,
+  for a call with `along`: the chat's own send while it shows, whose person can see the box.
+  Without `along`
+  a box that isn't empty is a `CONFLICT` writing nothing (`draft`, or `shell`): an Inbox line,
+  fixed or typed, and the words that follow an answer, are sent where the box can't be seen.
+  What the box holds is read through the adapter, and each step goes once and is read back;
+  a step that doesn't confirm ends in the next one down, or a refusal with a reason, never
+  the same keys again. Each fallback and refusal logs `chat.box` as a warning, with the
+  harness and its version and no words, so a harness that changed shows up there. What the
+  box holds is also in `agents.detail`'s `box`, so a client can show it before anything goes
+  with it (`agentBox`): its `text`, `mode`, `tail` where the box is as tall as it gets, so that
+  may be only the end of it, and `known`. It is null for an empty box, no box, an empty shell
+  mode, or a line a ring left (below), read as the screen changes while a client reads the
+  detail, throttled, and never for one nobody reads.
+  - **Text goes along.** The cursor goes after the text first, as a paste lands at the
+    cursor: Down to the box's last row, exactly so far, as Down past it recalls history, then
+    End. Where it can't be seen there, or the box may be showing a tail it scrolled in, the call
+    is a `CONFLICT` (`draft`) with nothing pasted. A cursor far past the text's end is none in
+    the box at all (a menu that reads as one parks it there). In a box that may show a tail, a
+    cursor on the end of the last row shown can't be told from the text's end, so a person who
+    scrolled up inside so tall a draft gets the message at the cursor, both still sent. The paste leads with a blank line, which
+    keeps the prompt's lines its own, so its receipt settles against the record's merged item,
+    and closes a picker the text holds open, whose Enter would pick from it (Codex and
+    Antigravity did). Where a paste is keys (`pastesAsKeys`, Codex on Windows, which reads the
+    console's), a line break is an Enter unless it comes in what the program takes for a burst of
+    typing: one leading the paste submitted the box and left the prompt behind. So a space sets
+    the prompt apart there, the record told it shares a line, and a prompt of several lines
+    with a first line under 16 characters is a `CONFLICT` (`draft`), written nowhere. Enter goes once the box holds the text and then the prompt, or the
+    prompt's placeholder, or in a box as tall as it gets the prompt's tail.
+  - **What is Novadeck's goes back.** Where all the box holds is prompts whose receipts are
+    `in-box` (`known`), it is erased first and handed back as `returned`, its receipts
+    `withdrawn`. The keys are the adapter's `erase`: Ctrl-U from the last row up, Backspace
+    between rows, which unlike Escape or Ctrl-C stops no running turn, on every harness.
+    Where the box doesn't read empty after them it goes along as text; where what's left
+    is no longer what the box held, it is a `CONFLICT` (`draft`) that carries what they took in
+    its data as `returned`, as any failure after words came out does, `PROMPT_FAILED` too, for the
+    client's draft. A Stop that couldn't take queued words out (`BOX_NOT_CLEARED`) marks their
+    receipts `in-box` at once.
+  - **Shell mode is left.** A box in its shell mode would run any text as a command. Empty, a
+    Backspace leaves it; holding a command, the same keys as erasing and a Backspace, and the
+    command goes back as `returned`, with its `!`. One that shows only as a placeholder or a
+    tail can't go back, so it stays, and the call is a `CONFLICT` (`shell`).
+  - **What stays refused**, writing nothing: a box leading with `/` or `!`, which its program
+    would run with the prompt as arguments (`command`); no box, or something over it (`no-box`);
+    a shell command over text that isn't Novadeck's, which can't go along (`draft`); and a
+    line a ring left, which is the doorbell's to finish (`ringing`, to try again).
+
+  **One input.** While a terminal shows as chat, its terminal inert beneath it, the person
+  writes in one place: `agents.takeBox` hands what the agent's box holds to the client's draft,
+  and `agents.putBox` hands a draft back as the terminal shows again (`Handovers`, in
+  `libraries/tui-input`). Each takes its turn in the terminal's input queue, so neither races
+  a ring or a prompt, and neither presses Enter.
+  - `agents.takeBox({ terminalId })` resolves with `{ returned }`, the words as typed: rows
+    the box wrapped joined again (a row the next one's first word wouldn't have fit on, and
+    one filled by a single word mid-word), and a shell mode's command with its `!`. It takes only
+    what reads whole: not a box that may show a tail, nor one holding a paste's placeholder or
+    an image (`BoxProfile.stands`), and only once the box read the same twice, 300 ms apart,
+    and any text of a prompt just sent had the time to clear. With the cursor after the
+    text, the adapter's `erase` (or `shell.leave`) goes once, and must read empty; otherwise
+    `returned` is null and the box stays as it is, or as the keys left it, showing in `box`,
+    which send-along then takes care of. A box holding a command of the program's (a leading
+    `/`) stays too: the chat could neither send that nor put it back. The client doesn't take
+    a shell command beside a message in its draft, or a message beside a command. Any of it
+    shows in `box`, and the client shows it, as what the next message goes out with. Keys that took some of it, or took late, still give what
+    they took, which is in the box no longer, what's left there being taken after it. A ring's line is never taken, with words beside it or
+    not, and an empty shell mode is left as it is. A prompt Novadeck knows comes back as given.
+  - `agents.putBox({ terminalId, text })` resolves with `{ placed }`. It pastes the draft with
+    no Enter, a leading `!` typed as a key first, so it lands in the box's shell mode on every
+    harness (pasted, Antigravity takes it as text). `placed` is false, with nothing typed, where
+    the box isn't empty, or the text has a shape `promptRefusal` refuses: a leading `/`, or a
+    trailing `@name` or `$name`, whose picker would open there and take the next Enter, or a
+    command long enough for a placeholder where the harness's shell mode would run that as
+    text (Antigravity), or text whose first line break would be an Enter (above). It is false too where the words never showed, a `!` that was typed taken
+    back out. The client keeps its draft unless it is true.
+
+  Both hold the person's keys for as long as they take: 0.3 s, as long as what a prompt just sent
+  may still show (3 s), and up to 2 s for each of two keys that don't confirm, within a safety
+  cap of 16 s. A take waits up to 10 s for a ring under way first, outside the queue. There is
+  no per-client guard: a second client on one runner, as two `dev:web` tabs, could take what the
+  person types in the other's terminal view. The desktop app has one window, and a terminal
+  shows in one place.
+
+  Every refusal and every step logs `chat.box`, a warning for what it left undone, with the reason, the harness
+  and its version, never the words.
 
   **Prompt receipts.** The runner follows each prompt until the agent's own record holds it,
   so the chat can show it until then and say when it never came, the same in every window
@@ -1145,7 +1231,7 @@ one from an earlier runner.
   closed: where the box holds text that can't be cleared and seen empty, that is only a
   placeholder standing for the words (clearing it would lose them), or can't be read,
   after the Escape stopped the turn, it rejects with `BOX_NOT_CLEARED` and leaves the box
-  as it is: the person is to clear it in the terminal. The call takes up to about half a
+  as it is, for the next prompt to see to ("A box that isn't empty"). The call takes up to about half a
   second longer where nothing comes back, and a few seconds more with queued messages. The
   client's `agents.interrupt(terminalId)` is that call, and resolves with the result.
 
