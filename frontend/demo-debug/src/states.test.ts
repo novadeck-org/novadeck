@@ -830,7 +830,7 @@ describe("demo states over the real agents", () => {
       run("At its startup screen")
       const terminal = terminalOf(workspace.getSnapshot(), viewed)!
       expect(terminal.process).toBe(harness)
-      expect(terminal.agent?.startup).toBe("startup")
+      expect(terminal).toMatchObject({ state: "running", agent: { startup: "startup" } })
     })
 
     it("makes every agent of the gallery that harness, with its asks in the Inbox", () => {
