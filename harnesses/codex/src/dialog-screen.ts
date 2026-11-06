@@ -13,9 +13,10 @@ export const collapse = (text: string): string => text.replace(/\s+/g, " ").trim
  * Whether `lines`, as the terminal wrapped them, read as `expected`: within a row every
  * character must match, whitespace included; between rows the break may stand for a space,
  * a newline or nothing at all (a long word broken inside). So `> x` is not `>x` and `a  b`
- * is not `a b`.
+ * is not `a b`. Text with a tab, which Codex doesn't draw as one, is read without whitespace.
  */
 export const wrapped = (lines: readonly string[], expected: string): boolean => {
+  if (expected.includes("\t")) return squash(lines.join("")) === squash(expected)
   const want = expected.trim()
   let at = 0
   for (const line of lines) {
@@ -26,6 +27,17 @@ export const wrapped = (lines: readonly string[], expected: string): boolean => 
     at += part.length
   }
   return at >= want.length
+}
+
+/**
+ * Whether `lines` are the start of `expected` and not all of it, as a command the dialog cut
+ * short shows. The request's own command is what shows and runs; this only tells that the
+ * dialog is that request's, so whitespace, which Codex redraws, is no part of it.
+ */
+export const opens = (lines: readonly string[], expected: string): boolean => {
+  const shown = squash(lines.join(""))
+  const want = squash(expected)
+  return shown !== "" && shown.length < want.length && want.startsWith(shown)
 }
 
 /** The screen's lines, without trailing space or blank lines. */
@@ -82,6 +94,14 @@ export const firstOption = (lines: readonly string[], from: number): number => {
   }
   return -1
 }
+
+/**
+ * The line of the last option block's first option in `lines` after `from`, or -1: the
+ * dialog's own, at its bottom, where a command's text above it may hold rows that read as
+ * options.
+ */
+export const lastOptions = (lines: readonly string[], from: number): number =>
+  lines.findLastIndex((line, at) => at >= from && optionLine.exec(line)?.[3] === "1")
 
 /** Whether `head` is `label`, alone or followed by its description's column. */
 export const labelled = (head: string, label: string): boolean =>

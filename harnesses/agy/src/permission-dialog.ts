@@ -44,8 +44,29 @@ type Confirmation = {
   readonly drawn?: { readonly rows: readonly string[]; readonly width: number }
   /** A command's tool lines above its heading. */
   readonly history?: string
+  /** Whether the whole turn above a command's heading shows, and no other call goes on in it. */
+  readonly alone?: boolean
+  /** Whether the row that heads a command shows, so what follows it starts with the command. */
+  readonly headed?: boolean
   /** The tools a file confirmation's header may name. */
   readonly tools?: readonly string[]
+}
+
+// A tool line, a call's or a spinner's, or a row in the words of one that goes on, and those
+// of calls that have done.
+const toolLine = /^(?:[●○▸\u2800-\u28ff]|\W*(?:Running|Queued)\b)/
+const doneLine = /^● (?:Ran|Edited)\b/
+
+// Whether the rows above a command's heading say that no other call goes on beside it: the
+// person's prompt or a rule must show, as rows that scrolled away could hold one, and every
+// tool line there must be one that has done. Any other, `Running` among them, leaves it
+// unknown: a call the TUI words some other way must never pass for no call at all.
+const aloneInTurn = (lines: readonly string[], heading: number): boolean => {
+  const above = lines.slice(0, Math.max(0, heading))
+  return (
+    above.some((row) => row.startsWith("> ") || rule(row)) &&
+    !above.map((row) => row.trim()).some((row) => toolLine.test(row) && !doneLine.test(row))
+  )
 }
 
 // A command's confirmation, or a file's, read in full: from `Requesting permission for:`
@@ -61,7 +82,7 @@ const confirmation = (rows: readonly string[]): Confirmation | undefined => {
     const start = lines.findLastIndex(
       (row, index) => index < ask && row.trim() === "Requesting permission for:",
     )
-    if (start < 0) return undefined
+    // A small screen scrolls that line away, and a command that won't fit its rows.
     const shown = lines
       .slice(start + 1, ask)
       .map((row) => row.trim())
@@ -81,7 +102,18 @@ const confirmation = (rows: readonly string[]): Confirmation | undefined => {
       rows: lines.slice(start + 1, ask),
       width: Math.max(0, ...lines.filter(rule).map((row) => row.trim().length)),
     }
-    return shown === "" ? undefined : { question, options, shown, command: true, history, drawn }
+    return shown === ""
+      ? undefined
+      : {
+          question,
+          options,
+          shown,
+          command: true,
+          history,
+          alone: aloneInTurn(lines, heading),
+          headed: start >= 0,
+          drawn,
+        }
   }
   // A file's: its header over a rule, then what it shows, down to the question.
   const ruleAt = lines.findLastIndex((row, index) => index < ask && rule(row))
@@ -106,11 +138,37 @@ const toolsByHeader: { readonly [header: string]: readonly string[] } = {
   "Pending edit": ["edit_file", "replace_file_content"],
 }
 
-// Whether what the screen shows of a command is the call's, all of it. A command cut short
-// with `...` is no match, as its start could be another call's (parallel calls share one
-// remembered call) and no cut-off screen has been probed: it reads raw.
-const sameCommand = (shown: string, command: unknown): boolean =>
-  typeof command === "string" && command.trim() !== "" && lined(shown) === lined(command)
+// A tab as a command's rows draw it (probed 2026-11-06, 1.4.12).
+const drawnTab = "    "
+
+// Whether what the screen shows of a command is the call's, all of it.
+const sameCommand = (shown: string, command: unknown): boolean => {
+  if (typeof command !== "string" || command.trim() === "") return false
+  return lined(shown) === lined(command.replaceAll("\t", drawnTab))
+}
+
+// What Antigravity's dialog ends a command too tall for it with: a row saying how many it
+// hides, or `...` on the last it has room for (probed 2026-11-06, 1.4.12 and 1.5.2).
+const hidden = /^⋯ \(\d+ lines? hidden\)$/
+const dots = /\.\.\.$/
+
+// What the screen shows of a command it cut short, without the mark that says so; undefined
+// for one it shows whole.
+const shownStart = (shown: string): string | undefined => {
+  const rows = shown.split("\n")
+  const last = rows.at(-1)!.trim()
+  if (hidden.test(last)) return rows.slice(0, -1).join("\n")
+  return dots.test(last) ? shown.replace(dots, "") : undefined
+}
+
+// Whether a confirmation cut short is `command`'s, by the start it shows.
+const sameStart = (read: Confirmation, command: unknown): boolean => {
+  const start = shownStart(read.shown)
+  if (start === undefined || typeof command !== "string") return false
+  const wanted = squash(command)
+  const shown = squash(start)
+  return shown !== "" && shown.length < wanted.length && wanted.startsWith(shown)
+}
 
 // Whether the screen shows `command` row for row: each line of it on its own row, or on
 // several where the terminal wrapped it. A break inside a line counts as a wrap only where
@@ -157,8 +215,15 @@ const drawnAs = ({ rows, width }: NonNullable<Confirmation["drawn"]>, command: s
 const matches = (read: Confirmation, input: unknown): boolean => {
   const call = toolCall(input)
   if (!call) return false
-  if (read.command)
-    return call.name === "run_command" && sameCommand(read.shown, call.args.CommandLine)
+  if (read.command) {
+    const command = call.args.CommandLine
+    // Without its first row all that shows could be the end of another: only a mark that
+    // says it was cut, and the words the TUI gives it, can stand for it then.
+    return (
+      call.name === "run_command" &&
+      ((read.headed === true && sameCommand(read.shown, command)) || sameStart(read, command))
+    )
+  }
   // A file's: the header names the call's tool, and the dialog's own first line, between
   // that header and the question, starts with the call's whole path.
   const file = call.args.Path ?? call.args.TargetFile
@@ -179,7 +244,9 @@ const progress = (history: string): { ran: number; waiting: number } => {
     const folded = /^● Ran (\d+) commands? /.exec(row)
     return total + (folded ? Number(folded[1]) : row.startsWith("● Ran (") ? 1 : 0)
   }, 0)
-  return { ran, waiting: rows.filter((row) => row.startsWith("○ ")).length }
+  // `Running`'s dot blinks between `●` and `○`, which says nothing of what waits.
+  const waiting = rows.filter((row) => row.startsWith("○ ") && !row.startsWith("○ Running"))
+  return { ran, waiting: waiting.length }
 }
 
 // Whether the tool lines moved on as an answered command's would: more ran, or fewer wait.
@@ -193,9 +260,12 @@ const progressed = (before: string | undefined, now: string | undefined): boolea
 
 const ownCommand = (read: Confirmation, input: unknown): string | undefined => {
   const command = toolCall(input)?.args.CommandLine
-  return read.command && read.drawn && typeof command === "string" && drawnAs(read.drawn, command)
-    ? command
-    : undefined
+  if (!read.command || !read.drawn || typeof command !== "string") return undefined
+  if (read.headed && drawnAs(read.drawn, command.replaceAll("\t", drawnTab))) return command
+  // The status line names no call, so the request's is only the latest: unless nothing else
+  // goes on beside it, the dialog may be about another that starts alike, and shows as the
+  // TUI words it, cut short and saying so.
+  return read.alone === true && sameStart(read, command) ? command : undefined
 }
 
 export const permission = (

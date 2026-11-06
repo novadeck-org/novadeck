@@ -1,0 +1,249 @@
+{
+  "version": "1.4.12",
+  "scenarios": {
+    "tall": {
+      "commands": [
+        "cat <<'E' > tall.txt\n    (\"row 0\", 'of a tall command', \"… and more\")\tend\n(\"row 1\", 'of a tall command', \"… and more\")\n(\"row 2\", 'of a tall command', \"… and more\")\n    (\"row 3\", 'of a tall command', \"… and more\")\n(\"row 4\", 'of a tall command', \"… and more\")\n(\"row 5\", 'of a tall command', \"… and more\")\n    (\"row 6\", 'of a tall command', \"… and more\")\n(\"row 7\", 'of a tall command', \"… and more\")\tend\n(\"row 8\", 'of a tall command', \"… and more\")\n    (\"row 9\", 'of a tall command', \"… and more\")\n(\"row 10\", 'of a tall command', \"… and more\")\n(\"row 11\", 'of a tall command', \"… and more\")\n    (\"row 12\", 'of a tall command', \"… and more\")\n(\"row 13\", 'of a tall command', \"… and more\")\n(\"row 14\", 'of a tall command', \"… and more\")\tend\n    (\"row 15\", 'of a tall command', \"… and more\")\n(\"row 16\", 'of a tall command', \"… and more\")\n(\"row 17\", 'of a tall command', \"… and more\")\n    (\"row 18\", 'of a tall command', \"… and more\")\n(\"row 19\", 'of a tall command', \"… and more\")\n(\"row 20\", 'of a tall command', \"… and more\")\n    (\"row 21\", 'of a tall command', \"… and more\")\tend\n(\"row 22\", 'of a tall command', \"… and more\")\n(\"row 23\", 'of a tall command', \"… and more\")\n\n(\"row 25\", 'of a tall command', \"… and more\")\n(\"row 26\", 'of a tall command', \"… and more\")\n    (\"row 27\", 'of a tall command', \"… and more\")\n(\"row 28\", 'of a tall command', \"… and more\")\tend\n(\"row 29\", 'of a tall command', \"… and more\")\n    (\"row 30\", 'of a tall command', \"… and more\")\n(\"row 31\", 'of a tall command', \"… and more\")\n(\"row 32\", 'of a tall command', \"… and more\")\n    (\"row 33\", 'of a tall command', \"… and more\")\n(\"row 34\", 'of a tall command', \"… and more\")\n(\"row 35\", 'of a tall command', \"… and more\")\tend\n    (\"row 36\", 'of a tall command', \"… and more\")\n(\"row 37\", 'of a tall command', \"… and more\")\n(\"row 38\", 'of a tall command', \"… and more\")\n    (\"row 39\", 'of a tall command', \"… and more\")\n(\"row 40\", 'of a tall command', \"… and more\")\n(\"row 41\", 'of a tall command', \"… and more\")\n    (\"row 42\", 'of a tall command', \"… and more\")\tend\n(\"row 43\", 'of a tall command', \"… and more\")\n(\"row 44\", 'of a tall command', \"… and more\")\n    (\"row 45\", 'of a tall command', \"… and more\")\n(\"row 46\", 'of a tall command', \"… and more\")\n(\"row 47\", 'of a tall command', \"… and more\")\n    (\"row 48\", 'of a tall command', \"… and more\")\n\n(\"row 50\", 'of a tall command', \"… and more\")\n    (\"row 51\", 'of a tall command', \"… and more\")\n(\"row 52\", 'of a tall command', \"… and more\")\n(\"row 53\", 'of a tall command', \"… and more\")\n    (\"row 54\", 'of a tall command', \"… and more\")\n(\"row 55\", 'of a tall command', \"… and more\")\n(\"row 56\", 'of a tall command', \"… and more\")\tend\n    (\"row 57\", 'of a tall command', \"… and more\")\n(\"row 58\", 'of a tall command', \"… and more\")\n(\"row 59\", 'of a tall command', \"… and more\")\n    (\"row 60\", 'of a tall command', \"… and more\")\n(\"row 61\", 'of a tall command', \"… and more\")\n(\"row 62\", 'of a tall command', \"… and more\")\n    (\"row 63\", 'of a tall command', \"… and more\")\tend\n(\"row 64\", 'of a tall command', \"… and more\")\n(\"row 65\", 'of a tall command', \"… and more\")\n    (\"row 66\", 'of a tall command', \"… and more\")\n(\"row 67\", 'of a tall command', \"… and more\")\n(\"row 68\", 'of a tall command', \"… and more\")\n    (\"row 69\", 'of a tall command', \"… and more\")\n(\"row 70\", 'of a tall command', \"… and more\")\tend\n(\"row 71\", 'of a tall command', \"… and more\")\n    (\"row 72\", 'of a tall command', \"… and more\")\n(\"row 73\", 'of a tall command', \"… and more\")\n\n    (\"row 75\", 'of a tall command', \"… and more\")\n(\"row 76\", 'of a tall command', \"… and more\")\n(\"row 77\", 'of a tall command', \"… and more\")\tend\n    (\"row 78\", 'of a tall command', \"… and more\")\n(\"row 79\", 'of a tall command', \"… and more\")\n(\"row 80\", 'of a tall command', \"… and more\")\n    (\"row 81\", 'of a tall command', \"… and more\")\n(\"row 82\", 'of a tall command', \"… and more\")\n(\"row 83\", 'of a tall command', \"… and more\")\n    (\"row 84\", 'of a tall command', \"… and more\")\tend\n(\"row 85\", 'of a tall command', \"… and more\")\n(\"row 86\", 'of a tall command', \"… and more\")\n    (\"row 87\", 'of a tall command', \"… and more\")\n(\"row 88\", 'of a tall command', \"… and more\")\n(\"row 89\", 'of a tall command', \"… and more\")\n    (\"row 90\", 'of a tall command', \"… and more\")\n(\"row 91\", 'of a tall command', \"… and more\")\tend\n(\"row 92\", 'of a tall command', \"… and more\")\n    (\"row 93\", 'of a tall command', \"… and more\")\n(\"row 94\", 'of a tall command', \"… and more\")\n(\"row 95\", 'of a tall command', \"… and more\")\n    (\"row 96\", 'of a tall command', \"… and more\")\n(\"row 97\", 'of a tall command', \"… and more\")\n(\"row 98\", 'of a tall command', \"… and more\")\tend\n\n(\"row 100\", 'of a tall command', \"… and more\")\n(\"row 101\", 'of a tall command', \"… and more\")\n    (\"row 102\", 'of a tall command', \"… and more\")\n(\"row 103\", 'of a tall command', \"… and more\")\n(\"row 104\", 'of a tall command', \"… and more\")\n    (\"row 105\", 'of a tall command', \"… and more\")\tend\n(\"row 106\", 'of a tall command', \"… and more\")\n(\"row 107\", 'of a tall command', \"… and more\")\n    (\"row 108\", 'of a tall command', \"… and more\")\n(\"row 109\", 'of a tall command', \"… and more\")\n(\"row 110\", 'of a tall command', \"… and more\")\n    (\"row 111\", 'of a tall command', \"… and more\")\n(\"row 112\", 'of a tall command', \"… and more\")\tend\n(\"row 113\", 'of a tall command', \"… and more\")\n    (\"row 114\", 'of a tall command', \"… and more\")\n(\"row 115\", 'of a tall command', \"… and more\")\n(\"row 116\", 'of a tall command', \"… and more\")\n    (\"row 117\", 'of a tall command', \"… and more\")\n(\"row 118\", 'of a tall command', \"… and more\")\n(\"row 119\", 'of a tall command', \"… and more\")\tend\n    (\"row 120\", 'of a tall command', \"… and more\")\n(\"row 121\", 'of a tall command', \"… and more\")\n(\"row 122\", 'of a tall command', \"… and more\")\n    (\"row 123\", 'of a tall command', \"… and more\")\n\n(\"row 125\", 'of a tall command', \"… and more\")\n    (\"row 126\", 'of a tall command', \"… and more\")\tend\n(\"row 127\", 'of a tall command', \"… and more\")\n(\"row 128\", 'of a tall command', \"… and more\")\n    (\"row 129\", 'of a tall command', \"… and more\")\n(\"row 130\", 'of a tall command', \"… and more\")\n(\"row 131\", 'of a tall command', \"… and more\")\n    (\"row 132\", 'of a tall command', \"… and more\")\n(\"row 133\", 'of a tall command', \"… and more\")\tend\n(\"row 134\", 'of a tall command', \"… and more\")\n    (\"row 135\", 'of a tall command', \"… and more\")\n(\"row 136\", 'of a tall command', \"… and more\")\n(\"row 137\", 'of a tall command', \"… and more\")\n    (\"row 138\", 'of a tall command', \"… and more\")\n(\"row 139\", 'of a tall command', \"… and more\")\n(\"row 140\", 'of a tall command', \"… and more\")\tend\n    (\"row 141\", 'of a tall command', \"… and more\")\n(\"row 142\", 'of a tall command', \"… and more\")\n(\"row 143\", 'of a tall command', \"… and more\")\n    (\"row 144\", 'of a tall command', \"… and more\")\n(\"row 145\", 'of a tall command', \"… and more\")\n(\"row 146\", 'of a tall command', \"… and more\")\n    (\"row 147\", 'of a tall command', \"… and more\")\tend\n(\"row 148\", 'of a tall command', \"… and more\")\n\n    (\"row 150\", 'of a tall command', \"… and more\")\n(\"row 151\", 'of a tall command', \"… and more\")\n(\"row 152\", 'of a tall command', \"… and more\")\n    (\"row 153\", 'of a tall command', \"… and more\")\n(\"row 154\", 'of a tall command', \"… and more\")\tend\n(\"row 155\", 'of a tall command', \"… and more\")\n    (\"row 156\", 'of a tall command', \"… and more\")\n(\"row 157\", 'of a tall command', \"… and more\")\n(\"row 158\", 'of a tall command', \"… and more\")\n    (\"row 159\", 'of a tall command', \"… and more\")\n(\"row 160\", 'of a tall command', \"… and more\")\n(\"row 161\", 'of a tall command', \"… and more\")\tend\n    (\"row 162\", 'of a tall command', \"… and more\")\n(\"row 163\", 'of a tall command', \"… and more\")\n(\"row 164\", 'of a tall command', \"… and more\")\n    (\"row 165\", 'of a tall command', \"… and more\")\n(\"row 166\", 'of a tall command', \"… and more\")\n(\"row 167\", 'of a tall command', \"… and more\")\n    (\"row 168\", 'of a tall command', \"… and more\")\tend\n(\"row 169\", 'of a tall command', \"… and more\")\nE\ntouch tall-done.txt"
+      ],
+      "screens": {
+        "120x40": {
+          "height": 40,
+          "columns": 120,
+          "cursor": {
+            "row": 36,
+            "column": 0
+          },
+          "rows": {
+            "0": "To run a command as administrator (user \"root\"), use \"sudo <command>\".",
+            "1": "See \"man sudo_root\" for details.",
+            "4": "      ▄▀▀▄        Antigravity CLI 1.4.12",
+            "5": "     ▀▀▀▀▀▀       Gemini API key",
+            "6": "    ▀▀▀▀▀▀▀▀      Gemini 3.1 Pro (Low)",
+            "7": "   ▄▀▀    ▀▀▄     /sandbox/project",
+            "8": "  ▄▀▀      ▀▀▄",
+            "10": "────────────────────────────────────────────────────────────",
+            "11": "> Make the file",
+            "13": "● Ran (cat <<'E' > tall.txt (\"row 0\", 'of a tall command', \"… and more\") end (\"row 1\", 'of a tal...) (ctrl+o to expand)",
+            "15": "Command",
+            "16": "────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────",
+            "18": "Requesting permission for:",
+            "19": "   cat <<'E' > tall.txt",
+            "20": "       (\"row 0\", 'of a tall command', \"… and more\")    end",
+            "21": "   (\"row 1\", 'of a tall command', \"… and more\")",
+            "22": "   (\"row 2\", 'of a tall command', \"… and more\")",
+            "23": "   ⋯ (169 lines hidden)",
+            "25": "Run this command?",
+            "26": "> 1. Yes, run command",
+            "27": "  2. Yes, and always allow in this conversation for commands that start with 'cat <<'E' > tall.txt",
+            "28": "    (\"row 0\", 'of a tall command', \"… and more\")    end",
+            "29": "(\"ro...'",
+            "30": "  3. Yes, and always allow for commands that start with 'cat <<'E' > tall.txt",
+            "31": "    (\"row 0\", 'of a tall command', \"… and more\")    end",
+            "32": "(\"ro...' (Persist to settings.json)",
+            "33": "  4. No, cancel",
+            "35": "  ↑/↓ Navigate · tab Amend · ctrl+g edit/expand command",
+            "36": "esc to cancel                                                                                       Gemini 3.1 Pro · low"
+          },
+          "bright": {
+            "36": "esc to cancel"
+          }
+        },
+        "60x20": {
+          "height": 20,
+          "columns": 60,
+          "cursor": {
+            "row": 19,
+            "column": 0
+          },
+          "rows": {
+            "0": "   cat <<'E' > tall.txt",
+            "1": "       (\"row 0\", 'of a tall command', \"… and more\")",
+            "2": "end",
+            "3": "   (\"row 1\", 'of a tall command', \"… and more\")",
+            "4": "   (\"row 2\", 'of a tall command', \"… and more\")...",
+            "6": "Run this command?",
+            "7": "> 1. Yes, run command",
+            "8": "  2. Yes, and always allow in this conversation for commands",
+            "9": "that start with 'cat <<'E' > tall.txt",
+            "10": "    (\"row 0\", 'of a tall command', \"… and more\")    end",
+            "11": "(\"ro...'",
+            "12": "  3. Yes, and always allow for commands that start with 'cat",
+            "13": "<<'E' > tall.txt",
+            "14": "    (\"row 0\", 'of a tall command', \"… and more\")    end",
+            "15": "(\"ro...' (Persist to settings.json)",
+            "16": "  4. No, cancel",
+            "18": "  ↑/↓ Navigate · tab Amend · ctrl+g edit/expand command",
+            "19": "esc to cancel                           Gemini 3.1 Pro · low"
+          },
+          "bright": {
+            "19": "esc to cancel"
+          }
+        }
+      }
+    },
+    "wide": {
+      "commands": [
+        "touch row-0 && touch row-1 && touch row-2 && touch row-3 && touch row-4 && touch row-5 && touch row-6 && touch row-7 && touch row-8 && touch row-9 && touch row-10 && touch row-11 && touch row-12 && touch row-13 && touch row-14 && touch row-15 && touch row-16 && touch row-17 && touch row-18 && touch row-19 && touch row-20 && touch row-21 && touch row-22 && touch row-23 && touch row-24 && touch row-25 && touch row-26 && touch row-27 && touch row-28 && touch row-29 && touch row-30 && touch row-31 && touch row-32 && touch row-33 && touch row-34 && touch row-35 && touch row-36 && touch row-37 && touch row-38 && touch row-39 && touch row-40 && touch row-41 && touch row-42 && touch row-43 && touch row-44 && touch row-45 && touch row-46 && touch row-47 && touch row-48 && touch row-49 && touch row-50 && touch row-51 && touch row-52 && touch row-53 && touch row-54 && touch row-55 && touch row-56 && touch row-57 && touch row-58 && touch row-59 && touch row-60 && touch row-61 && touch row-62 && touch row-63 && touch row-64 && touch row-65 && touch row-66 && touch row-67 && touch row-68 && touch row-69 && touch row-70 && touch row-71 && touch row-72 && touch row-73 && touch row-74 && touch row-75 && touch row-76 && touch row-77 && touch row-78 && touch row-79 && touch row-80 && touch row-81 && touch row-82 && touch row-83 && touch row-84 && touch row-85 && touch row-86 && touch row-87 && touch row-88 && touch row-89 && touch row-90 && touch row-91 && touch row-92 && touch row-93 && touch row-94 && touch row-95 && touch row-96 && touch row-97 && touch row-98 && touch row-99 && touch row-100 && touch row-101 && touch row-102 && touch row-103 && touch row-104 && touch row-105 && touch row-106 && touch row-107 && touch row-108 && touch row-109 && touch row-110 && touch row-111 && touch row-112 && touch row-113 && touch row-114 && touch row-115 && touch row-116 && touch row-117 && touch row-118 && touch row-119 && touch row-120 && touch row-121 && touch row-122 && touch row-123 && touch row-124 && touch row-125 && touch row-126 && touch row-127 && touch row-128 && touch row-129 && touch row-130 && touch row-131 && touch row-132 && touch row-133 && touch row-134 && touch row-135 && touch row-136 && touch row-137 && touch row-138 && touch row-139 && touch row-140 && touch row-141 && touch row-142 && touch row-143 && touch row-144 && touch row-145 && touch row-146 && touch row-147 && touch row-148 && touch row-149 && touch row-150 && touch row-151 && touch row-152 && touch row-153 && touch row-154 && touch row-155 && touch row-156 && touch row-157 && touch row-158 && touch row-159 && touch row-160 && touch row-161 && touch row-162 && touch row-163 && touch row-164 && touch row-165 && touch row-166 && touch row-167 && touch row-168 && touch row-169 && touch end"
+      ],
+      "screens": {
+        "120x40": {
+          "height": 40,
+          "columns": 120,
+          "cursor": {
+            "row": 39,
+            "column": 0
+          },
+          "rows": {
+            "0": "To run a command as administrator (user \"root\"), use \"sudo <command>\".",
+            "1": "See \"man sudo_root\" for details.",
+            "4": "      ▄▀▀▄        Antigravity CLI 1.4.12",
+            "5": "     ▀▀▀▀▀▀       Gemini API key",
+            "6": "    ▀▀▀▀▀▀▀▀      Gemini 3.1 Pro (Low)",
+            "7": "   ▄▀▀    ▀▀▄     /sandbox/project",
+            "8": "  ▄▀▀      ▀▀▄",
+            "10": "────────────────────────────────────────────────────────────",
+            "11": "> Make the file",
+            "13": "● Ran (touch row-0 && touch row-1 && touch row-2 && touch row-3 && touch row-4 && touch row-5 &&...) (ctrl+o to expand)",
+            "15": "Command",
+            "16": "────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────",
+            "18": "Requesting permission for:",
+            "19": "   touch row-0 && touch row-1 && touch row-2 && touch row-3 && touch row-4 && touch row-5 && touch row-6 && touch",
+            "20": "row-7 && touch row-8 && touch row-9 && touch row-10 && touch row-11 && touch row-12 && touch row-13 && touch",
+            "21": "row-14 && touch row-15 && touch row-16 && touch row-17 && touch row-18 && touch row-19 && touch row-20 && touch",
+            "22": "row-21 && touch row-22 && touch row-23 && touch row-24 && touch row-25 && touch row-26 && touch row-27 && touch",
+            "23": "row-28 && touch row-29 && touch row-30 && touch row-31 && touch row-32 && touch row-33 && touch row-34 && touch",
+            "24": "row-35 && touch row-36 && touch row-37 && touch row-38 && touch row-39 && touch row-40 && touch row-41 && touch",
+            "25": "row-42 && touch row-43 && touch row-44 && touch row-45 && touch row-46 && touch row-47 && touch row-48 && touch",
+            "26": "row-49 && touch row-50 && touch row-51 && touch row-52 && touch row-53 && touch row-54 && touch row-55 && touch",
+            "27": "row-56 && touch row-57 && touch row-58 && touch row-59 && touch row-60 && touch row-61 && touch row-62 && touch",
+            "28": "row-63 && touch row-64 && touch row-65 && touch row-66 && touch row-67 && touch row-68 && touch row-69 && touch",
+            "29": "row-70 && touch row-71 && touch row-72 && touch row-73 && touch row-74 && touch row-75 && touch row-76 && touch",
+            "30": "row-77 && touch row-78 && touch row-79 && touch row-80 && touch row-81 && touch row-82 && touch row-83 && touch...",
+            "32": "Run this command?",
+            "33": "> 1. Yes, run command",
+            "34": "  2. Yes, and always allow in this conversation for commands that start with 'touch'",
+            "35": "  3. Yes, and always allow for commands that start with 'touch' (Persist to settings.json)",
+            "36": "  4. No, cancel",
+            "38": "  ↑/↓ Navigate · tab Amend · ctrl+g edit/expand command",
+            "39": "esc to cancel                                                                                       Gemini 3.1 Pro · low"
+          },
+          "bright": {
+            "39": "esc to cancel"
+          }
+        },
+        "60x20": {
+          "height": 20,
+          "columns": 60,
+          "cursor": {
+            "row": 19,
+            "column": 0
+          },
+          "rows": {
+            "0": "Command",
+            "1": "────────────────────────────────────────────────────────────",
+            "3": "Requesting permission for:",
+            "4": "   touch row-0 && touch row-1 && touch row-2 && touch",
+            "5": "row-3 && touch row-4 && touch row-5 && touch row-6 &&",
+            "6": "touch row-7 && touch row-8 && touch row-9 && touch",
+            "7": "row-10 && touch row-11 && touch row-12 && touch row-13",
+            "8": "&& touch row-14 && touch row-15 && touch row-16 &&...",
+            "10": "Run this command?",
+            "11": "> 1. Yes, run command",
+            "12": "  2. Yes, and always allow in this conversation for commands",
+            "13": "that start with 'touch'",
+            "14": "  3. Yes, and always allow for commands that start with",
+            "15": "'touch' (Persist to settings.json)",
+            "16": "  4. No, cancel",
+            "18": "  ↑/↓ Navigate · tab Amend · ctrl+g edit/expand command",
+            "19": "esc to cancel                           Gemini 3.1 Pro · low"
+          },
+          "bright": {
+            "19": "esc to cancel"
+          }
+        }
+      }
+    },
+    "twins": {
+      "commands": [
+        "cat <<'E' > twin.txt\n    (\"row 0\", 'of a tall command', \"… and more\")\tend\n(\"row 1\", 'of a tall command', \"… and more\")\n(\"row 2\", 'of a tall command', \"… and more\")\n    (\"row 3\", 'of a tall command', \"… and more\")\n(\"row 4\", 'of a tall command', \"… and more\")\n(\"row 5\", 'of a tall command', \"… and more\")\n    (\"row 6\", 'of a tall command', \"… and more\")\n(\"row 7\", 'of a tall command', \"… and more\")\tend\n(\"row 8\", 'of a tall command', \"… and more\")\n    (\"row 9\", 'of a tall command', \"… and more\")\n(\"row 10\", 'of a tall command', \"… and more\")\n(\"row 11\", 'of a tall command', \"… and more\")\n    (\"row 12\", 'of a tall command', \"… and more\")\n(\"row 13\", 'of a tall command', \"… and more\")\n(\"row 14\", 'of a tall command', \"… and more\")\tend\n    (\"row 15\", 'of a tall command', \"… and more\")\n(\"row 16\", 'of a tall command', \"… and more\")\n(\"row 17\", 'of a tall command', \"… and more\")\n    (\"row 18\", 'of a tall command', \"… and more\")\n(\"row 19\", 'of a tall command', \"… and more\")\n(\"row 20\", 'of a tall command', \"… and more\")\n    (\"row 21\", 'of a tall command', \"… and more\")\tend\n(\"row 22\", 'of a tall command', \"… and more\")\n(\"row 23\", 'of a tall command', \"… and more\")\n\n(\"row 25\", 'of a tall command', \"… and more\")\n(\"row 26\", 'of a tall command', \"… and more\")\n    (\"row 27\", 'of a tall command', \"… and more\")\n(\"row 28\", 'of a tall command', \"… and more\")\tend\n(\"row 29\", 'of a tall command', \"… and more\")\n    (\"row 30\", 'of a tall command', \"… and more\")\n(\"row 31\", 'of a tall command', \"… and more\")\n(\"row 32\", 'of a tall command', \"… and more\")\n    (\"row 33\", 'of a tall command', \"… and more\")\n(\"row 34\", 'of a tall command', \"… and more\")\n(\"row 35\", 'of a tall command', \"… and more\")\tend\n    (\"row 36\", 'of a tall command', \"… and more\")\n(\"row 37\", 'of a tall command', \"… and more\")\n(\"row 38\", 'of a tall command', \"… and more\")\n    (\"row 39\", 'of a tall command', \"… and more\")\n(\"row 40\", 'of a tall command', \"… and more\")\n(\"row 41\", 'of a tall command', \"… and more\")\n    (\"row 42\", 'of a tall command', \"… and more\")\tend\n(\"row 43\", 'of a tall command', \"… and more\")\n(\"row 44\", 'of a tall command', \"… and more\")\n    (\"row 45\", 'of a tall command', \"… and more\")\n(\"row 46\", 'of a tall command', \"… and more\")\n(\"row 47\", 'of a tall command', \"… and more\")\n    (\"row 48\", 'of a tall command', \"… and more\")\n\n(\"row 50\", 'of a tall command', \"… and more\")\n    (\"row 51\", 'of a tall command', \"… and more\")\n(\"row 52\", 'of a tall command', \"… and more\")\n(\"row 53\", 'of a tall command', \"… and more\")\n    (\"row 54\", 'of a tall command', \"… and more\")\n(\"row 55\", 'of a tall command', \"… and more\")\n(\"row 56\", 'of a tall command', \"… and more\")\tend\n    (\"row 57\", 'of a tall command', \"… and more\")\n(\"row 58\", 'of a tall command', \"… and more\")\n(\"row 59\", 'of a tall command', \"… and more\")\n    (\"row 60\", 'of a tall command', \"… and more\")\n(\"row 61\", 'of a tall command', \"… and more\")\n(\"row 62\", 'of a tall command', \"… and more\")\n    (\"row 63\", 'of a tall command', \"… and more\")\tend\n(\"row 64\", 'of a tall command', \"… and more\")\n(\"row 65\", 'of a tall command', \"… and more\")\n    (\"row 66\", 'of a tall command', \"… and more\")\n(\"row 67\", 'of a tall command', \"… and more\")\n(\"row 68\", 'of a tall command', \"… and more\")\n    (\"row 69\", 'of a tall command', \"… and more\")\n(\"row 70\", 'of a tall command', \"… and more\")\tend\n(\"row 71\", 'of a tall command', \"… and more\")\n    (\"row 72\", 'of a tall command', \"… and more\")\n(\"row 73\", 'of a tall command', \"… and more\")\n\n    (\"row 75\", 'of a tall command', \"… and more\")\n(\"row 76\", 'of a tall command', \"… and more\")\n(\"row 77\", 'of a tall command', \"… and more\")\tend\n    (\"row 78\", 'of a tall command', \"… and more\")\n(\"row 79\", 'of a tall command', \"… and more\")\n(\"row 80\", 'of a tall command', \"… and more\")\n    (\"row 81\", 'of a tall command', \"… and more\")\n(\"row 82\", 'of a tall command', \"… and more\")\n(\"row 83\", 'of a tall command', \"… and more\")\n    (\"row 84\", 'of a tall command', \"… and more\")\tend\n(\"row 85\", 'of a tall command', \"… and more\")\n(\"row 86\", 'of a tall command', \"… and more\")\n    (\"row 87\", 'of a tall command', \"… and more\")\n(\"row 88\", 'of a tall command', \"… and more\")\n(\"row 89\", 'of a tall command', \"… and more\")\n    (\"row 90\", 'of a tall command', \"… and more\")\n(\"row 91\", 'of a tall command', \"… and more\")\tend\n(\"row 92\", 'of a tall command', \"… and more\")\n    (\"row 93\", 'of a tall command', \"… and more\")\n(\"row 94\", 'of a tall command', \"… and more\")\n(\"row 95\", 'of a tall command', \"… and more\")\n    (\"row 96\", 'of a tall command', \"… and more\")\n(\"row 97\", 'of a tall command', \"… and more\")\n(\"row 98\", 'of a tall command', \"… and more\")\tend\n\n(\"row 100\", 'of a tall command', \"… and more\")\n(\"row 101\", 'of a tall command', \"… and more\")\n    (\"row 102\", 'of a tall command', \"… and more\")\n(\"row 103\", 'of a tall command', \"… and more\")\n(\"row 104\", 'of a tall command', \"… and more\")\n    (\"row 105\", 'of a tall command', \"… and more\")\tend\n(\"row 106\", 'of a tall command', \"… and more\")\n(\"row 107\", 'of a tall command', \"… and more\")\n    (\"row 108\", 'of a tall command', \"… and more\")\n(\"row 109\", 'of a tall command', \"… and more\")\n(\"row 110\", 'of a tall command', \"… and more\")\n    (\"row 111\", 'of a tall command', \"… and more\")\n(\"row 112\", 'of a tall command', \"… and more\")\tend\n(\"row 113\", 'of a tall command', \"… and more\")\n    (\"row 114\", 'of a tall command', \"… and more\")\n(\"row 115\", 'of a tall command', \"… and more\")\n(\"row 116\", 'of a tall command', \"… and more\")\n    (\"row 117\", 'of a tall command', \"… and more\")\n(\"row 118\", 'of a tall command', \"… and more\")\n(\"row 119\", 'of a tall command', \"… and more\")\tend\n    (\"row 120\", 'of a tall command', \"… and more\")\n(\"row 121\", 'of a tall command', \"… and more\")\n(\"row 122\", 'of a tall command', \"… and more\")\n    (\"row 123\", 'of a tall command', \"… and more\")\n\n(\"row 125\", 'of a tall command', \"… and more\")\n    (\"row 126\", 'of a tall command', \"… and more\")\tend\n(\"row 127\", 'of a tall command', \"… and more\")\n(\"row 128\", 'of a tall command', \"… and more\")\n    (\"row 129\", 'of a tall command', \"… and more\")\n(\"row 130\", 'of a tall command', \"… and more\")\n(\"row 131\", 'of a tall command', \"… and more\")\n    (\"row 132\", 'of a tall command', \"… and more\")\n(\"row 133\", 'of a tall command', \"… and more\")\tend\n(\"row 134\", 'of a tall command', \"… and more\")\n    (\"row 135\", 'of a tall command', \"… and more\")\n(\"row 136\", 'of a tall command', \"… and more\")\n(\"row 137\", 'of a tall command', \"… and more\")\n    (\"row 138\", 'of a tall command', \"… and more\")\n(\"row 139\", 'of a tall command', \"… and more\")\n(\"row 140\", 'of a tall command', \"… and more\")\tend\n    (\"row 141\", 'of a tall command', \"… and more\")\n(\"row 142\", 'of a tall command', \"… and more\")\n(\"row 143\", 'of a tall command', \"… and more\")\n    (\"row 144\", 'of a tall command', \"… and more\")\n(\"row 145\", 'of a tall command', \"… and more\")\n(\"row 146\", 'of a tall command', \"… and more\")\n    (\"row 147\", 'of a tall command', \"… and more\")\tend\n(\"row 148\", 'of a tall command', \"… and more\")\n\n    (\"row 150\", 'of a tall command', \"… and more\")\n(\"row 151\", 'of a tall command', \"… and more\")\n(\"row 152\", 'of a tall command', \"… and more\")\n    (\"row 153\", 'of a tall command', \"… and more\")\n(\"row 154\", 'of a tall command', \"… and more\")\tend\n(\"row 155\", 'of a tall command', \"… and more\")\n    (\"row 156\", 'of a tall command', \"… and more\")\n(\"row 157\", 'of a tall command', \"… and more\")\n(\"row 158\", 'of a tall command', \"… and more\")\n    (\"row 159\", 'of a tall command', \"… and more\")\n(\"row 160\", 'of a tall command', \"… and more\")\n(\"row 161\", 'of a tall command', \"… and more\")\tend\n    (\"row 162\", 'of a tall command', \"… and more\")\n(\"row 163\", 'of a tall command', \"… and more\")\n(\"row 164\", 'of a tall command', \"… and more\")\n    (\"row 165\", 'of a tall command', \"… and more\")\n(\"row 166\", 'of a tall command', \"… and more\")\n(\"row 167\", 'of a tall command', \"… and more\")\n    (\"row 168\", 'of a tall command', \"… and more\")\tend\n(\"row 169\", 'of a tall command', \"… and more\")\nE\ntouch twin-done.txt",
+        "cat <<'E' > twin.txt\n    (\"row 0\", 'of a tall command', \"… and more\")\tend\n(\"row 1\", 'of a tall command', \"… and more\")\n(\"row 2\", 'of a tall command', \"… and more\")\n    (\"row 3\", 'of a tall command', \"… and more\")\n(\"row 4\", 'of a tall command', \"… and more\")\n(\"row 5\", 'of a tall command', \"… and more\")\n    (\"row 6\", 'of a tall command', \"… and more\")\n(\"row 7\", 'of a tall command', \"… and more\")\tend\n(\"row 8\", 'of a tall command', \"… and more\")\n    (\"row 9\", 'of a tall command', \"… and more\")\n(\"row 10\", 'of a tall command', \"… and more\")\n(\"row 11\", 'of a tall command', \"… and more\")\n    (\"row 12\", 'of a tall command', \"… and more\")\n(\"row 13\", 'of a tall command', \"… and more\")\n(\"row 14\", 'of a tall command', \"… and more\")\tend\n    (\"row 15\", 'of a tall command', \"… and more\")\n(\"row 16\", 'of a tall command', \"… and more\")\n(\"row 17\", 'of a tall command', \"… and more\")\n    (\"row 18\", 'of a tall command', \"… and more\")\n(\"row 19\", 'of a tall command', \"… and more\")\n(\"row 20\", 'of a tall command', \"… and more\")\n    (\"row 21\", 'of a tall command', \"… and more\")\tend\n(\"row 22\", 'of a tall command', \"… and more\")\n(\"row 23\", 'of a tall command', \"… and more\")\n\n(\"row 25\", 'of a tall command', \"… and more\")\n(\"row 26\", 'of a tall command', \"… and more\")\n    (\"row 27\", 'of a tall command', \"… and more\")\n(\"row 28\", 'of a tall command', \"… and more\")\tend\n(\"row 29\", 'of a tall command', \"… and more\")\n    (\"row 30\", 'of a tall command', \"… and more\")\n(\"row 31\", 'of a tall command', \"… and more\")\n(\"row 32\", 'of a tall command', \"… and more\")\n    (\"row 33\", 'of a tall command', \"… and more\")\n(\"row 34\", 'of a tall command', \"… and more\")\n(\"row 35\", 'of a tall command', \"… and more\")\tend\n    (\"row 36\", 'of a tall command', \"… and more\")\n(\"row 37\", 'of a tall command', \"… and more\")\n(\"row 38\", 'of a tall command', \"… and more\")\n    (\"row 39\", 'of a tall command', \"… and more\")\n(\"row 40\", 'of a tall command', \"… and more\")\n(\"row 41\", 'of a tall command', \"… and more\")\n    (\"row 42\", 'of a tall command', \"… and more\")\tend\n(\"row 43\", 'of a tall command', \"… and more\")\n(\"row 44\", 'of a tall command', \"… and more\")\n    (\"row 45\", 'of a tall command', \"… and more\")\n(\"row 46\", 'of a tall command', \"… and more\")\n(\"row 47\", 'of a tall command', \"… and more\")\n    (\"row 48\", 'of a tall command', \"… and more\")\n\n(\"row 50\", 'of a tall command', \"… and more\")\n    (\"row 51\", 'of a tall command', \"… and more\")\n(\"row 52\", 'of a tall command', \"… and more\")\n(\"row 53\", 'of a tall command', \"… and more\")\n    (\"row 54\", 'of a tall command', \"… and more\")\n(\"row 55\", 'of a tall command', \"… and more\")\n(\"row 56\", 'of a tall command', \"… and more\")\tend\n    (\"row 57\", 'of a tall command', \"… and more\")\n(\"row 58\", 'of a tall command', \"… and more\")\n(\"row 59\", 'of a tall command', \"… and more\")\n    (\"row 60\", 'of a tall command', \"… and more\")\n(\"row 61\", 'of a tall command', \"… and more\")\n(\"row 62\", 'of a tall command', \"… and more\")\n    (\"row 63\", 'of a tall command', \"… and more\")\tend\n(\"row 64\", 'of a tall command', \"… and more\")\n(\"row 65\", 'of a tall command', \"… and more\")\n    (\"row 66\", 'of a tall command', \"… and more\")\n(\"row 67\", 'of a tall command', \"… and more\")\n(\"row 68\", 'of a tall command', \"… and more\")\n    (\"row 69\", 'of a tall command', \"… and more\")\n(\"row 70\", 'of a tall command', \"… and more\")\tend\n(\"row 71\", 'of a tall command', \"… and more\")\n    (\"row 72\", 'of a tall command', \"… and more\")\n(\"row 73\", 'of a tall command', \"… and more\")\n\n    (\"row 75\", 'of a tall command', \"… and more\")\n(\"row 76\", 'of a tall command', \"… and more\")\n(\"row 77\", 'of a tall command', \"… and more\")\tend\n    (\"row 78\", 'of a tall command', \"… and more\")\n(\"row 79\", 'of a tall command', \"… and more\")\n(\"row 80\", 'of a tall command', \"… and more\")\n    (\"row 81\", 'of a tall command', \"… and more\")\n(\"row 82\", 'of a tall command', \"… and more\")\n(\"row 83\", 'of a tall command', \"… and more\")\n    (\"row 84\", 'of a tall command', \"… and more\")\tend\n(\"row 85\", 'of a tall command', \"… and more\")\n(\"row 86\", 'of a tall command', \"… and more\")\n    (\"row 87\", 'of a tall command', \"… and more\")\n(\"row 88\", 'of a tall command', \"… and more\")\n(\"row 89\", 'of a tall command', \"… and more\")\n    (\"row 90\", 'of a tall command', \"… and more\")\n(\"row 91\", 'of a tall command', \"… and more\")\tend\n(\"row 92\", 'of a tall command', \"… and more\")\n    (\"row 93\", 'of a tall command', \"… and more\")\n(\"row 94\", 'of a tall command', \"… and more\")\n(\"row 95\", 'of a tall command', \"… and more\")\n    (\"row 96\", 'of a tall command', \"… and more\")\n(\"row 97\", 'of a tall command', \"… and more\")\n(\"row 98\", 'of a tall command', \"… and more\")\tend\n\n(\"row 100\", 'of a tall command', \"… and more\")\n(\"row 101\", 'of a tall command', \"… and more\")\n    (\"row 102\", 'of a tall command', \"… and more\")\n(\"row 103\", 'of a tall command', \"… and more\")\n(\"row 104\", 'of a tall command', \"… and more\")\n    (\"row 105\", 'of a tall command', \"… and more\")\tend\n(\"row 106\", 'of a tall command', \"… and more\")\n(\"row 107\", 'of a tall command', \"… and more\")\n    (\"row 108\", 'of a tall command', \"… and more\")\n(\"row 109\", 'of a tall command', \"… and more\")\n(\"row 110\", 'of a tall command', \"… and more\")\n    (\"row 111\", 'of a tall command', \"… and more\")\n(\"row 112\", 'of a tall command', \"… and more\")\tend\n(\"row 113\", 'of a tall command', \"… and more\")\n    (\"row 114\", 'of a tall command', \"… and more\")\n(\"row 115\", 'of a tall command', \"… and more\")\n(\"row 116\", 'of a tall command', \"… and more\")\n    (\"row 117\", 'of a tall command', \"… and more\")\n(\"row 118\", 'of a tall command', \"… and more\")\n(\"row 119\", 'of a tall command', \"… and more\")\tend\n    (\"row 120\", 'of a tall command', \"… and more\")\n(\"row 121\", 'of a tall command', \"… and more\")\n(\"row 122\", 'of a tall command', \"… and more\")\n    (\"row 123\", 'of a tall command', \"… and more\")\n\n(\"row 125\", 'of a tall command', \"… and more\")\n    (\"row 126\", 'of a tall command', \"… and more\")\tend\n(\"row 127\", 'of a tall command', \"… and more\")\n(\"row 128\", 'of a tall command', \"… and more\")\n    (\"row 129\", 'of a tall command', \"… and more\")\n(\"row 130\", 'of a tall command', \"… and more\")\n(\"row 131\", 'of a tall command', \"… and more\")\n    (\"row 132\", 'of a tall command', \"… and more\")\n(\"row 133\", 'of a tall command', \"… and more\")\tend\n(\"row 134\", 'of a tall command', \"… and more\")\n    (\"row 135\", 'of a tall command', \"… and more\")\n(\"row 136\", 'of a tall command', \"… and more\")\n(\"row 137\", 'of a tall command', \"… and more\")\n    (\"row 138\", 'of a tall command', \"… and more\")\n(\"row 139\", 'of a tall command', \"… and more\")\n(\"row 140\", 'of a tall command', \"… and more\")\tend\n    (\"row 141\", 'of a tall command', \"… and more\")\n(\"row 142\", 'of a tall command', \"… and more\")\n(\"row 143\", 'of a tall command', \"… and more\")\n    (\"row 144\", 'of a tall command', \"… and more\")\n(\"row 145\", 'of a tall command', \"… and more\")\n(\"row 146\", 'of a tall command', \"… and more\")\n    (\"row 147\", 'of a tall command', \"… and more\")\tend\n(\"row 148\", 'of a tall command', \"… and more\")\n\n    (\"row 150\", 'of a tall command', \"… and more\")\n(\"row 151\", 'of a tall command', \"… and more\")\n(\"row 152\", 'of a tall command', \"… and more\")\n    (\"row 153\", 'of a tall command', \"… and more\")\n(\"row 154\", 'of a tall command', \"… and more\")\tend\n(\"row 155\", 'of a tall command', \"… and more\")\n    (\"row 156\", 'of a tall command', \"… and more\")\n(\"row 157\", 'of a tall command', \"… and more\")\n(\"row 158\", 'of a tall command', \"… and more\")\n    (\"row 159\", 'of a tall command', \"… and more\")\n(\"row 160\", 'of a tall command', \"… and more\")\n(\"row 161\", 'of a tall command', \"… and more\")\tend\n    (\"row 162\", 'of a tall command', \"… and more\")\n(\"row 163\", 'of a tall command', \"… and more\")\n(\"row 164\", 'of a tall command', \"… and more\")\n    (\"row 165\", 'of a tall command', \"… and more\")\n(\"row 166\", 'of a tall command', \"… and more\")\n(\"row 167\", 'of a tall command', \"… and more\")\n    (\"row 168\", 'of a tall command', \"… and more\")\tend\n(\"row 169\", 'of a tall command', \"… and more\")\nE\ntouch twin-done.txt\necho the second"
+      ],
+      "screens": {
+        "120x40": {
+          "height": 40,
+          "columns": 120,
+          "cursor": {
+            "row": 14,
+            "column": 1
+          },
+          "rows": {
+            "0": "To run a command as administrator (user \"root\"), use \"sudo <command>\".",
+            "1": "See \"man sudo_root\" for details.",
+            "4": "      ▄▀▀▄        Antigravity CLI 1.4.12",
+            "5": "     ▀▀▀▀▀▀       Gemini API key",
+            "6": "    ▀▀▀▀▀▀▀▀      Gemini 3.1 Pro (Low)",
+            "7": "   ▄▀▀    ▀▀▄     /sandbox/project",
+            "8": "  ▄▀▀      ▀▀▄",
+            "10": "────────────────────────────────────────────────────────────",
+            "11": "> Make the file",
+            "13": "● Ran (cat <<'E' > twin.txt (\"row 0\", 'of a tall command', \"… and more\") end (\"row 1\", 'of a tall command', \"… and...)",
+            "14": "● Running (cat <<'E' > twin.txt (\"row 0\", 'of a tall command', \"… and more\") end (\"row 1\", 'of a...) (ctrl+o to expand)",
+            "16": "Command",
+            "17": "────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────",
+            "19": "Requesting permission for:",
+            "20": "   cat <<'E' > twin.txt",
+            "21": "       (\"row 0\", 'of a tall command', \"… and more\")    end",
+            "22": "   (\"row 1\", 'of a tall command', \"… and more\")",
+            "23": "   (\"row 2\", 'of a tall command', \"… and more\")",
+            "24": "   ⋯ (169 lines hidden)",
+            "26": "Run this command?",
+            "27": "> 1. Yes, run command",
+            "28": "  2. Yes, and always allow in this conversation for commands that start with 'cat <<'E' > twin.txt",
+            "29": "    (\"row 0\", 'of a tall command', \"… and more\")    end",
+            "30": "(\"ro...'",
+            "31": "  3. Yes, and always allow for commands that start with 'cat <<'E' > twin.txt",
+            "32": "    (\"row 0\", 'of a tall command', \"… and more\")    end",
+            "33": "(\"ro...' (Persist to settings.json)",
+            "34": "  4. No, cancel",
+            "36": "  ↑/↓ Navigate · tab Amend · ctrl+g edit/expand command",
+            "37": "esc to cancel                                                                                       Gemini 3.1 Pro · low"
+          },
+          "bright": {
+            "37": "esc to cancel"
+          }
+        },
+        "60x20": {
+          "height": 20,
+          "columns": 60,
+          "cursor": {
+            "row": 19,
+            "column": 0
+          },
+          "rows": {
+            "0": "   cat <<'E' > twin.txt",
+            "1": "       (\"row 0\", 'of a tall command', \"… and more\")",
+            "2": "end",
+            "3": "   (\"row 1\", 'of a tall command', \"… and more\")",
+            "4": "   (\"row 2\", 'of a tall command', \"… and more\")...",
+            "6": "Run this command?",
+            "7": "> 1. Yes, run command",
+            "8": "  2. Yes, and always allow in this conversation for commands",
+            "9": "that start with 'cat <<'E' > twin.txt",
+            "10": "    (\"row 0\", 'of a tall command', \"… and more\")    end",
+            "11": "(\"ro...'",
+            "12": "  3. Yes, and always allow for commands that start with 'cat",
+            "13": "<<'E' > twin.txt",
+            "14": "    (\"row 0\", 'of a tall command', \"… and more\")    end",
+            "15": "(\"ro...' (Persist to settings.json)",
+            "16": "  4. No, cancel",
+            "18": "  ↑/↓ Navigate · tab Amend · ctrl+g edit/expand command",
+            "19": "esc to cancel                           Gemini 3.1 Pro · low"
+          },
+          "bright": {
+            "19": "esc to cancel"
+          }
+        }
+      }
+    }
+  }
+}

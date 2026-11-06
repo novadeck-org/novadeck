@@ -177,11 +177,11 @@ describe("Antigravity's command confirmation", () => {
     expect(dialogs.read(redirect, permissionFacts(run("echo a >x")))).toBeUndefined()
   })
 
-  it("reads a command cut short with ... as none, whatever its start", () => {
+  it("reads a command cut short with ... only by a start of its own", () => {
     const request = permissionFacts(run("echo approved"))
     const cut = same(command.pending.screen120!.rows, "   echo approved", "   echo appr...")
-    expect(dialogs.read(cut, request)).toBeUndefined()
-    expect(dialogs.read(cut, permissionFacts(run("echo approved and more")))).toBeUndefined()
+    expect(dialogs.read(cut, permissionFacts(run("echo other")))).toBeUndefined()
+    expect(dialogs.read(cut, permissionFacts(run("echo approved and more")))).toBeDefined()
     const bare = same(command.pending.screen120!.rows, "   echo approved", "   ...")
     expect(dialogs.read(bare, request)).toBeUndefined()
     const short = same(command.pending.screen120!.rows, "   echo approved", "   echo appr")
@@ -325,5 +325,101 @@ describe("Antigravity's file edit confirmation", () => {
     expect(
       dialogs.read(screen, permissionFacts({ name: "write_to_file", args: edit.args })),
     ).toBeUndefined()
+  })
+})
+
+describe("Antigravity's confirmation of a command taller than it", () => {
+  const { scenarios: probed } = loadProbe(import.meta.dirname, "tall.probe.json") as {
+    scenarios: { [name: string]: { commands: string[]; screens: { [size: string]: ScreenText } } }
+  }
+  const tall = probed.tall!
+  const [script] = tall.commands
+  const facts = (asked: string) => permissionFacts(run(asked))
+
+  it("reads the whole command by its start where it says it hid the rest", () => {
+    const found = read(tall.screens["120x40"]!.rows, facts(script!))!
+    expect(found.dialog).toMatchObject({ detail: script, title: "Run this command?" })
+    expect(found.keys({ type: "choice", dialog: "id", option: "1" })).toEqual([{ press: "1" }])
+  })
+
+  it("reads a start that ends in dots with the rows above it scrolled away", () => {
+    const found = read(tall.screens["60x20"]!.rows, facts(script!))!
+    expect(found.dialog).toMatchObject({ title: "Run this command?" })
+    // No rows above to say that no other call waits: it shows as the TUI words it.
+    expect((found.dialog as { detail: string }).detail).toMatch(/\.\.\.$/)
+  })
+
+  it("shows it as the TUI words it where another call goes on above it", () => {
+    const { commands, screens } = probed.twins!
+    const screen = screens["120x40"]!.rows
+    expect(screen.some((row) => /^[●○] Running/.test(row))).toBe(true)
+    const worded = (rows: readonly string[]): string =>
+      (read(rows, facts(commands[1]!)).dialog as { detail: string }).detail
+    expect(worded(screen)).toMatch(/\(\d+ lines hidden\)$/)
+    // Its dot blinks, and the dialog stays the same.
+    const blinked = screen.map((row) => row.replace(/^● Running/, "○ Running"))
+    expect(worded(blinked)).toBe(worded(screen))
+  })
+
+  it("claims no whole command where the rows above its heading are gone", () => {
+    const { commands, screens } = probed.wide!
+    const drawn = screens["60x20"]!.rows
+    expect(drawn[0]?.trim()).toBe("Command")
+    // Another call that starts alike: the dialog may be this one's, or that one's.
+    const another = `${commands[0]!} && rm -rf ~/precious`
+    expect((read(drawn, facts(another)).dialog as { detail: string }).detail).toMatch(/\.\.\.$/)
+  })
+
+  it("claims no whole command beside a tool line it doesn't know, wherever that is", () => {
+    const { commands, screens } = probed.twins!
+    const screen = screens["120x40"]!.rows
+    const running = screen.findIndex((row) => /^[●○] Running/.test(row))
+    const worded = (rows: readonly string[]): string =>
+      (read(rows, facts(commands[1]!)).dialog as { detail: string }).detail
+    for (const row of [
+      "● Queued (x)",
+      "⠋ Running (x)",
+      "  ● Running (x)",
+      "● Bash(x)",
+      "▸ x",
+      "◐ Running (x)",
+      "* Running (x)",
+      "Running (x)",
+    ])
+      expect(worded(screen.with(running, row))).toMatch(/lines hidden\)$/)
+    // A quote or a rule under it hides nothing.
+    const under = [
+      ...screen.slice(0, running + 1),
+      "> a quote",
+      "─".repeat(9),
+      ...screen.slice(running + 1),
+    ]
+    expect(worded(under)).toMatch(/lines hidden\)$/)
+  })
+
+  it("takes no rows as a whole command where the row that heads them is gone", () => {
+    const rows = command.pending.screen120!.rows
+    const headless = rows.slice(rows.indexOf("   echo approved"))
+    expect(dialogs.read(headless, facts("echo approved"))).toBeUndefined()
+  })
+
+  it("counts no blink of a running call's dot as the dialog answered", () => {
+    const { commands, screens } = probed.twins!
+    const lit = screens["120x40"]!.rows.map((row) => row.replace(/^○ Running/, "● Running"))
+    const dim = lit.map((row) => row.replace(/^● Running/, "○ Running"))
+    expect(read(dim, facts(commands[1]!)).answered(lit)).toBe(false)
+    expect(read(lit, facts(commands[1]!)).answered(dim)).toBe(false)
+  })
+
+  it("keeps a tab of a command shown whole", () => {
+    const rows = same(command.pending.screen120!.rows, "   echo approved", "   echo    approved")
+    const asked = "echo\tapproved"
+    expect(read(rows, facts(asked)).dialog).toMatchObject({ detail: asked })
+  })
+
+  it("reads no start that isn't the request's, nor one cut where the call isn't", () => {
+    const screen = tall.screens["120x40"]!.rows
+    expect(dialogs.read(screen, facts(`echo other\n${script}`))).toBeUndefined()
+    expect(dialogs.read(screen, facts("cat <<'E' > tall.txt"))).toBeUndefined()
   })
 })
