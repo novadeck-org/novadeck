@@ -579,7 +579,8 @@ type Listed = {
 }
 
 /**
- * Trusts its hooks in the project, Novadeck's and any a seed registered, as a person does in Codex's "Hooks need review"
+ * Trusts its hooks in the project, Novadeck's and any a seed registered, as a person does in
+ * Codex's "Hooks need review"
  * screen, and lets its MCP tools run without asking, through the same app-server calls
  * that screen makes: `hooks/list` for each hook's current hash, then `config/batchWrite`
  * recording it as trusted. Codex runs a plugin's hooks only once trusted, and Novadeck

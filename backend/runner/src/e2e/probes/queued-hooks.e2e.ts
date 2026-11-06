@@ -127,6 +127,67 @@ for (const setup of setups) {
   })
 }
 
+// With the turn in a tool: what its spinner says of the queued messages' hooks meanwhile, and
+// what a Stop gives back (PROBE_TOOL=1).
+describe.skipIf(!supported || !probing || process.env.PROBE_TOOL !== "1")(
+  "probe: Claude Code's queued hooks behind a tool",
+  () => {
+    const it = e2e.seeded({ promptHook: hookFile }, claude)
+    it("each pause", { timeout: 300_000 }, async ({ e2e: run }) => {
+      seedHook(run)
+      const results: Record<string, unknown> = {}
+      for (const pause of pauses) {
+        writeFileSync(hookLog, "")
+        const queuedHeld = gate()
+        run.model.use(async (call) => {
+          if (call.side) return undefined
+          if (asked(call, "Queued")) await queuedHeld.opened
+          else if (asked(call, "Hold on") && !/tool_result|Tool ran/.test(latest(call)))
+            return { calls: [{ name: "Bash", input: { command: "sleep 6", description: "Wait" } }] }
+          return { text: "Fine." }
+        })
+        const t = await start(run, claude)
+        const timeline: { t: number; rows: string[] }[] = []
+        const watching = { on: true }
+        const began = Date.now()
+        const watch = (async () => {
+          let last = ""
+          while (watching.on) {
+            const shown = await t.screen().catch(() => "")
+            const rows = shown.split("\n").filter((row) => telling.test(row) || /sleep/.test(row))
+            const key = rows
+              .join("\n")
+              .replace(/^.*\u2026 \(/gm, "(")
+              .replace(/ · .*$/gm, "")
+            if (key !== last) timeline.push({ t: Date.now() - began, rows })
+            last = key
+            await sleep(40)
+          }
+        })()
+        await t.prompt("Hold on")
+        await t.until(/sleep 6/, 15_000)
+        await sleep(1000)
+        await t.prompt("Queued beta")
+        await t.prompt("Queued gamma")
+        await sleep(pause)
+        const stopped = await t.interrupt()
+        queuedHeld.open()
+        await sleep(2500)
+        watching.on = false
+        await watch
+        results[`pause ${pause}`] = {
+          stopped,
+          timeline,
+          hooks: readFileSync(hookLog, "utf8"),
+          screen: await t.screen(),
+          state: t.summary().activity?.state,
+        }
+        writeFileSync(join(out, "claude-queued-tool.json"), JSON.stringify(results, null, 1))
+      }
+    })
+  },
+)
+
 // The screens Claude Code's profile reads for the hold, kept as a fixture.
 describe.skipIf(!supported || !probing)("probe: Claude Code's queued screens", () => {
   const it = e2e.seeded({ promptHook: hookFile }, claude)

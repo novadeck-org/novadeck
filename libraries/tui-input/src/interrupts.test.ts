@@ -335,6 +335,60 @@ describe("interrupts", () => {
     expect(t.typed).toEqual([ESC])
   })
 
+  it("waits for the queued turn where its Escape finds the box empty after the hold", async () => {
+    let done = false
+    setTimeout(() => (done = true), 100).unref()
+    const t = terminal({
+      queued: () => !done,
+      holds: () => true,
+      working: () => !done || t.typed.length > 0,
+      after: (escapes) => (escapes === 2 ? "Queued beta" : undefined),
+    })
+    expect(await t.interrupt()).toEqual({ returned: "Queued beta" })
+    expect(t.typed).toEqual([ESC, ESC])
+  })
+
+  it("stops a message queued during the hold of a screen that had none", async () => {
+    const started = Date.now()
+    const ended = () => Date.now() - started >= 100
+    // Shows nothing queued at the first look, and at the look after the hold shows it.
+    let looks = 0
+    const t = terminal({
+      queued: () => (looks += 1) > 1,
+      holds: () => true,
+      working: () => !ended(),
+      after: (escapes) => (escapes === 1 ? "Queued beta" : undefined),
+    })
+    expect(await t.interrupt()).toEqual({ returned: "Queued beta" })
+    expect(t.typed).toEqual([ESC])
+  })
+
+  it("reads the turn's prompt put back as its own where the queue left the screen in the hold", async () => {
+    const started = Date.now()
+    const t = terminal({
+      queued: () => Date.now() - started < 100,
+      holds: () => Date.now() - started < 100,
+      prompt: "Hold on",
+      after: (escapes) => (escapes === 1 ? "Hold on" : undefined),
+    })
+    expect(await t.interrupt()).toEqual({ returned: undefined })
+    expect(t.typed).toEqual([ESC])
+  })
+
+  it("leaves what the person typed during the hold", async () => {
+    const t = terminal({ queued: true, holds: () => true, holdMs: 100, prompt: "Hold on" })
+    setTimeout(() => t.personTypes("mine"), 30).unref()
+    expect(await t.interrupt()).toEqual({ returned: undefined })
+    expect(t.typed).toEqual([ESC])
+    expect(t.written).toEqual([])
+  })
+
+  it("presses nothing at a turn already over with messages shown and no hold", async () => {
+    const t = terminal({ queued: true, holds: () => false, working: false })
+    expect(await t.interrupt()).toEqual({ returned: undefined })
+    expect(t.typed).toEqual([])
+  })
+
   it("presses nothing where a held turn with nothing queued ends", async () => {
     let done = false
     setTimeout(() => (done = true), 100).unref()

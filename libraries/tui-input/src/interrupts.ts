@@ -148,10 +148,12 @@ export class Interrupts {
     const first = held ? await this.heldScreen(terminalId, profile!, seen) : seen
     const boxBefore = first && profile?.read(first)
     const emptyBefore = boxBefore !== undefined && isEmpty(boxBefore)
-    const queued = queuedBefore || (first !== undefined && profile?.queued(first) === true)
+    const queuedNow = first !== undefined && profile?.queued(first) === true
     // A turn that ended during the hold had its queued messages behind it, which the program
     // may be sending by now with no word to the host: the Stop was for those too.
-    const sending = held && queuedBefore && host.alive(terminalId)
+    const sending =
+      held && (queuedBefore || queuedNow) && !host.working(terminalId) && host.alive(terminalId)
+    const queued = queuedNow || sending
     if (!sending && !host.working(terminalId)) return none
     host.type(terminalId, "\x1b")
     escaped()
@@ -160,7 +162,7 @@ export class Interrupts {
     let box = await this.settled(terminalId, profile)
     // Programs send what was queued as the next turn, or a steer, which a second Escape
     // stops; some then put that message back in their box. One Escape does nothing at an idle
-    // prompt, and two are never written here. That turn may start only after the box has
+    // prompt, and two are never written here so close together that they open a picker. That turn may start only after the box has
     // settled, as once the stopped turn took a busy machine longer to end (one program on
     // Windows CI: its queued turn began 0.8 s after the first Escape, and a second Escape
     // 0.6 s after it stopped nothing): it is waited for first.
