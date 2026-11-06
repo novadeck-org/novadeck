@@ -46,7 +46,17 @@ for (const variant of variants) {
       variant.prepare(run)
       const steps = stepsIn(variant, run).filter((step) => step.expected)
       const terminal = await takeSteps(run, setup, steps)
-      const all = rows(await terminal.transcript())
+      // The screen says it is done a moment before the harness writes the last result down.
+      const all = await terminal.poll(
+        async () => {
+          const found = rows(await terminal.transcript())
+          return found.length >= steps.length && found.every(({ result }) => result)
+            ? found
+            : undefined
+        },
+        "every call's result in the transcript",
+        15_000,
+      )
       const own = all.filter(({ call }) => !call.scripted)
       expect(own.map(({ call }) => call.tool).length).toBe(steps.length)
       steps.forEach((step, index) => {
