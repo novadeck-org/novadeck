@@ -19,6 +19,7 @@ const run = (inbox: ReturnType<typeof createDemoInbox>, label: string, notes: st
   const [group] = inboxGroups(inbox, seed)
   const context: DemoActionContext = {
     target: "selected",
+    harness: "claude",
     selected: () => undefined,
     select: () => {},
     addTerminal: () => {

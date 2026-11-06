@@ -143,13 +143,13 @@ type Verbed = (
 const usageOf = (
   verbs: DemoAgentVerbs,
   key: TerminalKey,
-  { workspace, note }: DemoActionContext,
+  { workspace, note, harness }: DemoActionContext,
   usage: Parameters<DemoAgentVerbs["usage"]>[2],
 ): void => {
   const terminal = terminalOf(workspace(), key)
   if (terminal?.state === "running" && !terminal.agent && isAgentProgram(terminal.process))
     return note("Novadeck hears nothing from this agent, so it has no usage to show.")
-  verbs.usage(key, terminal, usage)
+  verbs.as(harness).usage(key, terminal, usage)
 }
 
 // An action of the agent group: a verb on whichever terminal the group's target names.
@@ -158,7 +158,7 @@ const verb = (label: string, hint: string, run: Verbed, verbs: DemoAgentVerbs): 
   hint,
   run: (context) => {
     const key = targetOf(context)
-    if (key) run(verbs, key, terminalOf(context.workspace(), key))
+    if (key) run(verbs.as(context.harness), key, terminalOf(context.workspace(), key))
   },
 })
 
@@ -327,10 +327,11 @@ const createWaitingActions = (
   const fillInbox: DemoAction = {
     label: "Fill the Inbox",
     hint: `${crowd} terminals ask or finish: ${crowdWaits} wait in the Inbox, ${crowd - crowdWaits} report done as Updates`,
-    run: ({ selected, workspace, addInBackground, dispatch, note }) => {
+    run: ({ selected, workspace, addInBackground, dispatch, note, harness }) => {
       const viewed = selected()
       if (!viewed) return note("Select a terminal first.")
       if (!dispatch) return
+      const agents = verbs.as(harness)
       const existing = otherTerminals(workspace(), viewed).slice(0, crowd)
       const added = Array.from({ length: Math.max(0, crowd - existing.length) }, () =>
         addInBackground(viewed),
@@ -341,12 +342,12 @@ const createWaitingActions = (
         const kind = kinds[index]!
         const terminal = terminalOf(workspace(), key)
         if (kind === "done" || kind === "failed")
-          verbs.finish(key, terminal, kind === "done" ? "completed" : "failed", {
+          agents.finish(key, terminal, kind === "done" ? "completed" : "failed", {
             after: turnMs,
             // A done agent called `done`; a failed one only stopped.
             ...(kind === "done" ? { done: doneReport } : {}),
           })
-        else verbs.ask(key, terminal, kind, 1)
+        else agents.ask(key, terminal, kind, 1)
       })
     },
   }
@@ -555,6 +556,7 @@ export const createDemoStates = (
       section: "Agents",
       title: "Agent",
       targets: true,
+      harnesses: true,
       actions: [
         verb("Work", "Working; tab shows it running", (v, k, t) => v.work(k, t), verbs),
         verb(
@@ -662,9 +664,12 @@ export const createDemoStates = (
     {
       section: "Agents",
       title: "Agent fixtures",
+      harnesses: true,
       actions: [
-        setting("Unheard agent", "Claude Code, its hooks silent", (key, { dispatch }) =>
-          dispatch(unheardAgent(key, "claude")),
+        setting(
+          "Unheard agent",
+          "The chosen harness, its hooks silent",
+          (key, { dispatch, harness }) => dispatch(unheardAgent(key, harness)),
         ),
         onSelected(
           "Context and limits",
@@ -679,6 +684,7 @@ export const createDemoStates = (
     {
       section: "Agents",
       title: "Waiting agents",
+      harnesses: true,
       actions: [...waitingActions],
     },
     {

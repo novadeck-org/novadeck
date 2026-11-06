@@ -1,3 +1,4 @@
+import { harnesses, type AgentName } from "@novadeck/core/harnesses"
 import { inboxType, type Inbox, type InboxRow } from "@novadeck/core/inbox"
 import type { BackendAction, TerminalKey } from "@novadeck/core/port"
 import { workspaceFromSeed } from "@novadeck/core/seed"
@@ -73,7 +74,7 @@ const verbs = (
     terminal: TerminalMetadata | undefined,
     args: readonly unknown[],
   ): void => void calls.push({ verb, key: at, known: terminal !== undefined, args })
-  return {
+  const recording: DemoAgentVerbs = {
     work: (at, terminal, ...args) => {
       record("work", at, terminal, args)
       say(at, terminal, { working: true })
@@ -139,7 +140,9 @@ const verbs = (
       say(at, terminal, { working: false })
     },
     release: (at) => void released.push(at),
+    as: () => recording,
   }
+  return recording
 }
 
 // A panel over a real workspace, with the terminal on screen as given. It records what the
@@ -193,6 +196,7 @@ const panel = (selected: string | undefined, { keeping }: { keeping?: number } =
     get target() {
       return aimed
     },
+    harness: "claude",
     selected: () => (selected && onScreen() ? inSession(onScreen()!) : undefined),
     select: () => {},
     addTerminal: () => {
@@ -319,6 +323,15 @@ describe("demo states", () => {
     const { states } = panel("04")
     expect(states.groups.filter((group) => group.targets).map((group) => group.title)).toEqual([
       "Agent",
+    ])
+  })
+
+  it("lets the groups that make agents choose their harness", () => {
+    const { states } = panel("04")
+    expect(states.groups.filter((group) => group.harnesses).map((group) => group.title)).toEqual([
+      "Agent",
+      "Agent fixtures",
+      "Waiting agents",
     ])
   })
 
@@ -547,6 +560,7 @@ describe("demo states", () => {
         note: (text) => void notes.push(text),
         crash: () => {},
         target: "project",
+        harness: "claude",
       })
       expect(notes).toEqual(["Add another project with a terminal first."])
       expect(calls).toEqual([])
@@ -680,7 +694,7 @@ describe("demo states", () => {
 })
 
 // The panel over the demo's real agents: `demoTurns` and the backend it owns the agents of.
-const openOver = (variant: "plain" | "agents" | "inbox") => {
+const openOver = (variant: "plain" | "agents" | "inbox", harness: AgentName = "claude") => {
   const turns = demoTurns()
   const backend = createDemo(variant, undefined, turns)
   const workspace = createWorkspaceStore(
@@ -709,6 +723,7 @@ const openOver = (variant: "plain" | "agents" | "inbox") => {
   inbox.bind!({ workspace })
   const surface: DemoActionContext = {
     target: "selected",
+    harness,
     selected: () => viewed,
     select: () => {},
     // Not selected, so every finish lands while the person looks at the first terminal.
@@ -751,6 +766,53 @@ const updateRows = (rows: readonly InboxRow[]): readonly InboxRow[] =>
 describe("demo states over the real agents", () => {
   beforeEach(() => vi.useFakeTimers())
   afterEach(() => vi.useRealTimers())
+
+  context.each(harnesses)("with $name chosen", ({ id: harness }) => {
+    const processOf = (workspace: Workspace, terminal: TerminalKey) =>
+      terminalOf(workspace, terminal)?.process
+
+    it("makes the selected shell that agent, by each kind of verb", () => {
+      for (const [action, state] of [
+        ["Work", { working: true }],
+        ["Needs permission", { attention: { kind: "permission", count: 1 } }],
+        ["Completes", { working: true }],
+        ["Context and limits", { working: false }],
+      ] as const) {
+        const { run, workspace, viewed } = openOver("plain", harness)
+        run(action)
+        expect(terminalOf(workspace.getSnapshot(), viewed), action).toMatchObject({
+          process: harness,
+          agent: state,
+        })
+      }
+    })
+
+    it("fills the Inbox with that agent's rows", () => {
+      const { run, rows, workspace, viewed } = openOver("plain", harness)
+      run("Fill the Inbox")
+      vi.advanceTimersByTime(3_500)
+      const agents = rows().map((row) => row.source.agent)
+      expect(agents.length).toBeGreaterThan(0)
+      expect(new Set(agents)).toEqual(new Set([harness]))
+      expect(processOf(workspace.getSnapshot(), viewed)).not.toBe(harness)
+    })
+
+    it("makes an unheard agent of that harness", () => {
+      const { run, workspace, viewed } = openOver("plain", harness)
+      run("Unheard agent")
+      const terminal = terminalOf(workspace.getSnapshot(), viewed)!
+      expect(terminal.process).toBe(harness)
+      expect(terminalPhase(terminal)).toBe("unheard")
+    })
+
+    it("leaves a terminal that already runs another agent as it is", () => {
+      const { run, workspace, viewed } = openOver("plain", harness)
+      const other = harness === "codex" ? "agy" : "codex"
+      run(harnesses.find((each) => each.id === other)!.name)
+      run("Work")
+      expect(processOf(workspace.getSnapshot(), viewed)).toBe(other)
+    })
+  })
 
   it("clears what the panel and the agents made, leaving the variant's own rows (inbox)", () => {
     const { run, rows } = openOver("inbox")

@@ -1,3 +1,4 @@
+import type { AgentName } from "@novadeck/core/harnesses"
 import { createStore } from "@novadeck/core/store"
 import { render, type Rendered } from "@novadeck/test-kit/render"
 import { act, createElement } from "react"
@@ -37,7 +38,14 @@ const groups: readonly DemoActionGroup[] = [
     section: "Agents",
     title: "Agent",
     targets: true,
-    actions: [{ label: "Ask", hint: "A permission prompt", run: () => {} }],
+    harnesses: true,
+    actions: [
+      {
+        label: "Ask",
+        hint: "A permission prompt",
+        run: ({ harness }) => void ranAs.push(harness),
+      },
+    ],
   },
   {
     section: "App",
@@ -46,8 +54,14 @@ const groups: readonly DemoActionGroup[] = [
   },
 ]
 
+// The harness each run of the Agent group's action was given.
+const ranAs: AgentName[] = []
+
 const mounted: Rendered[] = []
-beforeEach(() => window.sessionStorage.clear())
+beforeEach(() => {
+  window.sessionStorage.clear()
+  ranAs.length = 0
+})
 afterEach(() => mounted.splice(0).forEach((view) => view.unmount()))
 
 const click = (element: HTMLElement): void => act(() => element.click())
@@ -173,6 +187,34 @@ describe("demo debug panel", () => {
       const third = mount()
       third.click(third.handle())
       expect(third.actions()).toEqual([])
+    })
+  })
+
+  context("the harness switch", () => {
+    it("starts on Claude Code, offers every harness, and keeps a choice across remounts", () => {
+      const switched = (panel: ReturnType<typeof mount>) =>
+        panel.view.container.querySelectorAll<HTMLButtonElement>('[aria-label="Harness"] button')
+      const chosen = (panel: ReturnType<typeof mount>) =>
+        [...switched(panel)].find((each) => each.getAttribute("aria-pressed") === "true")
+          ?.textContent
+      const first = mount()
+      first.click(first.handle())
+      first.click(first.toggle("Agent"))
+      expect(chosen(first)).toBe("Claude Code")
+      expect([...switched(first)].map((each) => each.textContent)).toEqual([
+        "Claude Code",
+        "Codex",
+        "Antigravity",
+      ])
+      first.click([...switched(first)].find((each) => each.textContent === "Antigravity")!)
+      expect(chosen(first)).toBe("Antigravity")
+      first.click(first.view.container.querySelector<HTMLElement>(".debug-action")!)
+      expect(ranAs).toEqual(["agy"])
+      first.view.unmount()
+      mounted.splice(0)
+      const second = mount()
+      second.click(second.handle())
+      expect(chosen(second)).toBe("Antigravity")
     })
   })
 

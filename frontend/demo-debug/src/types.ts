@@ -1,4 +1,5 @@
 import type { UpdateOffer } from "@novadeck/core/desktop/update"
+import type { AgentName } from "@novadeck/core/harnesses"
 import type { Backend, BackendSink, TerminalKey } from "@novadeck/core/port"
 import type { Workspace } from "@novadeck/core/types"
 import type { DemoScreenStates } from "@novadeck/demo/terminals/runtime"
@@ -21,6 +22,9 @@ export type DemoTarget = (typeof demoTargets)[number]
 export type DemoActionContext = {
   // Where the group's agent actions land, as its switch chose; the others ignore it.
   readonly target: DemoTarget
+  // What a terminal that runs no agent becomes under the group's agent actions, as its
+  // switch chose; the others ignore it.
+  readonly harness: AgentName
   // The selected terminal of the session on screen, if any.
   readonly selected: () => TerminalKey | undefined
   // Brings a terminal of the session on screen into view selected, as its sidebar row does.
@@ -61,6 +65,8 @@ export type DemoActionGroup = {
   readonly title: string
   // Its actions act on a target, which the group lets the person choose.
   readonly targets?: true
+  // Its actions turn terminals into agents, of the harness the group lets the person choose.
+  readonly harnesses?: true
   readonly actions: readonly DemoAction[]
 }
 
