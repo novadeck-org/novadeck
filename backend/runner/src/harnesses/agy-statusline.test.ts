@@ -601,6 +601,46 @@ describe("Antigravity's status line, listing its subagents", () => {
       ).toEqual(["idle", null])
     })
 
+    it("holds nothing after a turn seen to call no subagent, whatever a snapshot counts", () => {
+      const c = conversation()
+      expect(
+        c
+          .counts([
+            c.invocation(1),
+            c.called(2, "run_command"),
+            c.ended(3, false),
+            c.snapshot(bare!, 4),
+          ])
+          .at(-1),
+      ).toEqual(["idle", 0])
+    })
+
+    it("takes nothing of a snapshot drawn before its Stop for what that Stop left", () => {
+      vi.useFakeTimers()
+      const c = conversation()
+      for (const reported of [
+        c.invocation(1),
+        c.called(2),
+        c.ended(4, false),
+        c.snapshot(listed!, 3),
+      ])
+        activityOf(reported)
+      // Its time still runs: activity would drop that snapshot, and nothing else may come.
+      vi.advanceTimersByTime(5000)
+      expect(c.told).toHaveLength(1)
+    })
+
+    it("stops holding once nothing follows it, and for its latest follower alone", () => {
+      const c = conversation({ followed: false })
+      const first = follow(c.id)
+      const second = follow(c.id)
+      first.following.abort()
+      expect(c.counts([c.ended(1, false), c.snapshot(bare!, 2)]).at(-1)).toEqual(["working", 0])
+      activityOf(c.invocation(3))
+      second.following.abort()
+      expect(c.counts([c.ended(4, false), c.snapshot(bare!, 5)]).at(-1)).toEqual(["idle", 0])
+    })
+
     it("holds nothing nobody would hear the end of, so no terminal stays working", () => {
       const c = conversation({ followed: false })
       expect(c.counts([c.invocation(1), c.ended(3, false), c.snapshot(bare!, 4)]).at(-1)).toEqual([
@@ -614,7 +654,7 @@ describe("Antigravity's status line, listing its subagents", () => {
         vi.useFakeTimers()
       })
 
-      it("reads as a bare snapshot would once its time is up, on its own", () => {
+      it("takes the latest idle snapshot's count once its time is up, on its own", () => {
         const c = conversation()
         const reports = [c.invocation(1), c.ended(3, false), c.snapshot(bare!, 4)]
         const held = reports
@@ -677,6 +717,8 @@ describe("Antigravity's status line, listing its subagents", () => {
         activityOf(c.ended(3, false))
         vi.advanceTimersByTime(5000)
         await expect(followed).rejects.toThrow("told")
+        // Nothing hears any more, so nothing holds.
+        expect(c.counts([c.ended(4, false), c.snapshot(bare!, 5)]).at(-1)).toEqual(["idle", 0])
       })
 
       it("runs out for no hold a snapshot, a turn or another Stop ended", () => {

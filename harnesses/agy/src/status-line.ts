@@ -89,7 +89,7 @@ export const statusLine = ({
   if (payload.agent_state === "idle") {
     // Its count, unless the Stop before it left work it doesn't list yet (see listing.ts).
     const agents = subagentsRunning(payload.subagents)
-    if (accounted(base, agents, count(payload.task_count) ?? 0))
+    if (accounted(base, agents))
       events.push({ type: "turn-idle", ...base, background: { agents, tasks: 0 } })
   } else if (payload.tool_confirmation_pending === true)
     events.push({

@@ -4,21 +4,21 @@ import type { Harness } from "@novadeck/harness-core/harness"
 import { keep } from "./call-memory.js"
 
 /**
- * A Stop says only that something runs on, and the status line lists it late: the idle
- * snapshots drawn first after that Stop may name no subagent that runs (seen on 1.5.1 and
- * 1.5.2), the first to name it coming 0.5 s after the Stop on Linux and macOS and 0.7 to
- * 0.8 s on Windows, behind two bare ones (probed 2026-11-06, 1.5.2). Once listed it stays
- * listed, on the snapshots after later turns too. A bare one would read as nothing running,
- * and settle the terminal, so what such a Stop left is held: idle snapshots count nothing
- * until one accounts for it, as a subagent running or, in a turn seen to call none, a task,
- * which its first idle snapshot counts. It draws a snapshot only when something changed,
- * so the hold ends by itself after `listingMs`, with the count of the latest idle snapshot,
- * and only starts where something will hear of that (`followHolds`). A model call ends it
- * too, as the agent's working again.
- * A Stop starts it, not a call, as Windows may run no PreToolUse hook (`Machine.cmdPrints`).
- * That hook only tells a task from a subagent called beside it: where none has reported a
- * task accounts for nothing, as it may be a dev server's, and only a listing or the time
- * ends the hold. All of this is each process's, as two may run one conversation.
+ * A Stop says only that something runs on, and the status line lists a new subagent late:
+ * the idle snapshots drawn first after that Stop may name no subagent that runs (seen on
+ * 1.5.1 and 1.5.2), the first to name it coming about 0.5 s after the Stop on Linux and
+ * macOS and 0.7 to 0.85 s on Windows, behind two bare ones (probed 2026-11-06, 1.5.2).
+ * Once listed it stays listed, on the snapshots after later turns too. A bare one would
+ * read as nothing running, and settle the terminal, so what such a Stop left is held: idle
+ * snapshots count nothing until one names a subagent running. It draws a snapshot only
+ * when something changed, so the hold ends by itself after `listingMs`, with the count of
+ * the latest idle snapshot, and only starts where something will hear of that
+ * (`followHolds`). A model call ends it too, as the agent's working again.
+ * Only a subagent is late, so there's nothing to hold where PreToolUse told of no subagent
+ * yet to be listed, as after a turn that left only a command. Windows may run no such hook
+ * (`Machine.cmdPrints`), so where none has reported every such Stop holds. All of this is
+ * each process's, as two may run one conversation; where a report can't name its process
+ * (`instance` null) it matches no other's, and so reads as it would without any of this.
  */
 export const listingMs = 5000
 
@@ -26,8 +26,8 @@ type Process = Pick<EventBase<"agy">, "sessionId" | "instance">
 
 type Hold = {
   readonly timer: NodeJS.Timeout
-  /** Whether a subagent it called is yet to be listed; undefined where no hook tells. */
-  readonly subagent: boolean | undefined
+  /** When the Stop's hook started: a snapshot drawn before it accounts for nothing. */
+  readonly stop: number
 }
 
 type Follower = {
@@ -75,7 +75,7 @@ export const stopped = (base: EventBase<"agy">, runsOn: boolean): void => {
   const key = keyOf(base)
   release(key)
   if (!runsOn) listed(key)
-  if (!runsOn || !followers.has(key)) return
+  if (!runsOn || calls.get(key) === false || !followers.has(key)) return
   const timer = setTimeout(() => {
     holds.delete(key)
     listed(key)
@@ -92,20 +92,21 @@ export const stopped = (base: EventBase<"agy">, runsOn: boolean): void => {
     }
   }, listingMs)
   timer.unref()
-  holds.set(key, { timer, subagent: calls.get(key) })
+  holds.set(key, { timer, stop: base.startedAt })
 }
 
 /**
- * Whether an idle snapshot counting `agents` running and `tasks` may be taken at its word:
- * always but during a hold, which one that accounts for what its Stop left ends.
+ * Whether an idle snapshot counting `agents` running may be taken at its word: always but
+ * during a hold, which only a snapshot newer than its Stop naming one running ends.
  */
-export const accounted = (process: Process, agents: number, tasks: number): boolean => {
-  const key = keyOf(process)
+export const accounted = (base: EventBase<"agy">, agents: number): boolean => {
+  const key = keyOf(base)
   keep(counts, key, agents)
-  if (agents > 0) listed(key)
   const hold = holds.get(key)
+  if (hold && base.startedAt <= hold.stop) return false
+  if (agents > 0) listed(key)
   if (!hold) return true
-  if (agents === 0 && (hold.subagent !== false || tasks === 0)) return false
+  if (agents === 0) return false
   release(key)
   return true
 }
