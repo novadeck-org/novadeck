@@ -36,10 +36,10 @@ Claude Code asks to approve its plan, and you answer from the Inbox without open
 
 <p align="center">
   <img src="docs/assets/screenshot-grid.webp" alt="Grid view: Claude Code, Codex, a dev server and tests side by side, with the Inbox open." width="49%" />
-  <img src="docs/assets/screenshot-canvas.webp" alt="Canvas view: the same four terminals arranged freely on one board." width="49%" />
+  <img src="docs/assets/screenshot-canvas.webp" alt="Canvas view: the same four terminals on one board." width="49%" />
 </p>
 
-Grid puts every terminal side by side. Canvas lets you arrange them freely on one board.
+Grid puts every terminal side by side. Canvas lays them out on one board for you, each team beside its lead.
 
 ## Install
 

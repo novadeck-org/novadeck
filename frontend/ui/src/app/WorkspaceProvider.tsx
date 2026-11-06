@@ -9,7 +9,6 @@ import { createRef, useEffect, useState, type ReactNode } from "react"
 import { useLocation, useNavigate, useNavigationType, type Location } from "react-router"
 
 import type { CanvasHandle } from "../layouts/canvas/types"
-import { readCanvasWindowSize } from "../layouts/canvas/window-size-storage"
 import { readPreferences } from "../preferences/preferences-storage"
 import { listedArrangement } from "../projects/project-arrangement"
 import { readStoredProjectArrangement } from "../projects/project-arrangement-storage"
@@ -80,7 +79,6 @@ const createServices = (
       projectArrangement:
         (backend.arrange && readStoredProjectArrangement()) ||
         listedArrangement(backend.seed.projects),
-      canvasWindowSize: readCanvasWindowSize(),
       foldedTeams: readFoldedTeams(),
     }),
   )

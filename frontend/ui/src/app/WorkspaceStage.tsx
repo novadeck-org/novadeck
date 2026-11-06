@@ -1,9 +1,10 @@
 import { allTeams, sameTeam, sameTeams, teamOf } from "@novadeck/core/derivations"
-import { tilesOf } from "@novadeck/core/roster"
+import { orderedTiles, tilesOf } from "@novadeck/core/roster"
 import type { ValueUpdate } from "@novadeck/core/state"
 import type { CanvasLayout, GridLayouts } from "@novadeck/core/types"
 import { memo, Suspense, useCallback, useEffect, useMemo, useState, type RefObject } from "react"
 
+import { createCanvasStays } from "../layouts/canvas/stay"
 import type { CanvasHandle } from "../layouts/canvas/types"
 import { Focus } from "../layouts/focus/Focus"
 import { EmptyWorkspace } from "../shell/EmptyWorkspace"
@@ -37,16 +38,21 @@ export const WorkspaceStage = memo(
       return () => clearTimeout(timer)
     }, [])
     const target = useWorkspaceState(currentTarget, sameTarget)
-    const { context, view, selected, terminals, layout } = useWorkspaceState((workspace) => {
-      const state = currentState(workspace)
-      return {
-        context: currentContext(workspace),
-        view: state.view,
-        selected: state.selected,
-        terminals: tilesOf(state.roster),
-        layout: state.layout,
-      }
-    }, shallowEqual)
+    const { context, view, selected, terminals, listed, layout } = useWorkspaceState(
+      (workspace) => {
+        const state = currentState(workspace)
+        return {
+          context: currentContext(workspace),
+          view: state.view,
+          selected: state.selected,
+          terminals: tilesOf(state.roster),
+          // In the sidebar's order, which Canvas arranges its windows by.
+          listed: orderedTiles(state.roster),
+          layout: state.layout,
+        }
+      },
+      shallowEqual,
+    )
     // Every team, which Grid and Canvas draw whatever is selected, and the selected
     // terminal's, whose wire lights as the sidebar's rail does.
     const teams = useWorkspaceState(allTeams, sameTeams)
@@ -65,31 +71,24 @@ export const WorkspaceStage = memo(
       shellNavigation,
       focusPreview,
       navigate,
-      canvasWindowSize,
+      reordered,
     } = useUiState(
-      ({ shell, canvasWindowSize: windowSize }) => ({
+      ({ shell }) => ({
         zen: Boolean(shell.zen),
         navigate: shell.navigate,
         revealCanvas: shell.revealCanvas,
         canvasKeyboardFocus: shell.canvasKeyboardFocus,
         shellNavigation: shell.navigation,
         focusPreview: shell.focusPreview,
-        canvasWindowSize: windowSize,
+        reordered: shell.reordered,
       }),
       shallowEqual,
     )
-    // Whether Canvas opened from another view, which frames every window; returning to a
-    // session already in Canvas keeps the camera it was left with. The stage outlives each
-    // session's view, so it sees the view change.
-    const [opened, setOpened] = useState({ context, view, fromOtherView: false })
-    if (opened.context !== context || opened.view !== view)
-      // Another session's view says nothing of this one's: only a view change within a
-      // session counts.
-      setOpened({
-        context,
-        view,
-        fromOtherView: opened.context === context && opened.view !== view,
-      })
+    // Each session's stay on Canvas (layouts/canvas/stay.ts). The stage outlives each
+    // session's view, so Canvas finds its stay again when the person comes back to it from
+    // Focus by a window's own button.
+    const [stays] = useState(createCanvasStays)
+    const stay = useMemo(() => stays.of(context), [stays, context])
     // A navigation that flies is for the view on screen as it was asked, here or in the
     // session it brought to the front (see `flightAfter`).
     const [flight, setFlight] = useState(() => firstFlight(shellNavigation, context, view))
@@ -105,7 +104,6 @@ export const WorkspaceStage = memo(
       setCanvasLayout: saveCanvasLayout,
       setGridLayouts: saveGridLayouts,
       toggleGridWidth,
-      rememberCanvasWindowSize,
       showAll,
     } = commands
     const preview = hidden[selected] ? selected : ""
@@ -173,15 +171,14 @@ export const WorkspaceStage = memo(
               ref={canvas}
               hidden={layoutHidden}
               preview={preview}
-              windowSize={canvasWindowSize}
-              onWindowResize={rememberCanvasWindowSize}
               layout={canvasLayout}
               revealOnMount={revealCanvas}
-              fitOnMount={opened.fromOtherView}
+              stay={stay}
+              reordered={reordered}
               fitOnNavigate={shellNavigation.move === "fit"}
               flyOnNavigate={flying}
               onLayoutChange={setCanvasLayout}
-              terminals={terminals}
+              terminals={listed}
               selected={selected}
               team={team}
               teams={teams}
@@ -192,7 +189,6 @@ export const WorkspaceStage = memo(
               }
               navigation={shellNavigation.count}
               onSelect={setSelected}
-              onCreate={() => add()}
               render={renderTerminal}
             />
           )}

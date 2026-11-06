@@ -1,6 +1,5 @@
 import { AttachedContainer } from "@novadeck/items/TerminalCompanion"
-import { Tooltip } from "@novadeck/toolkit/Tooltip"
-import { NodeResizeControl, type NodeProps } from "@xyflow/react"
+import type { NodeProps } from "@xyflow/react"
 import {
   createContext,
   useContext,
@@ -73,27 +72,13 @@ const TerminalNodeView = ({ id, data, selected }: NodeProps<TerminalNode>): Reac
       data-team={data.team}
       inert={data.hiding}
       aria-hidden={data.hiding}
-      className={`canvas-node relative h-full w-full ${selected ? "selected" : ""} ${data.compactHeader ? "compact-header" : ""}`}
-      onContextMenu={(event) => event.stopPropagation()}
+      className={`canvas-node relative h-full w-full ${selected ? "selected" : ""}`}
     >
       <div
         className="terminal-visibility relative h-full w-full"
         data-hiding={data.hiding}
         data-off-screen={offScreen || undefined}
       >
-        <NodeResizeControl
-          position="bottom-right"
-          minWidth={320}
-          minHeight={200}
-          autoScale={false}
-          className="terminal-resize-grip nodrag nopan"
-          onResizeStart={data.onResizeStart}
-          onResizeEnd={(_, { width, height }) => data.onResizeEnd(width, height)}
-        >
-          <Tooltip content="Resize">
-            <span className="terminal-resize-pattern" />
-          </Tooltip>
-        </NodeResizeControl>
         <AttachedContainer.Provider value={container}>
           {contentOf(id, onScreen)}
         </AttachedContainer.Provider>

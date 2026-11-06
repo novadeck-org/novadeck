@@ -1,4 +1,3 @@
-import type { WindowSize } from "@novadeck/core/layout/terminal-size"
 import type { ValueUpdate } from "@novadeck/core/state"
 import type {
   CanvasLayout,
@@ -7,6 +6,7 @@ import type {
   WorkspaceTarget,
 } from "@novadeck/core/types"
 
+import { markReordered } from "../../shell/shell-state"
 import type { CommandContext } from "./context"
 
 // Layout changes a view reports. Each takes the target the view rendered for: Canvas
@@ -20,8 +20,6 @@ export type LayoutCommands = {
     terminalId: string,
     change: { layouts: GridLayouts; restoreWidths: GridRestoreWidths | null },
   ) => void
-  // A window resized on Canvas: new windows open at its size from now on, in every session.
-  readonly rememberCanvasWindowSize: (size: WindowSize) => void
   readonly setVisibility: (target: WorkspaceTarget, terminalId: string, hidden: boolean) => void
   readonly showAll: (target: WorkspaceTarget, terminalIds: readonly string[]) => void
   readonly reorder: (target: WorkspaceTarget, tabOrder: string[]) => void
@@ -37,12 +35,6 @@ export const createLayoutCommands = ({
     void workspace.dispatch({ type: "grid/layouts", target, layouts }),
   toggleGridWidth: (target, terminalId, change) =>
     void workspace.dispatch({ type: "grid/size-toggle", target, terminalId, change }),
-  rememberCanvasWindowSize: (size) =>
-    void ui.update((state) =>
-      state.canvasWindowSize.width === size.width && state.canvasWindowSize.height === size.height
-        ? state
-        : { ...state, canvasWindowSize: { width: size.width, height: size.height } },
-    ),
   setVisibility: (target, terminalId, hidden) =>
     void workspace.dispatch({ type: "terminal/visibility", target, terminalId, hidden }),
   showAll: (target, terminalIds) =>
@@ -54,6 +46,10 @@ export const createLayoutCommands = ({
         hidden: false,
       })),
     ),
-  reorder: (target, tabOrder) =>
-    void workspace.dispatch({ type: "terminal/reorder", target, tabOrder }),
+  reorder: (target, tabOrder) => {
+    const before = workspace.getSnapshot()
+    // Canvas arranges its windows by this order, afresh once it has changed.
+    if (workspace.dispatch({ type: "terminal/reorder", target, tabOrder }) !== before)
+      ui.update((state) => ({ ...state, shell: markReordered(state.shell) }))
+  },
 })

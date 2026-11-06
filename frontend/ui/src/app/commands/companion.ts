@@ -1,4 +1,4 @@
-import { isOnBar, kindRules, windowOfItem, type Item, type ItemId } from "@novadeck/core/items"
+import { isOnBar, kindRules, windowOfItem, type ItemId } from "@novadeck/core/items"
 import { addCompactGridTerminal } from "@novadeck/core/layout/grid-placement"
 import {
   droppedCanvasGeometry,
@@ -25,17 +25,11 @@ type CompanionDependencies = {
   readonly pulse: () => void
 }
 
-// The terminal an undocked window goes beside: the one it is on, else the one it came from.
-const anchorOf = (item: Item): { anchor?: string } => {
-  const terminalId = "terminalId" in item.holder ? item.holder.terminalId : item.from?.terminalId
-  return terminalId === undefined ? {} : { anchor: terminalId }
-}
-
 export const createCompanionCommands = (
   ctx: CommandContext,
   { select, setSelected, markCreated, pulse }: CompanionDependencies,
 ): CompanionCommands => {
-  const { workspace, ui, navigation, effects } = ctx
+  const { workspace, navigation, effects } = ctx
   const itemOf = (id: ItemId) =>
     currentState(workspace.getSnapshot()).items.find((item) => item.id === id)
   const commit = (actions: readonly WorkspaceAction[]): void => void workspace.transact(actions)
@@ -47,8 +41,7 @@ export const createCompanionCommands = (
         ? {
             type: "canvas/layout",
             target,
-            layout: (canvas) =>
-              moveOnCanvas(canvas, id, place.canvas, ui.getSnapshot().canvasWindowSize),
+            layout: (canvas) => moveOnCanvas(canvas, id, place.canvas),
           }
         : {
             type: "grid/layouts",
@@ -85,15 +78,8 @@ export const createCompanionCommands = (
             itemId,
             window,
             gridLayouts: place && "grid" in place ? dropOnGrid(grid, window.id, place.grid) : grid,
-            ...anchorOf(item),
-            canvasSize: ui.getSnapshot().canvasWindowSize,
             ...(place && "canvas" in place
-              ? {
-                  canvasGeometry: droppedCanvasGeometry(
-                    place.canvas,
-                    ui.getSnapshot().canvasWindowSize,
-                  ),
-                }
+              ? { canvasGeometry: droppedCanvasGeometry(place.canvas) }
               : {}),
           },
         ],
