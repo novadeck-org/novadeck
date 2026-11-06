@@ -138,13 +138,13 @@ export const wire = (options: RunnerOptions) => {
   } catch (error) {
     // A part that can't be built, such as terminals given a limit of 0: what already started
     // ends, then the store, in the order `close` ends them, as voice and murmur read settings
-    // while they load. The login shell's lookup and a plugin refresh may still finish.
+    // while they load.
     void Promise.allSettled(started.map((part) => part.close())).finally(() => store.close())
     throw error
   }
 }
 
-// A part of the runner that began work as it was built, which `close` must end.
+// A part of the runner that began work as it was built, which must end if the rest can't be.
 type Started = { close(): Promise<void> }
 
 // The runner's parts over its store (see `wire`); each that starts work joins `started`.
@@ -165,6 +165,7 @@ const assemble = (store: WorkspaceStore, options: RunnerOptions, started: Starte
   // The runner's own calls of the relay use the build's, never the copy for agents.
   const relay = options.relay === undefined ? {} : { relay: options.relay }
   const agents = createHarnesses(() => shellFiles, { ...relay, ...options.agents })
+  started.push(agents)
   // A connected agent that keeps its own copy of the plugin gets the files just written,
   // where they differ from that copy (see `Harness.installed`).
   void shellFiles

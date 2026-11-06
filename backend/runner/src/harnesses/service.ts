@@ -59,8 +59,9 @@ const forAgents = (found: NodeJS.ProcessEnv, base: NodeJS.ProcessEnv): NodeJS.Pr
   )
 const marker = "__NOVADECK_ENV__"
 
-// What the login shell's startup files set; see `loginEnvironment`.
-const loginShellEnvironment = (env: NodeJS.ProcessEnv) =>
+// What the login shell's startup files set; see `loginEnvironment`. `signal` ends the shell
+// with the kill signal alone, as an interactive one ignores SIGTERM.
+const loginShellEnvironment = (env: NodeJS.ProcessEnv, signal: AbortSignal) =>
   new Promise<NodeJS.ProcessEnv>((resolve) => {
     let output = ""
     let done = false
@@ -85,6 +86,8 @@ const loginShellEnvironment = (env: NodeJS.ProcessEnv) =>
     const child = spawn(env.SHELL || "/bin/sh", ["-ilc", `echo ${marker}; env`], {
       env,
       stdio: ["ignore", "pipe", "ignore"],
+      signal,
+      killSignal: "SIGKILL",
     })
     // A background job the startup files leave behind may hold the output open: the
     // shell's own exit, or a time limit, ends the wait.
@@ -104,8 +107,13 @@ const loginShellEnvironment = (env: NodeJS.ProcessEnv) =>
  * desktop menu. Only `echo` and `env` run in that shell, so any shell will do. Windows
  * keeps PATH in the registry instead, read anew there; see `refreshPath`.
  */
-const loginEnvironment = (env: NodeJS.ProcessEnv, platform: NodeJS.Platform, relay: string) =>
-  platform === "win32" ? refreshPath(env, { platform, relay }) : loginShellEnvironment(env)
+const loginEnvironment = (
+  env: NodeJS.ProcessEnv,
+  platform: NodeJS.Platform,
+  relay: string,
+  signal: AbortSignal,
+) =>
+  platform === "win32" ? refreshPath(env, { platform, relay }) : loginShellEnvironment(env, signal)
 
 /**
  * The program to run, by its absolute path: the one on PATH, or where the harness's installer
@@ -236,6 +244,8 @@ export const createHarnesses = (
   const home = options.home ?? base.HOME ?? homedir()
   const relay = options.relay ?? relayPath
   const timeoutMs = options.timeoutMs ?? 60_000
+  // Ends the login shell's lookup and any refresh still to run; see `close`.
+  const closing = new AbortController()
   // Looked up in the background from the start, and again before each change. Listing
   // and spawning shells never wait for it: until it answers they use the app's own.
   let latest: NodeJS.ProcessEnv | undefined
@@ -244,7 +254,7 @@ export const createHarnesses = (
   const lookUp = () =>
     (options.login === false
       ? Promise.resolve(base)
-      : loginEnvironment(base, platform, relay)
+      : loginEnvironment(base, platform, relay, closing.signal)
     ).then((found) => {
       person = found
       latest = forAgents(found, base)
@@ -410,7 +420,7 @@ export const createHarnesses = (
         try {
           // eslint-disable-next-line no-await-in-loop -- One agent at a time, as `set` runs them.
           const done = await queued(async () => {
-            if (disconnecting.has(agent)) return false
+            if (closing.signal.aborted || disconnecting.has(agent)) return false
             // An agent uninstalled since keeps no unfinished reinstall, nor takes one later.
             if (!(await exists(harnesses[agent].home(where)))) {
               await rm(reinstalling(where), { force: true })
@@ -450,6 +460,15 @@ export const createHarnesses = (
         }
       }
       return refreshed
+    },
+    /**
+     * Ends the login shell's lookup and skips the agents a refresh hasn't reached, for a
+     * runner that couldn't be built. Windows' lookup only reads the registry, at most for
+     * a few seconds, and other callers share it, so it finishes.
+     */
+    close: (): Promise<void> => {
+      closing.abort()
+      return Promise.resolve()
     },
   }
   return api

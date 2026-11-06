@@ -420,6 +420,60 @@ describe("agents Novadeck can connect", () => {
   )
 
   it.skipIf(windows)(
+    "end the login shell's lookup when the runner can't be built",
+    async ({ fixture }) => {
+      // An interactive shell ignores SIGTERM: this stands in for one held by its startup files.
+      const pidFile = join(fixture.root, "shell.pid")
+      const shell = join(fixture.home, "slow-shell")
+      writeFileSync(
+        shell,
+        `#!/bin/sh\ntrap '' TERM\necho $$ > "${pidFile}"\nwhile :; do sleep 1; done\n`,
+        { mode: 0o755 },
+      )
+      expect(() =>
+        createRunner({
+          database: join(fixture.root, "workspace.sqlite"),
+          terminals: { maxRetained: 0 },
+          agents: { home: fixture.home, env: fixture.environment({ SHELL: shell }) },
+        }),
+      ).toThrow(RangeError)
+      await vi.waitFor(() => expect(existsSync(pidFile)).toBe(true), { timeout: 5_000 })
+      const pid = Number(readFileSync(pidFile, "utf8"))
+      await vi.waitFor(() => expect(() => process.kill(pid, 0)).toThrow(), { timeout: 5_000 })
+    },
+  )
+
+  it("run no plugin commands of a refresh when the runner can't be built", async ({
+    fixture,
+    resources,
+  }) => {
+    installed(fixture.home, "agy")
+    await fixture.agents().set("agy", true)
+    // A copy that differs from Novadeck's: a runner that starts installs the plugin again.
+    const copy = join(fixture.home, ".gemini", "config", "plugins", "novadeck", "hooks.json")
+    writeFileSync(copy, '{"novadeck":{}}')
+    const before = fixture.calls().length
+    const shell = join(fixture.root, "runner-shell")
+    const options = {
+      database: join(fixture.root, "workspace.sqlite"),
+      shell,
+      agents: { home: fixture.home, env: fixture.environment(), login: false },
+    }
+    expect(() => createRunner({ ...options, terminals: { maxRetained: 0 } })).toThrow(RangeError)
+    await vi.waitFor(() => expect(existsSync(join(shell, "plugins", "agy"))).toBe(true), {
+      timeout: 5_000,
+    })
+    await new Promise((resolve) => setTimeout(resolve, 500))
+    expect(fixture.calls()).toHaveLength(before)
+    // The same runner, built, does: what was left undone above is what the runner stopped.
+    const runner = createRunner(options)
+    resources.defer(() => runner.close())
+    await vi.waitFor(() => expect(fixture.calls().length).toBeGreaterThan(before), {
+      timeout: 10_000,
+    })
+  })
+
+  it.skipIf(windows)(
     "connect Claude Code's local install, which only an alias names",
     async ({ fixture }) => {
       installed(fixture.home, "claude")
