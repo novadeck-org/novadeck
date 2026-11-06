@@ -40,6 +40,8 @@ const terminal = (
      * only a single key then empties it.
      */
     slow?: boolean
+    /** What the first clear keys put in the box instead of clearing it. */
+    clearBrings?: string
     /** How long after the first clear keys the screen shows any sign of them (a hint). */
     hintAfterMs?: number
     /** What the box holds once the nth Escape has come. */
@@ -133,7 +135,9 @@ const terminal = (
     write: (_id, data) => {
       written.push(data)
       heldAtWrites.push(holds.some((hold) => hold.held))
-      if (data === CLEAR && options.slow) {
+      if (data === CLEAR && options.clearBrings !== undefined && written.length === 1)
+        box = options.clearBrings
+      else if (data === CLEAR && options.slow) {
         if (options.hintAfterMs === undefined) pending = true
         else setTimeout(() => (pending = true), options.hintAfterMs).unref()
       } else if (data === CLEAR && options.clears !== false) box = ""
@@ -417,6 +421,27 @@ describe("interrupts", () => {
     const t = terminal({ queued: true, holds: () => (looks += 1) > 1, holdMs: 60_000 })
     await t.interrupt()
     expect(t.typedAt[0]).toBeLessThan(100)
+  })
+
+  it("returns all it cleared where its keys brought more into the box", async () => {
+    const t = terminal({
+      queued: true,
+      prompt: "Hold on",
+      after: (escapes) => (escapes === 2 ? "Queued beta" : undefined),
+      clearBrings: "Queued beta\nQueued gamma",
+    })
+    expect(await t.interrupt()).toEqual({ returned: "Queued beta\nQueued gamma" })
+    expect(t.written).toEqual([CLEAR, CLEAR])
+  })
+
+  it("returns what it read where its keys left only part of the box", async () => {
+    const t = terminal({
+      queued: true,
+      prompt: "Hold on",
+      after: (escapes) => (escapes === 2 ? "Queued beta\nQueued gamma" : undefined),
+      clearBrings: "Queued beta",
+    })
+    expect(await t.interrupt()).toEqual({ returned: "Queued beta\nQueued gamma" })
   })
 
   it("presses the second Escape for queued messages only once their turn works", async () => {
