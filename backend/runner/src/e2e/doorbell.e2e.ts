@@ -175,6 +175,55 @@ for (const setup of setups) {
       },
     )
 
+    // The queued turn fires no hook, so the runner has it idle while it runs, and a prompt
+    // queued behind that one reads as no prompt behind a turn at all.
+    gated(slowQueue, setup.queueing ? undefined : "its queued prompts' hooks don't run early")(
+      "brings a message to an agent whose second queued prompt a Stop took back from a turn no hook told of",
+      async ({ e2e: run }) => {
+        const held = gate()
+        const betaHeld = gate()
+        run.model.use(
+          sends("Tell moth the news", "moth", "The build is green."),
+          own((call) => (sent(call, "moth") ? { text: "Told moth." } : undefined)),
+          own((call) => (delivered(call, "fox") ? { text: "Noted the news." } : undefined)),
+          own(async (call) => {
+            if (asked(call, "Queued beta")) {
+              await betaHeld.opened
+              return { text: "Beta done." }
+            }
+            if (!asked(call, "Hold on")) return undefined
+            await held.opened
+            return { text: "Too late." }
+          }),
+        )
+        const t1 = await start(run, setup)
+        const t2 = await start(run, setup)
+        const mark = t1.mark()
+        await t1.prompt("Hold on")
+        await t1.reached("working", { after: mark })
+        await t1.prompt("Queued beta")
+        await t1.until(/Press up to edit queued messages/)
+        await sleep(1500)
+        const toBeta = run.model.mark()
+        held.open()
+        await run.model.waitFor((call) => !call.side && latest(call).includes("Queued beta"), {
+          after: toBeta,
+        })
+        await message(t2, t1)
+        await t1.prompt("Queued gamma")
+        await t1.until(/Press up to edit queued messages/)
+        await sleep(1500)
+        const calls = run.model.mark()
+        const stopped = await t1.interrupt()
+        betaHeld.open()
+        expect(stopped.returned).toBe("Queued gamma")
+        await run.model.waitFor((call) => delivered(call, "fox"), {
+          after: calls,
+          timeoutMs: 60_000,
+        })
+      },
+    )
+
     gated(it, lacking(setup, "questions"))(
       "rings an agent idle after the person answered its question in the terminal",
       async ({ e2e: run }) => {

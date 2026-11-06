@@ -499,10 +499,27 @@ export class Deliveries {
     const before = live.delivery
     // A doorbell prompt submitted its line: one in the box again is the person's.
     const confirmed = event.type === "prompt" && event.by === "doorbell" ? event.nonce : undefined
-    if (event.type === "prompt" && event.by !== "call") live.promptBehindTurn = running(before)
     if (confirmed !== undefined)
       live.unconfirmed = live.unconfirmed.filter((each) => each !== confirmed)
+    // As far as told: a turn may run that no hook told of, as what was queued, or that an
+    // Escape didn't stop. Taken so in error, the prompt's messages wait for the next hook.
+    if (event.type === "prompt" && (event.by === "prompt" || event.by === "doorbell")) {
+      live.promptBehindTurn =
+        running(before) || before.box.queued || before.state === "unknown" || live.queueRunning
+      if (live.promptBehindTurn) live.promptsQueued += 1
+    }
     live.delivery = transition(before, event, this.host.slackMs)
+    // At a Stop with a prompt queued, that prompt runs as a turn no prompt hook tells of, the
+    // host idle and the person's keys free to say Drafting, until its own Stop. Counted high,
+    // as where the harness joins two, it only keeps messages for one Stop more.
+    if (event.type === "stop") {
+      live.queueRunning = live.promptsQueued > 0 || live.delivery.box.queued
+      live.promptsQueued = Math.max(live.promptsQueued - 1, 0)
+    }
+    if (event.type === "ended") {
+      live.queueRunning = false
+      live.promptsQueued = 0
+    }
     if (live.delivery === before) return
     const { state } = live.delivery
     live.viaScreen =

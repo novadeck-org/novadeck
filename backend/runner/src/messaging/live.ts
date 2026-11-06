@@ -81,6 +81,10 @@ export type Live = Scope & {
   unconfirmed: readonly string[]
   /** Whether the latest prompt's hook came while a turn ran: queued behind it, as far as told. */
   promptBehindTurn: boolean
+  /** Whether a prompt the last Stop left queued may be running, which fires no prompt hook. */
+  queueRunning: boolean
+  /** How many prompts' hooks came behind a turn and have had no Stop to run after, as told. */
+  promptsQueued: number
   /** Whether the doorbell rings it with the plain line, after a ring failed (`ringsPlain`). */
   ringsPlain: boolean
   /** When a reply line last started a turn: the replies waiting then have been said. */
@@ -121,6 +125,8 @@ export const started = (
   idleSince: null,
   unconfirmed: [],
   promptBehindTurn: false,
+  queueRunning: false,
+  promptsQueued: 0,
   ringsPlain: false,
   lineAt: null,
   viaScreen: false,

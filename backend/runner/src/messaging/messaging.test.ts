@@ -3735,7 +3735,10 @@ describe("the person's prompt, told to the asks", () => {
         submittedAt: queuedAt,
         prompt: "let's talk it over",
       })
-      expect(told.withdrawable).toHaveBeenCalledWith(queuedAt)
+      // Claude Code's hook printed nothing of it: that prompt can be taken back out of the
+      // queue, so what it would say waits for an answer that can't.
+      if (agent === "claude") expect(told.withdrawable).not.toHaveBeenCalled()
+      else expect(told.withdrawable).toHaveBeenCalledWith(queuedAt)
     },
   )
 
@@ -6401,11 +6404,24 @@ describe("the person's reply at a turn's end", () => {
     },
   )
 
-  it("gives it once at the Stop in Claude Code, over a prompt queued, which a Stop may take back", () => {
+  it("keeps it from a prompt queued in Claude Code, which a Stop may take back, for the line", () => {
     const harness = harnessesAtStop[0]
     const { messaging, terminal, bound, prompt, reply, stop } = working(harness)
+    // As it goes: the hook of a prompt queued runs at once, the reply comes after.
     messaging.keys(terminal, ["content", "enter"], false)
+    expect(prompt(terminal, bound).leaseId).toBeNull()
     reply("Yes")
+    expect(messaging.replyLine(terminal)).toBeDefined()
+    expect(stop().stdout).not.toContain("Yes")
+    // Never lost: the reply line still has it, for the ring.
+    expect(messaging.replyLine(terminal)?.("Ab12")).toContain("Yes")
+  })
+
+  it("gives it once at the Stop in Claude Code, where the reply came before that prompt's hook", () => {
+    const harness = harnessesAtStop[0]
+    const { messaging, terminal, bound, prompt, reply, stop } = working(harness)
+    reply("Yes")
+    messaging.keys(terminal, ["content", "enter"], false)
     const atStop = stop()
     expect(atStop.stdout).toContain("Yes")
     messaging.acknowledge(terminal, atStop.leaseId!)
@@ -6482,6 +6498,66 @@ describe("a prompt queued behind a running turn", () => {
     expect(prompt(terminal, bound).leaseId).toBeNull()
     const next = stop(terminal, bound)
     expect(next.stdout).toContain("More news.")
+  })
+
+  it("delivers nothing where the turn ahead of it is one the Stop left queued, unheard", () => {
+    const { messaging, send, prompt, stop, claude } = create()
+    prompt("A", claude)
+    messaging.keys("A", ["content", "enter"], false)
+    stop("A", claude)
+    expect(messaging.delivery("A")?.box.queued).toBe(true)
+    sent(send("B", "moth", "The news."))
+    const behind = prompt("A", claude)
+    expect(behind.leaseId).toBeNull()
+    expect(behind.stdout).not.toContain("The news.")
+  })
+
+  // As it goes: the turn, a prompt queued whose hook runs at once, the Stop that starts it.
+  const unheard = () => {
+    const run = create()
+    run.prompt("A", run.claude)
+    run.messaging.keys("A", ["content", "enter"], false)
+    run.prompt("A", run.claude)
+    run.stop("A", run.claude)
+    return run
+  }
+
+  it("delivers nothing though the person's keys have since made it a draft", () => {
+    const { messaging, send, prompt, claude } = unheard()
+    sent(send("B", "moth", "The news."))
+    messaging.keys("A", ["content", "enter"], false)
+    expect(messaging.delivery("A")?.state).toBe("drafting")
+    expect(prompt("A", claude).leaseId).toBeNull()
+  })
+
+  it("delivers again once the turn nothing told of has had its Stop", () => {
+    const { send, prompt, stop, claude } = unheard()
+    stop("A", claude)
+    sent(send("B", "moth", "The news."))
+    expect(prompt("A", claude).stdout).toContain("The news.")
+  })
+
+  it("counts each prompt queued, as each runs as a turn of its own", () => {
+    const { messaging, send, prompt, stop, claude } = create()
+    prompt("A", claude)
+    messaging.keys("A", ["content", "enter"], false)
+    prompt("A", claude)
+    messaging.keys("A", ["content", "enter"], false)
+    prompt("A", claude)
+    stop("A", claude)
+    stop("A", claude)
+    sent(send("B", "moth", "The news."))
+    // The second runs unheard now, ending at the next Stop.
+    expect(prompt("A", claude).leaseId).toBeNull()
+  })
+
+  it("delivers nothing where an Escape left it unknown whether a turn runs", () => {
+    const { messaging, send, prompt, claude } = create()
+    prompt("A", claude)
+    messaging.keys("A", ["escape"], false)
+    expect(messaging.delivery("A")?.state).toBe("unknown")
+    sent(send("B", "moth", "The news."))
+    expect(prompt("A", claude).leaseId).toBeNull()
   })
 
   it("delivers on a prompt no turn ran before, as ever", () => {
