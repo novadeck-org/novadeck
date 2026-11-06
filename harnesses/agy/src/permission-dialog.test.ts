@@ -411,6 +411,17 @@ describe("Antigravity's confirmation of a command taller than it", () => {
     expect(read(lit, facts(commands[1]!)).answered(dim)).toBe(false)
   })
 
+  it("shows the whole command after calls that run none, in this turn or an older one", () => {
+    const screen = tall.screens["120x40"]!.rows
+    const prompt = screen.findIndex((row) => row.startsWith("> "))
+    for (const row of ["● Create (a.ts)", "● Edit (a.ts)", "● Edited (a.ts)", "● Read (a.ts)"]) {
+      const above = [...screen.slice(0, prompt), row, ...screen.slice(prompt)]
+      const below = [...screen.slice(0, prompt + 1), row, ...screen.slice(prompt + 1)]
+      expect(read(above, facts(script!)).dialog).toMatchObject({ detail: script })
+      expect(read(below, facts(script!)).dialog).toMatchObject({ detail: script })
+    }
+  })
+
   it("keeps a tab of a command shown whole", () => {
     const rows = same(command.pending.screen120!.rows, "   echo approved", "   echo    approved")
     const asked = "echo\tapproved"

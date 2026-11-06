@@ -64,7 +64,8 @@ export const CommandBox = ({
   readonly copy?: boolean
 }): React.JSX.Element => {
   const view = commandView(command)
-  const long = view.lines > 8
+  // One line can run as far as many: a chain of commands wraps past what the box holds.
+  const long = view.lines > 8 || command.length > 1200
   return (
     <div className="console-box console-command" data-long={long || undefined}>
       {(folder || view.lines > 1 || copy) && (

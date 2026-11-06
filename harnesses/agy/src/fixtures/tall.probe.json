@@ -1,5 +1,5 @@
 {
-  "version": "1.4.12",
+  "version": "1.5.2",
   "scenarios": {
     "tall": {
       "commands": [
@@ -16,14 +16,14 @@
           "rows": {
             "0": "To run a command as administrator (user \"root\"), use \"sudo <command>\".",
             "1": "See \"man sudo_root\" for details.",
-            "4": "      ▄▀▀▄        Antigravity CLI 1.4.12",
+            "4": "      ▄▀▀▄        Antigravity CLI 1.5.2",
             "5": "     ▀▀▀▀▀▀       Gemini API key",
             "6": "    ▀▀▀▀▀▀▀▀      Gemini 3.1 Pro (Low)",
             "7": "   ▄▀▀    ▀▀▄     /sandbox/project",
             "8": "  ▄▀▀      ▀▀▄",
             "10": "────────────────────────────────────────────────────────────",
             "11": "> Make the file",
-            "13": "● Ran (cat <<'E' > tall.txt (\"row 0\", 'of a tall command', \"… and more\") end (\"row 1\", 'of a tal...) (ctrl+o to expand)",
+            "13": "● Ran (cat <<'E' > tall.txt (\"row 0\", 'of a tall command', \"… and more\") end (\"row 1\", 'of a t...) (ctrl+o to expand)",
             "15": "Command",
             "16": "────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────",
             "18": "Requesting permission for:",
@@ -96,14 +96,14 @@
           "rows": {
             "0": "To run a command as administrator (user \"root\"), use \"sudo <command>\".",
             "1": "See \"man sudo_root\" for details.",
-            "4": "      ▄▀▀▄        Antigravity CLI 1.4.12",
+            "4": "      ▄▀▀▄        Antigravity CLI 1.5.2",
             "5": "     ▀▀▀▀▀▀       Gemini API key",
             "6": "    ▀▀▀▀▀▀▀▀      Gemini 3.1 Pro (Low)",
             "7": "   ▄▀▀    ▀▀▄     /sandbox/project",
             "8": "  ▄▀▀      ▀▀▄",
             "10": "────────────────────────────────────────────────────────────",
             "11": "> Make the file",
-            "13": "● Ran (touch row-0 && touch row-1 && touch row-2 && touch row-3 && touch row-4 && touch row-5 &&...) (ctrl+o to expand)",
+            "13": "● Ran (touch row-0 && touch row-1 && touch row-2 && touch row-3 && touch row-4 && touch row-5...) (ctrl+o to expand)",
             "15": "Command",
             "16": "────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────",
             "18": "Requesting permission for:",
@@ -179,7 +179,7 @@
           "rows": {
             "0": "To run a command as administrator (user \"root\"), use \"sudo <command>\".",
             "1": "See \"man sudo_root\" for details.",
-            "4": "      ▄▀▀▄        Antigravity CLI 1.4.12",
+            "4": "      ▄▀▀▄        Antigravity CLI 1.5.2",
             "5": "     ▀▀▀▀▀▀       Gemini API key",
             "6": "    ▀▀▀▀▀▀▀▀      Gemini 3.1 Pro (Low)",
             "7": "   ▄▀▀    ▀▀▄     /sandbox/project",
@@ -187,7 +187,7 @@
             "10": "────────────────────────────────────────────────────────────",
             "11": "> Make the file",
             "13": "● Ran (cat <<'E' > twin.txt (\"row 0\", 'of a tall command', \"… and more\") end (\"row 1\", 'of a tall command', \"… and...)",
-            "14": "● Running (cat <<'E' > twin.txt (\"row 0\", 'of a tall command', \"… and more\") end (\"row 1\", 'of a...) (ctrl+o to expand)",
+            "14": "● Running (cat <<'E' > twin.txt (\"row 0\", 'of a tall command', \"… and more\") end (\"row 1\", 'of...) (ctrl+o to expand)",
             "16": "Command",
             "17": "────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────",
             "19": "Requesting permission for:",

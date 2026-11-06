@@ -53,19 +53,20 @@ type Confirmation = {
 }
 
 // A tool line, a call's or a spinner's, or a row in the words of one that goes on, and those
-// of calls that have done.
+// that say nothing against a command being alone: a command's own `Ran`, drawn for one that
+// waits too, and calls that run no command, so can't start as one does.
 const toolLine = /^(?:[●○▸\u2800-\u28ff]|\W*(?:Running|Queued)\b)/
-const doneLine = /^● (?:Ran|Edited)\b/
+const harmlessLine = /^● (?:Ran|Edit|Edited|Create|Created|Read|Agent)\b/
 
 // Whether the rows above a command's heading say that no other call goes on beside it: the
 // person's prompt or a rule must show, as rows that scrolled away could hold one, and every
-// tool line there must be one that has done. Any other, `Running` among them, leaves it
-// unknown: a call the TUI words some other way must never pass for no call at all.
+// tool line there must be a harmless one. Any other, `Running` among them, leaves it unknown:
+// a call the TUI words some other way must never pass for no call at all.
 const aloneInTurn = (lines: readonly string[], heading: number): boolean => {
   const above = lines.slice(0, Math.max(0, heading))
   return (
     above.some((row) => row.startsWith("> ") || rule(row)) &&
-    !above.map((row) => row.trim()).some((row) => toolLine.test(row) && !doneLine.test(row))
+    !above.map((row) => row.trim()).some((row) => toolLine.test(row) && !harmlessLine.test(row))
   )
 }
 

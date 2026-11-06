@@ -491,8 +491,9 @@ Hooks do not decode anything. The one hook script, shared by every harness
 (`shell/hook.ts`), forwards to the runner:
 
 - the hook event,
-- a bounded copy of the harness's payload: long text cut to 4,096 characters,
-  deep or wide values dropped, and the whole report under 60,000 characters,
+- a bounded copy of the harness's payload: long text cut to 4,096 characters but for the
+  commands its `commandFields` name, deep or wide values dropped, and the whole report under
+  60,000 characters, those commands aside,
 - the harness process that ran it,
 - the few environment facts that tell nested agents apart.
 
@@ -784,7 +785,7 @@ harness.
   `CONFLICT` that locks nothing. Request dialogs only show raw, for want of one the adapter
   reads, once the screen has been still for 1.5 s and the request pending for 2 s, or once it
   has gone 6 s without reading one whatever it does, as a dialog may tick (Claude Code counts
-  down), and it then keeps its text until the screen is still: a harness
+  down), and it then takes new text only every 6 s until the screen is still: a harness
   may run its hooks (ours included) before it draws a dialog.
 - **Follow-up words.** Where the answer's words go on as the agent's next prompt, they are
   given in the same input-queue entry once the dialog took its key and the screen settled.
