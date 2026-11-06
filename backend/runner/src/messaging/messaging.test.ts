@@ -1606,7 +1606,7 @@ describe("Antigravity's root conversation", () => {
     ask("G", root, "Stop", hook(root, "Stop", { fullyIdle: false }))
     expect(messaging.delivery("G")).toMatchObject({ state: "working", phase: "background" })
     observe("G", root, agyStatus(root, "working"), true)
-    observe("G", root, agyStatus(root, "idle", 1, { task_count: 1 }), true)
+    observe("G", root, agyStatus(root, "idle"), true)
     expect(messaging.delivery("G")?.state).toBe("settled")
   })
 
@@ -1946,7 +1946,7 @@ describe("Antigravity's turn, as activity and delivery both tell it", () => {
     hook("PreInvocation", 2, { invocationNum: 0 })
     hook("Stop", 3, { fullyIdle: false })
     turn(false, true)
-    status("idle", 4, { task_count: 1 })
+    status("idle", 4)
     turn(false)
     expect(messaging.delivery("G")?.state).toBe("settled")
     status("working", 5)
@@ -1955,7 +1955,13 @@ describe("Antigravity's turn, as activity and delivery both tell it", () => {
 
   it("agrees the agent works on past idle status lines that don't list its subagent yet", () => {
     const listing = { subagents: [{ name: "self", status: "running" }] }
-    const { messaging, hook, status, turn } = agyTerminal()
+    const { messaging, hook, source, status, turn } = agyTerminal()
+    const following = new AbortController()
+    void harnesses.agy.watch!(
+      { sessionId: root.sessionId, instance: root.instance, transcript: "/t" },
+      following.signal,
+      source,
+    )
     status("idle", 1)
     hook("PreInvocation", 2, { invocationNum: 0 })
     hook("Stop", 3, { fullyIdle: false })
@@ -1972,6 +1978,7 @@ describe("Antigravity's turn, as activity and delivery both tell it", () => {
     hook("Stop", 8, { fullyIdle: true })
     turn(false)
     expect(messaging.delivery("G")?.state).toBe("settled")
+    following.abort()
   })
 
   it("agrees it settles by itself when no status line ever accounts for what a Stop left", async () => {

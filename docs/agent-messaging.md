@@ -1062,8 +1062,10 @@ facts above, so the prompt's emptiness is known before any message arrives:
   While subagents of it run the terminal stays Working: the turn their end starts, or
   the person's, ends the wait, and that turn's own end, with nothing running, ends it as
   Settled or Drafting; so does Antigravity's status line saying idle with no subagent
-  running (its Stop says only that something runs). A command left running alone, as a
-  dev server, never holds it: the turn ends Settled, and the doorbell may ring it. Only
+  running (its Stop says only that something runs), once a line has accounted for what
+  that Stop left, or 5 s after it, as it may list a subagent late. A command left running
+  alone, as a dev server, never holds it: the turn ends Settled, and the doorbell may ring
+  it. Only
   background tasks whose status is running count. Codex never waits: nothing it starts
   wakes it once its turn has ended. The agent's activity tells the same, and an agent
   `agents` lists as busy is one Working here, or one whose terminal shows it working

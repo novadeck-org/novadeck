@@ -9,7 +9,7 @@ import { unquote } from "@novadeck/harness-core/tools"
 import { agentLimits, telemetryLimits } from "@novadeck/protocol"
 
 import { ended, forget, pending, remember, running } from "./call-memory.js"
-import { invoked, stopped, subagentCalled } from "./listing.js"
+import { invoked, stopped, toolCalled } from "./listing.js"
 import { statusLine } from "./status-line.js"
 import { folderOf, kindOf, toolCall, writers, type ToolCall } from "./tools.js"
 
@@ -115,7 +115,7 @@ const decodeEvent = ({ event, seq, instance, payload }: Report): readonly Harnes
     case "PreInvocation":
       // A turn begun leaves no call of one before it unended but those a Stop saw.
       if (payload.invocationNum === 0) forget(id)
-      invoked(id, payload.invocationNum === 0)
+      invoked(id)
       return [
         observed,
         // Its first model call starts a turn, whether the person prompted it or a subagent's
@@ -164,7 +164,7 @@ const decodeEvent = ({ event, seq, instance, payload }: Report): readonly Harnes
     case "PreToolUse": {
       const call = toolCall(payload.toolCall)
       if (!call) return [observed]
-      if (call.name === "invoke_subagent") subagentCalled(id)
+      toolCalled(id, call.name)
       return [
         observed,
         ...calling(base, call, payload),
