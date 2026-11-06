@@ -54,8 +54,8 @@ const lists: { readonly [agent in AgentName]: Classes } = {
   // model's catalog entry as OpenAI's gives its models (agents/codex.ts).
   // 0.167.0 offers mcp__codex_tui to a TUI without a daemon, where 0.166.0 offered only
   // mcp__codex_worktrees. create_thread, send_message_to_thread and fork_thread ask the
-  // person to approve them, through its MCP approval form, which Novadeck reads for every
-  // tool; they are not questions of their own.
+  // person to approve them, through its MCP approval form, which Novadeck reads though it
+  // cuts their long values; they are not questions of their own.
   // request_permissions is Codex's, offered only to a model that supports it; Novadeck
   // handles it all the same.
   codex: {

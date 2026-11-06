@@ -389,6 +389,13 @@ describe("Codex's MCP tool approval", () => {
       expect(read(other, { ...asked, tool: "mcp__probe__create_thread" })).toBeUndefined()
     })
 
+    it("leaves a look-alike server's cut form raw, though the hooks spell it the same", () => {
+      const other = form(cut, "  title: bg").map((row) =>
+        row.replaceAll("the codex_tui MCP", "the codex-tui MCP"),
+      )
+      expect(read(other, asked)).toBeUndefined()
+    })
+
     it("leaves a form raw that leaves an argument out", () => {
       const input = { a: "1", b: "2", c: "3", d: "4" }
       expect(read(form("  a: 1", "  b: 2", "  c: 3"), { ...asked, input })).toBeUndefined()

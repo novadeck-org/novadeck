@@ -124,7 +124,7 @@ describe("An Inbox row's subject", () => {
   it("says what a command or an edit would do", () => {
     expect(subjectOf(permission("Bash", "pnpm test"))).toBe("Run `pnpm test`?")
     expect(subjectOf(permission("Edit", "src/a.ts"))).toBe("Edit `src/a.ts`?")
-    // An MCP tool's name says nothing of files, whichever harness spells it.
+    // An MCP tool's name says nothing of files.
     expect(subjectOf(permission("mcp__codex_tui__create_thread", null))).toBe(
       "Use mcp__codex_tui__create_thread?",
     )

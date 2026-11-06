@@ -195,7 +195,7 @@ const shownValue = (value: string): string => {
 // Codex's own task tools, whose prompt is what they are for, and long as a rule. Any other
 // tool's form that cuts a value, or leaves an argument out, stays raw: the person answers
 // it in the terminal.
-const cutsValues = /^mcp__codex_tui__/
+const cutsValues = "codex_tui"
 
 /** An MCP tool's approval form, each row by its digit. */
 const mcpApproval = (lines: readonly string[], facts: RequestFacts): Parsed | undefined => {
@@ -216,7 +216,7 @@ const mcpApproval = (lines: readonly string[], facts: RequestFacts): Parsed | un
   // reads what the form says, no more: a value it cut could be another request's.
   const given = facts.input === null || facts.input === undefined ? {} : fieldsOf(facts.input)
   if (!given) return undefined
-  const cuts = cutsValues.test(facts.tool)
+  const cuts = server === cutsValues
   const printed = Object.keys(given)
     .toSorted()
     .map((key) => {
