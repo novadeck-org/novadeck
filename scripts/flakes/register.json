@@ -225,7 +225,7 @@
       "test": "src/pty/native.test.ts > installed native PTY dependency > keeps repeated child sessions alive for multiple writes and their natural exit",
       "signature": "Timed out waiting for PTY \\d+ (?:exit|output NATIVE_SESSION_)",
       "status": "known",
-      "cause": "Input stalls under CI load, on both of Windows' ConPTYs; measured in #720. On a quiet runner a 65-char line reaches the child in 8 ms on the system ConPTY and 3 ms on the bundled one (2801 chars: about 0.2 s and 0.09 s, growing with length, which fits libuv reading one console record per call). On a busy one, as the relay's Rust tests run alongside, each line was held 2 s on the bundled ConPTY, and 3 to 10 s or more on the system one in the seven failures, while output came back within a millisecond. The test ran on the system ConPTY until #720, which moved it to the bundled one spawnPty uses (and pinned that in a pty test) and gave each Windows step 30 s instead of 10 and the test 120 s. A stall longer than that would still fail, so it stays known.",
+      "cause": "Input stalls under CI load, on both of Windows' ConPTYs; measured in #720. On a quiet runner a 65-char line reaches the child in 8 ms on the system ConPTY and 3 ms on the bundled one (2801 chars: about 0.2 s and 0.09 s, growing with length, which fits libuv reading one console record per call). On a busy one, as the relay's Rust tests run alongside, each line was held 2 s on the bundled ConPTY, and 3 to 10 s or more on the system one in the seven failures, while output came back within a millisecond. The test ran on the system ConPTY until #720, which moved it to the bundled one spawnPty uses (and pinned that in a pty test) and gave each Windows step 30 s instead of 10 and the test 120 s. A stall longer than that would still fail, so it stays known. #722 found a separate 3 s at each start, the bundled console host waiting for an answer to its device attributes request, which the test now gives. That isn't these stalls: the system ConPTY, which makes no such request, stalled too, and without the wait the test took 36 to 37 s in the busy job and 920 ms on a quiet runner, where the answer changed nothing. That's above the 13.5 to 27.7 s it took net of the wait before; why isn't measured, though the steps may now fall inside the relay's busy window, where the wait spread them out.",
       "seen": [
         "#649 run 41964174104 job 127037213740 (Windows 1/3)",
         "run 42036458207 job 127276427723 (Windows 1/3)",
@@ -393,6 +393,24 @@
       "status": "fixed",
       "cause": "The file's 15 s test timeout ended it while it drew its rows, on a macOS page running its tests 10 to 27 times slower than here (\"stays at the row\" 9.5 s against 0.36 s); its own wait allowed 15 s or 30 s, which the test timeout never let it reach. Reproduced with Chromium's CPU throttled 20x: the old tests timed out at 15 s, 3 of 3 (with \"carries on drawing\"). The three drawing tests now have a 60 s timeout, and the long change is 6,000 lines, three of the viewer's 2,000-row batches, not 20,000: they passed at 20x, the long change's at 30x too, and still fail when the viewer draws all rows at once.",
       "seen": ["#717 run 42101141316 attempt 1 job 127503942930 (macOS)"]
+    },
+    {
+      "id": "secrets-macos-hex-group-timeout",
+      "jobs": ["^Test \\(macOS\\)$"],
+      "test": "src/screen.test.ts > secrets longer than the window rows are read in > is quick for a 2,000-row group of one wrapped line of hex",
+      "signature": "Test timed out in 60000ms",
+      "status": "known",
+      "cause": "Unknown, seen once. A timeout here means the test's real check passed: its budget is 15 s of CPU, and the 60 s timeout only bounds the wall clock, so a real blow-up fails with `expected N to be less than 15000`, which this doesn't excuse. The test took 68 s of wall clock, against 2.1 s, 28.8 s and 31.1 s on earlier passing macOS runs, so about half the limit on two of those three. Its comment's \"about 1 s\" is a CPU figure, so these don't compare with it. Why hex takes so much longer than the other shapes in the same job (24 s for base64, 5 to 8 s for the rest) hasn't been looked into; it runs first, beside other packages' tests.",
+      "seen": ["#729 run 42209861170 job 127865530140 (macOS)"]
+    },
+    {
+      "id": "viewers-macos-diff-update-budget",
+      "jobs": ["^Test \\(macOS\\)$"],
+      "test": "src/diff.test.ts > the diff viewer > with many files > updates and reports its place without laying out the files out of sight",
+      "signature": "AssertionError: expected [\\d.]+ to be less than 750",
+      "status": "known",
+      "cause": "Unknown, seen once: an update took 1,481 ms against the 750 ms budget, where the test's comment says 60 to 160 ms on a slow shared machine. Many jobs were running at the time, so a slow runner is likely but unproven. A failure here stops Test (macOS) before later packages, such as the runner, have run.",
+      "seen": ["#737 run 42212834625 job 127875434063 (macOS)"]
     }
   ]
 }

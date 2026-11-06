@@ -1,6 +1,8 @@
 import type { IpcMainEvent } from "electron"
 
 import { saveBeforeQuitChannel } from "../bridge.js"
+import type { Quitting } from "./quitting.js"
+import type { RunnerEnd } from "./runner.js"
 
 type QuitIpc = {
   on(channel: string, listener: (event: IpcMainEvent) => void): unknown
@@ -134,4 +136,86 @@ export const saveBeforeClose = (
       if (!window.isDestroyed()) window.close()
     })
   })
+}
+
+/**
+ * Every page saves before the runner ends its shells, so the saves name what still runs.
+ * The runner and the server then close side by side, and one's close failing leaves the
+ * other's to finish. Says how the runner ended, a close that failed saying nothing of that,
+ * so it counts as one that didn't end.
+ */
+export const shutDownInOrder = async ({
+  platform,
+  persist,
+  save,
+  closeRunner,
+  closeServer,
+}: {
+  readonly platform: NodeJS.Platform
+  readonly persist: () => void
+  readonly save: () => Promise<void>
+  readonly closeRunner: () => Promise<RunnerEnd> | undefined
+  readonly closeServer: () => Promise<void> | undefined
+}): Promise<RunnerEnd> => {
+  // On Windows the runner hears at once that the app is going, as at the session's end, so
+  // no agent the system ends meanwhile counts as ended by the person.
+  if (platform === "win32") persist()
+  await save()
+  const [runner] = await Promise.allSettled([closeRunner(), closeServer()])
+  return runner.status === "rejected" ? "abandoned" : (runner.value ?? "closed")
+}
+
+/** What a quit runs; `beforeQuit` holds their order. */
+export type QuitSteps = {
+  readonly quitting: Quitting
+  /** Whether an update going into place holds this quit back. */
+  readonly held: () => boolean
+  /** Says that the app is quitting, unless it is already stopping. */
+  readonly announce: () => void
+  /** Runs on every pass that isn't held, the last too. */
+  readonly begin: () => void
+  /** Whether the app has a runner or a server to shut down. */
+  readonly hosting: () => boolean
+  readonly shutDown: () => Promise<RunnerEnd>
+  readonly installMacUpdate: () => Promise<void>
+  readonly reopenAppImage: () => Promise<void>
+  /** Leaves a waiting update for a later quit, and installs and opens nothing on this one. */
+  readonly keepUpdate: () => void
+  /** Quits again, which comes back here with nothing left to do and lets the app end. */
+  readonly quit: () => void
+}
+
+/**
+ * The app's `before-quit`: holds the quit back until everything that ends with the app has
+ * ended, and quits again whatever failed on the way, so a failure never leaves the app
+ * running with its shells gone. A runner that didn't exit even when killed may still hold
+ * the data folder and the install folder, so no update goes in and no new copy opens beside
+ * it; one that was killed and did exit is gone, and the quit goes on as usual. Returns that
+ * work, which ends with the failure if one came, or nothing when this pass lets the quit go
+ * on or holds it.
+ */
+export const beforeQuit = (
+  event: { preventDefault(): void },
+  steps: QuitSteps,
+): Promise<void> | undefined => {
+  const { quitting } = steps
+  // The quit already under way ends the app once the update is in place.
+  if (steps.held()) {
+    event.preventDefault()
+    return undefined
+  }
+  if (!quitting.stopping) steps.announce()
+  steps.begin()
+  if (!steps.hosting() || quitting.stopping) return undefined
+
+  event.preventDefault()
+  quitting.stopping = true
+  return steps
+    .shutDown()
+    .then(async (ended) => {
+      if (ended === "abandoned") return steps.keepUpdate()
+      await steps.installMacUpdate()
+      await steps.reopenAppImage()
+    })
+    .finally(steps.quit)
 }

@@ -17,8 +17,8 @@ export type Quitting = {
   /**
    * Whether the person opened Novadeck while it was quitting (a second launch, or the Dock
    * icon on macOS), which a quit that puts an update in place answers by opening the new
-   * version once it is there. The launch itself could do nothing: the quitting app holds the
-   * data folder.
+   * version once it is there, unless its runner may still be running. The launch itself could
+   * do nothing: the quitting app holds the data folder.
    */
   reopenWanted: boolean
 }

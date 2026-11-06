@@ -179,6 +179,24 @@ const mcpWordings = [
   { label: "Cancel", description: "Cancel this tool call" },
 ] as const
 
+// How Codex's form prints an argument's value: the graphemes it keeps, and of those how many
+// are its own "..." where it cuts one (0.166.0 and 0.167.0,
+// `format_tool_approval_display_param_value`).
+const valueGraphemes = 60
+const cutMark = "..."
+const graphemes = new Intl.Segmenter()
+
+const shownValue = (value: string): string => {
+  const parts = Array.from(graphemes.segment(value), ({ segment }) => segment)
+  if (parts.length <= valueGraphemes) return value
+  return `${parts.slice(0, valueGraphemes - cutMark.length).join("")}${cutMark}`
+}
+
+// Codex's own task tools, whose prompt is what they are for, and long as a rule. Any other
+// tool's form that cuts a value, or leaves an argument out, stays raw: the person answers
+// it in the terminal.
+const cutsValues = "codex_tui"
+
 /** An MCP tool's approval form, each row by its digit. */
 const mcpApproval = (lines: readonly string[], facts: RequestFacts): Parsed | undefined => {
   if (facts.kind !== "permission" || !facts.tool.startsWith("mcp__")) return undefined
@@ -194,14 +212,17 @@ const mcpApproval = (lines: readonly string[], facts: RequestFacts): Parsed | un
   if (server !== undefined && facts.tool !== mcpTool(server, tool)) return undefined
   const first = firstOption(lines, form + 2)
   if (first < 0) return undefined
-  // The arguments the form prints, one `name: value` line each in name order.
+  // The arguments the form prints, one `name: value` line each in name order. The person
+  // reads what the form says, no more: a value it cut could be another request's.
   const given = facts.input === null || facts.input === undefined ? {} : fieldsOf(facts.input)
   if (!given) return undefined
+  const cuts = server === cutsValues
   const printed = Object.keys(given)
     .toSorted()
     .map((key) => {
       const value = given[key]
-      return `${key}: ${typeof value === "string" ? collapse(value) : JSON.stringify(value)}`
+      const text = typeof value === "string" ? collapse(value) : JSON.stringify(value)
+      return `${key}: ${cuts ? shownValue(text) : text}`
     })
   if (!wrapped(lines.slice(form + 2, first), printed.join(" "))) return undefined
   const { rows } = optionsAt(lines, first)

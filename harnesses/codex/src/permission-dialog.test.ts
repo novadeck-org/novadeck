@@ -307,6 +307,101 @@ describe("Codex's MCP tool approval", () => {
     expect(read(rows, facts)).toBeUndefined()
   })
 
+  describe("with a value it cuts", () => {
+    const prompt =
+      "Background task: echo outside and then carry on with a rather longer description of the work, — here"
+    const asked: RequestFacts = {
+      kind: "permission",
+      tool: "mcp__codex_tui__create_thread",
+      input: { prompt, title: "bg" },
+      cwd: null,
+    }
+    // As 0.167.0 drew it (probed 2026-11-06).
+    const form = (...values: readonly string[]) => [
+      "• Calling codex_tui.create_thread",
+      "  Field 1/1",
+      '  Allow the codex_tui MCP server to run tool "create_thread"?',
+      ...values,
+      "  › 1. Allow   Run the tool and continue",
+      "    2. Cancel  Cancel this tool call",
+      "  enter to submit | esc to cancel",
+    ]
+    const cut = "  prompt: Background task: echo outside and then carry on with a ra..."
+
+    it("reads it, telling the person what the form says", () => {
+      expect(read(form(cut, "  title: bg"), asked)?.dialog).toMatchObject({
+        title: 'Allow the codex_tui MCP server to run tool "create_thread"?',
+        detail: `${cut.trim()}\ntitle: bg`,
+        options: [{ label: "Allow" }, { label: "Cancel" }],
+      })
+    })
+
+    it("collapses a value's whitespace before it counts where to cut", () => {
+      const spaced = prompt.replaceAll(" ", "   \n ")
+      expect(
+        read(form(cut, "  title: bg"), { ...asked, input: { prompt: spaced, title: "bg" } }),
+      ).toBeDefined()
+    })
+
+    it("reads it wrapped by a narrow terminal", () => {
+      expect(
+        read(
+          form(
+            "  prompt: Background task: echo outside and",
+            "  then carry on with a ra...",
+            "  title: bg",
+          ),
+          asked,
+        ),
+      ).toBeDefined()
+    })
+
+    it("is no dialog where the words shown aren't the value's", () => {
+      expect(read(form(cut.replace("carry", "hurry"), "  title: bg"), asked)).toBeUndefined()
+      expect(
+        read(
+          form("  prompt: Something else that is not at all what the hook said...", "  title: bg"),
+          asked,
+        ),
+      ).toBeUndefined()
+    })
+
+    it("cuts a value past 60 graphemes, counting a grapheme once", () => {
+      // A letter and its combining mark, then a thumb and its skin tone.
+      const grapheme = "e\u0301"
+      const thumb = "\u{1F44D}\u{1F3FD}"
+      const whole = grapheme.repeat(30) + thumb.repeat(30)
+      expect(
+        read(form(`  prompt: ${whole}`), { ...asked, input: { prompt: whole } })?.dialog,
+      ).toMatchObject({ detail: `prompt: ${whole}` })
+      const over = `${whole}x`
+      expect(read(form(`  prompt: ${over}`), { ...asked, input: { prompt: over } })).toBeUndefined()
+      const kept = `${grapheme.repeat(30)}${thumb.repeat(27)}...`
+      expect(
+        read(form(`  prompt: ${kept}`), { ...asked, input: { prompt: over } })?.dialog,
+      ).toMatchObject({ detail: `prompt: ${kept}` })
+    })
+
+    it("leaves any other tool's cut form raw", () => {
+      const other = form(cut, "  title: bg").map((row) =>
+        row.replaceAll("the codex_tui MCP", "the probe MCP"),
+      )
+      expect(read(other, { ...asked, tool: "mcp__probe__create_thread" })).toBeUndefined()
+    })
+
+    it("leaves a look-alike server's cut form raw, though the hooks spell it the same", () => {
+      const other = form(cut, "  title: bg").map((row) =>
+        row.replaceAll("the codex_tui MCP", "the codex-tui MCP"),
+      )
+      expect(read(other, asked)).toBeUndefined()
+    })
+
+    it("leaves a form raw that leaves an argument out", () => {
+      const input = { a: "1", b: "2", c: "3", d: "4" }
+      expect(read(form("  a: 1", "  b: 2", "  c: 3"), { ...asked, input })).toBeUndefined()
+    })
+  })
+
   it("leaves a server's own elicitation form raw", () => {
     const asked: RequestFacts = {
       kind: "permission",

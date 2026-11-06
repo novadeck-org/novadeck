@@ -7,7 +7,7 @@ import { afterEach, beforeEach, vi } from "vitest"
 import { mainBeatMs, type RunnerCommand } from "../bridge.js"
 import { context, describe, expect, it } from "../test"
 import { appLog } from "./logs/logs.test-support"
-import { logRunnerEvents, startRunner, type RunnerEvents } from "./runner"
+import { logRunnerEvents, startRunner, type RunnerEnd, type RunnerEvents } from "./runner"
 
 /** A utility process as the runner's host sees one: what it was sent, and whether it was killed. */
 class FakeWorker extends EventEmitter {
@@ -203,14 +203,14 @@ describe("the runner's process", () => {
   context("as the app closes it", () => {
     it("asks it to close, and settles once it exits by itself, as expected", async () => {
       const { runner, current, heard } = start()
-      const closed = vi.fn<() => void>()
+      const closed = vi.fn<(end: RunnerEnd) => void>()
       void runner.close().then(closed)
       expect(current().commands().at(-1)).toBe("close")
       await vi.advanceTimersByTimeAsync(0)
       expect(closed).not.toHaveBeenCalled()
       current().exit(0)
       await vi.advanceTimersByTimeAsync(0)
-      expect(closed).toHaveBeenCalled()
+      expect(closed).toHaveBeenCalledWith("closed")
       expect(current().kills).toBe(0)
       expect(heard.at(-1)).toEqual(["exited", 1, 0, true])
     })
@@ -232,20 +232,20 @@ describe("the runner's process", () => {
     it("settles at once when no runner is running", async () => {
       const { runner, current } = start()
       current().exit(1)
-      await expect(runner.close()).resolves.toBeUndefined()
+      await expect(runner.close()).resolves.toBe("closed")
     })
 
     it("counts a crash while it closes as unexpected", async () => {
       const { runner, current, heard } = start()
       const closing = runner.close()
       current().exit(1)
-      await closing
+      await expect(closing).resolves.toBe("closed")
       expect(heard.at(-1)).toEqual(["exited", 1, 1, false])
     })
 
     it("kills it when it doesn't exit in time, and says so", async () => {
       const { runner, current, heard } = start()
-      const closed = vi.fn<() => void>()
+      const closed = vi.fn<(end: RunnerEnd) => void>()
       void runner.close(5_000).then(closed)
       await vi.advanceTimersByTimeAsync(4_999)
       expect(current().kills).toBe(0)
@@ -255,7 +255,7 @@ describe("the runner's process", () => {
       expect(closed).not.toHaveBeenCalled()
       current().exit(0)
       await vi.advanceTimersByTimeAsync(0)
-      expect(closed).toHaveBeenCalled()
+      expect(closed).toHaveBeenCalledWith("killed")
       expect(heard.at(-1)).toEqual(["exited", 1, 0, false])
       // It exited after all: it isn't given up on later.
       await vi.advanceTimersByTimeAsync(10_000)
@@ -273,12 +273,12 @@ describe("the runner's process", () => {
 
     it("settles without it when it doesn't exit even after the kill", async () => {
       const { runner, current, heard } = start()
-      const closed = vi.fn<() => void>()
+      const closed = vi.fn<(end: RunnerEnd) => void>()
       void runner.close(5_000, 2_000).then(closed)
       await vi.advanceTimersByTimeAsync(5_000 + 1_999)
       expect(closed).not.toHaveBeenCalled()
       await vi.advanceTimersByTimeAsync(1)
-      expect(closed).toHaveBeenCalled()
+      expect(closed).toHaveBeenCalledWith("abandoned")
       expect(current().kills).toBe(1)
       expect(heard.slice(-2)).toEqual([
         ["killed", 1, 5_000],

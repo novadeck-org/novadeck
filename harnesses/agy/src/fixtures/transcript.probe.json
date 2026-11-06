@@ -2,7 +2,7 @@
   "harness": "agy",
   "version": "1.2.13",
   "source": "captured",
-  "how": "agy --mode plan -p in a scratch HOME with every hook registered in the workspace: its transcript's steps (transcript.jsonl; transcript_full.jsonl, which hooks name, holds the same records untruncated) (reasoning, system text and the prompt's context replaced) and the PostToolUse payloads, the first writing its implementation plan as an artifact asking for review; `parallel` is a second run's steps whose one response made three view_file calls at once, the first failing: its results are written as steps 2, 3 and 4, two of them before the step that made the calls",
+  "how": "agy --mode plan -p in a scratch HOME with every hook registered in the workspace: its transcript's steps as transcript_full.jsonl, which hooks name, holds them: taken from transcript.jsonl, which holds the same records with long fields truncated and each call's arguments JSON-encoded, with those arguments decoded once (they equal the PostToolUse payloads' here) (reasoning, system text and the prompt's context replaced) and the PostToolUse payloads, the first writing its implementation plan as an artifact asking for review; `parallel` is a second run's steps whose one response made three view_file calls at once, the first failing: its results are written as steps 2, 3 and 4, two of them before the step that made the calls",
   "transcript": [
     {
       "step_index": 0,
@@ -23,13 +23,17 @@
         {
           "name": "write_to_file",
           "args": {
-            "ArtifactMetadata": "{\"RequestFeedback\":true,\"Summary\":\"Implementation plan for creating a README.md file containing 'hello' in the root directory.\",\"UserFacing\":true}",
-            "CodeContent": "\"# Implementation Plan - Add README.md\\n\\nAdd a `README.md` file containing \\\"hello\\\" to the root directory of the workspace.\\n\\n## User Review Required\\n\\n> [!NOTE]\\n> No breaking changes or critical decisions required. The file will simply contain `hello`.\\n\\n## Proposed Changes\\n\\n### Documentation\\n\\n#### [NEW] [README.md](file:///home/user/project/README.md)\\n\\n- Create a new `README.md` file in the workspace root with the content:\\n```markdown\\nhello\\n```\\n\\n---\\n\\n## Verification Plan\\n\\n### Automated Tests\\n- None needed for a static documentation file.\\n\\n### Manual Verification\\n- Verify that `README.md` exists in the workspace root and contains `hello`.\\n\"",
-            "Description": "\"Create implementation plan for adding README.md\"",
-            "Overwrite": "true",
-            "TargetFile": "\"/home/user/.gemini/antigravity-cli/brain/50000000-0000-4000-8000-000000000002/implementation_plan.md\"",
-            "toolAction": "\"Writing implementation plan\"",
-            "toolSummary": "\"Implementation plan creation\""
+            "ArtifactMetadata": {
+              "RequestFeedback": true,
+              "Summary": "Implementation plan for creating a README.md file containing 'hello' in the root directory.",
+              "UserFacing": true
+            },
+            "CodeContent": "# Implementation Plan - Add README.md\n\nAdd a `README.md` file containing \"hello\" to the root directory of the workspace.\n\n## User Review Required\n\n> [!NOTE]\n> No breaking changes or critical decisions required. The file will simply contain `hello`.\n\n## Proposed Changes\n\n### Documentation\n\n#### [NEW] [README.md](file:///home/user/project/README.md)\n\n- Create a new `README.md` file in the workspace root with the content:\n```markdown\nhello\n```\n\n---\n\n## Verification Plan\n\n### Automated Tests\n- None needed for a static documentation file.\n\n### Manual Verification\n- Verify that `README.md` exists in the workspace root and contains `hello`.\n",
+            "Description": "Create implementation plan for adding README.md",
+            "Overwrite": true,
+            "TargetFile": "/home/user/.gemini/antigravity-cli/brain/50000000-0000-4000-8000-000000000002/implementation_plan.md",
+            "toolAction": "Writing implementation plan",
+            "toolSummary": "Implementation plan creation"
           }
         }
       ]
@@ -69,12 +73,12 @@
         {
           "name": "write_to_file",
           "args": {
-            "CodeContent": "\"hello\\n\"",
-            "Description": "\"Create README.md with hello\"",
-            "Overwrite": "true",
-            "TargetFile": "\"/home/user/project/README.md\"",
-            "toolAction": "\"Creating README.md\"",
-            "toolSummary": "\"Create README.md\""
+            "CodeContent": "hello\n",
+            "Description": "Create README.md with hello",
+            "Overwrite": true,
+            "TargetFile": "/home/user/project/README.md",
+            "toolAction": "Creating README.md",
+            "toolSummary": "Create README.md"
           }
         }
       ]
@@ -97,9 +101,9 @@
         {
           "name": "view_file",
           "args": {
-            "AbsolutePath": "\"/home/user/project/README.md\"",
-            "toolAction": "\"Viewing README.md\"",
-            "toolSummary": "\"Verify file content\""
+            "AbsolutePath": "/home/user/project/README.md",
+            "toolAction": "Viewing README.md",
+            "toolSummary": "Verify file content"
           }
         }
       ]
@@ -123,13 +127,17 @@
         {
           "name": "write_to_file",
           "args": {
-            "ArtifactMetadata": "{\"RequestFeedback\":false,\"Summary\":\"Walkthrough of adding README.md with 'hello' in the root directory.\",\"UserFacing\":true}",
-            "CodeContent": "\"# Walkthrough - Add README.md\\n\\nAdded a `README.md` file containing \\\"hello\\\" to the root directory of the workspace.\\n\\n## Changes Made\\n\\n### Documentation\\n\\n- Created [README.md](file:///home/user/project/README.md) with content `hello`.\\n\\n## Verification Results\\n\\n### File Verification\\n- Inspected [README.md](file:///home/user/project/README.md) contents to confirm it was created and contains `hello`.\\n\"",
-            "Description": "\"Create walkthrough artifact\"",
-            "Overwrite": "true",
-            "TargetFile": "\"/home/user/.gemini/antigravity-cli/brain/50000000-0000-4000-8000-000000000002/walkthrough.md\"",
-            "toolAction": "\"Creating walkthrough artifact\"",
-            "toolSummary": "\"Walkthrough artifact creation\""
+            "ArtifactMetadata": {
+              "RequestFeedback": false,
+              "Summary": "Walkthrough of adding README.md with 'hello' in the root directory.",
+              "UserFacing": true
+            },
+            "CodeContent": "# Walkthrough - Add README.md\n\nAdded a `README.md` file containing \"hello\" to the root directory of the workspace.\n\n## Changes Made\n\n### Documentation\n\n- Created [README.md](file:///home/user/project/README.md) with content `hello`.\n\n## Verification Results\n\n### File Verification\n- Inspected [README.md](file:///home/user/project/README.md) contents to confirm it was created and contains `hello`.\n",
+            "Description": "Create walkthrough artifact",
+            "Overwrite": true,
+            "TargetFile": "/home/user/.gemini/antigravity-cli/brain/50000000-0000-4000-8000-000000000002/walkthrough.md",
+            "toolAction": "Creating walkthrough artifact",
+            "toolSummary": "Walkthrough artifact creation"
           }
         }
       ]

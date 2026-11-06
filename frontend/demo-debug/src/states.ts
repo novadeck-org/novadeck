@@ -1,3 +1,4 @@
+import type { AgentName } from "@novadeck/core/harnesses"
 import type { Inbox, InboxRow } from "@novadeck/core/inbox"
 import type { BackendAction, TerminalKey } from "@novadeck/core/port"
 import { createStore } from "@novadeck/core/store"
@@ -144,13 +145,13 @@ type Verbed = (
 const usageOf = (
   verbs: DemoAgentVerbs,
   key: TerminalKey,
-  { workspace, note }: DemoActionContext,
+  { workspace, note, harness }: DemoActionContext,
   usage: Parameters<DemoAgentVerbs["usage"]>[2],
 ): void => {
   const terminal = terminalOf(workspace(), key)
   if (terminal?.state === "running" && !terminal.agent && isAgentProgram(terminal.process))
     return note("Novadeck hears nothing from this agent, so it has no usage to show.")
-  verbs.usage(key, terminal, usage)
+  verbs.as(harness).usage(key, terminal, usage)
 }
 
 // An action of the agent group: a verb on whichever terminal the group's target names.
@@ -159,7 +160,7 @@ const verb = (label: string, hint: string, run: Verbed, verbs: DemoAgentVerbs): 
   hint,
   run: (context) => {
     const key = targetOf(context)
-    if (key) run(verbs, key, terminalOf(context.workspace(), key))
+    if (key) run(verbs.as(context.harness), key, terminalOf(context.workspace(), key))
   },
 })
 
@@ -194,7 +195,7 @@ const limitResetMs = 80 * 60_000
 // Inbox row of the demo's own, added once the terminal is in its state.
 const gallery: readonly {
   readonly name: string
-  readonly state?: (key: TerminalKey) => BackendAction[]
+  readonly state?: (key: TerminalKey, harness: AgentName) => BackendAction[]
   readonly agent?: (verbs: DemoAgentVerbs, key: TerminalKey) => void
   readonly asks?: "text" | "action"
 }[] = [
@@ -256,10 +257,10 @@ const gallery: readonly {
         limit: { minutes: 300, resetsAt: Date.now() + limitResetMs },
       }),
   },
-  { name: "Asks (MCP)", state: (key) => runAgent(key, "claude"), asks: "text" },
-  { name: "Needs a sign-in", state: (key) => runAgent(key, "claude"), asks: "action" },
-  { name: "Unheard agent", state: (key) => unheardAgent(key, "claude") },
-  { name: "At its startup screen", state: (key) => atStartupScreen(key, "codex") },
+  { name: "Asks (MCP)", state: (key, harness) => runAgent(key, harness), asks: "text" },
+  { name: "Needs a sign-in", state: (key, harness) => runAgent(key, harness), asks: "action" },
+  { name: "Unheard agent", state: (key, harness) => unheardAgent(key, harness) },
+  { name: "At its startup screen", state: (key, harness) => atStartupScreen(key, harness) },
   { name: "Running a program", state: (key) => runProgram(key, "sleep") },
   { name: "Opened by an agent", state: (key) => openedByAgent(key, "pnpm") },
   { name: "Agent exited", state: (key) => agentRanHere(key) },
@@ -292,7 +293,7 @@ const everyState = (
 ): DemoAction => ({
   label: "Every state at once",
   hint: `${gallery.length} terminals, one per state`,
-  run: ({ addTerminal, dispatch, workspace }) => {
+  run: ({ addTerminal, dispatch, workspace, harness }) => {
     if (!dispatch) return
     // Added first, so each finish lands while the person looks at the last one.
     const keys = gallery.map(() => addTerminal())
@@ -300,14 +301,15 @@ const everyState = (
     dispatch(
       gallery.flatMap(({ name, state }, index) => {
         const key = keys[index]!
-        return [rename(key, name), ...(state?.(key) ?? [])]
+        return [rename(key, name), ...(state?.(key, harness) ?? [])]
       }),
     )
-    gallery.forEach(({ agent }, index) => agent?.(verbs, keys[index]!))
+    const agents = verbs.as(harness)
+    gallery.forEach(({ agent }, index) => agent?.(agents, keys[index]!))
     const own = inbox()
     if (!isDemoInbox(own)) return
     gallery.forEach(({ asks }, index) => {
-      const row = asks && mcpAsk(workspace(), keys[index]!, asks, Date.now())
+      const row = asks && mcpAsk(workspace(), keys[index]!, asks, Date.now(), harness)
       if (!row) return
       own.add(row)
       panelAsks.add(row.id)
@@ -329,10 +331,11 @@ const createWaitingActions = (
   const fillInbox: DemoAction = {
     label: "Fill the Inbox",
     hint: `${crowd} terminals ask or finish: ${crowdWaits} wait in the Inbox, ${crowd - crowdWaits} report done as Updates`,
-    run: ({ selected, workspace, addInBackground, dispatch, note }) => {
+    run: ({ selected, workspace, addInBackground, dispatch, note, harness }) => {
       const viewed = selected()
       if (!viewed) return note("Select a terminal first.")
       if (!dispatch) return
+      const agents = verbs.as(harness)
       const existing = otherTerminals(workspace(), viewed).slice(0, crowd)
       const added = Array.from({ length: Math.max(0, crowd - existing.length) }, () =>
         addInBackground(viewed),
@@ -343,12 +346,12 @@ const createWaitingActions = (
         const kind = kinds[index]!
         const terminal = terminalOf(workspace(), key)
         if (kind === "done" || kind === "failed")
-          verbs.finish(key, terminal, kind === "done" ? "completed" : "failed", {
+          agents.finish(key, terminal, kind === "done" ? "completed" : "failed", {
             after: turnMs,
             // A done agent called `done`; a failed one only stopped.
             ...(kind === "done" ? { done: doneReport } : {}),
           })
-        else verbs.ask(key, terminal, kind, 1)
+        else agents.ask(key, terminal, kind, 1)
       })
     },
   }
@@ -502,6 +505,7 @@ export const createDemoStates = (
     {
       section: "Terminals",
       title: "New terminals",
+      harnesses: true,
       actions: [
         everyState(verbs, inbox, panelAsks),
         failingTerminal(
@@ -557,6 +561,7 @@ export const createDemoStates = (
       section: "Agents",
       title: "Agent",
       targets: true,
+      harnesses: true,
       actions: [
         verb("Work", "Working; tab shows it running", (v, k, t) => v.work(k, t), verbs),
         verb(
@@ -664,14 +669,17 @@ export const createDemoStates = (
     {
       section: "Agents",
       title: "Agent fixtures",
+      harnesses: true,
       actions: [
-        setting("Unheard agent", "Claude Code, its hooks silent", (key, { dispatch }) =>
-          dispatch(unheardAgent(key, "claude")),
+        setting(
+          "Unheard agent",
+          "The chosen harness, its hooks silent",
+          (key, { dispatch, harness }) => dispatch(unheardAgent(key, harness)),
         ),
         setting(
           "At its startup screen",
-          "Codex held at a trust or update screen: the tab's need mark, no Inbox row",
-          (key, { dispatch }) => dispatch(atStartupScreen(key, "codex")),
+          "The chosen harness held at a trust or update screen: the tab's need mark, no Inbox row",
+          (key, { dispatch, harness }) => dispatch(atStartupScreen(key, harness)),
         ),
         setting(
           "At its sign-in screen",
@@ -691,6 +699,7 @@ export const createDemoStates = (
     {
       section: "Agents",
       title: "Waiting agents",
+      harnesses: true,
       actions: [...waitingActions],
     },
     {

@@ -55,8 +55,9 @@ const side = /Side from main thread · (?:ctrl\+|\^|⌃)\/ to switch · (?:ctrl\
 // How long a terminal is watched for a binding that mustn't change once a turn is done.
 const quiet = 3000
 
-// What its approval dialog says of the thread asking, for a spawned agent's (0.159.3).
-const thread = (agentId: string) => new RegExp(`Thread: Agent \\(${agentId.slice(0, 8)}\\)`)
+// What its approval dialog says of the thread asking, for a spawned agent's: the id's last
+// segment from 0.167.0, which agents spawned together don't share.
+const thread = (agentId: string) => new RegExp(`Thread: Agent \\(${agentId.slice(-12)}\\)`)
 
 /** Whether the call is of the spawned agent's own conversation, which its task began. */
 const helper = (call: Call): boolean =>

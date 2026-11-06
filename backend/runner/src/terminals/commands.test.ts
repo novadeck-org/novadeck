@@ -1,3 +1,4 @@
+import { harnesses } from "../harnesses/registry.js"
 import { describe, expect, it } from "../test.js"
 import { commandWords, expectedAgent, promptIn, sessionLaunch } from "./commands.js"
 
@@ -97,6 +98,21 @@ describe("the agent whose session a command would start", () => {
       "agy --prompt mcp list",
       "claude -p mcp",
       "claude --print update",
+      "claude --add-dir a mcp list",
+      "claude --add-dir a b mcp",
+      "claude --allowedTools Read mcp",
+      "claude --allowed-tools Read mcp",
+      "claude --disallowedTools Read mcp",
+      "claude --disallowed-tools Read mcp",
+      "claude --betas a mcp",
+      "claude --file a mcp",
+      "claude --mcp-config a.json mcp",
+      "claude --tools Read Write mcp",
+      "claude --add-dir a - mcp",
+      "claude --add-dir=a b mcp",
+      "codex -i a.png mcp",
+      "codex --image a.png mcp",
+      "codex -i a.png - mcp",
     ]) {
       const agent = command.split(" ")[0]
       expect([command, sessionLaunch(command, "linux")]).toEqual([command, agent])
@@ -141,9 +157,27 @@ describe("the agent whose session a command would start", () => {
       "agy changelog",
       "agy --help",
       "agy --version",
+      "claude --add-dir a --verbose mcp list",
+      "claude --add-dir a b --model opus mcp list",
+      "claude --add-dir a -- mcp list",
+      "claude --add-dir=a mcp list",
+      "codex -i a.png --search mcp list",
+      "codex --image=a.png mcp list",
+      "agy --add-dir a mcp list",
+      "agy --add-dir a --add-dir b mcp list",
+      "agy --add-dir=a mcp list",
+      "claude -- mcp list",
+      "agy -- mcp list",
+      "agy --settings x.json mcp list",
     ]) {
       expect([command, sessionLaunch(command, "linux")]).toEqual([command, null])
     }
+  })
+
+  it("knows every harness's options that take several values, each also one that takes a value", () => {
+    expect(harnesses.agy.nonSession.takesMany).toEqual([])
+    for (const { nonSession } of Object.values(harnesses))
+      expect(nonSession.takesValue).toEqual(expect.arrayContaining([...nonSession.takesMany]))
   })
 
   it("reads the program as a new terminal does, by path, quote and extension", () => {

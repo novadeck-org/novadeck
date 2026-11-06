@@ -10,8 +10,7 @@ import { command, ptyChild, ptyChildEnv, ptyTrace } from "../testing.js"
 // hold input for seconds at a time while output flows (#712): a line that reaches a child in
 // milliseconds on a quiet machine took 2 s, and past 10 s, on a busy runner.
 const stepMs = process.platform === "win32" ? 30_000 : 10_000
-// A test of several sessions, each of which may take its steps' time; on Windows, a bundled
-// ConPTY also takes about 3 s to start its program in this file.
+// A test of several sessions, each of which may take its steps' time.
 const sessionsMs = process.platform === "win32" ? 120_000 : 60_000
 
 // Waits at most `stepMs`, then fails with `label` and what `stalled` tells of the terminal.
@@ -56,6 +55,10 @@ const spawn = (args = [ptyChild], options: { useConptyDll?: boolean } = {}) => {
   let output = ""
   let exited = false
   const data = child.onData((chunk) => {
+    // The bundled ConPTY's console host asks its terminal what it is as it starts, and holds
+    // the program back until it hears, for 3 s at most (#722). The host's screen answers in
+    // a real terminal; this test has none.
+    if (chunk.includes("\u001b[c")) child.write("\u001b[?1;2c")
     output += chunk
     events.emit("data")
   })

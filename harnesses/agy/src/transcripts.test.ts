@@ -1,8 +1,11 @@
 import type { Report } from "@novadeck/harness-core/report"
 import { loadProbe } from "@novadeck/harness-core/testing/probes"
+import { hookReport } from "@novadeck/harness-core/testing/reports"
 import { describe, expect, it } from "vitest"
 
+import { decode } from "./decode.js"
 import { hook } from "./report.test-support.js"
+import { store } from "./shapes.js"
 import { transcripts } from "./transcripts.js"
 
 const { transcript, parallel, hooks } = loadProbe(import.meta.dirname, "transcript.probe.json") as {
@@ -11,6 +14,21 @@ const { transcript, parallel, hooks } = loadProbe(import.meta.dirname, "transcri
   hooks: { event: string; payload: Report["payload"] }[]
 }
 const items = transcript.flatMap((step) => transcripts.items(JSON.stringify(step)))
+
+describe("a call's arguments", () => {
+  it("reach the chat as the transcript holds them, a string in quotes keeping its quotes", () => {
+    const args = { CommandLine: '"/usr/bin/tool"', Count: "3", WaitMsBeforeAsync: 500 }
+    const [call] = transcripts.items(
+      JSON.stringify({
+        step_index: 1,
+        source: "MODEL",
+        type: "PLANNER_RESPONSE",
+        tool_calls: [{ name: "run_command", args }],
+      }),
+    )
+    expect(JSON.parse(call!.text)).toEqual(args)
+  })
+})
 
 describe("Antigravity's transcript, as captured", () => {
   it("gives the person's request, the agent's words, and each tool's call and result", () => {
@@ -171,5 +189,32 @@ describe("Antigravity's plans, as captured", () => {
       type: "session-observed",
       transcript: expect.stringMatching(/transcript_full\.jsonl$/),
     })
+  })
+})
+
+// `transcript.jsonl` beside it encodes each argument of a call as JSON in a string, which the
+// chat would show, quotes and all. The chat holds nothing to undo that, so only this file will do.
+describe("the transcript read", () => {
+  const logs = "/home/user/.gemini/antigravity-cli/brain/c/.system_generated/logs"
+
+  it("is the file the hook names, as it names it", async () => {
+    const transcriptPath = `${logs}/transcript_full.jsonl`
+    expect(hook("Stop", { transcriptPath })[0]).toMatchObject({ transcript: transcriptPath })
+    await expect(transcripts.locate(transcriptPath, "c", null)).resolves.toBe(transcriptPath)
+  })
+
+  it("is never the one the status line names", () => {
+    const events = decode(
+      hookReport("agy", "StatusLine", {
+        conversation_id: "c",
+        transcript_path: `${logs}/transcript.jsonl`,
+      }),
+    )
+    expect(events.filter((event) => "transcript" in event)).toEqual([])
+  })
+
+  it("is the untruncated file in the store, not the one beside it", () => {
+    expect(store.file.test("c/.system_generated/logs/transcript_full.jsonl")).toBe(true)
+    expect(store.file.test("c/.system_generated/logs/transcript.jsonl")).toBe(false)
   })
 })

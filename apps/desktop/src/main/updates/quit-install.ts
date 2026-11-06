@@ -29,7 +29,8 @@ export const rememberReopen = (wanted: boolean, stopping: boolean): boolean => w
 /**
  * Whether the quitting app opens the new version once it is gone: only when the update was
  * put in place by this quit and a launch was remembered. A quit with no update, or that nobody
- * reopened, leaves the app closed.
+ * reopened, leaves the app closed, as does one whose runner may still be there, which never
+ * asks (see `beforeQuit`).
  */
 export const opensAfterQuit = ({
   placed,

@@ -1,4 +1,5 @@
 import { afterEach, onTestFailed } from "vitest"
+import { userEvent } from "vitest/browser"
 
 import { pageScheme, saveFromAnotherWindow, systemScheme } from "../support/appearance"
 import {
@@ -156,5 +157,116 @@ describe("theme motion", () => {
       expect(getComputedStyle(surface).backgroundColor).not.toBe(light)
       surface.remove()
     })
+  })
+})
+
+describe("A team's wire", () => {
+  // The messages demo with a nested team: Checkout implementation leads Tests and Runtime.
+  const tabOf = (name: string) =>
+    [...document.querySelectorAll<HTMLElement>("[data-terminal-tab-id]")].find((tab) =>
+      tab
+        .querySelector(".sidebar-item-select")
+        ?.getAttribute("aria-label")
+        ?.startsWith(`Select ${name}`),
+    )!
+  const laidOut = (name: string) => tabOf(name).getClientRects().length > 0
+  const gutter = () => document.querySelector<HTMLElement>("[data-team-wire-gutter]")
+  const foldRow = (name: string) =>
+    document.querySelector<HTMLElement>(
+      `[data-team-fold-row="${tabOf(name).getAttribute("data-terminal-tab-id")!}"]`,
+    )!
+  // Where the lit wires end as drawn this frame, their entrance included.
+  const litBottom = () =>
+    Math.max(
+      ...[...document.querySelectorAll(".team-wire-shape[data-lit] > .team-wire-segment")].map(
+        (segment) => segment.getBoundingClientRect().bottom,
+      ),
+    )
+  // Past the fold's motion and the wire's entrance.
+  const settled = () => new Promise((done) => setTimeout(done, 800))
+  // How far the lit wires reach, frame by frame, from `act` to the end of their entrance, however
+  // late a slow runner paints it: half a second past its first frame and any hold.
+  const reachWhile = (act: () => void) =>
+    new Promise<number>((done) => {
+      act()
+      let start: number | undefined
+      let furthest = 0
+      const step = (now: number) => {
+        if (start === undefined || document.querySelector(".team-wire[data-holding]")) start = now
+        furthest = Math.max(furthest, litBottom())
+        if (now - start < 500) requestAnimationFrame(step)
+        else done(furthest)
+      }
+      requestAnimationFrame(step)
+    })
+
+  it("draws no further than it ends, moving from one folded teammate to another", async () => {
+    await openWorkspace("/?demo=messages&nested=on")
+    await terminalTab("Dev server").click()
+    await expect.poll(gutter).not.toBeNull()
+    await userEvent.hover(gutter()!)
+    await userEvent.click(gutter()!)
+    await expect.poll(() => laidOut("Runtime")).toBe(false)
+    await userEvent.click(foldRow("Tests"))
+    await expect.poll(() => laidOut("Tests")).toBe(true)
+    await settled()
+    // The first teammate shown swaps nothing, so its wire draws at once.
+    expect(document.querySelector(".team-wire")!.hasAttribute("data-holding")).toBe(false)
+    const moveTo = async (name: string) => {
+      const reached = await reachWhile(() => foldRow(name).click())
+      await settled()
+      expect(reached).toBeLessThanOrEqual(litBottom() + 1)
+    }
+    // Both ways, as the tab going away may stand above the one coming or below it.
+    await moveTo("Runtime")
+    await moveTo("Tests")
+  })
+
+  it("drops a teammate's tick at once as its team folds around the selected one", async () => {
+    await openWorkspace("/?demo=messages&nested=on")
+    await terminalTab("Runtime").click()
+    await expect.poll(gutter).not.toBeNull()
+    await settled()
+    await userEvent.hover(gutter()!)
+    await settled()
+    const ticks = () =>
+      document.querySelectorAll(".team-wire-shape[data-lit] > .team-wire-tap").length
+    // Only the selected teammate's: no tick rides a collapsing tab, wherever the list stands.
+    const most = await new Promise<number>((done) => {
+      gutter()!.click()
+      let start: number | undefined
+      let furthest = 0
+      const step = (now: number) => {
+        start ??= now
+        furthest = Math.max(furthest, ticks())
+        if (now - start < 400) requestAnimationFrame(step)
+        else done(furthest)
+      }
+      requestAnimationFrame(step)
+    })
+    expect(most).toBe(1)
+    expect(laidOut("Runtime")).toBe(true)
+  })
+
+  it("ends a hold as its tab leaves, with its team's wire out of view", async () => {
+    await openWorkspace("/?demo=messages&nested=on")
+    await terminalTab("Dev server").click()
+    await expect.poll(gutter).not.toBeNull()
+    await userEvent.hover(gutter()!)
+    await userEvent.click(gutter()!)
+    await expect.poll(() => laidOut("Runtime")).toBe(false)
+    await userEvent.click(foldRow("Runtime"))
+    await expect.poll(() => laidOut("Runtime")).toBe(true)
+    await settled()
+    // Nothing of the team shows, so nothing about the wires changes as Runtime's tab leaves.
+    const list = document.querySelector<HTMLElement>(".terminal-tab-list")!
+    list.style.flex = "none"
+    list.style.height = "40px"
+    list.scrollTop = list.scrollHeight
+    await settled()
+    const wire = document.querySelector(".team-wire")!
+    tabOf("Dev server").querySelector<HTMLElement>(".sidebar-item-select")!.click()
+    await expect.poll(() => wire.hasAttribute("data-holding")).toBe(true)
+    await expect.poll(() => wire.hasAttribute("data-holding")).toBe(false)
   })
 })

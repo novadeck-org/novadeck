@@ -66,7 +66,15 @@ import { livePages } from "./pages.js"
 import { portableInstaller, registerPortableIpc } from "./portable/installer.js"
 import { portableLaunch } from "./portable/launch.js"
 import { registerPortableLinksIpc, shownPath } from "./portable/links.js"
-import { quitOnShutdown, saveBeforeClose, saveOnSessionEnd, savePages } from "./quit.js"
+import {
+  beforeQuit,
+  quitOnShutdown,
+  saveBeforeClose,
+  saveOnSessionEnd,
+  savePages,
+  shutDownInOrder,
+  type QuitSteps,
+} from "./quit.js"
 import { notQuitting } from "./quitting.js"
 import {
   developmentOrigin,
@@ -76,7 +84,7 @@ import {
   voiceEngine,
   waitForUi,
 } from "./resources.js"
-import { logRunnerEvents, startRunner, type RunnerProcess } from "./runner.js"
+import { logRunnerEvents, startRunner, type RunnerEnd, type RunnerProcess } from "./runner.js"
 import { registerSandboxIpc, sandboxState } from "./sandbox.js"
 import { loadTranscriptKey } from "./transcript-key.js"
 import { buildFacts } from "./updates/build.js"
@@ -303,15 +311,15 @@ const saveWindows = (windows: readonly BrowserWindow[]): Promise<void> =>
     timeoutMs: saveBeforeQuitMs,
   })
 
-// What quitting and restarting into an update both run: every page saves before the runner
-// ends its shells, so the saves name what still runs.
-const shutDown = async (): Promise<void> => {
-  // On Windows the runner hears at once that the app is going, as at the session's end, so
-  // no agent the system ends meanwhile counts as ended by the person.
-  if (process.platform === "win32") runner?.persist()
-  await saveWindows(appWindows())
-  await Promise.allSettled([runner?.close(), server?.close()])
-}
+// What quitting and the uninstall both run.
+const shutDown = (): Promise<RunnerEnd> =>
+  shutDownInOrder({
+    platform: process.platform,
+    persist: () => runner?.persist(),
+    save: () => saveWindows(appWindows()),
+    closeRunner: () => runner?.close(),
+    closeServer: () => server?.close(),
+  })
 
 // The page's Inbox count on the app's icon, as this platform shows one.
 const badgeOf = (window: BrowserWindow, badge: DesktopBadge): void =>
@@ -762,21 +770,20 @@ app.whenReady().then(() => {
   })
 })
 
-app.on("before-quit", (event) => {
-  // The quit already under way ends the app once the update is in place.
-  if (updates.holdsQuit()) return event.preventDefault()
-  if (!quitting.stopping)
-    log.info("app.quit", "The app is quitting.", { data: { orderly: quitting.orderly } })
-  updates.quitBegins()
-  if ((!server && !runner) || quitting.stopping) return
-
-  event.preventDefault()
-  quitting.stopping = true
-  void shutDown()
-    .then(updates.installMacUpdateOnQuit)
-    .then(updates.openAppImageAfterQuit)
-    .finally(() => app.quit())
-})
+const quitSteps: QuitSteps = {
+  quitting,
+  held: updates.holdsQuit,
+  announce: () =>
+    log.info("app.quit", "The app is quitting.", { data: { orderly: quitting.orderly } }),
+  begin: updates.quitBegins,
+  hosting: () => Boolean(server || runner),
+  shutDown,
+  installMacUpdate: updates.installMacUpdateOnQuit,
+  reopenAppImage: updates.openAppImageAfterQuit,
+  keepUpdate: updates.keepUpdateOnQuit,
+  quit: () => app.quit(),
+}
+app.on("before-quit", (event) => void beforeQuit(event, quitSteps))
 
 app.on("window-all-closed", () => {
   quitting.orderly = true
