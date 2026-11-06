@@ -43,7 +43,7 @@ import {
   windowSize,
 } from "./geometry"
 import { createNodeVisibility } from "./nodeVisibility"
-import { beginStay, continueStay, moveInStay, stayPlaces, type CanvasStay } from "./stay"
+import { beginStay, continueStay, moveInStay, samePoint, stayPlaces, type CanvasStay } from "./stay"
 import { NodeVisibilityContext, TerminalContent, nodeTypes } from "./TerminalNode"
 import type {
   CanvasProps,
@@ -70,9 +70,6 @@ const glideMs = 160
 const unmeasured = { width: 1280, height: 800 }
 
 const origin: Readonly<XYPosition> = { x: 0, y: 0 }
-
-const samePoint = (a: XYPosition | undefined, b: XYPosition | undefined): boolean =>
-  a?.x === b?.x && a?.y === b?.y
 
 const TerminalCanvas = ({
   layout,
@@ -188,16 +185,15 @@ const TerminalCanvas = ({
   // paint, and its windows mount where it puts them.
   const stay = useRef<CanvasStay | null>(null)
   const [opened, setOpened] = useState<ReadonlyMap<string, XYPosition> | null>(null)
-  // Whether it opens as it was left: only then does it keep the camera it was left with.
-  const [restored] = useState(() => revealOnMount && held.kept(reordered) !== undefined)
+  // The stay it opens as it was left with, if it does: only then does it keep that camera.
+  const [kept] = useState(() => (revealOnMount ? held.kept(reordered) : undefined))
   useLayoutEffect(() => {
     if (stay.current) return
-    const kept = restored ? held.kept(reordered) : undefined
     const first = kept ? continueStay(kept, tiles) : beginStay(tiles, room())
     stay.current = first
     held.keep(first, reordered)
     setOpened(stayPlaces(first))
-  }, [held, reordered, restored, room, tiles])
+  }, [held, kept, reordered, room, tiles])
   // The sidebar's order the windows were last arranged afresh for.
   const arrangedFor = useRef(reordered)
   const knownTerminals = useRef(new Set(terminals.map((terminal) => terminal.id)))
@@ -297,7 +293,7 @@ const TerminalCanvas = ({
     hidden,
     fitOnNavigate,
     flyOnNavigate,
-    revealOnMount: restored,
+    restored: kept !== undefined,
     initialViewport,
     viewportSize,
     container,
@@ -459,12 +455,14 @@ const TerminalCanvas = ({
     stay.current = next
     held.keep(next, reordered)
     const arranged = stayPlaces(next)
-    // A hidden terminal looked at is shown where it would go, last in the block, unless
-    // this stay still has the place it had; the stay itself keeps nothing of it.
-    const places =
+    // A hidden terminal looked at is shown where it would go if it were shown, unless this
+    // stay still has the place it had. Only its own place is taken from that: the stay
+    // keeps nothing of it, and no other window moves for it.
+    const shown =
       preview && !arranged.has(preview)
-        ? new Map([...arranged, ...stayPlaces(continueStay(next, [...tiles, { id: preview }]))])
-        : arranged
+        ? stayPlaces(continueStay(next, [...tiles, { id: preview }])).get(preview)
+        : undefined
+    const places = shown ? new Map(arranged).set(preview, shown) : arranged
     // A window that opened is revealed where the canvas put it, if that is out of sight.
     for (const terminal of terminals) {
       if (knownTerminals.current.has(terminal.id)) continue
@@ -533,10 +531,10 @@ const TerminalCanvas = ({
         }
         const current = existing.get(terminal.id)
         if (!current) return placed
-        const kept = dragging.current.has(terminal.id)
+        const positioned = dragging.current.has(terminal.id)
           ? { ...placed, position: current.position }
           : placed
-        return current.className ? { ...kept, className: current.className } : kept
+        return current.className ? { ...positioned, className: current.className } : positioned
       })
     })
     // A window dropped from a taskbar glides onto the grid from where its ghost was.

@@ -22,8 +22,10 @@ import type { createCanvasVisit } from "./visit"
 
 type NavigationProps = Pick<
   CanvasProps,
-  "navigation" | "selected" | "hidden" | "fitOnNavigate" | "flyOnNavigate" | "revealOnMount"
+  "navigation" | "selected" | "hidden" | "fitOnNavigate" | "flyOnNavigate"
 > & {
+  // The canvas opens as it was left (Canvas.tsx): it keeps the camera it was left with.
+  restored: boolean
   initialViewport: CanvasViewport | undefined
   // Read when needed: it changes every frame while the sidebar slides.
   viewportSize: () => { width: number; height: number }
@@ -58,14 +60,13 @@ const focusButtonInView = (
 }
 
 // Sidebar navigation and new-terminal revelation preserve zoom unless fitting is requested.
-// `revealOnMount` here says the canvas opens as it was left (Canvas.tsx's `restored`).
 export const useCanvasNavigation = ({
   navigation,
   selected,
   hidden,
   fitOnNavigate,
   flyOnNavigate,
-  revealOnMount,
+  restored,
   initialViewport,
   viewportSize,
   container,
@@ -76,15 +77,12 @@ export const useCanvasNavigation = ({
 }: NavigationProps) => {
   const { fitView, getNode, getViewport, setCenter } = useReactFlow<TerminalNode>()
   const initialized = useNodesInitialized()
-  // Canvas sets its camera as it opens (below); only new sidebar requests recenter it. One
-  // that flies is left for the windows to be measured, and flies from that camera.
-  const lastNavigation = useRef(initialViewport && !flyOnNavigate ? navigation : 0)
-  // Whether the canvas has set its first camera (below): no navigation moves it before.
-  const cameraSet = useRef(false)
+  // Canvas sets its camera as it opens (below), and flies from there to a terminal gone to
+  // from outside; only new sidebar requests recenter it.
+  const lastNavigation = useRef(navigation)
   useEffect(() => {
     if (
       !initialized ||
-      !cameraSet.current ||
       navigation === lastNavigation.current ||
       hidden[selected] ||
       !getNode(selected)
@@ -146,17 +144,15 @@ export const useCanvasNavigation = ({
   // to from Focus by a window's own button, it is as it was left instead: it keeps that
   // camera, or brings the terminal it comes back on to the middle unless its Focus button is
   // in sight. A terminal gone to from outside the canvas is flown in to from the framing:
-  // from here, once that camera is set, as the navigation above waits for this.
+  // from here, once that camera is set.
   const initializeViewport = (instance: ReactFlowInstance<TerminalNode>) => {
-    cameraSet.current = true
     // Taken whichever camera this sets, or keeps: from here, a sheet opening frames itself.
     const sheets = takeEntrySheets()
-    const framing = !revealOnMount || flyOnNavigate
+    const framing = !restored || flyOnNavigate
     if (!container.current) return
-    const selectedNode = navigation && !framing ? instance.getNode(selected) : undefined
+    const selectedNode = framing ? undefined : instance.getNode(selected)
     const target = selectedNode?.hidden ? undefined : selectedNode
     if (initialViewport && target && !fitOnNavigate) {
-      lastNavigation.current = navigation
       // One whose Focus button is still in sight keeps the camera it was left with, as on
       // coming back from Focus to where it was opened from.
       if (focusButtonInView(target, initialViewport, container.current)) return
@@ -175,7 +171,6 @@ export const useCanvasNavigation = ({
       bounds.width = Math.max(bounds.width, own.x + own.width + sheet.right - bounds.x)
       bounds.height = Math.max(bounds.height, own.y + sheet.height - bounds.y)
     }
-    lastNavigation.current = navigation
     // Compute the first camera before a view-transition snapshot, without waiting for paint.
     const framed = instance.setViewport(
       getViewportForBounds(

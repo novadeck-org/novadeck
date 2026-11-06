@@ -1,6 +1,5 @@
 import { isOnBar, kindRules, windowOfItem, type ItemId } from "@novadeck/core/items"
 import { addCompactGridTerminal } from "@novadeck/core/layout/grid-placement"
-import { canvasWindowSize } from "@novadeck/core/layout/terminal-size"
 import {
   droppedCanvasGeometry,
   dropOnGrid,
@@ -42,7 +41,7 @@ export const createCompanionCommands = (
         ? {
             type: "canvas/layout",
             target,
-            layout: (canvas) => moveOnCanvas(canvas, id, place.canvas, canvasWindowSize),
+            layout: (canvas) => moveOnCanvas(canvas, id, place.canvas),
           }
         : {
             type: "grid/layouts",
@@ -80,7 +79,7 @@ export const createCompanionCommands = (
             window,
             gridLayouts: place && "grid" in place ? dropOnGrid(grid, window.id, place.grid) : grid,
             ...(place && "canvas" in place
-              ? { canvasGeometry: droppedCanvasGeometry(place.canvas, canvasWindowSize) }
+              ? { canvasGeometry: droppedCanvasGeometry(place.canvas) }
               : {}),
           },
         ],

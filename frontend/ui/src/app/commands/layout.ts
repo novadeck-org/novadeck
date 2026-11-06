@@ -48,9 +48,8 @@ export const createLayoutCommands = ({
     ),
   reorder: (target, tabOrder) => {
     const before = workspace.getSnapshot()
-    workspace.dispatch({ type: "terminal/reorder", target, tabOrder })
     // Canvas arranges its windows by this order, afresh once it has changed.
-    if (workspace.getSnapshot() !== before)
+    if (workspace.dispatch({ type: "terminal/reorder", target, tabOrder }) !== before)
       ui.update((state) => ({ ...state, shell: markReordered(state.shell) }))
   },
 })

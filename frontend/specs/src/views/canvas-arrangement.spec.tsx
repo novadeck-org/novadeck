@@ -258,6 +258,23 @@ describe("Canvas's arrangement", () => {
     })
   })
 
+  context("when a hidden lead is looked at from the sidebar", () => {
+    it("leaves its team where it is", async () => {
+      // The messages demo: Checkout implementation leads Checkout review.
+      await openMessagesDemo()
+      await visibilityToggle("Checkout implementation", "Hide").click()
+      const rest = storefront.filter((name) => name !== "Checkout implementation")
+      await openCanvas(rest)
+      const before = placesFrom(rest, "Dev server")
+
+      await hiddenTerminalTab("Checkout implementation").click()
+      await expect.element(terminal("Checkout implementation")).toBeVisible()
+
+      const during = await settled(() => placesFrom(rest, "Dev server"))
+      expect(samePlaces(during, before)).toBe(true)
+    })
+  })
+
   context("when looking for ways to rearrange the windows by hand", () => {
     it("offers no resize corner, and gives every window the same size", async () => {
       await openWorkspace()

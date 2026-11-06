@@ -23,7 +23,7 @@ export const beginStay = (tiles: readonly Arranged[], room: Room): CanvasStay =>
   moved: {},
 })
 
-const samePoint = (a: XYPosition | undefined, b: XYPosition | undefined): boolean =>
+export const samePoint = (a: XYPosition | undefined, b: XYPosition | undefined): boolean =>
   a?.x === b?.x && a?.y === b?.y
 
 // The stay once the canvas's windows have changed: what grew is placed, and a window the
