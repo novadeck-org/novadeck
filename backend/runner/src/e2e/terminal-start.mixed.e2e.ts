@@ -18,8 +18,9 @@ const rounds = 3
 
 const order = [claude, codex, agy]
 
-// The screen a restored terminal draws first: colours on every other cell, past what a saved
-// transcript keeps (256 K characters), and a last line that says it all came.
+// The screen a restored terminal draws first: colours on every other cell, more than a saved
+// transcript keeps (256 K characters, cut by whole halves of its scrollback, so about 220 K
+// here), and a last line that says it all came.
 const colourful = (): string =>
   `${Array.from({ length: 1_200 }, (_, line) =>
     Array.from({ length: 58 }, (__, cell) => `\x1b[3${1 + ((line + cell) % 6)}m#-`).join(""),
@@ -134,15 +135,23 @@ describe.runIf(process.platform === "win32" && supported)("a new Windows termina
           const earlier = await deck.open(`type ${size}.txt`)
           // eslint-disable-next-line no-await-in-loop -- As above.
           await drawn(earlier, /printed all/)
+          const { id } = earlier
+          const saved = () => unsealed(deck.store.terminal(id)?.transcript, id)?.length ?? 0
+          // A quit takes the long screen only if its budget allows; a row with none tells nothing.
+          if (size === "long")
+            // eslint-disable-next-line no-await-in-loop -- As above.
+            await poll(
+              () => (saved() > 100_000 ? true : undefined),
+              "the long screen to be saved",
+              60_000,
+            )
           for (let round = 1; round <= rounds; round++) {
             // eslint-disable-next-line no-await-in-loop -- As above.
             await deck.restart()
-            const { id } = earlier
-            const saved = unsealed(deck.store.terminal(id)?.transcript, id)?.length ?? 0
             failures.push(
               // eslint-disable-next-line no-await-in-loop -- As above.
               await timed(
-                `cmd restored, ${saved} characters saved, #${round}`,
+                `cmd restored, ${saved()} characters saved, #${round}`,
                 deck,
                 () => deck.restore(earlier),
                 toPrompt,
@@ -154,6 +163,9 @@ describe.runIf(process.platform === "win32" && supported)("a new Windows termina
           // eslint-disable-next-line no-await-in-loop -- As above.
           await deck.terminals.close({ terminalId: earlier.id })
         }
+      } catch (error) {
+        // The agents' rows still come.
+        failures.push(`cmd restored: ${(error as Error).message}`)
       } finally {
         await deck.close()
       }
