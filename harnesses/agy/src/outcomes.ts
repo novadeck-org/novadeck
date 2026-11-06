@@ -6,10 +6,10 @@ import type { ToolOutcome } from "@novadeck/protocol"
 // The times each result step opens with, then what Antigravity itself says of the call, before
 // anything a tool printed (probed 1.2 to 1.5.2).
 const opening = String.raw`^Created At: [^\n]*\n(?:Completed At: [^\n]*\n)?`
-const exitLine = new RegExp(String.raw`${opening}Command exited with code (-?\d+)\.`)
-const readLine = new RegExp(String.raw`${opening}Showing lines (\d+)-(\d+) of \d+`)
+const exitLine = new RegExp(String.raw`${opening}Command exited with code (-?\d{1,10})\.`)
+const readLine = new RegExp(String.raw`${opening}Showing lines (\d{1,10})-(\d{1,10}) of \d+`)
 const editLine = new RegExp(
-  String.raw`${opening}Made \d+ replacements? in .+ starting at line \d+ \(\+(\d+)/-(\d+) lines\)\.`,
+  String.raw`${opening}Made \d+ replacements? in .+ starting at line \d+ \(\+(\d{1,10})/-(\d{1,10}) lines\)\.`,
 )
 
 /**
@@ -32,6 +32,7 @@ export const stepOutcome = (
   const edit = editLine.exec(content)
   return outcome({
     failed: false,
+    opening: read !== null || edit !== null,
     size: read ? { count: Math.max(0, Number(read[2]) - Number(read[1]) + 1), unit: "line" } : null,
     // The counts alone: the call's input has the lines.
     change: edit ? { ...changeOf([]), added: Number(edit[1]), removed: Number(edit[2]) } : null,

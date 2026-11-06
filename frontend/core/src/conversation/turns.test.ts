@@ -36,6 +36,7 @@ const told = (fields: Partial<ToolOutcome>): ToolOutcome => ({
   running: false,
   size: null,
   change: null,
+  opening: false,
   ...fields,
 })
 
@@ -50,9 +51,14 @@ describe("a tool call's outcome", () => {
   } as const
   const edit = (id: string) => ({ ...call("Edit", id), outcome: told({ change }) })
 
+  const bash = (id: string) => ({
+    ...call("Bash", id),
+    run: { kind: "run", title: "Ran", detail: "" } as const,
+  })
+
   it("comes from its result", () => {
     const [entry] = entriesOf([
-      call("Bash", "a"),
+      bash("a"),
       { ...result("a"), outcome: told({ failed: true, exit: 3 }) },
     ])
     expect(entry!.outcome).toEqual(told({ failed: true, exit: 3 }))
@@ -72,8 +78,11 @@ describe("a tool call's outcome", () => {
     expect(entry!.outcome).toEqual(told({ failed: false, change }))
   })
 
-  it("keeps a change whose result says nothing", () => {
-    expect(entriesOf([edit("a"), result("a")])[0]!.outcome).toEqual(told({ change }))
+  it("holds an input's change as a plan until the result says it went well", () => {
+    expect(entriesOf([edit("a"), result("a", "patch rejected")])[0]!.outcome).toBeNull()
+    expect(
+      entriesOf([edit("a"), { ...result("a"), outcome: told({ running: true }) }])[0]!.outcome,
+    ).toEqual(told({ running: true }))
   })
 
   it("is nothing yet while the call runs: its input's change is no result", () => {
@@ -103,6 +112,38 @@ describe("a tool call's outcome", () => {
     expect(entriesOf([{ ...result("a"), outcome }])[0]!.outcome).toEqual(outcome)
   })
 
+  it("drops a failed change there too", () => {
+    const outcome = told({ failed: true, change })
+    expect(entriesOf([{ ...result("a"), outcome }])[0]!.outcome).toEqual(told({ failed: true }))
+  })
+
+  describe("from the words a result opens with", () => {
+    const worded = told({ failed: true, exit: 3, opening: true })
+    const of = (kind: "run" | "other") =>
+      entriesOf([
+        { ...call("Tool", "a"), run: { kind, title: "Tool", detail: "" } },
+        { ...result("a"), outcome: worded },
+      ])[0]!.outcome
+
+    it("holds for a tool of the harness's own", () => {
+      expect(of("run")).toEqual(worded)
+    })
+
+    it("is another tool's printing, so nothing", () => {
+      expect(of("other")).toBeNull()
+    })
+
+    it("is nothing where its call isn't among the items", () => {
+      expect(entriesOf([{ ...result("a"), outcome: worded }])[0]!.outcome).toBeNull()
+    })
+  })
+
+  it("keeps a mark on any tool, but a code only on a command's", () => {
+    const outcome = told({ failed: true, exit: 5 })
+    const [entry] = entriesOf([call("mcp", "a"), { ...result("a"), outcome }])
+    expect(entry!.outcome).toEqual(told({ failed: true }))
+  })
+
   it("stays on a result paired by being the latest", () => {
     const outcome = told({ failed: false })
     const [entry] = entriesOf([call("Bash", null), { ...result(null), outcome }])
@@ -112,7 +153,7 @@ describe("a tool call's outcome", () => {
   it("makes another block of another outcome, so the chat draws it", () => {
     const blockOf = (outcome: ToolOutcome) =>
       groupItems([
-        { ...call("Bash", "a"), id: "c" },
+        { ...bash("a"), id: "c" },
         { ...result("a"), id: "r", outcome },
       ])[0]!
     expect(sameBlock(blockOf(told({ exit: 0 })), blockOf(told({ exit: 0 })))).toBe(true)

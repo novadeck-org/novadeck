@@ -19,7 +19,9 @@ export const lastReply = async (path: string, items: Items): Promise<string | un
   const lines = await tailLines(path)
   let reply: string | undefined
   for (const line of lines ?? [])
-    for (const { role, kind, text } of items(line)) {
+    for (const { role, kind, text, scripted } of items(line)) {
+      // A command of a script may end after the agent's last words: no step of the agent's.
+      if (scripted) continue
       if (role === "user" || role === "tool" || kind === "tool-call") reply = undefined
       else if (role === "assistant" && kind === "text" && text.trim()) reply = text
     }

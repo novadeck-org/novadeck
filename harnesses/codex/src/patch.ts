@@ -1,4 +1,4 @@
-import { addedFile, changeOf, joinedChange } from "@novadeck/harness-core/outcomes"
+import { changeOf, joinedChange } from "@novadeck/harness-core/outcomes"
 import { flavourOf } from "@novadeck/harness-core/paths"
 import type { ToolChange } from "@novadeck/protocol"
 
@@ -19,7 +19,8 @@ const filePart = /^\*\*\* (Add|Update|Delete) File: [^\n]*\r?\n/gm
 const partChange = (kind: string, body: string): ToolChange | undefined => {
   const lines = body.split(/\r?\n/)
   if (lines.at(-1) === "") lines.pop()
-  if (kind === "Add") return addedFile(lines.map((line) => line.slice(1)).join("\n"))
+  if (kind === "Add")
+    return changeOf(lines.map((line, at) => ({ sign: "+", text: line.slice(1), line: at + 1 })))
   if (kind !== "Update") return undefined
   return changeOf(
     lines.flatMap((line) => {

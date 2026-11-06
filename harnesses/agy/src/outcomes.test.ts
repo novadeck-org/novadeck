@@ -21,6 +21,23 @@ describe("what an Antigravity result step says", () => {
     ).toMatchObject({ failed: false, exit: 0 })
   })
 
+  it("marks what it read from a step's opening words, but no status", () => {
+    expect(stepOutcome("DONE", undefined, `${times}Command exited with code 3.`)?.opening).toBe(
+      true,
+    )
+    expect(stepOutcome("DONE", undefined, `${times}Showing lines 1-2 of 2\n`)?.opening).toBe(true)
+    expect(stepOutcome("ERROR", "no", times)?.opening).toBe(false)
+    expect(stepOutcome("DONE", undefined, `${times}Created file.`)?.opening).toBe(false)
+  })
+
+  it("takes no number too long to be one, which the protocol would refuse", () => {
+    const nines = "9".repeat(20)
+    expect(
+      stepOutcome("DONE", undefined, `${times}Command exited with code ${nines}.`),
+    ).toMatchObject({ exit: null })
+    expect(stepOutcome("DONE", undefined, `${times}Showing lines 1-${nines} of 2`)?.size).toBeNull()
+  })
+
   it("takes nothing from what a command printed or a file holds", () => {
     expect(
       stepOutcome(

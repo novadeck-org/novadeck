@@ -9,7 +9,7 @@ import { fileList, shellCall } from "@novadeck/harness-core/tools"
 
 import { asyncReplyText } from "./async-question.js"
 import { callChange, commandOutcome, fileChangeOutcome, outputOutcome } from "./outcomes.js"
-import { describe } from "./tools.js"
+import { describe, scriptOf } from "./tools.js"
 
 // Context Codex writes into the conversation as the person's message; the note that tells
 // the model a turn was interrupted, which 0.166.0 writes as the person's (0.165.0 and before
@@ -131,6 +131,12 @@ const interruption = (fields: Fields): readonly TranscriptEntry[] => {
     : []
 }
 
+// One file of a `FileChange` as a person reads a call: its path, then its diff or its text.
+const changeText = ([path, change]: readonly [string, unknown]): string => {
+  const { unified_diff: diff, content } = (change ?? {}) as Fields
+  return [path, stringOf(diff) ?? stringOf(content) ?? ""].join("\n")
+}
+
 // A command or a patch a script of the agent's ran (`exec`, code mode, every model Codex lists
 // since 0.16x), which Codex records as an event of its own, under an id of its own: no tool
 // call, and nothing that names the script's. A call of the agent's own has its call's id on
@@ -145,7 +151,7 @@ const scripted = (fields: Fields): readonly TranscriptEntry[] => {
   const row = { at: time, call: item.id, scripted: true }
   if (item.type === "CommandExecution") {
     return [
-      entry("assistant", "tool-call", JSON.stringify({ command: item.command }), {
+      entry("assistant", "tool-call", JSON.stringify({ cmd: scriptOf(item) }), {
         ...row,
         tool: "exec_command",
         describe,
@@ -157,9 +163,10 @@ const scripted = (fields: Fields): readonly TranscriptEntry[] => {
     ]
   }
   if (item.type === "FileChange") {
-    const files = Object.keys((item.changes ?? {}) as Fields)
+    const changes = Object.entries((item.changes ?? {}) as Fields)
+    const files = changes.map(([path]) => path)
     return [
-      entry("assistant", "tool-call", JSON.stringify(item.changes ?? {}), {
+      entry("assistant", "tool-call", changes.map(changeText).join("\n"), {
         ...row,
         tool: "apply_patch",
         describe: () => ({ kind: "write", title: "Patched", detail: fileList(files) }),

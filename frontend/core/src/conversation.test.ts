@@ -31,6 +31,7 @@ describe("the core's ToolOutcome", () => {
       running: false,
       size: { count: 6, unit: "line" },
       change: { added: 1, removed: 0, lines: [{ sign: "+", text: "a", line: 1 }] },
+      opening: true,
     } as const
     expect(fromProtocol(toProtocol(outcome))).toEqual(outcome)
   })

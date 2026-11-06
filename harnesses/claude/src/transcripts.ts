@@ -1,6 +1,6 @@
 import { dirname, join } from "node:path"
 
-import { parseFields } from "@novadeck/harness-core/fields"
+import { isFields, parseFields } from "@novadeck/harness-core/fields"
 import type { TranscriptDecoder, TranscriptEntry } from "@novadeck/harness-core/harness"
 import { at, entry, joined, textOf } from "@novadeck/harness-core/items"
 import { shellCall } from "@novadeck/harness-core/tools"
@@ -172,6 +172,8 @@ export const transcripts: TranscriptDecoder = {
     const content = (fields.message as { content?: unknown } | undefined)?.content
     if (typeof content === "string") return textItems(role, content, time, fields)
     const parts = Array.isArray(content) ? content : []
+    // The record's detail of a result speaks for one result alone.
+    const results = parts.filter((part) => isFields(part) && part.type === "tool_result")
     return parts.flatMap((part) => {
       const {
         type,
@@ -203,11 +205,10 @@ export const transcripts: TranscriptDecoder = {
           entry("tool", "tool-result", output, {
             at: time,
             call,
-            // The record's detail of a result, which speaks for it alone.
             outcome: outcomeOf(
               failed === true,
               output,
-              parts.length === 1 ? fields.toolUseResult : undefined,
+              results.length === 1 ? fields.toolUseResult : undefined,
             ),
           }),
         ]

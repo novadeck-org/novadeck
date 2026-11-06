@@ -1,4 +1,4 @@
-import type { ChatItem, ToolOutcome, ToolRun } from "../conversation"
+import type { ChatItem, ToolChange, ToolOutcome, ToolRun } from "../conversation"
 import { harnesses } from "../harnesses"
 import type { AgentStatus } from "../types"
 import { counted } from "../units"
@@ -26,8 +26,8 @@ export type ToolEntry = {
   readonly result: ToolResult | null
   // What came of it, once it has a result; null where its harness doesn't say.
   readonly outcome: ToolOutcome | null
-  // Whether the harness made it inside a script of the agent's: the script's own entry is
-  // the one before it that isn't.
+  // Whether the harness made it inside a script of the agent's. Nothing names the script: it
+  // came before, and one that outlived its script may land after other entries.
   readonly scripted: boolean
 }
 
@@ -64,25 +64,33 @@ const asResult = (item: ChatItem): ToolResult => ({
   truncated: item.truncated,
 })
 
-// One outcome of what a call's input said and what its result says, which outranks it.
-// Nothing is known of a call with no result yet, and a change that failed never landed. A result
-// may count a change whose lines only the call's input has.
-const outcomeOf = (call: ChatItem, result: ChatItem | undefined): ToolOutcome | null => {
-  if (!result) return null
-  const said = result.outcome
-  const planned = call.outcome?.change ?? null
-  if (!said && !planned) return null
-  const told = said?.change ?? null
-  const counts = told ?? planned
+// What a harness's own tools do: only they have it write the words a result opens with, or
+// a command's code. Any other tool's output may print the same.
+const ownTool = (run: ToolRun | null): boolean =>
+  run?.kind === "run" || run?.kind === "read" || run?.kind === "write"
+
+// One outcome of what a call's input said and what its result says, which outranks it. The
+// input's change is only a plan until the result says it went well; a change that failed never
+// landed. A result may count a change whose lines only the input has.
+const outcomeOf = (
+  run: ToolRun | null,
+  planned: ToolChange | null,
+  result: ChatItem,
+): ToolOutcome | null => {
+  const own = ownTool(run)
+  const said = result.outcome?.opening && !own ? null : result.outcome
+  const failed = said?.failed ?? null
+  const landed = failed === false ? planned : null
+  const told = failed === true ? null : (said?.change ?? null)
+  const counts = told ?? landed
+  if (!said && !counts) return null
   return {
-    failed: said?.failed ?? null,
-    exit: said?.exit ?? null,
+    failed,
+    exit: own ? (said?.exit ?? null) : null,
     running: said?.running ?? false,
     size: said?.size ?? null,
-    change:
-      said?.failed === true || !counts
-        ? null
-        : { ...counts, lines: told?.lines.length ? told.lines : (planned?.lines ?? []) },
+    change: counts && { ...counts, lines: told?.lines.length ? told.lines : (landed?.lines ?? []) },
+    opening: said?.opening ?? false,
   }
 }
 
@@ -118,7 +126,7 @@ export const groupItems = (items: readonly ChatItem[]): readonly ChatBlock[] => 
         input: item.text,
         truncated: item.truncated,
         result: result ? asResult(result) : null,
-        outcome: outcomeOf(item, result),
+        outcome: result ? outcomeOf(item.run, item.outcome?.change ?? null, result) : null,
         scripted: item.scripted,
       })
       continue
@@ -131,7 +139,7 @@ export const groupItems = (items: readonly ChatItem[]): readonly ChatBlock[] => 
         open.run[open.run.length - 1] = {
           ...last,
           result: asResult(item),
-          outcome: item.outcome,
+          outcome: outcomeOf(last.run, null, item),
         }
         continue
       }
@@ -143,7 +151,7 @@ export const groupItems = (items: readonly ChatItem[]): readonly ChatBlock[] => 
         input: "",
         truncated: false,
         result: asResult(item),
-        outcome: item.outcome,
+        outcome: outcomeOf(null, null, item),
         scripted: item.scripted,
       })
       continue

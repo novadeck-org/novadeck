@@ -50,28 +50,28 @@ tools: Patched [write] · new.txt | Call: apply_patch: 7 lines: *** Begin Patch 
 tools: Patched [write] · moved.txt | Call: apply_patch: 3 lines: *** Begin Patch → 5 lines: Exit code: 0
 
 # code mode: command-passes
-tools: Ran [run] · text(await tools.exec_command({cmd:"echo hello"})); | Call: exec: 1 line: text(await tools.exec_command({cmd:"echo hello"… → 5 lines: Script completed; Ran [run] · echo hello | Call: exec_command: 1 line: ["/bin/bash","-lc","echo hello"] → 1 line: hello
+tools: Ran [run] · text(await tools.exec_command({cmd:"echo hello"})); | Call: exec: 1 line: text(await tools.exec_command({cmd:"echo hello"… → 5 lines: Script completed; Ran [run] · echo hello | Call: exec_command: 1 line: echo hello → 1 line: hello
 
 # code mode: command-fails
-tools: Ran [run] · text(await tools.exec_command({cmd:"exit 3"})); | Call: exec: 1 line: text(await tools.exec_command({cmd:"exit 3"})); → 5 lines: Script completed; Ran [run] · exit 3 | Call: exec_command: 1 line: ["/bin/bash","-lc","exit 3"] → empty
+tools: Ran [run] · text(await tools.exec_command({cmd:"exit 3"})); | Call: exec: 1 line: text(await tools.exec_command({cmd:"exit 3"})); → 5 lines: Script completed; Ran [run] · exit 3 | Call: exec_command: 1 line: exit 3 → empty
 
 # code mode: script-fails
 tools: Ran [run] · throw new Error("boom in the script"); | Call: exec: 1 line: throw new Error("boom in the script"); → 7 lines: Script failed
 
 # code mode: two-commands
-tools: Ran [run] · const r = await Promise.allSettled([tools.exec_command({cmd:"echo one"}), tools.exec_command({cmd:"cat missing.txt"})]); | Call: exec: 2 lines: const r = await Promise.allSettled([tools.exec_… → 6 lines: Script completed; Ran [run] · cat missing.txt | Call: exec_command: 1 line: ["/bin/bash","-lc","cat missing.txt"] → 1 line: cat: missing.txt: No such file or directory; Ran [run] · echo one | Call: exec_command: 1 line: ["/bin/bash","-lc","echo one"] → 1 line: one
+tools: Ran [run] · const r = await Promise.allSettled([tools.exec_command({cmd:"echo one"}), tools.exec_command({cmd:"cat missing.txt"})]); | Call: exec: 2 lines: const r = await Promise.allSettled([tools.exec_… → 6 lines: Script completed; Ran [run] · cat missing.txt | Call: exec_command: 1 line: cat missing.txt → 1 line: cat: missing.txt: No such file or directory; Ran [run] · echo one | Call: exec_command: 1 line: echo one → 1 line: one
 
 # code mode: read
-tools: Ran [run] · text(await tools.exec_command({cmd:"cat sample.txt"})); | Call: exec: 1 line: text(await tools.exec_command({cmd:"cat sample.… → 5 lines: Script completed; Ran [run] · cat sample.txt | Call: exec_command: 1 line: ["/bin/bash","-lc","cat sample.txt"] → 6 lines: alpha
+tools: Ran [run] · text(await tools.exec_command({cmd:"cat sample.txt"})); | Call: exec: 1 line: text(await tools.exec_command({cmd:"cat sample.… → 5 lines: Script completed; Ran [run] · cat sample.txt | Call: exec_command: 1 line: cat sample.txt → 6 lines: alpha
 
 # code mode: search
-tools: Ran [run] · text(await tools.exec_command({cmd:"grep -n beta sample.txt"})); | Call: exec: 1 line: text(await tools.exec_command({cmd:"grep -n bet… → 5 lines: Script completed; Ran [run] · grep -n beta sample.txt | Call: exec_command: 1 line: ["/bin/bash","-lc","grep -n beta sample.txt"] → 1 line: 2:beta
+tools: Ran [run] · text(await tools.exec_command({cmd:"grep -n beta sample.txt"})); | Call: exec: 1 line: text(await tools.exec_command({cmd:"grep -n bet… → 5 lines: Script completed; Ran [run] · grep -n beta sample.txt | Call: exec_command: 1 line: grep -n beta sample.txt → 1 line: 2:beta
 
 # code mode: add
-tools: Ran [run] · text(await tools.apply_patch("*** Begin Patch\n*** Add File: new.txt\n+one\n+two\n*** End Patch")); | Call: exec: 1 line: text(await tools.apply_patch("*** Begin Patch\n… → 5 lines: Script completed; Patched [write] · …/user/project/new.txt | Call: apply_patch: 1 line: {"type":"add","content":"one\ntwo\n"} → 2 lines: Success. Updated the following files:
+tools: Ran [run] · text(await tools.apply_patch("*** Begin Patch\n*** Add File: new.txt\n+one\n+two\n*** End Patch")); | Call: exec: 1 line: text(await tools.apply_patch("*** Begin Patch\n… → 5 lines: Script completed; Patched [write] · …/user/project/new.txt | Call: apply_patch: 3 lines: /home/user/project/new.txt → 2 lines: Success. Updated the following files:
 
 # code mode: update
-tools: Ran [run] · text(await tools.apply_patch("*** Begin Patch\n*** Update File: src/auth.ts\n@@\n const a = 1\n-const b = 2\n+const b = 20\n+const bb = 21\n const c = 3\n*** End Patch")); | Call: exec: 1 line: text(await tools.apply_patch("*** Begin Patch\n… → 5 lines: Script completed; Patched [write] · …/project/src/auth.ts | Call: apply_patch: 1 line: {"type":"update","unified_diff":"@@ -1,3 +1,4 @… → 2 lines: Success. Updated the following files:
+tools: Ran [run] · text(await tools.apply_patch("*** Begin Patch\n*** Update File: src/auth.ts\n@@\n const a = 1\n-const b = 2\n+const b = 20\n+const bb = 21\n const c = 3\n*** End Patch")); | Call: exec: 1 line: text(await tools.apply_patch("*** Begin Patch\n… → 5 lines: Script completed; Patched [write] · …/project/src/auth.ts | Call: apply_patch: 7 lines: /home/user/project/src/auth.ts → 2 lines: Success. Updated the following files:
 
 # code mode: no-match
 tools: Ran [run] · text(await tools.apply_patch("*** Begin Patch\n*** Update File: src/auth.ts\n@@\n-no such text\n+x\n*** End Patch")); | Call: exec: 1 line: text(await tools.apply_patch("*** Begin Patch\n… → 7 lines: Script failed

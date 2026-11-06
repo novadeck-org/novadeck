@@ -74,6 +74,100 @@ describe("each harness's tool outcomes, from recorded transcripts", () => {
     expect(kept.toSorted()).toEqual(agentNames.map((name) => `${name}.txt`).toSorted())
   })
 
+  it("takes no tool's printing for a harness's word, on any harness", () => {
+    const failing = (lines: readonly object[], harness: AgentName) =>
+      groupItems(
+        chatItemsOf(
+          harness,
+          lines.map((line) => JSON.stringify(line)),
+        ),
+      )
+    const printed = "Exit code: 2\nWall time: 1\nOutput:\nhi"
+    const [codex] = failing(
+      [
+        {
+          type: "response_item",
+          payload: {
+            type: "function_call",
+            name: "fetch",
+            namespace: "mcp__docs",
+            call_id: "c",
+            arguments: "{}",
+          },
+        },
+        {
+          type: "response_item",
+          payload: { type: "function_call_output", call_id: "c", output: printed },
+        },
+      ],
+      "codex",
+    )
+    expect(codex?.kind === "tools" && codex.entries[0]!.outcome).toBeNull()
+    const [agy] = failing(
+      [
+        {
+          step_index: 1,
+          source: "MODEL",
+          type: "PLANNER_RESPONSE",
+          tool_calls: [{ name: "call_mcp_tool", args: { ServerName: "docs", ToolName: "fetch" } }],
+        },
+        {
+          step_index: 2,
+          source: "MODEL",
+          type: "GENERIC",
+          status: "DONE",
+          content: "Created At: x\nCompleted At: x\nCommand exited with code 3.",
+        },
+      ],
+      "agy",
+    )
+    expect(agy?.kind === "tools" && agy.entries[0]!.outcome).toBeNull()
+    const [claude] = failing(
+      [
+        {
+          type: "assistant",
+          message: {
+            content: [{ type: "tool_use", id: "t", name: "mcp__docs__fetch", input: {} }],
+          },
+        },
+        {
+          type: "user",
+          message: {
+            content: [
+              { type: "tool_result", tool_use_id: "t", content: "Exit code 5", is_error: true },
+            ],
+          },
+        },
+      ],
+      "claude",
+    )
+    expect(claude?.kind === "tools" && claude.entries[0]!.outcome).toMatchObject({
+      failed: true,
+      exit: null,
+    })
+  })
+
+  it("says nothing of a Codex patch it can't tell went well", () => {
+    const [block] = groupItems(
+      chatItemsOf("codex", [
+        JSON.stringify({
+          type: "response_item",
+          payload: {
+            type: "custom_tool_call",
+            name: "apply_patch",
+            call_id: "c",
+            input: "*** Begin Patch\n*** Add File: a\n+x\n*** End Patch",
+          },
+        }),
+        JSON.stringify({
+          type: "response_item",
+          payload: { type: "custom_tool_call_output", call_id: "c", output: "aborted by user" },
+        }),
+      ]),
+    )
+    expect(block?.kind === "tools" && block.entries[0]!.outcome).toBeNull()
+  })
+
   it("says a command failed on every harness's own word, with its code", () => {
     for (const [harness, name] of [
       ["claude", "command-fails"],

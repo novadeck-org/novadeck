@@ -38,6 +38,22 @@ describe("what a Codex output says", () => {
     })
   })
 
+  it("marks what it read from a result's opening words, for groupItems to hold to its tool", () => {
+    for (const output of [
+      `${header("Process exited with code 0")}ok`,
+      `${header("Process running with session ID 1")}`,
+      "Exit code: 0\nWall time: 0 seconds\nOutput:\n",
+      "apply_patch verification failed: no",
+      "Script failed\nWall time 0.0 seconds\nOutput:\n",
+      "Script running with cell ID 84\nWall time 31.0 seconds\nOutput:\n",
+    ])
+      expect(outputOutcome(output)?.opening, output).toBe(true)
+  })
+
+  it("takes no code too long to be one, which the protocol would refuse", () => {
+    expect(outputOutcome(`Exit code: ${"9".repeat(20)}\nWall time: 1\nOutput:\n`)).toBeNull()
+  })
+
   it("takes nothing from what a command printed", () => {
     expect(
       outputOutcome(`${header("Process exited with code 0")}Process exited with code 7\n`),
@@ -93,6 +109,30 @@ describe("a patch's change", () => {
       "-null",
       "+null",
     ])
+  })
+
+  it("counts a new file's blank lines", () => {
+    expect(patchChange("*** Begin Patch\n*** Add File: a\n+x\n+\n*** End Patch")?.added).toBe(2)
+    expect(patchChange("*** Begin Patch\n*** Add File: a\n+\n*** End Patch")?.added).toBe(1)
+  })
+
+  it("reads a patch given as `patch`, or to a shell's other tool", () => {
+    const patch = "*** Begin Patch\n*** Add File: a\n+x\n*** End Patch"
+    expect(callChange("apply_patch", JSON.stringify({ patch }))?.change?.added).toBe(1)
+    expect(
+      callChange("shell_command", JSON.stringify({ command: `apply_patch <<'EOF'\n${patch}\nEOF` }))
+        ?.change?.added,
+    ).toBe(1)
+  })
+
+  it("takes no command that only starts like a patch", () => {
+    const patch = "*** Begin Patch\n*** Add File: a\n+x\n*** End Patch"
+    expect(
+      callChange(
+        "exec_command",
+        JSON.stringify({ cmd: `apply_patch_notes <<'EOF'\n${patch}\nEOF` }),
+      ),
+    ).toBeNull()
   })
 
   it("reads a patch out of a shell's heredoc", () => {
@@ -163,6 +203,35 @@ describe("what a script ran", () => {
     expect(
       transcripts.items(event(command({ status: "failed", exit_code: -1 })))[1]!.outcome,
     ).toMatchObject({ failed: true, exit: -1 })
+  })
+
+  it("shows a command as a person reads it, whatever its shell", () => {
+    const [call] = transcripts.items(event(command({})))
+    expect(JSON.parse(call!.text)).toEqual({ cmd: "cat a.txt" })
+  })
+
+  it("counts no change of a patch that didn't apply", () => {
+    const [, result] = transcripts.items(
+      event({
+        type: "FileChange",
+        id: "exec-5",
+        status: "declined",
+        changes: { "/w/a": { type: "add", content: "one\n" } },
+      }),
+    )
+    expect(result?.outcome).toMatchObject({ failed: null, change: null })
+  })
+
+  it("shows a patch's files and diffs as text", () => {
+    const [call] = transcripts.items(
+      event({
+        type: "FileChange",
+        id: "exec-6",
+        status: "completed",
+        changes: { "/w/a": { type: "add", content: "one\n" } },
+      }),
+    )
+    expect(call?.text).toBe("/w/a\none\n")
   })
 
   it("leaves a status of no meaning here unknown", () => {

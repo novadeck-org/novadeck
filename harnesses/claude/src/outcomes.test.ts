@@ -28,6 +28,13 @@ describe("what a Claude Code result says", () => {
     expect(outcome(result("boom\nExit code 3", true))).toMatchObject({ failed: true, exit: null })
   })
 
+  it("takes no code too long to be one, which the protocol would refuse", () => {
+    expect(outcome(result(`Exit code ${"9".repeat(20)}\nboom`, true))).toMatchObject({
+      failed: true,
+      exit: null,
+    })
+  })
+
   it("reads a result with no mark as no failure", () => {
     expect(outcome(result("fine", undefined))).toMatchObject({ failed: false })
   })
@@ -57,6 +64,12 @@ describe("what a Claude Code result says", () => {
     ).toMatchObject({ added: 1, removed: 0 })
   })
 
+  it("counts no replacement of every place from its strings alone", () => {
+    expect(
+      outcomeOf(false, "ok", { oldString: "a", newString: "b", replaceAll: true }).change,
+    ).toBeNull()
+  })
+
   it("ignores a detail of no shape it knows", () => {
     expect(outcomeOf(false, "ok", { structuredPatch: [{ lines: [3] }] }).change).toBeNull()
     expect(outcomeOf(false, "ok", { type: "text", file: { numLines: "6" } }).size).toBeNull()
@@ -69,6 +82,20 @@ describe("what a Claude Code result says", () => {
     expect(read("a\nb\n", 3)).toEqual({ count: 2, unit: "line" })
     expect(read("a\nb", 2)).toEqual({ count: 2, unit: "line" })
     expect(read("", 1)).toEqual({ count: 1, unit: "line" })
+  })
+
+  it("takes a record's detail for its one result, beside any text", () => {
+    const line = JSON.stringify({
+      type: "user",
+      message: {
+        content: [
+          { type: "tool_result", tool_use_id: "a", content: "started" },
+          { type: "text", text: "and a note" },
+        ],
+      },
+      toolUseResult: { backgroundTaskId: "b1" },
+    })
+    expect(transcripts.items(line)[0]!.outcome).toMatchObject({ running: true, failed: null })
   })
 
   it("takes a record's detail for its result only when it holds one result", () => {

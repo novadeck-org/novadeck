@@ -21,12 +21,13 @@ describe("an outcome", () => {
       running: false,
       size: null,
       change: null,
+      opening: false,
     })
   })
 
   it("fails a command by its code", () => {
     expect(exited(0)).toMatchObject({ failed: false, exit: 0 })
-    expect(exited(3)).toMatchObject({ failed: true, exit: 3 })
+    expect(exited(3)).toMatchObject({ failed: true, exit: 3, opening: true })
   })
 })
 
@@ -118,6 +119,13 @@ describe("a change", () => {
   it("numbers a whole file from its first line", () => {
     expect(addedFile("a\nb\n").lines.map(({ line }) => line)).toEqual([1, 2])
     expect(deletedFile("a\nb\n")).toMatchObject({ added: 0, removed: 2 })
+  })
+
+  it("numbers no line a file can't have", () => {
+    const line = (at: number) => changeOf([{ sign: "+", text: "a", line: at }]).lines[0]!.line
+    expect(line(0)).toBeNull()
+    expect(line(2 ** 60)).toBeNull()
+    expect(line(3)).toBe(3)
   })
 
   it("cuts a long line, and only its text", () => {

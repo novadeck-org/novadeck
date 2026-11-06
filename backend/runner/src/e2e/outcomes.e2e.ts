@@ -25,6 +25,7 @@ const told = ({ call, result }: Row): ToolOutcome => ({
   exit: null,
   running: false,
   size: null,
+  opening: false,
   ...result?.outcome,
   change: result?.outcome?.change ?? call.outcome?.change ?? null,
 })

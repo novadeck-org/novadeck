@@ -98,7 +98,7 @@ describe("the protocol's item", () => {
 })
 
 describe("an item's outcome", () => {
-  const known = { failed: true, exit: 3, running: false, size: null, change: null }
+  const known = { failed: true, exit: 3, running: false, size: null, change: null, opening: false }
 
   it("stays on a tool call or its result", () => {
     expect(entry("tool", "tool-result", "x", { at: null, outcome: known }).outcome).toEqual(known)

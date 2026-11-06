@@ -18,14 +18,16 @@ export const outcome = (known: Partial<ToolOutcome>): ToolOutcome => ({
   running: false,
   size: null,
   change: null,
+  opening: false,
   ...known,
 })
 
 /**
- * A command's outcome from its exit code, as its harness wrote it: what failing is to the
- * harness comes from the code alone, where it says no more.
+ * A command's outcome from the exit code a result opens with: what failing is to the harness
+ * comes from the code alone, where it says no more.
  */
-export const exited = (code: number): ToolOutcome => outcome({ failed: code !== 0, exit: code })
+export const exited = (code: number): ToolOutcome =>
+  outcome({ failed: code !== 0, exit: code, opening: true })
 
 // How many lines of what didn't change a change's first lines keep beside what did.
 const around = 3
@@ -46,7 +48,7 @@ export const changeOf = (lines: readonly DiffLine[]): ToolChange => ({
     sign,
     text: cutText(text, outcomeLimits.lineText),
     // A number no file's line has (a hunk from 0) is a harness's way of saying there is none.
-    line: line !== null && Number.isInteger(line) && line > 0 ? line : null,
+    line: line !== null && Number.isSafeInteger(line) && line > 0 ? line : null,
   })),
 })
 

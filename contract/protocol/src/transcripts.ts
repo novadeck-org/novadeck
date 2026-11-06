@@ -43,7 +43,9 @@ export const toolChange = z.strictObject({
 // call, `exit` a command's exit code, `running` that the call goes on past this result (a
 // command in the background, whose `failed` is then unknown), `size` a count it states, and
 // `change` the lines it changed. A call's item carries what its input says, as `change`; its
-// result's the rest: the two make one outcome by `call`.
+// result's the rest: the two make one outcome by `call`. `opening` marks what was read from
+// the words a result opens with, which only the harness's own tools have it write: another
+// tool could print the same, so it holds only for a call of those.
 export const toolOutcome = z.strictObject({
   failed: z.boolean().nullable(),
   exit: z.number().int().nullable(),
@@ -55,6 +57,7 @@ export const toolOutcome = z.strictObject({
     })
     .nullable(),
   change: toolChange.nullable(),
+  opening: z.boolean(),
 })
 
 // `agents.transcript` changes: items of an actor's conversation in the order its harness

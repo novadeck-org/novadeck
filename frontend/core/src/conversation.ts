@@ -42,6 +42,9 @@ export type ToolOutcome = {
   readonly running: boolean
   readonly size: { readonly count: number; readonly unit: "line" | "match" | "file" } | null
   readonly change: ToolChange | null
+  // Read from the words a result opens with, which holds only for a tool of the harness's
+  // own: `groupItems` has dealt with that by the time a view reads an outcome.
+  readonly opening: boolean
 }
 
 // One record of the conversation, in the order its harness wrote it: the person's or the
