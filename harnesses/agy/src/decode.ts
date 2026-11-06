@@ -115,7 +115,7 @@ const decodeEvent = ({ event, seq, instance, payload }: Report): readonly Harnes
     case "PreInvocation":
       // A turn begun leaves no call of one before it unended but those a Stop saw.
       if (payload.invocationNum === 0) forget(id)
-      invoked(id)
+      invoked(base)
       return [
         observed,
         // Its first model call starts a turn, whether the person prompted it or a subagent's
@@ -164,7 +164,7 @@ const decodeEvent = ({ event, seq, instance, payload }: Report): readonly Harnes
     case "PreToolUse": {
       const call = toolCall(payload.toolCall)
       if (!call) return [observed]
-      toolCalled(id, call.name)
+      toolCalled(base, call.name)
       return [
         observed,
         ...calling(base, call, payload),

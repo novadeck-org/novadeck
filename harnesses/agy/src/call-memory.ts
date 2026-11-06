@@ -192,9 +192,6 @@ export const ended = (base: EventBase<"agy">, step: number): HarnessEvent[] => {
   return [over(base, call)]
 }
 
-/** How many tasks the latest idle status line of the conversation counted. */
-export const tasksCounted = (conversation: string): number => counted.get(conversation) ?? 0
-
 /** What an idle status line counting `tasks` shows over: see `unaccounted`. */
 export const abandoned = (base: EventBase<"agy">, tasks: number): HarnessEvent[] => {
   keep(counted, base.sessionId, tasks)

@@ -1065,8 +1065,7 @@ facts above, so the prompt's emptiness is known before any message arrives:
   running (its Stop says only that something runs), once a line has accounted for what
   that Stop left, or 5 s after it, as it may list a subagent late. A command left running
   alone, as a dev server, never holds it: the turn ends Settled, and the doorbell may ring
-  it. Only
-  background tasks whose status is running count. Codex never waits: nothing it starts
+  it. Only background tasks whose status is running count. Codex never waits: nothing it starts
   wakes it once its turn has ended. The agent's activity tells the same, and an agent
   `agents` lists as busy is one Working here, or one whose terminal shows it working
   past an abnormal end, as on a background subagent an Esc left running.

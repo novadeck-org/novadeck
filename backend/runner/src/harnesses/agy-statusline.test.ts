@@ -417,14 +417,14 @@ describe("Antigravity's status line, listing its subagents", () => {
 
     // What's remembered is each conversation's, so each test has its own, followed as
     // Novadeck follows a bound one.
-    let conversations = 0
+    let conversations = 100
     const opened: AbortController[] = []
-    const follow = (id: string) => {
+    const follow = (id: string, instance = "7") => {
       const told: HarnessEvent[] = []
       const following = new AbortController()
       opened.push(following)
       void harnesses.agy.watch!(
-        { sessionId: id, instance: "7", transcript: "/t" },
+        { sessionId: id, instance, transcript: "/t" },
         following.signal,
         (event) => told.push(event),
       )
@@ -572,31 +572,16 @@ describe("Antigravity's status line, listing its subagents", () => {
       ).toEqual(["idle", 0])
     })
 
-    describe("where no PreToolUse hook tells what a turn called", () => {
-      it("takes a task none counted before for what its turn left", () => {
-        const c = conversation()
-        expect(c.counts([c.invocation(1), c.ended(3, false), c.snapshot(task!, 4)]).at(-1)).toEqual(
-          ["idle", 0],
-        )
-      })
-
-      it("doesn't take a task an earlier snapshot counted for what its turn left", () => {
-        const c = conversation()
-        expect(
-          c
-            .counts([
-              c.snapshot(task!, 1),
-              c.invocation(2),
-              c.ended(3, false),
-              c.snapshot(task!, 4),
-              c.snapshot(both!, 5),
-            ])
-            .slice(-2),
-        ).toEqual([
-          ["working", 0],
-          ["working", 1],
-        ])
-      })
+    it("takes no task for what a turn left where no PreToolUse hook tells what it called", () => {
+      const c = conversation()
+      expect(
+        c
+          .counts([c.invocation(2), c.ended(3, false), c.snapshot(task!, 4), c.snapshot(both!, 5)])
+          .slice(-2),
+      ).toEqual([
+        ["working", 0],
+        ["working", 1],
+      ])
     })
 
     it("holds nothing after a Stop that says nothing runs on", () => {
@@ -658,16 +643,40 @@ describe("Antigravity's status line, listing its subagents", () => {
         )
       })
 
-      it("tells every terminal following the conversation, whichever stopped following", () => {
+      it("repeats the latest idle snapshot's count, as one listing may come before the Stop", () => {
         const c = conversation()
-        const other = follow(c.id)
-        const last = follow(c.id)
-        other.following.abort()
+        for (const reported of [c.snapshot(listed!, 2), c.invocation(1), c.ended(3, false)])
+          activityOf(reported)
+        vi.advanceTimersByTime(5000)
+        expect(c.told).toMatchObject([{ background: { agents: 1, tasks: 0 } }])
+      })
+
+      it("keeps each process's hold apart, as two may run one conversation", () => {
+        const c = conversation()
+        const other = follow(c.id, "8")
+        const in8 = (reported: Report): Report => ({ ...reported, instance: "8" })
+        activityOf(c.ended(3, false))
+        activityOf(in8(c.ended(4, false)))
+        activityOf(in8(c.invocation(5)))
+        vi.advanceTimersByTime(5000)
+        expect(c.told).toMatchObject([{ instance: "7" }])
+        expect(other.told).toEqual([])
+      })
+
+      it("fails its follower, not the runner, when telling it throws", async () => {
+        const c = conversation({ followed: false })
+        const following = new AbortController()
+        opened.push(following)
+        const followed = harnesses.agy.watch!(
+          { sessionId: c.id, instance: "7", transcript: "/t" },
+          following.signal,
+          () => {
+            throw new Error("told")
+          },
+        )
         activityOf(c.ended(3, false))
         vi.advanceTimersByTime(5000)
-        expect(c.told).toHaveLength(1)
-        expect(other.told).toEqual([])
-        expect(last.told).toHaveLength(1)
+        await expect(followed).rejects.toThrow("told")
       })
 
       it("runs out for no hold a snapshot, a turn or another Stop ended", () => {
