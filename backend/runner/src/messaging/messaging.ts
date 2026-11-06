@@ -366,6 +366,10 @@ export class Messaging {
     return this.deliveries.ringing(terminalId)
   }
 
+  ringsPlain(terminalId: string, plain: boolean): void {
+    this.deliveries.ringsPlain(terminalId, plain)
+  }
+
   ringFailed(terminalId: string, nonce: string): void {
     this.deliveries.ringFailed(terminalId, nonce)
   }

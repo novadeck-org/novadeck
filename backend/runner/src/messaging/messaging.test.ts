@@ -1695,6 +1695,11 @@ describe("Antigravity's turn, as activity and delivery both tell it", () => {
       applied(events)
       setup.observe("G", root, events, true)
     }
+    // What its own `watch` says, as the manager applies it.
+    const source = (event: HarnessEvent) => {
+      applied([event])
+      setup.observe("G", root, [event], true)
+    }
     // Whether a turn runs, as each tells it. Activity has two states, working or idle.
     // Delivery runs a turn only in its `turn` or `continuing` phase: its `background` phase,
     // after a Stop while subagents run, is idle to activity's turn; and Settled, Unknown,
@@ -1730,7 +1735,7 @@ describe("Antigravity's turn, as activity and delivery both tell it", () => {
       )
       escaped()
     }
-    return { ...setup, hook, status, turn, asked, press }
+    return { ...setup, hook, source, status, turn, asked, press }
   }
 
   it("agrees no turn runs when its status line says working just after a Stop", () => {
@@ -1946,6 +1951,54 @@ describe("Antigravity's turn, as activity and delivery both tell it", () => {
     expect(messaging.delivery("G")?.state).toBe("settled")
     status("working", 5)
     turn(false)
+  })
+
+  it("agrees the agent works on past idle status lines that don't list its subagent yet", () => {
+    const listing = { subagents: [{ name: "self", status: "running" }] }
+    const { messaging, hook, source, status, turn } = agyTerminal()
+    const following = new AbortController()
+    void harnesses.agy.watch!(
+      { sessionId: root.sessionId, instance: root.instance, transcript: "/t" },
+      following.signal,
+      source,
+    )
+    status("idle", 1)
+    hook("PreInvocation", 2, { invocationNum: 0 })
+    hook("Stop", 3, { fullyIdle: false })
+    // Two bare snapshots, as on Windows (probed 2026-11-06, 1.5.2), then the listing.
+    status("idle", 4)
+    status("idle", 5)
+    turn(false, true)
+    expect(messaging.delivery("G")).toMatchObject({ state: "working", phase: "background" })
+    status("idle", 6, listing)
+    turn(false, true)
+    // None of that started a settle a message could ring on.
+    hook("PreInvocation", 7, { invocationNum: 0 })
+    turn(true)
+    hook("Stop", 8, { fullyIdle: true })
+    turn(false)
+    expect(messaging.delivery("G")?.state).toBe("settled")
+    following.abort()
+  })
+
+  it("agrees it settles by itself when no status line ever accounts for what a Stop left", async () => {
+    const { messaging, hook, source, status, turn } = agyTerminal()
+    const following = new AbortController()
+    const followed = harnesses.agy.watch!(
+      { sessionId: root.sessionId, instance: root.instance, transcript: "/t" },
+      following.signal,
+      source,
+    )
+    status("idle", 1)
+    hook("PreInvocation", 2, { invocationNum: 0 })
+    hook("Stop", 3, { fullyIdle: false })
+    status("idle", 4)
+    turn(false, true)
+    await vi.advanceTimersByTimeAsync(5000)
+    turn(false)
+    expect(messaging.delivery("G")?.state).toBe("settled")
+    following.abort()
+    await followed
   })
 })
 
@@ -6122,4 +6175,252 @@ describe("the rules note of a delivery", () => {
     expect(text(next.stdout)).toContain("Next turn.")
     expect(fullNote(text(next.stdout))).toBe(true)
   })
+})
+
+describe("the person's reply at a turn's end", () => {
+  const agy = binding("agy", "c-root", "7")
+  const harnessesAtStop = [
+    { name: "Claude Code", agent: "claude", terminal: "A" },
+    { name: "Codex", agent: "codex", terminal: "B" },
+    { name: "Antigravity", agent: "agy", terminal: "G" },
+  ] as const
+  type AtStop = (typeof harnessesAtStop)[number]
+  // The agent mid-turn in its terminal, with what its hooks and the person do there.
+  const working = ({ agent, terminal }: AtStop) => {
+    const run = create()
+    if (agent === "agy") {
+      run.messaging.register("G", here, "owl", null)
+      run.follow("G", agy)
+    }
+    const bound = agent === "claude" ? run.claude : agent === "codex" ? run.codex : agy
+    run.prompt(terminal, bound)
+    let asked = 0
+    const reply = (words: string, choice?: { readonly option?: string }) =>
+      run.messaging.personReply(
+        terminal,
+        `ask-${(asked += 1)}`,
+        "Merge it?",
+        words,
+        () => undefined,
+        choice,
+      )
+    const stop = (background = false) => run.stop(terminal, bound, background)
+    // A peer's message to the agent.
+    const peer = (words: string) =>
+      sent(
+        run.send(terminal === "A" ? "B" : "A", { A: "moth", B: "fox", G: "owl" }[terminal], words),
+      )
+    // The ring's prompt, whose hook carries the messages waiting.
+    const rung = (nonce: string, line = false) => {
+      expect(run.messaging.ring(terminal, nonce)).toBe(true)
+      return run.ask(terminal, bound, agent === "agy" ? "PreInvocation" : "UserPromptSubmit", [
+        { ...doorbellStarted(bound, nonce), ...(line && { replies: true }) } as HarnessEvent,
+      ])
+    }
+    return { ...run, bound, terminal, reply, stop, peer, rung }
+  }
+
+  it.each(harnessesAtStop)(
+    "ends $name's turn, and the ring's hook carries it, with the line in the person's words",
+    (harness) => {
+      const { messaging, terminal, reply, stop, rung } = working(harness)
+      reply("", { option: "Merge" })
+      const answer = stop()
+      expect(answer.leaseId).toBeNull()
+      expect(messages(messaging, terminal)[0]?.state).toBe("queued")
+      expect(messaging.delivery(terminal)?.state).toBe("settled")
+      expect(messaging.ringable(terminal)).toBe(true)
+      expect(messaging.replyLine(terminal)?.("n1")).toBe(
+        '[Novadeck Inbox reply, n1] Re your ask "Merge it?": I picked "Merge". [n1]',
+      )
+      const delivered = rung("n1")
+      expect(delivered.leaseId).toEqual(expect.any(String))
+      messaging.acknowledge(terminal, delivered.leaseId!)
+      expect(messages(messaging, terminal)[0]?.state).toBe("delivered")
+    },
+  )
+
+  it.each(harnessesAtStop)(
+    "leaves the agents' messages waiting beside it to the ring's hook in $name",
+    (harness) => {
+      const { messaging, terminal, reply, stop, peer, rung } = working(harness)
+      peer("FYI from a peer.")
+      reply("Yes")
+      expect(stop().leaseId).toBeNull()
+      // A peer's words never ride the line.
+      expect(messaging.replyLine(terminal)?.("n1")).not.toContain("FYI")
+      const { stdout, leaseId } = rung("n1")
+      expect(stdout).toContain("FYI from a peer.")
+      expect(stdout).toContain("Yes")
+      messaging.acknowledge(terminal, leaseId!)
+      expect(messages(messaging, terminal).map(({ state }) => state)).toEqual([
+        "delivered",
+        "delivered",
+      ])
+    },
+  )
+
+  it.each(harnessesAtStop)(
+    "says it once in $name, and the Stop carries what its ring's delivery couldn't",
+    (harness) => {
+      const { messaging, terminal, reply, stop, peer, rung, clock: time } = working(harness)
+      // More than one delivery holds, older than the reply, so its first ring doesn't carry it.
+      for (const round of [1, 2]) peer(`${round} ${"x".repeat(3_500)}`)
+      time.now += 1_000
+      reply("Yes")
+      expect(stop().leaseId).toBeNull()
+      messaging.acknowledge(terminal, rung("n1", true).leaseId!)
+      expect(messages(messaging, terminal).some(({ state }) => state === "queued")).toBe(true)
+      // Said already: the turn goes on with the rest rather than be rung the same line.
+      messaging.acknowledge(terminal, stop().leaseId!)
+      expect(messages(messaging, terminal).every(({ state }) => state === "delivered")).toBe(true)
+      stop()
+      expect(messaging.ringable(terminal)).toBe(false)
+    },
+  )
+
+  it.each(harnessesAtStop)(
+    "rings $name's said reply plain, and a new one's line says only that",
+    (harness) => {
+      const { messaging, terminal, reply, stop, peer, rung, clock: time } = working(harness)
+      for (const round of [1, 2]) peer(`${round} ${"x".repeat(3_500)}`)
+      time.now += 1_000
+      reply("Yes")
+      stop()
+      rung("n1", true)
+      // The ring's delivery is out, unacknowledged: "Yes" waits, said.
+      expect(messaging.replyLine(terminal)).toBeUndefined()
+      time.now += 1_000
+      reply("Also tag it")
+      expect(messaging.replyLine(terminal)?.("n2")).toBe(
+        '[Novadeck Inbox reply, n2] Re your ask "Merge it?": Also tag it [n2]',
+      )
+    },
+  )
+
+  it.each(harnessesAtStop)(
+    "gives it at the Stop where $name's ring's hook had no time, rather than ring it again",
+    (harness) => {
+      const { messaging, bound, terminal, ask, reply, stop, clock: time } = working(harness)
+      reply("Yes")
+      expect(stop().leaseId).toBeNull()
+      expect(messaging.ring(terminal, "n1")).toBe(true)
+      const late = ask(
+        terminal,
+        bound,
+        harness.agent === "agy" ? "PreInvocation" : "UserPromptSubmit",
+        [{ ...doorbellStarted(bound, "n1"), replies: true } as HarnessEvent],
+        time.now,
+      )
+      expect(late.leaseId).toBeNull()
+      expect(messages(messaging, terminal)[0]?.state).toBe("queued")
+      const answer = stop()
+      expect(answer.stdout).toContain("Yes")
+      messaging.acknowledge(terminal, answer.leaseId!)
+      expect(messages(messaging, terminal)[0]?.state).toBe("delivered")
+    },
+  )
+
+  it.each(harnessesAtStop)(
+    "still ends the turn for a reply that came during $name's last line's turn",
+    (harness) => {
+      const { messaging, terminal, reply, stop, rung, clock: time } = working(harness)
+      reply("Yes")
+      stop()
+      messaging.acknowledge(terminal, rung("n1", true).leaseId!)
+      time.now += 1_000
+      reply("Wait, no")
+      expect(stop().leaseId).toBeNull()
+      expect(messaging.ringable(terminal)).toBe(true)
+    },
+  )
+
+  it.each(harnessesAtStop)("still continues $name's turn for agents' messages alone", (harness) => {
+    const { stop, peer } = working(harness)
+    peer("Peer's word.")
+    expect(stop().stdout).toContain("Peer's word.")
+  })
+
+  it.each(harnessesAtStop)("gives it at the Stop over a draft in $name's box", (harness) => {
+    const { messaging, terminal, reply, stop } = working(harness)
+    messaging.keys(terminal, ["content"], false)
+    reply("Yes")
+    expect(stop().stdout).toContain("Yes")
+  })
+
+  it.each(harnessesAtStop)(
+    "gives it at the Stop while $name's turn leaves subagents running",
+    (harness) => {
+      const { reply, stop } = working(harness)
+      reply("Yes")
+      expect(stop(true).stdout).toContain("Yes")
+    },
+  )
+
+  it.each(harnessesAtStop)("gives $name replies the line can't hold at the Stop", (harness) => {
+    const { reply, stop } = working(harness)
+    reply("y".repeat(400))
+    expect(stop().stdout).toContain("yyyy")
+    const next = working(harness)
+    next.reply("✅ merge ❌ push")
+    expect(next.stop().stdout).toContain("merge")
+  })
+
+  it.each(harnessesAtStop)(
+    "gives it at the Stop while the doorbell rings $name plain, after a failed ring",
+    (harness) => {
+      const { messaging, terminal, reply, stop } = working(harness)
+      messaging.ringsPlain(terminal, true)
+      reply("Yes")
+      expect(stop().stdout).toContain("Yes")
+      const next = working(harness)
+      next.messaging.ringsPlain(next.terminal, true)
+      next.messaging.ringsPlain(next.terminal, false)
+      next.reply("Yes")
+      expect(next.stop().leaseId).toBeNull()
+    },
+  )
+
+  it.each(harnessesAtStop)(
+    "leaves a prompt the person queued in $name to carry it, as any message",
+    (harness) => {
+      const { messaging, terminal, bound, prompt, reply, stop } = working(harness)
+      messaging.keys(terminal, ["content", "enter"], false)
+      reply("Yes")
+      expect(stop().leaseId).toBeNull()
+      expect(messaging.delivery(terminal)?.box.queued).toBe(true)
+      expect(messaging.ringable(terminal)).toBe(false)
+      expect(prompt(terminal, bound).stdout).toContain("Yes")
+    },
+  )
+
+  it.each(harnessesAtStop)(
+    "gives it at the Stop over keys typed while a request waited in $name",
+    (harness) => {
+      const { messaging, terminal, reply, stop } = working(harness)
+      messaging.keys(terminal, ["content"], true)
+      expect(messaging.delivery(terminal)?.box.draftWhileAsked).toBe(true)
+      reply("Yes")
+      expect(stop().stdout).toContain("Yes")
+    },
+  )
+
+  it("gives it at the Stop where Antigravity says only that something runs on", () => {
+    const { bound, terminal, ask, reply } = working(harnessesAtStop[2])
+    reply("Yes")
+    const event = {
+      ...(stopped(bound) as Extract<HarnessEvent, { type: "turn-ended" }>),
+      background: { agents: 0, tasks: 0, more: true as const },
+    }
+    expect(ask(terminal, bound, "Stop", [event]).stdout).toContain("Yes")
+  })
+
+  it.each(harnessesAtStop)(
+    "gives a request for feedback at $name's Stop, as it rides no line",
+    (harness) => {
+      const { messaging, terminal, stop } = working(harness)
+      messaging.personFeedbackRequest(terminal, "request-1", "Be blunt")
+      expect(stop().stdout).toContain("Be blunt")
+    },
+  )
 })

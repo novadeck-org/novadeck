@@ -255,6 +255,17 @@ export const codex: AgentSetup = {
       join(home, "config.toml"),
       config(sandbox, model.url, seed?.folderTrusted !== false, catalogFile),
     )
+    if (seed?.promptHook !== undefined)
+      await writeFile(
+        join(home, "hooks.json"),
+        JSON.stringify({
+          hooks: {
+            UserPromptSubmit: [
+              { hooks: [{ type: "command", command: `node ${seed.promptHook}`, timeout: 30 }] },
+            ],
+          },
+        }),
+      )
     // It asks about a folder only if a git repository, since 0.160.1 (probed 2026-10-08):
     // 0.159.3 asked about any folder. Without the repository, a newer Codex shows its
     // prompt at once, and a test of the question waits for one that never comes.
@@ -568,7 +579,8 @@ type Listed = {
 }
 
 /**
- * Trusts Novadeck's hooks in the project as a person does in Codex's "Hooks need review"
+ * Trusts its hooks in the project, Novadeck's and any a seed registered, as a person does in
+ * Codex's "Hooks need review"
  * screen, and lets its MCP tools run without asking, through the same app-server calls
  * that screen makes: `hooks/list` for each hook's current hash, then `config/batchWrite`
  * recording it as trusted. Codex runs a plugin's hooks only once trusted, and Novadeck
@@ -586,10 +598,10 @@ const trustHooks = async (
     await server.start()
     const list = () => server.request("hooks/list", { cwds: [sandbox.project] })
     const listed = (await list()) as Listed
-    const ours = (listed.data ?? [])
-      .flatMap((entry) => entry.hooks ?? [])
-      .filter((hook) => hook.pluginId === "novadeck@novadeck")
-    if (ours.length === 0) throw new Error("Codex lists none of Novadeck's hooks")
+    // Novadeck's, and any a seed registered.
+    const all = (listed.data ?? []).flatMap((entry) => entry.hooks ?? [])
+    if (!all.some((hook) => hook.pluginId === "novadeck@novadeck"))
+      throw new Error("Codex lists none of Novadeck's hooks")
     await server.request("config/batchWrite", {
       edits: [
         ...(hooks
@@ -597,7 +609,7 @@ const trustHooks = async (
               {
                 keyPath: "hooks.state",
                 value: Object.fromEntries(
-                  ours.map((hook) => [hook.key, { trusted_hash: hook.currentHash }]),
+                  all.map((hook) => [hook.key, { trusted_hash: hook.currentHash }]),
                 ),
                 mergeStrategy: "upsert",
               },

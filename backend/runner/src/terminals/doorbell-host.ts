@@ -233,6 +233,7 @@ export const doorbellHost = <R extends DoorbellRecord>(
       return compact(line) === compact(text.text) ? nonce : undefined
     },
     replies: (terminalId) => messaging.replyLine(terminalId),
+    ringsPlain: (terminalId, plain) => messaging.ringsPlain(terminalId, plain),
     ringLeftover: (terminalId, nonce) => {
       const rung = messaging.ringLeftover(terminalId, nonce)
       if (rung) doorbellLog.current?.ring(terminalId, messaging.waitedMs(terminalId))

@@ -3,10 +3,11 @@
    into the ground they sit on, so where two pieces overlap they never add up to a brighter
    dot; the cursor is a step brighter than the line. The selected terminal's team lights:
    a line of the strong colour with a soft glow, whose segment grows in, whose ticks reach
-   out after it and whose cursor blinks twice, then holds.
+   out to the tabs after it.
 
    Hooks on `.team-wire`: data-settled (the lit wire's entrance has played; what's drawn
-   after, as rows scroll into view, appears without playing again). Each team has a
+   after, as rows scroll into view, appears without playing again), data-holding (the lit
+   wire's entrance waits while a fold's tab goes away). Each team has a
    `.team-wire-shape`, with data-lit while it is the selected terminal's, data-folded while the
    person folded its teammates out of the list, data-faded while that leaves no teammate's tab
    showing ("wire": its segment and ticks fade out) or its lead folds away under a lead above
@@ -51,10 +52,11 @@
   width: 1px;
   background-color: var(--_rest);
 }
-/* A tick starts on the wire's own pixel column and fades as it reaches into the tab. */
+/* A tick starts on the wire's own pixel column and ends on the tab's edge, solid all the way,
+   so it reads as touching the tab. */
 .team-wire-tap {
   height: 1px;
-  background: linear-gradient(90deg, var(--_rest), transparent);
+  background-color: var(--_rest);
 }
 /* A block one character cell in size, after the Nova mark's cursor, centred on the line's
    pixel column and the lead's name line. */
@@ -74,14 +76,13 @@
   animation: team-wire-grow 220ms var(--ease-interface) both;
 }
 .team-wire-shape[data-lit] > .team-wire-tap {
-  background: linear-gradient(90deg, var(--_fg), color-mix(in srgb, var(--_fg) 55%, transparent));
+  background-color: var(--_fg);
   transform-origin: left;
   animation: team-wire-reach 180ms var(--ease-interface) 260ms both;
 }
-/* It blinks twice as the team lights, then holds. Its shape and its blink keep it apart
-   from the selected tab's bar beside it, which is thin and never moves. */
-.team-wire-shape[data-lit] > .team-wire-cursor {
-  animation: team-wire-blink 520ms steps(1) both;
+/* A selection that swaps the tabs a fold shows: the entrance waits for them to leave. */
+.team-wire[data-holding] .team-wire-shape[data-lit] > :is(.team-wire-segment, .team-wire-tap) {
+  animation-play-state: paused;
 }
 .team-wire[data-settled] .team-wire-shape > i {
   animation: none;
@@ -94,16 +95,6 @@
 @keyframes team-wire-reach {
   from {
     transform: scaleX(0);
-  }
-}
-@keyframes team-wire-blink {
-  0%,
-  50% {
-    opacity: 0;
-  }
-  25%,
-  75% {
-    opacity: 1;
   }
 }
 
@@ -189,7 +180,6 @@
   transition: transform var(--motion-layout) var(--ease-interface);
 }
 .team-wire-ghost-tap {
-  width: 16px;
   height: 1px;
   background: repeating-linear-gradient(to right, var(--_fg) 0 3px, transparent 3px 5px);
   transform-origin: left;

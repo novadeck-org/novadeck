@@ -16,13 +16,13 @@ describe("the team's wire", () => {
       expect(shape.lead).toBe(150)
     })
 
-    it("starts each worker's tick on the wire's own column and reaches 3px into its tab", () => {
+    it("starts each worker's tick on the wire's own column and ends it on its tab's edge", () => {
       expect(shape.taps).toEqual([
-        { id: "a", y: 300, width: 16 },
-        { id: "b", y: 450, width: 16 },
+        { id: "a", y: 300, width: 13 },
+        { id: "b", y: 450, width: 13 },
       ])
-      // From the wire's column, x = 43, to 3px past the tab's left edge at 56.
-      expect(shape.x + shape.taps[0]!.width).toBe(56 + 3)
+      // From the wire's column, x = 43, to the tab's left edge at 56, and not a pixel into it.
+      expect(shape.x + shape.taps[0]!.width).toBe(56)
     })
   })
 
@@ -32,7 +32,7 @@ describe("the team's wire", () => {
     it("rounds every position to a whole pixel, so the joints meet", () => {
       expect(shape.x).toBe(43)
       expect([shape.top, shape.height, shape.lead]).toEqual([150, 152, 150])
-      expect(shape.taps).toEqual([{ id: "a", y: 301, width: 16 }])
+      expect(shape.taps).toEqual([{ id: "a", y: 301, width: 13 }])
       // The tick's row is the segment's last.
       expect(shape.top + shape.height - 1).toBe(shape.taps[0]!.y)
     })

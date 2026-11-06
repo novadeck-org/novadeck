@@ -21,8 +21,8 @@ const trim = <K, V>(map: Map<K, V>, limit: number): void => {
   for (const [oldest] of map) if (map.size > limit) map.delete(oldest)
 }
 
-// Puts `value` in `map` as its newest, keeping the newest `maxConversations`.
-const keep = <K, V>(map: Map<K, V>, key: K, value: V): V => {
+/** Puts `value` in `map` as its newest, keeping the newest `maxConversations`. */
+export const keep = <K, V>(map: Map<K, V>, key: K, value: V): V => {
   map.delete(key)
   map.set(key, value)
   trim(map, maxConversations)

@@ -1165,7 +1165,8 @@ one from an earlier runner.
   `agents.answer(terminalId, request, answer)` is that call.
 
 - `agents.interrupt({ terminalId })` presses Escape in the terminal's agent, which stops
-  its turn in every harness (the turn ends without a normal Stop: its activity is
+  its turn in every harness, after up to 5 s where Claude Code's queued messages are still
+  in their prompt hooks (the turn ends without a normal Stop: its activity is
   `unknown` until the next prompt, see `agent-messaging.md`, and the agent's `lastTurn`
   reads `interrupted`; `lastTurn` also tells a failed turn's `error` as its harness said it,
   the usage-limit window the turn ran into as `limit` (`minutes`, `resetsAt`; kept for that

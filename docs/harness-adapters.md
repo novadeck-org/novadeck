@@ -144,9 +144,10 @@ Beside that common set, each keeps what only it has:
   and `shim.ts`.
 - Antigravity (`harnesses/agy`): `status-line.ts` (its status line's report, and the
   prompt it says shows), `call-memory.ts` (what its decoder holds of each conversation's
-  calls from one hook to the next) and `settings.ts` (its user settings: the status line
-  it takes only from them, put in place once connected, and the folders it trusts). It
-  has no `watch`: its transcripts are read only for the chat.
+  calls from one hook to the next), `listing.ts` (the work a Stop left that its status
+  line doesn't list yet, its `watch` telling when that wait runs out) and `settings.ts`
+  (its user settings: the status line it takes only from them, put in place once
+  connected, and the folders it trusts). Its transcripts are read only for the chat.
 
 An adapter imports only `@novadeck/harness-core`, `@novadeck/protocol`,
 `@novadeck/emulator`, `@novadeck/tui-input`, Node and its own files, never the runner's

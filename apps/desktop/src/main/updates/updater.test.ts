@@ -28,6 +28,7 @@ import {
   firstCheckMs,
   retryCheckMs,
   installOnlyOnOrderlyQuit,
+  keepUpdateOnQuit,
   portableOf,
   quitWithoutInstalling,
   registerUpdateIpc,
@@ -560,6 +561,46 @@ class FakeUpdater extends EventEmitter implements Pick<Updater, "checkForUpdates
     return Promise.reject(error)
   }
 }
+
+describe("quitting with a runner that may still be running", () => {
+  const keeping = (swapped = false) => {
+    const updater = { autoInstallOnAppQuit: true }
+    const macQuitInstall = { autoInstallOnAppQuit: true }
+    const lines: string[] = []
+    keepUpdateOnQuit([updater, macQuitInstall], { swapped, log: (line) => lines.push(line) })
+    return { updater, macQuitInstall, lines }
+  }
+
+  it("switches off installing on quit, which electron-updater reads as the app quits", () => {
+    expect(keeping().updater.autoInstallOnAppQuit).toBe(false)
+  })
+
+  it("switches off the install macOS runs itself", () => {
+    expect(keeping().macQuitInstall.autoInstallOnAppQuit).toBe(false)
+  })
+
+  it("says once that nothing installs or opens", () => {
+    expect(keeping().lines).toEqual([
+      "The runner may still be running, so nothing installs or opens on this quit.",
+    ])
+  })
+
+  context("when the quit already swapped the AppImage", () => {
+    it("says that only the opening is dropped, as the update is in place", () => {
+      expect(keeping(true).lines).toEqual([
+        "The runner may still be running, so nothing opens; the update starts at the next launch.",
+      ])
+    })
+  })
+
+  context("in a build that does not update", () => {
+    it("has only the macOS switch to turn off", () => {
+      const macQuitInstall = { autoInstallOnAppQuit: true }
+      keepUpdateOnQuit([undefined, macQuitInstall], { swapped: false, log: () => {} })
+      expect(macQuitInstall.autoInstallOnAppQuit).toBe(false)
+    })
+  })
+})
 
 describe("checking for updates", () => {
   beforeEach(() => void vi.useFakeTimers())

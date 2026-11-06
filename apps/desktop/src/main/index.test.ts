@@ -101,11 +101,19 @@ describe("the compiled desktop app", () => {
       expect(main).toContain("held: updates.holdsQuit")
       expect(main).toContain("begin: updates.quitBegins")
       expect(main).toContain("persist: () => runner?.persist()")
-      expect(main).toContain("closeRunner: () => runner?.close()")
+      expect(main).toContain("closeRunner: () => runner?.close(),")
       expect(main).toContain("closeServer: () => server?.close()")
       expect(main).toContain("installMacUpdate: updates.installMacUpdateOnQuit")
       expect(main).toMatch(
-        /reopenAppImage: updates\.openAppImageAfterQuit,\s*quit: \(\) => app\.quit\(\)/u,
+        /reopenAppImage: updates\.openAppImageAfterQuit,\s*keepUpdate: updates\.keepUpdateOnQuit,\s*quit: \(\) => app\.quit\(\)/u,
+      )
+      // The runner's end reaches the quit, and an abandoned runner's quit turns off both of
+      // the installs; what that does is covered in ./updates/updater.test.ts.
+      expect(main).toMatch(
+        /const shutDown = \(\) => shutDownInOrder\(\{[^;]*closeServer: \(\) => server\?\.close\(\)\s*\}\);/u,
+      )
+      expect(main).toMatch(
+        /keepUpdateOnQuit: \(\) => keepUpdateOnQuit\(\[updater, macQuitInstall\], \{\s*swapped: appImageSwapped,\s*log: \(\w+\) => log\w*\.warn\(\w+\)/u,
       )
       expect(main).toMatch(/hosting: \(\) => Boolean\(server \|\| runner\),\s*shutDown,/u)
       expect(main).toContain("saveBeforeQuitChannel")
