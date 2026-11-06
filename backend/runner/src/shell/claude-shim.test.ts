@@ -174,6 +174,30 @@ describe("claude shim", { timeout: 60_000 }, () => {
     expect(shim.run(["MCP"])).toEqual(["--settings", settings, "MCP"])
   })
 
+  it("reads an option's list of values as values, up to the next option", ({ shim }) => {
+    const settings = expect.stringMatching(/statusline\.json$/)
+    for (const args of [
+      ["--add-dir", "a", "mcp", "list"],
+      ["--add-dir", "a", "b", "mcp"],
+      ["--allowedTools", "Read", "Write", "update"],
+      ["--tools", "Read", "-", "mcp"],
+      ["--add-dir=a", "b", "mcp"],
+      // cmd splits a word at a comma too, into more of the list.
+      ["--tools", "Read,Write", "mcp"],
+    ])
+      expect(shim.run(args)).toEqual(["--settings", settings, ...args])
+    // The next option ends it, so a command after that is still one.
+    for (const args of [
+      ["--add-dir", "a", "--verbose", "mcp", "list"],
+      ["--add-dir", "a", "b", "--model", "haiku", "mcp", "list"],
+      ["--add-dir", "a", "--", "mcp", "list"],
+      // That form takes the one value, though cmd splits it from its option.
+      ["--add-dir=a", "mcp", "list"],
+      ["--mcp-config=a.json", "plugin", "list"],
+    ])
+      expect(shim.run(args)).toEqual(args)
+  })
+
   it.runIf(windows)(
     "runs the real claude, never a claude.cmd in the current folder, where a plain where looks first",
     ({ shim }) => {

@@ -103,7 +103,9 @@ const programOf = (words: readonly string[], platform: NodeJS.Platform): AgentNa
  * A command counts only as the first word after the program that is not an option, so a
  * prompt of loose words (`codex write a test`) is not read as one. The value of each option
  * the agent is known to take one (`harness.nonSession.takesValue`, as `codex -c key=value
- * mcp list`) is skipped first. One it does not know reads as the first word, so
+ * mcp list`) is skipped first, with the rest of a list up to the next option for one that
+ * takes several (`harness.nonSession.takesMany`, as `claude --add-dir a b mcp`, where every
+ * word after the option is a directory). One it does not know reads as the first word, so
  * `claude --unknown x mcp list` is refused though it need not be.
  * So does an option with an optional value (`claude -r x mcp`) and a Go-style long option
  * with one dash (`agy -model x mcp`), which the lists spell with two.
@@ -122,7 +124,7 @@ export const sessionLaunch = (
   const words = commandWords(command, platform)
   const agent = programOf(words, platform)
   if (agent === null) return null
-  const { commands, flags, takesValue, print } = harnesses[agent].nonSession
+  const { commands, flags, takesValue, takesMany, print } = harnesses[agent].nonSession
   const rest = words.slice(1)
   if (rest.some((word) => flags.includes(word))) return null
   if (rest.some((word) => print.includes(word))) return agent
@@ -130,6 +132,9 @@ export const sessionLaunch = (
     const word = rest[index]!
     if (!word.startsWith("-")) return commands.includes(word) ? null : agent
     if (takesValue.includes(word)) index += 1
+    if (!takesMany.includes(word)) continue
+    // A lone `-` is a value to both Commander and clap, never an option.
+    while (index + 1 < rest.length && !/^-./.test(rest[index + 1]!)) index += 1
   }
   return agent
 }

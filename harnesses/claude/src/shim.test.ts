@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest"
 
 import { claude } from "./index.js"
-import { cmdShim, posixShim, valued } from "./shim.js"
+import { cmdShim, many, posixShim, valued } from "./shim.js"
 
 describe("the Windows shim", () => {
   it("looks for the real claude on PATH only, never in the current folder where cmd looks first", () => {
@@ -15,5 +15,12 @@ describe("the shims' reading of a command line", () => {
     expect(claude.nonSession.takesValue).toBe(valued)
     expect(posixShim).toContain(`    ${valued.join(" | ")}) novadeck_value=1 ;;`)
     expect(cmdShim).toContain(`for %%v in (${valued.join(" ")}) do`)
+  })
+
+  it("skips a list's words as the runner's reading does", () => {
+    expect(claude.nonSession.takesMany).toBe(many)
+    expect(valued).toEqual(expect.arrayContaining(many))
+    expect(posixShim).toContain(`    ${many.join(" | ")}) novadeck_value=1 novadeck_list=1 ;;`)
+    expect(cmdShim).toContain(`for %%v in (${many.join(" ")}) do`)
   })
 })

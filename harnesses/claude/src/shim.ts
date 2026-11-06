@@ -65,6 +65,20 @@ export const valued = [
   "--tools",
 ]
 
+// Those of them that take a list, as `<directories...>` in the same `--help`: more words are
+// theirs up to the next option. A lone `-` is a value and `--add-dir=a` takes that one only.
+export const many = [
+  "--add-dir",
+  "--allowed-tools",
+  "--allowedTools",
+  "--betas",
+  "--disallowed-tools",
+  "--disallowedTools",
+  "--file",
+  "--mcp-config",
+  "--tools",
+]
+
 // While Claude Code is connected, Novadeck's shells run it through this shim, which adds
 // Novadeck's settings: a status line that tells Novadeck the session's rate limits and
 // context, then shows the person's own status line. Its other commands, and anything
@@ -98,12 +112,20 @@ case " \${NOVADECK_SHIMS:-} " in *" claude "*) ;; *) exec "$novadeck_real" "$@" 
 novadeck_settings=$(dirname "$0")/../plugins/claude/statusline.json
 [ -f "$novadeck_settings" ] || exec "$novadeck_real" "$@"
 novadeck_value=
+novadeck_list=
 for novadeck_arg in "$@"; do
   if [ -n "$novadeck_value" ]; then
     novadeck_value=
     continue
   fi
+  if [ -n "$novadeck_list" ]; then
+    case $novadeck_arg in
+      -?*) novadeck_list= ;;
+      *) continue ;;
+    esac
+  fi
   case $novadeck_arg in
+    ${many.join(" | ")}) novadeck_value=1 novadeck_list=1 ;;
     ${valued.join(" | ")}) novadeck_value=1 ;;
     -*) ;;
     ${commands.join(" | ")}) exec "$novadeck_real" "$@" ;;
@@ -153,6 +175,7 @@ rem of its commands.
 :command
 if "%~1"=="" exit /b 1
 set "novadeck_arg=%~1"
+for %%v in (${many.join(" ")}) do if "%novadeck_arg%"=="%%v" goto list
 for %%v in (${valued.join(" ")}) do if "%novadeck_arg%"=="%%v" goto value
 if "%novadeck_arg:~0,1%"=="-" (
   shift

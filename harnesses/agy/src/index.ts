@@ -134,6 +134,7 @@ export const agy = {
       "--prompt-interactive",
       "-v",
     ],
+    takesMany: [],
   },
   transcripts: { ...transcripts, shapes, conversational },
   // Its hooks name no subagents; its status line counts them; see docs/harness-coverage.md.
