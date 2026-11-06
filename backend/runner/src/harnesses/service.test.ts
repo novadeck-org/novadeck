@@ -14,6 +14,7 @@ import { createRunner } from "../index.js"
 import { cmdPrints, installShellFiles } from "../shell/install.js"
 import type { ShellPaths } from "../shell/scripts.js"
 import { describe, expect, it as base } from "../test.js"
+import type { Resources } from "../testing/resources.js"
 import { WorkspaceStore } from "../workspaces/store.js"
 import { createHarnesses } from "./service.js"
 
@@ -144,6 +145,32 @@ const installed = (home: string, ...agents: string[]) => {
   const homes = { claude: [".claude"], codex: [".codex"], agy: [".gemini", "antigravity-cli"] }
   for (const agent of agents)
     mkdirSync(join(home, ...homes[agent as keyof typeof homes]), { recursive: true })
+}
+
+// A login shell that ignores SIGTERM, as an interactive one does, and that only the fixture's
+// end ends otherwise, as one held by its startup files. It says who it is whole, and goes with
+// the test's end whatever happens, even if it never got as far as saying.
+const heldShell = (fixture: Fixture, resources: Resources) => {
+  const path = join(fixture.home, "slow-shell")
+  const pidFile = join(fixture.root, "shell.pid")
+  writeFileSync(
+    path,
+    `#!/bin/sh\ntrap '' TERM\necho $$ > "${pidFile}.new" && mv "${pidFile}.new" "${pidFile}"\nwhile [ -d "${fixture.root}" ]; do sleep 1; done\n`,
+    { mode: 0o755 },
+  )
+  const pid = () => (existsSync(pidFile) ? Number(readFileSync(pidFile, "utf8")) : 0)
+  // Never 0, which would signal this process's whole group.
+  const signal = (name: NodeJS.Signals | 0): boolean => {
+    const each = pid()
+    if (!(each > 0)) return false
+    try {
+      return process.kill(each, name)
+    } catch {
+      return false
+    }
+  }
+  resources.defer(() => void signal("SIGKILL"))
+  return { path, alive: () => signal(0) }
 }
 
 describe("agents Novadeck can connect", () => {
@@ -421,46 +448,50 @@ describe("agents Novadeck can connect", () => {
 
   it.skipIf(windows)(
     "end the login shell's lookup when the runner can't be built",
-    async ({ fixture }) => {
-      // An interactive shell ignores SIGTERM: this stands in for one held by its startup files.
-      const pidFile = join(fixture.root, "shell.pid")
-      const shell = join(fixture.home, "slow-shell")
-      writeFileSync(
-        shell,
-        `#!/bin/sh\ntrap '' TERM\necho $$ > "${pidFile}"\nwhile :; do sleep 1; done\n`,
-        { mode: 0o755 },
-      )
+    async ({ fixture, resources }) => {
+      const shell = heldShell(fixture, resources)
       expect(() =>
         createRunner({
           database: join(fixture.root, "workspace.sqlite"),
           terminals: { maxRetained: 0 },
-          agents: { home: fixture.home, env: fixture.environment({ SHELL: shell }) },
+          agents: { home: fixture.home, env: fixture.environment({ SHELL: shell.path }) },
         }),
       ).toThrow(RangeError)
-      await vi.waitFor(() => expect(existsSync(pidFile)).toBe(true), { timeout: 5_000 })
-      const pid = Number(readFileSync(pidFile, "utf8"))
-      await vi.waitFor(() => expect(() => process.kill(pid, 0)).toThrow(), { timeout: 5_000 })
+      // The build fails within moments of the spawn, which may be before the shell can say
+      // who it is: long after, none that did may still be there.
+      await new Promise((resolve) => setTimeout(resolve, 1_000))
+      await vi.waitFor(() => expect(shell.alive()).toBe(false), { timeout: 5_000 })
     },
   )
 
-  it.skipIf(windows)("end a login shell that outlives its time limit", async ({ fixture }) => {
-    const pidFile = join(fixture.root, "shell.pid")
-    const shell = join(fixture.home, "slow-shell")
-    writeFileSync(
-      shell,
-      `#!/bin/sh\ntrap '' TERM\necho $$ > "${pidFile}"\nwhile :; do sleep 1; done\n`,
-      { mode: 0o755 },
-    )
-    const agents = createHarnesses(() => Promise.resolve(fixture.paths), {
-      home: fixture.home,
-      env: fixture.environment({ SHELL: shell }),
-      loginTimeoutMs: 300,
-    })
-    await vi.waitFor(() => expect(existsSync(pidFile)).toBe(true), { timeout: 5_000 })
-    const pid = Number(readFileSync(pidFile, "utf8"))
-    await vi.waitFor(() => expect(() => process.kill(pid, 0)).toThrow(), { timeout: 5_000 })
-    await agents.close()
-  })
+  it.skipIf(windows)(
+    "end a login shell its startup files hold when closed",
+    async ({ fixture, resources }) => {
+      const shell = heldShell(fixture, resources)
+      const agents = createHarnesses(() => Promise.resolve(fixture.paths), {
+        home: fixture.home,
+        env: fixture.environment({ SHELL: shell.path }),
+      })
+      await vi.waitFor(() => expect(shell.alive()).toBe(true), { timeout: 10_000 })
+      await agents.close()
+      await vi.waitFor(() => expect(shell.alive()).toBe(false), { timeout: 5_000 })
+    },
+  )
+
+  it.skipIf(windows)(
+    "end a login shell that outlives its time limit",
+    async ({ fixture, resources }) => {
+      const shell = heldShell(fixture, resources)
+      const agents = createHarnesses(() => Promise.resolve(fixture.paths), {
+        home: fixture.home,
+        env: fixture.environment({ SHELL: shell.path }),
+        loginTimeoutMs: 1_000,
+      })
+      resources.defer(() => agents.close())
+      await new Promise((resolve) => setTimeout(resolve, 1_000))
+      await vi.waitFor(() => expect(shell.alive()).toBe(false), { timeout: 5_000 })
+    },
+  )
 
   it("run no plugin commands of a refresh when the runner can't be built", async ({
     fixture,
@@ -472,24 +503,30 @@ describe("agents Novadeck can connect", () => {
     const copy = join(fixture.home, ".gemini", "config", "plugins", "novadeck", "hooks.json")
     writeFileSync(copy, '{"novadeck":{}}')
     const before = fixture.calls().length
-    const shell = join(fixture.root, "runner-shell")
-    const options = {
-      database: join(fixture.root, "workspace.sqlite"),
-      shell,
+    const options = (name: string) => ({
+      database: join(fixture.root, `${name}.sqlite`),
+      shell: join(fixture.root, name),
       agents: { home: fixture.home, env: fixture.environment(), login: false },
-    }
-    expect(() => createRunner({ ...options, terminals: { maxRetained: 0 } })).toThrow(RangeError)
-    await vi.waitFor(() => expect(existsSync(join(shell, "plugins", "agy"))).toBe(true), {
+    })
+    const failed = options("failed")
+    expect(() => createRunner({ ...failed, terminals: { maxRetained: 0 } })).toThrow(RangeError)
+    await vi.waitFor(() => expect(existsSync(join(failed.shell, "plugins", "agy"))).toBe(true), {
       timeout: 5_000,
     })
-    await new Promise((resolve) => setTimeout(resolve, 500))
+    await new Promise((resolve) => setTimeout(resolve, 1_000))
     expect(fixture.calls()).toHaveLength(before)
     // The same runner, built, does: what was left undone above is what the runner stopped.
-    const runner = createRunner(options)
+    const built = options("built")
+    const runner = createRunner(built)
     resources.defer(() => runner.close())
-    await vi.waitFor(() => expect(fixture.calls().length).toBeGreaterThan(before), {
-      timeout: 10_000,
-    })
+    const mark = `${join(built.shell, "plugins", "agy")}.reinstalling`
+    await vi.waitFor(
+      () => {
+        expect(fixture.calls().length).toBeGreaterThan(before)
+        expect(existsSync(mark)).toBe(false)
+      },
+      { timeout: 10_000 },
+    )
   })
 
   it.skipIf(windows)(

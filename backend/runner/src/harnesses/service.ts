@@ -468,8 +468,8 @@ export const createHarnesses = (
     },
     /**
      * Ends the login shell's lookup and skips the agents a refresh hasn't reached, for a
-     * runner that couldn't be built. Windows' lookup only reads the registry, at most for
-     * a few seconds, and other callers share it, so it finishes.
+     * runner that couldn't be built. Windows' lookup only reads the registry, for ten
+     * seconds at most, and other callers share it, so it finishes.
      */
     close: (): Promise<void> => {
       closing.abort()
