@@ -16,6 +16,7 @@ const fixtures: Record<string, string> = {
   "ui-murmur-offer-expect-element": "Test (Windows)",
   "ui-process-windows-layout-settled": "Test (Windows, 1/3)",
   "e2e-codex-quirks-stopped-thread": "Codex (Windows quirks)",
+  "e2e-codex-windows-patch-never-returns": "Codex (Windows, 2/2)",
   "e2e-antigravity-macos-lead-tool-call": "Antigravity (macOS)",
   "e2e-claude-windows-interrupted-draft": "Claude Code (Windows)",
   "e2e-claude-windows-interrupt-draft": "Claude Code (Windows)",
@@ -43,6 +44,15 @@ describe("the known-flake register", () => {
       const log = fixture("e2e-claude-queued-turn-ends-in-hold")
       const partial = log.replace("expected null to be", "expected 'Queued gamma' to be")
       expect(judgeJob(register, job, partial).flakes).toEqual([])
+    })
+  })
+
+  context("when the transcripts test times out on another step", () => {
+    it("takes it for no flake, as only the patch's step is excused", () => {
+      const job = "Codex (Windows, 2/2)"
+      const log = fixture("e2e-codex-windows-patch-never-returns")
+      const other = log.replaceAll("Finished Transcript step 2.", "Finished Transcript step 1.")
+      expect(judgeJob(register, job, other).flakes).toEqual([])
     })
   })
 

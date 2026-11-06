@@ -957,6 +957,7 @@ describe("The Console sheet", () => {
           requests: [],
           prompts: [],
           unread: false,
+          box: null,
         })),
       )
       expect(text(".console-you")).toContain("run the suite")

@@ -5,7 +5,8 @@ import { z } from "zod"
 // reads off a screen is cut to these. Ids and counts are never cut.
 export const dialogTextLimits = {
   title: 1024,
-  detail: 4096,
+  // What the person approves from, which is never cut: a long script is still one command.
+  detail: 65_536,
   header: 256,
   question: 2048,
   label: 512,

@@ -334,6 +334,7 @@ export const createDemoChat = (
       prompts: [],
       // Its transcripts hold nothing the chat can't read.
       unread: false,
+      box: null,
     }
   }
   const entryOf = (key: TerminalKey) => {

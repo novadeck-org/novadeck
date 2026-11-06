@@ -215,6 +215,12 @@ export type Harness = {
    */
   readonly dialogs?: DialogAdapter
   /**
+   * The fields of its hooks' payloads that hold a command the person may be asked to
+   * approve. Reports keep these whole, where they cut all other text, as a dialog's `detail`
+   * is the request's own command and a yes runs every line of it.
+   */
+  readonly commandFields?: readonly string[]
+  /**
    * Whether one of its hooks' reports says its prompt shows before any session it names
    * has bound, as Antigravity's status line saying idle with no conversation yet.
    */

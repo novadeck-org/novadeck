@@ -1,7 +1,9 @@
 import type { ScreenText } from "@novadeck/emulator/headless"
 import {
   agreeing,
+  eraseRows,
   footerRows,
+  leaveShell,
   rule,
   ruledBox,
   type BoxProfile,
@@ -92,7 +94,11 @@ export const box: BoxProfile = {
   read,
   // Enter runs a command shown as a placeholder as the text it stands for. It binds its session
   // before any command, so none starts one (`starts`).
-  shell: { expands: true, starts: false, footer: shellFooter },
+  shell: { expands: true, starts: false, footer: shellFooter, leave: leaveShell },
+  // On 80 and 120 columns a word reaches 76 and 116, and one too long for a row fills the rest
+  // of the row it starts on, to the same column (fixtures/leftover.probe.json).
+  textWidth: (columns) => columns - 4,
+  stands: (text) => /\[(?:Pasted text #\d+|Image #\d+)/.test(text),
   collapsed: ({ text }) => /^\[Pasted text #\d+(?: \+\d+ lines?)?\]$/.test(text.trim()),
   // Escape twice, over text seen in the box only; it clears a restored prompt or the queued
   // messages an Escape put back, of any number of lines (probed 2026-10-07). Where its footer
@@ -100,6 +106,7 @@ export const box: BoxProfile = {
   // more clears it: a second would land on the empty box and open the rewind picker (seen on
   // Windows CI, when the first pair was still being taken after half a second).
   clear: (_box, screen) => (clearPending(screen?.rows ?? []) ? "\x1b" : "\x1b\x1b"),
+  erase: eraseRows,
   overlay,
   queued,
   // Hooks overlap, so this is a slow hook's time however many messages are queued (probed

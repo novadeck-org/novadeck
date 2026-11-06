@@ -7,6 +7,7 @@ import type { TerminalKey } from "@novadeck/core/port"
 import type { Workspace } from "@novadeck/core/types"
 
 import { currentContext, currentState } from "../selectors"
+import { chatViewOn } from "../ui-store"
 import type { CommandContext } from "./context"
 import { shellEdits } from "./shell"
 
@@ -26,7 +27,7 @@ const terminalOpen = (snapshot: Workspace, key: TerminalKey): boolean =>
     ?.state.roster.terminals.some((terminal) => terminal.id === key.terminalId) === true
 
 export const createChatCommands = (ctx: CommandContext): ChatCommands => {
-  const { workspace, navigation, conversations, chat } = ctx
+  const { workspace, navigation, conversations, chat, ui } = ctx
   const { set } = shellEdits(ctx)
   return {
     ...createChatWrites({
@@ -34,6 +35,7 @@ export const createChatCommands = (ctx: CommandContext): ChatCommands => {
       conversations,
       terminalOpen: (key) => terminalOpen(workspace.getSnapshot(), key),
       context: () => currentContext(workspace.getSnapshot()),
+      chatView: () => chatViewOn(ui.getSnapshot()),
     }),
     showTerminal: (terminalId) => {
       const snapshot = workspace.getSnapshot()

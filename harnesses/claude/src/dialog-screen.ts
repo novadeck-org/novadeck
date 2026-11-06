@@ -185,9 +185,11 @@ export const quoted = (rows: readonly string[]): string[] =>
 /**
  * Whether `rows` are `expected` as the terminal wrapped it: whitespace collapsed (never
  * stripped), a row break standing for a space where the text has one and for none where
- * it broke a word.
+ * it broke a word. Text with a tab is read without its whitespace.
  */
 export const wraps = (rows: readonly string[], expected: string): boolean => {
+  // A tab draws as however many columns reach its stop, so no row can be held to it.
+  if (expected.includes("\t")) return flat(rows.join("")) === flat(expected)
   const want = expected.trim()
   let at = 0
   for (const row of rows.map((each) => each.trim()).filter((each) => each !== "")) {
@@ -198,6 +200,17 @@ export const wraps = (rows: readonly string[], expected: string): boolean => {
     at += /^(?: |[ \t]*\n\s*)/.exec(want.slice(at))?.[0].length ?? 0
   }
   return want !== "" && at >= want.length
+}
+
+/**
+ * Whether `rows` are the end of `expected`: what a dialog taller than the screen leaves there,
+ * its top scrolled away. The request's own command is what shows and runs; this only
+ * tells that the dialog is that request's, so whitespace, which a terminal redraws, is no
+ * part of it.
+ */
+export const wrapsEnd = (rows: readonly string[], expected: string): boolean => {
+  const shown = flat(rows.join(""))
+  return shown !== "" && flat(expected).endsWith(shown)
 }
 
 /** The ╌-ruled block above `from`: its rows, and the row of its opening rule. */

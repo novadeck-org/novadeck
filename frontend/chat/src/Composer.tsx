@@ -1,4 +1,4 @@
-import { SettleInTerminal } from "@novadeck/core/conversation"
+import { SettleInTerminal, type ChatBox } from "@novadeck/core/conversation"
 import { oneLine } from "@novadeck/core/conversation/picks"
 import {
   controlHint,
@@ -27,6 +27,18 @@ const failed = (failure: unknown): Failure => ({
   terminal: failure instanceof SettleInTerminal,
 })
 
+// What the note over the box says of what the agent's own input holds, and what happens to it.
+export const boxNote = (label: string, box: ChatBox): string => {
+  if (box.mode === "shell")
+    return `${label}'s terminal input is in shell mode, with this in it. Your next message leaves it.`
+  if (/^\s*[/!]/.test(box.text))
+    return `${label}'s terminal input holds a command. Clear it in the terminal to send here.`
+  if (box.known)
+    return `${label}'s terminal input holds your message. It comes back here as you send.`
+  const holds = box.tail ? "ends with this" : "holds this"
+  return `${label}'s terminal input ${holds}. It goes with your next message.`
+}
+
 // Where the person writes to the agent. Enter sends what's typed into the agent's own
 // box; Shift+Enter starts a new line. The words leave the box as they go, which is free for
 // the next ones meanwhile, though those wait to be sent until the first arrive; a send that
@@ -48,6 +60,7 @@ export const Composer = ({
   onCancelReply,
   onOpenTerminal,
   refused: refuses,
+  box,
 }: {
   // The agent it writes to, for the box's name.
   readonly label: string
@@ -71,6 +84,8 @@ export const Composer = ({
   readonly onOpenTerminal: () => void
   // Whether a message would be refused for its shape, as the backend says.
   readonly refused: Refused
+  // What the agent's own box holds, which a message sent now goes out with.
+  readonly box: ChatBox | null
 }): React.JSX.Element => {
   const input = useRef<HTMLTextAreaElement>(null)
   const [stopping, setStopping] = useState(false)
@@ -83,10 +98,10 @@ export const Composer = ({
   }, [focusInput, onInputFocused])
   // The box grows with its text, up to what its recipe allows.
   useLayoutEffect(() => {
-    const box = input.current
-    if (!box) return
-    box.style.height = "auto"
-    box.style.height = `${box.scrollHeight}px`
+    const field = input.current
+    if (!field) return
+    field.style.height = "auto"
+    field.style.height = `${field.scrollHeight}px`
     // oxlint-disable-next-line react/exhaustive-effect-dependencies -- Sized to the text it holds.
   }, [draft])
   // Sending answers the agent's question with the words, until the person cancels.
@@ -125,6 +140,7 @@ export const Composer = ({
   const hint = useId()
   const note = useId()
   const shellNote = useId()
+  const boxNoteId = useId()
   return (
     <form
       className="chat-composer nodrag nopan"
@@ -166,6 +182,12 @@ export const Composer = ({
           </span>
         </p>
       )}
+      {box && (
+        <div className="chat-reply chat-box" id={boxNoteId}>
+          <span>{boxNote(label, box)}</span>
+          <pre className="chat-box-text">{box.tail ? `…${box.text}` : box.text}</pre>
+        </div>
+      )}
       {command !== undefined && (
         <p className="chat-reply" id={shellNote}>
           <span>Runs in {label}'s shell, as if typed in its terminal.</span>
@@ -193,13 +215,11 @@ export const Composer = ({
           placeholder={replying ? `Reply to ${label}'s question…` : `Message ${label}…`}
           rows={1}
           value={draft}
-          aria-describedby={
-            replying || held
-              ? `${note} ${hint}`
-              : command !== undefined
-                ? `${shellNote} ${hint}`
-                : hint
-          }
+          aria-describedby={[
+            ...(box ? [boxNoteId] : []),
+            ...(replying || held ? [note] : command !== undefined ? [shellNote] : []),
+            hint,
+          ].join(" ")}
           // What the agent's field takes, as the protocol carries it.
           maxLength={replying ? replyMax : undefined}
           spellCheck

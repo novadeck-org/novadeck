@@ -23,8 +23,10 @@ const here = dirname(fileURLToPath(import.meta.url))
  * it, or the deck), each checked below.
  */
 const reaching = [
+  "chat.e2e.ts",
   "doorbell.e2e.ts",
   "person.e2e.ts",
+  "probes/agent-exit.e2e.ts",
   "probes/agy-stop-boundary.e2e.ts",
   "probes/codex-banner.e2e.ts",
   "probes/interrupt-held-reply.e2e.ts",
@@ -38,7 +40,9 @@ type Process = { write: unknown; onData: unknown; pid: unknown }
 type Inside = {
   readonly records: Map<string, { bound: unknown; terminal: { pty: Process } }>
   readonly bindings: { applyFact: unknown }
+  readonly trees: { end: unknown }
   readonly reporting: { report: unknown }
+  readonly typing: { receipts: { expect: unknown; sent: unknown; putBack: unknown } }
   readonly messaging: { delivery(id: string): unknown; ring: unknown; ringFailed: unknown }
   live(id: string): { terminal: { screen: Parameters<typeof readScreen>[0]; pty: Process } }
 }
@@ -65,6 +69,12 @@ describe("the e2e reach-ins", () => {
         ),
     )
     expect(files.map((file) => file.replaceAll("\\", "/")).toSorted()).toEqual(reaching)
+  })
+
+  it("chat's: the receipts of the terminal's typing", async ({ resources }) => {
+    const { inside } = await running(resources)
+    const { expect: expected, sent, putBack } = inside.typing.receipts
+    for (const member of [expected, sent, putBack]) expect(member).toBeTypeOf("function")
   })
 
   it("doorbell's: messaging's ring, a live terminal's screen and pty", async ({ resources }) => {
@@ -113,6 +123,15 @@ describe("the e2e reach-ins", () => {
     expect(record).toHaveProperty("expecting", null)
     expect(record).toHaveProperty("bound", null)
     expect(record).toHaveProperty("terminal.screen.buffer.active.baseY")
+  })
+
+  it("agent-exit's: records, a live terminal's shell, and the trees it ends", async ({
+    resources,
+  }) => {
+    const { inside, id } = await running(resources)
+    // Undefined on Windows until the shell has drawn: that it's there is what counts.
+    expect("pid" in inside.records.get(id)!.terminal.pty).toBe(true)
+    expect(inside.trees.end).toBeTypeOf("function")
   })
 
   it("scope's: records and a live terminal's shell", async ({ resources }) => {
