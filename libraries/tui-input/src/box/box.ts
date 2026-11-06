@@ -92,10 +92,11 @@ export type BoxProfile = {
    * When the screen says an interrupt's first Escape would go wrong yet, and how long, in
    * milliseconds, that Escape waits for it to say otherwise, then goes all the same. A turn
    * that ends during the wait takes the Escape with it, unless messages were queued behind
-   * that turn. Omitted where it can go at once.
+   * that turn. `holds` is given the prompt of a person's turn (`InterruptHost.prompt`), and
+   * may be asked of any screen. Omitted where it can go at once.
    */
   readonly escapeHold?: {
-    readonly holds: (screen: ScreenText) => boolean
+    readonly holds: (screen: ScreenText, prompt?: string) => boolean
     readonly ms: number
   }
   /**

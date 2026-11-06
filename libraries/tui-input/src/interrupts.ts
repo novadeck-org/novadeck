@@ -144,8 +144,8 @@ export class Interrupts {
     // merged with it, and is theirs.
     const seen = profile ? await host.screen(terminalId) : undefined
     const queuedBefore = seen !== undefined && profile?.queued(seen) === true
-    const held = seen !== undefined && profile?.escapeHold?.holds(seen) === true
-    const first = held ? await this.heldScreen(terminalId, profile!, seen) : seen
+    const held = seen !== undefined && profile?.escapeHold?.holds(seen, prompt) === true
+    const first = held ? await this.heldScreen(terminalId, profile!, seen, prompt) : seen
     const boxBefore = first && profile?.read(first)
     const emptyBefore = boxBefore !== undefined && isEmpty(boxBefore)
     const queuedNow = first !== undefined && profile?.queued(first) === true
@@ -210,12 +210,13 @@ export class Interrupts {
     terminalId: string,
     profile: BoxProfile,
     screen: ScreenText,
+    prompt: string | undefined,
   ): Promise<ScreenText | undefined> {
     const { host } = this
     const { holds, ms } = profile.escapeHold!
     const until = Date.now() + ms
     let now: ScreenText | undefined = screen
-    while (now && holds(now) && host.working(terminalId) && Date.now() < until) {
+    while (now && holds(now, prompt) && host.working(terminalId) && Date.now() < until) {
       // eslint-disable-next-line no-await-in-loop -- The screen is looked at in turn.
       await sleep(pollMs)
       // eslint-disable-next-line no-await-in-loop -- As above.

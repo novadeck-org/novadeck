@@ -26,7 +26,7 @@ const terminal = (
     /** Whether the screen shows messages queued behind the turn, or how it does as it's read. */
     queued?: boolean | (() => boolean)
     /** How the screen says an Escape must wait yet, as it's read. */
-    holds?: () => boolean
+    holds?: (screen: ScreenText, prompt?: string) => boolean
     /** How long the Escape waits on that, in milliseconds. */
     holdMs?: number
     /** What refuses keys to the terminal, as it's asked. */
@@ -299,6 +299,24 @@ describe("interrupts", () => {
     expect(await t.interrupt()).toEqual({ returned: "Queued beta\nQueued gamma" })
     expect(t.typed).toEqual([ESC, ESC])
     expect(t.typedAt[0]).toBeGreaterThanOrEqual(190)
+  })
+
+  it("asks the profile with the turn's prompt, at each look of the hold", async () => {
+    const prompts: (string | undefined)[] = []
+    const t = terminal({
+      prompt: "Hold on",
+      holds: (_screen, prompt) => prompts.push(prompt) < 3,
+    })
+    await t.interrupt()
+    expect(prompts).toEqual(["Hold on", "Hold on", "Hold on"])
+    expect(t.typed).toEqual([ESC])
+  })
+
+  it("asks the profile with no prompt where the host knows none", async () => {
+    const prompts: (string | undefined)[] = []
+    const t = terminal({ holds: (_screen, prompt) => prompts.push(prompt) < 0 })
+    await t.interrupt()
+    expect(prompts).toEqual([undefined])
   })
 
   it("presses its Escape at once where the profile doesn't hold it", async () => {
