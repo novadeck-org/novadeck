@@ -37,6 +37,11 @@ export type BoxProfile = {
    */
   readonly collapsed: (box: InputBox) => boolean
   /**
+   * Whether the box says it shows only part of its text, where it has words for that, as
+   * Antigravity's `↑ 10 more lines`. Omitted where it doesn't.
+   */
+  readonly cut?: (box: InputBox) => boolean
+  /**
    * The keys that clear the text a box holds, for a program that puts text back in its box
    * (an interrupted prompt, messages queued behind a turn): written only over text seen
    * there, as a program's Escape twice may open a picker over an empty box. Omitted where
@@ -137,9 +142,12 @@ export const showsTail = (
   box: InputBox,
   rows: number,
   text: string,
-): boolean => {
+): boolean => mayShowTail(profile, box, rows) && endsText(box.text, text)
+
+/** Whether the box is as tall as its viewport lets it be, so it may show only its text's tail. */
+export const mayShowTail = (profile: BoxProfile, box: InputBox, rows: number): boolean => {
   const viewport = profile.viewport?.(rows) ?? Infinity
-  return viewport >= minViewport && box.last - box.first + 1 >= viewport && endsText(box.text, text)
+  return viewport >= minViewport && box.last - box.first + 1 >= viewport
 }
 
 /** Whether the box holds nothing. */

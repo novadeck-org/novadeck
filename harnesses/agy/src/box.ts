@@ -150,6 +150,9 @@ export const box: BoxProfile = {
   // probed 2026-10-08).
   shell: { expands: false, starts: true, footer: shellFooter, command: shellCommandOf },
   collapsed: ({ text }) => /^\[Pasted text #\d+ (?:\+\d+ lines?|\d+ chars?)\]$/.test(text.trim()),
+  // A text taller than its box scrolls under this row, which reads as part of the text: 30
+  // queued lines came back as it and the last 20 (probed 2026-11-06, 1.5.2).
+  cut: ({ text }) => /^↑ \d+ more lines?$/m.test(text),
   // 15 lines showed whole, even of 100 characters each; 16 did not. One line of 1,000
   // characters showed whole, 1,024 did not.
   // Ctrl-U clears the line the cursor is on and Backspace joins the line before it; the
