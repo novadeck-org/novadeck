@@ -15,6 +15,14 @@ export const leftoverNonce = (text: string): string | undefined => {
 }
 
 /**
+ * The nonce closing a box's text: a doorbell line's or a reply line's end, as a box too short
+ * for the line shows it, its head out of sight; else undefined. Any bracket ends this way, so
+ * only the line its ring typed under that nonce says it is one.
+ */
+export const closingNonce = (text: string): string | undefined =>
+  /[,[]([A-Za-z0-9]+)\]$/.exec(compact(text))?.[1]
+
+/**
  * Whether a box's text holds a doorbell line or reply line, with anything else beside it or not:
  * a ring's own line is never to be handed to the person as their words.
  */

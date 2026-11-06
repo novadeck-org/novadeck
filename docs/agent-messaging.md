@@ -1196,7 +1196,11 @@ changed elsewhere), or the ring abandoned mid-way (a turn the harness started to
 and its Stop left the box Drafting). A confirmed ring's line back in the box is the
 person's: their Escape put it back (Claude Code returns an interrupted prompt to its box),
 or they recalled it from the prompt's history. No person types an unconfirmed ring's line,
-so no key of theirs makes it theirs: from Fresh, Drafting or Unknown, idle with messages
+so no key of theirs makes it theirs. A box too short for the line (`hidesText`: a reply line near
+its 320 characters in a small pane) shows only its end: that counts if it ends the line the ring
+typed under the nonce closing it, read without Antigravity's row of more lines (`uncut`). The
+head can't be read there, so a key of the person's before the line can't be told, and a nonce the
+doorbell no longer knows leaves the box to them. From Fresh, Drafting or Unknown, idle with messages
 waiting, the doorbell submits
 it with Enter alone under the same gate as a ring, after the same wait a failed ring earns,
 pasting nothing (the terminal is Ringing under that line's own nonce, which its doorbell
@@ -1661,7 +1665,9 @@ text in `record.terminal.screen` (`@xterm/headless`), with its paste mode. The r
    showed), which leaves room in the cap for the last looks and the Enter. It is accepted
    only when:
    - the line, joined across the rows it wraps over (whitespace aside), appears on the
-     screen exactly once, and did not before; and
+     screen exactly once, and did not before (in a box too short for it, `hidesText`, the
+     end of the line that shows, which is why that end must be the line's own, nonce and
+     all); and
    - every row that changed is one the line occupies or within 3 rows of them, which
      covers a vanishing placeholder, footer hints and the box growing. When the box
      grows by a row, the rows above it may move up one and those below down one; they

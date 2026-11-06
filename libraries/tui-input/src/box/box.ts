@@ -186,6 +186,22 @@ export const fillsViewport = (profile: BoxProfile, box: InputBox, rows: number):
 export const hidesText = (profile: BoxProfile, box: InputBox, rows: number): boolean =>
   fillsViewport(profile, box, rows) || profile.cut?.(box) === true
 
+/**
+ * What shows of `text` in a box that hides the rest of it, without the rows that say so; undefined
+ * unless the box hides text and what it shows is the end of `text`. A line that ends in its
+ * nonce can be told by that end.
+ */
+export const tailOf = (
+  profile: BoxProfile,
+  box: InputBox,
+  rows: number,
+  text: string,
+): string | undefined => {
+  if (!hidesText(profile, box, rows)) return undefined
+  const shown = profile.uncut?.(box.text) ?? box.text
+  return endsText(shown, text) ? shown : undefined
+}
+
 /** Whether the box shows the tail of `text`, as a box shows a text taller than its viewport. */
 export const showsTail = (
   profile: BoxProfile,

@@ -525,6 +525,94 @@ describe("a delivery over the screens each program drew", () => {
   }
 })
 
+describe("a line taller than its box", () => {
+  const long = `[reply n7Q2] ${"and say so in the changelog ".repeat(12)}[n7Q2]`
+  const end = long.slice(-40)
+
+  /** Delivers the line over an empty box that then shows `rows`, read as its last two rows. */
+  const deliverTo = async (rows: readonly string[], extra: Partial<BoxProfile> = {}) => {
+    const written: string[] = []
+    const shown = (box: readonly string[]) =>
+      screen({
+        rows: ["history", "", ...box, "footer", "", ...Array<string>(4 - box.length).fill("")],
+        columns: 40,
+        cursor: { row: 1 + box.length, column: 0 },
+      })
+    let pasted = false
+    const target = {
+      type: (data: string) => {
+        written.push(data)
+        if (data.startsWith("\x1b[200~")) pasted = true
+        return true
+      },
+      screen: () => Promise.resolve(shown(pasted ? rows : [">"])),
+      resizedAt: 0,
+      holdsForeground: () => Promise.resolve(true),
+    }
+    const profile = {
+      read: (drawn: ScreenText) => {
+        const last = drawn.rows.indexOf("footer") - 1
+        const text = drawn.rows
+          .slice(2, last + 1)
+          .map((row) => row.replace(/^>\s?/, ""))
+          .join("\n")
+        return { mode: "prompt", text, first: 2, last }
+      },
+      overlay: () => false,
+      viewport: () => 2,
+      ...extra,
+    } as unknown as BoxProfile
+    const typist = createTypist(target, { profile: () => profile, timing: fast })
+    const delivered = await run(
+      typist.deliver(terminal().entry, () => long, {
+        calmSince: 0,
+        start: () => true,
+        still: () => true,
+      }),
+    )
+    return { delivered, written }
+  }
+
+  it("presses Enter where the box, as tall as it gets, shows the line's end", async () => {
+    const { delivered, written } = await deliverTo([`> ${end.slice(0, 20)}`, end.slice(20)])
+    expect(delivered).toMatchObject({ entered: true })
+    expect(enters(written)).toBe(1)
+  })
+
+  it("presses Enter where the box says it is cut, its row aside", async () => {
+    const { delivered, written } = await deliverTo(
+      ["> ↑ 6 more lines", end.slice(0, 20), end.slice(20)],
+      {
+        viewport: undefined,
+        cut: ({ text }) => text.startsWith("↑"),
+        uncut: (text) => text.replace(/^↑ \d+ more lines?\n/, ""),
+      },
+    )
+    expect(delivered).toMatchObject({ entered: true })
+    expect(enters(written)).toBe(1)
+  })
+
+  it("presses no Enter where the box shows only how the line starts", async () => {
+    const { delivered, written } = await deliverTo([`> ${long.slice(0, 20)}`, long.slice(20, 40)])
+    expect(delivered).toMatchObject({ entered: false, reason: "not-landed" })
+    expect(enters(written)).toBe(0)
+  })
+
+  it("presses no Enter where a key follows the line", async () => {
+    const { delivered, written } = await deliverTo([`> ${end.slice(0, 20)}`, `${end.slice(20)}x`])
+    expect(delivered).toMatchObject({ entered: false, reason: "not-landed" })
+    expect(enters(written)).toBe(0)
+  })
+
+  it("presses no Enter where the box isn't full, so it hides nothing", async () => {
+    const { delivered, written } = await deliverTo([`> ${end.slice(0, 20)}`, end.slice(20)], {
+      viewport: () => 5,
+    })
+    expect(delivered).toMatchObject({ entered: false, reason: "not-landed" })
+    expect(enters(written)).toBe(0)
+  })
+})
+
 describe("a submission", () => {
   it("presses Enter alone, pasting nothing, while the hold and the caller's nonce stand", async () => {
     const fake = terminal()

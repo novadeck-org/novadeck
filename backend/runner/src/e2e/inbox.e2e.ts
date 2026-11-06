@@ -323,6 +323,33 @@ for (const setup of setups) {
       expect(lined(received)).toBe(true)
     })
 
+    // A reply near the line's limit fills more rows than a small pane's box has, for its head to
+    // scroll away; the line is the prompt all the same, for auto mode to count it.
+    it("rings a reply a small pane's box shows only the end of, and it comes as its prompt", async ({
+      e2e: run,
+    }) => {
+      const finishing = gate()
+      finishing.open()
+      run.model.use(
+        asksAndWorksOn(run, finishing),
+        own((call) => (delivered(call, "you") ? { text: "Merged, as you said." } : undefined)),
+      )
+      const terminal = await start(run, setup)
+      await turn(terminal, "Ask and work on", "Worked on.")
+      terminal.resize(40, 14)
+      const calls = run.model.mark()
+      const ask = run.deck.terminals.inboxEntries().find((each) => each.content.kind === "ask")!
+      const words = `Merge it${" and say so in the changelog".repeat(7)}, thanks.`
+      run.deck.terminals.answerAsk(ask.id, { type: "reply", option: 0, text: words })
+      const received = await run.model.waitFor((call) => !call.side && delivered(call, "you"), {
+        after: calls,
+      })
+      const typed = received.turns.find(
+        (entry) => entry.role === "user" && entry.text.includes(words),
+      )
+      expect(typed?.text).toMatch(/\[Novadeck Inbox reply, ([A-Za-z0-9]+)\] Re your ask .* \[\1\]/)
+    })
+
     it("gives the reply at the Stop over a draft of the person's, never typing beside it", async ({
       e2e: run,
     }) => {
