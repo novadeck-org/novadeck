@@ -43,9 +43,6 @@ export const turn = (
   ),
 ]
 
-// Antigravity wraps the strings of its arguments in JSON quotes.
-const q = (value: string): string => JSON.stringify(value)
-
 const novadeck = "mcp_novadeck_novadeck_"
 
 export const agyVocabulary: readonly Written[] = [
@@ -55,8 +52,8 @@ export const agyVocabulary: readonly Written[] = [
       "Look at the project.",
       "On it.",
       [
-        ["run_command", { CommandLine: q("npm test"), Cwd: q("/home/user/project") }, "ok"],
-        ["view_file", { AbsolutePath: q("/home/user/project/src/index.ts") }, "export {}"],
+        ["run_command", { CommandLine: "npm test", Cwd: "/home/user/project" }, "ok"],
+        ["view_file", { AbsolutePath: "/home/user/project/src/index.ts" }, "export {}"],
         ["read_file", { AbsolutePath: "/home/user/project/src/a.ts" }, "a"],
         ["list_dir", { DirectoryPath: "/home/user/project/src" }, "a.ts"],
         [
@@ -86,8 +83,8 @@ export const agyVocabulary: readonly Written[] = [
       "Tidy the notes.",
       "Tidying.",
       [
-        ["run_command", { CommandLine: q("npm test"), toolSummary: q("Test run") }, "ok"],
-        ["read_file", { Path: q("/home/user/project/notes.md") }, "# notes"],
+        ["run_command", { CommandLine: "npm test", toolSummary: "Test run" }, "ok"],
+        ["read_file", { Path: "/home/user/project/notes.md" }, "# notes"],
         ["write_file", { Path: "/home/user/project/n.md", Content: "# n" }, "Created file"],
         [
           "edit_file",
@@ -196,9 +193,9 @@ export const agyVocabulary: readonly Written[] = [
         [
           "call_mcp_tool",
           {
-            ServerName: q("novadeck"),
-            ToolName: q("send"),
-            Arguments: q(JSON.stringify({ to: "reviewer", text: "Lazily" })),
+            ServerName: "novadeck",
+            ToolName: "send",
+            Arguments: JSON.stringify({ to: "reviewer", text: "Lazily" }),
           },
           "Sent",
         ],
@@ -299,13 +296,9 @@ export const agyVocabulary: readonly Written[] = [
         [
           `${novadeck}ask`,
           {
-            subject: q("Sign in, please"),
-            body: q("It needs you."),
-            shape: JSON.stringify({
-              type: "action",
-              command: "gh auth login",
-              done_label: "Signed in",
-            }),
+            subject: "Sign in, please",
+            body: "It needs you.",
+            shape: { type: "action", command: "gh auth login", done_label: "Signed in" },
           },
           "Asked.",
         ],
@@ -315,20 +308,12 @@ export const agyVocabulary: readonly Written[] = [
     ),
   },
   {
-    // A call's arguments each a JSON value in a string, or none: the decoder undoes the
-    // first, and leaves the quotes of the second, which the agent wrote.
-    name: "arguments",
+    // A call of one argument, a string all in quotes: what the agent wrote, quotes and all.
+    name: "one-quoted-argument",
     records: turn(
-      "Write it out.",
-      "Writing.",
-      [
-        [
-          "write_to_file",
-          { CodeContent: q('"n"'), TargetFile: q("/home/user/project/n.md"), Overwrite: "true" },
-          "Created file",
-        ],
-        ["run_command", { CommandLine: '"/usr/bin/tool"', toolAction: "Running it" }, "ok"],
-      ],
+      "Run the quoted one.",
+      "Running.",
+      [["run_command", { CommandLine: '"/usr/bin/tool"' }, "ok"]],
       0,
     ),
   },

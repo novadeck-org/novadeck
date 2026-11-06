@@ -1,4 +1,4 @@
-import { fieldsOf, parseFields, type Fields } from "@novadeck/harness-core/fields"
+import { parseFields, type Fields } from "@novadeck/harness-core/fields"
 import type { TranscriptDecoder, UserEntry } from "@novadeck/harness-core/harness"
 import { at, entry, textOf } from "@novadeck/harness-core/items"
 
@@ -16,33 +16,6 @@ const typed = (fields: Fields): string | undefined => {
   if (fields.source !== "USER_EXPLICIT" || fields.type !== "USER_INPUT") return undefined
   const content = contentOf(fields)
   return (request.exec(content)?.[1] ?? content).trim()
-}
-
-// A JSON value written as a string; undefined for anything else.
-const decoded = (value: unknown): { readonly value: unknown } | undefined => {
-  if (typeof value !== "string") return undefined
-  try {
-    return { value: JSON.parse(value) as unknown }
-  } catch {
-    return undefined
-  }
-}
-
-// A call's arguments as plain values. Some calls write each one as a JSON value in a string
-// (`"\"/path\""`, `"true"`; recorded in 1.2.13), others plainly (a `parallel` run of the same
-// version, and the transcripts checked up to 2026-10), and no field of a step says which. So
-// it is decided by the call: one argument that doesn't read as JSON shows it plain, where a
-// string that does, such as a command in quotes, is what the agent wrote, and so does a call
-// with no string among its values, as `{query: "2024"}`: every encoded call recorded has one.
-// A plain call of nothing but JSON, with a string in quotes among it, reads as encoded.
-const plainArgs = (args: unknown): unknown => {
-  const entries = Object.entries(fieldsOf(args) ?? {}).map(
-    ([name, value]) => [name, decoded(value)] as const,
-  )
-  return entries.every(([, value]) => value !== undefined) &&
-    entries.some(([, value]) => typeof value?.value === "string")
-    ? Object.fromEntries(entries.map(([name, value]) => [name, value!.value]))
-    : args
 }
 
 /**
@@ -76,7 +49,7 @@ export const transcripts: TranscriptDecoder = {
     if (fields.type !== "PLANNER_RESPONSE") return []
     const calls = (Array.isArray(fields.tool_calls) ? fields.tool_calls : []).map((call, index) => {
       const { name, args } = (call ?? {}) as { name?: unknown; args?: unknown }
-      return entry("assistant", "tool-call", textOf(plainArgs(args)), {
+      return entry("assistant", "tool-call", textOf(args), {
         at: time,
         tool: name,
         call: step === undefined ? undefined : `step:${step + 1 + index}`,

@@ -1,8 +1,11 @@
 import type { Report } from "@novadeck/harness-core/report"
 import { loadProbe } from "@novadeck/harness-core/testing/probes"
+import { hookReport } from "@novadeck/harness-core/testing/reports"
 import { describe, expect, it } from "vitest"
 
+import { decode } from "./decode.js"
 import { hook } from "./report.test-support.js"
+import { store } from "./shapes.js"
 import { transcripts } from "./transcripts.js"
 
 const { transcript, parallel, hooks } = loadProbe(import.meta.dirname, "transcript.probe.json") as {
@@ -12,67 +15,18 @@ const { transcript, parallel, hooks } = loadProbe(import.meta.dirname, "transcri
 }
 const items = transcript.flatMap((step) => transcripts.items(JSON.stringify(step)))
 
-const toolCall = (name: string, args: object) =>
-  transcripts
-    .items(
+describe("a call's arguments", () => {
+  it("reach the chat as the transcript holds them, a string in quotes keeping its quotes", () => {
+    const args = { CommandLine: '"/usr/bin/tool"', Count: "3", WaitMsBeforeAsync: 500 }
+    const [call] = transcripts.items(
       JSON.stringify({
         step_index: 1,
         source: "MODEL",
         type: "PLANNER_RESPONSE",
-        tool_calls: [{ name, args }],
+        tool_calls: [{ name: "run_command", args }],
       }),
     )
-    .find(({ kind }) => kind === "tool-call")
-const callText = (args: object) => toolCall("run_command", args)?.text
-
-describe("a call's arguments", () => {
-  it("are decoded where the call writes each as a JSON value in a string", () => {
-    const args = {
-      TargetFile: JSON.stringify("/home/user/README.md"),
-      Overwrite: "true",
-      Lines: "3",
-      ArtifactMetadata: JSON.stringify({ UserFacing: true }),
-    }
-    expect(JSON.parse(callText(args)!)).toEqual({
-      TargetFile: "/home/user/README.md",
-      Overwrite: true,
-      Lines: 3,
-      ArtifactMetadata: { UserFacing: true },
-    })
-  })
-
-  it("decode once: a string the agent wrote in quotes keeps them", () => {
-    expect(JSON.parse(callText({ CodeContent: JSON.stringify('"hello"') })!)).toEqual({
-      CodeContent: '"hello"',
-    })
-  })
-
-  it("stay as written where one doesn't read as JSON", () => {
-    const args = { CommandLine: '"/usr/bin/tool"', Count: "3", toolAction: "Running it" }
-    expect(JSON.parse(callText(args)!)).toEqual(args)
-  })
-
-  it("stay as written where one isn't a string", () => {
-    const args = { CommandLine: '"/usr/bin/tool"', WaitMsBeforeAsync: 500 }
-    expect(JSON.parse(callText(args)!)).toEqual(args)
-  })
-
-  it("stay as written where none decodes to a string, so a row keeps its text", () => {
-    expect(callText({ CommandLine: "true" })).toBe('{"CommandLine":"true"}')
-    expect(toolCall("search_web", { query: "2024" })?.run).toMatchObject({ detail: "2024" })
-  })
-
-  it("stay empty in a call with none", () => {
-    expect(callText({})).toBe("{}")
-  })
-
-  it("read as the rows expect, in a question whose list is encoded", () => {
-    const questions = JSON.stringify([{ question: "Which one?", options: ["a", "b"] }])
-    const toolAction = JSON.stringify("Asking")
-    expect(toolCall("ask_question", { questions, toolAction })?.run).toMatchObject({
-      title: "Asked",
-      detail: "Which one?",
-    })
+    expect(JSON.parse(call!.text)).toEqual(args)
   })
 })
 
@@ -235,5 +189,32 @@ describe("Antigravity's plans, as captured", () => {
       type: "session-observed",
       transcript: expect.stringMatching(/transcript_full\.jsonl$/),
     })
+  })
+})
+
+// `transcript.jsonl` beside it encodes each argument of a call as JSON in a string, which the
+// chat would show, quotes and all. The chat holds nothing to undo that, so only this file will do.
+describe("the transcript read", () => {
+  const logs = "/home/user/.gemini/antigravity-cli/brain/c/.system_generated/logs"
+
+  it("is the file the hook names, as it names it", async () => {
+    const transcriptPath = `${logs}/transcript_full.jsonl`
+    expect(hook("Stop", { transcriptPath })[0]).toMatchObject({ transcript: transcriptPath })
+    await expect(transcripts.locate(transcriptPath, "c", null)).resolves.toBe(transcriptPath)
+  })
+
+  it("is never the one the status line names", () => {
+    const events = decode(
+      hookReport("agy", "StatusLine", {
+        conversation_id: "c",
+        transcript_path: `${logs}/transcript.jsonl`,
+      }),
+    )
+    expect(events.filter((event) => "transcript" in event)).toEqual([])
+  })
+
+  it("is the untruncated file in the store, not the one beside it", () => {
+    expect(store.file.test("c/.system_generated/logs/transcript_full.jsonl")).toBe(true)
+    expect(store.file.test("c/.system_generated/logs/transcript.jsonl")).toBe(false)
   })
 })
