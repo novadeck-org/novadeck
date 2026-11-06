@@ -78,7 +78,11 @@ const keyOf: Readonly<Record<AgentName, (tool: string) => string>> = {
         "",
       )
       .replace(/^clock__/, "clock.")
-      .replace(/^mcp__codex_(?:tui|worktrees)(?:__|\.)/, "codex_tui."),
+      .replace(/^mcp__codex_tui(?:__|\.)/, "codex_tui.")
+      .replace(
+        /^mcp__codex_worktrees(?:__|\.)(?=(?:create_worktree|get_worktree_creation_status|list_worktrees)$)/,
+        "codex_tui.",
+      ),
   agy: (tool) => tool.replace(/^mcp_novadeck_novadeck_/, "novadeck:").toLowerCase(),
 }
 

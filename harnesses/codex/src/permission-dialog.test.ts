@@ -328,12 +328,19 @@ describe("Codex's MCP tool approval", () => {
     ]
     const cut = "  prompt: Background task: echo outside and then carry on with a ra..."
 
-    it("reads it, giving the person the whole value", () => {
+    it("reads it, telling the person what the form says", () => {
       expect(read(form(cut, "  title: bg"), asked)?.dialog).toMatchObject({
         title: 'Allow the codex_tui MCP server to run tool "create_thread"?',
-        detail: `prompt: ${prompt}\ntitle: bg`,
+        detail: `${cut.trim()}\ntitle: bg`,
         options: [{ label: "Allow" }, { label: "Cancel" }],
       })
+    })
+
+    it("collapses a value's whitespace before it counts where to cut", () => {
+      const spaced = prompt.replaceAll(" ", "   \n ")
+      expect(
+        read(form(cut, "  title: bg"), { ...asked, input: { prompt: spaced, title: "bg" } }),
+      ).toBeDefined()
     })
 
     it("reads it wrapped by a narrow terminal", () => {
@@ -359,17 +366,26 @@ describe("Codex's MCP tool approval", () => {
       ).toBeUndefined()
     })
 
-    it("leaves a value of 60 graphemes whole, counting a grapheme once", () => {
-      const whole = "é".repeat(30) + "👍🏽".repeat(30)
+    it("cuts a value past 60 graphemes, counting a grapheme once", () => {
+      // A letter and its combining mark, then a thumb and its skin tone.
+      const grapheme = "e\u0301"
+      const thumb = "\u{1F44D}\u{1F3FD}"
+      const whole = grapheme.repeat(30) + thumb.repeat(30)
       expect(
         read(form(`  prompt: ${whole}`), { ...asked, input: { prompt: whole } })?.dialog,
       ).toMatchObject({ detail: `prompt: ${whole}` })
+      const over = `${whole}x`
+      expect(read(form(`  prompt: ${over}`), { ...asked, input: { prompt: over } })).toBeUndefined()
+      const kept = `${grapheme.repeat(30)}${thumb.repeat(27)}...`
+      expect(
+        read(form(`  prompt: ${kept}`), { ...asked, input: { prompt: over } })?.dialog,
+      ).toMatchObject({ detail: `prompt: ${kept}` })
     })
 
-    it("reads only the three arguments the form prints, and tells all of them", () => {
+    it("reads only the three arguments the form prints", () => {
       const input = { a: "1", b: "2", c: "3", d: "4" }
       expect(read(form("  a: 1", "  b: 2", "  c: 3"), { ...asked, input })?.dialog).toMatchObject({
-        detail: "a: 1\nb: 2\nc: 3\nd: 4",
+        detail: "a: 1\nb: 2\nc: 3",
       })
     })
   })

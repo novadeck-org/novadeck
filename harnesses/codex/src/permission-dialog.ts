@@ -209,21 +209,18 @@ const mcpApproval = (lines: readonly string[], facts: RequestFacts): Parsed | un
   if (server !== undefined && facts.tool !== mcpTool(server, tool)) return undefined
   const first = firstOption(lines, form + 2)
   if (first < 0) return undefined
-  // The arguments, one `name: value` line each in name order, as the form prints them and
-  // whole for the person, who sees all of what they allow.
+  // The arguments the form prints, one `name: value` line each in name order. The person
+  // reads what the form says, no more: a value it cut could be another request's.
   const given = facts.input === null || facts.input === undefined ? {} : fieldsOf(facts.input)
   if (!given) return undefined
-  const named = Object.keys(given)
+  const printed = Object.keys(given)
     .toSorted()
+    .slice(0, shownArguments)
     .map((key) => {
       const value = given[key]
-      return { key, value: typeof value === "string" ? collapse(value) : JSON.stringify(value) }
+      return `${key}: ${shownValue(typeof value === "string" ? collapse(value) : JSON.stringify(value))}`
     })
-  const printed = named.map(({ key, value }) => `${key}: ${value}`)
-  const shown = named
-    .slice(0, shownArguments)
-    .map(({ key, value }) => `${key}: ${shownValue(value)}`)
-  if (!wrapped(lines.slice(form + 2, first), shown.join(" "))) return undefined
+  if (!wrapped(lines.slice(form + 2, first), printed.join(" "))) return undefined
   const { rows } = optionsAt(lines, first)
   const known = rows.map((row) => mcpWordings.find(({ label }) => labelled(row.head, label)))
   if (rows.length < 2 || known.some((each) => each === undefined)) return undefined
