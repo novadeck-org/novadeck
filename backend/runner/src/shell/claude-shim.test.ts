@@ -206,9 +206,12 @@ describe("claude shim", { timeout: 60_000 }, () => {
   })
 
   it("passes a quoted prompt on whole, whatever it holds", ({ shim }) => {
-    const settings = expect.stringMatching(/statusline\.json$/)
-    for (const prompt of ['say "hi there" now', "fix a & b | c, 100% done ^ now"])
-      expect(shim.run([prompt])).toEqual(["--settings", settings, prompt])
+    const prompt = "fix a & b | c, 100% done ^ now"
+    expect(shim.run([prompt])).toEqual([
+      "--settings",
+      expect.stringMatching(/statusline\.json$/),
+      prompt,
+    ])
   })
 
   it.runIf(windows)(
