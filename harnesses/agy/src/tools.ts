@@ -183,9 +183,9 @@ const known = (name: string, fields: Fields | undefined): ToolRun | undefined =>
 }
 
 /**
- * What an Antigravity tool call was, from its name and its input as text (JSON, whose
- * string arguments it may quote a second time). Names match without regard to case; one it
- * doesn't know shows its name and the first thing its input says.
+ * What an Antigravity tool call was, from its name and its input as text (JSON, decoded as
+ * `transcripts` says). Names match without regard to case; one it doesn't know shows its
+ * name and the first thing its input says.
  */
 export const describe = (tool: string, input: string): ToolRun => {
   const fields = parseFields(input)

@@ -278,6 +278,14 @@ export const codexVocabulary: readonly Written[] = [
     ],
   },
   {
+    // A call of one argument, a string all in quotes: what the agent wrote, quotes and all.
+    name: "one-quoted-argument",
+    records: [
+      said("Run the quoted one."),
+      ...calls("quoted", [["exec_command", { cmd: '"/usr/bin/tool"' }, "ran"]]),
+    ],
+  },
+  {
     // As rollouts record them (seen 2026-10 and 2026-11): clock's sleep, namespace and name
     // apart, with {duration_ms} and its wall time as the output; and the async question,
     // whose questions carry a `title` and maybe `options`.

@@ -314,4 +314,22 @@ export const agyVocabulary: readonly Written[] = [
       0,
     ),
   },
+  {
+    // A call's arguments each a JSON value in a string, or none: the decoder undoes the
+    // first, and leaves the quotes of the second, which the agent wrote.
+    name: "arguments",
+    records: turn(
+      "Write it out.",
+      "Writing.",
+      [
+        [
+          "write_to_file",
+          { CodeContent: q('"n"'), TargetFile: q("/home/user/project/n.md"), Overwrite: "true" },
+          "Created file",
+        ],
+        ["run_command", { CommandLine: '"/usr/bin/tool"', toolAction: "Running it" }, "ok"],
+      ],
+      0,
+    ),
+  },
 ]

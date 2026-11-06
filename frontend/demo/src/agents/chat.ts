@@ -152,9 +152,9 @@ const toolRun = (agent: string, terminal: TerminalMetadata, call: string) =>
     ? {
         tool: "run_command",
         input: JSON.stringify({
-          CommandLine: JSON.stringify("git status --short"),
-          Cwd: JSON.stringify(terminal.directory),
-          toolAction: JSON.stringify("Running git status"),
+          CommandLine: "git status --short",
+          Cwd: terminal.directory,
+          toolAction: "Running git status",
         }),
         output: "Exit code: 0\nOutput:\n M src/runtime/server.ts\n",
         call,

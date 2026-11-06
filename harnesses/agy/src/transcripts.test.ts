@@ -12,6 +12,70 @@ const { transcript, parallel, hooks } = loadProbe(import.meta.dirname, "transcri
 }
 const items = transcript.flatMap((step) => transcripts.items(JSON.stringify(step)))
 
+const toolCall = (name: string, args: object) =>
+  transcripts
+    .items(
+      JSON.stringify({
+        step_index: 1,
+        source: "MODEL",
+        type: "PLANNER_RESPONSE",
+        tool_calls: [{ name, args }],
+      }),
+    )
+    .find(({ kind }) => kind === "tool-call")
+const callText = (args: object) => toolCall("run_command", args)?.text
+
+describe("a call's arguments", () => {
+  it("are decoded where the call writes each as a JSON value in a string", () => {
+    const args = {
+      TargetFile: JSON.stringify("/home/user/README.md"),
+      Overwrite: "true",
+      Lines: "3",
+      ArtifactMetadata: JSON.stringify({ UserFacing: true }),
+    }
+    expect(JSON.parse(callText(args)!)).toEqual({
+      TargetFile: "/home/user/README.md",
+      Overwrite: true,
+      Lines: 3,
+      ArtifactMetadata: { UserFacing: true },
+    })
+  })
+
+  it("decode once: a string the agent wrote in quotes keeps them", () => {
+    expect(JSON.parse(callText({ CodeContent: JSON.stringify('"hello"') })!)).toEqual({
+      CodeContent: '"hello"',
+    })
+  })
+
+  it("stay as written where one doesn't read as JSON", () => {
+    const args = { CommandLine: '"/usr/bin/tool"', Count: "3", toolAction: "Running it" }
+    expect(JSON.parse(callText(args)!)).toEqual(args)
+  })
+
+  it("stay as written where one isn't a string", () => {
+    const args = { CommandLine: '"/usr/bin/tool"', WaitMsBeforeAsync: 500 }
+    expect(JSON.parse(callText(args)!)).toEqual(args)
+  })
+
+  it("stay as written where none decodes to a string, so a row keeps its text", () => {
+    expect(callText({ CommandLine: "true" })).toBe('{"CommandLine":"true"}')
+    expect(toolCall("search_web", { query: "2024" })?.run).toMatchObject({ detail: "2024" })
+  })
+
+  it("stay empty in a call with none", () => {
+    expect(callText({})).toBe("{}")
+  })
+
+  it("read as the rows expect, in a question whose list is encoded", () => {
+    const questions = JSON.stringify([{ question: "Which one?", options: ["a", "b"] }])
+    const toolAction = JSON.stringify("Asking")
+    expect(toolCall("ask_question", { questions, toolAction })?.run).toMatchObject({
+      title: "Asked",
+      detail: "Which one?",
+    })
+  })
+})
+
 describe("Antigravity's transcript, as captured", () => {
   it("gives the person's request, the agent's words, and each tool's call and result", () => {
     expect(items[0]).toMatchObject({

@@ -34,6 +34,10 @@ assistant: The reviewer approved it.
 user: Wrap up.
 tools: [7 tool calls · Reported done, Drafted feedback, Told you, Asked you] Reported done [agent] · Chat contract hardened | Call: mcp__novadeck__done: 2 lines: subject: Chat contract hardened → 1 line: Reported.; Drafted feedback [agent] · bug | Call: mcp__novadeck__feedback: 2 lines: kind: bug → 1 line: Drafted.; Told you [agent] · CI is green | Call: mcp__novadeck__tell: 2 lines: subject: CI is green → 1 line: Told.; Asked you [agent] · Merge it? | Call: mcp__novadeck__ask: 2 lines: subject: Merge it? → 1 line: Asked.; Asked you to choose [agent] · Which pick? | Call: mcp__novadeck__ask: 3 lines: subject: Which pick? → 1 line: Asked.; Asked you to run a command [agent] · Sign in, please | Call: mcp__novadeck__ask: 3 lines: subject: Sign in, please → 1 line: Asked.; Withdrew an ask [agent] | Call: mcp__novadeck__ask: 1 line: a-1 → 1 line: Withdrew.
 
+# one-quoted-argument
+user: Run the quoted one.
+tools: Ran [run] · /usr/bin/tool | Call: exec_command: 1 line: "/usr/bin/tool" → 1 line: ran
+
 # clock-and-questions
 user: Wait, then ask.
 tools: Waited [run] | Call: clock__sleep: 1 line: 50000 → 2 lines: Wall time: 50.0 seconds; Asked [plan] · Merge it now? | Call: request_user_input_async: 1 line: [{"title":"Merge it now?","options":["Merge","W… → 1 line: Question queued.

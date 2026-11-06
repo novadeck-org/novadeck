@@ -327,4 +327,12 @@ export const claudeVocabulary: readonly Written[] = [
       ]),
     ],
   },
+  {
+    // A call of one argument, a string all in quotes: what the agent wrote, quotes and all.
+    name: "one-quoted-argument",
+    records: [
+      said("Run the quoted one."),
+      ...calls("quoted", [["Bash", { command: '"/usr/bin/tool"' }, "ran"]]),
+    ],
+  },
 ]
