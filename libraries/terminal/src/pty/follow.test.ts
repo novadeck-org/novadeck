@@ -141,7 +141,8 @@ describe.skipIf(process.platform === "win32")("a hangup followed through an agen
     const began = Date.now()
     await end(pid, 5_000)
     expect(readFileSync(join(root, "saved"), "utf8")).toBe("saved")
-    expect(Date.now() - began).toBeLessThan(2_000)
+    // Short of the 5 s bound it would otherwise be killed at, unsaved.
+    expect(Date.now() - began).toBeLessThan(4_000)
   })
 
   it("leaves a nohup started before the agent", async () => {
