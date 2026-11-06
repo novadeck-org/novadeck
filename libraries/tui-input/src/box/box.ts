@@ -22,6 +22,8 @@ export type InputBox = {
   /** The rows of the screen it spans, first to last. */
   readonly first: number
   readonly last: number
+  /** Whether the program says it shows only part of what the box holds. */
+  readonly scrolled?: true
 }
 
 /** The markers leading a box's first row: in its prompt mode, and in its shell mode. */
@@ -160,12 +162,13 @@ export type BoxProfile = {
 const minViewport = 2
 
 /**
- * Whether the box is as tall as the viewport lets it be on a screen of `rows` rows, so it may
- * show only the tail of what it holds. A text exactly that tall shows whole, which can't be
- * told from one taller. A viewport of one row is every box's: on a screen too small to know
+ * Whether the box may show only the tail of what it holds: it says so, or is as tall as the
+ * viewport lets it be on a screen of `rows` rows. A text exactly that tall shows whole, which
+ * can't be told from one taller. A viewport of one row is every box's: on a screen too small to know
  * it, none is.
  */
 export const fillsViewport = (profile: BoxProfile, box: InputBox, rows: number): boolean => {
+  if (box.scrolled) return true
   const viewport = profile.viewport?.(rows) ?? Infinity
   return viewport >= minViewport && box.last - box.first + 1 >= viewport
 }

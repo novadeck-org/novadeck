@@ -264,6 +264,7 @@ export const scriptedRunner = ({
       interrupt: api.agents.interrupt.handler(unplayed("agents.interrupt")),
       takeBox: api.agents.takeBox.handler(unplayed("agents.takeBox")),
       putBox: api.agents.putBox.handler(unplayed("agents.putBox")),
+      clearBox: api.agents.clearBox.handler(unplayed("agents.clearBox")),
       set: api.agents.set.handler(unplayed("agents.set")),
     },
     companions: {

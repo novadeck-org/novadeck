@@ -49,6 +49,21 @@ describe.each(harnesses)("what %s's box holds", (harness, profile) => {
     },
   )
 
+  it("reads a box taller than it shows as only its tail, its keys leaving it empty", () => {
+    expect(leftoverOf(profile, state("tall"))).toMatchObject({ kind: "text", tail: true })
+    expect(box("tall").text.split("\n")[0]).not.toContain("more lines")
+    expect(leftoverOf(profile, state("tall shell"))).toMatchObject({ kind: "shell", tail: true })
+    expect(leftoverOf(profile, state("tall cleared")).kind).toBe("empty")
+    expect(leftoverOf(profile, state("tall shell cleared")).kind).toBe("empty")
+  })
+
+  it("takes a tall box with its cursor moved up as a tail too, with no end in sight", () => {
+    const moved = state("tall cursor up")
+    expect(leftoverOf(profile, moved)).toMatchObject({ tail: true })
+    expect(box("tall cursor up").text).not.toContain("more lines")
+    expect(cursorAtEnd(profile, box("tall cursor up"), moved)).toBe(false)
+  })
+
   it("reads a leading / as a command", () => {
     expect(leftoverOf(profile, state("command")).kind).toBe("command")
   })

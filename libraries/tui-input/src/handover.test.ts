@@ -181,6 +181,80 @@ describe("unwrapped", () => {
   })
 })
 
+describe("clearing what a box holds, as the person asked", () => {
+  const any = () => true
+
+  it("empties it of a command, its keys going once", async () => {
+    const tui = fake({ text: "/model\nand more" })
+    await expect(tui.handovers.clear("t", any)).resolves.toBe(true)
+    expect(tui.written).toEqual(["\x15\x7f\x15"])
+    expect(tui.box()).toBe("")
+    expect(tui.notes).toEqual(["cleared"])
+  })
+
+  it("empties it of a placeholder", async () => {
+    const tui = fake({ text: "[Pasted #1]" })
+    await expect(tui.handovers.clear("t", any)).resolves.toBe(true)
+    expect(tui.box()).toBe("")
+  })
+
+  it("leaves its shell mode with what it holds", async () => {
+    const tui = fake({ text: "ls -la", shell: true })
+    await expect(tui.handovers.clear("t", any)).resolves.toBe(true)
+    expect(tui.written).toEqual(["\x15\x7f"])
+    expect(tui.box()).toBe("")
+  })
+
+  it("goes for more than a tail shows, in one write", async () => {
+    const tui = fake({ text: "one\ntwo\nthree", viewport: 2, tailOnly: true })
+    await expect(tui.handovers.clear("t", any)).resolves.toBe(true)
+    expect(tui.written).toEqual([`${"\x15\x7f".repeat(256)}\x15`])
+  })
+
+  it("writes nothing over what the person wasn't shown", async () => {
+    const tui = fake({ text: "typed since" })
+    const asked: string[] = []
+    const seen = (text: string) => {
+      asked.push(text)
+      return false
+    }
+    await expect(tui.handovers.clear("t", seen)).resolves.toBe(false)
+    expect(asked).toEqual(["typed since"])
+    expect(tui.written).toEqual([])
+    expect(tui.notes).toEqual(["changed"])
+  })
+
+  it("has nothing to do for an empty box", async () => {
+    const tui = fake({ text: "" })
+    await expect(tui.handovers.clear("t", any)).resolves.toBe(true)
+    expect(tui.written).toEqual([])
+  })
+
+  it("writes nothing where something covers the box", async () => {
+    const tui = fake({ text: "words", view: true })
+    await expect(tui.handovers.clear("t", any)).resolves.toBe(false)
+    expect(tui.written).toEqual([])
+    expect(tui.notes).toEqual(["no-box"])
+  })
+
+  it("writes nothing where a delivery goes on, or for a harness with no keys", async () => {
+    const ringing = fake({ text: "words", ringing: true })
+    await expect(ringing.handovers.clear("t", any)).resolves.toBe(false)
+    expect(ringing.written).toEqual([])
+    expect(ringing.notes).toEqual(["ringing"])
+    const keyless = fake({ text: "words", noKeys: true })
+    await expect(keyless.handovers.clear("t", any)).resolves.toBe(false)
+    expect(keyless.notes).toEqual(["unreadable"])
+  })
+
+  it("says so where the box doesn't read empty, and presses nothing again", async () => {
+    const tui = fake({ text: "words", noErase: true })
+    await expect(tui.handovers.clear("t", any)).resolves.toBe(false)
+    expect(tui.written).toEqual(["\x15"])
+    expect(tui.notes).toEqual(["clear-unconfirmed"])
+  })
+})
+
 describe("taking what a box holds", () => {
   it("empties the box and gives its words, wrapped rows joined", async () => {
     const tui = fake({ text: `${"word ".repeat(7).trim()}\nthat wrapped\nand a line` })

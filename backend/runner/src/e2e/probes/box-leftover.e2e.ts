@@ -92,7 +92,22 @@ const shellKeys: readonly (readonly [string, string])[] = [
   ["ctrl-c", ctrlC],
 ]
 
+// Text taller than the box, in parts short enough that no harness collapses them.
+const tall = Array.from({ length: 20 }, (_, at) =>
+  p(`part ${at}`, `Part ${at} of it\nits next line\nits last line`),
+)
+const burst = `${(ctrlU + backspace).repeat(256)}${ctrlU}`
+
 const scenarios: readonly Scenario[] = [
+  { name: "tall: the keys of a clear", steps: [...tall, k("burst", burst, 3000)] },
+  {
+    name: "tall: the cursor moved up",
+    steps: [...tall, k("up 3", up.repeat(3)), k("up 30", up.repeat(30)), k("burst", burst, 3000)],
+  },
+  {
+    name: "tall: shell mode",
+    steps: [k("bang", "!", 1000), ...tall, k("burst", burst, 3000)],
+  },
   // A handover: what a paste with no Enter does in an empty box, and what the erase takes.
   ...(
     [

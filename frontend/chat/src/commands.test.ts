@@ -1,4 +1,5 @@
 import {
+  SettleInTerminal,
   noConversation,
   withReturned,
   type ChatItem,
@@ -50,6 +51,7 @@ const open = (
     sends,
     takeBox,
     putBox,
+    clearBox,
     chatView = true,
   }: {
     readonly interrupt?: () => Promise<string | null>
@@ -58,6 +60,7 @@ const open = (
     readonly sends?: () => void
     readonly takeBox?: Conversations["takeBox"]
     readonly putBox?: Conversations["putBox"]
+    readonly clearBox?: Conversations["clearBox"]
     readonly chatView?: boolean
   } = {},
 ) => {
@@ -79,6 +82,7 @@ const open = (
     refused: refusing(),
     ...(takeBox && { takeBox }),
     ...(putBox && { putBox }),
+    ...(clearBox && { clearBox }),
   }
   const chat = createChat()
   const commands = createChatCommands({
@@ -219,6 +223,25 @@ describe("the chat's send queue", () => {
     await commands.takeBox(key)
     expect(asked).toEqual([])
     expect(draft()).toBe("from the chat")
+  })
+
+  it("clears what the chat shows the agent's box holds, and says where it didn't", async () => {
+    const asked: unknown[] = []
+    let cleared = true
+    const { commands, tell } = open("s1", {
+      clearBox: async (at, seen) => {
+        asked.push([at, seen])
+        return cleared
+      },
+    })
+    await commands.clearBox(key)
+    expect(asked).toEqual([])
+
+    tell({ box: { text: "/model", mode: "prompt", tail: false, known: false } })
+    await commands.clearBox(key)
+    expect(asked).toEqual([[key, "/model"]])
+    cleared = false
+    await expect(commands.clearBox(key)).rejects.toBeInstanceOf(SettleInTerminal)
   })
 
   it("adds nothing a paste that landed unseen left in both", async () => {

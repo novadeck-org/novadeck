@@ -1096,6 +1096,115 @@ for (const setup of setups) {
       expect(await t1.screen()).not.toContain("half a thought")
     })
 
+    it("clears what the box holds as the person asks, whatever it is, and nothing else", async ({
+      e2e: run,
+    }) => {
+      run.model.use(replies("A message", "Got it."))
+      const t1 = await start(run, setup)
+      const box = following(run, t1)
+      const calls = run.model.calls.length
+      const write = (data: string) => run.deck.terminals.write({ terminalId: t1.id, data }, "e2e")
+      const clear = (seen: string) => run.deck.terminals.clearBox({ terminalId: t1.id, seen })
+      const clears = async (fits: (shown: AgentBox) => boolean) => {
+        const shown = await box.shows((now) => now !== null && fits(now))
+        await expect(clear(shown!.text)).resolves.toEqual({ cleared: true })
+        await box.shows((now) => now === null)
+      }
+
+      // A command, its picker shut, then open, and what was typed since it was shown stays.
+      t1.press("/help me")
+      await t1.until("/help me")
+      await expect(clear("/help")).resolves.toEqual({ cleared: false })
+      expect(await t1.screen()).toContain("/help me")
+      await clears((shown) => shown.text === "/help me")
+      t1.press("/he")
+      await clears((shown) => shown.text === "/he")
+
+      // Rows it can't read as anyone's, and a placeholder of what it never shows.
+      write("\x1b[200~Unknown words\rtheir next line\x1b[201~")
+      await clears((shown) => shown.text.includes("their next line"))
+      const long = Array.from({ length: 40 }, (_, at) => `Line ${at + 1} of a paste`).join("\r")
+      write(`\x1b[200~${"a long paste ".repeat(120)}\r${long}\x1b[201~`)
+      await box.shows((shown) => shown !== null)
+      await clears(() => true)
+
+      // Only the end of it shows.
+      for (let at = 0; at < 16; at += 1) {
+        write(`\x1b[200~Part ${at} of it\rits next line\rits last line\x1b[201~`)
+        await t1.until(`Part ${at} of it`)
+      }
+      // Handing it over would lose what doesn't show: it stays, marked as a tail.
+      const allIn = (shown: AgentBox | null) =>
+        shown?.tail === true && shown.text.includes("Part 15 of it")
+      await box.shows(allIn)
+      await expect(run.deck.terminals.takeBox(t1.id)).resolves.toEqual({ returned: null })
+      await clears((shown) => allIn(shown) && !shown.text.includes("more lines"))
+
+      // A shell mode's command goes with the mode: what's next is a message, and nothing ran.
+      t1.press("!")
+      await t1.poll(
+        async () =>
+          harnesses[setup.agent].box.shell.footer((await t1.screen()).split("\n")) || undefined,
+        "its box in its shell mode",
+      )
+      t1.press("ls -la")
+      await clears((shown) => shown.mode === "shell" && shown.text === "ls -la")
+      expect(run.model.calls.slice(calls).filter((call) => !call.side)).toEqual([])
+
+      await t1.prompt("A message")
+      await t1.until("Got it.")
+      expect(await item(t1, "user", (text) => text.includes("A message"))).toBe("A message")
+      box.stop()
+    })
+
+    it("clears mid-turn, the turn going on, and a prompt back in the box goes with it", async ({
+      e2e: run,
+    }) => {
+      const held = gate()
+      run.model.use(
+        own(async (call) => {
+          if (!asked(call, "Hold on")) return undefined
+          await held.opened
+          return { text: "Held." }
+        }),
+      )
+      const t1 = await start(run, setup)
+      const box = following(run, t1)
+      const mark = t1.mark()
+      await t1.prompt("Hold on")
+      await t1.reached("working", { after: mark })
+      t1.press("/help me")
+      await box.shows((shown) => shown?.text === "/help me")
+      await expect(
+        run.deck.terminals.clearBox({ terminalId: t1.id, seen: "/help me" }),
+      ).resolves.toEqual({
+        cleared: true,
+      })
+      expect(t1.summary().activity?.state).toBe("working")
+      held.open()
+      await t1.until("Held.")
+      await t1.poll(
+        () => (t1.summary().activity?.state === "working" ? undefined : true),
+        "its turn to end",
+      )
+
+      run.deck.terminals.write({ terminalId: t1.id, data: "\x1b[200~Queued words\x1b[201~" }, "e2e")
+      await t1.until("Queued words")
+      const { receipts } = (run.deck.terminals as unknown as { typing: { receipts: Receipts } })
+        .typing
+      const { ref } = await receipts.expect(t1.id, "Queued words")
+      receipts.sent(t1.id, ref)
+      await receipts.putBack(t1.id)
+      await box.shows((shown) => shown?.known === true)
+      await expect(
+        run.deck.terminals.clearBox({ terminalId: t1.id, seen: "Queued words" }),
+      ).resolves.toEqual({
+        cleared: true,
+      })
+      expect((await t1.detail()).prompts?.find((each) => each.ref === ref)?.state).toBe("withdrawn")
+      box.stop()
+    })
+
     it("refuses a shell command over a draft, which it can't go along with", async ({
       e2e: run,
     }) => {

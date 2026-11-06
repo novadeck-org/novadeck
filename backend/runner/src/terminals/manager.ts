@@ -951,6 +951,11 @@ export class Terminals {
     return this.typing.takeBox(terminalId)
   }
 
+  /** Empties the agent's box of what the person was shown (see `Typing.clearBox`). */
+  clearBox(input: { terminalId: string; seen: string }): Promise<{ cleared: boolean }> {
+    return this.typing.clearBox(input.terminalId, input.seen)
+  }
+
   /** Puts a client's draft in the agent's box, with no Enter (see `Typing.putBox`). */
   putBox(input: { terminalId: string; text: string }): Promise<{ placed: boolean }> {
     return this.typing.putBox(input.terminalId, input.text)

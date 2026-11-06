@@ -21,7 +21,7 @@ import type {
   InterruptOptions,
   PromptOptions,
 } from "@novadeck/tui-input"
-import { isEmpty, type BoxProfile } from "@novadeck/tui-input/box"
+import { isEmpty, sameText, type BoxProfile } from "@novadeck/tui-input/box"
 
 import { DomainError } from "../errors.js"
 import { blocking, type Activity } from "../harnesses/activity.js"
@@ -33,7 +33,7 @@ import { confirmMs, Doorbell, type DoorbellOptions } from "../messaging/doorbell
 import type { Messaging } from "../messaging/messaging.js"
 import { Answers, type AnswersOptions } from "./answers.js"
 import { bannerDrawn } from "./binding/banners.js"
-import { boxView, BoxStates } from "./box-state.js"
+import { boxView, BoxStates, boxWords } from "./box-state.js"
 import { Dialogs, type DialogsOptions } from "./dialogs.js"
 import { agentWorking, doorbellHost, profileOf } from "./doorbell-host.js"
 import { holdsRingLine, leftoverNonce } from "./leftover.js"
@@ -295,6 +295,17 @@ export class Typing {
   async putBox(terminalId: string, text: string): Promise<{ placed: boolean }> {
     this.promptable(terminalId)
     return { placed: await this.handovers.put(terminalId, text) }
+  }
+
+  /**
+   * Empties the agent's box, as the person asked to, of the text `seen` they were shown (see
+   * `Handovers.clear`).
+   */
+  async clearBox(terminalId: string, seen: string): Promise<{ cleared: boolean }> {
+    this.promptable(terminalId)
+    const cleared = await this.handovers.clear(terminalId, (text) => sameText(boxWords(text), seen))
+    if (cleared) this.receipts.emptied(terminalId)
+    return { cleared }
   }
 
   /** Answers a request waiting on the person through its dialog (see `Terminals.answer`). */

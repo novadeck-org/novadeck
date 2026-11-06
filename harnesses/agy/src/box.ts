@@ -7,6 +7,7 @@ import {
   rule,
   ruledBox,
   type BoxProfile,
+  type InputBox,
   type Markers,
 } from "@novadeck/tui-input/box"
 
@@ -136,6 +137,29 @@ const interruptedShown = (screen: ScreenText): boolean | undefined => {
 const overlay = (screen: ScreenText): boolean =>
   footerRows(screen).some((row) => /^Keyboard: .*\besc (Close|Dismiss)\b/.test(row.trim()))
 
+/** How much of the text lies above and below what its box shows, as it says in rows of its own. */
+const moreAbove = /^↑ \d+ more lines?$/
+const moreBelow = /^↓ \d+ more lines?$/
+
+/**
+ * Its box with what it says of the text it doesn't show taken off the text: from 1.5 a text
+ * taller than the box shows only a part, an `↑ 21 more lines` row over it and, with the cursor
+ * moved up, an `↓ 14 more lines` row under it (probed 2026-11-06, 1.5.2, the `tall` states of
+ * fixtures/leftover.probe.json, 20 rows of text on a screen of 40).
+ */
+const parted = (box: InputBox | undefined): InputBox | undefined => {
+  if (!box) return box
+  const rows = box.text.split("\n")
+  const above = moreAbove.test(rows[0] ?? "")
+  const below = moreBelow.test(rows.at(-1) ?? "")
+  if (!above && !below) return box
+  return {
+    ...box,
+    text: rows.slice(above ? 1 : 0, below ? -1 : undefined).join("\n"),
+    scrolled: true,
+  }
+}
+
 /**
  * Antigravity's input box: between two `─` rules, `> ` leading its first row and the rest
  * indented (probed 1.2.14 and 1.3.1, fixtures/input-box.probe.json). Its history above
@@ -146,7 +170,8 @@ const overlay = (screen: ScreenText): boolean =>
  * library compares text without such emoji.
  */
 export const box: BoxProfile = {
-  read: (screen) => agreeing(ruledBox(withoutPanel(screen), markers), shellFooter(screen.rows)),
+  read: (screen) =>
+    parted(agreeing(ruledBox(withoutPanel(screen), markers), shellFooter(screen.rows))),
   // Enter would run a command shown as a placeholder as the placeholder's own text (probed
   // 2026-10-07). A `!` command creates the conversation and binds the session (`starts`;
   // probed 2026-10-08).

@@ -82,6 +82,7 @@ const inApp = (
           sending: chatSendsOf(state.sends, context, "01"),
           onSend: (text, to) => commands.sendChat(key, text, to),
           onInterrupt: async () => {},
+          onClearBox: async () => {},
           onAnswer: (request, reply) => conversations.answer(key, request, reply),
           onWordsLost: (words) => commands.appendChatDraft(context, "01", words),
           onAnswerInTerminal: () => {},

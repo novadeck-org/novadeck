@@ -5,6 +5,9 @@ import { leftoverOf, type BoxProfile } from "@novadeck/tui-input/box"
 /** The most of a box's text `agents.detail` carries, in UTF-16 code units. */
 const textMax = 16_384
 
+/** What a client is shown of a box's text. */
+export const boxWords = (text: string): string => text.trim().slice(0, textMax)
+
 /**
  * What an agent's input box holds as a client should show it, so nothing goes along with a
  * prompt unseen: its text, whether it may be only the end of it, and whether all of it is words
@@ -22,7 +25,7 @@ export const boxView = (
   const { box, tail } = state
   const text = box.text.trim()
   if (text === "" || ringLine(text)) return null
-  return { text: text.slice(0, textMax), mode: box.mode, tail, known: known(text) }
+  return { text: boxWords(text), mode: box.mode, tail, known: known(text) }
 }
 
 const same = (a: AgentBox | null, b: AgentBox | null): boolean =>

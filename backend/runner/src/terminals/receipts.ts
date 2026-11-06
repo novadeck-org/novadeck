@@ -319,6 +319,16 @@ export class Receipts {
     this.idle(terminalId, track)
   }
 
+  /** The agent's box was emptied, and its words are gone: no prompt is back there now. */
+  emptied(terminalId: string): void {
+    const track = this.tracks.get(terminalId)
+    if (!track) return
+    const back = track.entries.filter((entry) => entry.state === "in-box")
+    for (const entry of back) done(entry, "withdrawn")
+    if (back.length > 0) this.host.changed(terminalId)
+    this.idle(terminalId, track)
+  }
+
   /**
    * The words of the prompts back in the agent's box, where they are all the box's `text`, as
    * they were given; undefined where any of it is not theirs, or none is back.

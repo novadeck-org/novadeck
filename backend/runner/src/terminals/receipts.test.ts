@@ -107,6 +107,20 @@ const setup = async (
 }
 
 describe("prompt receipts", () => {
+  it("withdraws the prompts back in a box that was emptied, and no other", async ({
+    resources,
+  }) => {
+    const { host, receipts, state, give, pass } = await setup(resources)
+    host.box = "check the logs"
+    await give("check the logs", "r1")
+    await pass()
+    await vi.waitFor(() => expect(state("r1")).toBe("in-box"))
+    await give("still on its way", "r2")
+    receipts.emptied(terminal)
+    expect(state("r1")).toBe("withdrawn")
+    expect(state("r2")).toBe("pending")
+  })
+
   it("withdraws a prompt back in the agent's box once a Stop hands its words back", async ({
     resources,
   }) => {

@@ -301,6 +301,7 @@ export const WorkspaceTerminal = memo(
                 // Words queued behind the stopped turn, the agent's and the chat's, come back
                 // to the box, to send again.
                 onInterrupt={() => commands.stopChat(terminalKey)}
+                onClearBox={() => commands.clearBox(terminalKey)}
                 onAnswer={(request, answer) => conversations!.answer(terminalKey, request, answer)}
                 onWordsLost={(words) => commands.appendChatDraft(chatContext, terminalId, words)}
                 onAnswerInTerminal={() => commands.showTerminal(terminalId)}

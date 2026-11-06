@@ -179,6 +179,7 @@ export const createRouter = (options: {
       prompt: api.agents.prompt.handler(({ input }) => terminals.prompt(input)),
       takeBox: api.agents.takeBox.handler(({ input }) => terminals.takeBox(input.terminalId)),
       putBox: api.agents.putBox.handler(({ input }) => terminals.putBox(input)),
+      clearBox: api.agents.clearBox.handler(({ input }) => terminals.clearBox(input)),
       answer: api.agents.answer.handler(({ input }) => terminals.answer(input)),
       interrupt: api.agents.interrupt.handler(({ input }) => terminals.interrupt(input)),
       set: api.agents.set.handler(async ({ input }) => {

@@ -1,4 +1,5 @@
 import {
+  boxNotCleared,
   returnedBy,
   promptRef,
   type ChatPrompt,
@@ -49,6 +50,9 @@ export type ChatCommands = {
   readonly takeBox: (key: TerminalKey) => Promise<void>
   // Moves the chat's draft into the agent's own box, where it can go, as its terminal shows.
   readonly putDraft: (key: TerminalKey) => Promise<void>
+  // Empties the agent's own box of what the chat shows it holds, gone for good, as the person
+  // asked. Rejects where it didn't.
+  readonly clearBox: (key: TerminalKey) => Promise<void>
   // Stops the agent's turn, as Escape in its TUI does. The prompts queued in the chat are
   // never sent after it: they come back to the box after the words the agent handed back,
   // and before what the box holds, their sends resolving false. Rejects as
@@ -381,6 +385,11 @@ export const createChatCommands = ({
       }))
       pump(key)
       return await sent
+    },
+    clearBox: async (key) => {
+      const box = conversations?.conversation(key).getSnapshot().box
+      if (!box || !conversations?.clearBox) return
+      if (!(await conversations.clearBox(key, box.text))) throw boxNotCleared()
     },
     stopChat: async (key) => {
       if (!conversations) throw new Error("This backend can't reach the agent.")

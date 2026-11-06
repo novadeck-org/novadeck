@@ -780,6 +780,12 @@
   align-items: stretch;
   gap: 2px;
 }
+.chat-box-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
 .chat-box-text {
   max-height: 5lh;
   margin: 0;

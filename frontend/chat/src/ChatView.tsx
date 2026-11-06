@@ -46,6 +46,7 @@ export const ChatView = ({
   sending,
   onSend,
   onInterrupt,
+  onClearBox,
   onAnswer,
   onAnswerInTerminal,
   onWordsLost,
@@ -73,6 +74,8 @@ export const ChatView = ({
   // back to the box unsent.
   readonly onSend: (text: string, to: ChatReply | null) => Promise<boolean>
   readonly onInterrupt: () => Promise<void>
+  // Empties the agent's own input box of what the chat shows it holds.
+  readonly onClearBox: () => Promise<void>
   readonly onAnswer: (request: string, answer: ChatAnswer) => Promise<void>
   readonly onAnswerInTerminal: () => void
   // Words that were to follow an answer and didn't reach the agent, for the person's box.
@@ -373,6 +376,7 @@ export const ChatView = ({
             setUnrecorded(!recordsShell(harness) && shellCommand(text) !== undefined)
         }}
         onStop={onInterrupt}
+        onClearBox={onClearBox}
         focusInput={focusInput}
         onInputFocused={onInputFocused}
         onCancelReply={() => {
