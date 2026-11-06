@@ -793,6 +793,8 @@ describe("Antigravity's box cut short", () => {
   it("says so where its own row stands in the text", () => {
     expect(agy.cut?.(box("↑ 10 more lines\nqueued line 11"))).toBe(true)
     expect(agy.cut?.(box("↑ 1 more line\nqueued line 2"))).toBe(true)
+    expect(agy.cut?.(box("queued line 1\nqueued line 2\n↓ 10 more lines"))).toBe(true)
+    expect(agy.cut?.(box("↑ 1 more line\nqueued line 2\n↓ 9 more lines"))).toBe(true)
   })
 
   it("doesn't take the words within the person's text for it", () => {

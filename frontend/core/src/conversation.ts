@@ -360,7 +360,7 @@ export const returnedBy = (failure: unknown): string | undefined => {
 // next message sees to them.
 export const notCleared = (): Error =>
   new Error(
-    "Stopped. Your queued message is still in the agent's box, and comes back here or goes out with your next message.",
+    "Stopped. Your queued message is still in the agent's box: send it there, or try it with your next message here.",
   )
 
 // What the person is told when the agent couldn't take what the chat typed for them, by

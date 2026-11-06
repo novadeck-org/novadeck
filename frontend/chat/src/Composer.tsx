@@ -35,8 +35,8 @@ export const boxNote = (label: string, box: ChatBox): string => {
     return `${label}'s terminal input holds a command. Clear it in the terminal to send here.`
   if (box.known)
     return `${label}'s terminal input holds your message. It comes back here as you send.`
-  const holds = box.tail ? "ends with this" : "holds this"
-  return `${label}'s terminal input ${holds}. It goes with your next message.`
+  if (box.tail) return `${label}'s terminal input ends with this. There may be more above it.`
+  return `${label}'s terminal input holds this. It goes with your next message.`
 }
 
 // Where the person writes to the agent. Enter sends what's typed into the agent's own
