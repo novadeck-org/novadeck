@@ -205,6 +205,12 @@ describe("claude shim", { timeout: 60_000 }, () => {
       expect(shim.run(args)).toEqual(args)
   })
 
+  it("passes a quoted prompt on whole, whatever it holds", ({ shim }) => {
+    const settings = expect.stringMatching(/statusline\.json$/)
+    for (const prompt of ['say "hi there" now', "fix a & b | c, 100% done ^ now"])
+      expect(shim.run([prompt])).toEqual(["--settings", settings, prompt])
+  })
+
   it.runIf(windows)(
     "runs the real claude, never a claude.cmd in the current folder, where a plain where looks first",
     ({ shim }) => {
