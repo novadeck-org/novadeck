@@ -9,6 +9,7 @@ import { unquote } from "@novadeck/harness-core/tools"
 import { agentLimits, telemetryLimits } from "@novadeck/protocol"
 
 import { ended, forget, pending, remember, running } from "./call-memory.js"
+import { invoked, stopped, subagentCalled } from "./listing.js"
 import { statusLine } from "./status-line.js"
 import { folderOf, kindOf, toolCall, writers, type ToolCall } from "./tools.js"
 
@@ -114,6 +115,7 @@ const decodeEvent = ({ event, seq, instance, payload }: Report): readonly Harnes
     case "PreInvocation":
       // A turn begun leaves no call of one before it unended but those a Stop saw.
       if (payload.invocationNum === 0) forget(id)
+      invoked(id, payload.invocationNum === 0)
       return [
         observed,
         // Its first model call starts a turn, whether the person prompted it or a subagent's
@@ -122,6 +124,7 @@ const decodeEvent = ({ event, seq, instance, payload }: Report): readonly Harnes
       ]
     case "Stop": {
       const { jobs, wake } = running(id)
+      stopped(base, payload.fullyIdle === false)
       return [
         observed,
         // Each job's start, as its call told it, for the time it has waited since.
@@ -139,10 +142,10 @@ const decodeEvent = ({ event, seq, instance, payload }: Report): readonly Harnes
           ...base,
           outcome: text(payload.error) ? "failed" : "completed",
           ...failed(payload.error),
-          // It says only that something runs on: its status line, drawn just after,
-          // counts the subagents among it, but never a command it backgrounded, whose end
-          // wakes it too (probed 2026-10-04, 1.2.14); the calls that never ended, though,
-          // are those (probed 2026-10-24, 1.4.6).
+          // It says only that something runs on: its status line, drawn just after or
+          // a moment on (see listing.ts), counts the subagents among it, but never a
+          // command it backgrounded, whose end wakes it too (probed 2026-10-04, 1.2.14);
+          // the calls that never ended, though, are those (probed 2026-10-24, 1.4.6).
           background: {
             agents: 0,
             tasks: jobs.length,
@@ -161,6 +164,7 @@ const decodeEvent = ({ event, seq, instance, payload }: Report): readonly Harnes
     case "PreToolUse": {
       const call = toolCall(payload.toolCall)
       if (!call) return [observed]
+      if (call.name === "invoke_subagent") subagentCalled(id)
       return [
         observed,
         ...calling(base, call, payload),

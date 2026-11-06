@@ -79,7 +79,7 @@ const lists: { readonly [agent in AgentName]: Classes } = {
       "write_stdin",
     ],
   },
-  // Recorded from Antigravity 1.4.3, and checked on 1.4.12 (the pin, 2026-10-31).
+  // Recorded from Antigravity 1.4.3, and checked on 1.5.2 (the pin, 2026-11-06).
   agy: {
     asking: ["ask_question"],
     other: [

@@ -1,0 +1,66 @@
+{
+  "harness": "agy",
+  "version": "1.5.2",
+  "source": "captured",
+  "how": "the JSON Antigravity gave a status line command in the e2e sandbox, on Linux, around a turn that started a background subagent and ended while it ran, whose Stop said fullyIdle false, in the order captured: the first idle snapshot after that Stop, naming no subagent; the next, 0.3 s later, listing it running; the idle one once it ended and its wake turn did. Then the first idle snapshot after a turn that left a command running, and after one that left a subagent and a command. Windows' nightly traces show the same, with two bare snapshots; conversation ids and paths replaced, other fields left out",
+  "payloads": [
+    {
+      "agent_state": "idle",
+      "version": "1.5.2",
+      "conversation_id": "00000000-0000-4000-8000-000000000001",
+      "session_id": "00000000-0000-4000-8000-000000000001",
+      "cwd": "/home/user/project"
+    },
+    {
+      "agent_state": "idle",
+      "version": "1.5.2",
+      "conversation_id": "00000000-0000-4000-8000-000000000001",
+      "session_id": "00000000-0000-4000-8000-000000000001",
+      "cwd": "/home/user/project",
+      "subagents": [
+        {
+          "name": "self",
+          "role": "Work in the background.",
+          "status": "running"
+        }
+      ]
+    },
+    {
+      "agent_state": "idle",
+      "version": "1.5.2",
+      "conversation_id": "00000000-0000-4000-8000-000000000001",
+      "session_id": "00000000-0000-4000-8000-000000000001",
+      "cwd": "/home/user/project",
+      "subagents": [
+        {
+          "name": "self",
+          "role": "Work in the background.",
+          "status": "completed"
+        }
+      ]
+    },
+    {
+      "agent_state": "idle",
+      "version": "1.5.2",
+      "conversation_id": "00000000-0000-4000-8000-000000000001",
+      "session_id": "00000000-0000-4000-8000-000000000001",
+      "cwd": "/home/user/project",
+      "task_count": 1
+    },
+    {
+      "agent_state": "idle",
+      "version": "1.5.2",
+      "conversation_id": "00000000-0000-4000-8000-000000000001",
+      "session_id": "00000000-0000-4000-8000-000000000001",
+      "cwd": "/home/user/project",
+      "subagents": [
+        {
+          "name": "self",
+          "role": "Work in the background.",
+          "status": "running"
+        }
+      ],
+      "task_count": 1
+    }
+  ]
+}

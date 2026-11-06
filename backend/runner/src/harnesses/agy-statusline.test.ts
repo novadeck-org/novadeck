@@ -11,14 +11,16 @@ import {
   windowsStatusLine,
 } from "@novadeck/harness-agy/settings"
 import { shown } from "@novadeck/harness-agy/status-line"
-import type { ActivityEvent } from "@novadeck/harness-core/events"
+import type { ActivityEvent, HarnessEvent } from "@novadeck/harness-core/events"
 import type { Install } from "@novadeck/harness-core/harness"
 import type { Report } from "@novadeck/harness-core/report"
 import { loadProbe } from "@novadeck/harness-core/testing/probes"
+import { vi } from "vitest"
 
 import { describe, expect, it as base } from "../test.js"
 import { adapterFolder } from "../testing/adapters.js"
 import { apply as applyActivity, started, summary } from "./activity.js"
+import { harnesses } from "./registry.js"
 
 const { payloads } = loadProbe(adapterFolder("agy"), "statusline.probe.json") as {
   payloads: Report["payload"][]
@@ -352,6 +354,12 @@ describe("Antigravity's status line, listing its subagents", () => {
     ).shown
   const counts = (reports: Report[]) =>
     seen(reports).map(({ state, background }) => [state, background?.agents ?? null])
+  const decodeAll = (reports: Report[]) =>
+    reports
+      .flatMap((reported) => decode(reported))
+      .filter((event): event is ActivityEvent =>
+        ["turn-started", "turn-ended", "turn-idle", "turn-working"].includes(event.type),
+      )
 
   it("counts the subagents running by status, whatever order it lists them in", () => {
     const decoded = (payload: Report["payload"]) =>
@@ -401,6 +409,128 @@ describe("Antigravity's status line, listing its subagents", () => {
       ["idle", null],
       ["idle", null],
     ])
+  })
+
+  describe("listing them late (1.5)", () => {
+    const { payloads: late } = JSON.parse(
+      readFileSync(join(adapterFolder("agy"), "fixtures", "subagents.probe.1.5.2.json"), "utf8"),
+    ) as { payloads: Report["payload"][] }
+    const [bare, listed, ended, task, both] = late
+    const named = (payload: Report["payload"], seq: number) =>
+      report({ ...payload, conversation_id: conversationId, session_id: conversationId }, seq)
+    const subagentCall = (seq: number) =>
+      hook("PreToolUse", seq, { toolCall: { name: "invoke_subagent", args: {} } })
+
+    // On Windows without PreToolUse (`cmdPrints`) the same holds: no call is seen.
+    for (const [how, called] of [
+      ["with its call seen", [subagentCall(2)]],
+      ["with no PreToolUse hook", []],
+    ] as const)
+      it(`stays working past snapshots that don't list it yet, ${how}`, () => {
+        const start = [preInvocation(1), ...called, stop(3, false)]
+        expect(
+          counts([
+            ...start,
+            named(bare!, 4),
+            named(bare!, 5),
+            named(listed!, 6),
+            preInvocation(7),
+            stop(8, true),
+            named(ended!, 9),
+          ]).slice(start.length),
+        ).toEqual([
+          ["working", 0],
+          ["working", 0],
+          ["working", 1],
+          ["working", null],
+          ["idle", null],
+          ["idle", null],
+        ])
+      })
+
+    it("takes its status line's word once the snapshot accounts for what the Stop left", () => {
+      expect(counts([preInvocation(1), stop(3, false), named(task!, 4)]).at(-1)).toEqual([
+        "idle",
+        0,
+      ])
+      expect(
+        counts([preInvocation(1), subagentCall(2), stop(3, false), named(both!, 4)]).at(-1),
+      ).toEqual(["working", 1])
+    })
+
+    it("doesn't take a task for the subagent its turn called", () => {
+      // A command an earlier turn left running, as a dev server: a task counted, this turn's
+      // subagent not listed yet.
+      expect(
+        counts([preInvocation(1), subagentCall(2), stop(3, false), named(task!, 4)]).at(-1),
+      ).toEqual(["working", 0])
+    })
+
+    it("holds nothing after a Stop that says nothing runs on", () => {
+      expect(counts([preInvocation(1), stop(3, true), named(bare!, 4)]).at(-1)).toEqual([
+        "idle",
+        null,
+      ])
+    })
+
+    it("holds nothing past a model call, so a later idle snapshot ends an Escaped turn", () => {
+      expect(
+        counts([preInvocation(1), stop(3, false), preInvocation(4), named(bare!, 5)]).at(-1),
+      ).toEqual(["idle", null])
+    })
+
+    describe("when nothing ever accounts for it", () => {
+      const follow = () => {
+        const told: HarnessEvent[] = []
+        const following = new AbortController()
+        void harnesses.agy.watch!(
+          { sessionId: conversationId, instance: "7", transcript: "/t" },
+          following.signal,
+          (event) => told.push(event),
+        )
+        return { told, following }
+      }
+
+      it("reads as a bare snapshot would once its time is up, on its own", () => {
+        vi.useFakeTimers()
+        const { told, following } = follow()
+        try {
+          const reports = [preInvocation(1), stop(3, false), named(bare!, 4)]
+          expect(counts(reports).at(-1)).toEqual(["working", 0])
+          vi.advanceTimersByTime(4999)
+          expect(told).toEqual([])
+          vi.advanceTimersByTime(1)
+          expect(told).toMatchObject([
+            { type: "turn-idle", sessionId: conversationId, background: { agents: 0, tasks: 0 } },
+          ])
+          const idled = told[0] as ActivityEvent
+          const held = decodeAll(reports).reduce(
+            (state, event) => applyActivity(state, binding, event) ?? state,
+            started(0),
+          )
+          expect(summary(held).state).toBe("working")
+          expect(summary(applyActivity(held, binding, idled)!).state).toBe("idle")
+        } finally {
+          following.abort()
+          vi.useRealTimers()
+        }
+      })
+
+      it("runs out for no hold a snapshot, a turn or another Stop ended", () => {
+        vi.useFakeTimers()
+        const { told, following } = follow()
+        try {
+          decodeAll([stop(3, false), named(listed!, 4)])
+          decodeAll([stop(5, false), preInvocation(6)])
+          decodeAll([stop(7, false), stop(8, true)])
+          vi.advanceTimersByTime(60_000)
+          expect(told).toEqual([])
+        } finally {
+          following.abort()
+          vi.useRealTimers()
+        }
+      })
+    })
   })
 
   it("lets no working snapshot of an earlier turn show a count, or a Stop's turn resume", () => {

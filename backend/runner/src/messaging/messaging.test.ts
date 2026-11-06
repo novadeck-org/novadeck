@@ -1606,7 +1606,7 @@ describe("Antigravity's root conversation", () => {
     ask("G", root, "Stop", hook(root, "Stop", { fullyIdle: false }))
     expect(messaging.delivery("G")).toMatchObject({ state: "working", phase: "background" })
     observe("G", root, agyStatus(root, "working"), true)
-    observe("G", root, agyStatus(root, "idle"), true)
+    observe("G", root, agyStatus(root, "idle", 1, { task_count: 1 }), true)
     expect(messaging.delivery("G")?.state).toBe("settled")
   })
 
@@ -1695,6 +1695,11 @@ describe("Antigravity's turn, as activity and delivery both tell it", () => {
       applied(events)
       setup.observe("G", root, events, true)
     }
+    // What its own `watch` says, as the manager applies it.
+    const source = (event: HarnessEvent) => {
+      applied([event])
+      setup.observe("G", root, [event], true)
+    }
     // Whether a turn runs, as each tells it. Activity has two states, working or idle.
     // Delivery runs a turn only in its `turn` or `continuing` phase: its `background` phase,
     // after a Stop while subagents run, is idle to activity's turn; and Settled, Unknown,
@@ -1730,7 +1735,7 @@ describe("Antigravity's turn, as activity and delivery both tell it", () => {
       )
       escaped()
     }
-    return { ...setup, hook, status, turn, asked, press }
+    return { ...setup, hook, source, status, turn, asked, press }
   }
 
   it("agrees no turn runs when its status line says working just after a Stop", () => {
@@ -1941,11 +1946,52 @@ describe("Antigravity's turn, as activity and delivery both tell it", () => {
     hook("PreInvocation", 2, { invocationNum: 0 })
     hook("Stop", 3, { fullyIdle: false })
     turn(false, true)
-    status("idle", 4)
+    status("idle", 4, { task_count: 1 })
     turn(false)
     expect(messaging.delivery("G")?.state).toBe("settled")
     status("working", 5)
     turn(false)
+  })
+
+  it("agrees the agent works on past idle status lines that don't list its subagent yet", () => {
+    const listing = { subagents: [{ name: "self", status: "running" }] }
+    const { messaging, hook, status, turn } = agyTerminal()
+    status("idle", 1)
+    hook("PreInvocation", 2, { invocationNum: 0 })
+    hook("Stop", 3, { fullyIdle: false })
+    // Two bare snapshots, as on Windows (probed 2026-11-06, 1.5.2), then the listing.
+    status("idle", 4)
+    status("idle", 5)
+    turn(false, true)
+    expect(messaging.delivery("G")).toMatchObject({ state: "working", phase: "background" })
+    status("idle", 6, listing)
+    turn(false, true)
+    // None of that started a settle a message could ring on.
+    hook("PreInvocation", 7, { invocationNum: 0 })
+    turn(true)
+    hook("Stop", 8, { fullyIdle: true })
+    turn(false)
+    expect(messaging.delivery("G")?.state).toBe("settled")
+  })
+
+  it("agrees it settles by itself when no status line ever accounts for what a Stop left", async () => {
+    const { messaging, hook, source, status, turn } = agyTerminal()
+    const following = new AbortController()
+    const followed = harnesses.agy.watch!(
+      { sessionId: root.sessionId, instance: root.instance, transcript: "/t" },
+      following.signal,
+      source,
+    )
+    status("idle", 1)
+    hook("PreInvocation", 2, { invocationNum: 0 })
+    hook("Stop", 3, { fullyIdle: false })
+    status("idle", 4)
+    turn(false, true)
+    await vi.advanceTimersByTimeAsync(5000)
+    turn(false)
+    expect(messaging.delivery("G")?.state).toBe("settled")
+    following.abort()
+    await followed
   })
 })
 

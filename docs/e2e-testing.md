@@ -149,7 +149,7 @@ again without it. These tests skip anywhere else. Its traces upload as
 | ----------- | ----------------------------------------------------- | ------- |
 | Claude Code | npm, `@anthropic-ai/claude-code`                      | 2.1.316 |
 | Codex       | npm, `@openai/codex`                                  | 0.166.0 |
-| Antigravity | an archive, by its address and SHA-512 (Linux x86-64) | 1.4.12  |
+| Antigravity | an archive, by its address and SHA-512 (Linux x86-64) | 1.5.2   |
 
 `install.ts` installs each harness into `<cache>/<harness>-<version>`, staging it first
 in a folder with a random name so an interrupted install never counts as done, and
