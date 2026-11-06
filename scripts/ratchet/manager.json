@@ -11,9 +11,9 @@
     "from": "#497, agent-close, #507, #508, agent-feedback, #518, #513, open-agent-launch, refactor-harness-core, fu-messaging-split, ti-delivery, chat-delivery, agent-titles, murmur-agent-retitle, flakes-agy-macos-e2e, chat-box, agent-exit-race, chat-live-slice"
   },
   "methods": {
-    "budget": 73,
-    "reason": "Inbox dismiss (+2): dismissAsk and clearAsks forward the router's calls to Inbox, which it reaches only through Terminals; the logic is in messaging/inbox.ts. Close asks (+2): closeAsks and answerCloseAsk, the router's two entries to agents' asks to close a terminal, as requests and answerRequest are; the logic is in terminals/closeasks.ts and calls.ts. Person release of a lead (+1): releaseLead, the router's entry; the logic is in terminals/leads.ts. One input (+1): takeBox and putBox, the router's entries, one over the budget's room; the logic is in typing.ts and libraries/tui-input/src/handover.ts.",
-    "from": "#494, agent-close, #508, chat-box"
+    "budget": 74,
+    "reason": "Inbox dismiss (+2): dismissAsk and clearAsks forward the router's calls to Inbox, which it reaches only through Terminals; the logic is in messaging/inbox.ts. Close asks (+2): closeAsks and answerCloseAsk, the router's two entries to agents' asks to close a terminal, as requests and answerRequest are; the logic is in terminals/closeasks.ts and calls.ts. Person release of a lead (+1): releaseLead, the router's entry; the logic is in terminals/leads.ts. One input (+1): takeBox and putBox, the router's entries, one over the budget's room; the logic is in typing.ts and libraries/tui-input/src/handover.ts. Live slice (+1): slice, the router's entry to `agents.slice`; the logic is in terminals/slices.ts.",
+    "from": "#494, agent-close, #508, chat-box, chat-live-slice"
   },
   "slack": {
     "lines": 100,
