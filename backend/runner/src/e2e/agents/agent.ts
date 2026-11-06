@@ -28,6 +28,12 @@ export type Seed = {
    * ignores them.
    */
   readonly commands?: readonly string[]
+  /**
+   * A command it runs besides Novadeck's on the hook its prompts go through (Antigravity's
+   * runs before each model call), which prints `{}`, as Antigravity reads every hook's
+   * answer as JSON.
+   */
+  readonly promptHook?: string
 }
 
 /**
@@ -345,6 +351,8 @@ export type AgentSetup = {
    * harness runs before it can send it, where the harness runs anything then.
    */
   readonly queued?: (prompt: string) => RegExp
+  /** What the screen shows while prompts queued behind a running turn go through that. */
+  readonly queueing?: RegExp
   /** What it shows when a seed leaves the folder or Novadeck's hooks untrusted. */
   readonly trust?: Trust
   /**

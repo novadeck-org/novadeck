@@ -23,6 +23,11 @@ export type InterruptOptions = {
    * turn the program starts with them, which the second Escape stops.
    */
   readonly queuedTurnMs?: number
+  /**
+   * How long, before its first Escape, it waits for queued messages to get through what the
+   * program runs as they are queued (`BoxProfile.queueing`).
+   */
+  readonly queueingMs?: number
 }
 
 /** What interrupts need of the terminal and its owner, by terminal. */
@@ -92,6 +97,7 @@ export class Interrupts {
   private readonly restoreCalmMs: number
   private readonly settleMs: number
   private readonly queuedTurnMs: number
+  private readonly queueingMs: number
 
   constructor(
     private readonly host: InterruptHost,
@@ -101,6 +107,9 @@ export class Interrupts {
     this.restoreCalmMs = options.restoreCalmMs ?? 500
     this.settleMs = options.settleMs ?? 1_000
     this.queuedTurnMs = options.queuedTurnMs ?? 3_000
+    // Messages' hooks overlap, so this is a slow hook's time however many are queued
+    // (probed 2026-11-06, a hook 1.3 s slow): one on Windows CI took about 1.25 s to start.
+    this.queueingMs = options.queueingMs ?? 5_000
   }
 
   /**
@@ -142,7 +151,7 @@ export class Interrupts {
     const prompt = host.prompt(terminalId)
     // Only an empty box has text put back alone: text the person has typed there would be
     // merged with it, and is theirs.
-    const first = profile ? await host.screen(terminalId) : undefined
+    const first = profile && (await this.queuedIn(terminalId, profile))
     const boxBefore = first && profile?.read(first)
     const emptyBefore = boxBefore !== undefined && isEmpty(boxBefore)
     const queued = first !== undefined && profile?.queued(first) === true
@@ -190,6 +199,28 @@ export class Interrupts {
     if (!profile.clear || (!restored && profile.collapsed(box))) throw new BoxNotCleared()
     if (!(await this.cleared(terminalId, profile, box, entry))) throw new BoxNotCleared()
     return restored ? none : { returned: words }
+  }
+
+  /**
+   * The screen to stop the turn by: once messages queued behind it are through what the
+   * program runs on them, or `queueingMs` has passed, as Escape would part them. An Escape
+   * after the wait is let through as the first was. Undefined once the terminal is gone.
+   */
+  private async queuedIn(terminalId: string, profile: BoxProfile): Promise<ScreenText | undefined> {
+    const { host } = this
+    const queueing = (screen: ScreenText): boolean =>
+      profile.queued(screen) && profile.queueing?.(screen) === true
+    let screen = await host.screen(terminalId)
+    if (!screen || !queueing(screen)) return screen
+    const until = Date.now() + this.queueingMs
+    while (screen && queueing(screen) && host.working(terminalId) && Date.now() < until) {
+      // eslint-disable-next-line no-await-in-loop -- The screen is looked at in turn.
+      await sleep(pollMs)
+      // eslint-disable-next-line no-await-in-loop -- As above.
+      screen = await host.screen(terminalId)
+    }
+    host.admit(terminalId)
+    return screen
   }
 
   /**

@@ -89,6 +89,12 @@ export type BoxProfile = {
    */
   readonly queued: (screen: ScreenText) => boolean
   /**
+   * Whether messages queued behind the turn are still going through what the program runs
+   * before it can send them together: Escape then parts them, and only the first comes
+   * back. Omitted where nothing runs as a message is queued.
+   */
+  readonly queueing?: (screen: ScreenText) => boolean
+  /**
    * Whether a paste of the text certainly shows as a placeholder, however small the
    * screen; false where it may show whole.
    */

@@ -3,7 +3,7 @@ import { setTimeout as sleep } from "node:timers/promises"
 import type { AgentSetup } from "./agents/agent.js"
 import { setups } from "./agents/index.js"
 import type { DeckTerminal } from "./deck.js"
-import { describe, e2e, expect, supported } from "./fixture.js"
+import { describe, e2e, expect, supported, type E2E } from "./fixture.js"
 import { asked, gate, latest } from "./model/script.js"
 import { own, replies, start, through } from "./scenarios.js"
 
@@ -19,9 +19,13 @@ const queuedUp = async (terminal: DeckTerminal, setup: AgentSetup, prompt: strin
   await sleep(1000)
 }
 
+// A prompt hook as slow as Claude Code's on Windows (over a second each), in any shell.
+const slowHook = `node -e "setTimeout(function(){console.log('{}')},1300)"`
+
 for (const setup of setups) {
   describe.skipIf(!supported)(setup.name, () => {
     const it = e2e(setup)
+    const slow = e2e.seeded({ promptHook: slowHook }, setup)
 
     it("presses one Escape for a double Stop, leaving an empty prompt with no picker, and takes the next prompt", async ({
       e2e: run,
@@ -111,7 +115,9 @@ for (const setup of setups) {
       await through(t1, ["working", "settled"], { after: next })
     })
 
-    it("gives back both of two queued messages, or what was left of them", async ({ e2e: run }) => {
+    // Two prompts queued behind a held turn, a Stop once `ready` says it may come: both come
+    // back, or as a steer stop (Codex), and neither runs as a turn of its own.
+    const twoQueued = async (run: E2E, ready: (terminal: DeckTerminal) => Promise<unknown>) => {
       const held = gate()
       const queuedHeld = gate()
       run.model.use(
@@ -137,7 +143,7 @@ for (const setup of setups) {
       await t1.reached("working", { after: mark })
       await t1.prompt("Queued beta")
       await t1.prompt("Queued gamma")
-      await queuedUp(t1, setup, "Queued gamma")
+      await ready(t1)
       const stopped = await t1.interrupt()
       held.open()
       queuedHeld.open()
@@ -152,7 +158,21 @@ for (const setup of setups) {
       await t1.prompt("Carry on")
       await t1.until("Carried on.")
       await through(t1, ["working", "settled"], { after: next })
-    })
+    }
+
+    it("gives back both of two queued messages, or what was left of them", ({ e2e: run }) =>
+      twoQueued(run, (terminal) => queuedUp(terminal, setup, "Queued gamma")))
+
+    // The Stop lands with the hooks' screen up, where its harness has one: its words changed,
+    // this fails rather than the hold going quietly.
+    slow(
+      "gives back both of two queued messages with their slow prompt hooks still running",
+      ({ e2e: run }) =>
+        twoQueued(run, async (terminal) => {
+          if (setup.queueing) await terminal.until(setup.queueing)
+          await sleep(300)
+        }),
+    )
 
     it("clears a long prompt put back in the box, though it shows only its tail, and gives nothing back", async ({
       e2e: run,
