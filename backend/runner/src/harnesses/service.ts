@@ -31,6 +31,8 @@ export type HarnessesOptions = {
   readonly platform?: NodeJS.Platform
   /** How long one of an agent's plugin commands may take, in milliseconds. */
   readonly timeoutMs?: number
+  /** How long the login shell's lookup may take, in milliseconds. */
+  readonly loginTimeoutMs?: number
   /**
    * The runner's own relay, which reads Windows' registry for PATH; the one
    * `@novadeck/relay` built when omitted. Never the copy installed for agents, which may
@@ -59,9 +61,9 @@ const forAgents = (found: NodeJS.ProcessEnv, base: NodeJS.ProcessEnv): NodeJS.Pr
   )
 const marker = "__NOVADECK_ENV__"
 
-// What the login shell's startup files set; see `loginEnvironment`. `signal` ends the shell
-// with the kill signal alone, as an interactive one ignores SIGTERM.
-const loginShellEnvironment = (env: NodeJS.ProcessEnv, signal: AbortSignal) =>
+// What the login shell's startup files set; see `loginEnvironment`. `signal` or `timeoutMs`
+// ends the shell, by SIGKILL, as an interactive one ignores SIGTERM.
+const loginShellEnvironment = (env: NodeJS.ProcessEnv, signal: AbortSignal, timeoutMs: number) =>
   new Promise<NodeJS.ProcessEnv>((resolve) => {
     let output = ""
     let done = false
@@ -92,9 +94,9 @@ const loginShellEnvironment = (env: NodeJS.ProcessEnv, signal: AbortSignal) =>
     // A background job the startup files leave behind may hold the output open: the
     // shell's own exit, or a time limit, ends the wait.
     const timer = setTimeout(() => {
-      child.kill()
+      child.kill("SIGKILL")
       finish()
-    }, 10_000)
+    }, timeoutMs)
     child.stdout.setEncoding("utf8")
     child.stdout.on("data", (chunk: string) => (output += chunk))
     child.on("error", finish)
@@ -112,8 +114,11 @@ const loginEnvironment = (
   platform: NodeJS.Platform,
   relay: string,
   signal: AbortSignal,
+  timeoutMs: number,
 ) =>
-  platform === "win32" ? refreshPath(env, { platform, relay }) : loginShellEnvironment(env, signal)
+  platform === "win32"
+    ? refreshPath(env, { platform, relay })
+    : loginShellEnvironment(env, signal, timeoutMs)
 
 /**
  * The program to run, by its absolute path: the one on PATH, or where the harness's installer
@@ -254,7 +259,7 @@ export const createHarnesses = (
   const lookUp = () =>
     (options.login === false
       ? Promise.resolve(base)
-      : loginEnvironment(base, platform, relay, closing.signal)
+      : loginEnvironment(base, platform, relay, closing.signal, options.loginTimeoutMs ?? 10_000)
     ).then((found) => {
       person = found
       latest = forAgents(found, base)

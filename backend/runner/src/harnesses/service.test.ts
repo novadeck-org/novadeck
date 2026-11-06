@@ -443,6 +443,25 @@ describe("agents Novadeck can connect", () => {
     },
   )
 
+  it.skipIf(windows)("end a login shell that outlives its time limit", async ({ fixture }) => {
+    const pidFile = join(fixture.root, "shell.pid")
+    const shell = join(fixture.home, "slow-shell")
+    writeFileSync(
+      shell,
+      `#!/bin/sh\ntrap '' TERM\necho $$ > "${pidFile}"\nwhile :; do sleep 1; done\n`,
+      { mode: 0o755 },
+    )
+    const agents = createHarnesses(() => Promise.resolve(fixture.paths), {
+      home: fixture.home,
+      env: fixture.environment({ SHELL: shell }),
+      loginTimeoutMs: 300,
+    })
+    await vi.waitFor(() => expect(existsSync(pidFile)).toBe(true), { timeout: 5_000 })
+    const pid = Number(readFileSync(pidFile, "utf8"))
+    await vi.waitFor(() => expect(() => process.kill(pid, 0)).toThrow(), { timeout: 5_000 })
+    await agents.close()
+  })
+
   it("run no plugin commands of a refresh when the runner can't be built", async ({
     fixture,
     resources,
