@@ -17,7 +17,9 @@
 //
 // Runs only with NOVADECK_E2E_PROBES=1, by path; PROBE_RUNS is each case's repeats (3
 // unless set). Writes $PROBE_OUT/<agent>-exit-<platform>.json after every case, and logs
-// its summary.
+// its summary. On Linux a shell gets its scope only with the user's bus in the environment
+// and some milliseconds after it starts, and what it started by then stays behind:
+// PROBE_RC_SLEEP is seconds its .bashrc sleeps, to see a scope hold what a slower shell starts.
 /* eslint-disable no-await-in-loop -- A probe's runs go one at a time, each watched to its end. */
 import { execFile, spawn } from "node:child_process"
 import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs"
@@ -186,12 +188,40 @@ const census = async (run: E2E, terminal: Pick<DeckTerminal, "id">) => {
   const shell = inside.records.get(terminal.id)?.terminal.pty.pid
   if (shell === undefined) throw new Error("The terminal has no shell")
   const found = windows ? await windowsCensus(run, shell) : posixCensus(run, shell)
+  const began = performance.now()
   await found.look(() => 0)
+  const walkMs = Math.round(performance.now() - began)
   if (!found.watched.has(shell)) throw new Error("The terminal's process tree can't be read")
-  return { ...found, shell, group: await terminalForeground(shell) }
+  return { ...found, shell, walkMs, group: await terminalForeground(shell) }
 }
 
 type Taken = Awaited<ReturnType<typeof census>>
+
+/**
+ * Ends all of `cgroup`'s scope at once, as a shutdown could: the ms until none of `ones`
+ * answers, or undefined where there were none, or some still answer a second on.
+ */
+const endScope = async (cgroup: string, ones: readonly Watched[]) => {
+  if (ones.length === 0) return undefined
+  const began = performance.now()
+  await promisify(execFile)("busctl", [
+    "--user",
+    "call",
+    "org.freedesktop.systemd1",
+    "/org/freedesktop/systemd1",
+    "org.freedesktop.systemd1.Manager",
+    "KillUnit",
+    "ssi",
+    cgroup.split("/").at(-1)!,
+    "all",
+    "9",
+  ]).catch(() => {})
+  while (performance.now() - began < 1000) {
+    if (!ones.some((one) => answers(one.pid))) return Math.round(performance.now() - began)
+    await sleep(pollMs)
+  }
+  return undefined
+}
 
 /**
  * Every core busy twice over until the returned function ends it, by exact pid, or a
@@ -214,7 +244,7 @@ const load = (): (() => void) => {
  * in ms from the call of `end`; `closedMs` is when it returned, what the runner waited.
  */
 const stopwatch = async (
-  { watched, look, end: endThem, shell, group }: Taken,
+  { watched, look, end: endThem, shell, group, walkMs }: Taken,
   end: () => Promise<void>,
   capMs: number,
   agent: RegExp,
@@ -254,24 +284,30 @@ const stopwatch = async (
   await looking
   await closing
   const outlived = left()
-  await endThem(outlived)
+  const shellGroup = watched.get(shell)?.cgroup
+  const scoped = shellGroup?.endsWith(`-term${shell}.scope`)
+  const scopeEndMs = scoped ? await endScope(shellGroup!, outlived) : undefined
+  await endThem(outlived.filter((one) => answers(one.pid)))
   if (failure !== undefined) throw failure
   const all = [...watched.values()]
   const inGroup = group === undefined ? [] : all.filter((one) => one.group === group)
   const lead =
     all.find((one) => one.pid === group && group !== shell) ??
     all.find((one) => one.pid !== shell && agent.test(one.name))
-  const shellGroup = watched.get(shell)?.cgroup
   const latest = (ones: readonly Watched[]) =>
     ones.length === 0 ? undefined : Math.max(...ones.map((one) => one.goneMs ?? capMs))
   return {
+    walkMs,
     closedMs,
     agentMs: lead?.goneMs ?? (lead ? capMs : undefined),
     groupMs: latest(inGroup),
     lastMs: latest(all),
     outlived: outlived.map((one) => one.name),
-    // Those no scope of the shell's would hold: a descendant in another cgroup. Linux only.
+    // Linux only. `escaped` says something of scopes only where `scoped` holds: the shell has
+    // one of its own, which takes the user's bus. Without it they all share the runner's cgroup.
     ...(shellGroup !== undefined && {
+      scoped,
+      ...(scopeEndMs !== undefined && { scopeEndMs }),
       escaped: all
         .filter((one) => one.cgroup !== undefined && one.cgroup !== shellGroup)
         .map((one) => one.name),
@@ -555,6 +591,8 @@ for (const setup of setups) {
         run,
         setup.agent,
       )
+      if (process.env.PROBE_RC_SLEEP)
+        writeFileSync(join(run.sandbox.home, ".bashrc"), `sleep ${process.env.PROBE_RC_SLEEP}\n`)
       const agent = agentNames[setup.agent]
       const harness = setup.agent
       const failed = (error: string) => [{ error }]
