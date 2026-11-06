@@ -1,0 +1,1552 @@
+{
+  "harness": "codex",
+  "version": "0.167.0",
+  "source": "captured",
+  "how": "backend/runner/src/e2e/probes/tool-outcomes.e2e.ts: the real harness, interactive, against the fake model, one call a model turn, run in a scratch project; the records each call and its result left, paths as /home/user. Three of its models: the fake one (direct: exec_command, patches through its shell), with `apply_patch_tool_type: freeform` (patch tool), and with `tool_mode: code_mode_only` (code mode, as every model of its catalog). Its tool calls, their outputs and the `CommandExecution` and `FileChange` items only.",
+  "scenarios": {
+    "direct: command-passes": [
+      {
+        "timestamp": "2026-11-06T13:29:10.076Z",
+        "ordinal": 10,
+        "type": "response_item",
+        "payload": {
+          "type": "function_call",
+          "status": "completed",
+          "id": "fc_8c84c02004810a5c18e00984",
+          "name": "exec_command",
+          "arguments": "{\"cmd\":\"echo hello\",\"yield_time_ms\":5000}",
+          "call_id": "call_279fb2d3853b5398a99e3eec"
+        },
+        "metadata": {
+          "client_authored": false,
+          "user_input_order": 1
+        }
+      },
+      {
+        "timestamp": "2026-11-06T13:29:10.119Z",
+        "ordinal": 12,
+        "type": "event_msg",
+        "payload": {
+          "type": "item_completed",
+          "item": {
+            "type": "CommandExecution",
+            "id": "call_279fb2d3853b5398a99e3eec",
+            "process_id": "39935",
+            "command": ["/bin/bash", "-lc", "echo hello"],
+            "cwd": "file:///home/user/project",
+            "parsed_cmd": [
+              {
+                "type": "unknown",
+                "cmd": "echo hello"
+              }
+            ],
+            "source": "unified_exec_startup",
+            "status": "completed",
+            "aggregated_output": "hello\n",
+            "exit_code": 0,
+            "duration": {
+              "secs": 0,
+              "nanos": 14405
+            }
+          }
+        }
+      },
+      {
+        "timestamp": "2026-11-06T13:29:10.127Z",
+        "ordinal": 13,
+        "type": "response_item",
+        "payload": {
+          "type": "function_call_output",
+          "id": "fco_01a1b10c-84ef-7912-b916-7f6b3e54db84",
+          "call_id": "call_279fb2d3853b5398a99e3eec",
+          "output": "Chunk ID: f2d305\nWall time: 0.0000 seconds\nProcess exited with code 0\nOriginal token count: 2\nOutput:\nhello\n"
+        },
+        "metadata": {
+          "client_authored": false,
+          "fallback_token_limit_override": 12000
+        }
+      }
+    ],
+    "direct: command-fails": [
+      {
+        "timestamp": "2026-11-06T13:29:10.140Z",
+        "ordinal": 15,
+        "type": "response_item",
+        "payload": {
+          "type": "function_call",
+          "status": "completed",
+          "id": "fc_cc4b41d53598660252a9ded6",
+          "name": "exec_command",
+          "arguments": "{\"cmd\":\"sh -c 'echo boom >&2; exit 3'\",\"yield_time_ms\":5000}",
+          "call_id": "call_638609c3306c61906f164ecd"
+        },
+        "metadata": {
+          "client_authored": false,
+          "user_input_order": 2
+        }
+      },
+      {
+        "timestamp": "2026-11-06T13:29:10.176Z",
+        "ordinal": 17,
+        "type": "event_msg",
+        "payload": {
+          "type": "item_completed",
+          "item": {
+            "type": "CommandExecution",
+            "id": "call_638609c3306c61906f164ecd",
+            "process_id": "80313",
+            "command": ["/bin/bash", "-lc", "sh -c 'echo boom >&2; exit 3'"],
+            "cwd": "file:///home/user/project",
+            "parsed_cmd": [
+              {
+                "type": "unknown",
+                "cmd": "sh -c 'echo boom >&2; exit 3'"
+              }
+            ],
+            "source": "unified_exec_startup",
+            "status": "failed",
+            "aggregated_output": "boom\n",
+            "exit_code": 3,
+            "duration": {
+              "secs": 0,
+              "nanos": 15597
+            }
+          }
+        }
+      },
+      {
+        "timestamp": "2026-11-06T13:29:10.184Z",
+        "ordinal": 18,
+        "type": "response_item",
+        "payload": {
+          "type": "function_call_output",
+          "id": "fco_01a1b10c-8528-7640-925c-cadd4987559e",
+          "call_id": "call_638609c3306c61906f164ecd",
+          "output": "Chunk ID: d0efda\nWall time: 0.0000 seconds\nProcess exited with code 3\nOriginal token count: 2\nOutput:\nboom\n"
+        },
+        "metadata": {
+          "client_authored": false,
+          "fallback_token_limit_override": 12000
+        }
+      }
+    ],
+    "direct: read": [
+      {
+        "timestamp": "2026-11-06T13:29:10.199Z",
+        "ordinal": 20,
+        "type": "response_item",
+        "payload": {
+          "type": "function_call",
+          "status": "completed",
+          "id": "fc_b49cdcaeae51aed6b0ae67dd",
+          "name": "exec_command",
+          "arguments": "{\"cmd\":\"cat sample.txt\",\"yield_time_ms\":5000}",
+          "call_id": "call_a0ea72c9fbb1153846a63af6"
+        },
+        "metadata": {
+          "client_authored": false,
+          "user_input_order": 3
+        }
+      },
+      {
+        "timestamp": "2026-11-06T13:29:10.235Z",
+        "ordinal": 22,
+        "type": "event_msg",
+        "payload": {
+          "type": "item_completed",
+          "item": {
+            "type": "CommandExecution",
+            "id": "call_a0ea72c9fbb1153846a63af6",
+            "process_id": "23525",
+            "command": ["/bin/bash", "-lc", "cat sample.txt"],
+            "cwd": "file:///home/user/project",
+            "parsed_cmd": [
+              {
+                "type": "read",
+                "cmd": "cat sample.txt",
+                "name": "sample.txt",
+                "path": "sample.txt"
+              }
+            ],
+            "source": "unified_exec_startup",
+            "status": "completed",
+            "aggregated_output": "alpha\nbeta\ngamma\ndelta\nepsilon\nzeta\n",
+            "exit_code": 0,
+            "duration": {
+              "secs": 0,
+              "nanos": 15519
+            }
+          }
+        }
+      },
+      {
+        "timestamp": "2026-11-06T13:29:10.242Z",
+        "ordinal": 23,
+        "type": "response_item",
+        "payload": {
+          "type": "function_call_output",
+          "id": "fco_01a1b10c-8561-7180-8278-3aa6dcb55886",
+          "call_id": "call_a0ea72c9fbb1153846a63af6",
+          "output": "Chunk ID: 77115d\nWall time: 0.0000 seconds\nProcess exited with code 0\nOriginal token count: 9\nOutput:\nalpha\nbeta\ngamma\ndelta\nepsilon\nzeta\n"
+        },
+        "metadata": {
+          "client_authored": false,
+          "fallback_token_limit_override": 12000
+        }
+      }
+    ],
+    "direct: tool-error": [
+      {
+        "timestamp": "2026-11-06T13:29:10.255Z",
+        "ordinal": 25,
+        "type": "response_item",
+        "payload": {
+          "type": "function_call",
+          "status": "completed",
+          "id": "fc_1c4f1af0b5fa0781ad47e8a9",
+          "name": "exec_command",
+          "arguments": "{\"cmd\":\"cat missing.txt\",\"yield_time_ms\":5000}",
+          "call_id": "call_dc9cf2bc51a206f24373cbda"
+        },
+        "metadata": {
+          "client_authored": false,
+          "user_input_order": 4
+        }
+      },
+      {
+        "timestamp": "2026-11-06T13:29:10.290Z",
+        "ordinal": 27,
+        "type": "event_msg",
+        "payload": {
+          "type": "item_completed",
+          "item": {
+            "type": "CommandExecution",
+            "id": "call_dc9cf2bc51a206f24373cbda",
+            "process_id": "19910",
+            "command": ["/bin/bash", "-lc", "cat missing.txt"],
+            "cwd": "file:///home/user/project",
+            "parsed_cmd": [
+              {
+                "type": "read",
+                "cmd": "cat missing.txt",
+                "name": "missing.txt",
+                "path": "missing.txt"
+              }
+            ],
+            "source": "unified_exec_startup",
+            "status": "failed",
+            "aggregated_output": "cat: missing.txt: No such file or directory\n",
+            "exit_code": 1,
+            "duration": {
+              "secs": 0,
+              "nanos": 15057
+            }
+          }
+        }
+      },
+      {
+        "timestamp": "2026-11-06T13:29:10.297Z",
+        "ordinal": 28,
+        "type": "response_item",
+        "payload": {
+          "type": "function_call_output",
+          "id": "fco_01a1b10c-8599-7932-a663-82c20c594fb9",
+          "call_id": "call_dc9cf2bc51a206f24373cbda",
+          "output": "Chunk ID: 8f1e7b\nWall time: 0.0000 seconds\nProcess exited with code 1\nOriginal token count: 11\nOutput:\ncat: missing.txt: No such file or directory\n"
+        },
+        "metadata": {
+          "client_authored": false,
+          "fallback_token_limit_override": 12000
+        }
+      }
+    ],
+    "direct: search": [
+      {
+        "timestamp": "2026-11-06T13:29:10.309Z",
+        "ordinal": 30,
+        "type": "response_item",
+        "payload": {
+          "type": "function_call",
+          "status": "completed",
+          "id": "fc_3dbdbd951292ba6e6a4fda6a",
+          "name": "exec_command",
+          "arguments": "{\"cmd\":\"grep -n beta sample.txt\",\"yield_time_ms\":5000}",
+          "call_id": "call_a874ee1602370ee69821f7e6"
+        },
+        "metadata": {
+          "client_authored": false,
+          "user_input_order": 5
+        }
+      },
+      {
+        "timestamp": "2026-11-06T13:29:10.342Z",
+        "ordinal": 32,
+        "type": "event_msg",
+        "payload": {
+          "type": "item_completed",
+          "item": {
+            "type": "CommandExecution",
+            "id": "call_a874ee1602370ee69821f7e6",
+            "process_id": "80040",
+            "command": ["/bin/bash", "-lc", "grep -n beta sample.txt"],
+            "cwd": "file:///home/user/project",
+            "parsed_cmd": [
+              {
+                "type": "search",
+                "cmd": "grep -n beta sample.txt",
+                "query": "beta",
+                "path": "sample.txt"
+              }
+            ],
+            "source": "unified_exec_startup",
+            "status": "completed",
+            "aggregated_output": "2:beta\n",
+            "exit_code": 0,
+            "duration": {
+              "secs": 0,
+              "nanos": 17181
+            }
+          }
+        }
+      },
+      {
+        "timestamp": "2026-11-06T13:29:10.348Z",
+        "ordinal": 33,
+        "type": "response_item",
+        "payload": {
+          "type": "function_call_output",
+          "id": "fco_01a1b10c-85cc-7a41-9f22-31260ec8d6e5",
+          "call_id": "call_a874ee1602370ee69821f7e6",
+          "output": "Chunk ID: 4bd5c5\nWall time: 0.0000 seconds\nProcess exited with code 0\nOriginal token count: 2\nOutput:\n2:beta\n"
+        },
+        "metadata": {
+          "client_authored": false,
+          "fallback_token_limit_override": 12000
+        }
+      }
+    ],
+    "direct: no-match": [
+      {
+        "timestamp": "2026-11-06T13:29:10.360Z",
+        "ordinal": 35,
+        "type": "response_item",
+        "payload": {
+          "type": "function_call",
+          "status": "completed",
+          "id": "fc_37e705bf54969e000fc765c3",
+          "name": "exec_command",
+          "arguments": "{\"cmd\":\"grep -n zzz sample.txt\",\"yield_time_ms\":5000}",
+          "call_id": "call_0e33098110a3f5fa281ee660"
+        },
+        "metadata": {
+          "client_authored": false,
+          "user_input_order": 6
+        }
+      },
+      {
+        "timestamp": "2026-11-06T13:29:10.395Z",
+        "ordinal": 37,
+        "type": "event_msg",
+        "payload": {
+          "type": "item_completed",
+          "item": {
+            "type": "CommandExecution",
+            "id": "call_0e33098110a3f5fa281ee660",
+            "process_id": "77796",
+            "command": ["/bin/bash", "-lc", "grep -n zzz sample.txt"],
+            "cwd": "file:///home/user/project",
+            "parsed_cmd": [
+              {
+                "type": "search",
+                "cmd": "grep -n zzz sample.txt",
+                "query": "zzz",
+                "path": "sample.txt"
+              }
+            ],
+            "source": "unified_exec_startup",
+            "status": "failed",
+            "aggregated_output": "",
+            "exit_code": 1,
+            "duration": {
+              "secs": 0,
+              "nanos": 16871
+            }
+          }
+        }
+      },
+      {
+        "timestamp": "2026-11-06T13:29:10.401Z",
+        "ordinal": 38,
+        "type": "response_item",
+        "payload": {
+          "type": "function_call_output",
+          "id": "fco_01a1b10c-8601-77f3-90af-9ba891852321",
+          "call_id": "call_0e33098110a3f5fa281ee660",
+          "output": "Chunk ID: 4d9cf4\nWall time: 0.0000 seconds\nProcess exited with code 1\nOriginal token count: 0\nOutput:\n"
+        },
+        "metadata": {
+          "client_authored": false,
+          "fallback_token_limit_override": 12000
+        }
+      }
+    ],
+    "direct: runs-on": [
+      {
+        "timestamp": "2026-11-06T13:29:10.414Z",
+        "ordinal": 40,
+        "type": "response_item",
+        "payload": {
+          "type": "function_call",
+          "status": "completed",
+          "id": "fc_fc24acfe71cb19814aa7f3fe",
+          "name": "exec_command",
+          "arguments": "{\"cmd\":\"sleep 3; echo done\",\"yield_time_ms\":300}",
+          "call_id": "call_a5665286250c8bbd3dad5477"
+        },
+        "metadata": {
+          "client_authored": false,
+          "user_input_order": 7
+        }
+      },
+      {
+        "timestamp": "2026-11-06T13:29:10.876Z",
+        "ordinal": 42,
+        "type": "response_item",
+        "payload": {
+          "type": "function_call_output",
+          "id": "fco_01a1b10c-87dc-7831-a4ac-aef310ffbd52",
+          "call_id": "call_a5665286250c8bbd3dad5477",
+          "output": "Chunk ID: 80cd9c\nWall time: 0.3010 seconds\nProcess running with session ID 75449\nOriginal token count: 0\nOutput:\n"
+        },
+        "metadata": {
+          "client_authored": false,
+          "fallback_token_limit_override": 12000
+        }
+      }
+    ],
+    "direct: poll-ends": [
+      {
+        "timestamp": "2026-11-06T13:29:10.890Z",
+        "ordinal": 44,
+        "type": "response_item",
+        "payload": {
+          "type": "function_call",
+          "status": "completed",
+          "id": "fc_8ea271fb1b1fae4acebfc9fa",
+          "name": "write_stdin",
+          "arguments": "{\"session_id\":75449,\"chars\":\"\",\"yield_time_ms\":6000}",
+          "call_id": "call_df5b0c0d6e94e838b7707ca0"
+        },
+        "metadata": {
+          "client_authored": false,
+          "user_input_order": 8
+        }
+      },
+      {
+        "timestamp": "2026-11-06T13:29:13.428Z",
+        "ordinal": 46,
+        "type": "event_msg",
+        "payload": {
+          "type": "item_completed",
+          "item": {
+            "type": "CommandExecution",
+            "id": "call_a5665286250c8bbd3dad5477",
+            "process_id": "75449",
+            "command": ["/bin/bash", "-lc", "sleep 3; echo done"],
+            "cwd": "file:///home/user/project",
+            "parsed_cmd": [
+              {
+                "type": "unknown",
+                "cmd": "sleep 3; echo done"
+              }
+            ],
+            "source": "unified_exec_startup",
+            "status": "completed",
+            "aggregated_output": "done\n",
+            "exit_code": 0,
+            "duration": {
+              "secs": 2,
+              "nanos": 852672938
+            }
+          }
+        }
+      },
+      {
+        "timestamp": "2026-11-06T13:29:13.434Z",
+        "ordinal": 47,
+        "type": "response_item",
+        "payload": {
+          "type": "function_call_output",
+          "id": "fco_01a1b10c-91da-73b1-bd11-bc860adc0130",
+          "call_id": "call_df5b0c0d6e94e838b7707ca0",
+          "output": "Chunk ID: 3b02d4\nWall time: 2.5368 seconds\nProcess exited with code 0\nOriginal token count: 2\nOutput:\ndone\n"
+        },
+        "metadata": {
+          "client_authored": false,
+          "fallback_token_limit_override": 12000
+        }
+      }
+    ],
+    "direct: not-found": [
+      {
+        "timestamp": "2026-11-06T13:29:13.446Z",
+        "ordinal": 49,
+        "type": "response_item",
+        "payload": {
+          "type": "function_call",
+          "status": "completed",
+          "id": "fc_1b2819a113a5f024c049a44d",
+          "name": "exec_command",
+          "arguments": "{\"cmd\":\"no-such-program-here\",\"yield_time_ms\":5000}",
+          "call_id": "call_f61a26cc73cb2d040ae1e620"
+        },
+        "metadata": {
+          "client_authored": false,
+          "user_input_order": 9
+        }
+      },
+      {
+        "timestamp": "2026-11-06T13:29:13.478Z",
+        "ordinal": 51,
+        "type": "event_msg",
+        "payload": {
+          "type": "item_completed",
+          "item": {
+            "type": "CommandExecution",
+            "id": "call_f61a26cc73cb2d040ae1e620",
+            "process_id": "80827",
+            "command": ["/bin/bash", "-lc", "no-such-program-here"],
+            "cwd": "file:///home/user/project",
+            "parsed_cmd": [
+              {
+                "type": "unknown",
+                "cmd": "no-such-program-here"
+              }
+            ],
+            "source": "unified_exec_startup",
+            "status": "failed",
+            "aggregated_output": "/bin/bash: line 1: no-such-program-here: command not found\n",
+            "exit_code": 127,
+            "duration": {
+              "secs": 0,
+              "nanos": 17948
+            }
+          }
+        }
+      },
+      {
+        "timestamp": "2026-11-06T13:29:13.485Z",
+        "ordinal": 52,
+        "type": "response_item",
+        "payload": {
+          "type": "function_call_output",
+          "id": "fco_01a1b10c-920d-75f2-a4fd-facca965570e",
+          "call_id": "call_f61a26cc73cb2d040ae1e620",
+          "output": "Chunk ID: 96557e\nWall time: 0.0000 seconds\nProcess exited with code 127\nOriginal token count: 15\nOutput:\n/bin/bash: line 1: no-such-program-here: command not found\n"
+        },
+        "metadata": {
+          "client_authored": false,
+          "fallback_token_limit_override": 12000
+        }
+      }
+    ],
+    "direct: patch-add": [
+      {
+        "timestamp": "2026-11-06T13:29:13.499Z",
+        "ordinal": 54,
+        "type": "response_item",
+        "payload": {
+          "type": "function_call",
+          "status": "completed",
+          "id": "fc_2e93ec63d74b53ac99a32902",
+          "name": "exec_command",
+          "arguments": "{\"cmd\":\"apply_patch <<'EOF'\\n*** Begin Patch\\n*** Add File: new.txt\\n+one\\n+two\\n*** End Patch\\nEOF\",\"yield_time_ms\":5000}",
+          "call_id": "call_8f695fa16f0aae38da62ee4f"
+        },
+        "metadata": {
+          "client_authored": false,
+          "user_input_order": 10
+        }
+      },
+      {
+        "timestamp": "2026-11-06T13:29:13.502Z",
+        "ordinal": 56,
+        "type": "event_msg",
+        "payload": {
+          "type": "item_completed",
+          "item": {
+            "type": "FileChange",
+            "id": "call_8f695fa16f0aae38da62ee4f",
+            "changes": {
+              "/home/user/project/new.txt": {
+                "type": "add",
+                "content": "one\ntwo\n"
+              }
+            },
+            "status": "completed",
+            "stdout": "Success. Updated the following files:\nA new.txt\n",
+            "stderr": ""
+          }
+        }
+      },
+      {
+        "timestamp": "2026-11-06T13:29:13.502Z",
+        "ordinal": 57,
+        "type": "response_item",
+        "payload": {
+          "type": "function_call_output",
+          "id": "fco_01a1b10c-921e-7a13-8cc8-c2d6b0478566",
+          "call_id": "call_8f695fa16f0aae38da62ee4f",
+          "output": "Wall time: 0.0000 seconds\nOutput:\nExit code: 0\nWall time: 0 seconds\nOutput:\nSuccess. Updated the following files:\nA new.txt\n"
+        },
+        "metadata": {
+          "client_authored": false,
+          "fallback_token_limit_override": 12000
+        }
+      }
+    ],
+    "direct: patch-update": [
+      {
+        "timestamp": "2026-11-06T13:29:13.517Z",
+        "ordinal": 59,
+        "type": "response_item",
+        "payload": {
+          "type": "function_call",
+          "status": "completed",
+          "id": "fc_032148dfd78162ca6e94ced2",
+          "name": "exec_command",
+          "arguments": "{\"cmd\":\"apply_patch <<'EOF'\\n*** Begin Patch\\n*** Update File: src/auth.ts\\n@@\\n const a = 1\\n-const b = 2\\n+const b = 20\\n+const bb = 21\\n const c = 3\\n*** End Patch\\nEOF\",\"yield_time_ms\":5000}",
+          "call_id": "call_083af892bf5d040be32b2646"
+        },
+        "metadata": {
+          "client_authored": false,
+          "user_input_order": 11
+        }
+      },
+      {
+        "timestamp": "2026-11-06T13:29:13.520Z",
+        "ordinal": 61,
+        "type": "event_msg",
+        "payload": {
+          "type": "item_completed",
+          "item": {
+            "type": "FileChange",
+            "id": "call_083af892bf5d040be32b2646",
+            "changes": {
+              "/home/user/project/src/auth.ts": {
+                "type": "update",
+                "unified_diff": "@@ -1,3 +1,4 @@\n const a = 1\n-const b = 2\n+const b = 20\n+const bb = 21\n const c = 3\n",
+                "move_path": null
+              }
+            },
+            "status": "completed",
+            "stdout": "Success. Updated the following files:\nM src/auth.ts\n",
+            "stderr": ""
+          }
+        }
+      },
+      {
+        "timestamp": "2026-11-06T13:29:13.520Z",
+        "ordinal": 62,
+        "type": "response_item",
+        "payload": {
+          "type": "function_call_output",
+          "id": "fco_01a1b10c-9230-7293-abb7-5df90dc43eb4",
+          "call_id": "call_083af892bf5d040be32b2646",
+          "output": "Wall time: 0.0000 seconds\nOutput:\nExit code: 0\nWall time: 0 seconds\nOutput:\nSuccess. Updated the following files:\nM src/auth.ts\n"
+        },
+        "metadata": {
+          "client_authored": false,
+          "fallback_token_limit_override": 12000
+        }
+      }
+    ],
+    "direct: patch-no-match": [
+      {
+        "timestamp": "2026-11-06T13:29:13.534Z",
+        "ordinal": 64,
+        "type": "response_item",
+        "payload": {
+          "type": "function_call",
+          "status": "completed",
+          "id": "fc_e3b45b7b60f413ca79746462",
+          "name": "exec_command",
+          "arguments": "{\"cmd\":\"apply_patch <<'EOF'\\n*** Begin Patch\\n*** Update File: src/auth.ts\\n@@\\n-no such text\\n+x\\n*** End Patch\\nEOF\",\"yield_time_ms\":5000}",
+          "call_id": "call_b5ebefdbdd84f148990ab5aa"
+        },
+        "metadata": {
+          "client_authored": false,
+          "user_input_order": 12
+        }
+      },
+      {
+        "timestamp": "2026-11-06T13:29:13.536Z",
+        "ordinal": 66,
+        "type": "response_item",
+        "payload": {
+          "type": "function_call_output",
+          "id": "fco_01a1b10c-9240-70a1-8ae4-aabe616313bd",
+          "call_id": "call_b5ebefdbdd84f148990ab5aa",
+          "output": "apply_patch verification failed: Failed to find expected lines in /home/user/project/src/auth.ts:\nno such text"
+        },
+        "metadata": {
+          "client_authored": false,
+          "fallback_token_limit_override": 12000
+        }
+      }
+    ],
+    "patch tool: add": [
+      {
+        "timestamp": "2026-11-06T13:29:17.497Z",
+        "ordinal": 20,
+        "type": "response_item",
+        "payload": {
+          "type": "custom_tool_call",
+          "id": "ctc_6e8084605b3380c880d523ad",
+          "status": "completed",
+          "call_id": "call_10fab0078a3837cb24a73fd2",
+          "name": "apply_patch",
+          "input": "*** Begin Patch\n*** Add File: new.txt\n+one\n+two\n*** End Patch"
+        }
+      },
+      {
+        "timestamp": "2026-11-06T13:29:17.500Z",
+        "ordinal": 22,
+        "type": "event_msg",
+        "payload": {
+          "type": "item_completed",
+          "item": {
+            "type": "FileChange",
+            "id": "call_10fab0078a3837cb24a73fd2",
+            "changes": {
+              "/home/user/project/new.txt": {
+                "type": "add",
+                "content": "one\ntwo\n"
+              }
+            },
+            "status": "completed",
+            "stdout": "Success. Updated the following files:\nA new.txt\n",
+            "stderr": ""
+          }
+        }
+      },
+      {
+        "timestamp": "2026-11-06T13:29:17.506Z",
+        "ordinal": 23,
+        "type": "response_item",
+        "payload": {
+          "type": "custom_tool_call_output",
+          "id": "ctco_01a1b10c-a1c2-78d3-9afc-bfdf7baf93ff",
+          "call_id": "call_10fab0078a3837cb24a73fd2",
+          "output": "Exit code: 0\nWall time: 0 seconds\nOutput:\nSuccess. Updated the following files:\nA new.txt\n"
+        },
+        "metadata": {
+          "client_authored": false,
+          "fallback_token_limit_override": 12000
+        }
+      }
+    ],
+    "patch tool: update": [
+      {
+        "timestamp": "2026-11-06T13:29:17.518Z",
+        "ordinal": 25,
+        "type": "response_item",
+        "payload": {
+          "type": "custom_tool_call",
+          "id": "ctc_1786a9b53bcf2cf80dc0e53d",
+          "status": "completed",
+          "call_id": "call_e118a3f9976896f3bd6f3f3a",
+          "name": "apply_patch",
+          "input": "*** Begin Patch\n*** Update File: src/auth.ts\n@@\n const a = 1\n-const b = 2\n+const b = 20\n+const bb = 21\n const c = 3\n*** End Patch"
+        }
+      },
+      {
+        "timestamp": "2026-11-06T13:29:17.520Z",
+        "ordinal": 27,
+        "type": "event_msg",
+        "payload": {
+          "type": "item_completed",
+          "item": {
+            "type": "FileChange",
+            "id": "call_e118a3f9976896f3bd6f3f3a",
+            "changes": {
+              "/home/user/project/src/auth.ts": {
+                "type": "update",
+                "unified_diff": "@@ -1,3 +1,4 @@\n const a = 1\n-const b = 2\n+const b = 20\n+const bb = 21\n const c = 3\n",
+                "move_path": null
+              }
+            },
+            "status": "completed",
+            "stdout": "Success. Updated the following files:\nM src/auth.ts\n",
+            "stderr": ""
+          }
+        }
+      },
+      {
+        "timestamp": "2026-11-06T13:29:17.525Z",
+        "ordinal": 28,
+        "type": "response_item",
+        "payload": {
+          "type": "custom_tool_call_output",
+          "id": "ctco_01a1b10c-a1d5-7593-86b4-16560dfee4bf",
+          "call_id": "call_e118a3f9976896f3bd6f3f3a",
+          "output": "Exit code: 0\nWall time: 0 seconds\nOutput:\nSuccess. Updated the following files:\nM src/auth.ts\n"
+        },
+        "metadata": {
+          "client_authored": false,
+          "fallback_token_limit_override": 12000
+        }
+      }
+    ],
+    "patch tool: no-match": [
+      {
+        "timestamp": "2026-11-06T13:29:17.540Z",
+        "ordinal": 30,
+        "type": "response_item",
+        "payload": {
+          "type": "custom_tool_call",
+          "id": "ctc_4066dbb3c56f573f44a1fb77",
+          "status": "completed",
+          "call_id": "call_a13c6c2554e37747ec02a756",
+          "name": "apply_patch",
+          "input": "*** Begin Patch\n*** Update File: src/auth.ts\n@@\n-no such text\n+x\n*** End Patch"
+        }
+      },
+      {
+        "timestamp": "2026-11-06T13:29:17.542Z",
+        "ordinal": 32,
+        "type": "response_item",
+        "payload": {
+          "type": "custom_tool_call_output",
+          "id": "ctco_01a1b10c-a1e6-7ea2-a87e-9e9da086978f",
+          "call_id": "call_a13c6c2554e37747ec02a756",
+          "output": "apply_patch verification failed: Failed to find expected lines in /home/user/project/src/auth.ts:\nno such text"
+        },
+        "metadata": {
+          "client_authored": false,
+          "fallback_token_limit_override": 12000
+        }
+      }
+    ],
+    "patch tool: move": [
+      {
+        "timestamp": "2026-11-06T13:29:17.553Z",
+        "ordinal": 34,
+        "type": "response_item",
+        "payload": {
+          "type": "custom_tool_call",
+          "id": "ctc_957d8bd3dfd321a2c5d68c13",
+          "status": "completed",
+          "call_id": "call_2b20885cf4fa16ed8170aa5d",
+          "name": "apply_patch",
+          "input": "*** Begin Patch\n*** Update File: new.txt\n*** Move to: moved.txt\n@@\n-one\n+uno\n*** End Patch"
+        }
+      },
+      {
+        "timestamp": "2026-11-06T13:29:17.555Z",
+        "ordinal": 36,
+        "type": "event_msg",
+        "payload": {
+          "type": "item_completed",
+          "item": {
+            "type": "FileChange",
+            "id": "call_2b20885cf4fa16ed8170aa5d",
+            "changes": {
+              "/home/user/project/new.txt": {
+                "type": "update",
+                "unified_diff": "@@ -1,2 +1,2 @@\n-one\n+uno\n two\n",
+                "move_path": "/home/user/project/moved.txt"
+              }
+            },
+            "status": "completed",
+            "stdout": "Success. Updated the following files:\nM moved.txt\n",
+            "stderr": ""
+          }
+        }
+      },
+      {
+        "timestamp": "2026-11-06T13:29:17.560Z",
+        "ordinal": 37,
+        "type": "response_item",
+        "payload": {
+          "type": "custom_tool_call_output",
+          "id": "ctco_01a1b10c-a1f8-7231-a6e6-704d59658e49",
+          "call_id": "call_2b20885cf4fa16ed8170aa5d",
+          "output": "Exit code: 0\nWall time: 0 seconds\nOutput:\nSuccess. Updated the following files:\nM moved.txt\n"
+        },
+        "metadata": {
+          "client_authored": false,
+          "fallback_token_limit_override": 12000
+        }
+      }
+    ],
+    "patch tool: delete": [
+      {
+        "timestamp": "2026-11-06T13:29:17.572Z",
+        "ordinal": 39,
+        "type": "response_item",
+        "payload": {
+          "type": "custom_tool_call",
+          "id": "ctc_3ea005ebc3532aa31a12b5d8",
+          "status": "completed",
+          "call_id": "call_5cc2113cc4a90d8a883df074",
+          "name": "apply_patch",
+          "input": "*** Begin Patch\n*** Delete File: moved.txt\n*** End Patch"
+        }
+      },
+      {
+        "timestamp": "2026-11-06T13:29:17.574Z",
+        "ordinal": 41,
+        "type": "event_msg",
+        "payload": {
+          "type": "item_completed",
+          "item": {
+            "type": "FileChange",
+            "id": "call_5cc2113cc4a90d8a883df074",
+            "changes": {
+              "/home/user/project/moved.txt": {
+                "type": "delete",
+                "content": "uno\ntwo\n"
+              }
+            },
+            "status": "completed",
+            "stdout": "Success. Updated the following files:\nD moved.txt\n",
+            "stderr": ""
+          }
+        }
+      },
+      {
+        "timestamp": "2026-11-06T13:29:17.580Z",
+        "ordinal": 42,
+        "type": "response_item",
+        "payload": {
+          "type": "custom_tool_call_output",
+          "id": "ctco_01a1b10c-a20c-75d0-a6c1-71a229dc1fcc",
+          "call_id": "call_5cc2113cc4a90d8a883df074",
+          "output": "Exit code: 0\nWall time: 0 seconds\nOutput:\nSuccess. Updated the following files:\nD moved.txt\n"
+        },
+        "metadata": {
+          "client_authored": false,
+          "fallback_token_limit_override": 12000
+        }
+      }
+    ],
+    "code mode: command-passes": [
+      {
+        "timestamp": "2026-11-06T13:29:21.286Z",
+        "ordinal": 10,
+        "type": "response_item",
+        "payload": {
+          "type": "custom_tool_call",
+          "id": "ctc_1dfba6b511956a66ee5bfe2b",
+          "status": "completed",
+          "call_id": "call_2894c8c1e1dcb6a4d9abb92d",
+          "name": "exec",
+          "input": "text(await tools.exec_command({cmd:\"echo hello\"}));"
+        }
+      },
+      {
+        "timestamp": "2026-11-06T13:29:21.338Z",
+        "ordinal": 12,
+        "type": "event_msg",
+        "payload": {
+          "type": "item_completed",
+          "item": {
+            "type": "CommandExecution",
+            "id": "exec-21f0ce90-336c-4a1d-bf09-9aeeca4d5109",
+            "process_id": "87484",
+            "command": ["/bin/bash", "-lc", "echo hello"],
+            "cwd": "file:///home/user/project",
+            "parsed_cmd": [
+              {
+                "type": "unknown",
+                "cmd": "echo hello"
+              }
+            ],
+            "source": "unified_exec_startup",
+            "status": "completed",
+            "aggregated_output": "hello\n",
+            "exit_code": 0,
+            "duration": {
+              "secs": 0,
+              "nanos": 11439
+            }
+          }
+        }
+      },
+      {
+        "timestamp": "2026-11-06T13:29:21.346Z",
+        "ordinal": 13,
+        "type": "response_item",
+        "payload": {
+          "type": "custom_tool_call_output",
+          "id": "ctco_01a1b10c-b0c2-7c12-bfb8-cdf777173596",
+          "call_id": "call_2894c8c1e1dcb6a4d9abb92d",
+          "output": [
+            {
+              "type": "input_text",
+              "text": "Script completed\nWall time 0.1 seconds\nOutput:\n"
+            },
+            {
+              "type": "input_text",
+              "text": "{\"chunk_id\":\"6b1413\",\"wall_time_seconds\":0.000011439,\"exit_code\":0,\"original_token_count\":2,\"output\":\"hello\\n\"}"
+            }
+          ]
+        },
+        "metadata": {
+          "client_authored": false,
+          "fallback_token_limit_override": 12000
+        }
+      }
+    ],
+    "code mode: command-fails": [
+      {
+        "timestamp": "2026-11-06T13:29:21.359Z",
+        "ordinal": 15,
+        "type": "response_item",
+        "payload": {
+          "type": "custom_tool_call",
+          "id": "ctc_673c2bb40af034be900bb0a2",
+          "status": "completed",
+          "call_id": "call_6df223635b247ce8d95b1889",
+          "name": "exec",
+          "input": "text(await tools.exec_command({cmd:\"exit 3\"}));"
+        }
+      },
+      {
+        "timestamp": "2026-11-06T13:29:21.398Z",
+        "ordinal": 17,
+        "type": "event_msg",
+        "payload": {
+          "type": "item_completed",
+          "item": {
+            "type": "CommandExecution",
+            "id": "exec-0c691063-d003-4cd2-8753-2dcef0103708",
+            "process_id": "86973",
+            "command": ["/bin/bash", "-lc", "exit 3"],
+            "cwd": "file:///home/user/project",
+            "parsed_cmd": [
+              {
+                "type": "unknown",
+                "cmd": "exit 3"
+              }
+            ],
+            "source": "unified_exec_startup",
+            "status": "failed",
+            "aggregated_output": "",
+            "exit_code": 3,
+            "duration": {
+              "secs": 0,
+              "nanos": 14025
+            }
+          }
+        }
+      },
+      {
+        "timestamp": "2026-11-06T13:29:21.406Z",
+        "ordinal": 18,
+        "type": "response_item",
+        "payload": {
+          "type": "custom_tool_call_output",
+          "id": "ctco_01a1b10c-b0fe-7c60-a593-64747177f46a",
+          "call_id": "call_6df223635b247ce8d95b1889",
+          "output": [
+            {
+              "type": "input_text",
+              "text": "Script completed\nWall time 0.0 seconds\nOutput:\n"
+            },
+            {
+              "type": "input_text",
+              "text": "{\"chunk_id\":\"e49976\",\"wall_time_seconds\":0.000014025,\"exit_code\":3,\"original_token_count\":0,\"output\":\"\"}"
+            }
+          ]
+        },
+        "metadata": {
+          "client_authored": false,
+          "fallback_token_limit_override": 12000
+        }
+      }
+    ],
+    "code mode: script-fails": [
+      {
+        "timestamp": "2026-11-06T13:29:21.419Z",
+        "ordinal": 20,
+        "type": "response_item",
+        "payload": {
+          "type": "custom_tool_call",
+          "id": "ctc_5ea0f40f33b24aed5cde1ebd",
+          "status": "completed",
+          "call_id": "call_0389070e8d2e585958e4b447",
+          "name": "exec",
+          "input": "throw new Error(\"boom in the script\");"
+        }
+      },
+      {
+        "timestamp": "2026-11-06T13:29:21.424Z",
+        "ordinal": 22,
+        "type": "response_item",
+        "payload": {
+          "type": "custom_tool_call_output",
+          "id": "ctco_01a1b10c-b110-7e13-9f72-d4a70814b3df",
+          "call_id": "call_0389070e8d2e585958e4b447",
+          "output": [
+            {
+              "type": "input_text",
+              "text": "Script failed\nWall time 0.0 seconds\nOutput:\n"
+            },
+            {
+              "type": "input_text",
+              "text": "Script error:\nError: boom in the script\n    at exec_main.mjs:1:7"
+            }
+          ]
+        },
+        "metadata": {
+          "client_authored": false,
+          "fallback_token_limit_override": 12000
+        }
+      }
+    ],
+    "code mode: two-commands": [
+      {
+        "timestamp": "2026-11-06T13:29:21.437Z",
+        "ordinal": 24,
+        "type": "response_item",
+        "payload": {
+          "type": "custom_tool_call",
+          "id": "ctc_7a0996db056292814b82fdda",
+          "status": "completed",
+          "call_id": "call_433b228f21f672eb7f738199",
+          "name": "exec",
+          "input": "const r = await Promise.allSettled([tools.exec_command({cmd:\"echo one\"}), tools.exec_command({cmd:\"cat missing.txt\"})]);\nfor (const each of r) text(each);"
+        }
+      },
+      {
+        "timestamp": "2026-11-06T13:29:21.473Z",
+        "ordinal": 26,
+        "type": "event_msg",
+        "payload": {
+          "type": "item_completed",
+          "item": {
+            "type": "CommandExecution",
+            "id": "exec-af13e4c8-fe82-4911-986c-53292baf8db7",
+            "process_id": "89105",
+            "command": ["/bin/bash", "-lc", "cat missing.txt"],
+            "cwd": "file:///home/user/project",
+            "parsed_cmd": [
+              {
+                "type": "read",
+                "cmd": "cat missing.txt",
+                "name": "missing.txt",
+                "path": "missing.txt"
+              }
+            ],
+            "source": "unified_exec_startup",
+            "status": "failed",
+            "aggregated_output": "cat: missing.txt: No such file or directory\n",
+            "exit_code": 1,
+            "duration": {
+              "secs": 0,
+              "nanos": 13637
+            }
+          }
+        }
+      },
+      {
+        "timestamp": "2026-11-06T13:29:21.474Z",
+        "ordinal": 27,
+        "type": "event_msg",
+        "payload": {
+          "type": "item_completed",
+          "item": {
+            "type": "CommandExecution",
+            "id": "exec-9bf30638-c87a-4e60-b982-f33032df7927",
+            "process_id": "3311",
+            "command": ["/bin/bash", "-lc", "echo one"],
+            "cwd": "file:///home/user/project",
+            "parsed_cmd": [
+              {
+                "type": "unknown",
+                "cmd": "echo one"
+              }
+            ],
+            "source": "unified_exec_startup",
+            "status": "completed",
+            "aggregated_output": "one\n",
+            "exit_code": 0,
+            "duration": {
+              "secs": 0,
+              "nanos": 11932
+            }
+          }
+        }
+      },
+      {
+        "timestamp": "2026-11-06T13:29:21.481Z",
+        "ordinal": 28,
+        "type": "response_item",
+        "payload": {
+          "type": "custom_tool_call_output",
+          "id": "ctco_01a1b10c-b149-75d1-aedb-94d1d83de18a",
+          "call_id": "call_433b228f21f672eb7f738199",
+          "output": [
+            {
+              "type": "input_text",
+              "text": "Script completed\nWall time 0.0 seconds\nOutput:\n"
+            },
+            {
+              "type": "input_text",
+              "text": "{\"status\":\"fulfilled\",\"value\":{\"chunk_id\":\"8bb13b\",\"wall_time_seconds\":0.000011932,\"exit_code\":0,\"original_token_count\":1,\"output\":\"one\\n\"}}"
+            },
+            {
+              "type": "input_text",
+              "text": "{\"status\":\"fulfilled\",\"value\":{\"chunk_id\":\"35aebb\",\"wall_time_seconds\":0.000013637,\"exit_code\":1,\"original_token_count\":11,\"output\":\"cat: missing.txt: No such file or directory\\n\"}}"
+            }
+          ]
+        },
+        "metadata": {
+          "client_authored": false,
+          "fallback_token_limit_override": 12000
+        }
+      }
+    ],
+    "code mode: read": [
+      {
+        "timestamp": "2026-11-06T13:29:21.495Z",
+        "ordinal": 30,
+        "type": "response_item",
+        "payload": {
+          "type": "custom_tool_call",
+          "id": "ctc_ceba5b03752db65dbead84a1",
+          "status": "completed",
+          "call_id": "call_3b9aba1f50fc271920a4b368",
+          "name": "exec",
+          "input": "text(await tools.exec_command({cmd:\"cat sample.txt\"}));"
+        }
+      },
+      {
+        "timestamp": "2026-11-06T13:29:21.530Z",
+        "ordinal": 32,
+        "type": "event_msg",
+        "payload": {
+          "type": "item_completed",
+          "item": {
+            "type": "CommandExecution",
+            "id": "exec-7de92c1a-45eb-479d-85e0-defb4f0a4f2d",
+            "process_id": "66673",
+            "command": ["/bin/bash", "-lc", "cat sample.txt"],
+            "cwd": "file:///home/user/project",
+            "parsed_cmd": [
+              {
+                "type": "read",
+                "cmd": "cat sample.txt",
+                "name": "sample.txt",
+                "path": "sample.txt"
+              }
+            ],
+            "source": "unified_exec_startup",
+            "status": "completed",
+            "aggregated_output": "alpha\nbeta\ngamma\ndelta\nepsilon\nzeta\n",
+            "exit_code": 0,
+            "duration": {
+              "secs": 0,
+              "nanos": 11208
+            }
+          }
+        }
+      },
+      {
+        "timestamp": "2026-11-06T13:29:21.538Z",
+        "ordinal": 33,
+        "type": "response_item",
+        "payload": {
+          "type": "custom_tool_call_output",
+          "id": "ctco_01a1b10c-b182-75b3-b416-4c23a412871e",
+          "call_id": "call_3b9aba1f50fc271920a4b368",
+          "output": [
+            {
+              "type": "input_text",
+              "text": "Script completed\nWall time 0.0 seconds\nOutput:\n"
+            },
+            {
+              "type": "input_text",
+              "text": "{\"chunk_id\":\"60fefe\",\"wall_time_seconds\":0.000011208,\"exit_code\":0,\"original_token_count\":9,\"output\":\"alpha\\nbeta\\ngamma\\ndelta\\nepsilon\\nzeta\\n\"}"
+            }
+          ]
+        },
+        "metadata": {
+          "client_authored": false,
+          "fallback_token_limit_override": 12000
+        }
+      }
+    ],
+    "code mode: search": [
+      {
+        "timestamp": "2026-11-06T13:29:21.554Z",
+        "ordinal": 35,
+        "type": "response_item",
+        "payload": {
+          "type": "custom_tool_call",
+          "id": "ctc_924ba62e3adfec74d410db82",
+          "status": "completed",
+          "call_id": "call_95ebf325a2f9e3eb76c205bd",
+          "name": "exec",
+          "input": "text(await tools.exec_command({cmd:\"grep -n beta sample.txt\"}));"
+        }
+      },
+      {
+        "timestamp": "2026-11-06T13:29:21.591Z",
+        "ordinal": 37,
+        "type": "event_msg",
+        "payload": {
+          "type": "item_completed",
+          "item": {
+            "type": "CommandExecution",
+            "id": "exec-7688015d-1054-46cc-bf46-e2fa4e76ac4a",
+            "process_id": "17299",
+            "command": ["/bin/bash", "-lc", "grep -n beta sample.txt"],
+            "cwd": "file:///home/user/project",
+            "parsed_cmd": [
+              {
+                "type": "search",
+                "cmd": "grep -n beta sample.txt",
+                "query": "beta",
+                "path": "sample.txt"
+              }
+            ],
+            "source": "unified_exec_startup",
+            "status": "completed",
+            "aggregated_output": "2:beta\n",
+            "exit_code": 0,
+            "duration": {
+              "secs": 0,
+              "nanos": 16166
+            }
+          }
+        }
+      },
+      {
+        "timestamp": "2026-11-06T13:29:21.599Z",
+        "ordinal": 38,
+        "type": "response_item",
+        "payload": {
+          "type": "custom_tool_call_output",
+          "id": "ctco_01a1b10c-b1bf-7510-86c2-41734a2af50f",
+          "call_id": "call_95ebf325a2f9e3eb76c205bd",
+          "output": [
+            {
+              "type": "input_text",
+              "text": "Script completed\nWall time 0.0 seconds\nOutput:\n"
+            },
+            {
+              "type": "input_text",
+              "text": "{\"chunk_id\":\"1ad5ab\",\"wall_time_seconds\":0.000016166,\"exit_code\":0,\"original_token_count\":2,\"output\":\"2:beta\\n\"}"
+            }
+          ]
+        },
+        "metadata": {
+          "client_authored": false,
+          "fallback_token_limit_override": 12000
+        }
+      }
+    ],
+    "code mode: add": [
+      {
+        "timestamp": "2026-11-06T13:29:21.616Z",
+        "ordinal": 40,
+        "type": "response_item",
+        "payload": {
+          "type": "custom_tool_call",
+          "id": "ctc_c7a0db1023fc7ed545a2a291",
+          "status": "completed",
+          "call_id": "call_bed44450c8d849a2642989e4",
+          "name": "exec",
+          "input": "text(await tools.apply_patch(\"*** Begin Patch\\n*** Add File: new.txt\\n+one\\n+two\\n*** End Patch\"));"
+        }
+      },
+      {
+        "timestamp": "2026-11-06T13:29:21.623Z",
+        "ordinal": 42,
+        "type": "event_msg",
+        "payload": {
+          "type": "item_completed",
+          "item": {
+            "type": "FileChange",
+            "id": "exec-fe620c17-70cc-4178-98e4-476ffeac8b16",
+            "changes": {
+              "/home/user/project/new.txt": {
+                "type": "add",
+                "content": "one\ntwo\n"
+              }
+            },
+            "status": "completed",
+            "stdout": "Success. Updated the following files:\nA new.txt\n",
+            "stderr": ""
+          }
+        }
+      },
+      {
+        "timestamp": "2026-11-06T13:29:21.629Z",
+        "ordinal": 43,
+        "type": "response_item",
+        "payload": {
+          "type": "custom_tool_call_output",
+          "id": "ctco_01a1b10c-b1dd-7d21-87b7-cba8eceadd97",
+          "call_id": "call_bed44450c8d849a2642989e4",
+          "output": [
+            {
+              "type": "input_text",
+              "text": "Script completed\nWall time 0.0 seconds\nOutput:\n"
+            },
+            {
+              "type": "input_text",
+              "text": "{}"
+            }
+          ]
+        },
+        "metadata": {
+          "client_authored": false,
+          "fallback_token_limit_override": 12000
+        }
+      }
+    ],
+    "code mode: update": [
+      {
+        "timestamp": "2026-11-06T13:29:21.641Z",
+        "ordinal": 45,
+        "type": "response_item",
+        "payload": {
+          "type": "custom_tool_call",
+          "id": "ctc_0c612fc81981775250b9056d",
+          "status": "completed",
+          "call_id": "call_2f865184d011be835a900dbe",
+          "name": "exec",
+          "input": "text(await tools.apply_patch(\"*** Begin Patch\\n*** Update File: src/auth.ts\\n@@\\n const a = 1\\n-const b = 2\\n+const b = 20\\n+const bb = 21\\n const c = 3\\n*** End Patch\"));"
+        }
+      },
+      {
+        "timestamp": "2026-11-06T13:29:21.647Z",
+        "ordinal": 47,
+        "type": "event_msg",
+        "payload": {
+          "type": "item_completed",
+          "item": {
+            "type": "FileChange",
+            "id": "exec-698fcf55-9a0c-4acf-a84d-a022c2de6cb8",
+            "changes": {
+              "/home/user/project/src/auth.ts": {
+                "type": "update",
+                "unified_diff": "@@ -1,3 +1,4 @@\n const a = 1\n-const b = 2\n+const b = 20\n+const bb = 21\n const c = 3\n",
+                "move_path": null
+              }
+            },
+            "status": "completed",
+            "stdout": "Success. Updated the following files:\nM src/auth.ts\n",
+            "stderr": ""
+          }
+        }
+      },
+      {
+        "timestamp": "2026-11-06T13:29:21.651Z",
+        "ordinal": 48,
+        "type": "response_item",
+        "payload": {
+          "type": "custom_tool_call_output",
+          "id": "ctco_01a1b10c-b1f3-7951-bfc1-f034594b9492",
+          "call_id": "call_2f865184d011be835a900dbe",
+          "output": [
+            {
+              "type": "input_text",
+              "text": "Script completed\nWall time 0.0 seconds\nOutput:\n"
+            },
+            {
+              "type": "input_text",
+              "text": "{}"
+            }
+          ]
+        },
+        "metadata": {
+          "client_authored": false,
+          "fallback_token_limit_override": 12000
+        }
+      }
+    ],
+    "code mode: no-match": [
+      {
+        "timestamp": "2026-11-06T13:29:21.665Z",
+        "ordinal": 50,
+        "type": "response_item",
+        "payload": {
+          "type": "custom_tool_call",
+          "id": "ctc_c816c7e460b83dc92c17a8a1",
+          "status": "completed",
+          "call_id": "call_d97051c6d51e108f4f91cd18",
+          "name": "exec",
+          "input": "text(await tools.apply_patch(\"*** Begin Patch\\n*** Update File: src/auth.ts\\n@@\\n-no such text\\n+x\\n*** End Patch\"));"
+        }
+      },
+      {
+        "timestamp": "2026-11-06T13:29:21.670Z",
+        "ordinal": 52,
+        "type": "response_item",
+        "payload": {
+          "type": "custom_tool_call_output",
+          "id": "ctco_01a1b10c-b206-7c53-8a2e-dd7fe93e4ccd",
+          "call_id": "call_d97051c6d51e108f4f91cd18",
+          "output": [
+            {
+              "type": "input_text",
+              "text": "Script failed\nWall time 0.0 seconds\nOutput:\n"
+            },
+            {
+              "type": "input_text",
+              "text": "Script error:\napply_patch verification failed: Failed to find expected lines in /home/user/project/src/auth.ts:\nno such text"
+            }
+          ]
+        },
+        "metadata": {
+          "client_authored": false,
+          "fallback_token_limit_override": 12000
+        }
+      }
+    ],
+    "code mode: runs-on": [
+      {
+        "timestamp": "2026-11-06T13:29:21.683Z",
+        "ordinal": 54,
+        "type": "response_item",
+        "payload": {
+          "type": "custom_tool_call",
+          "id": "ctc_2c3ae0d4dd53a0de6686dda9",
+          "status": "completed",
+          "call_id": "call_ad122689def01c64fe434844",
+          "name": "exec",
+          "input": "text(await tools.exec_command({cmd:\"sleep 3; echo done\", yield_time_ms: 300}));"
+        }
+      },
+      {
+        "timestamp": "2026-11-06T13:29:22.149Z",
+        "ordinal": 56,
+        "type": "response_item",
+        "payload": {
+          "type": "custom_tool_call_output",
+          "id": "ctco_01a1b10c-b3e5-7d91-b38a-ebed624c65b9",
+          "call_id": "call_ad122689def01c64fe434844",
+          "output": [
+            {
+              "type": "input_text",
+              "text": "Script completed\nWall time 0.5 seconds\nOutput:\n"
+            },
+            {
+              "type": "input_text",
+              "text": "{\"chunk_id\":\"978335\",\"wall_time_seconds\":0.301067032,\"session_id\":53367,\"original_token_count\":0,\"output\":\"\"}"
+            }
+          ]
+        },
+        "metadata": {
+          "client_authored": false,
+          "fallback_token_limit_override": 12000
+        }
+      }
+    ]
+  }
+}

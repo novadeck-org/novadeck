@@ -3,7 +3,7 @@ import { notesBlock, type ReleaseNotes } from "@novadeck/protocol/release-notes"
 import type { IpcMainEvent } from "electron"
 import { vi } from "vitest"
 
-import { dismissWhatsNewChannel, whatsNewChannel } from "../../bridge.js"
+import { dismissHeadsUpChannel, dismissWhatsNewChannel, whatsNewChannel } from "../../bridge.js"
 import { context, describe, expect, it } from "../../test"
 import { isNewerVersion } from "../releases/versions"
 import {
@@ -132,6 +132,7 @@ const notes = (highlights: ReleaseNotes["highlights"]): ReleaseNotes => ({
   version: "0.5.0",
   kind: "promote",
   highlights,
+  headsUp: [],
   changes: [],
   fixes: 0,
 })
@@ -154,12 +155,18 @@ const kept = (
     from?: string
     launched?: () => Promise<void>
     checkedAt?: number
+    headsUpSeen?: string
     delay?: (ms: number) => Promise<void>
     now?: () => number
   } = {},
 ) => {
-  const state: { pending: string | undefined; checkedAt: number | undefined } = {
+  const state: {
+    pending: string | undefined
+    checkedAt: number | undefined
+    seen: string | undefined
+  } = {
     checkedAt: options.checkedAt,
+    seen: options.headsUpSeen,
     pending: "pending" in options ? options.pending : "0.5.0",
   }
   const urls: string[] = []
@@ -173,6 +180,8 @@ const kept = (
     clear: () => void (state.pending = undefined),
     checkedAt: () => state.checkedAt,
     recordCheck: (time) => void (state.checkedAt = time),
+    headsUpSeen: () => state.seen,
+    seeHeadsUp: (version) => void (state.seen = version),
     now: options.now ?? (() => 1_000_000_000),
     ...(options.delay ? { delay: options.delay } : { delay: async () => {} }),
     repository: async () => repository,
@@ -285,6 +294,8 @@ describe("what is new in the version", () => {
           clear: () => {},
           checkedAt: () => undefined,
           recordCheck: () => {},
+          headsUpSeen: () => undefined,
+          seeHeadsUp: () => {},
           now: () => 0,
           from: () => undefined,
           repository: async () => repository,
@@ -503,6 +514,7 @@ const registered = (own: boolean) => {
         return { version: "0.5.0", highlights: [{ title: "T", line: "L" }] }
       },
       dismiss: () => void calls.push("dismiss"),
+      dismissHeadsUp: () => void calls.push("heads-up"),
     },
   )
   const send = (name: string): unknown => listeners.get(name)?.({} as IpcMainEvent)
@@ -525,6 +537,7 @@ describe("what is new since the version updated from", () => {
       version,
       kind,
       highlights: titles.map((title) => ({ title, line: `${title} line.`, prs: [1] })),
+      headsUp: [],
       changes: [],
       fixes: 0,
     }),
@@ -705,13 +718,15 @@ describe("taking the page's requests about what is new", () => {
       highlights: [{ title: "T", line: "L" }],
     })
     send(dismissWhatsNewChannel)
-    expect(calls).toEqual(["whats new", "dismiss"])
+    send(dismissHeadsUpChannel)
+    expect(calls).toEqual(["whats new", "dismiss", "heads-up"])
   })
 
   it("ignores any other sender and tells it there is nothing", async () => {
     const { send, calls } = registered(false)
     expect(await send(whatsNewChannel)).toBeUndefined()
     send(dismissWhatsNewChannel)
+    send(dismissHeadsUpChannel)
     expect(calls).toEqual([])
   })
 })
@@ -724,6 +739,7 @@ describe("what is new in the version a portable copy is offered", () => {
       version,
       kind: "release",
       highlights: titles.map((title) => ({ title, line: `${title} line.`, prs: [1] })),
+      headsUp: [],
       changes: [],
       fixes: 0,
     }),
@@ -826,5 +842,157 @@ describe("what is new in the version a portable copy is offered", () => {
     })
     expect(await news()).toBeUndefined()
     expect(logged).toEqual(["The release notes of the offered version were not read."])
+  })
+})
+
+describe("heads-ups: what works differently", () => {
+  const item = (title: string) => ({ title, line: `${title} line.`, prs: [1] })
+  // A release of `version` with these highlights and heads-ups, as the list answers it.
+  const listed = (
+    version: string,
+    highlights: readonly string[],
+    headsUp: readonly string[],
+    {
+      kind = "release",
+      prerelease = true,
+    }: { kind?: ReleaseNotes["kind"]; prerelease?: boolean } = {},
+  ) => ({
+    tag_name: `v${version}`,
+    prerelease,
+    body: notesBlock({
+      version,
+      kind,
+      highlights: highlights.map(item),
+      headsUp: headsUp.map(item),
+      changes: [],
+      fixes: 0,
+    }),
+  })
+  const json = (answer: unknown) => ({
+    status: 200,
+    ok: true,
+    headers: jsonType,
+    json: async () => answer,
+  })
+  const answering =
+    (own: unknown, list: readonly unknown[]) =>
+    async (url: string): ReturnType<ReleaseFetch> =>
+      url.includes("/releases/tags/")
+        ? json(own)
+        : json(Number(new URL(url).searchParams.get("page")) === 1 ? list : [])
+  const told = (found: { headsUp?: readonly { title: string }[] } | undefined) =>
+    found?.headsUp?.map(({ title }) => title)
+
+  it("answers the heads-ups beside the highlights", async () => {
+    const own = listed("0.5.0", ["Faster"], ["Canvas arranges itself"])
+    const { whatsNew } = kept(answering(own, []))
+    expect(await whatsNew()).toEqual({
+      version: "0.5.0",
+      highlights: [{ title: "Faster", line: "Faster line." }],
+      headsUp: [{ title: "Canvas arranges itself", line: "Canvas arranges itself line." }],
+    })
+  })
+
+  it("has something to show for a release with only heads-ups, and settles nothing", async () => {
+    const own = listed("0.5.0", [], ["Ctrl+V pastes"])
+    const { whatsNew, state } = kept(answering(own, []))
+    const found = await whatsNew()
+    expect(found?.highlights).toEqual([])
+    expect(told(found)).toEqual(["Ctrl+V pastes"])
+    expect(state.pending).toBe("0.5.0")
+  })
+
+  it("gathers across the skipped releases, newest first, each told once", async () => {
+    const own = listed("0.5.0", [], ["One", "Two"])
+    const list = [
+      own,
+      listed("0.4.4", [], ["Two", "Three", "Four"]),
+      listed("0.4.3", [], ["Five"]),
+      listed("0.4.2", [], ["Gone"]),
+    ]
+    const { whatsNew } = kept(answering(own, list), { from: "0.4.2" })
+    expect(told(await whatsNew())).toEqual(["One", "Two", "Three", "Four", "Five"])
+  })
+
+  it("leaves out the heads-ups of a prerelease that a newer promotion among them tells", async () => {
+    const own = listed("0.5.0", [], ["Own"])
+    const list = [
+      own,
+      listed("0.4.5", [], ["Promoted"], { kind: "promote", prerelease: false }),
+      listed("0.4.4", [], ["Told by the promotion"]),
+    ]
+    const { whatsNew } = kept(answering(own, list), { from: "0.4.0" })
+    expect(told(await whatsNew())).toEqual(["Own", "Promoted"])
+  })
+
+  it("leaves out the heads-ups the person got, whatever release carries them", async () => {
+    const own = listed("0.5.0", ["Faster"], ["New one"])
+    const list = [own, listed("0.4.4", [], ["Got already"]), listed("0.4.3", [], ["Older"])]
+    const { whatsNew } = kept(answering(own, list), { from: "0.4.0", headsUpSeen: "0.4.4" })
+    expect(told(await whatsNew())).toEqual(["New one"])
+  })
+
+  it("tells the heads-ups of a version unseen when an update went on past it", async () => {
+    // Pending since 0.4.4, whose heads-ups were never got; this launch is 0.5.0.
+    const own = listed("0.5.0", ["Faster"], [])
+    const list = [own, listed("0.4.4", [], ["Never got"])]
+    const { whatsNew } = kept(answering(own, list), { from: "0.4.0", headsUpSeen: "0.4.0" })
+    expect(told(await whatsNew())).toEqual(["Never got"])
+  })
+
+  it("answers without them once they are got, the highlights staying until dismissed", async () => {
+    const own = listed("0.5.0", ["Faster"], ["Canvas"])
+    const { whatsNew, dismissHeadsUp, state } = kept(answering(own, []))
+    expect(told(await whatsNew())).toEqual(["Canvas"])
+    dismissHeadsUp()
+    expect(state.seen).toBe("0.5.0")
+    expect(state.pending).toBe("0.5.0")
+    expect(await whatsNew()).toEqual({
+      version: "0.5.0",
+      highlights: [{ title: "Faster", line: "Faster line." }],
+    })
+  })
+
+  it("has nothing once heads-ups with no highlights are got", async () => {
+    const own = listed("0.5.0", [], ["Canvas"])
+    const { whatsNew, dismissHeadsUp } = kept(answering(own, []))
+    expect(await whatsNew()).toBeDefined()
+    dismissHeadsUp()
+    expect(await whatsNew()).toBeUndefined()
+  })
+
+  it("settles a stable release whose only heads-ups were got, as one with nothing to show", async () => {
+    const own = listed("0.5.0", [], ["Canvas"], { kind: "promote", prerelease: false })
+    const { whatsNew, state } = kept(answering(own, []), { headsUpSeen: "0.5.0" })
+    expect(await whatsNew()).toBeUndefined()
+    expect(state.pending).toBeUndefined()
+  })
+
+  it("tells a portable copy the offered release's heads-ups with its highlights", async () => {
+    const own = listed("0.6.0", ["Faster"], ["Canvas"])
+    const news = keepUpdateNews({
+      version: "0.4.2",
+      offered: () => "0.6.0",
+      repository: async () => repository,
+      fetch: answering(own, [own]),
+      newer: isNewerVersion,
+      log: () => {},
+    })
+    const found = await news()
+    expect(found?.highlights).toHaveLength(1)
+    expect(told(found)).toEqual(["Canvas"])
+  })
+
+  it("tells a portable copy a release with only heads-ups", async () => {
+    const own = listed("0.6.0", [], ["Canvas"], { prerelease: false })
+    const news = keepUpdateNews({
+      version: "0.4.2",
+      offered: () => "0.6.0",
+      repository: async () => repository,
+      fetch: answering(own, [own]),
+      newer: isNewerVersion,
+      log: () => {},
+    })
+    expect(told(await news())).toEqual(["Canvas"])
   })
 })

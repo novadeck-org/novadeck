@@ -123,6 +123,11 @@ export type DesktopBridge = {
   /** Marks this version's `whatsNew` as seen, so no later launch offers it again. */
   dismissWhatsNew?(): void
   /**
+   * Marks this version's `whatsNew` heads-ups as got, so no later launch tells them again;
+   * its highlights stay until `dismissWhatsNew`. Absent from apps that came before it.
+   */
+  dismissHeadsUp?(): void
+  /**
    * The version of the app, as a release is named. Absent from apps that came before it.
    */
   version?(): Promise<string>
@@ -529,15 +534,18 @@ export const parsePortableState = (value: unknown): PortableState | undefined =>
 
 /**
  * What is new in the version the app updated to: its release's highlights, each a short
- * title and one plain line, as the release notes give them (scripts/release-notes). One to
- * `whatsNewHighlights` of them; text only, never Markdown or links. `from` is the version
- * they are new since, when the app knows it: the one updated from, or the newest whose
- * notes were already seen when that is newer.
+ * title and one plain line, as the release notes give them (scripts/release-notes). Up to
+ * `whatsNewHighlights` of them; text only, never Markdown or links. `headsUp` holds up to
+ * `whatsNewHeadsUps` things that work differently for someone who used the app before, in the
+ * same shape, left out when there are none; at least one of the two lists has something. `from`
+ * is the version they are new since, when the app knows it: the one updated from, or the newest
+ * whose notes were already seen when that is newer.
  */
 export type WhatsNew = {
   readonly version: string
   readonly from?: string
   readonly highlights: readonly WhatsNewHighlight[]
+  readonly headsUp?: readonly WhatsNewHighlight[]
 }
 
 /**
@@ -557,6 +565,11 @@ const iconName = /^(?=.{1,40}$)[a-z0-9]+(?:-[a-z0-9]+)*$/
 
 /** The most highlights a release names. */
 export const whatsNewHighlights = 4
+/**
+ * The most heads-ups a card tells: more than one release's notes hold, as a person who skipped
+ * a few is told those of each, and one cut here is never told. The list scrolls.
+ */
+export const whatsNewHeadsUps = 8
 /** The longest highlight title the page shows. */
 export const whatsNewTitleLength = 80
 /** The longest highlight line the page shows. */
@@ -569,32 +582,41 @@ const highlightText = (value: unknown, length: number): string | undefined => {
   return text !== "" && Array.from(text).length <= length ? text : undefined
 }
 
+// The items of a list of highlights that the contract allows, in their order.
+const highlightsOf = (items: readonly unknown[]): WhatsNewHighlight[] =>
+  items.flatMap((highlight: unknown): WhatsNewHighlight[] => {
+    if (!isRecord(highlight)) return []
+    const title = highlightText(highlight.title, whatsNewTitleLength)
+    const line = highlightText(highlight.line, whatsNewLineLength)
+    if (!title || !line) return []
+    const { icon } = highlight
+    return [
+      typeof icon === "string" && iconName.test(icon) ? { title, line, icon } : { title, line },
+    ]
+  })
+
 /**
  * What is new when it is something the contract allows, else undefined. Highlights that
  * break it are left out first, then the most that is shown are kept, so a valid one never
- * gives way to an invalid one before it. With none left there is nothing to show. A `from`
+ * gives way to an invalid one before it, and the same for heads-ups. With neither left there is
+ * nothing to show. A `from`
  * that is no version, or the version itself, is left out: the card then names none.
  */
 export const parseWhatsNew = (value: unknown): WhatsNew | undefined => {
   if (!isRecord(value) || !isVersion(value.version) || !Array.isArray(value.highlights))
     return undefined
-  const highlights = value.highlights
-    .flatMap((highlight: unknown): WhatsNewHighlight[] => {
-      if (!isRecord(highlight)) return []
-      const title = highlightText(highlight.title, whatsNewTitleLength)
-      const line = highlightText(highlight.line, whatsNewLineLength)
-      if (!title || !line) return []
-      const { icon } = highlight
-      return [
-        typeof icon === "string" && iconName.test(icon) ? { title, line, icon } : { title, line },
-      ]
-    })
-    .slice(0, whatsNewHighlights)
-  if (highlights.length === 0) return undefined
+  const highlights = highlightsOf(value.highlights).slice(0, whatsNewHighlights)
+  const headsUp = Array.isArray(value.headsUp)
+    ? highlightsOf(value.headsUp).slice(0, whatsNewHeadsUps)
+    : []
+  if (highlights.length === 0 && headsUp.length === 0) return undefined
   const { from } = value
-  return isVersion(from) && from !== value.version
-    ? { version: value.version, from, highlights }
-    : { version: value.version, highlights }
+  return {
+    version: value.version,
+    ...(isVersion(from) && from !== value.version ? { from } : {}),
+    highlights,
+    ...(headsUp.length > 0 ? { headsUp } : {}),
+  }
 }
 
 /** A desktop notification about one terminal; see `DesktopBridge.showNotice`. */

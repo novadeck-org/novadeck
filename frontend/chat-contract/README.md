@@ -43,6 +43,13 @@ its own shape, against `src/sent/<harness>.txt`: `sent (<state>): <words> · <no
 starts open (the latest run's, while the agent works) reads `[open: …]`. Every other golden is
 of a finished conversation.
 
+`outcomes.test.ts` reads each case of a tool's outcome from `tool-outcomes.probe.json`, every
+harness's, through the same stages to `groupItems`' entry, against `src/outcomes/<harness>.txt`:
+`title · detail → failed …, exit …, running, N lines, +A -R [its first lines]`, or `nothing
+known` for an entry the chat keeps today's line for. A call made inside a Codex script reads
+`in script:`. It is the chat's data, not yet drawn: the rendered golden of the same fixture
+shows today's rows.
+
 What it does not read: which icon a kind maps to, styling, and the Markdown rendering of
 assistant text beyond its words.
 
@@ -66,7 +73,7 @@ git diff frontend/chat-contract/src
 ```
 
 With `CI=true` a missing or changed golden fails the test instead of being written. The tests
-also fail on a golden nothing owns, in `goldens/`, `sent/` and `live/`.
+also fail on a golden nothing owns, in `goldens/`, `sent/`, `live/` and `outcomes/`.
 
 A change to a decoder, to `groupItems`, to a harness's `describe` or to the components should
 change a golden only when the chat is meant to show something else. A move of code (a package

@@ -1,0 +1,50 @@
+# read
+Read · …/user/project/sample.txt → failed false, 6 lines
+
+# read-part
+Read · …/user/project/sample.txt → failed false, 2 lines
+
+# tool-error
+Read · …/user/project/missing.txt → failed true
+
+# command-passes
+Ran · echo hello → failed false, exit 0
+
+# command-fails
+Ran · exit 3 → failed true, exit 3
+
+# no-match
+Ran · grep -n zzz sample.txt → failed true, exit 1
+
+# not-found
+Ran · no-such-program-here → failed true, exit 127
+
+# search
+Ran · grep -rn beta . → failed false, exit 0
+
+# edit
+Edited · …/project/src/auth.ts → failed false, +2 -1 [3 lines: ?-const b = 2 | ?+const b = 20 | ?+const bb = 21]
+
+# edit-no-match
+Edited · …/project/src/auth.ts → failed true
+
+# new-file
+Wrote · …/user/project/new.txt → failed false, +2 -0 [2 lines: 1+one | 2+two]
+
+# file-exists
+Wrote · …/user/project/new.txt → failed true
+
+# long-edit
+Edited ·  → failed false, +2 -2 [16 lines: ? line 97 xxxxxxxxxxxxxxxx | ? line 98 xxxxxxxxxxxxxxxx | ? line 99 xxxxxxxxxxxxxxxx]
+
+# long-write
+Wrote ·  → failed false, +400 -0 [40 lines: 1+line 0 xxxxxxxxxxxxxxxxx | 2+line 1 xxxxxxxxxxxxxxxxx | 3+line 2 xxxxxxxxxxxxxxxxx]
+
+# overwrite
+Wrote · …/user/project/new.txt → failed false
+
+# background
+Ran · sleep 3; echo done → failed unknown, running
+
+# background-fails
+Ran · sh -c 'sleep 2; exit 4' → failed unknown, running

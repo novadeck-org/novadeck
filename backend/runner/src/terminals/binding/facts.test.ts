@@ -562,6 +562,16 @@ describe("learning the bound session's transcript", () => {
     expect(bound.transcript).toBe("/new.jsonl")
   })
 
+  it("starts Antigravity's own watch, which its session's end stops", () => {
+    const { bindings: learner } = bindings()
+    const bound = unknown()
+    bound.bound = { ...bound.bound!, binding: { agent: "agy", sessionId: "s1", instance: "41" } }
+    learner.learnTranscript(bound, "s1", "/new.jsonl")
+    const { signal } = bound.watching!
+    learner.endBinding(bound)
+    expect(signal.aborted).toBe(true)
+  })
+
   it("keeps the one known", () => {
     const { bindings: learner } = bindings()
     const bound = record()

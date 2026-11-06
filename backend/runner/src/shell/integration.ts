@@ -18,9 +18,11 @@ export const shellLaunch = (
   {
     shims = [],
     startup,
+    scoped,
   }: {
     readonly shims?: readonly string[]
     readonly startup?: { readonly command: string; readonly file: string } | undefined
+    readonly scoped?: boolean | undefined
   } = {},
 ): ShellLaunch =>
   // Connected agents' hooks name the launcher through NOVADECK_HOOK; see `hookCommand`.
@@ -40,4 +42,5 @@ export const shellLaunch = (
     },
     pathFirst: shims.length > 0 ? paths.bin : undefined,
     startup,
+    scoped,
   })

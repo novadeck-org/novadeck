@@ -38,7 +38,7 @@ export const mcpName = (name: string): string => name.replace(/\W/gu, "_")
 
 // Codex's shell tools take the command as a list, often wrapped as `bash -lc <script>`.
 // The script is kept whole here (`commandOf` shows its first line), as its newlines join sleeps.
-const scriptOf = (fields: Fields | undefined): string => {
+export const scriptOf = (fields: Fields | undefined): string => {
   const text = textField(fields, "cmd", "command", "CommandLine")
   if (text) return text
   const list = fields?.command
