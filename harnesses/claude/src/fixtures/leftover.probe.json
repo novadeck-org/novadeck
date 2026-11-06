@@ -516,6 +516,138 @@
         "39": "   Type to filter · Enter/↓ to select · ↑ to tabs · Esc to clear"
       },
       "bright": {}
+    },
+    "word at the width": {
+      "height": 40,
+      "columns": 120,
+      "cursor": {
+        "row": 36,
+        "column": 12
+      },
+      "rows": {
+        "1": " ▐▛███▛█   Claude Code v2.1.316",
+        "2": "▝▜██████▀  Opus 5.5 · API Usage Billing",
+        "3": " ▝▝   ▝▝   /tmp/novadeck-e2e-OXVgwq/project",
+        "33": "                                                                                                    ◐ medium · /effort",
+        "34": "────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────",
+        "35": "❯ aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa word",
+        "36": "  next words ",
+        "37": "────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────",
+        "39": "  ⏸ manual mode on"
+      },
+      "bright": {
+        "36": "  next words"
+      }
+    },
+    "word a cell past": {
+      "height": 40,
+      "columns": 120,
+      "cursor": {
+        "row": 36,
+        "column": 17
+      },
+      "rows": {
+        "1": "           Claude Code v2.1.316",
+        "2": " ▐▛███▛█   Opus 5.5 · API Usage Billing",
+        "3": "~▜██████~  /tmp/novadeck-e2e-TKHK1k/project",
+        "33": "                                                                                                    ◐ medium · /effort",
+        "34": "────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────",
+        "35": "❯ aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "36": "  word next words ",
+        "37": "────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────",
+        "39": "  ⏸ manual mode on"
+      },
+      "bright": {
+        "36": "  word next words"
+      }
+    },
+    "narrow, word at the width": {
+      "height": 40,
+      "columns": 80,
+      "cursor": {
+        "row": 36,
+        "column": 12
+      },
+      "rows": {
+        "1": " ▐▛███▛█   Claude Code v2.1.316",
+        "2": "▝▜██████▀  Opus 5.5 · API Usage Billing",
+        "3": " ▝▝   ▝▝   /tmp/novadeck-e2e-vDSaXb/project",
+        "33": "                                                            ◐ medium · /effort",
+        "34": "────────────────────────────────────────────────────────────────────────────────",
+        "35": "❯ aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa word",
+        "36": "  next words ",
+        "37": "────────────────────────────────────────────────────────────────────────────────",
+        "39": "  ⏸ manual mode on"
+      },
+      "bright": {
+        "36": "  next words"
+      }
+    },
+    "narrow, word a cell short": {
+      "height": 40,
+      "columns": 80,
+      "cursor": {
+        "row": 36,
+        "column": 12
+      },
+      "rows": {
+        "1": " ▐▛███▛█   Claude Code v2.1.316",
+        "2": "▝▜██████▀  Opus 5.5 · API Usage Billing",
+        "3": " ▝▝   ▝▝   /tmp/novadeck-e2e-tV5x4x/project",
+        "33": "                                                            ◐ medium · /effort",
+        "34": "────────────────────────────────────────────────────────────────────────────────",
+        "35": "❯ aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa word",
+        "36": "  next words ",
+        "37": "────────────────────────────────────────────────────────────────────────────────",
+        "39": "  ⏸ manual mode on"
+      },
+      "bright": {
+        "36": "  next words"
+      }
+    },
+    "long word after words": {
+      "height": 40,
+      "columns": 120,
+      "cursor": {
+        "row": 36,
+        "column": 58
+      },
+      "rows": {
+        "1": " ▐▛███▛█   Claude Code v2.1.316",
+        "2": "▝▜██████▀  Opus 5.5 · API Usage Billing",
+        "3": " ▝▝   ▝▝   /tmp/novadeck-e2e-BcSnMR/project",
+        "33": "                                                                                                    ◐ medium · /effort",
+        "34": "────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────",
+        "35": "❯ short words xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+        "36": "  xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx and after ",
+        "37": "────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────",
+        "39": "  ⏸ manual mode on"
+      },
+      "bright": {
+        "36": "  xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx and after"
+      }
+    },
+    "narrow, long word": {
+      "height": 40,
+      "columns": 80,
+      "cursor": {
+        "row": 36,
+        "column": 36
+      },
+      "rows": {
+        "1": " ▐▛███▛█   Claude Code v2.1.316",
+        "2": "▝▜██████▀  Opus 5.5 · API Usage Billing",
+        "3": " ▝▝   ▝▝   /tmp/novadeck-e2e-N9kXCG/project",
+        "33": "                                                            ◐ medium · /effort",
+        "34": "────────────────────────────────────────────────────────────────────────────────",
+        "35": "❯ xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+        "36": "  xxxxxxxxxxxxxxxxxxxxxxxx and after ",
+        "37": "────────────────────────────────────────────────────────────────────────────────",
+        "39": "  ⏸ manual mode on"
+      },
+      "bright": {
+        "36": "  xxxxxxxxxxxxxxxxxxxxxxxx and after"
+      }
     }
   }
 }

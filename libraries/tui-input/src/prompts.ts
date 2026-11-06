@@ -149,8 +149,14 @@ export type PromptHost = {
  */
 export type PromptMode = "alone" | "along" | "freed"
 
-/** What a prompt gave back: the words it took out of the box; undefined where none. */
-export type PromptGiven = { readonly returned: string | undefined }
+/**
+ * What a prompt gave back: the words it took out of the box; undefined where none. `along`, the
+ * words known to be Novadeck's that couldn't be taken out, and went out with it.
+ */
+export type PromptGiven = {
+  readonly returned: string | undefined
+  readonly along?: string | undefined
+}
 
 export type PromptOptions = {
   /** How often the screen is looked at after the paste, in milliseconds. */
@@ -334,6 +340,7 @@ export class Prompts {
     let unexpanded = false
     let returned: string | undefined
     let left: InputBox | undefined
+    let along: string | undefined
     const taken = (error: unknown): unknown => {
       if (error instanceof PromptRefusal) this.host.refused?.(terminalId, error.reason)
       return returned === undefined ? error : new WordsTaken(error, returned)
@@ -352,7 +359,7 @@ export class Prompts {
         // A request may have come while the box was waited on: no key into its dialog.
         this.host.admit(terminalId)
         const room = await this.room(terminalId, profile, before, shell, mode, hold.holding)
-        ;({ screen: before, returned, left } = room)
+        ;({ screen: before, returned, left, along } = room)
       }
       // A text that shows whole in a box with no room for it has no first row to read,
       // and would stay as a draft the next prompt is refused for. Beside what the box holds,
@@ -445,7 +452,7 @@ export class Prompts {
     // A resize as the turn starts may crash a TUI, as a delivery's ring found of one. The
     // next entry there takes this hold over, with the resizes it holds.
     hold.settleAfter(this.settleMs)
-    return { returned }
+    return { returned, along }
   }
 
   /**
@@ -465,6 +472,7 @@ export class Prompts {
     readonly screen: ScreenText
     readonly returned: string | undefined
     readonly left: InputBox | undefined
+    readonly along?: string | undefined
   }> {
     const none = { screen, returned: undefined, left: undefined }
     const state = leftoverOf(profile, screen)
@@ -519,7 +527,7 @@ export class Prompts {
       throw this.draft()
     }
     const after = await this.cursorEnd(terminalId, profile, same.box, now, holding)
-    return { screen: after, returned: undefined, left: same.box }
+    return { screen: after, returned: undefined, left: same.box, along: words }
   }
 
   /**
@@ -542,7 +550,7 @@ export class Prompts {
     const { box, tail } = state
     const { leave } = profile.shell
     const empty = isEmpty(box)
-    const unknown = tail || profile.collapsed(box)
+    const unknown = tail || profile.stands(box.text)
     if (!leave || (!empty && (mode !== "freed" || unknown))) {
       this.host.note?.(terminalId, "shell-kept")
       throw this.inShell()

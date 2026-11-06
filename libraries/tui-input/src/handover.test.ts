@@ -34,6 +34,10 @@ type Options = {
   readonly goesAfterKeys?: boolean
   /** Whether the hold on the person's keys lapses as a `!` is typed. */
   readonly lapsesOnBang?: boolean
+  /** How long after the start a delivery under way ends, in milliseconds. */
+  readonly ringEnds?: number
+  /** Whether the screen takes no bracketed paste. */
+  readonly noPaste?: boolean
 }
 
 const fake = (options: Options = {}) => {
@@ -42,6 +46,8 @@ const fake = (options: Options = {}) => {
   let reads = 0
   let admits = 0
   let holds = true
+  let ringsOn = options.ringEnds !== undefined
+  if (options.ringEnds !== undefined) setTimeout(() => (ringsOn = false), options.ringEnds)
   const written: string[] = []
   const typed: string[] = []
   const notes: HandoverNote[] = []
@@ -56,6 +62,7 @@ const fake = (options: Options = {}) => {
     return screen({
       rows: ["header", ...body, "footer", ""],
       columns: 40,
+      bracketedPaste: !options.noPaste,
       cursor: { row: lines.length, column: (lines.at(-1)?.length ?? 0) + 2 },
     })
   }
@@ -99,7 +106,7 @@ const fake = (options: Options = {}) => {
           throw new Error("A request came.")
         return profile
       },
-      ringing: () => (options.ringing ? "nonce" : undefined),
+      ringing: () => (options.ringing || ringsOn ? "nonce" : undefined),
       screen: () => Promise.resolve(draw()),
       type: (_id, data) => {
         typed.push(data)
@@ -141,7 +148,7 @@ const fake = (options: Options = {}) => {
         discard: () => {},
       }),
     }),
-    { pollMs: 1, steadyMs: 2, emptyMs: 30, keysMs: 40, pasteMs: 40 },
+    { pollMs: 1, steadyMs: 2, emptyMs: 30, keysMs: 40, pasteMs: 40, ringMs: 20 },
   )
   return {
     handovers,
@@ -164,6 +171,10 @@ describe("unwrapped", () => {
 
   it("joins a word broken at the box's width with no space, and keeps blank lines", () => {
     expect(unwrapped("xxxxxxxxxx\nxxx\n\nend", 10)).toBe("xxxxxxxxxxxxx\n\nend")
+  })
+
+  it("joins a row of words that fills the box with a space, as it ends a word", () => {
+    expect(unwrapped("some words\nnext", 10)).toBe("some words next")
   })
 })
 
@@ -190,9 +201,9 @@ describe("taking what a box holds", () => {
     expect(tui.shell()).toBe(false)
   })
 
-  it("gives a command of the program's, which the chat can only look over", async () => {
-    const tui = fake({ text: "/he" })
-    await expect(tui.handovers.take("t")).resolves.toBe("/he")
+  it("waits out a delivery under way, as the box is taken from just once", async () => {
+    const tui = fake({ text: "words", ringEnds: 8 })
+    await expect(tui.handovers.take("t")).resolves.toBe("words")
   })
 
   it.each([
@@ -201,6 +212,7 @@ describe("taking what a box holds", () => {
     ["no box", { noBox: true }, []],
     ["a view over it", { text: "words", view: true }, []],
     ["a ring's line", { text: "line", ringLine: true }, ["ring-line"]],
+    ["a command of the program's, which the chat can't send", { text: "/he" }, ["command"]],
     ["a ring under way", { text: "words", ringing: true }, ["ringing"]],
     ["a text that may be only its tail", { text: "a\nb\nc", viewport: 3 }, ["unreadable"]],
     ["a placeholder", { text: "[Pasted #1]" }, ["unreadable"]],
@@ -272,6 +284,7 @@ describe("putting a draft in the box", () => {
     ["a view covers it", { view: true }, ["not-empty"]],
     ["the text would open a picker", { refused: true }, ["shape"]],
     ["a ring is under way", { ringing: true }, ["ringing"]],
+    ["the screen takes no bracketed paste", { noPaste: true }, ["no-paste"]],
   ] as const)("keeps it where %s", async (_name, options, notes) => {
     const tui = fake(options)
     await expect(tui.handovers.put("t", "a draft")).resolves.toBe(false)
@@ -292,10 +305,16 @@ describe("putting a draft in the box", () => {
   })
 
   it("takes a typed ! back out where a request came after it", async () => {
-    const tui = fake({ refusesFrom: 2 })
+    const tui = fake({ refusesFrom: 3 })
     await expect(tui.handovers.put("t", "!ls")).rejects.toThrow("A request came.")
     expect(tui.typed).toEqual(["!", "\x7f"])
     expect(tui.shell()).toBe(false)
+  })
+
+  it("types no ! into a request that came while the box was read", async () => {
+    const tui = fake({ refusesFrom: 2 })
+    await expect(tui.handovers.put("t", "!ls")).rejects.toThrow("A request came.")
+    expect(tui.typed).toEqual([])
   })
 
   it("types the ! back out where the wait for it ended, so no line runs as a command", async () => {

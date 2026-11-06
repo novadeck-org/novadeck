@@ -74,21 +74,25 @@ export const inBox = (box: string, lines: readonly string[]): boolean => {
 export type Back = { readonly text: string; readonly lines: readonly string[] }
 
 /**
- * The words of `back`, as given and a line break between, where they are all the box's `text`,
- * white space aside; undefined where the box holds anything else, or none of them. Anything
+ * The words of `back`, as given, in the box's order and a line break between, where they are all
+ * the box's `text`, white space aside; undefined where the box holds anything else, or none of them. Anything
  * beside them is the person's, and the box isn't Novadeck's to empty.
  */
 export const knownWords = (back: readonly Back[], text: string): string | undefined => {
   let rest = compact(text)
-  const words: string[] = []
+  const words: { readonly at: number; readonly text: string }[] = []
   for (const prompt of back) {
     const own = compact(prompt.lines.join(""))
     const at = own === "" ? -1 : rest.indexOf(own)
     if (at < 0) continue
-    rest = rest.slice(0, at) + rest.slice(at + own.length)
-    words.push(prompt.text)
+    rest = rest.slice(0, at) + "\0".repeat(own.length) + rest.slice(at + own.length)
+    words.push({ at, text: prompt.text })
   }
-  return rest === "" && words.length > 0 ? words.join("\n") : undefined
+  if (words.length === 0 || rest.replaceAll("\0", "") !== "") return undefined
+  return words
+    .toSorted((a, b) => a.at - b.at)
+    .map((word) => word.text)
+    .join("\n")
 }
 
 /** What the deadline reads of the root agent's turns. */

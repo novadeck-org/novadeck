@@ -81,7 +81,7 @@ const fake = (options: Options = {}) => {
         last,
       }
     },
-    stands: () => false,
+    stands: (shown) => shown.includes("[Pasted #"),
     textWidth: (columns) => columns - 3,
     collapsed: ({ text: shown }) => /^\[Pasted #\d+\]$/.test(shown.trim()),
     shell: {
@@ -312,7 +312,10 @@ describe("a prompt over text Novadeck knows", () => {
 
   it("presses the key once, and goes along where the box didn't read empty", async () => {
     const tui = fake({ text: "came back", known: "came back", noErase: true })
-    await expect(tui.give("the message")).resolves.toEqual({ returned: undefined })
+    await expect(tui.give("the message")).resolves.toEqual({
+      returned: undefined,
+      along: "came back",
+    })
     expect(tui.written).toEqual(["\x15"])
     expect(tui.notes).toEqual(["clear-unconfirmed", "sent-along"])
     expect(tui.sent).toEqual(["came back\n\nthe message"])
@@ -404,6 +407,7 @@ describe("a prompt over a shell mode", () => {
   it("stays where it can't hand the command back, or may only leave it", async () => {
     for (const [options, mode] of [
       [{ shell: true, text: "[Pasted #1]" }, "freed"],
+      [{ shell: true, text: "git commit -m [Pasted #1]" }, "freed"],
       [{ shell: true, text: "one\ntwo\nthree", viewport: 3 }, "freed"],
       [{ shell: true, text: "ls -la" }, "along"],
       [{ shell: true, keys: false }, "freed"],

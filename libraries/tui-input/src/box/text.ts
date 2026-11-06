@@ -96,23 +96,26 @@ export const wrappedRows = (text: string, columns: number): number => {
 }
 
 /**
- * How a box's rows read as what was typed: a row the next one's first word wouldn't have fit
- * on wrapped there, and joins it, and one as wide as the box broke mid-word; any other break
- * was a line break. `width` is how many columns the box's text takes (`BoxProfile.textWidth`).
- * Which it was can't be read off the screen where a line break falls just where a wrap would:
- * that one reads as a wrap, a space for a line break, and no word is lost.
+ * How a box's rows read as what was typed: a row the next one's first word wouldn't have fit on
+ * wrapped there, and joins it with a space; one word filling the row broke mid-word, and joins
+ * it with none; any other break was a line break. A row that fills up with several words
+ * ends a word, as harnesses' wrapping leaves the space out; Claude Code also fills a row with the
+ * start of a word too long for one, which reads the same and gets a space (a space in a long
+ * word shows in the chat, words run together wouldn't). `width` is how far a word may reach on
+ * a row (`BoxProfile.textWidth`). Which it was can't be read off the screen where a line break
+ * falls just where a wrap would: that one reads as a wrap, a space for it, and no word is lost.
  */
 export const unwrapped = (text: string, width: number): string => {
   const rows = text.split("\n")
   let out = rows[0] ?? ""
   for (let at = 1; at < rows.length; at += 1) {
-    const before = rows[at - 1]!
+    const before = rows[at - 1]!.trimEnd()
     const row = rows[at]!
     const next = row.trimStart().split(" ")[0] ?? ""
     const wide = cells(before)
-    if (row.trim() === "" || before.trim() === "") out += `\n${row}`
-    else if (wide >= width) out += row
-    else if (wide + 1 + cells(next) > width) out += ` ${row}`
+    if (row.trim() === "" || before === "") out += `\n${row}`
+    else if (wide >= width && !/\s/.test(before.trim())) out = `${out.trimEnd()}${row}`
+    else if (wide + 1 + cells(next) > width) out = `${out.trimEnd()} ${row}`
     else out += `\n${row}`
   }
   return out

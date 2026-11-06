@@ -65,6 +65,8 @@ type Scenario = {
   readonly midTurn?: boolean
   /** The project holds a file for a picker to offer. */
   readonly project?: boolean
+  /** The terminal is this wide. */
+  readonly columns?: number
   readonly steps: readonly Step[]
 }
 
@@ -137,6 +139,33 @@ const scenarios: readonly Scenario[] = [
         ].join("\n"),
       ),
     ],
+  },
+  // A word that ends just at the text's width, a cell short of it and a cell past it, on a screen
+  // of 120 columns: where each wraps, and what shows of the space at the wrap.
+  ...([116, 117, 118] as const).flatMap((width): Scenario[] => [
+    {
+      name: `wrap: a word ending at ${width}`,
+      steps: [p("draft", `${"a".repeat(width - 5)} word next words`)],
+    },
+    {
+      name: `wrap: a word ending at ${width}, on two rows`,
+      steps: [p("draft", `${"b".repeat(117)} ${"a".repeat(width - 5)} word next words`)],
+    },
+  ]),
+  // A word too long for a row, after other words, and the same widths on a narrower screen.
+  {
+    name: "wrap long: after words",
+    steps: [p("draft", `short words ${"x".repeat(150)} and after`)],
+  },
+  ...[72, 73, 74, 75, 76, 77].map((width): Scenario => ({
+    name: `wrap narrow: a word ending at ${width}`,
+    columns: 80,
+    steps: [p("draft", `${"a".repeat(width - 5)} word next words`)],
+  })),
+  {
+    name: "wrap narrow: long",
+    columns: 80,
+    steps: [p("draft", `${"x".repeat(100)} and after`)],
   },
   // What a menu or picker over the box reads as.
   ...["/model", "/config", "/resume", "/status", "/help", "/mcp", "/permissions", "/theme"].map(
@@ -408,6 +437,10 @@ for (const setup of setups) {
         const t = await start(run, setup)
         const raw = (data: string) => run.deck.terminals.write({ terminalId: t.id, data }, "e2e")
         const record: unknown[] = []
+        if (scenario.columns !== undefined) {
+          t.resize(scenario.columns, 40)
+          await sleep(1000)
+        }
         const look = async (label: string, keys?: string) => {
           const screen: ScreenText | undefined = await t.screenText()
           const read = screen && profile.read(screen)

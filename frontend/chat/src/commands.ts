@@ -7,7 +7,7 @@ import {
 } from "@novadeck/core/conversation"
 import type { TerminalKey } from "@novadeck/core/types"
 
-import { chatDraftOf, joinDraft, setChatDraft, takenDraft } from "./drafts"
+import { chatDraftOf, joinDraft, mixes, setChatDraft, takenDraft } from "./drafts"
 import {
   chatReplyOf,
   replyAnswer,
@@ -75,6 +75,7 @@ export const createChatCommands = ({
   conversations,
   terminalOpen,
   context: currentContext,
+  chatView,
 }: {
   readonly chat: Chat
   // The agents' conversations, where the backend reads them.
@@ -83,6 +84,8 @@ export const createChatCommands = ({
   readonly terminalOpen: (key: TerminalKey) => boolean
   // The current workspace context: `${projectId}/${workspaceSessionId}`.
   readonly context: () => string
+  // Whether the chat view is on, so that terminals show as chats.
+  readonly chatView: () => boolean
 }): ChatCommands => {
   // How each prompt's promise settles, by ref, while it waits in the queue or goes.
   const settles = new Map<
@@ -227,7 +230,8 @@ export const createChatCommands = ({
     )
     // What the agent's box holds goes along only while the chat shows it. Words queued behind
     // others may go once the person has gone to the terminal, and may be typing there.
-    const shown = !answeringInTerminal(chat.store.getSnapshot().answering, context, terminalId)
+    const answering = answeringInTerminal(chat.store.getSnapshot().answering, context, terminalId)
+    const shown = chatView() && !answering
     conversations!.send(key, next.text, { ref: next.ref, ...(shown && { along: true }) }).then(
       (result) => {
         const settle = settles.get(next.ref)
@@ -318,6 +322,11 @@ export const createChatCommands = ({
         }
       }),
     takeBox: async (key) => {
+      // A shell command and a message don't make one draft: the box stays, and shows.
+      const box = conversations?.conversation(key).getSnapshot().box
+      const held = box && `${box.mode === "shell" ? "!" : ""}${box.text}`
+      const draft = chatDraftOf(chat.store.getSnapshot().drafts, contextOf(key), key.terminalId)
+      if (held && !mixes(held, draft)) return
       const taking = (conversations?.takeBox?.(key) ?? Promise.resolve(null)).then((words) => {
         if (!words || !terminalOpen(key)) return
         const context = contextOf(key)

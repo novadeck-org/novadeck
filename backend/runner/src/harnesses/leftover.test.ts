@@ -3,7 +3,7 @@ import { box as agy } from "@novadeck/harness-agy/box"
 import { box as claude } from "@novadeck/harness-claude/box"
 import { box as codex } from "@novadeck/harness-codex/box"
 import { loadProbe } from "@novadeck/harness-core/testing/probes"
-import { cursorAtEnd, leftoverOf, toEnd, type BoxProfile } from "@novadeck/tui-input/box"
+import { cursorAtEnd, leftoverOf, toEnd, unwrapped, type BoxProfile } from "@novadeck/tui-input/box"
 
 import { describe, expect, it } from "../test.js"
 import { adapterFolder } from "../testing/adapters.js"
@@ -81,6 +81,24 @@ describe.each(harnesses)("what %s's box holds", (harness, profile) => {
     expect(keys).toBe("\x15\x7f\x15\x7f\x15")
     expect(profile.shell.leave?.(box("shell empty"))).toBe("\x7f")
     expect(profile.shell.leave?.(box("shell command"))).toBe("\x15\x7f")
+  })
+
+  it("reads wrapped rows back as what was typed, wherever a word ends on them", () => {
+    const fits = harness === "codex" ? 117 : 116
+    const typed = (width: number) => `${"a".repeat(width - 5)} word next words`
+    const read = (name: string) => unwrapped(box(name).text, profile.textWidth(state(name).columns))
+    expect(read("word at the width")).toBe(typed(fits))
+    expect(read("word a cell past")).toBe(typed(fits + 1))
+    expect(read("narrow, word at the width")).toBe(typed(fits - 40))
+    expect(read("narrow, word a cell short")).toBe(typed(fits - 41))
+    expect(read("narrow, long word")).toBe(`${"x".repeat(100)} and after`)
+    // Claude Code fills the row a word too long for one starts on, which can't be told from a
+    // row of words that ends there: the word gets a space, where words would run together.
+    const after = harness === "claude" ? 104 : 150
+    const rest = "x".repeat(150 - after)
+    expect(read("long word after words")).toBe(
+      `short words ${"x".repeat(after)}${rest && ` ${rest}`} and after`,
+    )
   })
 
   it("reads the merged text whole, with what was pasted after a placeholder", () => {

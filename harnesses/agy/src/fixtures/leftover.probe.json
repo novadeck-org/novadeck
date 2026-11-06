@@ -603,6 +603,151 @@
         "33": "",
         "39": ""
       }
+    },
+    "word at the width": {
+      "height": 40,
+      "columns": 120,
+      "cursor": {
+        "row": 12,
+        "column": 11
+      },
+      "rows": {
+        "0": "To run a command as administrator (user \"root\"), use \"sudo <command>\".",
+        "1": "See \"man sudo_root\" for details.",
+        "4": "      ▄▀▀▄        Antigravity CLI 1.4.12",
+        "5": "     ▀▀▀▀▀▀       Gemini API key",
+        "6": "    ▀▀▀▀▀▀▀▀      Gemini 3.1 Pro (Low)",
+        "7": "   ▄▀▀    ▀▀▄     /tmp/novadeck-e2e-Sn4Agb/project",
+        "8": "  ▄▀▀      ▀▀▄",
+        "10": "────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────",
+        "11": "> aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa word",
+        "12": "  next words",
+        "13": "────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────",
+        "14": "                                                                                                    Gemini 3.1 Pro · low"
+      },
+      "bright": {
+        "14": ""
+      }
+    },
+    "word a cell past": {
+      "height": 40,
+      "columns": 120,
+      "cursor": {
+        "row": 12,
+        "column": 16
+      },
+      "rows": {
+        "0": "To run a command as administrator (user \"root\"), use \"sudo <command>\".",
+        "1": "See \"man sudo_root\" for details.",
+        "4": "      ▄▀▀▄        Antigravity CLI 1.4.12",
+        "5": "     ▀▀▀▀▀▀       Gemini API key",
+        "6": "    ▀▀▀▀▀▀▀▀      Gemini 3.1 Pro (Low)",
+        "7": "   ▄▀▀    ▀▀▄     /tmp/novadeck-e2e-lwQoeh/project",
+        "8": "  ▄▀▀      ▀▀▄",
+        "10": "────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────",
+        "11": "> aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "12": "  word next words",
+        "13": "────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────",
+        "14": "                                                                                                    Gemini 3.1 Pro · low"
+      },
+      "bright": {
+        "14": ""
+      }
+    },
+    "narrow, word at the width": {
+      "height": 40,
+      "columns": 80,
+      "cursor": {
+        "row": 9,
+        "column": 11
+      },
+      "rows": {
+        "1": "      ▄▀▀▄        Antigravity CLI 1.4.12",
+        "2": "     ▀▀▀▀▀▀       Gemini API key",
+        "3": "    ▀▀▀▀▀▀▀▀      Gemini 3.1 Pro (Low)",
+        "4": "   ▄▀▀    ▀▀▄     /tmp/novadeck-e2e-uGL6lv/project",
+        "5": "  ▄▀▀      ▀▀▄",
+        "7": "────────────────────────────────────────────────────────────────────────────────",
+        "8": "> aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa word",
+        "9": "  next words",
+        "10": "────────────────────────────────────────────────────────────────────────────────",
+        "11": "                                                            Gemini 3.1 Pro · low"
+      },
+      "bright": {
+        "11": ""
+      }
+    },
+    "narrow, word a cell short": {
+      "height": 40,
+      "columns": 80,
+      "cursor": {
+        "row": 9,
+        "column": 11
+      },
+      "rows": {
+        "1": "      ▄▀▀▄        Antigravity CLI 1.4.12",
+        "2": "     ▀▀▀▀▀▀       Gemini API key",
+        "3": "    ▀▀▀▀▀▀▀▀      Gemini 3.1 Pro (Low)",
+        "4": "   ▄▀▀    ▀▀▄     /tmp/novadeck-e2e-XQVuqi/project",
+        "5": "  ▄▀▀      ▀▀▄",
+        "7": "────────────────────────────────────────────────────────────────────────────────",
+        "8": "> aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa word",
+        "9": "  next words",
+        "10": "────────────────────────────────────────────────────────────────────────────────",
+        "11": "                                                            Gemini 3.1 Pro · low"
+      },
+      "bright": {
+        "11": ""
+      }
+    },
+    "long word after words": {
+      "height": 40,
+      "columns": 120,
+      "cursor": {
+        "row": 13,
+        "column": 44
+      },
+      "rows": {
+        "0": "To run a command as administrator (user \"root\"), use \"sudo <command>\".",
+        "1": "See \"man sudo_root\" for details.",
+        "4": "      ▄▀▀▄        Antigravity CLI 1.4.12",
+        "5": "     ▀▀▀▀▀▀       Gemini API key",
+        "6": "    ▀▀▀▀▀▀▀▀      Gemini 3.1 Pro (Low)",
+        "7": "   ▄▀▀    ▀▀▄     /tmp/novadeck-e2e-JWq8UW/project",
+        "8": "  ▄▀▀      ▀▀▄",
+        "10": "────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────",
+        "11": "> short words",
+        "12": "  xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+        "13": "  xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx and after",
+        "14": "────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────",
+        "15": "                                                                                                    Gemini 3.1 Pro · low"
+      },
+      "bright": {
+        "15": ""
+      }
+    },
+    "narrow, long word": {
+      "height": 40,
+      "columns": 80,
+      "cursor": {
+        "row": 9,
+        "column": 34
+      },
+      "rows": {
+        "1": "      ▄▀▀▄        Antigravity CLI 1.4.12",
+        "2": "     ▀▀▀▀▀▀       Gemini API key",
+        "3": "    ▀▀▀▀▀▀▀▀      Gemini 3.1 Pro (Low)",
+        "4": "   ▄▀▀    ▀▀▄     /tmp/novadeck-e2e-RyJcPB/project",
+        "5": "  ▄▀▀      ▀▀▄",
+        "7": "────────────────────────────────────────────────────────────────────────────────",
+        "8": "> xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+        "9": "  xxxxxxxxxxxxxxxxxxxxxxx and after",
+        "10": "────────────────────────────────────────────────────────────────────────────────",
+        "11": "                                                            Gemini 3.1 Pro · low"
+      },
+      "bright": {
+        "11": ""
+      }
     }
   }
 }

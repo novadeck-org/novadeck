@@ -28,7 +28,29 @@ export const joinDraft = (earlier: string, later: string): string => {
   return `${earlier}\n${later.trimStart().slice(1).trimStart()}`
 }
 
+// Whether words taken out of the agent's box and what the chat's holds make one draft: not a
+// shell command and a message, as the message would run as more of the command, or the command
+// go out as words.
+export const mixes = (taken: string, draft: string): boolean =>
+  !draft.trim() || taken.trimStart().startsWith("!") === draft.trimStart().startsWith("!")
+
+const compact = (text: string): string => text.replace(/\s+/g, "")
+
+// Whether the draft holds these words already, whole or as its first or last paragraph: a paste
+// that landed in the agent's box though it was never seen to, whose words stayed here too.
+const holds = (draft: string, words: string): boolean => {
+  const own = compact(words)
+  const paragraphs = draft.split(/\n\s*\n/)
+  return [draft, paragraphs[0] ?? "", paragraphs.at(-1) ?? ""].some((part) => compact(part) === own)
+}
+
 // Words taken out of the agent's box and what the chat's holds, as they would have gone out: the
-// box's first, then a blank line, then the chat's.
-export const takenDraft = (taken: string, draft: string): string =>
-  draft.trim() ? `${taken}\n\n${draft}` : taken
+// box's first, then a blank line, then the chat's. Words it holds already aren't added. Those
+// that don't mix, as the person wrote while they came, go as `joinDraft` joins them, so that no
+// message runs as a command.
+export const takenDraft = (taken: string, draft: string): string => {
+  if (!draft.trim()) return taken
+  if (holds(draft, taken)) return draft
+  const both = taken.trimStart().startsWith("!") && draft.trimStart().startsWith("!")
+  return mixes(taken, draft) && !both ? `${taken}\n\n${draft}` : joinDraft(taken, draft)
+}

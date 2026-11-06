@@ -64,7 +64,7 @@ export type BoxProfile = {
    * omitted.
    */
   readonly caret?: number
-  /** How many columns of a screen `columns` wide a row of the box's text takes at most. */
+  /** How far a word may reach on a row of the box's text, on a screen `columns` wide. */
   readonly textWidth: (columns: number) => number
   /**
    * How the box takes a shell command (`!` typed in an empty box, then the command pasted):

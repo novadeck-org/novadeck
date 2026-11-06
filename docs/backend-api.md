@@ -1010,13 +1010,16 @@ one from an earlier runner.
   a ring or a prompt, and neither presses Enter.
   - `agents.takeBox({ terminalId })` resolves with `{ returned }`, the words as typed: rows
     the box wrapped joined again (a row the next one's first word wouldn't have fit on, and
-    one as wide as the box mid-word), and a shell mode's command with its `!`. It takes only
+    one filled by a single word mid-word), and a shell mode's command with its `!`. It takes only
     what reads whole: not a box that may show a tail, nor one holding a paste's placeholder or
     an image (`BoxProfile.stands`), and only once the box read the same twice, 300 ms apart,
     and any text of a prompt just sent had the time to clear. With the cursor after the
     text, the adapter's `erase` (or `shell.leave`) goes once, and must read empty; otherwise
     `returned` is null and the box stays as it is, or as the keys left it, showing in `box`,
-    which send-along then takes care of. Keys that took some of it, or took late, still give what
+    which send-along then takes care of. A box holding a command of the program's (a leading
+    `/`) stays too: the chat could neither send that nor put it back. The client doesn't take
+    a shell command beside a message in its draft, or a message beside a command. Any of it
+    shows in `box`, and the client shows it, as what the next message goes out with. Keys that took some of it, or took late, still give what
     they took, which is in the box no longer, what's left there being taken after it. A ring's line is never taken, with words beside it or
     not, and an empty shell mode is left as it is. A prompt Novadeck knows comes back as given.
   - `agents.putBox({ terminalId, text })` resolves with `{ placed }`. It pastes the draft with
@@ -1027,6 +1030,13 @@ one from an earlier runner.
     command long enough for a placeholder where the harness's shell mode would run that as
     text (Antigravity). It is false too where the words never showed, a `!` that was typed taken
     back out. The client keeps its draft unless it is true.
+
+  Both hold the person's keys for as long as they take: 0.3 s, as long as what a prompt just sent
+  may still show (3 s), and up to 2 s for each of two keys that don't confirm, within a safety
+  cap of 16 s. A take waits up to 10 s for a ring under way first, outside the queue. There is
+  no per-client guard: a second client on one runner, as two `dev:web` tabs, could take what the
+  person types in the other's terminal view. The desktop app has one window, and a terminal
+  shows in one place.
 
   Every refusal and every step logs `chat.box`, a warning for what it left undone, with the reason, the harness
   and its version, never the words.

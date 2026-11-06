@@ -157,8 +157,9 @@ export const box: BoxProfile = {
     command: shellCommandOf,
     leave: leaveShell,
   },
-  // Its marker and indent, and the column it keeps free (fixtures/leftover.probe.json).
-  textWidth: (columns) => columns - 3,
+  // On 80 and 120 columns a word reaches 76 and 116; one too long for a row starts a new row
+  // and breaks a column further (fixtures/leftover.probe.json).
+  textWidth: (columns) => columns - 4,
   stands: (text) => /\[(?:Pasted text #\d+|Image\b)/.test(text),
   collapsed: ({ text }) => /^\[Pasted text #\d+ (?:\+\d+ lines?|\d+ chars?)\]$/.test(text.trim()),
   // 15 lines showed whole, even of 100 characters each; 16 did not. One line of 1,000

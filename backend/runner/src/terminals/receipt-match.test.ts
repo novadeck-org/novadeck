@@ -136,6 +136,7 @@ describe("knownWords", () => {
     expect(knownWords([back("one two")], "one\n  two")).toBe("one two")
     expect(knownWords([back("one"), back("two")], "one\ntwo")).toBe("one\ntwo")
     expect(knownWords([back("one"), back("two")], "one")).toBe("one")
+    expect(knownWords([back("one"), back("two")], "two\none")).toBe("two\none")
   })
 
   it("gives nothing where anything else is there, or nothing is back", () => {

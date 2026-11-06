@@ -978,12 +978,6 @@ for (const setup of setups) {
       expect(await taken()).toBe(words)
       await empty()
 
-      // A picker open, a command of the program's.
-      t1.press("/he")
-      await t1.until("/he")
-      expect(await taken()).toBe("/he")
-      await empty()
-
       // A shell mode's command goes with its `!`, and comes back to it.
       t1.press("!")
       await t1.poll(
@@ -1023,6 +1017,16 @@ for (const setup of setups) {
       write(`\x1b[200~${lines.join("\r")}\x1b[201~`)
       await box.shows((shown) => shown !== null)
       await expect(run.deck.terminals.takeBox(t1.id)).resolves.toEqual({ returned: null })
+      write("\x15")
+      await box.shows((shown) => shown === null)
+      // A command of its own stays too: the chat could neither send it nor put it back.
+      t1.press("/he")
+      await box.shows((shown) => shown?.text === "/he")
+      await expect(run.deck.terminals.takeBox(t1.id)).resolves.toEqual({ returned: null })
+      write("\x15")
+      await box.shows((shown) => shown === null)
+      write(`\x1b[200~${lines.join("\r")}\x1b[201~`)
+      await box.shows((shown) => shown !== null)
       // There's something in the box: a draft stays where it is, and the box's text as well.
       await expect(placed("a draft")).resolves.toEqual({ placed: false })
       await t1.prompt("And this")

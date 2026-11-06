@@ -48,6 +48,7 @@ const open = (
     sends,
     takeBox,
     putBox,
+    chatView = true,
   }: {
     readonly interrupt?: () => Promise<string | null>
     readonly answer?: () => Promise<void>
@@ -55,6 +56,7 @@ const open = (
     readonly sends?: () => void
     readonly takeBox?: Conversations["takeBox"]
     readonly putBox?: Conversations["putBox"]
+    readonly chatView?: boolean
   } = {},
 ) => {
   const conversation = createStore<Conversation>({ ...noConversation, session, loaded: true })
@@ -82,6 +84,7 @@ const open = (
     conversations,
     terminalOpen: () => true,
     context: () => context,
+    chatView: () => chatView,
   })
   const phases = () =>
     chatSendsOf(chat.store.getSnapshot().sends, context, "01").map(({ text, phase }) => [
@@ -193,6 +196,34 @@ describe("the chat's send queue", () => {
     }))
     await commands.sendChat(key, "behind it", null).catch(() => undefined)
     expect(sentOptions()).not.toHaveProperty("along")
+  })
+
+  it("asks nothing go along where the chat view went off", async () => {
+    const { commands, sentOptions } = open("s1", { chatView: false })
+    await commands.sendChat(key, "the message", null)
+    expect(sentOptions()).not.toHaveProperty("along")
+  })
+
+  it("leaves in the agent's box what doesn't mix with what's written", async () => {
+    const asked: unknown[] = []
+    const { commands, draft, tell } = open("s1", {
+      takeBox: async (at) => {
+        asked.push(at)
+        return "!ls"
+      },
+    })
+    tell({ box: { text: "ls", mode: "shell", tail: false, known: false } })
+    commands.setChatDraft("01", "from the chat")
+    await commands.takeBox(key)
+    expect(asked).toEqual([])
+    expect(draft()).toBe("from the chat")
+  })
+
+  it("adds nothing a paste that landed unseen left in both", async () => {
+    const { commands, draft } = open("s1", { takeBox: async () => "the words" })
+    commands.setChatDraft("01", "the words")
+    await commands.takeBox(key)
+    expect(draft()).toBe("the words")
   })
 
   it("takes what the agent's box holds ahead of what's written, a blank line between", async () => {

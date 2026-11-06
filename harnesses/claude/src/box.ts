@@ -65,8 +65,9 @@ export const box: BoxProfile = {
   // Enter runs a command shown as a placeholder as the text it stands for. It binds its session
   // before any command, so none starts one (`starts`).
   shell: { expands: true, starts: false, footer: shellFooter, leave: leaveShell },
-  // Its marker and indent, and the column it keeps free (fixtures/leftover.probe.json).
-  textWidth: (columns) => columns - 3,
+  // On 80 and 120 columns a word reaches 76 and 116, and one too long for a row fills the rest
+  // of the row it starts on, to the same column (fixtures/leftover.probe.json).
+  textWidth: (columns) => columns - 4,
   stands: (text) => /\[(?:Pasted text #\d+|Image #\d+)/.test(text),
   collapsed: ({ text }) => /^\[Pasted text #\d+(?: \+\d+ lines?)?\]$/.test(text.trim()),
   // Escape twice, over text seen in the box only; it clears a restored prompt or the queued

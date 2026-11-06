@@ -54,6 +54,7 @@ const fallbacks: ReadonlySet<BoxNote | HandoverNote> = new Set([
   "ringing",
   "ring-line",
   "too-tall",
+  "no-paste",
   "clear-unconfirmed",
   "shell-unconfirmed",
   "cursor-unconfirmed",
@@ -242,6 +243,7 @@ export class Typing {
     // A fixed line from an Inbox button: the turn it starts withdraws no ask (see `automatic`).
     if (automatic) this.host.messaging().automatic(terminalId, text)
     let returned: string | null = null
+    let went: string | undefined
     try {
       const given = await this.prompts.prompt(
         terminalId,
@@ -249,6 +251,7 @@ export class Typing {
         along && !automatic ? "freed" : "alone",
       )
       returned = given?.returned ?? null
+      went = given?.along
     } catch (error) {
       // Refused, failed or never given: no turn comes of it, so the mark would catch another.
       if (automatic) this.host.messaging().automaticFailed(terminalId, text)
@@ -262,8 +265,10 @@ export class Typing {
       throw error
     }
     const receipt = await following.catch(() => ({ ref: claimed, tracked: false }))
-    // The words are the person's draft again: their prompts no longer wait.
-    if (returned !== null) this.receipts.taken(terminalId, returned, receipt.ref)
+    // Words that came out are the person's draft again, and those that went along with it are
+    // in the record as part of it: either way their prompts no longer wait.
+    const out = returned ?? went
+    if (out !== undefined) this.receipts.taken(terminalId, out, receipt.ref)
     this.entered.set(terminalId, Date.now())
     this.receipts.sent(terminalId, receipt.ref)
     return { ...receipt, returned }

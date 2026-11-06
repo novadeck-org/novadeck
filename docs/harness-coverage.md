@@ -319,7 +319,7 @@ Probed 2026-11-06 on Claude Code 2.1.316 and 2.1.318, Codex 0.166.0 and 0.167.0,
 - A Backspace in an empty shell mode leaves it, idle or mid-turn. Escape mid-turn stops the turn too, and leaves the mode only on Claude Code. With a command there, the erase above and a Backspace. Home and Backspace leave it with the text on Claude Code and Codex, not Antigravity.
 - A paste with no Enter submits nothing, idle or mid-turn. A leading `!` flips the box to its shell mode on Claude Code and Codex, and stays text on Antigravity; `/`, `@name` and `$name` open their pickers. A trailing line break leaves a blank last row on Claude Code and Codex, where the box then can't be read off the cursor.
 - Its menus: Claude Code's and Antigravity's read as no box or a view. Codex's `/model`, `/config` and `/permissions` read as a box holding text, its first row leading with the marker, unless its hint row says otherwise (`overlay`).
-- Wrapped rows take `columns - 3`, and a word wider than that breaks there.
+- A word reaches `columns - 4` on a row on Claude Code and Antigravity, `columns - 3` on Codex (the same on 80 and 120 columns), the space at a wrap left out. One too long for a row starts a new row and breaks at `columns - 3` on Codex and Antigravity; on Claude Code it fills the row it starts on, to `columns - 4`.
 - Antigravity draws its cursor on the text's last cell, the others after it (`caret`).
 
 ## Consequences for the design

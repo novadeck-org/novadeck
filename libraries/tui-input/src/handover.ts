@@ -57,6 +57,10 @@ export type HandoverNote =
   | "ring-line"
   /** The words have no room in the box. */
   | "too-tall"
+  /** The box holds a command of its program's. */
+  | "command"
+  /** The screen takes no bracketed paste. */
+  | "no-paste"
 
 export type HandoverOptions = {
   readonly pollMs?: number
@@ -68,6 +72,8 @@ export type HandoverOptions = {
   readonly keysMs?: number
   /** How long a paste may take to show, in milliseconds. */
   readonly pasteMs?: number
+  /** How long a take waits for a delivery under way to end, in milliseconds. */
+  readonly ringMs?: number
 }
 
 /**
@@ -82,6 +88,7 @@ export class Handovers {
   private readonly emptyMs: number
   private readonly keysMs: number
   private readonly pasteMs: number
+  private readonly ringMs: number
   private readonly budget: HoldBudget
 
   constructor(
@@ -94,6 +101,7 @@ export class Handovers {
     this.emptyMs = options.emptyMs ?? 3_000
     this.keysMs = options.keysMs ?? 2_000
     this.pasteMs = options.pasteMs ?? 5_000
+    this.ringMs = options.ringMs ?? 10_000
     const inputMs = this.emptyMs + 3 * this.keysMs + this.pasteMs + 2_000
     this.budget = { inputMs, sizeMs: inputMs }
   }
@@ -104,7 +112,17 @@ export class Handovers {
    * nothing was taken, the box then as it was but for a clear that didn't confirm.
    */
   async take(terminalId: string): Promise<string | undefined> {
+    await this.ringOver(terminalId)
     return await this.queue.run(terminalId, (entry) => this.taking(entry, terminalId))
+  }
+
+  /** Waits for a delivery under way there to end, as what the box holds is seen just once. */
+  private async ringOver(terminalId: string): Promise<void> {
+    const until = Date.now() + this.ringMs
+    while (this.host.ringing(terminalId) !== undefined && Date.now() < until) {
+      // eslint-disable-next-line no-await-in-loop -- The ring is looked at in turn.
+      await sleep(this.pollMs)
+    }
   }
 
   /**
@@ -161,6 +179,11 @@ export class Handovers {
       if (!screen) return undefined
       const state = leftoverOf(profile, screen)
       if (state.kind === "none" || state.kind === "empty") return undefined
+      // The chat can neither send it nor put it back: it stays, and shows.
+      if (state.kind === "command") {
+        this.host.note(terminalId, "command")
+        return undefined
+      }
       const { box, tail } = state
       if (isEmpty(box)) return undefined
       if (this.host.ringLine(terminalId, box.text)) {
@@ -242,6 +265,11 @@ export class Handovers {
         this.host.note(terminalId, "not-empty")
         return false
       }
+      // Unbracketed, a line break of the text would be an Enter.
+      if (!screen.bracketedPaste) {
+        this.host.note(terminalId, "no-paste")
+        return false
+      }
       if (
         !profile.collapses(body) &&
         wrappedRows(body, screen.columns) + 1 > profile.room(screen.rows.length)
@@ -249,6 +277,8 @@ export class Handovers {
         this.host.note(terminalId, "too-tall")
         return false
       }
+      // A request may have come while the box was read: no key into its dialog.
+      this.host.admit(terminalId)
       // As a person types it, as a paste with its `!` isn't a shell command to every program.
       if (shell && !(await this.typedBang(terminalId, profile, holding))) {
         await this.unbang(terminalId, profile)
