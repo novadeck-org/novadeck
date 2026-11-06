@@ -307,6 +307,7 @@ export const WorkspaceTerminal = memo(
                 focusInput={wanted}
                 onInputFocused={onInputFocused}
                 refused={conversations!.refused}
+                onKeys={conversations!.keys && ((keys) => conversations!.keys!(terminalKey, keys))}
               />
             </div>
           )}

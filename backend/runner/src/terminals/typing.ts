@@ -291,6 +291,11 @@ export class Typing {
     return { returned }
   }
 
+  /** Writes keys as the person's, as a chat passes them on (see `agents.keys`). */
+  keys(terminalId: string, keys: string): void {
+    this.promptable(terminalId).terminal.input(keys)
+  }
+
   /** Puts a client's draft in the agent's box, with no Enter (see `Handovers.put`). */
   async putBox(terminalId: string, text: string): Promise<{ placed: boolean }> {
     this.promptable(terminalId)

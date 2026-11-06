@@ -3,7 +3,7 @@ import { paletteColour } from "@novadeck/core/conversation/slice"
 import { render } from "@novadeck/test-kit/render"
 import { createElement } from "react"
 
-import { Slice } from "./Slice"
+import { Slice, SliceKeys } from "./Slice"
 import { describe, expect, it } from "./test"
 
 const run = (text: string, fields: Partial<ChatSliceRun> = {}): ChatSliceRun => ({
@@ -63,6 +63,36 @@ describe("Slice", () => {
     const span = container.querySelector<HTMLElement>(".chat-slice span")!
     expect(span.getAttribute("style")).toContain("color: var(--terminal-bg)")
     expect(span.getAttribute("style")).toContain("background-color: var(--terminal-fg)")
+  })
+})
+
+describe("a slice that takes the keys", () => {
+  const live = (reason: ChatSlice["reason"], keys: (pressed: string) => void) =>
+    render(
+      createElement(
+        SliceKeys.Provider,
+        { value: keys },
+        createElement(Slice, { slice: { ...slice([[run("x")]]), reason }, live: true }),
+      ),
+    )
+
+  it("passes every key of a view, and takes focus", async () => {
+    const pressed: string[] = []
+    const { container } = await live("view", (keys) => pressed.push(keys))
+    const element = container.querySelector<HTMLElement>(".chat-slice")!
+    expect(document.activeElement).toBe(element)
+    element.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape", bubbles: true }))
+    element.dispatchEvent(new KeyboardEvent("keydown", { key: "a", bubbles: true }))
+    expect(pressed).toEqual(["\x1b", "a"])
+  })
+
+  it("leaves a menu's keys to the box", async () => {
+    const pressed: string[] = []
+    const { container } = await live("menu", (keys) => pressed.push(keys))
+    const element = container.querySelector<HTMLElement>(".chat-slice")!
+    expect(document.activeElement).not.toBe(element)
+    element.dispatchEvent(new KeyboardEvent("keydown", { key: "a", bubbles: true }))
+    expect(pressed).toEqual([])
   })
 })
 

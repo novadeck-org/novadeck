@@ -16,8 +16,7 @@ const box = {
 } as unknown as BoxProfile
 
 const profile = {
-  leading: ["/"],
-  words: [],
+  agent: "claude" as const,
   side: () => "above" as const,
   secret: (rows: readonly string[]) => rows.some((row) => row.includes("Paste")),
 }

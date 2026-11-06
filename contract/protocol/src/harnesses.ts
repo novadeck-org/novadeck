@@ -5,6 +5,9 @@
 export const harnesses = [
   {
     id: "claude",
+    // What calls up a menu of its own at its input: a key that opens one at the start of its
+    // box, and one at the start of a word.
+    menus: { leading: ["/"], words: ["@"] },
     // As people call it, and as a short word in a sentence.
     name: "Claude Code",
     shortName: "Claude",
@@ -32,6 +35,7 @@ export const harnesses = [
   },
   {
     id: "codex",
+    menus: { leading: ["/"], words: ["@", "$"] },
     name: "Codex",
     shortName: "Codex",
     nodeScript: "/@openai/codex/bin/codex.js",
@@ -52,6 +56,7 @@ export const harnesses = [
   },
   {
     id: "agy",
+    menus: { leading: ["/"], words: ["@"] },
     name: "Antigravity",
     shortName: "Antigravity",
     nodeScript: undefined,
@@ -64,6 +69,7 @@ export const harnesses = [
     recordsShell: false,
   },
 ] as const satisfies readonly {
+  readonly menus: { readonly leading: readonly string[]; readonly words: readonly string[] }
   readonly id: string
   readonly name: string
   readonly shortName: string
@@ -93,5 +99,13 @@ export const agentNames = harnesses.map(({ id }) => id) as unknown as readonly [
  * workspace: what reads a kept name checks it, so an unknown one degrades, never fails a
  * whole listing.
  */
+/** Whether text at a harness's input calls up a menu of its own. */
+export const opensMenu = (text: string, agent: AgentName): boolean => {
+  const { leading, words } = harnesses.find(({ id }) => id === agent)!.menus
+  if (leading.some((key) => text.startsWith(key))) return true
+  const word = text.split(/\s/).at(-1) ?? ""
+  return words.some((key) => word.startsWith(key))
+}
+
 export const isAgentName = (name: unknown): name is AgentName =>
   (agentNames as readonly unknown[]).includes(name)

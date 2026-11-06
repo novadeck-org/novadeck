@@ -37,9 +37,11 @@ const inApp = (
     send = async () => {},
     answer = async () => {},
     onRef = () => {},
+    onKeys,
   }: {
     readonly draft?: string
     readonly program?: string
+    readonly onKeys?: (keys: string) => Promise<void>
     readonly send?: (text: string) => Promise<SendResult | void>
     readonly answer?: (request: string, answer: ChatAnswer) => Promise<void>
     readonly onRef?: (ref: string) => void
@@ -88,6 +90,7 @@ const inApp = (
           focusInput: false,
           onInputFocused: () => {},
           refused: conversations.refused,
+          ...(onKeys && { onKeys }),
         })
       : null
   }
@@ -225,6 +228,92 @@ describe("a chat whose answer's words didn't reach the agent", () => {
     await act(async () => failures[1]!(new WordsLost()))
     await act(async () => sends[0]!())
     expect(container.querySelector(".chat-lost")).not.toBeNull()
+  })
+})
+
+describe("a chat over a harness's own menu", () => {
+  const talking: Conversation = {
+    ...noConversation,
+    agent: "claude",
+    session: "s",
+    loaded: true,
+  }
+  const open = (given: Conversation = talking) => {
+    const conversation = createStore(given)
+    const keys: string[] = []
+    const app = inApp(conversation, {
+      onKeys: async (written) => {
+        keys.push(written)
+      },
+    })
+    const field = app.container.querySelector("textarea")!
+    const down = (name: string): void =>
+      void act(() => {
+        field.dispatchEvent(
+          new KeyboardEvent("keydown", { key: name, bubbles: true, cancelable: true }),
+        )
+      })
+    return { ...app, conversation, keys, field, down }
+  }
+
+  it("passes a leading / to the terminal rather than refuse it", () => {
+    const { field, keys, container, sent } = open()
+    set(field, "/")
+    set(field, "/m")
+    expect(keys).toEqual(["/", "m"])
+    expect(container.textContent).toContain("own menu")
+    expect(sent).not.toHaveBeenCalled()
+  })
+
+  it("sends Enter to the terminal, and echoes the command as the person's words", () => {
+    const { field, keys, down, container, sent } = open()
+    set(field, "/status")
+    down("Enter")
+    expect(keys).toEqual(["/status", "\r"])
+    expect(sent).not.toHaveBeenCalled()
+    expect(container.querySelector(".chat-echo")?.textContent).toBe("/status")
+  })
+
+  it("passes a menu's keys, and Esc only while one shows", () => {
+    const { field, keys, down, conversation } = open()
+    set(field, "/")
+    down("ArrowDown")
+    down("Escape")
+    expect(keys).toEqual(["/", "\x1b[B"])
+    act(() =>
+      conversation.update((current) => ({
+        ...current,
+        slice: { reason: "menu", columns: 80, rows: [[]], cursor: null, secret: false },
+      })),
+    )
+    down("Escape")
+    expect(keys).toEqual(["/", "\x1b[B", "\x1b"])
+  })
+
+  it("takes a plain message as it always did", () => {
+    const { field, keys, down, sent } = open()
+    set(field, "hello there")
+    down("Enter")
+    expect(keys).toEqual([])
+    expect(sent).toHaveBeenCalled()
+  })
+
+  it("draws the terminal's own rows, and hands the keys to a view", () => {
+    const { conversation, keys, container } = open()
+    act(() =>
+      conversation.update((current) => ({
+        ...current,
+        slice: { reason: "view", columns: 80, rows: [[]], cursor: null, secret: false },
+      })),
+    )
+    const rows = container.querySelector<HTMLElement>(".chat-slice")!
+    expect(document.activeElement).toBe(rows)
+    act(() => {
+      rows.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape", bubbles: true }))
+    })
+    expect(keys).toEqual(["\x1b"])
+    act(() => conversation.update((current) => ({ ...current, slice: null })))
+    expect(document.activeElement).toBe(container.querySelector("textarea"))
   })
 })
 
