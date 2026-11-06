@@ -1,8 +1,8 @@
 import { join } from "node:path"
 
 import { setups } from "./agents/index.js"
-import { describe, e2e, expect, supported } from "./fixture.js"
-import { asked, record, tool, type Call } from "./model/script.js"
+import { describe, e2e, expect, supported, type E2E } from "./fixture.js"
+import { asked, gate, record, tool, type Call, type Rule } from "./model/script.js"
 import { delivered, own, replies, result, start, through, turn } from "./scenarios.js"
 
 // The schema the model actually sees, after its harness translated the MCP declaration.
@@ -253,6 +253,103 @@ for (const setup of setups) {
         "theme.css\n--heading: blue;",
       )
       expect(history.some((message) => message.inbox === "tell")).toBe(true)
+    })
+
+    // The model for a turn that asks the person and works on, its last reply held until
+    // `finishing` opens, and that says when it holds their reply.
+    const asksAndWorksOn = (run: E2E, finishing: ReturnType<typeof gate>): Rule =>
+      own(async (call) => {
+        if (delivered(call, "you")) return { text: "Merged, as you said." }
+        if (asked(call, "Ask and work on")) {
+          const name = [call, ...run.model.calls].map((one) => tool(one, "ask")).find(Boolean)
+          if (!name) throw new Error("Novadeck's ask tool is missing")
+          return {
+            calls: [
+              {
+                name,
+                input: {
+                  subject: "Merge the branch?",
+                  body: "It is ready.",
+                  shape: {
+                    type: "options",
+                    options: [{ label: "Merge" }, { label: "Wait" }],
+                    recommend: 0,
+                  },
+                },
+              },
+            ],
+          }
+        }
+        if (result(call)?.includes(" is in the user's Inbox.")) {
+          await finishing.opened
+          return { text: "Worked on." }
+        }
+        return undefined
+      })
+
+    // Whether a request holds the person's pick as a user turn, typed by the doorbell.
+    const lined = (call: Call): boolean =>
+      call.turns.some(
+        (entry) =>
+          entry.role === "user" &&
+          /\[Novadeck Inbox reply, ([A-Za-z0-9]+)\] Re your ask "Merge the branch\?": I picked "Merge"\. \[\1\]/.test(
+            entry.text,
+          ),
+      )
+
+    it("ends the turn the person's reply waits at, and the reply comes as its prompt", async ({
+      e2e: run,
+    }) => {
+      const finishing = gate()
+      run.model.use(asksAndWorksOn(run, finishing))
+      const terminal = await start(run, setup)
+      const calls = run.model.mark()
+      await terminal.submit("Ask and work on")
+      await run.model.waitFor(
+        (call) => result(call)?.includes(" is in the user's Inbox.") === true,
+        {
+          after: calls,
+        },
+      )
+      const ask = run.deck.terminals.inboxEntries().find((each) => each.content.kind === "ask")!
+      // The turn runs on, its last reply held, as the person answers.
+      run.deck.terminals.answerAsk(ask.id, { type: "reply", option: 0, text: "" })
+      finishing.open()
+      await terminal.until("Merged, as you said.")
+      // The first request to hold the reply has it as a user turn: no Stop gave it as context.
+      const received = await run.model.waitFor((call) => !call.side && delivered(call, "you"), {
+        after: calls,
+      })
+      expect(lined(received)).toBe(true)
+    })
+
+    it("gives the reply at the Stop over a draft of the person's, never typing beside it", async ({
+      e2e: run,
+    }) => {
+      const finishing = gate()
+      run.model.use(asksAndWorksOn(run, finishing))
+      const terminal = await start(run, setup)
+      const calls = run.model.mark()
+      await terminal.submit("Ask and work on")
+      await run.model.waitFor(
+        (call) => result(call)?.includes(" is in the user's Inbox.") === true,
+        {
+          after: calls,
+        },
+      )
+      const ask = run.deck.terminals.inboxEntries().find((each) => each.content.kind === "ask")!
+      terminal.press("half a thought")
+      await terminal.until("half a thought")
+      run.deck.terminals.answerAsk(ask.id, { type: "reply", option: 0, text: "" })
+      finishing.open()
+      await terminal.until("Merged, as you said.")
+      const received = await run.model.waitFor((call) => !call.side && delivered(call, "you"), {
+        after: calls,
+      })
+      expect(lined(received)).toBe(false)
+      const shown = await terminal.screen()
+      expect(shown).toContain("half a thought")
+      expect(shown).not.toContain("[Novadeck")
     })
 
     it("lists a peer's done to other agents until its next prompt, then as its latest update", async ({
