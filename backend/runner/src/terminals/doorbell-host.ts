@@ -3,7 +3,7 @@ import type { AgentName } from "@novadeck/protocol"
 import type { Terminal } from "@novadeck/terminal/host"
 import { foregroundRuns, processGroup, terminalForeground } from "@novadeck/terminal/pty"
 import type { TypingTarget } from "@novadeck/tui-input"
-import { compact, hidesText, isEmpty, type BoxProfile } from "@novadeck/tui-input/box"
+import { compact, isEmpty, type BoxProfile } from "@novadeck/tui-input/box"
 
 import { blocking } from "../harnesses/activity.js"
 import type { Binding } from "../harnesses/bindings.js"
@@ -224,8 +224,6 @@ export const doorbellHost = <R extends DoorbellRecord>(
       const text = box?.read(screen)
       if (!box || !text || text.mode !== "prompt" || box.overlay(screen) || box.queued(screen))
         return undefined
-      // Its Enter would send what's out of sight too, and that needn't be Novadeck's.
-      if (hidesText(box, text, screen.rows.length)) return undefined
       const nonce = leftoverNonce(text.text)
       if (nonce === undefined || !messaging.unconfirmed(terminalId, nonce)) return undefined
       // Exactly what the ring typed: an edited line is the person's. A reply line the doorbell
