@@ -40,6 +40,7 @@ const record = (summary: Partial<Record["summary"]> = {}) =>
       id: "t1",
       agent: null,
       ready: null,
+      startup: null,
       activity: null,
       telemetry: null,
       reported: null,

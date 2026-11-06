@@ -42,6 +42,7 @@ const summary = (change: Partial<TerminalSummary>): TerminalSummary => ({
   process: { name: "zsh", argv: null },
   agent: null,
   ready: null,
+  startup: null,
   activity: null,
   telemetry: null,
   reported: null,

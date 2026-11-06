@@ -1,3 +1,4 @@
+import { mkdir, writeFile } from "node:fs/promises"
 import { basename, isAbsolute, join } from "node:path"
 import { setTimeout as sleep } from "node:timers/promises"
 
@@ -5,6 +6,8 @@ import type { Harness } from "@novadeck/harness-core/harness"
 import type { AgentName } from "@novadeck/protocol"
 
 import { harnesses } from "../harnesses/registry.js"
+import { agentLabel } from "../messaging/messages.js"
+import { startupDelayMs } from "../terminals/startup-watch.js"
 import type { FolderQuestion } from "./agents/agent.js"
 import { setups } from "./agents/index.js"
 import type { DeckTerminal } from "./deck.js"
@@ -38,6 +41,31 @@ import {
 // The states asserted are docs/agent-messaging.md's ("What counts", "States").
 
 // The tool the agent called last, whose answer the call may be its look at.
+/**
+ * A program named after `agent` that prints a line and takes `ms` to start it, as a cold start
+ * or a download would: Novadeck expects the agent from its name, and nothing of the agent's
+ * shows meanwhile. It lies outside the project, so the agent it starts is the one on PATH.
+ */
+const slowStart = async (root: string, agent: AgentName, ms: number): Promise<string> => {
+  const seconds = Math.ceil(ms / 1000)
+  const folder = join(root, "slow-start")
+  await mkdir(folder, { recursive: true })
+  if (process.platform === "win32") {
+    const script = join(folder, `${agent}.cmd`)
+    // `ping` waits with no console input to read, as `timeout` needs.
+    await writeFile(
+      script,
+      `@echo Loading\r\n@ping -n ${seconds + 1} 127.0.0.1 >nul\r\n@call ${agent} %*\r\n`,
+    )
+    return script
+  }
+  const script = join(folder, agent)
+  await writeFile(script, `#!/bin/sh\necho Loading\nsleep ${seconds}\nexec ${agent} "$@"\n`, {
+    mode: 0o755,
+  })
+  return script
+}
+
 const calledLast = (call: Call): string | undefined =>
   call.turns.findLast((each) => each.role === "assistant")?.calls.at(-1)?.name
 
@@ -838,10 +866,46 @@ for (const setup of setups) {
     const question = setup.trust?.folder
 
     gated(it, lacking(setup, "trust.folder"))(
+      "reads as not started while it loads, however long, and as waiting once its question stands",
+      async ({ e2e: run }) => {
+        const loadsMs = startupDelayMs(process.platform) + 3000
+        const opened = Date.now()
+        const t = await run.deck.open(await slowStart(run.sandbox.root, setup.agent, loadsMs))
+        // A second short of its load, as the script's own start takes a moment too.
+        while (Date.now() - opened < loadsMs - 1000) {
+          expect(t.summary().startup).toBeNull()
+          // eslint-disable-next-line no-await-in-loop -- Sampled in order.
+          await sleep(250)
+        }
+        await t.until(question!.shows, 60_000)
+        await t.poll(() => t.summary().startup ?? undefined, "its startup screen to count", 60_000)
+        expect(t.summary().startup).toEqual({ agent: setup.agent, screen: "startup" })
+      },
+    )
+
+    gated(it, lacking(setup, "trust.folder"))(
       "never rings an agent at its folder-trust question, and rings it once trusted",
       async ({ e2e: run }) => {
         const { shows, trusts } = question!
+        // t1's agent lists the terminals until t2 reads as waiting on the person: its
+        // question has to stand a while first, as a slow start must not read so.
+        const held = new RegExp(
+          `- @?fox[^\\n]*: expecting ${agentLabel(setup.agent)}, waiting on the user: its startup screen`,
+        )
+        let looks = 0
         run.model.use(
+          own(async (call) => {
+            const agents = tool(call, "agents")
+            if (!agents) return undefined
+            if (asked(call, "Who is there")) return { calls: [{ name: agents, input: {} }] }
+            const listing = result(call)
+            if (calledLast(call) !== agents || listing === undefined) return undefined
+            if (held.test(listing)) return { text: "Fox waits on the person." }
+            looks += 1
+            if (looks > 60) return { text: "Gave up." }
+            await sleep(500)
+            return { calls: [{ name: agents, input: {} }] }
+          }),
           sends("Tell fox hello", "fox", "Hello."),
           own((call) => (result(call) !== undefined ? { text: "Told fox." } : undefined)),
           own((call) => (delivered(call, "moth") ? { text: "Hello to you." } : undefined)),
@@ -875,6 +939,11 @@ for (const setup of setups) {
             await trusting
             await t1.reached("ready", { timeoutMs: 60_000 })
             await prompted(t1, setup)
+            const from0 = t1.mark()
+            await t1.submit("Who is there")
+            await t1.until("Fox waits on the person.", 60_000)
+            await t1.reached("settled", { after: from0 })
+            expect(t2.summary().startup).toEqual({ agent: setup.agent, screen: "startup" })
             const from1 = t1.mark()
             await t1.submit("Tell fox hello")
             // The send was taken, so t2 holds the message: one its harness refused (as
@@ -903,6 +972,7 @@ for (const setup of setups) {
         await through(t2, ["ready", "ringing", "working", holds("moth", "fox", "delivered")], {
           timeoutMs: 60_000,
         })
+        expect(t2.summary().startup).toBeNull()
         const rung = await run.model.waitFor((call) => delivered(call, "moth"), {
           after: calls,
         })

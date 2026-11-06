@@ -1,9 +1,12 @@
-import type { AgentActivity, AgentName, TitleSource } from "@novadeck/protocol"
+import type { AgentActivity, AgentName, TerminalSummary, TitleSource } from "@novadeck/protocol"
 
 import { bareHandle, mention } from "../terminals/handles.js"
 import { busiestFolders, firstFrom, plainPrompt, type Work } from "../terminals/work.js"
 import { cut, shorten } from "../text.js"
 import { agentLabel, clock, holdOf, isNotice, senderTerminal, type Message } from "./messages.js"
+
+/** The kind of screen that holds an agent for the person before its first session. */
+export type StartupScreen = NonNullable<TerminalSummary["startup"]>["screen"]
 
 /**
  * What the terminal manager knows of a terminal beyond messaging: its title and who it
@@ -31,6 +34,8 @@ export type Whereabouts = {
   readonly waiting: Waiting | null
   /** What its idle agent waits on to wake it, if anything: see `Peer.waitsOn`. */
   readonly waitsOn: string | null
+  /** Which of its screens holds the agent expected there for the person, if one does. */
+  readonly startup: StartupScreen | null
   /** The latest reports its agent session gave the person. */
   readonly reports: Reports
   readonly place: (path: string) => string
@@ -76,6 +81,8 @@ export type Peer = {
    * can't run there until the person trusts them (Codex's `/hooks`): nothing can deliver.
    */
   readonly untrusted: AgentName | null
+  /** Which of its screens holds the expected agent for the person; its work waits on them. */
+  readonly startup: StartupScreen | null
   readonly title: string | null
   readonly titleSource: TitleSource | null
   /** What its own agent said it works on, through `describe`. */
@@ -209,6 +216,7 @@ export const peerOf = (input: {
     agent,
     expecting: agent || input.untrusted ? null : input.expecting,
     untrusted: agent ? null : (input.untrusted ?? null),
+    startup: agent || input.untrusted ? null : (where?.startup ?? null),
     title: where?.title ?? null,
     titleSource: where?.title ? where.titleSource : null,
     summary: where?.summary ?? null,
@@ -338,7 +346,7 @@ const statusOf = (peer: Peer): string =>
     : peer.untrusted
       ? `no agent Novadeck can deliver to: ${untrustedNote(peer.untrusted)}`
       : peer.expecting
-        ? `expecting ${agentLabel(peer.expecting)}, not started yet`
+        ? `expecting ${agentLabel(peer.expecting)}, ${peer.startup ? `waiting on the user: its ${peer.startup} screen` : "not started yet"}`
         : "no agent Novadeck can deliver to"
 
 /** One peer as agents read it: a short block, each fact left out when unknown. */

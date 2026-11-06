@@ -127,6 +127,10 @@ export const terminalSummary = z.strictObject({
   // before it reported a session, as Codex and Antigravity do only with their first
   // prompt. Null otherwise, and once a session is reported.
   ready: agentName.nullable(),
+  // The agent expected there, held at one of its own screens that wait for the person, a
+  // folder-trust, update, sign-in or onboarding screen, before it reported a session. Null
+  // otherwise, and once a session is reported or its prompt shows.
+  startup: z.strictObject({ agent: agentName, screen: z.enum(["startup", "sign-in"]) }).nullable(),
   // What that agent is doing; null without one.
   activity: agentActivity.nullable(),
   // Its tokens and quotas, once its records named any; null otherwise.

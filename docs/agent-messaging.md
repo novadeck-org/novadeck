@@ -320,7 +320,9 @@ agent session; never a name the model passes.
   there, or the terminal closes first, by the person or an agent's `close_terminal`.
   The expectation ends once any session binds there: from then on only a bound session
   takes messages, and one that waited is never handed to a later session. `agents()`
-  shows such a terminal as "expecting Codex, not started yet".
+  shows such a terminal as "expecting Codex, not started yet", or, once one of the agent's
+  own screens holds it for the person, as "expecting Codex, waiting on the user: its startup
+  screen" (see [Startup screens](#startup-screens)).
 - **Threads.** A message continues the thread of the latest message between the same
   two handles, in either direction, within the last ten minutes; otherwise it starts
   one. Agents never name threads.
@@ -2033,6 +2035,40 @@ path), so it arrives with the lead's mark and note, and the agent acts on it wit
 waiting for the person to confirm, though what it would ask the person before doing, it
 still asks, in its own terminal. The person sees it in
 the new terminal's Messages view, like any other message.
+
+### Startup screens
+
+An agent can stop at a screen of its own before its first session: folder trust, an update,
+a hooks review, sign-in, onboarding, a resume picker. No harness reports anything Novadeck
+binds on there, so nothing but the screen tells that from a slow start. `StartupWatch`
+(`terminals/startup-watch.ts`) looks once a second at each terminal expecting an agent, while
+no session bound and its prompt never showed, and counts a screen as holding the agent when
+all of these stand for 5 s (15 s on Windows, which starts agents far slower):
+
+- Bracketed paste is on. A startup command runs before the shell's line editor turns that on
+  (fish, whose editor has it on already, turns it off for the command), so the agent has taken
+  the terminal, and whatever the shell printed before it does not count. A foreground program
+  can't say this: an agent's process holds the foreground all the while it loads, and Windows
+  names none. Probed with agents held back 9 s (2026-11-06, Claude Code 2.1.316, Codex 0.166.0,
+  Antigravity 1.4.12, Linux under bash); macOS and Windows rest on the e2e case in
+  `controls.e2e.ts`.
+- The screen isn't blank, and its text doesn't change. Its text, so that a console's repaints
+  count for nothing.
+- The expected harness's own box doesn't read on it. `startup.probe.json` beside each harness
+  keeps the screens probed: Claude Code's trust, onboarding and resume picker; Codex's trust,
+  hooks review, sign-in, update and resume picker; Antigravity's trust, onboarding and
+  sign-in. Each harness's prompt reads as a box, and none of those as one. An MCP server slow
+  to start holds none of the three behind such a screen: each draws its box first. Claude
+  Code's sign-in and update screens are not probed: it stops at a connectivity check without
+  a key, and the sandbox can't raise the other.
+
+The state ends at once at a box, a bound session or the agent's prompt, and once the screen
+has moved for as long as the delay: a key the person presses moves it for one look, so its mark
+doesn't flicker, and a spinner after they answer does end it. A box that stands for the delay
+ends the watch of that shell: an agent that never binds may open a dialog of its own later. It reaches `agents()` and, as
+`TerminalSummary.startup`, the terminal's tab: the need mark, with "Waiting at its startup
+screen" in its tooltip, and the chat view gives way to the screen. It raises no Inbox row: no
+request stands behind it.
 
 ## Naming
 

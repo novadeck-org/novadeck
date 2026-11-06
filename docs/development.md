@@ -297,7 +297,7 @@ Agents:
   subagents finish. Rest leaves it at its prompt with nothing running or asking; the Inbox
   rows it wrote (a done report, a failed turn) stay.
 - **Agent fixtures:** what no turn produces: an unheard agent (Claude Code whose hooks say
-  nothing), and context and limits or tokens alone, in the tooltip and status; those two set
+  nothing), an agent held at its startup or sign-in screen before its first session, and context and limits or tokens alone, in the tooltip and status; those two set
   only the usage of the selected terminal's agent, so a turn, request or queued prompt stays.
 - **Approvals:** "Ask to close selected" has another terminal of the session ask to close the
   selected one, and "Ask to lead selected" has it ask to lead the selected one, which raises the

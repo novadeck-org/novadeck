@@ -53,6 +53,7 @@ const whereabouts = (overrides: Partial<Whereabouts> = {}): Whereabouts => ({
   working: false,
   waiting: null,
   waitsOn: null,
+  startup: null,
   reports: { tell: null, done: null },
   place: (path) => path,
   ...overrides,
@@ -167,6 +168,30 @@ describe("a peer as agents read it", () => {
       expecting: "codex",
     })
     expect(read(starting)).toEqual(["- @crow: expecting Codex, not started yet"])
+    // Held at one of its own screens for the person, before its first session.
+    const held = listing({
+      terminalId: "G",
+      handle: "lark",
+      agent: null,
+      expecting: "codex",
+      where: whereabouts({ startup: "startup" }),
+    })
+    expect(read(held)).toEqual([
+      "- @lark: expecting Codex, waiting on the user: its startup screen",
+    ])
+    expect(compactPeer(held, now, { handle: "haze", lead: null })).toBe(
+      "- @lark: expecting Codex, waiting on the user: its startup screen",
+    )
+    const signIn = listing({
+      terminalId: "H",
+      handle: "wren",
+      agent: null,
+      expecting: "agy",
+      where: whereabouts({ startup: "sign-in" }),
+    })
+    expect(read(signIn)).toEqual([
+      "- @wren: expecting Antigravity, waiting on the user: its sign-in screen",
+    ])
     // Its agent at its prompt, whose hooks Novadeck can't run there until the person trusts them.
     const untrusted = listing({
       terminalId: "F",

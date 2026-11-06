@@ -15,6 +15,7 @@ import { createDemoUpdates, pageUpdateChannel } from "./desktop/updates"
 import { createDemoFolders } from "./folders"
 import { createDemoNotices } from "./notices"
 import {
+  atStartupScreen,
   agentRanHere,
   backToPrompt,
   cleanExit,
@@ -258,6 +259,7 @@ const gallery: readonly {
   { name: "Asks (MCP)", state: (key) => runAgent(key, "claude"), asks: "text" },
   { name: "Needs a sign-in", state: (key) => runAgent(key, "claude"), asks: "action" },
   { name: "Unheard agent", state: (key) => unheardAgent(key, "claude") },
+  { name: "At its startup screen", state: (key) => atStartupScreen(key, "codex") },
   { name: "Running a program", state: (key) => runProgram(key, "sleep") },
   { name: "Opened by an agent", state: (key) => openedByAgent(key, "pnpm") },
   { name: "Agent exited", state: (key) => agentRanHere(key) },
@@ -665,6 +667,16 @@ export const createDemoStates = (
       actions: [
         setting("Unheard agent", "Claude Code, its hooks silent", (key, { dispatch }) =>
           dispatch(unheardAgent(key, "claude")),
+        ),
+        setting(
+          "At its startup screen",
+          "Codex held at a trust or update screen: the tab's need mark, no Inbox row",
+          (key, { dispatch }) => dispatch(atStartupScreen(key, "codex")),
+        ),
+        setting(
+          "At its sign-in screen",
+          "Antigravity held at sign-in: the tab's need mark, no Inbox row",
+          (key, { dispatch }) => dispatch(atStartupScreen(key, "agy", "sign-in")),
         ),
         onSelected(
           "Context and limits",

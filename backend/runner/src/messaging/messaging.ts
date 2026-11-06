@@ -278,6 +278,10 @@ export class Messaging {
     return this.deliveries.shownAgent(terminalId)
   }
 
+  expected(terminalId: string): AgentName | null {
+    return this.deliveries.expected(terminalId)
+  }
+
   untrusted(terminalId: string, agent: AgentName): void {
     this.deliveries.untrusted(terminalId, agent)
   }

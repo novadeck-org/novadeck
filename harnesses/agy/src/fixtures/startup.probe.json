@@ -1,0 +1,112 @@
+{
+  "trust": {
+    "height": 40,
+    "columns": 120,
+    "cursor": {
+      "row": 12,
+      "column": 120
+    },
+    "rows": {
+      "0": "Accessing workspace:",
+      "2": "/tmp/novadeck-e2e-mVByDK/project",
+      "4": "Do you trust the contents of this project?",
+      "6": "Antigravity CLI requires permission to read, edit, and execute files here.",
+      "8": "> Yes, I trust this folder",
+      "9": "  No, exit",
+      "11": "  ↑/↓ Navigate · enter Confirm",
+      "12": "                                                                                                    Gemini 3.1 Pro · low"
+    },
+    "bright": {
+      "12": ""
+    }
+  },
+  "onboarding": {
+    "height": 40,
+    "columns": 120,
+    "cursor": {
+      "row": 35,
+      "column": 120
+    },
+    "rows": {
+      "1": "    ▄▀▀▄",
+      "2": "   ▀▀▀▀▀▀",
+      "3": "  ▀▀▀▀▀▀▀▀",
+      "4": " ▄▀▀    ▀▀▄",
+      "5": "▄▀▀      ▀▀▄",
+      "7": "Welcome to Antigravity CLI!",
+      "9": "Choose your color scheme:        ╭─────────────────────────────────────────────────────────────╮",
+      "10": "                                 │ > you: add a greeting function                              │",
+      "11": "  > terminal                     │                                                             │",
+      "12": "    light                        │   Here's the change:                                        │",
+      "13": "    solarized light              │                                                             │",
+      "14": "    colorblind-friendly light    │   3     import \"fmt\"                                        │",
+      "15": "    dark                         │   4                                                         │",
+      "16": "    solarized dark               │   5  -  func main() {                                       │",
+      "17": "    colorblind-friendly dark     │   5  +  func greet(name string) {                           │",
+      "18": "    tokyo night                  │   6  +      fmt.Printf(\"Hello, %s!\\n\", name)                │",
+      "19": "                                 │   7     }                                                   │",
+      "20": "                                 │                                                             │",
+      "21": "                                 │   ▾ Thought Process                                         │",
+      "22": "                                 │     I need to add a greeting function. I'll use fmt.Printf. │",
+      "23": "                                 │   ⚙ tool: write_file main.go                                │",
+      "24": "                                 │   ◉ task: Implementing greeting                             │",
+      "25": "                                 │   ✗ error: compilation failed                               │",
+      "26": "                                 │   ⚠ warning: deprecation warning                            │",
+      "27": "                                 │   → link: file:///path/to/main.go                           │",
+      "28": "                                 │   ★ accent: highlighted text                                │",
+      "29": "                                 │   · dim: press Enter to continue                            │",
+      "30": "                                 ╰─────────────────────────────────────────────────────────────╯",
+      "32": "    [Next]",
+      "34": "  ↑/↓ Navigate · enter Confirm",
+      "35": "                                                                                                    Gemini 3.1 Pro · low"
+    },
+    "bright": {
+      "35": ""
+    }
+  },
+  "prompt": {
+    "height": 40,
+    "columns": 120,
+    "cursor": {
+      "row": 11,
+      "column": 1
+    },
+    "rows": {
+      "0": "To run a command as administrator (user \"root\"), use \"sudo <command>\".",
+      "1": "See \"man sudo_root\" for details.",
+      "4": "      ▄▀▀▄        Antigravity CLI 1.4.12",
+      "5": "     ▀▀▀▀▀▀       Gemini API key",
+      "6": "    ▀▀▀▀▀▀▀▀      Gemini 3.1 Pro (Low)",
+      "7": "   ▄▀▀    ▀▀▄     /tmp/novadeck-e2e-by2H8f/project",
+      "8": "  ▄▀▀      ▀▀▄",
+      "10": "────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────",
+      "11": ">",
+      "12": "────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────",
+      "13": "? for shortcuts                                                                                     Gemini 3.1 Pro · low"
+    },
+    "bright": {
+      "13": "? for shortcuts"
+    }
+  },
+  "signIn": {
+    "height": 40,
+    "columns": 120,
+    "cursor": {
+      "row": 13,
+      "column": 30
+    },
+    "rows": {
+      "1": "     ▄▀▀▄",
+      "2": "    ▀▀▀▀▀▀",
+      "3": "   ▀▀▀▀▀▀▀▀",
+      "4": "  ▄▀▀    ▀▀▄",
+      "5": " ▄▀▀      ▀▀▄",
+      "7": " Welcome to the Antigravity CLI. You are currently not signed in.",
+      "9": " Select login method:",
+      "10": " > 1. Google OAuth",
+      "11": "   2. Use a Google Cloud project",
+      "13": "   ↑/↓ Navigate · enter Select"
+    },
+    "bright": {}
+  }
+}

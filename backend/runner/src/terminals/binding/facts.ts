@@ -553,6 +553,8 @@ export class Bindings {
     const { bound } = record
     const agent = bound?.binding.agent ?? null
     const ready = this.readyOf(record)
+    // Its prompt or a session ends a startup screen at once, not at the watch's next look.
+    const startup = bound || ready ? null : record.summary.startup
     const activity = bound ? activitySummary(bound.activity) : null
     // Before the early return below: an Escape that settles changes nothing the summary shows.
     this.ends.sight(record, activity)
@@ -570,12 +572,13 @@ export class Bindings {
       summary.agentRan === agentRan &&
       summary.agent === agent &&
       summary.ready === ready &&
+      summary.startup === startup &&
       JSON.stringify(summary.activity) === JSON.stringify(activity) &&
       JSON.stringify(summary.telemetry) === JSON.stringify(telemetry) &&
       JSON.stringify(summary.reported) === JSON.stringify(reported)
     )
       return
-    record.summary = { ...summary, agentRan, agent, ready, activity, telemetry, reported }
+    record.summary = { ...summary, agentRan, agent, ready, startup, activity, telemetry, reported }
     this.host.announce(record)
   }
 
