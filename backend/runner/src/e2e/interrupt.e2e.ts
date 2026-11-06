@@ -1,4 +1,4 @@
-import { existsSync, writeFileSync } from "node:fs"
+import { existsSync, readFileSync, writeFileSync } from "node:fs"
 import { join } from "node:path"
 import { setTimeout as sleep } from "node:timers/promises"
 
@@ -25,20 +25,26 @@ const queuedUp = async (terminal: DeckTerminal, setup: AgentSetup, prompt: strin
 // project says it ran.
 const slowHook = "slow-hook.cjs"
 const slowHookLog = "slow-hook.log"
-const seedSlowHook = ({ sandbox }: E2E) =>
+const seedSlowHook = ({ sandbox }: E2E, ms = 1300) =>
   writeFileSync(
     join(sandbox.project, slowHook),
     `const { appendFileSync } = require("node:fs")
 const { join } = require("node:path")
 appendFileSync(join(__dirname, ${JSON.stringify(slowHookLog)}), "ran\\n")
-setTimeout(() => console.log("{}"), 1300)
+setTimeout(() => console.log("{}"), ${ms})
 `,
   )
+
+// A hook after each tool, long enough to stay on the spinner through the Stop.
+const slowToolHook = "slow-tool-hook.cjs"
+const seedSlowToolHook = ({ sandbox }: E2E) =>
+  writeFileSync(join(sandbox.project, slowToolHook), `setTimeout(() => console.log("{}"), 6000)\n`)
 
 for (const setup of setups) {
   describe.skipIf(!supported)(setup.name, () => {
     const it = e2e(setup)
     const slow = e2e.seeded({ promptHook: slowHook }, setup)
+    const slowTool = e2e.seeded({ promptHook: slowHook, toolHook: slowToolHook }, setup)
 
     it("presses one Escape for a double Stop, leaving an empty prompt with no picker, and takes the next prompt", async ({
       e2e: run,
@@ -133,7 +139,11 @@ for (const setup of setups) {
     const twoQueued = async (
       run: E2E,
       ready: (terminal: DeckTerminal) => Promise<unknown>,
-      replyMidStop = false,
+      {
+        replyMidStop = false,
+        inTool = false,
+        stopped: onStopped,
+      }: { replyMidStop?: boolean; inTool?: boolean; stopped?: () => void } = {},
     ) => {
       const held = gate()
       const queuedHeld = gate()
@@ -145,6 +155,8 @@ for (const setup of setups) {
             return { text: "Queued late." }
           }
           if (!asked(call, "Hold on")) return undefined
+          if (inTool && !call.turns.some((turn) => turn.role === "tool"))
+            return { calls: [{ name: "Bash", input: { command: "sleep 2", description: "Wait" } }] }
           await held.opened
           return { text: "Too late." }
         }),
@@ -158,6 +170,7 @@ for (const setup of setups) {
         after: calls,
       })
       await t1.reached("working", { after: mark })
+      if (inTool) await t1.until("sleep 2")
       await t1.prompt("Queued beta")
       await t1.prompt("Queued gamma")
       await ready(t1)
@@ -170,6 +183,7 @@ for (const setup of setups) {
       held.open()
       queuedHeld.open()
       await sleep(2500)
+      onStopped?.()
 
       expect(stopped.returned).toBe(setup.agent === "codex" ? null : "Queued beta\nQueued gamma")
       const shown = await t1.screen()
@@ -205,7 +219,27 @@ for (const setup of setups) {
       "gives back both of two queued messages where the turn ends as the Stop waits on their hooks",
       ({ e2e: run }) => {
         seedSlowHook(run)
-        return twoQueued(run, midHook(run), true)
+        return twoQueued(run, midHook(run), { replyMidStop: true })
+      },
+    )
+
+    // The tool ends while the queued messages' hooks run, which outlast it, and its hook takes
+    // over the spinner. A Stop that went at once would kill theirs, which run again: the own
+    // prompt's hook and the two queued ones' are all the log may hold.
+    gated(slowTool, setup.toolHooking ? undefined : "its spinner tells of no tool's hook")(
+      "gives back both of two queued messages where a tool's hook has taken over their spinner",
+      async ({ e2e: run }) => {
+        seedSlowHook(run, 3000)
+        seedSlowToolHook(run)
+        let ran = ""
+        const onSpinner = (terminal: DeckTerminal) => terminal.until(setup.toolHooking!)
+        await twoQueued(run, onSpinner, {
+          inTool: true,
+          stopped: () => {
+            ran = readFileSync(join(run.sandbox.project, slowHookLog), "utf8")
+          },
+        })
+        expect(ran).toBe("ran\nran\nran\n")
       },
     )
 

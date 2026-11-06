@@ -57,12 +57,14 @@ const queued = (screen: ScreenText): boolean =>
   screen.rows.some((row) => row.includes("Press up to edit queued messages"))
 
 /**
- * Whether messages queued behind the turn are still in their `UserPromptSubmit` hooks: its
- * spinner, under the latest of them, says "running UserPromptSubmit hooks… 1/2" (hooks of
- * the event, not messages), and "ctrl+x ctrl+s to send now" stands under that message once
- * they are through (fixtures/queued-hooks.probe.json, 2.1.316). The hooks of two messages
- * overlap. Escape meanwhile kills them and runs them again one message at a time, so that
- * the second Escape gives back only the first (probed 2026-11-06, 2.1.316).
+ * Whether messages queued behind the turn may still be in their `UserPromptSubmit` hooks:
+ * its spinner, under the latest of them, says "running UserPromptSubmit hooks… 1/2" (hooks
+ * of the event, not messages), and "ctrl+x ctrl+s to send now" stands under that message
+ * once they are through (fixtures/queued-hooks.probe.json, 2.1.316). The spinner names only
+ * the latest event, so a tool's hook takes it over while theirs still run: any hook's words
+ * count. The hooks of two messages overlap. Escape meanwhile kills them and runs them again
+ * one message at a time, so that the second Escape gives back only the first, or both with
+ * the chat left reading `working` (probed 2026-11-06, 2.1.316).
  * The hint with the spinner is the turn's own hook: its messages run theirs only as they
  * are sent, whenever Escape comes, so there is nothing to wait for.
  */
@@ -71,7 +73,7 @@ const queueing = (screen: ScreenText): boolean => {
   const above = screen.rows.slice(0, read(screen)?.first ?? 0)
   const under = above.slice(above.findLastIndex((row) => row.startsWith("❯ ")) + 1)
   return (
-    under.some((row) => row.includes("running UserPromptSubmit hook")) &&
+    under.some((row) => /running \w+ hook/.test(row)) &&
     !under.some((row) => row.includes("ctrl+x ctrl+s to send now"))
   )
 }

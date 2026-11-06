@@ -2,9 +2,9 @@
 // mid-turn, what its screen says meanwhile, and what comes of a Stop at a given moment after
 // the queueing. Each harness gets a prompt hook 1.3 s slow that logs when it starts and ends.
 // Two messages are queued behind a held turn, or with PROBE_WHEN=own-hook while the turn's own
-// prompt hook still runs; the Stop comes `pause` ms after the second `prompt` resolved. A timeline of the screen's telling rows, the hook's log and the model's
-// calls are kept. Runs only with NOVADECK_E2E_PROBES=1, by path; writes
-// $PROBE_OUT/<agent>-queued-hooks.json.
+// prompt hook still runs; the Stop comes `pause` ms after the second `prompt` resolved. A
+// timeline of the screen's telling rows, the hook's log and the model's calls are kept. Runs
+// only with NOVADECK_E2E_PROBES=1, by path; writes $PROBE_OUT/<agent>-queued-hooks.json.
 /* eslint-disable no-await-in-loop -- A probe's steps run in order. */
 import { mkdirSync, readFileSync, writeFileSync } from "node:fs"
 import { join } from "node:path"
@@ -142,7 +142,7 @@ describe.skipIf(!supported || !probing || process.env.PROBE_TOOL !== "1")(
         run.model.use(async (call) => {
           if (call.side) return undefined
           if (asked(call, "Queued")) await queuedHeld.opened
-          else if (asked(call, "Hold on") && !/tool_result|Tool ran/.test(latest(call)))
+          else if (asked(call, "Hold on") && !call.turns.some((turn) => turn.role === "tool"))
             return { calls: [{ name: "Bash", input: { command: "sleep 6", description: "Wait" } }] }
           return { text: "Fine." }
         })
@@ -190,7 +190,7 @@ describe.skipIf(!supported || !probing || process.env.PROBE_TOOL !== "1")(
 
 // The screens Claude Code's profile reads for the hold, kept as a fixture.
 describe.skipIf(!supported || !probing)("probe: Claude Code's queued screens", () => {
-  const it = e2e.seeded({ promptHook: hookFile }, claude)
+  const it = e2e.seeded({ promptHook: hookFile, toolHook: hookFile }, claude)
   const long = `Queued long ${"word ".repeat(40).trim()}`
   it("each state", { timeout: 300_000 }, async ({ e2e: run }) => {
     seedHook(run)
@@ -212,7 +212,9 @@ describe.skipIf(!supported || !probing)("probe: Claude Code's queued screens", (
     let gates = gate()
     run.model.use(async (call) => {
       if (call.side) return undefined
-      if (asked(call, "Hold on")) await gates.opened
+      if (asked(call, "In a tool") && !call.turns.some((turn) => turn.role === "tool"))
+        return { calls: [{ name: "Bash", input: { command: "sleep 1", description: "Wait" } }] }
+      if (asked(call, "Hold on") || asked(call, "In a tool")) await gates.opened
       return { text: "Fine." }
     })
 
@@ -244,6 +246,16 @@ describe.skipIf(!supported || !probing)("probe: Claude Code's queued screens", (
     await three.prompt("Queued gamma")
     await sleep(150)
     await take(three, "ownHook", hint)
+    await three.interrupt()
+    gates.open()
+
+    gates = gate()
+    const four = await start(run, claude)
+    await four.prompt("In a tool")
+    await four.until("sleep 1", 15_000)
+    await four.prompt("Queued beta")
+    await four.prompt("Queued gamma")
+    await take(four, "toolHook", /running PostToolUse hook[\s\S]*Press up to edit queued/)
     gates.open()
   })
 })

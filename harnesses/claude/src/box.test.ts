@@ -18,6 +18,7 @@ describe("Claude Code's queued messages", () => {
     ["wrappedRunning", true],
     ["wrappedThrough", false],
     ["ownHook", false],
+    ["toolHook", true],
   ])("reads %s as queueing: %s", (state, expected) => {
     const screen = states[state]!
     expect(box.queued(screen)).toBe(true)
