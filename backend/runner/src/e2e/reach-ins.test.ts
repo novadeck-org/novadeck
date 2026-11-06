@@ -104,13 +104,14 @@ describe("the e2e reach-ins", () => {
     expect(inside.reporting.report).toBeTypeOf("function")
   })
 
-  it("startup-screens': a record's prompts, expectation and screen's buffer", async ({
+  it("startup-screens': a record's prompts, expectation, binding and screen's buffer", async ({
     resources,
   }) => {
     const { inside, id } = await running(resources)
     const record = inside.records.get(id)!
     expect(record).toHaveProperty("prompts")
     expect(record).toHaveProperty("expecting", null)
+    expect(record).toHaveProperty("bound", null)
     expect(record).toHaveProperty("terminal.screen.buffer.active.baseY")
   })
 

@@ -2080,7 +2080,10 @@ all of these stand for 5 s (15 s on Windows, which starts agents far slower):
   `controls.e2e.ts`. Codex turns paste on about 0.2 s before it first draws, so one that stalled
   just there for the whole delay would have the shell's own text read as its screen; no run has
   done so. Nor is a load that draws no box of its own after paste comes on told from a screen,
-  should one stand for the delay: none probed does, but a large session resumed by id isn't.
+  should one stand for the delay, but none does: restored by a restarted runner, sessions of
+  159 MB (Claude Code), 328 MB (Codex) and 127 MB (Antigravity) each drew a box within 0.8 s of
+  the shell's start, 0.2 s after paste came on at most, and on one core (Linux, warm disk cache,
+  text turns only).
 - The screen isn't blank, and its text doesn't change. Its text, so that a console's repaints
   count for nothing.
 - The expected harness's own box doesn't read on it. `startup.probe.json` beside each harness

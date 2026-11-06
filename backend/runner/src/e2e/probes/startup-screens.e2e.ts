@@ -8,13 +8,18 @@
 // fake model's proxy refuses; its update and slow-MCP cases fail the same way, on the app
 // server and the `sleep` that outlive the deck, which its teardown ends. Claude Code without
 // a key stops at its connectivity check before its sign-in screen, and nothing here raises an
-// update screen of its, so neither is probed.
+// update screen of its, so neither is probed. With PROBE_RESUME_TURNS set too, each harness
+// plays that many turns of PROBE_RESUME_KB kB against the fake model, so each writes its own
+// format, and is restored by a restarted runner, as an app restart does; $PROBE_OUT then has
+// <harness>-resume-<turns>x<kB>k.json, its `size` the largest files of the session.
 /* eslint-disable no-await-in-loop -- Samples run in order. */
 import {
   appendFileSync,
   chmodSync,
   mkdirSync,
+  readdirSync,
   readFileSync,
+  statSync,
   symlinkSync,
   writeFileSync,
 } from "node:fs"
@@ -30,7 +35,8 @@ import { codex } from "../agents/codex.js"
 import type { DeckTerminal } from "../deck.js"
 import { describe, e2e, selected, supported, type E2E } from "../fixture.js"
 import { installHarness } from "../install.js"
-import { replies } from "../scenarios.js"
+import { asked } from "../model/script.js"
+import { own, replies, start } from "../scenarios.js"
 import { sleep } from "./support.js"
 
 const out = process.env.PROBE_OUT
@@ -48,7 +54,8 @@ type Inside = {
         startup: unknown
       }
       expecting: string | null
-      startupScreen?: string
+      startupScreen?: unknown
+      bound: unknown
       terminal: { screen: { buffer: { active: { viewportY: number; baseY: number } } } }
     }
   >
@@ -81,6 +88,7 @@ const watch = async (
           ready: record?.summary.ready ?? null,
           startup: record?.summary.startup ?? null,
           startupScreen: record?.startupScreen ?? null,
+          bound: Boolean(record?.bound),
           expecting: record?.expecting ?? null,
           promptLines: record?.prompts.map((one) => one.line) ?? [],
           base: record?.terminal.screen.buffer.active.baseY ?? null,
@@ -99,7 +107,53 @@ const watch = async (
 
 const trusted = { folderTrusted: true }
 
+const resumeTurns = Number(process.env.PROBE_RESUME_TURNS ?? 0)
+const resumeKb = Number(process.env.PROBE_RESUME_KB ?? 1)
+
+/** The largest files under `folder`, largest first, as what a session's size is read from. */
+const largest = (folder: string): { file: string; bytes: number }[] =>
+  readdirSync(folder, { recursive: true, encoding: "utf8" })
+    .flatMap((file) => {
+      const stat = statSync(join(folder, file), { throwIfNoEntry: false })
+      return stat?.isFile() ? [{ file, bytes: stat.size }] : []
+    })
+    .toSorted((one, other) => other.bytes - one.bytes)
+    .slice(0, 4)
+
 describe.skipIf(!out || !supported)("probe: startup screens", () => {
+  describe.skipIf(!resumeTurns)("resume", () => {
+    for (const setup of [claude, codex, agy])
+      describe.skipIf(!selected(setup))(setup.agent, () => {
+        e2e.seeded(trusted, setup)(
+          `${resumeTurns} turns of ${resumeKb} kB`,
+          async ({ e2e: run }) => {
+            const line = "A line of the large session's reply, long enough to wrap in a terminal"
+            const reply = Array.from(
+              { length: Math.ceil((resumeKb * 1024) / (line.length + 8)) },
+              (_, index) => `${index} ${line}.`,
+            ).join("\n")
+            run.model.use(
+              own((call) => (asked(call, "of the large session") ? { text: reply } : undefined)),
+            )
+            const terminal = await start(run, setup)
+            for (let turn = 1; turn <= resumeTurns; turn += 1) {
+              const mark = terminal.mark()
+              await terminal.submit(`Turn ${turn} of the large session`)
+              await terminal.reached("settled", { after: mark, timeoutMs: 120_000 })
+            }
+            const name = `${setup.agent}-resume-${resumeTurns}x${resumeKb}k`
+            mkdirSync(out!, { recursive: true })
+            writeFileSync(
+              join(out!, `${name}.size.json`),
+              JSON.stringify(largest(run.sandbox.home)),
+            )
+            await run.deck.restart()
+            await watch(run, setup, await run.deck.restore(terminal, { resume: setup.agent }), name)
+          },
+          Number(process.env.PROBE_RESUME_MS ?? 600_000),
+        )
+      })
+  })
   describe.skipIf(!selected(claude))("claude", () => {
     e2e.seeded({ folderTrusted: false }, claude)("trust", async ({ e2e: run }) => {
       await watch(run, claude, await run.deck.open("claude"), "claude-trust")
