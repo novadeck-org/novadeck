@@ -1,4 +1,4 @@
-import { mkdir, writeFile } from "node:fs/promises"
+import { mkdir, readFile, writeFile } from "node:fs/promises"
 import { basename, isAbsolute, join } from "node:path"
 import { setTimeout as sleep } from "node:timers/promises"
 
@@ -46,7 +46,12 @@ import {
  * or a download would: Novadeck expects the agent from its name, and nothing of the agent's
  * shows meanwhile. It lies outside the project, so the agent it starts is the one on PATH.
  */
-const slowStart = async (root: string, agent: AgentName, ms: number): Promise<string> => {
+const slowStart = async (
+  root: string,
+  agent: AgentName,
+  ms: number,
+  unset?: string,
+): Promise<string> => {
   const seconds = Math.ceil(ms / 1000)
   const folder = join(root, "slow-start")
   await mkdir(folder, { recursive: true })
@@ -55,14 +60,18 @@ const slowStart = async (root: string, agent: AgentName, ms: number): Promise<st
     // `ping` waits with no console input to read, as `timeout` needs.
     await writeFile(
       script,
-      `@echo Loading\r\n@ping -n ${seconds + 1} 127.0.0.1 >nul\r\n@call ${agent} %*\r\n`,
+      `@echo Loading\r\n@ping -n ${seconds + 1} 127.0.0.1 >nul\r\n${unset ? `@set ${unset}=\r\n` : ""}@call ${agent} %*\r\n`,
     )
     return script
   }
   const script = join(folder, agent)
-  await writeFile(script, `#!/bin/sh\necho Loading\nsleep ${seconds}\nexec ${agent} "$@"\n`, {
-    mode: 0o755,
-  })
+  await writeFile(
+    script,
+    `#!/bin/sh\necho Loading\nsleep ${seconds}\n${unset ? `unset ${unset}\n` : ""}exec ${agent} "$@"\n`,
+    {
+      mode: 0o755,
+    },
+  )
   return script
 }
 
@@ -859,6 +868,23 @@ for (const setup of setups) {
         }
       },
     )
+  })
+
+  // Only Antigravity tells which screen it is at: its status line, behind its login screen.
+  describe.skipIf(!supported || setup.agent !== "agy")(`${setup.name}, signed out`, () => {
+    e2e(setup)("names its sign-in screen as the one that holds it", async ({ e2e: run }) => {
+      const file = join(run.sandbox.home, ".gemini", "antigravity-cli", "settings.json")
+      const { modelProvider: _modelProvider, ...settings } = JSON.parse(
+        await readFile(file, "utf8"),
+      ) as { modelProvider?: string }
+      await writeFile(file, JSON.stringify(settings))
+      const t = await run.deck.open(
+        await slowStart(run.sandbox.root, setup.agent, 0, "GEMINI_API_KEY"),
+      )
+      await t.until(/Select login method/, 60_000)
+      await t.poll(() => t.summary().startup ?? undefined, "its sign-in screen to count", 60_000)
+      expect(t.summary().startup).toEqual({ agent: setup.agent, screen: "sign-in" })
+    })
   })
 
   describe.skipIf(!supported)(`${setup.name}, its folder untrusted`, () => {

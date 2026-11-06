@@ -1,7 +1,7 @@
 import { absolute, sessionId, text, versionName } from "@novadeck/harness-core/decode"
 import type { EventBase, HarnessEvent, PromptShown } from "@novadeck/harness-core/events"
 import type { Report } from "@novadeck/harness-core/report"
-import { telemetryLimits } from "@novadeck/protocol"
+import { telemetryLimits, type StartupScreen } from "@novadeck/protocol"
 
 import { abandoned, latestOf } from "./call-memory.js"
 
@@ -160,6 +160,16 @@ export const statusLine = ({
     ...(version !== undefined && { version }),
   })
   return events
+}
+
+/**
+ * Which screen Antigravity says it is at before any conversation: its login screen, or, as
+ * it says initializing on the way to its prompt too, only a startup screen if one holds it.
+ */
+export const startupScreen = ({ event, payload }: Report): StartupScreen | undefined => {
+  if (event !== "StatusLine" || payload.conversation_id) return undefined
+  if (payload.agent_state === "authenticating") return "sign-in"
+  return payload.agent_state === "initializing" ? "startup" : undefined
 }
 
 /**

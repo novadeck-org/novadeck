@@ -136,7 +136,11 @@ describe("the startup watch", () => {
     let expected: AgentName | null
     let drawn: ScreenText | undefined
     let changed: number
-    const record: { summary: WatchedRecord["summary"]; terminal: { run: number } } = {
+    const record: {
+      summary: WatchedRecord["summary"]
+      terminal: { run: number }
+      startupScreen?: WatchedRecord["startupScreen"]
+    } = {
       summary: { id: "t", startup: null } as WatchedRecord["summary"],
       terminal: { run: 1 },
     }
@@ -175,6 +179,7 @@ describe("the startup watch", () => {
       drawn = shown(["Trust this folder?"])
       record.summary = { ...record.summary, startup: null }
       record.terminal = { run: 1 }
+      record.startupScreen = undefined
       watch = watching(async () => drawn, delayMs)
     })
 
@@ -187,6 +192,16 @@ describe("the startup watch", () => {
       await pass(7000)
       expect(record.summary.startup).toEqual({ agent: "codex", screen: "startup" })
       expect(changed).toBe(1)
+    })
+
+    it("names the screen its agent says it is at, and follows it there", async () => {
+      record.startupScreen = "sign-in"
+      await pass(7000)
+      expect(record.summary.startup).toEqual({ agent: "codex", screen: "sign-in" })
+      record.startupScreen = "startup"
+      await pass(1000)
+      expect(record.summary.startup).toEqual({ agent: "codex", screen: "startup" })
+      expect(changed).toBe(2)
     })
 
     it("lets go once the agent is no longer expected, and stops looking", async () => {

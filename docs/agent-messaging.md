@@ -1152,7 +1152,7 @@ dialog is a pending request in all three (Codex's `request_user_input` through i
 `PreToolUse` hook), so `asking` comes first; read off the screen alone, Claude Code's
 question list reads as a box holding "1. Blue…" (a draft), its MCP form and Antigravity's
 question and folder-trust screens as no box, and Codex's as one holding the whole
-question. A Codex note field and Antigravity's login screen were not probed. Three rings in a row that
+question. A Codex note field was not probed; Antigravity's login screen reads as no box. Three rings in a row that
 failed after pasting something stop the doorbell (`failed`) until a root turn event or a
 key of the person's; one given up before it pasted, because the box no longer read empty,
 doesn't count. A terminal made Ready by its screen has had turns, so the ring's allowance
@@ -2061,6 +2061,11 @@ all of these stand for 5 s (15 s on Windows, which starts agents far slower):
   to start holds none of the three behind such a screen: each draws its box first. Claude
   Code's sign-in and update screens are not probed: it stops at a connectivity check without
   a key, and the sandbox can't raise the other.
+
+Antigravity also says which it is: its status line reads `authenticating` behind its login
+screen, which the state names as "its sign-in screen", and `initializing` behind its trust
+dialog and on the way to any prompt, so that says nothing by itself. Either only names a
+screen the rules above already count. The others' screens read as "its startup screen".
 
 The state ends at once at a box, a bound session or the agent's prompt, and once the screen
 has moved for as long as the delay: a key the person presses moves it for one look, so its mark

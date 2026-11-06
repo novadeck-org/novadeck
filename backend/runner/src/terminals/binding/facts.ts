@@ -239,8 +239,17 @@ export class Bindings {
    * What the shell held of its agents, which ends with it, as it exits or restarts. The rest
    * of a shell's state (its prompts, line, foreground) the restart sets for the new one.
    */
-  private shellEnded(): Pick<Record, "suspended" | "root" | "seenEntry" | "goneSession"> {
-    return { suspended: null, root: null, seenEntry: undefined, goneSession: undefined }
+  private shellEnded(): Pick<
+    Record,
+    "suspended" | "root" | "seenEntry" | "goneSession" | "startupScreen"
+  > {
+    return {
+      suspended: null,
+      root: null,
+      seenEntry: undefined,
+      goneSession: undefined,
+      startupScreen: undefined,
+    }
   }
 
   /**

@@ -1,12 +1,9 @@
-import type { AgentActivity, AgentName, TerminalSummary, TitleSource } from "@novadeck/protocol"
+import type { AgentActivity, AgentName, StartupScreen, TitleSource } from "@novadeck/protocol"
 
 import { bareHandle, mention } from "../terminals/handles.js"
 import { busiestFolders, firstFrom, plainPrompt, type Work } from "../terminals/work.js"
 import { cut, shorten } from "../text.js"
 import { agentLabel, clock, holdOf, isNotice, senderTerminal, type Message } from "./messages.js"
-
-/** The kind of screen that holds an agent for the person before its first session. */
-export type StartupScreen = NonNullable<TerminalSummary["startup"]>["screen"]
 
 /**
  * What the terminal manager knows of a terminal beyond messaging: its title and who it

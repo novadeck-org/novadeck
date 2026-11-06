@@ -1,4 +1,10 @@
-import type { AgentCoverage, AgentIntegration, AgentName, TranscriptItem } from "@novadeck/protocol"
+import type {
+  AgentCoverage,
+  AgentIntegration,
+  AgentName,
+  StartupScreen,
+  TranscriptItem,
+} from "@novadeck/protocol"
 import type { BoxProfile } from "@novadeck/tui-input/box"
 
 import type { DialogAdapter } from "./dialogs.js"
@@ -211,6 +217,11 @@ export type Harness = {
    * has bound, as Antigravity's status line saying idle with no conversation yet.
    */
   readonly shown?: (report: Report) => PromptShown | undefined
+  /**
+   * Which screen one of its hooks' reports says it is at before any session, where it says:
+   * the screen's look alone decides whether that holds it for the person.
+   */
+  readonly startupScreen?: (report: Report) => StartupScreen | undefined
   /**
    * Whether the terminal title it sets, as Novadeck's shells start it (Codex's shim names
    * the title's items), says its prompt shows. It counts only while the terminal's

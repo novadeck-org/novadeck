@@ -8,7 +8,7 @@ import { coalesced } from "./coalesce.js"
 import type { Record } from "./record.js"
 
 /** What the watch reads of a terminal's record, and what it keeps there. */
-export type WatchedRecord = Pick<Record, "summary"> & {
+export type WatchedRecord = Pick<Record, "summary" | "startupScreen"> & {
   readonly terminal: Pick<Terminal, "run">
 }
 
@@ -194,8 +194,9 @@ export class StartupWatch<R extends WatchedRecord> {
   }
 
   private show(record: R, agent: AgentName | null, held: boolean): void {
-    const startup = agent && held ? { agent, screen: "startup" as const } : null
-    if (record.summary.startup?.agent === startup?.agent) return
+    const startup = agent && held ? { agent, screen: record.startupScreen ?? "startup" } : null
+    const { startup: shown } = record.summary
+    if (shown?.agent === startup?.agent && shown?.screen === startup?.screen) return
     record.summary = { ...record.summary, startup }
     this.host.changed(record)
   }
