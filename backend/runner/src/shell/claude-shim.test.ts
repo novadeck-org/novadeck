@@ -25,6 +25,7 @@ type Fixture = {
   real: string
   settings: string
   remove: () => void
+  variables: () => unknown[]
 }
 
 // The real claude is a stand-in that records the arguments it received.
@@ -36,10 +37,13 @@ const it = base.extend<{ shim: Fixture }>({
     const real = join(root, "real")
     mkdirSync(real)
     const log = join(root, "args.json")
+    const variables = join(root, "variables.json")
     const recorder = join(root, "record.cjs")
     writeFileSync(
       recorder,
-      `require("node:fs").writeFileSync(${JSON.stringify(log)}, JSON.stringify(process.argv.slice(2)))`,
+      `const { writeFileSync } = require("node:fs")
+      writeFileSync(${JSON.stringify(log)}, JSON.stringify(process.argv.slice(2)))
+      writeFileSync(${JSON.stringify(variables)}, JSON.stringify([process.env.novadeck_line, process.env.novadeck_arg]))`,
     )
     if (windows)
       writeFileSync(join(real, "claude.cmd"), `@"${process.execPath}" "${recorder}" %*\r\n`)
@@ -83,7 +87,16 @@ const it = base.extend<{ shim: Fixture }>({
       if (received === undefined) throw new Error(`claude never ran: ${result.stderr}`)
       return received
     }
-    await use({ root, run, launch, bin: paths.bin, real, settings, remove: () => rmSync(settings) })
+    await use({
+      root,
+      run,
+      launch,
+      bin: paths.bin,
+      real,
+      settings,
+      remove: () => rmSync(settings),
+      variables: () => JSON.parse(readFileSync(variables, "utf8")) as unknown[],
+    })
   },
 })
 
@@ -235,6 +248,15 @@ describe("claude shim", { timeout: 60_000 }, () => {
       expect.stringMatching(/statusline\.json$/),
       prompt,
     ])
+  })
+
+  it("keeps the line it read, and a prompt, out of what claude and its tools inherit", ({
+    shim,
+  }) => {
+    shim.run(["a secret prompt"])
+    expect(shim.variables()).toEqual([null, null])
+    shim.run(["--add-dir", "a", "--verbose", "a secret prompt"])
+    expect(shim.variables()).toEqual([null, null])
   })
 
   it("hands on a word that cmd's own commands take as a request for their help", ({ shim }) => {

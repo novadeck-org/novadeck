@@ -185,10 +185,10 @@ rem the line as typed tells it from --add-dir a, read delayed so that no quote i
 rem a command separator. That is the option's first mention, and cmd splits its value at a comma
 rem too: where either misleads, a session goes without the status line, or a command gets one.
 :list
-set novadeck_line=%*
 shift
 shift
 setlocal enabledelayedexpansion
+set novadeck_line=%*
 set "novadeck_after=!novadeck_line:*%novadeck_arg%=!"
 if "!novadeck_after:~0,1!"=="=" (
   endlocal
@@ -203,6 +203,7 @@ if defined novadeck_arg if "%novadeck_arg:~0,1%"=="-" if not "%novadeck_arg%"=="
 shift
 goto more
 :session
+set "novadeck_arg="
 "%novadeck_real%" --settings "%novadeck_settings%" %*
 exit /b %ERRORLEVEL%
 :plain
