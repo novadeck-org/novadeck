@@ -137,14 +137,14 @@ describe.runIf(process.platform === "win32" && supported)("a new Windows termina
           await drawn(earlier, /printed all/)
           const { id } = earlier
           const saved = () => unsealed(deck.store.terminal(id)?.transcript, id)?.length ?? 0
-          // A quit takes the long screen only if its budget allows; a row with none tells nothing.
-          if (size === "long")
-            // eslint-disable-next-line no-await-in-loop -- As above.
-            await poll(
-              () => (saved() > 100_000 ? true : undefined),
-              "the long screen to be saved",
-              60_000,
-            )
+          // A quit takes a screen only if its budget allows, and a row with none tells nothing.
+          const enough = size === "long" ? 100_000 : 0
+          // eslint-disable-next-line no-await-in-loop -- As above.
+          await poll(
+            () => (saved() > enough ? true : undefined),
+            `the ${size} screen to be saved`,
+            60_000,
+          )
           for (let round = 1; round <= rounds; round++) {
             // eslint-disable-next-line no-await-in-loop -- As above.
             await deck.restart()
@@ -165,7 +165,9 @@ describe.runIf(process.platform === "win32" && supported)("a new Windows termina
         }
       } catch (error) {
         // The agents' rows still come.
-        failures.push(`cmd restored: ${(error as Error).message}`)
+        const failure = `cmd restored: ${(error as Error).message}`
+        process.stdout.write(`New terminal, ${failure}\n`)
+        failures.push(failure)
       } finally {
         await deck.close()
       }
