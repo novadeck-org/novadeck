@@ -894,6 +894,11 @@ versions it names). That's where they pay:
 - At the pinned version they'd repeat what the fixtures hold, so a pull request learns
   nothing from them.
 
+The `agent-exit` probe also runs on macOS and Windows, as what it times is the system's: how
+long each harness takes to exit once the runner hangs up its terminal. The
+Exit probe workflow runs it on all three when it or that workflow changes, a job per harness
+and one with them all at once, and keeps its findings as `agent-exit-<harness>-<OS>`.
+
 A failed night, probes included, opens the "Nightly E2E is failing" issue or adds to it,
 and the first green night closes it (`.github/workflows/nightly.yml`, `scripts/nightly`).
 Each such report also carries a model's "Likely cause", read from the failed tests' errors
