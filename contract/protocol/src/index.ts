@@ -151,3 +151,12 @@ export {
   type TranscriptItem,
   transcriptLimits,
 } from "./transcripts.js"
+export {
+  liveSlice,
+  sliceChange,
+  sliceLimits,
+  sliceRun,
+  type LiveSlice,
+  type SliceChange,
+  type SliceRun,
+} from "./slices.js"

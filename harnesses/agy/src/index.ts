@@ -3,7 +3,7 @@ import { join } from "node:path"
 import type { Harness, LaunchProfile, MessagingProfile } from "@novadeck/harness-core/harness"
 import { beside } from "@novadeck/harness-core/paths"
 
-import { box } from "./box.js"
+import { box, slice } from "./box.js"
 import { decode } from "./decode.js"
 import { dialogs } from "./dialogs.js"
 import { antigravityHome } from "./home.js"
@@ -159,4 +159,5 @@ export const agy = {
   launch,
   messaging,
   box,
+  slice,
 } satisfies Harness

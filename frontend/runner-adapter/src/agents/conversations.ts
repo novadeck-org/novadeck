@@ -20,6 +20,7 @@ import {
   normalisedText,
   promptRefusal as protocolRefusal,
   type AgentDetail,
+  type SliceChange,
   type RequestAnswer,
   type TranscriptChange,
   type TranscriptItem,
@@ -33,6 +34,7 @@ import { hasCode } from "@novadeck/runner-client"
 
 export type ConversationStreams = {
   readonly detail: (terminalId: string) => AsyncIterableIterator<AgentDetail, undefined>
+  readonly slice: (terminalId: string) => AsyncIterableIterator<SliceChange, undefined>
   readonly transcript: (
     terminalId: string,
     actor: string,
@@ -246,6 +248,7 @@ const read = (
   let following: string | null = null
   let transcript: Stream<TranscriptChange> | undefined
   let detail: Stream<AgentDetail> | undefined
+  let slices: Stream<SliceChange> | undefined
   // Settles a read again after a reset once it has been quiet.
   let settling: ReturnType<typeof setTimeout> | undefined
   // Reads that failed in a row without getting further than the one before, when the last
@@ -395,6 +398,7 @@ const read = (
       return {
         agent: snapshot.agent,
         session,
+        slice: current.slice,
         requests: sameRequests(current.requests, requests) ? current.requests : requests,
         prompts: samePrompts(current.prompts, prompts) ? current.prompts : prompts,
         ...(changed
@@ -417,10 +421,23 @@ const read = (
 
   try {
     detail = streams.detail(terminalId)
+    slices = streams.slice(terminalId)
   } catch {
+    end(detail)
     return { stop: () => {} }
   }
   const stream = detail
+  const sliceStream = slices
+  void (async () => {
+    try {
+      for await (const { slice } of sliceStream) {
+        if (!alive) return
+        store.update((current) => ({ ...current, slice }))
+      }
+    } catch {
+      // The terminal is gone, or the runner closed: `detail` tells the same.
+    }
+  })()
   void (async () => {
     try {
       for await (const snapshot of stream) {
@@ -444,6 +461,7 @@ const read = (
     stop: () => {
       alive = false
       end(detail)
+      end(slices)
       end(transcript)
       transcript = undefined
       clearTimeout(settling)

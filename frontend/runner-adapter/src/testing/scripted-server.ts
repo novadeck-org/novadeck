@@ -258,6 +258,7 @@ export const scriptedRunner = ({
         { agent: "claude" as const, available: true, connected: true },
       ]),
       detail: api.agents.detail.handler(idle),
+      slice: api.agents.slice.handler(idle),
       transcript: api.agents.transcript.handler(idle),
       prompt: api.agents.prompt.handler(unplayed("agents.prompt")),
       answer: api.agents.answer.handler(unplayed("agents.answer")),

@@ -948,6 +948,7 @@ describe("The Console sheet", () => {
 
       act(() =>
         transcript.update(() => ({
+          slice: null,
           agent: "codex",
           session: "x",
           loaded: true,

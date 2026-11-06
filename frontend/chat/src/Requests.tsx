@@ -1,4 +1,9 @@
-import { WordsLost, type ChatAnswer, type ChatRequest } from "@novadeck/core/conversation"
+import {
+  WordsLost,
+  type ChatAnswer,
+  type ChatRequest,
+  type ChatSlice,
+} from "@novadeck/core/conversation"
 import type { Refused } from "@novadeck/core/conversation/prompt-refusal"
 import { CircleHelp, ClipboardList, Loader, ShieldQuestion, type LucideIcon } from "lucide-react"
 import { useEffect, useRef, useState } from "react"
@@ -23,6 +28,7 @@ const reason = (failure: unknown): string =>
 // backend read it, and the way to answer in the agent's terminal instead.
 const Card = ({
   request,
+  slice,
   agent,
   onAnswer,
   onAnswerInTerminal,
@@ -34,6 +40,7 @@ const Card = ({
   refused,
 }: {
   readonly request: ChatRequest
+  readonly slice: ChatSlice | null
   // The agent's name, for what waits on it.
   readonly agent: string
   readonly onAnswer: (request: string, answer: ChatAnswer) => Promise<void>
@@ -181,6 +188,7 @@ const Card = ({
           key={handedBack}
           dialog={dialog}
           requestId={request.id}
+          slice={slice}
           replying={replying}
           onReply={onReply}
           // While the box's answer goes, the card answers nothing else.
@@ -211,6 +219,7 @@ const Card = ({
 // stays on every card, for a dialog the chat can't answer and for the person's choice.
 export const Requests = ({
   requests,
+  slice,
   agent,
   onAnswer,
   onAnswerInTerminal,
@@ -222,6 +231,8 @@ export const Requests = ({
   refused,
 }: {
   readonly requests: readonly ChatRequest[]
+  // The terminal's own rows, for a dialog no adapter read.
+  readonly slice: ChatSlice | null
   readonly agent: string
   readonly onAnswer: (request: string, answer: ChatAnswer) => Promise<void>
   readonly onAnswerInTerminal: () => void
@@ -240,6 +251,7 @@ export const Requests = ({
         <Card
           key={request.id}
           request={request}
+          slice={slice}
           agent={agent}
           onAnswer={onAnswer}
           onAnswerInTerminal={onAnswerInTerminal}

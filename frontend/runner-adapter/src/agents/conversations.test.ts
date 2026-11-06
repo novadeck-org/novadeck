@@ -1,6 +1,6 @@
 import { noConversation, SettleInTerminal, WordsLost } from "@novadeck/core/conversation"
 import { promptRefusal } from "@novadeck/core/conversation/prompt-refusal"
-import type { AgentDetail, TranscriptChange, TranscriptItem } from "@novadeck/protocol"
+import type { AgentDetail, SliceChange, TranscriptChange, TranscriptItem } from "@novadeck/protocol"
 import { WireError } from "@novadeck/wire"
 import { afterEach, beforeEach, vi } from "vitest"
 
@@ -55,9 +55,11 @@ const key = { projectId: "p", workspaceSessionId: "s", terminalId: "t" }
 
 const setup = () => {
   const details = channel<AgentDetail>()
+  const slices = channel<SliceChange>()
   const transcripts: Record<string, ReturnType<typeof channel<TranscriptChange>>> = {}
   const streams = {
     detail: vi.fn<ConversationStreams["detail"]>(() => details.iterator),
+    slice: vi.fn<ConversationStreams["slice"]>(() => slices.iterator),
     transcript: vi.fn<ConversationStreams["transcript"]>((_terminal, actor) => {
       const next = channel<TranscriptChange>()
       transcripts[actor] = next
@@ -72,7 +74,7 @@ const setup = () => {
   }
   const conversations = createRunnerConversations(streams)
   const store = conversations.conversation(key)
-  return { details, transcripts, streams, conversations, store }
+  return { details, slices, transcripts, streams, conversations, store }
 }
 
 const settle = () => vi.advanceTimersByTimeAsync(0)
@@ -90,6 +92,40 @@ describe("the runner's conversations", () => {
       store.subscribe(() => {})
       expect(streams.detail).toHaveBeenCalledTimes(1)
       stop()
+    })
+
+    it("carries the terminal's live slice, through a new snapshot of the agent", async () => {
+      const { details, slices, store } = setup()
+      store.subscribe(() => {})
+      details.push(detail())
+      await settle()
+      expect(store.getSnapshot().slice).toBeNull()
+      const slice = {
+        reason: "menu" as const,
+        columns: 80,
+        rows: [],
+        cursor: null,
+        secret: false,
+      }
+      slices.push({ slice })
+      await settle()
+      expect(store.getSnapshot().slice).toEqual(slice)
+      details.push(detail())
+      await settle()
+      expect(store.getSnapshot().slice).toEqual(slice)
+      slices.push({ slice: null })
+      await settle()
+      expect(store.getSnapshot().slice).toBeNull()
+    })
+
+    it("ends the slice's stream with the others", async () => {
+      const { details, slices, store } = setup()
+      const unsubscribe = store.subscribe(() => {})
+      details.push(detail())
+      await settle()
+      unsubscribe()
+      await vi.advanceTimersByTimeAsync(graceMs)
+      expect(slices.returned()).toBe(1)
     })
 
     it("counts a session whose transcript stays empty as loaded after a moment", async () => {

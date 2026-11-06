@@ -40,6 +40,7 @@ import { askAnswer, inboxEntry } from "./inbox.js"
 import { terminalMessages, threadId } from "./messages.js"
 import { clientState, folderListing, project, workspaceSession } from "./projects.js"
 import { runnerSettings, runnerSettingsState } from "./settings.js"
+import { sliceChange } from "./slices.js"
 import {
   approval,
   approvalAnswer,
@@ -272,6 +273,13 @@ export const contract = {
     transcript: procedure
       .input(z.strictObject({ terminalId: id, actor: agentRef }))
       .output(eventIterator(transcriptChange)),
+    // The rows of the terminal's screen that stand for something of its harness's own at its
+    // input (a menu at its box, a view of its own, a dialog no adapter reads): a snapshot, then
+    // another on each change, null while nothing shows. It follows the terminal from agent to
+    // agent and ends when the terminal is closed; an unknown terminal is TERMINAL_NOT_FOUND.
+    // Its own stream, apart from `detail`: it changes on every key, and costs a look at the
+    // screen only while someone reads it.
+    slice: procedure.input(z.strictObject({ terminalId: id })).output(eventIterator(sliceChange)),
     // Gives the terminal's agent a prompt as the person would: the text pasted into its own
     // input box as one bracketed paste, then Enter once the paste shows there, the person's
     // keys held meanwhile. A terminal without an agent bound, or one that takes no

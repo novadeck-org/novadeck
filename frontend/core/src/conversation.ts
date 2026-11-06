@@ -183,6 +183,32 @@ export type ChatPrompt = {
 // given through `send`, oldest first, as far as the backend follows them. `unread` once the
 // session's records hold a part of the conversation the backend can't read, which `items`
 // leave out and the terminal shows.
+// Cells side by side in one style, as the terminal draws them (`agents.slice`): `width` is
+// how many columns they take; a colour is a palette index or `#rrggbb`, null the default.
+export type ChatSliceRun = {
+  readonly text: string
+  readonly width: number
+  readonly fg: number | string | null
+  readonly bg: number | string | null
+  readonly bold: boolean
+  readonly dim: boolean
+  readonly italic: boolean
+  readonly underline: boolean
+  readonly inverse: boolean
+}
+
+// The rows of the terminal's screen that stand for something of the harness's own at its
+// input, live. `reason`: a menu at the box, a view of its own, a dialog no adapter read.
+// `secret`: rows a harness knows as a secret prompt, of which nothing keeps a copy. A slice
+// goes to its reader and nowhere else: never to a log, a trace or telemetry.
+export type ChatSlice = {
+  readonly reason: "menu" | "view" | "dialog"
+  readonly columns: number
+  readonly rows: readonly (readonly ChatSliceRun[])[]
+  readonly cursor: { readonly row: number; readonly column: number } | null
+  readonly secret: boolean
+}
+
 export type Conversation = {
   readonly agent: string | null
   readonly session: string | null
@@ -191,6 +217,7 @@ export type Conversation = {
   readonly requests: readonly ChatRequest[]
   readonly prompts: readonly ChatPrompt[]
   readonly unread: boolean
+  readonly slice: ChatSlice | null
 }
 
 export const noConversation: Conversation = {
@@ -201,6 +228,7 @@ export const noConversation: Conversation = {
   requests: [],
   prompts: [],
   unread: false,
+  slice: null,
 }
 
 // What `Conversations.send` resolves with, where its backend follows prompts: whether a

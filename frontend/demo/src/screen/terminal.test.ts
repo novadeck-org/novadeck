@@ -93,6 +93,7 @@ const agentLink = (conversation: Conversation) => {
 }
 
 const conversationOf = (fields: Partial<Conversation> = {}): Conversation => ({
+  slice: null,
   agent: "claude",
   session: "s1",
   loaded: true,

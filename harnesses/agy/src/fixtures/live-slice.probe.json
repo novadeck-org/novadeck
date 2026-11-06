@@ -1,0 +1,1823 @@
+{
+  "harness": "agy",
+  "source": "src/e2e/probes/live-slice.e2e.ts, run with NOVADECK_E2E_PROBES=1 (2026-11-06)",
+  "how": "Each harness driven in a PTY by the end-to-end deck against the fake model, keys written as the person would, each state read once the screen settled. Each run is a sequence of screens in order, as a reader of `agents.slice` meets them; labels are the keys that led to a state. Paths, ids and an OAuth state are masked.",
+  "versions": {
+    "pinned": "1.4.12",
+    "latest": "1.5.2"
+  },
+  "runs": {
+    "menus": [
+      {
+        "label": "long reply",
+        "screen": {
+          "height": 40,
+          "columns": 120,
+          "cursor": {
+            "row": 37,
+            "column": 1
+          },
+          "alternate": false,
+          "rows": {
+            "0": "  Long line 63",
+            "2": "  Long line 64",
+            "4": "  Long line 65",
+            "6": "  Long line 66",
+            "8": "  Long line 67",
+            "10": "  Long line 68",
+            "12": "  Long line 69",
+            "14": "  Long line 70",
+            "16": "  Long line 71",
+            "18": "  Long line 72",
+            "20": "  Long line 73",
+            "22": "  Long line 74",
+            "24": "  Long line 75",
+            "26": "  Long line 76",
+            "28": "  Long line 77",
+            "30": "  Long line 78",
+            "32": "  Long line 79",
+            "34": "  Long line 80",
+            "36": "────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────",
+            "37": ">",
+            "38": "────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────",
+            "39": "? for shortcuts                                                                                     Gemini 3.1 Pro · low"
+          },
+          "bright": {
+            "39": "? for shortcuts"
+          }
+        }
+      },
+      {
+        "label": "/",
+        "screen": {
+          "height": 40,
+          "columns": 120,
+          "cursor": {
+            "row": 29,
+            "column": 2
+          },
+          "alternate": false,
+          "rows": {
+            "0": "  Long line 67",
+            "2": "  Long line 68",
+            "4": "  Long line 69",
+            "6": "  Long line 70",
+            "8": "  Long line 71",
+            "10": "  Long line 72",
+            "12": "  Long line 73",
+            "14": "  Long line 74",
+            "16": "  Long line 75",
+            "18": "  Long line 76",
+            "20": "  Long line 77",
+            "22": "  Long line 78",
+            "24": "  Long line 79",
+            "26": "  Long line 80",
+            "28": "────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────",
+            "29": "> /",
+            "30": "────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────",
+            "31": "> /add-dir             Add a directory to the workspace",
+            "32": "  /agents              List available custom agents",
+            "33": "  /artifact            View and review artifacts",
+            "34": "  /btw                 Ask a side question without interrupting the current task",
+            "35": "  /changelog           Show release notes and changes",
+            "36": "   ↓ 39 more",
+            "38": "  ↑/↓ Navigate · enter Select · tab Complete",
+            "39": "esc to cancel                                                                                       Gemini 3.1 Pro · low"
+          },
+          "bright": {
+            "31": "> /add-dir",
+            "32": "  /agents",
+            "33": "  /artifact",
+            "34": "  /btw",
+            "35": "  /changelog",
+            "36": "",
+            "39": "esc to cancel"
+          }
+        }
+      },
+      {
+        "label": "<down>",
+        "screen": {
+          "height": 40,
+          "columns": 120,
+          "cursor": {
+            "row": 29,
+            "column": 2
+          },
+          "alternate": false,
+          "rows": {
+            "0": "  Long line 67",
+            "2": "  Long line 68",
+            "4": "  Long line 69",
+            "6": "  Long line 70",
+            "8": "  Long line 71",
+            "10": "  Long line 72",
+            "12": "  Long line 73",
+            "14": "  Long line 74",
+            "16": "  Long line 75",
+            "18": "  Long line 76",
+            "20": "  Long line 77",
+            "22": "  Long line 78",
+            "24": "  Long line 79",
+            "26": "  Long line 80",
+            "28": "────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────",
+            "29": "> /",
+            "30": "────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────",
+            "31": "  /add-dir             Add a directory to the workspace",
+            "32": "> /agents              List available custom agents",
+            "33": "  /artifact            View and review artifacts",
+            "34": "  /btw                 Ask a side question without interrupting the current task",
+            "35": "  /changelog           Show release notes and changes",
+            "36": "   ↓ 39 more",
+            "38": "  ↑/↓ Navigate · enter Select · tab Complete",
+            "39": "esc to cancel                                                                                       Gemini 3.1 Pro · low"
+          },
+          "bright": {
+            "31": "  /add-dir",
+            "32": "> /agents",
+            "33": "  /artifact",
+            "34": "  /btw",
+            "35": "  /changelog",
+            "36": "",
+            "39": "esc to cancel"
+          }
+        }
+      },
+      {
+        "label": "m",
+        "screen": {
+          "height": 40,
+          "columns": 120,
+          "cursor": {
+            "row": 29,
+            "column": 3
+          },
+          "alternate": false,
+          "rows": {
+            "0": "  Long line 67",
+            "2": "  Long line 68",
+            "4": "  Long line 69",
+            "6": "  Long line 70",
+            "8": "  Long line 71",
+            "10": "  Long line 72",
+            "12": "  Long line 73",
+            "14": "  Long line 74",
+            "16": "  Long line 75",
+            "18": "  Long line 76",
+            "20": "  Long line 77",
+            "22": "  Long line 78",
+            "24": "  Long line 79",
+            "26": "  Long line 80",
+            "28": "────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────",
+            "29": "> /m",
+            "30": "────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────",
+            "31": "> /mcp                 Manage MCP servers",
+            "32": "  /model               Set a model, or run a single prompt on another model",
+            "33": "  /grill-me            Interview me to align on a plan.",
+            "34": "  /rename              Rename the current conversation",
+            "35": "  /resume              Browse and resume past conversations",
+            "36": "   ↓ 5 more",
+            "38": "  ↑/↓ Navigate · enter Select · tab Complete",
+            "39": "esc to cancel                                                                                       Gemini 3.1 Pro · low"
+          },
+          "bright": {
+            "31": "> /mcp",
+            "32": "  /model",
+            "33": "  /grill-me",
+            "34": "  /rename",
+            "35": "  /resume",
+            "36": "",
+            "39": "esc to cancel"
+          }
+        }
+      },
+      {
+        "label": "<kill>",
+        "screen": {
+          "height": 40,
+          "columns": 120,
+          "cursor": {
+            "row": 37,
+            "column": 1
+          },
+          "alternate": false,
+          "rows": {
+            "0": "  Long line 63",
+            "2": "  Long line 64",
+            "4": "  Long line 65",
+            "6": "  Long line 66",
+            "8": "  Long line 67",
+            "10": "  Long line 68",
+            "12": "  Long line 69",
+            "14": "  Long line 70",
+            "16": "  Long line 71",
+            "18": "  Long line 72",
+            "20": "  Long line 73",
+            "22": "  Long line 74",
+            "24": "  Long line 75",
+            "26": "  Long line 76",
+            "28": "  Long line 77",
+            "30": "  Long line 78",
+            "32": "  Long line 79",
+            "34": "  Long line 80",
+            "36": "────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────",
+            "37": ">",
+            "38": "────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────",
+            "39": "? for shortcuts                                                                                     Gemini 3.1 Pro · low"
+          },
+          "bright": {
+            "39": "? for shortcuts"
+          }
+        }
+      },
+      {
+        "label": "@",
+        "screen": {
+          "height": 40,
+          "columns": 120,
+          "cursor": {
+            "row": 28,
+            "column": 2
+          },
+          "alternate": false,
+          "rows": {
+            "1": "  Long line 68",
+            "3": "  Long line 69",
+            "5": "  Long line 70",
+            "7": "  Long line 71",
+            "9": "  Long line 72",
+            "11": "  Long line 73",
+            "13": "  Long line 74",
+            "15": "  Long line 75",
+            "17": "  Long line 76",
+            "19": "  Long line 77",
+            "21": "  Long line 78",
+            "23": "  Long line 79",
+            "25": "  Long line 80",
+            "27": "────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────",
+            "28": "> @",
+            "29": "────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────",
+            "30": "> .agents/                              Directory   /project-root/project/.agents",
+            "31": "  README.md                             File        /project-root/project/README.md",
+            "32": "  src/                                  Directory   /project-root/project/src",
+            "33": "  .agents/skills/                       Directory   /project-root/project/.agents/skills",
+            "34": "  src/auth.ts                           File        /project-root/project/src/auth.ts",
+            "35": "   ↓ 4 more",
+            "38": "  ↑/↓ Navigate · enter Select · tab Complete",
+            "39": "                                                                                                    Gemini 3.1 Pro · low"
+          },
+          "bright": {
+            "30": "> .agents/                              Directory",
+            "31": "  README.md                             File",
+            "32": "  src/                                  Directory",
+            "33": "  .agents/skills/                       Directory",
+            "34": "  src/auth.ts                           File",
+            "35": "",
+            "39": ""
+          }
+        }
+      },
+      {
+        "label": "s",
+        "screen": {
+          "height": 40,
+          "columns": 120,
+          "cursor": {
+            "row": 28,
+            "column": 3
+          },
+          "alternate": false,
+          "rows": {
+            "1": "  Long line 68",
+            "3": "  Long line 69",
+            "5": "  Long line 70",
+            "7": "  Long line 71",
+            "9": "  Long line 72",
+            "11": "  Long line 73",
+            "13": "  Long line 74",
+            "15": "  Long line 75",
+            "17": "  Long line 76",
+            "19": "  Long line 77",
+            "21": "  Long line 78",
+            "23": "  Long line 79",
+            "25": "  Long line 80",
+            "27": "────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────",
+            "28": "> @s",
+            "29": "────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────",
+            "30": "> src/                                  Directory   /project-root/project/src",
+            "31": "  .agents/skills/                       Directory   /project-root/project/.agents/skills",
+            "32": "  src/store.ts                          File        /project-root/project/src/store.ts",
+            "33": "  .agents/skills/sample-skill/SKILL.md  File        /project-root/project/.agents/skills/sample-skill/SK...",
+            "34": "  src/server.ts                         File        /project-root/project/src/server.ts",
+            "35": "   ↓ 5 more",
+            "38": "  ↑/↓ Navigate · enter Select · tab Complete",
+            "39": "                                                                                                    Gemini 3.1 Pro · low"
+          },
+          "bright": {
+            "30": "> src/                                  Directory",
+            "31": "  .agents/skills/                       Directory",
+            "32": "  src/store.ts                          File",
+            "33": "  .agents/skills/sample-skill/SKILL.md  File",
+            "34": "  src/server.ts                         File",
+            "35": "",
+            "39": ""
+          }
+        }
+      },
+      {
+        "label": "<kill>",
+        "screen": {
+          "height": 40,
+          "columns": 120,
+          "cursor": {
+            "row": 37,
+            "column": 1
+          },
+          "alternate": false,
+          "rows": {
+            "0": "  Long line 63",
+            "2": "  Long line 64",
+            "4": "  Long line 65",
+            "6": "  Long line 66",
+            "8": "  Long line 67",
+            "10": "  Long line 68",
+            "12": "  Long line 69",
+            "14": "  Long line 70",
+            "16": "  Long line 71",
+            "18": "  Long line 72",
+            "20": "  Long line 73",
+            "22": "  Long line 74",
+            "24": "  Long line 75",
+            "26": "  Long line 76",
+            "28": "  Long line 77",
+            "30": "  Long line 78",
+            "32": "  Long line 79",
+            "34": "  Long line 80",
+            "36": "────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────",
+            "37": ">",
+            "38": "────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────",
+            "39": "? for shortcuts                                                                                     Gemini 3.1 Pro · low"
+          },
+          "bright": {
+            "39": "? for shortcuts"
+          }
+        }
+      },
+      {
+        "label": "/model",
+        "screen": {
+          "height": 40,
+          "columns": 120,
+          "cursor": {
+            "row": 34,
+            "column": 7
+          },
+          "alternate": false,
+          "rows": {
+            "1": "  Long line 65",
+            "3": "  Long line 66",
+            "5": "  Long line 67",
+            "7": "  Long line 68",
+            "9": "  Long line 69",
+            "11": "  Long line 70",
+            "13": "  Long line 71",
+            "15": "  Long line 72",
+            "17": "  Long line 73",
+            "19": "  Long line 74",
+            "21": "  Long line 75",
+            "23": "  Long line 76",
+            "25": "  Long line 77",
+            "27": "  Long line 78",
+            "29": "  Long line 79",
+            "31": "  Long line 80",
+            "33": "────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────",
+            "34": "> /model",
+            "35": "────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────",
+            "36": "> /model  Set a model, or run a single prompt on another model",
+            "38": "  ↑/↓ Navigate · enter Select · tab Complete",
+            "39": "esc to cancel                                                                                       Gemini 3.1 Pro · low"
+          },
+          "bright": {
+            "36": "> /model",
+            "39": "esc to cancel"
+          }
+        }
+      },
+      {
+        "label": "<enter>",
+        "screen": {
+          "height": 40,
+          "columns": 120,
+          "cursor": {
+            "row": 39,
+            "column": 100
+          },
+          "alternate": false,
+          "rows": {
+            "1": "  Long line 72",
+            "3": "  Long line 73",
+            "5": "  Long line 74",
+            "7": "  Long line 75",
+            "9": "  Long line 76",
+            "11": "  Long line 77",
+            "13": "  Long line 78",
+            "15": "  Long line 79",
+            "17": "  Long line 80",
+            "19": "────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────",
+            "20": ">",
+            "21": "────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────",
+            "22": "Switch Model",
+            "24": "  Search:  ",
+            "25": "          ────────────────────",
+            "27": "  Gemini 4 Argon",
+            "28": "  Gemini 3.8 Flash",
+            "29": "  Gemini 3.7 Flash",
+            "30": "  Gemini 3.6 Flash",
+            "31": "> Gemini 3.1 Pro   (current)",
+            "33": "  Effort  ◂            ◉──────────────────────○            ▸",
+            "34": "                      low                   high          ",
+            "35": "            Faster responses, lighter reasoning — great for simpler tasks",
+            "37": "Keyboard: ↑/↓ Navigate  ←/→ Effort  enter Select  esc Go Back",
+            "39": "                                                                                                    Gemini 3.1 Pro · low"
+          },
+          "bright": {
+            "24": "  Search:",
+            "31": "> Gemini 3.1 Pro",
+            "33": "  Effort               ◉                                   ▸",
+            "34": "                      low",
+            "35": "",
+            "39": ""
+          }
+        }
+      },
+      {
+        "label": "<down>",
+        "screen": {
+          "height": 40,
+          "columns": 120,
+          "cursor": {
+            "row": 35,
+            "column": 62
+          },
+          "alternate": false,
+          "rows": {
+            "1": "  Long line 72",
+            "3": "  Long line 73",
+            "5": "  Long line 74",
+            "7": "  Long line 75",
+            "9": "  Long line 76",
+            "11": "  Long line 77",
+            "13": "  Long line 78",
+            "15": "  Long line 79",
+            "17": "  Long line 80",
+            "19": "────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────",
+            "20": ">",
+            "21": "────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────",
+            "22": "Switch Model",
+            "24": "  Search:  ",
+            "25": "          ────────────────────",
+            "27": "> Gemini 4 Argon  ",
+            "28": "  Gemini 3.8 Flash",
+            "29": "  Gemini 3.7 Flash",
+            "30": "  Gemini 3.6 Flash",
+            "31": "  Gemini 3.1 Pro   (current)",
+            "33": "  Effort  ◂        ●━━━━━━━━━━━━━━◉──────────────○        ▸",
+            "34": "                  low          medium          high      ",
+            "35": "            Balanced speed and reasoning quality for most tasks",
+            "37": "Keyboard: ↑/↓ Navigate  ←/→ Effort  enter Select  esc Go Back",
+            "39": "                                                                                                    Gemini 3.1 Pro · low"
+          },
+          "bright": {
+            "24": "  Search:",
+            "27": "> Gemini 4 Argon",
+            "31": "  Gemini 3.1 Pro",
+            "33": "  Effort  ◂        ●━━━━━━━━━━━━━━◉                       ▸",
+            "34": "                               medium",
+            "35": "",
+            "39": ""
+          }
+        }
+      },
+      {
+        "label": "<esc>",
+        "screen": {
+          "height": 40,
+          "columns": 120,
+          "cursor": {
+            "row": 37,
+            "column": 1
+          },
+          "alternate": false,
+          "rows": {
+            "1": "  Long line 65",
+            "3": "  Long line 66",
+            "5": "  Long line 67",
+            "7": "  Long line 68",
+            "9": "  Long line 69",
+            "11": "  Long line 70",
+            "13": "  Long line 71",
+            "15": "  Long line 72",
+            "17": "  Long line 73",
+            "19": "  Long line 74",
+            "21": "  Long line 75",
+            "23": "  Long line 76",
+            "25": "  Long line 77",
+            "27": "  Long line 78",
+            "29": "  Long line 79",
+            "31": "  Long line 80",
+            "33": "> /model",
+            "34": "  ⎿  Exited /model command",
+            "36": "────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────",
+            "37": ">",
+            "38": "────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────",
+            "39": "? for shortcuts                                                                                     Gemini 3.1 Pro · low"
+          },
+          "bright": {
+            "39": "? for shortcuts"
+          }
+        }
+      },
+      {
+        "label": "<kill>",
+        "screen": {
+          "height": 40,
+          "columns": 120,
+          "cursor": {
+            "row": 37,
+            "column": 1
+          },
+          "alternate": false,
+          "rows": {
+            "1": "  Long line 65",
+            "3": "  Long line 66",
+            "5": "  Long line 67",
+            "7": "  Long line 68",
+            "9": "  Long line 69",
+            "11": "  Long line 70",
+            "13": "  Long line 71",
+            "15": "  Long line 72",
+            "17": "  Long line 73",
+            "19": "  Long line 74",
+            "21": "  Long line 75",
+            "23": "  Long line 76",
+            "25": "  Long line 77",
+            "27": "  Long line 78",
+            "29": "  Long line 79",
+            "31": "  Long line 80",
+            "33": "> /model",
+            "34": "  ⎿  Exited /model command",
+            "36": "────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────",
+            "37": ">",
+            "38": "────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────",
+            "39": "? for shortcuts                                                                                     Gemini 3.1 Pro · low"
+          },
+          "bright": {
+            "39": "? for shortcuts"
+          }
+        }
+      },
+      {
+        "label": "/permissions",
+        "screen": {
+          "height": 40,
+          "columns": 120,
+          "cursor": {
+            "row": 34,
+            "column": 13
+          },
+          "alternate": false,
+          "rows": {
+            "0": "  Long line 66",
+            "2": "  Long line 67",
+            "4": "  Long line 68",
+            "6": "  Long line 69",
+            "8": "  Long line 70",
+            "10": "  Long line 71",
+            "12": "  Long line 72",
+            "14": "  Long line 73",
+            "16": "  Long line 74",
+            "18": "  Long line 75",
+            "20": "  Long line 76",
+            "22": "  Long line 77",
+            "24": "  Long line 78",
+            "26": "  Long line 79",
+            "28": "  Long line 80",
+            "30": "> /model",
+            "31": "  ⎿  Exited /model command",
+            "33": "────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────",
+            "34": "> /permissions",
+            "35": "────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────",
+            "36": "> /permissions  Manage tool permissions",
+            "38": "  ↑/↓ Navigate · enter Select · tab Complete",
+            "39": "esc to cancel                                                                                       Gemini 3.1 Pro · low"
+          },
+          "bright": {
+            "36": "> /permissions",
+            "39": "esc to cancel"
+          }
+        }
+      },
+      {
+        "label": "<enter>",
+        "screen": {
+          "height": 40,
+          "columns": 120,
+          "cursor": {
+            "row": 39,
+            "column": 100
+          },
+          "alternate": false,
+          "rows": {
+            "1": "  Long line 71",
+            "3": "  Long line 72",
+            "5": "  Long line 73",
+            "7": "  Long line 74",
+            "9": "  Long line 75",
+            "11": "  Long line 76",
+            "13": "  Long line 77",
+            "15": "  Long line 78",
+            "17": "  Long line 79",
+            "19": "  Long line 80",
+            "21": "> /model",
+            "22": "  ⎿  Exited /model command",
+            "24": "────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────",
+            "25": ">",
+            "26": "────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────",
+            "27": "Permission Config Editor",
+            "29": "Select a config scope to edit:",
+            "31": "> Project                ",
+            "32": "  Shared with Antigravity",
+            "33": "  Global",
+            "35": "  Rules that apply only to this project (highest priority)",
+            "37": "Keyboard: ↑/↓ Navigate  enter Save  esc Close",
+            "39": "                                                                                                    Gemini 3.1 Pro · low"
+          },
+          "bright": {
+            "29": "",
+            "31": "> Project",
+            "35": "",
+            "39": ""
+          }
+        }
+      },
+      {
+        "label": "<esc>",
+        "screen": {
+          "height": 40,
+          "columns": 120,
+          "cursor": {
+            "row": 37,
+            "column": 1
+          },
+          "alternate": false,
+          "rows": {
+            "1": "  Long line 65",
+            "3": "  Long line 66",
+            "5": "  Long line 67",
+            "7": "  Long line 68",
+            "9": "  Long line 69",
+            "11": "  Long line 70",
+            "13": "  Long line 71",
+            "15": "  Long line 72",
+            "17": "  Long line 73",
+            "19": "  Long line 74",
+            "21": "  Long line 75",
+            "23": "  Long line 76",
+            "25": "  Long line 77",
+            "27": "  Long line 78",
+            "29": "  Long line 79",
+            "31": "  Long line 80",
+            "33": "> /model",
+            "34": "  ⎿  Exited /model command",
+            "36": "────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────",
+            "37": ">",
+            "38": "────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────",
+            "39": "? for shortcuts                                                                                     Gemini 3.1 Pro · low"
+          },
+          "bright": {
+            "39": "? for shortcuts"
+          }
+        }
+      },
+      {
+        "label": "<kill>",
+        "screen": {
+          "height": 40,
+          "columns": 120,
+          "cursor": {
+            "row": 37,
+            "column": 1
+          },
+          "alternate": false,
+          "rows": {
+            "1": "  Long line 65",
+            "3": "  Long line 66",
+            "5": "  Long line 67",
+            "7": "  Long line 68",
+            "9": "  Long line 69",
+            "11": "  Long line 70",
+            "13": "  Long line 71",
+            "15": "  Long line 72",
+            "17": "  Long line 73",
+            "19": "  Long line 74",
+            "21": "  Long line 75",
+            "23": "  Long line 76",
+            "25": "  Long line 77",
+            "27": "  Long line 78",
+            "29": "  Long line 79",
+            "31": "  Long line 80",
+            "33": "> /model",
+            "34": "  ⎿  Exited /model command",
+            "36": "────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────",
+            "37": ">",
+            "38": "────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────",
+            "39": "? for shortcuts                                                                                     Gemini 3.1 Pro · low"
+          },
+          "bright": {
+            "39": "? for shortcuts"
+          }
+        }
+      },
+      {
+        "label": "mid-turn",
+        "screen": {
+          "height": 40,
+          "columns": 120,
+          "cursor": {
+            "row": 37,
+            "column": 1
+          },
+          "alternate": false,
+          "rows": {
+            "1": "  Long line 71",
+            "3": "  Long line 72",
+            "5": "  Long line 73",
+            "7": "  Long line 74",
+            "9": "  Long line 75",
+            "11": "  Long line 76",
+            "13": "  Long line 77",
+            "15": "  Long line 78",
+            "17": "  Long line 79",
+            "19": "  Long line 80",
+            "21": "> /model",
+            "22": "  ⎿  Exited /model command",
+            "24": "> /config",
+            "25": "  ⎿  Exited /config command",
+            "27": "────────────────────────────────────────────────────────────",
+            "28": "> /compact",
+            "30": "─────────────────────────────────────────────── Conversation compacted ────────────────────────────────────────────────",
+            "31": "                           7 steps summarized · context 1.8k → ~10.7k (1 summary) · took 0s",
+            "33": "────────────────────────────────────────────────────────────",
+            "34": "> Hold on",
+            "35": "⣻  Generating...",
+            "36": "────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────",
+            "37": ">",
+            "38": "────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────",
+            "39": "esc to cancel                                                                                       Gemini 3.1 Pro · low"
+          },
+          "bright": {
+            "31": "",
+            "39": "esc to cancel"
+          }
+        }
+      },
+      {
+        "label": "/",
+        "screen": {
+          "height": 40,
+          "columns": 120,
+          "cursor": {
+            "row": 29,
+            "column": 2
+          },
+          "alternate": false,
+          "rows": {
+            "0": "  Long line 75",
+            "2": "  Long line 76",
+            "4": "  Long line 77",
+            "6": "  Long line 78",
+            "8": "  Long line 79",
+            "10": "  Long line 80",
+            "12": "> /model",
+            "13": "  ⎿  Exited /model command",
+            "15": "> /config",
+            "16": "  ⎿  Exited /config command",
+            "18": "────────────────────────────────────────────────────────────",
+            "19": "> /compact",
+            "21": "─────────────────────────────────────────────── Conversation compacted ────────────────────────────────────────────────",
+            "22": "                           7 steps summarized · context 1.8k → ~10.7k (1 summary) · took 0s",
+            "24": "────────────────────────────────────────────────────────────",
+            "25": "> Hold on",
+            "26": "⣻  Generating...",
+            "27": "└ Tip: You can switch conversations with /resume.",
+            "28": "────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────",
+            "29": "> /",
+            "30": "────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────",
+            "31": "> /add-dir             Add a directory to the workspace",
+            "32": "  /agents              List available custom agents",
+            "33": "  /artifact            View and review artifacts",
+            "34": "  /btw                 Ask a side question without interrupting the current task",
+            "35": "  /changelog           Show release notes and changes",
+            "36": "   ↓ 39 more",
+            "38": "  ↑/↓ Navigate · enter Select · tab Complete",
+            "39": "esc to cancel                                                                                       Gemini 3.1 Pro · low"
+          },
+          "bright": {
+            "22": "",
+            "31": "> /add-dir",
+            "32": "  /agents",
+            "33": "  /artifact",
+            "34": "  /btw",
+            "35": "  /changelog",
+            "36": "",
+            "39": "esc to cancel"
+          }
+        }
+      },
+      {
+        "label": "<down>",
+        "screen": {
+          "height": 40,
+          "columns": 120,
+          "cursor": {
+            "row": 29,
+            "column": 2
+          },
+          "alternate": false,
+          "rows": {
+            "0": "  Long line 75",
+            "2": "  Long line 76",
+            "4": "  Long line 77",
+            "6": "  Long line 78",
+            "8": "  Long line 79",
+            "10": "  Long line 80",
+            "12": "> /model",
+            "13": "  ⎿  Exited /model command",
+            "15": "> /config",
+            "16": "  ⎿  Exited /config command",
+            "18": "────────────────────────────────────────────────────────────",
+            "19": "> /compact",
+            "21": "─────────────────────────────────────────────── Conversation compacted ────────────────────────────────────────────────",
+            "22": "                           7 steps summarized · context 1.8k → ~10.7k (1 summary) · took 0s",
+            "24": "────────────────────────────────────────────────────────────",
+            "25": "> Hold on",
+            "26": "⣻  Generating...",
+            "27": "└ Tip: You can switch conversations with /resume.",
+            "28": "────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────",
+            "29": "> /",
+            "30": "────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────",
+            "31": "  /add-dir             Add a directory to the workspace",
+            "32": "> /agents              List available custom agents",
+            "33": "  /artifact            View and review artifacts",
+            "34": "  /btw                 Ask a side question without interrupting the current task",
+            "35": "  /changelog           Show release notes and changes",
+            "36": "   ↓ 39 more",
+            "38": "  ↑/↓ Navigate · enter Select · tab Complete",
+            "39": "esc to cancel                                                                                       Gemini 3.1 Pro · low"
+          },
+          "bright": {
+            "22": "",
+            "31": "  /add-dir",
+            "32": "> /agents",
+            "33": "  /artifact",
+            "34": "  /btw",
+            "35": "  /changelog",
+            "36": "",
+            "39": "esc to cancel"
+          }
+        }
+      },
+      {
+        "label": "<kill>",
+        "screen": {
+          "height": 40,
+          "columns": 120,
+          "cursor": {
+            "row": 37,
+            "column": 1
+          },
+          "alternate": false,
+          "rows": {
+            "0": "  Long line 71",
+            "2": "  Long line 72",
+            "4": "  Long line 73",
+            "6": "  Long line 74",
+            "8": "  Long line 75",
+            "10": "  Long line 76",
+            "12": "  Long line 77",
+            "14": "  Long line 78",
+            "16": "  Long line 79",
+            "18": "  Long line 80",
+            "20": "> /model",
+            "21": "  ⎿  Exited /model command",
+            "23": "> /config",
+            "24": "  ⎿  Exited /config command",
+            "26": "────────────────────────────────────────────────────────────",
+            "27": "> /compact",
+            "29": "─────────────────────────────────────────────── Conversation compacted ────────────────────────────────────────────────",
+            "30": "                           7 steps summarized · context 1.8k → ~10.7k (1 summary) · took 0s",
+            "32": "────────────────────────────────────────────────────────────",
+            "33": "> Hold on",
+            "34": "⣻  Generating...",
+            "35": "└ Tip: You can switch conversations with /resume.",
+            "36": "────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────",
+            "37": ">  ",
+            "38": "────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────",
+            "39": "esc to cancel                                                                                       Gemini 3.1 Pro · low"
+          },
+          "bright": {
+            "30": "",
+            "37": ">",
+            "39": "esc to cancel"
+          }
+        }
+      }
+    ],
+    "views": [
+      {
+        "label": "after a reply",
+        "screen": {
+          "height": 40,
+          "columns": 120,
+          "cursor": {
+            "row": 20,
+            "column": 1
+          },
+          "alternate": false,
+          "rows": {
+            "0": "To run a command as administrator (user \"root\"), use \"sudo <command>\".",
+            "1": "See \"man sudo_root\" for details.",
+            "4": "      ▄▀▀▄        Antigravity CLI 1.4.12",
+            "5": "     ▀▀▀▀▀▀       Gemini API key",
+            "6": "    ▀▀▀▀▀▀▀▀      Gemini 3.1 Pro (Low)",
+            "7": "   ▄▀▀    ▀▀▄     /project-root/project",
+            "8": "  ▄▀▀      ▀▀▄",
+            "10": "────────────────────────────────────────────────────────────",
+            "11": "> Say hello",
+            "13": "  Hello there.",
+            "15": "  A reply with a few lines.",
+            "17": "  And one more.",
+            "19": "────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────",
+            "20": ">",
+            "21": "────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────",
+            "22": "? for shortcuts                                                                                     Gemini 3.1 Pro · low"
+          },
+          "bright": {
+            "22": "? for shortcuts"
+          }
+        }
+      },
+      {
+        "label": "/help",
+        "screen": {
+          "height": 40,
+          "columns": 120,
+          "cursor": {
+            "row": 23,
+            "column": 6
+          },
+          "alternate": false,
+          "rows": {
+            "1": "      ▄▀▀▄        Antigravity CLI 1.4.12",
+            "2": "     ▀▀▀▀▀▀       Gemini API key",
+            "3": "    ▀▀▀▀▀▀▀▀      Gemini 3.1 Pro (Low)",
+            "4": "   ▄▀▀    ▀▀▄     /project-root/project",
+            "5": "  ▄▀▀      ▀▀▄",
+            "7": "────────────────────────────────────────────────────────────",
+            "8": "> Say hello",
+            "10": "  Hello there.",
+            "12": "  A reply with a few lines.",
+            "14": "  And one more.",
+            "16": "> /model",
+            "17": "  ⎿  Exited /model command",
+            "19": "> /config",
+            "20": "  ⎿  Exited /config command",
+            "22": "────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────",
+            "23": "> /help",
+            "24": "────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────",
+            "25": "> /help  Show available commands and keybindings",
+            "27": "  ↑/↓ Navigate · enter Select · tab Complete",
+            "28": "esc to cancel                                                                                       Gemini 3.1 Pro · low"
+          },
+          "bright": {
+            "25": "> /help",
+            "28": "esc to cancel"
+          }
+        }
+      },
+      {
+        "label": "<enter>",
+        "screen": {
+          "height": 40,
+          "columns": 120,
+          "cursor": {
+            "row": 39,
+            "column": 120
+          },
+          "alternate": true,
+          "rows": {
+            "0": "     ▀▀▀▀▀▀       Gemini API key",
+            "1": "    ▀▀▀▀▀▀▀▀      Gemini 3.1 Pro (Low)",
+            "2": "   ▄▀▀    ▀▀▄     /project-root/project",
+            "3": "  ▄▀▀      ▀▀▄",
+            "5": "────────────────────────────────────────────────────────────",
+            "6": "> Say hello",
+            "8": "  Hello there.",
+            "10": "  A reply with a few lines.",
+            "12": "  And one more.",
+            "14": "> /model",
+            "15": "  ⎿  Exited /model command",
+            "17": "> /config",
+            "18": "  ⎿  Exited /config command",
+            "20": "────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────",
+            "21": ">",
+            "22": "────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────",
+            "23": "Antigravity CLI   general    commands    shortcuts   (←/→ or tab to cycle)",
+            "24": "Antigravity CLI understands your codebase, makes edits with your permission,",
+            "25": "and executes commands — right from your terminal.",
+            "27": "Version 1.4.12",
+            "28": "Gemini API key",
+            "29": "Workspace:      /project-root/project",
+            "30": "Project Config: ~/.gemini/config/projects/default-cli-project.json",
+            "31": "Log File:       ~/.gemini/antigravity-cli/log/cli-20261106_171410.log",
+            "32": "Conversation:   00000000-0000-0000-0000-000000000000",
+            "34": "Quick Reference",
+            "35": "  /  Type / to see available commands",
+            "37": "Keyboard: ↑/↓ Navigate  ←/→ Switch View  esc Close",
+            "39": "                                                                                                    Gemini 3.1 Pro · low"
+          },
+          "bright": {
+            "39": ""
+          }
+        }
+      },
+      {
+        "label": "<esc>",
+        "screen": {
+          "height": 40,
+          "columns": 120,
+          "cursor": {
+            "row": 26,
+            "column": 1
+          },
+          "alternate": false,
+          "rows": {
+            "1": "      ▄▀▀▄        Antigravity CLI 1.4.12",
+            "2": "     ▀▀▀▀▀▀       Gemini API key",
+            "3": "    ▀▀▀▀▀▀▀▀      Gemini 3.1 Pro (Low)",
+            "4": "   ▄▀▀    ▀▀▄     /project-root/project",
+            "5": "  ▄▀▀      ▀▀▄",
+            "7": "────────────────────────────────────────────────────────────",
+            "8": "> Say hello",
+            "10": "  Hello there.",
+            "12": "  A reply with a few lines.",
+            "14": "  And one more.",
+            "16": "> /model",
+            "17": "  ⎿  Exited /model command",
+            "19": "> /config",
+            "20": "  ⎿  Exited /config command",
+            "22": "> /help",
+            "23": "  ⎿  Exited /help command",
+            "25": "────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────",
+            "26": ">",
+            "27": "────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────",
+            "28": "? for shortcuts                                                                                     Gemini 3.1 Pro · low"
+          },
+          "bright": {
+            "28": "? for shortcuts"
+          }
+        }
+      },
+      {
+        "label": "<kill>",
+        "screen": {
+          "height": 40,
+          "columns": 120,
+          "cursor": {
+            "row": 26,
+            "column": 1
+          },
+          "alternate": false,
+          "rows": {
+            "1": "      ▄▀▀▄        Antigravity CLI 1.4.12",
+            "2": "     ▀▀▀▀▀▀       Gemini API key",
+            "3": "    ▀▀▀▀▀▀▀▀      Gemini 3.1 Pro (Low)",
+            "4": "   ▄▀▀    ▀▀▄     /project-root/project",
+            "5": "  ▄▀▀      ▀▀▄",
+            "7": "────────────────────────────────────────────────────────────",
+            "8": "> Say hello",
+            "10": "  Hello there.",
+            "12": "  A reply with a few lines.",
+            "14": "  And one more.",
+            "16": "> /model",
+            "17": "  ⎿  Exited /model command",
+            "19": "> /config",
+            "20": "  ⎿  Exited /config command",
+            "22": "> /help",
+            "23": "  ⎿  Exited /help command",
+            "25": "────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────",
+            "26": ">",
+            "27": "────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────",
+            "28": "? for shortcuts                                                                                     Gemini 3.1 Pro · low"
+          },
+          "bright": {
+            "28": "? for shortcuts"
+          }
+        }
+      },
+      {
+        "label": "/mcp",
+        "screen": {
+          "height": 40,
+          "columns": 120,
+          "cursor": {
+            "row": 26,
+            "column": 5
+          },
+          "alternate": false,
+          "rows": {
+            "1": "      ▄▀▀▄        Antigravity CLI 1.4.12",
+            "2": "     ▀▀▀▀▀▀       Gemini API key",
+            "3": "    ▀▀▀▀▀▀▀▀      Gemini 3.1 Pro (Low)",
+            "4": "   ▄▀▀    ▀▀▄     /project-root/project",
+            "5": "  ▄▀▀      ▀▀▄",
+            "7": "────────────────────────────────────────────────────────────",
+            "8": "> Say hello",
+            "10": "  Hello there.",
+            "12": "  A reply with a few lines.",
+            "14": "  And one more.",
+            "16": "> /model",
+            "17": "  ⎿  Exited /model command",
+            "19": "> /config",
+            "20": "  ⎿  Exited /config command",
+            "22": "> /help",
+            "23": "  ⎿  Exited /help command",
+            "25": "────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────",
+            "26": "> /mcp",
+            "27": "────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────",
+            "28": "> /mcp  Manage MCP servers",
+            "30": "  ↑/↓ Navigate · enter Select · tab Complete",
+            "31": "esc to cancel                                                                                       Gemini 3.1 Pro · low"
+          },
+          "bright": {
+            "28": "> /mcp",
+            "31": "esc to cancel"
+          }
+        }
+      },
+      {
+        "label": "<enter>",
+        "screen": {
+          "height": 40,
+          "columns": 120,
+          "cursor": {
+            "row": 31,
+            "column": 70
+          },
+          "alternate": false,
+          "rows": {
+            "1": "      ▄▀▀▄        Antigravity CLI 1.4.12",
+            "2": "     ▀▀▀▀▀▀       Gemini API key",
+            "3": "    ▀▀▀▀▀▀▀▀      Gemini 3.1 Pro (Low)",
+            "4": "   ▄▀▀    ▀▀▄     /project-root/project",
+            "5": "  ▄▀▀      ▀▀▄",
+            "7": "────────────────────────────────────────────────────────────",
+            "8": "> Say hello",
+            "10": "  Hello there.",
+            "12": "  A reply with a few lines.",
+            "14": "  And one more.",
+            "16": "> /model",
+            "17": "  ⎿  Exited /model command",
+            "19": "> /config",
+            "20": "  ⎿  Exited /config command",
+            "22": "> /help",
+            "23": "  ⎿  Exited /help command",
+            "25": "────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────",
+            "26": ">",
+            "27": "────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────",
+            "28": "MCP Servers",
+            "30": "Plugins (~/.gemini/config/plugins)",
+            "31": ">  ✓ novadeck_novadeck  Tools: ask, tell, done, show, showing, +11 more",
+            "33": "Keyboard: ↑/↓ Navigate  enter Actions  esc Exit",
+            "35": "                                                                                                    Gemini 3.1 Pro · low"
+          },
+          "bright": {
+            "31": ">  ✓ novadeck_novadeck",
+            "35": ""
+          }
+        }
+      },
+      {
+        "label": "<esc>",
+        "screen": {
+          "height": 40,
+          "columns": 120,
+          "cursor": {
+            "row": 26,
+            "column": 1
+          },
+          "alternate": false,
+          "rows": {
+            "1": "      ▄▀▀▄        Antigravity CLI 1.4.12",
+            "2": "     ▀▀▀▀▀▀       Gemini API key",
+            "3": "    ▀▀▀▀▀▀▀▀      Gemini 3.1 Pro (Low)",
+            "4": "   ▄▀▀    ▀▀▄     /project-root/project",
+            "5": "  ▄▀▀      ▀▀▄",
+            "7": "────────────────────────────────────────────────────────────",
+            "8": "> Say hello",
+            "10": "  Hello there.",
+            "12": "  A reply with a few lines.",
+            "14": "  And one more.",
+            "16": "> /model",
+            "17": "  ⎿  Exited /model command",
+            "19": "> /config",
+            "20": "  ⎿  Exited /config command",
+            "22": "> /help",
+            "23": "  ⎿  Exited /help command",
+            "25": "────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────",
+            "26": ">",
+            "27": "────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────",
+            "28": "? for shortcuts                                                                                     Gemini 3.1 Pro · low"
+          },
+          "bright": {
+            "28": "? for shortcuts"
+          }
+        }
+      },
+      {
+        "label": "<kill>",
+        "screen": {
+          "height": 40,
+          "columns": 120,
+          "cursor": {
+            "row": 26,
+            "column": 1
+          },
+          "alternate": false,
+          "rows": {
+            "1": "      ▄▀▀▄        Antigravity CLI 1.4.12",
+            "2": "     ▀▀▀▀▀▀       Gemini API key",
+            "3": "    ▀▀▀▀▀▀▀▀      Gemini 3.1 Pro (Low)",
+            "4": "   ▄▀▀    ▀▀▄     /project-root/project",
+            "5": "  ▄▀▀      ▀▀▄",
+            "7": "────────────────────────────────────────────────────────────",
+            "8": "> Say hello",
+            "10": "  Hello there.",
+            "12": "  A reply with a few lines.",
+            "14": "  And one more.",
+            "16": "> /model",
+            "17": "  ⎿  Exited /model command",
+            "19": "> /config",
+            "20": "  ⎿  Exited /config command",
+            "22": "> /help",
+            "23": "  ⎿  Exited /help command",
+            "25": "────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────",
+            "26": ">",
+            "27": "────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────",
+            "28": "? for shortcuts                                                                                     Gemini 3.1 Pro · low"
+          },
+          "bright": {
+            "28": "? for shortcuts"
+          }
+        }
+      },
+      {
+        "label": "/resume",
+        "screen": {
+          "height": 40,
+          "columns": 120,
+          "cursor": {
+            "row": 26,
+            "column": 8
+          },
+          "alternate": false,
+          "rows": {
+            "1": "      ▄▀▀▄        Antigravity CLI 1.4.12",
+            "2": "     ▀▀▀▀▀▀       Gemini API key",
+            "3": "    ▀▀▀▀▀▀▀▀      Gemini 3.1 Pro (Low)",
+            "4": "   ▄▀▀    ▀▀▄     /project-root/project",
+            "5": "  ▄▀▀      ▀▀▄",
+            "7": "────────────────────────────────────────────────────────────",
+            "8": "> Say hello",
+            "10": "  Hello there.",
+            "12": "  A reply with a few lines.",
+            "14": "  And one more.",
+            "16": "> /model",
+            "17": "  ⎿  Exited /model command",
+            "19": "> /config",
+            "20": "  ⎿  Exited /config command",
+            "22": "> /help",
+            "23": "  ⎿  Exited /help command",
+            "25": "────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────",
+            "26": "> /resume",
+            "27": "────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────",
+            "28": "> /resume  Browse and resume past conversations",
+            "30": "  ↑/↓ Navigate · enter Select · tab Complete",
+            "31": "esc to cancel                                                                                       Gemini 3.1 Pro · low"
+          },
+          "bright": {
+            "28": "> /resume",
+            "31": "esc to cancel"
+          }
+        }
+      },
+      {
+        "label": "<enter>",
+        "screen": {
+          "height": 40,
+          "columns": 120,
+          "cursor": {
+            "row": 36,
+            "column": 0
+          },
+          "alternate": false,
+          "rows": {
+            "1": "      ▄▀▀▄        Antigravity CLI 1.4.12",
+            "2": "     ▀▀▀▀▀▀       Gemini API key",
+            "3": "    ▀▀▀▀▀▀▀▀      Gemini 3.1 Pro (Low)",
+            "4": "   ▄▀▀    ▀▀▄     /project-root/project",
+            "5": "  ▄▀▀      ▀▀▄",
+            "7": "────────────────────────────────────────────────────────────",
+            "8": "> Say hello",
+            "10": "  Hello there.",
+            "12": "  A reply with a few lines.",
+            "14": "  And one more.",
+            "16": "> /model",
+            "17": "  ⎿  Exited /model command",
+            "19": "> /config",
+            "20": "  ⎿  Exited /config command",
+            "22": "> /help",
+            "23": "  ⎿  Exited /help command",
+            "25": "────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────",
+            "26": ">",
+            "27": "────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────",
+            "28": "   CLI    Other   (tab to cycle)",
+            "30": "  Conversations",
+            "31": "  Type to search conversations...",
+            "32": "> [CURRENT] OK.                                                                                    2 steps        1m ago",
+            "34": "Keyboard: ↑/↓ Navigate  ←/→ Page  enter Select  f2 Rename  f4 Delete  tab Switch Tab  esc Go back / Clear search",
+            "36": "                                                                                                    Gemini 3.1 Pro · low"
+          },
+          "bright": {
+            "31": "",
+            "36": ""
+          }
+        }
+      },
+      {
+        "label": "<esc>",
+        "screen": {
+          "height": 40,
+          "columns": 120,
+          "cursor": {
+            "row": 26,
+            "column": 1
+          },
+          "alternate": false,
+          "rows": {
+            "1": "      ▄▀▀▄        Antigravity CLI 1.4.12",
+            "2": "     ▀▀▀▀▀▀       Gemini API key",
+            "3": "    ▀▀▀▀▀▀▀▀      Gemini 3.1 Pro (Low)",
+            "4": "   ▄▀▀    ▀▀▄     /project-root/project",
+            "5": "  ▄▀▀      ▀▀▄",
+            "7": "────────────────────────────────────────────────────────────",
+            "8": "> Say hello",
+            "10": "  Hello there.",
+            "12": "  A reply with a few lines.",
+            "14": "  And one more.",
+            "16": "> /model",
+            "17": "  ⎿  Exited /model command",
+            "19": "> /config",
+            "20": "  ⎿  Exited /config command",
+            "22": "> /help",
+            "23": "  ⎿  Exited /help command",
+            "25": "────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────",
+            "26": ">",
+            "27": "────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────",
+            "28": "? for shortcuts                                                                                     Gemini 3.1 Pro · low"
+          },
+          "bright": {
+            "28": "? for shortcuts"
+          }
+        }
+      }
+    ],
+    "plain-dollar": [
+      {
+        "label": "after a reply",
+        "screen": {
+          "height": 40,
+          "columns": 120,
+          "cursor": {
+            "row": 20,
+            "column": 1
+          },
+          "alternate": false,
+          "rows": {
+            "0": "To run a command as administrator (user \"root\"), use \"sudo <command>\".",
+            "1": "See \"man sudo_root\" for details.",
+            "4": "      ▄▀▀▄        Antigravity CLI 1.4.12",
+            "5": "     ▀▀▀▀▀▀       Gemini API key",
+            "6": "    ▀▀▀▀▀▀▀▀      Gemini 3.1 Pro (Low)",
+            "7": "   ▄▀▀    ▀▀▄     /project-root/project",
+            "8": "  ▄▀▀      ▀▀▄",
+            "10": "────────────────────────────────────────────────────────────",
+            "11": "> Say hello",
+            "13": "  Hello there.",
+            "15": "  A reply with a few lines.",
+            "17": "  And one more.",
+            "19": "────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────",
+            "20": ">",
+            "21": "────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────",
+            "22": "? for shortcuts                                                                                     Gemini 3.1 Pro · low"
+          },
+          "bright": {
+            "22": "? for shortcuts"
+          }
+        }
+      },
+      {
+        "label": "/",
+        "screen": {
+          "height": 40,
+          "columns": 120,
+          "cursor": {
+            "row": 20,
+            "column": 2
+          },
+          "alternate": false,
+          "rows": {
+            "0": "To run a command as administrator (user \"root\"), use \"sudo <command>\".",
+            "1": "See \"man sudo_root\" for details.",
+            "4": "      ▄▀▀▄        Antigravity CLI 1.4.12",
+            "5": "     ▀▀▀▀▀▀       Gemini API key",
+            "6": "    ▀▀▀▀▀▀▀▀      Gemini 3.1 Pro (Low)",
+            "7": "   ▄▀▀    ▀▀▄     /project-root/project",
+            "8": "  ▄▀▀      ▀▀▄",
+            "10": "────────────────────────────────────────────────────────────",
+            "11": "> Say hello",
+            "13": "  Hello there.",
+            "15": "  A reply with a few lines.",
+            "17": "  And one more.",
+            "19": "────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────",
+            "20": "> /",
+            "21": "────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────",
+            "22": "> /add-dir             Add a directory to the workspace",
+            "23": "  /agents              List available custom agents",
+            "24": "  /artifact            View and review artifacts",
+            "25": "  /btw                 Ask a side question without interrupting the current task",
+            "26": "  /changelog           Show release notes and changes",
+            "27": "   ↓ 39 more",
+            "29": "  ↑/↓ Navigate · enter Select · tab Complete",
+            "30": "esc to cancel                                                                                       Gemini 3.1 Pro · low"
+          },
+          "bright": {
+            "22": "> /add-dir",
+            "23": "  /agents",
+            "24": "  /artifact",
+            "25": "  /btw",
+            "26": "  /changelog",
+            "27": "",
+            "30": "esc to cancel"
+          }
+        }
+      },
+      {
+        "label": "<kill>",
+        "screen": {
+          "height": 40,
+          "columns": 120,
+          "cursor": {
+            "row": 20,
+            "column": 1
+          },
+          "alternate": false,
+          "rows": {
+            "0": "To run a command as administrator (user \"root\"), use \"sudo <command>\".",
+            "1": "See \"man sudo_root\" for details.",
+            "4": "      ▄▀▀▄        Antigravity CLI 1.4.12",
+            "5": "     ▀▀▀▀▀▀       Gemini API key",
+            "6": "    ▀▀▀▀▀▀▀▀      Gemini 3.1 Pro (Low)",
+            "7": "   ▄▀▀    ▀▀▄     /project-root/project",
+            "8": "  ▄▀▀      ▀▀▄",
+            "10": "────────────────────────────────────────────────────────────",
+            "11": "> Say hello",
+            "13": "  Hello there.",
+            "15": "  A reply with a few lines.",
+            "17": "  And one more.",
+            "19": "────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────",
+            "20": ">  ",
+            "21": "────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────",
+            "22": "? for shortcuts                                                                                     Gemini 3.1 Pro · low"
+          },
+          "bright": {
+            "20": ">",
+            "22": "? for shortcuts"
+          }
+        }
+      }
+    ],
+    "latest": [
+      {
+        "label": "long reply",
+        "screen": {
+          "height": 40,
+          "columns": 120,
+          "cursor": {
+            "row": 37,
+            "column": 1
+          },
+          "alternate": false,
+          "rows": {
+            "0": "  Long line 63",
+            "2": "  Long line 64",
+            "4": "  Long line 65",
+            "6": "  Long line 66",
+            "8": "  Long line 67",
+            "10": "  Long line 68",
+            "12": "  Long line 69",
+            "14": "  Long line 70",
+            "16": "  Long line 71",
+            "18": "  Long line 72",
+            "20": "  Long line 73",
+            "22": "  Long line 74",
+            "24": "  Long line 75",
+            "26": "  Long line 76",
+            "28": "  Long line 77",
+            "30": "  Long line 78",
+            "32": "  Long line 79",
+            "34": "  Long line 80",
+            "36": "────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────",
+            "37": ">",
+            "38": "────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────",
+            "39": "? for shortcuts                                                                                     Gemini 3.1 Pro · low"
+          },
+          "bright": {
+            "39": "? for shortcuts"
+          }
+        }
+      },
+      {
+        "label": "/",
+        "screen": {
+          "height": 40,
+          "columns": 120,
+          "cursor": {
+            "row": 29,
+            "column": 2
+          },
+          "alternate": false,
+          "rows": {
+            "0": "  Long line 67",
+            "2": "  Long line 68",
+            "4": "  Long line 69",
+            "6": "  Long line 70",
+            "8": "  Long line 71",
+            "10": "  Long line 72",
+            "12": "  Long line 73",
+            "14": "  Long line 74",
+            "16": "  Long line 75",
+            "18": "  Long line 76",
+            "20": "  Long line 77",
+            "22": "  Long line 78",
+            "24": "  Long line 79",
+            "26": "  Long line 80",
+            "28": "────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────",
+            "29": "> /",
+            "30": "────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────",
+            "31": "> /add-dir             Add a directory to the workspace",
+            "32": "  /agents              List available custom agents",
+            "33": "  /artifact            View and review artifacts",
+            "34": "  /btw                 Ask a side question without interrupting the current task",
+            "35": "  /changelog           Show release notes and changes",
+            "36": "   ↓ 42 more",
+            "38": "  ↑/↓ Navigate · enter Select · tab Complete",
+            "39": "esc to cancel                                                                                       Gemini 3.1 Pro · low"
+          },
+          "bright": {
+            "31": "> /add-dir",
+            "32": "  /agents",
+            "33": "  /artifact",
+            "34": "  /btw",
+            "35": "  /changelog",
+            "36": "",
+            "39": "esc to cancel"
+          }
+        }
+      },
+      {
+        "label": "<down>",
+        "screen": {
+          "height": 40,
+          "columns": 120,
+          "cursor": {
+            "row": 29,
+            "column": 2
+          },
+          "alternate": false,
+          "rows": {
+            "0": "  Long line 67",
+            "2": "  Long line 68",
+            "4": "  Long line 69",
+            "6": "  Long line 70",
+            "8": "  Long line 71",
+            "10": "  Long line 72",
+            "12": "  Long line 73",
+            "14": "  Long line 74",
+            "16": "  Long line 75",
+            "18": "  Long line 76",
+            "20": "  Long line 77",
+            "22": "  Long line 78",
+            "24": "  Long line 79",
+            "26": "  Long line 80",
+            "28": "────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────",
+            "29": "> /",
+            "30": "────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────",
+            "31": "  /add-dir             Add a directory to the workspace",
+            "32": "> /agents              List available custom agents",
+            "33": "  /artifact            View and review artifacts",
+            "34": "  /btw                 Ask a side question without interrupting the current task",
+            "35": "  /changelog           Show release notes and changes",
+            "36": "   ↓ 42 more",
+            "38": "  ↑/↓ Navigate · enter Select · tab Complete",
+            "39": "esc to cancel                                                                                       Gemini 3.1 Pro · low"
+          },
+          "bright": {
+            "31": "  /add-dir",
+            "32": "> /agents",
+            "33": "  /artifact",
+            "34": "  /btw",
+            "35": "  /changelog",
+            "36": "",
+            "39": "esc to cancel"
+          }
+        }
+      },
+      {
+        "label": "<kill>",
+        "screen": {
+          "height": 40,
+          "columns": 120,
+          "cursor": {
+            "row": 37,
+            "column": 1
+          },
+          "alternate": false,
+          "rows": {
+            "0": "  Long line 63",
+            "2": "  Long line 64",
+            "4": "  Long line 65",
+            "6": "  Long line 66",
+            "8": "  Long line 67",
+            "10": "  Long line 68",
+            "12": "  Long line 69",
+            "14": "  Long line 70",
+            "16": "  Long line 71",
+            "18": "  Long line 72",
+            "20": "  Long line 73",
+            "22": "  Long line 74",
+            "24": "  Long line 75",
+            "26": "  Long line 76",
+            "28": "  Long line 77",
+            "30": "  Long line 78",
+            "32": "  Long line 79",
+            "34": "  Long line 80",
+            "36": "────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────",
+            "37": ">",
+            "38": "────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────",
+            "39": "? for shortcuts                                                                                     Gemini 3.1 Pro · low"
+          },
+          "bright": {
+            "39": "? for shortcuts"
+          }
+        }
+      },
+      {
+        "label": "/model",
+        "screen": {
+          "height": 40,
+          "columns": 120,
+          "cursor": {
+            "row": 34,
+            "column": 7
+          },
+          "alternate": false,
+          "rows": {
+            "1": "  Long line 65",
+            "3": "  Long line 66",
+            "5": "  Long line 67",
+            "7": "  Long line 68",
+            "9": "  Long line 69",
+            "11": "  Long line 70",
+            "13": "  Long line 71",
+            "15": "  Long line 72",
+            "17": "  Long line 73",
+            "19": "  Long line 74",
+            "21": "  Long line 75",
+            "23": "  Long line 76",
+            "25": "  Long line 77",
+            "27": "  Long line 78",
+            "29": "  Long line 79",
+            "31": "  Long line 80",
+            "33": "────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────",
+            "34": "> /model",
+            "35": "────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────",
+            "36": "> /model  Set a model, or run a single prompt on another model",
+            "38": "  ↑/↓ Navigate · enter Select · tab Complete",
+            "39": "esc to cancel                                                                                       Gemini 3.1 Pro · low"
+          },
+          "bright": {
+            "36": "> /model",
+            "39": "esc to cancel"
+          }
+        }
+      },
+      {
+        "label": "<enter>",
+        "screen": {
+          "height": 40,
+          "columns": 120,
+          "cursor": {
+            "row": 39,
+            "column": 100
+          },
+          "alternate": false,
+          "rows": {
+            "1": "  Long line 72",
+            "3": "  Long line 73",
+            "5": "  Long line 74",
+            "7": "  Long line 75",
+            "9": "  Long line 76",
+            "11": "  Long line 77",
+            "13": "  Long line 78",
+            "15": "  Long line 79",
+            "17": "  Long line 80",
+            "19": "────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────",
+            "20": ">",
+            "21": "────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────",
+            "22": "Switch Model",
+            "24": "  Search:  ",
+            "25": "          ────────────────────",
+            "27": "  Gemini 4 Argon",
+            "28": "  Gemini 3.8 Flash",
+            "29": "  Gemini 3.7 Flash",
+            "30": "  Gemini 3.6 Flash",
+            "31": "> Gemini 3.1 Pro   (current)",
+            "33": "  Effort  ◂            ◉──────────────────────○            ▸",
+            "34": "                      low                   high          ",
+            "35": "            Faster responses, lighter reasoning — great for simpler tasks",
+            "37": "Keyboard: ↑/↓ Navigate  ←/→ Effort  enter Select  esc Go Back",
+            "39": "                                                                                                    Gemini 3.1 Pro · low"
+          },
+          "bright": {
+            "24": "  Search:",
+            "31": "> Gemini 3.1 Pro",
+            "33": "  Effort               ◉                                   ▸",
+            "34": "                      low",
+            "35": "",
+            "39": ""
+          }
+        }
+      },
+      {
+        "label": "<esc>",
+        "screen": {
+          "height": 40,
+          "columns": 120,
+          "cursor": {
+            "row": 37,
+            "column": 1
+          },
+          "alternate": false,
+          "rows": {
+            "1": "  Long line 65",
+            "3": "  Long line 66",
+            "5": "  Long line 67",
+            "7": "  Long line 68",
+            "9": "  Long line 69",
+            "11": "  Long line 70",
+            "13": "  Long line 71",
+            "15": "  Long line 72",
+            "17": "  Long line 73",
+            "19": "  Long line 74",
+            "21": "  Long line 75",
+            "23": "  Long line 76",
+            "25": "  Long line 77",
+            "27": "  Long line 78",
+            "29": "  Long line 79",
+            "31": "  Long line 80",
+            "33": "> /model",
+            "34": "  ⎿  Exited /model command",
+            "36": "────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────",
+            "37": ">",
+            "38": "────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────",
+            "39": "? for shortcuts                                                                                     Gemini 3.1 Pro · low"
+          },
+          "bright": {
+            "39": "? for shortcuts"
+          }
+        }
+      }
+    ]
+  }
+}

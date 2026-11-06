@@ -1,0 +1,286 @@
+# menus
+long reply: none
+/: menu 27-34
+  | › /model         choose what model and reasoning effort to use
+  |   /presets       run or save reusable prompts and slash commands
+  |   /ide           include current selection, open files, and other context from your IDE
+  |   /permissions   choose what Codex is allowed to do
+  |   /keymap        remap TUI shortcuts
+  |   /vim           toggle Vim mode for the composer
+  |   /experimental  toggle experimental features
+  |   /approve       approve one retry of a recent auto-review denial
+<down>: menu 27-34
+  |   /model         choose what model and reasoning effort to use
+  | › /presets       run or save reusable prompts and slash commands
+  |   /ide           include current selection, open files, and other context from your IDE
+  |   /permissions   choose what Codex is allowed to do
+  |   /keymap        remap TUI shortcuts
+  |   /vim           toggle Vim mode for the composer
+  |   /experimental  toggle experimental features
+  |   /approve       approve one retry of a recent auto-review denial
+m: menu 31-34
+  | › /model     choose what model and reasoning effort to use
+  |   /memories  configure memory use and generation
+  |   /mention   mention a file
+  |   /mcp       list MCP tools; use /mcp verbose or /mcp login <name>
+<kill>: none
+@: menu 18-34
+  |   Mentions
+  |   Files, directories, plugins, skills and tasks
+  | 
+  |    All Results   Filesystem Only   Plugins
+  | 
+  |   Type to search mentions
+  | 
+  | › novadeck         novadeck                                                                                       Plugin
+  |   Image Gen        Generate or edit images for websites, games, and more                                          Skill
+  |   OpenAI Docs      OpenAI and Codex docs for models, skills, tasks, and setup                                     Skill
+  |   Review Agent     Find actionable bugs in code changes                                                           Skill
+  |   Skill Creator    Create or update a skill                                                                       Skill
+  |   Skill Installer  Install curated skills from openai/skills or other repos                                       Skill
+  | 
+  | 
+  | 
+  |   enter/tab insert · esc close · ↑/↓ select · ←/→ filter
+s: menu 18-34
+  |   Mentions
+  |   Files, directories, plugins, skills and tasks
+  | 
+  |    All Results   Filesystem Only   Plugins
+  | 
+  |   s
+  | 
+  | › Skill Creator      Create or update a skill                                                                     Skill
+  |   Skill Installer    Install curated skills from openai/skills or other repos                                     Skill
+  |   OpenAI Docs        OpenAI and Codex docs for models, skills, tasks, and setup                                   Skill
+  |   skills             .agents/                                                                                     Dir
+  |   sample-skill       .agents/skills/                                                                              Dir
+  |   SKILL.md           .agents/skills/sample-skill/                                                                 File
+  |   sample-command.md  .claude/commands/                                                                            File
+  |   src                ./                                                                                           Dir
+  | ↓
+  |   enter/tab insert · esc close · ↑/↓ select · ←/→ filter
+<kill>: none
+$: menu 28-34
+  | › Image Gen        [Skill] Generate or edit images for websites, games, and more
+  |   OpenAI Docs      [Skill] OpenAI and Codex docs for models, skills, tasks, and setup
+  |   Review Agent     [Skill] Find actionable bugs in code changes
+  |   Skill Creator    [Skill] Create or update a skill
+  |   Skill Installer  [Skill] Install curated skills from openai/skills or other repos
+  | 
+  |   enter insert · esc close
+s: menu 30-34
+  | › Skill Creator    [Skill] Create or update a skill
+  |   Skill Installer  [Skill] Install curated skills from openai/skills or other repos
+  |   OpenAI Docs      [Skill] OpenAI and Codex docs for models, skills, tasks, and setup
+  | 
+  |   enter insert · esc close
+<kill>: none
+/model: menu 34-34
+  | › /model  choose what model and reasoning effort to use
+<enter>: view 33-39
+  |   Select Model and Effort
+  | 
+  | 
+  | › 1. fake-model (current)  Novadeck's fake model
+  |   2. gpt-6-luna            Novadeck's fake model
+  | 
+  |   enter default · s session · esc back
+<down>: view 33-39
+  |   Select Model and Effort
+  | 
+  | 
+  |   1. fake-model (current)  Novadeck's fake model
+  | › 2. gpt-6-luna            Novadeck's fake model
+  | 
+  |   enter default · s session · esc back
+<esc>: none
+<kill>: none
+/permissions: menu 34-34
+  | › /permissions  choose what Codex is allowed to do
+<enter>: view 29-39
+  |   Update Model Permissions
+  | 
+  | 
+  | › 1. Ask for approval (current)  Read and edit workspace files and run commands, with approval required for internet
+  |                                  access or edits outside the workspace
+  |   2. Approve for me              Only ask for actions detected as potentially unsafe
+  |   3. Full Access                 Use with caution: Codex can edit files outside this workspace and access the internet
+  |                                  without approval
+  |   4. Read Only                   Read workspace files, with approval required for edits or internet access
+  | 
+  |   enter select · esc back
+<esc>: none
+<kill>: none
+/status: menu 33-34
+  | › /status      show current session configuration and token usage
+  |   /statusline  configure which items appear in the status line
+<enter>: none
+<kill>: none
+/mcp: menu 34-34
+  | › /mcp  list MCP tools; use /mcp verbose or /mcp login <name>
+<enter>: none
+<kill>: none
+/skills: menu 34-34
+  | › /skills  use skills to improve how Codex performs specific tasks
+<enter>: view 32-39
+  |   Skills
+  |   Choose an action
+  | 
+  | 
+  | › 1. List skills            Tip: press $ to open this list directly
+  |   2. Enable/Disable Skills  Enable or disable skills
+  | 
+  |   enter select · esc back
+<esc>: none
+<kill>: none
+/diff: menu 34-34
+  | › /diff  show git diff (including untracked files)
+<enter>: view 0-38
+  | / D I F F / / / / / / / / / / / / / / / / / / / / / / / / / / / / / / / / / / / / / / / / / / / / / / / / / / / / / / /
+  | `/diff` — _not inside a git repository_
+  | ~
+  | ~
+  | ~
+  | ~
+  | ~
+  | ~
+  | ~
+  | ~
+  | ~
+  | ~
+  | ~
+  | ~
+  | ~
+  | ~
+  | ~
+  | ~
+  | ~
+  | ~
+  | ~
+  | ~
+  | ~
+  | ~
+  | ~
+  | ~
+  | ~
+  | ~
+  | ~
+  | ~
+  | ~
+  | ~
+  | ~
+  | ~
+  | ~
+  | ~
+  | ───────────────────────────────────────────────────────────────────────────────────────────────────────────────── 100% ─
+  |  ↑/↓ to scroll · pgup/pgdn to page · home/end to jump
+  |  q close
+
+# mid-turn
+#compacted: none
+mid-turn: none
+/: menu 25-34
+  | • Working (2s • esc to interrupt)
+  | 
+  | › /model         choose what model and reasoning effort to use
+  |   /presets       run or save reusable prompts and slash commands
+  |   /ide           include current selection, open files, and other context from your IDE
+  |   /permissions   choose what Codex is allowed to do
+  |   /keymap        remap TUI shortcuts
+  |   /vim           toggle Vim mode for the composer
+  |   /experimental  toggle experimental features
+  |   /approve       approve one retry of a recent auto-review denial
+<down>: menu 25-34
+  | ◦ Working (3s • esc to interrupt)
+  | 
+  |   /model         choose what model and reasoning effort to use
+  | › /presets       run or save reusable prompts and slash commands
+  |   /ide           include current selection, open files, and other context from your IDE
+  |   /permissions   choose what Codex is allowed to do
+  |   /keymap        remap TUI shortcuts
+  |   /vim           toggle Vim mode for the composer
+  |   /experimental  toggle experimental features
+  |   /approve       approve one retry of a recent auto-review denial
+<kill>: none
+@: menu 16-34
+  | • Working (6s • esc to interrupt)
+  | 
+  |   Mentions
+  |   Files, directories, plugins, skills and tasks
+  | 
+  |    All Results   Filesystem Only   Plugins
+  | 
+  |   Type to search mentions
+  | 
+  | › novadeck         novadeck                                                                                       Plugin
+  |   Image Gen        Generate or edit images for websites, games, and more                                          Skill
+  |   OpenAI Docs      OpenAI and Codex docs for models, skills, tasks, and setup                                     Skill
+  |   Review Agent     Find actionable bugs in code changes                                                           Skill
+  |   Skill Creator    Create or update a skill                                                                       Skill
+  |   Skill Installer  Install curated skills from openai/skills or other repos                                       Skill
+  | 
+  | 
+  | 
+  |   enter/tab insert · esc close · ↑/↓ select · ←/→ filter
+<esc>: menu 33-33
+  | ◦ Working (6s • esc to interrupt)
+<kill>: none
+
+# narrow
+@24,80: none
+/: menu 10-18
+  | › /model         choose what model and reasoning effort to use
+  |   /presets       run or save reusable prompts and slash commands
+  |   /ide           include current selection, open files, and other context from
+  |                  your IDE
+  |   /permissions   choose what Codex is allowed to do
+  |   /keymap        remap TUI shortcuts
+  |   /vim           toggle Vim mode for the composer
+  |   /experimental  toggle experimental features
+  |   /approve       approve one retry of a recent auto-review denial
+<down>: menu 10-18
+  |   /model         choose what model and reasoning effort to use
+  | › /presets       run or save reusable prompts and slash commands
+  |   /ide           include current selection, open files, and other context from
+  |                  your IDE
+  |   /permissions   choose what Codex is allowed to do
+  |   /keymap        remap TUI shortcuts
+  |   /vim           toggle Vim mode for the composer
+  |   /experimental  toggle experimental features
+  |   /approve       approve one retry of a recent auto-review denial
+<kill>: none
+
+# latest
+long reply: none
+/: menu 27-34
+  | › /model         choose what model and reasoning effort to use
+  |   /presets       run or save reusable prompts and slash commands
+  |   /ide           include current selection, open files, and other context from your IDE
+  |   /permissions   choose what Codex is allowed to do
+  |   /keymap        remap TUI shortcuts
+  |   /vim           toggle Vim mode for the composer
+  |   /experimental  toggle experimental features
+  |   /approve       approve one retry of a recent auto-review denial
+<down>: menu 27-34
+  |   /model         choose what model and reasoning effort to use
+  | › /presets       run or save reusable prompts and slash commands
+  |   /ide           include current selection, open files, and other context from your IDE
+  |   /permissions   choose what Codex is allowed to do
+  |   /keymap        remap TUI shortcuts
+  |   /vim           toggle Vim mode for the composer
+  |   /experimental  toggle experimental features
+  |   /approve       approve one retry of a recent auto-review denial
+<kill>: none
+/model: menu 34-34
+  | › /model  choose what model and reasoning effort to use
+<enter>: view 33-39
+  |   Select Model and Effort
+  | 
+  | 
+  | › 1. fake-model (current)  Novadeck's fake model
+  |   2. gpt-6-luna            Novadeck's fake model
+  | 
+  |   enter default · s session · esc back
+<esc>: none
+
