@@ -37,6 +37,7 @@ import {
 import {
   checkForUpdates,
   installOnlyOnOrderlyQuit,
+  keepUpdateOnQuit,
   portableOf,
   quitWithoutInstalling,
   updatePlan,
@@ -411,6 +412,13 @@ export const updating = ({
       if (updater) updater.autoInstallOnAppQuit = false
       macQuitInstall.autoInstallOnAppQuit = false
     },
+
+    /** No update installs and nothing opens, as the runner may still be there; see ./updater.ts. */
+    keepUpdateOnQuit: (): void =>
+      keepUpdateOnQuit([updater, macQuitInstall], {
+        swapped: appImageSwapped,
+        log: (line) => log.warn(line),
+      }),
 
     /**
      * Whether the macOS update is going into place, which holds a second quit, as a

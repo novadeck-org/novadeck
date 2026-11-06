@@ -128,6 +128,7 @@ export const codex = {
       "-a",
       "--ask-for-approval",
     ],
+    takesMany: ["-i", "--image"],
   },
   transcripts: { ...transcripts, shapes, conversational },
   plans: rolloutPlans,

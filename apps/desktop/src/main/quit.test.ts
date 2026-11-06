@@ -14,6 +14,7 @@ import {
   shutDownInOrder,
 } from "./quit"
 import { notQuitting, type Quitting } from "./quitting"
+import type { RunnerEnd } from "./runner"
 
 // A page's WebContents as saving sees it: the requests it gets and its lifecycle events.
 class FakePage extends EventEmitter {
@@ -203,14 +204,16 @@ const quit = ({
   fails = [],
   closeRunner,
   closeServer,
+  ended = "closed",
 }: {
   readonly held?: boolean
   readonly hosting?: boolean
   readonly platform?: NodeJS.Platform
   readonly state?: Quitting
   readonly fails?: readonly string[]
-  readonly closeRunner?: () => Promise<void> | undefined
+  readonly closeRunner?: () => Promise<RunnerEnd> | undefined
   readonly closeServer?: () => Promise<void> | undefined
+  readonly ended?: RunnerEnd
 } = {}) => {
   const calls: string[] = []
   const step = (name: string) => (): void => {
@@ -245,11 +248,20 @@ const quit = ({
               calls.push(state.stopping ? "save" : "save before stopping")
               if (fails.includes("save")) throw new Error("save failed")
             },
-            closeRunner: closeRunner ?? waited("close runner"),
+            closeRunner:
+              closeRunner ??
+              (async () => {
+                await waited("close runner")()
+                return ended
+              }),
             closeServer: closeServer ?? waited("close server"),
           }),
         installMacUpdate: waited("install"),
         reopenAppImage: waited("reopen"),
+        keepUpdate: () => {
+          calls.push("keep update")
+          if (fails.includes("keep update")) throw new Error("keep update failed")
+        },
         quit: step("quit"),
       },
     )
@@ -288,6 +300,7 @@ describe("the app's quit", () => {
       save: () => new Promise((resolve) => (saved = resolve)),
       closeRunner: async () => {
         calls.push("runner")
+        return "closed" as const
       },
       closeServer: async () => {
         calls.push("server")
@@ -301,14 +314,14 @@ describe("the app's quit", () => {
   })
 
   it("waits for the runner to end before the update", async () => {
-    let closed = (): void => {}
+    let closed = (_end: RunnerEnd): void => {}
     const { calls, run } = quit({
       closeRunner: () => new Promise((resolve) => (closed = resolve)),
     })
     const finished = run()
     await vi.advanceTimersByTimeAsync(0)
     expect(calls).not.toContain("install")
-    closed()
+    closed("closed")
     await finished
     expect(calls).toContain("install")
   })
@@ -327,14 +340,14 @@ describe("the app's quit", () => {
   })
 
   it("closes the server while the runner is still closing", async () => {
-    let closed = (): void => {}
+    let closed = (_end: RunnerEnd): void => {}
     const { calls, run } = quit({
       closeRunner: () => new Promise((resolve) => (closed = resolve)),
     })
     const finished = run()
     await vi.advanceTimersByTimeAsync(0)
     expect(calls).toContain("close server")
-    closed()
+    closed("closed")
     await finished
   })
 
@@ -382,6 +395,39 @@ describe("the app's quit", () => {
     })
   })
 
+  context("with a runner that was killed and then exited", () => {
+    it("installs and reopens as usual", async () => {
+      const { calls, run } = quit({ ended: "killed" })
+      await run()
+      expect(calls.slice(-3)).toEqual(["install", "reopen", "quit"])
+      expect(calls).not.toContain("keep update")
+    })
+  })
+
+  context("with a runner that did not exit even when killed", () => {
+    it("keeps the update, opens nothing and quits", async () => {
+      const { calls, run } = quit({ ended: "abandoned" })
+      await run()
+      expect(calls.slice(-4)).toEqual(["close runner", "close server", "keep update", "quit"])
+      expect(calls).not.toContain("install")
+      expect(calls).not.toContain("reopen")
+    })
+
+    it("lets the app end when the quit comes back", async () => {
+      const { calls, run } = quit({ ended: "abandoned" })
+      await run()
+      calls.length = 0
+      expect(run()).toBeUndefined()
+      expect(calls).toEqual(["begin again"])
+    })
+
+    it("still quits if keeping the update fails", async () => {
+      const { calls, run } = quit({ ended: "abandoned", fails: ["keep update"] })
+      await expect(run()).rejects.toThrow("keep update failed")
+      expect(calls.at(-1)).toBe("quit")
+    })
+  })
+
   context("when the quit comes back once it finished", () => {
     it("begins again but lets the app end", async () => {
       const { calls, run } = quit()
@@ -417,14 +463,19 @@ describe("the app's quit", () => {
       expect(calls.at(-1)).toBe("quit")
     })
 
-    it.each([
-      ["close runner", "close server"],
-      ["close server", "close runner"],
-    ])("goes on to the update after %s, with %s done too", async (name, other) => {
-      const { calls, run } = quit({ fails: [name] })
+    it("goes on to the update after the server's close fails, with the runner closed too", async () => {
+      const { calls, run } = quit({ fails: ["close server"] })
       await run()
-      expect(calls).toContain(other)
+      expect(calls).toContain("close runner")
       expect(calls.slice(-3)).toEqual(["install", "reopen", "quit"])
+    })
+
+    it("keeps the update when the runner's close fails, which says nothing of its end", async () => {
+      const { calls, run } = quit({ fails: ["close runner"] })
+      await run()
+      expect(calls).toContain("close server")
+      expect(calls.slice(-2)).toEqual(["keep update", "quit"])
+      expect(calls).not.toContain("install")
     })
   })
 })

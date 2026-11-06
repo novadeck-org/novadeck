@@ -16,18 +16,16 @@ export type WireShape = {
   readonly height: number
   // The middle of the lead's name line, where the cursor sits, while the lead is in view.
   readonly lead: number | undefined
-  // A tick into each worker in view. Each starts on the wire's own column, so its corner
+  // A tick to each worker in view. Each starts on the wire's own column, so its corner
   // overlaps the segment instead of meeting it edge to edge, which rounds to a seam at
-  // fractional display scales, and reaches a little into the worker's tab.
+  // fractional display scales, and ends on the worker's tab's left edge, touching it and
+  // drawing nothing over it.
   readonly taps: readonly { readonly id: string; readonly y: number; readonly width: number }[]
 }
 
-// How long the cursor blinks as a team lights: the lit wire's entrance ends with it. The
-// stylesheets (team-wire.css, grid-team-wire.css, canvas.css) blink for as long.
+// How long the cursor blinks as a team lights in Grid and Canvas: the lit wire's entrance ends
+// with it. Their stylesheets (grid-team-wire.css, canvas.css) blink for as long.
 export const blinkMs = 520
-
-// How far a tick reaches into its worker's tab.
-const reach = 3
 
 // The wire for a team, or none while none of it can be drawn: every member out of view on
 // one side, or the list's room too small to show it. A lead none of whose workers' tabs show,
@@ -66,7 +64,7 @@ export const wireShape = (
       .map((worker) => ({
         id: worker.id,
         y: worker.y,
-        width: Math.max(0, worker.left - column + reach),
+        width: Math.max(0, worker.left - column),
       })),
   }
 }

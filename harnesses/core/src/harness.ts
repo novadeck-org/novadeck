@@ -111,14 +111,16 @@ export type Harness = {
   /**
    * What shows a command starts no interactive session (see the runner's
    * `terminals/commands.ts`): its `commands` other than a session, as the first word that is
-   * not an option; its help and version `flags`, anywhere; and the options that `takesValue`,
-   * whose next word is theirs. Its `print` flags, anywhere, run it on a prompt, so they make
-   * the command a session's use whatever else it has; none where it has none.
+   * not an option; its help and version `flags`, anywhere; the options that `takesValue`,
+   * whose next word is theirs; and those of them that `takesMany`, whose later words are
+   * theirs too, up to the next option. Its `print` flags, anywhere, run it on a prompt, so
+   * they make the command a session's use whatever else it has; none where it has none.
    */
   readonly nonSession: {
     readonly commands: readonly string[]
     readonly flags: readonly string[]
     readonly takesValue: readonly string[]
+    readonly takesMany: readonly string[]
     readonly print: readonly string[]
   }
   /** Where its actors' transcripts are, and what each of their records says. */

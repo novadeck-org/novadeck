@@ -12,7 +12,7 @@ import { claudeHome } from "./home.js"
 import { models } from "./models.js"
 import { connect, connected, disconnect, files, hook, hookDialect } from "./plugin.js"
 import { conversational, shapes } from "./shapes.js"
-import { cmdShim, commands, posixShim, valued } from "./shim.js"
+import { cmdShim, commands, many, posixShim, valued } from "./shim.js"
 import { followSubagent, followTranscript, transcriptPlans } from "./transcript-watch.js"
 import { transcripts } from "./transcripts.js"
 
@@ -106,6 +106,7 @@ export const claude = {
     flags: ["-h", "--help", "-v", "--version"],
     print: ["-p", "--print"],
     takesValue: valued,
+    takesMany: many,
   },
   transcripts: { ...transcripts, shapes, conversational },
   plans: transcriptPlans,

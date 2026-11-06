@@ -246,6 +246,20 @@ export const agy: AgentSetup = {
         },
       }),
     )
+    if (seed?.promptHook !== undefined) {
+      await mkdir(join(sandbox.project, ".agents"), { recursive: true })
+      await writeFile(
+        join(sandbox.project, ".agents", "hooks.json"),
+        JSON.stringify({
+          seeded: {
+            // Its hooks run in the folder of their hooks.json.
+            PreInvocation: [
+              { type: "command", command: `node ../${seed.promptHook}`, timeout: 30 },
+            ],
+          },
+        }),
+      )
+    }
     return {
       GEMINI_API_KEY: model.credential,
       GOOGLE_GEMINI_BASE_URL: model.url,
