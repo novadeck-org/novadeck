@@ -13,9 +13,8 @@ import {
 // change it can observe: a drop's settle (180ms) and the sidebar's first frames once shown.
 const settleMs = 400
 
-// How long after a selection the lit wire's entrance counts as played: past a held entrance's
-// last tick (640ms), with room for its first frame to come late. It also ends a hold, should
-// the tab it waits for never go.
+// How long the lit wire's entrance takes to count as played, once nothing holds it: past its
+// last tick (440ms), with room for its first frame to come late.
 const entranceMs = 1000
 
 const sameWires = (a: Wires, b: Wires) => JSON.stringify(a) === JSON.stringify(b)
@@ -188,6 +187,8 @@ export const TeamWire = ({
   // came, which holds it until they leave.
   const [armed, setArmed] = useState<string | undefined>(undefined)
   const spent = useRef<string | undefined>(undefined)
+  // Whether the lit wire's entrance waits on a tab a fold is taking out of the list.
+  const [holding, setHolding] = useState(false)
   const heldFor = useRef(selected)
   const [seen, setSeen] = useState(selected)
   if (seen !== selected) {
@@ -205,6 +206,8 @@ export const TeamWire = ({
     const measure = () => {
       const next = measureWires(element, list, teams, folded, levels)
       setWires((current) => (sameWires(current, next) ? current : next))
+      // In the commit that draws the wire without the tab, so the entrance starts from there.
+      if (!anyGoingAway(list)) setHolding(false)
     }
     // Measures every frame until `until`, through moves no observer reports: a drag, its
     // drop and the sidebar being shown.
@@ -275,21 +278,20 @@ export const TeamWire = ({
   }, [teams, shown, list, folded, levels])
 
   // A selection that swaps the tabs a fold shows holds its entrance (team-wire.css) until the tab
-  // going away has left and the wire has been measured without it, in the commit that drew it so:
-  // however slow the frames, it draws to where the tabs end up.
+  // going away has left: however slow the frames, it draws to where the tabs end up.
   useLayoutEffect(() => {
-    const element = layer.current
-    if (!element || (heldFor.current === selected && !element.hasAttribute("data-holding"))) return
+    if (heldFor.current === selected) return
     heldFor.current = selected
-    element.toggleAttribute("data-holding", !!list && anyGoingAway(list))
-  })
+    setHolding(!!list && anyGoingAway(list))
+  }, [selected, list])
 
   // The entrance plays once each time a member is selected; redraws after it, as rows scroll
   // into view, put the wire in place without playing it again.
   useEffect(() => {
+    if (holding) return
     const timer = setTimeout(() => setPlayed(selected), entranceMs)
     return () => clearTimeout(timer)
-  }, [selected])
+  }, [selected, holding])
 
   // What the last run measured counts only while teams show in a list. The lit wire is drawn
   // last, over any resting one it crosses.
@@ -352,6 +354,7 @@ export const TeamWire = ({
       className="team-wire"
       aria-hidden
       data-settled={played === selected || undefined}
+      data-holding={holding || undefined}
     >
       {drawn.map(
         (wire) =>

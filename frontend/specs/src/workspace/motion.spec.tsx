@@ -221,4 +221,26 @@ describe("A team's wire", () => {
     await moveTo("Runtime")
     await moveTo("Tests")
   })
+
+  it("ends a hold as its tab leaves, with its team's wire out of view", async () => {
+    await openWorkspace("/?demo=messages&nested=on")
+    await terminalTab("Dev server").click()
+    await expect.poll(gutter).not.toBeNull()
+    await userEvent.hover(gutter()!)
+    await userEvent.click(gutter()!)
+    await expect.poll(() => laidOut("Runtime")).toBe(false)
+    await userEvent.click(foldRow("Runtime"))
+    await expect.poll(() => laidOut("Runtime")).toBe(true)
+    await settled()
+    // Nothing of the team shows, so nothing about the wires changes as Runtime's tab leaves.
+    const list = document.querySelector<HTMLElement>(".terminal-tab-list")!
+    list.style.flex = "none"
+    list.style.height = "40px"
+    list.scrollTop = list.scrollHeight
+    await settled()
+    const wire = document.querySelector(".team-wire")!
+    tabOf("Dev server").querySelector<HTMLElement>(".sidebar-item-select")!.click()
+    await expect.poll(() => wire.hasAttribute("data-holding")).toBe(true)
+    await expect.poll(() => wire.hasAttribute("data-holding")).toBe(false)
+  })
 })
