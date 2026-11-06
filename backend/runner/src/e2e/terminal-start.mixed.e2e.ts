@@ -1,25 +1,23 @@
-import { mkdtempSync, rmSync } from "node:fs"
-import { tmpdir } from "node:os"
+import { mkdirSync } from "node:fs"
 import { join } from "node:path"
 
 import { agy } from "./agents/agy.js"
 import { claude } from "./agents/claude.js"
 import { codex } from "./agents/codex.js"
 import { createDeck, poll, type Deck, type DeckTerminal } from "./deck.js"
-import { describe, e2e, supported } from "./fixture.js"
+import { describe, e2e, expect, supported } from "./fixture.js"
 import { prompted } from "./scenarios.js"
 
 // How long a new Windows terminal takes, as numbers in this job's log (#722). A ConPTY writes
 // its own setup at once, so a first chunk of output tells nothing: the times are to text on the
-// screen. They are read every 100 ms or so. Nothing here fails on a slow time, as a busy runner's
-// are its own; the first of each is the cold one.
+// screen, read about every 100 ms. The first of each is that program's first terminal here, not
+// a cold start. No time fails this test, as a busy runner's are its own; a terminal that never
+// draws does, once every number is in the log.
 const rounds = 3
 
 const order = [claude, codex, agy]
 
-const since = (began: number): number => Math.round(performance.now() - began)
-
-const shows = async (terminal: DeckTerminal, text: RegExp): Promise<void> => {
+const drawn = async (terminal: DeckTerminal, text: RegExp): Promise<void> => {
   await poll(
     async () => (text.test(await terminal.screen()) ? true : undefined),
     `${terminal.handle} to show ${text}`,
@@ -27,21 +25,36 @@ const shows = async (terminal: DeckTerminal, text: RegExp): Promise<void> => {
   )
 }
 
-/** The times of one terminal opened on `deck`: `steps` wait for each mark past its first text. */
+/** One terminal opened on `deck`, timed to what `steps` wait for, logged, and closed. */
 const timed = async (
   name: string,
   deck: Deck,
   command: string | undefined,
-  steps: (terminal: DeckTerminal, mark: (step: string) => void) => Promise<void>,
-): Promise<string> => {
+  steps: (terminal: DeckTerminal) => Record<string, Promise<void>>,
+): Promise<string | undefined> => {
   const began = performance.now()
-  const terminal = await deck.open(command)
-  const marks = [`open ${since(began)} ms`]
-  const mark = (step: string) => marks.push(`${step} ${since(began)} ms`)
-  await shows(terminal, /\S/)
-  mark("first text")
-  await steps(terminal, mark)
-  return `${name}: ${marks.join(", ")}`
+  const marks: string[] = []
+  const mark = (step: string) => marks.push(`${step} ${Math.round(performance.now() - began)} ms`)
+  let terminal: DeckTerminal | undefined
+  let failure: string | undefined
+  try {
+    terminal = await deck.open(command)
+    mark("open")
+    // Each on its own, so one that comes later hides no earlier one.
+    const opened = terminal
+    await Promise.all(
+      Object.entries({ "first text": drawn(opened, /\S/), ...steps(opened) }).map(([step, wait]) =>
+        wait.then(() => mark(step)),
+      ),
+    )
+  } catch (error) {
+    failure = `${name}: ${(error as Error).message}`
+    marks.push(`failed: ${(error as Error).message}`)
+  }
+  process.stdout.write(`New terminal, ${name}: ${marks.join(", ")}\n`)
+  // Each ends before the next, so none starts beside the ones before it.
+  if (terminal) await deck.terminals.close({ terminalId: terminal.id })
+  return failure
 }
 
 describe.runIf(process.platform === "win32" && supported)("a new Windows terminal", () => {
@@ -50,8 +63,8 @@ describe.runIf(process.platform === "win32" && supported)("a new Windows termina
   it(
     "logs how long each shell and each agent take to draw",
     { timeout: 420_000 },
-    async ({ e2e: run }) => {
-      const lines: string[] = []
+    async ({ e2e: run, resources }) => {
+      const failures: (string | undefined)[] = []
       const shells = [
         ["cmd", run.sandbox.env.ComSpec ?? "cmd.exe"],
         [
@@ -60,46 +73,36 @@ describe.runIf(process.platform === "win32" && supported)("a new Windows termina
         ],
       ] as const
       for (const [name, shell] of shells) {
-        const root = mkdtempSync(join(tmpdir(), "novadeck-e2e-start-"))
+        const root = join(run.sandbox.root, `start-${name}`)
+        mkdirSync(root)
         // eslint-disable-next-line no-await-in-loop -- One terminal at a time, for clean times.
         const deck = await createDeck({
           data: join(root, "data"),
           project: root,
           env: run.sandbox.env,
+          // As the app's do on Windows; no harness runs in these terminals.
+          freshPath: true,
           shell,
         })
-        try {
-          for (let round = 1; round <= rounds; round++)
-            lines.push(
-              // eslint-disable-next-line no-await-in-loop -- As above.
-              await timed(`${name} #${round}`, deck, undefined, async (terminal, mark) => {
-                await shows(terminal, />\s*$/m)
-                mark("prompt")
-              }),
-            )
-        } finally {
-          // eslint-disable-next-line no-await-in-loop -- As above.
-          await deck.close()
-          rmSync(root, { recursive: true, force: true, maxRetries: 20, retryDelay: 100 })
-        }
+        resources.defer(() => deck.close())
+        for (let round = 1; round <= rounds; round++)
+          failures.push(
+            // eslint-disable-next-line no-await-in-loop -- As above.
+            await timed(`${name} #${round}`, deck, undefined, (terminal) => ({
+              prompt: drawn(terminal, />\s*$/m),
+            })),
+          )
       }
       for (const setup of order)
         for (let round = 1; round <= rounds; round++)
-          lines.push(
+          failures.push(
             // eslint-disable-next-line no-await-in-loop -- As above.
-            await timed(
-              `${setup.name} #${round}`,
-              run.deck,
-              setup.agent,
-              async (terminal, mark) => {
-                await terminal.reached("ready", { timeoutMs: 60_000 })
-                mark("ready")
-                await prompted(terminal, setup)
-                mark("at its prompt")
-              },
-            ),
+            await timed(`${setup.name} #${round}`, run.deck, setup.agent, (terminal) => ({
+              ready: terminal.reached("ready", { timeoutMs: 60_000 }).then(() => {}),
+              "at its prompt": prompted(terminal, setup),
+            })),
           )
-      process.stdout.write(`New terminals on Windows:\n${lines.join("\n")}\n`)
+      expect(failures.filter((failure) => failure !== undefined)).toEqual([])
     },
   )
 })
