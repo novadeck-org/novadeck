@@ -21,7 +21,7 @@ const show = (
     clearBox = async () => {},
   }: {
     readonly send?: (text: string) => Promise<void>
-    readonly clearBox?: () => Promise<void>
+    readonly clearBox?: (box: ChatBox) => Promise<void>
     readonly onOpenTerminal?: () => void
     readonly box?: ChatBox | null
   } = {},
@@ -154,8 +154,8 @@ describe("what the agent's own box holds", () => {
     const asked: string[] = []
     const shown = show("", [], {
       box: box({ text: "/model" }),
-      clearBox: async () => {
-        asked.push("clear")
+      clearBox: async ({ text }) => {
+        asked.push(text)
         throw new SettleInTerminal("That didn't clear the agent's input box.")
       },
     })
@@ -163,7 +163,7 @@ describe("what the agent's own box holds", () => {
       'button[aria-label="Clear Claude\'s terminal input"]',
     )!
     await act(async () => void clear.click())
-    expect(asked).toEqual(["clear"])
+    expect(asked).toEqual(["/model"])
     expect(shown.textContent).toContain("That didn't clear")
     expect(clear.disabled).toBe(false)
   })

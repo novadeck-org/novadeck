@@ -137,26 +137,28 @@ const interruptedShown = (screen: ScreenText): boolean | undefined => {
 const overlay = (screen: ScreenText): boolean =>
   footerRows(screen).some((row) => /^Keyboard: .*\besc (Close|Dismiss)\b/.test(row.trim()))
 
-/** How much of the text lies above and below what its box shows, as it says in rows of its own. */
-const moreAbove = /^↑ \d+ more lines?$/
-const moreBelow = /^↓ \d+ more lines?$/
-
 /**
  * Its box with what it says of the text it doesn't show taken off the text: from 1.5 a text
  * taller than the box shows only a part, an `↑ 21 more lines` row over it and, with the cursor
  * moved up, an `↓ 14 more lines` row under it (probed 2026-11-06, 1.5.2, the `tall` states of
- * fixtures/leftover.probe.json, 20 rows of text on a screen of 40).
+ * fixtures/leftover.probe.json, 20 rows of text on a screen of 40). The rows are read as drawn,
+ * dim or not, and any that leads with the arrow counts, whatever follows it: a box that holds
+ * more than it shows, taken for all of it, loses the rest.
  */
-const parted = (box: InputBox | undefined): InputBox | undefined => {
+const parted = (box: InputBox | undefined, screen: ScreenText): InputBox | undefined => {
   if (!box) return box
-  const rows = box.text.split("\n")
-  const above = moreAbove.test(rows[0] ?? "")
-  const below = moreBelow.test(rows.at(-1) ?? "")
+  const top = screen.rows[box.first]?.slice(markers.prompt.length).trimStart() ?? ""
+  const above = top.startsWith("↑")
+  const below = screen.rows[box.last]?.trimStart().startsWith("↓") === true
   if (!above && !below) return box
+  const rows = box.text.split("\n")
+  const whole = rows.length === box.last - box.first + 1
+  const hidden = /^↑ ([\d,]+)/.exec(top)?.[1]?.replaceAll(",", "")
   return {
     ...box,
-    text: rows.slice(above ? 1 : 0, below ? -1 : undefined).join("\n"),
+    text: rows.slice(above ? 1 : 0, below && whole ? -1 : undefined).join("\n"),
     scrolled: true,
+    ...(hidden !== undefined && { above: Number(hidden) }),
   }
 }
 
@@ -171,7 +173,7 @@ const parted = (box: InputBox | undefined): InputBox | undefined => {
  */
 export const box: BoxProfile = {
   read: (screen) =>
-    parted(agreeing(ruledBox(withoutPanel(screen), markers), shellFooter(screen.rows))),
+    parted(agreeing(ruledBox(withoutPanel(screen), markers), shellFooter(screen.rows)), screen),
   // Enter would run a command shown as a placeholder as the placeholder's own text (probed
   // 2026-10-07). A `!` command creates the conversation and binds the session (`starts`;
   // probed 2026-10-08).

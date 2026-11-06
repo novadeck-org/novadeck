@@ -319,14 +319,14 @@ export class Receipts {
     this.idle(terminalId, track)
   }
 
-  /** The agent's box was emptied, and its words are gone: no prompt is back there now. */
-  emptied(terminalId: string): void {
-    const track = this.tracks.get(terminalId)
-    if (!track) return
-    const back = track.entries.filter((entry) => entry.state === "in-box")
-    for (const entry of back) done(entry, "withdrawn")
-    if (back.length > 0) this.host.changed(terminalId)
-    this.idle(terminalId, track)
+  /**
+   * Whether a prompt was sent that the record has yet to tell of, or that is back in the box:
+   * it may be above what a box full of text shows, as a Stop puts prompts back before it.
+   */
+  waiting(terminalId: string): boolean {
+    return (this.tracks.get(terminalId)?.entries ?? []).some(
+      ({ state, sentAt }) => state === "in-box" || (state === "pending" && sentAt !== null),
+    )
   }
 
   /**

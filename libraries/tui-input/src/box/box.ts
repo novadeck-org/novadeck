@@ -24,6 +24,8 @@ export type InputBox = {
   readonly last: number
   /** Whether the program says it shows only part of what the box holds. */
   readonly scrolled?: true
+  /** How many rows it says lie above what it shows, where it says. */
+  readonly above?: number
 }
 
 /** The markers leading a box's first row: in its prompt mode, and in its shell mode. */

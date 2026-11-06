@@ -1055,7 +1055,12 @@ one from an earlier runner.
     in that one write, as what it hides can't be counted, and a longer text shows a tail again,
     for another click. `cleared` is false where it didn't read empty, or there was no box, and
     the box stays as it was or as the keys left it, as it does for a tail with the cursor moved
-    up, whose end can't be told. A prompt back in the box is withdrawn with it.
+    up, whose end can't be told, or a box longer than `box.text` can show. Of a tail only its end
+    and what the agent says it hides (`above`, where it does) can be compared, so one stays
+    while a prompt waits on the record or is back in the box, as a Stop can put prompts back
+    over it. Prompts whose words went, all of them or as far as the keys got, are withdrawn. A
+    doorbell line beside the person's text goes with it, seen in the note, and the doorbell rings
+    again once the box is empty.
 
   All of them hold the person's keys for as long as they take: 0.3 s, as long as what a prompt just sent
   may still show (3 s), and up to 2 s for each of two keys that don't confirm, within a safety

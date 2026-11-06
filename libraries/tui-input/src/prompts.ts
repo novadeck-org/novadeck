@@ -516,12 +516,18 @@ export class Prompts {
       case "text":
         break
     }
-    const { box } = state
+    const { box, tail } = state
     if (this.host.ringLine?.(terminalId, box.text)) {
       this.host.note?.(terminalId, "ringing")
       throw new PromptRefusal("ringing", "A line is being delivered to the terminal.")
     }
     const words = mode === "freed" ? this.host.known?.(terminalId, box.text) : undefined
+    // Rows that read as a known prompt may be only the end of what's there: its keys would take
+    // them and bring up the rest, words of no one's left behind in the box.
+    if (words !== undefined && tail) {
+      this.host.note?.(terminalId, "draft-kept")
+      throw this.draft()
+    }
     let now = screen
     if (words !== undefined && profile.erase) {
       now = await this.cursorEnd(terminalId, profile, box, screen, holding)

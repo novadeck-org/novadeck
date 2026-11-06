@@ -68,6 +68,9 @@ export type HandoverNote =
   /** The screen takes no bracketed paste. */
   | "no-paste"
 
+/** Whether a box reads empty after a clear, and the text the clear took out of it, if any. */
+export type BoxCleared = { readonly cleared: boolean; readonly went: string | undefined }
+
 export type HandoverOptions = {
   readonly pollMs?: number
   /** How long the box must stay the same before it is taken from, in milliseconds. */
@@ -146,11 +149,15 @@ export class Handovers {
   /**
    * Empties the box of whatever it holds, words the chat can't read whole or a command of its
    * program's alike, out of its shell mode too, and gone for good, as the person asked to.
-   * `seen` says whether its text is what they were shown: anything else stays, as they never
-   * saw it go. The keys go once and the box is read once: true where it reads empty. False
-   * leaves the box as it was, or as the keys left it, for the person to look at and ask again.
+   * `seen` says whether it is what they were shown, as far as that can be told of a box that
+   * may show only its tail: anything else stays, as they never saw it go. The keys go once and
+   * the box is read once. Where it doesn't read empty it stays as it was, or as the keys left
+   * it, for the person to look at and ask again.
    */
-  async clear(terminalId: string, seen: (text: string) => boolean): Promise<boolean> {
+  async clear(
+    terminalId: string,
+    seen: (box: InputBox, tail: boolean) => boolean,
+  ): Promise<BoxCleared> {
     await this.ringOver(terminalId)
     return await this.queue.run(terminalId, (entry) => this.clearing(entry, terminalId, seen))
   }
@@ -250,28 +257,29 @@ export class Handovers {
   private async clearing(
     entry: InputEntry,
     terminalId: string,
-    seen: (text: string) => boolean,
-  ): Promise<boolean> {
+    seen: (box: InputBox, tail: boolean) => boolean,
+  ): Promise<BoxCleared> {
+    const left = { cleared: false, went: undefined }
     const profile = this.host.admit(terminalId)
     if (this.host.ringing(terminalId) !== undefined) {
       this.host.note(terminalId, "ringing")
-      return false
+      return left
     }
     const hold = entry.hold(this.budget)
     const { holding } = hold
     try {
       const screen = await this.steady(terminalId, profile, holding)
-      if (!screen) return false
+      if (!screen) return left
       const state = leftoverOf(profile, screen)
-      if (state.kind === "empty") return true
+      if (state.kind === "empty") return { cleared: true, went: undefined }
       if (state.kind === "none") {
         this.host.note(terminalId, "no-box")
-        return false
+        return left
       }
       const { box, tail } = state
-      if (!seen(box.text)) {
+      if (!seen(box, tail)) {
         this.host.note(terminalId, "changed")
-        return false
+        return left
       }
       // What a tail hides can't be counted, so the keys go for rows it may hold: on an empty box
       // the rest do nothing, and past them it still shows a tail, for the person to clear again.
@@ -279,13 +287,13 @@ export class Handovers {
       const keys = box.mode === "shell" ? profile.shell.leave?.(rows) : profile.erase?.(rows)
       if (keys === undefined) {
         this.host.note(terminalId, "unreadable")
-        return false
+        return left
       }
       const host = this.keysHost(terminalId, holding)
       const timing = { pollMs: this.pollMs, keysMs: this.keysMs }
       if (!(await cursorEnded(host, timing, profile, box, screen))) {
         this.host.note(terminalId, "cursor-unconfirmed")
-        return false
+        return left
       }
       const emptied = await pressKeys(
         host,
@@ -297,10 +305,12 @@ export class Handovers {
       if (!emptied) {
         const shell = box.mode === "shell"
         this.host.note(terminalId, shell ? "shell-unconfirmed" : "clear-unconfirmed")
-        return false
+        const now = await this.host.screen(terminalId)
+        const read = now && profile.read(now)
+        return { cleared: false, went: read && wentFrom(box.text, read.text) }
       }
       this.host.note(terminalId, "cleared")
-      return true
+      return { cleared: true, went: box.text }
     } finally {
       hold.settle()
     }

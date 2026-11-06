@@ -315,7 +315,11 @@ export type Runner = {
     interrupt(terminalId: string): Promise<InterruptResult>
     takeBox(terminalId: string): Promise<{ readonly returned: string | null }>
     putBox(terminalId: string, text: string): Promise<{ readonly placed: boolean }>
-    clearBox(terminalId: string, seen: string): Promise<{ readonly cleared: boolean }>
+    clearBox(
+      terminalId: string,
+      seen: string,
+      above?: number,
+    ): Promise<{ readonly cleared: boolean }>
     /**
      * Installs or removes Novadeck's plugin in the agent through its own commands;
      * rejects with `AGENT_SETUP_FAILED` saying why when that did not work.
@@ -654,8 +658,10 @@ export const connectRunner = async (
       interrupt: (terminalId) => call((client) => client.agents.interrupt({ terminalId })),
       takeBox: (terminalId) => call((client) => client.agents.takeBox({ terminalId })),
       putBox: (terminalId, text) => call((client) => client.agents.putBox({ terminalId, text })),
-      clearBox: (terminalId, seen) =>
-        call((client) => client.agents.clearBox({ terminalId, seen })),
+      clearBox: (terminalId, seen, above) =>
+        call((client) =>
+          client.agents.clearBox({ terminalId, seen, ...(above !== undefined && { above }) }),
+        ),
       set: (agent, connected) => call((client) => client.agents.set({ agent, connected })),
     },
     companions: {

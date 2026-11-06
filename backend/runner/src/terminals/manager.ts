@@ -77,7 +77,7 @@ import { Streams } from "./streams.js"
 import { savedSummaryOf, summaryOf, type AgentSummary } from "./summary.js"
 import { openedWith, renamed as renamedTo, summaryTitle, unnamed, type Naming } from "./titles.js"
 import { readingOf, transcriptChanges } from "./transcripts.js"
-import { Typing, type Prompted, type PromptInput } from "./typing.js"
+import { Typing, type ClearBoxInput, type Prompted, type PromptInput } from "./typing.js"
 
 export type TerminalOptions = {
   shell?: string
@@ -952,8 +952,8 @@ export class Terminals {
   }
 
   /** Empties the agent's box of what the person was shown (see `Typing.clearBox`). */
-  clearBox(input: { terminalId: string; seen: string }): Promise<{ cleared: boolean }> {
-    return this.typing.clearBox(input.terminalId, input.seen)
+  clearBox(input: ClearBoxInput): Promise<{ cleared: boolean }> {
+    return this.typing.clearBox(input.terminalId, input.seen, input.above)
   }
 
   /** Puts a client's draft in the agent's box, with no Enter (see `Typing.putBox`). */

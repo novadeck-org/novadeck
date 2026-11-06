@@ -77,8 +77,8 @@ export const Composer = ({
   // back on a failure, is the owner's, which may outlive this box.
   readonly onSend: (text: string) => Promise<void>
   readonly onStop: () => Promise<void>
-  // Empties the agent's own box of what `box` shows. Rejects where it didn't.
-  readonly onClearBox: () => Promise<void>
+  // Empties the agent's own box of the `box` it's given, as shown. Rejects where it didn't.
+  readonly onClearBox: (box: ChatBox) => Promise<void>
   // Keyboard navigation asks for focus here; call `onInputFocused` once it's there.
   readonly focusInput: boolean
   readonly onInputFocused: () => void
@@ -140,11 +140,11 @@ export const Composer = ({
       },
     )
   }
-  const clearBox = (): void => {
+  const clearBox = (shown: ChatBox): void => {
     if (clearing) return
     setClearing(true)
     setError(null)
-    onClearBox().then(
+    onClearBox(shown).then(
       () => mounted.current && setClearing(false),
       (failure: unknown) => {
         if (!mounted.current) return
@@ -208,7 +208,7 @@ export const Composer = ({
               className="button quiet chat-reply-cancel"
               aria-label={`Clear ${label}'s terminal input`}
               disabled={clearing}
-              onClick={clearBox}
+              onClick={() => clearBox(box)}
             >
               <X size={12} aria-hidden />
               Clear

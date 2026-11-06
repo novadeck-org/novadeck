@@ -222,6 +222,8 @@ export const agentBox = z.strictObject({
   mode: z.enum(["prompt", "shell"]),
   tail: z.boolean(),
   known: z.boolean(),
+  // How many rows the agent says lie above what it shows, where it says.
+  above: z.number().int().nonnegative().optional(),
 })
 export type AgentBox = z.infer<typeof agentBox>
 

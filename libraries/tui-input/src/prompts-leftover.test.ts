@@ -351,6 +351,14 @@ describe("a prompt over text where a paste is keys", () => {
 })
 
 describe("a prompt over text Novadeck knows", () => {
+  it("leaves what may be only its end, whose erase would bring up what's above it", async () => {
+    const tui = fake({ text: "one\ntwo\nthree", known: "the words", viewport: 3 })
+    await refused(tui.give("the message"), "draft")
+    expect(tui.written).toEqual([])
+    expect(tui.pasted()).toEqual([])
+    expect(tui.notes).toEqual(["draft-kept"])
+  })
+
   it("takes it out and hands its words back, sending alone", async () => {
     const tui = fake({ text: "came back", known: "came back" })
     await expect(tui.give("the message")).resolves.toEqual({ returned: "came back" })
