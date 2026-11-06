@@ -2,7 +2,7 @@ import type { UpdateChannel, UpdateOffer } from "@novadeck/core/desktop/update"
 import { afterEach, vi } from "vitest"
 
 import { describe, expect, it } from "../test"
-import { portableScenarios, updateScenarios } from "./scenarios"
+import { portableScenarios, sampleHeadsUp, updateScenarios } from "./scenarios"
 import {
   createDemoUpdates,
   downloadMs,
@@ -175,7 +175,28 @@ describe("demo updates", () => {
     expect(notes?.highlights).toHaveLength(3)
     whatsNew.dismiss()
     expect(await whatsNew.get()).toBeUndefined()
-    expect(whatsNewCalls).toEqual({ dismissed: 1, asked: 3 })
+    expect(whatsNewCalls).toEqual({ dismissed: 1, headsUpDismissed: 0, asked: 3 })
+  })
+
+  it("answers heads-ups with the highlights until they are got, then the highlights alone", async () => {
+    const { whatsNew, showWhatsNew, whatsNewCalls } = createDemoUpdates()
+    showWhatsNew("0.0.80", { from: "0.0.79", headsUp: sampleHeadsUp })
+    expect((await whatsNew.get())?.headsUp).toEqual(sampleHeadsUp)
+    whatsNew.dismissHeadsUp()
+    expect(await whatsNew.get()).toEqual({
+      version: "0.0.80",
+      from: "0.0.79",
+      highlights: expect.any(Array),
+    })
+    expect(whatsNewCalls.headsUpDismissed).toBe(1)
+  })
+
+  it("has nothing left once heads-ups with no highlights are got", async () => {
+    const { whatsNew, showWhatsNew } = createDemoUpdates()
+    showWhatsNew("0.0.80", { highlights: [], headsUp: sampleHeadsUp })
+    expect((await whatsNew.get())?.highlights).toEqual([])
+    whatsNew.dismissHeadsUp()
+    expect(await whatsNew.get()).toBeUndefined()
   })
 
   it("answers the version updated from when one is given", async () => {

@@ -1,10 +1,11 @@
 /* eslint-disable no-await-in-loop -- Each case runs on its own, one after another. */
-import { describe, expect, it } from "vitest"
+import { describe, expect, it, onTestFinished, vi } from "vitest"
 
 import { notesBlock } from "../../contract/protocol/src/release-notes.ts"
 import { maxLine } from "./check.ts"
 import { commit, commits, fakeSources, releaseBody } from "./fixtures.ts"
 import { generatePromote, generateRelease, type Ask } from "./generate.ts"
+import { userMessage } from "./model.ts"
 import { renderBody } from "./render.ts"
 import { Skip } from "./skip.ts"
 
@@ -200,6 +201,7 @@ describe("the notes of a prerelease", () => {
       version: "0.0.152",
       kind: "promote",
       highlights: [],
+      headsUp: [],
       changes: [],
       fixes: 0,
     })
@@ -371,5 +373,189 @@ describe("the notes of a promotion", () => {
     await expect(generatePromote("v0.0.150", sources("v0.0.152"), never, repo)).rejects.toThrow(
       /not newer/,
     )
+  })
+})
+
+describe("the heads-ups of a range", () => {
+  const withHeadsUp = (pr: number) => {
+    const raw = commit(pr)
+    return {
+      ...raw,
+      body: `${raw.body}\n\n## Heads-up\n\nThe old button is gone. Use the new one.\n`,
+    }
+  }
+  const repo = "novadeck-org/novadeck"
+  const told = {
+    title: "Old button gone",
+    line: "Use the new button instead.",
+    prs: [195],
+    icon: "wrench",
+  }
+  const sources = (tag: string) =>
+    fakeSources({
+      tags,
+      stable: "v0.0.148",
+      stables: ["v0.0.148"],
+      commits: {
+        "v0.0.151..v0.0.152": [commit(181), withHeadsUp(195)],
+        "v0.0.148..v0.0.152": [commit(181), withHeadsUp(195), commit(330)],
+      },
+      bodies: { [tag]: releaseBody },
+    })
+  const output = (headsUp: object[]) => ({
+    highlights: [],
+    headsUp,
+    changes: [{ area: "Inbox & notifications", line: "Answer agents from the Inbox.", prs: [195] }],
+  })
+
+  it("hands the model the Heads-up of a pull request that has one, and keeps what it tells", async () => {
+    let message = ""
+    const generated = await generateRelease(
+      "v0.0.152",
+      sources("v0.0.152"),
+      async (kind, version, items) => {
+        message = userMessage(kind, version, items)
+        return { text: JSON.stringify(output([told])), outputTokens: 1, model: "m" }
+      },
+    )
+    expect(message).toContain("Heads-up: The old button is gone. Use the new one.")
+    expect(message.match(/Heads-up:/g)).toHaveLength(1)
+    expect(generated.notes.headsUp).toEqual([told])
+  })
+
+  it("keeps the notes and says so when both answers leave a Heads-up untold", async () => {
+    for (const bad of [output([]), { highlights: [], changes: output([]).changes }]) {
+      const release = await generateRelease("v0.0.152", sources("v0.0.152"), answer(bad))
+      expect(release.lost).toEqual([195])
+      expect(release.notes.changes).toHaveLength(1)
+      const promote = await generatePromote("v0.0.152", sources("v0.0.152"), answer(bad), repo)
+      expect(promote.lost).toEqual([195])
+    }
+  })
+
+  it("counts a Heads-up the model rightly leaves out as lost, so the run says so", async () => {
+    const experimental = fakeSources({
+      tags,
+      commits: {
+        "v0.0.151..v0.0.152": [
+          { ...withHeadsUp(195), body: "## Heads-up\n\nThe Experimental tab moved.\n" },
+        ],
+      },
+      bodies: { "v0.0.152": releaseBody },
+    })
+    const generated = await generateRelease("v0.0.152", experimental, answer(output([])))
+    expect(generated.lost).toEqual([195])
+    expect(generated.notes.headsUp).toEqual([])
+  })
+
+  it("asks once more when an answer loses a Heads-up, and takes the answer that keeps it", async () => {
+    let asked = 0
+    const generated = await generateRelease("v0.0.152", sources("v0.0.152"), async () => {
+      asked += 1
+      const told2 = asked === 1 ? [] : [told]
+      return { text: JSON.stringify(output(told2)), outputTokens: 1, model: "m" }
+    })
+    expect(asked).toBe(2)
+    expect(generated.notes.headsUp).toEqual([told])
+  })
+
+  it("asks only once more, and not for an answer broken some other way", async () => {
+    let asked = 0
+    const counted =
+      (text: string) =>
+      async (): Promise<{ text: string; outputTokens: number; model: string }> => {
+        asked += 1
+        return { text, outputTokens: 1, model: "m" }
+      }
+    await generateRelease("v0.0.152", sources("v0.0.152"), counted(JSON.stringify(output([]))))
+    expect(asked).toBe(2)
+    asked = 0
+    await skipped(generateRelease("v0.0.152", sources("v0.0.152"), counted("not json")))
+    expect(asked).toBe(1)
+  })
+
+  it("keeps the first answer when the second tells less", async () => {
+    const other = { ...told, title: "Another", prs: [181] }
+    const twoSources = fakeSources({
+      tags,
+      commits: { "v0.0.151..v0.0.152": [withHeadsUp(181), withHeadsUp(195)] },
+      bodies: { "v0.0.152": releaseBody },
+    })
+    const worse = {
+      highlights: [],
+      headsUp: [],
+      changes: [{ area: "Voice", line: "A worse answer.", prs: [195] }],
+    }
+    let asked = 0
+    const generated = await generateRelease("v0.0.152", twoSources, async () => {
+      asked += 1
+      return {
+        text: JSON.stringify(asked === 1 ? output([other]) : worse),
+        outputTokens: 1,
+        model: "m",
+      }
+    })
+    expect(asked).toBe(2)
+    expect(generated.notes.headsUp).toEqual([other])
+    expect(generated.lost).toEqual([195])
+  })
+
+  it("asks no more when a second ask wouldn't fit the workflow step", async () => {
+    const clock = vi.spyOn(Date, "now")
+    let at = 0
+    clock.mockImplementation(() => at)
+    onTestFinished(() => clock.mockRestore())
+    let asked = 0
+    const generated = await generatePromote(
+      "v0.0.152",
+      sources("v0.0.152"),
+      async () => {
+        asked += 1
+        at += 240_000
+        return { text: JSON.stringify(output([])), outputTokens: 1, model: "m" }
+      },
+      repo,
+    )
+    expect(asked).toBe(1)
+    expect(generated.lost).toEqual([195])
+  })
+
+  it("keeps the first answer when the second ask fails", async () => {
+    let asked = 0
+    const generated = await generateRelease("v0.0.152", sources("v0.0.152"), async () => {
+      asked += 1
+      if (asked === 2) throw new Skip("The model is down")
+      return { text: JSON.stringify(output([])), outputTokens: 1, model: "m" }
+    })
+    expect(generated.lost).toEqual([195])
+    expect(generated.notes.changes).toHaveLength(1)
+  })
+
+  it("carries the heads-ups of every pull request since the last stable release in a promotion", async () => {
+    const generated = await generatePromote(
+      "v0.0.152",
+      sources("v0.0.152"),
+      answer(output([told])),
+      repo,
+    )
+    expect(generated.notes.headsUp).toEqual([told])
+    expect(generated.notes.fixes).toBe(0)
+  })
+
+  it("takes an answer without the list when no pull request has a Heads-up", async () => {
+    const plain = fakeSources({
+      tags,
+      commits: { "v0.0.151..v0.0.152": [commit(195)] },
+      bodies: { "v0.0.152": releaseBody },
+    })
+    const generated = await generateRelease(
+      "v0.0.152",
+      plain,
+      answer({
+        highlights: [],
+        changes: released.changes.slice(0, 1).map((c) => ({ ...c, prs: [195] })),
+      }),
+    )
+    expect(generated.notes.headsUp).toEqual([])
   })
 })

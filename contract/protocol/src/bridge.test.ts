@@ -1,6 +1,13 @@
 import { describe, expect, it } from "vitest"
 
-import { desktopBadgeOf, parseUpdateOffer, rendererPoolOf, webglContextsOf } from "./bridge.js"
+import {
+  desktopBadgeOf,
+  parseUpdateOffer,
+  parseWhatsNew,
+  rendererPoolOf,
+  webglContextsOf,
+  whatsNewHeadsUps,
+} from "./bridge.js"
 
 describe("a WebGL context limit", () => {
   it.each([3, 16, 64, 1024])("is %s, a whole number in range", (value) => {
@@ -92,5 +99,55 @@ describe("a badge from the page", () => {
     ["no image at all", { count: 1 }],
   ])("is nothing with %s", (_name, value) => {
     expect(desktopBadgeOf(value)).toBeUndefined()
+  })
+})
+
+describe("what is new with heads-ups", () => {
+  const item = (n: number) => ({ title: `Title ${n}`, line: `Line ${n}.` })
+
+  it("keeps heads-ups beside the highlights, in their shape, icon included", () => {
+    expect(
+      parseWhatsNew({
+        version: "1.5.0",
+        highlights: [item(1)],
+        headsUp: [
+          { ...item(2), icon: "keyboard", prs: [4] },
+          { ...item(3), icon: "Bad icon" },
+        ],
+      }),
+    ).toEqual({
+      version: "1.5.0",
+      highlights: [item(1)],
+      headsUp: [{ ...item(2), icon: "keyboard" }, item(3)],
+    })
+  })
+
+  it("is something with heads-ups alone, and nothing with neither", () => {
+    expect(parseWhatsNew({ version: "1.5.0", highlights: [], headsUp: [item(1)] })).toEqual({
+      version: "1.5.0",
+      highlights: [],
+      headsUp: [item(1)],
+    })
+    expect(parseWhatsNew({ version: "1.5.0", highlights: [], headsUp: [] })).toBeUndefined()
+    expect(
+      parseWhatsNew({ version: "1.5.0", highlights: [], headsUp: [{ title: "" }] }),
+    ).toBeUndefined()
+  })
+
+  it("leaves the key out with none, and ignores a value that is no list", () => {
+    for (const headsUp of [[], "x", null, 3, {}])
+      expect(
+        parseWhatsNew({ version: "1.5.0", highlights: [item(1)], headsUp }),
+      ).not.toHaveProperty("headsUp")
+  })
+
+  it("drops the heads-ups that break the contract first, then keeps the most that are shown", () => {
+    const headsUp = [
+      { title: "" },
+      ...Array.from({ length: whatsNewHeadsUps + 2 }, (_, n) => item(n)),
+    ]
+    expect(parseWhatsNew({ version: "1.5.0", highlights: [], headsUp })?.headsUp).toEqual(
+      Array.from({ length: whatsNewHeadsUps }, (_, n) => item(n)),
+    )
   })
 })

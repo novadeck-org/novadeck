@@ -14,8 +14,8 @@ import { releaseVersions, updateScenarios } from "./scenarios"
 // The channel is kept in `memory`: the page's (`pageUpdateChannel`) lasts across the demo's
 // boots until the page reloads. `showWhatsNew` has the app answer, when
 // asked, that the app updated to `version`, from `from` when given, whose release names the
-// highlights below, until they are dismissed; `whatsNewCalls` counts what the page asked of
-// the app since.
+// highlights below, and its `headsUp` when given, until they are dismissed (the heads-up alone
+// can be, as "Got it" does); `whatsNewCalls` counts what the page asked of the app since.
 export const createDemoUpdates = (
   restart: () => void = () => window.location.reload(),
   memory: { channel: UpdateChannel } = { channel: "stable" },
@@ -31,14 +31,18 @@ export const createDemoUpdates = (
   readonly whatsNew: DemoStates["whatsNew"]
   readonly showWhatsNew: (
     version: string,
-    notes?: { readonly highlights?: WhatsNew["highlights"]; readonly from?: string },
+    notes?: {
+      readonly highlights?: WhatsNew["highlights"]
+      readonly headsUp?: WhatsNew["highlights"]
+      readonly from?: string
+    },
   ) => void
-  readonly whatsNewCalls: { dismissed: number; asked: number }
+  readonly whatsNewCalls: { dismissed: number; headsUpDismissed: number; asked: number }
   // Has the app take this long to answer what is new.
   readonly delayWhatsNew: (ms: number) => void
 } => {
   let notes: WhatsNew | undefined
-  const whatsNewCalls = { dismissed: 0, asked: 0 }
+  const whatsNewCalls = { dismissed: 0, headsUpDismissed: 0, asked: 0 }
   let answerAfterMs = 0
   let waiting: UpdateOffer | undefined
   const listeners = new Set<(offer: UpdateOffer) => void>()
@@ -114,9 +118,24 @@ export const createDemoUpdates = (
         whatsNewCalls.dismissed += 1
         notes = undefined
       },
+      dismissHeadsUp: () => {
+        whatsNewCalls.headsUpDismissed += 1
+        // As the app answers once they are got: the highlights alone, or nothing left.
+        if (!notes) return
+        const { version, from, highlights } = notes
+        notes =
+          highlights.length > 0
+            ? { version, ...(from === undefined ? {} : { from }), highlights }
+            : undefined
+      },
     },
-    showWhatsNew: (version, { highlights = sampleHighlights, from } = {}) =>
-      void (notes = from === undefined ? { version, highlights } : { version, from, highlights }),
+    showWhatsNew: (version, { highlights = sampleHighlights, headsUp, from } = {}) =>
+      void (notes = {
+        version,
+        ...(from === undefined ? {} : { from }),
+        highlights,
+        ...(headsUp ? { headsUp } : {}),
+      }),
     whatsNewCalls,
     delayWhatsNew: (ms) => void (answerAfterMs = ms),
   }

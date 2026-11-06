@@ -105,6 +105,12 @@ export const whatsNewChannel = "novadeck:whats-new"
 /** Renderer-to-main report that the person has seen what is new; nothing is answered. */
 export const dismissWhatsNewChannel = "novadeck:dismiss-whats-new"
 
+/**
+ * Renderer-to-main report that the person got the heads-ups of what is new; nothing is
+ * answered. The highlights stay until `dismissWhatsNewChannel`.
+ */
+export const dismissHeadsUpChannel = "novadeck:dismiss-heads-up"
+
 /** Renderer-to-main request to let this copy install updates itself, by an administrator's password. */
 export const allowUpdatesChannel = "novadeck:allow-updates"
 

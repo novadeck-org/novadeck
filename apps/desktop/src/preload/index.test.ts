@@ -18,6 +18,7 @@ import {
   noticeClickChannel,
   notificationsQuietChannel,
   noticeCloseChannel,
+  dismissHeadsUpChannel,
   dismissWhatsNewChannel,
   whatsNewChannel,
   openUpdatePageChannel,
@@ -574,6 +575,27 @@ describe("what is new", () => {
       version: "0.5.0",
       highlights: [{ title: "Kept", line: "Line" }],
     })
+  })
+
+  it("passes heads-ups the contract allows, alone too, and drops the ones that break it", async () => {
+    electron.answer = {
+      version: "0.5.0",
+      highlights: [],
+      headsUp: [{ title: "Canvas", line: "Arranges itself.", icon: "layout-grid" }, { title: "" }],
+    }
+    expect(await electron.exposed.whatsNew!()).toEqual({
+      version: "0.5.0",
+      highlights: [],
+      headsUp: [{ title: "Canvas", line: "Arranges itself.", icon: "layout-grid" }],
+    })
+    electron.answer = { version: "0.5.0", highlights: [], headsUp: [{ title: "", line: "L" }] }
+    expect(await electron.exposed.whatsNew!()).toBeUndefined()
+  })
+
+  it("tells the main process the heads-ups were got, naming nothing", () => {
+    electron.exposed.dismissHeadsUp!()
+    expect(electron.sent).toEqual([dismissHeadsUpChannel])
+    expect(electron.messages).toEqual([])
   })
 
   it("tells the main process of a dismissal, naming nothing", () => {

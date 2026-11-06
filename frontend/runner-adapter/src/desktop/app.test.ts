@@ -380,10 +380,11 @@ describe("desktop updates", () => {
 describe("desktop what's new", () => {
   const highlight = { title: "Word handles", line: "Talk to @moth." }
   const whatsNewApp = (answer: unknown) => {
-    const calls = { dismissed: 0 }
+    const calls = { dismissed: 0, headsUp: 0 }
     const bridge = {
       whatsNew: () => Promise.resolve(answer),
       dismissWhatsNew: () => void (calls.dismissed += 1),
+      dismissHeadsUp: () => void (calls.headsUp += 1),
     } as unknown as DesktopApp
     return { bridge, calls }
   }
@@ -401,6 +402,22 @@ describe("desktop what's new", () => {
     const { bridge } = whatsNewApp(undefined)
     delete (bridge as { dismissWhatsNew?: unknown }).dismissWhatsNew
     expect(desktopWhatsNew(bridge)).toBeUndefined()
+    const { bridge: noHeadsUp } = whatsNewApp(undefined)
+    delete (noHeadsUp as { dismissHeadsUp?: unknown }).dismissHeadsUp
+    expect(desktopWhatsNew(noHeadsUp)).toBeUndefined()
+  })
+
+  it("gives heads-ups the contract allows, alone too", async () => {
+    const { bridge } = whatsNewApp({
+      version: "0.2.0",
+      highlights: [],
+      headsUp: [{ title: " Canvas\n<b>x</b> ", line: "y", icon: "layout-grid" }, { title: "" }],
+    })
+    expect(await desktopWhatsNew(bridge)!.get()).toEqual({
+      version: "0.2.0",
+      highlights: [],
+      headsUp: [{ title: "Canvas <b>x</b>", line: "y", icon: "layout-grid" }],
+    })
   })
 
   it("gives the highlights the contract allows, as plain lines", async () => {
@@ -452,7 +469,13 @@ describe("desktop what's new", () => {
   it("dismisses through the app, once per call", () => {
     const { bridge, calls } = whatsNewApp(undefined)
     desktopWhatsNew(bridge)!.dismiss()
-    expect(calls).toEqual({ dismissed: 1 })
+    expect(calls).toEqual({ dismissed: 1, headsUp: 0 })
+  })
+
+  it("tells the app the heads-ups were got, apart from the dismissal", () => {
+    const { bridge, calls } = whatsNewApp(undefined)
+    desktopWhatsNew(bridge)!.dismissHeadsUp()
+    expect(calls).toEqual({ dismissed: 0, headsUp: 1 })
   })
 })
 
