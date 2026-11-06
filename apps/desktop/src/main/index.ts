@@ -84,7 +84,7 @@ import {
   voiceEngine,
   waitForUi,
 } from "./resources.js"
-import { logRunnerEvents, startRunner, type RunnerProcess } from "./runner.js"
+import { logRunnerEvents, startRunner, type RunnerEnd, type RunnerProcess } from "./runner.js"
 import { registerSandboxIpc, sandboxState } from "./sandbox.js"
 import { loadTranscriptKey } from "./transcript-key.js"
 import { buildFacts } from "./updates/build.js"
@@ -312,7 +312,7 @@ const saveWindows = (windows: readonly BrowserWindow[]): Promise<void> =>
   })
 
 // What quitting and the uninstall both run.
-const shutDown = (): Promise<void> =>
+const shutDown = (): Promise<RunnerEnd> =>
   shutDownInOrder({
     platform: process.platform,
     persist: () => runner?.persist(),
@@ -780,6 +780,7 @@ const quitSteps: QuitSteps = {
   shutDown,
   installMacUpdate: updates.installMacUpdateOnQuit,
   reopenAppImage: updates.openAppImageAfterQuit,
+  keepUpdate: updates.keepUpdateOnQuit,
   quit: () => app.quit(),
 }
 app.on("before-quit", (event) => void beforeQuit(event, quitSteps))

@@ -75,7 +75,7 @@ export type UninstallHost = {
    */
   readonly removeAfterExit: (folders: readonly string[], uninstaller: string) => Promise<boolean>
   /** The shutdown quitting runs: pages save, the runner ends its shells. */
-  readonly shutdown: () => Promise<void>
+  readonly shutdown: () => Promise<unknown>
   readonly stopping: () => boolean
   readonly quit: () => void
   readonly log: (message: string, error: unknown) => void
