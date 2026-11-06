@@ -257,7 +257,7 @@ const quit = ({
 }
 
 describe("the app's quit", () => {
-  it("saves, closes the runner, installs, reopens and quits, in that order", async () => {
+  it("saves, closes the runner and the server, installs, reopens and quits, in that order", async () => {
     const { calls, run } = quit()
     await run()
     expect(calls).toEqual([
@@ -364,8 +364,10 @@ describe("the app's quit", () => {
   })
 
   context("while an update goes into place", () => {
-    it("holds the quit and does nothing else", () => {
-      const { calls, run } = quit({ held: true })
+    // The app is stopping by then: a second quit, as a logout's, is what this holds back. Not
+    // stopping, this keeps the check ahead of the others.
+    it.each([true, false])("holds the quit and does nothing else (stopping: %s)", (stopping) => {
+      const { calls, run } = quit({ held: true, state: { ...notQuitting(), stopping } })
       expect(run()).toBeUndefined()
       expect(calls).toEqual(["hold"])
     })

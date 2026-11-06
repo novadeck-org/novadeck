@@ -167,9 +167,9 @@ export type QuitSteps = {
   readonly quitting: Quitting
   /** Whether an update going into place holds this quit back. */
   readonly held: () => boolean
-  /** Says that the app is quitting, once. */
+  /** Says that the app is quitting, unless it is already stopping. */
   readonly announce: () => void
-  /** Runs on every pass, the last too. */
+  /** Runs on every pass that isn't held, the last too. */
   readonly begin: () => void
   /** Whether the app has a runner or a server to shut down. */
   readonly hosting: () => boolean

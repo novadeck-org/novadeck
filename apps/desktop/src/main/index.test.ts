@@ -96,12 +96,18 @@ describe("the compiled desktop app", () => {
         /appWindows = \(\) => BrowserWindow\.getAllWindows\(\)\.filter\(\(window\) => !looker\.is\(window\)\)/,
       )
       expect(main).toContain("() => saveWindows([window])")
-      // The order itself is covered in ./quit.test.ts; this is that the app hands it each step.
+      // The order itself is covered in ./quit.test.ts; this is that the app hands it its steps.
+      expect(main).toContain("beforeQuit(event, quitSteps)")
+      expect(main).toContain("held: updates.holdsQuit")
+      expect(main).toContain("begin: updates.quitBegins")
+      expect(main).toContain("persist: () => runner?.persist()")
       expect(main).toContain("closeRunner: () => runner?.close()")
       expect(main).toContain("closeServer: () => server?.close()")
       expect(main).toContain("installMacUpdate: updates.installMacUpdateOnQuit")
-      expect(main).toContain("reopenAppImage: updates.openAppImageAfterQuit")
-      expect(main).toContain("hosting: () => Boolean(server || runner)")
+      expect(main).toMatch(
+        /reopenAppImage: updates\.openAppImageAfterQuit,\s*quit: \(\) => app\.quit\(\)/u,
+      )
+      expect(main).toMatch(/hosting: \(\) => Boolean\(server \|\| runner\),\s*shutDown,/u)
       expect(main).toContain("saveBeforeQuitChannel")
       expect(preload).toContain("novadeck:save-before-quit")
       expect(preload).toContain("beforeQuit")
