@@ -1,4 +1,4 @@
-import type { ChatItem, ToolRun } from "../conversation"
+import type { ChatItem, ToolOutcome, ToolRun } from "../conversation"
 import { harnesses } from "../harnesses"
 import type { AgentStatus } from "../types"
 import { counted } from "../units"
@@ -24,6 +24,11 @@ export type ToolEntry = {
   readonly input: string
   readonly truncated: boolean
   readonly result: ToolResult | null
+  // What came of it, once it has a result; null where its harness doesn't say.
+  readonly outcome: ToolOutcome | null
+  // Whether the harness made it inside a script of the agent's: the script's own entry is
+  // the one before it that isn't.
+  readonly scripted: boolean
 }
 
 export type ChatBlock =
@@ -59,6 +64,28 @@ const asResult = (item: ChatItem): ToolResult => ({
   truncated: item.truncated,
 })
 
+// One outcome of what a call's input said and what its result says, which outranks it.
+// Nothing is known of a call with no result yet, and a change that failed never landed. A result
+// may count a change whose lines only the call's input has.
+const outcomeOf = (call: ChatItem, result: ChatItem | undefined): ToolOutcome | null => {
+  if (!result) return null
+  const said = result.outcome
+  const planned = call.outcome?.change ?? null
+  if (!said && !planned) return null
+  const told = said?.change ?? null
+  const counts = told ?? planned
+  return {
+    failed: said?.failed ?? null,
+    exit: said?.exit ?? null,
+    running: said?.running ?? false,
+    size: said?.size ?? null,
+    change:
+      said?.failed === true || !counts
+        ? null
+        : { ...counts, lines: told?.lines.length ? told.lines : (planned?.lines ?? []) },
+  }
+}
+
 // The items grouped in order. A result is paired by `call` with its call wherever it is
 // (it may come first); one with no `call` goes to the latest call still waiting. A result
 // whose call is not among the items stands alone.
@@ -91,6 +118,8 @@ export const groupItems = (items: readonly ChatItem[]): readonly ChatBlock[] => 
         input: item.text,
         truncated: item.truncated,
         result: result ? asResult(result) : null,
+        outcome: outcomeOf(item, result),
+        scripted: item.scripted,
       })
       continue
     }
@@ -99,7 +128,11 @@ export const groupItems = (items: readonly ChatItem[]): readonly ChatBlock[] => 
       if (item.call && calls.has(item.call)) continue
       const last = open.run?.at(-1)
       if (!item.call && open.run && last && !last.result && !last.call) {
-        open.run[open.run.length - 1] = { ...last, result: asResult(item) }
+        open.run[open.run.length - 1] = {
+          ...last,
+          result: asResult(item),
+          outcome: item.outcome,
+        }
         continue
       }
       entryBlock({
@@ -110,6 +143,8 @@ export const groupItems = (items: readonly ChatItem[]): readonly ChatBlock[] => 
         input: "",
         truncated: false,
         result: asResult(item),
+        outcome: item.outcome,
+        scripted: item.scripted,
       })
       continue
     }
@@ -147,6 +182,10 @@ export const groupItems = (items: readonly ChatItem[]): readonly ChatBlock[] => 
   return blocks
 }
 
+// An outcome is small, and the same record gives the same one, so its text tells them apart.
+const sameOutcome = (a: ToolOutcome | null, b: ToolOutcome | null): boolean =>
+  a === b || JSON.stringify(a) === JSON.stringify(b)
+
 const sameEntry = (a: ToolEntry, b: ToolEntry): boolean =>
   a.id === b.id &&
   a.tool === b.tool &&
@@ -157,7 +196,9 @@ const sameEntry = (a: ToolEntry, b: ToolEntry): boolean =>
   a.truncated === b.truncated &&
   a.result?.id === b.result?.id &&
   a.result?.text === b.result?.text &&
-  a.result?.truncated === b.result?.truncated
+  a.result?.truncated === b.result?.truncated &&
+  a.scripted === b.scripted &&
+  sameOutcome(a.outcome, b.outcome)
 
 // Whether two groupings made the same block, so a view can keep what it drew: grouping
 // builds new objects each time, though the items under most of them are the same.

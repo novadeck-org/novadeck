@@ -194,6 +194,17 @@ const functionCall = (call: Omit<ToolCall, "id">, offered: readonly Tool[]) => {
       (one.tools ?? []).some((inner) => qualified(inner.name, one.name) === call.name),
   )
   const name = space?.name ? call.name.slice(space.name.length + 1) : call.name
+  // A tool offered as free-form text (`apply_patch`, code mode's `exec`) takes its text as
+  // `input`, as `callOf` reads such a call back.
+  if (offered.some((one) => one.type === "custom" && one.name === call.name))
+    return {
+      type: "custom_tool_call",
+      id: id("ctc"),
+      call_id: id("call"),
+      name: call.name,
+      input: String(call.input.input),
+      status: "completed",
+    }
   return {
     type: "function_call",
     id: id("fc"),

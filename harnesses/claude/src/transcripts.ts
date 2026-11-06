@@ -7,6 +7,7 @@ import { shellCall } from "@novadeck/harness-core/tools"
 
 import { taskNotification } from "./decode.js"
 import { interruption } from "./interruption.js"
+import { outcomeOf } from "./outcomes.js"
 import { describe } from "./tools.js"
 
 // A subagent id Claude Code names its transcript by, as it writes them.
@@ -170,7 +171,8 @@ export const transcripts: TranscriptDecoder = {
     const time = at(fields.timestamp)
     const content = (fields.message as { content?: unknown } | undefined)?.content
     if (typeof content === "string") return textItems(role, content, time, fields)
-    return (Array.isArray(content) ? content : []).flatMap((part) => {
+    const parts = Array.isArray(content) ? content : []
+    return parts.flatMap((part) => {
       const {
         type,
         text,
@@ -179,6 +181,7 @@ export const transcripts: TranscriptDecoder = {
         id,
         content: result,
         tool_use_id: call,
+        is_error: failed,
       } = (part ?? {}) as Record<string, unknown>
       // The person's text block reads as their text content does, wrappers and all.
       if (type === "text" && typeof text === "string" && text)
@@ -194,15 +197,21 @@ export const transcripts: TranscriptDecoder = {
             describe,
           }),
         ]
-      if (type === "tool_result")
+      if (type === "tool_result") {
+        const output = typeof result === "string" ? result : joined(result, ["text"])
         return [
-          entry(
-            "tool",
-            "tool-result",
-            typeof result === "string" ? result : joined(result, ["text"]),
-            { at: time, call },
-          ),
+          entry("tool", "tool-result", output, {
+            at: time,
+            call,
+            // The record's detail of a result, which speaks for it alone.
+            outcome: outcomeOf(
+              failed === true,
+              output,
+              parts.length === 1 ? fields.toolUseResult : undefined,
+            ),
+          }),
         ]
+      }
       return []
     })
   },

@@ -30,6 +30,8 @@ describe("Claude Code's transcript, as captured", () => {
       call: null,
       author: null,
       run: null,
+      outcome: null,
+      scripted: false,
       // Claude Code's marker for a stopped turn.
       interrupted: true,
     })
