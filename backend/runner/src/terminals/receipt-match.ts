@@ -26,16 +26,30 @@ export const promptLines = (text: string): readonly string[] => {
   return lines.slice(first, last)
 }
 
-/** Where a run of `needle` starts in `lines` at or after `from`; -1 where it doesn't. */
-const runAt = (lines: readonly string[], needle: readonly string[], from: number): number => {
+/**
+ * Where a run of `needle` starts in `lines` at or after `from`; -1 where it doesn't. With
+ * `joined`, its first line may end a line, after a space, as text the box held comes first.
+ */
+const runAt = (
+  lines: readonly string[],
+  needle: readonly string[],
+  from: number,
+  joined = false,
+): number => {
   if (needle.length === 0) return -1
+  const fits = (line: string, own: string, first: boolean): boolean =>
+    line.trim() === own.trim() || (joined && first && line.trim().endsWith(` ${own.trim()}`))
   for (let at = from; at + needle.length <= lines.length; at += 1)
-    if (needle.every((line, offset) => lines[at + offset]!.trim() === line.trim())) return at
+    if (needle.every((own, offset) => fits(lines[at + offset]!, own, offset === 0))) return at
   return -1
 }
 
-/** A prompt still waiting for its record: its ref, and its lines (`promptLines`). */
-export type Waiting = { readonly ref: string; readonly lines: readonly string[] }
+/** A prompt still waiting for its record: its ref, its lines (`promptLines`), and `Receipts.joined`. */
+export type Waiting = {
+  readonly ref: string
+  readonly lines: readonly string[]
+  readonly joined?: boolean
+}
 
 /**
  * The prompts a user item of the record settles, of `waiting` in the order they were sent:
@@ -50,7 +64,7 @@ export const settledBy = (waiting: readonly Waiting[], item: string): readonly s
   const settled: string[] = []
   let cursor = 0
   for (const prompt of waiting) {
-    const at = runAt(lines, prompt.lines, cursor)
+    const at = runAt(lines, prompt.lines, cursor, prompt.joined)
     if (at < 0) continue
     settled.push(prompt.ref)
     cursor = at + prompt.lines.length
@@ -68,6 +82,31 @@ const compact = (text: string): string => text.replace(/\s+/g, "")
 export const inBox = (box: string, lines: readonly string[]): boolean => {
   const words = compact(lines.join(""))
   return words !== "" && compact(box).includes(words)
+}
+
+/** A prompt whose words may be in the box: as given, and its lines (`promptLines`). */
+export type Back = { readonly text: string; readonly lines: readonly string[] }
+
+/**
+ * The words of `back`, as given, in the box's order and a line break between, where they are all
+ * the box's `text`, white space aside; undefined where the box holds anything else, or none of them. Anything
+ * beside them is the person's, and the box isn't Novadeck's to empty.
+ */
+export const knownWords = (back: readonly Back[], text: string): string | undefined => {
+  let rest = compact(text)
+  const words: { readonly at: number; readonly text: string }[] = []
+  for (const prompt of back) {
+    const own = compact(prompt.lines.join(""))
+    const at = own === "" ? -1 : rest.indexOf(own)
+    if (at < 0) continue
+    rest = rest.slice(0, at) + "\0".repeat(own.length) + rest.slice(at + own.length)
+    words.push({ at, text: prompt.text })
+  }
+  if (words.length === 0 || rest.replaceAll("\0", "") !== "") return undefined
+  return words
+    .toSorted((a, b) => a.at - b.at)
+    .map((word) => word.text)
+    .join("\n")
 }
 
 /** What the deadline reads of the root agent's turns. */

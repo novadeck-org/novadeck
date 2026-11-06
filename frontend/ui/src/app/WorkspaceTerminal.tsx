@@ -1,5 +1,6 @@
 import { ChatView } from "@novadeck/chat/ChatView"
 import { chatDraftOf, chatReplyOf, chatSendsOf, chatShown } from "@novadeck/chat/state"
+import { useBoxHandover } from "@novadeck/chat/use-box-handover"
 import { useChat } from "@novadeck/chat/use-chat"
 import { agentStats } from "@novadeck/core/agents/stats"
 import { ledTerminals, runningLeads, terminalOrigins } from "@novadeck/core/derivations"
@@ -268,6 +269,10 @@ export const WorkspaceTerminal = memo(
       () => (showChat ? conversations?.conversation(terminalKey) : undefined),
       [showChat, conversations, terminalKey],
     )
+    useBoxHandover(conversation, {
+      take: () => void commands.takeBox(terminalKey),
+      put: () => void commands.putDraft(terminalKey),
+    })
     // Keyboard focus waits for the node to be on screen: its input is in a subtree a
     // Canvas node out of sight hides, and a request spent there would be lost. The request
     // stays until the surface can take it.

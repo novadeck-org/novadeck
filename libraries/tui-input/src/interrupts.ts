@@ -2,7 +2,7 @@ import { setTimeout as sleep } from "node:timers/promises"
 
 import type { ScreenText } from "@novadeck/emulator/headless"
 
-import { isEmpty, mayShowTail, showsTail, type BoxProfile, type InputBox } from "./box/box.js"
+import { isEmpty, fillsViewport, showsTail, type BoxProfile, type InputBox } from "./box/box.js"
 import { sameText } from "./box/text.js"
 import type { InputEntry } from "./queue.js"
 
@@ -198,7 +198,7 @@ export class Interrupts {
     // does a box that may hold more than it shows, where those words aren't known in full.
     if (!profile.clear || (!restored && profile.collapsed(box))) throw new BoxNotCleared()
     if (!restored && profile.cut?.(box) === true) throw new BoxNotCleared()
-    if (queued && mayShowTail(profile, box, rows) && !host.ownLines?.(box.text)) {
+    if (queued && fillsViewport(profile, box, rows) && !host.ownLines?.(box.text)) {
       throw new BoxNotCleared()
     }
     const gone = await this.cleared(terminalId, profile, box, entry)

@@ -1,4 +1,4 @@
-import { chatDraftOf, joinDraft, noChatDrafts, setChatDraft } from "./drafts"
+import { chatDraftOf, joinDraft, mixes, noChatDrafts, setChatDraft, takenDraft } from "./drafts"
 import { describe, expect, it } from "./test"
 
 describe("chat drafts", () => {
@@ -24,5 +24,36 @@ describe("words joined to a draft", () => {
 
   it("make one command of two shell commands, the second without its !", () => {
     expect(joinDraft("!npm test", " ! ls")).toBe("!npm test\nls")
+  })
+})
+
+describe("takenDraft", () => {
+  it("puts the box's words first, then a blank line, then the chat's", () => {
+    expect(takenDraft("from the box", "")).toBe("from the box")
+    expect(takenDraft("from the box", "from the chat")).toBe("from the box\n\nfrom the chat")
+  })
+
+  it("adds no words the draft holds, whole or as its first or last paragraph", () => {
+    expect(takenDraft("the words", "the  words\n")).toBe("the  words\n")
+    expect(takenDraft("the words", "the words\n\nand more")).toBe("the words\n\nand more")
+    expect(takenDraft("the words", "more first\n\nthe words")).toBe("more first\n\nthe words")
+    expect(takenDraft("the words", "in the words here")).toBe("the words\n\nin the words here")
+  })
+
+  it("never lets a message run as a command, nor a command go as words unseen", () => {
+    expect(takenDraft("!ls", "hello")).toBe("hello\n!ls")
+    expect(takenDraft("hi", "!pwd")).toBe("hi\n!pwd")
+    expect(takenDraft("!ls", "!pwd")).toBe("!ls\npwd")
+  })
+})
+
+describe("mixes", () => {
+  it("is true unless one is a shell command and the other is not", () => {
+    expect(mixes("words", "")).toBe(true)
+    expect(mixes("!ls", "  ")).toBe(true)
+    expect(mixes("words", "more")).toBe(true)
+    expect(mixes("!ls", "!pwd")).toBe(true)
+    expect(mixes("!ls", "more")).toBe(false)
+    expect(mixes("words", "!pwd")).toBe(false)
   })
 })

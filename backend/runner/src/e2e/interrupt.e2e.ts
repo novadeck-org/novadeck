@@ -171,8 +171,8 @@ for (const setup of setups) {
       })
       await t1.reached("working", { after: mark })
       if (inTool) await t1.until("sleep 2")
-      await t1.prompt("Queued beta")
-      await t1.prompt("Queued gamma")
+      const beta = await t1.prompt("Queued beta")
+      const gamma = await t1.prompt("Queued gamma")
       await ready(t1)
       const stopping = t1.interrupt()
       if (replyMidStop) {
@@ -186,6 +186,14 @@ for (const setup of setups) {
       onStopped?.()
 
       expect(stopped.returned).toBe(setup.agent === "codex" ? null : "Queued beta\nQueued gamma")
+      // Neither prompt given back waits on the record: Claude Code's record already holds both,
+      // written as the queued turn started, and the others' words are the person's draft again.
+      if (stopped.returned !== null) {
+        const { prompts = [] } = await t1.detail()
+        const left = prompts.filter(({ ref }) => ref === beta.ref || ref === gamma.ref)
+        expect(left).toHaveLength(2)
+        for (const { state } of left) expect(state).toMatch(/^(settled|withdrawn)$/)
+      }
       const shown = await t1.screen()
       if (!replyMidStop) expect(shown).not.toContain("Too late.")
       expect(shown).not.toContain("Queued late.")

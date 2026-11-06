@@ -5,11 +5,14 @@ import {
   Interrupts as Interrupter,
   PromptRefusal,
   Prompts as Prompter,
+  WordsTaken,
   type InputEntry,
   type InputQueue,
   type InterruptHost,
   type InterruptOptions,
+  type PromptGiven,
   type PromptHost,
+  type PromptMode,
   type PromptOptions,
 } from "@novadeck/tui-input"
 
@@ -52,7 +55,7 @@ export const promptError = (refusal: PromptRefusal): DomainError => {
     case "shell-mode":
       return conflict(
         "shell",
-        "The agent's input box is in its shell mode: clear it in the terminal first.",
+        "The agent's input box is in its shell mode, and what it holds can't be taken out.",
         refusal,
       )
     case "draft":
@@ -61,6 +64,8 @@ export const promptError = (refusal: PromptRefusal): DomainError => {
         "The agent's input box holds text already: a draft the prompt would merge into.",
         refusal,
       )
+    case "command":
+      return conflict("command", "The agent's input box holds a command of its own.", refusal)
     case "too-tall":
       return conflict(
         "too-tall",
@@ -96,21 +101,42 @@ export const promptError = (refusal: PromptRefusal): DomainError => {
   }
 }
 
+/** What the library threw, as the contract's error; anything else as it is. */
+const domainOf = (error: unknown): unknown => {
+  if (error instanceof PromptRefusal) return promptError(error)
+  if (error instanceof BoxNotCleared)
+    return new DomainError(
+      "BOX_NOT_CLEARED",
+      "The turn is stopped, but the agent's input box holds the message you queued.",
+      undefined,
+      undefined,
+      { cause: error },
+    )
+  return error
+}
+
+/**
+ * What the library threw as what the contract says. The words a prompt took out of the box
+ * before it failed go with the error, for a client to put back; only one of a terminal gone,
+ * whose draft went with it, carries none.
+ */
+export const asFailure = (error: unknown): unknown => {
+  if (!(error instanceof WordsTaken)) return domainOf(error)
+  const { returned } = error
+  const failure = domainOf(error.failure)
+  if (!(failure instanceof DomainError)) return failure
+  if (failure.code !== "CONFLICT" && failure.code !== "PROMPT_FAILED") return failure
+  const { code, message, reason } = failure
+  const data = { ...(reason && { reason }), returned }
+  return new DomainError(code, message, data, reason, { cause: failure })
+}
+
 /** What the library throws, as the contract's errors; anything else passes as it is. */
 const asDomain = async <T>(work: Promise<T>): Promise<T> => {
   try {
     return await work
   } catch (error) {
-    if (error instanceof PromptRefusal) throw promptError(error)
-    if (error instanceof BoxNotCleared)
-      throw new DomainError(
-        "BOX_NOT_CLEARED",
-        "The turn is stopped, but the agent's input box holds the message you queued: clear it in the terminal.",
-        undefined,
-        undefined,
-        { cause: error },
-      )
-    throw error
+    throw asFailure(error)
   }
 }
 
@@ -126,8 +152,13 @@ export class Prompts extends Prompter {
     super(host, queue, { ...options, refuse: (text) => promptRefusal(text, { shell: true }) })
   }
 
-  override async prompt(terminalId: string, text: string): Promise<void> {
-    return await asDomain(super.prompt(terminalId, text))
+  override async prompt(
+    terminalId: string,
+    text: string,
+    mode?: PromptMode,
+    joined?: () => void,
+  ): Promise<PromptGiven> {
+    return await asDomain(super.prompt(terminalId, text, mode, joined))
   }
 
   override async promptIn(entry: InputEntry, terminalId: string, text: string): Promise<void> {

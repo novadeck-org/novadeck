@@ -1,7 +1,9 @@
 import type { ScreenText } from "@novadeck/emulator/headless"
 import {
   agreeing,
+  eraseRows,
   footerRows,
+  leaveShell,
   rule,
   ruledBox,
   type BoxProfile,
@@ -148,7 +150,17 @@ export const box: BoxProfile = {
   // Enter would run a command shown as a placeholder as the placeholder's own text (probed
   // 2026-10-07). A `!` command creates the conversation and binds the session (`starts`;
   // probed 2026-10-08).
-  shell: { expands: false, starts: true, footer: shellFooter, command: shellCommandOf },
+  shell: {
+    expands: false,
+    starts: true,
+    footer: shellFooter,
+    command: shellCommandOf,
+    leave: leaveShell,
+  },
+  // On 80 and 120 columns a word reaches 76 and 116; one too long for a row starts a new row
+  // and breaks a column further (fixtures/leftover.probe.json).
+  textWidth: (columns) => columns - 4,
+  stands: (text) => /\[(?:Pasted text #\d+|Image\b)/.test(text),
   collapsed: ({ text }) => /^\[Pasted text #\d+ (?:\+\d+ lines?|\d+ chars?)\]$/.test(text.trim()),
   // A text taller than its box scrolls under this row, which reads as part of the text: 30
   // queued lines came back as it and the last 20 (probed 2026-11-06, 1.5.2).
@@ -157,7 +169,10 @@ export const box: BoxProfile = {
   // characters showed whole, 1,024 did not.
   // Ctrl-U clears the line the cursor is on and Backspace joins the line before it; the
   // queued messages an Escape put back are one to a line (probed 2026-10-07).
-  clear: ({ first, last }) => `${"\x15\x7f".repeat(last - first)}\x15`,
+  clear: eraseRows,
+  erase: eraseRows,
+  // It draws the cursor on the last cell of the text, not the one after it (fixtures/leftover.probe.json).
+  caret: 1,
   overlay,
   interrupted: interruptedShown,
   queued: (screen) => screen.rows.some((row) => row.includes("Press up to edit queued messages")),

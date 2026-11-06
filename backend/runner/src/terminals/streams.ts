@@ -15,6 +15,8 @@ export type StreamsHost<R> = {
   readonly holds: (terminalId: string) => boolean
   /** What the agent in a terminal does, in detail, as `agents.detail` shows it. */
   readonly detail: (record: R) => AgentDetail
+  /** A client began to read the terminal's `agents.detail`. */
+  readonly detailOpened: (terminalId: string) => void
   /** A terminal's threads and messages with their states. */
   readonly messages: (terminalId: string) => TerminalMessages
 }
@@ -73,7 +75,10 @@ export class Streams<R extends { readonly summary: { readonly id: string } }> {
 
   /** The record's detail, then another on each change, until it is finished or `signal` aborts. */
   watchDetail(record: R, signal: AbortSignal | undefined): AsyncGenerator<AgentDetail> {
-    return this.snapshots(this.details, record.summary.id, this.host.detail(record), signal)
+    const { id } = record.summary
+    return this.snapshots(this.details, id, this.host.detail(record), signal, () =>
+      this.host.detailOpened(id),
+    )
   }
 
   /** The terminal's listing, then another on each change, until it is finished or `signal` aborts. */
@@ -82,6 +87,11 @@ export class Streams<R extends { readonly summary: { readonly id: string } }> {
     signal: AbortSignal | undefined,
   ): AsyncGenerator<TerminalMessages> {
     return this.snapshots(this.messages, terminalId, this.host.messages(terminalId), signal)
+  }
+
+  /** Whether anyone reads the terminal's `agents.detail`. */
+  detailWatched(terminalId: string): boolean {
+    return (this.details.get(terminalId)?.size ?? 0) > 0
   }
 
   /** Tells the terminal's detail readers of a change; each drops one it already has. */
@@ -139,11 +149,13 @@ export class Streams<R extends { readonly summary: { readonly id: string } }> {
     terminalId: string,
     first: T,
     signal: AbortSignal | undefined,
+    opened?: () => void,
   ): AsyncGenerator<T> {
     const reader = new Latest<T>()
     reader.push(first)
     const readers = streams.get(terminalId) ?? new Set()
     streams.set(terminalId, readers.add(reader))
+    opened?.()
     const abort = () => reader.finish()
     signal?.addEventListener("abort", abort, { once: true })
     if (signal?.aborted) reader.finish()
