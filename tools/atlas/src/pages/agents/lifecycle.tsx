@@ -33,7 +33,8 @@ export const Lifecycle = () => {
   const LABEL = 76
   const LANE = 40
   const width = LABEL + used.length * W
-  const height = 34 + harnesses.length * LANE
+  const lanesEnd = 34 + harnesses.length * LANE
+  const height = lanesEnd + 22
   const lanes = harnesses.map((h) => ({ h, hooks: hooks.filter((k) => k.harness === h.id) }))
   return (
     <svg
@@ -99,14 +100,15 @@ export const Lifecycle = () => {
                   target="_blank"
                   rel="noreferrer"
                 >
-                  <title>{`${k.event}: ${k.summary}`}</title>
+                  <title>{`${k.event}${k.conditional ? " (conditional)" : ""}: ${k.summary}`}</title>
                   <circle
                     cx={LABEL + si * W + W / 2 + (ki - (here.length - 1) / 2) * 16}
                     cy={y}
                     r={6}
-                    fill={harnessColor(h.id)}
-                    stroke="var(--panel)"
+                    fill={k.conditional ? "var(--panel)" : harnessColor(h.id)}
+                    stroke={k.conditional ? harnessColor(h.id) : "var(--panel)"}
                     strokeWidth={1.5}
+                    {...(k.conditional && { strokeDasharray: "2.5 2" })}
                     className="hover:stroke-[var(--accent)]"
                   />
                 </a>
@@ -115,6 +117,20 @@ export const Lifecycle = () => {
           </g>
         )
       })}
+      <g>
+        <circle
+          cx={LABEL + 8}
+          cy={lanesEnd + 11}
+          r={6}
+          fill="var(--panel)"
+          stroke="var(--muted)"
+          strokeWidth={1.5}
+          strokeDasharray="2.5 2"
+        />
+        <text x={LABEL + 20} y={lanesEnd + 14.5} fill="var(--muted)">
+          conditional: only some machines get it
+        </text>
+      </g>
     </svg>
   )
 }
