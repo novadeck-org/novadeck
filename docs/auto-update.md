@@ -332,7 +332,7 @@ whether it has gone or not. One that was killed and did exit is gone, so the qui
 usual. One still there may hold the data folder and the install folder: the Windows installer
 can't stop a process stuck in the kernel and ends unfinished, which marks the release failed,
 and a copy opened beside it would run a second runner on the same database. So that quit
-installs no update and opens nothing, on every system, with a line in the log saying so
+starts no install and opens nothing, on every system, with a line in the log saying so
 (`keepUpdateOnQuit`), and a launch that came during the quit is dropped. A close that failed
 counts the same, as it says nothing of whether the runner ended, which is why the line says
 the runner may still be running.
@@ -356,8 +356,8 @@ The person may open Novadeck again while their quit is still putting an update i
 shutting down takes a moment. That launch is theirs, and it is honoured: it opens once the
 update is in place, as the new version. This is not a restart of the app on its own; a quit
 nobody reopens leaves Novadeck closed on every system. Nor does it apply to a quit that
-installs nothing, as a signal's, the session ending or one whose runner stayed behind (see
-"A runner that does not exit"), or to a quit with no update.
+installs nothing, as a signal's or the session ending, to one whose runner may still be running
+(see "A runner that does not exit"), or to a quit with no update.
 
 - **Linux** swaps the AppImage at the start of an orderly quit, not after the shutdown
   (`installNow` in `updates/updater.ts`, called from `before-quit` only for the person's quit; see

@@ -101,7 +101,7 @@ describe("the compiled desktop app", () => {
       expect(main).toContain("held: updates.holdsQuit")
       expect(main).toContain("begin: updates.quitBegins")
       expect(main).toContain("persist: () => runner?.persist()")
-      expect(main).toContain("closeRunner: () => runner?.close()")
+      expect(main).toContain("closeRunner: () => runner?.close(),")
       expect(main).toContain("closeServer: () => server?.close()")
       expect(main).toContain("installMacUpdate: updates.installMacUpdateOnQuit")
       expect(main).toMatch(
@@ -113,7 +113,7 @@ describe("the compiled desktop app", () => {
         /const shutDown = \(\) => shutDownInOrder\(\{[^;]*closeServer: \(\) => server\?\.close\(\)\s*\}\);/u,
       )
       expect(main).toMatch(
-        /keepUpdateOnQuit: \(\) => keepUpdateOnQuit\(\[updater, macQuitInstall\], \{\s*swapped: appImageSwapped,/u,
+        /keepUpdateOnQuit: \(\) => keepUpdateOnQuit\(\[updater, macQuitInstall\], \{\s*swapped: appImageSwapped,\s*log: \(\w+\) => log\w*\.warn\(\w+\)/u,
       )
       expect(main).toMatch(/hosting: \(\) => Boolean\(server \|\| runner\),\s*shutDown,/u)
       expect(main).toContain("saveBeforeQuitChannel")
