@@ -2,6 +2,7 @@ import { constants as system } from "node:os"
 
 import { spawn as nodePtySpawn } from "node-pty"
 
+import { agentProcesses, endFollowed, processListing, type Listing } from "./descendants.js"
 import { terminalForeground } from "./foreground.js"
 import type { ExitCause, Scopes } from "./scopes.js"
 import { anyRunning, relayMs, taskkillTree, type Member } from "./trees.js"
@@ -76,6 +77,13 @@ export type EndOptions = {
   /** On Windows, the process trees, read before the kill and ended after. */
   readonly trees: ProcessTrees
   readonly budget?: EndBudget
+  /**
+   * On Linux and macOS, the pid of the agent the terminal runs: if it holds the foreground at
+   * the hangup, what it started is waited for and ended as it is on Windows, by `budget`.
+   */
+  readonly follow?: number | undefined
+  /** The processes, for `follow`; shared by the terminals of a host. */
+  readonly listing?: Listing | undefined
 }
 
 export type Pty = {
@@ -106,6 +114,11 @@ const signalName = (signal: number | undefined, platform: NodeJS.Platform): stri
 }
 
 const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms))
+
+const defaultListing = processListing()
+
+/** How long a listing may hold up a hangup, in milliseconds. */
+const walkMs = 500
 
 /**
  * Resumes a process group hung up as its terminal closed, once the shell has exited. On
@@ -303,13 +316,28 @@ export const spawnPty = (
     resume: () => {
       if (!gone) child.resume()
     },
-    end: async ({ graceMs, treeGraceMs, trees, budget = usualBudget(treeGraceMs) }) => {
+    end: async ({
+      graceMs,
+      treeGraceMs,
+      trees,
+      budget = usualBudget(treeGraceMs),
+      follow,
+      listing = defaultListing,
+    }) => {
       ending = true
       // Gone, its exit waiting for its cause: no signal for its pid, which may be another's.
       if (gone) return exit
       // The second signal bounds ending even for programs that ignore SIGHUP.
       let timer: ReturnType<typeof setTimeout> | undefined
       try {
+        // Before the hangup, while what the agent started still leads back to it, and never
+        // for long: the hangup matters more than what would follow it.
+        const rows =
+          follow !== undefined && pty.pid !== undefined
+            ? await Promise.race([listing(), sleep(walkMs).then(() => undefined)])
+            : undefined
+        if (gone) return await exit
+        const followed = rows && agentProcesses(rows, pty.pid!, follow!)
         // Windows has no process groups to hang up.
         const group = platform === "win32" ? undefined : await hangUp(pty.pid)
         // Windows hangs up no group: closing the console sends what is attached to it
@@ -329,6 +357,8 @@ export const spawnPty = (
           takenAsEnded()
         }
         timer = setTimeout(() => {
+          // Gone while what it left is still waited for: its pid may be another's by now.
+          if (gone) return
           // A Windows terminal that has drawn ran node-pty's kill, which ended its shell,
           // whose id may already name another process.
           const forced =
@@ -348,8 +378,15 @@ export const spawnPty = (
             takenAsEnded,
           )
         }, graceMs)
-        await Promise.all([exit, tree && endLeft(tree, trees, budget)])
-        if (group !== undefined) resumeGroup(group)
+        const began = Date.now()
+        await Promise.all([
+          // As soon as the shell has gone, however long what it left is waited for.
+          exit.then(() => {
+            if (group !== undefined) resumeGroup(group)
+          }),
+          tree && endLeft(tree, trees, budget),
+          followed && endFollowed(followed, () => budget.graceEnds(began), listing),
+        ])
       } finally {
         if (timer) clearTimeout(timer)
       }
