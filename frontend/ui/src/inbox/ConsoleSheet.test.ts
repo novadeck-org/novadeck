@@ -935,6 +935,8 @@ describe("The Console sheet", () => {
       call: null,
       author: null,
       run: null,
+      outcome: null,
+      scripted: false,
       interrupted: false,
       ...fields,
     })

@@ -35,6 +35,8 @@ export const lists: ShapeLists = {
     "item:agent_message",
     // The person's Esc, which only an interrupted abort reads as.
     "event:turn_aborted",
+    // What a script ran: its commands and patches, which only such items read as.
+    "event:item_completed",
     // Shell mode (`!`), and the person's answer to an async question.
     "tag:user_shell_command",
     "tag:send_user_message_question_reply",
@@ -82,7 +84,6 @@ export const lists: ShapeLists = {
     "event:exec_command_begin",
     "event:exec_command_end",
     "event:exited_review_mode",
-    "event:item_completed",
     "event:item_started",
     "event:mcp_tool_call_begin",
     "event:mcp_tool_call_end",

@@ -1,0 +1,29 @@
+2026-11-06T16:56:16.6941068Z [31m⎯⎯⎯⎯⎯⎯⎯[39m[1m[41m Failed Tests 1 [49m[22m[31m⎯⎯⎯⎯⎯⎯⎯[39m
+2026-11-06T16:56:16.6941547Z 
+2026-11-06T16:56:16.6945271Z [41m[1m FAIL [22m[49m src/e2e/interrupt.e2e.ts[2m > [22mClaude Code[2m > [22mgives back both of two queued messages where the turn ends as the Stop waits on their hooks
+2026-11-06T16:56:16.6949884Z [31m[1mAssertionError[22m: expected null to be 'Queued beta\nQueued gamma' // Object.is equality[39m
+2026-11-06T16:56:16.6951037Z 
+2026-11-06T16:56:16.6951281Z [32m- Expected:[39m
+2026-11-06T16:56:16.6951737Z "Queued beta
+2026-11-06T16:56:16.6952090Z Queued gamma"
+2026-11-06T16:56:16.6952331Z 
+2026-11-06T16:56:16.6952584Z [31m+ Received:[39m
+2026-11-06T16:56:16.6953014Z null
+2026-11-06T16:56:16.6953188Z 
+2026-11-06T16:56:16.6953656Z [36m [2m❯[22m twoQueued src/e2e/interrupt.e2e.ts:[2m188:32[22m[39m
+2026-11-06T16:56:16.7033725Z     [90m186|[39m       onStopped?.()
+2026-11-06T16:56:16.7034919Z     [90m187|[39m
+2026-11-06T16:56:16.7035912Z     [90m188|[39m       expect(stopped.returned).toBe(setup.agent === "codex" ? null : "…
+2026-11-06T16:56:16.7036922Z     [90m   |[39m                                [31m^[39m
+2026-11-06T16:56:16.7037760Z     [90m189|[39m       const shown = await t1.screen()
+2026-11-06T16:56:16.7038737Z     [90m190|[39m       if (!replyMidStop) expect(shown).not.toContain("Too late.")
+2026-11-06T16:56:16.7039421Z 
+2026-11-06T16:56:16.7039871Z [31m[2m⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/1]⎯[22m[39m
+2026-11-06T16:56:16.7040388Z 
+2026-11-06T16:56:16.7041862Z 
+2026-11-06T16:56:16.7048788Z [2m Test Files [22m [1m[31m1 failed[39m[22m[2m | [22m[1m[32m12 passed[39m[22m[2m | [22m[33m7 skipped[39m[90m (20)[39m
+2026-11-06T16:56:16.7050415Z [2m      Tests [22m [1m[31m1 failed[39m[22m[2m | [22m[1m[32m49 passed[39m[22m[2m | [22m[33m121 skipped[39m[90m (171)[39m
+2026-11-06T16:56:16.7051512Z [2m   Start at [22m 16:41:25
+2026-11-06T16:56:16.7056001Z [2m   Duration [22m 891.41s[2m (tests 99%, import 1%)[22m
+2026-11-06T16:56:16.7072178Z 
+2026-11-06T16:56:16.7093344Z 

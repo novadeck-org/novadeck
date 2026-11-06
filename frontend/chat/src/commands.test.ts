@@ -34,6 +34,8 @@ const userItem = (index: number, text: string): ChatItem => ({
   call: null,
   author: null,
   run: null,
+  outcome: null,
+  scripted: false,
   interrupted: false,
 })
 

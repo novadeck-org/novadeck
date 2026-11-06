@@ -20,6 +20,33 @@ export type ToolRun = {
   readonly detail: string
 }
 
+// What came of a tool call, in its harness's own words, as its decoder said; the same shape
+// as the protocol's `toolOutcome`, as `ToolRun` is its `toolRun`. Every part is null where the
+// harness doesn't say. `failed` is its word on the call, `exit` a command's exit code,
+// `running` that the call goes on past its result (a command in the background, whose
+// `failed` is then unknown), `size` a count it states, and `change` the lines it changed:
+// `added` and `removed` count them all, and `lines` are the first, with the number the
+// harness records for one, else null.
+export type ToolChange = {
+  readonly added: number
+  readonly removed: number
+  readonly lines: readonly {
+    readonly sign: "+" | "-" | " "
+    readonly text: string
+    readonly line: number | null
+  }[]
+}
+export type ToolOutcome = {
+  readonly failed: boolean | null
+  readonly exit: number | null
+  readonly running: boolean
+  readonly size: { readonly count: number; readonly unit: "line" | "match" | "file" } | null
+  readonly change: ToolChange | null
+  // Read from the words a result opens with, which holds only for a tool of the harness's
+  // own: `groupItems` has dealt with that by the time a view reads an outcome.
+  readonly opening: boolean
+}
+
 // One record of the conversation, in the order its harness wrote it: the person's or the
 // agent's text, another agent's message to it (`author` names that agent, in its
 // harness's words), a tool call with its input as text (often JSON), or a tool's result,
@@ -41,6 +68,12 @@ export type ChatItem = {
   readonly author: string | null
   // On a call, what it was; null on every other item.
   readonly run: ToolRun | null
+  // On a call or its result, what came of it, where its harness says. `groupItems` makes
+  // one of the two.
+  readonly outcome: ToolOutcome | null
+  // A call the harness made inside a script of the agent's, and its result, recorded after
+  // the script's own call.
+  readonly scripted: boolean
   // A user item that records the person stopping the agent.
   readonly interrupted: boolean
 }

@@ -50,6 +50,8 @@ const item = (index: number, text = `text ${index}`): TranscriptItem => ({
   call: null,
   author: null,
   run: null,
+  outcome: null,
+  scripted: false,
   interrupted: false,
 })
 
@@ -180,6 +182,8 @@ describe("the runner's conversations", () => {
         call: null,
         author: null,
         run: null,
+        outcome: null,
+        scripted: false,
         interrupted: false,
       })
     })

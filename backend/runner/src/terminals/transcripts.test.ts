@@ -29,6 +29,8 @@ const items = (line: string): TranscriptEntry[] => [
     call: null,
     author: null,
     run: null,
+    outcome: null,
+    scripted: false,
     interrupted: false,
   },
 ]

@@ -1,6 +1,6 @@
-import type { ChatItem } from "../conversation"
+import type { ChatItem, ToolOutcome } from "../conversation"
 import { describe, expect, it } from "../test"
-import { agentName, groupItems, recordsShell, sameBlock, turnStatus } from "./turns"
+import { agentName, groupItems, recordsShell, sameBlock, turnStatus, type ToolEntry } from "./turns"
 
 let count = 0
 const item = (fields: Partial<ChatItem>): ChatItem => ({
@@ -14,6 +14,8 @@ const item = (fields: Partial<ChatItem>): ChatItem => ({
   call: null,
   author: null,
   run: null,
+  outcome: null,
+  scripted: false,
   interrupted: false,
   ...fields,
 })
@@ -27,6 +29,150 @@ const call = (tool: string, id: string | null, text = "{}") =>
   })
 const result = (id: string | null, text = "ok") =>
   item({ role: "tool", kind: "tool-result", call: id, text })
+
+const told = (fields: Partial<ToolOutcome>): ToolOutcome => ({
+  failed: null,
+  exit: null,
+  running: false,
+  size: null,
+  change: null,
+  opening: false,
+  ...fields,
+})
+
+const entriesOf = (items: readonly ChatItem[]): readonly ToolEntry[] =>
+  groupItems(items).flatMap((block) => (block.kind === "tools" ? block.entries : []))
+
+describe("a tool call's outcome", () => {
+  const change = {
+    added: 2,
+    removed: 1,
+    lines: [{ sign: "+", text: "a", line: null }],
+  } as const
+  const edit = (id: string) => ({ ...call("Edit", id), outcome: told({ change }) })
+
+  const bash = (id: string) => ({
+    ...call("Bash", id),
+    run: { kind: "run", title: "Ran", detail: "" } as const,
+  })
+
+  it("comes from its result", () => {
+    const [entry] = entriesOf([
+      bash("a"),
+      { ...result("a"), outcome: told({ failed: true, exit: 3 }) },
+    ])
+    expect(entry!.outcome).toEqual(told({ failed: true, exit: 3 }))
+  })
+
+  it("is null where its harness says nothing, so the chat keeps its line", () => {
+    expect(entriesOf([call("Bash", "a"), result("a")])[0]!.outcome).toBeNull()
+  })
+
+  it("joins what its input said to what its result says", () => {
+    const [entry] = entriesOf([edit("a"), { ...result("a"), outcome: told({ failed: false }) }])
+    expect(entry!.outcome).toEqual(told({ failed: false, change }))
+  })
+
+  it("reads the same when its result comes first", () => {
+    const [entry] = entriesOf([{ ...result("a"), outcome: told({ failed: false }) }, edit("a")])
+    expect(entry!.outcome).toEqual(told({ failed: false, change }))
+  })
+
+  it("holds an input's change as a plan until the result says it went well", () => {
+    expect(entriesOf([edit("a"), result("a", "patch rejected")])[0]!.outcome).toBeNull()
+    expect(
+      entriesOf([edit("a"), { ...result("a"), outcome: told({ running: true }) }])[0]!.outcome,
+    ).toEqual(told({ running: true }))
+  })
+
+  it("is nothing yet while the call runs: its input's change is no result", () => {
+    expect(entriesOf([edit("a")])[0]!.outcome).toBeNull()
+  })
+
+  it("drops a change that failed, as it never landed", () => {
+    const [entry] = entriesOf([edit("a"), { ...result("a"), outcome: told({ failed: true }) }])
+    expect(entry!.outcome).toEqual(told({ failed: true }))
+  })
+
+  it("takes a result's counts over its input's, keeping the lines only the input has", () => {
+    const counted = told({ failed: false, change: { added: 5, removed: 4, lines: [] } })
+    const [entry] = entriesOf([edit("a"), { ...result("a"), outcome: counted }])
+    expect(entry!.outcome?.change).toEqual({ added: 5, removed: 4, lines: change.lines })
+  })
+
+  it("takes a result's own lines over its input's", () => {
+    const lines = [{ sign: "-", text: "b", line: 7 }] as const
+    const counted = told({ change: { added: 0, removed: 1, lines } })
+    const [entry] = entriesOf([edit("a"), { ...result("a"), outcome: counted }])
+    expect(entry!.outcome?.change).toEqual({ added: 0, removed: 1, lines })
+  })
+
+  it("stays on a result whose call isn't among the items", () => {
+    const outcome = told({ failed: true })
+    expect(entriesOf([{ ...result("a"), outcome }])[0]!.outcome).toEqual(outcome)
+  })
+
+  it("drops a failed change there too", () => {
+    const outcome = told({ failed: true, change })
+    expect(entriesOf([{ ...result("a"), outcome }])[0]!.outcome).toEqual(told({ failed: true }))
+  })
+
+  describe("from the words a result opens with", () => {
+    const worded = told({ failed: true, exit: 3, opening: true })
+    const of = (kind: "run" | "other") =>
+      entriesOf([
+        { ...call("Tool", "a"), run: { kind, title: "Tool", detail: "" } },
+        { ...result("a"), outcome: worded },
+      ])[0]!.outcome
+
+    it("holds for a tool of the harness's own", () => {
+      expect(of("run")).toEqual(worded)
+    })
+
+    it("is another tool's printing, so nothing", () => {
+      expect(of("other")).toBeNull()
+    })
+
+    it("is nothing where its call isn't among the items", () => {
+      expect(entriesOf([{ ...result("a"), outcome: worded }])[0]!.outcome).toBeNull()
+    })
+  })
+
+  it("keeps a mark on any tool, but a code only on a command's", () => {
+    const outcome = told({ failed: true, exit: 5 })
+    const [entry] = entriesOf([call("mcp", "a"), { ...result("a"), outcome }])
+    expect(entry!.outcome).toEqual(told({ failed: true }))
+  })
+
+  it("stays on a result paired by being the latest", () => {
+    const outcome = told({ failed: false })
+    const [entry] = entriesOf([call("Bash", null), { ...result(null), outcome }])
+    expect(entry!.outcome).toEqual(outcome)
+  })
+
+  it("makes another block of another outcome, so the chat draws it", () => {
+    const blockOf = (outcome: ToolOutcome) =>
+      groupItems([
+        { ...bash("a"), id: "c" },
+        { ...result("a"), id: "r", outcome },
+      ])[0]!
+    expect(sameBlock(blockOf(told({ exit: 0 })), blockOf(told({ exit: 0 })))).toBe(true)
+    expect(sameBlock(blockOf(told({ exit: 0 })), blockOf(told({ exit: 1 })))).toBe(false)
+  })
+
+  it("marks a call made inside a script, in record order after the script's", () => {
+    const entries = entriesOf([
+      call("exec", "s"),
+      { ...call("exec_command", "e"), scripted: true },
+      { ...result("e"), scripted: true },
+      result("s"),
+    ])
+    expect(entries.map(({ tool, scripted }) => [tool, scripted])).toEqual([
+      ["exec", false],
+      ["exec_command", true],
+    ])
+  })
+})
 
 describe("grouping a conversation's items", () => {
   it("keeps the person's and the agent's text as they come", () => {
