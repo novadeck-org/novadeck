@@ -61,14 +61,21 @@ describe("Slice", () => {
       createElement(Slice, { slice: slice([[run("x", { inverse: true })]]) }),
     )
     const span = container.querySelector<HTMLElement>(".chat-slice span")!
-    expect(span.style.backgroundColor).not.toContain("currentcolor")
-    expect(span.style.backgroundColor).not.toBe(span.style.color)
+    expect(span.getAttribute("style")).toContain("color: var(--terminal-bg)")
+    expect(span.getAttribute("style")).toContain("background-color: var(--terminal-fg)")
   })
 })
 
 describe("paletteColour", () => {
-  it("reads the named colours, the cube and the grey ramp", () => {
-    expect(paletteColour(1)).toBe("#cd3131")
+  it("takes the sixteen from the terminal's theme", () => {
+    expect(paletteColour(0)).toBe("var(--terminal-ansi-black)")
+    expect(paletteColour(1)).toBe("var(--terminal-ansi-red)")
+    expect(paletteColour(7)).toBe("var(--terminal-ansi-white)")
+    expect(paletteColour(8)).toBe("var(--terminal-ansi-black-bright)")
+    expect(paletteColour(15)).toBe("var(--terminal-ansi-white-bright)")
+  })
+
+  it("reads the cube and the grey ramp, which no theme changes", () => {
     expect(paletteColour(16)).toBe("#000000")
     expect(paletteColour(196)).toBe("#ff0000")
     expect(paletteColour(232)).toBe("#080808")
