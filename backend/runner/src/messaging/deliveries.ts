@@ -283,24 +283,56 @@ export class Deliveries {
   }
 
   /**
-   * The doorbell's line, by its nonce, where the person's Inbox replies wait for the
-   * terminal's root session (`replyLine`), oldest first; undefined for none. A request for
-   * feedback is none.
+   * The doorbell's line, by its nonce, where the person's Inbox replies no line has said yet
+   * wait for the terminal's root session (`replyLine`), oldest first; undefined for none. A
+   * request for feedback is none.
    */
   replyLine(terminalId: string): ((nonce: string) => string) | undefined {
     const live = this.host.sessions.get(terminalId)
     if (!live) return undefined
     return replyLine(
-      [...this.waitingFor(live)]
-        .filter((message) => message.response !== undefined && !message.response.feedback)
-        .toSorted((a, b) => a.sentAt - b.sentAt)
-        .map(({ text, response }) => ({
-          subject: cleanInboxText(response!.subject),
-          ...(response!.option !== undefined && { option: cleanInboxText(response!.option) }),
-          ...(response!.action !== undefined && { action: cleanInboxText(response!.action) }),
-          text,
-        })),
+      this.repliesFor(live).map(({ text, response }) => ({
+        subject: cleanInboxText(response!.subject),
+        ...(response!.option !== undefined && { option: cleanInboxText(response!.option) }),
+        ...(response!.action !== undefined && { action: cleanInboxText(response!.action) }),
+        text,
+      })),
     )
+  }
+
+  /**
+   * The person's Inbox replies waiting there that no line has said, oldest first: one said
+   * already (its turn's hook had no time, or older messages filled its delivery) comes with a
+   * delivery alone, as saying it again could have the agent act on it twice.
+   */
+  private repliesFor(live: Live): readonly Message[] {
+    const said = live.lineAt ?? Number.NEGATIVE_INFINITY
+    return [...this.waitingFor(live)]
+      .filter(
+        ({ response, sentAt }) => response !== undefined && !response.feedback && sentAt > said,
+      )
+      .toSorted((a, b) => a.sentAt - b.sentAt)
+  }
+
+  /**
+   * Whether the turn ending in the terminal should end, for the doorbell to ring the
+   * person's waiting replies as its next prompt, rather than go on with them as context
+   * from its Stop: they fit the line, and nothing known keeps a ring off: a draft in the box,
+   * work the turn leaves in the background (`background`), or the doorbell ringing plain
+   * after a failed ring, as its rings end at their cap and no later hook could carry the
+   * replies then.
+   */
+  ridesLine(terminalId: string, background: boolean): boolean {
+    const live = this.host.sessions.get(terminalId)
+    if (!live || background || live.ringsPlain) return false
+    const { box } = live.delivery
+    return box.empty && !box.draftWhileAsked && this.replyLine(terminalId) !== undefined
+  }
+
+  /** Whether the doorbell rings the terminal with the plain line now, as it tells. */
+  ringsPlain(terminalId: string, plain: boolean): void {
+    const live = this.host.sessions.get(terminalId)
+    if (live) live.ringsPlain = plain
   }
 
   /**
@@ -417,6 +449,7 @@ export class Deliveries {
     switch (event.type) {
       case "turn-started": {
         const { epoch } = live.delivery
+        if (event.replies) live.lineAt = this.host.now()
         // Whose turn it is, and what it did to the box, delivery alone decides.
         this.step(live, {
           type: "prompt",
