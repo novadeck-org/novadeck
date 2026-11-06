@@ -233,6 +233,10 @@ export type DeckOptions = {
   readonly project: string
   /** The whole environment of every process the deck starts. */
   readonly env: Readonly<Record<string, string>>
+  /** The terminals' shell; by default bash, or on Windows cmd. */
+  readonly shell?: string
+  /** The key terminals' transcripts are sealed with; without it, as bare, none is saved. */
+  readonly transcriptKey?: Promise<Uint8Array>
   /**
    * Whether each terminal's PATH also gains what the registry's has now, as the app's do on
    * Windows (`TerminalOptions.freshPath`). Off by default: it would reach past the sandbox.
@@ -618,13 +622,16 @@ export const createDeck = async (options: DeckOptions): Promise<Deck> => {
     const { store, shellFiles, agents, terminals, items } = wire({
       database: join(options.data, "workspace.sqlite"),
       shell: shellFolder,
+      ...(options.transcriptKey && { transcriptKey: options.transcriptKey }),
       // Plugin commands run with the sandbox's environment as it is: a login shell's
       // startup files, even the system's own in /etc/profile, could put another PATH
       // before the pinned harnesses.
       agents: { env: options.env, home: options.env.HOME!, login: false },
       // bash, or on Windows cmd, whose integration reports its prompts as bash's does.
       terminals: {
-        shell: process.platform === "win32" ? (options.env.ComSpec ?? "cmd.exe") : "/bin/bash",
+        shell:
+          options.shell ??
+          (process.platform === "win32" ? (options.env.ComSpec ?? "cmd.exe") : "/bin/bash"),
         baseEnv: options.env,
         freshPath: options.freshPath ?? false,
         // The list's order, not each session's shuffle, so scenarios know the handles given.
