@@ -1,6 +1,6 @@
 import { hookShellSlackMs, dialectPrograms } from "@novadeck/harness-core/hook-command"
 import type { Report } from "@novadeck/harness-core/report"
-import { agentName, type AgentName } from "@novadeck/protocol"
+import { agentName, dialogTextLimits, type AgentName } from "@novadeck/protocol"
 
 import { askOf, harnesses } from "../harnesses/registry.js"
 import { cut } from "../text.js"
@@ -45,21 +45,44 @@ const printMs = 500
 const text = (value: unknown, max: number): string | undefined =>
   typeof value === "string" && value !== "" && value.length <= max ? value : undefined
 
-/** A copy small enough to keep: text past a path's length cut short, deep or wide values dropped. */
-export const prune = (value: unknown, depth: number, limit: number): unknown => {
+// A command is kept past what a dialog's detail takes, by what `cut` may give back of an emoji,
+// so that one too long to show whole reads as nothing there rather than as a shorter command.
+const maxCommand = dialogTextLimits.detail + 2
+
+/**
+ * A copy small enough to keep: text past a path's length cut short, deep or wide values
+ * dropped. Text right at a field named `whole` is kept, up to `maxCommand`.
+ */
+export const prune = (
+  value: unknown,
+  depth: number,
+  limit: number,
+  whole: readonly string[] = [],
+): unknown => {
   if (typeof value === "string") return cut(value, limit)
   if (typeof value !== "object" || value === null) return value
   if (depth > 6) return null
-  if (Array.isArray(value)) return value.slice(0, 50).map((each) => prune(each, depth + 1, limit))
+  if (Array.isArray(value))
+    return value.slice(0, 50).map((each) => prune(each, depth + 1, limit, whole))
   return Object.fromEntries(
     Object.entries(value)
       .slice(0, 100)
-      .map(([key, each]) => [key, prune(each, depth + 1, limit)]),
+      .map(([key, each]) => [
+        key,
+        prune(
+          each,
+          depth + 1,
+          typeof each === "string" && whole.includes(key) ? maxCommand : limit,
+          whole,
+        ),
+      ]),
   )
 }
 
-// The most a report may hold once pruned: enough for any decoder, as hooks always sent.
+// The most a report may hold once pruned, its commands aside: enough for any decoder, as
+// hooks always sent. With them, it is room for a few at their longest.
 const maxReport = 60_000
+const maxReportWhole = maxReport + 8 * maxCommand
 
 /**
  * A process the hook runs under, nearest first, where the platform tells: its pid, name,
@@ -166,6 +189,7 @@ export const relayHook = (
   const codexThread = text(env.CODEX_THREAD_ID, 128)
   const shells = dialectPrograms[harnesses[agent.data].hookDialect(platform, event)]
   const firedAt = firedAtOf(instance, seq, ancestors, shells, platform)
+  const whole = harnesses[agent.data].commandFields
   const report = {
     agent: agent.data,
     event,
@@ -177,13 +201,20 @@ export const relayHook = (
       cursor: text(env.CURSOR_VERSION, 128) !== undefined,
       ...(codexThread !== undefined && { codexThread }),
     },
-    payload: prune(payload, 0, 4096) as Fields,
+    payload: prune(payload, 0, 4096, whole) as Fields,
   }
-  const sized =
-    JSON.stringify(report).length <= maxReport
-      ? report
-      : { ...report, payload: prune(payload, 0, 200) as Fields }
-  if (JSON.stringify(sized).length > maxReport) return undefined
+  const fits = (each: object): boolean => {
+    const others = JSON.stringify(each, (key, field: unknown) =>
+      typeof field === "string" && whole?.includes(key) ? undefined : field,
+    )
+    return others.length <= maxReport && JSON.stringify(each).length <= maxReportWhole
+  }
+  const sized = [
+    report,
+    { ...report, payload: prune(payload, 0, 200, whole) as Fields },
+    { ...report, payload: prune(payload, 0, 200) as Fields },
+  ].find(fits)
+  if (!sized) return undefined
   // The runner leases messages only with time left before the relay gives up to print
   // them and acknowledge the lease.
   const { deadline } = value

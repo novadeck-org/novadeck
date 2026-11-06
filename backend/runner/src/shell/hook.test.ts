@@ -13,6 +13,7 @@ import { tmpdir } from "node:os"
 import { join } from "node:path"
 
 import { type Report } from "@novadeck/harness-core/report"
+import { dialogTextLimits } from "@novadeck/protocol"
 import { relayPath } from "@novadeck/relay"
 
 import { agents, harnesses } from "../harnesses/registry.js"
@@ -841,5 +842,73 @@ describe("a pruned copy of a hook's payload", () => {
     expect(prune("abc😀", 0, 4)).toBe("abc")
     expect(prune("abc😀", 0, 5)).toBe("abc😀")
     expect(prune({ list: ["ab😀"] }, 0, 3)).toEqual({ list: ["ab"] })
+  })
+
+  it("keeps the fields named whole, at any depth, and cuts the rest", () => {
+    const long = "x".repeat(20_000)
+    expect(prune({ tool_input: { command: long, description: long } }, 0, 10, ["command"])).toEqual(
+      { tool_input: { command: long, description: "x".repeat(10) } },
+    )
+  })
+
+  it("keeps a command only one past what a dialog shows, so one longer reads as nothing", () => {
+    const pruned = prune({ command: "x".repeat(200_000) }, 0, 10, ["command"]) as {
+      command: string
+    }
+    expect(pruned.command.length).toBeGreaterThan(dialogTextLimits.detail)
+  })
+
+  it("keeps a command too long past the limit, whatever emoji the cut falls in", () => {
+    const at = dialogTextLimits.detail
+    const command = `${"x".repeat(at)}😀 and the rest`
+    const shifted = `${"x".repeat(at + 1)}😀 and the rest`
+    for (const each of [command, shifted]) {
+      const pruned = prune({ command: each }, 0, 10, ["command"]) as { command: string }
+      expect(pruned.command.length).toBeGreaterThan(at)
+    }
+  })
+
+  it("keeps only text right at a field named whole, as what's under one is no command", () => {
+    const long = "x".repeat(20_000)
+    expect(prune({ command: { nested: long } }, 0, 10, ["command"])).toEqual({
+      command: { nested: "x".repeat(10) },
+    })
+  })
+})
+
+describe("a hook's report", () => {
+  const hook = (agent: string, payload: unknown) => ({
+    agent,
+    event: "PermissionRequest",
+    seq: 1_000,
+    ancestors: [],
+    env: {},
+    payload: JSON.stringify(payload),
+  })
+
+  it.each([
+    ["claude", { tool_input: { command: "x".repeat(50_000) } }],
+    ["codex", { tool_input: { command: "x".repeat(50_000) } }],
+    ["agy", { toolCall: { args: { CommandLine: "x".repeat(50_000) } } }],
+  ])("keeps the command %s asks about whole", (agent, payload) => {
+    expect(relayHook(hook(agent, payload), "linux")?.report.payload).toEqual(payload)
+  })
+
+  it("keeps a long script of line breaks whole, however it grows as JSON", () => {
+    const command = `${"\n".repeat(30_000)}done`
+    const report = relayHook(hook("claude", { tool_input: { command } }), "linux")?.report
+    expect(report?.payload).toEqual({ tool_input: { command } })
+  })
+
+  it("cuts the commands too of a report with more of them than it can hold", () => {
+    const tasks = Array.from({ length: 12 }, () => ({ command: "x".repeat(60_000) }))
+    const report = relayHook(hook("claude", { background_tasks: tasks }), "linux")?.report
+    expect(JSON.stringify(report).length).toBeLessThan(60_000)
+  })
+
+  it("keeps the command when the rest of a report runs past what it holds", () => {
+    const payload = { tool_input: { command: "run it" }, rest: Array(50).fill("y".repeat(4096)) }
+    const report = relayHook(hook("claude", payload), "linux")?.report
+    expect(report?.payload).toMatchObject({ tool_input: { command: "run it" } })
   })
 })

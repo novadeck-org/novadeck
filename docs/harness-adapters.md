@@ -491,8 +491,9 @@ Hooks do not decode anything. The one hook script, shared by every harness
 (`shell/hook.ts`), forwards to the runner:
 
 - the hook event,
-- a bounded copy of the harness's payload: long text cut to 4,096 characters,
-  deep or wide values dropped, and the whole report under 60,000 characters,
+- a bounded copy of the harness's payload: long text cut to 4,096 characters but for the
+  commands its `commandFields` name, deep or wide values dropped, and the whole report under
+  60,000 characters, those commands aside,
 - the harness process that ran it,
 - the few environment facts that tell nested agents apart.
 
@@ -767,13 +768,24 @@ harness.
   keys.
 - **Limits and raw dialogs.** What an adapter reads is cut to the protocol's limits before
   it shows (a long question or description). Novadeck never cuts a `choices` `detail`: one
-  past 4 KiB reads as nothing and shows raw, as does a dialog whose ids or counts exceed
+  past 64 KiB reads as nothing and shows raw, as does a dialog whose ids or counts exceed
   the limits. A harness may cut its own form: Codex's cuts any long value, and for its
-  task tools alone the `detail` tells that form as it is, `...` and all. A request raw for good (locked) still keeps another's
+  task tools alone the `detail` tells that form as it is, `...` and all.
+- **Commands taller than the screen.** A dialog shows only part of one: Claude Code's end
+  (its header scrolled away), Codex's and Antigravity's start, up to a mark that says more is
+  hidden. That part must be the request's own command, whitespace aside, and the `detail` is
+  then the whole command as the request tells it, for the screen never can: a hook's report
+  keeps the fields its harness names in `commandFields` whole, where all its other text is cut. Codex's options
+  may be pushed off the screen too: the last it has room for is dropped where it is cut, and
+  its no, where none shows, is the key its footer names, and with neither it reads as nothing.
+  Antigravity's status line names no call, so unless the turn's rows above the dialog show and
+  name no other call going on, its `detail` is the screen's own cut words. A request raw for good (locked) still keeps another's
   identical-looking dialog from being answerable; an answered one doesn't. An answer to a
   request whose dialog shows `raw` without a lock (the screen reads as nothing now) is a
   `CONFLICT` that locks nothing. Request dialogs only show raw, for want of one the adapter
-  reads, once the screen has been still for 1.5 s and the request pending for 2 s: a harness
+  reads, once the screen has been still for 1.5 s and the request pending for 2 s, or once it
+  has gone 6 s without reading one whatever it does, as a dialog may tick (Claude Code counts
+  down), and it then takes new text only every 6 s until the screen is still: a harness
   may run its hooks (ours included) before it draws a dialog.
 - **Follow-up words.** Where the answer's words go on as the agent's next prompt, they are
   given in the same input-queue entry once the dialog took its key and the screen settled.

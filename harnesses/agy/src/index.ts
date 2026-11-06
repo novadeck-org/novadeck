@@ -157,6 +157,7 @@ export const agy = {
   decode,
   watch: followHolds,
   dialogs,
+  commandFields: ["CommandLine"],
   shown,
   launch,
   messaging,
