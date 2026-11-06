@@ -382,6 +382,7 @@ describe("Antigravity's confirmation of a command taller than it", () => {
       "  ● Running (x)",
       "● Bash(x)",
       "▸ x",
+      "● Agent(self: Helper)  Working · 3s",
       "◐ Running (x)",
       "* Running (x)",
       "Running (x)",

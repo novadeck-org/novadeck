@@ -54,9 +54,10 @@ type Confirmation = {
 
 // A tool line, a call's or a spinner's, or a row in the words of one that goes on, and those
 // that say nothing against a command being alone: a command's own `Ran`, drawn for one that
-// waits too, and calls that run no command, so can't start as one does.
+// waits too, and calls that only touch a file, so can't start as one does. A subagent's is no
+// such line: the commands it runs have none of their own.
 const toolLine = /^(?:[●○▸\u2800-\u28ff]|\W*(?:Running|Queued)\b)/
-const harmlessLine = /^● (?:Ran|Edit|Edited|Create|Created|Read|Agent)\b/
+const harmlessLine = /^● (?:Ran|Edit|Edited|Create|Created|Read)\b/
 
 // Whether the rows above a command's heading say that no other call goes on beside it: the
 // person's prompt or a rule must show, as rows that scrolled away could hold one, and every

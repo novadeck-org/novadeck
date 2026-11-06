@@ -52,8 +52,8 @@ export const Disclosure = ({
 
 // A command, word for word, in the sheet's mono box, with the folder it runs in where the
 // sheet says so and a Copy for what the person runs themselves. Whatever in it draws as
-// nothing shows as a mark (`command-view.ts`), and a command of more than one line says how
-// many and scrolls in its box, so nothing Copy copies or Allow runs is out of reach.
+// nothing shows as a mark (`command-view.ts`), a command of more than one line says how many,
+// and a long one scrolls in its box, so nothing Copy copies or Allow runs is out of reach.
 export const CommandBox = ({
   command,
   folder = null,
