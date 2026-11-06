@@ -246,7 +246,7 @@ export const PortableInstall = ({
     if (raise) onOpenChange?.(true)
   }, [phase, onOpenChange, askedNow])
   const { title, line } = cardWords(offer, install, card?.platform ?? currentPlatform())
-  // The release's heads-ups, up to three, and its highlights, up to four, stand in for the
+  // The release's heads-ups and its highlights, up to four, stand in for the
   // title and line while there is nothing under way or to report: the changelog.
   const heard = frozen ? frozen.news : card?.news
   const news =

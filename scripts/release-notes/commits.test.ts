@@ -282,12 +282,31 @@ describe("the commits a release is written from", () => {
 
 describe("headsUpOf", () => {
   it("reads the section however its heading is written", () => {
-    for (const heading of ["## Heads-up", "## Heads up", "## Heads-Up", "## heads up"])
+    for (const heading of [
+      "## Heads-up",
+      "## Heads up",
+      "## Heads-Up",
+      "## heads up",
+      "## Heads-up:",
+      "## Heads up!",
+      "### Heads-up",
+    ])
       expect(headsUpOf(`${heading}\n\nThe button is gone.\n`)).toBe("The button is gone.")
   })
 
   it("reads a section saying there is none as none", () => {
-    for (const none of ["None", "none.", "N/A", "n/a", "Nothing", "No"])
+    for (const none of [
+      "None",
+      "none.",
+      "N/A",
+      "n/a",
+      "Nothing",
+      "No",
+      "- None",
+      "None here",
+      "Not applicable",
+      "No heads-up.",
+    ])
       expect(headsUpOf(`## Heads-up\n\n${none}\n`)).toBe("")
   })
 
@@ -298,13 +317,30 @@ describe("headsUpOf", () => {
   })
 })
 
+describe("a Heads-up on what is never announced", () => {
+  it("goes whole, leaving no sentence stranded", () => {
+    expect(
+      headsUpOf("## Heads-up\n\nThe chat view sends on Ctrl+Enter. Use Shift+Enter for a line.\n"),
+    ).toBe("")
+  })
+})
+
 describe("parseCommit and a Heads-up", () => {
   const raw = (subject: string, body: string) => ({ sha: "a", subject, body })
   const body = "## Heads-up\n\nThe flag is gone.\n"
 
-  it("keeps a change in an excluded scope that has one", () => {
+  it("keeps a change in the harnesses' scope that has one", () => {
     expect(parseCommit(raw("fix(harnesses): x (#1)", body))?.headsUp).toBe("The flag is gone.")
     expect(parseCommit(raw("fix(harnesses): x (#1)", ""))).toBeUndefined()
+  })
+
+  it("leaves out the other excluded scopes whatever the section says", () => {
+    for (const scope of ["atlas", "scripts", "wire", "ci", "release"])
+      expect(parseCommit(raw(`fix(${scope}): x (#1)`, body))).toBeUndefined()
+  })
+
+  it("counts none on a scope that is not announced but isn't excluded", () => {
+    expect(parseCommit(raw("fix(demo-debug): x (#1)", body))?.headsUp).toBe("")
   })
 
   it("never keeps what is not announced", () => {

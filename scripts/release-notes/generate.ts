@@ -1,5 +1,5 @@
 import { readNotesBlock, type ReleaseNotes } from "../../contract/protocol/src/release-notes.ts"
-import { checkOutput, tellable, type Checked } from "./check.ts"
+import { checkOutput, type Checked } from "./check.ts"
 import { parseCommits } from "./commits.ts"
 import { commitItem, type Item } from "./items.ts"
 import { parseOutput, type Answer } from "./model.ts"
@@ -63,6 +63,16 @@ const requireStableBefore = async (
 }
 
 /**
+ * How long a first ask may have taken for a second to fit: the workflow steps' limits (6 and 12
+ * minutes) less the longest a second ask can take (`timeouts`) and a margin for git and gh.
+ */
+const askAgainWithin = { release: 120_000, promote: 180_000 } as const
+
+// How many heads-ups an answer lost, with one that failed the checks counting as past any.
+const lostBy = ({ checked }: { readonly checked: Checked }): number =>
+  checked.ok ? checked.lost.length : Number.POSITIVE_INFINITY
+
+/**
  * The notes for these items, as the model wrote them and the checks left them. Throws
  * `Skip` when there is no answer to use; an answer of empty lists is an answer, of a
  * release with nothing to see.
@@ -95,25 +105,26 @@ const compose = async (
       kind,
       new Set(given.flatMap((item) => item.prs)),
       new Set(given.filter((item) => !item.fix).flatMap((item) => item.prs)),
-      new Set(
-        given.filter((item) => item.headsUp && tellable(item.headsUp)).flatMap((item) => item.prs),
-      ),
+      new Set(given.filter((item) => item.headsUp).flatMap((item) => item.prs)),
     )
     return { ...answer, checked }
   }
-  // A lost heads-up is a slip the next answer rarely repeats, so it gets one more ask. Failing
-  // the answer over it would be worse than the loss: no notes means no card, with every other
-  // heads-up and highlight gone too. So what is still lost is published without, and `lost`
-  // has the run warn of it. An answer the second ask spoils doesn't replace the first.
+  // A lost heads-up is a slip the next answer rarely repeats, so it gets one more ask, when the
+  // workflow's step has the time: a step killed part way writes nothing, first answer included.
+  // Failing the answer over it would be worse than the loss: no notes means no card, with every
+  // other heads-up and highlight gone too. So what is still lost is published without, and `lost`
+  // has the run warn of it. The second answer replaces the first only by telling more.
+  const started = Date.now()
   const first = await attempt()
+  const asked = Date.now() - started
   const again =
-    first.checked.ok && first.checked.lost.length > 0
+    first.checked.ok && first.checked.lost.length > 0 && asked < askAgainWithin[kind]
       ? await attempt().catch((error: unknown) => {
           if (error instanceof Skip) return first
           throw error
         })
       : first
-  const { text, outputTokens, model, checked } = again.checked.ok ? again : first
+  const { text, outputTokens, model, checked } = lostBy(again) < lostBy(first) ? again : first
   if (!checked.ok) throw new Skip(checked.reason, text)
   // A highlight is the short telling, for the card; its change keeps the whole line, for the
   // release's page, so both stay. A heads-up keeps its line in `changes` the same way.

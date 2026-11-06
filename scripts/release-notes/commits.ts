@@ -75,7 +75,13 @@ const reference = /#\d+\b/
  * The text under a pull request body's `## <heading>`, up to the next heading, cut at `max`.
  * `references` keeps the sentences that point at an issue or a pull request.
  */
-const sectionOf = (body: string, heading: string, max: number, references = true): string => {
+const sectionOf = (
+  body: string,
+  heading: string,
+  max: number,
+  references = true,
+  announced = true,
+): string => {
   const found = new RegExp(
     `^## ${heading}[ \\t]*\\r?\\n(?<text>[\\s\\S]*?)(?=^## |(?![\\s\\S]))`,
     "m",
@@ -105,7 +111,10 @@ const sectionOf = (body: string, heading: string, max: number, references = true
     .flatMap((block) => {
       const kept = block
         .split(/(?<=[.!?])\s+/)
-        .filter((sentence) => !unannounced(sentence) && (references || !reference.test(sentence)))
+        .filter(
+          (sentence) =>
+            (!announced || !unannounced(sentence)) && (references || !reference.test(sentence)),
+        )
         .join(" ")
       // A block that was all about it goes whole; a blank line stays a blank line.
       return block && !kept ? [] : [kept]
@@ -123,21 +132,26 @@ export const whatOf = (body: string): string => sectionOf(body, "What", maxWhat)
 export const whyOf = (body: string): string => sectionOf(body, "Why", maxWhy, false)
 
 // What an author writes for no heads-up at all, rather than removing the section.
-const noHeadsUp = /^(?:none|no|nothing|n\/?a)\.?$/i
+const noHeadsUp =
+  /^(?:[-*]\s*)?(?:none|no|nothing|n\/?a|not applicable|no heads-?up)(?: here)?[.!]?$/i
 
 /**
- * Its `## Heads-up` heading, the same way, however its case or hyphen is written. A pull request
- * without one, with the template's comment left in place, or saying there is none reads as
- * empty. A sentence that cites a number stays: what it warns of matters more than the citation,
- * which the model leaves out.
+ * Its `## Heads-up` heading, the same way, however its case, hyphen or depth is written. A pull
+ * request without one, with the template's comment left in place, or saying there is none reads
+ * as empty. So does one that names what is never announced: unlike the sections above it goes
+ * whole, as a sentence left without the one before it would be told to everyone. A sentence that
+ * cites a number stays: what it warns of matters more than the citation, which the model leaves
+ * out.
  */
 export const headsUpOf = (body: string): string => {
   const text = sectionOf(
-    body.replace(/^##\s+heads[- ]up\s*$/gim, "## Heads-up"),
+    body.replace(/^#{2,3}\s+heads[- ]up\b.*$/gim, "## Heads-up"),
     "Heads-up",
     maxHeadsUp,
+    true,
+    false,
   )
-  return noHeadsUp.test(text) ? "" : text
+  return noHeadsUp.test(text) || unannounced(text) ? "" : text
 }
 
 /**
@@ -151,10 +165,12 @@ export const parseCommit = (raw: RawCommit): Commit | undefined => {
   if (type !== "feat" && type !== "fix" && type !== "perf") return undefined
   if (unannounced(subject!)) return undefined
   const scopes = scope?.split(",").map((part) => part.trim()) ?? []
-  const headsUp = headsUpOf(raw.body)
-  // A heads-up says a person will notice, whatever the scope, except what is never announced.
-  const told = headsUp !== "" && !scopes.some((part) => unannounced(part))
-  if (!told && scopes.some((part) => excludedScopes.has(part))) return undefined
+  const headsUp = scopes.some(unannounced) ? "" : headsUpOf(raw.body)
+  // The harnesses' scope is left out for being plumbing, but a Heads-up there says a person will
+  // notice. The other excluded scopes hold nothing a person sees, whatever a section says.
+  const shown = (part: string): boolean =>
+    !excludedScopes.has(part) || (part === "harnesses" && headsUp !== "")
+  if (!scopes.every(shown)) return undefined
   return {
     sha: raw.sha,
     type,
@@ -163,7 +179,7 @@ export const parseCommit = (raw: RawCommit): Commit | undefined => {
     pr: pr ? Number(pr) : undefined,
     what: whatOf(raw.body),
     why: whyOf(raw.body),
-    headsUp: headsUpOf(raw.body),
+    headsUp,
   }
 }
 

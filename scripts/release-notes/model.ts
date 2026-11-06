@@ -49,7 +49,7 @@ const answer = z.object({
     }),
   ),
   // Optional, so an answer without the list (a model that skipped it) reads as having none; the
-  // check's hard rule then fails it if a pull request had a heads-up.
+  // check then counts any pull request with a heads-up as lost.
   headsUp: z
     .array(
       z.object({

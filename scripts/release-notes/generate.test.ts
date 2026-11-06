@@ -1,5 +1,5 @@
 /* eslint-disable no-await-in-loop -- Each case runs on its own, one after another. */
-import { describe, expect, it } from "vitest"
+import { describe, expect, it, onTestFinished, vi } from "vitest"
 
 import { notesBlock } from "../../contract/protocol/src/release-notes.ts"
 import { maxLine } from "./check.ts"
@@ -433,7 +433,7 @@ describe("the heads-ups of a range", () => {
     }
   })
 
-  it("does not hold a release to a Heads-up on what is never announced", async () => {
+  it("counts a Heads-up the model rightly leaves out as lost, so the run says so", async () => {
     const experimental = fakeSources({
       tags,
       commits: {
@@ -443,13 +443,9 @@ describe("the heads-ups of a range", () => {
       },
       bodies: { "v0.0.152": releaseBody },
     })
-    let asked = 0
-    const generated = await generateRelease("v0.0.152", experimental, async () => {
-      asked += 1
-      return { text: JSON.stringify(output([])), outputTokens: 1, model: "m" }
-    })
-    expect(asked).toBe(1)
-    expect(generated.lost).toEqual([])
+    const generated = await generateRelease("v0.0.152", experimental, answer(output([])))
+    expect(generated.lost).toEqual([195])
+    expect(generated.notes.headsUp).toEqual([])
   })
 
   it("asks once more when an answer loses a Heads-up, and takes the answer that keeps it", async () => {
@@ -476,6 +472,52 @@ describe("the heads-ups of a range", () => {
     asked = 0
     await skipped(generateRelease("v0.0.152", sources("v0.0.152"), counted("not json")))
     expect(asked).toBe(1)
+  })
+
+  it("keeps the first answer when the second tells less", async () => {
+    const other = { ...told, title: "Another", prs: [181] }
+    const twoSources = fakeSources({
+      tags,
+      commits: { "v0.0.151..v0.0.152": [withHeadsUp(181), withHeadsUp(195)] },
+      bodies: { "v0.0.152": releaseBody },
+    })
+    const worse = {
+      highlights: [],
+      headsUp: [],
+      changes: [{ area: "Voice", line: "A worse answer.", prs: [195] }],
+    }
+    let asked = 0
+    const generated = await generateRelease("v0.0.152", twoSources, async () => {
+      asked += 1
+      return {
+        text: JSON.stringify(asked === 1 ? output([other]) : worse),
+        outputTokens: 1,
+        model: "m",
+      }
+    })
+    expect(asked).toBe(2)
+    expect(generated.notes.headsUp).toEqual([other])
+    expect(generated.lost).toEqual([195])
+  })
+
+  it("asks no more when a second ask wouldn't fit the workflow step", async () => {
+    const clock = vi.spyOn(Date, "now")
+    let at = 0
+    clock.mockImplementation(() => at)
+    onTestFinished(() => clock.mockRestore())
+    let asked = 0
+    const generated = await generatePromote(
+      "v0.0.152",
+      sources("v0.0.152"),
+      async () => {
+        asked += 1
+        at += 240_000
+        return { text: JSON.stringify(output([])), outputTokens: 1, model: "m" }
+      },
+      repo,
+    )
+    expect(asked).toBe(1)
+    expect(generated.lost).toEqual([195])
   })
 
   it("keeps the first answer when the second ask fails", async () => {

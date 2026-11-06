@@ -73,9 +73,6 @@ const excluded: readonly RegExp[] = [
   /\bgithub actions?\b/i,
 ]
 
-/** Whether a Heads-up's text can be told at all: not when it is on what is never announced. */
-export const tellable = (text: string): boolean => !excluded.some((pattern) => pattern.test(text))
-
 const isArea = (area: string): area is NoteArea => (noteAreas as readonly string[]).includes(area)
 
 // A highlight keeps its place when its icon is not one of ours: the notes always carry one,
@@ -113,10 +110,9 @@ const fail = (reason: string): Checked => ({ ok: false, reason })
  * changes: a cheap model can make a highlight of nearly any change, fixes too, whatever it is
  * told (DeepSeek v4 Pro did), so a release's highlight has to tell a feature.
  *
- * `headsUps` holds the pull requests that have a `## Heads-up`. Losing one would publish notes
- * that say a thing still works, so unlike a line, this one fails the whole answer: every such
- * pull request has to be cited by a heads-up that survived the rules above. The failure names
- * the pull requests and never the text.
+ * `headsUps` holds the pull requests that have a `## Heads-up`. A heads-up has to cite one, and
+ * `lost` names those that no surviving heads-up cites, numbers and never text, for `compose` to
+ * ask again and the run to warn.
  */
 export const checkOutput = (
   output: ModelOutput,
