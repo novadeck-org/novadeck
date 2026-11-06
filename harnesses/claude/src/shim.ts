@@ -157,11 +157,7 @@ set "novadeck_settings=%~dp0..\\plugins\\claude\\statusline.json"
 if not exist "%novadeck_settings%" goto plain
 rem Set beside the line that runs claude, the line as typed parses as that one does.
 set novadeck_line=%*
-call :command %* && (
-  set "novadeck_line="
-  goto plain
-)
-set "novadeck_line="
+call :command %* && goto plain
 "%novadeck_real%" --settings "%novadeck_settings%" %*
 exit /b %ERRORLEVEL%
 :plain
