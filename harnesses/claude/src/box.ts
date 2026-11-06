@@ -52,6 +52,10 @@ const still = (rows: readonly string[]): readonly string[] =>
 /** How its box reads off a screen. */
 const read = (screen: ScreenText) => agreeing(ruledBox(screen, markers), shellFooter(screen.rows))
 
+/** Whether the screen shows messages queued behind the running turn. */
+const queued = (screen: ScreenText): boolean =>
+  screen.rows.some((row) => row.includes("Press up to edit queued messages"))
+
 /**
  * Whether messages queued behind the turn are still in their `UserPromptSubmit` hooks: its
  * spinner, under the latest of them, says "running UserPromptSubmit hooks… 1/2" (hooks of
@@ -63,6 +67,7 @@ const read = (screen: ScreenText) => agreeing(ruledBox(screen, markers), shellFo
  * are sent, whenever Escape comes, so there is nothing to wait for.
  */
 const queueing = (screen: ScreenText): boolean => {
+  if (!queued(screen)) return false
   const above = screen.rows.slice(0, read(screen)?.first ?? 0)
   const under = above.slice(above.findLastIndex((row) => row.startsWith("❯ ")) + 1)
   return (
@@ -93,8 +98,10 @@ export const box: BoxProfile = {
   // Windows CI, when the first pair was still being taken after half a second).
   clear: (_box, screen) => (clearPending(screen?.rows ?? []) ? "\x1b" : "\x1b\x1b"),
   overlay,
-  queued: (screen) => screen.rows.some((row) => row.includes("Press up to edit queued messages")),
-  queueing,
+  queued,
+  // Hooks overlap, so this is a slow hook's time however many messages are queued (probed
+  // 2026-11-06, a hook 1.3 s slow; one on Windows CI took about 1.25 s to start).
+  escapeHold: { holds: queueing, ms: 5_000 },
   collapses: (text) => text.split("\n").length > 3 || text.length > 900,
   room: (rows) => rows - 4,
   // Probed on 24, 40 and 60 rows: 7, 15 and 25 (2.1.287, `e2e/probes/interrupted-paste.e2e.ts`).

@@ -21,22 +21,29 @@ describe("Claude Code's queued messages", () => {
   ])("reads %s as queueing: %s", (state, expected) => {
     const screen = states[state]!
     expect(box.queued(screen)).toBe(true)
-    expect(box.queueing?.(screen)).toBe(expected)
+    expect(box.escapeHold?.holds(screen)).toBe(expected)
   })
 
   it("reads no queueing where its spinner has other words", () => {
     const screen = states.running!
     const rows = screen.rows.map((row) => row.replace("running UserPromptSubmit hooks", "busy"))
-    expect(box.queueing?.({ ...screen, rows })).toBe(false)
+    expect(box.escapeHold?.holds({ ...screen, rows })).toBe(false)
+  })
+
+  it("reads no queueing where nothing is queued", () => {
+    const screen = states.running!
+    const rows = screen.rows.map((row) => row.replace("Press up to edit queued messages", ""))
+    expect(box.escapeHold?.holds({ ...screen, rows })).toBe(false)
   })
 
   it("reads the spinner's words in the conversation as no queueing", () => {
     const screen = states.through!
-    const rows = screen.rows.map((row) =>
-      row.startsWith("❯ Hold on") ? "  running UserPromptSubmit hook" : row,
-    )
-    const hintless = rows.filter((row) => !row.includes("to send now"))
-    expect(box.queueing?.({ ...screen, rows: hintless })).toBe(false)
+    const rows = screen.rows.map((row) => {
+      if (row.startsWith("❯ Hold on")) return "  running UserPromptSubmit hook"
+      return row.includes("to send now") ? "" : row
+    })
+    expect(box.read({ ...screen, rows })).toBeDefined()
+    expect(box.escapeHold?.holds({ ...screen, rows })).toBe(false)
   })
 })
 

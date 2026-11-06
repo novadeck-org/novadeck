@@ -13,25 +13,26 @@ import { screenRecord } from "@novadeck/harness-core/testing/probes"
 
 import { claude } from "../agents/claude.js"
 import { setups } from "../agents/index.js"
-import { describe, e2e, supported } from "../fixture.js"
+import { describe, e2e, supported, type E2E } from "../fixture.js"
 import { asked, gate, latest } from "../model/script.js"
 import { start } from "../scenarios.js"
 import { probing, sleep } from "./support.js"
 
 const out = process.env.PROBE_OUT ?? join(process.env.HOME ?? ".", "probe-out")
 const hookLog = join(out, "hook.log")
-const script = join(out, "hook.cjs")
+const hookFile = "hook.cjs"
 mkdirSync(out, { recursive: true })
-writeFileSync(
-  script,
-  `const fs = require("fs")
+const seedHook = ({ sandbox }: E2E) =>
+  writeFileSync(
+    join(sandbox.project, hookFile),
+    `const fs = require("fs")
 let input = ""
 try { input = fs.readFileSync(0, "utf8") } catch {}
 const log = (phase) => fs.appendFileSync(${JSON.stringify(hookLog)}, JSON.stringify({ t: Date.now(), phase, input: input.slice(0, 400) }) + "\\n")
 log("start")
 setTimeout(() => { log("end"); console.log("{}") }, 1300)
 `,
-)
+  )
 
 const telling =
   /UserPromptSubmit|send now|queued|Queued|Press up|submitted after|Interrupted|interrupted|esc to|hook/i
@@ -41,8 +42,9 @@ const pauses = (process.env.PROBE_PAUSES ?? "0,500,1500,3000,6000").split(",").m
 
 for (const setup of setups) {
   describe.skipIf(!supported || !probing)(`probe: ${setup.name} queued hooks`, () => {
-    const it = e2e.seeded({ promptHook: `node ${script}` }, setup)
+    const it = e2e.seeded({ promptHook: hookFile }, setup)
     it("each pause", { timeout: 900_000 }, async ({ e2e: run }) => {
+      seedHook(run)
       const results: Record<string, unknown> = {}
       for (const pause of pauses) {
         writeFileSync(hookLog, "")
@@ -66,10 +68,10 @@ for (const setup of setups) {
         const marked = run.model.mark()
         const mark = t.mark()
         const timeline: { t: number; rows: string[] }[] = []
-        let watching = true
+        const watching = { on: true }
         const watch = (async () => {
           let last = ""
-          while (watching) {
+          while (watching.on) {
             const shown = await t.screen().catch(() => "")
             const rows = shown.split("\n").filter((row) => telling.test(row))
             const state = t.summary().activity?.state ?? "none"
@@ -100,7 +102,7 @@ for (const setup of setups) {
         held.open()
         queuedHeld.open()
         await sleep(4000)
-        watching = false
+        watching.on = false
         await watch
         const seen = await t.screen()
         const hooks = readFileSync(hookLog, "utf8")
@@ -127,9 +129,10 @@ for (const setup of setups) {
 
 // The screens Claude Code's profile reads for the hold, kept as a fixture.
 describe.skipIf(!supported || !probing)("probe: Claude Code's queued screens", () => {
-  const it = e2e.seeded({ promptHook: `node ${script}` }, claude)
+  const it = e2e.seeded({ promptHook: hookFile }, claude)
   const long = `Queued long ${"word ".repeat(40).trim()}`
   it("each state", { timeout: 300_000 }, async ({ e2e: run }) => {
+    seedHook(run)
     const states: Record<string, unknown> = {}
     const take = async (t: Awaited<ReturnType<typeof start>>, name: string, shows: RegExp) => {
       await t.until(shows, 15_000)

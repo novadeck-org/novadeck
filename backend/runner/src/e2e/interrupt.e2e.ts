@@ -1,9 +1,11 @@
+import { existsSync, writeFileSync } from "node:fs"
+import { join } from "node:path"
 import { setTimeout as sleep } from "node:timers/promises"
 
 import type { AgentSetup } from "./agents/agent.js"
 import { setups } from "./agents/index.js"
 import type { DeckTerminal } from "./deck.js"
-import { describe, e2e, expect, supported, type E2E } from "./fixture.js"
+import { describe, e2e, expect, gated, supported, type E2E } from "./fixture.js"
 import { asked, gate, latest } from "./model/script.js"
 import { own, replies, start, through } from "./scenarios.js"
 
@@ -19,8 +21,19 @@ const queuedUp = async (terminal: DeckTerminal, setup: AgentSetup, prompt: strin
   await sleep(1000)
 }
 
-// A prompt hook as slow as Claude Code's on Windows (over a second each), in any shell.
-const slowHook = `node -e "setTimeout(function(){console.log('{}')},1300)"`
+// A prompt hook as slow as Claude Code's on Windows (over a second each), whose log in the
+// project says it ran.
+const slowHook = "slow-hook.cjs"
+const slowHookLog = "slow-hook.log"
+const seedSlowHook = ({ sandbox }: E2E) =>
+  writeFileSync(
+    join(sandbox.project, slowHook),
+    `const { appendFileSync } = require("node:fs")
+const { join } = require("node:path")
+appendFileSync(join(__dirname, ${JSON.stringify(slowHookLog)}), "ran\\n")
+setTimeout(() => console.log("{}"), 1300)
+`,
+  )
 
 for (const setup of setups) {
   describe.skipIf(!supported)(setup.name, () => {
@@ -117,7 +130,11 @@ for (const setup of setups) {
 
     // Two prompts queued behind a held turn, a Stop once `ready` says it may come: both come
     // back, or as a steer stop (Codex), and neither runs as a turn of its own.
-    const twoQueued = async (run: E2E, ready: (terminal: DeckTerminal) => Promise<unknown>) => {
+    const twoQueued = async (
+      run: E2E,
+      ready: (terminal: DeckTerminal) => Promise<unknown>,
+      replyMidStop = false,
+    ) => {
       const held = gate()
       const queuedHeld = gate()
       run.model.use(
@@ -144,14 +161,19 @@ for (const setup of setups) {
       await t1.prompt("Queued beta")
       await t1.prompt("Queued gamma")
       await ready(t1)
-      const stopped = await t1.interrupt()
+      const stopping = t1.interrupt()
+      if (replyMidStop) {
+        await sleep(100)
+        held.open()
+      }
+      const stopped = await stopping
       held.open()
       queuedHeld.open()
       await sleep(2500)
 
       expect(stopped.returned).toBe(setup.agent === "codex" ? null : "Queued beta\nQueued gamma")
       const shown = await t1.screen()
-      expect(shown).not.toContain("Too late.")
+      if (!replyMidStop) expect(shown).not.toContain("Too late.")
       expect(shown).not.toContain("Queued late.")
 
       const next = t1.mark()
@@ -164,14 +186,27 @@ for (const setup of setups) {
       twoQueued(run, (terminal) => queuedUp(terminal, setup, "Queued gamma")))
 
     // The Stop lands with the hooks' screen up, where its harness has one: its words changed,
-    // this fails rather than the hold going quietly.
+    // this fails rather than the hold going quietly. Elsewhere it lands as soon after.
+    const midHook = (run: E2E) => async (terminal: DeckTerminal) => {
+      expect(existsSync(join(run.sandbox.project, slowHookLog))).toBe(true)
+      if (setup.queueing) await terminal.until(setup.queueing)
+      else await sleep(300)
+    }
+
     slow(
       "gives back both of two queued messages with their slow prompt hooks still running",
-      ({ e2e: run }) =>
-        twoQueued(run, async (terminal) => {
-          if (setup.queueing) await terminal.until(setup.queueing)
-          await sleep(300)
-        }),
+      ({ e2e: run }) => {
+        seedSlowHook(run)
+        return twoQueued(run, midHook(run))
+      },
+    )
+
+    gated(slow, setup.queueing ? undefined : "it holds no Stop for queued messages")(
+      "gives back both of two queued messages where the turn ends as the Stop waits on their hooks",
+      ({ e2e: run }) => {
+        seedSlowHook(run)
+        return twoQueued(run, midHook(run), true)
+      },
     )
 
     it("clears a long prompt put back in the box, though it shows only its tail, and gives nothing back", async ({

@@ -140,7 +140,7 @@ export const claude: AgentSetup = {
     new RegExp(
       `❯\\s+${prompt.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}\\s*\\n\\s*ctrl\\+x ctrl\\+s to send now`,
     ),
-  queueing: /running UserPromptSubmit hook/,
+  queueing: /running UserPromptSubmit hook[\s\S]*Press up to edit queued messages/,
   // Esc-Esc opens its Rewind picker, a list with no text field, which swallows a paste
   // whole and stays as it was (probed 2026-10-02, 2.1.287). With nothing yet to go back to
   // it says so instead (seen on Windows CI, a session just interrupted).
@@ -269,7 +269,9 @@ export const claude: AgentSetup = {
         },
         ...(seed.promptHook !== undefined && {
           hooks: {
-            UserPromptSubmit: [{ hooks: [{ type: "command", command: seed.promptHook }] }],
+            UserPromptSubmit: [
+              { hooks: [{ type: "command", command: `node ${seed.promptHook}` }] },
+            ],
           },
         }),
       }),

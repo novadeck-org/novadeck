@@ -252,7 +252,10 @@ export const agy: AgentSetup = {
         join(sandbox.project, ".agents", "hooks.json"),
         JSON.stringify({
           seeded: {
-            PreInvocation: [{ type: "command", command: seed.promptHook, timeout: 30 }],
+            // Its hooks run in the folder of their hooks.json.
+            PreInvocation: [
+              { type: "command", command: `node ../${seed.promptHook}`, timeout: 30 },
+            ],
           },
         }),
       )
