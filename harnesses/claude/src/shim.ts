@@ -140,6 +140,13 @@ exec "$novadeck_real" --settings "$novadeck_settings" "$@"
 // to PATH: a plain `where` looks in the current folder first, where a cloned repo's
 // `claude.cmd` would be taken for the real one. Claude Code reads its keys raw, so Ctrl+C
 // reaches it as a key and never has cmd ask to end this batch file.
+//
+// A word of `%*` can hold a lone quote, as cmd doesn't know `\"`: `"say \"hi there\" now"` is
+// `"say \"hi` and `there\" now"`, and `"%~1"` then ends the batch with a syntax error. So a word is
+// set as it stands, which parses as the line it came from did, and tested once its quotes are gone.
+// And `%*` ends its line: after an odd count of quotes, the rest of that line is in quotes too.
+// The walk stays out of a `call`, which reads `%*` a second time: `/?` would print its help, `%~`
+// an error, and a `%` could uncover a `&`. `shift` leaves `%*` as it was, for the line that runs it.
 export const cmdShim = `@echo off
 ${header("rem", "shim for claude")}
 rem Runs the real claude with Novadeck's status line, which passes on the person's own.
@@ -155,9 +162,47 @@ rem Only while Claude Code is connected: Novadeck's shells name the harnesses wh
 echo " %NOVADECK_SHIMS% " | findstr /c:" claude " >nul || goto plain
 set "novadeck_settings=%~dp0..\\plugins\\claude\\statusline.json"
 if not exist "%novadeck_settings%" goto plain
-rem Set beside the line that runs claude, the line as typed parses as that one does.
+rem The first word that isn't an option or an option's value may be another command.
+:command
+set novadeck_arg=%1
+if not defined novadeck_arg goto session
+set "novadeck_arg=%novadeck_arg:"=%"
+if not defined novadeck_arg goto session
+for %%v in (${many.join(" ")}) do if "%novadeck_arg%"=="%%v" goto list
+for %%v in (${valued.join(" ")}) do if "%novadeck_arg%"=="%%v" goto value
+if "%novadeck_arg:~0,1%"=="-" (
+  shift
+  goto command
+)
+for %%c in (${commands.join(" ")}) do if "%novadeck_arg%"=="%%c" goto plain
+goto session
+:value
+shift
+shift
+goto command
+rem cmd splits a word at =, so --add-dir=a arrives as two, and that form takes one value: only
+rem the line as typed tells it from --add-dir a, read delayed so that no quote in it can expose
+rem a command separator. That is the option's first mention, and cmd splits its value at a comma
+rem too: where either misleads, a session goes without the status line, or a command gets one.
+:list
 set novadeck_line=%*
-call :command %* && goto plain
+shift
+shift
+setlocal enabledelayedexpansion
+set "novadeck_after=!novadeck_line:*%novadeck_arg%=!"
+if "!novadeck_after:~0,1!"=="=" (
+  endlocal
+  goto command
+)
+endlocal
+:more
+set novadeck_arg=%1
+if not defined novadeck_arg goto session
+set "novadeck_arg=%novadeck_arg:"=%"
+if defined novadeck_arg if "%novadeck_arg:~0,1%"=="-" if not "%novadeck_arg%"=="-" goto command
+shift
+goto more
+:session
 "%novadeck_real%" --settings "%novadeck_settings%" %*
 exit /b %ERRORLEVEL%
 :plain
@@ -172,41 +217,4 @@ if /i "%~x1"==".exe" set "novadeck_real=%~1"
 if /i "%~x1"==".cmd" set "novadeck_real=%~1"
 if /i "%~x1"==".bat" set "novadeck_real=%~1"
 exit /b
-rem Succeeds where the first argument that isn't an option, or an option's value, is another
-rem of its commands.
-:command
-if "%~1"=="" exit /b 1
-set "novadeck_arg=%~1"
-for %%v in (${many.join(" ")}) do if "%novadeck_arg%"=="%%v" goto list
-for %%v in (${valued.join(" ")}) do if "%novadeck_arg%"=="%%v" goto value
-if "%novadeck_arg:~0,1%"=="-" (
-  shift
-  goto command
-)
-for %%c in (${commands.join(" ")}) do if "%novadeck_arg%"=="%%c" exit /b 0
-exit /b 1
-:value
-shift
-shift
-goto command
-rem cmd splits a word at =, so --add-dir=a arrives as two, and that form takes one value: only
-rem the line as typed tells it from --add-dir a, read delayed so that no quote in it can expose
-rem a command separator. That is the option's first mention, and cmd splits its value at a comma
-rem too: where either misleads, a session goes without the status line, or a command gets one.
-:list
-shift
-shift
-setlocal enabledelayedexpansion
-set "novadeck_after=!novadeck_line:*%novadeck_arg%=!"
-if "!novadeck_after:~0,1!"=="=" (
-  endlocal
-  goto command
-)
-endlocal
-:more
-if "%~1"=="" exit /b 1
-set "novadeck_arg=%~1"
-if "%novadeck_arg:~0,1%"=="-" if not "%novadeck_arg%"=="-" goto command
-shift
-goto more
 `

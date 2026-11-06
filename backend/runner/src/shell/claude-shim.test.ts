@@ -1,4 +1,4 @@
-import { spawnSync } from "node:child_process"
+import { spawnSync, type SpawnSyncReturns } from "node:child_process"
 import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs"
 import { tmpdir } from "node:os"
 import { delimiter, join } from "node:path"
@@ -8,12 +8,19 @@ import { gitBash } from "@novadeck/sandbox"
 
 import { describe, expect, it as base } from "../test.js"
 import { installShellFiles } from "./install.js"
+import { quotedPrompts, splitPrompts } from "./shim-prompts.test-support.js"
 
 const windows = process.platform === "win32"
 
 type Fixture = {
   root: string
   run: (args: string[], env?: NodeJS.ProcessEnv, cwd?: string) => string[]
+  launch: (
+    program: string,
+    args: string[],
+    env?: NodeJS.ProcessEnv,
+    cwd?: string,
+  ) => { result: SpawnSyncReturns<string>; received: string[] | undefined }
   bin: string
   real: string
   settings: string
@@ -45,9 +52,8 @@ const it = base.extend<{ shim: Fixture }>({
         },
       )
     const settings = join(paths.plugins.claude, "statusline.json")
-    const run: Fixture["run"] = (args, env = {}, cwd) => {
+    const launch: Fixture["launch"] = (program, args, env = {}, cwd) => {
       rmSync(log, { force: true })
-      const shim = join(paths.bin, windows ? "claude.cmd" : "claude")
       const options = {
         env: {
           ...process.env,
@@ -60,14 +66,24 @@ const it = base.extend<{ shim: Fixture }>({
         ...(cwd !== undefined && { cwd }),
       }
       const result = windows
-        ? spawnSync(process.env.COMSPEC ?? "cmd.exe", ["/d", "/c", shim, ...args], options)
-        : spawnSync(shim, args, options)
+        ? spawnSync(process.env.COMSPEC ?? "cmd.exe", ["/d", "/c", program, ...args], options)
+        : spawnSync(program, args, options)
+      return {
+        result,
+        received: existsSync(log) ? (JSON.parse(readFileSync(log, "utf8")) as string[]) : undefined,
+      }
+    }
+    const run: Fixture["run"] = (args, env = {}, cwd) => {
+      const shim = join(paths.bin, windows ? "claude.cmd" : "claude")
+      const { result, received } = launch(shim, args, env, cwd)
       if (result.status !== 0) throw new Error(`claude failed: ${result.stderr}`)
       // cmd only says so here when a shim's label is missing, and goes on.
       expect(result.stderr).toBe("")
-      return JSON.parse(readFileSync(log, "utf8")) as string[]
+      expect(result.stdout).toBe("")
+      if (received === undefined) throw new Error(`claude never ran: ${result.stderr}`)
+      return received
     }
-    await use({ root, run, bin: paths.bin, real, settings, remove: () => rmSync(settings) })
+    await use({ root, run, launch, bin: paths.bin, real, settings, remove: () => rmSync(settings) })
   },
 })
 
@@ -191,6 +207,9 @@ describe("claude shim", { timeout: 60_000 }, () => {
       ["--add-dir"],
       // cmd splits a word at a comma too, into more of the list.
       ["--tools", "Read,Write", "mcp"],
+      // Words cmd splits at a space it takes to be outside quotes, or holds a lone quote in.
+      ["--add-dir", 'a "b c" d', "mcp"],
+      ["--add-dir", 'he said "hi', "mcp"],
     ])
       expect(shim.run(args)).toEqual(["--settings", settings, ...args])
     // The next option ends it, so a command after that is still one.
@@ -201,18 +220,46 @@ describe("claude shim", { timeout: 60_000 }, () => {
       // That form takes the one value, though cmd splits it from its option.
       ["--add-dir=a", "mcp", "list"],
       ["--mcp-config=a.json", "plugin", "list"],
+      // An empty word is a value like any other, and the list goes on past it.
+      ["--add-dir", "a", "", "--verbose", "mcp"],
+      // An odd count of quotes after the command keeps it one.
+      ["mcp", 'he said "hi'],
+      ["--add-dir", 'say "hi there" now', "--verbose", "mcp", "list"],
     ])
       expect(shim.run(args)).toEqual(args)
   })
 
-  it("passes on whole a quoted prompt that holds what cmd would act on", ({ shim }) => {
-    const prompt = "fix a & b | c, 100% done ^ now"
+  it.for(quotedPrompts)("passes on whole the quoted prompt %j", (prompt, { shim }) => {
     expect(shim.run([prompt])).toEqual([
       "--settings",
       expect.stringMatching(/statusline\.json$/),
       prompt,
     ])
   })
+
+  it("hands on a word that cmd's own commands take as a request for their help", ({ shim }) => {
+    const { result, received } = shim.launch(join(shim.bin, windows ? "claude.cmd" : "claude"), [
+      "/?",
+    ])
+    expect(result.status).toBe(0)
+    expect(received).toEqual(["--settings", expect.stringMatching(/statusline\.json$/), "/?"])
+  })
+
+  it.runIf(windows).for(splitPrompts)(
+    "takes the prompt %j, which cmd splits first, as the real claude does alone",
+    (prompt, { shim }) => {
+      const alone = shim.launch(join(shim.real, "claude.cmd"), [prompt])
+      const through = shim.launch(join(shim.bin, "claude.cmd"), [prompt])
+      expect(alone.received).toBeDefined()
+      expect(through.received).toEqual([
+        "--settings",
+        expect.stringMatching(/statusline\.json$/),
+        ...(alone.received ?? []),
+      ])
+      expect(through.result.status).toBe(alone.result.status)
+      expect(through.result.stderr).toBe(alone.result.stderr)
+    },
+  )
 
   it.runIf(windows)(
     "runs the real claude, never a claude.cmd in the current folder, where a plain where looks first",
