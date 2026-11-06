@@ -91,7 +91,7 @@ describe("Novadeck's own tools", () => {
     )
   })
 
-  it("reads an ask's shape from the JSON text Antigravity may wrap it in", () => {
+  it("reads an ask's shape given as JSON text", () => {
     const shape = JSON.stringify({ type: "options", options: [{ label: "Yes" }] })
     expect(novadeckTool("ask", { subject: "Merge?", body: "", shape })?.title).toBe(
       "Asked you to choose",
@@ -99,7 +99,7 @@ describe("Novadeck's own tools", () => {
   })
 
   it("labels a withdrawn ask, which carries only its id", () => {
-    expect(novadeckTool("ask", { withdraw: "a-1" })).toEqual({
+    expect(novadeckTool("ask", { withdraw: "00000000-0000-4000-8000-000000000001" })).toEqual({
       kind: "agent",
       title: "Withdrew an ask",
       detail: "",

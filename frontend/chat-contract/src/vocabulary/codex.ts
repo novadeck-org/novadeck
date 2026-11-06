@@ -273,7 +273,7 @@ export const codexVocabulary: readonly Written[] = [
           "Asked.",
           "mcp__novadeck",
         ],
-        ["ask", { withdraw: "a-1" }, "Withdrew.", "mcp__novadeck"],
+        ["ask", { withdraw: "00000000-0000-4000-8000-000000000001" }, "Withdrew.", "mcp__novadeck"],
       ]),
     ],
   },

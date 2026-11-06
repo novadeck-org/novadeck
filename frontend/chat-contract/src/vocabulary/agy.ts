@@ -246,7 +246,7 @@ export const agyVocabulary: readonly Written[] = [
           {
             ServerName: "novadeck",
             ToolName: "tell",
-            Arguments: JSON.stringify({ subject: "CI is green", body: "All checks." }),
+            Arguments: { subject: "CI is green", body: "All checks." },
           },
           "Told.",
         ],
@@ -302,7 +302,7 @@ export const agyVocabulary: readonly Written[] = [
           },
           "Asked.",
         ],
-        [`${novadeck}ask`, { withdraw: "a-1" }, "Withdrew."],
+        [`${novadeck}ask`, { withdraw: "00000000-0000-4000-8000-000000000001" }, "Withdrew."],
       ],
       0,
     ),
