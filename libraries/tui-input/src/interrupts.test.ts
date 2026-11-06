@@ -25,8 +25,6 @@ const terminal = (
     working?: boolean | (() => boolean)
     /** Whether the screen shows messages queued behind the turn, or how it does as it's read. */
     queued?: boolean | (() => boolean)
-    /** Whether the host calls all the box's text its own. */
-    ownLines?: boolean
     /** Whether the box says it is cut. */
     cut?: boolean
     /** How the screen says an Escape must wait yet, as it's read. */
@@ -115,7 +113,6 @@ const terminal = (
     alive: () => true,
     profile: () => profile,
     prompt: () => options.prompt,
-    ...(options.ownLines ? { ownLines: () => true } : {}),
     screen: () => {
       if (typesOnSteady !== undefined && steady >= (options.steadyReads ?? 2)) {
         box = typesOnSteady
@@ -254,18 +251,6 @@ describe("interrupts", () => {
     })
     await expect(t.interrupt()).rejects.toBeInstanceOf(BoxNotCleared)
     expect(t.written).toEqual([])
-  })
-
-  it("clears a tall box that holds only the host's own lines, none of the person's", async () => {
-    const t = terminal({
-      queued: true,
-      viewport: 2,
-      prompt: "Hold on",
-      ownLines: true,
-      after: () => "A line of\nthe host's",
-    })
-    expect(await t.interrupt()).toEqual({ returned: "A line of\nthe host's" })
-    expect(t.written).toEqual([CLEAR])
   })
 
   it.each([

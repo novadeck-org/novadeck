@@ -2,7 +2,7 @@ import { setTimeout as sleep } from "node:timers/promises"
 
 import type { ScreenText } from "@novadeck/emulator/headless"
 
-import { isEmpty, fillsViewport, showsTail, type BoxProfile, type InputBox } from "./box/box.js"
+import { fillsViewport, isEmpty, showsTail, type BoxProfile, type InputBox } from "./box/box.js"
 import { sameText } from "./box/text.js"
 import type { InputEntry } from "./queue.js"
 
@@ -41,8 +41,6 @@ export type InterruptHost = {
   readonly profile: (terminalId: string) => BoxProfile | undefined
   /** The turn's prompt as the host knows it; undefined where it does not. */
   readonly prompt: (terminalId: string) => string | undefined
-  /** Whether text is all the host's own, none of the person's to keep. Omitted where none is. */
-  readonly ownLines?: (text: string) => boolean
   /** The screen once it has drawn all pending output; undefined once the terminal is gone. */
   readonly screen: (terminalId: string) => Promise<ScreenText | undefined>
   /**
@@ -85,7 +83,7 @@ const rowsOf = (profile: BoxProfile, screen: ScreenText | undefined): string =>
 /**
  * Stops programs' turns as a person's Escape does, and leaves their boxes as they were. The
  * caller runs each in the terminal's input queue. Throws a `BoxNotCleared` where text that
- * is not the turn's own stays in the box.
+ * is not the turn's own stays in the box, as words it can't be sure of having whole do.
  */
 export class Interrupts {
   /** When each terminal's latest interrupt has settled, while it has not, in epoch milliseconds. */
@@ -198,9 +196,7 @@ export class Interrupts {
     // does a box that may hold more than it shows, where those words aren't known in full.
     if (!profile.clear || (!restored && profile.collapsed(box))) throw new BoxNotCleared()
     if (!restored && profile.cut?.(box) === true) throw new BoxNotCleared()
-    if (queued && fillsViewport(profile, box, rows) && !host.ownLines?.(box.text)) {
-      throw new BoxNotCleared()
-    }
+    if (queued && fillsViewport(profile, box, rows)) throw new BoxNotCleared()
     const gone = await this.cleared(terminalId, profile, box, entry)
     if (gone === undefined) throw new BoxNotCleared()
     // Words given back in the box's shell mode are a shell command, `!` and all.

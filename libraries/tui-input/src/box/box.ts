@@ -175,6 +175,13 @@ export const fillsViewport = (profile: BoxProfile, box: InputBox, rows: number):
   return viewport >= minViewport && box.last - box.first + 1 >= viewport
 }
 
+/**
+ * Whether the box may hold more than it shows: as tall as its viewport, or saying so itself.
+ * What it shows then isn't all that keys would act on, so nothing may go by those words alone.
+ */
+export const hidesText = (profile: BoxProfile, box: InputBox, rows: number): boolean =>
+  fillsViewport(profile, box, rows) || profile.cut?.(box) === true
+
 /** Whether the box shows the tail of `text`, as a box shows a text taller than its viewport. */
 export const showsTail = (
   profile: BoxProfile,

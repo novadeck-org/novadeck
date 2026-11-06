@@ -32,6 +32,8 @@ type Options = {
   /** The keys of the profile; none where false. */
   readonly keys?: boolean
   readonly viewport?: number
+  /** Whether the box says it shows only part of its text. */
+  readonly cut?: boolean
   /** Whether a paste is keys, as Codex's on Windows, a line break in one an Enter at its start. */
   readonly pasteKeys?: boolean
   /** Refuses from this `admit` on, as a request that came. */
@@ -99,6 +101,7 @@ const fake = (options: Options = {}) => {
     room: () => 30,
     ...(options.keys !== false && { erase: eraseRows }),
     ...(options.pasteKeys && { pastesAsKeys: () => true }),
+    ...(options.cut === true && { cut: () => true }),
     ...(options.viewport !== undefined && { viewport: () => options.viewport! }),
   }
 
@@ -250,6 +253,22 @@ describe("a prompt over text in the box", () => {
     expect(tui.pasted()).toEqual([])
     expect(tui.notes).toEqual(["cursor-unconfirmed"])
     expect(tui.box()).toBe("half typed")
+  })
+
+  it("goes along with a box that may show only a tail, though the words it shows are known", async () => {
+    const tui = fake({ text: "one\ntwo\nthree", viewport: 3, known: "one\ntwo\nthree" })
+    await tui.give("the message")
+    // Nothing erased: it would take rows it can't see.
+    expect(tui.written).toEqual([])
+    expect(tui.notes).not.toContain("cleared")
+    expect(tui.pasted()).toHaveLength(1)
+  })
+
+  it("is refused over a box that says it is cut, as no paste there could be seen", async () => {
+    const tui = fake({ text: "↑ 2 more lines\nthree", cut: true, known: "three" })
+    await refused(tui.give("the message"), "draft")
+    expect(tui.written).toEqual([])
+    expect(tui.pasted()).toEqual([])
   })
 
   it("doesn't move a cursor in a box that may show only a tail", async () => {

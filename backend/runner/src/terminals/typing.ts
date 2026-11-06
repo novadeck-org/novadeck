@@ -4,7 +4,6 @@ import { setTimeout as sleep } from "node:timers/promises"
 import type { ScreenText } from "@novadeck/emulator/headless"
 import type { RequestFacts } from "@novadeck/harness-core/dialogs"
 import type { ActivityEvent } from "@novadeck/harness-core/events"
-import { withoutDoorbellLines } from "@novadeck/harness-core/prompts"
 import {
   promptFailure,
   promptRefusal,
@@ -630,7 +629,6 @@ export class Typing {
         return record && this.boxOf(record)
       },
       prompt: (terminalId) => this.host.messaging().personPrompt(terminalId),
-      ownLines: (text) => withoutDoorbellLines(text) === "",
       screen: (terminalId) => this.screenOf(terminalId),
       type: (terminalId, data) => this.typed(terminalId, data),
       write: (terminalId, data) => this.written(terminalId, data),
