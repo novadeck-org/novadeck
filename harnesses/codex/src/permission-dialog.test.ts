@@ -382,11 +382,16 @@ describe("Codex's MCP tool approval", () => {
       ).toMatchObject({ detail: `prompt: ${kept}` })
     })
 
-    it("reads only the three arguments the form prints", () => {
+    it("leaves any other tool's cut form raw", () => {
+      const other = form(cut, "  title: bg").map((row) =>
+        row.replaceAll("the codex_tui MCP", "the probe MCP"),
+      )
+      expect(read(other, { ...asked, tool: "mcp__probe__create_thread" })).toBeUndefined()
+    })
+
+    it("leaves a form raw that leaves an argument out", () => {
       const input = { a: "1", b: "2", c: "3", d: "4" }
-      expect(read(form("  a: 1", "  b: 2", "  c: 3"), { ...asked, input })?.dialog).toMatchObject({
-        detail: "a: 1\nb: 2\nc: 3",
-      })
+      expect(read(form("  a: 1", "  b: 2", "  c: 3"), { ...asked, input })).toBeUndefined()
     })
   })
 

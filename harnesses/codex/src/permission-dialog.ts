@@ -180,7 +180,8 @@ const mcpWordings = [
 ] as const
 
 // How Codex's form prints an argument's value: the graphemes it keeps, and of those how many
-// are its own "..." where it cuts one (0.167.0, `format_tool_approval_display_param_value`).
+// are its own "..." where it cuts one (0.166.0 and 0.167.0,
+// `format_tool_approval_display_param_value`).
 const valueGraphemes = 60
 const cutMark = "..."
 const graphemes = new Intl.Segmenter()
@@ -191,8 +192,10 @@ const shownValue = (value: string): string => {
   return `${parts.slice(0, valueGraphemes - cutMark.length).join("")}${cutMark}`
 }
 
-// The arguments the form prints, the rest left out (0.167.0).
-const shownArguments = 3
+// Codex's own task tools, whose prompt is what they are for, and long as a rule. Any other
+// tool's form that cuts a value, or leaves an argument out, stays raw: the person answers
+// it in the terminal.
+const cutsValues = /^mcp__codex_tui__/
 
 /** An MCP tool's approval form, each row by its digit. */
 const mcpApproval = (lines: readonly string[], facts: RequestFacts): Parsed | undefined => {
@@ -213,12 +216,13 @@ const mcpApproval = (lines: readonly string[], facts: RequestFacts): Parsed | un
   // reads what the form says, no more: a value it cut could be another request's.
   const given = facts.input === null || facts.input === undefined ? {} : fieldsOf(facts.input)
   if (!given) return undefined
+  const cuts = cutsValues.test(facts.tool)
   const printed = Object.keys(given)
     .toSorted()
-    .slice(0, shownArguments)
     .map((key) => {
       const value = given[key]
-      return `${key}: ${shownValue(typeof value === "string" ? collapse(value) : JSON.stringify(value))}`
+      const text = typeof value === "string" ? collapse(value) : JSON.stringify(value)
+      return `${key}: ${cuts ? shownValue(text) : text}`
     })
   if (!wrapped(lines.slice(form + 2, first), printed.join(" "))) return undefined
   const { rows } = optionsAt(lines, first)
