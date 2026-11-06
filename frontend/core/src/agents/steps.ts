@@ -120,7 +120,7 @@ export const agentContext = (
   })
   const chosen = latest([...turns, ...answers.map((each) => ({ ...each, index: null }))])
   const entries = groupItems(items.slice(startOf(chosen, times))).flatMap((block) =>
-    block.kind === "tools" ? block.entries : [],
+    block.kind === "tools" ? block.entries.filter((entry) => !entry.scripted) : [],
   )
   // From the end, and no further than the steps that are wanted: a step costs its input's
   // parse and diff, which a long transcript's older calls need not pay.

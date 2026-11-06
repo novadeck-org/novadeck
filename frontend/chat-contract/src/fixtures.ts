@@ -172,6 +172,22 @@ const vocabulary = (written: readonly Written[]): Extracted =>
     skipped: [],
   })
 
+// The records of every case of a tool's outcome, a scenario each: its call and its result.
+const outcomeFixture = (harness: AgentName, count: number): Fixture => ({
+  golden: `${harness}/tool-outcomes`,
+  harness,
+  tools: true,
+  count,
+  skipped: [],
+  extract: () => scenarioLists(harness, "tool-outcomes.probe.json"),
+})
+
+export const outcomeFixtures: readonly Fixture[] = [
+  outcomeFixture("claude", 15),
+  outcomeFixture("codex", 27),
+  outcomeFixture("agy", 17),
+]
+
 export const fixtures: readonly Fixture[] = [
   {
     golden: "claude/transcript",
@@ -278,6 +294,8 @@ export const fixtures: readonly Fixture[] = [
     skipped: agyAskSkipped,
     extract: () => agyAsk("ask.probe.json"),
   },
+  // Each case of a tool's outcome, on each harness (see outcomes.test.ts).
+  ...outcomeFixtures,
   // Hand-written, in each harness's native shape (see vocabulary/README.md).
   {
     golden: "vocabulary/claude",

@@ -1,0 +1,44 @@
+# read
+tools: Read [read] · …/user/project/sample.txt | Call: 1 line: /home/user/project/sample.txt → 7 lines: 1	alpha
+
+# read-part
+tools: Read [read] · …/user/project/sample.txt | Call: 3 lines: file_path: /home/user/project/sample.txt → 2 lines: 2	beta
+
+# tool-error
+tools: Read [read] · …/user/project/missing.txt | Call: 1 line: /home/user/project/missing.txt → 1 line: File does not exist. Note: your current working…
+
+# command-passes
+tools: Ran [run] · echo hello | Call: Bash: 2 lines: command: echo hello → 1 line: hello
+
+# command-fails
+tools: Ran [run] · echo boom >&2; exit 3 | Call: Bash: 2 lines: command: echo boom >&2; exit 3 → 2 lines: Exit code 3
+
+# no-match
+tools: Ran [run] · grep -n zzz sample.txt | Call: Bash: 2 lines: command: grep -n zzz sample.txt → 1 line: (Bash completed with no output)
+
+# timeout
+tools: Ran [run] · sleep 5; echo late | Call: Bash: 3 lines: command: sleep 5; echo late → 2 lines: Exit code 143
+
+# background
+tools: Ran [run] · echo done | Call: Bash: 3 lines: command: echo done → 1 line: Command running in background with ID: bc4x20s7…
+
+# search
+tools: Ran [run] · grep -rn beta . | Call: Bash: 2 lines: command: grep -rn beta . → 1 line: sample.txt:2:beta
+
+# edit
+tools: Edited [write] · …/project/src/auth.ts | Call: Edit: 8 lines: replace_all: false → 1 line: The file /home/user/project/src/auth.ts has bee…
+
+# edit-no-match
+tools: Edited [write] · …/project/src/auth.ts | Call: Edit: 4 lines: replace_all: false → 2 lines: <tool_use_error>String to replace not found in …
+
+# new-file
+tools: Wrote [write] · …/user/project/new.txt | Call: Write: 4 lines: file_path: /home/user/project/new.txt → 1 line: File created successfully at: /home/user/projec…
+
+# overwrite
+tools: Wrote [write] · …/user/project/sample.txt | Call: Write: 4 lines: file_path: /home/user/project/sample.txt → 1 line: The file /home/user/project/sample.txt has been…
+
+# long-edit
+tools: Edited [write] | Call: Edit: 1 line, shortened: {"replace_all":false,"file_path":"/home/user/pr… → 1 line: The file /home/user/project/long.txt has been u…
+
+# long-write
+tools: Wrote [write] | Call: Write: 1 line, shortened: {"file_path":"/home/user/project/huge.txt","con… → 1 line: File created successfully at: /home/user/projec…

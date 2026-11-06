@@ -54,6 +54,36 @@ describe("an agent's last reply in its transcript", () => {
     await expect(lastReply(path, items)).resolves.toBeUndefined()
   })
 
+  it("keeps Codex's last words past a command of a script that ended after them", async ({
+    resources,
+  }) => {
+    const said = {
+      type: "response_item",
+      payload: {
+        type: "message",
+        role: "assistant",
+        content: [{ type: "output_text", text: "All done." }],
+      },
+    }
+    const ended = {
+      type: "event_msg",
+      payload: {
+        type: "item_completed",
+        item: {
+          type: "CommandExecution",
+          id: "exec-1",
+          command: ["/bin/bash", "-lc", "sleep 9"],
+          status: "completed",
+          exit_code: 0,
+          aggregated_output: "",
+        },
+      },
+    }
+    const path = join(folder(resources), "rollout.jsonl")
+    writeFileSync(path, [said, ended].map((record) => JSON.stringify(record)).join("\n") + "\n")
+    await expect(lastReply(path, harnesses.codex.transcripts!.items)).resolves.toBe("All done.")
+  })
+
   it("is only what Claude Code said after its last tool step, so nothing until its final words", async ({
     resources,
   }) => {
