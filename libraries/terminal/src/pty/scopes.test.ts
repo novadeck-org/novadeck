@@ -107,6 +107,15 @@ describe("starting a terminal's scope", () => {
       ["busctl", "app-novadeck-term43.scope", "43"],
     ])
   })
+
+  it("is active while moves work", async () => {
+    const { runs, run } = tools({ busctl: reachable })
+    const scopes = new UserScopes("app-novadeck", run)
+    expect(scopes.active()).toBe(true)
+    scopes.contain(42)
+    await vi.waitFor(() => expect(runs).toHaveLength(1))
+    expect(scopes.active()).toBe(true)
+  })
 })
 
 describe("without systemd", () => {
@@ -118,6 +127,7 @@ describe("without systemd", () => {
     await vi.waitFor(() => expect(error).toHaveBeenCalledOnce())
     expect(await first.cause("SIGKILL")).toBeUndefined()
     expect(scopes.contain(43).cause("SIGKILL")).toBeUndefined()
+    expect(scopes.active()).toBe(false)
     // No second try, and no journal looked at.
     expect(runs.map(({ file }) => file)).toEqual(["busctl"])
     expect(error).toHaveBeenCalledOnce()
@@ -315,6 +325,7 @@ describe("a pty in a scope", () => {
     const contained: number[] = []
     const asked: (string | null)[] = []
     const scopes = {
+      active: () => true,
       contain: (pid: number) => {
         contained.push(pid)
         return {
@@ -379,6 +390,7 @@ describe("a pty in a scope", () => {
   it("takes no input, size or signal while its exit waits for its cause", async () => {
     let answer: (cause: "out-of-memory" | undefined) => void = () => {}
     const scopes = {
+      active: () => true,
       contain: () => ({
         cause: () => new Promise<"out-of-memory" | undefined>((resolve) => (answer = resolve)),
       }),
