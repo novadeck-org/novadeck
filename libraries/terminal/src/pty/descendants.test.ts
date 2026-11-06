@@ -4,6 +4,7 @@ import { describe, expect, it, onTestFinished, vi } from "vitest"
 
 import {
   agentProcesses,
+  boundedListing,
   endFollowed,
   parsePs,
   parseStat,
@@ -134,6 +135,19 @@ describe("what is still running of it", () => {
     expect(
       pids(stillRunning([row(30, 1, 1), row(1, 0, 1, { started: "boot" })], followed)),
     ).toEqual([30])
+  })
+})
+
+describe("a bounded listing", () => {
+  it("gives up on one that's stuck, and keeps a timely one", async () => {
+    vi.useFakeTimers()
+    onTestFinished(() => void vi.useRealTimers())
+    const stuck = boundedListing(() => new Promise(() => {}), 300)()
+    await vi.advanceTimersByTimeAsync(300)
+    await expect(stuck).resolves.toBeUndefined()
+    await expect(boundedListing(() => Promise.resolve([stranger]), 300)()).resolves.toEqual([
+      stranger,
+    ])
   })
 })
 

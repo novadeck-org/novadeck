@@ -12,7 +12,9 @@ export const shutdownTreeGraceMs = 2_000
 // How long ending terminals' trees may take in all as the runner shuts down, in
 // milliseconds: every relay run, taskkill and grace then takes its time from this, within
 // the five seconds the app gives the runner, with room for a shell's exit (its own 1 s wait)
-// and for closing the rest of the runner after.
+// and for closing the rest of the runner after. On Linux and macOS an agent's processes take
+// their share of it too: the 2 s grace, a listing, half a second for SIGTERM and a listing,
+// about 2.6 s, and 3.15 s if both listings take their whole limit.
 export const shutdownTreesMs = 3_000
 
 /**

@@ -117,9 +117,6 @@ const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms))
 
 const defaultListing = processListing()
 
-/** How long a listing may hold up a hangup, in milliseconds. */
-const walkMs = 500
-
 /**
  * Resumes a process group hung up as its terminal closed, once the shell has exited. On
  * its own hangup bash takes the terminal back for itself before it exits, so a program
@@ -159,9 +156,12 @@ export const forceKill = async (
 // where no foreground group is known. A shell passes its own hangup on to the jobs it
 // started, but not always: bash does not to a command its prompt hook ran, which would
 // then run on without a terminal.
-const hangUp = async (pid: number | undefined): Promise<number | undefined> => {
+const hangUp = async (
+  pid: number | undefined,
+  foreground?: number,
+): Promise<number | undefined> => {
   if (pid === undefined) return undefined
-  const group = await terminalForeground(pid)
+  const group = foreground ?? (await terminalForeground(pid))
   if (group === undefined || group === pid) return undefined
   try {
     process.kill(-group, "SIGHUP")
@@ -330,16 +330,23 @@ export const spawnPty = (
       // The second signal bounds ending even for programs that ignore SIGHUP.
       let timer: ReturnType<typeof setTimeout> | undefined
       try {
-        // Before the hangup, while what the agent started still leads back to it, and never
-        // for long: the hangup matters more than what would follow it.
-        const rows =
-          follow !== undefined && pty.pid !== undefined
-            ? await Promise.race([listing(), sleep(walkMs).then(() => undefined)])
-            : undefined
+        // Before the hangup, while what the agent started still leads back to it. A listing
+        // has a limit of its own, and past it the hangup goes ahead: it matters more.
+        const following = follow !== undefined && pty.pid !== undefined && platform !== "win32"
+        const rows = following ? await listing() : undefined
+        if (following && !rows)
+          console.error(
+            "Listing the processes failed, so what this terminal's agent started won't be followed:",
+            pty.pid,
+          )
         if (gone) return await exit
         const followed = rows && agentProcesses(rows, pty.pid!, follow!)
         // Windows has no process groups to hang up.
-        const group = platform === "win32" ? undefined : await hangUp(pty.pid)
+        const shell = rows?.find((row) => row.pid === pty.pid)
+        const group =
+          platform === "win32"
+            ? undefined
+            : await hangUp(pty.pid, shell && shell.foreground > 0 ? shell.foreground : undefined)
         // Windows hangs up no group: closing the console sends what is attached to it
         // CTRL_CLOSE_EVENT, and node-pty ends the shell, but nothing reaches what a program
         // there started apart from it, as an agent's hooks in consoles of their own, which

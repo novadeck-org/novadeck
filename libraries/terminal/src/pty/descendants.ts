@@ -23,6 +23,13 @@ export type Followed = Pick<Listed, "pid" | "started">
 /** Every process now; undefined where they can't be listed, as on Windows. */
 export type Listing = () => Promise<readonly Listed[] | undefined>
 
+/**
+ * How long a listing may take, in milliseconds: well past `ps` on a busy three-core Mac, 112 ms
+ * at most (#721). A quit takes two past its bound, with SIGTERM's wait between them, and the
+ * runner's engines and store still have to close within the five seconds the app gives it.
+ */
+export const listMs = 300
+
 /** After `(comm)` in /proc/<pid>/stat, where the state is field 0: the start's field. */
 const startField = 19
 
@@ -79,8 +86,7 @@ const listPs: Listing = async () => {
       encoding: "utf8",
       env: { ...process.env, LC_ALL: "C" },
       maxBuffer: 64 * 1024 * 1024,
-      // Two of these, with the bound and SIGTERM's wait, fit the five seconds of a quit.
-      timeout: 750,
+      timeout: listMs,
     },
   )
   return parsePs(stdout)
@@ -88,6 +94,17 @@ const listPs: Listing = async () => {
 
 const listFor = (platform: NodeJS.Platform): Listing | undefined =>
   platform === "linux" ? listProc : platform === "darwin" ? listPs : undefined
+
+/** `list`, as none past `limitMs`, whatever it is stuck on. */
+export const boundedListing = (list: Listing, limitMs: number): Listing => {
+  return async () => {
+    let timer: ReturnType<typeof setTimeout> | undefined
+    const late = new Promise<undefined>((resolve) => {
+      timer = setTimeout(resolve, limitMs, undefined)
+    })
+    return Promise.race([list(), late]).finally(() => clearTimeout(timer))
+  }
+}
 
 /**
  * Listings shared by all who ask at about the same moment: a shutdown ending thirty
@@ -115,7 +132,9 @@ export const processListing = (
   sharedMs?: number,
 ): Listing => {
   const list = listFor(platform)
-  return list ? sharedListing(list, sharedMs) : () => Promise.resolve(undefined)
+  return list
+    ? sharedListing(boundedListing(list, listMs), sharedMs)
+    : () => Promise.resolve(undefined)
 }
 
 /** `seed` and everything under them by parent, each once, in the order found. */

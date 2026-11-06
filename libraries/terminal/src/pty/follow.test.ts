@@ -2,7 +2,7 @@ import { mkdtempSync, readFileSync, realpathSync, rmSync, writeFileSync } from "
 import { tmpdir } from "node:os"
 import { join } from "node:path"
 
-import { describe, expect, it, onTestFinished } from "vitest"
+import { describe, expect, it, onTestFinished, vi } from "vitest"
 
 import { processListing, sharedListing } from "./descendants.js"
 import { spawnPty, type Pty } from "./pty.js"
@@ -157,6 +157,24 @@ describe.skipIf(process.platform === "win32")("a hangup followed through an agen
     await end(agentPid)
     await eventually(async () => !(await running(toolPid!)), "the tool to end")
     expect(await running(nohup)).toBe(true)
+  })
+
+  it("hangs up all the same where the processes can't be listed, and says so", async () => {
+    const { pty, run, said } = await shell()
+    run(`${process.execPath} person.mjs`)
+    const program = Number((await said(/PERSON=(\d+)=/))[1])
+    endAfter(program)
+    const error = vi.spyOn(console, "error").mockImplementation(() => {})
+    onTestFinished(() => void error.mockRestore())
+    await pty.end({
+      graceMs: 1000,
+      treeGraceMs: 200,
+      trees: noTrees,
+      follow: program,
+      listing: () => Promise.resolve(undefined),
+    })
+    expect(pty.exited).toBe(true)
+    expect(error.mock.calls.flat().join(" ")).toContain("won't be followed")
   })
 
   it("leaves a plain terminal's program, which ignores the hangup, as ever", async () => {
