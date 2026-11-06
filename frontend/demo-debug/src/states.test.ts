@@ -329,6 +329,7 @@ describe("demo states", () => {
   it("lets the groups that make agents choose their harness", () => {
     const { states } = panel("04")
     expect(states.groups.filter((group) => group.harnesses).map((group) => group.title)).toEqual([
+      "New terminals",
       "Agent",
       "Agent fixtures",
       "Waiting agents",
@@ -770,6 +771,11 @@ describe("demo states over the real agents", () => {
   context.each(harnesses)("with $name chosen", ({ id: harness }) => {
     const processOf = (workspace: Workspace, terminal: TerminalKey) =>
       terminalOf(workspace, terminal)?.process
+    // The session's terminals, in the order they were added.
+    const rosterOf = (workspace: Workspace, { projectId, workspaceSessionId }: TerminalKey) =>
+      workspace.projects
+        .find((each) => each.id === projectId)!
+        .history.find((each) => each.id === workspaceSessionId)!.state.roster.terminals
 
     it("makes the selected shell that agent, by each kind of verb", () => {
       for (const [action, state] of [
@@ -803,6 +809,27 @@ describe("demo states over the real agents", () => {
       const terminal = terminalOf(workspace.getSnapshot(), viewed)!
       expect(terminal.process).toBe(harness)
       expect(terminalPhase(terminal)).toBe("unheard")
+    })
+
+    it("makes every agent of the gallery that harness, with its asks in the Inbox", () => {
+      const { run, rows, workspace, viewed } = openOver("plain", harness)
+      const before = rosterOf(workspace.getSnapshot(), viewed).length
+      run("Every state at once")
+      const added = rosterOf(workspace.getSnapshot(), viewed).slice(before)
+      const shown = added.flatMap((entry) => {
+        const terminal = terminalOf(workspace.getSnapshot(), { ...viewed, terminalId: entry.id })
+        return terminal ? [terminal] : []
+      })
+      const agents = shown.filter(({ process }) => isAgentProgram(process))
+      expect(agents.length).toBeGreaterThan(15)
+      expect(new Set(agents.map(({ process }) => process))).toEqual(new Set([harness]))
+      const asks = rows().filter((row) => row.kind === "ask")
+      expect(asks.map((row) => row.source.title).toSorted()).toEqual([
+        "Asks (MCP)",
+        "Needs a sign-in",
+        "Working, a side question",
+      ])
+      expect(new Set(asks.map((row) => row.source.agent))).toEqual(new Set([harness]))
     })
 
     it("leaves a terminal that already runs another agent as it is", () => {

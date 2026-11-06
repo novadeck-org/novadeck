@@ -267,7 +267,8 @@ Terminals:
 - **New terminals:** "Every state at once" adds one terminal per state, named after it, so
   the tabs and the windows in Grid and Canvas show done, replied (unread), failed, working,
   planning, subagents, asking, waiting, paused at its limit, ended and the rest side by
-  side. "Asks (MCP)" and "Needs a sign-in" are agents with an `ask` open in the Inbox (a
+side. Its agents are of the harness the group's switch chose (see Agent). "Asks (MCP)" and
+  "Needs a sign-in" are agents with an `ask` open in the Inbox (a
   question, and an action ask), so their "?" and "!" show beside "Working, a side question",
   an agent that works on with a question open. You stay on one that needs permission, and the
   marks land on the others as you look away. Its shell an agent opened and its shell an agent
@@ -284,10 +285,10 @@ Agents:
   picks the terminal they act on: the selected one; another terminal of its session (added
   in the background when there is none, so you look elsewhere and get the unread mark and
   the notice); or the first terminal of another project, for the switcher's marks. A second
-  switch, here and on Agent fixtures and Waiting agents, picks what a terminal that runs no
-  agent becomes first: Claude Code, Codex or Antigravity. A verb leaves an agent already
-  running as it is. Work, Plan mode and Subagents start a turn
-  that works on. Needs permission, Asks a question, Plan ready and 3 permissions stop it on
+  switch, here and on New terminals, Agent fixtures and Waiting agents, picks what a terminal
+  that runs no agent becomes first: Claude Code, Codex or Antigravity. A verb leaves an agent
+  already running as it is. Work, Plan mode and Subagents start a turn that works on.
+  Needs permission, Asks a question, Plan ready and 3 permissions stop it on
   requests you can answer in the chat or on the screen, which clears the tab and the
   notification. Completes, Replies (no done call), Fails, Interrupted and Ends without reply
   work for 3 s, then end the turn the way asked: Completes calls `done` with a report, so the

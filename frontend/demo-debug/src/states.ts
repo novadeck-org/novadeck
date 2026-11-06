@@ -1,3 +1,4 @@
+import type { AgentName } from "@novadeck/core/harnesses"
 import type { Inbox, InboxRow } from "@novadeck/core/inbox"
 import type { BackendAction, TerminalKey } from "@novadeck/core/port"
 import { createStore } from "@novadeck/core/store"
@@ -193,7 +194,7 @@ const limitResetMs = 80 * 60_000
 // Inbox row of the demo's own, added once the terminal is in its state.
 const gallery: readonly {
   readonly name: string
-  readonly state?: (key: TerminalKey) => BackendAction[]
+  readonly state?: (key: TerminalKey, harness: AgentName) => BackendAction[]
   readonly agent?: (verbs: DemoAgentVerbs, key: TerminalKey) => void
   readonly asks?: "text" | "action"
 }[] = [
@@ -255,9 +256,9 @@ const gallery: readonly {
         limit: { minutes: 300, resetsAt: Date.now() + limitResetMs },
       }),
   },
-  { name: "Asks (MCP)", state: (key) => runAgent(key, "claude"), asks: "text" },
-  { name: "Needs a sign-in", state: (key) => runAgent(key, "claude"), asks: "action" },
-  { name: "Unheard agent", state: (key) => unheardAgent(key, "claude") },
+  { name: "Asks (MCP)", state: (key, harness) => runAgent(key, harness), asks: "text" },
+  { name: "Needs a sign-in", state: (key, harness) => runAgent(key, harness), asks: "action" },
+  { name: "Unheard agent", state: (key, harness) => unheardAgent(key, harness) },
   { name: "Running a program", state: (key) => runProgram(key, "sleep") },
   { name: "Opened by an agent", state: (key) => openedByAgent(key, "pnpm") },
   { name: "Agent exited", state: (key) => agentRanHere(key) },
@@ -290,7 +291,7 @@ const everyState = (
 ): DemoAction => ({
   label: "Every state at once",
   hint: `${gallery.length} terminals, one per state`,
-  run: ({ addTerminal, dispatch, workspace }) => {
+  run: ({ addTerminal, dispatch, workspace, harness }) => {
     if (!dispatch) return
     // Added first, so each finish lands while the person looks at the last one.
     const keys = gallery.map(() => addTerminal())
@@ -298,14 +299,15 @@ const everyState = (
     dispatch(
       gallery.flatMap(({ name, state }, index) => {
         const key = keys[index]!
-        return [rename(key, name), ...(state?.(key) ?? [])]
+        return [rename(key, name), ...(state?.(key, harness) ?? [])]
       }),
     )
-    gallery.forEach(({ agent }, index) => agent?.(verbs, keys[index]!))
+    const agents = verbs.as(harness)
+    gallery.forEach(({ agent }, index) => agent?.(agents, keys[index]!))
     const own = inbox()
     if (!isDemoInbox(own)) return
     gallery.forEach(({ asks }, index) => {
-      const row = asks && mcpAsk(workspace(), keys[index]!, asks, Date.now())
+      const row = asks && mcpAsk(workspace(), keys[index]!, asks, Date.now(), harness)
       if (!row) return
       own.add(row)
       panelAsks.add(row.id)
@@ -501,6 +503,7 @@ export const createDemoStates = (
     {
       section: "Terminals",
       title: "New terminals",
+      harnesses: true,
       actions: [
         everyState(verbs, inbox, panelAsks),
         failingTerminal(

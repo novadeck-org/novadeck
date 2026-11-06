@@ -65,7 +65,8 @@ export type DemoActionGroup = {
   readonly title: string
   // Its actions act on a target, which the group lets the person choose.
   readonly targets?: true
-  // Its actions turn terminals into agents, of the harness the group lets the person choose.
+  // Some of its actions turn terminals into agents, of the harness the group lets the person
+  // choose.
   readonly harnesses?: true
   readonly actions: readonly DemoAction[]
 }
