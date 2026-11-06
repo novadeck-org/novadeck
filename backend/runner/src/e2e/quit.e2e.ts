@@ -11,7 +11,8 @@ import { describe, e2e, expect, gated, supported, type E2E } from "./fixture.js"
 import { asked } from "./model/script.js"
 import { lacking, own, replies, result, start, turn } from "./scenarios.js"
 
-// How long a quit may hold a terminal's agent and its tools: the five seconds the app gives it.
+// How long a quit may hold a terminal's agent and its tools: the five seconds the app gives it,
+// which a close, with its own 3 s, keeps to as well.
 const quitMs = 5_000
 
 /**
@@ -90,38 +91,40 @@ for (const setup of setups) {
     const it = e2e(setup)
     const { shell } = setup
 
-    for (const [what, stays] of [
-      ["a tool that is running", false],
-      ["a tool that ignores the hangup and SIGTERM", true],
+    for (const [what, stays, end] of [
+      ["a tool that is running after a quit", false, "quit"],
+      ["a tool that ignores the hangup and SIGTERM after a quit", true, "quit"],
+      ["a tool that ignores the hangup and SIGTERM after its terminal closes", true, "close"],
     ] as const)
-      gated(it, lacking(setup, "shell"))(
-        `leaves nothing of ${what} after a quit`,
-        async ({ e2e: run }) => {
-          const word = randomUUID()
-          run.model.use(
-            replies("Say ok", "Okay then."),
-            own((call) =>
-              asked(call, "Run the quit tool")
-                ? shell!.run(call, `node quit-tool.mjs ${word}`)
-                : undefined,
-            ),
-            own((call) => (result(call) !== undefined ? { text: "Done." } : undefined)),
-          )
-          writeFileSync(join(run.sandbox.project, "quit-tool.mjs"), tool(stays))
-          rmSync(join(run.sandbox.project, "quit-tool.up"), { force: true })
-          const terminal = await start(run, setup)
-          // Past a first turn, which binds every harness to its terminal.
-          await turn(terminal, "Say ok", "Okay then.")
-          const told = await running(run, terminal)
-          expect((await toolLeft(word, told)).length).toBeGreaterThanOrEqual(2)
+      gated(it, lacking(setup, "shell"))(`leaves nothing of ${what}`, async ({ e2e: run }) => {
+        const word = randomUUID()
+        run.model.use(
+          replies("Say ok", "Okay then."),
+          own((call) =>
+            asked(call, "Run the quit tool")
+              ? shell!.run(call, `node quit-tool.mjs ${word}`)
+              : undefined,
+          ),
+          own((call) => (result(call) !== undefined ? { text: "Done." } : undefined)),
+        )
+        writeFileSync(join(run.sandbox.project, "quit-tool.mjs"), tool(stays))
+        rmSync(join(run.sandbox.project, "quit-tool.up"), { force: true })
+        const terminal = await start(run, setup)
+        // Past a first turn, which binds every harness to its terminal.
+        await turn(terminal, "Say ok", "Okay then.")
+        const told = await running(run, terminal)
+        expect((await toolLeft(word, told)).length).toBeGreaterThanOrEqual(2)
 
-          const began = performance.now()
-          await run.model.ending(() => run.deck.terminals.shutdown())
-          expect(performance.now() - began).toBeLessThan(quitMs)
-          await expect.poll(() => toolLeft(word, told), { timeout: 1_000 }).toEqual([])
-          // Finds what the sandbox still holds, and throws.
-          await run.deck.restart()
-        },
-      )
+        const began = performance.now()
+        await run.model.ending(() =>
+          end === "quit"
+            ? run.deck.terminals.shutdown()
+            : run.deck.terminals.close({ terminalId: terminal.id }),
+        )
+        expect(performance.now() - began).toBeLessThan(quitMs)
+        await expect.poll(() => toolLeft(word, told), { timeout: 1_000 }).toEqual([])
+        // Finds what the sandbox still holds, and throws.
+        await run.deck.restart()
+      })
   })
 }

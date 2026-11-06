@@ -1,5 +1,5 @@
 import { TerminalError, type TerminalEvent } from "../contract.js"
-import { processListing } from "../pty/descendants.js"
+import { processListing, type Listing } from "../pty/descendants.js"
 import type { Disposable, EndBudget, ProcessTrees, PtyOptions } from "../pty/pty.js"
 import {
   createTerminal,
@@ -22,7 +22,7 @@ export type TerminalHostOptions = {
   readonly kill: {
     /** How long a program has to end after its kill before it is forced, in milliseconds. */
     readonly graceMs: number
-    /** On Windows, how long what a closed terminal's tree left running has to end by itself. */
+    /** How long what a closed terminal's program started has to end by itself. */
     readonly treeGraceMs: number
     /** How long ending every terminal may take in all as the host shuts down. */
     readonly shutdownTreesMs: number
@@ -33,6 +33,8 @@ export type TerminalHostOptions = {
   readonly trees: ProcessTrees
   /** The pid of the agent terminal `id` runs, whose processes its end follows; if any. */
   readonly follows?: ((id: string) => number | undefined) | undefined
+  /** The processes, for `follows`: this system's unless a test plays them. */
+  readonly listing?: Listing | undefined
   /** How its ptys start: as a test plays them, and where their programs are kept. */
   readonly pty?: PtyOptions
   /**
@@ -135,7 +137,7 @@ type Entry = {
 }
 
 export const createTerminalHost = (options: TerminalHostOptions): TerminalHost => {
-  const listing = processListing(options.pty?.platform)
+  const listing = options.listing ?? processListing(options.pty?.platform)
   const { limits, kill } = options
   const open = new Map<string, Entry>()
   const drained = new Map<string, Entry>()
@@ -182,10 +184,11 @@ export const createTerminalHost = (options: TerminalHostOptions): TerminalHost =
   /**
    * Ends a terminal's program and what it started (see the pty's `end`), once its exit is
    * handled. A close already waiting as shutdown begins takes no more than shutdown's own
-   * time: each relay or taskkill run within what is left of it, and what a Windows tree left
+   * time: each relay or taskkill run within what is left of it, and what its program left
    * running ends by shutdown's shorter grace.
    */
   const end = async ({ id, terminal }: Entry) => {
+    const agent = options.follows?.(id)
     const budget: EndBudget = {
       run: runMs,
       graceEnds: (began) =>
@@ -202,8 +205,7 @@ export const createTerminalHost = (options: TerminalHostOptions): TerminalHost =
         treeGraceMs: kill.treeGraceMs,
         trees: options.trees,
         budget,
-        follow: options.follows?.(id),
-        listing,
+        follow: agent === undefined ? undefined : { agent, listing },
       }),
       terminal.exited,
     ])

@@ -78,22 +78,24 @@ const listProc: Listing = async () => {
 }
 
 // macOS has no /proc. The C locale keeps `lstart` one form, compared as it is.
-const listPs: Listing = async () => {
-  const { stdout } = await promisify(execFile)(
-    "ps",
-    ["-axo", "pid=,ppid=,pgid=,tpgid=,stat=,lstart="],
-    {
-      encoding: "utf8",
-      env: { ...process.env, LC_ALL: "C" },
-      maxBuffer: 64 * 1024 * 1024,
-      timeout: listMs,
-    },
-  )
-  return parsePs(stdout)
-}
+const listPs =
+  (limitMs: number): Listing =>
+  async () => {
+    const { stdout } = await promisify(execFile)(
+      "ps",
+      ["-axo", "pid=,ppid=,pgid=,tpgid=,stat=,lstart="],
+      {
+        encoding: "utf8",
+        env: { ...process.env, LC_ALL: "C" },
+        maxBuffer: 64 * 1024 * 1024,
+        timeout: limitMs,
+      },
+    )
+    return parsePs(stdout)
+  }
 
-const listFor = (platform: NodeJS.Platform): Listing | undefined =>
-  platform === "linux" ? listProc : platform === "darwin" ? listPs : undefined
+const listFor = (platform: NodeJS.Platform, limitMs: number): Listing | undefined =>
+  platform === "linux" ? listProc : platform === "darwin" ? listPs(limitMs) : undefined
 
 /** `list`, as none past `limitMs`, whatever it is stuck on. */
 export const boundedListing = (list: Listing, limitMs: number): Listing => {
@@ -108,7 +110,7 @@ export const boundedListing = (list: Listing, limitMs: number): Listing => {
 
 /**
  * Listings shared by all who ask at about the same moment: a shutdown ending thirty
- * terminals takes one before their hangups, and one as their bound passes.
+ * terminals takes one before their hangups, one as their bound passes, and one for SIGKILL.
  */
 export const sharedListing = (list: Listing, sharedMs = 50): Listing => {
   let current: { readonly rows: ReturnType<Listing>; settledAt?: number } | undefined
@@ -130,10 +132,11 @@ export const sharedListing = (list: Listing, sharedMs = 50): Listing => {
 export const processListing = (
   platform: NodeJS.Platform = process.platform,
   sharedMs?: number,
+  limitMs = listMs,
 ): Listing => {
-  const list = listFor(platform)
+  const list = listFor(platform, limitMs)
   return list
-    ? sharedListing(boundedListing(list, listMs), sharedMs)
+    ? sharedListing(boundedListing(list, limitMs), sharedMs)
     : () => Promise.resolve(undefined)
 }
 
@@ -162,7 +165,8 @@ const live = (rows: readonly Listed[]) => rows.filter((row) => !row.zombie && ro
  * What the shell started beside the agent isn't under it, so it stays, as a `nohup` or a
  * `tmux` the person left running. So does what left the tree before now in a group of its own,
  * as a daemon that forked twice: its parent is no longer the one that started it. What shares
- * the foreground group goes with it, however it got there, as nothing tells them apart.
+ * the foreground group goes with it, however it got there, as nothing tells them apart; and
+ * with an agent that took the shell's place by `exec`, all the shell started is under it.
  */
 export const agentProcesses = (
   rows: readonly Listed[],
@@ -171,7 +175,8 @@ export const agentProcesses = (
 ): readonly Followed[] | undefined => {
   const foreground = rows.find((row) => row.pid === shell)?.foreground
   const lead = rows.find((row) => row.pid === agent)
-  if (!foreground || foreground <= 1 || foreground === shell) return undefined
+  // The shell itself holds it at its prompt, unless it became the agent (`exec codex`).
+  if (!foreground || foreground <= 1 || (foreground === shell && agent !== shell)) return undefined
   if (lead?.group !== foreground || lead.zombie) return undefined
   const members = live(rows).filter((row) => row.group === foreground)
   return live(withBelow(rows, members)).map(({ pid, started }) => ({ pid, started }))

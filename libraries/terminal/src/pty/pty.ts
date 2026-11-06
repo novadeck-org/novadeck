@@ -2,7 +2,7 @@ import { constants as system } from "node:os"
 
 import { spawn as nodePtySpawn } from "node-pty"
 
-import { agentProcesses, endFollowed, processListing, type Listing } from "./descendants.js"
+import { agentProcesses, endFollowed, type Listing } from "./descendants.js"
 import { terminalForeground } from "./foreground.js"
 import type { ExitCause, Scopes } from "./scopes.js"
 import { anyRunning, relayMs, taskkillTree, type Member } from "./trees.js"
@@ -72,18 +72,20 @@ export type EndBudget = {
 export type EndOptions = {
   /** How long the program has to end after its kill before it is forced, in milliseconds. */
   readonly graceMs: number
-  /** On Windows, how long what its tree left running has to end by itself. */
+  /**
+   * How long what it started has to end by itself: on Windows all its tree left running,
+   * elsewhere what `follow` follows.
+   */
   readonly treeGraceMs: number
   /** On Windows, the process trees, read before the kill and ended after. */
   readonly trees: ProcessTrees
   readonly budget?: EndBudget
   /**
-   * On Linux and macOS, the pid of the agent the terminal runs: if it holds the foreground at
-   * the hangup, what it started is waited for and ended as it is on Windows, by `budget`.
+   * On Linux and macOS, the agent the terminal runs, by its pid, and the processes, shared by
+   * the terminals of a host: if it holds the foreground at the hangup, what it started is
+   * waited for and ended as it is on Windows, by `budget`.
    */
-  readonly follow?: number | undefined
-  /** The processes, for `follow`; shared by the terminals of a host. */
-  readonly listing?: Listing | undefined
+  readonly follow?: { readonly agent: number; readonly listing: Listing } | undefined
 }
 
 export type Pty = {
@@ -102,7 +104,7 @@ export type Pty = {
   resize(cols: number, rows: number): void
   pause(): void
   resume(): void
-  /** Ends its program and, on Windows, what it started: the whole kill sequence. */
+  /** Ends its program and what `EndOptions` say it started: the whole kill sequence. */
   end(options: EndOptions): Promise<void>
 }
 
@@ -114,8 +116,6 @@ const signalName = (signal: number | undefined, platform: NodeJS.Platform): stri
 }
 
 const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms))
-
-const defaultListing = processListing()
 
 /**
  * Resumes a process group hung up as its terminal closed, once the shell has exited. On
@@ -155,7 +155,7 @@ export const forceKill = async (
 // returns its process group; undefined when there is none to hang up, as on Windows,
 // where no foreground group is known. A shell passes its own hangup on to the jobs it
 // started, but not always: bash does not to a command its prompt hook ran, which would
-// then run on without a terminal.
+// then run on without a terminal. `foreground` spares asking where a listing has told.
 const hangUp = async (
   pid: number | undefined,
   foreground?: number,
@@ -316,31 +316,26 @@ export const spawnPty = (
     resume: () => {
       if (!gone) child.resume()
     },
-    end: async ({
-      graceMs,
-      treeGraceMs,
-      trees,
-      budget = usualBudget(treeGraceMs),
-      follow,
-      listing = defaultListing,
-    }) => {
+    end: async ({ graceMs, treeGraceMs, trees, budget = usualBudget(treeGraceMs), follow }) => {
       ending = true
       // Gone, its exit waiting for its cause: no signal for its pid, which may be another's.
       if (gone) return exit
+      const began = Date.now()
       // The second signal bounds ending even for programs that ignore SIGHUP.
       let timer: ReturnType<typeof setTimeout> | undefined
       try {
         // Before the hangup, while what the agent started still leads back to it. A listing
         // has a limit of its own, and past it the hangup goes ahead: it matters more.
-        const following = follow !== undefined && pty.pid !== undefined && platform !== "win32"
-        const rows = following ? await listing() : undefined
+        const following =
+          follow && pty.pid !== undefined && platform !== "win32" ? follow : undefined
+        const rows = following && (await following.listing())
         if (following && !rows)
           console.error(
             "Listing the processes failed, so what this terminal's agent started won't be followed:",
             pty.pid,
           )
         if (gone) return await exit
-        const followed = rows && agentProcesses(rows, pty.pid!, follow!)
+        const followed = following && rows && agentProcesses(rows, pty.pid!, following.agent)
         // Windows has no process groups to hang up.
         const shell = rows?.find((row) => row.pid === pty.pid)
         const group =
@@ -385,14 +380,15 @@ export const spawnPty = (
             takenAsEnded,
           )
         }, graceMs)
-        const began = Date.now()
         await Promise.all([
           // As soon as the shell has gone, however long what it left is waited for.
           exit.then(() => {
             if (group !== undefined) resumeGroup(group)
           }),
           tree && endLeft(tree, trees, budget),
-          followed && endFollowed(followed, () => budget.graceEnds(began), listing),
+          following &&
+            followed &&
+            endFollowed(followed, () => budget.graceEnds(began), following.listing),
         ])
       } finally {
         if (timer) clearTimeout(timer)

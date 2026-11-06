@@ -1,7 +1,7 @@
 import type { Record } from "./record.js"
 
-// How long a closed terminal's agent, and on Windows all its programs, have to end by
-// themselves, in milliseconds: on Windows, within the five seconds its CTRL_CLOSE_EVENT gives
+// How long a closed terminal's agent and what it started, and on Windows all its programs, have
+// to end by themselves, in milliseconds: on Windows, within the five seconds its CTRL_CLOSE_EVENT gives
 // them, saving what they were writing. What is left then is ended. Shorter as the runner shuts
 // down, which the app gives five seconds in all (apps/desktop/src/main/runner.ts): long enough
 // for Claude Code to end a tool that ignores it, which takes it 1.7 s, and for agents to save,
@@ -14,7 +14,7 @@ export const shutdownTreeGraceMs = 2_000
 // the five seconds the app gives the runner, with room for a shell's exit (its own 1 s wait)
 // and for closing the rest of the runner after. On Linux and macOS an agent's processes take
 // their share of it too: the 2 s grace, a listing, half a second for SIGTERM and a listing,
-// about 2.6 s, and 3.15 s if both listings take their whole limit.
+// about 2.6 s, and 3.15 s at most, if both listings past the bound take their whole limit.
 export const shutdownTreesMs = 3_000
 
 /**

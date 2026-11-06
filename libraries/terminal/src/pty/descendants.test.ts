@@ -96,6 +96,11 @@ describe("what follows an agent past its hangup", () => {
     expect(pids(agentProcesses(rows, 10, 25))).toEqual([20, 25, 35])
   })
 
+  it("holds an agent that took the shell's place, as `exec codex` does", () => {
+    const self = row(10, 1, 10, { foreground: 10 })
+    expect(pids(agentProcesses([self, row(30, 10, 30)], 10, 10))).toEqual([10, 30])
+  })
+
   it("is nothing once something else holds the foreground, as the person's own program", () => {
     const left = row(20, 1, 77, { zombie: false })
     const theirs = row(60, 10, 60)

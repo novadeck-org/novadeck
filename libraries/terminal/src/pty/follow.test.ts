@@ -8,11 +8,18 @@ import { processListing, sharedListing } from "./descendants.js"
 import { spawnPty, type Pty } from "./pty.js"
 
 const noTrees = { read: () => Promise.resolve(undefined), end: () => Promise.resolve() }
-// Fresh each time: these tests start and end processes faster than a shared one would show.
-const listing = processListing(process.platform, 0)
+// Fresh each time: these tests start and end processes faster than a shared one would show. And
+// with time to spare, for a machine this busy: none of them is about a listing's limit.
+const listing = processListing(process.platform, 0, 10_000)
+
+const listed = async () => {
+  const rows = await listing()
+  if (!rows) throw new Error("The processes can't be listed")
+  return rows
+}
 
 const running = async (pid: number): Promise<boolean> =>
-  ((await listing()) ?? []).some((row) => row.pid === pid && !row.zombie)
+  (await listed()).some((row) => row.pid === pid && !row.zombie)
 
 const eventually = async (check: () => Promise<boolean>, what: string, ms = 10_000) => {
   const by = Date.now() + ms
@@ -111,7 +118,12 @@ const shell = async () => {
   }
   const run = (line: string) => pty.write(`${line}\r`)
   const end = (follow?: number, treeGraceMs = 200) =>
-    pty.end({ graceMs: 1000, treeGraceMs, trees: noTrees, follow, listing })
+    pty.end({
+      graceMs: 1000,
+      treeGraceMs,
+      trees: noTrees,
+      follow: follow === undefined ? undefined : { agent: follow, listing },
+    })
   return { pty, root, run, said, end }
 }
 
@@ -170,8 +182,7 @@ describe.skipIf(process.platform === "win32")("a hangup followed through an agen
       graceMs: 1000,
       treeGraceMs: 200,
       trees: noTrees,
-      follow: program,
-      listing: () => Promise.resolve(undefined),
+      follow: { agent: program, listing: () => Promise.resolve(undefined) },
     })
     expect(pty.exited).toBe(true)
     expect(error.mock.calls.flat().join(" ")).toContain("won't be followed")
@@ -198,7 +209,7 @@ describe.skipIf(process.platform === "win32")("a hangup followed through an agen
     expect(await running(program)).toBe(true)
   })
 
-  it("takes one listing for thirty terminals before their hangups, one at their bound", async () => {
+  it("takes one listing for thirty terminals before their hangups, and few after", async () => {
     const shells = await Promise.all(Array.from({ length: 30 }, () => shell()))
     const stayer = `sh -c 'trap "" HUP TERM; echo STAYS=$$=; sleep 60'`
     for (const { run } of shells) run(stayer)
@@ -225,8 +236,7 @@ describe.skipIf(process.platform === "win32")("a hangup followed through an agen
           treeGraceMs: 200,
           trees: noTrees,
           budget: { run: (usual) => usual, graceEnds: () => bound },
-          follow: agents[at],
-          listing: shared,
+          follow: { agent: agents[at]!, listing: shared },
         }),
       ),
     )
@@ -237,7 +247,7 @@ describe.skipIf(process.platform === "win32")("a hangup followed through an agen
     // Before the hangups, at the bound, and at SIGKILL; a poll may split one.
     expect(listings).toBeLessThanOrEqual(6)
     await eventually(
-      async () => ((await listing()) ?? []).every((row) => row.zombie || !agents.includes(row.pid)),
+      async () => (await listed()).every((row) => row.zombie || !agents.includes(row.pid)),
       "all thirty to end",
     )
   }, 60_000)

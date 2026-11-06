@@ -566,9 +566,13 @@ not command completion.
   the previous run. A running terminal rejects with `CONFLICT`, and a shell that
   cannot start rejects with `SPAWN_FAILED`, leaving the terminal exited.
 - Closing sends a hangup to the owned shell, escalating if the shell ignores it.
-  It is not a process-tree kill guarantee: daemonized jobs and descendants that
-  ignore hangup may continue, as with an ordinary terminal emulator. Use an OS
-  service/cgroup or a future supervisor if all descendant cleanup is required.
+  Where the terminal's bound agent holds the foreground, what the agent started is
+  read first and waited for, 3 s for a close and 2 s for a shutdown, then gets
+  SIGTERM, and SIGKILL half a second on. Otherwise it is not a process-tree kill
+  guarantee: daemonized jobs and descendants that ignore hangup may continue, as with
+  an ordinary terminal emulator, and so may a daemon an agent left in a group of its
+  own. Use an OS service/cgroup or a future supervisor if all descendant cleanup is
+  required.
 
 ## Shell integration and restoring terminals
 
