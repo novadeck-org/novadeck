@@ -7,19 +7,22 @@
 // that ignores SIGHUP and has a child is the control; a tool that ignores SIGHUP and SIGTERM
 // shows what an agent leaves of what won't end. Then it ends the agent forcibly a moment
 // after the hangup and resumes its session, to see whether a kill during its save breaks
-// that, and kills the agent's group alone, to see what that leaves. Its stopwatch is its own, as the sandbox's reap kills at 3 s and would hide
-// the real time, and starts as the close is called: on macOS a `ps` comes before the hangup.
+// that, calm and with every core busy, and kills the agent's group and then shuts down, to
+// see what neither reaches. Its stopwatch is its own, as the sandbox's reap kills at 3 s and
+// would hide the real time, and starts as the close is called: a `ps` comes before the hangup.
 //
 // On Windows, which hangs up no group, the number is the tree's exit, from a clock that also
 // holds the relay's read before the console closes (the shell's own row tells how long),
-// and it can't pass the runner's own end of what is left: `atRunnerEnd` marks a row that
-// reached it, which says that much and no more of how long the tree would have run.
+// and it can't pass the runner's own end of what is left: `atRunnerEnd` marks a row the
+// runner ended, which says that much and no more of how long the tree would have run. Rows
+// of a quit with terminals of every harness have no such mark: they share one return.
 //
 // Runs only with NOVADECK_E2E_PROBES=1, by path; PROBE_RUNS is each case's repeats (3
 // unless set). Writes $PROBE_OUT/<agent>-exit-<platform>.json after every case, and logs
 // its summary. On Linux a shell gets its scope only with the user's bus in the environment
 // and some milliseconds after it starts, and what it started by then stays behind:
 // PROBE_RC_SLEEP is seconds its .bashrc sleeps, to see a scope hold what a slower shell starts.
+// A row says `scoped` where its shell had its own, and `scopeEnd` what ending it took.
 /* eslint-disable no-await-in-loop -- A probe's runs go one at a time, each watched to its end. */
 import { execFile, spawn } from "node:child_process"
 import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs"
@@ -48,6 +51,13 @@ const agentCapMs = 20_000
 const controlCapMs = 8_000
 /** The moments after the hangup at which the resume cases end the agent forcibly. */
 const killDelays = [0, 5, 10, 20, 50, 100, 200]
+// With every core busy: agents then take longer to exit, on Windows past a second.
+const busyKillDelays = [100, 300, 600, 800]
+// What the agent was on when killed, to see whether a resume still holds it.
+const inFlightPrompts: Record<string, string | undefined> = {
+  "mid-turn": "Hold on",
+  "mid-tool": "Run the nested agent",
+}
 const repeats = Number(process.env.PROBE_RUNS ?? 3)
 
 const agentNames: { readonly [agent in AgentSetup["agent"]]: RegExp } = {
@@ -188,23 +198,24 @@ const census = async (run: E2E, terminal: Pick<DeckTerminal, "id">) => {
   const shell = inside.records.get(terminal.id)?.terminal.pty.pid
   if (shell === undefined) throw new Error("The terminal has no shell")
   const found = windows ? await windowsCensus(run, shell) : posixCensus(run, shell)
-  const began = performance.now()
   await found.look(() => 0)
-  const walkMs = Math.round(performance.now() - began)
   if (!found.watched.has(shell)) throw new Error("The terminal's process tree can't be read")
-  return { ...found, shell, walkMs, group: await terminalForeground(shell) }
+  return { ...found, shell, group: await terminalForeground(shell) }
 }
 
 type Taken = Awaited<ReturnType<typeof census>>
 
 /**
- * Ends all of `cgroup`'s scope at once, as a shutdown could: the ms until none of `ones`
- * answers, or undefined where there were none, or some still answer a second on.
+ * Ends all of `cgroup`'s scope at once, as a shutdown could, and says how that went for
+ * those of `ones` it holds: `ms` until none answers, or why it failed. Those outside it are
+ * counted, and are nothing to go by: only what the scope holds was tried.
  */
 const endScope = async (cgroup: string, ones: readonly Watched[]) => {
-  if (ones.length === 0) return undefined
+  const held = ones.filter((one) => one.cgroup === cgroup)
+  const counts = { inScope: held.length, outside: ones.length - held.length }
+  if (held.length === 0) return counts
   const began = performance.now()
-  await promisify(execFile)("busctl", [
+  const failed = await promisify(execFile)("busctl", [
     "--user",
     "call",
     "org.freedesktop.systemd1",
@@ -215,12 +226,17 @@ const endScope = async (cgroup: string, ones: readonly Watched[]) => {
     cgroup.split("/").at(-1)!,
     "all",
     "9",
-  ]).catch(() => {})
+  ]).then(
+    () => undefined,
+    (error: unknown) => String(error),
+  )
+  if (failed !== undefined) return { ...counts, failed }
   while (performance.now() - began < 1000) {
-    if (!ones.some((one) => answers(one.pid))) return Math.round(performance.now() - began)
+    if (!held.some((one) => answers(one.pid)))
+      return { ...counts, ms: Math.round(performance.now() - began) }
     await sleep(pollMs)
   }
-  return undefined
+  return { ...counts, failed: "still answering a second on" }
 }
 
 /**
@@ -238,17 +254,22 @@ const load = (): (() => void) => {
   }
 }
 
+/** The agent among what was seen: the terminal's foreground group, or by its name. */
+const leadOf = (all: readonly Watched[], { shell, group }: Taken, agent: RegExp) =>
+  all.find((one) => one.pid === group && group !== shell) ??
+  all.find((one) => one.pid !== shell && agent.test(one.name))
+
 /**
  * Runs `end`, which hangs the terminal up, and watches until the terminal's processes have
  * gone, or until `capMs`, when what is left is ended and named as having outlived it. Times
  * in ms from the call of `end`; `closedMs` is when it returned, what the runner waited.
  */
-const stopwatch = async (
-  { watched, look, end: endThem, shell, group, walkMs }: Taken,
-  end: () => Promise<void>,
-  capMs: number,
-  agent: RegExp,
-) => {
+const stopwatch = async (taken: Taken, end: () => Promise<void>, capMs: number, agent: RegExp) => {
+  const { watched, look, end: endThem, shell, group } = taken
+  // What one more walk of the processes costs just now, as under load, on the way to a hangup.
+  const walking = performance.now()
+  await look(() => 0).catch(() => {})
+  const walkMs = Math.round(performance.now() - walking)
   const began = performance.now()
   const now = () => Math.round(performance.now() - began)
   let closedMs: number | undefined
@@ -283,21 +304,21 @@ const stopwatch = async (
   finished.abort()
   await looking
   await closing
+  // The last look may have found one no poll has asked after.
+  for (const one of left()) if (!answers(one.pid)) one.goneMs = now()
   const outlived = left()
   const shellGroup = watched.get(shell)?.cgroup
   const scoped = shellGroup?.endsWith(`-term${shell}.scope`)
-  const scopeEndMs = scoped ? await endScope(shellGroup!, outlived) : undefined
+  const scopeEnd = scoped && outlived.length > 0 ? await endScope(shellGroup!, outlived) : undefined
   await endThem(outlived.filter((one) => answers(one.pid)))
   if (failure !== undefined) throw failure
   const all = [...watched.values()]
   const inGroup = group === undefined ? [] : all.filter((one) => one.group === group)
-  const lead =
-    all.find((one) => one.pid === group && group !== shell) ??
-    all.find((one) => one.pid !== shell && agent.test(one.name))
+  const lead = leadOf(all, taken, agent)
   const latest = (ones: readonly Watched[]) =>
     ones.length === 0 ? undefined : Math.max(...ones.map((one) => one.goneMs ?? capMs))
   return {
-    walkMs,
+    ...(!windows && { walkMs }),
     closedMs,
     agentMs: lead?.goneMs ?? (lead ? capMs : undefined),
     groupMs: latest(inGroup),
@@ -307,7 +328,7 @@ const stopwatch = async (
     // one of its own, which takes the user's bus. Without it they all share the runner's cgroup.
     ...(shellGroup !== undefined && {
       scoped,
-      ...(scopeEndMs !== undefined && { scopeEndMs }),
+      ...(scopeEnd && { scopeEnd }),
       escaped: all
         .filter((one) => one.cgroup !== undefined && one.cgroup !== shellGroup)
         .map((one) => one.name),
@@ -324,11 +345,34 @@ type Timed = Awaited<ReturnType<typeof stopwatch>> & {
   readonly atRunnerEnd?: boolean
 }
 type Row = { readonly case: string } & Partial<Timed> & { readonly error?: string }
+type Resume = {
+  readonly case: string
+  readonly resumed?: boolean
+  readonly agentMet?: boolean
+  readonly sameSession?: boolean
+  readonly kept?: boolean
+  readonly inFlightKept?: boolean
+}
 
 const percentile = (values: readonly number[], at: number): number | undefined =>
   values.toSorted((a, b) => a - b)[Math.floor((values.length - 1) * at)]
 
 /** Each case's median and worst, by what was timed, and how many left something behind. */
+/** What a resume after a forced end says: only those whose kill met the agent test one. */
+const resumeSummary = (resumes: readonly Resume[]) => {
+  const met = resumes.filter((one) => one.agentMet)
+  const whole = (one: Resume) => one.resumed && one.sameSession && one.kept
+  const inFlight = met.filter((one) => one.inFlightKept !== undefined)
+  return {
+    records: resumes.length,
+    broken: resumes.filter((one) => !whole(one)).length,
+    agentMet: met.length,
+    brokenWhereMet: met.filter((one) => !whole(one)).length,
+    inFlight: inFlight.length,
+    inFlightLost: inFlight.filter((one) => !one.inFlightKept).length,
+  }
+}
+
 const summary = (rows: readonly Row[]) =>
   [...new Set(rows.map((row) => row.case))].map((name) => {
     const runs = rows.filter((row) => row.case === name)
@@ -382,7 +426,7 @@ const lab = (run: E2E, file: string) => {
   // Whether the harness asked before it ran the stubborn tool, which may then run differently.
   let toolAsked: boolean | undefined
   const rows: Row[] = []
-  const resumes: unknown[] = []
+  const resumes: Resume[] = []
   // The terminals open now, for a case that fails before it closes its own.
   const open = new Set<string>()
   const opened = <T extends { readonly id: string }>(terminal: T): T => {
@@ -404,6 +448,8 @@ const lab = (run: E2E, file: string) => {
     // A first that finds a leftover ends it and throws, before it starts a runner.
     await run.deck.restart().catch(() => run.deck.restart())
   }
+  if (process.env.PROBE_RC_SLEEP)
+    writeFileSync(join(run.sandbox.home, ".bashrc"), `sleep ${process.env.PROBE_RC_SLEEP}\n`)
   const save = () => {
     const dir = process.env.PROBE_OUT ?? join(run.sandbox.root, "probe-out")
     mkdirSync(dir, { recursive: true })
@@ -414,7 +460,10 @@ const lab = (run: E2E, file: string) => {
           platform: process.platform,
           cores: availableParallelism(),
           harness: process.env.NOVADECK_E2E_HARNESS ?? "pinned",
+          runs: repeats,
+          rcSleep: process.env.PROBE_RC_SLEEP ?? null,
           summary: summary(rows),
+          resumeSummary: resumeSummary(resumes),
           resumes,
           rows,
         },
@@ -544,7 +593,14 @@ const lab = (run: E2E, file: string) => {
                 ...timed,
                 harness,
                 ...(toolAsked !== undefined && { toolAsked }),
-                ...(windows && { atRunnerEnd: (timed.lastMs ?? 0) >= ending - 150 }),
+                // It ends what is left past its bound, from past the relay's read, then waits
+                // 200 ms; with what is gone by itself it returns at once.
+                ...(windows &&
+                  terminals.length === 1 && {
+                    atRunnerEnd:
+                      (timed.lastMs ?? 0) >= ending - 150 &&
+                      (timed.closedMs ?? 0) - (timed.lastMs ?? 0) >= 150,
+                  }),
               }
             }),
           )
@@ -567,7 +623,7 @@ const lab = (run: E2E, file: string) => {
     report: (name: string) => {
       save()
       console.log(
-        `${name} on ${process.platform}, ${availableParallelism()} cores:\n${JSON.stringify({ summary: summary(rows), resumes }, null, 1)}`,
+        `${name} on ${process.platform}, ${availableParallelism()} cores:\n${JSON.stringify({ summary: summary(rows), resumeSummary: resumeSummary(resumes), resumes }, null, 1)}`,
       )
     },
   }
@@ -591,8 +647,6 @@ for (const setup of setups) {
         run,
         setup.agent,
       )
-      if (process.env.PROBE_RC_SLEEP)
-        writeFileSync(join(run.sandbox.home, ".bashrc"), `sleep ${process.env.PROBE_RC_SLEEP}\n`)
       const agent = agentNames[setup.agent]
       const harness = setup.agent
       const failed = (error: string) => [{ error }]
@@ -646,8 +700,10 @@ for (const setup of setups) {
             return hangUp(kind, [one], agentCapMs, false)
           })
 
-      // What a kill of the agent's group alone leaves: the hangup's reach, and a bound's.
-      // Windows ends trees, which have no such gap.
+      // What neither a kill of the agent's group nor the shutdown after it reaches. The gate
+      // holds a nested run's reply until the cap, so what is left is alive, as a tool would be
+      // that isn't done, and `lastMs` is the cap, no exit time. Windows ends trees, which have
+      // no such gap.
       if (!windows)
         for (const moment of ["mid-turn", "mid-tool"])
           await attempt(`group killed ${moment}`, async () => {
@@ -657,15 +713,19 @@ for (const setup of setups) {
             return hangUp("group", [one], controlCapMs, false)
           })
 
-      for (const moment of ["idle", "mid-turn", "mid-tool"])
-        for (const delayMs of killDelays) {
-          const name = `forced ${moment} +${delayMs} ms`
-          const outcome = await guarded<object>(
-            async () => {
-              const terminal = await ready(setup, moment, "Remember the word heron", "Heron noted.")
-              const before = (await terminal.detail()).sessionId
-              const taken = await census(run, terminal)
-              let killed: readonly string[] = []
+      const forced = async (moment: string, delayMs: number, busy: boolean) => {
+        const name = `forced ${moment} +${delayMs} ms${busy ? " load" : ""}`
+        const outcome = await guarded<object>(
+          async () => {
+            const terminal = await ready(setup, moment, "Remember the word heron", "Heron noted.")
+            const before = (await terminal.detail()).sessionId
+            const taken = await census(run, terminal)
+            const lead = leadOf([...taken.watched.values()], taken, agent)
+            let killed: readonly string[] = []
+            let agentMet = false
+            const calm = busy ? load() : () => {}
+            try {
+              if (busy) await sleep(500)
               await run.model.ending(async () => {
                 const closing = run.deck.terminals.shutdown()
                 // The console closes after the relay's read, which may take longer than these.
@@ -673,42 +733,55 @@ for (const setup of setups) {
                 while (performance.now() < closes && answers(taken.shell)) await sleep(1)
                 await sleep(delayMs)
                 const others = [...taken.watched.values()].filter((one) => one.pid !== taken.shell)
-                // What the kill really met: past its exit, this case tests nothing.
+                // What the kill really met: past the agent's exit, this case tests nothing.
                 const met = others.filter((one) => answers(one.pid))
                 killed = met.map((one) => one.name)
+                agentMet = met.some((one) => one === lead)
                 await taken.end(met)
                 await closing
               })
-              release(terminal)
-              await run.deck.restart()
-              const resumed = opened(await run.deck.restore(terminal, { resume: setup.agent }))
-              await resumed.reached("ready", { timeoutMs: 60_000 })
-              await prompted(resumed, setup)
-              const after = run.model.mark()
-              await resumed.prompt("Which word")
-              const asking = await run.model.waitFor(
-                (call) => !call.side && asked(call, "Which word"),
-                { after },
-              )
-              await resumed.until("The word was heron.")
-              const row = {
-                resumed: true,
-                killed,
-                sameSession: (await resumed.detail()).sessionId === before,
-                kept: asking.turns.some(
-                  (one) => one.role === "user" && one.text.includes("Remember the word heron"),
-                ),
-              }
-              const again = await census(run, resumed)
-              const one = { id: resumed.id, taken: again, agent, harness }
-              await hangUp("close", [one], agentCapMs, false).catch(() => {})
-              return row
-            },
-            (error) => ({ resumed: false, error }),
-          )
-          resumes.push({ case: name, ...outcome })
-          save()
-        }
+            } finally {
+              calm()
+            }
+            release(terminal)
+            await run.deck.restart()
+            const resumed = opened(await run.deck.restore(terminal, { resume: setup.agent }))
+            await resumed.reached("ready", { timeoutMs: 60_000 })
+            await prompted(resumed, setup)
+            const after = run.model.mark()
+            await resumed.prompt("Which word")
+            const asking = await run.model.waitFor(
+              (call) => !call.side && asked(call, "Which word"),
+              { after },
+            )
+            await resumed.until("The word was heron.")
+            const said = (words: string) =>
+              asking.turns.some((one) => one.role === "user" && one.text.includes(words))
+            const session = (await resumed.detail()).sessionId
+            const inFlight = inFlightPrompts[moment]
+            const row = {
+              resumed: true,
+              killed,
+              agentMet,
+              before,
+              sameSession: before !== null && session === before,
+              kept: said("Remember the word heron"),
+              ...(inFlight && { inFlightKept: said(inFlight) }),
+            }
+            const again = await census(run, resumed)
+            const one = { id: resumed.id, taken: again, agent, harness }
+            await hangUp("close", [one], agentCapMs, false).catch(() => {})
+            return row
+          },
+          (error) => ({ resumed: false, error }),
+        )
+        resumes.push({ case: name, ...outcome })
+        save()
+      }
+      for (const moment of ["idle", "mid-turn", "mid-tool"])
+        for (const delayMs of killDelays) await forced(moment, delayMs, false)
+      for (const moment of ["idle", "mid-turn"])
+        for (const delayMs of busyKillDelays) await forced(moment, delayMs, true)
       report(setup.name)
     })
   })

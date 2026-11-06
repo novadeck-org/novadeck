@@ -887,8 +887,8 @@ versions it names). That's where they pay:
 - At the pinned version they'd repeat what the fixtures hold, so a pull request learns
   nothing from them.
 
-The one probe that also runs on macOS and Windows is `agent-exit`, as what it times is the
-system's: how long each harness takes to exit once the runner hangs up its terminal. The
+The `agent-exit` probe also runs on macOS and Windows, as what it times is the system's: how
+long each harness takes to exit once the runner hangs up its terminal. The
 Exit probe workflow runs it on all three when it or that workflow changes, a job per harness
 and one with them all at once, and keeps its findings as `agent-exit-<harness>-<OS>`.
 

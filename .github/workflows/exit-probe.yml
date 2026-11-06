@@ -45,6 +45,8 @@ jobs:
       NOVADECK_E2E_HARNESS: pinned
       NOVADECK_E2E_PROBES: "1"
       PROBE_OUT: ${{ github.workspace }}/probe-out
+      # A shell moves to its scope some ms after it starts: long enough for what it starts next.
+      PROBE_RC_SLEEP: ${{ matrix.runner.name == 'Linux' && '0.3' || '' }}
     steps:
       - name: Check Out Repository
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
