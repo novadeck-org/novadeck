@@ -130,6 +130,7 @@ export const claude = {
   decode,
   transcriptOf: hookTranscript,
   dialogs,
+  commandFields: ["command"],
   launch,
   messaging,
   box,

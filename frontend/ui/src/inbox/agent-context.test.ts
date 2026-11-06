@@ -173,6 +173,7 @@ describe("an Inbox row's agent context", () => {
         requests: [],
         prompts: [],
         unread: false,
+        box: null,
       }))
     })
     expect(seen.at(-1)).toEqual({

@@ -66,7 +66,8 @@ describe("the debug panel's chat failures", () => {
     const conversations = chat.wrap(inner())
     await chat.actions.find((action) => action.label.includes("Stop"))!.run({} as never)
     const failure = await conversations.interrupt(key).catch((error: unknown) => error)
-    expect(failure).toBeInstanceOf(SettleInTerminal)
+    // The next message sees to them: nothing to settle in the terminal.
+    expect(failure).not.toBeInstanceOf(SettleInTerminal)
     expect(failure).toHaveProperty("message", expect.stringContaining("still in the agent's box"))
     expect(await conversations.interrupt(key)).toBeNull()
   })

@@ -101,6 +101,7 @@ const conversationOf = (fields: Partial<Conversation> = {}): Conversation => ({
   requests: [],
   prompts: [],
   unread: false,
+  box: null,
   ...fields,
 })
 

@@ -92,6 +92,7 @@ export const ChatView = ({
     prompts,
     unread,
     slice,
+    box,
   } = useSyncExternalStore(conversation.subscribe, conversation.getSnapshot)
   const name = agentName(harness ?? program)
   const blocks = useMemo(() => groupItems(items), [items])
@@ -349,6 +350,7 @@ export const ChatView = ({
       )}
       <Composer
         label={name}
+        box={box}
         draft={draft}
         onDraft={(text) => {
           setLost(false)

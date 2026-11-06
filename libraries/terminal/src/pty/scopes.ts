@@ -20,7 +20,11 @@ export type Scope = {
 }
 
 /** Where each pty's program is kept apart from the app's own processes. */
-export type Scopes = { contain(pid: number): Scope }
+export type Scopes = {
+  contain(pid: number): Scope
+  /** Whether a program started now is on its way to a scope of its own. */
+  active(): boolean
+}
 
 const runTool: RunTool = async (file, args) =>
   (await promisify(execFile)(file, [...args], { timeout: 5_000 })).stdout
@@ -122,8 +126,9 @@ const unscoped: Scope = { cause: () => undefined }
  * starts, through the user's service manager, so the kernel or systemd-oomd killing one
  * for memory takes only that terminal, not the app and the others. An app scope's
  * default `OOMPolicy=stop` otherwise ends all of it on one kill. Programs it starts
- * meanwhile stay behind, as the move follows the start by some milliseconds. Where the
- * first move fails, as without systemd, the rest stay in the app's scope too, as before;
+ * meanwhile stay behind, as the move follows the start by some milliseconds, which is why
+ * a shell's startup command waits for it (see the shell integration). Where the first move
+ * fails, as without systemd, the rest stay in the app's scope too, as before;
  * a move that fails for its program alone, as one that exited at once, changes nothing.
  */
 export class UserScopes implements Scopes {
@@ -134,6 +139,10 @@ export class UserScopes implements Scopes {
     private readonly run: RunTool = runTool,
     private readonly delayMs = journalMs,
   ) {}
+
+  active(): boolean {
+    return this.state !== "off"
+  }
 
   contain(pid: number): Scope {
     if (this.state === "off") return unscoped

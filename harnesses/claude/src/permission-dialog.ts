@@ -11,8 +11,10 @@ import {
   nonBlank,
   numbered,
   quoted,
+  rule,
   ruled,
   wraps,
+  wrapsEnd,
 } from "./dialog-screen.js"
 import { diffIs } from "./diffs.js"
 
@@ -28,6 +30,9 @@ const permissionTitle = /^ (Do you want to .+\?)$/
 const permissionOption = /^ (❯| ) (\d+)\. (.+)$/
 const permissionContinuation = /^ {6,}\S/
 const permissionFooter = /^ Esc to cancel · Tab to amend$/
+
+// A row of the command a Bash dialog quotes.
+const quoteRow = /^ ?│(?: |$)/
 
 // The folder Claude Code runs in, where the request tells it.
 const cwdOf = ({ cwd }: RequestFacts): string | null => (cwd ? cwd.replaceAll("\\", "/") : null)
@@ -72,8 +77,21 @@ const shows = (rows: readonly string[], title: number, facts: RequestFacts): str
   switch (facts.tool) {
     case "Bash": {
       const command = nonBlank(input.command)
+      if (!command) return undefined
       const shown = ruled(rows, title)
-      if (!command || !shown || !header(shown.open).includes("Bash command")) return undefined
+      // Taller than the screen: its header and first rule have scrolled away, so every row
+      // above its closing rule is its own, and they end as the request's command does.
+      if (!shown) {
+        const close = rows.slice(0, title).findLastIndex((each) => dashed.test(each))
+        const body = rows.slice(dashed.test(rows[0] ?? "") ? 1 : 0, Math.max(0, close))
+        return body.every((each) => each === "" || quoteRow.test(each)) &&
+          wrapsEnd(quoted(body), command)
+          ? command
+          : undefined
+      }
+      // Its header is on screen unless the command only just fits.
+      const cutHeader = shown.open < 3 && !rows.slice(0, shown.open).some((row) => rule.test(row))
+      if (!cutHeader && !header(shown.open).includes("Bash command")) return undefined
       // Nothing but the command between its rules; the detail is the request's own command,
       // as it will run, not the screen's wrapped rows.
       return wraps(quoted(shown.body), command) ? command : undefined

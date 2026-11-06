@@ -25,7 +25,7 @@ const terminal = (
   options: {
     adapter?: DialogAdapter | false
     requests?: Waiting[]
-    raw?: { still: number; age: number }
+    raw?: { still: number; age: number; latest?: number }
   } = {},
 ) => {
   const tui = new FakeTui()
@@ -65,6 +65,7 @@ const terminal = (
       settleMs: 40,
       rawStillMs: options.raw?.still ?? 40,
       rawAgeMs: options.raw?.age ?? 40,
+      rawLatestMs: options.raw?.latest ?? Number.POSITIVE_INFINITY,
     },
   )
   return {
@@ -177,6 +178,95 @@ describe("each request's dialog", () => {
     expect(dialogs.shown("t", "r1")).toMatchObject({ type: "choices" })
   })
 
+  it("turns raw on a screen that never rests, once the request has waited long enough", async () => {
+    // As Claude Code's countdown to blocking a request redraws its dialog every second.
+    const fresh = { ...request("r1", "ls"), askedAt: Date.now() }
+    const { tui, dialogs } = terminal({
+      requests: [fresh],
+      raw: { still: 10_000, age: 40, latest: 240 },
+    })
+    tui.state = "other"
+    const ticking = setInterval(() => {
+      tui.noise += 1
+      dialogs.changed("t")
+    }, 10)
+    try {
+      dialogs.changed("t")
+      await new Promise((resolve) => setTimeout(resolve, 60))
+      expect(dialogs.shown("t", "r1")).toBeNull()
+      await until(() => dialogs.shown("t", "r1") !== null)
+      expect(dialogs.shown("t", "r1")).toMatchObject({ type: "raw", reason: "unrecognized" })
+      // The dialog read after all: it takes the raw's place.
+      tui.state = "ask"
+      await until(() => dialogs.shown("t", "r1")?.type === "choices")
+    } finally {
+      clearInterval(ticking)
+    }
+  })
+
+  it("stays read through a frame of a moving screen, however long the request has waited", async () => {
+    const old = { ...request("r1", "ls"), askedAt: Date.now() - 30_000 }
+    const { tui, dialogs } = terminal({
+      requests: [old],
+      raw: { still: 10_000, age: 40, latest: 200 },
+    })
+    dialogs.changed("t")
+    await until(() => dialogs.shown("t", "r1")?.type === "choices")
+    tui.state = "other"
+    tui.noise += 1
+    dialogs.changed("t")
+    await new Promise((resolve) => setTimeout(resolve, 60))
+    expect(dialogs.shown("t", "r1")).toMatchObject({ type: "choices" })
+    tui.state = "ask"
+    dialogs.changed("t")
+  })
+
+  it("gives a new request its own wait, however long the screen has gone unread", async () => {
+    const { tui, dialogs, state } = terminal({ raw: { still: 10_000, age: 10, latest: 200 } })
+    tui.state = "other"
+    dialogs.changed("t")
+    await until(() => dialogs.shown("t", "r1") !== null)
+    state.requests = [...state.requests, { ...request("r2", "pwd"), askedAt: Date.now() }]
+    dialogs.changed("t")
+    await new Promise((resolve) => setTimeout(resolve, 60))
+    expect(dialogs.shown("t", "r2")).toBeNull()
+    await until(() => dialogs.shown("t", "r2") !== null)
+  })
+
+  it("follows a screen that never rests only now and then", async () => {
+    const { tui, dialogs } = terminal({ raw: { still: 10_000, age: 40, latest: 80 } })
+    tui.state = "other"
+    const ticking = setInterval(() => {
+      tui.noise += 1
+      dialogs.changed("t")
+    }, 15)
+    try {
+      dialogs.changed("t")
+      await until(() => dialogs.shown("t", "r1") !== null)
+      const first = JSON.stringify(dialogs.shown("t", "r1"))
+      await until(() => JSON.stringify(dialogs.shown("t", "r1")) !== first)
+    } finally {
+      clearInterval(ticking)
+    }
+  })
+
+  it("keeps raw text steady while the screen moves, and takes the new text once it rests", async () => {
+    const { tui, dialogs, told } = terminal({ raw: { still: 80, age: 40, latest: 60_000 } })
+    tui.state = "other"
+    dialogs.changed("t")
+    await until(() => dialogs.shown("t", "r1") !== null)
+    const shown = told.length
+    const ticking = setInterval(() => {
+      tui.noise += 1
+      dialogs.changed("t")
+    }, 15)
+    await new Promise((resolve) => setTimeout(resolve, 120))
+    clearInterval(ticking)
+    expect(told.length).toBe(shown)
+    const last = tui.noise
+    await until(() => JSON.stringify(dialogs.shown("t", "r1")).includes(`transcript ${last}`))
+  })
+
   it("turns raw once the request is old enough and the screen long still, with no dialog read", async () => {
     const fresh = { ...request("r1", "ls"), askedAt: Date.now() }
     const { tui, dialogs } = terminal({ requests: [fresh], raw: { still: 40, age: 150 } })
@@ -214,7 +304,7 @@ describe("each request's dialog", () => {
       },
     })
     // A heredoc's worth of detail is never approved from a cut view: it shows raw.
-    const long = terminal({ adapter: oversized("1", "x".repeat(10_000)) })
+    const long = terminal({ adapter: oversized("1", "x".repeat(dialogTextLimits.detail + 1)) })
     long.dialogs.changed("t")
     await until(() => long.dialogs.shown("t", "r1") !== null)
     expect(long.dialogs.shown("t", "r1")).toMatchObject({ type: "raw", reason: "unrecognized" })

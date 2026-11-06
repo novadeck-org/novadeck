@@ -59,6 +59,7 @@ const inApp = (
   }
   const chat = createChat()
   const commands = createChatCommands({
+    chatView: () => true,
     chat,
     conversations,
     terminalOpen: () => true,

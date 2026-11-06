@@ -422,6 +422,7 @@ export class Terminals {
     this.host.on("evicted", (id, terminal) => this.evicted(id, terminal))
     this.launcher = new Launcher(this.options, {
       stopping: () => this.stopping,
+      scopes: this.pty.scopes,
       handlers: {
         report: (report) => this.reporting.queueReport(report),
         ask: (report, deadline) => this.reporting.queueAsk(report, deadline),
@@ -485,7 +486,9 @@ export class Terminals {
           this.typing.dialogs.view(record.summary.id),
           this.typing.dialogs.answered(record.summary.id),
           this.typing.receipts.view(record.summary.id),
+          this.typing.boxes.view(record.summary.id),
         ),
+      detailOpened: (terminalId) => this.typing.boxes.changed(terminalId),
       messages: (terminalId) => this.messages(terminalId),
       slicing: (terminalId) =>
         slicingOf(
@@ -613,6 +616,7 @@ export class Terminals {
         applyFact: (record, fact) => this.bindings.applyFact(record, fact),
         publishAgent: (record, moved) => this.bindings.publishAgent(record, moved),
         detailed: (record) => this.streams.detailed(record),
+        detailWatched: (terminalId) => this.streams.detailWatched(terminalId),
         endExited: (record) => this.bindings.endExited(record),
         queued: (terminalId, work) =>
           void this.reporting.queue(terminalId, () => Promise.resolve(work()), undefined),
@@ -947,7 +951,17 @@ export class Terminals {
    * `Prompts`), once those before it in the terminal's input queue are done.
    */
   prompt(input: PromptInput): Promise<Prompted> {
-    return this.typing.prompt(input.terminalId, input.text, input.automatic, input.ref)
+    return this.typing.prompt(input.terminalId, input.text, input.automatic, input.ref, input.along)
+  }
+
+  /** Takes what the agent's box holds, for the client's draft (see `Typing.takeBox`). */
+  takeBox(terminalId: string): Promise<{ returned: string | null }> {
+    return this.typing.takeBox(terminalId)
+  }
+
+  /** Puts a client's draft in the agent's box, with no Enter (see `Typing.putBox`). */
+  putBox(input: { terminalId: string; text: string }): Promise<{ placed: boolean }> {
+    return this.typing.putBox(input.terminalId, input.text)
   }
 
   /**

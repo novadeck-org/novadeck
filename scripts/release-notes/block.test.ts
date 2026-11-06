@@ -17,6 +17,7 @@ const notes: ReleaseNotes = {
       prs: [181],
     },
   ],
+  headsUp: [],
   changes: [
     { area: "Inbox & notifications", line: "Answer agents from the Inbox.", prs: [195] },
     { area: "Fixes & speedups", line: "Off-screen Canvas nodes stop laying out.", prs: [261] },

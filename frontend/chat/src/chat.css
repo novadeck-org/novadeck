@@ -780,6 +780,19 @@
 .chat-reply-cancel {
   flex-shrink: 0;
 }
+.chat-box {
+  flex-direction: column;
+  align-items: stretch;
+  gap: 2px;
+}
+.chat-box-text {
+  max-height: 5lh;
+  margin: 0;
+  overflow: auto;
+  font-family: var(--font-mono);
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
 .chat-composer-box {
   --_border-color: var(--chat-composer-border-color, var(--color-line-strong));
   display: flex;

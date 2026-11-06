@@ -9,6 +9,7 @@ import type { DeckTerminal } from "../deck.js"
 import type { Sandbox } from "../keychain.js"
 import { responses } from "../model/responses.js"
 import { asked } from "../model/script.js"
+import { runningProcesses } from "../processes.js"
 import { own } from "../scenarios.js"
 import type { AgentSetup } from "./agent.js"
 
@@ -349,39 +350,8 @@ const scene = async (
   pid: number | undefined,
   began: number,
 ): Promise<string> => {
-  const run = promisify(execFile)
   const processes = async (): Promise<string[]> => {
-    const rows: { pid: number; parent: number; command: string }[] =
-      process.platform === "win32"
-        ? [
-            JSON.parse(
-              (
-                await run(
-                  "powershell.exe",
-                  [
-                    "-NoProfile",
-                    "-NonInteractive",
-                    "-Command",
-                    "Get-CimInstance Win32_Process -Property ProcessId,ParentProcessId,CommandLine,Name | ForEach-Object { [pscustomobject]@{ pid = $_.ProcessId; parent = $_.ParentProcessId; command = $(if ($_.CommandLine) { $_.CommandLine } else { $_.Name }) } } | ConvertTo-Json -Compress",
-                  ],
-                  // As long as the sandbox's own lister gets: CIM is slow to start on a busy runner.
-                  { windowsHide: true, timeout: 60_000, maxBuffer: 16 * 1024 * 1024 },
-                )
-              ).stdout,
-            ) as { pid: number; parent: number; command: string }[],
-          ]
-            // One object, not an array, where it lists one process.
-            .flat()
-            .map((row) => ({ ...row, command: String(row.command) }))
-        : (await run("ps", ["-eo", "pid=,ppid=,args="], { timeout: 10_000 })).stdout
-            .split("\n")
-            .map((line) => /^\s*(\d+)\s+(\d+)\s+(.*)$/.exec(line))
-            .filter((match) => match !== null)
-            .map((match) => ({
-              pid: Number(match[1]),
-              parent: Number(match[2]),
-              command: match[3]!,
-            }))
+    const rows = await runningProcesses()
     const tree = new Set(pid === undefined ? [] : [pid])
     for (let grew = true; grew;) {
       grew = false

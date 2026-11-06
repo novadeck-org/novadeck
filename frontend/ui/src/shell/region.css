@@ -481,6 +481,32 @@
   clip-path: polygon(0 8%, 2% 0, 98% 4%, 100% 0, 99% 50%, 100% 100%, 3% 96%, 0 100%, 1% 50%);
   animation: whats-new-tape-in 380ms cubic-bezier(0.3, 1.4, 0.5, 1) 120ms both;
 }
+/* The heads-up card (WhatsNew.tsx) is the same card in the warning colours: the tape and the
+   tiles take the pair that already tells people something needs a look, in every theme. Its
+   footer puts the quiet feedback hint at the start and "Got it" at the end. In the portable
+   copy's card the heads-ups are a few rows among the highlights, tinted the same and led by
+   a small label. */
+.update-card.whats-new.heads-up,
+.whats-new-list li.heads-up {
+  --_accent-bg: var(--color-warning);
+  --_accent-fg: var(--color-warning-fg);
+}
+.update-card.heads-up .update-card-foot {
+  margin-block-start: 2px;
+}
+.update-card.heads-up .update-card-foot .button.link {
+  margin-inline-start: -4px;
+  text-align: start;
+}
+.whats-new-label {
+  color: var(--color-muted);
+  font-family: var(--font-mono);
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  line-height: 1;
+  text-transform: uppercase;
+}
 .whats-new-from {
   color: var(--color-muted);
   font-family: var(--font-mono);

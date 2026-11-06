@@ -95,7 +95,7 @@ const fixture = (seed: Seed, setups: readonly AgentSetup[]) => {
       // What the runner heard and did, written where CI keeps it should the test fail;
       // nothing is wrapped where no trace is asked for.
       if (tracing) {
-        const trace = startTrace(task.fullName, model)
+        const trace = startTrace(task.fullName, model, () => task.result?.state === "fail")
         resources.defer(() => trace.stop())
         onTestFailed(() => trace.write())
         if (tracesAll) resources.defer(() => trace.write())

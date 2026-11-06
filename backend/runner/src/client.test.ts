@@ -643,6 +643,7 @@ describe("runner client agent detail", () => {
         requests: [],
         coverage: null,
         prompts: [],
+        box: null,
       },
     })
     // No agent runs there, so no actor has a transcript.

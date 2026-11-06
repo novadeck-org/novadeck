@@ -2,8 +2,11 @@ import type { ScreenText } from "@novadeck/emulator/headless"
 import type { SliceProfile } from "@novadeck/harness-core/slices"
 import {
   agreeing,
+  eraseRows,
   footerRows,
+  leaveShell,
   markedBox,
+  sameText,
   type BoxProfile,
   type Markers,
 } from "@novadeck/tui-input/box"
@@ -27,11 +30,13 @@ export const shellFooter = (rows: readonly string[]): boolean => {
  * `/side` conversation ("Side from main thread · ctrl+/ to switch · ctrl+c to close", `^`
  * for ctrl in 0.161.0, and `⌃` on macOS in 0.163.0, seen in CI 2026-10-18), whose turns
  * are no root's: all drawn with its empty box on screen (probed 0.159.3 in the e2e
- * sandbox, 2026-10-16).
+ * sandbox, 2026-10-16). Also its menus (`/model`, `/permissions`, `/config`), whose first row
+ * leads with the box's marker and whose rows read as a box holding text: their hint row ends
+ * "esc back", or "esc clear search/close" (probed 0.166.0, 2026-11-06, fixtures/leftover.probe.json).
  */
 const overlay = (screen: ScreenText): boolean =>
   footerRows(screen).some((row) =>
-    /(^|\s)reverse-i-search:|\? \/ esc close|Side from main thread · (?:ctrl\+|\^|⌃)\/ to switch/.test(
+    /(^|\s)reverse-i-search:|\? \/ esc close|Side from main thread · (?:ctrl\+|\^|⌃)\/ to switch|· esc (?:back|clear search\/close)\s*$/.test(
       row,
     ),
   )
@@ -51,6 +56,42 @@ const queued = (screen: ScreenText): boolean =>
       row.trim() === "• Queued follow-up inputs",
   )
 
+const read = (screen: ScreenText) => agreeing(markedBox(screen, markers), shellFooter(screen.rows))
+
+/**
+ * The rows it keeps above its box whether or not a turn runs, so none of a turn's: the commands
+ * an earlier turn left running, while no status row is up to carry those words (cut short on a
+ * narrow screen), and its warning of a rate limit nearly used, at the row's right end, in its
+ * longest form that fits. Both were seen on 0.167.0 at 120 columns (2026-11-06); the other forms
+ * are read from its source.
+ */
+const idleRow = /^\s*(?:\d+ background terminal|⚠ .*\d+% left)/
+
+/**
+ * Whether its screen shows the turn's prompt and nothing of the turn: the last rows above its
+ * box, from the latest `› `, are that prompt alone. It draws the prompt as it sends it, and
+ * its status row only once it hears the turn start, which can be tens of milliseconds after
+ * the prompt hook tells the runner of the turn (Stops on a starved Codex found this screen,
+ * fixtures/early-escape.probe.json). Till then Escape is an idle one: it offers to
+ * edit the previous message, and the turn runs on.
+ * It reads what is drawn, not whether the row is, as a turn can run on with no row: a reply
+ * streaming takes its place, with only the reply's tail drawn, right under the prompt and
+ * indented as a prompt's next line is, so only the prompt's words tell them apart. A row
+ * without `esc to interrupt` (reconnecting, a key rebound, a narrow screen) is drawn too.
+ * `prompt` is the person's: without it, as for an agent's message, only a prompt of one row
+ * is read. A prompt whose first row has scrolled away, a banner above the box, or no box, is
+ * no hold.
+ */
+const turnUnseen = (screen: ScreenText, prompt?: string): boolean => {
+  const above = screen.rows
+    .slice(0, read(screen)?.first ?? 0)
+    .filter((row) => row.trim() !== "" && !idleRow.test(row))
+  const at = above.findLastIndex((row) => row.startsWith(`${markers.prompt} `))
+  if (at < 0) return false
+  const shown = above.slice(at)
+  return prompt === undefined ? shown.length === 1 : sameText(shown.join("\n").slice(2), prompt)
+}
+
 /**
  * Codex's input box: no frame, `› ` leading its first row, the rest indented, and the
  * cursor on its last row (probed 0.159.3, 0.160.1 and 0.163.0, fixtures/input-box.probe.json).
@@ -62,17 +103,30 @@ const queued = (screen: ScreenText): boolean =>
  * ZWJ family sequence blank (probed), so the library compares text without such emoji.
  */
 export const box: BoxProfile = {
-  read: (screen) => agreeing(markedBox(screen, markers), shellFooter(screen.rows)),
+  read,
   // Enter runs a command shown as a placeholder as the text it stands for. Its commands run
   // without a session, as it binds none (`starts`).
-  shell: { expands: true, starts: false, footer: shellFooter },
+  shell: { expands: true, starts: false, footer: shellFooter, leave: leaveShell },
+  // On 80 and 120 columns a word reaches 77 and 117, and one too long for a row starts a new
+  // row and breaks at the same column (fixtures/leftover.probe.json).
+  textWidth: (columns) => columns - 3,
+  stands: (text) => /\[(?:Pasted Content \d+|Image #\d+|image\b)/.test(text),
   collapsed: ({ text }) => /^\[Pasted Content \d+ chars?\]$/.test(text.trim()),
+  erase: eraseRows,
+  // On Windows it reads the console's keys, and a line break is an Enter unless it comes in what
+  // it takes for a burst of typing: leading a paste, it submitted the box (seen on Windows CI,
+  // 0.167.0, 2026-11-06, in every chat send over a draft).
+  pastesAsKeys: (platform = process.platform) => platform === "win32",
   overlay,
   // A queued message waits "to be submitted after next tool call", and an Escape sends it
   // at once as a steer, which a second Escape stops; the box stays empty (probed). One under
   // "Queued follow-up inputs" waits for the turn to end; what an Escape does to it is
   // unprobed.
   queued,
+  // A second covered a Codex starved of CPU: none of 30 Stops lost on 0.167.0 and none of 20 on
+  // 0.166.0, 16 of 20 without the hold (Linux, 2026-11-06, e2e/probes/codex-early-escape.e2e.ts).
+  // A longer wait would only delay a real Stop, should the screen ever read wrong.
+  escapeHold: { holds: turnUnseen, ms: 1_000 },
   // 999 and 1,000 characters showed whole, 1,024 did not, whatever the lines: 30 short
   // lines showed whole.
   collapses: (text) => text.length > 1024,

@@ -14,6 +14,7 @@ export const inherited = [
   "NOVADECK_BIN",
   "NOVADECK_ZDOTDIR",
   "NOVADECK_RESUME",
+  "NOVADECK_SCOPE",
   "NOVADECK_SHIMS",
   // An agent's own session markers, when Novadeck was started from inside one: an agent
   // in Novadeck's shells would take itself for that session's child. Claude Code, for

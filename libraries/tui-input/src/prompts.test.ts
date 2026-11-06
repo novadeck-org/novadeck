@@ -27,6 +27,8 @@ const profileOf = (
     const mode = screen.rows[first]!.startsWith("!") ? "shell" : "prompt"
     return { text: lines.join("\n").trimEnd(), mode, first, last }
   },
+  stands: () => false,
+  textWidth: (columns) => columns - 3,
   collapsed: ({ text }) => /^\[Pasted text #\d+ \+\d+ lines\]$/.test(text),
   shell: { expands, starts, footer: () => false, ...(command && { command }) },
   queued: () => false,
@@ -434,7 +436,7 @@ describe("prompts", () => {
     await new Prompts(host, host.queue, { ...fast, bindMs: 300 }).prompt("t", "Hello")
     // The wait for an empty box, a shell command's switch and the paste's wait, and a
     // margin; then the wait for a session to bind, and the settle.
-    const inputMs = fast.emptyMs + 2 * fast.pasteMs + 2_000
+    const inputMs = fast.emptyMs + 3 * 2_000 + 2 * fast.pasteMs + 2_000
     expect(budgets).toEqual([{ inputMs, sizeMs: inputMs + 300 + 40 }])
   })
 

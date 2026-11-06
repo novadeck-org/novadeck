@@ -87,6 +87,10 @@ export const reportProgress = (version: string, percent: number): void =>
 export const whatsNewAsked = (): number =>
   made.reduce((sum, each) => sum + each.whatsNewCalls.asked, 0)
 
+/** How many times the page has told the app the heads-ups were got since the page opened. */
+export const headsUpDismissals = (): number =>
+  made.reduce((sum, each) => sum + each.whatsNewCalls.headsUpDismissed, 0)
+
 /** What the page has asked of the app about what's new since the page opened. */
 export const whatsNewCalls = (): { readonly dismissed: number } => ({
   dismissed: made.reduce((sum, each) => sum + each.whatsNewCalls.dismissed, 0),
@@ -408,6 +412,17 @@ export const approvals = {
     approvalBackends.flatMap((each) => each.answered),
 }
 
+// Specs open the demo as a backend that takes no feedback with `&feedback=off`, so the footer
+// has no feedback button.
+const withoutFeedback = (
+  demo: ReturnType<typeof createDemoBackend>,
+): ReturnType<typeof createDemoBackend> => {
+  if (addressParams().get("feedback") !== "off") return demo
+  const { feedback, ...rest } = demo
+  void feedback
+  return rest
+}
+
 const plainSpecBackend = (): ReturnType<typeof createDemoBackend> => {
   if (babciaRequested()) {
     const demo = createDemo("babcia", { theme: pageTheme }, demoTurns())
@@ -422,7 +437,9 @@ const plainSpecBackend = (): ReturnType<typeof createDemoBackend> => {
   const portable = requestedPortable()
   const demo = requestedUnread(
     requestedTranscripts(
-      requestedVersion(demoWithUpdate(update, portable, createDemoBackend({ theme: pageTheme }))),
+      requestedVersion(
+        withoutFeedback(demoWithUpdate(update, portable, createDemoBackend({ theme: pageTheme }))),
+      ),
     ),
   )
   const uninstall = requestedUninstall()
