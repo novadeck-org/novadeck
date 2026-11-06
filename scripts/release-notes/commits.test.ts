@@ -289,7 +289,6 @@ describe("headsUpOf", () => {
       "## heads up",
       "## Heads-up:",
       "## Heads up!",
-      "### Heads-up",
     ])
       expect(headsUpOf(`${heading}\n\nThe button is gone.\n`)).toBe("The button is gone.")
   })
@@ -317,7 +316,21 @@ describe("headsUpOf", () => {
   })
 })
 
+describe("headsUpOf and the headings around it", () => {
+  it("takes no other heading for it, and stops at the next section", () => {
+    expect(headsUpOf("## Heads-up display\n\nA panel.\n")).toBe("")
+    expect(headsUpOf("### Heads-up for reviewers\n\nThe file moved.\n")).toBe("")
+    expect(headsUpOf("## Heads-up\n\nCtrl+V moved.\n\n## Testing\n\nRan it.\n")).toBe(
+      "Ctrl+V moved.",
+    )
+  })
+})
+
 describe("a Heads-up on what is never announced", () => {
+  it("goes whole when it says so past the length kept", () => {
+    expect(headsUpOf(`## Heads-up\n\n${"Word ".repeat(200)}The demo moved.\n`)).toBe("")
+  })
+
   it("goes whole, leaving no sentence stranded", () => {
     expect(
       headsUpOf("## Heads-up\n\nThe chat view sends on Ctrl+Enter. Use Shift+Enter for a line.\n"),

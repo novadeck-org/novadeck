@@ -136,22 +136,23 @@ const noHeadsUp =
   /^(?:[-*]\s*)?(?:none|no|nothing|n\/?a|not applicable|no heads-?up)(?: here)?[.!]?$/i
 
 /**
- * Its `## Heads-up` heading, the same way, however its case, hyphen or depth is written. A pull
- * request without one, with the template's comment left in place, or saying there is none reads
- * as empty. So does one that names what is never announced: unlike the sections above it goes
- * whole, as a sentence left without the one before it would be told to everyone. A sentence that
- * cites a number stays: what it warns of matters more than the citation, which the model leaves
- * out.
+ * Its `## Heads-up` heading, the same way, however its case or hyphen is written. A pull request
+ * without one, with the template's comment left in place, or saying there is none reads as
+ * empty. So does one that names what is never announced, anywhere in it: unlike the sections
+ * above it goes whole, as a sentence left without the one before it would be told to everyone. A
+ * sentence that cites a number stays: what it warns of matters more than the citation, which
+ * the model leaves out.
  */
 export const headsUpOf = (body: string): string => {
   const text = sectionOf(
-    body.replace(/^#{2,3}\s+heads[- ]up\b.*$/gim, "## Heads-up"),
+    body.replace(/^##\s+heads[- ]up[:!]?\s*$/gim, "## Heads-up"),
     "Heads-up",
-    maxHeadsUp,
+    Number.POSITIVE_INFINITY,
     true,
     false,
   )
-  return noHeadsUp.test(text) || unannounced(text) ? "" : text
+  if (noHeadsUp.test(text) || unannounced(text)) return ""
+  return text.length > maxHeadsUp ? `${text.slice(0, maxHeadsUp).trimEnd()}...` : text
 }
 
 /**
