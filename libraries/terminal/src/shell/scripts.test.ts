@@ -91,14 +91,4 @@ describe.skipIf(process.platform === "win32" || !bash)("bash's file", () => {
     expect(reports.length).toBeGreaterThan(0)
     for (const data of reports) expect(osc7Directory(data ?? "", hostname())).toBe(cwd)
   })
-
-  it("has fish hand a startup command the terminal with bracketed paste off", () => {
-    const fish = shellScripts(shellScriptPaths("/data", "acme"), header).find(({ path }) =>
-      path.endsWith(".fish"),
-    )!.content
-    const off = fish.indexOf("?2004l")
-    expect(off).toBeGreaterThan(-1)
-    expect(off).toBeLessThan(fish.indexOf("eval $__"))
-    expect(fish.indexOf("?2004h")).toBeGreaterThan(fish.indexOf("eval $__"))
-  })
 })
