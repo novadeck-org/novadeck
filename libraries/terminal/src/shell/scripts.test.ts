@@ -1,18 +1,30 @@
 import { spawnSync } from "node:child_process"
-import { existsSync, mkdirSync, mkdtempSync, realpathSync, rmSync, writeFileSync } from "node:fs"
+import {
+  existsSync,
+  mkdirSync,
+  mkdtempSync,
+  readFileSync,
+  realpathSync,
+  rmSync,
+  writeFileSync,
+} from "node:fs"
 import { hostname, tmpdir } from "node:os"
 import { dirname, join } from "node:path"
 
 import { describe, expect, it, onTestFinished } from "vitest"
 
+import { spawnPty } from "../pty/pty.js"
 import { shellLaunch } from "./launch.js"
 import { osc7Directory } from "./osc.js"
 import { shellScriptPaths, shellScripts } from "./scripts.js"
 
 const header = (comment: string, what: string) => `${comment} Acme ${what}.`
 
+const onPath = (shell: string) =>
+  spawnSync("sh", ["-c", `command -v ${shell}`], { encoding: "utf8" }).stdout?.trim()
+
 // One bash for the check and the run, which gets only the launch's PATH.
-const bash = spawnSync("sh", ["-c", "command -v bash"], { encoding: "utf8" }).stdout?.trim()
+const bash = onPath("bash")
 
 describe("the shells' files", () => {
   it("are named after the prefix, with nothing of any other app's", () => {
@@ -31,6 +43,21 @@ describe("the shells' files", () => {
       expect(file.content).toMatch(/ACME_RESUME|ACME_ZDOTDIR/)
       expect(file.content).not.toMatch(/novadeck|codex|agent/i)
     }
+  })
+
+  it("wait for a scope before a startup command in bash, zsh and fish, and clear the word of it", () => {
+    const scripts = shellScriptPaths("/data", "acme")
+    const files = shellScripts(scripts, header)
+    const named = (path: string) => files.find((file) => file.path === path)!.content
+    for (const path of [scripts.bash, join("/data", "zsh", ".zshrc"), scripts.fish]) {
+      const content = named(path)
+      expect(content).toMatch(/__acme_scope.*ACME_SCOPE/)
+      expect(content).toContain(".scope*")
+      expect(content).toMatch(/(unset .*|set -e )ACME_SCOPE/)
+      // Before the command is read, so removing its file while it waits still cancels it.
+      expect(content.indexOf("while ")).toBeLessThan(content.indexOf("rm -f --"))
+    }
+    expect(named(scripts.powershell)).not.toContain("ACME_SCOPE")
   })
 
   it("refuse a prefix that isn't a plain lowercase name", () => {
@@ -91,4 +118,59 @@ describe.skipIf(process.platform === "win32" || !bash)("bash's file", () => {
     expect(reports.length).toBeGreaterThan(0)
     for (const data of reports) expect(osc7Directory(data ?? "", hostname())).toBe(cwd)
   })
+})
+
+// Run for real wherever the shell is, on a terminal, as each draws a first prompt only there:
+// /proc is what it reads, and nothing sets the variable on any other system.
+describe.skipIf(process.platform !== "linux")("a scope that doesn't come", () => {
+  for (const [name, path] of [
+    ["bash", bash],
+    ["zsh", onPath("zsh")],
+    ["fish", onPath("fish")],
+  ] as const)
+    it.skipIf(!path)(`leaves ${name} running its startup command, with no word of it`, async () => {
+      const root = realpathSync.native(mkdtempSync(join(tmpdir(), "terminal-shell-")))
+      onTestFinished(() => rmSync(root, { recursive: true, force: true }))
+      const home = join(root, "home")
+      mkdirSync(home)
+      const scripts = shellScriptPaths(join(root, "shell"), "acme")
+      for (const file of shellScripts(scripts, header)) {
+        mkdirSync(dirname(file.path), { recursive: true })
+        writeFileSync(file.path, file.content, { mode: file.mode })
+      }
+      const out = join(root, "out")
+      const startup = {
+        command: `echo "scope=[$ACME_SCOPE]" > '${out}'; exit`,
+        file: join(root, "startup"),
+      }
+      writeFileSync(startup.file, startup.command)
+      const launch = shellLaunch({
+        shell: name,
+        scripts,
+        env: { HOME: home, PATH: `${dirname(path!)}:/usr/bin:/bin`, TERM: "xterm-256color" },
+        startup,
+        scoped: true,
+      })
+      const began = performance.now()
+      const pty = spawnPty({
+        file: path!,
+        args: launch.args,
+        cwd: root,
+        env: launch.env,
+        cols: 80,
+        rows: 24,
+      })
+      await new Promise<void>((resolve, reject) => {
+        const timer = setTimeout(() => reject(new Error(`${name} never ended`)), 15_000)
+        pty.onExit(() => {
+          clearTimeout(timer)
+          resolve()
+        })
+      })
+      expect(readFileSync(out, "utf8")).toBe("scope=[]\n")
+      // This shell is in no scope of that name, so it waited its whole time, and no more.
+      const waited = performance.now() - began
+      expect(waited).toBeGreaterThanOrEqual(200)
+      expect(waited).toBeLessThan(10_000)
+    })
 })

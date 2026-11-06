@@ -39,6 +39,8 @@ export type ShellLaunchOptions = {
   /** A folder that goes first on PATH, and back there after the person's startup files. */
   readonly pathFirst?: string | undefined
   readonly startup?: { readonly command: string; readonly file: string } | undefined
+  /** Whether the shell is on its way to a scope of its own, for `startup` to wait for. */
+  readonly scoped?: boolean | undefined
 }
 
 /**
@@ -52,7 +54,8 @@ export type ShellLaunchOptions = {
  * The integration reads it from the file <PREFIX>_RESUME names, which it removes, and
  * unsets the variable first, so nothing the command starts runs it again; removing the
  * file first cancels it. bash, zsh and fish run it at the first prompt, PowerShell after
- * its profile. cmd runs the command line with /k.
+ * its profile. cmd runs the command line with /k. bash, zsh and fish hold it for a scope
+ * that is `scoped`, whose move takes only the shell.
  */
 export const shellLaunch = ({
   shell,
@@ -60,6 +63,7 @@ export const shellLaunch = ({
   env,
   pathFirst,
   startup,
+  scoped,
 }: ShellLaunchOptions): ShellLaunch => {
   const variable = checked(scripts.prefix).toUpperCase()
   const key = pathKey(env)
@@ -73,12 +77,13 @@ export const shellLaunch = ({
           [`${variable}_BIN`]: pathFirst,
         }
   const resuming = startup ? { ...ordered, [`${variable}_RESUME`]: startup.file } : ordered
+  const held = startup && scoped ? { ...resuming, [`${variable}_SCOPE`]: "1" } : resuming
   const fromFile = { resumes: startup !== undefined, resumeFile: startup?.file }
   switch (shellName(shell)) {
     case "bash":
       return {
         args: ["--init-file", scripts.bash],
-        env: resuming,
+        env: held,
         integrated: true,
         ...fromFile,
       }
@@ -87,7 +92,7 @@ export const shellLaunch = ({
       return {
         args: [],
         env: {
-          ...resuming,
+          ...held,
           ZDOTDIR: scripts.zsh,
           ...(env.ZDOTDIR ? { [`${variable}_ZDOTDIR`]: env.ZDOTDIR } : {}),
         },
@@ -97,7 +102,7 @@ export const shellLaunch = ({
     case "fish":
       return {
         args: ["--init-command", `source ${fishQuote(scripts.fish)}`],
-        env: resuming,
+        env: held,
         integrated: true,
         ...fromFile,
       }
