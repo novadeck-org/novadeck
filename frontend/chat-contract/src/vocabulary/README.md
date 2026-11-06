@@ -15,7 +15,7 @@ no recording shows yet:
 - Claude Code: `PowerShell` (its Windows shell tool).
 - Codex: `clock.curr_time`, `image_generation`, `list_dir`, `list_mcp_resources`,
   `list_mcp_resource_templates`, `read_file`, `read_mcp_resource`, `update_goal` and the
-  three `mcp__codex_worktrees` tools.
+  twelve `mcp__codex_tui` tools.
 - Antigravity: `list_resources`, `read_resource`.
 
 `src/coverage.test.ts` holds that list to each `describe`: a tool added to one fails it until
