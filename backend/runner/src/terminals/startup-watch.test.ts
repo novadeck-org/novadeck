@@ -200,10 +200,10 @@ describe("the startup watch", () => {
     })
 
     it("names the screen its agent says it is at, and follows it there", async () => {
-      record.startupScreen = "sign-in"
+      record.startupScreen = { screen: "sign-in", seq: 1 }
       await pass(7000)
       expect(record.summary.startup).toEqual({ agent: "codex", screen: "sign-in" })
-      record.startupScreen = "startup"
+      record.startupScreen = { screen: "startup", seq: 2 }
       await pass(1000)
       expect(record.summary.startup).toEqual({ agent: "codex", screen: "startup" })
       expect(changed).toBe(2)

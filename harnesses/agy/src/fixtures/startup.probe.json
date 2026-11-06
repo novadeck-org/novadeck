@@ -8,7 +8,7 @@
     },
     "rows": {
       "0": "Accessing workspace:",
-      "2": "/tmp/novadeck-e2e-mVByDK/project",
+      "2": "/tmp/novadeck-e2e-PhHoNw/project",
       "4": "Do you trust the contents of this project?",
       "6": "Antigravity CLI requires permission to read, edit, and execute files here.",
       "8": "> Yes, I trust this folder",
@@ -74,10 +74,10 @@
     "rows": {
       "0": "To run a command as administrator (user \"root\"), use \"sudo <command>\".",
       "1": "See \"man sudo_root\" for details.",
-      "4": "      ▄▀▀▄        Antigravity CLI 1.4.12",
+      "4": "      ▄▀▀▄        Antigravity CLI 1.5.2",
       "5": "     ▀▀▀▀▀▀       Gemini API key",
       "6": "    ▀▀▀▀▀▀▀▀      Gemini 3.1 Pro (Low)",
-      "7": "   ▄▀▀    ▀▀▄     /tmp/novadeck-e2e-by2H8f/project",
+      "7": "   ▄▀▀    ▀▀▄     /tmp/novadeck-e2e-K9TEOE/project",
       "8": "  ▄▀▀      ▀▀▄",
       "10": "────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────",
       "11": ">",

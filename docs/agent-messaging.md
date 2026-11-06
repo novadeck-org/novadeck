@@ -2075,9 +2075,12 @@ all of these stand for 5 s (15 s on Windows, which starts agents far slower):
   (fish 3, whose line editor has it on already, turns it off for the command), so the agent has taken
   the terminal, and whatever the shell printed before it does not count. A foreground program
   can't say this: an agent's process holds the foreground all the while it loads, and Windows
-  names none. Probed with agents held back 9 s (2026-11-06, Claude Code 2.1.316, Codex 0.166.0,
-  Antigravity 1.4.12, Linux under bash); macOS and Windows rest on the e2e case in
-  `controls.e2e.ts`.
+  names none. Probed with agents held back 9 s (2026-11-06, Claude Code 2.1.316, Codex 0.167.0,
+  Antigravity 1.5.2, Linux under bash); macOS and Windows rest on the e2e case in
+  `controls.e2e.ts`. Codex turns paste on about 0.2 s before it first draws, so one that stalled
+  just there for the whole delay would have the shell's own text read as its screen; no run has
+  done so. Nor is a load that draws no box of its own after paste comes on told from a screen,
+  should one stand for the delay: none probed does, but a large session resumed by id isn't.
 - The screen isn't blank, and its text doesn't change. Its text, so that a console's repaints
   count for nothing.
 - The expected harness's own box doesn't read on it. `startup.probe.json` beside each harness
@@ -2095,7 +2098,8 @@ screen, which the state names as "its sign-in screen", and `initializing` behind
 dialog and on the way to any prompt, so that says nothing by itself. Either only names a
 screen the rules above already count. The others' screens read as "its startup screen".
 
-The state ends at once at a box, a bound session or the agent's prompt, and once the screen
+The state ends at once at a bound session or the agent's prompt, at the next look (a second at
+most) at a box or the agent leaving, and once the screen
 has moved for as long as the delay: a key the person presses moves it for one look, so its mark
 doesn't flicker, and a spinner after they answer does end it, as a screen that changes at
 every look. One that steps slower than that keeps the mark until a box or a bound session. A box that stands for six delays

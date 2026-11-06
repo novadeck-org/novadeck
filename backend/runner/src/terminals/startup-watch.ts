@@ -33,8 +33,9 @@ const promptedDelays = 6
  * a `screen` it drew with none, which can only be waiting on the person; or `nothing` of it
  * yet. Until an agent takes the terminal for itself, turning on bracketed paste, what shows is
  * the shell's: the shell runs a startup command before its line editor ever turns that on, so
- * however long an agent takes to load, what its shell printed never counts. The screens of
- * the three harnesses are probed in `startup-watch.test.ts`.
+ * however long an agent takes to load, what its shell printed doesn't count until then. Codex
+ * turns it on about 0.2 s before it first draws (docs/agent-messaging.md, "Startup screens").
+ * The screens of the three harnesses are probed in `startup-watch.test.ts`.
  */
 export type StartupLook = "box" | "screen" | "nothing"
 
@@ -200,7 +201,8 @@ export class StartupWatch<R extends WatchedRecord> {
   }
 
   private show(record: R, agent: AgentName | null, held: boolean): void {
-    const startup = agent && held ? { agent, screen: record.startupScreen ?? "startup" } : null
+    const startup =
+      agent && held ? { agent, screen: record.startupScreen?.screen ?? "startup" } : null
     const { startup: shown } = record.summary
     if (shown?.agent === startup?.agent && shown?.screen === startup?.screen) return
     record.summary = { ...record.summary, startup }

@@ -36,7 +36,11 @@ describe("a root turn's prompt told from the transcript", () => {
 })
 
 describe("the screen an agent says it is at before its first session", () => {
-  const saying = async (agent: "agy" | "claude", expecting: string, state: string) => {
+  const saying = async (
+    agent: "agy" | "claude",
+    expecting: string,
+    ...states: readonly (string | readonly [state: string, seq: number])[]
+  ) => {
     const record = {
       token: "tok",
       expecting,
@@ -48,21 +52,30 @@ describe("the screen an agent says it is at before its first session", () => {
       records: () => new Map([["T", record]]),
       bindings: () => ({}),
     } as unknown as ReportsHost)
-    await reports.report({
-      terminalId: "T",
-      token: "tok",
-      agent,
-      event: "StatusLine",
-      seq: 1,
-      instance: null,
-      env: { cursor: false },
-      payload: { agent_state: state, conversation_id: "" },
-    })
-    return record.startupScreen
+    for (const said of states) {
+      const [state, seq] = typeof said === "string" ? [said, 1] : said
+      // oxlint-disable-next-line no-await-in-loop -- Reports arrive in turn.
+      await reports.report({
+        terminalId: "T",
+        token: "tok",
+        agent,
+        event: "StatusLine",
+        seq,
+        instance: null,
+        env: { cursor: false },
+        payload: { agent_state: state, conversation_id: "" },
+      })
+    }
+    return record.startupScreen?.screen
   }
 
   it("is kept from the agent expected there", async () => {
     expect(await saying("agy", "agy", "authenticating")).toBe("sign-in")
+  })
+
+  it("is the newest report's, however they arrive", async () => {
+    expect(await saying("agy", "agy", ["initializing", 2], ["authenticating", 1])).toBe("startup")
+    expect(await saying("agy", "agy", ["authenticating", 1], ["initializing", 2])).toBe("startup")
   })
 
   it("isn't taken from any other agent, as a job its shell runs first", async () => {
