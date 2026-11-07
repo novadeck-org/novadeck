@@ -40,13 +40,22 @@ for (const setup of setups) {
       const calls = run.model.mark()
       await sender.submit("Ask moth for the word")
 
-      await run.model.waitFor((call) => delivered(call, "fox"), {
+      // The woken terminal answers moth's own screen, not the sender's, so the proof is the
+      // model call that carried the message: in the conversation it held before the restart.
+      const rung = await run.model.waitFor((call) => delivered(call, "fox"), {
         after: calls,
         timeoutMs: 120_000,
       })
-      await sender.until("Heron, as asked.")
-      const woke = run.deck.terminals.list(run.deck.sessionId).find((one) => one.id === t1.id)
-      expect(woke).toMatchObject({ started: true, sleeping: false })
+      expect(
+        rung.turns.some(
+          (one) => one.role === "user" && one.text.includes("Remember the word heron"),
+        ),
+      ).toBe(true)
+      await expect
+        .poll(() => run.deck.terminals.list(run.deck.sessionId).find((one) => one.id === t1.id), {
+          timeout: 30_000,
+        })
+        .toMatchObject({ started: true, sleeping: false })
       // The same session, not a new one.
       expect(run.deck.terminals.reportedSession(t1.id, setup.agent)).toBe(before)
     })
