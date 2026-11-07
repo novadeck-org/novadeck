@@ -518,7 +518,7 @@ describe("navigate mode", () => {
 
 describe("sidebar shortcuts", () => {
   context(`when pressing ${shortcut.sessions().label} and ${shortcut.terminals().label}`, () => {
-    it("switches to the requested panel and hides it on a repeat press", async () => {
+    it("switches to the requested panel, goes back on a repeat press, then hides", async () => {
       await openWorkspace()
       await expect.element(sidebarPanel("Terminals")).toBeChecked()
 
@@ -526,14 +526,18 @@ describe("sidebar shortcuts", () => {
       await expect.element(sidebarPanel("Sessions")).toBeChecked()
       await expect.element(sidebar()).toBeVisible()
 
+      // Back one step, to the panel shown before.
       await pressShortcut("sessions")
-      await expect.element(sidebar()).not.toBeInTheDocument()
-
-      await pressShortcut("terminals")
       await expect.element(sidebarPanel("Terminals")).toBeChecked()
       await expect.element(terminalTab("Dev server")).toBeVisible()
 
       await pressShortcut("terminals")
+      await expect.element(sidebar()).not.toBeInTheDocument()
+
+      // Opened on Sessions, it has no step back: a repeat press hides it.
+      await pressShortcut("sessions")
+      await expect.element(sidebarPanel("Sessions")).toBeChecked()
+      await pressShortcut("sessions")
       await expect.element(sidebar()).not.toBeInTheDocument()
     })
 

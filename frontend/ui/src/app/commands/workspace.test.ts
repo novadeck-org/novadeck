@@ -632,6 +632,16 @@ describe("workspace commands", () => {
       expect(app.shell().sidebarCollapsed).toBe(true)
     })
 
+    it("has no step to go back on a panel the app moved to, as for a new session", () => {
+      const app = openCommands()
+      app.commands.toggleSidebar("inbox")
+      app.commands.toggleSidebar("sessions")
+      app.commands.startFresh()
+      expect(panel(app)).toBe("terminals")
+      app.commands.toggleSidebar("terminals")
+      expect(app.shell().sidebarCollapsed).toBe(true)
+    })
+
     it("goes back from a panel switched to on a sidebar left open", () => {
       const app = openCommands()
       expect(app.shell().sidebarBack).toBeNull()
@@ -688,12 +698,12 @@ describe("workspace commands", () => {
 
     it("puts back where the open panel's toggle went back to", () => {
       const app = openCommands()
-      app.commands.hideSidebar()
       app.commands.toggleSidebar("sessions")
       app.commands.peekInbox()!()
       expect(panel(app)).toBe("sessions")
       app.commands.toggleSidebar("sessions")
-      expect(app.shell().sidebarCollapsed).toBe(true)
+      expect(panel(app)).toBe("terminals")
+      expect(app.shell().sidebarCollapsed).toBe(false)
     })
 
     it("has nothing to put back where the Inbox showed already", () => {

@@ -18,6 +18,7 @@ import { shortcutBindings, type ShortcutName } from "../interaction/shortcuts"
 import { BellDot } from "./BellDot"
 import type { InboxBadge } from "./inbox-badge"
 import { movedPanel } from "./rail-order"
+import { stepBack, type SidebarStep } from "./shell-state"
 
 const panels = {
   terminals: { label: "Terminals", icon: TerminalIcon },
@@ -105,7 +106,7 @@ export const SidebarRail = ({
   sidebarVisible: boolean
   sidebarPanel: SidebarPanel
   // The panel shown before the open one, where the open panel's toggle goes back to.
-  sidebarBack?: SidebarPanel | null
+  sidebarBack?: SidebarStep | null
   zen: boolean
   badge: InboxBadge | undefined
   // How many new Inbox rows the bell has rung for, which its dot rings with.
@@ -169,7 +170,7 @@ export const SidebarRail = ({
             index={index}
             count={shown.length}
             open={sidebarVisible && sidebarPanel === id}
-            back={sidebarBack}
+            back={stepBack(sidebarBack, id)}
             badge={id === "inbox" ? badge : undefined}
             bellRings={bellRings}
             sessionsAsk={id === "sessions" ? sessionsAsk : undefined}

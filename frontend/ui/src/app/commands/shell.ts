@@ -7,6 +7,7 @@ import {
   hideSidebar,
   showPanel,
   sidebarVisible,
+  stepBack,
   type FocusPreview,
   type KeyboardFocus,
   type NavigationMove,
@@ -76,7 +77,7 @@ export const createShellCommands = (ctx: CommandContext): ShellCommands => {
       ? null
       : current === next
         ? before.sidebarBack
-        : current
+        : { on: next, to: current }
     change((shell) => ({ ...shell, zen: null, sidebarBack: back }))
     navigation.go({ panel: next }, replace)
     change(showPanel)
@@ -115,9 +116,9 @@ export const createShellCommands = (ctx: CommandContext): ShellCommands => {
       // The open panel's toggle goes back one step, to the panel the person was on before it,
       // so a look at the Inbox or Sessions returns to where they were; back there, or with no
       // step to go back, it hides the sidebar.
-      const back = shell.sidebarBack
+      const back = stepBack(shell.sidebarBack, next)
       if (panel() !== next || !visible) show(next)
-      else if (back && back !== next) {
+      else if (back) {
         change((edited) => ({ ...edited, sidebarBack: null }))
         navigation.go({ panel: back })
       } else hide()
