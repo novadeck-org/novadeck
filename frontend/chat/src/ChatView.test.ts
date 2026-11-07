@@ -157,13 +157,18 @@ const send = async (container: HTMLElement): Promise<void> =>
       void sendButton(container).dispatchEvent(new MouseEvent("click", { bubbles: true })),
   )
 
-// The person's prompts shown before the record has them: their words, state and note.
+// The person's prompts shown before the record has them: their words, state, and their tag or
+// what became of them.
 const bubbles = (container: HTMLElement): (string | null)[][] =>
-  [...container.querySelectorAll<HTMLElement>(".chat-message[data-sent]")].map((each) => [
-    each.querySelector(".chat-text")?.textContent ?? null,
-    each.dataset.sent ?? null,
-    each.querySelector(".chat-sent")?.textContent ?? null,
-  ])
+  [...container.querySelectorAll<HTMLElement>(".chat-message[data-sent]")].map((each) => {
+    const tag = each.querySelector(".chat-sent-tag")?.textContent ?? null
+    const text = each.querySelector(".chat-text")?.textContent ?? ""
+    return [
+      tag ? text.slice(0, -tag.length).trimEnd() : text,
+      each.dataset.sent ?? null,
+      tag ?? each.querySelector(".chat-sent")?.textContent ?? null,
+    ]
+  })
 
 const userItem = (text: string): ChatItem => ({
   id: "s:0",
@@ -347,20 +352,20 @@ describe("a chat sending a message", () => {
     expect(chat.sent).toHaveBeenCalledWith("first")
     expect(box(container).value).toBe("")
     expect(box(container).readOnly).toBe(false)
-    expect(bubbles(container)).toEqual([["first", "sending", "Sending…"]])
+    expect(bubbles(container)).toEqual([["first", "sending", "sending"]])
     set(box(container), "second")
     expect(sendButton(container).disabled).toBe(false)
     await send(container)
     expect(chat.sent).toHaveBeenCalledTimes(1)
     expect(box(container).value).toBe("")
     expect(bubbles(container)).toEqual([
-      ["first", "sending", "Sending…"],
-      ["second", "queued", "Queued"],
+      ["first", "sending", "sending"],
+      ["second", "queued", "queued"],
     ])
     // A backend that follows no prompts: the next goes once the one before went.
     await act(async () => sends[0]!())
     expect(chat.sent).toHaveBeenLastCalledWith("second")
-    expect(bubbles(container)).toEqual([["second", "sending", "Sending…"]])
+    expect(bubbles(container)).toEqual([["second", "sending", "sending"]])
   })
 
   it("holds the next one until the agent's record has the one before, where the backend tells", async () => {
@@ -390,7 +395,7 @@ describe("a chat sending a message", () => {
     )
     expect(chat.sent).toHaveBeenLastCalledWith("second")
     // Settled, but its item yet to arrive: it shows as on its way until it does.
-    expect(bubbles(container)[0]).toEqual(["first", "sending", "Sending…"])
+    expect(bubbles(container)[0]).toEqual(["first", "sending", "sending"])
     await act(async () => conversation.update((now) => ({ ...now, items: [userItem("first")] })))
     expect(bubbles(container).map(([text]) => text)).toEqual(["second"])
   })
@@ -450,9 +455,73 @@ describe("a chat sending a message", () => {
     })
     const { container } = inApp(conversation)
     expect(bubbles(container)).toEqual([
-      ["lost words", "unrecorded", "Sent, but not in the agent's record.Show terminal"],
-      ["boxed words", "in-box", "It's back in Claude's box in the terminal.Show terminal"],
+      ["lost words", "unrecorded", "Sent, but not in the agent's record.send againeditterminal"],
+      ["boxed words", "in-box", "It's back in Claude's box in the terminal.terminal"],
     ])
+  })
+
+  describe("a prompt the record never got", () => {
+    const lost = (ref: string): Store<Conversation> =>
+      createStore<Conversation>({
+        ...asking,
+        requests: [],
+        prompts: [{ ref, text: "lost words", sentAt: 1, state: "unrecorded", item: null }],
+      })
+    const sentKey = (container: HTMLElement, name: string) =>
+      [...container.querySelectorAll<HTMLElement>(".chat-sent button")].find(
+        (each) => each.textContent === name,
+      )
+
+    it("goes again, and its line with it, as the receipt stays", async () => {
+      const chat = inApp(lost("resendaaaaaaaaaa"))
+      await act(async () => sentKey(chat.container, "send again")!.click())
+      expect(chat.sent).toHaveBeenCalledWith("lost words")
+      expect(
+        [...chat.container.querySelectorAll(".chat-message[data-sent]")].filter(
+          (each) => each.getAttribute("data-sent") === "unrecorded",
+        ),
+      ).toEqual([])
+    })
+
+    it("comes back to the box to edit, and its line goes", async () => {
+      const chat = inApp(lost("editaaaaaaaaaaaa"))
+      act(() => sentKey(chat.container, "edit")!.click())
+      expect(box(chat.container).value).toBe("lost words")
+      expect(document.activeElement).toBe(box(chat.container))
+      expect(chat.container.querySelector(".chat-sent")).toBeNull()
+    })
+
+    it("says why it didn't go again, its words back in the box", async () => {
+      const chat = inApp(lost("refusedaaaaaaaaa"), {
+        send: async () => {
+          throw new Error("The agent is waiting for your answer.")
+        },
+      })
+      await act(async () => sentKey(chat.container, "send again")!.click())
+      expect(chat.container.querySelector('[role="alert"]')?.textContent).toContain(
+        "waiting for your answer",
+      )
+      expect(box(chat.container).value).toBe("lost words")
+      expect(document.activeElement).toBe(box(chat.container))
+    })
+
+    it("still offers the terminal, where it may have gone after all", () => {
+      const chat = inApp(lost("terminalaaaaaaaa"))
+      expect(chat.container.querySelector('.chat-sent [aria-label="Show terminal"]')).not.toBeNull()
+    })
+
+    it("offers nothing that would turn it into a shell command", () => {
+      const chat = inApp(lost("shellaaaaaaaaaaa"), { draft: "!git status" })
+      expect(sentKey(chat.container, "send again")).toBeUndefined()
+      expect(sentKey(chat.container, "edit")).toBeUndefined()
+    })
+
+    it("can't go again over words in the box, which it would take; edit joins them", () => {
+      const chat = inApp(lost("draftaaaaaaaaaaa"), { draft: "and more" })
+      expect(sentKey(chat.container, "send again")).toBeUndefined()
+      act(() => sentKey(chat.container, "edit")!.click())
+      expect(box(chat.container).value).toBe("lost words\nand more")
+    })
   })
 
   it("puts it back before what was typed meanwhile when it doesn't go, saying why", async () => {
@@ -549,7 +618,7 @@ describe("a chat about the agent's question, where its own field takes the words
     const store = createStore<Conversation>(questioning)
     const { container } = inApp(store, { draft: "hi", program: "agy" })
     press(container, "Chat about this")
-    press(container, "Cancel")
+    press(container, "cancel")
     expect(container.querySelector(".chat-reply")).toBeNull()
     expect(container.querySelector('input[type="radio"]')).not.toBeNull()
     press(container, "Chat about this")
@@ -719,7 +788,7 @@ describe("a reply to the agent's question, as its dialog changes", () => {
     await send(container)
     press(container, "Chat about this")
     // The reply's Cancel isn't locked by the message on its way.
-    expect(button(container, "Cancel").disabled).toBe(false)
+    expect(button(container, "cancel").disabled).toBe(false)
     set(box(container), "pick X")
     act(() => store.update(() => withDialog(null)))
     expect(container.querySelector(".chat-reply")?.textContent).toContain("no longer a reply")

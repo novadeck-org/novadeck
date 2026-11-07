@@ -64,6 +64,70 @@ describe("the scrollback", () => {
     const prompt = container.querySelector("article")
     expect(prompt?.getAttribute("data-sent")).toBe("queued")
     expect(prompt?.querySelector(".chat-mark")).not.toBeNull()
-    expect(prompt?.textContent).toContain("Queued")
+    expect(prompt?.querySelector(".chat-sent-tag")?.textContent).toBe("queued")
+  })
+
+  it("sets another agent's handle beside its words, with no mark", () => {
+    const container = show([
+      { kind: "agent", id: "1", author: "moth", text: "Keep it.", truncated: false, at: null },
+    ])
+    const message = container.querySelector("article")
+    expect(message?.getAttribute("aria-label")).toBe("Message from moth")
+    expect(message?.querySelector(".chat-author")?.textContent).toBe("moth")
+    expect(message?.querySelector(".markdown")?.textContent).toBe("Keep it.")
+    expect(message?.querySelector(".chat-mark")).toBeNull()
+  })
+
+  it("offers what can be done about a prompt the record never got", () => {
+    const lost: SentBubble = { ref: "a", text: "words", state: "unrecorded", at: null }
+    const resent: SentBubble[] = []
+    const edited: SentBubble[] = []
+    const { container, unmount } = render(
+      createElement(Transcript, {
+        blocks: [],
+        agent: "Claude",
+        working: false,
+        sent: [lost],
+        onResend: (bubble) => resent.push(bubble),
+        onEdit: (bubble) => edited.push(bubble),
+      }),
+    )
+    unmounts.push(unmount)
+    const key = (name: string) =>
+      [...container.querySelectorAll<HTMLElement>(".chat-sent button")].find(
+        (each) => each.textContent === name,
+      )!
+    key("send again").click()
+    key("edit").click()
+    expect(resent).toEqual([lost])
+    expect(edited).toEqual([lost])
+  })
+
+  it("has no way to send again while the box holds words it would take along", () => {
+    const { container, unmount } = render(
+      createElement(Transcript, {
+        blocks: [],
+        agent: "Claude",
+        working: false,
+        sent: [{ ref: "a", text: "words", state: "unrecorded", at: null }],
+        onEdit: () => {},
+      }),
+    )
+    unmounts.push(unmount)
+    expect(container.querySelector(".chat-sent")?.textContent).not.toContain("send again")
+  })
+
+  it("points at the terminal's box for words that went back there", () => {
+    const { container, unmount } = render(
+      createElement(Transcript, {
+        blocks: [],
+        agent: "Claude",
+        working: false,
+        sent: [{ ref: "a", text: "words", state: "in-box", at: null }],
+        onShowTerminal: () => {},
+      }),
+    )
+    unmounts.push(unmount)
+    expect(container.querySelector('[aria-label="Show terminal"]')?.textContent).toBe("terminal")
   })
 })

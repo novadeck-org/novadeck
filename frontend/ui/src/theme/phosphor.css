@@ -527,14 +527,6 @@
   }
 }
 
-/* A request in the chat waits on the person on a tinted card, where the strong line is
-   too dim to edge its fields and buttons; they take the muted colour, 4.5:1 or more on
-   the card. */
-:root:is([data-theme="phosphor-green"], [data-theme="phosphor-amber"]) .chat-request {
-  --chat-request-field-border-color: var(--color-muted);
-  --button-border-color: var(--color-muted);
-}
-
 /* The output itself bulges, through the crt-barrel filter index.html carries. Chromium
    bends by copying the nearest pixel, which tears text at one pixel per point, so only
    denser screens bend; the rest keep the glass alone. The header stays flat, so its

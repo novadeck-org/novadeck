@@ -134,20 +134,23 @@ const lineOf = (block: Element): { line: string; rows: number } => {
     const prompt = block.querySelector(".chat-text")
     const note = block.querySelector(".chat-sent")
     const words = note?.querySelector("span")
-    if (!prompt || (note && !words)) throw unknownBlock(block)
-    const button = note?.querySelector("button")?.textContent
-    const said = words ? textOf(words) : ""
+    const tag = prompt?.querySelector(".chat-sent-tag")
+    if (!prompt || (note && !words) || (!note && !tag)) throw unknownBlock(block)
+    const buttons = [...(note?.querySelectorAll("button") ?? [])].map((each) => each.textContent)
+    const said = tag?.textContent ?? (words ? textOf(words) : "")
+    const asked = prompt.cloneNode(true) as Element
+    asked.querySelector(".chat-sent-tag")?.remove()
     return {
-      line: `sent (${sent}): ${textOf(prompt)} · ${said}${button ? ` [${button}]` : ""}`,
+      line: `sent (${sent}): ${textOf(asked)} · ${said}${buttons.length > 0 ? ` [${buttons.join(", ")}]` : ""}`,
       rows: 0,
     }
   }
   const role = block.getAttribute("data-role")
-  const bubble = role === "agent" ? block.querySelector(".chat-bubble")?.cloneNode(true) : null
-  if (bubble instanceof Element) {
+  if (role === "agent") {
     const from = block.getAttribute("aria-label")?.replace(/^Message from /, "") ?? ""
-    bubble.querySelector(".chat-author")?.remove()
-    return { line: `agent (${from}): ${textOf(bubble)}`, rows: 0 }
+    const words = block.cloneNode(true) as Element
+    words.querySelector(".chat-author")?.remove()
+    return { line: `agent (${from}): ${textOf(words)}`, rows: 0 }
   }
   if (role === "user" || role === "assistant") return { line: `${role}: ${textOf(block)}`, rows: 0 }
   throw unknownBlock(block)
@@ -175,6 +178,8 @@ export const renderChat = (
       agent: agentName(harness),
       working,
       sent,
+      onResend: () => {},
+      onEdit: () => {},
       onShowTerminal: () => {},
     }),
   )

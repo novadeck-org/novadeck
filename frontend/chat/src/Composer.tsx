@@ -8,7 +8,6 @@ import {
   type Refused,
 } from "@novadeck/core/conversation/prompt-refusal"
 import { Tooltip } from "@novadeck/toolkit/Tooltip"
-import { X } from "lucide-react"
 import { useEffect, useId, useLayoutEffect, useRef, useState } from "react"
 
 import type { ComposerMode } from "./composer-mode"
@@ -37,12 +36,15 @@ const failed = (failure: unknown): Failure => ({
   terminal: failure instanceof SettleInTerminal,
 })
 
+// Whether what the agent's own input holds is a command, which nothing is sent over.
+const boxRefused = (box: ChatBox): boolean =>
+  box.mode !== "shell" && !box.tail && /^\s*[/!]/.test(box.text)
+
 // What the note over the box says of what the agent's own input holds, and what happens to it.
 export const boxNote = (label: string, box: ChatBox): string => {
   if (box.mode === "shell")
     return `${label}'s terminal input is in shell mode, with this in it. Your next message leaves it.`
-  if (/^\s*[/!]/.test(box.text))
-    return `${label}'s terminal input holds a command. Clear it to send here.`
+  if (boxRefused(box)) return `${label}'s terminal input holds a command. Clear it to send here.`
   if (box.tail) return `${label}'s terminal input ends with this. There may be more above it.`
   if (box.known)
     return `${label}'s terminal input holds your message. It comes back here as you send.`
@@ -194,8 +196,13 @@ export const Composer = ({
         <p className="chat-error" role="alert" data-terminal={error.terminal || undefined}>
           <span>{error.text}</span>
           {error.terminal && (
-            <button type="button" className="button quiet nodrag nopan" onClick={onOpenTerminal}>
-              Open terminal
+            <button
+              type="button"
+              className="chat-key nodrag nopan"
+              aria-label="Open terminal"
+              onClick={onOpenTerminal}
+            >
+              terminal
             </button>
           )}
         </p>
@@ -205,13 +212,12 @@ export const Composer = ({
           <span>Replying to {label}'s question. Its field takes one line.</span>
           <button
             type="button"
-            className="button quiet chat-reply-cancel"
+            className="chat-key"
             aria-label="Cancel the reply"
             disabled={replySending}
             onClick={onCancelReply}
           >
-            <X size={12} aria-hidden />
-            Cancel
+            cancel
           </button>
         </p>
       )}
@@ -223,23 +229,26 @@ export const Composer = ({
         </p>
       )}
       {passing && (
-        <p className="chat-reply" id={note}>
-          <span>What you type goes to {label}'s own menu.</span>
+        <p className="sr-only" id={note}>
+          What you type goes to {label}'s own menu.
         </p>
       )}
       {box && !passing && (
-        <div className="chat-reply chat-box" id={boxNoteId}>
+        <div
+          className="chat-reply chat-box"
+          id={boxNoteId}
+          data-refused={boxRefused(box) || undefined}
+        >
           <div className="chat-box-head">
             <span>{boxNote(label, box)}</span>
             <button
               type="button"
-              className="button quiet chat-reply-cancel"
+              className="chat-key"
               aria-label={`Clear ${label}'s terminal input`}
               disabled={clearing}
               onClick={() => clearBox(box.text)}
             >
-              <X size={12} aria-hidden />
-              Clear
+              clear
             </button>
           </div>
           <pre className="chat-box-text">{box.tail ? `…${box.text}` : box.text}</pre>

@@ -1,8 +1,10 @@
 import type {
   ChatAnswer,
+  ChatBox,
   ChatDialog,
   ChatItem,
   ChatRequest,
+  ChatSlice,
   ToolChange,
   ToolOutcome,
   ToolRun,
@@ -13,6 +15,10 @@ import type {
 export type DemoTranscript = {
   readonly items: readonly ChatItem[]
   readonly requests: readonly ChatRequest[]
+  // The terminal's own rows showing at its input.
+  readonly slice?: ChatSlice
+  // What its agent's own box holds, which a message sent now goes out with.
+  readonly box?: ChatBox
   // What answering a request does, by the request's id: only for those the demo can answer.
   readonly outcomes?: Readonly<
     Record<string, (answer: ChatAnswer, dialog: ChatDialog) => DemoOutcome>
@@ -206,6 +212,22 @@ export const orderTotal = (cart: Cart, shipping: number): number =>
 
 Open question: do we need guest checkout? See [the payments notes](https://docs.example.com/payments#guest) for what each provider allows.`
 
+// A dialog no adapter reads, as Antigravity's screen draws it.
+const runCommandDialog = [
+  "╭──────────────────────────────────────────────────────────╮",
+  "│ Run command                                              │",
+  "│                                                          │",
+  "│   pnpm test --filter cart --repeat 5                     │",
+  "│   Run the cart specs five times                          │",
+  "│                                                          │",
+  "│ Allow this command?                                      │",
+  "│                                                          │",
+  "│ ❯ [a] Allow once                                         │",
+  "│   [s] Allow for this session                             │",
+  "│   [d] Deny                                               │",
+  "╰──────────────────────────────────────────────────────────╯",
+]
+
 // The agents demo's transcripts, by terminal: Claude Code waiting on a plan, Codex on a
 // permission, Claude Code with subagents running, and one whose turn is over.
 export const agentTranscripts = (now: number): Readonly<Record<string, DemoTranscript>> => ({
@@ -305,6 +327,13 @@ export const agentTranscripts = (now: number): Readonly<Record<string, DemoTrans
     },
   },
   "03": {
+    // More than the chat can read whole, so it stays in the agent's box.
+    box: {
+      text: "and leave the checkout specs out of the report",
+      mode: "prompt",
+      tail: true,
+      known: false,
+    },
     items: written("03", now, [
       user("Run the whole test suite and look into anything flaky."),
       say(
@@ -755,23 +784,29 @@ export const agentTranscripts = (now: number): Readonly<Record<string, DemoTrans
         dialog: {
           type: "raw",
           reason: "unrecognized",
-          text: [
-            "╭──────────────────────────────────────────────────────────╮",
-            "│ Run command                                              │",
-            "│                                                          │",
-            "│   pnpm test --filter cart --repeat 5                     │",
-            "│   Run the cart specs five times                          │",
-            "│                                                          │",
-            "│ Allow this command?                                      │",
-            "│                                                          │",
-            "│ ❯ [a] Allow once                                         │",
-            "│   [s] Allow for this session                             │",
-            "│   [d] Deny                                               │",
-            "╰──────────────────────────────────────────────────────────╯",
-          ].join("\n"),
+          text: runCommandDialog.join("\n"),
         },
       },
     ],
+    slice: {
+      reason: "dialog",
+      columns: 60,
+      rows: runCommandDialog.map((text) => [
+        {
+          text,
+          width: 60,
+          fg: null,
+          bg: null,
+          bold: false,
+          dim: false,
+          italic: false,
+          underline: false,
+          inverse: false,
+        },
+      ]),
+      cursor: null,
+      secret: false,
+    },
     outcomes: {
       "05:question": (answer, dialog) => {
         if (answer.type === "chat")

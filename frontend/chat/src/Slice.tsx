@@ -9,8 +9,7 @@ import { terminalKey } from "./passing"
 export const SliceKeys = createContext<((keys: string) => void) | null>(null)
 
 // The terminal's own rows, as they are drawn: as wide as its columns, so a narrower chat
-// scrolls them. Plain for now; the look comes with the chat's redesign. `live`, a view or a
-// dialog takes the keys while it shows, every one of them, as it stands where the box did; a
+// scrolls them. `live`, a view or a dialog takes the keys while it shows, every one of them, as it stands where the box did; a
 // menu's come from the box, which holds its text.
 export const Slice = ({
   slice,
@@ -22,20 +21,24 @@ export const Slice = ({
   const keys = useContext(SliceKeys)
   const element = useRef<HTMLPreElement>(null)
   const taking = live && keys !== null && slice.reason !== "menu"
+  const comesByItself = slice.reason === "dialog"
   useEffect(() => {
     if (!taking) return
     const active = document.activeElement
     const chat = element.current?.closest(".chat")
+    // A dialog comes by itself: wherever the person is stays theirs, or what they press next
+    // would be an answer. A view is their own doing.
+    if (comesByItself && active && active !== document.body) return
     if (!active || active === document.body || chat?.contains(active))
       element.current?.focus({ preventScroll: true })
-  }, [taking])
+  }, [taking, comesByItself])
   return (
     <pre
       ref={element}
-      className="chat-raw chat-slice nodrag nopan nowheel"
+      className="chat-slice nodrag nopan nowheel"
       tabIndex={0}
       aria-label="The terminal's own rows"
-      style={{ width: `${slice.columns}ch`, maxWidth: "100%" }}
+      style={{ "--chat-slice-columns": slice.columns } as React.CSSProperties}
       onKeyDown={
         taking
           ? (event) => {
@@ -80,5 +83,63 @@ export const Slice = ({
         </div>
       ))}
     </pre>
+  )
+}
+
+// What a key on the title's line writes, for the pointer: a view's and a dialog's own keys.
+const liveKeys = [
+  { name: "Up", cap: "↑", keys: "\x1b[A" },
+  { name: "Down", cap: "↓", keys: "\x1b[B" },
+  { name: "Enter", cap: "⏎", keys: "\r" },
+  { name: "Escape", cap: "esc", keys: "\x1b" },
+] as const
+
+const whats = { menu: "menu", view: "view", dialog: "dialog" } as const
+
+// The terminal's own rows standing in the chat, live: a title that says whose they are, the keys
+// for the pointer where they take keys, and `aside`, a word on the title's line.
+export const LiveSlice = ({
+  slice,
+  agent,
+  aside,
+}: {
+  readonly slice: ChatSlice
+  // The agent's name, as the chat gives it.
+  readonly agent: string
+  readonly aside?: string | null
+}): React.JSX.Element => {
+  const keys = useContext(SliceKeys)
+  return (
+    <section className="chat-live" aria-label={`${agent}'s own ${whats[slice.reason]}`}>
+      <div className="chat-live-title">
+        <span>
+          {agent}'s own {whats[slice.reason]} · live from its terminal
+        </span>
+        {aside && <span>{aside}</span>}
+        {keys && slice.reason !== "menu" && (
+          <span className="chat-live-keys">
+            {liveKeys.map(({ name, cap, keys: pressed }) => (
+              <button
+                key={name}
+                type="button"
+                className="chat-key nodrag nopan"
+                aria-label={name}
+                tabIndex={-1}
+                onClick={(event) => {
+                  keys(pressed)
+                  event.currentTarget
+                    .closest(".chat-live")
+                    ?.querySelector<HTMLElement>(".chat-slice")
+                    ?.focus({ preventScroll: true })
+                }}
+              >
+                {cap}
+              </button>
+            ))}
+          </span>
+        )}
+      </div>
+      <Slice slice={slice} live />
+    </section>
   )
 }
