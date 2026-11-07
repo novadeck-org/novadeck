@@ -78,7 +78,11 @@ const storefront: readonly Sample[] = [
       "Live carrier rates at checkout",
       day + 4 * 60 * minute,
     ),
-    state: { state: "open", handle: demoHandle(2), terminalId: demoTerminalId({ projectId: "storefront", workspaceSessionId: "initial" }, 2) },
+    state: {
+      state: "open",
+      handle: demoHandle(2),
+      terminalId: demoTerminalId({ projectId: "storefront", workspaceSessionId: "initial" }, 2),
+    },
   },
   plainRow("pnpm dev", "web", day + 5 * 60 * minute),
   {
