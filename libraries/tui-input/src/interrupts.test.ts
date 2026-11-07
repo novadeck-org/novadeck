@@ -455,6 +455,14 @@ describe("interrupts", () => {
       expect(t.written).toEqual([UP, LEAVE])
     })
 
+    it("waits out the settle after its Escape before the next Stop looks", async () => {
+      const t = taken({ settleMs: 400 })
+      await t.interruptIn()
+      const at = Date.now()
+      await t.interruptIn()
+      expect(Date.now() - at).toBeGreaterThanOrEqual(350)
+    })
+
     it("holds the person's keys from before it takes to the end of the clear, by one hold", async () => {
       const t = taken()
       await t.interruptIn()
