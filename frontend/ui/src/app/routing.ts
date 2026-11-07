@@ -62,9 +62,16 @@ const sectionOf = (name: string | null): PreferencesTab =>
 export const sourceShown = (backend: Pick<Backend, "source">): boolean =>
   backend.source !== undefined
 
-// The panels a backend can show: Source only where it has a source.
-export const availablePanels = (hasSource: boolean): readonly SidebarPanel[] =>
-  sidebarPanels.filter((panel) => hasSource || panel !== "source")
+// Whether the app shows the History panel: where the backend keeps the terminals closed.
+export const historyShown = (backend: Pick<Backend, "history">): boolean =>
+  backend.history !== undefined
+
+// The panels a backend can show: Source only where it has a source, History only where it
+// keeps closed terminals.
+export const availablePanels = (hasSource: boolean, hasHistory = false): readonly SidebarPanel[] =>
+  sidebarPanels.filter(
+    (panel) => (hasSource || panel !== "source") && (hasHistory || panel !== "history"),
+  )
 
 // The sidebar panel a URL names, Terminals for anything else, or for one the backend lacks.
 const panelOf = (name: string | null, panels: readonly SidebarPanel[]): SidebarPanel =>

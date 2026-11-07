@@ -30,6 +30,13 @@ export type Told = {
 export type AgentReport = {
   readonly sessionId: string
   readonly seq: number
+  /**
+   * The session's own folder, as its harness named it when it bound (the terminal's, where
+   * it didn't): where a resume must run, since a harness looks a conversation up by it.
+   */
+  readonly cwd?: string
+  /** The conversation's file as its harness named it at bind, a hint for finding it again. */
+  readonly transcript?: string
   readonly turn?: AgentTurn
   readonly told?: Told
 }
@@ -111,6 +118,8 @@ export type TerminalIdentity = Pick<SavedTerminal, "handle" | "naming" | "opened
 /** Where the runner saves terminals: its metadata store. */
 export type TerminalRecords = {
   terminal(terminalId: string): SavedTerminal | undefined
+  /** Whether a line was ever entered in the terminal; true for one kept before it was told. */
+  terminalRan?(terminalId: string): boolean
   /** Every terminal kept, of one session or all, in the order they were created, without transcripts. */
   terminals(sessionId?: string): readonly ListedTerminal[]
   /**
@@ -148,4 +157,6 @@ export type TerminalRecords = {
 export type TerminalToSave = Omit<SavedTerminal, "transcript" | "savedAt" | "interruptions"> & {
   transcript?: string | null
   interruptions?: SavedTerminal["interruptions"]
+  /** Whether a line was ever entered in it; the records never lower it. */
+  ran?: boolean
 }

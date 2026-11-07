@@ -8,6 +8,7 @@ import type { UninstallPlan, UninstallResult } from "./desktop/uninstall"
 import type { UpdateChannel, UpdateOffer, WhatsNew } from "./desktop/update"
 import type { Feedback } from "./feedback"
 import type { AgentName } from "./harnesses"
+import type { History } from "./history"
 import type { Inbox } from "./inbox"
 import type { Companions } from "./items"
 import type { Messages } from "./messages"
@@ -205,6 +206,11 @@ export type BackendFields = {
     directory: string
     title?: string
     launch?: { readonly command?: string }
+    // The History row (`history`) to restore as this terminal, in the row's own directory:
+    // it takes the row's title and handle, and the row goes once the restore is confirmed.
+    // `directory` is the row's, for the terminal to show until the backend says more; it
+    // goes with no `title` or `launch`.
+    closed?: string
   }) => TerminalMetadata
   // Called inside every workspace store commit, before listeners, and once with []
   // for the initial workspace. That initial call runs during a render (a useState
@@ -311,6 +317,9 @@ export type BackendFields = {
   // change in them, for the sidebar's Source panel (see core's `source`). Absent where the
   // backend can't read the projects' folders: the panel isn't drawn.
   readonly source?: Source
+  // Optional. The terminals closed in the last 30 days, per project, to list and restore
+  // (see core's `history`). Absent where the backend keeps none: closing is then final.
+  readonly history?: History
   // Optional. Feedback for the people building Novadeck (see core's `feedback`): the
   // footer's card, and an agent window's "Ask @handle to write feedback…". Absent where
   // the backend can't send it: neither is drawn. The desktop app has it where it sends notes,

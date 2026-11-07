@@ -73,6 +73,15 @@ export {
   planUnwritable,
   type PlanUnwritable,
 } from "./companions.js"
+export {
+  type ClosedTerminal,
+  closedTerminal,
+  type ClosedTerminalState,
+  closedTerminalState,
+  historyChange,
+  type HistoryChange,
+  historyLimits,
+} from "./history.js"
 export { maxWebSocketMessageBytes, protocolVersion } from "./connection.js"
 export {
   dialogTextLimits,

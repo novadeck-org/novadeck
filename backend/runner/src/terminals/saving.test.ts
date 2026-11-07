@@ -206,6 +206,24 @@ describe("saving terminals", () => {
     expect(transcripts(fake).map((row) => row.transcript)).toEqual(["screen"])
   })
 
+  it("tells when a screen taken after it asked is written, not one taken before", async () => {
+    const fake = make({}, "manual")
+    await vi.advanceTimersByTimeAsync(0)
+    const done = vi.fn<() => void>()
+    // A screen is in flight, taken before the ask: its result does not count.
+    fake.records[0]!.screenChanged = true
+    fake.saves.save(fake.records[0]!, true)
+    await vi.advanceTimersByTimeAsync(10)
+    fake.saves.afterSaved(fake.records[0]!, done)
+    fake.asked[0]!.settle("early")
+    await vi.advanceTimersByTimeAsync(10)
+    expect(done).not.toHaveBeenCalled()
+    fake.asked[1]!.settle("later")
+    await vi.advanceTimersByTimeAsync(10)
+    expect(done).toHaveBeenCalledTimes(1)
+    fake.saves.stop()
+  })
+
   it("drops a result that arrives after the terminal was closed", async () => {
     const fake = make({}, "manual")
     await vi.advanceTimersByTimeAsync(0)
@@ -531,5 +549,50 @@ describe("saving terminals", () => {
     await vi.advanceTimersByTimeAsync(0)
     expect(transcripts(fake).map((row) => row.transcript)).toEqual(["mine"])
     fake.saves.stop()
+  })
+
+  it("keeps a closing terminal's last screen masked and sealed, and shutdown waits for it", async () => {
+    const fake = make({}, "manual")
+    await vi.advanceTimersByTimeAsync(0)
+    fake.records = []
+    const kept: string[] = []
+    const closing = record("a", "last secret")
+    const settled: string[] = []
+    fake.saves.archive(
+      closing,
+      (value) => kept.push(value),
+      () => settled.push("settled"),
+    )
+    // Its saves stop at the close, so this is the only copy.
+    closing.closed = true
+    await vi.advanceTimersByTimeAsync(0)
+    expect(fake.asked.map(({ text }) => text)).toEqual(["last secret"])
+    const done = fake.saves.shutdown()
+    await vi.advanceTimersByTimeAsync(10)
+    expect(kept).toEqual([])
+    expect(settled).toEqual([])
+    fake.asked[0]!.settle("last *")
+    await vi.advanceTimersByTimeAsync(0)
+    await done
+    expect(kept.map((value) => unsealed(value, "a"))).toEqual(["last *"])
+    expect(settled).toEqual(["settled"])
+  })
+
+  it("keeps nothing of a screen that cannot be masked", async () => {
+    const fake = make({}, "manual")
+    await vi.advanceTimersByTimeAsync(0)
+    const kept: string[] = []
+    let settled = 0
+    fake.saves.archive(
+      record("a", "text"),
+      (value) => kept.push(value),
+      () => (settled += 1),
+    )
+    await vi.advanceTimersByTimeAsync(0)
+    fake.asked[0]!.settle(null as never)
+    await vi.advanceTimersByTimeAsync(0)
+    expect(kept).toEqual([])
+    // Given up, it is settled all the same.
+    expect(settled).toBe(1)
   })
 })

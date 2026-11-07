@@ -1,3 +1,5 @@
+import type { Screen } from "@novadeck/emulator/headless"
+
 import { logs } from "../log.js"
 
 const log = logs.for("terminals")
@@ -36,3 +38,48 @@ export const showRestored = (
       err: error,
     }),
   )
+
+/**
+ * What draws `note` on the lines above the prompt the cursor stands on, which stays where it
+ * was with the cursor after it: the line is made room for (scrolling the screen once when
+ * the prompt is on its last row), so the shell's own drawing is not erased.
+ */
+export const noteAbove = (
+  note: string,
+  screen: Pick<Screen, "buffer" | "rows" | "cols">,
+  scrolled = false,
+): string | null => {
+  // A program owns the alternate screen and repaints it: a line inserted there is overwritten.
+  if (screen.buffer.active.type === "alternate") return null
+  // A Windows pseudoconsole takes its draws into the scrollback, as a replay does.
+  if (scrolled) return `${dim(note)}\r\n`
+  const { cursorX: x, cursorY: y } = screen.buffer.active
+  const lines = Math.max(1, Math.ceil(note.length / screen.cols))
+  // Room below the prompt for the lines the note takes: else the screen scrolls up first.
+  const short = Math.max(0, y + lines - (screen.rows - 1))
+  // Line feeds from the bottom row, which the scrollback keeps, where a scroll would not.
+  const bottom = screen.rows - 1
+  const scroll =
+    short > 0 ? `\x1b[${bottom - y}B${"\n".repeat(short)}\x1b[${bottom - (y - short)}A` : ""
+  return `${scroll}\r\x1b[${lines}L${dim(note)}\x1b[1B\x1b[${x + 1}G`
+}
+
+/**
+ * Tells the person `note` in a terminal that is open: above its prompt, drawn and sent to
+ * every window that shows it; nothing on the alternate screen, where a program draws. A failure is logged and goes no further.
+ */
+export const showNote = (
+  terminal: {
+    print(what: (screen: Screen, scrolled: boolean) => string | null): Promise<void>
+  },
+  note: string,
+  terminalId: string,
+): Promise<void> =>
+  terminal
+    .print((screen, scrolled) => noteAbove(note, screen, scrolled))
+    .catch((error: unknown) =>
+      log.warn("terminals.replay-failed", "Novadeck could not show a terminal's earlier screen", {
+        data: { terminalId },
+        err: error,
+      }),
+    )
