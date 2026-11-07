@@ -21,7 +21,7 @@ import { standingDone } from "../../messaging/peers.js"
 import type { Companion } from "../companion.js"
 import { afterTyped } from "../exits.js"
 import { failed } from "../failures.js"
-import { endWait, markEnd, markTurn } from "../interrupted.js"
+import { markEnd, markTurn } from "../interrupted.js"
 import type { Record } from "../record.js"
 import { whenEndCounts } from "../sampling.js"
 import { hasRun } from "../saved-terminals.js"
@@ -582,17 +582,6 @@ export class Bindings {
     // for the age of a sleeper (`markEnd`), saved at once.
     const turned = markTurn(record, activity)
     const ended = markEnd(record, activity)
-    // A turn's end that waits out its grace is looked at again when it passes.
-    const wait = endWait(record, activity, Date.now())
-    const endAt = record.bound?.activity.lastTurn?.at
-    // Once for each end, however often the agent's state is published meanwhile.
-    if (wait && record.endAt !== endAt) {
-      record.endAt = endAt
-      const again = setTimeout(() => {
-        if (!this.host.stopping() && !record.closed) this.publishAgent(record, false)
-      }, wait + 1)
-      again.unref()
-    }
     this.host.looked(record)
     if (turned || ended) {
       record.changed = true

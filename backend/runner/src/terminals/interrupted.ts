@@ -1,11 +1,9 @@
 import type { AgentActivity, AgentName } from "@novadeck/protocol"
 
-import { escapeVerdictMs } from "../harnesses/activity.js"
 import { busy } from "./busy.js"
 import { failed } from "./failures.js"
 import type { Record, Started } from "./record.js"
 import type { AgentReport, AgentTurn } from "./saved-terminals.js"
-import { finishGraceMs } from "./turn-ends.js"
 
 /**
  * What a turn was doing, from the activity clients see (`harnesses/activity.ts`'s
@@ -69,41 +67,18 @@ export const markTurn = (
 }
 
 /**
- * How long until the bound session's latest turn end counts, in milliseconds: 0 when it
- * does now, null when it does not (and nothing to wait for). It counts as the Inbox's
- * `TurnEnds` stores it: a completed or failed turn not cut off by a usage limit, with no
- * request waiting on the person; a completed one only after `finishGraceMs`, the time the
- * harness has to say the person's Escape ended it instead, and a settled Escape's verdict
- * window (`escapeVerdictMs`) too; one an Escape has not settled, not yet.
- */
-export const endWait = (
-  record: Pick<Record, "bound">,
-  activity: AgentActivity | null,
-  now: number,
-): number | null => {
-  const last = record.bound?.activity.lastTurn
-  if (!record.bound || !last || !activity || activity.state === "working") return null
-  if ((last.outcome !== "completed" && last.outcome !== "failed") || last.limited) return null
-  if (activity.attention.pending > (activity.attention.detached ?? 0)) return null
-  if (last.outcome === "failed") return 0
-  if (last.escaped && !last.escaped.settled) return null
-  const verdict = last.escaped ? last.escaped.key + escapeVerdictMs : 0
-  return Math.max(0, last.at + finishGraceMs - now, verdict - now)
-}
-
-/**
- * Keeps when the bound session's last turn ended (`AgentReport.endedAt`), once it counts as
- * one (`endWait`). Where no session is bound, or the report is another session's, nothing.
- * Whether it changed.
+ * Keeps when the bound session's last turn ended (`AgentReport.endedAt`), a completed or
+ * failed one not cut off by a usage limit, as the Inbox stores turns. Where no session is
+ * bound, or the report is another session's, nothing. Whether it changed.
  */
 export const markEnd = (
   record: Pick<Record, "agents" | "bound">,
   activity: AgentActivity | null,
-  now = Date.now(),
 ): boolean => {
   const last = record.bound?.activity.lastTurn
   const binding = record.bound?.binding
-  if (!binding || !last || endWait(record, activity, now) !== 0) return false
+  if (!binding || !last || !activity || activity.state === "working") return false
+  if ((last.outcome !== "completed" && last.outcome !== "failed") || last.limited) return false
   const report = record.agents[binding.agent]
   if (report?.sessionId !== binding.sessionId || (report.endedAt ?? 0) >= last.at) return false
   record.agents = { ...record.agents, [binding.agent]: { ...report, endedAt: last.at } }
