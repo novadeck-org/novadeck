@@ -170,10 +170,10 @@ export const turn = async (
 }
 
 /**
- * How long a test waits for an idle agent to be stopped to rest: the shortest wait the
- * setting has is a minute, and the runner looks once a minute.
+ * How long a test waits for an idle agent to be stopped to rest: the deck stops one after 5 s
+ * idle, looking each second, once its descendants' baseline is taken (10 s after it binds).
  */
-export const hibernateMs = 240_000
+export const hibernateMs = 60_000
 
 /**
  * Lets the terminal's agent sit idle until the runner stops it to rest, and waits until the
