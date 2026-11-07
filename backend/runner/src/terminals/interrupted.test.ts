@@ -2,13 +2,14 @@ import type { Report } from "@novadeck/harness-core/report"
 import { loadProbe } from "@novadeck/harness-core/testing/probes"
 import type { AgentName } from "@novadeck/protocol"
 
-import { apply, started, summary, type Activity } from "../harnesses/activity.js"
+import { apply, escapeVerdictMs, started, summary, type Activity } from "../harnesses/activity.js"
 import { observe } from "../harnesses/bindings.js"
 import type { Binding } from "../harnesses/bindings.js"
 import { harnesses } from "../harnesses/registry.js"
 import { describe, expect, it } from "../test.js"
 import { adapterFolder } from "../testing/adapters.js"
 import {
+  endWait,
   interruptedFor,
   markEnd,
   markTurn,
@@ -18,6 +19,7 @@ import {
 } from "./interrupted.js"
 import type { Record } from "./record.js"
 import type { AgentReport } from "./saved-terminals.js"
+import { finishGraceMs } from "./turn-ends.js"
 
 type Held = Pick<Record, "resumeClaim" | "resumeTold" | "resumeTurn" | "bound">
 
@@ -178,6 +180,55 @@ describe("keeping the turn in a terminal's sessions", () => {
     other.bound = record.bound
     expect(markEnd(other, summary(ended(12)))).toBe(false)
     expect(other.agents.claude).toEqual({ sessionId: "older", seq: 1 })
+  })
+
+  it("keeps an end only as the Inbox would store it: after its grace, no request waiting", () => {
+    const at = 1_000
+    const ended = (extra: Partial<NonNullable<Activity["lastTurn"]>> = {}) =>
+      ({
+        ...started(0),
+        lastTurn: {
+          outcome: "completed",
+          reply: null,
+          at,
+          recorded: true,
+          files: [],
+          from: 0,
+          ...extra,
+        },
+      }) satisfies Activity
+    const record = terminal({ claude: { sessionId: "s1", seq: 1 } })
+    const shown = (activity: Activity) => {
+      record.bound = { binding, activity, telemetry: null }
+      return summary(activity)
+    }
+    // A completed end waits out the time the harness has to call it an Escape instead.
+    const done = shown(ended())
+    expect(endWait(record, done, at + 100)).toBe(finishGraceMs - 100)
+    expect(markEnd(record, done, at + 100)).toBe(false)
+    expect(record.agents.claude).toEqual({ sessionId: "s1", seq: 1 })
+    expect(endWait(record, done, at + finishGraceMs)).toBe(0)
+    expect(markEnd(record, done, at + finishGraceMs)).toBe(true)
+    // A failed one is stored at once.
+    const failed = shown(ended({ outcome: "failed", at: at + 5_000 }))
+    expect(endWait(record, failed, at + 5_000)).toBe(0)
+    // A request waiting on the person replaces it; one asked without waiting does not.
+    const waiting = { ...done, attention: { pending: 1, kind: "question" as const } }
+    expect(endWait(record, waiting, at + 10_000)).toBeNull()
+    expect(
+      endWait(
+        record,
+        { ...waiting, attention: { ...waiting.attention, detached: 1 } },
+        at + 10_000,
+      ),
+    ).toBe(0)
+    // An Escape the harness has not answered holds it back; a settled one waits out its verdict.
+    const escape = { from: 0, key: at + 200, held: null, stop: null }
+    const open = shown(ended({ escaped: { ...escape, settled: false } }))
+    expect(endWait(record, open, at + 5_000)).toBeNull()
+    const settled = shown(ended({ escaped: { ...escape, settled: true } }))
+    expect(endWait(record, settled, at + 300)).toBe(escapeVerdictMs - 100)
+    expect(endWait(record, settled, at + 200 + escapeVerdictMs)).toBe(0)
   })
 
   it("keeps the turn of a woken shell until its session binds, whatever shows meanwhile", () => {
