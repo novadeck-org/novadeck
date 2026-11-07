@@ -16,7 +16,7 @@ import { chatAgent, chatAgents, terminalSlot } from "../samples"
 import { sessionOf } from "../workspace"
 import { promptRefused } from "./prompt-refusal"
 import { madeRequest, type DemoRequestOutcome } from "./requests"
-import type { DemoDraft, DemoTranscript } from "./transcripts"
+import { outcomeAmong, type DemoDraft, type DemoTranscript } from "./transcripts"
 import type { DemoTurns, TurnEvent } from "./turns"
 
 export type DemoChat = {
@@ -366,6 +366,7 @@ export const createDemoChat = (
         ...conversation.items,
         ...drafts.map((draft, index) => ({
           ...draft,
+          outcome: draft.outcome ?? outcomeAmong([...conversation.items, ...drafts], draft),
           id: `${terminalKeyId(key)}:${conversation.items.length + index + 1}`,
           at: Date.now(),
           truncated: draft.truncated ?? false,
