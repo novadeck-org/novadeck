@@ -49,7 +49,7 @@ describe("the models call", () => {
 describe("the open call", () => {
   // Calls over a runner of fakes: a caller `moth` in /work, a client that opens every
   // terminal it is asked for as `t2`, and a record of what was asked, sent and noticed.
-  const setup = (bound: string[] = [], resting: string[] = []) => {
+  const setup = (bound: string[] = [], resting: string[] = [], rows: { agents: object }[] = []) => {
     const records = new Map<string, unknown>([
       [
         "t1",
@@ -78,6 +78,7 @@ describe("the open call", () => {
     const approvals = new Approvals()
     const host = {
       records: () => records,
+      rows: () => rows,
       stopping: () => false,
       closingNow: () => false,
       approvals: () => approvals,
@@ -325,6 +326,20 @@ describe("the open call", () => {
     // The brief goes as a message after: the resumed session isn't started with a prompt.
     expect(run.sent).toEqual([{ to: "fox", text: "Carry on." }])
     expect(run.opened.startedWith).toBeUndefined()
+  })
+
+  it("resumes with the flags the session was launched with, from a saved row or a live one", async () => {
+    const launch = ["--dangerously-skip-permissions"]
+    const row = (seq: number, flags?: string[]) => ({
+      agents: { claude: { sessionId: "s-1", seq, ...(flags && { launch: flags }) } },
+    })
+    const saved = setup([], [], [row(1, launch)])
+    await saved.open({ agent: "claude", resume: "s-1" })
+    expect(saved.asked[0]!.command).toBe("claude --dangerously-skip-permissions --resume s-1")
+    // Another session's flags are not its own.
+    const other = setup([], [], [{ agents: { claude: { sessionId: "s-9", seq: 1, launch } } }])
+    await other.open({ agent: "claude", resume: "s-1" })
+    expect(other.asked[0]!.command).toBe("claude --resume s-1")
   })
 
   it("resumes with no brief, and with Codex's and Antigravity's own words", async () => {

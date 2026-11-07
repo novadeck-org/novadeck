@@ -7,6 +7,7 @@ import {
   type TerminalSummary,
 } from "@novadeck/protocol"
 
+import { withoutLaunch } from "../harnesses/bindings.js"
 import { harnesses } from "../harnesses/registry.js"
 import type { Inbox } from "../messaging/inbox.js"
 import { agentLabel } from "../messaging/messages.js"
@@ -550,6 +551,13 @@ export class Sleepers {
   failed(record: Record, why: string): void {
     const { id } = record.summary
     this.host.messaging().wakeEnded(id, why)
+    // A flag the harness rejected would fail every wake: the next goes bare.
+    const agent = record.resumeClaim?.split(":", 1)[0]
+    if (agent !== undefined && isAgentName(agent) && record.agents[agent]?.launch) {
+      record.agents = withoutLaunch(record.agents, agent)
+      record.changed = true
+      this.host.saves().save(record, false)
+    }
   }
 
   /**
