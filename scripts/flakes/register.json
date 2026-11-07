@@ -471,6 +471,15 @@
       "status": "known",
       "cause": "Not a test: the unsharded macOS test job takes 27 to 33 minutes on other pull requests against its 37-minute step limit, so a slow runner runs out of time with no test failing.",
       "seen": ["#777 run 42380485557 job 128426868098 (macOS)"]
+    },
+    {
+      "id": "murmur-full-screen-screen-linux",
+      "jobs": ["^Test \\((Linux|macOS|Windows)(, (?:[12][/-]2|[1-3][/-]3))?\\)$"],
+      "test": "src/shell/integration-murmur.test.ts > murmur naming terminals in bash terminals > shows murmur no screen of a full-screen program, and its screen again once the program quits",
+      "signature": "AssertionError: expected \\{ kind: 'shell'",
+      "status": "known",
+      "cause": "Unknown, seen once on Linux: murmur's description held the prompt line with the full-screen program's command, read before the program had entered its alternate screen; passes 5/5 locally, in code the failing pull request didn't touch.",
+      "seen": ["#783 run 42390794494 job 128457913000 (Linux, 3/3)"]
     }
   ]
 }
