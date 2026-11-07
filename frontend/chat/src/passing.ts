@@ -59,8 +59,12 @@ export const boxLagMs = 400
 // The most one write takes (`agents.keys`).
 const keysMax = 1024
 
-// Clears the box's line, as far as its cursor is at the end.
+// Clears the box's row, as far as its cursor is at the end, and no more: a box of several rows
+// takes a clear of its own. So text passes only while it fits one, a few columns kept for the
+// box's marker and rules, and as wide as the terminal once a slice tells that.
 const clearLine = "\x15"
+const assumedColumns = 60
+const boxInset = 8
 
 export type Passing = {
   // Whether what is typed goes to the terminal.
@@ -73,7 +77,9 @@ export type Passing = {
   readonly leave: () => Promise<void>
 }
 
-type Following = { readonly at: number; readonly keys: string }
+// Tab or Enter on its way, and what the box read as it went: the text is the harness's once
+// that changes.
+type Following = { readonly at: number; readonly keys: string; readonly from: string | null }
 
 // The chat's draft while it calls up a harness's menu. Passing lasts while the text does, and
 // the words are the chat's again as it stops: a message that goes on past a mention is a
@@ -90,8 +96,12 @@ export const usePassing = (input: {
   readonly slice: ChatSlice | null
   readonly write: ((keys: string) => Promise<void>) | undefined
   readonly onKept?: () => void
+  // Tells whether keys pass, as the handover must keep off the box meanwhile.
+  readonly onPassing?: (on: boolean) => void
+  // Lets the draft go as the person leaves with a menu up.
+  readonly onLeft?: () => void
 }): Passing => {
-  const { agent, open, draft, onDraft, box, slice, write, onKept } = input
+  const { agent, open, draft, onDraft, box, slice, write, onKept, onPassing, onLeft } = input
   const [passing, setPassing] = useState(false)
   // Waiting to hear what the harness made of Tab or Enter.
   const [following, setFollowing] = useState<Following | null>(null)
@@ -104,7 +114,8 @@ export const usePassing = (input: {
     agent !== null &&
     isAgentName(agent) &&
     write !== undefined &&
-    text.length <= keysMax &&
+    !text.startsWith("!") &&
+    text.length <= (slice?.columns ?? assumedColumns) - boxInset &&
     !text.includes("\n") &&
     !hasControlCharacters(text) &&
     opensMenu(text, agent)
@@ -134,9 +145,9 @@ export const usePassing = (input: {
   }
 
   const edit = (text: string): void => {
-    setFollowing(null)
     if (on) {
-      const keys = opens(text) ? editKeys(draft, text) : clearLine
+      // What the harness makes of Tab or Enter is still to come: it judges the text then.
+      const keys = opens(text) || following !== null ? editKeys(draft, text) : clearLine
       if (keys === clearLine || keys.length > keysMax) {
         send(clearLine)
         stop()
@@ -154,7 +165,8 @@ export const usePassing = (input: {
     // and mid-turn stops the turn; Up recalls an earlier prompt; Tab queues on Codex.
     if (keys !== "\r" && slice === null) return false
     send(keys)
-    if (keys === "\r" || keys === "\t") setFollowing({ at: Date.now(), keys })
+    if (keys === "\r" || keys === "\t")
+      setFollowing({ at: Date.now(), keys, from: box?.text ?? null })
     return true
   }
 
@@ -164,20 +176,34 @@ export const usePassing = (input: {
     await write?.(clearLine).catch(() => {})
   }
 
-  // The harness's word on Tab or Enter, or on the box as the chat came back: the draft is what
-  // the box holds.
-  const mirrored =
-    box !== null && box.text !== draft && (following !== null || (on && draft === ""))
-      ? box.text
-      : null
+  const latest = useRef({ on, onDraft, onKept, onLeft })
   useEffect(() => {
-    if (mirrored !== null) onDraft(mirrored)
-  }, [mirrored, onDraft])
+    latest.current = { on, onDraft, onKept, onLeft }
+  }, [on, onDraft, onKept, onLeft])
 
-  const latest = useRef({ on, onDraft, onKept })
   useEffect(() => {
-    latest.current = { on, onDraft, onKept }
-  }, [on, onDraft, onKept])
+    onPassing?.(on)
+  }, [on, onPassing])
+
+  // The harness's word on Tab or Enter, or on the box as the chat came back: the draft is what
+  // the box holds, its wraps aside, as a draft that passes is one line.
+  const held = box?.text.replaceAll(/\s*\n\s*/g, " ") ?? null
+  const mirrored =
+    held !== null &&
+    held !== draft &&
+    (on && draft === "" ? true : following !== null && box?.text !== following.from)
+      ? held
+      : null
+  const landing = following?.keys ?? null
+  useEffect(() => {
+    if (mirrored === null) return undefined
+    const timer = setTimeout(() => {
+      latest.current.onDraft(mirrored)
+      setFollowing(null)
+      if (landing === "\r") latest.current.onKept?.()
+    }, 0)
+    return () => clearTimeout(timer)
+  }, [mirrored, landing])
 
   // The box reads empty once it can have told, however late that is: the words went.
   const stopped = useCallback(() => {
@@ -206,7 +232,10 @@ export const usePassing = (input: {
   // The person left with a menu up: the box holds its text, and the draft goes.
   useEffect(
     () => () => {
-      if (latest.current.on) latest.current.onDraft("")
+      const { on: passed, onDraft: clear, onLeft: left } = latest.current
+      if (!passed) return
+      if (left) left()
+      else clear("")
     },
     [],
   )

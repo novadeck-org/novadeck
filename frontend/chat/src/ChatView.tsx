@@ -56,6 +56,8 @@ export const ChatView = ({
   onInputFocused,
   refused,
   onKeys,
+  onPassing,
+  onLeftMenu,
 }: {
   readonly conversation: Store<Conversation>
   readonly terminalName: string
@@ -87,6 +89,10 @@ export const ChatView = ({
   readonly refused: Refused
   // Writes keys to the agent's terminal, for what shows of its own; absent where it takes none.
   readonly onKeys?: ((keys: string) => Promise<void>) | undefined
+  // Tells whether keys pass to the terminal's box; and the draft goes as the chat leaves with
+  // a menu up, whatever session shows by then.
+  readonly onPassing?: ((on: boolean) => void) | undefined
+  readonly onLeftMenu?: (() => void) | undefined
 }): React.JSX.Element => {
   const {
     agent: harness,
@@ -205,6 +211,8 @@ export const ChatView = ({
     slice,
     write: onKeys,
     onKept: echoes.drop,
+    ...(onPassing && { onPassing }),
+    ...(onLeftMenu && { onLeft: onLeftMenu }),
   })
   const sliceKeys = useMemo(
     () => onKeys && ((keys: string) => void onKeys(keys).catch(() => {})),

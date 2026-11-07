@@ -1,9 +1,9 @@
 import type { ChatItem, ChatSlice } from "@novadeck/core/conversation"
+import { renderHook } from "@novadeck/test-kit/render"
 import { act } from "react"
 import { afterEach, beforeEach, vi } from "vitest"
 
 import { useEchoes, viewMs } from "./echoes"
-import { renderHook } from "./hook.test-support"
 import { describe, expect, it } from "./test"
 
 const view = (secret = false): ChatSlice => ({

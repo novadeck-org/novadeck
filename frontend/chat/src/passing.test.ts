@@ -1,8 +1,8 @@
 import type { ChatBox, ChatSlice } from "@novadeck/core/conversation"
+import { renderHook } from "@novadeck/test-kit/render"
 import { act } from "react"
 import { afterEach, beforeEach, vi } from "vitest"
 
-import { renderHook } from "./hook.test-support"
 import { boxLagMs, editKeys, terminalKey, usePassing, type Passing } from "./passing"
 import { describe, expect, it } from "./test"
 
@@ -193,6 +193,65 @@ describe("usePassing", () => {
     expect(passing().on).toBe(false)
   })
 
+  it("keeps a draft too long for one row out of it, as one clear takes one row", () => {
+    const { passing, write } = setup()
+    act(() => passing().edit(`${"word ".repeat(12)}@`))
+    expect(write).not.toHaveBeenCalled()
+    const wide = setup({ slice: slice("menu") })
+    const long = `/${"x".repeat(70)}`
+    act(() => wide.passing().edit(long))
+    expect(wide.write).toHaveBeenCalledWith(long)
+  })
+
+  it("gives the words back as they stop fitting a row", () => {
+    const { passing, rerender, write } = setup()
+    const fits = `/${"x".repeat(51)}`
+    act(() => passing().edit(fits))
+    rerender({ ...given, draft: fits })
+    act(() => passing().edit(`${fits}y`))
+    expect(write).toHaveBeenLastCalledWith("\x15")
+    expect(passing().on).toBe(false)
+  })
+
+  it("keeps a shell command out of it", () => {
+    const { passing, write } = setup()
+    act(() => passing().edit("!cat @f"))
+    expect(write).not.toHaveBeenCalled()
+  })
+
+  it("lets the harness judge what is typed behind Tab, and takes the box's word", () => {
+    const { passing, rerender, write, onDraft } = setup()
+    act(() => passing().edit("see @fi"))
+    rerender({ ...given, draft: "see @fi", box: box("see @fi"), slice: slice("menu") })
+    act(() => void passing().press("\t"))
+    act(() => passing().edit("see @fi "))
+    expect(write).toHaveBeenLastCalledWith(" ")
+    rerender({ ...given, draft: "see @fi ", box: box("see @src/file.ts ") })
+    act(() => void vi.advanceTimersByTime(0))
+    expect(onDraft).toHaveBeenLastCalledWith("see @src/file.ts ")
+  })
+
+  it("mirrors a box that wrapped as one line", () => {
+    const { passing, rerender, onDraft } = setup()
+    act(() => passing().edit("/ma"))
+    rerender({ ...given, draft: "/ma", box: box("/ma"), slice: slice("menu") })
+    act(() => void passing().press("\t"))
+    rerender({ ...given, draft: "/ma", box: box("/one\ntwo"), slice: slice("menu") })
+    act(() => void vi.advanceTimersByTime(0))
+    expect(onDraft).toHaveBeenLastCalledWith("/one two")
+  })
+
+  it("says whether keys pass", () => {
+    const onPassing = vi.fn<(on: boolean) => void>()
+    const write = vi.fn<(keys: string) => Promise<void>>(async () => {})
+    const { result } = renderHook(
+      (props: Props) => usePassing({ ...props, onDraft: () => {}, write, onPassing }),
+      given,
+    )
+    act(() => result.current.edit("/"))
+    expect(onPassing).toHaveBeenLastCalledWith(true)
+  })
+
   it("takes a character's Backspace, not a UTF-16 unit's", () => {
     expect(editKeys("/a😀", "/a")).toBe("\x7f")
   })
@@ -238,6 +297,7 @@ describe("usePassing", () => {
     act(() => void passing().press("\t"))
     act(() => void vi.advanceTimersByTime(boxLagMs * 3))
     rerender({ ...given, draft: "/ma", box: box("/marketplace"), slice: slice("menu") })
+    act(() => void vi.advanceTimersByTime(0))
     expect(onDraft).toHaveBeenLastCalledWith("/marketplace")
     expect(passing().on).toBe(true)
   })
@@ -270,14 +330,15 @@ describe("usePassing", () => {
     rerender({ ...given, agent: "agy", draft: "/re", box: box("/re") })
     act(() => void passing().press("\r"))
     rerender({ ...given, agent: "agy", draft: "/re", box: box("/remote-control") })
+    act(() => void vi.advanceTimersByTime(0))
     expect(onDraft).toHaveBeenLastCalledWith("/remote-control")
     expect(passing().on).toBe(true)
-    act(() => void vi.advanceTimersByTime(boxLagMs))
     expect(onKept).toHaveBeenCalled()
   })
 
   it("goes on from the box as the chat comes back to a menu", () => {
     const { passing, onDraft } = setup({ box: box("/mo"), slice: slice("menu") })
+    act(() => void vi.advanceTimersByTime(0))
     expect(passing().on).toBe(true)
     expect(onDraft).toHaveBeenCalledWith("/mo")
   })

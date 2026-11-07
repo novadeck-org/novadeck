@@ -40,7 +40,13 @@ export const Slice = ({
         taking
           ? (event) => {
               // What is selected of it is the person's to copy.
-              if (event.key === "c" && !window.getSelection()?.isCollapsed) return
+              const selection = window.getSelection()
+              const copying =
+                (event.ctrlKey || event.metaKey) &&
+                event.key === "c" &&
+                selection?.isCollapsed === false &&
+                element.current?.contains(selection.anchorNode)
+              if (copying) return
               const pressed = terminalKey(event)
               if (pressed === undefined || event.nativeEvent.isComposing) return
               event.preventDefault()

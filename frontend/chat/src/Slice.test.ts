@@ -92,6 +92,9 @@ describe("a slice that takes the keys", () => {
     const element = container.querySelector<HTMLElement>(".chat-slice")!
     window.getSelection()?.selectAllChildren(element)
     element.dispatchEvent(new KeyboardEvent("keydown", { key: "c", ctrlKey: true, bubbles: true }))
+    element.dispatchEvent(new KeyboardEvent("keydown", { key: "c", bubbles: true }))
+    expect(pressed).toEqual(["c"])
+    pressed.length = 0
     window.getSelection()?.removeAllRanges()
     element.dispatchEvent(
       new KeyboardEvent("keydown", { key: "T", ctrlKey: true, shiftKey: true, bubbles: true }),

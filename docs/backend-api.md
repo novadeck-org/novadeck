@@ -854,9 +854,9 @@ one from an earlier runner.
   `contract/protocol/src/harnesses.ts`: a leading `/`, a last word starting `@`, on Codex `$` too)
   over an empty box, the draft goes as keys and what is typed goes after it, as a diff of the
   draft (what was added, Backspaces for what went, Ctrl-U and the line again for an edit in
-  between), so a paste or an IME goes too. That lasts while the text calls up a menu: once it
-  doesn't, as a message goes on past a mention, the box is cleared and the words are the
-  chat's again. Enter goes as a key. Tab, Up, Down and Esc go only while a slice shows, one per
+  between), so a paste or an IME goes too. That lasts while the text calls up a menu and fits
+  one row of the box, as one Ctrl-U clears one row: once it doesn't, as a message goes on past a
+  mention, the box is cleared and the words are the chat's again, a long `/` command's refused. Enter goes as a key. Tab, Up, Down and Esc go only while a slice shows, one per
   press: on an empty box Codex's Esc arms "edit previous" and then opens its transcript,
   mid-turn a further Esc stops the turn, Up recalls an earlier prompt and Tab queues. After Tab
   or Enter the text is the harness's, which may complete, run or keep it (Antigravity's Enter
@@ -867,8 +867,8 @@ one from an earlier runner.
   key, Ctrl+C over a selection). Stop clears the box first, as a menu takes the Esc it would
   press. A draft the keys can't answer (a mention of a key its harness has no menu for, a line
   break, a control character, a box that holds text, a request's dialog the chat answers) stays
-  under `PROMPT_REFUSED`'s rule. While a menu shows, or the box's text is the draft's on its way,
-  `One input`'s take leaves the box alone. Leaving the chat with a menu up
+  under `PROMPT_REFUSED`'s rule. While keys pass or a menu shows, `One input`'s take leaves the
+  box alone. Leaving the chat with a menu up
   leaves its text in the terminal's box and the draft goes; coming back to a menu goes on from
   the box. A command the person runs so has no receipt and hardly a record ("What a harness
   draws at its input" in docs/harness-coverage.md): the chat echoes what they typed as their

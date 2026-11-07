@@ -180,6 +180,10 @@ describe("the chat's send queue", () => {
     typing.tell({ box })
     typing.commands.setChatDraft("01", "look at @src")
     await typing.commands.takeBox(key)
+    const passing = open("s1", { takeBox: taken })
+    passing.tell({ box: { ...box, text: "look at @src/file.ts" } })
+    passing.commands.setChatPassing("01", true)
+    await passing.commands.takeBox(key)
     expect(taken).not.toHaveBeenCalled()
   })
 
