@@ -8,7 +8,15 @@ import type { Record } from "./record.js"
 /** What sampling reads of a terminal's record, and what it keeps there. */
 export type SampledRecord = Pick<
   Record,
-  "terminal" | "foreground" | "summary" | "changed" | "bound" | "endKeyAt" | "ending" | "woken"
+  | "terminal"
+  | "foreground"
+  | "summary"
+  | "changed"
+  | "bound"
+  | "endKeyAt"
+  | "ending"
+  | "woken"
+  | "shellName"
 >
 
 // Whether the platform hides a terminal's foreground program, as Windows does: no sample
@@ -96,7 +104,7 @@ export const boundProgram = (
  * the agent whose script it runs (an npm-installed Codex is `node` to the system).
  */
 export const programOf = (process: ForegroundProcess): string => {
-  if (process.name !== "node" && process.name !== "nodejs") return process.name
+  if (process.name !== "node" && process.name !== "nodejs") return withoutExe(process.name)
   const script = (process.argv?.[1] ?? "").replaceAll("\\", "/")
   const found = harnesses.find(
     ({ id, nodeScript }) =>
@@ -105,16 +113,25 @@ export const programOf = (process: ForegroundProcess): string => {
   return found?.id ?? process.name
 }
 
+// A program's name without the `.exe` an npm-installed native binary carries on every OS.
+const withoutExe = (name: string): string => name.replace(/\.exe$/i, "")
+
 /**
- * The program a sample names for a record: `programOf`, and for a node interpreter whose
- * script isn't told (macOS names no argv) the agent bound to the terminal right now, on
- * every OS. A `node` left running after the binding ended stays `node`.
+ * The program a sample names for a record: `programOf`, and where the platform tells no
+ * command line (macOS), any program but the shell in the foreground while an agent's
+ * session is bound is that agent. macOS names a process after its real file, which for
+ * Claude Code is `claude.exe` from npm or its version (`2.1.319`) from its installer, and
+ * for an npm Codex `node`. A program left running after the binding ended keeps its name.
  */
-const sampledProgram = (process: ForegroundProcess, record: Pick<Record, "bound">): string => {
+const sampledProgram = (
+  process: ForegroundProcess,
+  record: Pick<Record, "bound" | "shellName">,
+): string => {
   const program = programOf(process)
   const bound = record.bound?.binding.agent
-  const interpreter = program === "node" || program === "nodejs"
-  return bound !== undefined && interpreter && process.argv === null ? bound : program
+  if (bound === undefined || process.argv !== null) return program
+  const shell = record.shellName === undefined ? undefined : withoutExe(basename(record.shellName))
+  return program.replace(/^-/, "") === shell ? program : bound
 }
 
 export type SamplerHost<R extends SampledRecord> = {

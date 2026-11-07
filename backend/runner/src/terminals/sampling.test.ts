@@ -44,6 +44,7 @@ const running = (lastProgram: string | null, endKeyAt?: number): SampledRecord =
     changed: false,
     bound: null,
     foreground: undefined,
+    shellName: "bash",
     terminal: { pty, exit: null, exiting: false } as unknown as SampledRecord["terminal"],
   }
 }
@@ -253,6 +254,23 @@ describe("a node process sampled in a terminal", () => {
     return { record, started }
   }
 
+  const sampleAs = (name: string, bindingOf: Record["bound"]) => {
+    on("darwin")
+    fresh.sampled = { process: { name, argv: null } }
+    onTestFinished(() => void (fresh.sampled = undefined))
+    const record = running(null)
+    record.summary = { ...record.summary, process: null }
+    record.bound = bindingOf
+    const started = new Sampler<SampledRecord>(pollMs, {
+      stopping: () => false,
+      records: () => [record],
+      sampled: () => {},
+    })
+    started.start()
+    vi.advanceTimersByTime(pollMs)
+    return { record, started }
+  }
+
   it("is the agent bound right now, though macOS names no script", () => {
     const { record, started } = sampleNode(bound, null)
     started.stop()
@@ -275,6 +293,17 @@ describe("a node process sampled in a terminal", () => {
     const second = sampleNode(null, ["node", "/home/me/.local/bin/codex"])
     second.started.stop()
     expect(second.record.summary.lastProgram).toBe("codex")
+  })
+
+  it("is the agent bound right now for any program macOS names by its file, but the shell", () => {
+    for (const name of ["claude.exe", "2.1.319"]) {
+      const { record, started } = sampleAs(name, bound)
+      started.stop()
+      expect(record.summary.lastProgram).toBe("claude")
+    }
+    const shell = sampleAs("-bash", bound)
+    shell.started.stop()
+    expect(shell.record.summary.lastProgram).toBe("-bash")
   })
 
   it("stays node where argv tells another script, though an agent is bound", () => {
@@ -329,6 +358,7 @@ describe("whether a shell may be running a program", () => {
 describe("the program a foreground process is", () => {
   it("is its name, and for node the agent whose script it runs", () => {
     expect(programOf({ name: "claude", argv: null })).toBe("claude")
+    expect(programOf({ name: "claude.exe", argv: null })).toBe("claude")
     expect(programOf({ name: "bash", argv: ["bash"] })).toBe("bash")
     expect(
       programOf({
