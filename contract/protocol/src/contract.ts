@@ -185,7 +185,8 @@ export const contract = {
             // taken it, handle. The row goes once the restore is confirmed. A row the runner
             // doesn't have is NOT_FOUND; one that is `restoring` or `gone`, or whose agent
             // isn't connected, a CONFLICT. It goes with none of the above but `sessionId`,
-            // `cols` and `rows`.
+            // `cols` and `rows`. A create repeated with the same new id answers with the
+            // terminal the first made, never CONFLICT, so a CONFLICT is always a refusal.
             closed: id.optional(),
           })
           .refine(({ command, restore, resume }) => !command || (!restore && !resume), {

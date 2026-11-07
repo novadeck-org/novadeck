@@ -1466,7 +1466,7 @@ describe("workspace metadata", () => {
       // is added for it. Then record the new digest here.
       expect({ version, digest }).toEqual({
         version: 11,
-        digest: "c44183701a9344e6c73977cc4e768830d55bdd5536021c45fc9308eb2ab76dc7",
+        digest: "4071bef929744b43b506f4b596ce26722036246b351abae31f391b009f1f192b",
       })
     } finally {
       database.close()
@@ -1744,6 +1744,11 @@ describe("a terminal's ran flag", () => {
     expect(workspace.markRan("a")).toBe(true)
     workspace.saveTerminal({ ...numbered("a", "moth"), cwd: "/elsewhere" })
     expect(workspace.terminalRan("a")).toBe(true)
+    // The runner's flag is what is written, and a save never lowers it.
+    workspace.saveTerminal({ ...numbered("b", "owl"), ran: true })
+    expect(workspace.terminalRan("b")).toBe(true)
+    workspace.saveTerminal({ ...numbered("b", "owl"), ran: false })
+    expect(workspace.terminalRan("b")).toBe(true)
     expect(workspace.markRan("nope")).toBe(false)
     expect(workspace.terminalRan("nope")).toBe(false)
   })
@@ -2089,6 +2094,16 @@ describe("saved terminals", () => {
             transcript: "SECRET_CLOSED_TRANSCRIPT",
           })
           workspace.removeClosed(id)
+        },
+      ],
+      [
+        "a replaced closed terminal",
+        "SECRET_REPLACED_TRANSCRIPT",
+        () => {
+          const id = randomUUID()
+          const row = { ...closedRecord(id), projectId: project.id, sessionId: session.id }
+          workspace.insertClosed({ ...row, transcript: "SECRET_REPLACED_TRANSCRIPT" })
+          workspace.insertClosed({ ...row, transcript: null })
         },
       ],
       [

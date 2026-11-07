@@ -973,7 +973,9 @@ export const runnerBackend = (
             })
           },
           {
-            done: ["CONFLICT"],
+            // A refused restore must fail visibly; the runner answers a retried create of
+            // the same id with the terminal it has, not CONFLICT.
+            done: launch?.closed === undefined ? ["CONFLICT"] : [],
             stillWanted,
             cancelled: () => entry.closed,
           },

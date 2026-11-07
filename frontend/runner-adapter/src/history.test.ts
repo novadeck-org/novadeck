@@ -83,6 +83,35 @@ describe("History, as the runner reports it", () => {
   })
 })
 
+describe("a project's rows read while the stream speaks", () => {
+  it("keeps what the stream said meanwhile over the older answer", async () => {
+    let answer: (rows: ClosedTerminal[]) => void = () => {}
+    const stream = channel<HistoryWatchItem>()
+    const { history, follow } = createRunnerHistory({
+      list: () => new Promise((resolve) => (answer = resolve)),
+      watch: () => stream.iterator,
+    })
+    follow()
+    const ids = () => history.state.getSnapshot().rows.map((row) => row.id)
+    stream.push({ type: "reset" })
+    stream.push({ type: "changed", closed: closed(1) })
+    stream.push({ type: "changed", closed: closed(2) })
+    stream.push({ type: "synced" })
+    await vi.waitFor(() => expect(ids()).toEqual([id(2), id(1)]))
+    const listed = history.list("p")
+    // While the call is out: row 2 is restored, row 1 changes, row 3 closes.
+    stream.push({ type: "removed", id: id(2), projectId: "p" })
+    stream.push({ type: "changed", closed: closed(1, { availability: { state: "restoring" } }) })
+    stream.push({ type: "changed", closed: closed(3) })
+    await vi.waitFor(() => expect(ids()).toEqual([id(3), id(1)]))
+    // The answer was read before any of that.
+    answer([closed(2), closed(1)])
+    expect((await listed).map((row) => row.id)).toEqual([id(3), id(1)])
+    expect(ids()).toEqual([id(3), id(1)])
+    expect(history.state.getSnapshot().rows[1]?.availability).toEqual({ state: "restoring" })
+  })
+})
+
 describe("restoring a closed terminal", () => {
   it("asks the runner to create it from the row alone, naming no directory or title", async () => {
     const app = scripted({ shown: [] })

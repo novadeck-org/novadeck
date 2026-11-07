@@ -283,9 +283,6 @@ const schema = `
     cwd TEXT NOT NULL,
     -- The latest session each agent reported, as JSON, without its turn.
     agent_reports TEXT NOT NULL,
-    -- A plain terminal's screen and scrollback, serialized; the only heavy column, which
-    -- listing never reads.
-    transcript TEXT,
     -- The layers of its title, as terminals keeps them.
     person_title TEXT,
     opener_title TEXT,
@@ -297,7 +294,10 @@ const schema = `
     interruptions TEXT,
     closed_at REAL NOT NULL,
     -- The handle of the agent that closed it; null when the person did.
-    closed_by TEXT
+    closed_by TEXT,
+    -- A plain terminal's screen and scrollback, serialized; the only heavy column, which
+    -- listing never reads. Last, so reading the others never walks its overflow pages.
+    transcript TEXT
   ) STRICT;
   CREATE INDEX closed_terminals_project ON closed_terminals(project_id, closed_at);
 `
@@ -329,7 +329,6 @@ const migrations: Readonly<Record<number, Step>> = {
       agent TEXT,
       cwd TEXT NOT NULL,
       agent_reports TEXT NOT NULL,
-      transcript TEXT,
       person_title TEXT,
       opener_title TEXT,
       murmur_title TEXT,
@@ -339,7 +338,8 @@ const migrations: Readonly<Record<number, Step>> = {
       last_program TEXT,
       interruptions TEXT,
       closed_at REAL NOT NULL,
-      closed_by TEXT
+      closed_by TEXT,
+      transcript TEXT
     ) STRICT;
     CREATE INDEX closed_terminals_project ON closed_terminals(project_id, closed_at);
   `,
@@ -1547,8 +1547,12 @@ export class WorkspaceStore
     )
   }
 
-  /** Saves what restores the terminal; `transcript` is left as it is when omitted. */
-  saveTerminal(terminal: TerminalToSave): void {
+  /**
+   * Saves what restores the terminal; `transcript` is left as it is when omitted. `ran` is the
+   * runner's own flag, written on insert and never lowered from 1 by a save.
+   */
+  saveTerminal(terminal: TerminalToSave & { readonly ran?: boolean }): void {
+    const ran = terminal.ran ? 1 : 0
     const agents = JSON.stringify(terminal.agents)
     // Strictly increasing, so saves in the same millisecond still sort by recency.
     const now = Math.max(Date.now(), this.lastSave + 0.001)
@@ -1571,7 +1575,7 @@ export class WorkspaceStore
         VALUES (${terminal.id}, ${terminal.sessionId}, ${terminal.cwd}, ${agents},
           ${terminal.promptedAt}, ${now}, ${handle}, ${person}, ${openerTitle},
           ${murmurTitle}, ${ownTitle}, ${summary}, ${openedBy}, ${ledBy}, ${command},
-          ${lastProgram}, ${work}, ${interruptions}, 0)
+          ${lastProgram}, ${work}, ${interruptions}, ${ran})
         ON CONFLICT (id) DO UPDATE SET session_id = excluded.session_id, cwd = excluded.cwd,
           agent_reports = excluded.agent_reports, prompted_at = excluded.prompted_at,
           saved_at = excluded.saved_at, handle = excluded.handle,
@@ -1580,7 +1584,7 @@ export class WorkspaceStore
           summary = excluded.summary, opened_by = excluded.opened_by,
           led_by = excluded.led_by, command = excluded.command,
           last_program = excluded.last_program, work = excluded.work,
-          interruptions = excluded.interruptions
+          interruptions = excluded.interruptions, ran = max(ran, excluded.ran)
       `
     else
       void this.queries.run`
@@ -1590,7 +1594,7 @@ export class WorkspaceStore
         VALUES (${terminal.id}, ${terminal.sessionId}, ${terminal.cwd}, ${agents},
           ${terminal.promptedAt}, ${terminal.transcript}, ${now}, ${handle}, ${person},
           ${openerTitle}, ${murmurTitle}, ${ownTitle}, ${summary}, ${openedBy}, ${ledBy},
-          ${command}, ${lastProgram}, ${work}, ${interruptions}, 0)
+          ${command}, ${lastProgram}, ${work}, ${interruptions}, ${ran})
         ON CONFLICT (id) DO UPDATE SET session_id = excluded.session_id, cwd = excluded.cwd,
           agent_reports = excluded.agent_reports, prompted_at = excluded.prompted_at,
           transcript = excluded.transcript, saved_at = excluded.saved_at,
@@ -1600,7 +1604,7 @@ export class WorkspaceStore
           summary = excluded.summary,
           opened_by = excluded.opened_by, led_by = excluded.led_by, command = excluded.command,
           last_program = excluded.last_program, work = excluded.work,
-          interruptions = excluded.interruptions
+          interruptions = excluded.interruptions, ran = max(ran, excluded.ran)
       `
   }
 
@@ -1836,9 +1840,10 @@ export class WorkspaceStore
   insertClosed(record: ClosedRecord): void {
     const { naming } = record
     const interruptions = record.interruptions.length ? JSON.stringify(record.interruptions) : null
-    void referencing(
-      "NOT_FOUND",
-      () => this.queries.run`
+    void referencing("NOT_FOUND", () =>
+      // A row replaced leaves its transcript in free pages and the log.
+      this.forget(
+        () => this.queries.run`
         INSERT OR REPLACE INTO closed_terminals (id, project_id, session_id, handle, agent, cwd,
           agent_reports, transcript, person_title, opener_title, murmur_title, own_title, summary,
           command, last_program, interruptions, closed_at, closed_by)
@@ -1847,6 +1852,7 @@ export class WorkspaceStore
           ${naming.person}, ${naming.opener?.title ?? null}, ${naming.murmur?.title ?? null},
           ${naming.own?.title ?? null}, ${naming.summary}, ${record.command},
           ${record.lastProgram}, ${interruptions}, ${record.closedAt}, ${record.closedBy})`,
+      ),
     )
   }
 
