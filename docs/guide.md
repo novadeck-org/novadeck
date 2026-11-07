@@ -396,6 +396,51 @@ windows undocked from them, and its agents' messages, so it stays gone after a r
 answers or the app quits; quitting waits briefly for it. A reload before the runner
 answers leaves the project there, and it comes back.
 
+## History
+
+Closing a terminal doesn't end it for good. It moves to **History**, a panel on the
+sidebar's rail after Sessions, with one list per project, newest first. A terminal comes
+back for 30 days; after that its row goes by itself. There is no button to delete one.
+Where a backend keeps no History, as in a browser demo without it, the panel isn't there
+and closing is final.
+
+A terminal nothing was ever run in leaves no row, and neither does one whose project you
+remove. Every way of closing counts: your own, an agent closing another's, a terminal
+that ended by itself once you close it.
+
+A row is one line: an icon, the title, and when it closed, the time for today and the
+date for an earlier day. A plain terminal adds the folder it ran in after its title.
+Under the pointer, or with the keyboard on it, the date gives its place to a restore
+icon, and the tooltip has the full date, a summary, and who closed it where an agent
+did. The search box matches a title, a handle, a folder or a summary, and the count
+beside the title reads matches over total. A row found only by its summary shows it,
+with the match lit. With nothing closed there is no search box.
+
+Clicking a row restores it: a new terminal in the session on screen, selected, in the
+folder it ran in. A plain terminal gets a fresh shell with its saved output above; an
+agent resumes its conversation. The row stays, showing a spinner, until the restore is
+confirmed, and leaves then. If the resume fails, the terminal stays as a plain shell
+with a note and the row stays. A restored terminal comes back on its own, with no lead,
+no opener, no taskbar items, messages or asks, and keeps its handle unless another
+terminal took it. Closing it adds a new row with a new date.
+
+A row that can't be restored is hatched and says why in its tooltip, and to assistive
+technology:
+
+- **Unavailable.** The agent deleted the conversation, or the folder is gone.
+- **Not connected.** The agent isn't connected. The plug icon opens Preferences, where
+  the agents' switches are; it isn't offered for an agent that isn't installed or while
+  its connection changes.
+- **An @handle.** The conversation is open in another terminal; clicking goes there.
+
+### Closing asks first
+
+Novadeck asks before closing a terminal only when closing loses something you can't get
+back from History: a program is running in its shell (on Windows too), its agent is in
+the middle of a turn, or it can't be restored, such as a running agent with no session yet
+or one that isn't connected. An agent waiting at its prompt that can be restored closes
+without asking.
+
 ## Restoring terminals
 
 After a reboot, Novadeck opens each terminal where it was: in the directory its shell
@@ -443,8 +488,10 @@ agent.
   a sentence after what else it says: "Led by @moth", "Leads @fox and @owl" (by handle,
   or by name where one has none; past four, the first three and how many more).
   Without a connected agent
-  there is no resume, even for sessions it reported before: disconnecting forgets them,
-  and the terminal comes back as a plain shell with its transcript.
+  there is no resume for an open terminal, even for sessions it reported before:
+  disconnecting forgets them, and the terminal comes back as a plain shell with its
+  transcript. A terminal you closed keeps its session in History, and restoring it
+  needs the agent connected again.
 - **Resuming.** When a terminal lost a connected agent, its fresh shell comes back
   with that session already running: the runner runs `claude --resume <id>`,
   `codex resume <id>` or `agy --conversation <id>` as the shell starts, after your rc

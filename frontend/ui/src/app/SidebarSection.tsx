@@ -1,10 +1,11 @@
 import { allTeams, sameTeams } from "@novadeck/core/derivations"
+import type { ClosedTerminal, HistoryState } from "@novadeck/core/history"
 import { orderedTiles } from "@novadeck/core/roster"
 import type { SourceState } from "@novadeck/core/source"
 import { activeProject } from "@novadeck/core/state"
 import { createStore } from "@novadeck/core/store"
 import type { WorkspaceSession } from "@novadeck/core/types"
-import { memo, useCallback, useMemo } from "react"
+import { memo, useCallback, useMemo, useSyncExternalStore } from "react"
 
 import { useDesktop } from "../shell/desktop"
 import { sidebarVisible } from "../shell/shell-state"
@@ -13,7 +14,7 @@ import { latestTurnEnd } from "../sidebar/source-turns"
 import { keepFoldsTogether } from "../terminals/team-fold"
 import { useUiState, useWorkspaceServices, useWorkspaceState } from "./controller/context"
 import { useStoreSelector } from "./controller/useStoreSelector"
-import { sourceShown } from "./routing"
+import { historyShown, sourceShown } from "./routing"
 import { currentState, currentTarget, sameItems, sameTarget } from "./selectors"
 import { foldsOf } from "./team-fold"
 import { renderTab } from "./WorkspaceTab"
@@ -36,6 +37,14 @@ const sameHandles = (a: ReadonlyMap<string, string>, b: ReadonlyMap<string, stri
 
 // What a backend without a source reads in its place; its panel isn't drawn.
 const noSource = createStore<SourceState>({ projects: {} })
+
+// What a backend without History reads in its place; its panel isn't drawn.
+const noHistory = createStore<HistoryState>({ rows: [] })
+const noAgents: readonly never[] = []
+const always = (): (() => void) => () => {}
+
+const sameRows = (a: readonly ClosedTerminal[], b: readonly ClosedTerminal[]): boolean =>
+  a.length === b.length && a.every((row, index) => Object.is(row, b[index]))
 
 // The sidebar wired to the workspace: terminal tabs and workspace sessions.
 export const SidebarSection = memo((): React.JSX.Element => {
@@ -108,6 +117,32 @@ export const SidebarSection = memo((): React.JSX.Element => {
         : undefined,
     [sourceFeed, sourceProject, list, turn, commands, selectedHandle, roster, squads],
   )
+  // The History panel shows where the backend keeps closed terminals; see `historyShown`.
+  const historyFeed = historyShown(backend) ? backend.history : undefined
+  const historyRows = useStoreSelector(
+    historyFeed?.state ?? noHistory,
+    (state) => state.rows.filter((row) => row.projectId === projectId),
+    sameRows,
+  )
+  const connections = useSyncExternalStore(
+    backend.agents?.state.subscribe ?? always,
+    () => backend.agents?.state.getSnapshot() ?? noAgents,
+  )
+  const readHistory = useCallback(() => historyFeed!.list(projectId), [historyFeed, projectId])
+  const history = useMemo(
+    () =>
+      historyFeed
+        ? {
+            rows: historyRows,
+            list: readHistory,
+            connections: backend.agents ? connections : undefined,
+            onRestore: commands.restoreClosed,
+            onReveal: commands.revealHandle,
+            onConnect: commands.openAgentSettings,
+          }
+        : undefined,
+    [historyFeed, historyRows, readHistory, backend.agents, connections, commands],
+  )
   const sidebarPanel = useUiState((state) => state.location.route.panel)
   const visible = useUiState((state) => sidebarVisible(state.shell, desktop))
   return (
@@ -120,6 +155,7 @@ export const SidebarSection = memo((): React.JSX.Element => {
       sidebarPanel={sidebarPanel}
       sidebarVisible={visible}
       source={source}
+      history={history}
       onSessionSelect={switchSession}
       onFresh={startFresh}
       onHide={hideSidebar}

@@ -303,6 +303,7 @@ export const WorkspaceOverlays = memo((): React.JSX.Element => {
       />
       <CloseTerminalDialog
         terminal={closingTerminal}
+        keepsHistory={backend.history !== undefined}
         onConfirm={confirmClose}
         onCancel={cancelClose}
         returnFocus={(id) =>

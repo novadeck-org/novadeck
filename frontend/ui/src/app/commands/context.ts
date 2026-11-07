@@ -60,6 +60,8 @@ export type CommandContext = {
   readonly resetTitle?: Backend["resetTitle"] | undefined
   // The agents' conversations, where the backend reads them, which the chat sends to.
   readonly conversations?: Backend["conversations"] | undefined
+  // Where the backend keeps closed terminals, which closing adds to and restoring takes from.
+  readonly history?: Backend["history"] | undefined
   // Where the backend's companions come from.
   readonly companions?: Backend["companions"] | undefined
   // The item store, where the backend has companions.

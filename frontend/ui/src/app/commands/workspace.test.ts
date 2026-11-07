@@ -2,6 +2,7 @@ import type { TerminalRequest } from "@novadeck/core/port"
 import { orderedTiles } from "@novadeck/core/roster"
 import { createStore } from "@novadeck/core/store"
 import { appearance, itemFixture, terminalFixture, workspaceFixture } from "@novadeck/core/testing"
+import type { TerminalMetadata } from "@novadeck/core/types"
 import { afterEach, vi } from "vitest"
 
 import { context, describe, expect, it } from "../../test"
@@ -311,6 +312,97 @@ describe("workspace commands", () => {
       app.commands.close("01")
       expect(app.ui.getSnapshot().closing).toBeNull()
       expect(app.state().roster.terminals.map((item) => item.id)).not.toContain("01")
+    })
+  })
+
+  context("when the backend keeps closed terminals", () => {
+    const history = { state: createStore({ rows: [] }), list: () => Promise.resolve([]) }
+    // The first terminal, with what the runner says of it.
+    const asBackendSays = (parts: Partial<TerminalMetadata>) => {
+      const workspace = workspaceFixture()
+      const state = workspace.projects[0]!.history[0]!.state
+      state.roster.terminals[0] = { ...state.roster.terminals[0]!, ...parts } as TerminalMetadata
+      return openCommands({ workspace, history })
+    }
+
+    it("asks while a program runs in the shell, which Windows says only as busy", () => {
+      const app = asBackendSays({ state: "idle", busy: true })
+      app.commands.close("01")
+      expect(app.ui.getSnapshot().closing).toMatchObject({ id: "01" })
+    })
+
+    it("asks while its agent is mid-turn, though it could be restored", () => {
+      const app = asBackendSays({ state: "running", agent: { working: true }, restorable: true })
+      app.commands.close("01")
+      expect(app.ui.getSnapshot().closing).toMatchObject({ id: "01" })
+    })
+
+    it("asks about a running agent that can't be restored, as one with no session yet", () => {
+      const app = asBackendSays({ state: "running", agent: { working: false } })
+      app.commands.close("01")
+      expect(app.ui.getSnapshot().closing).toMatchObject({ id: "01" })
+    })
+
+    it("closes an idle agent that can be restored without asking", () => {
+      const app = asBackendSays({
+        state: "running",
+        process: "claude",
+        agent: { working: false },
+        restorable: true,
+      })
+      app.commands.close("01")
+      expect(app.ui.getSnapshot().closing).toBeNull()
+      expect(app.state().roster.terminals.map((item) => item.id)).not.toContain("01")
+    })
+
+    it("does not take an agent that ran and left for one that runs", () => {
+      const app = asBackendSays({ state: "idle", agentRan: true })
+      app.commands.close("01")
+      expect(app.ui.getSnapshot().closing).toBeNull()
+    })
+
+    it("restores a row as a new terminal in the session on screen, selected, in its folder", () => {
+      const app = openCommands({
+        history,
+        url: "/projects/project/sessions/initial/grid?terminal=01&panel=history",
+      })
+      const row = {
+        id: "closed-7",
+        projectId: "project",
+        title: "Coupon codes",
+        summary: null,
+        handle: "wren",
+        agent: "claude",
+        program: "claude",
+        cwd: "/work/storefront",
+        closedAt: 1,
+        closedBy: null,
+        availability: { state: "ready" },
+      } as const
+      app.commands.restoreClosed(row)
+      expect(app.allocated.at(-1)).toEqual({
+        target: { projectId: "project", workspaceSessionId: "initial" },
+        directory: "/work/storefront",
+        closed: "closed-7",
+      })
+      // It leaves the title to the backend, and the sidebar on the panel it was on.
+      expect(app.allocated.at(-1)).not.toHaveProperty("title")
+      expect(app.state().selected).toBe(app.state().roster.terminals.at(-1)!.id)
+      expect(app.state().selected).toMatch(/^new-/)
+      expect(app.ui.getSnapshot().location.route.panel).toBe("history")
+    })
+
+    it("brings the terminal that holds a conversation into view by its handle", () => {
+      const workspace = twoSessions()
+      const held = workspace.projects[0]!.history[1]!.state.roster.terminals.at(-1)!
+      held.handle = "kite"
+      const app = openCommands({ workspace, history })
+      app.commands.revealHandle("kite")
+      expect(app.ui.getSnapshot().location.route).toMatchObject({
+        sessionId: "other",
+        terminal: held.id,
+      })
+      expect(() => app.commands.revealHandle("nobody")).not.toThrow()
     })
   })
 

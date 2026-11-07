@@ -1,3 +1,6 @@
+import type { AgentName } from "@novadeck/core/harnesses"
+import type { ClosedTerminal } from "@novadeck/core/history"
+import type { AgentConnection } from "@novadeck/core/port"
 import type { SourceListing, SourceProject } from "@novadeck/core/source"
 import type { SidebarPanel as PanelId, Tile, WorkspaceSession } from "@novadeck/core/types"
 import { Plus } from "lucide-react"
@@ -5,9 +8,11 @@ import type { ComponentProps } from "react"
 
 import { HeldPill, InboxClear, InboxCount, InboxList, InboxMarkAll } from "../inbox/InboxList"
 import { shortcutBindings } from "../interaction/shortcuts"
+import { HistoryPanel } from "../sidebar/HistoryPanel"
 import { SessionsPanel } from "../sidebar/SessionsPanel"
 import { SidebarPanel, sidebarCreateClasses } from "../sidebar/SidebarPanel"
 import { SourcePanel } from "../sidebar/SourcePanel"
+import { programIcon } from "../terminals/processes/profiles"
 import { TerminalTabs } from "../terminals/TerminalTabs"
 import { panelLabels } from "./panels"
 
@@ -34,11 +39,30 @@ type Props = Omit<ComponentProps<typeof TerminalTabs>, "terminals"> & {
         squads: readonly (readonly string[])[]
       }
     | undefined
+  // Where the backend keeps closed terminals: this project's rows, how to read them afresh
+  // (stable, as it starts a read), the agents it can connect, and what a row's click does.
+  // Left out, there is no History panel.
+  history:
+    | {
+        rows: readonly ClosedTerminal[]
+        list: () => Promise<unknown>
+        connections: readonly AgentConnection[] | undefined
+        onRestore: (row: ClosedTerminal) => void
+        onReveal: (handle: string) => void
+        onConnect: (agent: AgentName) => void
+      }
+    | undefined
   onSessionSelect: (id: string) => void
   onFresh: () => void
   onHide: () => void
   onCreate: () => void
 }
+// A closed terminal's icon: its agent's, or its last program's, or a plain terminal's.
+const historyIcon = (row: ClosedTerminal): React.JSX.Element => {
+  const Icon = programIcon(row.agent ?? row.program ?? "")
+  return <Icon size={14} strokeWidth={1.5} />
+}
+
 export const WorkspaceSidebar = ({
   projectId,
   workspaceSessionId,
@@ -48,6 +72,7 @@ export const WorkspaceSidebar = ({
   sidebarPanel,
   sidebarVisible,
   source,
+  history,
   onSessionSelect,
   onFresh,
   onHide,
@@ -101,6 +126,15 @@ export const WorkspaceSidebar = ({
         onFresh={onFresh}
       />
     </SidebarPanel>
+    {history && (
+      <HistoryPanel
+        key={projectId}
+        {...history}
+        iconOf={historyIcon}
+        active={sidebarPanel === "history"}
+        onClose={onHide}
+      />
+    )}
     <SidebarPanel
       id="terminals-panel"
       title="Terminals"
