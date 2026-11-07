@@ -3,9 +3,11 @@
    it.
 
    Hooks on `.terminal-tab`: data-terminal-phase="idle" | "done" | "running" | "waiting" |
-   "paused" | "starting" | "unheard" | "ended" (what the agent does: the glyph before the
+   "paused" | "starting" | "sleeping" | "waking" | "unheard" | "ended" (what the agent does: the glyph before the
    program), data-terminal-need="unblock" | "ask" (what it needs of the person: the mark
    right after the program; a dialog its agent shows counts at once),
+   data-terminal-sleeping="true" (its agent has no process, so the name and icon dim; the phase
+   still says done or sleeping),
    data-terminal-snoozed="true" (what it needs is snoozed in the Inbox: a bell-off for the mark,
    its `.terminal-tab-need` data-need="snoozed"),
    data-terminal-unread="true" (an idle agent whose reply the person hasn't read: its program
@@ -154,6 +156,7 @@
 .terminal-glyph,
 .terminal-tab-process,
 .terminal-tab-starting,
+.terminal-tab-waking,
 .terminal-tab-subagents,
 .terminal-tab-branches,
 .team-fold-rows {
@@ -225,6 +228,50 @@
 }
 .terminal-tab[data-terminal-phase="ended"] .terminal-glyph::before {
   content: "×";
+}
+/* Sleeping agents. Asleep dims the name and icon; the slot before the program holds a muted
+   `z` unless a done or failed mark stands there; `?` and `!` stay after the program. Nothing
+   moves. Waking: a block cursor in ink, hard on and off, and `waking…` in the program's place
+   (still under reduced motion). */
+.terminal-tab[data-terminal-phase="sleeping"] .terminal-glyph {
+  color: var(--tab-sleeping-fg, var(--color-muted));
+}
+.terminal-tab[data-terminal-phase="sleeping"] .terminal-glyph::before {
+  content: "z";
+}
+.terminal-tab[data-terminal-sleeping] .sidebar-item-select strong {
+  color: var(--tab-sleeping-name-fg, color-mix(in srgb, var(--color-ink) 62%, transparent));
+  font-weight: 600;
+}
+.terminal-tab[data-terminal-sleeping] .sidebar-item-icon {
+  color: var(--tab-sleeping-fg, var(--color-muted));
+  opacity: 0.7;
+}
+.terminal-tab[data-terminal-sleeping]:not([data-terminal-unread])
+  .sidebar-item-select
+  .terminal-tab-process {
+  color: var(--tab-sleeping-fg, var(--color-muted));
+}
+.terminal-tab[data-terminal-phase="waking"] .terminal-glyph {
+  color: var(--color-ink);
+}
+.terminal-tab[data-terminal-phase="waking"] .terminal-glyph::before {
+  content: "█";
+  animation: wake-blink 1.06s steps(1) infinite;
+}
+@media (prefers-reduced-motion: reduce) {
+  .terminal-tab[data-terminal-phase="waking"] .terminal-glyph::before {
+    animation: none;
+  }
+}
+.terminal-tab-waking {
+  color: var(--color-ink);
+  font-family: var(--tab-process-font, var(--font-glyphs));
+}
+@keyframes wake-blink {
+  50% {
+    opacity: 0;
+  }
 }
 /* An agent Novadeck can't hear from: a hollow mark, as nothing tells whether it works. */
 .terminal-tab[data-terminal-phase="unheard"] .terminal-glyph {
@@ -602,6 +649,27 @@
 .team-fold-mark[data-phase="paused"],
 .team-fold-mark[data-phase="waiting"] {
   color: var(--tab-waiting-fg, var(--color-muted));
+}
+.team-fold-mark[data-phase="sleeping"] {
+  color: var(--tab-sleeping-fg, var(--color-muted));
+}
+.team-fold-mark[data-phase="sleeping"]::before {
+  content: "z";
+}
+.team-fold-row [data-sleeping] {
+  color: var(--tab-sleeping-name-fg, color-mix(in srgb, var(--color-ink) 62%, transparent));
+}
+.team-fold-mark[data-phase="waking"] {
+  color: var(--color-ink);
+}
+.team-fold-mark[data-phase="waking"]::before {
+  content: "█";
+  animation: wake-blink 1.06s steps(1) infinite;
+}
+@media (prefers-reduced-motion: reduce) {
+  .team-fold-mark[data-phase="waking"]::before {
+    animation: none;
+  }
 }
 .team-fold-mark[data-phase="starting"]::before {
   content: "·";

@@ -10,7 +10,7 @@ import { terminalFixture } from "@novadeck/core/testing"
 import type { TerminalMetadata, ViewMode } from "@novadeck/core/types"
 import { render } from "@novadeck/test-kit/render"
 import { act, createElement, type ReactNode } from "react"
-import { vi, type Mock } from "vitest"
+import { afterEach, vi, type Mock } from "vitest"
 
 import { context, describe, expect, it } from "../test"
 import { MountedTerminal } from "./MountedTerminal"
@@ -68,6 +68,7 @@ type Options = {
   readonly focusInput?: boolean
   readonly onInputFocused?: () => void
   readonly onScreen?: boolean
+  readonly legible?: boolean
   readonly terminalKey?: TerminalKey
   readonly renderWindow?: (content: ReactNode) => ReactNode
 }
@@ -89,6 +90,7 @@ const mountedTerminal = (mountTerminal: MountTerminal, options: Options = {}) =>
     focusInput: options.focusInput ?? false,
     onInputFocused: options.onInputFocused ?? onInputFocused,
     onScreen: options.onScreen ?? true,
+    legible: options.legible ?? true,
     renderWindow: options.renderWindow ?? bare,
   })
 
@@ -383,5 +385,81 @@ describe("a terminal drawn by a backend's mount", () => {
       act(() => button.click())
       expect(mounts[0]!.restart).toHaveBeenCalledTimes(1)
     })
+  })
+})
+
+// What an observer is told, should the page have one: jsdom has none.
+class FakeObserver {
+  static all: FakeObserver[] = []
+  constructor(private readonly report: (entries: Partial<IntersectionObserverEntry>[]) => void) {
+    FakeObserver.all.push(this)
+  }
+  observe(): void {}
+  unobserve(): void {}
+  disconnect(): void {
+    FakeObserver.all = FakeObserver.all.filter((each) => each !== this)
+  }
+  see(ratio: number): void {
+    this.report([{ isIntersecting: ratio > 0, intersectionRatio: ratio }])
+  }
+}
+
+describe("a sleeping agent's terminal", () => {
+  const sleeper = (): TerminalMetadata => ({
+    ...terminalFixture(1, "~"),
+    state: "sleeping",
+    agent: "claude",
+  })
+  const sees = () => {
+    vi.stubGlobal("IntersectionObserver", FakeObserver)
+    FakeObserver.all = []
+  }
+  afterEach(() => vi.unstubAllGlobals())
+
+  it("is seen in Focus while it is the one displayed", () => {
+    const { created, mounts, change } = show({ terminal: sleeper(), view: "focus" })
+    expect(created[0]!.props).toMatchObject({ status: "sleeping", seen: true })
+    change({ onScreen: false })
+    expect(mounts[0]!.update).toHaveBeenLastCalledWith(expect.not.objectContaining({ seen: true }))
+  })
+
+  it("is seen in Grid only while a quarter of its tile is in sight", () => {
+    sees()
+    const { created, mounts } = show({ terminal: sleeper(), view: "grid" })
+    expect(created[0]!.props).not.toHaveProperty("seen")
+    act(() => FakeObserver.all[0]!.see(0.2))
+    expect(mounts[0]!.update).not.toHaveBeenCalledWith(expect.objectContaining({ seen: true }))
+    act(() => FakeObserver.all[0]!.see(0.3))
+    expect(mounts[0]!.update).toHaveBeenLastCalledWith(expect.objectContaining({ seen: true }))
+    act(() => FakeObserver.all[0]!.see(0))
+    expect(mounts[0]!.update).toHaveBeenLastCalledWith(expect.not.objectContaining({ seen: true }))
+  })
+
+  it("is not seen in Canvas zoomed out too far to read, though in sight", () => {
+    sees()
+    const { mounts, change } = show({ terminal: sleeper(), view: "canvas", legible: false })
+    act(() => FakeObserver.all[0]!.see(1))
+    expect(mounts[0]!.update).not.toHaveBeenCalledWith(expect.objectContaining({ seen: true }))
+    change({ legible: true })
+    expect(mounts[0]!.update).toHaveBeenLastCalledWith(expect.objectContaining({ seen: true }))
+  })
+
+  it("watches nothing for a terminal that runs", () => {
+    sees()
+    const { created } = show({ view: "grid" })
+    expect(FakeObserver.all).toHaveLength(0)
+    expect(created[0]!.props).not.toHaveProperty("seen")
+  })
+
+  it("stands a bare z in its screen and says nothing of starting", () => {
+    const { container } = show({ terminal: sleeper() })
+    expect(container.querySelector(".wake-screen")?.textContent).toBe("z")
+  })
+
+  it("says it is waking, naming the agent, once its shell starts to resume it", () => {
+    const { container } = show({
+      terminal: { ...terminalFixture(1, "~"), state: "starting", restoredProcess: "codex" },
+    })
+    expect(container.querySelector(".wake-screen")?.textContent).toBe("waking codex… █")
   })
 })

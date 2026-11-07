@@ -2,7 +2,8 @@
    the content area the backends draw into.
 
    Hooks: data-terminal-phase="idle" | "done" | "running" | "waiting" | "paused" |
-   "starting" | "unheard" | "ended" (what the agent does), data-terminal-need="unblock" |
+   "starting" | "sleeping" | "waking" | "unheard" | "ended" (what the agent does),
+   data-terminal-sleeping="true" (no process: the title and icon dim), data-terminal-need="unblock" |
    "ask" (what it needs of the person; a dialog its agent shows counts at once),
    data-terminal-snoozed="true" (what it needs is snoozed in the Inbox),
    data-terminal-failed="true" (done on an error) and data-new="true" on `.terminal-window`; `.terminal-focused` (Focus) and
@@ -431,6 +432,26 @@
   border-top-color: var(--window-phase-starting-border-color, var(--color-muted));
   animation: terminal-pulse 1.2s ease-in-out infinite;
 }
+/* Sleeping agents: a still dotted line; waking, a dotted line in the strong colour that blinks
+   hard on and off (still under reduced motion). A done, failed or needing window keeps its
+   own line. */
+.terminal-window[data-terminal-phase="sleeping"] .terminal-heading::after {
+  border-top-style: dotted;
+  border-top-color: var(--window-phase-sleeping-border-color, var(--color-line-strong));
+}
+.terminal-window[data-terminal-phase="waking"] .terminal-heading::after {
+  border-top-style: dotted;
+  border-top-color: var(--window-phase-waking-border-color, var(--color-strong));
+  animation: wake-blink 1.06s steps(1) infinite;
+}
+.terminal-window[data-terminal-sleeping] .terminal-title-text,
+.terminal-window[data-terminal-sleeping] .terminal-title-text * {
+  color: var(--tab-sleeping-name-fg, color-mix(in srgb, var(--color-ink) 62%, transparent));
+}
+.terminal-window[data-terminal-sleeping] .terminal-switch svg {
+  color: var(--tab-sleeping-fg, var(--color-muted));
+  opacity: 0.7;
+}
 .terminal-window[data-terminal-phase="ended"] .terminal-heading::after {
   border-top-style: dashed;
   border-top-color: var(--window-phase-ended-border-color, var(--color-strong));
@@ -462,6 +483,8 @@
     [data-terminal-phase="done"],
     [data-terminal-phase="waiting"],
     [data-terminal-phase="paused"],
+    [data-terminal-phase="sleeping"],
+    [data-terminal-phase="waking"],
     [data-terminal-phase="unheard"]
   )
   .terminal-heading::after {
@@ -561,5 +584,10 @@
   to {
     outline: 2px solid transparent;
     outline-offset: -2px;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .terminal-window[data-terminal-phase="waking"] .terminal-heading::after {
+    animation: none;
   }
 }

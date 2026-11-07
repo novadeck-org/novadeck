@@ -24,6 +24,7 @@ export const WorkspaceFooter = ({
   count,
   running,
   waiting = 0,
+  asleep = 0,
   navigate = false,
   onRetry,
   portable,
@@ -43,6 +44,8 @@ export const WorkspaceFooter = ({
   readonly running: number
   // Agents that ended their turn to wait on something, counted apart from those at work.
   readonly waiting?: number
+  // Agents with a saved session and no process, counted apart from those that run.
+  readonly asleep?: number
   // Offered while the runner keeps crashing: starts the terminals over.
   readonly onRetry?: (() => void) | undefined
   // A portable copy's install entry, with the release it is missing. Quiet: it never tones
@@ -90,6 +93,9 @@ export const WorkspaceFooter = ({
         <span className="footer-running max-[701px]:hidden ml-2 pl-3">{running} running</span>
         {waiting > 0 && (
           <span className="footer-running max-[701px]:hidden ml-2 pl-3">{waiting} waiting</span>
+        )}
+        {asleep > 0 && (
+          <span className="footer-running max-[701px]:hidden ml-2 pl-3">{asleep} asleep</span>
         )}
         {navigate && (
           <span role="status" className="footer-navigate ml-2 flex items-center gap-1.5 pl-3">

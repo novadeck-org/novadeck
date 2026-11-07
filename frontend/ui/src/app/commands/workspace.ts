@@ -502,9 +502,10 @@ export const createWorkspaceCommands = (ctx: CommandContext): WorkspaceCommands 
       const closing = currentState(snapshot).roster.terminals.find(
         (terminal) => terminal.id === terminalId,
       )
-      // Closing ends the shell, so ask first while a program still runs in it; the
-      // confirmation dialog renders from this and answers with confirmClose or cancelClose.
-      if (closing?.state === "running")
+      // Closing ends the shell, so ask first while a program still runs in it, or an agent
+      // sleeps in it with its session saved; the confirmation dialog renders from this and
+      // answers with confirmClose or cancelClose.
+      if (closing?.state === "running" || closing?.state === "sleeping")
         return void ui.update((state) => ({
           ...state,
           closing: { context: currentContext(snapshot), id: terminalId },

@@ -214,7 +214,8 @@ export const TerminalTab = ({
   const age = finished && turnAge(finished)
   useRenderAt(finished ? nextTurnAge(finished) : waits && shell ? nextWaitingChange(shell) : resets)
   // A window runs no program; a project window names its file's folder there instead.
-  const process = shell?.process ?? folder ?? ""
+  // A sleeping agent has no process; its name stands there.
+  const process = (shell?.state === "sleeping" ? shell.agent : shell?.process) ?? folder ?? ""
   const { ref, handleRef, isDragSource } = useSortable({
     id: terminal.id,
     index,
@@ -254,6 +255,9 @@ export const TerminalTab = ({
             />
             {phase === "starting" ? (
               <span className="terminal-tab-starting truncate italic">starting…</span>
+            ) : phase === "waking" ? (
+              // The agent is on its way back; hard-blinking cursor in the glyph's place.
+              <span className="terminal-tab-waking truncate">waking…</span>
             ) : phase === "done" ? (
               // How its turn ended is its glyph's (tabs.css), in words its description's;
               // beside its program, how long ago, set apart by colour alone, as the line
@@ -306,6 +310,7 @@ export const TerminalTab = ({
         onSelect={onSelect}
         data-terminal-tab-id={terminal.id}
         data-terminal-phase={phase}
+        {...(shell?.state === "sleeping" ? { "data-terminal-sleeping": true } : {})}
         {...(phase === "done" && failed ? { "data-terminal-failed": true } : {})}
         {...(need ? { "data-terminal-need": need } : {})}
         {...(snoozed ? { "data-terminal-snoozed": true } : {})}

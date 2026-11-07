@@ -1,17 +1,20 @@
 import { handleText } from "@novadeck/core/terminals/handle"
-import type { TerminalMetadata } from "@novadeck/core/types"
+import type { TerminalMetadata, TerminalStatus } from "@novadeck/core/types"
 import { ConfirmDialog } from "@novadeck/toolkit/ConfirmDialog"
 
 type CloseTerminalDialogProps = {
   // The terminal waiting to close, or null when nothing asks.
-  readonly terminal: Pick<TerminalMetadata, "id" | "name" | "process" | "handle"> | null
+  readonly terminal:
+    | (Pick<TerminalMetadata, "id" | "name" | "process" | "handle"> & TerminalStatus)
+    | null
   readonly onConfirm: () => void
   readonly onCancel: () => void
   // Where focus goes back when the person keeps the terminal.
   readonly returnFocus: (terminalId: string) => HTMLElement | null
 }
 
-// Asks before closing a terminal a program still runs in, since closing ends it.
+// Asks before closing a terminal a program still runs in, or an agent sleeps in, since
+// closing ends it or its saved session.
 // Cancel is focused first, as the safe choice; Escape and a click outside cancel too.
 export const CloseTerminalDialog = ({
   terminal,
@@ -24,7 +27,11 @@ export const CloseTerminalDialog = ({
     title={(shown) =>
       `Close ${shown.handle ? `${handleText(shown.handle)} · ` : ""}“${shown.name}”?`
     }
-    description={(shown) => `${shown.process || "A program"} is still running in it.`}
+    description={(shown) =>
+      shown.state === "sleeping"
+        ? `${shown.agent} is asleep in it, with its session saved.`
+        : `${shown.process || "A program"} is still running in it.`
+    }
     confirmLabel="Close terminal"
     cancelLabel="Cancel"
     onConfirm={onConfirm}
