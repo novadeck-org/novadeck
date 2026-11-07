@@ -144,7 +144,7 @@ export const desktopUpdates = (app: DesktopApp | undefined): Backend["updates"] 
 
 // What is new in the version the app updated to, where the app tells: what crosses the
 // bridge is checked, so the page shows only highlights the contract allows, as plain text.
-// The three calls come together; an app with some of them is taken as having none.
+// The two calls come together; an app with only one of them is taken as having neither.
 export const desktopWhatsNew = (app: DesktopApp | undefined): Backend["whatsNew"] => {
   const read = app?.whatsNew
   const dismiss = app?.dismissWhatsNew

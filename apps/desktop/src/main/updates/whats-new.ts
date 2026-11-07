@@ -198,9 +198,10 @@ const distinct = (items: readonly NoteItem[]): NoteItem[] => {
 }
 
 /**
- * The highlights of `version` and of the releases skipped on the way to it, newest first. A promotion's notes tell every change since the stable release before it, so
- * the notes of a release older than a promotion, with no stable release between, are left out:
- * that promotion tells them better. A stable release whose notes are not a promotion's, as
+ * The highlights of `version` and of the releases skipped on the way to it, newest first. A
+ * promotion's notes tell every change since the stable release before it, so the notes of a
+ * release older than a promotion, with no stable release between, are left out: that
+ * promotion tells them better. A stable release whose notes are not a promotion's, as
  * when writing them failed, still bounds the promotion after it. A highlight two releases
  * share is told once. `from` is the version they are new since, when the launch knows one.
  */
