@@ -422,3 +422,45 @@ describe("a turn the doorbell started", () => {
     expect(sameBlock(before, groupItems([rung])[0]!)).toBe(true)
   })
 })
+
+describe("what a harness says between turns", () => {
+  const mode = (word: string) => item({ role: "note", note: { type: "mode", mode: word } })
+  const notes = (items: readonly ChatItem[]) =>
+    groupItems(items).flatMap((block) => (block.kind === "note" ? [block.text] : []))
+
+  it("is a line where the mode changed, not each time it's said", () => {
+    expect(
+      notes([mode("default"), mode("default"), mode("acceptEdits"), mode("acceptEdits")]),
+    ).toEqual(["auto-accept edits"])
+  })
+
+  it("says nothing of the mode it starts in", () => {
+    expect(notes([mode("plan")])).toEqual([])
+  })
+
+  it("shows a mode it doesn't know as it's named, as a change still", () => {
+    expect(notes([mode("default"), mode("brandNewMode")])).toEqual(["brandNewMode"])
+  })
+
+  it("says a plan went through", () => {
+    expect(notes([item({ role: "note", note: { type: "plan-approved" } })])).toEqual([
+      "plan approved",
+    ])
+  })
+
+  it("gives a compaction its summary", () => {
+    const [block] = groupItems([
+      item({ role: "note", text: "So far", note: { type: "compaction" } }),
+    ])
+    expect(block).toMatchObject({ kind: "compaction", summary: "So far" })
+  })
+
+  it("adds no message to what's around it", () => {
+    const blocks = groupItems([
+      item({ role: "user", text: "mine" }),
+      mode("default"),
+      item({ role: "assistant", text: "said" }),
+    ])
+    expect(blocks.map(({ kind }) => kind)).toEqual(["user", "assistant"])
+  })
+})

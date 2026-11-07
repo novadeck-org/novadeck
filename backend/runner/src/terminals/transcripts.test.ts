@@ -335,7 +335,7 @@ describe("a shape its harness's decoder has never seen", () => {
         }))
           changes.push(change)
       })()
-      await expect.poll(() => flat(changes)).toEqual([expect.stringMatching(/^0:.*hi/)])
+      await expect.poll(() => flat(changes).at(-1)).toEqual(expect.stringMatching(/^\d+:.*hi/))
       await new Promise((resolve) => setTimeout(resolve, 300))
       expect(changes.map((change) => change.type)).toEqual(["items"])
       appendFileSync(file.path, line(conversation) + line(conversation))

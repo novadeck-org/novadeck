@@ -73,11 +73,21 @@ export const toolOutcome = z.strictObject({
 // that the record holds a part of the conversation its decoder has never seen, which the
 // items leave out: the terminal shows it.
 // The refinement on an item makes `.pick`, `.omit` and `.partial` of it throw; `.extend` works.
+// What a harness records of what changed between turns: the mode it says it is in, in its own
+// word (`default`, `acceptEdits`, `plan`, ...), on any item that says one, a change or not; a
+// plan approved; or a compaction, its summary the item's `text`.
+export const transcriptNote = z.discriminatedUnion("type", [
+  z.strictObject({ type: z.literal("mode"), mode: z.string().min(1).max(64) }),
+  z.strictObject({ type: z.literal("plan-approved") }),
+  z.strictObject({ type: z.literal("compaction") }),
+])
+export type TranscriptNote = z.infer<typeof transcriptNote>
+
 export const transcriptItem = z
   .strictObject({
     index: z.number().int().nonnegative(),
     at: z.number().nullable(),
-    role: z.enum(["user", "assistant", "agent", "tool"]),
+    role: z.enum(["user", "assistant", "agent", "tool", "note"]),
     kind: z.enum(["text", "tool-call", "tool-result"]),
     text: z.string().max(transcriptLimits.text),
     truncated: z.boolean(),
@@ -96,6 +106,8 @@ export const transcriptItem = z
     // ring's nonce, and whether the line carries the person's Inbox replies (see
     // docs/agent-messaging.md, "The reply line"); null on every other item.
     ring: z.strictObject({ nonce: z.string().max(64), replies: z.boolean() }).nullable(),
+    // On a `note` item, what its harness recorded between turns.
+    note: transcriptNote.optional(),
   })
   .refine((item) => (item.run !== null) === (item.kind === "tool-call"), {
     message: "A tool call has a run, and no other item does",

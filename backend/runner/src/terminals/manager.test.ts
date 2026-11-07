@@ -2042,7 +2042,9 @@ describe("a turn the person's Escape ended", () => {
         ))
           if (change.type === "items")
             seen.push(
-              ...change.items.map((each) => (each.interrupted ? "(interrupted)" : each.text)),
+              ...change.items
+                .filter((each) => each.role !== "note")
+                .map((each) => (each.interrupted ? "(interrupted)" : each.text)),
             )
       })()
       return { seen, stop: () => (reader.abort(), reading) }
@@ -2195,7 +2197,9 @@ describe("a turn the person's Escape ended", () => {
         for await (const change of second.transcript(terminalId, rootRef(binding), reader.signal))
           if (change.type === "items")
             seen.push(
-              ...change.items.map((each) => (each.interrupted ? "(interrupted)" : each.text)),
+              ...change.items
+                .filter((each) => each.role !== "note")
+                .map((each) => (each.interrupted ? "(interrupted)" : each.text)),
             )
       })()
       await vi.waitFor(() => expect(seen).toContain("Go on"), { timeout: 5000 })

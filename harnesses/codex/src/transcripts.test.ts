@@ -17,9 +17,39 @@ const item = (payload: object) => ({
   payload,
 })
 
+describe("what Codex says between turns", () => {
+  const context = (mode: string, approval_policy: string) => ({
+    timestamp: "2026-09-29T20:50:21.802Z",
+    type: "turn_context",
+    payload: { approval_policy, collaboration_mode: { mode } },
+  })
+
+  it("says plan mode, else its approval policy, the usual one as the default", () => {
+    expect(items([context("plan", "on-request")])).toMatchObject([
+      { role: "note", note: { type: "mode", mode: "plan" } },
+    ])
+    expect(items([context("default", "on-request")])).toMatchObject([
+      { note: { type: "mode", mode: "default" } },
+    ])
+    expect(items([context("default", "never")])).toMatchObject([
+      { note: { type: "mode", mode: "never" } },
+    ])
+  })
+
+  it("says nothing of a turn that names no mode", () => {
+    expect(items([{ type: "turn_context", payload: {} }])).toEqual([])
+  })
+
+  it("says a compaction, its message its text", () => {
+    expect(items([{ type: "compacted", payload: { message: "The summary" } }])).toMatchObject([
+      { role: "note", note: { type: "compaction" }, text: "The summary" },
+    ])
+  })
+})
+
 describe("Codex's rollout, as captured", () => {
   it("gives the tool call and its output, and leaves developer messages out", () => {
-    const [call, output, ...rest] = items(records)
+    const [call, output, ...rest] = items(records).filter(({ role }) => role !== "note")
     expect(rest).toEqual([])
     expect(call).toMatchObject({
       role: "assistant",

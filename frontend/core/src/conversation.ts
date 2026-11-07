@@ -58,7 +58,7 @@ export type ChatItem = {
   readonly id: string
   // Epoch milliseconds, where the harness recorded when.
   readonly at: number | null
-  readonly role: "user" | "assistant" | "agent" | "tool"
+  readonly role: "user" | "assistant" | "agent" | "tool" | "note"
   readonly kind: "text" | "tool-call" | "tool-result"
   readonly text: string
   readonly truncated: boolean
@@ -80,6 +80,13 @@ export type ChatItem = {
   // A user item that is the line Novadeck's doorbell typed rather than the person's words:
   // `replies` where it carries their Inbox replies. Null on every other item.
   readonly ring: { readonly nonce: string; readonly replies: boolean } | null
+  // On a `note` item, what its harness recorded between turns: the mode it says it's in, each
+  // time it says so, a plan approved, or a compaction, whose summary is the item's text.
+  readonly note?:
+    | { readonly type: "mode"; readonly mode: string }
+    | { readonly type: "plan-approved" }
+    | { readonly type: "compaction" }
+    | undefined
 }
 
 // What a request's dialog in the agent's TUI offers, as the backend read it, so the chat
