@@ -246,8 +246,8 @@ export const PortableInstall = ({
     if (raise) onOpenChange?.(true)
   }, [phase, onOpenChange, askedNow])
   const { title, line } = cardWords(offer, install, card?.platform ?? currentPlatform())
-  // The release's heads-ups and its highlights, up to four, stand in for the
-  // title and line while there is nothing under way or to report: the changelog.
+  // The release's highlights, up to four, stand in for the title and line while there is
+  // nothing under way or to report: the changelog.
   const heard = frozen ? frozen.news : card?.news
   const news =
     offer && heard && heard.version === offer.version && install.phase === "idle"
@@ -395,14 +395,6 @@ export const PortableInstall = ({
                   tabIndex={scrolls ? 0 : undefined}
                   aria-labelledby={scrolls ? titleId : undefined}
                 >
-                  {news.headsUp && news.headsUp.length > 0 && (
-                    <>
-                      <li className="whats-new-label" role="presentation">
-                        Heads up
-                      </li>
-                      <Highlights highlights={news.headsUp} tone="heads-up" />
-                    </>
-                  )}
                   <Highlights highlights={news.highlights} />
                 </ul>
               ) : (

@@ -9,7 +9,7 @@
 // - State pairs, where the theme sets them: `--item-highlighted-fg` on
 //   `--item-highlighted-bg`, `--segmented-active-fg` on `--segmented-active-bg`,
 //   `--whats-new-accent-fg` on `--whats-new-accent-bg`, `--color-warning-fg` on
-//   `--color-warning` (the heads-up card's tape and tiles), and `--color-on-strong` on
+//   `--color-warning`, and `--color-on-strong` on
 //   `--color-strong`, each 4.5:1.
 //
 // A token is read from the theme's own block, then its shared block, then (for a scheme

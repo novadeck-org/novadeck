@@ -399,14 +399,11 @@ export type BackendFields = {
   // after the workspace is up, and answers the release's highlights while the person has
   // not dismissed them, else undefined (also when the notes can't be read, which the desktop app
   // tries once more a couple of minutes later in the same launch, then on a later one); it
-  // can take a couple of minutes. `dismiss` marks them seen,
-  // so no later launch offers them again. `dismissHeadsUp` marks only the heads-ups seen: the
-  // highlights stay until `dismiss`, and a later `get` answers without the heads-ups. Absent where
-  // the app does not say, as in a browser.
+  // can take a couple of minutes. `dismiss` marks them seen, so no later launch offers them
+  // again. Absent where the app does not say, as in a browser.
   readonly whatsNew?: {
     readonly get: () => Promise<WhatsNew | undefined>
     readonly dismiss: () => void
-    readonly dismissHeadsUp: () => void
   }
   // Optional. The version of the desktop app, asked once when Preferences needs it. Absent
   // in a browser and in a desktop app that does not say.

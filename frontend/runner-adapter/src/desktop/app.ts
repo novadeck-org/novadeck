@@ -148,12 +148,10 @@ export const desktopUpdates = (app: DesktopApp | undefined): Backend["updates"] 
 export const desktopWhatsNew = (app: DesktopApp | undefined): Backend["whatsNew"] => {
   const read = app?.whatsNew
   const dismiss = app?.dismissWhatsNew
-  const dismissHeadsUp = app?.dismissHeadsUp
-  if (!read || !dismiss || !dismissHeadsUp) return undefined
+  if (!read || !dismiss) return undefined
   return {
     get: async () => parseWhatsNew(await read()),
     dismiss: () => dismiss(),
-    dismissHeadsUp: () => dismissHeadsUp(),
   }
 }
 

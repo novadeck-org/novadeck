@@ -8,8 +8,6 @@ export type Item = {
   readonly detail: string | undefined
   /** Its `## Why`. */
   readonly reason: string | undefined
-  /** Its `## Heads-up`: what works differently for someone who used the app before. */
-  readonly headsUp: string | undefined
   /** Its type and scope, for the model: `feat(ui)`. */
   readonly label: string
   /** Whether it counts among the smaller fixes if nothing names it. */
@@ -21,7 +19,6 @@ export const commitItem = (commit: Commit): Item => ({
   line: commit.subject,
   detail: commit.what || undefined,
   reason: commit.why || undefined,
-  headsUp: commit.headsUp || undefined,
   label: `${commit.type}${commit.scope ? `(${commit.scope})` : ""}`,
   fix: commit.type !== "feat",
 })

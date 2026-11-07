@@ -4,7 +4,6 @@ import { act, createElement } from "react"
 import { afterEach, beforeEach, vi } from "vitest"
 
 import { context, describe, expect, it } from "../test"
-import { requestFeedback } from "./feedback-open"
 import { openedStorageKey, sentForMs } from "./feedback-state"
 import { FeedbackButton } from "./FeedbackButton"
 
@@ -333,69 +332,5 @@ describe("the footer's feedback button", () => {
       expect(view.field().value).toBe("")
       expect(view.field().readOnly).toBe(false)
     })
-  })
-})
-
-describe("a request to open the card from elsewhere in the footer", () => {
-  const picked = () =>
-    document.querySelector<HTMLInputElement>(".feedback-kinds input:checked")?.value
-
-  it("opens it with the kind picked and nothing written, sending nothing", async () => {
-    const feedback = fake()
-    const view = show(feedback)
-    expect(view.card()).toBeNull()
-    act(() => requestFeedback("idea", "About the Heads-up in 1.5.0"))
-    await nextFrame()
-    expect(view.card()).not.toBeNull()
-    expect(picked()).toBe("idea")
-    expect(view.field().value).toBe("")
-    expect(document.body.textContent).toContain("About the Heads-up in 1.5.0")
-    expect(feedback.sent).toEqual([])
-  })
-
-  it("drops the line about what it was asked for when closed with nothing written", async () => {
-    const view = show()
-    act(() => requestFeedback("idea", "About the Heads-up in 1.5.0"))
-    await nextFrame()
-    act(() => view.button().click())
-    await nextFrame()
-    await view.open()
-    expect(document.body.textContent).not.toContain("About the Heads-up")
-    expect(picked()).toBeUndefined()
-  })
-
-  it("says what it was asked about each time it is asked", async () => {
-    const view = show()
-    const ask = async (): Promise<void> => {
-      act(() => requestFeedback("idea", "About the Heads-up in 1.5.0"))
-      await nextFrame()
-      expect(document.body.textContent).toContain("About the Heads-up in 1.5.0")
-      act(() => view.button().click())
-      await nextFrame()
-    }
-    await ask()
-    await ask()
-  })
-
-  it("leaves a note the person has begun as it is", async () => {
-    const view = show()
-    await view.open()
-    view.type("my note")
-    act(() => view.button().click())
-    await nextFrame()
-    expect(view.card()).toBeNull()
-    act(() => requestFeedback("idea", "About the Heads-up in 1.5.0"))
-    await nextFrame()
-    expect(view.card()).not.toBeNull()
-    expect(view.field().value).toBe("my note")
-    expect(picked()).toBeUndefined()
-    expect(document.body.textContent).not.toContain("About the Heads-up")
-  })
-
-  it("is not answered by a button made after it", async () => {
-    act(() => requestFeedback("idea", "About the Heads-up in 1.5.0"))
-    const view = show()
-    await nextFrame()
-    expect(view.card()).toBeNull()
   })
 })

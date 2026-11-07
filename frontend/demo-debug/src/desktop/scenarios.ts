@@ -1,5 +1,3 @@
-import type { WhatsNewItem } from "@novadeck/core/desktop/update"
-
 import type { DemoPortable } from "./portable"
 import type { DemoUpdates } from "./updates"
 
@@ -37,20 +35,6 @@ const fromEarlier = (version: string): { readonly from?: string } => {
   const from = earlier(version)
   return from === undefined ? {} : { from }
 }
-
-// Heads-ups as a release's notes name them: what works differently, in the same shape.
-export const sampleHeadsUp: readonly WhatsNewItem[] = [
-  {
-    title: "Canvas arranges itself",
-    line: "Windows follow the Terminals list and teams, all one size. Where you placed them is no longer kept.",
-    icon: "layout-grid",
-  },
-  {
-    title: "Ctrl+V pastes on Linux",
-    line: "Programs no longer get Ctrl+V, so vim's block select won't start with it.",
-    icon: "keyboard",
-  },
-]
 
 export const updateScenarios = {
   download: {
@@ -119,20 +103,6 @@ export const updateScenarios = {
       }),
     reboots: true,
   },
-  whatsNewHeadsUp: {
-    label: "Heads up, then what's new",
-    hint: "Heads-up card first, with Got it and the feedback hint; Got it hands the corner to the highlights",
-    play: ({ showWhatsNew }, version) =>
-      showWhatsNew(version, { ...fromEarlier(version), headsUp: sampleHeadsUp }),
-    reboots: true,
-  },
-  headsUpAlone: {
-    label: "Heads up, no highlights",
-    hint: "Heads-up card alone: Got it settles the whole version",
-    play: ({ showWhatsNew }, version) =>
-      showWhatsNew(version, { highlights: [], headsUp: sampleHeadsUp }),
-    reboots: true,
-  },
   noHighlights: {
     label: "Updated, no highlights",
     hint: "The app takes 1.5 s to answer it has nothing to show: no card appears",
@@ -182,14 +152,11 @@ const news = (version: string): NonNullable<DemoPortable["news"]> => ({
   ],
 })
 
-// A portable copy with a release waiting and, unless `notes` is off, its notes known; with
-// `headsUp`, they tell what works differently too.
-const offered = (version: string, notes = true, headsUp = false): DemoPortable => ({
+// A portable copy with a release waiting and, unless `notes` is off, its notes known.
+const offered = (version: string, notes = true): DemoPortable => ({
   ...installs,
   offer: { kind: "available", version },
-  ...(notes
-    ? { news: headsUp ? { ...news(version), headsUp: sampleHeadsUp } : news(version) }
-    : {}),
+  ...(notes ? { news: news(version) } : {}),
 })
 
 export const portableScenarios = {
@@ -202,11 +169,6 @@ export const portableScenarios = {
     label: "Update available",
     hint: "Changelog card for a new release, Update available chip; Install takes 4 s",
     setup: offered,
-  },
-  "update-heads-up": {
-    label: "Update, with a heads-up",
-    hint: "The changelog card lists what works differently above the highlights",
-    setup: (version) => offered(version, true, true),
   },
   "update-no-news": {
     label: "Update, no highlights",

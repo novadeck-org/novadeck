@@ -22,13 +22,12 @@ import {
   X,
   type LucideIcon,
 } from "lucide-react"
-import { createElement, useEffect, useRef, useState, useSyncExternalStore } from "react"
+import { createElement, useEffect, useRef, useState } from "react"
 
 import { currentPlatform } from "../interaction/shortcuts"
 
 import "./ask-agent.css"
 import "./feedback.css"
-import { feedbackRequests, type FeedbackRequest } from "./feedback-open"
 import {
   buttonText,
   countShown,
@@ -118,8 +117,6 @@ export const FeedbackButton = ({
   const [open, setOpen] = useState(false)
   const [opened, setOpened] = useState(readFeedbackOpened)
   const [kind, setKind] = useState<FeedbackKind | null>(null)
-  // What a request from elsewhere says the note is on (feedback-open.ts).
-  const [asked, setAsked] = useState<string | undefined>()
   const [text, setText] = useState("")
   const [send, setSend] = useState<Send>("idle")
   const [about, setAbout] = useState<FeedbackAbout | null>(null)
@@ -187,7 +184,6 @@ export const FeedbackButton = ({
     setLoaded(null)
     if (text === loaded.original && kind === loaded.draft.kind) {
       setKind(null)
-      setAsked(undefined)
       setText("")
       // What failed to send was the draft that is gone: nothing is left to retry.
       setSend("idle")
@@ -196,7 +192,6 @@ export const FeedbackButton = ({
   } else if (loaded === null && text.trim() === "" && send !== "sending" && upNext) {
     // A draft comes into the card once it holds nothing of the person's, and opens it.
     const original = textToSend(scrub(upNext.text))
-    setAsked(undefined)
     setLoaded({
       draft: upNext,
       original,
@@ -264,7 +259,6 @@ export const FeedbackButton = ({
           giveFocusBack()
         }
         setKind(null)
-        setAsked(undefined)
         setText("")
       },
       () => {
@@ -292,7 +286,6 @@ export const FeedbackButton = ({
     feedback.drafts?.settle(id, "discarded").catch(() => {})
     setLoaded(null)
     setKind(null)
-    setAsked(undefined)
     setText("")
     setSend("idle")
     setOpen(false)
@@ -301,38 +294,11 @@ export const FeedbackButton = ({
   const change = (next: boolean): void => {
     setByDraft(false)
     setOpen(next)
-    // Closed with nothing written, the card no longer holds a note on what it was asked about.
-    if (!next && asked !== undefined && text.trim() === "") {
-      setAsked(undefined)
-      setKind(null)
-    }
     if (!next) giveFocusBack()
     if (!next || opened) return
     setOpened(true)
     writeFeedbackOpened()
   }
-  // A request from elsewhere in the footer (feedback-open.ts) opens the card as the button
-  // would, with its kind picked when the card holds nothing of anyone's yet. The one standing
-  // at mount was answered before.
-  const request = useSyncExternalStore(feedbackRequests.subscribe, feedbackRequests.getSnapshot)
-  const answered = useRef(request?.id)
-  const latestAnswer = useRef<(request: FeedbackRequest) => void>(() => {})
-  useEffect(() => {
-    latestAnswer.current = (made) => {
-      if (open) return
-      if (!loaded && text === "") {
-        setKind(made.kind)
-        setAsked(made.about)
-      }
-      before.current = document.activeElement
-      change(true)
-    }
-  })
-  useEffect(() => {
-    if (!request || request.id === answered.current) return
-    answered.current = request.id
-    latestAnswer.current(request)
-  }, [request])
   const draftFrom = (loaded?.draft ?? upNext)?.handle
   const word = buttonText(send, opened, draftFrom)
   const agent = loaded?.draft
@@ -412,9 +378,6 @@ export const FeedbackButton = ({
             </div>
             {agent && (
               <p className="ask-agent-line text-control">{draftCaption(agent, loaded.title)}</p>
-            )}
-            {!agent && asked !== undefined && (
-              <p className="ask-agent-line text-control">{asked}</p>
             )}
             <SegmentGroup
               label="Kind"
