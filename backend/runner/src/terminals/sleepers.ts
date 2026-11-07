@@ -278,7 +278,11 @@ export class Sleepers {
     // Gone, woken by another path, or resting on another session meanwhile.
     const now = this.resting(terminalId)
     if (this.host.stopping() || now?.agent !== agent || now.sessionId !== sessionId) return
-    const check = this.host.claims().check(terminalId, agent, sessionId, connected)
+    // Judged with the flags its session was launched with, as the create that follows is.
+    const launch = this.row(terminalId, this.sessions.get(terminalId))?.agents[agent]?.launch
+    const check = this.host
+      .claims()
+      .check(terminalId, agent, sessionId, connected, undefined, launch)
     if (check.ok) return void this.wake(terminalId)
     const why = wakeRefusal(agent, check.reason)
     this.host.messaging().wakeFailed(terminalId, why)
