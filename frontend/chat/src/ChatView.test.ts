@@ -449,7 +449,7 @@ describe("a chat sending a message", () => {
     await act(async () => sends[0]!())
     chat.show(true)
     expect(box(chat.container).value).toBe("")
-    expect(sendButton(chat.container).getAttribute("aria-busy")).toBeNull()
+    expect(chat.container.querySelector('button[aria-label="Send"]')).toBeNull()
   })
 })
 
@@ -654,7 +654,7 @@ describe("a reply to the agent's question, as its dialog changes", () => {
     // Edited, it is a message again: here a shell command, said as one.
     set(box(container), "!important")
     expect(chat.replyTo()).toBeNull()
-    expect(container.querySelector(".chat-reply")?.textContent).toContain("Runs in")
+    expect(container.querySelector(".chat-composer .sr-only")?.textContent).toContain("Runs in")
     expect(sendButton(container).disabled).toBe(false)
   })
 
