@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, vi } from "vitest"
 
-import { createDemoHistory, restoreMs } from "./history"
+import { createDemoHistory, restoreMs, restoringMs } from "./history"
 import { context, describe, expect, it } from "./test"
 
 const now = new Date(2026, 10, 6, 18, 0).getTime()
@@ -30,6 +30,9 @@ describe("the demo's History", () => {
       const demo = createDemoHistory(now)
       const id = demo.history.state.getSnapshot().rows[0]!.id
       demo.restore(id)
+      // The runner's word comes after the request, not with it.
+      expect(demo.history.state.getSnapshot().rows[0]!.availability).toEqual({ state: "ready" })
+      vi.advanceTimersByTime(restoringMs)
       expect(demo.history.state.getSnapshot().rows[0]!.availability).toEqual({ state: "restoring" })
       vi.advanceTimersByTime(restoreMs)
       expect(demo.history.state.getSnapshot().rows.some((row) => row.id === id)).toBe(false)

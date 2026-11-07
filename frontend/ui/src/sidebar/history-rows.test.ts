@@ -10,6 +10,7 @@ import {
   rowFolder,
   rowMatches,
   rowTooltip,
+  summaryExcerpt,
   rowView,
 } from "./history-rows"
 
@@ -171,8 +172,9 @@ describe("History's rows", () => {
       expect(rowMatches(row(), "refund")).toBe(false)
     })
 
-    it("doesn't find an agent's row by the folder it ran in, which it doesn't show", () => {
-      expect(rowMatches(row({ summary: null }), "storefront")).toBe(false)
+    it("finds an agent's row by the folder it ran in too, though it doesn't show it", () => {
+      expect(rowMatches(row({ summary: null }), "storefront")).toBe(true)
+      expect(foundBySummary(row({ summary: null }), "storefront")).toBe(false)
     })
 
     it("shows the summary only for a row the title doesn't explain", () => {
@@ -189,6 +191,24 @@ describe("History's rows", () => {
         { text: " retries", lit: false, at: 14 },
       ])
       expect(litPieces("Stripe", "webhook")).toEqual([{ text: "Stripe", lit: false, at: 0 }])
+    })
+
+    it("lights the right text where lowercasing changes a text's length", () => {
+      // "İ" lowercases to two units, so offsets in the lowered text drift from the text's.
+      expect(litPieces("İİ retries", "retries")).toEqual([
+        { text: "İİ ", lit: false, at: 0 },
+        { text: "retries", lit: true, at: 3 },
+      ])
+    })
+
+    it("cuts a summary to start before a match that its two lines wouldn't show", () => {
+      const long =
+        "Stripe signatures are checked on every delivery and the webhook retries are idempotent"
+      const excerpt = summaryExcerpt(long, "idempotent")
+      expect(excerpt.startsWith("…")).toBe(true)
+      expect(excerpt.endsWith("idempotent")).toBe(true)
+      expect(excerpt.length).toBeLessThan(55)
+      expect(summaryExcerpt("Short summary here", "short")).toBe("Short summary here")
     })
   })
 

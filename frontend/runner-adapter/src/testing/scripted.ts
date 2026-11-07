@@ -66,6 +66,8 @@ export const keptSummary = (
   ledBy: null,
   openedBy: null,
   agentRan: false,
+  restorable: false,
+  busy: false,
   started: false,
   command: null,
   lastProgram: null,

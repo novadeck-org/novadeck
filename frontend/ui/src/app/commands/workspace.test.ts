@@ -1,3 +1,4 @@
+import type { ClosedTerminal } from "@novadeck/core/history"
 import type { TerminalRequest } from "@novadeck/core/port"
 import { orderedTiles } from "@novadeck/core/roster"
 import { createStore } from "@novadeck/core/store"
@@ -332,7 +333,12 @@ describe("workspace commands", () => {
     })
 
     it("asks while its agent is mid-turn, though it could be restored", () => {
-      const app = asBackendSays({ state: "running", agent: { working: true }, restorable: true })
+      const app = asBackendSays({
+        state: "running",
+        agent: { working: true },
+        restorable: true,
+        busy: true,
+      })
       app.commands.close("01")
       expect(app.ui.getSnapshot().closing).toMatchObject({ id: "01" })
     })
@@ -349,6 +355,7 @@ describe("workspace commands", () => {
         process: "claude",
         agent: { working: false },
         restorable: true,
+        busy: true,
       })
       app.commands.close("01")
       expect(app.ui.getSnapshot().closing).toBeNull()
@@ -392,17 +399,87 @@ describe("workspace commands", () => {
       expect(app.ui.getSnapshot().location.route.panel).toBe("history")
     })
 
+    it("makes one terminal from a row clicked twice before the runner says it is restoring", () => {
+      const row = {
+        id: "closed-7",
+        projectId: "project",
+        title: "Coupon codes",
+        summary: null,
+        handle: "wren",
+        agent: "claude",
+        program: "claude",
+        cwd: "/work/storefront",
+        closedAt: 1,
+        closedBy: null,
+        availability: { state: "ready" },
+      } as const
+      const rows = createStore({ rows: [row] as readonly ClosedTerminal[] })
+      const app = openCommands({ history: { state: rows, list: () => Promise.resolve([row]) } })
+      app.commands.restoreClosed(row)
+      app.commands.restoreClosed(row)
+      expect(app.allocated).toHaveLength(1)
+      // Once the runner says the row is restoring, and then it is gone, it is not held.
+      rows.update(() => ({ rows: [{ ...row, availability: { state: "restoring" } }] }))
+      rows.update(() => ({ rows: [row] }))
+      app.commands.restoreClosed(row)
+      expect(app.allocated).toHaveLength(2)
+    })
+
+    it("holds a second click on a row whose terminal failed no longer", () => {
+      const row = {
+        id: "closed-8",
+        projectId: "project",
+        title: "Tax rounding",
+        summary: null,
+        handle: null,
+        agent: null,
+        program: "zsh",
+        cwd: "/work",
+        closedAt: 1,
+        closedBy: null,
+        availability: { state: "ready" },
+      } as const
+      const rows = createStore({ rows: [row] as readonly ClosedTerminal[] })
+      const app = openCommands({ history: { state: rows, list: () => Promise.resolve([row]) } })
+      app.commands.restoreClosed(row)
+      const made = app.state().selected
+      app.workspace.dispatch({
+        type: "terminal/status",
+        target: { projectId: "project", workspaceSessionId: "initial" },
+        terminalId: made,
+        status: { state: "failed", message: "refused" },
+      })
+      app.commands.restoreClosed(row)
+      expect(app.allocated).toHaveLength(2)
+    })
+
+    it("reveals a handle in the row's project, the session on screen first", () => {
+      const workspace = twoSessions()
+      const [initial, other] = workspace.projects[0]!.history
+      initial!.state.roster.terminals[0]!.handle = "kite"
+      other!.state.roster.terminals.at(-1)!.handle = "kite"
+      const app = openCommands({ workspace, history })
+      app.commands.revealHandle("kite", "project")
+      expect(app.ui.getSnapshot().location.route).toMatchObject({
+        sessionId: "initial",
+        terminal: initial!.state.roster.terminals[0]!.id,
+      })
+      // Another project's terminals are not this row's.
+      app.commands.revealHandle("kite", "elsewhere")
+      expect(app.ui.getSnapshot().location.route.sessionId).toBe("initial")
+    })
+
     it("brings the terminal that holds a conversation into view by its handle", () => {
       const workspace = twoSessions()
       const held = workspace.projects[0]!.history[1]!.state.roster.terminals.at(-1)!
       held.handle = "kite"
       const app = openCommands({ workspace, history })
-      app.commands.revealHandle("kite")
+      app.commands.revealHandle("kite", "project")
       expect(app.ui.getSnapshot().location.route).toMatchObject({
         sessionId: "other",
         terminal: held.id,
       })
-      expect(() => app.commands.revealHandle("nobody")).not.toThrow()
+      expect(() => app.commands.revealHandle("nobody", "project")).not.toThrow()
     })
   })
 

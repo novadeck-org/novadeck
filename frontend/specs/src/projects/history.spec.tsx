@@ -1,5 +1,7 @@
 import { page, userEvent } from "vitest/browser"
 
+const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms))
+
 import { closeConfirmation, confirmClose, tabAction } from "../support/terminals"
 import { openWorkspace, sidebarPanel, terminal, terminalTab } from "../support/workspace"
 import { context, describe, expect, it } from "../test"
@@ -123,15 +125,13 @@ describe("The History panel", () => {
     })
 
     it("goes to the terminal that holds an open conversation", async () => {
-      await openHistory()
+      await openWorkspace(agents)
+      await sidebarPanel("History").click()
       await closed()
         .getByRole("button", { name: /^Show Shipping rates, open as @fox/ })
         .click()
-      await expect
-        .element(
-          page.getByRole("heading", { name: "Checkout implementation" }).or(terminal("Dev server")),
-        )
-        .toBeVisible()
+      // @fox is the second terminal, "Dev server".
+      await expect.element(terminal("Dev server")).toBeVisible()
     })
   })
 
@@ -146,6 +146,23 @@ describe("The History panel", () => {
         .element(closed().getByRole("button", { name: "Restore Coupon codes" }))
         .not.toBeInTheDocument()
       await expect.element(page.getByRole("heading", { name: /^History 13$/ })).toBeVisible()
+    })
+  })
+
+  context("when a row is clicked twice at once", () => {
+    it("restores it once", async () => {
+      await openHistory()
+      const row = closed().getByRole("button", { name: "Restore Coupon codes" })
+      const button = row.element() as HTMLElement
+      button.click()
+      button.click()
+      await expect.element(terminal("Coupon codes")).toBeVisible()
+      await expect.element(page.getByRole("heading", { name: /^History 13$/ })).toBeVisible()
+      // However long the runner takes, one terminal was made from the row.
+      await sleep(300)
+      // The footer counts six terminals and the one restored, not two.
+      await expect.poll(() => document.body.textContent).toMatch(/7 terminals/)
+      expect(document.body.textContent).not.toMatch(/8 terminals/)
     })
   })
 

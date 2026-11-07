@@ -14,7 +14,9 @@ import { terminalsOf } from "./workspace"
 const minute = 60_000
 const day = 24 * 60 * minute
 
-// How long a restore takes before the row is gone, as the runner confirms it.
+// How long before the runner says a row is restoring, and before it confirms the restore
+// and the row is gone.
+export const restoringMs = 120
 export const restoreMs = 900
 
 type Sample = Omit<
@@ -165,6 +167,14 @@ export const createDemoHistory = (now: number, withSamples = true): DemoHistory 
   const change = (next: (rows: readonly ClosedTerminal[]) => readonly ClosedTerminal[]): void => {
     state.update((current) => ({ rows: next(current.rows) }))
   }
+  // Runs a change the way the runner's stream brings it: a moment after the request.
+  const later = (ms: number, run: () => void): void => {
+    const timer = setTimeout(() => {
+      timers.delete(timer)
+      run()
+    }, ms)
+    timers.add(timer)
+  }
   let kept = 0
   return {
     history: {
@@ -175,16 +185,14 @@ export const createDemoHistory = (now: number, withSamples = true): DemoHistory 
     restore: (id) => {
       const row = state.getSnapshot().rows.find((each) => each.id === id)
       if (!row) return undefined
-      change((rows) =>
-        rows.map((each) =>
-          each.id === id ? { ...each, availability: { state: "restoring" } } : each,
+      later(restoringMs, () =>
+        change((rows) =>
+          rows.map((each) =>
+            each.id === id ? { ...each, availability: { state: "restoring" } } : each,
+          ),
         ),
       )
-      const timer = setTimeout(() => {
-        timers.delete(timer)
-        change((rows) => rows.filter((each) => each.id !== id))
-      }, restoreMs)
-      timers.add(timer)
+      later(restoreMs, () => change((rows) => rows.filter((each) => each.id !== id)))
       return row
     },
     keep: (projectId, terminal, at) => {
@@ -212,12 +220,12 @@ export const createDemoHistory = (now: number, withSamples = true): DemoHistory 
   }
 }
 
-// What a terminal says of closing it, as the runner does: a program runs in the shell, or
-// its agent can resume. Both are false once nothing runs.
+// What a terminal says of closing it, as the runner does: a program runs in the shell (an
+// agent counts), or its agent can resume. Both are false once nothing runs.
 const closingFacts = (terminal: TerminalMetadata): { busy: boolean; restorable: boolean } =>
   terminal.state === "running"
     ? terminal.agent
-      ? { busy: false, restorable: true }
+      ? { busy: true, restorable: true }
       : { busy: true, restorable: false }
     : { busy: false, restorable: false }
 

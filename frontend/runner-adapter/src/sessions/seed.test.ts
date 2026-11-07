@@ -35,6 +35,8 @@ const summary = (
   ledBy: null,
   openedBy: null,
   agentRan: false,
+  restorable: false,
+  busy: false,
   started: true,
   command: null,
   lastProgram: null,

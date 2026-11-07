@@ -76,6 +76,8 @@ export const scriptedRunner = ({
         started: true,
         run: 1,
         agentRan: true,
+        restorable: false,
+        busy: false,
         process: { name: "claude", argv: null },
         agent: "claude",
         activity: {

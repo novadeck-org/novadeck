@@ -14,6 +14,7 @@ import {
   rowMatches,
   rowTooltip,
   rowView,
+  summaryExcerpt,
   type RowView,
 } from "./history-rows"
 import { SidebarPanel } from "./SidebarPanel"
@@ -110,7 +111,7 @@ const HistoryRow = ({
           </span>
           {foundBySummary(row, typed) && (
             <span className="history-row-summary">
-              <Lit text={row.summary!} typed={typed} />
+              <Lit text={summaryExcerpt(row.summary!, typed)} typed={typed} />
             </span>
           )}
         </button>

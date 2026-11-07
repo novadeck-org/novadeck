@@ -137,11 +137,11 @@ export const SidebarSection = memo((): React.JSX.Element => {
             list: readHistory,
             connections: backend.agents ? connections : undefined,
             onRestore: commands.restoreClosed,
-            onReveal: commands.revealHandle,
+            onReveal: (handle: string) => commands.revealHandle(handle, projectId),
             onConnect: commands.openAgentSettings,
           }
         : undefined,
-    [historyFeed, historyRows, readHistory, backend.agents, connections, commands],
+    [historyFeed, historyRows, readHistory, backend.agents, connections, commands, projectId],
   )
   const sidebarPanel = useUiState((state) => state.location.route.panel)
   const visible = useUiState((state) => sidebarVisible(state.shell, desktop))

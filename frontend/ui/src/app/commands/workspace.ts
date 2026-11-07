@@ -99,8 +99,9 @@ export type WorkspaceCommands = ShellCommands &
     // Brings a closed terminal back from History as a new terminal in the session on
     // screen, selected; its row leaves the list when the backend says it is restored.
     readonly restoreClosed: (row: ClosedTerminal) => void
-    // Brings the open terminal with this handle into view, wherever it is.
-    readonly revealHandle: (handle: string) => void
+    // Brings the open terminal with this handle into view, in this project: the session on
+    // screen first, then its others.
+    readonly revealHandle: (handle: string, projectId: string) => void
     // Opens Preferences where the agents are connected.
     readonly openAgentSettings: (agent: AgentName) => void
     // Closes the terminal, or asks first while closing would lose something: a program
@@ -236,6 +237,32 @@ export const createWorkspaceCommands = (ctx: CommandContext): WorkspaceCommands 
       },
     ])
   }
+
+  // Rows being restored, by the terminal made for each, from the click until the runner says
+  // the row changed (it is restoring, or gone) or the new terminal failed or went. A second
+  // click in between would make a second terminal from the same row.
+  const restoring = new Map<string, string>()
+  const settleRestoring = (): void => {
+    if (restoring.size === 0) return
+    const rows = history?.state.getSnapshot().rows ?? []
+    const terminals = new Map(
+      workspace
+        .getSnapshot()
+        .projects.flatMap((project) =>
+          project.history.flatMap((session) =>
+            session.state.roster.terminals.map((terminal) => [terminal.id, terminal] as const),
+          ),
+        ),
+    )
+    for (const [rowId, terminalId] of restoring) {
+      const row = rows.find((each) => each.id === rowId)
+      const made = terminals.get(terminalId)
+      if (row?.availability.state !== "ready" || !made || made.state === "failed")
+        restoring.delete(rowId)
+    }
+  }
+  history?.state.subscribe(settleRestoring)
+  workspace.subscribe(settleRestoring)
 
   const reveal = (terminalId: string, panel?: SidebarPanel): void => {
     const snapshot = workspace.getSnapshot()
@@ -512,6 +539,7 @@ export const createWorkspaceCommands = (ctx: CommandContext): WorkspaceCommands 
       request.answer({ terminalId: terminal.id })
     },
     restoreClosed: (row) => {
+      if (restoring.has(row.id)) return
       recent.setSwitcher(null)
       const snapshot = workspace.getSnapshot()
       const { roster, layout, view } = currentState(snapshot)
@@ -519,6 +547,7 @@ export const createWorkspaceCommands = (ctx: CommandContext): WorkspaceCommands 
       // The backend names and starts it from the row; until it says more the terminal shows
       // the row's folder. No `title`: that would make the row's name the person's own.
       const terminal = newTerminal({ target, directory: row.cwd, closed: row.id })
+      restoring.set(row.id, terminal.id)
       const active = rename.activeRename()
       if (active) rename.finishRename(active, true)
       markCreated({ context: currentContext(snapshot), id: terminal.id })
@@ -536,14 +565,20 @@ export const createWorkspaceCommands = (ctx: CommandContext): WorkspaceCommands 
       pulse()
       set("sidebar", false)
     },
-    revealHandle: (handle) => {
-      for (const project of workspace.getSnapshot().projects)
-        for (const session of project.history) {
-          const found = session.state.roster.terminals.find(
-            (terminal) => terminal.handle === handle,
-          )
-          if (found) return reveal(found.id)
-        }
+    revealHandle: (handle, projectId) => {
+      // Handles are drawn per session, so only the row's project can hold the one meant, in
+      // the session on screen first.
+      const snapshot = workspace.getSnapshot()
+      const sessions = snapshot.projects.find((project) => project.id === projectId)?.history ?? []
+      const current = currentTarget(snapshot).workspaceSessionId
+      const ordered = [
+        ...sessions.filter((session) => session.id === current),
+        ...sessions.filter((session) => session.id !== current),
+      ]
+      for (const session of ordered) {
+        const found = session.state.roster.terminals.find((terminal) => terminal.handle === handle)
+        if (found) return reveal(found.id)
+      }
     },
     openAgentSettings: () => {
       recent.setSwitcher(null)

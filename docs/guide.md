@@ -400,7 +400,8 @@ answers leaves the project there, and it comes back.
 
 Closing a terminal doesn't end it for good. It moves to **History**, a panel on the
 sidebar's rail after Sessions, with one list per project, newest first. A terminal comes
-back for 30 days; after that its row goes by itself. There is no button to delete one.
+back for 30 days; after that its row goes by itself. A rail order you saved before History
+existed puts its toggle at the end. There is no button to delete one.
 Where a backend keeps no History, as in a browser demo without it, the panel isn't there
 and closing is final.
 
@@ -412,7 +413,8 @@ A row is one line: an icon, the title, and when it closed, the time for today an
 date for an earlier day. A plain terminal adds the folder it ran in after its title.
 Under the pointer, or with the keyboard on it, the date gives its place to a restore
 icon, and the tooltip has the full date, a summary, and who closed it where an agent
-did. The search box matches a title, a handle, a folder or a summary, and the count
+did. The search box matches a title, a handle, the folder it ran in (an agent's row
+doesn't show it) or a summary, and the count
 beside the title reads matches over total. A row found only by its summary shows it,
 with the match lit. With nothing closed there is no search box.
 
@@ -425,13 +427,15 @@ no opener, no taskbar items, messages or asks, and keeps its handle unless anoth
 terminal took it. Closing it adds a new row with a new date.
 
 A row that can't be restored is hatched and says why in its tooltip, and to assistive
-technology:
+technology. Two other states stand where the date was:
 
 - **Unavailable.** The agent deleted the conversation, or the folder is gone.
 - **Not connected.** The agent isn't connected. The plug icon opens Preferences, where
   the agents' switches are; it isn't offered for an agent that isn't installed or while
   its connection changes.
-- **An @handle.** The conversation is open in another terminal; clicking goes there.
+- **An @handle** (not hatched). The conversation is open in another terminal; clicking
+  goes there.
+- **A spinner** (not hatched). The restore is under way.
 
 ### Closing asks first
 

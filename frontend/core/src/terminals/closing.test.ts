@@ -44,8 +44,17 @@ describe("what closing a terminal asks about", () => {
       ])
     })
 
-    it("lets an idle agent that can restore close without asking", () => {
-      expect(closeReasons(terminalFixture({ ...agent(false), restorable: true }), true)).toEqual([])
+    it("lets an idle agent that can restore close without asking, though the runner counts it busy", () => {
+      expect(
+        closeReasons(terminalFixture({ ...agent(false), restorable: true, busy: true }), true),
+      ).toEqual([])
+    })
+
+    it("asks about a mid-turn agent and a plain busy program, as the runner reports them", () => {
+      expect(
+        closeReasons(terminalFixture({ ...agent(true), restorable: true, busy: true }), true),
+      ).toEqual(["working"])
+      expect(closeReasons(terminalFixture({ ...running, busy: true }), true)).toEqual(["program"])
     })
 
     it("lets a terminal with nothing running in it close", () => {

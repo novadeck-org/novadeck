@@ -148,20 +148,64 @@ export const rowView = (
 export const rowFolder = (row: ClosedTerminal): string | undefined =>
   row.agent === null ? folderOf(row.cwd) : undefined
 
-// The words a row shows and is found by: handle, title and folder, as Find a terminal does.
+// The words a row shows: handle, title and, for a plain terminal, its folder.
 const shownWords = (row: ClosedTerminal): readonly (string | null | undefined)[] => [
   row.handle,
   row.title,
   rowFolder(row),
 ]
 
-// Whether a search finds the row: by what it shows, or by its summary.
+// Whether a search finds the row: by handle, title or the folder it ran in (an agent's
+// row doesn't show it), as Find a terminal does, or by its summary.
 export const rowMatches = (row: ClosedTerminal, typed: string): boolean =>
-  matchesQuery([...shownWords(row), row.summary], typed)
+  matchesQuery([row.handle, row.title, folderOf(row.cwd), row.summary], typed)
+
+// Where what is typed first matches in a text, in the text's own offsets. Lowercasing can
+// change a text's length (as "İ" does), so the match is found in the lowered text and its
+// offsets are mapped back.
+const matchRange = (
+  text: string,
+  typed: string,
+): { readonly start: number; readonly end: number } | undefined => {
+  const query = findQuery(typed)
+  if (!query) return undefined
+  let lowered = ""
+  // For each unit of `lowered`, where its character starts and ends in `text`.
+  const starts: number[] = []
+  const ends: number[] = []
+  let at = 0
+  for (const char of text) {
+    const low = char.toLowerCase()
+    for (let unit = 0; unit < low.length; unit++) {
+      starts.push(at)
+      ends.push(at + char.length)
+    }
+    lowered += low
+    at += char.length
+  }
+  const found = lowered.indexOf(query)
+  if (found < 0) return undefined
+  return { start: starts[found]!, end: ends[found + query.length - 1]! }
+}
 
 // Whether the row is found by its summary alone, which it then shows with the match lit.
 export const foundBySummary = (row: ClosedTerminal, typed: string): boolean =>
-  findQuery(typed) !== "" && row.summary !== null && !matchesQuery(shownWords(row), typed)
+  row.summary !== null &&
+  matchRange(row.summary, typed) !== undefined &&
+  !matchesQuery(shownWords(row), typed)
+
+// How far before a match a summary's excerpt starts, so the match shows within the two
+// lines a row has for it.
+const lead = 24
+
+// A summary cut to start a little before the match, with an ellipsis, when the match is
+// further in than the row's two lines show.
+export const summaryExcerpt = (text: string, typed: string): string => {
+  const range = matchRange(text, typed)
+  if (!range || range.start <= lead) return text
+  const from = text.lastIndexOf(" ", range.start - lead)
+  return `…${text.slice(from < 0 ? range.start - lead : from + 1)}`
+}
 
 // A text cut around its first match of what is typed, for the match to be lit; one piece
 // when nothing matches.
@@ -169,14 +213,12 @@ export const litPieces = (
   text: string,
   typed: string,
 ): readonly { readonly text: string; readonly lit: boolean; readonly at: number }[] => {
-  const query = findQuery(typed)
-  const at = query ? text.toLowerCase().indexOf(query) : -1
-  if (at < 0) return [{ text, lit: false, at: 0 }]
-  const end = at + query.length
+  const range = matchRange(text, typed)
+  if (!range) return [{ text, lit: false, at: 0 }]
   return [
-    { text: text.slice(0, at), lit: false, at: 0 },
-    { text: text.slice(at, end), lit: true, at },
-    { text: text.slice(end), lit: false, at: end },
+    { text: text.slice(0, range.start), lit: false, at: 0 },
+    { text: text.slice(range.start, range.end), lit: true, at: range.start },
+    { text: text.slice(range.end), lit: false, at: range.end },
   ].filter((piece) => piece.text !== "")
 }
 

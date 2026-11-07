@@ -19,7 +19,8 @@ export const closeReasons = (
   if (!keepsHistory) return terminal.state === "running" ? ["program"] : []
   const agent = terminal.state === "running" ? terminal.agent : undefined
   return [
-    ...(terminal.busy ? (["program"] as const) : []),
+    // The runner counts an agent as a running program too, so only a plain one is asked about.
+    ...(!agent && terminal.busy ? (["program"] as const) : []),
     ...(agent?.working ? (["working"] as const) : []),
     // `restorable` is the backend's word; an agent is never assumed to restore.
     ...(agent && !terminal.restorable ? (["unrestorable"] as const) : []),
