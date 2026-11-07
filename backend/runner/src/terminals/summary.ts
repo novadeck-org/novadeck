@@ -40,6 +40,9 @@ export const savedSummaryOf = (terminal: ListedTerminal): TerminalSummary => ({
   started: false,
   command: terminal.command,
   lastProgram: terminal.lastProgram,
+  // Closing it keeps what it showed: nothing runs in it, and nothing is lost by closing.
+  restorable: true,
+  busy: false,
   cwd: terminal.cwd,
   cols: 80,
   rows: 24,

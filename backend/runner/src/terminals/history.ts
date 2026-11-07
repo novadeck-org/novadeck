@@ -1,0 +1,724 @@
+import { stat } from "node:fs/promises"
+
+import type { Install } from "@novadeck/harness-core/harness"
+import {
+  historyLimits,
+  isAgentName,
+  type AgentName,
+  type ClosedTerminal,
+  type ClosedTerminalState,
+  type HistoryChange,
+  type TerminalSummary,
+} from "@novadeck/protocol"
+import { KeyedChanges } from "@novadeck/wire/server"
+
+import { DomainError } from "../errors.js"
+import { harnesses } from "../harnesses/registry.js"
+import { logs } from "../log.js"
+import { agentLabel } from "../messaging/messages.js"
+import type { ClosedRecord, ClosedRecords, ListedClosed } from "../workspaces/closed.js"
+import { mention } from "./handles.js"
+import type { Record } from "./record.js"
+import { resumeNote } from "./resumes.js"
+import {
+  hasRun,
+  type AgentReport,
+  type SavedTerminal,
+  type TerminalIdentity,
+} from "./saved-terminals.js"
+import { summaryTitle } from "./titles.js"
+
+const log = logs.for("history")
+
+/** A closed terminal is kept this long, in milliseconds. */
+const retentionMs = 30 * 24 * 60 * 60 * 1000
+
+/** What History needs of the store: closed rows, and keeping a handle in a session. */
+export type HistoryRecords = ClosedRecords & {
+  /** Records that the session gave the handle, unless it gave it already; whether it did now. */
+  adoptHandle(sessionId: string, handle: string): boolean
+}
+
+/** How long History waits, in milliseconds; tests shorten it. */
+export type HistoryTimes = {
+  /** How long a restore may wait to be confirmed, as held at a dialog, before its row is ready again. */
+  readonly restoreMs: number
+  /** How often rows older than 30 days are deleted. */
+  readonly pruneMs: number
+  /** The longest one availability check is waited for; an unanswered one reads as unknown. */
+  readonly checkMs: number
+}
+
+const defaults: HistoryTimes = { restoreMs: 60_000, pruneMs: 60 * 60 * 1000, checkMs: 3_000 }
+
+/** How many availability checks run at once, so a long list on a slow disk never stalls the runner. */
+const checksAtOnce = 8
+
+/** A terminal the runner holds, which History reads as it closes and writes its restore to. */
+export type Closing = Record
+
+/** What the runner lets History ask of it. */
+export type HistoryHost = {
+  readonly records: HistoryRecords | undefined
+  /** Every project's id. */
+  readonly projects: () => readonly string[]
+  readonly projectOf: (sessionId: string) => string
+  /** Whether the session's project is being removed: nothing of it is kept. */
+  readonly going: (sessionId: string) => boolean
+  readonly stopping: () => boolean
+  readonly install: (agent: AgentName) => Promise<Install | undefined>
+  readonly connected: (agent: AgentName) => Promise<boolean>
+  /** The handle of the terminal holding or claiming the agent's session, if one does. */
+  readonly holder: (agent: AgentName, sessionId: string) => string | undefined
+  /** Each terminal of a session, running or kept, with the handle it leads under. */
+  readonly terminalsIn: (
+    sessionId: string,
+  ) => readonly { readonly handle: string; readonly ledBy: string | null }[]
+  /** A handle the session has never given. */
+  readonly drawHandle: (sessionId: string) => string
+  /** Gives back the sessions the terminal claimed. */
+  readonly releaseClaim: (terminalId: string) => void
+  /** Keeps the terminal's screen for a row (see `Saves.archive`). */
+  readonly archive: (record: Closing, write: (sealed: string) => void) => void
+  /** The summary of the terminal restored from the row as `terminalId`, if one is running. */
+  readonly restoredAs: (terminalId: string, row: string) => TerminalSummary | undefined
+  /** Whether a line was ever entered in a terminal kept only as saved. */
+  readonly ran: (terminalId: string) => boolean
+  /** Tells watchers of the terminal's summary. */
+  readonly announce: (record: Closing) => void
+  /** Shows the person a line in a terminal. */
+  readonly say: (record: Closing, text: string) => void
+}
+
+/** What the restored terminal waits on: the conversation it resumes, until it shows it worked. */
+export type Restoring = {
+  readonly row: string
+  readonly projectId: string
+  readonly agent: AgentName
+  readonly session: string
+  readonly timer: NodeJS.Timeout
+}
+
+/** What a restore starts from: the row, the terminal it makes, and how it learns the outcome. */
+export type Plan = {
+  /** What the new terminal is made from, as a saved terminal is. */
+  readonly saved: SavedTerminal
+  /** The agent whose conversation is resumed; undefined for a plain terminal. */
+  readonly resume: AgentName | undefined
+  /** Its handle, kept or drawn, and its title layers, decided at the moment of asking. */
+  identity(sessionId: string): TerminalIdentity
+  /** The terminal's shell started: a plain terminal's row goes, an agent's waits to be confirmed. */
+  started(record: Closing, resumes: boolean): void
+}
+
+type RestoreInput = { readonly id: string; readonly sessionId: string; readonly closed?: string | undefined }
+
+const clip = (text: string | null, limit: number): string | null =>
+  text === null ? null : text.slice(0, limit)
+
+/** The agent a row resumes: the one with the latest report, whatever program was last seen. */
+const resumeOf = (row: Pick<ListedClosed, "agent" | "agents">): AgentName | undefined => {
+  if (row.agent === null) return undefined
+  let best: AgentName | undefined
+  for (const [name, report] of Object.entries(row.agents) as [AgentName, AgentReport][])
+    if (isAgentName(name) && (!best || report.seq > (row.agents[best]?.seq ?? -1))) best = name
+  return best ?? row.agent
+}
+
+/** The sessions as a row keeps them: a live turn means nothing to the one who resumes them. */
+const withoutTurns = (agents: Record["agents"]): ClosedRecord["agents"] =>
+  Object.fromEntries(
+    (Object.entries(agents) as [AgentName, AgentReport][]).map(([name, report]) => {
+      const { turn: _turn, ...rest } = report
+      return [name, rest]
+    }),
+  )
+
+/** Whether the folder is missing: only ENOENT says so, any other failure is unknown. */
+const folderGone = async (path: string): Promise<boolean> => {
+  try {
+    await stat(path)
+    return false
+  } catch (error) {
+    return (error as NodeJS.ErrnoException).code === "ENOENT"
+  }
+}
+
+const pooled = async <T, R>(
+  items: readonly T[],
+  work: (item: T) => Promise<R>,
+): Promise<R[]> => {
+  const out = new Array<R>(items.length)
+  let next = 0
+  const lane = async (): Promise<void> => {
+    while (next < items.length) {
+      const index = next
+      next += 1
+      // eslint-disable-next-line no-await-in-loop -- A lane takes its items one after another.
+      out[index] = await work(items[index]!)
+    }
+  }
+  await Promise.all(Array.from({ length: Math.min(checksAtOnce, items.length) }, lane))
+  return out
+}
+
+/** The terminals closed in the last 30 days: kept at close, listed, restored, and pruned. */
+export class ClosedTerminals {
+  private readonly times: HistoryTimes
+  /** The rows whose restore is under way, by their id. */
+  private readonly restoring = new Set<string>()
+  /** The restores asked for and not yet answered, by the new terminal's id. */
+  private readonly inflight = new Map<string, { row: string; done: Promise<TerminalSummary> }>()
+  private readonly watchers = new Map<KeyedChanges<string, HistoryChange>, string>()
+  /** The changes of watchers still reading the rows they start from. */
+  private readonly early = new Set<HistoryChange[]>()
+  /** The latest announcement of each row, so a slow check never reports a row after its removal. */
+  private readonly latest = new Map<string, number>()
+  private counter = 0
+  private pruner: ReturnType<typeof setInterval> | undefined
+
+  constructor(
+    private readonly host: HistoryHost,
+    times: Partial<HistoryTimes> = {},
+  ) {
+    this.times = { ...defaults, ...times }
+    if (!host.records) return
+    this.prune()
+    this.pruner = setInterval(() => this.prune(), this.times.pruneMs)
+    this.pruner.unref()
+  }
+
+  /** Stops pruning and ends every watch, as the runner shuts down. */
+  close(): void {
+    clearInterval(this.pruner)
+    for (const watcher of this.watchers.keys()) watcher.finish()
+  }
+
+  /** Ends the watches an owner holds, as its connection goes. */
+  release(ownerId: string): void {
+    for (const [watcher, owner] of this.watchers) if (owner === ownerId) watcher.finish()
+  }
+
+  // Close
+
+  /**
+   * Keeps a terminal that is closing, before it is marked closed: a row of what restores it,
+   * built from the record in memory. Nothing is kept when nothing ever ran in it or its
+   * project is going. A failure is logged and never stops the close.
+   */
+  closing(record: Closing, closedBy: string | null): void {
+    try {
+      const { records } = this.host
+      // A restore that has not been confirmed ends with its terminal: the conversation it
+      // bound counts as the restore's success, and anything else leaves its row where it was.
+      if (record.restoring) this.observe(record, true)
+      if (record.restoring) this.settle(record)
+      if (!records || this.host.going(record.summary.sessionId)) return
+      const agent = record.bound?.binding.agent ?? null
+      if (!record.ran && !hasRun(record.agents) && agent === null) return
+      const { summary } = record
+      const row: ClosedRecord = {
+        id: summary.id,
+        projectId: this.host.projectOf(summary.sessionId),
+        sessionId: summary.sessionId,
+        handle: summary.handle,
+        naming: record.naming,
+        agent,
+        lastProgram: summary.lastProgram,
+        command: summary.command,
+        cwd: summary.cwd,
+        agents: withoutTurns(record.agents),
+        interruptions: record.interruptions ?? [],
+        transcript: null,
+        closedAt: Date.now(),
+        closedBy,
+      }
+      records.insertClosed(row)
+      this.announce(row)
+      // An agent's row keeps no transcript: its harness has the conversation.
+      if (agent === null) this.host.archive(record, (sealed) => this.keep(row.id, sealed))
+    } catch (error) {
+      log.error("history.keep-failed", "Novadeck could not keep a closed terminal", { err: error })
+    }
+  }
+
+  /** Keeps a terminal that was only saved, as it closes: its transcript is already sealed. */
+  closingSaved(saved: SavedTerminal, closedBy: string | null): void {
+    try {
+      const { records } = this.host
+      if (!records || this.host.going(saved.sessionId)) return
+      const named = saved.lastProgram
+      const agent = isAgentName(named) && saved.agents[named] ? named : null
+      if (!this.host.ran(saved.id) && !hasRun(saved.agents)) return
+      const row: ClosedRecord = {
+        id: saved.id,
+        projectId: this.host.projectOf(saved.sessionId),
+        sessionId: saved.sessionId,
+        handle: saved.handle,
+        naming: saved.naming,
+        agent,
+        lastProgram: saved.lastProgram,
+        command: saved.command,
+        cwd: saved.cwd,
+        agents: withoutTurns(saved.agents),
+        interruptions: saved.interruptions,
+        transcript: agent === null ? saved.transcript : null,
+        closedAt: Date.now(),
+        closedBy,
+      }
+      records.insertClosed(row)
+      this.announce(row)
+    } catch (error) {
+      log.error("history.keep-failed", "Novadeck could not keep a closed terminal", { err: error })
+    }
+  }
+
+  /** Adds the sealed screen to a row, if it is still there. */
+  private keep(id: string, sealed: string): void {
+    const current = this.host.records?.closedTerminal(id)
+    if (current) this.host.records?.insertClosed({ ...current, transcript: sealed })
+  }
+
+  // Reading
+
+  /** A project's closed terminals, newest first, each with whether it can be restored now. */
+  async list(projectId: string): Promise<ClosedTerminal[]> {
+    const rows = this.host.records?.closed(projectId) ?? []
+    return pooled(rows, (row) => this.wire(row))
+  }
+
+  /** Every closed terminal, `synced`, then each later change, until `signal` aborts. */
+  async *watch(ownerId: string, signal?: AbortSignal): AsyncGenerator<HistoryChange> {
+    if (this.host.stopping()) throw new DomainError("CLOSING")
+    // Changes made while the rows are checked are applied after them.
+    const meanwhile: HistoryChange[] = []
+    this.early.add(meanwhile)
+    let rows: ClosedTerminal[]
+    try {
+      rows = await pooled(this.all(), (row) => this.wire(row))
+    } finally {
+      this.early.delete(meanwhile)
+    }
+    const watcher = new KeyedChanges<string, HistoryChange>(
+      rows.map((closed) => [closed.id, { type: "changed", closed }] as const),
+      { type: "synced" },
+    )
+    for (const change of meanwhile) this.apply(watcher, change)
+    this.watchers.set(watcher, ownerId)
+    const abort = () => watcher.finish()
+    signal?.addEventListener("abort", abort, { once: true })
+    if (signal?.aborted) watcher.finish()
+    try {
+      while (true) {
+        // eslint-disable-next-line no-await-in-loop -- Changes are delivered in order.
+        const change = await watcher.next()
+        if (change === undefined) return
+        yield change
+      }
+    } finally {
+      signal?.removeEventListener("abort", abort)
+      watcher.finish()
+      this.watchers.delete(watcher)
+    }
+  }
+
+  private all(): ListedClosed[] {
+    const { records } = this.host
+    return records ? this.host.projects().flatMap((project) => [...records.closed(project)]) : []
+  }
+
+  private async wire(row: ListedClosed): Promise<ClosedTerminal> {
+    const availability = await this.availability(row)
+    const { title } = summaryTitle(row.naming, {
+      handle: row.handle,
+      command: row.command,
+      openedBy: null,
+    })
+    return {
+      id: row.id,
+      projectId: row.projectId,
+      title,
+      summary: clip(row.naming.summary, historyLimits.summary),
+      handle: row.handle,
+      agent: row.agent,
+      program: row.agent === null ? clip(row.lastProgram, historyLimits.program) : null,
+      cwd: row.cwd,
+      closedAt: row.closedAt,
+      closedBy: row.closedBy,
+      availability,
+    }
+  }
+
+  /** Tells watchers of a row as it is now. */
+  private announce(row: ListedClosed): void {
+    const n = (this.counter += 1)
+    this.latest.set(row.id, n)
+    void this.wire(row)
+      .then((closed) => {
+        if (this.latest.get(row.id) === n) this.emit({ type: "changed", closed })
+      })
+      .catch((error: unknown) =>
+        log.error("history.announce-failed", "Novadeck could not check a closed terminal", {
+          err: error,
+        }),
+      )
+  }
+
+  private remove(row: { readonly id: string; readonly projectId: string }): void {
+    this.latest.delete(row.id)
+    this.restoring.delete(row.id)
+    this.emit({ type: "removed", id: row.id, projectId: row.projectId })
+  }
+
+  private emit(change: HistoryChange): void {
+    for (const watcher of this.watchers.keys()) this.apply(watcher, change)
+    for (const pending of this.early) pending.push(change)
+  }
+
+  private apply(watcher: KeyedChanges<string, HistoryChange>, change: HistoryChange): void {
+    if (change.type === "changed") watcher.changed(change.closed.id, change)
+    else if (change.type === "removed") watcher.removed(change.id, change)
+  }
+
+  /** Deletes the rows closed more than 30 days ago, and tells watchers. */
+  prune(now = Date.now()): void {
+    const { records } = this.host
+    if (!records) return
+    try {
+      const cutoff = now - retentionMs
+      const owners = new Map<string, string>()
+      for (const row of this.all()) if (row.closedAt < cutoff) owners.set(row.id, row.projectId)
+      for (const id of records.pruneClosed(cutoff)) {
+        const projectId = owners.get(id)
+        if (projectId) this.remove({ id, projectId })
+      }
+    } catch (error) {
+      log.error("history.prune-failed", "Novadeck could not prune closed terminals", { err: error })
+    }
+  }
+
+  // Availability
+
+  /**
+   * Whether the row can be restored now: not already, its harness connected, its conversation
+   * and folder there, and the session not open in another terminal. What can't be told, as a
+   * file the process may not read, counts as there; so does a check that takes too long.
+   */
+  async availability(row: ListedClosed, restoringIsOwn = false): Promise<ClosedTerminalState> {
+    if (!restoringIsOwn && this.restoring.has(row.id)) return { state: "restoring" }
+    const agent = resumeOf(row)
+    if (agent === undefined) return { state: "ready" }
+    const report = row.agents[agent]
+    if (!report) return { state: "gone", reason: "conversation" }
+    const connected = await this.host.connected(agent).catch(() => true)
+    if (!connected) return { state: "disconnected", agent }
+    const holder = this.host.holder(agent, report.sessionId)
+    if (holder !== undefined) return { state: "open", handle: holder }
+    const checked = await Promise.race([
+      this.files(agent, report, row),
+      new Promise<ClosedTerminalState>((resolve) =>
+        setTimeout(() => resolve({ state: "ready" }), this.times.checkMs).unref(),
+      ),
+    ])
+    return checked
+  }
+
+  private async files(
+    agent: AgentName,
+    report: AgentReport,
+    row: Pick<ListedClosed, "cwd">,
+  ): Promise<ClosedTerminalState> {
+    try {
+      if (await folderGone(report.cwd ?? row.cwd)) return { state: "gone", reason: "folder" }
+      const install = await this.host.install(agent)
+      if (!install) return { state: "ready" }
+      const found = await harnesses[agent].conversation(install, report.sessionId)
+      return found === "gone" ? { state: "gone", reason: "conversation" } : { state: "ready" }
+    } catch {
+      return { state: "ready" }
+    }
+  }
+
+  /** Whether an agent running with this session could be restored if closed (see `restorable`). */
+  async restorable(agent: AgentName, sessionId: string): Promise<boolean> {
+    if (!(await this.host.connected(agent).catch(() => true))) return false
+    const install = await this.host.install(agent).catch(() => undefined)
+    if (!install) return true
+    return (await harnesses[agent].conversation(install, sessionId).catch(() => "unknown")) !== "gone"
+  }
+
+  // Restore
+
+  /**
+   * Restores the row `input.closed` as the terminal `input.id` through `start`, which makes
+   * the terminal from the plan. The row is refused if unknown (NOT_FOUND), or if it can't be
+   * restored now (CONFLICT); a create repeated with the same new id answers with the terminal
+   * the first made, never CONFLICT.
+   */
+  restore<I extends RestoreInput>(
+    input: I,
+    start: (plan: Plan, input: I) => Promise<TerminalSummary>,
+  ): Promise<TerminalSummary> {
+    const { closed } = input
+    if (closed === undefined) return Promise.reject(new DomainError("NOT_FOUND"))
+    const running = this.inflight.get(input.id)
+    if (running?.row === closed) return running.done
+    const existing = this.host.restoredAs(input.id, closed)
+    if (existing) return Promise.resolve(existing)
+    const done = this.restoreRow(closed, input, start)
+    this.inflight.set(input.id, { row: closed, done })
+    const forget = () => {
+      if (this.inflight.get(input.id)?.done === done) this.inflight.delete(input.id)
+    }
+    done.then(forget, forget)
+    return done
+  }
+
+  private async restoreRow<I extends RestoreInput>(
+    rowId: string,
+    input: I,
+    start: (plan: Plan, input: I) => Promise<TerminalSummary>,
+  ): Promise<TerminalSummary> {
+    const { records } = this.host
+    const row = records?.closedTerminal(rowId)
+    if (!row || row.projectId !== this.host.projectOf(input.sessionId))
+      throw new DomainError("NOT_FOUND", "That closed terminal is not in this project's History.")
+    if (this.restoring.has(rowId))
+      throw new DomainError("CONFLICT", "That terminal is already being restored.")
+    // Taken before anything waits, so a second restore of the row is refused.
+    this.restoring.add(rowId)
+    try {
+      const state = await this.availability(row, true)
+      if (state.state !== "ready") throw new DomainError("CONFLICT", refusal(state))
+      this.announce(row)
+      return await start(this.plan(row), input)
+    } catch (error) {
+      this.restoring.delete(rowId)
+      this.announce(row)
+      throw error
+    }
+  }
+
+  private plan(row: ClosedRecord): Plan {
+    const resume = resumeOf(row)
+    const report = resume && row.agents[resume]
+    // The session's own folder, where its harness finds the conversation.
+    const cwd = report?.cwd ?? row.cwd
+    return {
+      resume,
+      saved: {
+        id: row.id,
+        sessionId: row.sessionId,
+        handle: row.handle,
+        naming: row.naming,
+        openedBy: null,
+        ledBy: null,
+        command: row.command,
+        lastProgram: row.lastProgram,
+        work: null,
+        cwd,
+        agents: row.agents,
+        promptedAt: null,
+        interruptions: row.interruptions,
+        transcript: row.transcript,
+        savedAt: row.closedAt,
+      },
+      identity: (sessionId) => ({
+        handle: this.handleFor(row, sessionId),
+        naming: row.naming,
+        openedBy: null,
+        ledBy: null,
+      }),
+      started: (record, resumes) => this.started(row, resume, record, resumes),
+    }
+  }
+
+  /**
+   * The handle the restored terminal has in the session: its own, unless a terminal there has
+   * it, leads under it (a restored lead must not regain workers by name), or another
+   * terminal of that session was given it. Else one the session never gave.
+   */
+  private handleFor(row: ClosedRecord, sessionId: string): string {
+    const taken = this.host
+      .terminalsIn(sessionId)
+      .some((terminal) => terminal.handle === row.handle || terminal.ledBy === row.handle)
+    // A handle the session gave this very terminal is recorded already.
+    const adopted =
+      !taken && (row.sessionId === sessionId || this.host.records?.adoptHandle(sessionId, row.handle))
+    return adopted ? row.handle : this.host.drawHandle(sessionId)
+  }
+
+  private started(
+    row: ClosedRecord,
+    resume: AgentName | undefined,
+    record: Closing,
+    resumes: boolean,
+  ): void {
+    record.restoredFrom = row.id
+    const session = resume && row.agents[resume]?.sessionId
+    if (resume === undefined || session === undefined) {
+      // A plain terminal's shell has started: its row has done its part.
+      this.gone(row)
+      return
+    }
+    record.restoring = {
+      row: row.id,
+      projectId: row.projectId,
+      agent: resume,
+      session,
+      timer: setTimeout(() => this.timedOut(record), this.times.restoreMs),
+    }
+    record.restoring.timer.unref()
+    if (!resumes) this.failed(record, "its shell can't run the command that resumes it")
+    else this.observe(record)
+  }
+
+  private gone(row: { readonly id: string; readonly projectId: string }): void {
+    try {
+      this.host.records?.removeClosed(row.id)
+    } catch (error) {
+      log.error("history.remove-failed", "Novadeck could not remove a restored row", { err: error })
+    }
+    this.remove(row)
+  }
+
+  /** The restore did not start a terminal: the row is as it was. */
+  private abandoned(row: ClosedRecord): void {
+    this.restoring.delete(row.id)
+    this.announce(row)
+  }
+
+  /**
+   * Looks at a restored terminal for the harness's sign that its conversation resumed: the
+   * row goes then. With `final`, the terminal is closing, so a prompt that returned counts.
+   */
+  observe(record: Closing, final = false): void {
+    const waiting = record.restoring
+    if (!waiting) return
+    const bound = record.bound?.binding
+    const seen = harnesses[waiting.agent].launch.resumed(waiting.session, {
+      sessionId: bound?.agent === waiting.agent ? bound.sessionId : null,
+      ready: record.summary.ready !== null,
+    })
+    if (seen === "worked") this.worked(record, waiting)
+    else if (seen === "failed" && !final) this.failed(record)
+  }
+
+  /** The shell's prompt came back: a resume still not shown to have worked has failed. */
+  prompted(record: Closing): void {
+    if (!record.restoring) return
+    this.observe(record)
+    if (record.restoring) this.failed(record)
+  }
+
+  /** The terminal's shell ended, or typing took the startup over: the resume did not happen. */
+  cancelled(record: Closing): void {
+    if (record.restoring) this.failed(record, undefined, false)
+  }
+
+  private worked(record: Closing, waiting: Restoring): void {
+    clearTimeout(waiting.timer)
+    record.restoring = undefined
+    this.gone({ id: waiting.row, projectId: waiting.projectId })
+  }
+
+  /**
+   * The resume failed: the session is given back, the row checked again and left where it
+   * was, and the terminal stays as a plain shell, with a line saying why unless `say` is false.
+   */
+  private failed(record: Closing, why?: string, say = true): void {
+    const waiting = record.restoring
+    if (!waiting) return
+    clearTimeout(waiting.timer)
+    record.restoring = undefined
+    // A claim survives a failed resume, and would hold the session from every other terminal.
+    this.host.releaseClaim(record.summary.id)
+    this.restoring.delete(waiting.row)
+    const row = this.host.records?.closedTerminal(waiting.row)
+    if (!row) return
+    void (async () => {
+      const state = await this.availability(row)
+      this.announce(row)
+      if (!say) return
+      const label = agentLabel(waiting.agent)
+      const note =
+        why !== undefined
+          ? `${label} was running here, but wasn't resumed: ${why}.`
+          : state.state === "gone" && state.reason === "conversation"
+            ? resumeNote({ ok: false, reason: "conversation-gone" }, waiting.agent, true)
+            : `${label} was running here, but its conversation didn't open.`
+      if (note) this.host.say(record, note)
+    })().catch((error: unknown) =>
+      log.error("history.check-failed", "Novadeck could not check a closed terminal", { err: error }),
+    )
+  }
+
+  /** A resume held too long, as at a dialog: the row is ready again, and the terminal stays. */
+  private timedOut(record: Closing): void {
+    const waiting = record.restoring
+    if (!waiting) return
+    record.restoring = undefined
+    this.restoring.delete(waiting.row)
+    const row = this.host.records?.closedTerminal(waiting.row)
+    if (row) this.announce(row)
+  }
+
+  /** The terminal is closing with its restore unconfirmed: the row is where it was. */
+  private settle(record: Closing): void {
+    const waiting = record.restoring
+    if (!waiting) return
+    clearTimeout(waiting.timer)
+    record.restoring = undefined
+    this.restoring.delete(waiting.row)
+    const row = this.host.records?.closedTerminal(waiting.row)
+    if (row) this.announce(row)
+  }
+
+  // Restorable
+
+  /**
+   * Judges whether the terminal could be restored if it closed (`TerminalSummary.restorable`):
+   * a shell yes; an agent without a session no; one with a session while its harness is
+   * connected and its conversation not known gone. Judged again only when the bound session
+   * changes.
+   */
+  judge(record: Closing): void {
+    const bound = record.bound?.binding
+    const key = bound ? `${bound.agent}:${bound.sessionId}` : record.expecting ? "starting" : "shell"
+    if (record.restorableFor === key) return
+    record.restorableFor = key
+    if (!bound) {
+      this.restorableIs(record, key === "shell")
+      return
+    }
+    void this.restorable(bound.agent, bound.sessionId)
+      .then((value) => {
+        if (record.restorableFor === key) this.restorableIs(record, value)
+      })
+      .catch(() => undefined)
+  }
+
+  private restorableIs(record: Closing, value: boolean): void {
+    if (record.summary.restorable === value) return
+    record.summary = { ...record.summary, restorable: value }
+    this.host.announce(record)
+  }
+}
+
+/** Why a row can't be restored, in a sentence for the person. */
+const refusal = (state: ClosedTerminalState): string => {
+  switch (state.state) {
+    case "restoring":
+      return "That terminal is already being restored."
+    case "gone":
+      return state.reason === "folder"
+        ? "The folder that conversation ran in is gone."
+        : "That conversation is gone."
+    case "disconnected":
+      return `Novadeck isn't connected to ${agentLabel(state.agent)}, so it can't resume its conversations.`
+    case "open":
+      return `That conversation is open in ${mention(state.handle)}.`
+    case "ready":
+      return "That terminal can be restored."
+  }
+}

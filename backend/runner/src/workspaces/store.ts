@@ -1525,6 +1525,14 @@ export class WorkspaceStore
     })
   }
 
+  adoptHandle(sessionId: string, handle: string): boolean {
+    return (
+      this.queries.run`
+        INSERT OR IGNORE INTO session_handles (session_id, handle) VALUES (${sessionId}, ${handle})`
+        .changes > 0
+    )
+  }
+
   renameTerminal(terminalId: string, title: string | null): boolean {
     const result = this.queries
       .run`UPDATE terminals SET person_title = ${title} WHERE id = ${terminalId}`

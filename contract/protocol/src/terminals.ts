@@ -109,10 +109,10 @@ export const terminalSummary = z.strictObject({
   // Whether the runner can bring it back as it is if it is closed: an agent with a
   // session to resume, or a terminal that is not running one. False for an agent running
   // without a session, and until the runner knows.
-  restorable: z.boolean().optional(),
+  restorable: z.boolean(),
   // Whether a program runs in its shell besides the prompt, known on every OS, as an
-  // agent does. False at the prompt, and absent reads as false until the runner sets it.
-  busy: z.boolean().optional(),
+  // agent does. False at the prompt.
+  busy: z.boolean(),
   // The command it was opened to run at its first prompt; null for a plain shell.
   command: startupCommand.nullable(),
   // The program in its foreground when its shell was last seen, which a fresh shell

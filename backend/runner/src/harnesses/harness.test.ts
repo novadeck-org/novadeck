@@ -234,6 +234,8 @@ describe("the harness registry", () => {
     // Codex has no id before its first prompt: ready is its sign, whatever else shows.
     expect(harnesses.codex.launch.resumed("a", seen(null, false))).toBe("waiting")
     expect(harnesses.codex.launch.resumed("a", seen(null, true))).toBe("worked")
+    // Binding clears ready, so the claimed id counts too.
+    expect(harnesses.codex.launch.resumed("a", seen("a", false))).toBe("worked")
   })
 
   it("gives Claude Code and Codex a shim everywhere", () => {
