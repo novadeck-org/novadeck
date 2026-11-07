@@ -5,16 +5,16 @@ import {
   type ChatSlice,
 } from "@novadeck/core/conversation"
 import type { Refused } from "@novadeck/core/conversation/prompt-refusal"
-import { CircleHelp, ClipboardList, Loader, ShieldQuestion, type LucideIcon } from "lucide-react"
-import { useEffect, useRef, useState } from "react"
+import { useContext, useEffect, useRef, useState } from "react"
 
 import { RequestDialog } from "./RequestDialog"
+import { SliceKeys } from "./Slice"
 import { useMounted } from "./use-mounted"
 
-const kinds: Readonly<Record<ChatRequest["kind"], { title: string; Icon: LucideIcon }>> = {
-  permission: { title: "Needs your permission", Icon: ShieldQuestion },
-  question: { title: "Has a question", Icon: CircleHelp },
-  plan: { title: "Plan to review", Icon: ClipboardList },
+const titles: Readonly<Record<ChatRequest["kind"], string>> = {
+  permission: "Needs your permission",
+  question: "Has a question",
+  plan: "Plan to review",
 }
 
 // How long after an answer took the same dialog may stay before it counts as another one,
@@ -24,8 +24,9 @@ export const againMs = 1000
 const reason = (failure: unknown): string =>
   failure instanceof Error && failure.message ? failure.message : "That answer didn't go through."
 
-// A request that waits on the person: what it asks, the controls of its dialog where the
-// backend read it, and the way to answer in the agent's terminal instead.
+// A request that waits on the person: what it asks, and the controls of its dialog where the
+// backend read it. The way to the agent's terminal shows only where the chat has no other: an
+// answer it waits on, a dialog not on screen yet, one it can't read and has no live rows of.
 const Card = ({
   request,
   slice,
@@ -55,7 +56,8 @@ const Card = ({
   readonly onChatting: () => void
   readonly refused: Refused
 }): React.JSX.Element => {
-  const { title, Icon } = kinds[request.kind]
+  const title = titles[request.kind]
+  const keys = useContext(SliceKeys)
   const [sending, setSending] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const mounted = useMounted()
@@ -148,6 +150,8 @@ const Card = ({
     )
   }
   const { dialog } = request
+  const live = slice?.reason === "dialog" && keys !== null
+  const onlyTheTerminal = request.answered || dialog === null || (dialog.type === "raw" && !live)
   return (
     <article
       ref={card}
@@ -158,20 +162,27 @@ const Card = ({
       aria-busy={sending}
     >
       <header className="chat-request-head">
-        <Icon size={14} strokeWidth={1.75} aria-hidden />
-        <h3>{title}</h3>
-        <span className="chat-request-tool">{request.tool}</span>
-        {request.subagent && <span className="chat-request-tag">subagent</span>}
-        <button type="button" className="button nodrag nopan" onClick={onAnswerInTerminal}>
-          Answer in terminal
-        </button>
+        <h3>
+          {title}
+          {request.subagent && " · subagent"}
+        </h3>
+        {onlyTheTerminal && (
+          <button
+            type="button"
+            className="chat-key nodrag nopan"
+            aria-label="Answer in terminal"
+            onClick={onAnswerInTerminal}
+          >
+            terminal
+          </button>
+        )}
       </header>
       {request.subject && !(dialog?.type === "choices" && dialog.detail === request.subject) && (
         <p className="chat-request-subject">{request.subject}</p>
       )}
       {request.answered ? (
         <p ref={status} tabIndex={-1} className="chat-request-answered" role="status">
-          <Loader size={12} aria-hidden className="chat-spinner" />
+          <span className="chat-spin" aria-hidden />
           Answered. Waiting for {agent}…
         </p>
       ) : dialog === null ? (
@@ -187,8 +198,8 @@ const Card = ({
         <RequestDialog
           key={handedBack}
           dialog={dialog}
-          requestId={request.id}
           slice={slice}
+          agent={agent}
           replying={replying}
           onReply={onReply}
           // While the box's answer goes, the card answers nothing else.
@@ -203,7 +214,7 @@ const Card = ({
       )}
       {again !== null && !request.answered && dialog && "id" in dialog && dialog.id === again && (
         <p className="chat-request-again" role="status">
-          Another identical request. Answer it too, or answer in the terminal.
+          Another identical request. Answer it too.
         </p>
       )}
       {error && (
@@ -215,8 +226,8 @@ const Card = ({
   )
 }
 
-// What waits on the person. The dialog's controls answer it here; "Answer in terminal"
-// stays on every card, for a dialog the chat can't answer and for the person's choice.
+// What waits on the person, as the next lines of the terminal. The dialog's controls answer it
+// here.
 export const Requests = ({
   requests,
   slice,

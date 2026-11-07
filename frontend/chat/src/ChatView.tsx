@@ -24,11 +24,13 @@ import { sentBubbles } from "./bubbles"
 import { Composer } from "./Composer"
 import { composerMode } from "./composer-mode"
 import { useEchoes } from "./echoes"
+import { Mark } from "./Mark"
+import { otherMenu } from "./other-menu"
 import { usePassing } from "./passing"
 import { sameReply, type ChatReply, type ChatReplyTo } from "./replies"
 import { Requests } from "./Requests"
 import type { ChatSend } from "./sends"
-import { Slice, SliceKeys } from "./Slice"
+import { LiveSlice, Slice, SliceKeys } from "./Slice"
 import { Transcript } from "./Transcript"
 import { dismissUnread, unreadDismissed } from "./unread"
 
@@ -323,6 +325,7 @@ export const ChatView = ({
               />
               {echoes.shown.map((echo) => (
                 <div key={echo.id} className="chat-echo">
+                  <Mark />
                   <p className="chat-echo-text">{echo.text}</p>
                   {echo.slice && <Slice slice={echo.slice} />}
                 </div>
@@ -357,7 +360,13 @@ export const ChatView = ({
             </button>
           )}
         </div>
-        {slice && slice.reason !== "dialog" && <Slice slice={slice} live />}
+        {slice && slice.reason !== "dialog" && (
+          <LiveSlice
+            slice={slice}
+            agent={name}
+            aside={slice.reason === "menu" ? otherMenu(harness ?? program, draft) : null}
+          />
+        )}
         <Requests
           requests={requests}
           slice={slice}
