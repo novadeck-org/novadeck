@@ -4,7 +4,7 @@ import { afterEach } from "vitest"
 
 import { describe, expect, it } from "../test"
 import type { InboxBadge } from "./inbox-badge"
-import { SidebarRail } from "./SidebarRail"
+import { railTooltip, SidebarRail } from "./SidebarRail"
 
 const unmounts: (() => void)[] = []
 afterEach(() => unmounts.splice(0).forEach((unmount) => unmount()))
@@ -20,7 +20,6 @@ const rail = (badge: InboxBadge | undefined, bellRings: number, sessionsAsk?: st
     bellRings,
     sessionsAsk,
     toggleSidebar: () => {},
-    hideSidebar: () => {},
   })
 
 describe("the rail's Inbox dot", () => {
@@ -58,5 +57,25 @@ describe("the rail's Sessions dot", () => {
     expect(toggle().getAttribute("aria-description")).toBe("3 need you · 1 question")
     rerender(rail(undefined, 5, "1 needs you"))
     expect(toggle().querySelector(".bell-dot-ring")).toBeNull()
+  })
+})
+
+describe("the rail's tooltips", () => {
+  it("say where a click on the open panel's toggle takes the sidebar, and each panel's key", () => {
+    const keys = (letter: string) =>
+      (navigator.platform.includes("Mac")
+        ? ["⌘", "Shift", letter]
+        : ["Ctrl", "Shift", letter]
+      ).join(" ")
+    expect(railTooltip({ panel: "sessions", open: false, base: "terminals" })).toBe(
+      `Sessions · ${keys("S")}`,
+    )
+    expect(railTooltip({ panel: "sessions", open: true, base: "terminals" })).toBe(
+      `Sessions · back to Terminals · ${keys("S")}`,
+    )
+    expect(railTooltip({ panel: "inbox", detail: "2 waiting", open: true, base: "inbox" })).toBe(
+      `Inbox · 2 waiting · hide sidebar · ${keys("B")}`,
+    )
+    expect(railTooltip({ panel: "history", open: true, base: null })).toBe("History · hide sidebar")
   })
 })

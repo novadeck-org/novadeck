@@ -3,11 +3,14 @@ import { page, userEvent, type Locator } from "vitest/browser"
 import { pressShortcut } from "../support/keyboard"
 import { expectStaysTrue } from "../support/layouts"
 import {
+  clickInto,
+  commandInput,
   expectStaysAbsent,
   openWorkspace,
   press,
   reloadWorkspace,
   sidebar,
+  sidebarPanel,
 } from "../support/workspace"
 import { context, describe, expect, it } from "../test"
 
@@ -27,6 +30,41 @@ describe("sidebar settings", () => {
       await expectStaysAbsent(sidebar())
       await pressShortcut("terminals")
       await expect.element(sidebar()).toBeVisible()
+    })
+  })
+
+  context("when the open panel's toggle is pressed again", () => {
+    it("goes back to the panel the sidebar opened on, and hides it from that one", async () => {
+      await openWorkspace()
+      await sidebarPanel("Inbox").click()
+      await expect.element(sidebar()).toHaveAccessibleName("Inbox")
+      await sidebarPanel("Sessions").click()
+      await expect.element(sidebar()).toHaveAccessibleName("Workspace sessions")
+
+      await sidebarPanel("Sessions").click()
+
+      await expect.element(sidebar()).toHaveAccessibleName("Terminal sessions")
+      await sidebarPanel("Terminals").click()
+      await expect.element(sidebar()).not.toBeInTheDocument()
+
+      // Opened on the Inbox by its key, the same key hides it again.
+      await pressShortcut("inbox")
+      await expect.element(sidebar()).toHaveAccessibleName("Inbox")
+      await pressShortcut("inbox")
+      await expect.element(sidebar()).not.toBeInTheDocument()
+    })
+  })
+
+  context("when the sidebar is hidden by its key while typing in a terminal", () => {
+    it("leaves typing in the terminal", async () => {
+      await openWorkspace()
+      await clickInto("Checkout implementation")
+      await expect.element(commandInput("Checkout implementation")).toHaveFocus()
+
+      await pressShortcut("terminals")
+
+      await expect.element(sidebar()).not.toBeInTheDocument()
+      await expect.element(commandInput("Checkout implementation")).toHaveFocus()
     })
   })
 

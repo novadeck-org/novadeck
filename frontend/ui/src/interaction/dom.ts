@@ -126,7 +126,14 @@ export const terminalTabInteractionActive = (): boolean =>
 
 export const sidebarToggle = (panel: SidebarPanel): HTMLElement | null =>
   document.getElementById(`${panel}-toggle`)
-export const focusSidebarToggle = (panel: SidebarPanel): void => sidebarToggle(panel)?.focus()
+// As the sidebar hides, its panel's toggle takes the focus the sidebar held, or none held;
+// focus elsewhere, as typing in a terminal that hid it by its key, stays where it is.
+export const focusSidebarToggle = (panel: SidebarPanel): void => {
+  const active = document.activeElement
+  if (active && active !== document.body && !active.closest("#terminal-sidebar, .sidebar-tools"))
+    return
+  sidebarToggle(panel)?.focus()
+}
 export const focusTerminalTab = (id: string): void =>
   document
     .querySelector<HTMLElement>(`[data-terminal-tab-id="${CSS.escape(id)}"] .sidebar-item-select`)

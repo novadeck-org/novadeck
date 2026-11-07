@@ -24,6 +24,10 @@ export type ShellState = {
   readonly sidebar: boolean
   // The desktop sidebar is collapsed.
   readonly sidebarCollapsed: boolean
+  // The panel the sidebar was opened on, which a click on the open panel's toggle goes back
+  // to; on its own toggle the click hides the sidebar. None until the person first opens or
+  // switches a panel, and none again once the sidebar hides.
+  readonly sidebarBase: SidebarPanel | null
   // Zen hides the chrome and remembers the sidebar to restore on exit.
   readonly zen: ZenState | null
   // Canvas centres on the selection when it next mounts.
@@ -45,6 +49,7 @@ export type ShellState = {
 export const initialShell = (sidebarCollapsed: boolean): ShellState => ({
   sidebar: false,
   sidebarCollapsed,
+  sidebarBase: null,
   zen: null,
   revealCanvas: false,
   keyboardFocus: null,
@@ -62,6 +67,7 @@ export const hideSidebar = (shell: ShellState): ShellState => ({
   ...shell,
   sidebarCollapsed: true,
   sidebar: false,
+  sidebarBase: null,
 })
 
 // Leaves Zen and opens the sidebar on whichever panel the route names.

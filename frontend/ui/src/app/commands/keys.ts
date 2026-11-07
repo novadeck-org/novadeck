@@ -155,6 +155,7 @@ export const createKeyCommands = (
     },
     "sidebar.terminals": sidebar("terminals"),
     "sidebar.sessions": sidebar("sessions"),
+    "sidebar.inbox": sidebar("inbox"),
     "recent.next": recent(1),
     "recent.previous": recent(-1),
     "view.toggleFocus": {
