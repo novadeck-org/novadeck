@@ -6,7 +6,7 @@ import type { Question } from "./agents/agent.js"
 import { setups } from "./agents/index.js"
 import { occurrences, type DeckTerminal } from "./deck.js"
 import { describe, e2e, expect, gated, supported, type E2E } from "./fixture.js"
-import { asked, gate, latest } from "./model/script.js"
+import { asked, gate, latest, type Call } from "./model/script.js"
 import {
   answers,
   delivered,
@@ -132,6 +132,96 @@ for (const setup of setups) {
         after: mark,
       })
     }
+
+    // A guess that a prompt is queued costs that prompt its notices, and no more. What's asked
+    // of a terminal with no summary comes with each prompt, so it says which ones it reached.
+    const asksSummary = (call: Call) => /has no summary yet/.test(latest(call))
+
+    gated(it, setup.queueing ? undefined : "its queued prompts' hooks don't run early")(
+      "gives notices again by the second prompt after an Escape, and after a /clear",
+      async ({ e2e: run }) => {
+        const held = gate()
+        run.model.use(
+          own(async (call) => {
+            // The stopped prompt shares the next one's turn.
+            if (!asked(call, "Hold on") || /Two|Three|Four|Five/.test(latest(call)))
+              return undefined
+            await held.opened
+            return { text: "Too late." }
+          }),
+          replies("Two", "Two done."),
+          replies("Three", "Three done."),
+          replies("Four", "Four done."),
+          replies("Five", "Five done."),
+        )
+        const t1 = await start(run, setup)
+        const given = async (words: string) => {
+          const calls = run.model.mark()
+          await t1.prompt(words)
+          const call = await run.model.waitFor((one) => !one.side && asked(one, words), {
+            after: calls,
+          })
+          await t1.until(`${words} done.`)
+          await sleep(1_000)
+          return asksSummary(call)
+        }
+        const mark = t1.mark()
+        await t1.prompt("Hold on")
+        await t1.reached("working", { after: mark })
+        await sleep(1_500)
+        run.deck.terminals.write({ terminalId: t1.id, data: "\x1b" }, "e2e")
+        await sleep(2_500)
+        held.open()
+        // The first may be taken for one queued behind a turn the Escape didn't stop, as it can't
+        // be told from one; it costs no more than that one.
+        await given("Two")
+        expect(await given("Three")).toBe(true)
+        for (const key of "/clear") {
+          run.deck.terminals.write({ terminalId: t1.id, data: key }, "e2e")
+          // eslint-disable-next-line no-await-in-loop -- One key after another.
+          await sleep(60)
+        }
+        await sleep(500)
+        run.deck.terminals.write({ terminalId: t1.id, data: "\r" }, "e2e")
+        await sleep(3_000)
+        expect(await given("Four")).toBe(true)
+        expect(await given("Five")).toBe(true)
+      },
+    )
+
+    gated(it, setup.queueing ? undefined : "its queued prompts' hooks don't run early")(
+      "gives a queued prompt's notices to the next prompt that isn't queued",
+      async ({ e2e: run }) => {
+        const held = gate()
+        run.model.use(
+          own(async (call) => {
+            if (!asked(call, "Hold on")) return undefined
+            await held.opened
+            return { text: "Held on." }
+          }),
+          replies("Queued", "Queued done."),
+          replies("After", "After done."),
+        )
+        const t1 = await start(run, setup)
+        const mark = t1.mark()
+        await t1.prompt("Hold on")
+        await t1.reached("working", { after: mark })
+        const calls = run.model.mark()
+        await t1.prompt("Queued")
+        await t1.until(setup.queued!("Queued"))
+        held.open()
+        const queued = await run.model.waitFor((one) => !one.side && asked(one, "Queued"), {
+          after: calls,
+        })
+        expect(asksSummary(queued)).toBe(false)
+        await t1.until("Queued done.")
+        await sleep(1_500)
+        const after = run.model.mark()
+        await t1.prompt("After")
+        const next = await run.model.waitFor((one) => !one.side && asked(one, "After"), { after })
+        expect(asksSummary(next)).toBe(true)
+      },
+    )
 
     // A queued prompt's hook runs as it is queued, and a Stop takes the prompt back out: a
     // message printed there would go with it, unseen, though held as delivered.
