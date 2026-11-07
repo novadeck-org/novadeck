@@ -127,12 +127,11 @@ export class Sessions {
    * longer rests on the session, so nothing is addressed to it and its Inbox asks lapse,
    * and reopen should that session bind there after all. A terminal still asleep rests on.
    */
-  endRest(terminalId: string): boolean {
+  endRest(terminalId: string): void {
     const live = this.live.get(terminalId)
-    if (!live?.resting || this.asleepIds.has(terminalId)) return false
+    if (!live?.resting || this.asleepIds.has(terminalId)) return
     live.resting = null
     this.host.store.changed(terminalId)
-    return true
   }
 
   /** The record turns into `next` in place, as others hold it by identity. */

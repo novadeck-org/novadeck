@@ -41,7 +41,7 @@ import { plainSealer } from "../testing/sealing.js"
 import { WorkspaceStore } from "../workspaces/store.js"
 import { bannerSeen } from "./binding/banners.js"
 import { Terminals } from "./manager.js"
-import type { Bound } from "./record.js"
+import type { Bound, Record } from "./record.js"
 
 const cwd = process.cwd()
 
@@ -427,6 +427,23 @@ describe("terminal prompts", () => {
       .catch(() => {})
     await manager.prompt({ terminalId: terminal.id, text: "my words" }).catch(() => {})
     expect(events).toEqual(["mark continue", "failed continue"])
+  })
+
+  it("answers a create of a terminal the runner woke itself with the running terminal, once", async ({
+    terminals,
+  }) => {
+    const manager = terminals.manager(ptyOptions)
+    const input = { id: randomUUID(), sessionId: "session", cwd, cols: 80, rows: 24 }
+    const created = await manager.create(input, "creator")
+    // Any other existing id is taken.
+    await expect(manager.create(input, "client")).rejects.toMatchObject({ code: "CONFLICT" })
+    const inner = manager as unknown as {
+      records: Map<string, Record>
+      sleepers: { alones: WeakSet<Record> }
+    }
+    inner.sleepers.alones.add(inner.records.get(input.id)!)
+    await expect(manager.create(input, "client")).resolves.toMatchObject({ id: created.id })
+    await expect(manager.create(input, "client")).rejects.toMatchObject({ code: "CONFLICT" })
   })
 
   it("refuse a plain shell, which runs no agent, writing nothing to it", async ({ terminals }) => {

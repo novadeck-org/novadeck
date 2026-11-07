@@ -57,14 +57,9 @@ type ReleaseAnswer =
   | { readonly ok: true; readonly handle: string; readonly title: string }
   | LeadFailure
 
-/** What an agent hears of a terminal whose agent sleeps: nothing changed, and it is being woken or why it can't be. */
-const wakingOrWhy = (
-  handle: string,
-  woken: { readonly waking: true } | { readonly why: string },
-): string =>
-  "waking" in woken
-    ? `${mention(handle)} is asleep, so nothing changed. Novadeck is waking it now: ask again in a minute.`
-    : `${mention(handle)} is asleep, so nothing changed. ${woken.why}`
+/** What an agent hears of a terminal whose agent sleeps. */
+const asleepNote = (handle: string): string =>
+  `${mention(handle)}'s agent is asleep, so nothing changed. A message to it wakes it.`
 
 /** What an agent hears when no window of Novadeck is open to ask the person. */
 export const nobodyToLead = "Novadeck isn't open to ask the user, so nothing changed."
@@ -305,13 +300,9 @@ export class Leads {
     const target = await host.peers().target(peerOf(caller), to)
     if (!target.ok) return target
     // Closed, or the runner stopped, while the terminals were described.
-    let led = host.records().get(target.terminalId)
-    if (!led) {
-      const woken = await host.sleepers().verdict(target.terminalId)
-      if (woken) return refused(wakingOrWhy(target.handle, woken))
-      // A create may have landed during the judgment: the terminal is live now.
-      led = host.records().get(target.terminalId)
-    }
+    const led = host.records().get(target.terminalId)
+    if (!led && host.sleepers().resting(target.terminalId))
+      return refused(asleepNote(target.handle))
     if (host.stopping() || host.records().get(call.terminalId) !== caller || !led)
       return unansweredCalls.lead
     const unfit = this.unfit(caller, led)
@@ -394,13 +385,9 @@ export class Leads {
     if (to === caller.summary.handle) return refused("You can't release yourself.")
     const target = await host.peers().target(peerOf(caller), to)
     if (!target.ok) return target
-    let led = host.records().get(target.terminalId)
-    if (!led) {
-      const woken = await host.sleepers().verdict(target.terminalId)
-      if (woken) return refused(wakingOrWhy(target.handle, woken))
-      // A create may have landed during the judgment: the terminal is live now.
-      led = host.records().get(target.terminalId)
-    }
+    const led = host.records().get(target.terminalId)
+    if (!led && host.sleepers().resting(target.terminalId))
+      return refused(asleepNote(target.handle))
     if (host.stopping() || host.records().get(call.terminalId) !== caller || !led)
       return unansweredCalls.release
     const lead = host.messaging().leadOf(led.summary.id)

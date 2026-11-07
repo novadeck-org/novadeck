@@ -8,19 +8,16 @@ import {
 } from "@novadeck/protocol"
 
 import { harnesses } from "../harnesses/registry.js"
-import { logs } from "../log.js"
 import type { Inbox } from "../messaging/inbox.js"
 import { agentLabel } from "../messaging/messages.js"
 import type { Messaging } from "../messaging/messaging.js"
 import { standingDone } from "../messaging/peers.js"
 import type { PeerRecord } from "./peers-host.js"
 import type { Record } from "./record.js"
-import { wakeMs, wakeRefusal, type Claims } from "./resumes.js"
+import { wakeRefusal, type Claims } from "./resumes.js"
 import type { ListedTerminal } from "./saved-terminals.js"
 import type { Saves } from "./saving.js"
 import { savedSummaryOf, type AgentSummary } from "./summary.js"
-
-const log = logs.for("terminals")
 
 /**
  * How long the person's keys are dropped while a woken shell has not yet read its resume
@@ -30,16 +27,10 @@ export const keysHeldMs = 10_000
 
 /**
  * How long a wake waits for a client to create the terminal before the runner does it
- * itself, in milliseconds: with no window open, as on macOS after the last one closed, or
- * for a client that first sees the terminal already waking.
+ * itself, in milliseconds: a client's own `create`s come a few at a time (the adapter's
+ * start throttle), and there may be no window at all, as on macOS after the last one closed.
  */
-export const graceMs = 3_000
-
-/**
- * The same wait while a client watches, in milliseconds: its own `create`s come a few at a
- * time (the adapter's start throttle), so the runner waits for the last of a crowd.
- */
-export const watchedGraceMs = 10_000
+export const graceMs = 5_000
 
 /** How many creates of its own the runner has under way at once, and the gap between starts. */
 export const aloneLimit = 3
@@ -63,8 +54,6 @@ export type SleepersHost = {
   /** The terminal's record, if the runner holds one. */
   readonly record: (terminalId: string) => Record | undefined
   readonly stopping: () => boolean
-  /** Whether any client watches the terminals. */
-  readonly watched: () => boolean
   /** Starts the terminal's shell resuming its agent, as a client's restore does. */
   readonly create: (row: ListedTerminal, agent: AgentName) => Promise<unknown>
   /** Whether an agent's session could be restored from History if its terminal closed (`ClosedTerminals.restorable`). */
@@ -98,11 +87,12 @@ export class Sleepers {
   private readonly judging = new Map<string, Promise<string | undefined>>()
   /** The grace of each wake that waits for a client's `create`: one timer for each terminal. */
   private readonly timers = new Map<string, NodeJS.Timeout>()
-  /** The timers of woken shells whose agent is yet to show (`wakeMs`), and the gaps between creates. */
-  private readonly lapses = new Set<NodeJS.Timeout>()
+  /** The gaps between the runner's own creates. */
   private readonly gaps = new Set<{ readonly timer: NodeJS.Timeout; readonly end: () => void }>()
   /** The terminals a `create` is under way for, a wake's or a restore's, so none is doubled. */
   private readonly creating = new Set<string>()
+  /** The records the runner started itself, which no client's `create` has met yet. */
+  private readonly alones = new WeakSet<Record>()
   /** Whether each sleeper's session could be restored if its terminal closed, as History judged it. */
   private readonly restorables = new Map<string, boolean>()
   /** The session of each terminal rested here, to find its row. */
@@ -261,19 +251,6 @@ export class Sleepers {
     return true
   }
 
-  /**
-   * Asks the wake and waits for its judgment: `waking`, or `why` it can't be woken (the
-   * terminal stays asleep); undefined for a terminal that is no sleeper.
-   */
-  async verdict(
-    terminalId: string,
-  ): Promise<{ readonly waking: true } | { readonly why: string } | undefined> {
-    if (!this.ask(terminalId)) return undefined
-    const why = await this.judging.get(terminalId)
-    if (why !== undefined) return { why }
-    return this.wakes.has(terminalId) ? { waking: true } : undefined
-  }
-
   /** Judges a wake: why it is refused, or undefined when it is under way or no longer wanted. */
   private async judge(
     terminalId: string,
@@ -304,13 +281,10 @@ export class Sleepers {
    */
   private arm(terminalId: string): void {
     if (this.stopped || this.timers.has(terminalId)) return
-    const timer = setTimeout(
-      () => {
-        this.timers.delete(terminalId)
-        void this.alone(terminalId)
-      },
-      this.host.watched() ? watchedGraceMs : graceMs,
-    )
+    const timer = setTimeout(() => {
+      this.timers.delete(terminalId)
+      void this.alone(terminalId)
+    }, graceMs)
     timer.unref()
     this.timers.set(terminalId, timer)
   }
@@ -368,14 +342,13 @@ export class Sleepers {
   }
 
   /**
-   * The runner is stopping: no grace, wake timeout or gap fires after it, and the creates
+   * The runner is stopping: no grace or gap fires after it, and the creates
    * waiting for a place go on to find the runner stopping (`createAlone`).
    */
   stop(): void {
     this.stopped = true
-    for (const timer of [...this.timers.values(), ...this.lapses]) clearTimeout(timer)
+    for (const timer of this.timers.values()) clearTimeout(timer)
     this.timers.clear()
-    this.lapses.clear()
     for (const { timer, end } of this.gaps) {
       clearTimeout(timer)
       end()
@@ -398,6 +371,17 @@ export class Sleepers {
     if (!row) return
     // An unattended create that fails is reported by `create` itself (see `failedStart`).
     await this.host.create(row, resting.agent).catch(() => undefined)
+    const record = this.host.record(terminalId)
+    if (record) this.alones.add(record)
+  }
+
+  /**
+   * The running record of a terminal the runner woke itself, for a client's `create` of it
+   * to answer with, once; undefined for any other.
+   */
+  metAlone(terminalId: string): Record | undefined {
+    const record = this.host.record(terminalId)
+    return record && this.alones.delete(record) ? record : undefined
   }
 
   /**
@@ -522,8 +506,7 @@ export class Sleepers {
   /**
    * A `create` started the terminal's shell: its wake is over, whether it resumes the
    * agent (`agent`, the one resumed) or starts a plain shell, which keeps the row's lead
-   * and says why on its screen. A woken shell is `woken` until the agent shows, and a wake that carries messages
-   * gives up after `wakeMs` without it.
+   * and says why on its screen. A woken shell is `woken` until the agent shows.
    */
   started(record: Record, agent: AgentName | undefined, why: string): void {
     const { id } = record.summary
@@ -535,25 +518,7 @@ export class Sleepers {
     // Woken whatever came of it: the row keeps its program and its lead, the person looking.
     record.woken = Date.now()
     // A seen wake that judged not ok is a plain shell: nothing waits for an agent there.
-    if (agent === undefined) return messaging().wakeEnded(id, why)
-    if (!messaging().wakeWanted(id)) return
-    if (this.stopped) return
-    const timer = setTimeout(() => {
-      this.lapses.delete(timer)
-      this.timedOut(record, agent)
-    }, wakeMs)
-    timer.unref()
-    this.lapses.add(timer)
-  }
-
-  private timedOut(record: Record, agent: AgentName): void {
-    const { id } = record.summary
-    const { messaging } = this.host
-    if (this.host.stopping() || this.host.record(id) !== record) return
-    // A bound session ends its rest, and its own prompt showing counts as the agent up.
-    if (messaging().resting(id) === undefined || messaging().shownAgent(id) !== undefined) return
-    log.warn("terminals.wake-timeout", "A woken agent did not start in time", { data: { id } })
-    messaging().wakeEnded(id, wakeRefusal(agent, "timeout"))
+    if (agent === undefined) messaging().wakeEnded(id, why)
   }
 
   /**

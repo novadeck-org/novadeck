@@ -289,18 +289,6 @@ describe("a wake that ended with a shell and no agent", () => {
     expect(inbox.list().map((entry) => entry.id)).toEqual([created.id])
   })
 
-  it("makes the messages a pause held for it gone too, as nothing stands for their session", ({
-    resources,
-  }) => {
-    const run = setup()
-    resources.defer(closing(run))
-    run.messaging.pause(true)
-    const held = run.send("later")
-    run.messaging.register("B", here, "fox", null)
-    run.messaging.wakeEnded("B", "its agent did not start")
-    expect(run.messaging.stateOf(held.id)).toBe("gone")
-  })
-
   it("leaves a sleeper that stays asleep resting", ({ resources }) => {
     const run = setup()
     resources.defer(closing(run))

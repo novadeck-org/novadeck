@@ -103,6 +103,32 @@ describe.skipIf(process.platform === "win32" || !existsSync(bash))(
       await shell.until(manager, id, "claude args: --resume abc-1")
     })
 
+    it("gives a client's restore of a terminal the runner woke itself the running terminal, once", async ({
+      shell,
+    }) => {
+      writeFileSync(join(shell.home, ".bashrc"), 'export PATH="$HOME/bin:$PATH"\n')
+      fakeAgent(shell.home, "claude")
+      const id = sleeper(shell, "claude", "abc-1")
+      const manager = shell.manager()
+      const sleepers = (
+        manager as unknown as {
+          sleepers: {
+            ask: (id: string) => boolean
+            wakes: Set<string>
+            alone: (id: string) => Promise<void>
+          }
+        }
+      ).sleepers
+      // No client created it within the grace: the runner starts it.
+      sleepers.ask(id)
+      await vi.waitFor(() => expect(sleepers.wakes.has(id)).toBe(true))
+      await sleepers.alone(id)
+      const restore = () => create(manager, shell, { id, restore: true, resume: "claude" })
+      await expect(restore()).resolves.toMatchObject({ id, sleeping: false, started: true })
+      await expect(restore()).rejects.toMatchObject({ code: "CONFLICT" })
+      await shell.until(manager, id, "claude args: --resume abc-1")
+    })
+
     it("leaves a wake nobody is looking at asleep when it can't resume, and fails it", async ({
       shell,
     }) => {

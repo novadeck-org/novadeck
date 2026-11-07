@@ -507,7 +507,6 @@ export class Terminals {
       closed: (id) => this.closedIds.has(id),
       record: (id) => this.records.get(id),
       stopping: () => this.stopping,
-      watched: () => this.streams.watched(),
       create: async (row, resume) => {
         const owner = `wake:${row.id}`
         const { id, sessionId, cwd } = row
@@ -667,6 +666,8 @@ export class Terminals {
     if (this.stopping) throw new DomainError("CLOSING")
     // A closed terminal stays closed, even while its shell is still ending.
     if (this.closedIds.has(input.id)) throw new DomainError("TERMINAL_NOT_FOUND")
+    const woken = this.sleepers.metAlone(input.id)
+    if (woken) return summaryOf(woken)
     // Checked before eviction, so a retained exited record keeps its id taken.
     this.available(input.id)
     const place = this.host.reserve(input.id)

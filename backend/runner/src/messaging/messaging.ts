@@ -291,7 +291,7 @@ export class Messaging {
    */
   wakeEnded(terminalId: string, reason: string): void {
     this.wakes.failed(terminalId, reason)
-    if (this.sessions.endRest(terminalId)) this.wakes.failedHeld(terminalId, reason)
+    this.sessions.endRest(terminalId)
   }
 
   rooted(terminalId: string, changes: readonly RootChange[], held?: Held): void {

@@ -80,11 +80,6 @@ export class Streams<R extends { readonly summary: { readonly id: string } }> {
     for (const watcher of this.watchers.keys()) watcher.changed(summary())
   }
 
-  /** Whether any client watches the terminals. */
-  watched(): boolean {
-    return this.watchers.size > 0
-  }
-
   /** Tells every watcher of a terminal kept only as saved. */
   savedChanged(terminal: ListedTerminal): void {
     this.changed(() => this.host.saved(terminal))

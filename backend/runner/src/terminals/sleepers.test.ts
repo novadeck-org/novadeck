@@ -8,7 +8,6 @@ import { afterEach, onTestFinished, vi } from "vitest"
 import { describe, expect, it } from "../test.js"
 import type { Record } from "./record.js"
 import { Claims } from "./resumes.js"
-import { wakeMs } from "./resumes.js"
 import type { ListedTerminal } from "./saved-terminals.js"
 import {
   aloneGapMs,
@@ -16,7 +15,6 @@ import {
   graceMs,
   keysHeldMs,
   Sleepers,
-  watchedGraceMs,
   type SleepersHost,
 } from "./sleepers.js"
 
@@ -51,7 +49,6 @@ const setup = (
     wanted?: Set<string>
     connected?: boolean
     done?: boolean
-    watched?: boolean
     turnAt?: number
     restorable?: () => Promise<boolean>
     create?: (row: ListedTerminal) => Promise<unknown>
@@ -96,7 +93,6 @@ const setup = (
     closed: () => false,
     record: () => undefined,
     stopping: () => false,
-    watched: () => options.watched ?? false,
     create: (each: ListedTerminal) => {
       calls.push(`create ${each.id}`)
       return options.create?.(each) ?? Promise.resolve()
@@ -164,19 +160,6 @@ describe("sleepers", () => {
     expect(calls).toContain("create a")
   })
 
-  it("waits longer for a client's create while one watches", async () => {
-    vi.useFakeTimers()
-    const { sleepers, calls } = setup(
-      [row("a", "claude", { claude: { sessionId: "one", seq: 1, turn: "waking" } })],
-      { watched: true },
-    )
-    sleepers.start()
-    await vi.advanceTimersByTimeAsync(graceMs + 1_000)
-    expect(calls).not.toContain("create a")
-    await vi.advanceTimersByTimeAsync(watchedGraceMs - graceMs)
-    expect(calls).toContain("create a")
-  })
-
   it("starts its own creates a few at a time with a gap, when a crowd wakes", async () => {
     vi.useFakeTimers()
     const ids = Array.from({ length: aloneLimit * 2 + 1 }, (_, i) => `t${i}`)
@@ -240,20 +223,6 @@ describe("sleepers", () => {
     resting.delete("a")
     await vi.advanceTimersByTimeAsync(graceMs * 3)
     expect(calls).not.toContain("create a")
-  })
-
-  it("says why a wake can't happen, and that it is waking when it can", async () => {
-    const refused = setup([row("a", "claude", { claude: { sessionId: "one", seq: 1 } })], {
-      connected: false,
-    })
-    refused.sleepers.start()
-    await expect(refused.sleepers.verdict("a")).resolves.toEqual({
-      why: expect.stringContaining("isn't connected"),
-    })
-    const fine = setup([row("a", "claude", { claude: { sessionId: "one", seq: 1 } })])
-    fine.sleepers.start()
-    await expect(fine.sleepers.verdict("a")).resolves.toEqual({ waking: true })
-    await expect(fine.sleepers.verdict("none")).resolves.toBeUndefined()
   })
 
   it("says when a sleeper's agent last ended a turn: its stored turn or its done, the later", () => {
@@ -334,39 +303,15 @@ describe("sleepers", () => {
     expect(calls.find((call) => call.startsWith("unregister a"))).toMatch(/disconnected/)
   })
 
-  it("ends the wake of a started terminal whose agent never shows, after the wait", () => {
-    vi.useFakeTimers()
-    const { sleepers, calls, resting, held } = setup([], { wanted: new Set(["a"]) })
-    resting.set("a", { agent: "claude", sessionId: "one" })
-    held.add("a")
-    const record = { summary: { id: "a" } } as unknown as Record
-    // The record is the runner's meanwhile.
-    ;(sleepers as unknown as { host: { record: () => Record } }).host.record = () => record
-    sleepers.started(record, "claude", "x")
-    expect(record.woken).toBeDefined()
-    vi.advanceTimersByTime(wakeMs + 1)
-    expect(calls.some((call) => call.startsWith("ended a:"))).toBe(true)
-  })
-
-  it("fires no grace, wake timeout or queued create once the runner stops", async () => {
+  it("fires no grace or queued create once the runner stops", async () => {
     vi.useFakeTimers()
     // The grace of a wake no client's create came for.
     const grace = waking()
     grace.sleepers.start()
     await vi.advanceTimersByTimeAsync(10)
     grace.sleepers.stop()
-    await vi.advanceTimersByTimeAsync(watchedGraceMs * 2)
+    await vi.advanceTimersByTimeAsync(graceMs * 2)
     expect(grace.calls).not.toContain("create a")
-    // The wait for a woken shell's agent.
-    const wait = setup([], { wanted: new Set(["a"]) })
-    wait.resting.set("a", { agent: "claude", sessionId: "one" })
-    wait.held.add("a")
-    const record = { summary: { id: "a" } } as unknown as Record
-    ;(wait.sleepers as unknown as { host: { record: () => Record } }).host.record = () => record
-    wait.sleepers.started(record, "claude", "x")
-    wait.sleepers.stop()
-    await vi.advanceTimersByTimeAsync(wakeMs * 2)
-    expect(wait.calls.some((call) => call.startsWith("ended a:"))).toBe(false)
     // A crowd's creates, under way and waiting their turn.
     const ids = Array.from({ length: aloneLimit * 2 }, (_, i) => `t${i}`)
     const crowd = setup(

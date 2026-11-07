@@ -28,8 +28,6 @@ const setup = (terminals: {
     agent: AgentName | null
     ledBy?: string
     asleep?: true
-    refused?: string
-    lands?: true
   }
 }) => {
   // A sleeper has no record: the sleepers hear of the wake it is asked for.
@@ -38,7 +36,6 @@ const setup = (terminals: {
       .filter(([, { asleep }]) => !asleep)
       .map(([handle, { ledBy }]) => [`id-${handle}`, terminal(handle, ledBy ?? null)]),
   )
-  const woken: string[] = []
   const approvals = new Approvals()
   // The agent messages reach in each terminal, by handle, with its root session: what the
   // tests change to end or swap an agent while its shell stays open.
@@ -85,17 +82,11 @@ const setup = (terminals: {
     sleepers: () =>
       ({
         peer: () => undefined,
-        verdict: async (id: string) => {
+        resting: (id: string) => {
           const handle = Object.keys(terminals).find((each) => `id-${each}` === id)
-          const sleeper = handle ? terminals[handle] : undefined
-          if (!sleeper?.asleep) return undefined
-          // Its create lands while the wake is judged: it is a live terminal when this settles.
-          if (sleeper.lands) {
-            records.set(id, terminal(handle ?? "", sleeper.ledBy ?? null))
-            return undefined
-          }
-          woken.push(id)
-          return sleeper.refused === undefined ? { waking: true } : { why: sleeper.refused }
+          return handle && terminals[handle]?.asleep && !records.has(id)
+            ? { agent: terminals[handle].agent, sessionId: `s-${handle}` }
+            : undefined
         },
       }) as unknown as Sleepers,
     messaging: () =>
@@ -171,7 +162,6 @@ const setup = (terminals: {
     sent,
     saved,
     dropped,
-    woken,
     agents,
     lead: (from: string, to: string, message = "Review the diff.") =>
       leads.lead(call("lead", from, { to, message })),
@@ -214,7 +204,7 @@ afterEach(() => {
 const settle = () => vi.advanceTimersByTimeAsync(0)
 
 describe("an agent asking to lead or release a sleeper", () => {
-  it("is told it is asleep and being woken, and nothing changes", async () => {
+  it("is told it is asleep and that a message wakes it, and nothing changes", async () => {
     const run = setup({
       moth: { agent: "claude" },
       fox: { agent: "codex", asleep: true },
@@ -224,48 +214,17 @@ describe("an agent asking to lead or release a sleeper", () => {
     const lead = await run.lead("moth", "fox")
     expect(lead).toMatchObject({
       ok: false,
-      reason: expect.stringMatching(/@fox is asleep.*waking/s),
+      reason: expect.stringMatching(/@fox's agent is asleep.*message to it wakes it/s),
     })
     const release = await run.release("moth", "owl")
     expect(release).toMatchObject({
       ok: false,
-      reason: expect.stringMatching(/@owl is asleep.*waking/s),
+      reason: expect.stringMatching(/@owl's agent is asleep.*message to it wakes it/s),
     })
     await settle()
-    expect(run.woken).toEqual(["id-fox", "id-owl"])
     expect(asked).toEqual([])
     expect(run.sent).toEqual([])
     expect(run.saved).toEqual([])
-  })
-})
-
-describe("an agent asking to release a sleeper whose create lands during the judgment", () => {
-  it("acts on the live terminal", async () => {
-    const run = setup({
-      moth: { agent: "claude" },
-      owl: { agent: "claude", asleep: true, lands: true, ledBy: "moth" },
-    })
-    await expect(run.release("moth", "owl")).resolves.toMatchObject({ ok: true, handle: "owl" })
-  })
-})
-
-describe("an agent asking to lead or release a sleeper that cannot be woken", () => {
-  it("is told why, not that it is waking", async () => {
-    const run = setup({
-      moth: { agent: "claude" },
-      fox: {
-        agent: "codex",
-        asleep: true,
-        refused:
-          "Codex was asleep there and could not be woken: Novadeck isn't connected to Codex.",
-      },
-    })
-    for (const result of [await run.lead("moth", "fox"), await run.release("moth", "fox")])
-      expect(result).toMatchObject({
-        ok: false,
-        reason: expect.stringMatching(/@fox is asleep.*isn't connected to Codex/s),
-      })
-    expect(JSON.stringify(await run.lead("moth", "fox"))).not.toMatch(/waking it now/)
   })
 })
 
