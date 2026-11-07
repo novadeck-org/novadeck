@@ -23,7 +23,7 @@ export const demoWakes =
     const timer = setTimeout(() => {
       const asleep = terminal(key)
       if (asleep?.state !== "sleeping") return
-      const { agent } = asleep
+      const { agent, reported } = asleep
       dispatch([
         {
           type: "terminal/status",
@@ -36,7 +36,7 @@ export const demoWakes =
         const waking = terminal(key)
         // Taken some other way meanwhile (closed, set by the panel): left as it is.
         if (waking?.state === "starting" && waking.restoredProcess === agent)
-          turns.as(agent).rest(key, waking)
+          turns.as(agent).rest(key, waking, reported ? { reported } : undefined)
       }, wakingMs)
     }, dwellMs)
     return () => clearTimeout(timer)

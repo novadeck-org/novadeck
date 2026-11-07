@@ -11,6 +11,7 @@ const base = { id: "t", name: "Agent", directory: "~", command: "", process: "" 
 const setup = (start: TerminalMetadata) => {
   let terminal = start
   const rested: string[] = []
+  const kept: unknown[] = []
   const wake = demoWakes({
     dispatch: (actions: readonly BackendAction[]) => {
       for (const action of actions)
@@ -21,14 +22,15 @@ const setup = (start: TerminalMetadata) => {
     turns: {
       as: (agent) =>
         ({
-          rest: () => {
+          rest: (_key: unknown, _terminal: unknown, keeps: unknown) => {
             rested.push(agent)
+            kept.push(keeps)
             terminal = { ...base, state: "running", process: agent, agent: { working: false } }
           },
         }) as never,
     },
   })
-  return { wake, rested, state: () => terminal.state }
+  return { wake, rested, kept, state: () => terminal.state }
 }
 
 describe("the demo's sleepers", () => {
@@ -44,6 +46,13 @@ describe("the demo's sleepers", () => {
     vi.advanceTimersByTime(wakingMs)
     expect(state()).toBe("running")
     expect(rested).toEqual(["claude"])
+  })
+
+  it("go on reporting a done that stood while they slept", () => {
+    const { wake, kept } = setup({ ...base, state: "sleeping", agent: "claude", reported: true })
+    wake(key)
+    vi.advanceTimersByTime(dwellMs + wakingMs)
+    expect(kept).toEqual([{ reported: true }])
   })
 
   it("stay asleep when the surface lets go within the dwell", () => {

@@ -364,6 +364,19 @@ describe("a sleeper's Inbox", () => {
     expect(inbox.reports("B").done?.subject).toBe("All done")
   })
 
+  it("still reports the standing done once the resume binds the same session", ({ resources }) => {
+    const { run, inbox } = restarted(resources)
+    expect(inbox.call("B", "done", { subject: "All done", body: "Body" }).ok).toBe(true)
+    const before = inbox.reports("B").done
+    expect(before?.subject).toBe("All done")
+    // The shell resumes the saved session: the wake binds it again, with no word to the agent.
+    run.messaging.register("B", here, "fox", null)
+    bind(run.messaging, "B", "claude", saved.sessionId)
+    expect(run.messaging.resting("B")).toBeUndefined()
+    expect(inbox.reports("B").done).toEqual(before)
+    expect(run.messaging.deliveredAt().get("B")).toBeUndefined()
+  })
+
   it("keeps the turn an agent ended before the restart, so its tab reads unread while it sleeps", ({
     resources,
   }) => {
