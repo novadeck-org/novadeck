@@ -9,7 +9,6 @@ import { waitingAgents } from "@novadeck/core/terminals/ending"
 import { nextWaitingChange } from "@novadeck/core/terminals/waiting"
 import { memo, useCallback, useEffect, useState, useSyncExternalStore } from "react"
 
-import { requestFeedback } from "../feedback/feedback-open"
 import { FeedbackButton } from "../feedback/FeedbackButton"
 import { readSubscriptionOrder, writeSubscriptionOrder } from "../shell/shell-storage"
 import { SubscriptionUsage } from "../shell/SubscriptionUsage"
@@ -19,7 +18,7 @@ import { useRenderAt } from "../terminals/useRenderAt"
 import { useUiState, useWorkspaceServices, useWorkspaceState } from "./controller/context"
 import { useAccounts } from "./controller/footer-accounts"
 import { crashLoopQuestion, currentState, shallowEqual } from "./selectors"
-import { dismissHeadsUp, dismissWhatsNew } from "./ui-store"
+import { dismissWhatsNew } from "./ui-store"
 import { useOfferNews } from "./use-offer-news"
 
 const always = (): (() => void) => () => {}
@@ -142,10 +141,6 @@ export const FooterSection = memo((): React.JSX.Element => {
               notes: whatsNew,
               blocked: asking || welcome || sandboxOpen || (portable && portableCardOpen),
               onDismiss: () => dismissWhatsNew(backend.whatsNew, ui),
-              onGotIt: () => dismissHeadsUp(backend.whatsNew, ui),
-              onFeedback: backend.feedback
-                ? () => requestFeedback("idea", `About the Heads-up in ${whatsNew.version}`)
-                : undefined,
               returnFocus: () => {
                 const { selected, view } = currentState(store.getSnapshot())
                 if (!selected) return false

@@ -87,10 +87,6 @@ export const reportProgress = (version: string, percent: number): void =>
 export const whatsNewAsked = (): number =>
   made.reduce((sum, each) => sum + each.whatsNewCalls.asked, 0)
 
-/** How many times the page has told the app the heads-ups were got since the page opened. */
-export const headsUpDismissals = (): number =>
-  made.reduce((sum, each) => sum + each.whatsNewCalls.headsUpDismissed, 0)
-
 /** What the page has asked of the app about what's new since the page opened. */
 export const whatsNewCalls = (): { readonly dismissed: number } => ({
   dismissed: made.reduce((sum, each) => sum + each.whatsNewCalls.dismissed, 0),

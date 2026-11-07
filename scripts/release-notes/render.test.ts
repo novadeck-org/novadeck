@@ -12,7 +12,6 @@ const promote: ReleaseNotes = {
     { title: "Word handles", line: "Terminals get a name like @moth.", prs: [181] },
     { title: "Plans", line: "Agent plans open beside the terminal.", prs: [188, 190] },
   ],
-  headsUp: [],
   changes: [
     { area: "Fixes & speedups", line: "Off-screen Canvas nodes stop laying out.", prs: [261] },
     { area: "Inbox & notifications", line: "Answer agents from the Inbox.", prs: [195] },
@@ -72,7 +71,7 @@ describe("a rendered body", () => {
   it("leads a release with its highlights, and says no more when they are all it has", () => {
     const highlights = [{ title: "Teams", line: "Teams show on the rail.", prs: [328] }]
     const body = renderBody(
-      { version: "0.0.1", kind: "release", highlights, headsUp: [], changes: [], fixes: 1 },
+      { version: "0.0.1", kind: "release", highlights, changes: [], fixes: 1 },
       "",
       repo,
     )
@@ -88,7 +87,6 @@ describe("a rendered body", () => {
         version: "0.0.1",
         kind: "release",
         highlights: [],
-        headsUp: [],
         changes: [],
         fixes: 0,
       },
@@ -162,26 +160,5 @@ describe("a rendered body", () => {
     expect(fitted).toContain("The rest of the changelog is cut for length.")
     expect(readNotesBlock(fitted)).toEqual(promote)
     expect(fitBody(promote, big, repo, undefined, 300)).toBeUndefined()
-  })
-
-  it("puts a Heads-up section above the highlights, in a promotion and in a release", () => {
-    const headsUp = [
-      { title: "Ctrl+V pastes on Linux", line: "Programs no longer get Ctrl+V.", prs: [641] },
-    ]
-    const body = renderBody({ ...promote, headsUp }, "", repo)
-    expect(body).toMatch(
-      /^## Heads-up\n\n- \*\*Ctrl\+V pastes on Linux\*\*: Programs no longer get Ctrl\+V\. \(\[#641\]\(https:\/\/github\.com\/novadeck-org\/novadeck\/pull\/641\)\)\n\n## Highlights/,
-    )
-    expect(readNotesBlock(body)?.headsUp).toEqual(headsUp)
-    const release = renderBody({ ...promote, kind: "release", headsUp }, "", repo)
-    expect(release.indexOf("### Heads-up")).toBe(0)
-    expect(release.indexOf("### Heads-up")).toBeLessThan(release.indexOf("### Highlights"))
-    expect(renderBody(promote, "", repo)).not.toContain("Heads-up")
-  })
-
-  it("reads a body written before heads-ups as having none", () => {
-    const { headsUp: _, ...old } = promote
-    const block = `<!-- novadeck:notes ${JSON.stringify(old)} -->`
-    expect(readNotesBlock(block)?.headsUp).toEqual([])
   })
 })
