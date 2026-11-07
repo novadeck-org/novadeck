@@ -2,6 +2,7 @@ export {
   agreeing,
   eraseRows,
   fillsViewport,
+  hidesText,
   footerRows,
   isEmpty,
   leaveShell,

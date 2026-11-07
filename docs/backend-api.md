@@ -566,9 +566,13 @@ not command completion.
   the previous run. A running terminal rejects with `CONFLICT`, and a shell that
   cannot start rejects with `SPAWN_FAILED`, leaving the terminal exited.
 - Closing sends a hangup to the owned shell, escalating if the shell ignores it.
-  It is not a process-tree kill guarantee: daemonized jobs and descendants that
-  ignore hangup may continue, as with an ordinary terminal emulator. Use an OS
-  service/cgroup or a future supervisor if all descendant cleanup is required.
+  Where the terminal's bound agent holds the foreground, what the agent started is
+  read first and waited for, 3 s for a close and 2 s for a shutdown, then gets
+  SIGTERM, and SIGKILL half a second on. Otherwise it is not a process-tree kill
+  guarantee: daemonized jobs and descendants that ignore hangup may continue, as with
+  an ordinary terminal emulator, and so may a daemon an agent left in a group of its
+  own. Use an OS service/cgroup or a future supervisor if all descendant cleanup is
+  required.
 
 ## Shell integration and restoring terminals
 
@@ -1016,7 +1020,7 @@ one from an earlier runner.
   the same keys again. Each fallback and refusal logs `chat.box` as a warning, with the
   harness and its version and no words, so a harness that changed shows up there. What the
   box holds is also in `agents.detail`'s `box`, so a client can show it before anything goes
-  with it (`agentBox`): its `text`, `mode`, `tail` where the box is as tall as it gets, so that
+  with it (`agentBox`): its `text`, `mode`, `tail` where the box may hold more than it shows, as tall as it gets or saying so, so that
   may be only the end of it, and `known`. It is null for an empty box, no box, an empty shell
   mode, or a line a ring left (below), read as the screen changes while a client reads the
   detail, throttled, and never for one nobody reads.
@@ -1036,7 +1040,7 @@ one from an earlier runner.
     with a first line under 16 characters is a `CONFLICT` (`draft`), written nowhere. Enter goes once the box holds the text and then the prompt, or the
     prompt's placeholder, or in a box as tall as it gets the prompt's tail.
   - **What is Novadeck's goes back.** Where all the box holds is prompts whose receipts are
-    `in-box` (`known`), it is erased first and handed back as `returned`, its receipts
+    `in-box` (`known`), unless it is a `tail`, it is erased first and handed back as `returned`, its receipts
     `withdrawn`. The keys are the adapter's `erase`: Ctrl-U from the last row up, Backspace
     between rows, which unlike Escape or Ctrl-C stops no running turn, on every harness.
     Where the box doesn't read empty after them it goes along as text; where what's left
@@ -1048,7 +1052,8 @@ one from an earlier runner.
     Backspace leaves it; holding a command, the same keys as erasing and a Backspace, and the
     command goes back as `returned`, with its `!`. One that shows only as a placeholder or a
     tail can't go back, so it stays, and the call is a `CONFLICT` (`shell`).
-  - **What stays refused**, writing nothing: a box leading with `/` or `!`, which its program
+  - **What stays refused**, writing nothing: a box that says it is cut (Antigravity's `↑ 10 more
+    lines`), as a paste there couldn't be seen, a box leading with `/` or `!`, which its program
     would run with the prompt as arguments (`command`); no box, or something over it (`no-box`);
     a shell command over text that isn't Novadeck's, which can't go along (`draft`); and a
     line a ring left, which is the doorbell's to finish (`ringing`, to try again).
@@ -1261,9 +1266,11 @@ one from an earlier runner.
   (`InterruptResult`): the words with line breaks as line feeds, for the chat to put back
   in the person's draft; `null` when there were none, and always for Codex. It fails
   closed: where the box holds text that can't be cleared and seen empty, that is only a
-  placeholder standing for the words (clearing it would lose them), or can't be read,
-  after the Escape stopped the turn, it rejects with `BOX_NOT_CLEARED` and leaves the box
-  as it is, for the next prompt to see to ("A box that isn't empty"). The call takes up to about half a
+  placeholder standing for the words (clearing it would lose them), may hold more than it
+  shows (messages queued in a box as tall as its viewport, or one that says it is cut), or
+  can't be read, after the Escape stopped the turn, it rejects with `BOX_NOT_CLEARED` and
+  leaves the box as it is, for the next prompt to see to where it can ("A box that isn't empty"), and otherwise for the terminal.
+  `returned` leaves out Novadeck's own doorbell and reply lines. The call takes up to about half a
   second longer where nothing comes back, and a few seconds more with queued messages. The
   client's `agents.interrupt(terminalId)` is that call, and resolves with the result.
 
