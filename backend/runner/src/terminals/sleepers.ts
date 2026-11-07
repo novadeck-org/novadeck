@@ -45,11 +45,6 @@ export const watchedGraceMs = 10_000
 export const aloneLimit = 3
 export const aloneGapMs = 150
 
-const pause = (ms: number): Promise<void> =>
-  new Promise((resolve) => {
-    setTimeout(resolve, ms).unref()
-  })
-
 export type SleepersHost = {
   readonly messaging: () => Messaging
   readonly saves: () => Saves
@@ -107,6 +102,9 @@ export class Sleepers {
   private readonly judging = new Map<string, Promise<string | undefined>>()
   /** The grace of each wake that waits for a client's `create`: one timer for each terminal. */
   private readonly timers = new Map<string, NodeJS.Timeout>()
+  /** The timers of woken shells whose agent is yet to show (`wakeMs`), and the gaps between creates. */
+  private readonly lapses = new Set<NodeJS.Timeout>()
+  private readonly gaps = new Set<{ readonly timer: NodeJS.Timeout; readonly end: () => void }>()
   /** The terminals a `create` is under way for, a wake's or a restore's, so none is doubled. */
   private readonly creating = new Set<string>()
   /** The session of each terminal rested here, to find its row. */
@@ -114,6 +112,7 @@ export class Sleepers {
   /** The runner's own creates under way, and those waiting for a place among them. */
   private starting = 0
   private readonly queued: (() => void)[] = []
+  private stopped = false
   private gate: Promise<void> = Promise.resolve()
 
   constructor(private readonly host: SleepersHost) {}
@@ -271,7 +270,7 @@ export class Sleepers {
    * terminal as waking. One timer for each terminal.
    */
   private arm(terminalId: string): void {
-    if (this.timers.has(terminalId)) return
+    if (this.stopped || this.timers.has(terminalId)) return
     const timer = setTimeout(
       () => {
         this.timers.delete(terminalId)
@@ -309,7 +308,7 @@ export class Sleepers {
     else await new Promise<void>((resolve) => this.queued.push(resolve))
     try {
       const turn = this.gate
-      this.gate = turn.then(() => pause(aloneGapMs))
+      this.gate = turn.then(() => this.pause(aloneGapMs))
       await turn
       await this.createAlone(terminalId)
     } finally {
@@ -319,11 +318,45 @@ export class Sleepers {
     }
   }
 
+  /** A gap that ends early at `stop`, which starts no new one. */
+  private pause(ms: number): Promise<void> {
+    return new Promise((resolve) => {
+      if (this.stopped) return resolve()
+      const gap = {
+        timer: setTimeout(() => {
+          this.gaps.delete(gap)
+          resolve()
+        }, ms),
+        end: resolve,
+      }
+      gap.timer.unref()
+      this.gaps.add(gap)
+    })
+  }
+
+  /**
+   * The runner is stopping: no grace, wake timeout or gap fires after it, and the creates
+   * waiting for a place go on to find the runner stopping (`createAlone`).
+   */
+  stop(): void {
+    this.stopped = true
+    for (const timer of [...this.timers.values(), ...this.lapses]) clearTimeout(timer)
+    this.timers.clear()
+    this.lapses.clear()
+    for (const { timer, end } of this.gaps) {
+      clearTimeout(timer)
+      end()
+    }
+    this.gaps.clear()
+    for (const next of this.queued.splice(0)) next()
+  }
+
   private async createAlone(terminalId: string): Promise<void> {
     const resting = this.resting(terminalId)
     if (
       !this.wakes.has(terminalId) ||
       this.creating.has(terminalId) ||
+      this.stopped ||
       this.host.stopping() ||
       !resting
     )
@@ -469,8 +502,13 @@ export class Sleepers {
     // A seen wake that judged not ok is a plain shell: nothing waits for an agent there.
     if (agent === undefined) return messaging().wakeEnded(id, why)
     if (!messaging().wakeWanted(id)) return
-    const timer = setTimeout(() => this.timedOut(record, agent), wakeMs)
+    if (this.stopped) return
+    const timer = setTimeout(() => {
+      this.lapses.delete(timer)
+      this.timedOut(record, agent)
+    }, wakeMs)
     timer.unref()
+    this.lapses.add(timer)
   }
 
   private timedOut(record: Record, agent: AgentName): void {

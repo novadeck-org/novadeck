@@ -331,6 +331,41 @@ describe("sleepers", () => {
     expect(calls.some((call) => call.startsWith("ended a:"))).toBe(true)
   })
 
+  it("fires no grace, wake timeout or queued create once the runner stops", async () => {
+    vi.useFakeTimers()
+    // The grace of a wake no client's create came for.
+    const grace = waking()
+    grace.sleepers.start()
+    await vi.advanceTimersByTimeAsync(10)
+    grace.sleepers.stop()
+    await vi.advanceTimersByTimeAsync(watchedGraceMs * 2)
+    expect(grace.calls).not.toContain("create a")
+    // The wait for a woken shell's agent.
+    const wait = setup([], { wanted: new Set(["a"]) })
+    wait.resting.set("a", { agent: "claude", sessionId: "one" })
+    wait.held.add("a")
+    const record = { summary: { id: "a" } } as unknown as Record
+    ;(wait.sleepers as unknown as { host: { record: () => Record } }).host.record = () => record
+    wait.sleepers.started(record, "claude", "x")
+    wait.sleepers.stop()
+    await vi.advanceTimersByTimeAsync(wakeMs * 2)
+    expect(wait.calls.some((call) => call.startsWith("ended a:"))).toBe(false)
+    // A crowd's creates, under way and waiting their turn.
+    const ids = Array.from({ length: aloneLimit * 2 }, (_, i) => `t${i}`)
+    const crowd = setup(
+      ids.map((id) => row(id, "claude", { claude: { sessionId: id, seq: 1, turn: "waking" } })),
+      { create: () => new Promise<void>(() => {}) },
+    )
+    crowd.sleepers.start()
+    await vi.advanceTimersByTimeAsync(graceMs + aloneGapMs * 2)
+    const started = crowd.calls.filter((call) => call.startsWith("create")).length
+    expect(started).toBeGreaterThan(0)
+    crowd.sleepers.stop()
+    await vi.advanceTimersByTimeAsync(graceMs + aloneGapMs * 20)
+    expect(crowd.calls.filter((call) => call.startsWith("create"))).toHaveLength(started)
+    expect(vi.getTimerCount()).toBe(0)
+  })
+
   it("ends a plain shell's wake at once, and keeps the row as woken", () => {
     const { sleepers, calls, resting } = setup([])
     resting.set("a", { agent: "claude", sessionId: "one" })

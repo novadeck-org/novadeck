@@ -56,6 +56,17 @@ describe.skipIf(process.platform === "win32" || !existsSync(bash))(
       })
     })
 
+    it("leaves no wake timer behind once the manager shuts down", async ({ shell }) => {
+      sleeper(shell, "claude", "abc-1", { turn: "running" })
+      const manager = shell.manager()
+      const sleepers = (manager as unknown as { sleepers: { timers: Map<string, unknown> } })
+        .sleepers
+      // The turn the stop cut short owes a wake, which waits out its grace for a client.
+      await vi.waitFor(() => expect(sleepers.timers.size).toBe(1))
+      await manager.shutdown()
+      expect(sleepers.timers.size).toBe(0)
+    })
+
     it("rests Codex saved as the node process an npm install runs as", async ({ shell }) => {
       const id = sleeper(shell, "codex", "codex-1", { lastProgram: "node" })
       const manager = shell.manager()

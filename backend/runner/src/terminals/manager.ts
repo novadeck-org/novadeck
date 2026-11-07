@@ -1483,6 +1483,7 @@ export class Terminals {
     // what they print on the way out cannot replace it. Transcripts get a short pass (`Saves.finish`).
     const last = this.saves.shutdown()
     this.stopping = true
+    this.sleepers.stop()
     this.sampler.stop()
     this.startups.stop()
     this.saves.stop()
