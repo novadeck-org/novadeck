@@ -89,7 +89,7 @@ describe("a message to a sleeping terminal", () => {
 
   it("survives the end of the restore window, though no agent runs there", ({ resources }) => {
     vi.useFakeTimers()
-    resources.defer(() => vi.useRealTimers())
+    resources.defer(() => void vi.useRealTimers())
     const run = setup(memoryMessages(), { restoreMs: 60_000 })
     resources.defer(closing(run))
     const message = run.send("for the sleeper")
@@ -246,7 +246,6 @@ const inboxFor = (messaging: Messaging, records: InboxRecords, now: () => number
     { sweepMs: 0, resumeGraceMs: 1_000 },
   )
 
-
 describe("a wake that ended with a shell and no agent", () => {
   it("refuses new messages, lapses its ask, and reopens it if that session binds later", ({
     resources,
@@ -257,7 +256,11 @@ describe("a wake that ended with a shell and no agent", () => {
     first.messaging.register("B", here, "fox", null)
     bind(first.messaging, "B", "claude", saved.sessionId)
     const before = inboxFor(first.messaging, inboxRecords, () => first.time.at)
-    const created = before.call("B", "ask", { subject: "Pick one", body: "Which?", shape: { type: "text" } })
+    const created = before.call("B", "ask", {
+      subject: "Pick one",
+      body: "Which?",
+      shape: { type: "text" },
+    })
     if (!created.ok) throw new Error(created.reason)
     before.close()
     first.messaging.close()
@@ -274,7 +277,10 @@ describe("a wake that ended with a shell and no agent", () => {
     expect(run.messaging.resting("B")).toBeUndefined()
     expect(run.messaging.inboxOwner("B")).toBeUndefined()
     const refused = run.messaging.send("A", { to: "fox", text: "again" })
-    expect(refused).toMatchObject({ ok: false, reason: expect.stringContaining("no agent running") })
+    expect(refused).toMatchObject({
+      ok: false,
+      reason: expect.stringContaining("no agent running"),
+    })
     run.time.at += 2_000
     inbox.prune()
     expect(inbox.list()).toEqual([])
@@ -340,9 +346,7 @@ describe("a sleeper's Inbox", () => {
     expect(run.messages("B").find((message) => message.inbox === "answer")?.state).toBe("queued")
   })
 
-  it("reports what the sleeper's agent told the person, so a done mark stands", ({
-    resources,
-  }) => {
+  it("reports what the sleeper's agent told the person, so a done mark stands", ({ resources }) => {
     const { inbox } = restarted(resources)
     expect(inbox.call("B", "done", { subject: "All done", body: "Body" }).ok).toBe(true)
     expect(inbox.reports("B").done?.subject).toBe("All done")

@@ -1,5 +1,5 @@
-import type { MessageStore } from "./message-store.js"
 import type { Live } from "./live.js"
+import type { MessageStore } from "./message-store.js"
 import type { Message } from "./messages.js"
 import type { Sessions } from "./sessions.js"
 
@@ -42,7 +42,8 @@ export class Wakes {
   /** Every terminal a message waits for that nothing holds back, in one pass over messages. */
   allWanted(): ReadonlySet<string> {
     const ids = new Set<string>()
-    for (const message of this.host.store.messages()) if (this.wants(message)) ids.add(message.to.terminalId)
+    for (const message of this.host.store.messages())
+      if (this.wants(message)) ids.add(message.to.terminalId)
     return ids
   }
 
