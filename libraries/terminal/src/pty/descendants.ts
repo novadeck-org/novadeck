@@ -183,6 +183,63 @@ export const agentProcesses = (
 }
 
 /**
+ * Where `agent` runs in the terminal whose shell is `shell`, as one listing shows it:
+ * `chain` the processes from the shell's own child down to the agent (a wrapper such as
+ * `npx` is in it), `foreground` whether the agent's group holds the terminal's foreground
+ * (not the shell's prompt, not tmux's or a detached client's), and `below` every live process
+ * under the agent, by parent, its tools and servers. Undefined unless the agent is a live
+ * descendant of the shell.
+ */
+export type Placement = {
+  readonly chain: readonly number[]
+  readonly foreground: boolean
+  readonly below: readonly Followed[]
+  /** Each process of `below` that has a parent in it, by `processKey`, with its parent's. */
+  readonly lineage: ReadonlyMap<string, string>
+}
+
+/** A process by its pid and start, which together name one for as long as it lives. */
+export const processKey = ({ pid, started }: Followed): string => `${pid}:${started}`
+
+export const placement = (
+  rows: readonly Listed[],
+  shell: number,
+  agent: number,
+): Placement | undefined => {
+  const byPid = new Map(rows.map((row) => [row.pid, row]))
+  const lead = byPid.get(agent)
+  const root = byPid.get(shell)
+  if (!lead || !root || lead.zombie || root.zombie || agent === shell) return undefined
+  const chain: number[] = []
+  for (
+    let at: Listed | undefined = lead;
+    at && chain.length <= rows.length;
+    at = byPid.get(at.parent)
+  ) {
+    if (at.pid === shell) {
+      const foreground =
+        root.foreground > 1 && root.foreground !== shell && lead.group === root.foreground
+      const below = live(withBelow(rows, [lead])).filter((row) => row.pid !== agent)
+      const inside = new Map(below.map((one) => [one.pid, one]))
+      const lineage = new Map<string, string>()
+      for (const one of below) {
+        const parent = inside.get(one.parent)
+        if (parent) lineage.set(processKey(one), processKey(parent))
+      }
+      return {
+        chain: chain.toReversed(),
+        foreground,
+        lineage,
+        below: below.map(({ pid, started }) => ({ pid, started })),
+      }
+    }
+    if (at.pid <= 1) return undefined
+    chain.push(at.pid)
+  }
+  return undefined
+}
+
+/**
  * Which of `followed` still run, by pid and start, so never a process that has since been
  * given a pid; with what is under each, and what shares a group with one, whose group is
  * sure to be its own as long as it runs. A group is never signalled as such.

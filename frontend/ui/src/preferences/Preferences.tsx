@@ -38,6 +38,15 @@ const schemeItems = [
   { label: "Light", value: "light" },
   { label: "Dark", value: "dark" },
 ] as const
+// How long an idle agent runs before it is stopped, in minutes; null for never.
+const idleChoices = [
+  { label: "Off", value: "off" },
+  { label: "15 minutes", value: "15" },
+  { label: "30 minutes", value: "30" },
+  { label: "1 hour", value: "60" },
+  { label: "4 hours", value: "240" },
+]
+
 const fontSizes = [12, 13, 15].map((size) => ({ label: `${size}px`, value: String(size) }))
 
 // Section titles match the sidebar's panel titles.
@@ -102,6 +111,12 @@ const SettingText = ({
   </span>
 )
 
+// The list's value for a wait; none for one the list lacks.
+const idleChoice = (minutes: number | null): string => {
+  const value = minutes === null ? "off" : String(minutes)
+  return idleChoices.some((choice) => choice.value === value) ? value : ""
+}
+
 export const Preferences = ({
   open,
   value,
@@ -113,6 +128,7 @@ export const Preferences = ({
   focusAgent = null,
   onFocusedAgent,
   transcripts,
+  hibernation,
   agents,
   voice,
   murmur,
@@ -143,6 +159,12 @@ export const Preferences = ({
     // False where nothing can keep them encrypted: the switch shows off and cannot change.
     readonly available: boolean
     readonly onChange: (enabled: boolean) => void
+  }
+  // After how many idle minutes an agent is stopped, null for never; absent where the
+  // backend stops none.
+  hibernation?: {
+    readonly minutes: number | null
+    readonly onChange: (minutes: number | null) => void
   }
   // Whether the page can show desktop notifications, as the desktop app can.
   notices?: boolean
@@ -572,9 +594,27 @@ export const Preferences = ({
                 </div>
               </div>
             </Section>
-            {agents && (
-              <Section title="Agents" description={agentsExplanation}>
-                <AgentSwitches agents={agents.list} onChange={agents.onChange} />
+            {(agents || hibernation) && (
+              <Section title="Agents" {...(agents ? { description: agentsExplanation } : {})}>
+                {agents && <AgentSwitches agents={agents.list} onChange={agents.onChange} />}
+                {hibernation && (
+                  <div className={settingsCardClasses}>
+                    <Select
+                      className={`preference-row ${settingRowClasses} [&_[data-part=trigger]]:w-36`}
+                      label="Stop idle agents after"
+                      items={idleChoices}
+                      // A saved wait the list doesn't have shows as it is, without being chosen.
+                      value={idleChoice(hibernation.minutes)}
+                      placeholder={`${hibernation.minutes} minutes`}
+                      onValueChange={(choice) =>
+                        hibernation.onChange(choice === "off" ? null : Number(choice))
+                      }
+                      open={open && shown === "general" && openSelect === "idle-agents"}
+                      onOpenChange={(expanded) => setOpenSelect(expanded ? "idle-agents" : null)}
+                      portalContainer={dialog}
+                    />
+                  </div>
+                )}
               </Section>
             )}
           </TabPanel>

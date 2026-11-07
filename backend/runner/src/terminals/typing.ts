@@ -698,6 +698,12 @@ export class Typing {
       log.info("chat.box", "A prompt or handover dealt with what the agent's box held.", { data })
   }
 
+  /** Whether the agent's box holds text on its screen; undefined when the screen can't be read. */
+  async boxHolds(terminalId: string): Promise<boolean | undefined> {
+    const view = await this.boxHost().read(terminalId)
+    return view === undefined ? undefined : view !== null
+  }
+
   /** What following the agents' boxes asks of the terminals. */
   private boxHost(): ConstructorParameters<typeof BoxStates>[0] {
     return {

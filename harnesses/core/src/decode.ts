@@ -150,6 +150,21 @@ export const sessionStart = (source: string | undefined): Continuity =>
       : "native-switch"
 
 /**
+ * What a hook's report decoded to, each session it observes with the flags its agent
+ * process was launched with (`kept`, a harness's `launch.kept`), where the report has them.
+ */
+export const withLaunch = (
+  facts: readonly HarnessEvent[],
+  { launch }: Pick<Report, "launch">,
+  kept: ((argv: readonly string[]) => readonly string[]) | undefined,
+): readonly HarnessEvent[] =>
+  launch === undefined || kept === undefined
+    ? facts
+    : facts.map((fact) =>
+        fact.type === "session-observed" ? { ...fact, launch: kept(launch) } : fact,
+      )
+
+/**
  * What a hook's report decoded to, each fact its hook told (started at its `seq`, not
  * read from a transcript) with when the agent fired that hook (`Report.firedAt`), where
  * the relay could tell.

@@ -129,6 +129,16 @@ const setup = (
 }
 
 describe("Inbox asks and updates", () => {
+  it("knows a terminal with an ask open, until its agent withdraws it", () => {
+    const { inbox, create } = setup()
+    expect(inbox.hasOpenAsk(identity.terminalId)).toBe(false)
+    const id = create()
+    expect(inbox.hasOpenAsk(identity.terminalId)).toBe(true)
+    expect(inbox.hasOpenAsk("another")).toBe(false)
+    inbox.call(identity.terminalId, "ask", { withdraw: id })
+    expect(inbox.hasOpenAsk(identity.terminalId)).toBe(false)
+  })
+
   it("returns an id before an answer, normalizes its options, and permits only the caller's withdrawals", () => {
     const { inbox, create } = setup()
     const id = create()

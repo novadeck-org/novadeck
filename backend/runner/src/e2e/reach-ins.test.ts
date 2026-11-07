@@ -30,6 +30,7 @@ const reaching = [
   "probes/agy-stop-boundary.e2e.ts",
   "probes/codex-banner.e2e.ts",
   "probes/interrupt-held-reply.e2e.ts",
+  "probes/launch-flags.e2e.ts",
   "probes/queued-box.e2e.ts",
   "probes/queued-doorbell.e2e.ts",
   "probes/startup-screens.e2e.ts",
@@ -43,6 +44,7 @@ type Inside = {
   readonly records: Map<string, { bound: unknown; terminal: { pty: Process } }>
   readonly bindings: { applyFact: unknown }
   readonly trees: { end: unknown }
+  readonly saves: { saved: unknown }
   readonly reporting: { report: unknown }
   readonly typing: { receipts: { expect: unknown; sent: unknown; putBack: unknown } }
   readonly messaging: { delivery(id: string): unknown; ring: unknown; ringFailed: unknown }
@@ -114,6 +116,12 @@ describe("the e2e reach-ins", () => {
     const { inside, id } = await running(resources)
     expect(inside.records.get(id)).toHaveProperty("bound", null)
     expect(inside.reporting.report).toBeTypeOf("function")
+  })
+
+  it("launch-flags': records' agents and the saved row's", async ({ resources }) => {
+    const { inside, id } = await running(resources)
+    expect(inside.records.get(id)).toHaveProperty("agents")
+    expect(inside.saves.saved).toBeTypeOf("function")
   })
 
   it("startup-screens': a record's prompts, expectation, binding and screen's buffer", async ({

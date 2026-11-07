@@ -39,6 +39,37 @@ describe("the transcript setting", () => {
   })
 })
 
+describe("the idle agents setting", () => {
+  it("shows what the runner said, and changes it there", async () => {
+    const app = scripted({ shown: [] })
+    const hibernation = app.backend.hibernation!
+    expect(hibernation.after.getSnapshot()).toBe(30)
+    hibernation.set(null)
+    expect(hibernation.after.getSnapshot()).toBeNull()
+    hibernation.set(240)
+    await app.idle()
+    expect(hibernation.after.getSnapshot()).toBe(240)
+    expect(app.of("settings")).toEqual([
+      { hibernateAfterMinutes: null },
+      { hibernateAfterMinutes: 240 },
+    ])
+    app.stop()
+  })
+
+  it("goes back when the runner could not change it", async () => {
+    const app = scripted({
+      shown: [],
+      saveSettings: () => Promise.reject(new WireError("DISCONNECTED")),
+    })
+    const { after, set } = app.backend.hibernation!
+    set(15)
+    expect(after.getSnapshot()).toBe(15)
+    await app.idle()
+    expect(after.getSnapshot()).toBe(30)
+    app.stop()
+  })
+})
+
 describe("the agent switches", () => {
   it("connect an agent through the runner, busy until it answers", async () => {
     const app = scripted({ shown: [] })

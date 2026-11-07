@@ -21,6 +21,12 @@ export type Report = {
   readonly firedAt?: number
   /** The agent process that ran the hook, as a pid; null where the platform hides it. */
   readonly instance: string | null
+  /**
+   * The words the agent process that ran the hook was started with, after its program,
+   * where the relay could read them: from it, a harness's `launch.kept` tells the flags a
+   * resume carries over (see `SessionObserved.launch`).
+   */
+  readonly launch?: readonly string[]
   /** What of the hook's environment tells nested agents apart. */
   readonly env: { readonly cursor: boolean; readonly codexThread?: string }
   readonly payload: { readonly [key: string]: unknown }

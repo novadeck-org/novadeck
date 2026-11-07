@@ -148,6 +148,9 @@ export type RunnerBackendOptions = {
   // Whether it can keep them at all, as it said at startup: they are saved only
   // encrypted, and with nothing to keep the key safe it keeps none. Available when absent.
   readonly transcriptsAvailable?: boolean
+  // After how many idle minutes the runner stops an agent, null for never, as it said at
+  // startup; not offered when absent.
+  readonly hibernateAfterMinutes?: number | null
   // The agents the runner can connect, and whether the person has seen the first-run
   // choice, as it said at startup; agents are not offered when absent.
   readonly agents?: readonly AgentIntegration[]

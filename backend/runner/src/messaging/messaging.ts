@@ -581,6 +581,11 @@ export class Messaging {
     this.relays.personFeedbackRequest(terminalId, requestId, hint)
   }
 
+  /** Whether a message, lease or typed reply is on its way to the terminal's agent. */
+  occupied(terminalId: string): boolean {
+    return this.relays.occupied(terminalId)
+  }
+
   notice(terminalId: string, text: string, options?: { always?: boolean }): boolean {
     return this.relays.notice(terminalId, text, options)
   }

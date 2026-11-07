@@ -161,6 +161,25 @@ export const sessionHeldElsewhere = (
   return false
 }
 
+/**
+ * The flags `session` of `agent` was launched with, as any of the terminals' rows kept them
+ * (`AgentReport.launch`), live or saved: for a resume asked by an agent, in a terminal that
+ * has no row of its own for the session yet. The newest report of the session wins.
+ */
+export const launchFor = (
+  rows: Iterable<Pick<SavedTerminal, "agents">>,
+  agent: AgentName,
+  session: string,
+): readonly string[] | undefined => {
+  let found: { readonly seq: number; readonly launch: readonly string[] } | undefined
+  for (const row of rows) {
+    const report = row.agents[agent]
+    if (report?.sessionId !== session || !report.launch) continue
+    if (!found || report.seq > found.seq) found = { seq: report.seq, launch: report.launch }
+  }
+  return found?.launch
+}
+
 export type ClaimsHost = {
   /** Whether another terminal than this one has the agent's session bound. */
   readonly boundElsewhere: (
@@ -198,6 +217,7 @@ export class Claims {
   /**
    * What a create judges of the session the app asks to resume in a restored terminal,
    * with `saved` its saved row: undefined unless it asks, and none for a command given.
+   * Its command carries the flags the session was launched with (`AgentReport.launch`).
    */
   judge(
     input: {
@@ -210,13 +230,16 @@ export class Claims {
   ): ResumeCheck | undefined {
     const { id, command, resume } = input
     if (command !== undefined || !resume) return undefined
-    return this.check(id, resume, saved?.agents[resume]?.sessionId, connected)
+    const report = saved?.agents[resume]
+    return this.check(id, resume, report?.sessionId, connected, undefined, report?.launch)
   }
 
   /**
    * The same judgment as `resumable`, saying why when it may not, and starting with the
-   * model and effort in `choice`, as an agent opening a terminal asks. `terminalId` is
-   * the terminal the session is for, or an empty one while there is none yet.
+   * model and effort in `choice`, as an agent opening a terminal asks, then the flags the
+   * session was launched with that its harness keeps (`launch`, an `AgentReport.launch`),
+   * but for the model and effort `choice` sets itself. `terminalId` is the terminal the
+   * session is for, or an empty one while there is none yet.
    */
   check(
     terminalId: string,
@@ -224,6 +247,7 @@ export class Claims {
     session: string | undefined,
     connected: boolean,
     choice?: Choice,
+    launch?: readonly string[],
   ): ResumeCheck {
     const { resume } = harnesses[agent].launch
     const key = `${agent}:${session}`
@@ -239,7 +263,7 @@ export class Claims {
     })
     if (availability.state !== "ready") return { ok: false, reason: availability.reason }
     if (!resume || session === undefined) return { ok: false, reason: "unsupported" }
-    return { ok: true, argv: resume(session, choice), key }
+    return { ok: true, argv: resume(session, choice, launch), key }
   }
 
   /**

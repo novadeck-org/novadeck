@@ -7,6 +7,7 @@ import { savedSession } from "./binding/standing.js"
 import {
   cancelResume,
   Claims,
+  launchFor,
   restartedTask,
   resumeNote,
   resumeRefusal,
@@ -41,6 +42,59 @@ describe("the session an agent asks to resume in a new terminal", () => {
     new Claims({
       boundElsewhere: (_terminal, agent, session) => bound.includes(`${agent}:${session}`),
     })
+
+  it("resumes with the flags the session was launched with, the model asked for replacing theirs", () => {
+    const launch = ["--permission-mode", "plan", "--model", "opus", "--effort", "high"]
+    expect(claims().check("t1", "claude", "s-1", true, undefined, launch)).toEqual({
+      ok: true,
+      argv: ["claude", "--effort", "high", "--resume", "s-1"],
+      key: "claude:s-1",
+    })
+    expect(claims().check("t1", "claude", "s-1", true, { model: "sonnet" }, launch)).toMatchObject({
+      argv: ["claude", "--model", "sonnet", "--effort", "high", "--resume", "s-1"],
+    })
+  })
+
+  it("finds the flags a session was launched with in any row, the newest report first", () => {
+    const rows = [
+      { agents: { claude: { sessionId: "s-1", seq: 1, launch: ["--effort", "low"] } } },
+      { agents: { claude: { sessionId: "s-2", seq: 9, launch: ["--effort", "max"] } } },
+      { agents: { claude: { sessionId: "s-1", seq: 5, launch: ["--effort", "high"] } } },
+      { agents: { codex: { sessionId: "s-1", seq: 7, launch: ["--sandbox", "read-only"] } } },
+      { agents: { claude: { sessionId: "s-3", seq: 5 } } },
+    ]
+    expect(launchFor(rows, "claude", "s-1")).toEqual(["--effort", "high"])
+    expect(launchFor(rows, "codex", "s-1")).toEqual(["--sandbox", "read-only"])
+    expect(launchFor(rows, "claude", "s-3")).toBeUndefined()
+    expect(launchFor(rows, "agy", "s-1")).toBeUndefined()
+  })
+
+  it("judges a restored terminal's resume with the flags its saved row kept", () => {
+    const saved = {
+      agents: {
+        codex: {
+          sessionId: "s-1",
+          seq: 1,
+          launch: ["--sandbox", "read-only", "--dangerously-bypass-hook-trust"],
+        },
+      },
+    }
+    expect(claims().judge({ id: "t1", resume: "codex" }, saved, true)).toMatchObject({
+      ok: true,
+      argv: [
+        "codex",
+        "resume",
+        "--dangerously-bypass-hook-trust",
+        "-c",
+        "tui.resume_cwd=session",
+        "s-1",
+      ],
+    })
+    const old = { agents: { codex: { sessionId: "s-1", seq: 1 } } }
+    expect(claims().judge({ id: "t1", resume: "codex" }, old, true)).toMatchObject({
+      argv: ["codex", "resume", "-c", "tui.resume_cwd=session", "s-1"],
+    })
+  })
 
   it("resumes in each harness with the model and effort, in the place its CLI takes them", () => {
     const choice = { model: "m1", effort: "high" as const }

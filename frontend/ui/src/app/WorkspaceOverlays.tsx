@@ -80,6 +80,19 @@ const useTranscripts = (
   return transcripts && { enabled, available: transcripts.available, onChange: transcripts.set }
 }
 
+// The backend's idle-agent wait, for Preferences; undefined where it stops none.
+const useHibernation = (
+  hibernation: Backend["hibernation"],
+):
+  | { readonly minutes: number | null; readonly onChange: (minutes: number | null) => void }
+  | undefined => {
+  const minutes = useSyncExternalStore(
+    hibernation?.after.subscribe ?? always,
+    () => hibernation?.after.getSnapshot() ?? null,
+  )
+  return hibernation && { minutes, onChange: hibernation.set }
+}
+
 const noAsks: readonly never[] = []
 // The first approval an agent asked for that waits on the person, with the terminals it names.
 const useApproval = (approvals: Backend["approvals"]): ApprovalView | null => {
@@ -238,6 +251,7 @@ const useUninstall = (
 export const WorkspaceOverlays = memo((): React.JSX.Element => {
   const { backend, commands, navigation, ui } = useWorkspaceServices()
   const transcripts = useTranscripts(backend.transcripts)
+  const hibernation = useHibernation(backend.hibernation)
   const agents = useAgents(backend.agents)
   const approval = useApproval(backend.approvals)
   const voice = useVoice(backend.voice)
@@ -360,6 +374,7 @@ export const WorkspaceOverlays = memo((): React.JSX.Element => {
           onChange={updatePreferences}
           onClose={closeDialog}
           {...(transcripts ? { transcripts } : {})}
+          {...(hibernation ? { hibernation } : {})}
           notices={backend.notices !== undefined}
           systemSounds={backend.notices?.sounds === true}
           hearSound={dingOf(backend, ui).preview}

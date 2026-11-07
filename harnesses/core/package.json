@@ -48,6 +48,11 @@
       "types": "./dist/header.d.ts",
       "default": "./dist/header.js"
     },
+    "./kept-flags": {
+      "development": "./src/kept-flags.ts",
+      "types": "./dist/kept-flags.d.ts",
+      "default": "./dist/kept-flags.js"
+    },
     "./hook-command": {
       "development": "./src/hook-command.ts",
       "types": "./dist/hook-command.d.ts",

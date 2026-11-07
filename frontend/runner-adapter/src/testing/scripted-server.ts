@@ -338,6 +338,7 @@ export const scriptedRunner = ({
         welcomed: true,
         inboxOrder: [],
         inboxSnoozed: [],
+        hibernateAfterMinutes: 30,
       })),
       set: api.settings.set.handler(() => {}),
     },

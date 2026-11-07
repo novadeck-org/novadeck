@@ -441,3 +441,34 @@ describe("a sleeper that closes", () => {
     expect(run.messaging.resting("B")).toBeUndefined()
   })
 })
+
+describe("an agent stopped to rest while it ran", () => {
+  it("rests where it was bound, keeping its messages, and wakes for the next one", ({
+    resources,
+  }) => {
+    const run = setup({ ...memoryMessages() }, { sleeper: false })
+    resources.defer(closing(run))
+    run.messaging.register("B", here, "fox", null)
+    bind(run.messaging, "B", "claude", "bound-1")
+    expect(run.messaging.resting("B")).toBeUndefined()
+    run.messaging.rest("B", here, "fox", null, { agent: "claude", sessionId: "bound-1" })
+    expect(run.messaging.resting("B")).toEqual({ agent: "claude", sessionId: "bound-1" })
+    expect(run.messaging.delivery("B")?.state).toBe("unbound")
+    run.send("are you there?")
+    expect(run.wakes).toEqual(["B"])
+  })
+
+  it("is occupied while a message waits for it, not the sender, nor one a release holds", ({
+    resources,
+  }) => {
+    const run = setup({ ...memoryMessages() }, { sleeper: false })
+    resources.defer(closing(run))
+    run.messaging.register("B", here, "fox", null)
+    bind(run.messaging, "B", "claude", "bound-1")
+    expect(run.messaging.occupied("B")).toBe(false)
+    run.send("hello")
+    expect(run.messaging.occupied("B")).toBe(true)
+    expect(run.messaging.occupied("A")).toBe(false)
+    expect(run.messaging.occupied("nobody")).toBe(false)
+  })
+})

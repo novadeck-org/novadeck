@@ -148,8 +148,17 @@ export const connectRunnerBackend = async (
   progress("loading")
   try {
     const listing = await loadListing(runner, newId, Date.now)
-    const [{ transcripts, transcriptsAvailable, welcomed, inboxOrder, inboxSnoozed }, agents] =
-      await Promise.all([runner.settings.get(), runner.agents.list()])
+    const [
+      {
+        transcripts,
+        transcriptsAvailable,
+        welcomed,
+        inboxOrder,
+        inboxSnoozed,
+        hibernateAfterMinutes,
+      },
+      agents,
+    ] = await Promise.all([runner.settings.get(), runner.agents.list()])
     const appOptions = desktopOptions(app)
     reportPoolTo(app)
     // StrictMode creates a backend twice and keeps the first, so the last one created is
@@ -167,6 +176,7 @@ export const connectRunnerBackend = async (
           welcomed,
           inboxOrder,
           inboxSnoozed,
+          hibernateAfterMinutes,
         })
         created.push(next)
         return next.backend

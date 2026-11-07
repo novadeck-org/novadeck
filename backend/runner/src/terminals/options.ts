@@ -12,6 +12,7 @@ import type { InstalledShell } from "../shell/install.js"
 import type { AnswersOptions } from "./answers.js"
 import type { MurmurTimes } from "./descriptions.js"
 import type { DialogsOptions } from "./dialogs.js"
+import type { HibernationOptions } from "./hibernation.js"
 import type { HistoryRecords, HistoryTimes } from "./history.js"
 import type { TranscriptRedactor } from "./redaction.js"
 import type { TerminalRecords } from "./saved-terminals.js"
@@ -64,6 +65,13 @@ export type TerminalOptions = {
   connected?: (agent: AgentName) => Promise<boolean>
   /** Whether terminals' transcripts are kept, until `keepTranscripts` changes it. */
   transcripts?: boolean
+  /**
+   * After how many idle minutes an agent is stopped to rest as a sleeper (see `Hibernation`),
+   * asked each time it looks; null for never, as when omitted.
+   */
+  hibernateAfterMinutes?: () => number | null
+  /** The waits of hibernation, as in some tests. */
+  hibernation?: HibernationOptions
   /** How often changed terminals are saved, in milliseconds. */
   saveMs?: number
   /** How often a changed terminal's transcript is saved, in milliseconds. */

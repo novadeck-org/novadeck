@@ -170,6 +170,33 @@ export const turn = async (
 }
 
 /**
+ * How long a test waits for an idle agent to be stopped to rest: the deck stops one after 5 s
+ * idle, looking each second, once its descendants' baseline is taken (10 s after it binds).
+ */
+export const hibernateMs = 60_000
+
+/**
+ * Lets the terminal's agent sit idle until the runner stops it to rest, and waits until the
+ * terminal is listed asleep on its agent. Nothing reads its screen meanwhile, as a client
+ * would be one and keep it awake.
+ */
+export const hibernated = async (
+  { deck }: Pick<E2E, "deck">,
+  terminal: Pick<DeckTerminal, "id" | "handle">,
+  agent: AgentName,
+): Promise<void> => {
+  deck.store.settings.saveRunner({ hibernateAfterMinutes: 1 })
+  await poll(
+    () => {
+      const listed = deck.terminals.list(deck.sessionId).find((one) => one.id === terminal.id)
+      return listed?.sleeping === true && listed.restingAgent === agent ? listed : undefined
+    },
+    `${terminal.handle} to be stopped to rest`,
+    hibernateMs,
+  )
+}
+
+/**
  * What the suite's nested runs of a harness are asked, which only their own conversations
  * hold as a person's words: one a command left running starts (controls.e2e.ts), one
  * inside an agent's turn (nested.e2e.ts), and one held while prompts queue behind it

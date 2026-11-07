@@ -51,7 +51,7 @@ import {
 } from "./opens.js"
 import { peerOf } from "./peers-host.js"
 import type { Record } from "./record.js"
-import { resumeRefusal, type Claims } from "./resumes.js"
+import { launchFor, resumeRefusal, type Claims } from "./resumes.js"
 import { nobodyToRun, runNotice, waitingToRun } from "./runs.js"
 import { shellBusy } from "./sampling.js"
 import type { Sleeper, Sleepers } from "./sleepers.js"
@@ -102,6 +102,8 @@ export type CallsHost = LeadsHost & {
   readonly claims: () => Claims
   /** The terminals whose agents sleep. */
   readonly sleepers: () => Sleepers
+  /** Every terminal's sessions, running or saved, which a resume reads its kept launch flags from. */
+  readonly rows: () => Iterable<{ readonly agents: Record["agents"] }>
   /** Closes a terminal for good, the person's close: one with no shell is forgotten as its row. */
   readonly close: (terminalId: string, closedBy: string | null) => Promise<void>
   /** Where a harness lives on this machine, which says how it may start with a task. */
@@ -224,7 +226,16 @@ export class Calls {
     // The session a terminal that doesn't exist yet would resume, judged as it would be then.
     const resuming =
       request.agent !== undefined && request.resume !== undefined
-        ? this.host.claims().check("", request.agent, request.resume, true, choice)
+        ? this.host
+            .claims()
+            .check(
+              "",
+              request.agent,
+              request.resume,
+              true,
+              choice,
+              launchFor(this.host.rows(), request.agent, request.resume),
+            )
         : undefined
     if (request.agent !== undefined && resuming && !resuming.ok)
       return refused(resumeRefusal(request.agent, resuming.reason))

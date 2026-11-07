@@ -11,9 +11,21 @@ import type { Telemetry } from "../harnesses/telemetry.js"
 import type { Restoring } from "./history.js"
 import type { Nudges } from "./nudges.js"
 import type { AgentReport, AgentTurn, KeptInterruption } from "./saved-terminals.js"
+import type { Schedule } from "./schedules.js"
 import type { AgentSummary } from "./summary.js"
 import type { Naming } from "./titles.js"
 import type { Work } from "./work.js"
+
+/** The processes under an agent, by pid and start, recorded once it was up. */
+export type Baseline = {
+  /** The agent process it was recorded for; another process, another baseline. */
+  readonly instance: string
+  /** The processes; undefined until the read ends, and for ever if it could not tell. */
+  taken?: ReadonlySet<string> | undefined
+  /** Whether the read was begun, which happens once. */
+  begun: boolean
+  readonly timer: ReturnType<typeof setTimeout>
+}
 
 /** A harness session bound to a terminal (`Record.bound`). */
 export type Bound = {
@@ -198,6 +210,21 @@ export type Record = {
    * program, so the row stays resumable (see `Sleepers`).
    */
   woken?: number | undefined
+  /**
+   * Set while its agent is being stopped to rest (see `Hibernation`): the shell's end is no
+   * exit, and nothing is announced, attached or started on it meanwhile.
+   */
+  hibernating?: true | undefined
+  /** When the person's keys last reached it, in epoch milliseconds. */
+  keyedAt?: number
+  /** When a client last attached to it, or let go of it, in epoch milliseconds. */
+  attachedAt?: number
+  /** What its agent scheduled that dies with its process, by the session that did (see `schedules.ts`). */
+  schedules?:
+    | { readonly sessionId: string; readonly items: ReadonlyMap<string, Schedule> }
+    | undefined
+  /** The processes under its agent when that was up, which hibernation tells its own from. */
+  baseline?: Baseline
   /** The last delivery epoch whose uncertain box got a screen-settling window. */
   boxDoubtEpoch?: number
   /** `performance.now()` at the last save of its screen, so saves take turns. */

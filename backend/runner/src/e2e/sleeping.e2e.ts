@@ -1,7 +1,18 @@
 import { harnesses } from "../harnesses/registry.js"
 import { setups } from "./agents/index.js"
 import { describe, e2e, expect, supported } from "./fixture.js"
-import { delivered, holds, replies, sends, own, prompted, start, turn } from "./scenarios.js"
+import {
+  delivered,
+  hibernated,
+  hibernateMs,
+  holds,
+  replies,
+  sends,
+  own,
+  prompted,
+  start,
+  turn,
+} from "./scenarios.js"
 
 // Agents asleep after Novadeck restarts, the same for every harness (see messaging.e2e.ts
 // for the rule on parity). The deck has no window, as a Mac whose last one closed: the
@@ -59,6 +70,53 @@ for (const setup of setups) {
       // The same session, not a new one.
       expect(run.deck.terminals.reportedSession(t1.id, setup.agent)).toBe(before)
     })
+
+    it(
+      "is stopped when idle, and a message wakes the same session and is answered",
+      { timeout: hibernateMs + 180_000 },
+      async ({ e2e: run }) => {
+        run.model.use(
+          replies("Remember the word heron", "Remembered."),
+          sends("Ask moth for the word", "moth", "Which word did you remember?"),
+          own((call) => (delivered(call, "fox") ? { text: "Heron, as asked." } : undefined)),
+        )
+        const t1 = await start(run, setup)
+        await turn(t1, "Remember the word heron", "Remembered.")
+        const before = run.deck.terminals.reportedSession(t1.id, setup.agent)
+        expect(before).not.toBeNull()
+
+        // Idle, it is stopped in place: asleep on its session, with no exit announced.
+        await hibernated(run, t1, setup.agent)
+        const [asleep] = run.deck.terminals.list(run.deck.sessionId)
+        expect(asleep).toMatchObject({
+          id: t1.id,
+          started: false,
+          sleeping: true,
+          restingAgent: setup.agent,
+          exit: null,
+        })
+
+        // A message from another agent wakes it: the same session, not a new one.
+        const sender = await start(run, setup)
+        expect(sender.handle).toBe("fox")
+        const calls = run.model.mark()
+        await sender.submit("Ask moth for the word")
+        // The woken terminal answers on its own screen, not the sender's: the proof is the model
+        // call that carried the message, made in the conversation it held before it was stopped.
+        const rung = await run.model.waitFor((call) => delivered(call, "fox"), {
+          after: calls,
+          timeoutMs: 120_000,
+        })
+        expect(
+          rung.turns.some(
+            (one) => one.role === "user" && one.text.includes("Remember the word heron"),
+          ),
+        ).toBe(true)
+        const woke = run.deck.terminals.list(run.deck.sessionId).find((one) => one.id === t1.id)
+        expect(woke).toMatchObject({ started: true, sleeping: false })
+        expect(run.deck.terminals.reportedSession(t1.id, setup.agent)).toBe(before)
+      },
+    )
 
     it("wakes when a window restores it, resuming the session it held", async ({ e2e: run }) => {
       run.model.use(replies("Remember the word heron", "Remembered."))
