@@ -175,9 +175,12 @@
       ],
       "test": "src/e2e/interrupt.e2e.ts > Claude Code > gives back both of two queued messages where the turn ends as the Stop waits on their hooks",
       "signature": "expected null to be 'Queued beta\\\\nQueued gamma'",
-      "status": "known",
-      "cause": "A real gap on slow machines, rerun as a stopgap: this entry doesn't mean the test is wrong. With messages queued, a turn that ends during the Stop's hold takes its Escape, and on a slow machine that Escape can give nothing back. On Windows (Claude Code 2.1.316) it aborted nothing: Queued beta went to the model alone, the host heard no turn start, `turnStarts` waited its full 8 s, the second Escape stopped beta, and gamma ran as a turn of its own, so the person's Stop let queued work run. On Linux at normal speed one Escape gave both back, 3 of 3; with everything on one CPU beside busy loops it failed 8 of 8, that way or with both messages back in the box after `settled` had given up, left there with `returned` null. Why the first Escape does nothing is not known. Seen once on Windows, 1 of 4 finished runs of that job after #742. Whether to fix it is open. Evidence and traces: backups/issue-notes-2026-11-06/383-queued-flake/README.md in the workspace.",
-      "seen": ["#738 run 42254380158 job 128017862149 (Windows)"]
+      "status": "fixed",
+      "cause": "A real gap, not the test: at a turn's end Claude Code drains its queue at once, and a Stop's Escape raced that, so on a slow machine queued work ran though the person pressed Stop. Fixed by #757: the Stop takes what is queued to the box with Up before any Escape. The same test failing this way again is news. Both shapes are forced at normal speed by the tests beside it. The Windows runs are the path where the Escape killed the prompt hooks, which enqueued the messages, and the drain took them, inferred from their times, as those traces hold no hook ends.",
+      "seen": [
+        "#738 run 42254380158 job 128017862149 (Windows)",
+        "#739 run 42281974993 job 128113289850 (Windows)"
+      ]
     },
     {
       "id": "e2e-codex-windows-patch-never-returns",

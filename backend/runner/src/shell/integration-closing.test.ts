@@ -239,7 +239,10 @@ describe.skipIf(process.platform === "win32" || !existsSync(bash))(
       await start(codex.id, "codex", "s-codex")
       const call = async (type: string, request: object) =>
         JSON.parse(await step(claude.id, { call: type, request })) as Told
-      const prompt = () => step(claude.id, { hook: "UserPromptSubmit", payload: { prompt: "ok" } })
+      // Each its own turn: a second prompt with no Stop before it is one queued behind a turn.
+      const prompt = async () =>
+        (await step(claude.id, { hook: "Stop", payload: {} })) +
+        (await step(claude.id, { hook: "UserPromptSubmit", payload: { prompt: "ok" } }))
       const asked: Approval[] = []
       const follow = (signal: AbortSignal) =>
         (async () => {
@@ -281,7 +284,10 @@ describe.skipIf(process.platform === "win32" || !existsSync(bash))(
       await start(codex.id, "codex", "s-codex")
       const call = async (type: string, request: object) =>
         JSON.parse(await step(claude.id, { call: type, request })) as Told
-      const prompt = () => step(claude.id, { hook: "UserPromptSubmit", payload: { prompt: "ok" } })
+      // Each its own turn: a second prompt with no Stop before it is one queued behind a turn.
+      const prompt = async () =>
+        (await step(claude.id, { hook: "Stop", payload: {} })) +
+        (await step(claude.id, { hook: "UserPromptSubmit", payload: { prompt: "ok" } }))
       const asked: Approval[] = []
       const asking = new AbortController()
       const person = (async () => {

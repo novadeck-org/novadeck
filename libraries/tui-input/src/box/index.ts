@@ -11,6 +11,7 @@ export {
   rule,
   ruledBox,
   showsTail,
+  takesQueue,
   tailOf,
 } from "./box.js"
 export type { BoxProfile, InputBox, Markers } from "./box.js"

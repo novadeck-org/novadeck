@@ -853,10 +853,13 @@ const keyed = (delivery: Delivery, submits: boolean, at: number | null): Deliver
 /**
  * Whether a root Stop's hook may continue the turn with messages: the turn runs, the
  * person queued no prompt of their own during it, and Novadeck has not yet continued it
- * as often as it may.
+ * as often as it may. A prompt queued stands in the way only where its own hook delivers:
+ * where it doesn't (`promptHookOnQueueing`), nothing else would until the queue runs dry.
  */
-export const continues = (delivery: Delivery): boolean =>
-  stoppable(delivery) && !delivery.box.queuing && delivery.continued < maxContinuations
+export const continues = (delivery: Delivery, pastQueue = false): boolean =>
+  stoppable(delivery) &&
+  (pastQueue || !delivery.box.queuing) &&
+  delivery.continued < maxContinuations
 
 /** The call of a running turn that a lead's message reaches its agent at, in `send`'s words. */
 type MidTurnCall = "tool call" | "model call"

@@ -128,17 +128,20 @@ describe.skipIf(process.platform === "win32" || !existsSync(bash))(
       // Nothing more waits: the next Stop ends Claude's turn.
       await expect(step(claude.id, { hook: "Stop", payload: {} })).resolves.toBe("")
       expect(manager.messages(claude.id).delivery).toBe("settled")
-      // The person submits a prompt of their own during Claude's next turn: its Stop
-      // leaves the message to that prompt's hook.
+      // The person queues a prompt during Claude's next turn. Its hook runs as it is queued, and
+      // a Stop may take it back with all it printed, so the turn's Stop gives the message,
+      // past that prompt.
       await step(claude.id, { hook: "UserPromptSubmit", payload: { prompt: "next" } })
       manager.write({ terminalId: claude.id, data: "and then this\r" }, "owner")
       await send(codex.id, "moth", "One more thing.")
-      await expect(step(claude.id, { hook: "Stop", payload: {} })).resolves.toBe("")
-      expect(manager.messages(claude.id).delivery).toBe("drafting")
-      const queued = JSON.parse(
-        await step(claude.id, { hook: "UserPromptSubmit", payload: { prompt: "and then this" } }),
-      ) as { hookSpecificOutput: { additionalContext: string } }
-      expect(queued.hookSpecificOutput.additionalContext).toContain("One more thing.")
+      const queued = await step(claude.id, {
+        hook: "UserPromptSubmit",
+        payload: { prompt: "and then this" },
+      })
+      expect(queued).not.toContain("One more thing.")
+      await expect(step(claude.id, { hook: "Stop", payload: {} })).resolves.toContain(
+        "One more thing.",
+      )
     })
 
     it("tells an agent no one types to Novadeck's notices with the messages its doorbell delivers", async ({

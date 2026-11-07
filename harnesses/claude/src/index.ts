@@ -49,6 +49,9 @@ const messaging: MessagingProfile = {
   prompt: (delivery) => context("UserPromptSubmit", delivery),
   call: (delivery, event) => context(event, delivery),
   reinjectPerCall: false,
+  // Up takes a queued prompt back with what its hook printed, unseen (probed 2026-11-06,
+  // 2.1.316, `e2e/probes/queued-doorbell.e2e.ts`).
+  promptHookOnQueueing: true,
   // What a Stop, a prompt and a tool call print is all kept in its transcript,
   // which it sends again on every later call, and a resumed session's too; its
   // `SessionStart` says `compact` once it compacted them away.

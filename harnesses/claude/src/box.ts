@@ -65,8 +65,14 @@ const still = (rows: readonly string[]): readonly string[] =>
 const read = (screen: ScreenText) => agreeing(ruledBox(screen, markers), shellFooter(screen.rows))
 
 /** Whether the screen shows messages queued behind the running turn. */
-const queued = (screen: ScreenText): boolean =>
-  screen.rows.some((row) => row.includes("Press up to edit queued messages"))
+const queued = (screen: ScreenText): boolean => {
+  // In its box or under it: the same words may stand in the conversation above.
+  const first = read(screen)?.first
+  return (
+    first !== undefined &&
+    screen.rows.slice(first).some((row) => row.includes("Press up to edit queued messages"))
+  )
+}
 
 /**
  * Whether messages queued behind the turn may still be in their `UserPromptSubmit` hooks:
@@ -102,6 +108,23 @@ const queueing = (screen: ScreenText): boolean => {
  */
 export const box: BoxProfile = {
   read,
+  takeQueued: {
+    // Up, which its box offers: it moves everything queued to the box at once, a message
+    // still in its prompt hook too (whose hook runs out harmlessly), before any Escape. An
+    // Escape instead races the queue's drain as the turn ends: a message in the real queue,
+    // there once its hook has ended, then starts a turn of its own, which fires no hook
+    // (probed 2026-11-06, 2.1.316, cursor keys in normal mode, `e2e/probes/queued-stop-cause.e2e.ts`).
+    keys: "\x1b[A",
+    // With nothing queued Up recalls the latest prompt, under this rule, which Down leaves.
+    recalled: (screen) => screen.rows.some((row) => /^─+ History \d+\/\d+ ─+$/.test(row.trim())),
+    leave: "\x1b[B",
+    // Its shortcuts panel, `?`, shows under an empty box, the queued row still up; this row of
+    // it stays whole however narrow the screen wraps the rest (fixtures/queued-box.probe.json).
+    blocked: (screen) =>
+      screen.rows
+        .slice(screen.rows.findLastIndex(rule) + 1)
+        .some((row) => row.includes("/ for commands")),
+  },
   // Enter runs a command shown as a placeholder as the text it stands for. It binds its session
   // before any command, so none starts one (`starts`).
   shell: { expands: true, starts: false, footer: shellFooter, leave: leaveShell },

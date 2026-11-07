@@ -507,7 +507,28 @@ export class Deliveries {
     const confirmed = event.type === "prompt" && event.by === "doorbell" ? event.nonce : undefined
     if (confirmed !== undefined)
       live.unconfirmed = live.unconfirmed.filter((each) => each !== confirmed)
+    // As far as told: a turn may run that no hook told of, as what was queued, or that an
+    // Escape didn't stop. Taken so in error, the prompt's messages wait for the next hook. It
+    // counts only behind a turn known to run: what's a guess must not feed itself, or one Escape
+    // would have every prompt after it taken for queued.
+    if (event.type === "prompt" && (event.by === "prompt" || event.by === "doorbell")) {
+      const known = running(before) || before.box.queued
+      live.promptBehindTurn = known || before.state === "unknown" || live.queueRunning
+      if (known) live.promptsQueued += 1
+    }
     live.delivery = transition(before, event, this.host.slackMs)
+    // At the turn's Stop with a prompt queued, that prompt runs as a turn no prompt hook tells
+    // of, the host idle and the person's keys free to say Drafting, until its own Stop. A Stop
+    // that continued ended no turn, so nothing queued has run. Counted high, as where the harness
+    // joins prompts in one turn, it keeps messages from a prompt's hook for that many Stops more.
+    if (event.type === "stop" && !event.continued) {
+      live.queueRunning = live.promptsQueued > 0 || live.delivery.box.queued
+      live.promptsQueued = Math.max(live.promptsQueued - 1, 0)
+    }
+    if (event.type === "ended" || event.type === "bound" || event.type === "unbound") {
+      live.queueRunning = false
+      live.promptsQueued = 0
+    }
     if (live.delivery === before) return
     const { state } = live.delivery
     live.viaScreen =

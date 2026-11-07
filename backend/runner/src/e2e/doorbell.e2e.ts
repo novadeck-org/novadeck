@@ -6,7 +6,7 @@ import type { Question } from "./agents/agent.js"
 import { setups } from "./agents/index.js"
 import { occurrences, type DeckTerminal } from "./deck.js"
 import { describe, e2e, expect, gated, supported, type E2E } from "./fixture.js"
-import { asked, gate, latest } from "./model/script.js"
+import { asked, gate, latest, type Call } from "./model/script.js"
 import {
   answers,
   delivered,
@@ -141,6 +141,187 @@ for (const setup of setups) {
         .find((one) => one.deliveredAt !== null)
       expect(came!.deliveredAt).toBeGreaterThanOrEqual(line!.at! - 2_000)
     }
+
+    // A guess that a prompt is queued costs that prompt its notices, and no more. What's asked
+    // of a terminal with no summary comes with each prompt, so it says which ones it reached.
+    const asksSummary = (call: Call) => /has no summary yet/.test(latest(call))
+
+    gated(it, setup.queueing ? undefined : "its queued prompts' hooks don't run early")(
+      "gives notices again by the second prompt after an Escape, and after a /clear",
+      async ({ e2e: run }) => {
+        const held = gate()
+        run.model.use(
+          own(async (call) => {
+            // The stopped prompt shares the next one's turn.
+            if (!asked(call, "Hold on") || /Two|Three|Four|Five/.test(latest(call)))
+              return undefined
+            await held.opened
+            return { text: "Too late." }
+          }),
+          replies("Two", "Two done."),
+          replies("Three", "Three done."),
+          replies("Four", "Four done."),
+          replies("Five", "Five done."),
+        )
+        const t1 = await start(run, setup)
+        const given = async (words: string) => {
+          const calls = run.model.mark()
+          await t1.prompt(words)
+          const call = await run.model.waitFor((one) => !one.side && asked(one, words), {
+            after: calls,
+          })
+          await t1.until(`${words} done.`)
+          await sleep(1_000)
+          return asksSummary(call)
+        }
+        const mark = t1.mark()
+        await t1.prompt("Hold on")
+        await t1.reached("working", { after: mark })
+        await sleep(1_500)
+        run.deck.terminals.write({ terminalId: t1.id, data: "\x1b" }, "e2e")
+        await sleep(2_500)
+        held.open()
+        // The first may be taken for one queued behind a turn the Escape didn't stop, as it can't
+        // be told from one; it costs no more than that one.
+        await given("Two")
+        expect(await given("Three")).toBe(true)
+        for (const key of "/clear") {
+          run.deck.terminals.write({ terminalId: t1.id, data: key }, "e2e")
+          // eslint-disable-next-line no-await-in-loop -- One key after another.
+          await sleep(60)
+        }
+        await sleep(500)
+        run.deck.terminals.write({ terminalId: t1.id, data: "\r" }, "e2e")
+        await sleep(3_000)
+        expect(await given("Four")).toBe(true)
+        expect(await given("Five")).toBe(true)
+      },
+    )
+
+    gated(it, setup.queueing ? undefined : "its queued prompts' hooks don't run early")(
+      "gives a queued prompt's notices to the next prompt that isn't queued",
+      async ({ e2e: run }) => {
+        const held = gate()
+        run.model.use(
+          own(async (call) => {
+            if (!asked(call, "Hold on")) return undefined
+            await held.opened
+            return { text: "Held on." }
+          }),
+          replies("Queued", "Queued done."),
+          replies("After", "After done."),
+        )
+        const t1 = await start(run, setup)
+        const mark = t1.mark()
+        await t1.prompt("Hold on")
+        await t1.reached("working", { after: mark })
+        const calls = run.model.mark()
+        await t1.prompt("Queued")
+        await t1.until(setup.queued!("Queued"))
+        held.open()
+        const queued = await run.model.waitFor((one) => !one.side && asked(one, "Queued"), {
+          after: calls,
+        })
+        expect(asksSummary(queued)).toBe(false)
+        await t1.until("Queued done.")
+        await sleep(1_500)
+        const after = run.model.mark()
+        await t1.prompt("After")
+        const next = await run.model.waitFor((one) => !one.side && asked(one, "After"), { after })
+        expect(asksSummary(next)).toBe(true)
+      },
+    )
+
+    // A queued prompt's hook runs as it is queued, and a Stop takes the prompt back out: a
+    // message printed there would go with it, unseen, though held as delivered.
+    const slowQueue = e2e.seeded({}, setup)
+    gated(slowQueue, setup.queueing ? undefined : "its queued prompts' hooks don't run early")(
+      "brings a message to an agent whose queued prompt a Stop took back, and no doorbell line back to the person",
+      async ({ e2e: run }) => {
+        const held = gate()
+        run.model.use(
+          sends("Tell moth the news", "moth", "The build is green."),
+          own((call) => (sent(call, "moth") ? { text: "Told moth." } : undefined)),
+          own((call) => (delivered(call, "fox") ? { text: "Noted the news." } : undefined)),
+          own(async (call) => {
+            if (!asked(call, "Hold on")) return undefined
+            await held.opened
+            return { text: "Too late." }
+          }),
+        )
+        const t1 = await start(run, setup)
+        const t2 = await start(run, setup)
+        const mark = t1.mark()
+        await t1.prompt("Hold on")
+        await t1.reached("working", { after: mark })
+        await message(t2, t1)
+        await t1.prompt("Queued beta")
+        const { pty } = internals(run).live(t1.id).terminal
+        pty.write(`\x1b[200~${doorbellLine("abc123def")}\x1b[201~`)
+        await sleep(300)
+        pty.write("\r")
+        await t1.until(/Press up to edit queued messages/)
+        const calls = run.model.mark()
+        const stopped = await t1.interrupt()
+        held.open()
+        expect(stopped.returned).toBe("Queued beta")
+        // Nothing more from the person: the doorbell brings it.
+        await run.model.waitFor((call) => delivered(call, "fox"), {
+          after: calls,
+          timeoutMs: 60_000,
+        })
+        await t1.until("Noted the news.")
+      },
+    )
+
+    // The queued turn fires no hook, so the runner has it idle while it runs, and a prompt
+    // queued behind that one reads as no prompt behind a turn at all.
+    gated(slowQueue, setup.queueing ? undefined : "its queued prompts' hooks don't run early")(
+      "brings a message to an agent whose second queued prompt a Stop took back from a turn no hook told of",
+      async ({ e2e: run }) => {
+        const held = gate()
+        const betaHeld = gate()
+        run.model.use(
+          sends("Tell moth the news", "moth", "The build is green."),
+          own((call) => (sent(call, "moth") ? { text: "Told moth." } : undefined)),
+          own((call) => (delivered(call, "fox") ? { text: "Noted the news." } : undefined)),
+          own(async (call) => {
+            if (asked(call, "Queued beta")) {
+              await betaHeld.opened
+              return { text: "Beta done." }
+            }
+            if (!asked(call, "Hold on")) return undefined
+            await held.opened
+            return { text: "Too late." }
+          }),
+        )
+        const t1 = await start(run, setup)
+        const t2 = await start(run, setup)
+        const mark = t1.mark()
+        await t1.prompt("Hold on")
+        await t1.reached("working", { after: mark })
+        await t1.prompt("Queued beta")
+        await t1.until(/Press up to edit queued messages/)
+        await sleep(1500)
+        const toBeta = run.model.mark()
+        held.open()
+        await run.model.waitFor((call) => !call.side && latest(call).includes("Queued beta"), {
+          after: toBeta,
+        })
+        await message(t2, t1)
+        await t1.prompt("Queued gamma")
+        await t1.until(/Press up to edit queued messages/)
+        await sleep(1500)
+        const calls = run.model.mark()
+        const stopped = await t1.interrupt()
+        betaHeld.open()
+        expect(stopped.returned).toBe("Queued gamma")
+        await run.model.waitFor((call) => delivered(call, "fox"), {
+          after: calls,
+          timeoutMs: 60_000,
+        })
+      },
+    )
 
     gated(it, lacking(setup, "questions"))(
       "rings an agent idle after the person answered its question in the terminal",
