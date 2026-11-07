@@ -6,12 +6,10 @@ import {
   fillsViewport,
   hidesText,
   isEmpty,
-  newTurn,
   showsTail,
   takesQueue,
   type BoxProfile,
   type InputBox,
-  type TurnStatus,
 } from "./box/box.js"
 import { sameText } from "./box/text.js"
 import type { InputEntry, InputHold } from "./queue.js"
@@ -176,8 +174,6 @@ export class Interrupts {
     const queuedBefore = seen !== undefined && profile?.queued(seen) === true
     const held = seen !== undefined && profile?.escapeHold?.holds(seen, prompt) === true
     const first = held ? await this.heldScreen(terminalId, profile!, seen, prompt) : seen
-    // The turn's status row, before the Escape: a turn its queue starts is told from it.
-    const stopped = first && profile?.status?.(first)
     const boxBefore = first && profile?.read(first)
     const emptyBefore = boxBefore !== undefined && isEmpty(boxBefore)
     const queuedNow = first !== undefined && profile?.queued(first) === true
@@ -209,7 +205,7 @@ export class Interrupts {
       // Text the box holds by then, with no such turn, is the person's, typed meanwhile, as
       // nothing was put back yet: it is left as it is, as no second Escape goes over it.
       if (box !== undefined && isEmpty(box) && queued && host.alive(terminalId)) {
-        const started = await this.turnStarts(terminalId, stopped || undefined)
+        const started = await this.turnStarts(terminalId)
         const screen = started ? undefined : await host.screen(terminalId)
         const now = screen && profile.read(screen)
         if (now !== undefined && !isEmpty(now)) {
@@ -387,22 +383,12 @@ export class Interrupts {
    * a program's Escape may send them at once as a steer, though the turn that runs them
    * came 1.4 s later on Windows CI.
    */
-  private async turnStarts(terminalId: string, stopped?: TurnStatus): Promise<boolean> {
+  private async turnStarts(terminalId: string): Promise<boolean> {
     const { host } = this
     const until = Date.now() + this.queuedTurnMs
-    // Where the program's queue starts its turn with no hook, its screen says so first.
-    const status = host.profile(terminalId)?.status
-    let before = stopped
     while (host.alive(terminalId) && Date.now() < until) {
       if (host.working(terminalId)) return true
-      if (status) {
-        // eslint-disable-next-line no-await-in-loop -- Looks again until it works.
-        const screen = await host.screen(terminalId)
-        const now = screen && status(screen)
-        if (newTurn(before, now)) return true
-        if (now?.ending) before = now
-      }
-      // eslint-disable-next-line no-await-in-loop -- As above.
+      // eslint-disable-next-line no-await-in-loop -- Looks again until it works.
       await sleep(pollMs)
     }
     return host.working(terminalId)
