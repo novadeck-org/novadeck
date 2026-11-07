@@ -128,7 +128,8 @@ describe("approval dialog", () => {
     it("tells the length and the number of lines", async () => {
       show(run("echo hi"))
       await settle()
-      expect(dialog()?.textContent).toContain("In /home/me/api · 7 characters, 1 line.")
+      expect(dialog()?.textContent).toContain("In /home/me/api")
+      expect(dialog()?.textContent).toContain("7 characters, 1 line.")
     })
 
     it("keeps Run disabled until the whole command has been seen, scrolled to its end", async () => {

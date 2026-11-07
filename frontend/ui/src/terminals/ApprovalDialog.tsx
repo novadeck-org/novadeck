@@ -147,12 +147,12 @@ const CommandView = ({
       >
         {visibleText(command)}
       </pre>
-      <div className="text-caption">
+      <div className="max-h-16 overflow-auto text-caption break-all">
         {"In "}
-        <code className="inline-block max-h-16 max-w-full overflow-auto align-top break-all">
-          {visibleText(cwd)}
-        </code>
-        {` · ${command.length} characters, ${lines} line${lines === 1 ? "" : "s"}.`}
+        <code>{visibleText(cwd)}</code>
+      </div>
+      <div className="text-caption">
+        {`${command.length} characters, ${lines} line${lines === 1 ? "" : "s"}.`}
         {seen ? "" : " Scroll to the end of it to be able to run it."}
       </div>
     </>

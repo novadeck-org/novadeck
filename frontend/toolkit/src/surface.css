@@ -128,10 +128,12 @@
   align-items: center;
   gap: 0.5rem;
 }
-/* An asker and what it acts on share the strip: neither takes more than its half, so a long
-   name on one side can't squeeze the other's away. */
+/* An asker and what it acts on share the strip evenly: a short side keeps only what it needs
+   and leaves the rest to the other, and two long ones split it, so neither squeezes the other
+   away. */
 .modal-subject:has(> .modal-subject-arrow) > .modal-subject-side {
-  max-width: calc(50% - 1rem);
+  flex: 1 1 0;
+  max-width: max-content;
 }
 .modal-subject-name {
   min-width: 0;
