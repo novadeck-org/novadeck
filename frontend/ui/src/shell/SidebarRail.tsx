@@ -53,7 +53,8 @@ export const railTooltip = ({
       : "hide sidebar"
     : undefined
   const shortcut = panelShortcuts[panel]
-  const keys = shortcut ? shortcutBindings()[shortcut].display.join(" ") : undefined
+  // Its keys joined by no-break spaces, so a wrapping tooltip keeps them on one line.
+  const keys = shortcut ? shortcutBindings()[shortcut].display.join("\u00a0") : undefined
   return [panels[panel].label, detail, action, keys].filter(Boolean).join(" · ")
 }
 

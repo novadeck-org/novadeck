@@ -130,8 +130,8 @@ export const sidebarToggle = (panel: SidebarPanel): HTMLElement | null =>
 // focus elsewhere, as typing in a terminal that hid it by its key, stays where it is.
 export const focusSidebarToggle = (panel: SidebarPanel): void => {
   const active = document.activeElement
-  if (active && active !== document.body && !active.closest("#terminal-sidebar, .sidebar-tools"))
-    return
+  const sidebar = "#terminal-sidebar, .sidebar-tools, .sidebar-keyboard-resize"
+  if (active && active !== document.body && !active.closest(sidebar)) return
   sidebarToggle(panel)?.focus()
 }
 export const focusTerminalTab = (id: string): void =>

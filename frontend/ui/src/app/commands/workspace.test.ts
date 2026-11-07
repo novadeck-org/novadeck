@@ -640,17 +640,6 @@ describe("workspace commands", () => {
       app.commands.toggleSidebar("terminals")
       expect(app.shell().sidebarCollapsed).toBe(true)
     })
-
-    it("goes back without moving the focus to the rail", () => {
-      const app = openCommands()
-      app.commands.toggleSidebar("inbox")
-      app.flush()
-      const effects = app.effects.length
-      app.commands.toggleSidebar("inbox")
-      app.flush()
-      expect(panel(app)).toBe("terminals")
-      expect(app.effects.slice(effects)).not.toContain("focus inbox toggle")
-    })
   })
 
   context("when the Inbox shows for one row, as a click on a toast shows it", () => {

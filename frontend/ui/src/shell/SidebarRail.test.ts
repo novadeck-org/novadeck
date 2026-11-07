@@ -66,7 +66,7 @@ describe("the rail's tooltips", () => {
       (navigator.platform.includes("Mac")
         ? ["⌘", "Shift", letter]
         : ["Ctrl", "Shift", letter]
-      ).join(" ")
+      ).join("\u00a0")
     expect(railTooltip({ panel: "sessions", open: false, base: "terminals" })).toBe(
       `Sessions · ${keys("S")}`,
     )
