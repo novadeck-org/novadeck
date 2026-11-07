@@ -227,6 +227,14 @@ describe("its status row, as a turn ends and one its queue starts begins", () =>
     expect(newTurn(at("Pondering", "1m 4s"), at("Pondering", "59s"))).toBe(true)
   })
 
+  it("takes a row seen with none before it for a new turn only as its clock starts", () => {
+    const at = (clock: string) =>
+      box.status!(frame({ ...head, 33: `✻ Noodling… (${clock} · ↓ 9 tokens)` }))
+    expect(newTurn(undefined, at("0s"))).toBe(true)
+    expect(newTurn(undefined, at("1s"))).toBe(true)
+    expect(newTurn(undefined, at("5s"))).toBe(false)
+  })
+
   it("isn't fooled by its own turn's row, or by an ending one after it", () => {
     expect(newTurn(box.status!(running), box.status!(running))).toBe(false)
     expect(newTurn(box.status!(running), box.status!(ending))).toBe(false)

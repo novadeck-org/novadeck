@@ -50,7 +50,9 @@ export type TurnStatus = {
  */
 export const newTurn = (before: TurnStatus | undefined, now: TurnStatus | undefined): boolean => {
   if (now === undefined || now.ending) return false
-  if (before === undefined || before.ending) return true
+  if (before?.ending) return true
+  // With no row before it, one is new only as it starts: not a turn's own row seen late.
+  if (before === undefined) return now.seconds === undefined || now.seconds <= 1
   // A turn's clock only goes on, and a new one's starts again; its words may change within a
   // turn, so they tell only where no clock shows.
   if (now.seconds !== undefined && before.seconds !== undefined) return now.seconds < before.seconds
