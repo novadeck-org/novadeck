@@ -21,6 +21,7 @@ import { composerMode } from "./composer-mode"
 import { sameReply, type ChatReply, type ChatReplyTo } from "./replies"
 import { Requests } from "./Requests"
 import type { ChatSend } from "./sends"
+import { Slice } from "./Slice"
 import { Transcript } from "./Transcript"
 import { dismissUnread, unreadDismissed } from "./unread"
 
@@ -93,6 +94,7 @@ export const ChatView = ({
     requests,
     prompts,
     unread,
+    slice,
     box,
   } = useSyncExternalStore(conversation.subscribe, conversation.getSnapshot)
   const name = agentName(harness ?? program)
@@ -301,8 +303,10 @@ export const ChatView = ({
           </button>
         )}
       </div>
+      {slice && slice.reason !== "dialog" && <Slice slice={slice} />}
       <Requests
         requests={requests}
+        slice={slice}
         agent={name}
         onAnswer={answer}
         onAnswerInTerminal={onAnswerInTerminal}

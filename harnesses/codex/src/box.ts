@@ -1,4 +1,5 @@
 import type { ScreenText } from "@novadeck/emulator/headless"
+import type { SliceProfile } from "@novadeck/harness-core/slices"
 import {
   agreeing,
   eraseRows,
@@ -147,4 +148,27 @@ export const box: BoxProfile = {
   // 2026-10-18, the `tall` states of fixtures/input-box.probe.json). Earlier versions grow
   // the box to `room` instead, so a box this tall shows the whole text there.
   viewport: (rows) => Math.floor((2 * (rows - 6)) / 3),
+}
+
+/**
+ * Whether it shows a list of its own in the box's place, whose picked row its `›` leads, as
+ * the box's does: the last row it draws is that view's hint, ending in what Esc does there
+ * (`/model`, `/permissions`, `/config`, `/keymap`, `/statusline`).
+ */
+const viewOverBox = ({ rows }: ScreenText): boolean => {
+  const last = rows.findLast((row) => row.trim() !== "")
+  return last !== undefined && /\besc (to )?(back|close|cancel|clear)\b/.test(last)
+}
+
+/**
+ * Where it draws its own: `/`, `$` and `@` above the box, a blank row between, and a view in
+ * the box's place to the screen's end, the transcript moved up (probed 0.167.0,
+ * fixtures/live-slice.probe.json). It asks for no secret in a session: `/logout` ends it.
+ */
+export const slice: SliceProfile = {
+  leading: ["/"],
+  words: ["@", "$"],
+  side: () => "above",
+  view: viewOverBox,
+  secret: () => false,
 }

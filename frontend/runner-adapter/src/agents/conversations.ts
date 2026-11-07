@@ -23,6 +23,7 @@ import {
   promptFailure,
   promptRefusal as protocolRefusal,
   type AgentDetail,
+  type SliceChange,
   type RequestAnswer,
   type TranscriptChange,
   type TranscriptItem,
@@ -36,6 +37,7 @@ import { hasCode } from "@novadeck/runner-client"
 
 export type ConversationStreams = {
   readonly detail: (terminalId: string) => AsyncIterableIterator<AgentDetail, undefined>
+  readonly slice: (terminalId: string) => AsyncIterableIterator<SliceChange, undefined>
   readonly transcript: (
     terminalId: string,
     actor: string,
@@ -275,6 +277,7 @@ const read = (
   let following: string | null = null
   let transcript: Stream<TranscriptChange> | undefined
   let detail: Stream<AgentDetail> | undefined
+  let slices: Stream<SliceChange> | undefined
   // Settles a read again after a reset once it has been quiet.
   let settling: ReturnType<typeof setTimeout> | undefined
   // Reads that failed in a row without getting further than the one before, when the last
@@ -426,6 +429,7 @@ const read = (
       return {
         agent: snapshot.agent,
         session,
+        slice: current.slice,
         box: sameBox(current.box, box) ? current.box : box,
         requests: sameRequests(current.requests, requests) ? current.requests : requests,
         prompts: samePrompts(current.prompts, prompts) ? current.prompts : prompts,
@@ -449,10 +453,25 @@ const read = (
 
   try {
     detail = streams.detail(terminalId)
+    slices = streams.slice(terminalId)
   } catch {
+    end(detail)
     return { stop: () => {} }
   }
   const stream = detail
+  const sliceStream = slices
+  void (async () => {
+    try {
+      for await (const { slice } of sliceStream) {
+        if (!alive) return
+        store.update((current) => ({ ...current, slice }))
+      }
+    } catch {
+      // The terminal is gone, or the runner closed: `detail` tells the same.
+    }
+    // What its stream last said no longer holds.
+    if (alive) store.update((current) => (current.slice ? { ...current, slice: null } : current))
+  })()
   void (async () => {
     try {
       for await (const snapshot of stream) {
@@ -465,6 +484,7 @@ const read = (
     // Its terminal went: so did its conversation, and what waited on it hears so.
     if (!alive) return
     following = null
+    end(slices)
     end(transcript)
     transcript = undefined
     clearTimeout(settling)
@@ -476,6 +496,7 @@ const read = (
     stop: () => {
       alive = false
       end(detail)
+      end(slices)
       end(transcript)
       transcript = undefined
       clearTimeout(settling)

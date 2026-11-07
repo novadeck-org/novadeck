@@ -3,6 +3,7 @@ import type {
   ChatDialog,
   ChatDialogOption,
   ChatFormField,
+  ChatSlice,
 } from "@novadeck/core/conversation"
 import {
   answeredCount,
@@ -37,6 +38,7 @@ import {
 } from "./forms"
 import { Hint } from "./Hint"
 import { shownControls } from "./shown-controls"
+import { Slice } from "./Slice"
 import { submitOnEnter } from "./submit-on-enter"
 
 // What a request's dialog offers, as controls the person answers with. Each takes `send`,
@@ -451,14 +453,20 @@ const reasons = {
 
 const Raw = ({
   dialog,
+  slice,
 }: {
   readonly dialog: Extract<ChatDialog, { type: "raw" }>
+  readonly slice: ChatSlice | null
 }): React.JSX.Element => (
   <div className="chat-dialog">
     <p className="chat-raw-reason">{reasons[dialog.reason]}</p>
-    <pre className="chat-raw nodrag nopan nowheel" tabIndex={0} aria-label="The dialog's text">
-      {shownControls(dialog.text)}
-    </pre>
+    {slice?.reason === "dialog" ? (
+      <Slice slice={slice} />
+    ) : (
+      <pre className="chat-raw nodrag nopan nowheel" tabIndex={0} aria-label="The dialog's text">
+        {shownControls(dialog.text)}
+      </pre>
+    )}
   </div>
 )
 
@@ -467,12 +475,15 @@ const Raw = ({
 export const RequestDialog = ({
   dialog,
   requestId,
+  slice,
   replying,
   onReply,
   ...controls
 }: Controls & {
   readonly dialog: ChatDialog
   readonly requestId: string
+  // The terminal's own rows, shown for a dialog no adapter read in place of its text.
+  readonly slice: ChatSlice | null
   readonly replying: boolean
   readonly onReply: (dialog: string | null) => void
 }): React.JSX.Element =>
@@ -489,5 +500,5 @@ export const RequestDialog = ({
   ) : dialog.type === "form" ? (
     <Form dialog={dialog} {...controls} />
   ) : (
-    <Raw dialog={dialog} />
+    <Raw dialog={dialog} slice={slice} />
   )

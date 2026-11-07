@@ -43,6 +43,11 @@ its own shape, against `src/sent/<harness>.txt`: `sent (<state>): <words> · <no
 starts open (the latest run's, while the agent works) reads `[open: …]`. Every other golden is
 of a finished conversation.
 
+`slices.test.ts` replays each harness's `fixtures/live-slice.probe.json` through `readSlice`, as
+the runner reads screens, the screen at rest kept from state to state, against
+`src/slices/<harness>.txt`: for each state its keys, `menu`, `view` or `none`, the screen rows it
+spans, `secret` if so, and those rows. A harness that moves what it draws changes the rows.
+
 `outcomes.test.ts` reads each case of a tool's outcome from `tool-outcomes.probe.json`, every
 harness's, through the same stages to `groupItems`' entry, against `src/outcomes/<harness>.txt`:
 `title · detail → failed …, exit …, running, N lines, +A -R [its first lines]`, or `nothing

@@ -87,6 +87,7 @@ const show = (
   const element = (next: ChatDialog | null, flag = answered) =>
     createElement(Requests, {
       requests: [request(next, flag)],
+      slice: null,
       agent: "Claude",
       onAnswer,
       onAnswerInTerminal: () => {},

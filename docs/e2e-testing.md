@@ -665,6 +665,9 @@ for (const setup of setups) {
   - _Interrupt_: with the reply held, `interrupt()` ends the turn without a normal Stop
     (Unknown), the harness says it was interrupted before the held reply is let go,
     which never shows; the next prompt's turn settles.
+- **The live slice** (`slices.e2e.ts`): each real harness's `/` menu and `/permissions` view
+  show through `agents.slice` and clear with them, whichever side of its box it draws on. In
+  the nightly `NOVADECK_E2E_HARNESS=latest` run this tells of a harness that moved them.
 - **The transcripts' contract** (`transcripts.e2e.ts`), the latest half of the chat
   contract test: one conversation per harness, whose prompts have the fake model call the
   harness's own tools (Claude Code: Bash, Read, Write and Novadeck's `send`; Codex:

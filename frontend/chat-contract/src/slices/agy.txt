@@ -1,0 +1,305 @@
+# menus
+long reply: none
+/: menu 31-39
+  | > /add-dir             Add a directory to the workspace
+  |   /agents              List available custom agents
+  |   /artifact            View and review artifacts
+  |   /btw                 Ask a side question without interrupting the current task
+  |   /changelog           Show release notes and changes
+  |    ↓ 39 more
+  | 
+  |   ↑/↓ Navigate · enter Select · tab Complete
+  | esc to cancel                                                                                       Gemini 3.1 Pro · low
+<down>: menu 31-39
+  |   /add-dir             Add a directory to the workspace
+  | > /agents              List available custom agents
+  |   /artifact            View and review artifacts
+  |   /btw                 Ask a side question without interrupting the current task
+  |   /changelog           Show release notes and changes
+  |    ↓ 39 more
+  | 
+  |   ↑/↓ Navigate · enter Select · tab Complete
+  | esc to cancel                                                                                       Gemini 3.1 Pro · low
+m: menu 31-39
+  | > /mcp                 Manage MCP servers
+  |   /model               Set a model, or run a single prompt on another model
+  |   /grill-me            Interview me to align on a plan.
+  |   /rename              Rename the current conversation
+  |   /resume              Browse and resume past conversations
+  |    ↓ 5 more
+  | 
+  |   ↑/↓ Navigate · enter Select · tab Complete
+  | esc to cancel                                                                                       Gemini 3.1 Pro · low
+<kill>: none
+@: menu 30-39
+  | > .agents/                              Directory   /project-root/project/.agents
+  |   README.md                             File        /project-root/project/README.md
+  |   src/                                  Directory   /project-root/project/src
+  |   .agents/skills/                       Directory   /project-root/project/.agents/skills
+  |   src/auth.ts                           File        /project-root/project/src/auth.ts
+  |    ↓ 4 more
+  | 
+  | 
+  |   ↑/↓ Navigate · enter Select · tab Complete
+  |                                                                                                     Gemini 3.1 Pro · low
+s: menu 30-39
+  | > src/                                  Directory   /project-root/project/src
+  |   .agents/skills/                       Directory   /project-root/project/.agents/skills
+  |   src/store.ts                          File        /project-root/project/src/store.ts
+  |   .agents/skills/sample-skill/SKILL.md  File        /project-root/project/.agents/skills/sample-skill/SK...
+  |   src/server.ts                         File        /project-root/project/src/server.ts
+  |    ↓ 5 more
+  | 
+  | 
+  |   ↑/↓ Navigate · enter Select · tab Complete
+  |                                                                                                     Gemini 3.1 Pro · low
+<kill>: none
+/model: menu 36-39
+  | > /model  Set a model, or run a single prompt on another model
+  | 
+  |   ↑/↓ Navigate · enter Select · tab Complete
+  | esc to cancel                                                                                       Gemini 3.1 Pro · low
+<enter>: view 22-39
+  | Switch Model
+  | 
+  |   Search:
+  |           ────────────────────
+  | 
+  |   Gemini 4 Argon
+  |   Gemini 3.8 Flash
+  |   Gemini 3.7 Flash
+  |   Gemini 3.6 Flash
+  | > Gemini 3.1 Pro   (current)
+  | 
+  |   Effort  ◂            ◉──────────────────────○            ▸
+  |                       low                   high
+  |             Faster responses, lighter reasoning — great for simpler tasks
+  | 
+  | Keyboard: ↑/↓ Navigate  ←/→ Effort  enter Select  esc Go Back
+  | 
+  |                                                                                                     Gemini 3.1 Pro · low
+<down>: view 22-39
+  | Switch Model
+  | 
+  |   Search:
+  |           ────────────────────
+  | 
+  | > Gemini 4 Argon
+  |   Gemini 3.8 Flash
+  |   Gemini 3.7 Flash
+  |   Gemini 3.6 Flash
+  |   Gemini 3.1 Pro   (current)
+  | 
+  |   Effort  ◂        ●━━━━━━━━━━━━━━◉──────────────○        ▸
+  |                   low          medium          high
+  |             Balanced speed and reasoning quality for most tasks
+  | 
+  | Keyboard: ↑/↓ Navigate  ←/→ Effort  enter Select  esc Go Back
+  | 
+  |                                                                                                     Gemini 3.1 Pro · low
+<esc>: none
+<kill>: none
+/permissions: menu 36-39
+  | > /permissions  Manage tool permissions
+  | 
+  |   ↑/↓ Navigate · enter Select · tab Complete
+  | esc to cancel                                                                                       Gemini 3.1 Pro · low
+<enter>: view 27-39
+  | Permission Config Editor
+  | 
+  | Select a config scope to edit:
+  | 
+  | > Project
+  |   Shared with Antigravity
+  |   Global
+  | 
+  |   Rules that apply only to this project (highest priority)
+  | 
+  | Keyboard: ↑/↓ Navigate  enter Save  esc Close
+  | 
+  |                                                                                                     Gemini 3.1 Pro · low
+<esc>: none
+<kill>: none
+mid-turn: none
+/: menu 31-39
+  | > /add-dir             Add a directory to the workspace
+  |   /agents              List available custom agents
+  |   /artifact            View and review artifacts
+  |   /btw                 Ask a side question without interrupting the current task
+  |   /changelog           Show release notes and changes
+  |    ↓ 39 more
+  | 
+  |   ↑/↓ Navigate · enter Select · tab Complete
+  | esc to cancel                                                                                       Gemini 3.1 Pro · low
+<down>: menu 31-39
+  |   /add-dir             Add a directory to the workspace
+  | > /agents              List available custom agents
+  |   /artifact            View and review artifacts
+  |   /btw                 Ask a side question without interrupting the current task
+  |   /changelog           Show release notes and changes
+  |    ↓ 39 more
+  | 
+  |   ↑/↓ Navigate · enter Select · tab Complete
+  | esc to cancel                                                                                       Gemini 3.1 Pro · low
+<kill>: none
+
+# views
+#closed: none
+/context: menu 25-28
+  | > /context  Visualize current context usage
+  | 
+  |   ↑/↓ Navigate · enter Select · tab Complete
+  | esc to cancel                                                                                       Gemini 3.1 Pro · low
+<enter>: view 15-39
+  | > /config
+  |   ⎿  Exited /config command
+  | 
+  | ────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+  | >
+  | ────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+  | └ Context Usage
+  | ◉ ◉ ◉ ◉ □ □ □ □ □ □ □ □ □ □ □ □ □ □ □ □ □ □ □ □     Gemini 3.1 Pro (Low) · 10.8k/1.0M tokens
+  | □ □ □ □ □ □ □ □ □ □ □ □ □ □ □ □ □ □ □ □ □ □ □ □      (1.0%)
+  | □ □ □ □ □ □ □ □ □ □ □ □ □ □ □ □ □ □ □ □ □ □ □ □     Token usage by category
+  | □ □ □ □ □ □ □ □ □ □ □ □ □ □ □ □ □ □ □ □ □ □ □ □     ◉ User messages: 148 tokens (0.0%)
+  | □ □ □ □ □ □ □ □ □ □ □ □ □ □ □ □ □ □ □ □ □ □ □ □     ◉ Agent responses: 0 tokens (0.0%)
+  | □ □ □ □ □ □ □ □ □ □ □ □ □ □ □ □ □ □ □ □ □ □ □ □     ◉ Tool calls: 0 tokens (0.0%)
+  | □ □ □ □ □ □ □ □ □ □ □ □ □ □ □ □ □ □ □ □ □ □ □ □     ⛁ System prompt: 4.1k tokens (0.4%)
+  | □ □ □ □ □ □ □ □ □ □ □ □ □ □ □ □ □ □ □ □ □ □ □ □     ⛁ System tools: 5.1k tokens (0.5%)
+  | □ □ □ □ □ □ □ □ □ □ □ □ □ □ □ □ □ □ □ □ □ □ □ □     ⛁ Skills: 732 tokens (0.1%)
+  | □ □ □ □ □ □ □ □ □ □ □ □ □ □ □ □ □ □ □ □ □ □ □ □     ⛁ Subagents: 689 tokens (0.1%)
+  | □ □ □ □ □ □ □ □ □ □ □ □ □ □ □ □ □ □ □ □ □ □ □ □     □ Free space: 1.0M (99.0%)
+  | 
+  | System files · auto-loaded
+  |  └ .agents/skills/
+  | 
+  | Related: /artifact · /skill · /rewind
+  |   ↑/↓ Scroll · pgup/pgdown Page · ctrl+end Bottom · ctrl+home Top · esc Close
+  |                                                                                                     Gemini 3.1 Pro · low
+<esc>: none
+#after esc: none
+<kill>: none
+#closed: none
+/help: menu 25-28
+  | > /help  Show available commands and keybindings
+  | 
+  |   ↑/↓ Navigate · enter Select · tab Complete
+  | esc to cancel                                                                                       Gemini 3.1 Pro · low
+<enter>: view 23-39
+  | Antigravity CLI   general    commands    shortcuts   (←/→ or tab to cycle)
+  | Antigravity CLI understands your codebase, makes edits with your permission,
+  | and executes commands — right from your terminal.
+  | 
+  | Version 1.4.12
+  | Gemini API key
+  | Workspace:      /project-root/project
+  | Project Config: ~/.gemini/config/projects/default-cli-project.json
+  | Log File:       ~/.gemini/antigravity-cli/log/cli-20261106_171410.log
+  | Conversation:   00000000-0000-0000-0000-000000000000
+  | 
+  | Quick Reference
+  |   /  Type / to see available commands
+  | 
+  | Keyboard: ↑/↓ Navigate  ←/→ Switch View  esc Close
+  | 
+  |                                                                                                     Gemini 3.1 Pro · low
+<esc>: none
+<kill>: none
+#closed: none
+/mcp: menu 28-31
+  | > /mcp  Manage MCP servers
+  | 
+  |   ↑/↓ Navigate · enter Select · tab Complete
+  | esc to cancel                                                                                       Gemini 3.1 Pro · low
+<enter>: view 28-35
+  | MCP Servers
+  | 
+  | Plugins (~/.gemini/config/plugins)
+  | >  ✓ novadeck_novadeck  Tools: ask, tell, done, show, showing, +11 more
+  | 
+  | Keyboard: ↑/↓ Navigate  enter Actions  esc Exit
+  | 
+  |                                                                                                     Gemini 3.1 Pro · low
+<esc>: none
+<kill>: none
+#closed: none
+/resume: menu 28-31
+  | > /resume  Browse and resume past conversations
+  | 
+  |   ↑/↓ Navigate · enter Select · tab Complete
+  | esc to cancel                                                                                       Gemini 3.1 Pro · low
+<enter>: view 28-36
+  |    CLI    Other   (tab to cycle)
+  | 
+  |   Conversations
+  |   Type to search conversations...
+  | > [CURRENT] OK.                                                                                    2 steps        1m ago
+  | 
+  | Keyboard: ↑/↓ Navigate  ←/→ Page  enter Select  f2 Rename  f4 Delete  tab Switch Tab  esc Go back / Clear search
+  | 
+  |                                                                                                     Gemini 3.1 Pro · low
+<esc>: none
+
+# plain-dollar
+after a reply: none
+/: menu 22-30
+  | > /add-dir             Add a directory to the workspace
+  |   /agents              List available custom agents
+  |   /artifact            View and review artifacts
+  |   /btw                 Ask a side question without interrupting the current task
+  |   /changelog           Show release notes and changes
+  |    ↓ 39 more
+  | 
+  |   ↑/↓ Navigate · enter Select · tab Complete
+  | esc to cancel                                                                                       Gemini 3.1 Pro · low
+<kill>: none
+
+# latest
+long reply: none
+/: menu 31-39
+  | > /add-dir             Add a directory to the workspace
+  |   /agents              List available custom agents
+  |   /artifact            View and review artifacts
+  |   /btw                 Ask a side question without interrupting the current task
+  |   /changelog           Show release notes and changes
+  |    ↓ 42 more
+  | 
+  |   ↑/↓ Navigate · enter Select · tab Complete
+  | esc to cancel                                                                                       Gemini 3.1 Pro · low
+<down>: menu 31-39
+  |   /add-dir             Add a directory to the workspace
+  | > /agents              List available custom agents
+  |   /artifact            View and review artifacts
+  |   /btw                 Ask a side question without interrupting the current task
+  |   /changelog           Show release notes and changes
+  |    ↓ 42 more
+  | 
+  |   ↑/↓ Navigate · enter Select · tab Complete
+  | esc to cancel                                                                                       Gemini 3.1 Pro · low
+<kill>: none
+/model: menu 36-39
+  | > /model  Set a model, or run a single prompt on another model
+  | 
+  |   ↑/↓ Navigate · enter Select · tab Complete
+  | esc to cancel                                                                                       Gemini 3.1 Pro · low
+<enter>: view 22-39
+  | Switch Model
+  | 
+  |   Search:
+  |           ────────────────────
+  | 
+  |   Gemini 4 Argon
+  |   Gemini 3.8 Flash
+  |   Gemini 3.7 Flash
+  |   Gemini 3.6 Flash
+  | > Gemini 3.1 Pro   (current)
+  | 
+  |   Effort  ◂            ◉──────────────────────○            ▸
+  |                       low                   high
+  |             Faster responses, lighter reasoning — great for simpler tasks
+  | 
+  | Keyboard: ↑/↓ Navigate  ←/→ Effort  enter Select  esc Go Back
+  | 
+  |                                                                                                     Gemini 3.1 Pro · low
+<esc>: none
+
