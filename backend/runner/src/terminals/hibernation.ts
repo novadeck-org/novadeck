@@ -19,6 +19,7 @@ import type { Approvals } from "./approvals.js"
 import { agentProcess } from "./ending.js"
 import type { OpenRequests } from "./opens.js"
 import type { Baseline, Record } from "./record.js"
+import { scheduled } from "./schedules.js"
 import type { Sleepers } from "./sleepers.js"
 
 const log = logs.for("terminals")
@@ -66,6 +67,8 @@ export type Facts = {
   readonly resumable: boolean
   /** The agent's activity as clients see it; null with none. */
   readonly activity: AgentActivity | null
+  /** The agent scheduled something that lives only in its process: a cron (see `schedules.ts`). */
+  readonly scheduled: boolean
   /** The session has ended a turn, or the shell resumed it: there is a conversation to resume. */
   readonly turned: boolean
   /** The turn that ended last ran into a usage limit. */
@@ -98,6 +101,7 @@ export type Veto =
   | "plain"
   | "unresumable"
   | "busy"
+  | "scheduled"
   | "attention"
   | "limit"
   | "ask"
@@ -136,6 +140,7 @@ export const vetoOf = (facts: Facts, now: number): Veto | undefined => {
     (waiting !== null && (waiting.jobs.length > 0 || waiting.wake))
   )
     return "busy"
+  if (facts.scheduled) return "scheduled"
   if (activity.attention.pending > 0) return "attention"
   if (facts.limited) return "limit"
   if (facts.asks) return "ask"
@@ -268,6 +273,8 @@ export class Hibernation {
     let baseline = record.baseline
     if (baseline?.instance !== instance) {
       if (baseline) clearTimeout(baseline.timer)
+      // A new process holds none of the schedules of the one before.
+      record.schedules = undefined
       const made: Baseline = {
         instance,
         begun: false,
@@ -417,6 +424,7 @@ export class Hibernation {
         host.sleepers().restable(record, agent),
       activity,
       turned: ended > 0 || (agent !== null && record.resumeClaim === `${agent}:${sessionId ?? ""}`),
+      scheduled: scheduled(record, sessionId, now),
       limited: last?.limited === true || last?.limit !== undefined,
       asks: host.inbox().hasOpenAsk(id),
       approvals: host.approvals().involves(id) || host.opens().asked(record.summary.handle),

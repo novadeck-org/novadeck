@@ -11,6 +11,7 @@ import type { Telemetry } from "../harnesses/telemetry.js"
 import type { Restoring } from "./history.js"
 import type { Nudges } from "./nudges.js"
 import type { AgentReport, AgentTurn, KeptInterruption } from "./saved-terminals.js"
+import type { Schedule } from "./schedules.js"
 import type { AgentSummary } from "./summary.js"
 import type { Naming } from "./titles.js"
 import type { Work } from "./work.js"
@@ -218,6 +219,10 @@ export type Record = {
   keyedAt?: number
   /** When a client last attached to it, or let go of it, in epoch milliseconds. */
   attachedAt?: number
+  /** What its agent scheduled that dies with its process, by the session that did (see `schedules.ts`). */
+  schedules?:
+    | { readonly sessionId: string; readonly items: ReadonlyMap<string, Schedule> }
+    | undefined
   /** The processes under its agent when that was up, which hibernation tells its own from. */
   baseline?: Baseline
   /** The last delivery epoch whose uncertain box got a screen-settling window. */

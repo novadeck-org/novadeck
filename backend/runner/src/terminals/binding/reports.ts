@@ -35,6 +35,7 @@ import {
 import { peerOf, type TerminalPeers } from "../peers-host.js"
 import type { Record } from "../record.js"
 import { boundProgram } from "../sampling.js"
+import { scheduleChange, trackSchedules } from "../schedules.js"
 import { retold, toldOf } from "../told.js"
 import type { Typing } from "../typing.js"
 import { judgedFirst, personPrompted, workAfter } from "../work.js"
@@ -132,6 +133,8 @@ export class Reports {
     const named = harnesses[report.agent].transcriptOf?.(report)
     if (named && record.bound?.binding.agent === report.agent)
       this.host.bindings().learnTranscript(record, named.sessionId, named.transcript)
+    const scheduling = scheduleChange(report)
+    if (scheduling) trackSchedules(record, scheduling)
     const decoded = firedFacts(harnesses[report.agent].decode(report), report)
     // A turn's end its hook named no reply for reads the reply from the agent's
     // transcript; any other report goes on at once.
