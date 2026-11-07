@@ -214,7 +214,9 @@ export type Record = {
    * Set while its agent is being stopped to rest (see `Hibernation`): the shell's end is no
    * exit, and nothing is announced, attached or started on it meanwhile.
    */
-  hibernating?: true
+  hibernating?: true | undefined
+  /** The turn end (its `at`) whose grace has a look armed, so each end arms one. */
+  endAt?: number | undefined
   /** When the person's keys last reached it, in epoch milliseconds. */
   keyedAt?: number
   /** When a client last attached to it, or let go of it, in epoch milliseconds. */

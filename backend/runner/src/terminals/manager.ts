@@ -541,6 +541,7 @@ export class Terminals {
         sleepers: () => this.sleepers,
         detailWatched: (id) => this.streams.detailWatched(id),
         trees: () => this.trees,
+        boxHolds: (record) => this.typing.boxHolds(record.summary.id),
         save: (record) => this.saves.saveNow(record),
         end: (record) => this.terminate(record),
         // The shell of an agent stopped to rest has ended: its record is let go at once, not
@@ -551,10 +552,14 @@ export class Terminals {
           this.records.delete(id)
           this.streams.end(id, false)
           const saved = this.saves.saved(id)
-          if (saved) {
-            this.sleepers.rest(saved)
-            this.streams.savedChanged(saved)
-          } else this.streams.removed(record.summary)
+          const resting = saved && this.sleepers.rest(saved)
+          // Nothing to rest on after all: it is an exited terminal, as an evicted one.
+          if (!resting) {
+            this.messaging.unregister(id)
+            this.inbox.reconcile(id)
+          }
+          if (saved) this.streams.savedChanged(saved)
+          else this.streams.removed(record.summary)
         },
       },
       options.hibernation,
@@ -703,7 +708,10 @@ export class Terminals {
     if (this.stopping) throw new DomainError("CLOSING")
     // An agent being stopped to rest is a sleeper once it has ended: this create wakes it.
     const settling = this.hibernation.settling(input.id)
-    if (settling) await settling
+    if (settling) {
+      await settling
+      if (this.stopping) throw new DomainError("CLOSING")
+    }
     // A closed terminal stays closed, even while its shell is still ending.
     if (this.closedIds.has(input.id)) throw new DomainError("TERMINAL_NOT_FOUND")
     const woken = this.sleepers.metAlone(input.id)
@@ -1082,7 +1090,13 @@ export class Terminals {
   /** The record of a terminal that is running, if it is. */
   private live(terminalId: string): Record | undefined {
     const record = this.records.get(terminalId)
-    return record && !record.terminal.exiting && record.terminal.exit === null ? record : undefined
+    // One being stopped to rest takes no ring: its messages wait for the wake.
+    return record &&
+      !record.hibernating &&
+      !record.terminal.exiting &&
+      record.terminal.exit === null
+      ? record
+      : undefined
   }
 
   resize(input: { terminalId: string; cols: number; rows: number }, ownerId: string): void {

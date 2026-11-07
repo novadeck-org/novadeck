@@ -584,7 +584,10 @@ export class Bindings {
     const ended = markEnd(record, activity)
     // A turn's end that waits out its grace is looked at again when it passes.
     const wait = endWait(record, activity, Date.now())
-    if (wait) {
+    const endAt = record.bound?.activity.lastTurn?.at
+    // Once for each end, however often the agent's state is published meanwhile.
+    if (wait && record.endAt !== endAt) {
+      record.endAt = endAt
       const again = setTimeout(() => {
         if (!this.host.stopping() && !record.closed) this.publishAgent(record, false)
       }, wait + 1)

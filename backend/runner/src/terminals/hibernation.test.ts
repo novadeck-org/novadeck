@@ -1,7 +1,18 @@
 import type { AgentActivity } from "@novadeck/protocol"
 
+import { started } from "../harnesses/activity.js"
 import { describe, expect, it } from "../test.js"
-import { mayHibernate, vetoOf, windowsTree, type Facts, type Veto } from "./hibernation.js"
+import {
+  Hibernation,
+  mayHibernate,
+  vetoOf,
+  windowsTree,
+  type Facts,
+  type HibernationHost,
+  type Tree,
+  type Veto,
+} from "./hibernation.js"
+import type { Record } from "./record.js"
 
 const minute = 60_000
 const now = 10_000_000
@@ -42,6 +53,8 @@ const quiet = (): Facts => ({
       placed: true,
       foreground: true,
       below: new Set(["20:1", "21:1"]),
+      lineage: new Map(),
+      orphans: new Set(),
       beside: false,
     },
     baseline: new Set(["20:1", "21:1", "22:1"]),
@@ -109,6 +122,7 @@ describe("when an agent may be stopped to rest", () => {
     ["unbaselined", { processes: { tree: quiet().processes!.tree, baseline: undefined } }],
     ["stray", { processes: processes({ below: new Set(["20:1", "99:5"]) }) }],
     ["beside", { processes: processes({ beside: true }) }],
+    ["stray", { processes: processes({ orphans: new Set(["70:3"]) }) }],
   ]
 
   for (const [veto, change] of vetoes)
@@ -135,9 +149,22 @@ describe("when an agent may be stopped to rest", () => {
     expect(vetoOf(but({ processes: processes({ below: new Set(["20:2"]) }) }), now)).toBe("stray")
   })
 
-  it("keeps an agent with no processes awake only until it has been baselined", () => {
+  it("rests an agent that has no processes under it at all", () => {
     const none = processes({ below: new Set() }, [])
     expect(vetoOf(but({ processes: none }), now)).toBeUndefined()
+  })
+
+  it("counts what descends from a baseline process as baseline, however late it starts", () => {
+    // npx (22) is recorded; the real server (40) it starts later, and its helper (41), are not.
+    const lineage = new Map([
+      ["40:2", "22:1"],
+      ["41:2", "40:2"],
+    ])
+    const late = processes({ below: new Set(["22:1", "40:2", "41:2"]), lineage })
+    expect(vetoOf(but({ processes: late }), now)).toBeUndefined()
+    // A process with no baseline ancestor is still a stray.
+    const other = processes({ below: new Set(["22:1", "50:2"]), lineage })
+    expect(vetoOf(but({ processes: other }), now)).toBe("stray")
   })
 
   it("names the first thing that keeps it awake", () => {
@@ -170,6 +197,7 @@ describe("an agent's place in a Windows terminal's tree", () => {
     const tree = windowsTree(wrapped, under, 10, 13)
     expect(tree).toMatchObject({ placed: true, foreground: true, beside: false })
     expect([...tree.below]).toEqual(["14:1"])
+    expect([...tree.lineage]).toEqual([])
   })
 
   it("still finds a job the shell started beside the wrapper", () => {
@@ -182,7 +210,124 @@ describe("an agent's place in a Windows terminal's tree", () => {
     expect(windowsTree(bare, under, 10, 13).beside).toBe(true)
   })
 
+  it("tells a late process of the agent by its parent among them", () => {
+    const grandchild = [...wrapped, member(15, "git.exe", 14)]
+    const tree = windowsTree(grandchild, [...under, member(15, "git.exe", 14)], 10, 13)
+    expect([...tree.lineage]).toEqual([["15:1", "14:1"]])
+  })
+
   it("is not placed where the agent is not in the shell's tree", () => {
     expect(windowsTree(wrapped.slice(0, 3), under, 10, 13).placed).toBe(false)
+  })
+})
+
+/** A running terminal with an idle agent bound, as the sweep sees it, and a host that notes what it is asked. */
+const resting = (
+  change: { occupied?: () => boolean; end?: (record: Record) => Promise<void> } = {},
+) => {
+  const record = {
+    summary: { id: "t", handle: "moth", lastProgram: "bash" },
+    bound: {
+      binding: { agent: "claude", sessionId: "s", instance: "1" },
+      activity: started(0),
+      telemetry: null,
+    },
+    agents: { claude: { sessionId: "s", seq: 1, endedAt: 1 } },
+    terminal: { exit: null, exiting: false, attached: 0 },
+    closed: false,
+    changed: false,
+    baseline: { instance: "1", begun: true, taken: new Set<string>(), timer: undefined },
+  } as unknown as Record
+  const calls: string[] = []
+  const host = {
+    stopping: () => false,
+    records: () => [record],
+    minutes: () => 1,
+    messaging: () => ({
+      delivery: () => ({ state: "settled" }),
+      occupied: change.occupied ?? (() => false),
+    }),
+    inbox: () => ({ hasOpenAsk: () => false }),
+    approvals: () => ({ involves: () => false }),
+    opens: () => ({ asked: () => false }),
+    sleepers: () => ({ restable: () => true }),
+    detailWatched: () => false,
+    trees: () => ({}),
+    boxHolds: async () => false,
+    save: async () => void calls.push("save"),
+    end: async () => {
+      calls.push("end")
+      await change.end?.(record)
+    },
+    rested: () => void calls.push("rested"),
+  } as unknown as HibernationHost
+  const hibernation = new Hibernation(host, { windowMs: 0 })
+  const tree: Tree = {
+    placed: true,
+    foreground: true,
+    below: new Set(),
+    lineage: new Map(),
+    orphans: new Set(),
+    beside: false,
+  }
+  const rest = () =>
+    (hibernation as unknown as { rest: (r: Record, s: object) => Promise<void> }).rest(record, {
+      tree,
+    })
+  return { record, calls, hibernation, rest }
+}
+
+describe("stopping an agent that looked idle", () => {
+  it("saves the screen, ends the agent, and lets the terminal rest, pinning what resumes", async () => {
+    const { record, calls, rest, hibernation } = resting()
+    const done = rest()
+    expect(record.hibernating).toBe(true)
+    expect(record.summary.lastProgram).toBe("claude")
+    // A create meanwhile waits for it.
+    expect(hibernation.settling("t")).toBeDefined()
+    await done
+    expect(calls).toEqual(["save", "end", "rested"])
+    expect(hibernation.settling("t")).toBeUndefined()
+  })
+
+  it("leaves it as it was when a message came in while the screen was saved", async () => {
+    let occupied = false
+    const { record, calls, rest } = resting({ occupied: () => occupied })
+    const done = rest()
+    // The doorbell would have rung it now; the message is queued for the agent instead.
+    occupied = true
+    await done
+    expect(calls).toEqual(["save"])
+    expect(record.hibernating).toBeUndefined()
+    expect(record.summary.lastProgram).toBe("bash")
+  })
+
+  it("leaves it running when ending its pty failed and the shell is still there", async () => {
+    const { record, calls, rest } = resting({ end: () => Promise.reject(new Error("no")) })
+    await rest()
+    expect(calls).toEqual(["save", "end"])
+    expect(record.hibernating).toBeUndefined()
+    expect(record.summary.lastProgram).toBe("bash")
+  })
+
+  it("rests it all the same when ending failed after the shell had gone", async () => {
+    const { calls, rest } = resting({
+      end: async (record) => {
+        record.terminal = { ...record.terminal, exit: { code: 0, signal: null } } as never
+        throw new Error("late")
+      },
+    })
+    await rest()
+    expect(calls).toEqual(["save", "end", "rested"])
+  })
+
+  it("leaves a terminal closed meanwhile to its close", async () => {
+    const { calls, rest } = resting({
+      end: async (held) => {
+        held.closed = true
+      },
+    })
+    await rest()
+    expect(calls).toEqual(["save", "end"])
   })
 })
