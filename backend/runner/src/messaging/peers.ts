@@ -100,7 +100,7 @@ export type Peer = {
   readonly worksIn: readonly { readonly folder: string; readonly edits: number }[]
   /** Who sent the latest message between it and the caller (`you`, or its handle), and when. */
   readonly withYou: { readonly from: string; readonly text: string; readonly at: number } | null
-  readonly state: "busy" | "idle" | null
+  readonly state: "busy" | "idle" | "asleep" | null
   /** What its agent waits on the person for; its work is blocked until they answer. */
   readonly waiting: Waiting | null
   /**
@@ -190,6 +190,8 @@ export const peerOf = (input: {
   readonly agent: AgentName | null
   readonly expecting: AgentName | null
   readonly untrusted?: AgentName | null
+  /** Whether no process runs there: its agent's session rests, and a message wakes it. */
+  readonly asleep?: boolean
   readonly busy: boolean
   readonly where: Whereabouts | undefined
   readonly withYou: Peer["withYou"]
@@ -234,9 +236,9 @@ export const peerOf = (input: {
         }))
       : [],
     withYou: input.withYou && { ...input.withYou, text: plainPrompt(input.withYou.text) },
-    state: agent ? (input.busy ? "busy" : "idle") : null,
-    waiting: agent ? (where?.waiting ?? null) : null,
-    waitsOn: agent && !input.busy ? (where?.waitsOn ?? null) : null,
+    state: agent ? (input.asleep ? "asleep" : input.busy ? "busy" : "idle") : null,
+    waiting: agent && !input.asleep ? (where?.waiting ?? null) : null,
+    waitsOn: agent && !input.busy && !input.asleep ? (where?.waitsOn ?? null) : null,
     done: done && cutShort(done),
     update: latest && latest !== done ? cutShort(latest) : null,
     activeAt: work?.activeAt ?? null,
@@ -339,7 +341,7 @@ export const waitsOnNote = (
  */
 const statusOf = (peer: Peer): string =>
   peer.agent
-    ? `${agentLabel(peer.agent)}, ${peer.waiting ? waitingNote(peer.waiting) : peer.waitsOn ? `waiting on ${peer.waitsOn}, will wake by itself` : peer.state}`
+    ? `${agentLabel(peer.agent)}, ${peer.state === "asleep" ? "asleep, no process running; a message wakes it" : peer.waiting ? waitingNote(peer.waiting) : peer.waitsOn ? `waiting on ${peer.waitsOn}, will wake by itself` : peer.state}`
     : peer.untrusted
       ? `no agent Novadeck can deliver to: ${untrustedNote(peer.untrusted)}`
       : peer.expecting

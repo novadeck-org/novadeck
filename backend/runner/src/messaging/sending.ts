@@ -13,6 +13,7 @@ import {
   leads,
   neverBound,
   promptsInBackground,
+  standingOf,
   type Deliverable,
   type Live,
 } from "./live.js"
@@ -62,6 +63,8 @@ export type SendAnswer =
       readonly state: Message["state"]
       /** When a queued message reaches its recipient. */
       readonly route?: string
+      /** The recipient is asleep, no process running: this message wakes it. */
+      readonly asleep?: true
       /** Why a held message waits. */
       readonly held?: "paused" | "release"
       /** What a message held for release tells its sender of why, and what to do. */
@@ -79,6 +82,11 @@ export type SendAnswer =
       /** This terminal's own session never bound, so replies can't reach it. */
       readonly unbound?: true
     }
+
+/** What `send` says of a queued message to a terminal that is asleep. */
+const asleepRoute =
+  "the recipient is asleep, with no process running: this message wakes it, and arrives " +
+  "once its agent is back, which can take a minute"
 
 /** A message on its way, as a close of its sender tells of it: whether it waits held too. */
 export type OnTheWay = Pick<Message, "id" | "sentAt"> & { readonly held: boolean }
@@ -414,7 +422,6 @@ export class Sending {
     const { store, holds } = this.host
     const { terminalId } = live
     const answer = (value: SendAnswer, kept = false) => ({ answer: value, kept })
-    const root = recipient.root
     const deliverable = deliverableAgent(recipient)
     if (!deliverable.ok) return answer(refused(deliverable.reason))
     const { agent } = deliverable
@@ -477,7 +484,7 @@ export class Sending {
         terminalId: recipient.terminalId,
         handle: recipient.handle,
         agent,
-        sessionId: root?.sessionId ?? null,
+        sessionId: deliverable.sessionId,
       },
       fromLead,
       toLead,
@@ -615,7 +622,10 @@ export class Sending {
       return held ? { ...base, held, ...(why && { why }) } : base
     }
     if (message.state !== "queued") return base
-    const agent = recipient.root?.agent ?? recipient.shown?.agent
+    // No process runs there: the message is what starts one.
+    if (this.host.sessions.asleep(recipient.terminalId))
+      return { ...base, asleep: true, route: asleepRoute }
+    const agent = standingOf(recipient)?.agent ?? recipient.shown?.agent
     const profile = agent ? harnesses[agent].messaging : undefined
     return {
       ...base,
@@ -726,7 +736,7 @@ export class Sending {
         ok: true,
         terminalId: found.terminalId,
         handle: found.handle,
-        agent: found.root?.agent ?? found.shown?.agent ?? found.expecting,
+        agent: standingOf(found)?.agent ?? found.shown?.agent ?? found.expecting,
       }
     return refused(
       unknownHandle(
@@ -818,9 +828,10 @@ export class Sending {
       peerOf({
         terminalId: peer.terminalId,
         handle: peer.handle,
-        agent: peer.root?.agent ?? peer.shown?.agent ?? null,
-        expecting: peer.root || peer.shown ? null : peer.expecting,
-        untrusted: peer.root || peer.shown ? null : peer.untrusted,
+        agent: standingOf(peer)?.agent ?? peer.shown?.agent ?? null,
+        expecting: standingOf(peer) || peer.shown ? null : peer.expecting,
+        untrusted: standingOf(peer) || peer.shown ? null : peer.untrusted,
+        asleep: this.host.sessions.asleep(peer.terminalId),
         // Working as its terminal shows it too: waiting on subagents its turn left
         // running, as after an Esc, is no delivery phase.
         busy: peer.delivery.state === "working" || about(peer.terminalId)?.working === true,
