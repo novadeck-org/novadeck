@@ -41,6 +41,7 @@ import { McpTools } from "./mcp-tools.js"
 import { Interrupts, Prompts } from "./prompting.js"
 import { freshRef, Receipts, type ReceiptsOptions } from "./receipts.js"
 import type { Record } from "./record.js"
+import { slicingOf } from "./slices.js"
 import { interruptionsOf } from "./transcripts.js"
 
 const log = logs.for("chat")
@@ -289,6 +290,31 @@ export class Typing {
     const returned = (await this.handovers.take(terminalId)) ?? null
     if (returned !== null) this.receipts.taken(terminalId, returned)
     return { returned }
+  }
+
+  /** Writes keys as the person's, as a chat passes them on (see `agents.keys`). */
+  keys(terminalId: string, keys: string): void {
+    if (this.host.stopping()) throw new DomainError("CLOSING")
+    const record = this.host.record(terminalId)
+    this.host.running(record)
+    const shown = this.host.messaging().shownAgent(terminalId)
+    const slicing = slicingOf(record, this.dialogs.view(terminalId), shown)
+    if (!slicing)
+      throw new DomainError(
+        "CONFLICT",
+        "No agent is running in this terminal.",
+        undefined,
+        "no-agent",
+      )
+    // A request's dialog takes keys only where the chat can't answer it: it shows as rows.
+    if (slicing.waiting && !slicing.unread)
+      throw new DomainError(
+        "CONFLICT",
+        "A request waits on the person there.",
+        undefined,
+        "pending",
+      )
+    record.terminal.input(keys)
   }
 
   /** Puts a client's draft in the agent's box, with no Enter (see `Handovers.put`). */

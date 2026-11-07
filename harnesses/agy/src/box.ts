@@ -192,8 +192,7 @@ export const box: BoxProfile = {
  * API key has no login.
  */
 export const slice: SliceProfile = {
-  leading: ["/"],
-  words: ["@"],
+  agent: "agy",
   side: () => "below",
   viewsUnder: true,
   secret: () => false,

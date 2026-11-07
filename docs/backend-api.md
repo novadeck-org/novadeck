@@ -821,7 +821,7 @@ one from an earlier runner.
   `bold`, `dim`, `italic`, `underline`, `inverse`), the `cursor` in its rows and columns or
   null, `reason` and `secret`. `reason` says only what the readers tell: `menu`, the box holds
   the harness's own key (`/`, `@`, Codex's `$`) and something was drawn for it; `view`, the box is gone, covered
-  (`BoxProfile.overlay`), or a view shows where it still reads (`SliceProfile.view`);
+  (`BoxProfile.overlay`);
   `dialog`, a request that holds the agent whose `dialog` is `raw`. Nothing reads what the rows mean, so it holds
   for whatever a harness draws. A request whose dialog is read, or not yet, shows none: that
   dialog is the chat's to draw. The harness's box rows are left out of a menu: the chat's
@@ -849,6 +849,35 @@ one from an earlier runner.
   agent to agent, covers an agent shown at its prompt before a session binds (Antigravity
   and Codex bind at a first prompt), and ends when the terminal is closed; an unknown one is
   `TERMINAL_NOT_FOUND`.
+- `agents.keys({ terminalId, keys })` writes keys to the terminal's agent as the person's, for
+  what shows in `agents.slice`: a chat holds no control of the terminal, so `terminals.write`
+  isn't its way in. They wait out what holds the terminal's input, as a prompt's paste, as the
+  person's do. A terminal with no agent is a `CONFLICT`, and so is one with a request that holds
+  the agent and whose dialog the chat can answer; a dialog no adapter read takes keys.
+  The chat's rule for them: when the draft calls up a menu (`opensMenu` in
+  `contract/protocol/src/harnesses.ts`: a leading `/`, a last word starting `@`, on Codex `$` too)
+  over an empty box, the draft goes as keys and what is typed goes after it, as a diff of the
+  draft (what was added, Backspaces for what went, Ctrl-U and the line again for an edit in
+  between), so a paste or an IME goes too. That lasts while the text calls up a menu and fits
+  one row of the box, as one Ctrl-U clears one row: once it doesn't, as a message goes on past a
+  mention, the box is cleared and the words are the chat's again, a long `/` command's refused. Enter goes as a key. Tab, Up, Down and Esc go only while a slice shows, one per
+  press: on an empty box Codex's Esc arms "edit previous" and then opens its transcript,
+  mid-turn a further Esc stops the turn, Up recalls an earlier prompt and Tab queues. After Tab
+  or Enter the text is the harness's, which may complete, run or keep it (Antigravity's Enter
+  completes and a second runs): the draft mirrors `agents.detail`'s `box`, and goes once that
+  reads empty. Enter goes on its own, at least 150 ms behind the keys before it, as Codex reads
+  an Enter right behind text as part of a paste. A view or an unread dialog takes the keys
+  itself while it shows, a paste included, but for what the app keeps (Ctrl+Shift, a modified
+  key, Ctrl+C over a selection). Stop clears the box first, as a menu takes the Esc it would
+  press. A draft the keys can't answer (a mention of a key its harness has no menu for, a line
+  break, a control character, a box that holds text, a request's dialog the chat answers) stays
+  under `PROMPT_REFUSED`'s rule. While keys pass or a menu shows, `One input`'s take leaves the
+  box alone. Leaving the chat with a menu up
+  leaves its text in the terminal's box and the draft goes; coming back to a menu goes on from
+  the box. A command the person runs so has no receipt and hardly a record ("What a harness
+  draws at its input" in docs/harness-coverage.md): the chat echoes what they typed as their
+  words, unless an Enter left the text in the box, with the last of the view it opened under it,
+  never a `secret` one, for as long as it lives.
 - `agents.transcript({ terminalId, actor })` streams an actor's conversation, by the ref
   `agents.detail` names it by, as its harness recorded it: batches of up to 256 items
   from the start of the record in the order the harness wrote them (Antigravity may

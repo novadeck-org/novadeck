@@ -320,6 +320,8 @@ export type Runner = {
      * the person is to clear the box in the terminal.
      */
     interrupt(terminalId: string): Promise<InterruptResult>
+    /** Writes keys to the terminal's agent as the person's. */
+    keys(terminalId: string, keys: string): Promise<void>
     takeBox(terminalId: string): Promise<{ readonly returned: string | null }>
     putBox(terminalId: string, text: string): Promise<{ readonly placed: boolean }>
     /**
@@ -662,6 +664,7 @@ export const connectRunner = async (
       answer: (terminalId, request, answer) =>
         call((client) => client.agents.answer({ terminalId, request, answer })),
       interrupt: (terminalId) => call((client) => client.agents.interrupt({ terminalId })),
+      keys: (terminalId, keys) => call((client) => client.agents.keys({ terminalId, keys })),
       takeBox: (terminalId) => call((client) => client.agents.takeBox({ terminalId })),
       putBox: (terminalId, text) => call((client) => client.agents.putBox({ terminalId, text })),
       set: (agent, connected) => call((client) => client.agents.set({ agent, connected })),

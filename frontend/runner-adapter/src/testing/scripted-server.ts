@@ -263,6 +263,7 @@ export const scriptedRunner = ({
       prompt: api.agents.prompt.handler(unplayed("agents.prompt")),
       answer: api.agents.answer.handler(unplayed("agents.answer")),
       interrupt: api.agents.interrupt.handler(unplayed("agents.interrupt")),
+      keys: api.agents.keys.handler(unplayed("agents.keys")),
       takeBox: api.agents.takeBox.handler(unplayed("agents.takeBox")),
       putBox: api.agents.putBox.handler(unplayed("agents.putBox")),
       set: api.agents.set.handler(unplayed("agents.set")),

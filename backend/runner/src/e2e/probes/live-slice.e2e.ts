@@ -11,6 +11,7 @@ import { dirname, join } from "node:path"
 import { createScreen, readScreen } from "@novadeck/emulator/headless"
 import { screenRecord } from "@novadeck/harness-core/testing/probes"
 
+import { harnesses } from "../../harnesses/registry.js"
 import { setups } from "../agents/index.js"
 import { describe, e2e, supported } from "../fixture.js"
 import { asked, gate } from "../model/script.js"
@@ -159,8 +160,10 @@ for (const setup of setups) {
               styles[row] = spans
             }
             const read = readScreen(screen)
+            const boxed = harnesses[setup.agent].box.read(read)
             out[label] = {
               ...screenRecord(read),
+              box: boxed ? { text: boxed.text, mode: boxed.mode } : null,
               alternate: read.alternate,
               size: { cols, rows },
               at: Date.now(),
@@ -180,6 +183,15 @@ for (const setup of setups) {
         for (const item of list) {
           if (item.startsWith("#")) {
             await look(name(item))
+            continue
+          }
+          if (item.startsWith("*")) {
+            for (const key of item.slice(1)) {
+              raw(key)
+              await sleep(90)
+            }
+            await sleep(500)
+            await look(name(`typed ${item.slice(1)}`.replaceAll(/[^\w<>@$/ ]/g, "_")))
             continue
           }
           if (item.startsWith("=")) {
@@ -248,7 +260,12 @@ for (const setup of setups) {
         raw("\r")
         await sleep(2000)
         await look(name("mid-turn"))
-        await steps(["/", "<down>", "<esc>", "<kill>", "@", "<esc>", "<kill>"])
+        const mid = process.env.PROBE_KEYS
+          ? (JSON.parse(readFileSync(process.env.PROBE_KEYS, "utf8")) as Record<string, string[]>)[
+              `${setup.agent}-hold`
+            ]
+          : undefined
+        await steps(mid ?? ["/", "<down>", "<esc>", "<kill>", "@", "<esc>", "<kill>"])
         held.open()
         await sleep(1500)
       }

@@ -169,6 +169,24 @@ describe("the chat's send queue", () => {
     expect(draft()).toBe("came back\nthe message")
   })
 
+  it("leaves the box to a menu of the harness's own, and to the chat's own keys", async () => {
+    const taken = vi.fn<NonNullable<Conversations["takeBox"]>>(async () => "taken")
+    const box = { text: "look at @sr", mode: "prompt", tail: false, known: false } as const
+    const menu = { reason: "menu", columns: 80, rows: [[]], cursor: null, secret: false } as const
+    const withMenu = open("s1", { takeBox: taken })
+    withMenu.tell({ box, slice: menu })
+    await withMenu.commands.takeBox(key)
+    const typing = open("s1", { takeBox: taken })
+    typing.tell({ box })
+    typing.commands.setChatDraft("01", "look at @src")
+    await typing.commands.takeBox(key)
+    const passing = open("s1", { takeBox: taken })
+    passing.tell({ box: { ...box, text: "look at @src/file.ts" } })
+    passing.commands.setChatPassing("01", true)
+    await passing.commands.takeBox(key)
+    expect(taken).not.toHaveBeenCalled()
+  })
+
   it("waits for a take on its way before it puts the draft back", async () => {
     let finish: (words: string) => void = () => {}
     const put: string[] = []

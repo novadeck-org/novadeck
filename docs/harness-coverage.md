@@ -462,13 +462,19 @@ Probed 2026-11-06: Claude Code 2.1.316 and 2.1.318, Codex 0.167.0, Antigravity 1
 | Prints only | `/context`                                                                                                                       | `/context`                                      | `/status`, `/mcp`                                                                                 | none probed                                                                         |
 
 A menu overlays rows in place on the alternate screen; on the normal screen it scrolls the
-screen up. Keys are the same on all: Up and Down move the mark, typing filters, Enter runs, Esc
-closes and keeps the text. Tab completes the picked row in Claude Code and Antigravity
-(`/model [model]`, then its argument menu), and Codex's `@` inserts on Enter or Tab. A trap for
-keys passed through: in Codex a second Esc on an empty box arms "esc again to edit previous
-message", and a third opens the transcript pager. Codex's list views (`/model`, `/permissions`,
-`/config`) lead the picked row with `›`, which `BoxProfile.read` takes for its box, so
-`SliceProfile.view` tells them by their last row. On 12 rows and fewer Claude Code draws no menu.
+screen up. Up and Down move the mark, typing filters, and Backspacing the key closes it on all.
+Esc closes a menu and keeps the text, and more of them leave the text (Antigravity's toggles the
+menu); mid-turn it closes the menu alone, and a further one stops the turn. Enter runs the
+picked row on Claude Code and Codex; on Antigravity it completes it into the box, and a second
+runs it. Tab completes the picked row on Claude Code (`/ma` to `/marketplace`, and a menu of its
+own) and Antigravity (`/model [model]`, then its argument menu), does nothing on Codex's `/`, and
+inserts on its `@` and `$`; mid-turn its footer says Tab queues. Codex leaves an unknown command
+in the box, its cursor moved, so Ctrl-U clears nothing. A trap for keys passed through: on an
+empty box Codex's first Esc arms "esc again to edit previous message", its second opens
+"Browsing transcript", where the box misreads, and its third leaves it. Codex's list views (`/model`, `/permissions`,
+`/config`, `/keymap`, `/statusline`) lead the picked row with `›`, which `BoxProfile.read` takes
+for its box, so `BoxProfile.overlay` tells them by their last row, and a prompt or a doorbell ring
+waits while one shows rather than paste into the list. On 12 rows and fewer Claude Code draws no menu.
 
 The transcript records almost nothing of a command: Claude Code's `/compact` as a user item,
 its local commands (`/model`, `/context`) as a `system local_command` record the decoder drops;
