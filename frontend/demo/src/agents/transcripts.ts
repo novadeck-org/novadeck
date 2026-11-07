@@ -83,6 +83,7 @@ export const written = (
     outcome: null,
     scripted: false,
     interrupted: false,
+    ring: null,
   }))
 
 // A file as Claude Code's Read returns it, a numbered line to each.

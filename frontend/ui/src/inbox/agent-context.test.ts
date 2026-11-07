@@ -4,6 +4,7 @@ import {
   type ChatItem,
   type Conversation,
   type Conversations,
+  noDoorbell,
 } from "@novadeck/core/conversation"
 import type { InboxRow } from "@novadeck/core/inbox"
 import { noMessages, type MessageParty, type MessagesState } from "@novadeck/core/messages"
@@ -51,6 +52,7 @@ const item = (fields: Partial<ChatItem>): ChatItem => ({
   outcome: null,
   scripted: false,
   interrupted: false,
+  ring: null,
   ...fields,
 })
 
@@ -166,6 +168,7 @@ describe("an Inbox row's agent context", () => {
     act(() => {
       conversation.update(() => ({
         slice: null,
+        doorbell: noDoorbell,
         agent: "claude",
         session: "x",
         loaded: true,

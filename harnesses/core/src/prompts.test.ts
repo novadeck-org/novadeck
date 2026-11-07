@@ -6,6 +6,7 @@ import {
   doorbellNonce,
   maxReplyLine,
   promptStart,
+  ringOf,
   quotedLine,
   replyDoorbell,
   replyLine,
@@ -208,5 +209,23 @@ describe("words given back from the box", () => {
   it("keeps a line that only speaks of a doorbell, the person's", () => {
     const words = `what does ${ring} mean?`
     expect(withoutDoorbellLines(words)).toBe(words)
+  })
+})
+
+describe("what a prompt says of its ring", () => {
+  it("names the doorbell line's nonce", () => {
+    expect(ringOf(doorbellLine("n7Q2"))).toEqual({ nonce: "n7Q2", replies: false })
+  })
+
+  it("names a reply line's, which carries the person's replies", () => {
+    expect(ringOf("[Novadeck Inbox reply, n7Q2] Re your ask: yes [n7Q2]")).toEqual({
+      nonce: "n7Q2",
+      replies: true,
+    })
+  })
+
+  it("leaves the person's words with a line stuck in them as theirs", () => {
+    expect(ringOf(`Fix it ${doorbellLine("n7Q2")}`)).toBeNull()
+    expect(ringOf("Fix it")).toBeNull()
   })
 })

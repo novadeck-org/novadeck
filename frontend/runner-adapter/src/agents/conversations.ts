@@ -16,7 +16,9 @@ import {
   type Conversations,
 } from "@novadeck/core/conversation"
 import { promptRefusal } from "@novadeck/core/conversation/prompt-refusal"
+import { doorbellOf, type MessagesState, type TerminalThreads } from "@novadeck/core/messages"
 import { createStore, type MutableStore, type Store } from "@novadeck/core/store"
+import { terminalKeyPath, type TerminalKey } from "@novadeck/core/types"
 import {
   conflictReason,
   normalisedText,
@@ -108,6 +110,7 @@ const itemOf = (session: string, item: TranscriptItem): ChatItem => ({
   outcome: item.outcome,
   scripted: item.scripted,
   interrupted: item.interrupted,
+  ring: item.ring,
 })
 
 // The items once a batch arrived: each item at an index replaces everything from there on.
@@ -435,6 +438,7 @@ const read = (
         agent: snapshot.agent,
         session,
         slice: current.slice,
+        doorbell: current.doorbell,
         box: sameBox(current.box, box) ? current.box : box,
         requests: sameRequests(current.requests, requests) ? current.requests : requests,
         prompts: samePrompts(current.prompts, prompts) ? current.prompts : prompts,
@@ -494,7 +498,7 @@ const read = (
     transcript = undefined
     clearTimeout(settling)
     stopRetrying()
-    store.update(() => noConversation)
+    store.update((now) => ({ ...noConversation, doorbell: now.doorbell }))
   })()
 
   return {
@@ -519,19 +523,39 @@ export const createRunnerConversations = (
   streams: ConversationStreams,
   // Keeps a call the backend waits for before it stops, as its other calls are.
   track: <T>(work: Promise<T>) => Promise<T> = (work) => work,
+  // The terminals' messages, whose doorbell each conversation carries.
+  messages?: Store<MessagesState>,
 ): RunnerConversations => {
   const entries = new Map<string, Entry>()
   const readings = new Map<string, Reading>()
 
-  const entryOf = (terminalId: string): Entry => {
+  const entryOf = (key: TerminalKey): Entry => {
+    const { terminalId } = key
     const known = entries.get(terminalId)
     if (known) return known
     const store = createStore<Conversation>(noConversation)
     let subscribers = 0
     let timer: ReturnType<typeof setTimeout> | undefined
+    let stopRinging: (() => void) | undefined
+    // Follows the terminal's messages for its doorbell, for as long as anyone reads it.
+    const followRinging = (): void => {
+      if (!messages || stopRinging) return
+      const path = terminalKeyPath(key)
+      let seen: TerminalThreads | undefined
+      const look = (): void => {
+        const terminal = messages.getSnapshot().terminals[path]
+        if (terminal === seen) return
+        seen = terminal
+        store.update((now) => ({ ...now, doorbell: doorbellOf(terminal) }))
+      }
+      stopRinging = messages.subscribe(look)
+      look()
+    }
     const halt = (): void => {
       clearTimeout(timer)
       timer = undefined
+      stopRinging?.()
+      stopRinging = undefined
       const reading = readings.get(terminalId)
       readings.delete(terminalId)
       reading?.stop()
@@ -547,6 +571,7 @@ export const createRunnerConversations = (
           clearTimeout(timer)
           timer = undefined
           if (!readings.has(terminalId)) readings.set(terminalId, read(streams, terminalId, store))
+          followRinging()
           let subscribed = true
           return () => {
             if (!subscribed) return
@@ -568,7 +593,7 @@ export const createRunnerConversations = (
 
   return {
     // The runner's terminal ids are unique, so the id alone names the terminal.
-    conversation: ({ terminalId }) => entryOf(terminalId).conversation,
+    conversation: (key) => entryOf(key).conversation,
     send: ({ terminalId }, text, options) =>
       track(streams.prompt(terminalId, text, options)).then(
         ({ tracked, returned }) => ({ tracked, returned: returned ?? null }),

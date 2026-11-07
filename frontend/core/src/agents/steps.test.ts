@@ -29,6 +29,7 @@ const item = (fields: Partial<ChatItem>): ChatItem => ({
   outcome: null,
   scripted: false,
   interrupted: false,
+  ring: null,
   ...fields,
 })
 const user = (text: string, at: number | null = null) => item({ role: "user", text, at })

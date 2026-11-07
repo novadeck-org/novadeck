@@ -113,9 +113,13 @@ export const ChatView = ({
     unread,
     slice,
     box,
+    doorbell,
   } = useSyncExternalStore(conversation.subscribe, conversation.getSnapshot)
   const name = agentName(harness ?? program)
-  const blocks = useMemo(() => groupItems(wentItems(items, prompts)), [items, prompts])
+  const blocks = useMemo(
+    () => groupItems(wentItems(items, prompts), doorbell.delivered),
+    [items, prompts, doorbell.delivered],
+  )
   const status = turnStatus(agent)
   const working = status?.working === true
 

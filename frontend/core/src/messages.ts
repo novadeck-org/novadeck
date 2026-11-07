@@ -1,3 +1,4 @@
+import { noDoorbell, type ChatDoorbell } from "./conversation"
 import type { Store } from "./store"
 import type { TerminalKey } from "./types"
 import { counted } from "./units"
@@ -112,6 +113,8 @@ export type TerminalThreads = {
   readonly agent: boolean
   readonly waits?: MessageWaits | null
   readonly waitsSince?: number | null
+  // Whether the doorbell is ringing its agent now.
+  readonly ringing?: boolean
   readonly threads: readonly MessageThread[]
 }
 
@@ -199,6 +202,26 @@ export const waitingFor = (terminalMessages: TerminalThreads): readonly AgentMes
         waitingStates.has(message.state),
     ),
   )
+
+// What the chat over a terminal has of its doorbell (see `ChatDoorbell`).
+export const doorbellOf = (terminalMessages: TerminalThreads | undefined): ChatDoorbell => {
+  if (!terminalMessages) return noDoorbell
+  const delivered = terminalMessages.threads.flatMap((thread) =>
+    thread.messages.filter(
+      (message) =>
+        message.to.kind === "agent" &&
+        message.to.handle === terminalMessages.handle &&
+        message.deliveredAt !== null,
+    ),
+  )
+  return {
+    waiting: waitingFor(terminalMessages).toSorted((a, b) => a.sentAt - b.sentAt),
+    delivered: delivered.toSorted((a, b) => a.deliveredAt! - b.deliveredAt!),
+    waits: terminalMessages.waits ?? null,
+    waitsSince: terminalMessages.waitsSince ?? null,
+    ringing: terminalMessages.ringing === true,
+  }
+}
 
 // What a terminal's tab says of the messages waiting for its agent: how many, and whether
 // some need the person to release their thread, or all wait for messaging to resume.

@@ -104,6 +104,7 @@ describe("the runner's messages", () => {
         agent: true,
         waits: null,
         waitsSince: null,
+        ringing: false,
         threads: [
           {
             id: "t-1",

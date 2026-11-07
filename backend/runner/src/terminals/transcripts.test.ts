@@ -32,6 +32,7 @@ const items = (line: string): TranscriptEntry[] => [
     outcome: null,
     scripted: false,
     interrupted: false,
+    ring: null,
   },
 ]
 
