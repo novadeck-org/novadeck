@@ -385,7 +385,7 @@ export class Prompts {
       const held = left ? left.last - left.first + 3 : 0
       if (
         !profile.collapses(typed) &&
-        !(left && profile.viewport) &&
+        !(left && (profile.viewport !== undefined || profile.cut?.(left) === true)) &&
         held + wrappedRows(typed, before.columns) + wrapMargin > profile.room(before.rows.length)
       ) {
         if (mode !== "alone") this.host.note?.(terminalId, "too-tall")
@@ -520,11 +520,6 @@ export class Prompts {
     if (this.host.ringLine?.(terminalId, box.text)) {
       this.host.note?.(terminalId, "ringing")
       throw new PromptRefusal("ringing", "A line is being delivered to the terminal.")
-    }
-    // A box that says it is cut can't show what a paste did to it, so nothing goes over it.
-    if (profile.cut?.(box) === true) {
-      this.host.note?.(terminalId, "draft-kept")
-      throw this.draft()
     }
     // Words known of a box that may hold more say nothing of the rest, which erasing would take.
     const words =
@@ -777,7 +772,26 @@ export class Prompts {
     const at = box.text.lastIndexOf("[")
     if (at <= 0) return false
     const placeholder = { ...box, text: box.text.slice(at).replace(/\s+/g, " ") }
-    return profile.collapsed(placeholder) && sameText(box.text.slice(0, at), left.text)
+    const before = box.text.slice(0, at)
+    return (
+      profile.collapsed(placeholder) &&
+      (sameText(before, left.text) ||
+        // A cut box's own row counts more lines by now, and its first rows have moved on.
+        (profile.cut?.(left) === true &&
+          endsText(profile.uncut?.(before) ?? before, profile.uncut?.(left.text) ?? left.text)))
+    )
+  }
+
+  /**
+   * Whether a box that says it is cut, as it held `left`, has moved on and shows the end of what
+   * it held followed by `text`, however little of either it has room for. Its own row counts
+   * more lines by then, so what shows is read without that row, and that the row or the text
+   * changed is what says the paste came: the words may repeat, and look the same without it.
+   */
+  private cutFollows(profile: BoxProfile, box: InputBox, left: InputBox, text: string): boolean {
+    const shown = profile.uncut?.(box.text) ?? box.text
+    const before = profile.uncut?.(left.text) ?? left.text
+    return !sameText(box.text, left.text) && endsText(shown, `${before}\n\n${text}`)
   }
 
   /**
@@ -817,7 +831,10 @@ export class Prompts {
           showsTail(profile, box, after.rows.length, whole) ||
           (left !== undefined &&
             fillsViewport(profile, left, after.rows.length) &&
-            endsText(box.text, text)))
+            endsText(box.text, text)) ||
+          (left !== undefined &&
+            profile.cut?.(left) === true &&
+            this.cutFollows(profile, box, left, text)))
       const placeholder =
         right &&
         collapsible(text) &&
