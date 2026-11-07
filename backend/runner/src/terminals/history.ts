@@ -52,8 +52,16 @@ export type HistoryTimes = {
 
 const defaults: HistoryTimes = { restoreMs: 60_000, pruneMs: 60 * 60 * 1000, checkMs: 3_000 }
 
-/** The conversation scans of one pass through a list, by agent. */
-type Pass = Map<AgentName, ConversationScan>
+/** What one pass through a list reads once: each agent's conversation scan and whether it is connected. */
+type Pass = {
+  readonly scans: Map<AgentName, ConversationScan>
+  readonly connected: Map<AgentName, Promise<boolean>>
+}
+
+const newPass = (): Pass => ({ scans: new Map(), connected: new Map() })
+
+/** What `judge` follows of a terminal's turns under its bound session. */
+type Turns = { session: string | undefined; working: boolean; ended: number; run: number }
 
 /** How many availability checks run at once, so a long list on a slow disk never stalls the runner. */
 const checksAtOnce = 8
@@ -82,8 +90,8 @@ export type HistoryHost = {
   readonly drawHandle: (sessionId: string) => string
   /** Gives back the sessions the terminal claimed. */
   readonly releaseClaim: (terminalId: string) => void
-  /** Keeps the terminal's screen for a row (see `Saves.archive`). */
-  readonly archive: (record: Closing, write: (sealed: string) => void) => void
+  /** Keeps the terminal's screen for a row (see `Saves.archive`); `settled` runs when that is done or given up. */
+  readonly archive: (record: Closing, write: (sealed: string) => void, settled: () => void) => void
   /** The summary of the terminal restored from the row as `terminalId`, if one is running. */
   readonly restoredAs: (terminalId: string, row: string) => TerminalSummary | undefined
   /** The transcript path the running terminal's session reported at bind. */
@@ -113,8 +121,11 @@ export type Plan = {
   readonly resume: AgentName | undefined
   /** Its handle, kept or drawn, and its title layers, decided at the moment of asking. */
   identity(sessionId: string): TerminalIdentity
-  /** The terminal's shell started: a plain terminal's row goes, an agent's waits to be confirmed. */
-  started(record: Closing, resumes: boolean): void
+  /**
+   * The terminal's shell started: a plain terminal's row goes once its saved output is on the
+   * screen (`opened`), an agent's waits to be confirmed.
+   */
+  started(record: Closing, resumes: boolean, opened: boolean): void
 }
 
 type RestoreInput = {
@@ -133,6 +144,14 @@ const resumeOf = (row: Pick<ListedClosed, "agent" | "agents">): AgentName | unde
   for (const [name, report] of Object.entries(row.agents) as [AgentName, AgentReport][])
     if (isAgentName(name) && (!best || report.seq > (row.agents[best]?.seq ?? -1))) best = name
   return best ?? row.agent
+}
+
+/** The agent whose session reported last (the highest `seq`), if any reported. */
+const latestAgent = (agents: Closing["agents"]): AgentName | null => {
+  let best: AgentName | null = null
+  for (const [name, report] of Object.entries(agents) as [AgentName, AgentReport][])
+    if (isAgentName(name) && (best === null || report.seq > (agents[best]?.seq ?? -1))) best = name
+  return best
 }
 
 /** The sessions as a row keeps them: a live turn means nothing to the one who resumes them. */
@@ -174,6 +193,10 @@ export class ClosedTerminals {
   private readonly times: HistoryTimes
   /** The rows whose restore is under way, by their id. */
   private readonly restoring = new Set<string>()
+  /** The plain rows whose screen is not written yet: until it is, they can't be restored. */
+  private readonly archiving = new Set<string>()
+  /** The turns each running terminal's bound session has had, for judging it restorable. */
+  private readonly turns = new WeakMap<Closing, Turns>()
   /** The restores asked for and not yet answered, by the new terminal's id. */
   private readonly inflight = new Map<string, { row: string; done: Promise<TerminalSummary> }>()
   private readonly watchers = new Map<KeyedChanges<string, HistoryChange>, string>()
@@ -221,8 +244,14 @@ export class ClosedTerminals {
       if (record.restoring) this.observe(record, true)
       if (record.restoring) this.settle(record)
       if (!records || this.host.going(record.summary.sessionId)) return
-      const agent = record.bound?.binding.agent ?? null
+      // The session that bound, else the one that reported last: an agent that exited with
+      // Ctrl-C, or a terminal closed before its session bound, can still be resumed.
+      const agent = record.bound?.binding.agent ?? latestAgent(record.agents)
       if (!record.ran && !hasRun(record.agents) && agent === null) return
+      // A plain shell that stood in for a restore that did not open: the row it came from stands.
+      const origin =
+        record.restoredFrom === undefined ? undefined : records.closedTerminal(record.restoredFrom)
+      if (agent === null && origin && origin.agent !== null) return
       const { summary } = record
       const row: ClosedRecord = {
         id: summary.id,
@@ -240,10 +269,19 @@ export class ClosedTerminals {
         closedAt: Date.now(),
         closedBy,
       }
-      records.insertClosed(row)
-      this.announce(row)
+      this.insert(row)
       // An agent's row keeps no transcript: its harness has the conversation.
-      if (agent === null) this.host.archive(record, (sealed) => this.keep(row.id, sealed))
+      if (agent === null) {
+        // Not restorable until its screen is written, or given up: restored before, it would lose it.
+        this.archiving.add(row.id)
+        this.host.archive(
+          record,
+          (sealed) => this.keep(row.id, sealed),
+          () => {
+            if (this.archiving.delete(row.id)) this.announce(row)
+          },
+        )
+      }
     } catch (error) {
       log.error("history.keep-failed", "Novadeck could not keep a closed terminal", { err: error })
     }
@@ -254,8 +292,7 @@ export class ClosedTerminals {
     try {
       const { records } = this.host
       if (!records || this.host.going(saved.sessionId)) return
-      const named = saved.lastProgram
-      const agent = isAgentName(named) && saved.agents[named] ? named : null
+      const agent = latestAgent(saved.agents)
       if (!this.host.ran(saved.id) && !hasRun(saved.agents)) return
       const row: ClosedRecord = {
         id: saved.id,
@@ -273,11 +310,29 @@ export class ClosedTerminals {
         closedAt: Date.now(),
         closedBy,
       }
-      records.insertClosed(row)
-      this.announce(row)
+      this.insert(row)
     } catch (error) {
       log.error("history.keep-failed", "Novadeck could not keep a closed terminal", { err: error })
     }
+  }
+
+  /**
+   * Writes a row and tells watchers. One conversation has one row: an older row of the same
+   * agent session, as a restore that was never confirmed leaves beside its terminal, goes.
+   */
+  private insert(row: ClosedRecord): void {
+    const records = this.host.records!
+    const session = row.agent === null ? undefined : row.agents[row.agent]?.sessionId
+    if (row.agent !== null && session !== undefined)
+      for (const older of records.closed(row.projectId))
+        if (
+          older.id !== row.id &&
+          older.agent === row.agent &&
+          older.agents[row.agent]?.sessionId === session
+        )
+          this.gone(older)
+    records.insertClosed(row)
+    this.announce(row)
   }
 
   /** Adds the sealed screen to a row, if it is still there. */
@@ -291,7 +346,7 @@ export class ClosedTerminals {
   /** A project's closed terminals, newest first, each with whether it can be restored now. */
   async list(projectId: string): Promise<ClosedTerminal[]> {
     const rows = this.host.records?.closed(projectId) ?? []
-    const pass: Pass = new Map()
+    const pass = newPass()
     return pooled(rows, (row) => this.wire(row, pass))
   }
 
@@ -303,11 +358,12 @@ export class ClosedTerminals {
     this.early.add(meanwhile)
     let rows: ClosedTerminal[]
     try {
-      const pass: Pass = new Map()
+      const pass = newPass()
       rows = await pooled(this.all(), (row) => this.wire(row, pass))
     } finally {
       this.early.delete(meanwhile)
     }
+    if (this.host.stopping()) throw new DomainError("CLOSING")
     const watcher = new KeyedChanges<string, HistoryChange>(
       rows.map((closed) => [closed.id, { type: "changed", closed }] as const),
       { type: "synced" },
@@ -376,6 +432,7 @@ export class ClosedTerminals {
   private remove(row: { readonly id: string; readonly projectId: string }): void {
     this.latest.delete(row.id)
     this.restoring.delete(row.id)
+    this.archiving.delete(row.id)
     this.emit({ type: "removed", id: row.id, projectId: row.projectId })
   }
 
@@ -418,13 +475,18 @@ export class ClosedTerminals {
     restoringIsOwn = false,
     pass?: Pass,
   ): Promise<ClosedTerminalState> {
-    if (!restoringIsOwn && this.restoring.has(row.id)) return { state: "restoring" }
+    if (this.archiving.has(row.id) || (!restoringIsOwn && this.restoring.has(row.id)))
+      return { state: "restoring" }
     const agent = resumeOf(row)
     if (agent === undefined) return { state: "ready" }
     const report = row.agents[agent]
     if (!report) return { state: "gone", reason: "conversation" }
-    const connected = await this.host.connected(agent).catch(() => true)
-    if (!connected) return { state: "disconnected", agent }
+    let asked = pass?.connected.get(agent)
+    if (!asked) {
+      asked = this.host.connected(agent).catch(() => true)
+      pass?.connected.set(agent, asked)
+    }
+    if (!(await asked)) return { state: "disconnected", agent }
     const holder = this.host.holder(agent, report.sessionId)
     if (holder !== undefined) return { state: "open", handle: holder }
     const checked = await Promise.race([
@@ -448,10 +510,10 @@ export class ClosedTerminals {
       if (!install) return { state: "ready" }
       const known = { transcript: report.transcript }
       // One scan per agent for a whole list: each folder is read once, whatever the rows.
-      let scan = pass?.get(agent)
+      let scan = pass?.scans.get(agent)
       if (!scan) {
         scan = harnesses[agent].conversations(install)
-        pass?.set(agent, scan)
+        pass?.scans.set(agent, scan)
       }
       const found = await scan.conversation(report.sessionId, known)
       return found === "gone" ? { state: "gone", reason: "conversation" } : { state: "ready" }
@@ -460,16 +522,19 @@ export class ClosedTerminals {
     }
   }
 
-  /** Whether an agent running with this session could be restored if closed (see `restorable`). */
-  async restorable(agent: AgentName, sessionId: string): Promise<boolean> {
+  /**
+   * Whether an agent running with this session could be restored if closed (see `restorable`).
+   * Until `settled`, a turn having ended, no conversation file reads as gone: it is not written yet.
+   */
+  async restorable(agent: AgentName, sessionId: string, settled = true): Promise<boolean> {
     if (!(await this.host.connected(agent).catch(() => true))) return false
     const install = await this.host.install(agent).catch(() => undefined)
     if (!install) return true
     const known = { transcript: this.host.transcriptOf(agent, sessionId) }
-    return (
-      (await harnesses[agent].conversation(install, sessionId, known).catch(() => "unknown")) !==
-      "gone"
-    )
+    const found = await harnesses[agent]
+      .conversation(install, sessionId, known)
+      .catch(() => "unknown")
+    return found !== "gone" || !settled
   }
 
   // Restore
@@ -554,7 +619,7 @@ export class ClosedTerminals {
         openedBy: null,
         ledBy: null,
       }),
-      started: (record, resumes) => this.started(row, resume, record, resumes),
+      started: (record, resumes, opened) => this.started(row, resume, record, resumes, opened),
     }
   }
 
@@ -579,12 +644,17 @@ export class ClosedTerminals {
     resume: AgentName | undefined,
     record: Closing,
     resumes: boolean,
+    opened: boolean,
   ): void {
     record.restoredFrom = row.id
     const session = resume && row.agents[resume]?.sessionId
     if (resume === undefined || session === undefined) {
-      // A plain terminal's shell has started: its row has done its part.
-      this.gone(row)
+      if (row.transcript && !opened) {
+        // Its saved output did not open, as with no key or too late: the row keeps it, and the
+        // terminal stays beside it, a restore of the row already made.
+        this.restoring.delete(row.id)
+        this.announce(row)
+      } else this.gone(row)
       return
     }
     record.restoring = {
@@ -606,12 +676,6 @@ export class ClosedTerminals {
       log.error("history.remove-failed", "Novadeck could not remove a restored row", { err: error })
     }
     this.remove(row)
-  }
-
-  /** The restore did not start a terminal: the row is as it was. */
-  private abandoned(row: ClosedRecord): void {
-    this.restoring.delete(row.id)
-    this.announce(row)
   }
 
   /**
@@ -681,11 +745,14 @@ export class ClosedTerminals {
     )
   }
 
-  /** A resume held too long, as at a dialog: the row is ready again, and the terminal stays. */
+  /**
+   * A resume held too long, as at a dialog: the row stops reading as restoring, and the terminal
+   * stays. The restore stays pending, so a later bind still removes the row and a later failure
+   * still gives the claim back.
+   */
   private timedOut(record: Closing): void {
     const waiting = record.restoring
     if (!waiting) return
-    record.restoring = undefined
     this.restoring.delete(waiting.row)
     const row = this.host.records?.closedTerminal(waiting.row)
     if (row) this.announce(row)
@@ -706,28 +773,49 @@ export class ClosedTerminals {
 
   /**
    * Judges whether the terminal could be restored if it closed (`TerminalSummary.restorable`):
-   * a shell yes; an agent without a session no; one with a session while its harness is
-   * connected and its conversation not known gone. Judged again only when the bound session
-   * changes.
+   * a shell yes; an agent without a session no (one typed there, or one expected); one with a
+   * session while its harness is connected and its conversation not known gone. Judged again
+   * when the bound session changes, when one of its turns ends, and when `again` is set, as
+   * a connection changed. A session that has had no turn has no conversation file yet, which
+   * is not a gone one.
    */
-  judge(record: Closing): void {
+  judge(record: Closing, again = false): void {
     const bound = record.bound?.binding
-    const key = bound
-      ? `${bound.agent}:${bound.sessionId}`
-      : record.expecting
-        ? "starting"
+    const session = bound ? `${bound.agent}:${bound.sessionId}` : undefined
+    const turns = this.turnsOf(record, session)
+    const key = session
+      ? `${session}:${turns.ended}`
+      : record.expecting || isAgentName(record.summary.process?.name)
+        ? "agent"
         : "shell"
-    if (record.restorableFor === key) return
+    if (!again && record.restorableFor === key) return
     record.restorableFor = key
+    const run = (turns.run += 1)
     if (!bound) {
       this.restorableIs(record, key === "shell")
       return
     }
-    void this.restorable(bound.agent, bound.sessionId)
+    const settled = turns.ended > 0 || record.restoredFrom !== undefined
+    void this.restorable(bound.agent, bound.sessionId, settled)
       .then((value) => {
-        if (record.restorableFor === key) this.restorableIs(record, value)
+        if (turns.run === run && record.restorableFor === key) this.restorableIs(record, value)
       })
       .catch(() => undefined)
+  }
+
+  /** What `judge` follows of a terminal's turns: how many ended under the bound session. */
+  private turnsOf(record: Closing, session: string | undefined): Turns {
+    let turns = this.turns.get(record)
+    if (!turns) {
+      turns = { session, working: false, ended: 0, run: 0 }
+      this.turns.set(record, turns)
+    }
+    if (turns.session !== session) Object.assign(turns, { session, working: false, ended: 0 })
+    const state = record.summary.activity?.state
+    if (turns.working && state === "idle") turns.ended += 1
+    if (state === "working") turns.working = true
+    else if (state === "idle") turns.working = false
+    return turns
   }
 
   private restorableIs(record: Closing, value: boolean): void {

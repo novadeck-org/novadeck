@@ -30,7 +30,7 @@ export type ClosedRecord = {
   readonly transcript: string | null
   /** When it was closed, in epoch milliseconds. */
   readonly closedAt: number
-  /** The handle of the agent that closed it; null when the person did. */
+  /** The handle of the agent that closed it; null when the person did, or an agent closed its own terminal. */
   readonly closedBy: string | null
 }
 

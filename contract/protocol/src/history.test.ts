@@ -74,9 +74,11 @@ describe("a restore", () => {
 })
 
 describe("a terminal's summary", () => {
-  it("may leave out whether it is restorable and busy, which read as false", () => {
+  it("requires whether it is restorable and busy", () => {
     const { restorable, busy } = terminalSummary.shape
-    expect(restorable.safeParse(undefined).success).toBe(true)
+    expect(restorable.safeParse(undefined).success).toBe(false)
+    expect(busy.safeParse(undefined).success).toBe(false)
+    expect(restorable.safeParse(false).success).toBe(true)
     expect(busy.safeParse(true).success).toBe(true)
   })
 })

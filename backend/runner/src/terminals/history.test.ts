@@ -112,7 +112,7 @@ type Setup = {
   host: { [name in keyof HistoryHost]: ReturnType<typeof vi.fn> } & { records: HistoryRecords }
   said: string[]
   released: string[]
-  archived: { record: Record; write: (sealed: string) => void }[]
+  archived: { record: Record; write: (sealed: string) => void; settled: () => void }[]
 }
 
 const setup = (
@@ -139,8 +139,9 @@ const setup = (
     terminalsIn: vi.fn<() => readonly { handle: string; ledBy: string | null }[]>(() => []),
     drawHandle: vi.fn<() => string>(() => "fox"),
     releaseClaim: vi.fn<(id: string) => void>((id: string) => void released.push(id)),
-    archive: vi.fn<(record: Record, write: (sealed: string) => void) => void>(
-      (record: Record, write: (sealed: string) => void) => void archived.push({ record, write }),
+    archive: vi.fn<(record: Record, write: (sealed: string) => void, settled: () => void) => void>(
+      (record: Record, write: (sealed: string) => void, settled: () => void) =>
+        void archived.push({ record, write, settled }),
     ),
     transcriptOf: vi.fn<() => undefined>(() => undefined),
     restoredAs: vi.fn<() => TerminalSummary | undefined>(() => undefined),
@@ -192,13 +193,13 @@ const summary = { id: "new-1" } as TerminalSummary
 const restoring = async (
   setupped: Setup,
   record: Record,
-  { resumes = true, rowId = "old-1" } = {},
+  { resumes = true, rowId = "old-1", opened = true } = {},
 ): Promise<{ plan: Plan }> => {
   let made: Plan | undefined
   await setupped.history.restore({ id: "new-1", sessionId: "s1", closed: rowId }, (plan) => {
     made = plan
     plan.identity("s1")
-    plan.started(record, resumes)
+    plan.started(record, resumes, opened)
     return Promise.resolve(summary)
   })
   return { plan: made! }
@@ -234,6 +235,119 @@ describe("keeping a terminal as it closes", () => {
     expect(store.rows.size).toBe(1)
     history.closing(live({ ran: true }, { id: "t-2" }), null)
     expect(store.rows.has("t-2")).toBe(true)
+  })
+
+  it("keeps an agent that exited, or closed before it bound, resumable by its latest report", async () => {
+    const { history, store } = setup()
+    // Ctrl-C twice: the session reported, then nothing is bound.
+    const exited = live({ agents: { claude: { sessionId: "c1", seq: 3, cwd: folder } } })
+    history.closing(exited, null)
+    expect(store.rows.get("t-1")).toMatchObject({ agent: "claude" })
+    expect((await history.list("p1"))[0]!.availability).toEqual({ state: "ready" })
+    // Two agents reported: the later one is the row's.
+    const both = live(
+      {
+        agents: {
+          claude: { sessionId: "c1", seq: 3 },
+          codex: { sessionId: "x1", seq: 8 },
+        },
+      },
+      { id: "t-2" },
+    )
+    history.closing(both, null)
+    expect(store.rows.get("t-2")).toMatchObject({ agent: "codex" })
+    const plan = await new Promise<Plan>(
+      (resolve) =>
+        void history.restore({ id: "n", sessionId: "s1", closed: "t-2" }, (made) => {
+          resolve(made)
+          return Promise.resolve(summary)
+        }),
+    )
+    expect(plan.resume).toBe("codex")
+  })
+
+  it("keeps a saved terminal whose agent exited by its latest report too", () => {
+    const { history, store } = setup()
+    history.closingSaved(
+      {
+        id: "k-1",
+        sessionId: "s1",
+        handle: "fox",
+        naming: unnamed,
+        openedBy: null,
+        ledBy: null,
+        command: null,
+        lastProgram: "bash",
+        work: null,
+        cwd: "/w",
+        agents: { codex: { sessionId: "x", seq: 1 } },
+        promptedAt: null,
+        interruptions: [],
+        transcript: "v1.sealed",
+        savedAt: 1,
+      },
+      null,
+    )
+    expect(store.rows.get("k-1")).toMatchObject({ agent: "codex", transcript: null })
+  })
+
+  it("keeps one row for one conversation: the older row of the same session goes", async () => {
+    const { history, store } = setup()
+    store.rows.set("old-1", agentRow("claude", { closedAt: 1 }))
+    const watching = await follow(history)
+    // Closed again with the session bound, as a restore the row was not removed for leaves it.
+    history.closing(
+      live({
+        bound: bound("claude", "conv-0001"),
+        agents: { claude: { sessionId: "conv-0001", seq: 6, cwd: folder } },
+      }),
+      null,
+    )
+    expect([...store.rows.keys()]).toEqual(["t-1"])
+    await vi.waitFor(() =>
+      expect(watching.later).toContainEqual({ type: "removed", id: "old-1", projectId: "p1" }),
+    )
+    watching.stop()
+    // Another conversation's row stays.
+    store.rows.set(
+      "other",
+      agentRow("claude", { id: "other", agents: { claude: { sessionId: "zzz", seq: 1 } } }),
+    )
+    history.closing(live({ bound: bound("claude", "conv-0001") }, { id: "t-3" }), null)
+    expect(store.rows.has("other")).toBe(true)
+  })
+
+  it("adds no plain row for a restore that did not open, whose row stands", () => {
+    const { history, store } = setup()
+    store.rows.set("old-1", agentRow())
+    history.closing(live({ restoredFrom: "old-1", ran: true, agents: {} }), null)
+    expect([...store.rows.keys()]).toEqual(["old-1"])
+    // A plain row restored from is not an agent's: the new terminal is kept as any.
+    store.rows.set("plain", row({ id: "plain" }))
+    history.closing(live({ restoredFrom: "plain" }, { id: "t-2" }), null)
+    expect(store.rows.has("t-2")).toBe(true)
+  })
+
+  it("can't restore a plain row until its screen is written or given up", async () => {
+    const { history, store, archived } = setup()
+    history.closing(live(), null)
+    expect((await history.list("p1"))[0]!.availability).toEqual({ state: "restoring" })
+    await expect(
+      history.restore({ id: "n", sessionId: "s1", closed: "t-1" }, () => Promise.resolve(summary)),
+    ).rejects.toMatchObject({ code: "CONFLICT" })
+    const watching = await follow(history)
+    archived[0]!.write("v1.sealed")
+    archived[0]!.settled()
+    await vi.waitFor(() =>
+      expect(watching.later).toContainEqual(
+        expect.objectContaining({
+          type: "changed",
+          closed: expect.objectContaining({ availability: { state: "ready" } }),
+        }),
+      ),
+    )
+    expect(store.rows.get("t-1")?.transcript).toBe("v1.sealed")
+    watching.stop()
   })
 
   it("keeps nothing while its project is going", () => {
@@ -393,6 +507,20 @@ describe("what a row can do now", () => {
     expect(scan).toHaveBeenCalledTimes(1)
   })
 
+  it("reads whether a harness is connected once for a whole list", async () => {
+    const { history, store, host } = setup()
+    for (const id of ["a", "b", "c"]) store.rows.set(id, agentRow("claude", { id }))
+    await history.list("p1")
+    expect(host.connected).toHaveBeenCalledTimes(1)
+  })
+
+  it("refuses a watch that began as the runner stopped, after its rows were read", async () => {
+    const { history, store, host } = setup()
+    store.rows.set("a", agentRow("claude", { id: "a" }))
+    host.stopping.mockReturnValueOnce(false).mockReturnValue(true)
+    await expect(history.watch("owner").next()).rejects.toMatchObject({ code: "CLOSING" })
+  })
+
   it("passes the transcript the session reported to the check", async () => {
     const conversation = vi.fn<() => Promise<"found">>(() => Promise.resolve("found" as const))
     vi.spyOn(harnesses.claude, "conversations").mockReturnValue({ conversation })
@@ -415,11 +543,75 @@ describe("what a row can do now", () => {
     const agent = live({ bound: bound("claude", "c1") }, { restorable: false })
     history.judge(agent)
     await vi.waitFor(() => expect(agent.summary.restorable).toBe(true))
+  })
+
+  it("reads an agent typed with no session as one, so closing it asks", () => {
+    const { history } = setup()
+    for (const name of ["codex", "agy", "claude"]) {
+      const typed = live({}, { process: { name, argv: null } } as never)
+      history.judge(typed)
+      expect(typed.summary.restorable).toBe(false)
+    }
+    const back = live({}, { process: { name: "bash", argv: null } } as never)
+    history.judge(back)
+    expect(back.summary.restorable).toBe(true)
+  })
+
+  /** A running agent whose conversation file is not there, as it is before its first turn. */
+  const turning = (now: "working" | "idle" | undefined, over: Partial<Record> = {}) =>
+    live({ bound: bound("claude", "fresh"), ...over }, {
+      restorable: false,
+      activity: now && { state: now },
+    } as never)
+
+  it("does not read a session with no turn yet as gone, and judges it again when a turn ends", async () => {
     conversationIs("gone")
     vi.spyOn(harnesses.claude, "conversation").mockResolvedValue("gone")
-    const lost = live({ bound: bound("claude", "c2") })
-    history.judge(lost)
-    await vi.waitFor(() => expect(lost.summary.restorable).toBe(false))
+    const { history } = setup()
+    const record = turning("idle")
+    history.judge(record)
+    await vi.waitFor(() => expect(record.summary.restorable).toBe(true))
+    // Its turn runs, then ends with the file still not there: gone is believed now.
+    record.summary = { ...record.summary, activity: { state: "working" } } as never
+    history.judge(record)
+    expect(record.summary.restorable).toBe(true)
+    record.summary = { ...record.summary, activity: { state: "idle" } } as never
+    history.judge(record)
+    await vi.waitFor(() => expect(record.summary.restorable).toBe(false))
+    // And true again once the turn's file shows, at the next turn's end.
+    vi.spyOn(harnesses.claude, "conversation").mockResolvedValue("found")
+    record.summary = { ...record.summary, activity: { state: "working" } } as never
+    history.judge(record)
+    record.summary = { ...record.summary, activity: { state: "idle" } } as never
+    history.judge(record)
+    await vi.waitFor(() => expect(record.summary.restorable).toBe(true))
+  })
+
+  it("judges again on a connection change, and not again for the same state", async () => {
+    const { history, host } = setup()
+    const record = live({ bound: bound("claude", "c1") })
+    history.judge(record)
+    await vi.waitFor(() => expect(record.summary.restorable).toBe(true))
+    host.connected.mockClear()
+    history.judge(record)
+    expect(host.connected).not.toHaveBeenCalled()
+    host.connected.mockResolvedValue(false)
+    history.judge(record, true)
+    await vi.waitFor(() => expect(record.summary.restorable).toBe(false))
+  })
+
+  it("is judged again at bind, whatever the last session's verdict", async () => {
+    conversationIs("gone")
+    vi.spyOn(harnesses.claude, "conversation").mockImplementation((_install, session) =>
+      Promise.resolve(session === "old" ? "gone" : "found"),
+    )
+    const { history } = setup()
+    const record = live({ bound: bound("claude", "old"), restoredFrom: "x" })
+    history.judge(record)
+    await vi.waitFor(() => expect(record.summary.restorable).toBe(false))
+    record.bound = bound("claude", "new")
+    history.judge(record)
+    await vi.waitFor(() => expect(record.summary.restorable).toBe(true))
   })
 })
 
@@ -517,6 +709,19 @@ describe("restoring a row", () => {
       expect(watching.later).toContainEqual({ type: "removed", id: "old-1", projectId: "p1" }),
     )
     watching.stop()
+  })
+
+  it("keeps a plain row whose saved output did not open, and the terminal beside it", async () => {
+    const { history, store } = setup()
+    store.rows.set("old-1", row({ transcript: "v1.sealed" }))
+    const record = live()
+    await restoring({ history, store } as Setup, record, { opened: false })
+    expect(store.rows.has("old-1")).toBe(true)
+    expect((await history.list("p1"))[0]!.availability).toEqual({ state: "ready" })
+    // A row with no output has nothing to lose.
+    store.rows.set("old-2", row({ id: "old-2" }))
+    await restoring({ history, store } as Setup, live(), { opened: false, rowId: "old-2" })
+    expect(store.rows.has("old-2")).toBe(false)
   })
 
   it("resumes an agent with the highest seq, in the session's own folder", async () => {
@@ -620,11 +825,29 @@ describe("confirming an agent's restore", () => {
     await vi.waitFor(() => expect(s.said[0]).toMatch(/can't run the command/))
   })
 
-  it("makes the row ready again after a wait, and keeps the claim and the terminal", async () => {
+  it("stops showing the row as restoring after a wait, and keeps the restore pending", async () => {
     const { history, record, released } = await begin()
-    await vi.waitFor(() => expect(record.restoring).toBeUndefined())
+    await new Promise((resolve) => setTimeout(resolve, 100))
+    expect(record.restoring).toBeDefined()
     expect(released).toEqual([])
     expect((await history.list("p1"))[0]!.availability.state).toBe("ready")
+  })
+
+  it("still removes the row when the session binds after the wait", async () => {
+    const { history, store, record } = await begin()
+    await new Promise((resolve) => setTimeout(resolve, 100))
+    record.bound = bound("claude", "conv-0001")
+    history.observe(record)
+    expect(store.rows.size).toBe(0)
+    expect(record.restoring).toBeUndefined()
+  })
+
+  it("still gives the claim back when the prompt returns after the wait", async () => {
+    const { history, store, record, released } = await begin()
+    await new Promise((resolve) => setTimeout(resolve, 100))
+    history.prompted(record)
+    expect(released).toEqual(["new-1"])
+    expect(store.rows.has("old-1")).toBe(true)
   })
 
   it("is settled by a close during the restore: worked if bound, else the row stays", async () => {

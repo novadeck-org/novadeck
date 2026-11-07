@@ -1624,11 +1624,6 @@ export class WorkspaceStore
     return row?.ran === 1
   }
 
-  /** Records that a line was entered in the terminal, for good; whether it is kept. */
-  markRan(terminalId: string): boolean {
-    return this.queries.run`UPDATE terminals SET ran = 1 WHERE id = ${terminalId}`.changes > 0
-  }
-
   removeTerminal(terminalId: string): void {
     this.forget(() => this.queries.run`DELETE FROM terminals WHERE id = ${terminalId}`)
   }

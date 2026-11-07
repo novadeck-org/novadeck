@@ -204,7 +204,7 @@ export type Record = {
   restoredFrom?: string
   /** The restore of an agent's conversation still to be confirmed; undefined once it is or failed. */
   restoring?: Restoring | undefined
-  /** What `restorable` was last judged for (the bound session, or none), so it is judged again only when that moves. */
+  /** What `restorable` was last judged for (the bound session and its ended turns, or none), so it is judged again only when that moves. */
   restorableFor?: string
 } & Started
 

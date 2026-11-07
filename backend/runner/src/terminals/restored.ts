@@ -44,7 +44,10 @@ export const showRestored = (
  * was with the cursor after it: the line is made room for (scrolling the screen once when
  * the prompt is on its last row), so the shell's own drawing is not erased.
  */
-export const noteAbove = (note: string, screen: Pick<Screen, "buffer" | "rows" | "cols">): string => {
+export const noteAbove = (
+  note: string,
+  screen: Pick<Screen, "buffer" | "rows" | "cols">,
+): string => {
   const { cursorX: x, cursorY: y } = screen.buffer.active
   const lines = Math.max(1, Math.ceil(note.length / screen.cols))
   // Room below the prompt for the lines the note takes: else the screen scrolls up first.
@@ -65,9 +68,11 @@ export const showNote = (
   note: string,
   terminalId: string,
 ): Promise<void> =>
-  terminal.print((screen) => noteAbove(note, screen)).catch((error: unknown) =>
-    log.warn("terminals.replay-failed", "Novadeck could not show a terminal's earlier screen", {
-      data: { terminalId },
-      err: error,
-    }),
-  )
+  terminal
+    .print((screen) => noteAbove(note, screen))
+    .catch((error: unknown) =>
+      log.warn("terminals.replay-failed", "Novadeck could not show a terminal's earlier screen", {
+        data: { terminalId },
+        err: error,
+      }),
+    )

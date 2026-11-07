@@ -475,7 +475,6 @@ export class Terminals {
       stopping: () => this.stopping,
       records: () => this.records.values(),
       sampled: (record) => {
-        markBusy(record)
         this.announce(record)
         this.murmur?.sampled(record.summary.id)
       },
@@ -838,7 +837,7 @@ export class Terminals {
           started: true,
           command,
           lastProgram: saved?.lastProgram ?? null,
-          restorable: true,
+          restorable: false,
           busy: false,
           cwd,
           process: shellProcess(shell),
@@ -889,8 +888,7 @@ export class Terminals {
       // Restored as a shell that resumes nothing, there is no agent left to lead.
       const unled = record.summary.ledBy !== null && !started.resumes
       if (unled) record.summary = { ...record.summary, ledBy: null }
-      const resumed = started.resumes ? input.resume : undefined
-      const expected = expectedAgent(input.command ?? task?.command, resumed)
+      const expected = expectedAgent(input.command ?? task?.command, input.resume)
       this.register(record, started.resumes ? expected : null)
       if (unled) this.messaging.endLead(record.summary.id)
       // The resumed agent shows its own history; a shell that resumes none, the transcript.
@@ -899,13 +897,12 @@ export class Terminals {
         const [text, at] = [opened?.text ?? "", opened && new Date(opened.at)]
         void showRestored(record.terminal, text, at, input.id, note)
       }
-      markBusy(record)
       this.listen(record)
       this.announce(record)
       this.sampler.start()
       this.saves.save(record, false)
       this.saves.start()
-      plan?.started(record, started.resumes)
+      plan?.started(record, started.resumes, opened !== null)
       return summaryOf(record)
     } finally {
       place.done()
@@ -1086,7 +1083,7 @@ export class Terminals {
     record.line = line.line
     if (line.entered) {
       record.lineEntered = true
-      record.ran = true
+      record.ran = record.changed = true
     }
     if (markBusy(record)) this.announce(record)
     if (keys.some(({ kind }) => kind === "enter") && this.bindings.readyOf(record))
@@ -1211,7 +1208,6 @@ export class Terminals {
             } catch (error) {
               throw startFailed(started, error)
             }
-            markBusy(record)
             this.announce(record)
             this.sampler.start()
             // Saved at once, once the earlier screen is on it.
@@ -1377,6 +1373,7 @@ export class Terminals {
         record.summary = { ...record.summary, agentRan }
         this.announce(record)
       }
+      this.history.judge(record, true)
     }
     this.claims.forgetAgent(agent)
     this.saves.forgetAgent(agent)
@@ -1669,6 +1666,7 @@ export class Terminals {
 
   /** Reports the record's current summary to every watcher. */
   private announce(record: Record): void {
+    markBusy(record)
     // A closed terminal's watchers already heard it is gone; its exit must not add it back.
     if (!record.closed) this.streams.changed(() => summaryOf(record))
     this.streams.detailed(record)

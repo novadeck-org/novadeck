@@ -9,7 +9,9 @@ import { prompted, replies, turn } from "./scenarios.js"
 // Closing a terminal and bringing it back (History pane), through the real runner and each
 // real harness in the sandbox: the row a close leaves, the restore that resumes the same
 // conversation and removes the row, a conversation whose file is gone, and Antigravity's
-// resume of a conversation it no longer has, which starts a new one without a word.
+// resume of a conversation it no longer has, which starts a new one without a word. The
+// home holds an earlier conversation first, as a person's always does: a fresh home has no
+// folders, and a check there can't tell a missing conversation from a missing folder.
 
 /** Every path under `root`, relative to it with `/`. */
 const walk = (root: string): string[] => {
@@ -43,6 +45,7 @@ for (const setup of setups) {
       e2e: run,
     }) => {
       run.model.use(
+        replies("Remember the word osprey", "Osprey noted."),
         replies("Remember the word heron", "Heron noted."),
         replies("Remember the word egret", "Egret noted."),
         replies("Which word", "The word was heron."),
@@ -60,9 +63,15 @@ for (const setup of setups) {
         return { terminal, id }
       }
 
-      // A close leaves a row that can be restored, naming the session.
+      // An earlier conversation, closed and forgotten, so the harness's folders exist.
+      const earlier = await make("osprey", "Osprey noted.")
+      await terminals.close({ terminalId: earlier.terminal.id })
+      store.removeClosed(earlier.terminal.id)
+
+      // A close leaves a row that can be restored, naming the session. Judged as the session
+      // binds, before its conversation file exists, it is not gone; after a turn, it is there.
       const first = await make("heron", "Heron noted.")
-      expect(first.terminal.summary().restorable).toBe(true)
+      await expect.poll(() => first.terminal.summary().restorable, { timeout: 30_000 }).toBe(true)
       await terminals.close({ terminalId: first.terminal.id })
       const [row] = rows()
       expect(row).toMatchObject({ id: first.terminal.id, agent: setup.agent, closedBy: null })
@@ -129,6 +138,59 @@ for (const setup of setups) {
         .not.toBe("restoring")
       expect(rows().map(({ id }) => id)).toEqual([second.terminal.id])
       await terminals.close({ terminalId: tried.id }).catch(() => undefined)
+    })
+
+    it("restores an agent that was quit, whose row keeps its session", async ({ e2e: run }) => {
+      run.model.use(
+        replies("Remember the word osprey", "Osprey noted."),
+        replies("Remember the word kite", "Kite noted."),
+      )
+      const { terminals, store } = run.deck
+      const projectId = store.session(run.deck.sessionId).projectId
+      const rows = () => store.closed(projectId)
+      const make = async (word: string) => {
+        const terminal = await run.deck.open(setup.agent)
+        await terminal.reached("ready", { timeoutMs: 60_000 })
+        await prompted(terminal, setup)
+        await turn(
+          terminal,
+          `Remember the word ${word}`,
+          `${word[0]!.toUpperCase()}${word.slice(1)} noted.`,
+        )
+        const id = (await terminal.detail()).sessionId
+        if (!id) throw new Error("no session bound after the first prompt")
+        return { terminal, id }
+      }
+      const earlier = await make("osprey")
+      await terminals.close({ terminalId: earlier.terminal.id })
+      store.removeClosed(earlier.terminal.id)
+
+      // The agent leaves with its real quit; the shell stays, with no session bound.
+      const quit = await make("kite")
+      await quit.terminal.confirm("/exit", async () => quit.terminal.press("/exit"))
+      await quit.terminal.poll(
+        async () => (quit.terminal.summary().agent === null ? true : undefined),
+        "the agent to leave its terminal",
+        60_000,
+      )
+      await terminals.close({ terminalId: quit.terminal.id })
+      const [row] = rows()
+      expect(row).toMatchObject({ id: quit.terminal.id, agent: setup.agent })
+      expect(row?.agents[setup.agent]?.sessionId).toBe(quit.id)
+      expect((await terminals.history.list(projectId))[0]?.availability).toEqual({ state: "ready" })
+
+      // The restore is the conversation, not a plain shell.
+      const restored = await run.deck.restoreClosed(row!.id)
+      await restored.reached("ready", { timeoutMs: 60_000 })
+      // Codex has no id before its first prompt: the row leaving is its sign.
+      if (setup.agent !== "codex") {
+        await expect
+          .poll(async () => (await restored.detail()).sessionId, { timeout: 30_000 })
+          .toBe(quit.id)
+        expect(restored.summary().agent).toBe(setup.agent)
+      }
+      await expect.poll(rows, { timeout: 30_000 }).toEqual([])
+      await terminals.close({ terminalId: restored.id })
     })
   })
 }

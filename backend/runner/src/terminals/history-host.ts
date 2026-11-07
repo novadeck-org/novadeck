@@ -57,7 +57,7 @@ export const historyHost = (parts: HistoryParts): HistoryHost => ({
   ],
   drawHandle: parts.drawHandle,
   releaseClaim: (terminalId) => parts.claims.release(terminalId),
-  archive: (record, write) => parts.saves.archive(record, write),
+  archive: (record, write, settled) => parts.saves.archive(record, write, settled),
   transcriptOf: (agent, sessionId) =>
     [...parts.records.values()].find((record) => record.agents[agent]?.sessionId === sessionId)
       ?.agents[agent]?.transcript,

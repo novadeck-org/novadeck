@@ -1741,7 +1741,7 @@ describe("a terminal's ran flag", () => {
     const workspace = kept()
     workspace.saveTerminal(numbered("a", "moth"))
     expect(workspace.terminalRan("a")).toBe(false)
-    expect(workspace.markRan("a")).toBe(true)
+    workspace.saveTerminal({ ...numbered("a", "moth"), ran: true })
     workspace.saveTerminal({ ...numbered("a", "moth"), cwd: "/elsewhere" })
     expect(workspace.terminalRan("a")).toBe(true)
     // The runner's flag is what is written, and a save never lowers it.
@@ -1749,7 +1749,6 @@ describe("a terminal's ran flag", () => {
     expect(workspace.terminalRan("b")).toBe(true)
     workspace.saveTerminal({ ...numbered("b", "owl"), ran: false })
     expect(workspace.terminalRan("b")).toBe(true)
-    expect(workspace.markRan("nope")).toBe(false)
     expect(workspace.terminalRan("nope")).toBe(false)
   })
 })

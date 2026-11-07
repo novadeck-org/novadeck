@@ -104,7 +104,7 @@ export type CallsHost = LeadsHost & {
   /** The models a harness can start with here, none where that can't be told. */
   readonly models: (agent: AgentName) => Promise<readonly Model[]>
   // A close, in the manager's steps: `closePeer` checks the runner's stop between them.
-  /** Starts closing a terminal for good; `closedBy` is the handle of the agent that closed it. */
+  /** Starts closing a terminal for good; `closedBy` is the handle of the agent that closed it, null when the person did or the agent closed its own. */
   readonly closeForGood: (record: Record, closedBy?: string | null) => void
   readonly terminate: (record: Record) => Promise<void>
   readonly remove: (record: Record) => void

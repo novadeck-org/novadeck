@@ -1331,11 +1331,15 @@ one from an earlier runner.
   `terminals.create({ closed })` restores. A row has the id its terminal had, its project,
   title, summary, handle (null if none), `agent` (the program's icon; null for a plain
   terminal, whose last `program` stands in), `cwd`, `closedAt`, `closedBy` (the handle of
-  the agent that closed it; null when the person did) and its `availability`: `ready`,
+  the agent that closed it; null when the person did, or an agent closed its own terminal) and its `availability`: `ready`,
   `restoring`, `gone` (`conversation` or `folder`), `disconnected` (the agent) or `open` (the
   handle of the terminal the conversation is bound in). The runner keeps rows in
   `closed_terminals`; a plain terminal's saved output is the one heavy column, which neither
-  call carries.
+  call carries. A row is kept 30 days from `closedAt`: the runner deletes older ones as it
+  starts and every hour after, through the store's `forget` (so `secure_delete` and the scrub
+  apply), and watchers receive `removed`. A plain terminal's row reads `restoring` until its
+  saved output is written. One conversation has one row: closing a terminal replaces an
+  older row of the same agent session.
   - `history.list({ projectId })` answers the project's rows, newest first; a project with
     none, or one the runner doesn't have, answers none.
   - `history.watch()` streams every row across projects, `synced`, then `changed` (a close, or a

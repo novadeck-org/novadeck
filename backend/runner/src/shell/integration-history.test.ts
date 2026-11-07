@@ -172,7 +172,11 @@ describe.skipIf(process.platform === "win32" || !existsSync(bash))(
       const live = new AbortController()
       let seen = ""
       void (async () => {
-        for await (const event of manager.attach({ terminalId: id, mode: "observe" }, "live", live.signal))
+        for await (const event of manager.attach(
+          { terminalId: id, mode: "observe" },
+          "live",
+          live.signal,
+        ))
           if (event.type === "snapshot" || event.type === "output") seen += event.data
       })()
       await expect.poll(() => seen, { timeout: 8000 }).toContain("conversation didn't open")
@@ -181,8 +185,8 @@ describe.skipIf(process.platform === "win32" || !existsSync(bash))(
       // Above the prompt, which stays as the shell drew it, not glued to it or erasing it.
       expect(shown).toContain("Claude Code was running here, but its conversation didn't open.")
       expect(shown).not.toMatch(/\$ \S*Claude Code was running/)
-      // eslint-disable-next-line no-control-regex -- Strips the screen's escape sequences.
-      expect(shown.replace(/\x1b\[[0-9;?]*[A-Za-z]/g, "").trimEnd().split("\n").at(-1)).toMatch(/\$$/)
+      const escapes = new RegExp(`${String.fromCharCode(27)}\\[[0-9;?]*[A-Za-z]`, "g")
+      expect(shown.replace(escapes, "").trimEnd().split("\n").at(-1)).toMatch(/\$$/)
       expect(manager.get(id).agent).toBeNull()
       expect(rows(shell).map(({ id: row }) => row)).toEqual([old.id])
       // The claim is given back: the row can be restored again.

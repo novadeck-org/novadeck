@@ -295,16 +295,19 @@ export class Saves {
    * masked and sealed as any transcript is, and handed to `write` as the sealed text. A
    * terminal's own saves stop at its close, so this is the only way its last output is
    * kept. Nothing is written when transcripts are off, there is no key, or it cannot be
-   * masked; `finish` waits for it.
+   * masked; `finish` waits for it. `settled` runs once it is written or given up.
    */
   archive(
     record: Pick<SavedRecord, "summary" | "terminal">,
     write: (sealed: string) => void,
+    settled: () => void,
   ): void {
     const { redactor, sealer } = this.options
-    if (!this.kept || !redactor || !sealer || this.host.stopped()) return
-    const text = transcriptOf(record.terminal.screen, Number.POSITIVE_INFINITY)
-    if (!text) return
+    const text =
+      this.kept && redactor && sealer && !this.host.stopped()
+        ? transcriptOf(record.terminal.screen, Number.POSITIVE_INFINITY)
+        : undefined
+    if (!text || !redactor || !sealer) return settled()
     const { screen } = record.terminal
     const input: TranscriptInput = {
       text,
@@ -352,6 +355,7 @@ export class Saves {
       )
       .finally(() => {
         this.archives.delete(done)
+        settled()
         this.pump()
       })
     this.archiveTail = done
