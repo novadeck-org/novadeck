@@ -3,6 +3,7 @@ import { tmpdir } from "node:os"
 import { join } from "node:path"
 
 import { describe, expect, it } from "../test.js"
+import { savedSession } from "./binding/standing.js"
 import {
   cancelResume,
   Claims,
@@ -172,5 +173,13 @@ describe("cancelling a resume", () => {
     expect(cancelResume(record)).toBe(true)
     expect(record.resumeClaim).toBe("claude:c")
     expect(cancelResume(record)).toBe(false)
+  })
+
+  it("leaves the session's standing reports readable, so its done mark stands", () => {
+    const file = join(mkdtempSync(join(tmpdir(), "resume-")), "cmd")
+    writeFileSync(file, "claude --resume c")
+    const record = { resumeFile: file, resumeClaim: "claude:c", bound: null }
+    cancelResume(record)
+    expect(savedSession(record)).toEqual({ agent: "claude", sessionId: "c" })
   })
 })

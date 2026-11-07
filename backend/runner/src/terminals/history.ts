@@ -166,7 +166,7 @@ const resumeOf = (row: Pick<ListedClosed, "agent" | "agents">): AgentName | unde
   return best ?? row.agent
 }
 
-/** The agent a woken shell is resuming, before anything binds: none once the resume ended or was cancelled. */
+/** The agent a woken shell is resuming, before anything binds: the one its claim names, as `savedSession` reads it, until its binding ended. */
 const resumingAgent = (record: Closing): AgentName | undefined => {
   const agent = savedSession(record)?.agent
   return isAgentName(agent) ? agent : undefined
