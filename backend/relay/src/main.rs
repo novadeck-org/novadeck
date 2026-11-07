@@ -49,7 +49,8 @@ const USAGE: &str = "usage: novadeck-relay mcp <server-version> <protocol-versio
        novadeck-relay --version
        novadeck-relay environment                    (Windows)
        novadeck-relay tree <pid>[:<started-ms>]...   (Windows)
-       novadeck-relay end <pid>:<started-ms>...      (Windows)";
+       novadeck-relay end <pid>:<started-ms>...      (Windows)
+       novadeck-relay console [<pid>]                (Windows)";
 
 /// The leading `--name value` options, and the arguments after them. Every option takes a
 /// value, so one this relay doesn't know, from a newer runner's launcher, is passed over
@@ -108,6 +109,15 @@ fn main() -> ExitCode {
             None => usage(),
         },
         #[cfg(windows)]
+        Some((mode, rest)) if mode == "console" => match rest {
+            [] => console(None),
+            [pid] => match pid.parse() {
+                Ok(pid) => console(Some(pid)),
+                Err(_) => usage(),
+            },
+            _ => usage(),
+        },
+        #[cfg(windows)]
         Some((mode, rest)) if mode == "end" => match members(rest) {
             Some(members) => {
                 processes::end(&members);
@@ -124,6 +134,18 @@ fn main() -> ExitCode {
 /// panic.
 pub fn complain(text: &str) {
     let _ = writeln!(io::stderr(), "{text}");
+}
+
+/// Prints the processes of a console (see `processes::print_console`); a failure prints
+/// nothing to stdout and says why on stderr.
+#[cfg(windows)]
+fn console(attach: Option<u32>) -> ExitCode {
+    if processes::print_console(attach) {
+        ExitCode::SUCCESS
+    } else {
+        complain("novadeck-relay console: no console process list is available");
+        ExitCode::FAILURE
+    }
 }
 
 fn usage() -> ExitCode {
