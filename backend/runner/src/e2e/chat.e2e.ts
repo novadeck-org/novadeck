@@ -150,6 +150,51 @@ for (const setup of setups) {
         expect(titleSource).toEqual({ kind: "default" })
     })
 
+    it("holds a compaction between turns, with its summary", async ({ e2e: run }) => {
+      run.model.use(() => ({ text: "Noted." }))
+      const t1 = await start(run, setup)
+      await t1.submit("First words")
+      await t1.until("Noted.")
+      await t1.submit("/compact")
+      const compacted = await t1.poll(
+        async () => (await t1.transcript()).find((each) => each.note?.type === "compaction"),
+        "a compaction in its transcript",
+        30_000,
+      )
+      expect(compacted.role).toBe("note")
+      expect(compacted.text).not.toBe("")
+    })
+
+    it("says its mode between turns, the change showing in what it records", async ({
+      e2e: run,
+    }) => {
+      run.model.use(() => ({ text: "Noted." }))
+      const t1 = await start(run, setup)
+      await t1.submit("First words")
+      await t1.until("Noted.")
+      const shiftTab = "\x1b[Z"
+      const write = (data: string) => run.deck.terminals.write({ terminalId: t1.id, data }, "e2e")
+      // Its plan mode, or Claude Code's accept-edits, the first Shift+Tab takes it to.
+      if (setup.agent === "codex") await setup.planning!.enter!(t1)
+      else {
+        write(shiftTab)
+        await sleep(1000)
+        if (setup.agent === "agy") {
+          write(shiftTab)
+          await sleep(1000)
+        }
+      }
+      await t1.submit("After the change")
+      const said = { claude: "acceptEdits", codex: "plan", agy: "plan" }[setup.agent]
+      await t1.poll(
+        async () =>
+          (await t1.transcript()).some(({ note }) => note?.type === "mode" && note.mode === said) ||
+          undefined,
+        "its mode in its transcript",
+        30_000,
+      )
+    })
+
     it("gives its agent a multi-line prompt as one prompt, whole in the transcript", async ({
       e2e: run,
     }) => {

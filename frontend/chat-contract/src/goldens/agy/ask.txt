@@ -14,7 +14,7 @@ tools: Result [other] → 3 lines: Created file file:///tmp/sandbox/home/.gemini
 assistant: Planned.
 
 # plan_feedback/approved
-user: [Approved] implementation_plan.md
+note: plan approved
 assistant: Reacted.
 
 # plan_feedback/rejected

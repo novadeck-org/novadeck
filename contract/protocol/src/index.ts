@@ -160,7 +160,9 @@ export {
   type ToolRun,
   type TranscriptChange,
   transcriptItem,
+  transcriptNote,
   type TranscriptItem,
+  type TranscriptNote,
   transcriptLimits,
 } from "./transcripts.js"
 export {

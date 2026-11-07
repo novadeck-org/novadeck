@@ -908,6 +908,9 @@ one from an earlier runner.
   interrupted the turn: Claude Code's and Codex's records hold their own, and for
   Antigravity, whose record holds none, the runner adds one where an Escape that stood
   came: after the turn's last steps, before the person's next prompt written after the key.
+  An item of role `note` is what its harness recorded between turns (`note`): the mode it says
+  it's in, each time it says so, a plan approved, or a compaction, whose summary is its `text`.
+  What each harness says is in [Harness coverage](harness-coverage.md#what-each-says-between-turns).
   A user item with `ring` is the line Novadeck's doorbell typed, as all three harnesses record
   it: its nonce, and `replies` where it carries the person's Inbox replies. Only a text that is
   exactly such a line has one, so a person's words with a line stuck in them stay theirs, and

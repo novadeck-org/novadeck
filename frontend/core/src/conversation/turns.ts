@@ -62,6 +62,14 @@ export type ChatBlock =
       readonly messages: readonly AgentMessage[] | null
       readonly replies: boolean
     }
+  // A compaction: the summary the agent goes on from.
+  | {
+      readonly kind: "compaction"
+      readonly id: string
+      readonly at: number | null
+      readonly summary: string
+      readonly truncated: boolean
+    }
   // Consecutive tool calls, which the chat folds into one run.
   | {
       readonly kind: "tools"
@@ -146,6 +154,21 @@ const messagesOfRing = (
 // The items grouped in order. A result is paired by `call` with its call wherever it is
 // (it may come first); one with no `call` goes to the latest call still waiting. A result
 // whose call is not among the items stands alone.
+// What a mode says as a line of the chat, by the harness's word for it. A word this doesn't know
+// shows as it is: a harness's new mode is still a change the person should see.
+const modeWords: Readonly<Record<string, string>> = {
+  default: "default mode",
+  "not-plan": "plan mode off",
+  plan: "plan mode",
+  acceptEdits: "auto-accept edits",
+  bypassPermissions: "skipping permissions",
+  dontAsk: "not asking",
+  auto: "auto mode",
+  never: "never asks",
+  "on-failure": "asks on failure",
+  untrusted: "asks for untrusted commands",
+}
+
 export const groupItems = (
   items: readonly ChatItem[],
   delivered: readonly AgentMessage[] = [],
@@ -158,6 +181,7 @@ export const groupItems = (
       results.set(item.call, item)
   }
   const blocks: ChatBlock[] = []
+  let mode: string | undefined
   // The run of tool calls the latest items continue, if they do.
   const open: { run: ToolEntry[] | null } = { run: null }
   const entryBlock = (entry: ToolEntry): void => {
@@ -209,6 +233,27 @@ export const groupItems = (
       continue
     }
     open.run = null
+    if (item.note) {
+      const { note } = item
+      if (note.type === "compaction")
+        blocks.push({
+          kind: "compaction",
+          id: item.id,
+          at: item.at,
+          summary: item.text,
+          truncated: item.truncated,
+        })
+      else if (note.type === "plan-approved")
+        blocks.push({ kind: "note", id: item.id, text: "plan approved" })
+      else {
+        // A harness says its mode again and again: only a change is news, and the first says
+        // what it was, which is no change.
+        if (mode !== undefined && mode !== note.mode)
+          blocks.push({ kind: "note", id: item.id, text: modeWords[note.mode] ?? note.mode })
+        mode = note.mode
+      }
+      continue
+    }
     if (item.role === "user") {
       blocks.push(
         item.interrupted
@@ -282,6 +327,8 @@ export const sameBlock = (a: ChatBlock, b: ChatBlock): boolean => {
     )
   if (a.kind === "note" || b.kind === "note")
     return a.kind === "note" && b.kind === "note" && a.id === b.id && a.text === b.text
+  if (a.kind === "compaction" || b.kind === "compaction")
+    return a.kind === "compaction" && b.kind === "compaction" && a.id === b.id
   if (a.kind === "doorbell" || b.kind === "doorbell")
     return (
       a.kind === "doorbell" &&
