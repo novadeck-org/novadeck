@@ -392,6 +392,21 @@ describe("a chat sending a message", () => {
     expect(bubbles(container).map(([text]) => text)).toEqual(["second"])
   })
 
+  it("shows no message that a Stop handed back, though the record wrote it", async () => {
+    const conversation = createStore<Conversation>({
+      ...asking,
+      requests: [],
+      items: [userItem("went"), userItem("handed back")],
+      prompts: [
+        { ref: "abcdefghijklmnop", text: null, sentAt: 1, state: "settled", item: 0 },
+        { ref: "bcdefghijklmnopq", text: null, sentAt: 2, state: "withdrawn", item: 1 },
+      ],
+    })
+    const { container } = inApp(conversation)
+    expect(container.textContent).toContain("went")
+    expect(container.textContent).not.toContain("handed back")
+  })
+
   it("says so when the agent's record never got it, and offers the terminal", async () => {
     const conversation = createStore<Conversation>({
       ...asking,

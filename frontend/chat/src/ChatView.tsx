@@ -1,7 +1,13 @@
 import { WordsLost, type ChatAnswer, type Conversation } from "@novadeck/core/conversation"
 import { wordsOf } from "@novadeck/core/conversation/picks"
 import { shellCommand, type Refused } from "@novadeck/core/conversation/prompt-refusal"
-import { agentName, groupItems, recordsShell, turnStatus } from "@novadeck/core/conversation/turns"
+import {
+  agentName,
+  groupItems,
+  recordsShell,
+  turnStatus,
+  wentItems,
+} from "@novadeck/core/conversation/turns"
 import type { Store } from "@novadeck/core/store"
 import type { AgentStatus } from "@novadeck/core/types"
 import { ArrowDown, Loader } from "lucide-react"
@@ -109,7 +115,7 @@ export const ChatView = ({
     box,
   } = useSyncExternalStore(conversation.subscribe, conversation.getSnapshot)
   const name = agentName(harness ?? program)
-  const blocks = useMemo(() => groupItems(items), [items])
+  const blocks = useMemo(() => groupItems(wentItems(items, prompts)), [items, prompts])
   const status = turnStatus(agent)
   const working = status?.working === true
 

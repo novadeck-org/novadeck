@@ -1,4 +1,4 @@
-import type { ChatItem, ToolChange, ToolOutcome, ToolRun } from "../conversation"
+import type { ChatItem, ChatPrompt, ToolChange, ToolOutcome, ToolRun } from "../conversation"
 import { harnesses } from "../harnesses"
 import type { AgentStatus } from "../types"
 import { counted } from "../units"
@@ -92,6 +92,18 @@ const outcomeOf = (
     change: counts && { ...counts, lines: told?.lines.length ? told.lines : (landed?.lines ?? []) },
     opening: said?.opening ?? false,
   }
+}
+
+// The items without those of the prompts a Stop handed back: the record wrote them, but they
+// never went, and their words are the person's again.
+export const wentItems = (
+  items: readonly ChatItem[],
+  prompts: readonly ChatPrompt[],
+): readonly ChatItem[] => {
+  const back = new Set(
+    prompts.filter((prompt) => prompt.state === "withdrawn").map((prompt) => prompt.item),
+  )
+  return back.size === 0 ? items : items.filter((_, at) => !back.has(at))
 }
 
 // The items grouped in order. A result is paired by `call` with its call wherever it is
