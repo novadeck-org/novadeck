@@ -407,7 +407,12 @@ describe("a chat sending a message", () => {
       at,
       ring: { nonce: "n7Q2", replies },
     })
-    const message = { id: "m-1", deliveredAt: 10_000 } as unknown as AgentMessage
+    const message = {
+      id: "m-1",
+      deliveredAt: 10_000,
+      from: { kind: "agent", handle: "moth", agent: "claude" },
+      text: "Check the export job.",
+    } as unknown as AgentMessage
     const conversation = createStore<Conversation>({
       ...asking,
       requests: [],
@@ -426,6 +431,49 @@ describe("a chat sending a message", () => {
       "doorbell · your reply",
     ])
     expect(container.textContent).not.toContain("automatic notice")
+    // Where a prompt would stand, with the mark hollow: a prompt, and not the person's.
+    const rings = [...container.querySelectorAll('[data-role="doorbell"]')]
+    expect(rings.map((each) => each.getAttribute("aria-label"))).toEqual([
+      "Doorbell, 1 message",
+      "Doorbell",
+      "Doorbell, your reply",
+    ])
+    expect(rings.every((each) => each.querySelector(".chat-mark[data-hollow]"))).toBe(true)
+    // What it brought follows in ink, under the handle that sent it.
+    const brought = rings[0]!.querySelector('[data-role="agent"]')
+    expect(brought?.getAttribute("aria-label")).toBe("Message from @moth")
+    expect(brought?.querySelector(".chat-author")?.textContent).toBe("@moth")
+    expect(brought?.querySelector(".markdown")?.textContent).toBe("Check the export job.")
+    expect(rings[1]!.querySelector('[data-role="agent"]')).toBeNull()
+  })
+
+  it("shows the person's own Inbox answer the doorbell brought as theirs, not a message", () => {
+    const ring: ChatItem = {
+      ...userItem("[Novadeck: automatic notice, agent messages waiting, r9Q2]"),
+      id: "a",
+      at: 10_000,
+      ring: { nonce: "r9Q2", replies: true },
+    }
+    const answer = {
+      id: "m-2",
+      deliveredAt: 10_000,
+      inbox: "answer",
+      from: { kind: "person" },
+      text: "Use green, please.",
+    } as unknown as AgentMessage
+    const conversation = createStore<Conversation>({
+      ...asking,
+      requests: [],
+      items: [ring],
+      doorbell: { ...noDoorbell, delivered: [answer] },
+    })
+    const { container } = inApp(conversation)
+    const bell = container.querySelector('[data-role="doorbell"]')!
+    expect(bell.querySelector(".chat-note")?.textContent).toBe("doorbell · your reply")
+    expect(bell.querySelector('[data-role="agent"]')).toBeNull()
+    const reply = bell.querySelector('[data-role="user"]')!
+    expect(reply.querySelector(".chat-mark:not([data-hollow])")).not.toBeNull()
+    expect(reply.querySelector(".chat-text")?.textContent).toBe("Use green, please. from the Inbox")
   })
 
   it("shows no message that a Stop handed back, though the record wrote it", async () => {
@@ -940,9 +988,15 @@ describe("parts of the conversation the chat can't read", () => {
       gap("b", '{"type":"hologram"}'),
       { ...userItem("after"), id: "c" },
     ])
-    const mark = container.querySelector("details.chat-note")!
-    expect(mark.textContent).toContain("part of the record the chat can't read")
-    expect(mark.textContent).toContain('{"type":"hologram"}')
+    const mark = container.querySelector('.chat-record[data-kind="gap"]')!
+    const line = mark.querySelector<HTMLButtonElement>("button.chat-tool-summary")!
+    expect(line.textContent).toBe("part of the record the chat can't read")
+    // Closed until clicked, as a tool line is.
+    expect(line.getAttribute("aria-expanded")).toBe("false")
+    act(() => line.click())
+    expect(mark.querySelector('[aria-label="As written"] pre')?.textContent).toBe(
+      '{"type":"hologram"}',
+    )
     const words = [...container.querySelectorAll(".chat-text")].map((each) => each.textContent)
     expect(words).toEqual(["before", "after"])
     const order = mark.compareDocumentPosition(container.querySelectorAll(".chat-text")[1]!)
@@ -951,7 +1005,52 @@ describe("parts of the conversation the chat can't read", () => {
 
   it("marks the place alone where the line can't be shown", () => {
     const { container } = view([gap("b", "")])
-    expect(container.querySelector("details.chat-note")).toBeNull()
-    expect(container.querySelector("p.chat-note")?.textContent).toContain("can't read")
+    const mark = container.querySelector('.chat-record[data-kind="gap"]')!
+    expect(mark.querySelector("button")).toBeNull()
+    expect(mark.textContent).toBe("part of the record the chat can't read")
+  })
+
+  it("draws a compaction as a line that opens to the summary the agent goes on from", () => {
+    const { container } = view([
+      {
+        ...userItem("Context so far: the logout comes from a minute of slack."),
+        id: "k",
+        role: "note",
+        note: { type: "compaction" },
+      },
+    ])
+    const mark = container.querySelector('.chat-record[data-kind="compaction"]')!
+    const line = mark.querySelector<HTMLButtonElement>("button.chat-tool-summary")!
+    expect(line.textContent).toBe("compacted the conversation · summary kept")
+    act(() => line.click())
+    expect(mark.querySelector('[aria-label="Summary"] pre')?.textContent).toBe(
+      "Context so far: the logout comes from a minute of slack.",
+    )
+    expect(line.getAttribute("aria-expanded")).toBe("true")
+  })
+
+  it("draws a compaction with a sealed summary as a line that promises nothing", () => {
+    const { container } = view([
+      { ...userItem(""), id: "k", role: "note", note: { type: "compaction" } },
+    ])
+    const mark = container.querySelector('.chat-record[data-kind="compaction"]')!
+    expect(mark.querySelector("button")).toBeNull()
+    expect(mark.textContent).toBe("compacted the conversation")
+  })
+
+  it("says a summary was cut short", () => {
+    const { container } = view([
+      {
+        ...userItem("A long summary"),
+        id: "k",
+        role: "note",
+        truncated: true,
+        note: { type: "compaction" },
+      },
+    ])
+    act(() => container.querySelector<HTMLButtonElement>(".chat-record button")!.click())
+    expect(container.querySelector(".chat-record .chat-tool-note")?.textContent).toContain(
+      "Shortened here",
+    )
   })
 })

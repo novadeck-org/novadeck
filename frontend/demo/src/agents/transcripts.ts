@@ -9,6 +9,7 @@ import type {
   ToolOutcome,
   ToolRun,
 } from "@novadeck/core/conversation"
+import type { AgentMessage } from "@novadeck/core/messages"
 
 // What a demo agent's conversation opens with: its records, as its harness wrote them, and
 // what waits on the person.
@@ -17,6 +18,8 @@ export type DemoTranscript = {
   readonly requests: readonly ChatRequest[]
   // The terminal's own rows showing at its input.
   readonly slice?: ChatSlice
+  // The messages the doorbell delivered to its agent, as the Messages pane has them.
+  readonly delivered?: readonly AgentMessage[]
   // What its agent's own box holds, which a message sent now goes out with.
   readonly box?: ChatBox
   // What answering a request does, by the request's id: only for those the demo can answer.
@@ -39,7 +42,9 @@ export type DemoOutcome = (
 }
 
 export type DemoDraft = Pick<ChatItem, "role" | "kind" | "text"> &
-  Partial<Pick<ChatItem, "tool" | "call" | "author" | "truncated" | "run" | "scripted">>
+  Partial<
+    Pick<ChatItem, "tool" | "call" | "author" | "truncated" | "run" | "scripted" | "ring" | "note">
+  >
 
 export const user = (text: string): DemoDraft => ({ role: "user", kind: "text", text })
 export const say = (text: string): DemoDraft => ({
@@ -169,8 +174,37 @@ export const written = (
     outcome: outcomeAmong(drafts, draft),
     scripted: draft.scripted ?? false,
     interrupted: false,
-    ring: null,
+    ring: draft.ring ?? null,
+    ...(draft.note && { note: draft.note }),
   }))
+
+// The line Novadeck's doorbell types into an idle agent's box, as its record keeps it.
+const rang = (nonce: string): DemoDraft => ({
+  role: "user",
+  kind: "text",
+  text: `[Novadeck: automatic notice, agent messages waiting, ${nonce}]`,
+  ring: { nonce, replies: false },
+})
+
+// The messages a ring among `items` delivered, by who sent them, as the Messages pane has them.
+const deliveredBy = (
+  items: readonly ChatItem[],
+  nonce: string,
+  messages: readonly (readonly [handle: string, text: string])[],
+): readonly AgentMessage[] => {
+  const at = items.find((item) => item.ring?.nonce === nonce)?.at ?? 0
+  return messages.map(([handle, text], index) => ({
+    id: `ring-${nonce}-${index}`,
+    hop: 1,
+    from: { kind: "agent", handle, agent: "claude" },
+    to: { kind: "agent", handle: "crow", agent: "codex" },
+    text,
+    sentAt: at - 60_000,
+    state: "delivered",
+    held: null,
+    deliveredAt: at,
+  }))
+}
 
 // A file as Claude Code's Read returns it, a numbered line to each.
 const numbered = (lines: readonly string[]): string =>
@@ -230,7 +264,7 @@ const runCommandDialog = [
 
 // The agents demo's transcripts, by terminal: Claude Code waiting on a plan, Codex on a
 // permission, Claude Code with subagents running, and one whose turn is over.
-export const agentTranscripts = (now: number): Readonly<Record<string, DemoTranscript>> => ({
+const transcriptsAt = (now: number): Readonly<Record<string, DemoTranscript>> => ({
   "01": {
     items: written("01", now, [
       user(
@@ -447,6 +481,7 @@ export const agentTranscripts = (now: number): Readonly<Record<string, DemoTrans
         "computeTotal is called from CartSummary, the order email and the export job. Only the export job still passes cents as a float.",
       ),
       from("/root/explorer_2", "No other caller depends on the old rounding."),
+      rang("k3f9"),
       use(
         "call_04c",
         "apply_patch",
@@ -854,6 +889,13 @@ export const agentTranscripts = (now: number): Readonly<Record<string, DemoTrans
   },
   "06": {
     items: written("06", now, [
+      // The agent went on from a summary of what came before.
+      {
+        role: "note",
+        kind: "text",
+        text: "Context so far: the storefront builds with Vite; checkout totals moved to src/checkout/total.ts last session, and the cart selectors to src/cart/selectors.ts.",
+        note: { type: "compaction" },
+      },
       user("Build the app and tell me how big the bundle is."),
       use(
         "toolu_06a",
@@ -907,6 +949,13 @@ export const agentTranscripts = (now: number): Readonly<Record<string, DemoTrans
         { kind: "run", title: "Ran", detail: "pnpm preview" },
       ),
       got("toolu_06d", "Command running in background with ID: p4m8c1d."),
+      // A part of the record a newer release wrote, which the chat can't read.
+      {
+        role: "note",
+        kind: "text",
+        text: '{"type":"bundle_report","files":2}',
+        note: { type: "gap" },
+      },
       say("Checking what went into the bundle."),
       use(
         "toolu_06e",
@@ -936,6 +985,22 @@ export const agentTranscripts = (now: number): Readonly<Record<string, DemoTrans
     requests: [],
   },
 })
+
+// The agents demo's transcripts, by terminal, with what the doorbell brought Codex's review: a
+// question from @moth, rung in between its turns.
+export const agentTranscripts = (now: number): Readonly<Record<string, DemoTranscript>> => {
+  const all = transcriptsAt(now)
+  const review = all["04"]!
+  return {
+    ...all,
+    "04": {
+      ...review,
+      delivered: deliveredBy(review.items, "k3f9", [
+        ["moth", "Does the export job still round cents the old way? Check it before you patch."],
+      ]),
+    },
+  }
+}
 
 // The content preview's transcripts: its two agents, each at the plan it just wrote.
 export const showcaseTranscripts = (now: number): Readonly<Record<string, DemoTranscript>> => ({
