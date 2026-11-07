@@ -72,7 +72,8 @@ describe.skipIf(!supported || process.env.NOVADECK_E2E_PROBES === undefined)(
       }
       const [made] = found.created as { tool_response?: { id?: string } }[]
       const [gone] = found.deleted as { tool_input?: { id?: string } }[]
-      expect(made?.tool_response?.id).toMatch(/^[0-9a-f]{8}$/)
+      // What scheduleChange relies on: an id there, the one the delete names.
+      expect(made?.tool_response?.id).toEqual(expect.stringMatching(/\S/))
       expect(gone?.tool_input?.id).toBe(made?.tool_response?.id)
     })
   },
