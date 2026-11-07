@@ -183,11 +183,13 @@ export const quirks = (selected: readonly string[]): readonly Quirk[] =>
 // The harnesses whose suite runs longest, and the systems where each runs in two jobs: Claude
 // Code and Codex on Windows and Linux (on Windows 21 and 24 minutes, #285's E2E run), and
 // Antigravity on Linux, whose one job took 18.3 to 19.5 of its 20 minutes and ran out with
-// #781's tests (19.1 minutes of tests then, 11.1 of them in the first half's files). macOS keeps
-// one job a harness, as its concurrency, not its length, is the limit.
+// #781's tests (19.1 minutes of tests then, 11.1 of them in the first half's files). On macOS,
+// where runners are scarce, a harness keeps one job while it fits: Claude Code's took 27.4 to
+// 29.6 of its 30 minutes on 2026-11-07 and ran out twice that evening, so it runs in two there
+// too; Codex's took 23.6 and stays whole.
 const both: ReadonlySet<string> = new Set([systems.linux, systems.windows])
 const shardedOn: ReadonlyMap<string, ReadonlySet<string>> = new Map([
-  ["claude", both],
+  ["claude", new Set([...both, systems.macos])],
   ["codex", both],
   ["agy", new Set([systems.linux])],
 ])
