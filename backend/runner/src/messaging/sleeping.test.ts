@@ -230,24 +230,69 @@ describe("a sleeper's wake that fails", () => {
   })
 })
 
+const inboxFor = (messaging: Messaging, records: InboxRecords, now: () => number) =>
+  new Inbox(
+    {
+      owner: (id) => messaging.inboxOwner(id),
+      reply: (id, ask, subject, text, commit, choice) =>
+        messaging.personReply(id, ask, subject, text, commit, choice),
+      replyState: (id) => messaging.inboxReply(id),
+      forgetReplies: (ids) => messaging.forgetResponses(ids),
+      changed: () => {},
+      exists: () => true,
+    },
+    records,
+    now,
+    { sweepMs: 0, resumeGraceMs: 1_000 },
+  )
+
+
+describe("a wake that ended with a shell and no agent", () => {
+  it("refuses new messages, lapses its ask, and reopens it if that session binds later", ({
+    resources,
+  }) => {
+    const inboxRecords = memoryInbox()
+    const messageRecords = memoryMessages()
+    const first = setup(messageRecords, { sleeper: false })
+    first.messaging.register("B", here, "fox", null)
+    bind(first.messaging, "B", "claude", saved.sessionId)
+    const before = inboxFor(first.messaging, inboxRecords, () => first.time.at)
+    const created = before.call("B", "ask", { subject: "Pick one", body: "Which?", shape: { type: "text" } })
+    if (!created.ok) throw new Error(created.reason)
+    before.close()
+    first.messaging.close()
+    const run = setup(messageRecords)
+    const inbox = inboxFor(run.messaging, inboxRecords, () => run.time.at)
+    resources.defer(() => {
+      inbox.close()
+      run.messaging.close()
+    })
+    const waiting = run.send("wake up")
+    run.messaging.register("B", here, "fox", null)
+    run.messaging.wakeEnded("B", "wake-failed")
+    expect(run.messaging.stateOf(waiting.id)).toBe("gone")
+    expect(run.messaging.resting("B")).toBeUndefined()
+    expect(run.messaging.inboxOwner("B")).toBeUndefined()
+    const refused = run.messaging.send("A", { to: "fox", text: "again" })
+    expect(refused).toMatchObject({ ok: false, reason: expect.stringContaining("no agent running") })
+    run.time.at += 2_000
+    inbox.prune()
+    expect(inbox.list()).toEqual([])
+    bind(run.messaging, "B", "claude", saved.sessionId)
+    inbox.reconcile("B")
+    expect(inbox.list().map((entry) => entry.id)).toEqual([created.id])
+  })
+
+  it("leaves a sleeper that stays asleep resting", ({ resources }) => {
+    const run = setup()
+    resources.defer(closing(run))
+    run.messaging.wakeEnded("B", "wake-failed")
+    expect(run.messaging.resting("B")).toEqual(saved)
+  })
+})
+
 describe("a sleeper's Inbox", () => {
   const identity = { ...here, terminalId: "B", handle: "fox", ...saved }
-
-  const inboxFor = (messaging: Messaging, records: InboxRecords, now: () => number) =>
-    new Inbox(
-      {
-        owner: (id) => messaging.inboxOwner(id),
-        reply: (id, ask, subject, text, commit, choice) =>
-          messaging.personReply(id, ask, subject, text, commit, choice),
-        replyState: (id) => messaging.inboxReply(id),
-        forgetReplies: (ids) => messaging.forgetResponses(ids),
-        changed: () => {},
-        exists: () => true,
-      },
-      records,
-      now,
-      { sweepMs: 0, resumeGraceMs: 1_000 },
-    )
 
   const ask = { subject: "Pick one", body: "Which?", shape: { type: "text" } }
 

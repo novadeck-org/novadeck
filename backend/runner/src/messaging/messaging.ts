@@ -285,6 +285,15 @@ export class Messaging {
     this.wakes.failed(terminalId, reason)
   }
 
+  /**
+   * The wake ended with its shell left and no agent bound: as `wakeFailed`, and the
+   * terminal rests on its session no more. A terminal still asleep rests on, as it was.
+   */
+  wakeEnded(terminalId: string, reason: string): void {
+    this.wakes.failed(terminalId, reason)
+    this.sessions.endRest(terminalId)
+  }
+
   rooted(terminalId: string, changes: readonly RootChange[], held?: Held): void {
     this.sessions.rooted(terminalId, changes, held)
   }
