@@ -247,7 +247,8 @@ jobs:
   # The probes (src/e2e/probes): how each harness behaves where Novadeck's design depends on
   # it, recorded rather than checked, so they run nightly against each harness's latest
   # release (or when a dispatch asks), never on a pull request (docs/e2e-testing.md,
-  # "Probes and CI"). A probe fails only on its setup or a timeout; what it saw is the
+  # "Probes and CI"). A probe fails only on its setup or a timeout, except launch-flags and
+  # cron-id, which fail when a release changes what sleeping agents rely on; what it saw is the
   # job's artifact, with the fixtures the probes rewrote in place as a diff, and the
   # summary says which changed. Linux only, in the e2e jobs' network namespace: macOS and
   # Windows runners queue longest, and the probes' findings are about the harness, not the

@@ -20,6 +20,10 @@ import { answers, own, prompted, replies, result, turn } from "../scenarios.js"
 
 const out = process.env.PROBE_OUT
 
+/** Whether the harness's `forgets` lists any of these launch words. */
+const forgets = (agent: AgentName, words: readonly string[]): boolean =>
+  (harnesses[agent].launch.forgets?.(words).length ?? 0) > 0
+
 type Case = {
   /** The permission flags it starts with, as typed. */
   readonly typed: string
@@ -146,6 +150,10 @@ for (const setup of setups) {
         found.restored = await shown(restored)
         writeOut()
         expect(found.restored).toMatch(probe.shows)
+        // What the code relies on: a bare resume keeps the mode unless `forgets` lists it.
+        expect(probe.shows.test(String(found.resumedBare))).toBe(
+          !forgets(agent, probe.typed.split(" ")),
+        )
         await turn(restored, "Carry on", "Carried on.")
         await restored
           .poll(
@@ -203,6 +211,9 @@ if (codexSetup) {
           mkdirSync(out, { recursive: true })
           writeFileSync(join(out, "codex.hook-trust.probe.json"), JSON.stringify(found, null, 2))
         }
+        // A bare resume stops at the review exactly when `forgets` lists the flag.
+        expect(found.session).toBeTruthy()
+        expect(found.bareAsksToReview).toBe(forgets("codex", ["--dangerously-bypass-hook-trust"]))
       })
     },
   )
@@ -259,6 +270,9 @@ if (agySetup?.approval) {
             JSON.stringify(found, null, 2),
           )
         }
+        // A bare resume asks again exactly when `forgets` lists the flag; the control asks.
+        expect(found.plainAsked).toBe(true)
+        expect(found.bareAsked).toBe(forgets("agy", ["--dangerously-skip-permissions"]))
       })
     },
   )
