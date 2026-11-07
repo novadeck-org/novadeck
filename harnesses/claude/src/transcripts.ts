@@ -1,5 +1,12 @@
-import { dirname, join } from "node:path"
+import { readdir } from "node:fs/promises"
+import { basename, dirname, join } from "node:path"
 
+import {
+  homeOfTranscript,
+  presence,
+  reportedOr,
+  sessionName,
+} from "@novadeck/harness-core/conversation"
 import { isFields, parseFields } from "@novadeck/harness-core/fields"
 import type { TranscriptDecoder, TranscriptEntry } from "@novadeck/harness-core/harness"
 import { at, entry, joined, noteEntry, textOf } from "@novadeck/harness-core/items"
@@ -12,6 +19,28 @@ import { describe } from "./tools.js"
 
 // A subagent id Claude Code names its transcript by, as it writes them.
 const safeId = /^[\w-]{1,128}$/
+
+/**
+ * The session's transcript in another project of the home the reported path names:
+ * Claude Code keeps a session in the folder of the project it began in, and a resume in
+ * another folder reports that folder's project (probed 2026-11-07, 2.1.319) while it goes
+ * on writing the first. One listing of the projects and a `stat` in each.
+ */
+const inOtherProject = async (reported: string, sessionId: string): Promise<string | undefined> => {
+  const file = `${sessionId}.jsonl`
+  const home = homeOfTranscript(reported, "projects")
+  if (!sessionName.test(sessionId) || basename(reported) !== file || home === undefined)
+    return undefined
+  const projects = join(home, "projects")
+  const names = await readdir(projects).catch(() => [])
+  const found = await Promise.all(
+    names.map(async (name) => {
+      const path = join(projects, name, file)
+      return path !== reported && (await presence(path)) === "present" ? path : undefined
+    }),
+  )
+  return found.find((path) => path !== undefined)
+}
 
 /**
  * Claude Code's transcripts: the session's JSONL, and beside it a folder named for the
@@ -163,10 +192,11 @@ const modeNote = (mode: unknown, time: number | null): readonly TranscriptEntry[
 const planApproved = /^User has approved your plan\b/
 
 export const transcripts: TranscriptDecoder = {
-  locate: (root, sessionId, subagent) => {
-    if (subagent === null) return Promise.resolve(root)
-    if (!safeId.test(subagent) || !safeId.test(sessionId)) return Promise.resolve(undefined)
-    return Promise.resolve(join(dirname(root), sessionId, "subagents", `agent-${subagent}.jsonl`))
+  locate: async (reported, sessionId, subagent) => {
+    const root = await reportedOr(reported, sessionId, () => inOtherProject(reported, sessionId))
+    if (subagent === null) return root
+    if (!safeId.test(subagent) || !safeId.test(sessionId)) return undefined
+    return join(dirname(root), sessionId, "subagents", `agent-${subagent}.jsonl`)
   },
   items: (line) => {
     const fields = parseFields(line)

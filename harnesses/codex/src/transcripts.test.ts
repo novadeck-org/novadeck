@@ -453,6 +453,29 @@ describe("Codex's transcripts", () => {
       rmSync(sessions, { recursive: true, force: true })
     }
   })
+
+  it("are the session's rollout where Codex keeps it when the named one holds none", async () => {
+    const home = mkdtempSync(join(tmpdir(), "novadeck-codex-home-"))
+    try {
+      const id = "5b0e7d1c-4f3a-4c2b-9d8e-1a2b3c4d5e6f"
+      const folder = (...parts: string[]) => {
+        const path = join(home, ...parts)
+        mkdirSync(path, { recursive: true })
+        return path
+      }
+      const reported = join(folder("sessions", "2026", "11", "06"), `rollout-x-${id}.jsonl`)
+      // Not written yet, and nowhere else: as reported.
+      await expect(transcripts.locate(reported, id, null)).resolves.toBe(reported)
+      // A compressed one can't be followed, so it isn't taken.
+      writeFileSync(join(folder("sessions", "2026", "11", "07"), `rollout-y-${id}.jsonl.zst`), "")
+      await expect(transcripts.locate(reported, id, null)).resolves.toBe(reported)
+      const archived = join(folder("archived_sessions"), `rollout-y-${id}.jsonl`)
+      writeFileSync(archived, "")
+      await expect(transcripts.locate(reported, id, null)).resolves.toBe(archived)
+    } finally {
+      rmSync(home, { recursive: true, force: true })
+    }
+  })
 })
 
 describe("Codex's messages between agents", () => {

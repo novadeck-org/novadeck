@@ -1,3 +1,5 @@
+import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs"
+import { tmpdir } from "node:os"
 import { dirname, join } from "node:path"
 
 import { loadProbe } from "@novadeck/harness-core/testing/probes"
@@ -271,6 +273,27 @@ describe("Claude Code's transcripts", () => {
       join(dirname(root), "s1", "subagents", "agent-a1b2.jsonl"),
     )
     await expect(transcripts.locate(root, "s1", "../x")).resolves.toBeUndefined()
+  })
+
+  it("are where the session began when it was resumed in another folder", async () => {
+    const home = mkdtempSync(join(tmpdir(), "novadeck-claude-projects-"))
+    try {
+      const id = "7049dc18-9e99-4602-99e9-03e585c25fdb"
+      const began = join(home, "projects", "-work")
+      mkdirSync(began, { recursive: true })
+      mkdirSync(join(home, "projects", "-other"))
+      // The resume's hooks name the folder it was resumed in, which holds no file.
+      const reported = join(home, "projects", "-work-notes", `${id}.jsonl`)
+      // A new session's file is not written yet: its path stays as reported.
+      await expect(transcripts.locate(reported, id, null)).resolves.toBe(reported)
+      writeFileSync(join(began, `${id}.jsonl`), "")
+      await expect(transcripts.locate(reported, id, null)).resolves.toBe(join(began, `${id}.jsonl`))
+      await expect(transcripts.locate(reported, id, "a1b2")).resolves.toBe(
+        join(began, id, "subagents", "agent-a1b2.jsonl"),
+      )
+    } finally {
+      rmSync(home, { recursive: true, force: true })
+    }
   })
 })
 
