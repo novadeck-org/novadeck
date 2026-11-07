@@ -1820,6 +1820,56 @@ describe.skipIf(process.platform === "win32")("terminal message watches", () => 
   })
 })
 
+describe("a woken shell whose agent has not shown", () => {
+  type Inside = {
+    records: Map<
+      string,
+      {
+        woken?: number | undefined
+        startupRuns: boolean
+        summary: { ledBy: string | null }
+        terminal: { pty: unknown }
+      }
+    >
+    prompted: (record: unknown, child: unknown, cwd: string) => void
+  }
+
+  const woken = async (terminals: { manager: (options: object) => Terminals }) => {
+    const manager = terminals.manager(ptyOptions)
+    const terminal = await manager.create(
+      { id: randomUUID(), sessionId: "session", cwd, cols: 80, rows: 24 },
+      "creator",
+    )
+    const inside = manager as unknown as Inside
+    const record = inside.records.get(terminal.id)!
+    record.summary.ledBy = "moth"
+    return { manager, inside, record, terminal }
+  }
+
+  it("keeps its lead when its prompt shows with nothing bound, where a plain failed start ends it", async ({
+    terminals,
+  }) => {
+    const { inside, record } = await woken(terminals)
+    record.startupRuns = true
+    record.woken = Date.now()
+    inside.prompted(record, record.terminal.pty, cwd)
+    expect(record.summary.ledBy).toBe("moth")
+    record.startupRuns = true
+    record.woken = undefined
+    inside.prompted(record, record.terminal.pty, cwd)
+    expect(record.summary.ledBy).toBeNull()
+  })
+
+  it("stops being woken when the person enters a line there", async ({ terminals }) => {
+    const { manager, record, terminal } = await woken(terminals)
+    record.woken = Date.now()
+    manager.write({ terminalId: terminal.id, data: "ls" }, "creator")
+    expect(record.woken).toBeDefined()
+    manager.write({ terminalId: terminal.id, data: "\r" }, "creator")
+    expect(record.woken).toBeUndefined()
+  })
+})
+
 describe("a turn the person's Escape ended", () => {
   type Inside = {
     records: Map<string, { bound: Bound | null }>
