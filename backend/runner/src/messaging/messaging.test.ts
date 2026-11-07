@@ -5190,6 +5190,22 @@ describe("a long hold of the doorbell", () => {
       expect(answer.holds).toEqual([holdNotice([third], handle, "draft", since + longHoldMs - 1)])
     })
 
+    it.runIf(from === "A")(
+      "keeps its notice from a prompt Claude Code queued, which a Stop may take back, for the next",
+      () => {
+        const { messaging, clock: time, send, prompt, stop, bound } = held()
+        prompt(from, bound[from])
+        sent(send(from, handle, "first"))
+        messaging.blocked(to, "draft")
+        time.now += longHoldMs
+        messaging.keys(from, ["content", "enter"], false)
+        expect(prompt(from, bound[from]).stdout).not.toContain("not arrived")
+        stop(from, bound[from])
+        stop(from, bound[from])
+        expect(context(prompt(from, bound[from]).stdout)).toContain("not arrived")
+      },
+    )
+
     it("is timed while only background work runs, as the doorbell looks at its box then", () => {
       const { messaging, clock: time, send, prompt, stop, claude, codex } = create()
       const bound = { A: claude, B: codex }
@@ -6613,6 +6629,15 @@ describe("a prompt queued behind a running turn", () => {
     observe("A", cleared, sessionStarted(cleared, "clear"))
     sent(send("B", "moth", "The news."))
     expect(prompt("A", cleared).stdout).toContain("The news.")
+  })
+
+  it("takes a queue the screen shows, though no hook told of it, for one a Stop leaves running", () => {
+    const { messaging, send, prompt, stop, claude } = create()
+    prompt("A", claude)
+    messaging.keys("A", ["content", "enter"], false)
+    stop("A", claude)
+    sent(send("B", "moth", "The news."))
+    expect(prompt("A", claude).leaseId).toBeNull()
   })
 
   it("delivers on a prompt no turn ran before, as ever", () => {

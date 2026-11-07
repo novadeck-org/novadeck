@@ -12,6 +12,7 @@ const DOWN = "\x1b[B"
 const RECALLED = "history row"
 const CLEAR = "<clear>"
 const ERASE = "<erase>"
+const LEAVE = "<leave>"
 const ONE = "<one>"
 const PENDING = "Esc again to clear"
 
@@ -106,7 +107,7 @@ const terminal = (
             screen?.rows.includes(PENDING) ? ONE : CLEAR,
           erase: () => ERASE,
         }),
-    shell: { expands: true, starts: false, footer: () => false, leave: () => ERASE },
+    shell: { expands: true, starts: false, footer: () => false, leave: () => LEAVE },
     queued: () =>
       typeof options.queued === "function" ? options.queued() : options.queued === true,
     ...(options.takes === undefined
@@ -187,7 +188,7 @@ const terminal = (
         box = ""
         return true
       }
-      if (data === ERASE && options.clears !== false) box = ""
+      if ((data === ERASE || data === LEAVE) && options.clears !== false) box = ""
       else if (data === CLEAR && options.clearBrings !== undefined && written.length === 1)
         box = options.clearBrings
       else if (data === CLEAR && options.slow) {
@@ -451,7 +452,7 @@ describe("interrupts", () => {
         },
       })
       expect(await t.interruptIn()).toEqual({ returned: "!echo hi" })
-      expect(t.written).toEqual([UP, ERASE])
+      expect(t.written).toEqual([UP, LEAVE])
     })
 
     it("holds the person's keys from before it takes to the end of the clear, by one hold", async () => {
@@ -578,6 +579,19 @@ describe("interrupts", () => {
       await expect(t.interruptIn()).rejects.toThrow("refused")
       expect(t.written).toEqual([])
       expect(t.holds.every(({ settled }) => settled)).toBe(true)
+    })
+
+    it("leaves it in the box, and says so, where it shows only as a placeholder", async () => {
+      let took = false
+      const t = terminal({
+        queued: () => !took,
+        takes: () => {
+          took = true
+          return "[Pasted text #1 +39 lines]"
+        },
+      })
+      await expect(t.interruptIn()).rejects.toBeInstanceOf(BoxNotCleared)
+      expect(t.written).toEqual([UP])
     })
 
     it("leaves it in the box, and says so, where clearing would lose an image", async () => {
