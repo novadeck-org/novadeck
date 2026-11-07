@@ -235,6 +235,49 @@ describe("the first sample of a plain shell", () => {
   })
 })
 
+describe("a node process sampled in a terminal", () => {
+  const sampleNode = (bindingOf: Record["bound"], argv: string[] | null) => {
+    on("darwin")
+    fresh.sampled = { process: { name: "node", argv } }
+    onTestFinished(() => void (fresh.sampled = undefined))
+    const record = running(null)
+    record.summary = { ...record.summary, process: null }
+    record.bound = bindingOf
+    const started = new Sampler<SampledRecord>(pollMs, {
+      stopping: () => false,
+      records: () => [record],
+      sampled: () => {},
+    })
+    started.start()
+    vi.advanceTimersByTime(pollMs)
+    return { record, started }
+  }
+
+  it("is the agent bound right now, though macOS names no script", () => {
+    const { record, started } = sampleNode(bound, null)
+    started.stop()
+    expect(record.summary.lastProgram).toBe("claude")
+  })
+
+  it("takes the agent that binds after the process was first sampled", () => {
+    const { record, started } = sampleNode(null, null)
+    expect(record.summary.lastProgram).toBe("node")
+    record.bound = bound
+    vi.advanceTimersByTime(pollMs)
+    started.stop()
+    expect(record.summary.lastProgram).toBe("claude")
+  })
+
+  it("stays node with no agent bound, and by its script where argv tells it", () => {
+    const first = sampleNode(null, null)
+    first.started.stop()
+    expect(first.record.summary.lastProgram).toBe("node")
+    const second = sampleNode(null, ["node", "/home/me/.local/bin/codex"])
+    second.started.stop()
+    expect(second.record.summary.lastProgram).toBe("codex")
+  })
+})
+
 describe("whether a shell may be running a program", () => {
   const shell = (fields: object = {}) =>
     ({

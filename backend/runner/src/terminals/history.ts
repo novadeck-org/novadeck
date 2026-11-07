@@ -164,6 +164,12 @@ const resumeOf = (row: Pick<ListedClosed, "agent" | "agents">): AgentName | unde
   return best ?? row.agent
 }
 
+/** The agent a woken shell is resuming (its resume claim, `agent:session`), before anything binds. */
+const resumingAgent = (record: Pick<Closing, "resumeClaim">): AgentName | undefined => {
+  const name = record.resumeClaim?.split(":", 1)[0]
+  return isAgentName(name) ? name : undefined
+}
+
 /** The agent whose session reported last (the highest `seq`), if any reported. */
 const latestAgent = (agents: Closing["agents"]): AgentName | null => {
   let best: AgentName | null = null
@@ -266,7 +272,8 @@ export class ClosedTerminals {
       if (!records || this.host.going(record.summary.sessionId)) return
       // The session that bound, else the one that reported last: an agent that exited with
       // Ctrl-C, or a terminal closed before its session bound, can still be resumed.
-      const agent = record.bound?.binding.agent ?? latestAgent(record.agents)
+      const agent =
+        record.bound?.binding.agent ?? resumingAgent(record) ?? latestAgent(record.agents)
       if (!record.ran && !hasRun(record.agents) && agent === null) return
       // A plain shell that stood in for a restore that did not open: the row it came from stands.
       const origin =

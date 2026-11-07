@@ -105,6 +105,17 @@ export const programOf = (process: ForegroundProcess): string => {
   return found?.id ?? process.name
 }
 
+/**
+ * The program a sample names for a record: `programOf`, and for a node interpreter whose
+ * script isn't told (macOS names no argv) the agent bound to the terminal right now, on
+ * every OS. A `node` left running after the binding ended stays `node`.
+ */
+const sampledProgram = (process: ForegroundProcess, record: Pick<Record, "bound">): string => {
+  const program = programOf(process)
+  const bound = record.bound?.binding.agent
+  return bound !== undefined && (program === "node" || program === "nodejs") ? bound : program
+}
+
 export type SamplerHost<R extends SampledRecord> = {
   /** The runner is stopping: no sampling starts. */
   readonly stopping: () => boolean
@@ -258,8 +269,9 @@ export class Sampler<R extends SampledRecord> {
       // stay the program a restart resumes.
       const lastProgram = record.woken
         ? record.summary.lastProgram
-        : ((current && programOf(current)) ?? record.summary.lastProgram)
-      if (same && !(first && lastProgram !== record.summary.lastProgram)) continue
+        : ((current && sampledProgram(current, record)) ?? record.summary.lastProgram)
+      // A binding that comes after the process was first sampled names a node one too.
+      if (same && lastProgram === record.summary.lastProgram) continue
       record.summary = { ...record.summary, process: current, lastProgram }
       record.changed = true
       this.host.sampled(record)

@@ -159,13 +159,13 @@ describe("a sleeping agent", () => {
 
   it("resumes at once a wake it first sees as waking, from the runner's agent, unseen off screen", async () => {
     const waking = keptSummary(id(1), id(9), {
-      lastProgram: "node",
+      lastProgram: "codex",
       restingAgent: "codex",
       sleeping: false,
     })
     const app = scripted({
       shown: [],
-      background: [{ id: id(1), lastProcess: "node" }],
+      background: [{ id: id(1), lastProcess: "codex" }],
       listed: [],
     })
     await wait(100)
@@ -177,14 +177,14 @@ describe("a sleeping agent", () => {
 
   it("resumes a wake it sees as waking while a surface looks, and says it is seen", async () => {
     const app = scripted({
-      shown: [{ id: id(1), lastProcess: "node" }],
-      listed: [asleep(id(1), { lastProgram: "node", restingAgent: "codex" })],
+      shown: [{ id: id(1), lastProcess: "codex" }],
+      listed: [asleep(id(1), { lastProgram: "codex", restingAgent: "codex" })],
     })
     app.seen(app.key(id(1)))
     await wait(100)
     app.changes.push({
       type: "changed",
-      terminal: asleep(id(1), { lastProgram: "node", restingAgent: "codex", sleeping: false }),
+      terminal: asleep(id(1), { lastProgram: "codex", restingAgent: "codex", sleeping: false }),
     })
     await wait(400)
     expect(app.of("create")).toEqual([
@@ -212,15 +212,15 @@ describe("a sleeping agent", () => {
 
   it("stays asleep for a refused unseen wake that was starting, by the runner's latest word", async () => {
     const app = scripted({
-      shown: [{ id: id(1), lastProcess: "node" }],
-      listed: [asleep(id(1), { lastProgram: "node", restingAgent: "codex", sleeping: false })],
+      shown: [{ id: id(1), lastProcess: "codex" }],
+      listed: [asleep(id(1), { lastProgram: "codex", restingAgent: "codex", sleeping: false })],
       apply: true,
       create: () => Promise.reject(new WireError("SPAWN_FAILED")),
     })
     await wait(100)
     app.changes.push({
       type: "changed",
-      terminal: asleep(id(1), { lastProgram: "node", restingAgent: "codex" }),
+      terminal: asleep(id(1), { lastProgram: "codex", restingAgent: "codex" }),
     })
     await wait(400)
     expect(statusOf(app, id(1))).toMatchObject({ state: "sleeping", agent: "codex" })

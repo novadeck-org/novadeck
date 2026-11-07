@@ -459,6 +459,20 @@ describe("keeping a terminal as it closes", () => {
     expect(store.rows.get("k-2")).toMatchObject({ agent: "claude" })
   })
 
+  it("keeps a woken terminal on the agent it is resuming, before anything binds", () => {
+    const { history, store } = setup()
+    history.closing(
+      live({
+        ran: true,
+        bound: null,
+        resumeClaim: "claude:c",
+        agents: { claude: { sessionId: "c", seq: 1 }, codex: { sessionId: "x", seq: 5 } },
+      }),
+      null,
+    )
+    expect(store.rows.get("t-1")).toMatchObject({ agent: "claude" })
+  })
+
   it("never lets a failure stop the close", () => {
     const { history, store } = setup()
     store.records.insertClosed = () => {
