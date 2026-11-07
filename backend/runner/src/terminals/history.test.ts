@@ -35,7 +35,7 @@ const memory = () => {
       [...rows.values()]
         .filter((row) => row.projectId === projectId)
         .toSorted((a, b) => b.closedAt - a.closedAt)
-        .map(({ transcript: _, ...rest }) => rest) as ListedClosed[],
+        .map(({ transcript: _transcript, ...rest }) => rest) as ListedClosed[],
     closedTerminal: (id) => rows.get(id),
     removeClosed: (id) => rows.delete(id),
     pruneClosed: (before) => {
@@ -125,26 +125,30 @@ const setup = (
   const archived: Setup["archived"] = []
   const host = {
     records: store.records,
-    projects: vi.fn(() => ["p1", "p2"]),
-    projectOf: vi.fn((sessionId: string) => (sessionId === "s2" ? "p1" : "p1")),
-    going: vi.fn(() => false),
-    stopping: vi.fn(() => false),
-    install: vi.fn(() =>
+    projects: vi.fn<() => string[]>(() => ["p1", "p2"]),
+    projectOf: vi.fn<(sessionId: string) => string>((sessionId: string) =>
+      sessionId === "s2" ? "p1" : "p1",
+    ),
+    going: vi.fn<() => boolean>(() => false),
+    stopping: vi.fn<() => boolean>(() => false),
+    install: vi.fn<() => Promise<unknown>>(() =>
       Promise.resolve({ env: {}, home: folder, platform: process.platform, plugin: "" }),
     ),
-    connected: vi.fn(() => Promise.resolve(true)),
-    holder: vi.fn((): string | undefined => undefined),
-    terminalsIn: vi.fn((): readonly { handle: string; ledBy: string | null }[] => []),
-    drawHandle: vi.fn(() => "fox"),
-    releaseClaim: vi.fn((id: string) => void released.push(id)),
-    archive: vi.fn(
+    connected: vi.fn<() => Promise<boolean>>(() => Promise.resolve(true)),
+    holder: vi.fn<() => string | undefined>(() => undefined),
+    terminalsIn: vi.fn<() => readonly { handle: string; ledBy: string | null }[]>(() => []),
+    drawHandle: vi.fn<() => string>(() => "fox"),
+    releaseClaim: vi.fn<(id: string) => void>((id: string) => void released.push(id)),
+    archive: vi.fn<(record: Record, write: (sealed: string) => void) => void>(
       (record: Record, write: (sealed: string) => void) => void archived.push({ record, write }),
     ),
-    transcriptOf: vi.fn(() => undefined),
-    restoredAs: vi.fn((): TerminalSummary | undefined => undefined),
-    ran: vi.fn(() => true),
-    announce: vi.fn(),
-    say: vi.fn((_record: Record, text: string) => void said.push(text)),
+    transcriptOf: vi.fn<() => undefined>(() => undefined),
+    restoredAs: vi.fn<() => TerminalSummary | undefined>(() => undefined),
+    ran: vi.fn<() => boolean>(() => true),
+    announce: vi.fn<(record: Record) => void>(),
+    say: vi.fn<(record: Record, text: string) => void>(
+      (_record: Record, text: string) => void said.push(text),
+    ),
     ...over,
   } as unknown as Setup["host"]
   const history = new ClosedTerminals(host as unknown as HistoryHost, {
@@ -379,7 +383,9 @@ describe("what a row can do now", () => {
   })
 
   it("reads each agent's files once for a whole list", async () => {
-    const scan = vi.fn(() => ({ conversation: () => Promise.resolve("found" as const) }))
+    const scan = vi.fn<() => { conversation: () => Promise<"found"> }>(() => ({
+      conversation: () => Promise.resolve("found" as const),
+    }))
     vi.spyOn(harnesses.claude, "conversations").mockImplementation(scan)
     const { history, store } = setup()
     for (const id of ["a", "b", "c"]) store.rows.set(id, agentRow("claude", { id }))
@@ -388,7 +394,7 @@ describe("what a row can do now", () => {
   })
 
   it("passes the transcript the session reported to the check", async () => {
-    const conversation = vi.fn(() => Promise.resolve("found" as const))
+    const conversation = vi.fn<() => Promise<"found">>(() => Promise.resolve("found" as const))
     vi.spyOn(harnesses.claude, "conversations").mockReturnValue({ conversation })
     await state(
       agentRow("claude", {

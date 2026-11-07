@@ -600,9 +600,13 @@ export class Calls {
       .request(
         { from: caller.summary.id, terminalId: id, sessionId, action: { type: "close" } },
         (outcome) => {
-          void this.closeRequested(caller.summary.id, caller.summary.handle, closing, ran, outcome).catch(
-            () => undefined,
-          )
+          void this.closeRequested(
+            caller.summary.id,
+            caller.summary.handle,
+            closing,
+            ran,
+            outcome,
+          ).catch(() => undefined)
         },
       )
     return { ok: true, asked: true, handle, title, ...(ran !== undefined && { ran }) }

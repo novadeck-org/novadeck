@@ -297,7 +297,10 @@ export class Saves {
    * kept. Nothing is written when transcripts are off, there is no key, or it cannot be
    * masked; `finish` waits for it.
    */
-  archive(record: Pick<SavedRecord, "summary" | "terminal">, write: (sealed: string) => void): void {
+  archive(
+    record: Pick<SavedRecord, "summary" | "terminal">,
+    write: (sealed: string) => void,
+  ): void {
     const { redactor, sealer } = this.options
     if (!this.kept || !redactor || !sealer || this.host.stopped()) return
     const text = transcriptOf(record.terminal.screen, Number.POSITIVE_INFINITY)
@@ -494,11 +497,12 @@ export class Saves {
    * during a pass share it.
    */
   finish(): Promise<void> {
-    this.finishing ??= (this.archives.size === 0 ? this.last() : this.archived().then(() => this.last()))
-      .finally(() => {
-        this.finishing = undefined
-        this.pump()
-      })
+    this.finishing ??= (
+      this.archives.size === 0 ? this.last() : this.archived().then(() => this.last())
+    ).finally(() => {
+      this.finishing = undefined
+      this.pump()
+    })
     return this.finishing
   }
 

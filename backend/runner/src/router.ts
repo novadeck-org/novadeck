@@ -50,7 +50,12 @@ export const apiError = (error: unknown): unknown => {
 }
 
 // What `history.watch` reports without a History: nothing is kept, and the stream waits.
-const noHistory = async function* (signal?: AbortSignal): AsyncGenerator<HistoryChange> {
+const noHistory = {
+  list: (_projectId: string) => [],
+  watch: (_sessionId: string, signal?: AbortSignal) => noHistoryStream(signal),
+}
+
+const noHistoryStream = async function* (signal?: AbortSignal): AsyncGenerator<HistoryChange> {
   yield { type: "synced" }
   if (signal?.aborted) return
   await new Promise<void>((resolve) => signal?.addEventListener("abort", () => resolve()))
@@ -78,6 +83,7 @@ export const createRouter = (options: {
   closing: () => boolean
 }) => {
   const { store, terminals, feedback, projects, items, agents, uploads, voice, murmur } = options
+  const history = options.history ?? noHistory
   // A plan's content says whether Novadeck's plugin is installed into its agent, which the
   // companions can't know: it is looked up as the content leaves.
   const withSkill = async (content: ItemContent, agent: AgentName | undefined) =>
@@ -204,9 +210,9 @@ export const createRouter = (options: {
       }),
     },
     history: {
-      list: api.history.list.handler(({ input }) => options.history?.list(input.projectId) ?? []),
+      list: api.history.list.handler(({ input }) => history.list(input.projectId)),
       watch: api.history.watch.handler(({ context, signal }) =>
-        options.history ? options.history.watch(context.session.id, signal) : noHistory(signal),
+        history.watch(context.session.id, signal),
       ),
     },
     companions: {

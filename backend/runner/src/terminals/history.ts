@@ -155,7 +155,7 @@ const folderGone = async (path: string): Promise<boolean> => {
 }
 
 const pooled = async <T, R>(items: readonly T[], work: (item: T) => Promise<R>): Promise<R[]> => {
-  const out = new Array<R>(items.length)
+  const out = Array.from<R>({ length: items.length })
   let next = 0
   const lane = async (): Promise<void> => {
     while (next < items.length) {

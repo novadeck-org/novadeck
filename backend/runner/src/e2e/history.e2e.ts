@@ -99,9 +99,9 @@ for (const setup of setups) {
       // A conversation whose file is gone is unavailable, and a restore is refused.
       const second = await make("egret", "Egret noted.")
       await terminals.close({ terminalId: second.terminal.id })
-      const store_ = /(?:^|\/)(?:projects|sessions|conversations)\//
+      const storeFile = /(?:^|\/)(?:projects|sessions|conversations)\//
       for (const path of walk(run.sandbox.home))
-        if (store_.test(path) && path.includes(second.id))
+        if (storeFile.test(path) && path.includes(second.id))
           rmSync(join(run.sandbox.home, path), { recursive: true, force: true })
       expect((await terminals.history.list(projectId))[0]?.availability).toEqual({
         state: "gone",
