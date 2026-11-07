@@ -12,14 +12,21 @@ const created = (extra: object = {}) =>
     tool_name: "CronCreate",
     tool_use_id: "toolu_1",
     tool_input: { cron: "0 * * * *", prompt: "check", ...extra },
-    tool_response: { id: "cron-1" },
+    // As Claude Code 2.1.316 reports it (e2e/probes/cron-id.e2e.ts).
+    tool_response: {
+      id: "9284d66e",
+      recurring: true,
+      durable: false,
+      nextFireAt: 5.5e12,
+      ...extra,
+    },
   })
 
 describe("what an agent scheduled that dies with it", () => {
   it("follows a Claude Code cron from its creation to its deletion", () => {
     const record: { schedules?: never } = {}
     const add = scheduleChange(created())
-    expect(add).toMatchObject({ add: { key: "cron-1" }, sessionId: "s1" })
+    expect(add).toMatchObject({ add: { key: "9284d66e" }, sessionId: "s1" })
     trackSchedules(record as never, add!)
     expect(scheduled(record as never, "s1", 5)).toBe(true)
     // Another session of the terminal holds none of it.
@@ -28,26 +35,19 @@ describe("what an agent scheduled that dies with it", () => {
       report("claude", "PostToolUse", {
         session_id: "s1",
         tool_name: "CronDelete",
-        tool_input: { id: "cron-1" },
+        tool_input: { id: "9284d66e" },
       }),
     )
     trackSchedules(record as never, gone!)
     expect(scheduled(record as never, "s1", 5)).toBe(false)
   })
 
-  it("names a cron by its call when its result gives no id, and leaves a durable one alone", () => {
-    expect(
-      scheduleChange(
-        report("claude", "PostToolUse", {
-          session_id: "s1",
-          tool_name: "CronCreate",
-          tool_use_id: "toolu_9",
-          tool_input: {},
-          tool_response: {},
-        }),
-      ),
-    ).toMatchObject({ add: { key: "toolu_9" } })
+  it("leaves a durable cron alone, and ends a one-shot reminder when it fires", () => {
     expect(scheduleChange(created({ durable: true }))).toBeUndefined()
+    expect(scheduleChange(created({ recurring: false }))).toMatchObject({
+      add: { key: "9284d66e", until: 5.5e12 },
+    })
+    expect(scheduleChange(created())).toMatchObject({ add: { until: null } })
   })
 
   it("keeps a cron a delete it cannot match leaves standing", () => {

@@ -28,16 +28,6 @@ const trackedSeconds = 86_400
 const string = (value: unknown): string | undefined =>
   typeof value === "string" && value !== "" ? value.slice(0, 256) : undefined
 
-/** The id a cron's result or input names it by. */
-const idOf = (...sources: readonly unknown[]): string | undefined => {
-  for (const source of sources) {
-    if (!isFields(source)) continue
-    const found = string(source.id) ?? string(source.jobId) ?? string(source.cronId)
-    if (found) return found
-  }
-  return undefined
-}
-
 /** What the report says of the agent's schedules, if anything. */
 export const scheduleChange = (report: Report): ScheduleChange | undefined => {
   const { payload } = report
@@ -46,14 +36,20 @@ export const scheduleChange = (report: Report): ScheduleChange | undefined => {
     const tool = payload.tool_name
     if (!sessionId || report.event !== "PostToolUse") return undefined
     const input = isFields(payload.tool_input) ? payload.tool_input : {}
+    // Probed 2026-11-07 (2.1.316, e2e/probes/cron-id.e2e.ts): the create's `tool_response` is
+    // `{ id, recurring, durable, nextFireAt }` and the delete's `tool_input` is `{ id }`.
     if (tool === "CronCreate") {
+      const response = isFields(payload.tool_response) ? payload.tool_response : {}
+      const key = string(response.id)
       // Kept on disk and restored by a resume: nothing to lose.
-      if (input.durable === true) return undefined
-      const key = idOf(payload.tool_response) ?? string(payload.tool_use_id)
-      return key ? { add: { key, until: null }, agent: "claude", sessionId } : undefined
+      if (!key || response.durable === true || input.durable === true) return undefined
+      // A one-shot reminder is gone once it has fired.
+      const at = response.recurring === false ? response.nextFireAt : undefined
+      const until = typeof at === "number" ? Math.ceil(at) : null
+      return { add: { key, until }, agent: "claude", sessionId }
     }
     if (tool === "CronDelete") {
-      const key = idOf(input, payload.tool_response)
+      const key = string(input.id)
       return key ? { remove: key, agent: "claude", sessionId } : undefined
     }
     return undefined
