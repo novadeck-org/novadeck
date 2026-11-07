@@ -949,6 +949,11 @@ export class Terminals {
     return this.typing.prompt(input.terminalId, input.text, input.automatic, input.ref, input.along)
   }
 
+  /** Writes keys as the person's, as a chat passes them on (see `Typing.keys`). */
+  keys(input: { terminalId: string; keys: string }): void {
+    this.typing.keys(input.terminalId, input.keys)
+  }
+
   /** Takes what the agent's box holds, for the client's draft (see `Typing.takeBox`). */
   takeBox(terminalId: string): Promise<{ returned: string | null }> {
     return this.typing.takeBox(terminalId)

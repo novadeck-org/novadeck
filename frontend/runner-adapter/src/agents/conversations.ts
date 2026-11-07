@@ -52,6 +52,7 @@ export type ConversationStreams = {
     readonly returned?: string | null | undefined
   }>
   readonly interrupt: (terminalId: string) => Promise<{ readonly returned: string | null }>
+  readonly keys: (terminalId: string, keys: string) => Promise<void>
   readonly takeBox: (terminalId: string) => Promise<{ readonly returned: string | null }>
   readonly putBox: (terminalId: string, text: string) => Promise<{ readonly placed: boolean }>
   readonly clearBox: (terminalId: string, seen: string) => Promise<{ readonly cleared: boolean }>
@@ -62,6 +63,10 @@ export type RunnerConversations = Conversations & {
   // Stops reading every terminal at once.
   readonly stop: () => void
 }
+
+// How long Enter waits behind the keys before it, in milliseconds: Codex reads an Enter right
+// behind text as part of a paste, and puts a line break in its box.
+export const enterGapMs = 150
 
 // How long a terminal keeps being read after its last subscriber left, in milliseconds.
 export const graceMs = 30_000
@@ -558,6 +563,8 @@ export const createRunnerConversations = (
     return entry
   }
   const stoppers = new Map<string, () => void>()
+  // The keys on their way to each terminal, and when the last went.
+  const passing = new Map<string, { readonly done: Promise<void>; at: number }>()
 
   return {
     // The runner's terminal ids are unique, so the id alone names the terminal.
@@ -570,6 +577,23 @@ export const createRunnerConversations = (
         },
       ),
     // Nothing here is the person's to act on: words not moved stay where they are.
+    keys: ({ terminalId }, keys) => {
+      // In order, each after the one before; Enter on its own, a moment behind them.
+      const last = passing.get(terminalId) ?? { done: Promise.resolve(), at: 0 }
+      const done = last.done
+        .catch(() => {})
+        .then(async () => {
+          const wait = keys === "\r" ? last.at + enterGapMs - Date.now() : 0
+          if (wait > 0) await new Promise((resolve) => setTimeout(resolve, wait))
+          await track(streams.keys(terminalId, keys))
+          entry.at = Date.now()
+        })
+      const entry = { done, at: last.at }
+      passing.set(terminalId, entry)
+      return done.catch((error: unknown) => {
+        throw failure(error, "reach", "send")
+      })
+    },
     takeBox: ({ terminalId }) =>
       track(streams.takeBox(terminalId)).then(
         ({ returned }) => returned,

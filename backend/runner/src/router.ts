@@ -180,6 +180,7 @@ export const createRouter = (options: {
         terminals.transcript(input.terminalId, input.actor, signal),
       ),
       prompt: api.agents.prompt.handler(({ input }) => terminals.prompt(input)),
+      keys: api.agents.keys.handler(({ input }) => terminals.keys(input)),
       takeBox: api.agents.takeBox.handler(({ input }) => terminals.takeBox(input.terminalId)),
       putBox: api.agents.putBox.handler(({ input }) => terminals.putBox(input)),
       clearBox: api.agents.clearBox.handler(({ input }) => terminals.clearBox(input)),

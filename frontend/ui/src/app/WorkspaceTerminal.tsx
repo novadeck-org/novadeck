@@ -308,6 +308,9 @@ export const WorkspaceTerminal = memo(
                 focusInput={wanted}
                 onInputFocused={onInputFocused}
                 refused={conversations!.refused}
+                onPassing={(on) => commands.setChatPassing(terminalId, on)}
+                onLeftMenu={() => commands.setChatDraft(terminalId, "", chatContext)}
+                onKeys={conversations!.keys && ((keys) => conversations!.keys!(terminalKey, keys))}
               />
             </div>
           )}

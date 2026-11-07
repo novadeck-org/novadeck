@@ -129,8 +129,7 @@ export const box: BoxProfile = {
  * what is typed (probed 2.1.316 and 2.1.318, fixtures/live-slice.probe.json).
  */
 export const slice: SliceProfile = {
-  leading: ["/"],
-  words: ["@"],
+  agent: "claude",
   side: (screen) => (screen.alternate ? "above" : "below"),
   // Whole across rows, as a narrow screen wraps it.
   secret: (rows) =>

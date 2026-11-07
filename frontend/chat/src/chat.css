@@ -699,6 +699,17 @@
 .chat[data-compact] .chat-raw {
   max-height: 8em;
 }
+.chat-echo {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-block: 8px;
+}
+.chat-echo-text {
+  margin: 0;
+  font-family: var(--font-mono);
+  font-size: 12px;
+}
 .chat .chat-raw.chat-slice {
   max-height: 24em;
   background-color: var(--terminal-bg);

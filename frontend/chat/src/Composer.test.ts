@@ -30,6 +30,8 @@ const show = (
     createElement(Composer, {
       label: "Claude",
       box,
+      passing: false,
+      onPress: () => false,
       draft,
       onDraft: () => {},
       mode: composerMode(draft, null, [], true),

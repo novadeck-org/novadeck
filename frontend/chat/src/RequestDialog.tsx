@@ -461,7 +461,7 @@ const Raw = ({
   <div className="chat-dialog">
     <p className="chat-raw-reason">{reasons[dialog.reason]}</p>
     {slice?.reason === "dialog" ? (
-      <Slice slice={slice} />
+      <Slice slice={slice} live />
     ) : (
       <pre className="chat-raw nodrag nopan nowheel" tabIndex={0} aria-label="The dialog's text">
         {shownControls(dialog.text)}

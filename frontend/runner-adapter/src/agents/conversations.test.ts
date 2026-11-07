@@ -13,6 +13,7 @@ import { describe, expect, it } from "../test"
 import { channel } from "../testing/channel"
 import {
   createRunnerConversations,
+  enterGapMs,
   failuresToLoaded,
   graceMs,
   loadedMs,
@@ -67,6 +68,7 @@ const setup = () => {
   const streams = {
     detail: vi.fn<ConversationStreams["detail"]>(() => details.iterator),
     slice: vi.fn<ConversationStreams["slice"]>(() => slices.iterator),
+    keys: vi.fn<ConversationStreams["keys"]>(async () => {}),
     transcript: vi.fn<ConversationStreams["transcript"]>((_terminal, actor) => {
       const next = channel<TranscriptChange>()
       transcripts[actor] = next
@@ -723,6 +725,44 @@ describe("the runner's conversations", () => {
       details.push(detail({}))
       await settle()
       expect(store.getSnapshot().box).toBeNull()
+    })
+  })
+
+  describe("keys", () => {
+    it("writes them in order, each after the one before", async () => {
+      const { streams, conversations } = setup()
+      const seen: string[] = []
+      let release = (): void => {}
+      streams.keys.mockImplementation(async (_terminal, keys) => {
+        seen.push(keys)
+        if (keys === "/") await new Promise<void>((resolve) => (release = resolve))
+      })
+      void conversations.keys?.(key, "/")
+      void conversations.keys?.(key, "m")
+      await settle()
+      expect(seen).toEqual(["/"])
+      release()
+      await settle()
+      expect(seen).toEqual(["/", "m"])
+    })
+
+    it("holds Enter a moment behind the keys before it", async () => {
+      const { streams, conversations } = setup()
+      void conversations.keys?.(key, "/model")
+      await settle()
+      void conversations.keys?.(key, "\r")
+      await settle()
+      expect(streams.keys).toHaveBeenCalledTimes(1)
+      await vi.advanceTimersByTimeAsync(enterGapMs)
+      expect(streams.keys).toHaveBeenLastCalledWith("t", "\r")
+    })
+
+    it("goes on after a key that failed, and says so", async () => {
+      const { streams, conversations } = setup()
+      streams.keys.mockRejectedValueOnce(new Error("gone"))
+      await expect(conversations.keys?.(key, "/")).rejects.toThrow()
+      await conversations.keys?.(key, "m")
+      expect(streams.keys).toHaveBeenLastCalledWith("t", "m")
     })
   })
 

@@ -1,14 +1,13 @@
 import type { BoxProfile } from "@novadeck/tui-input/box"
 import { describe, expect, it } from "vitest"
 
-import { firstNew, opensMenu, readSlice, type SliceProfile } from "./slices.js"
+import { firstNew, readSlice, type SliceProfile } from "./slices.js"
 import { screen } from "./testing/screens.js"
 
 const rule = "─".repeat(20)
 
 const profile = (fields: Partial<SliceProfile> = {}): SliceProfile => ({
-  leading: ["/"],
-  words: ["@"],
+  agent: "claude",
   side: () => "above",
   secret: () => false,
   ...fields,
@@ -73,18 +72,6 @@ describe("firstNew", () => {
 
   it("ignores blanks, and the blanks that end rows", () => {
     expect(firstNew(["   ", "one   ", "", "two"], atRest)).toBe(4)
-  })
-})
-
-describe("opensMenu", () => {
-  it("reads a leading key only at the start, a word's key at the last word", () => {
-    const given = profile({ words: ["@", "$"] })
-    expect(opensMenu("/model", given)).toBe(true)
-    expect(opensMenu("see /model", given)).toBe(false)
-    expect(opensMenu("@src", given)).toBe(true)
-    expect(opensMenu("look at $sk", given)).toBe(true)
-    expect(opensMenu("user@host now", given)).toBe(false)
-    expect(opensMenu("", given)).toBe(false)
   })
 })
 
@@ -158,14 +145,9 @@ describe("readSlice", () => {
     expect(bounds).toEqual({ reason: "view", first: 0, last: 2 })
   })
 
-  it("reads an overlay as a view, wherever the box reads", () => {
+  it("reads an overlay as a view, wherever the box reads, before any key in it", () => {
     const covered = box({ overlay: () => true })
-    expect(read(["one", "history", "> "], atRest, { box: covered }).bounds?.reason).toBe("view")
-  })
-
-  it("asks the harness of a view its box still reads through, before any key in it", () => {
-    const given = profile({ view: () => true })
-    expect(read(["one", "> 1. pick $HOME", "esc back"], atRest, { profile: given })).toEqual({
+    expect(read(["one", "> 1. pick $HOME", "esc back"], atRest, { box: covered })).toEqual({
       bounds: { reason: "view", first: 1, last: 2 },
       resting: undefined,
     })

@@ -24,6 +24,9 @@ export const shellFooter = (rows: readonly string[]): boolean => {
   return last !== undefined && /(^|\s)Shell mode(\s|$)/.test(last.trim())
 }
 
+/** The last row it drew. */
+const lastDrawn = ({ rows }: ScreenText): string => rows.findLast((row) => row.trim() !== "") ?? ""
+
 /**
  * Whether it shows its history search (Ctrl-R: "reverse-i-search:" under its box, which
  * then takes the line as its query), its shortcuts panel (`?`: "? / esc close"), or a
@@ -33,13 +36,17 @@ export const shellFooter = (rows: readonly string[]): boolean => {
  * sandbox, 2026-10-16). Also its menus (`/model`, `/permissions`, `/config`), whose first row
  * leads with the box's marker and whose rows read as a box holding text: their hint row ends
  * "esc back", or "esc clear search/close" (probed 0.166.0, 2026-11-06, fixtures/leftover.probe.json).
+ * Its other lists end the screen in what Esc does there too, `/keymap` "esc close" and
+ * `/statusline` "esc cancel": only on the last row drawn, as `$` and `@` draw "esc close" over
+ * a box that is one (probed 0.167.0, 2026-11-06, fixtures/live-slice.probe.json). A prompt or a
+ * ring waits while any of these shows, as it would paste into the list.
  */
 const overlay = (screen: ScreenText): boolean =>
   footerRows(screen).some((row) =>
     /(^|\s)reverse-i-search:|\? \/ esc close|Side from main thread · (?:ctrl\+|\^|⌃)\/ to switch|· esc (?:back|clear search\/close)\s*$/.test(
       row,
     ),
-  )
+  ) || /\besc (to )?(back|close|cancel|clear search\/close)\s*$/.test(lastDrawn(screen))
 
 /**
  * Whether it shows a prompt given mid-turn as waiting. It draws one of two lists by when the
@@ -151,24 +158,12 @@ export const box: BoxProfile = {
 }
 
 /**
- * Whether it shows a list of its own in the box's place, whose picked row its `›` leads, as
- * the box's does: the last row it draws is that view's hint, ending in what Esc does there
- * (`/model`, `/permissions`, `/config`, `/keymap`, `/statusline`).
- */
-const viewOverBox = ({ rows }: ScreenText): boolean => {
-  const last = rows.findLast((row) => row.trim() !== "")
-  return last !== undefined && /\besc (to )?(back|close|cancel|clear)\b/.test(last)
-}
-
-/**
  * Where it draws its own: `/`, `$` and `@` above the box, a blank row between, and a view in
  * the box's place to the screen's end, the transcript moved up (probed 0.167.0,
  * fixtures/live-slice.probe.json). It asks for no secret in a session: `/logout` ends it.
  */
 export const slice: SliceProfile = {
-  leading: ["/"],
-  words: ["@", "$"],
+  agent: "codex",
   side: () => "above",
-  view: viewOverBox,
   secret: () => false,
 }

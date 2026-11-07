@@ -1,4 +1,5 @@
 import type { ScreenText } from "@novadeck/emulator/headless"
+import { opensMenu, type AgentName } from "@novadeck/protocol/harnesses"
 import { rule, type BoxProfile } from "@novadeck/tui-input/box"
 
 /**
@@ -6,14 +7,10 @@ import { rule, type BoxProfile } from "@novadeck/tui-input/box"
  * slice. The rows themselves are never read for what they mean.
  */
 export type SliceProfile = {
-  /** The keys that open a menu at the start of its box: `/`. */
-  readonly leading: readonly string[]
-  /** The keys that open a menu at the start of a word: `@`, and `$` on Codex. */
-  readonly words: readonly string[]
+  /** Which harness it is, whose keys call up its menus (`opensMenu`). */
+  readonly agent: AgentName
   /** Which side of its box it draws a menu on, on this screen. */
   readonly side: (screen: ScreenText) => "above" | "below"
-  /** Whether it shows a view of its own where its box still reads as one. */
-  readonly view?: (screen: ScreenText) => boolean
   /** Whether a view may show under a box that stays: more rows there than at rest, box empty. */
   readonly viewsUnder?: boolean
   /** Whether the rows are a prompt for a secret, as far as it can tell. */
@@ -44,13 +41,6 @@ export type SliceRead = {
 }
 
 const blank = (row: string | undefined): boolean => row === undefined || row.trim() === ""
-
-/** Whether text in the box calls up a menu of the harness's own. */
-export const opensMenu = (text: string, profile: SliceProfile): boolean => {
-  if (profile.leading.some((key) => text.startsWith(key))) return true
-  const word = text.split(/\s/).at(-1) ?? ""
-  return profile.words.some((key) => word.startsWith(key))
-}
 
 /**
  * Where something new starts in `rows`: the first row, blanks aside, that the resting rows
@@ -151,8 +141,8 @@ export const readSlice = (input: {
     read && below ? underBox(screen, read.last, reason) : wholeView(screen, rest, reason)
   if (waiting) return shown(unread ? drawn("dialog") : undefined)
   if (!read) return shown(wholeView(screen, rest, "view"))
-  if (box.overlay?.(screen) || profile.view?.(screen)) return shown(drawn("view"))
-  if (opensMenu(read.text, profile)) {
+  if (box.overlay?.(screen)) return shown(drawn("view"))
+  if (opensMenu(read.text, profile.agent)) {
     // Nothing more than its footer under the box is no menu, as after Esc kept the text.
     if (!below) return shown(overBox(screen, read.first, rest))
     return shown(under > footer ? underBox(screen, read.last, "menu") : undefined)

@@ -309,6 +309,10 @@ export type Conversations = {
   // had queued behind the turn, which the agent gave back and the chat's box takes again,
   // or null. Rejects as `send` does.
   readonly interrupt: (key: TerminalKey) => Promise<string | null>
+  // Writes keys to the agent's terminal as the person's, for what shows in `slice`: a key or
+  // an edit a call, in order. Where the backend has none, the chat keeps to its own menus' rule
+  // (`refused`). Rejects as `send` does.
+  readonly keys?: (key: TerminalKey, keys: string) => Promise<void>
   // Takes what the agent's own box holds out of it for the chat's, where it can be read whole
   // and the backend has a box: the words, or null where nothing was taken, which `box` then
   // still shows.
