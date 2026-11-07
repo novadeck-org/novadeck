@@ -1,11 +1,13 @@
 import type { AgentActivity, AgentName } from "@novadeck/protocol"
 import {
+  chainTo,
   hasChildProcess,
   hasJobUnder,
   placement,
   processKey,
   processListing,
   type Listing,
+  type Member,
   type ProcessTrees,
 } from "@novadeck/terminal/pty"
 
@@ -29,6 +31,9 @@ export const sweepMs = 60_000
  * milliseconds: its MCP servers and helpers are up by then, and nothing a turn started is.
  */
 export const baselineMs = 10_000
+
+/** The longest the terminal's screen is waited for before its agent is stopped, in milliseconds. */
+export const screenMs = 2_000
 
 /** Where an agent runs and what lives around it, as one read of the system told. */
 export type Tree = {
@@ -155,6 +160,28 @@ export const vetoOf = (facts: Facts, now: number): Veto | undefined => {
 /** Whether an agent may be stopped to rest at `now`; see `vetoOf`. */
 export const mayHibernate = (facts: Facts, now: number): boolean => vetoOf(facts, now) === undefined
 
+/**
+ * Where the agent runs, from the relay's trees of the shell and of the agent. With parents
+ * told, the wrappers between them (an npm shim) are its chain; with none, whatever the shell
+ * started beside the agent's tree counts, wrapper included.
+ */
+export const windowsTree = (
+  all: readonly Member[],
+  own: readonly Member[],
+  shell: number,
+  agent: number,
+): Tree => {
+  const chain = chainTo(all, shell, agent) ?? []
+  return {
+    placed: all.some((member) => member.pid === agent),
+    foreground: true,
+    below: new Set(
+      own.filter((member) => member.pid !== agent).map((m) => `${m.pid}:${m.startedAt}`),
+    ),
+    beside: hasJobUnder(all, shell, new Set([...own.map((member) => member.pid), ...chain])),
+  }
+}
+
 /** What hibernation reaches in the runner. */
 export type HibernationHost = {
   readonly stopping: () => boolean
@@ -170,6 +197,8 @@ export type HibernationHost = {
   /** Whether anyone reads the terminal's chat. */
   readonly detailWatched: (terminalId: string) => boolean
   readonly trees: () => ProcessTrees
+  /** Saves the terminal's screen as its transcript, as a normal save does, and waits for it. */
+  readonly save: (record: Record) => Promise<void>
   /** Ends the terminal's pty and what it started as a quit does; settles once its program ended. */
   readonly end: (record: Record) => Promise<void>
   /** The ended terminal's place in the runner is let go and its agent rests as a sleeper. */
@@ -308,12 +337,26 @@ export class Hibernation {
     record.changed = true
     record.hibernating = true
     log.info("terminals.hibernate", "Stopping an idle agent", { data: { id, agent } })
-    const ending = this.host.end(record).catch(() => undefined)
+    const ending = this.keepScreen(record).then(() => this.host.end(record).catch(() => undefined))
     this.ending.set(id, ending)
     await ending
     this.ending.delete(id)
     if (record.closed || this.host.stopping()) return
     this.host.rested(record)
+  }
+
+  /**
+   * The screen is saved with the row before the shell ends, so a wake that falls back to a
+   * plain shell shows the latest. It waits no longer than `screenMs`.
+   */
+  private async keepScreen(record: Record): Promise<void> {
+    let timer: ReturnType<typeof setTimeout> | undefined
+    const late = new Promise<void>((resolve) => {
+      timer = setTimeout(resolve, screenMs)
+      timer.unref()
+    })
+    await Promise.race([this.host.save(record).catch(() => undefined), late])
+    clearTimeout(timer)
   }
 
   /** The processes under the agent and beside it, from the system; undefined when it can't tell. */
@@ -325,14 +368,7 @@ export class Hibernation {
       const trees = this.host.trees()
       const [all, own] = await Promise.all([trees.read(shell), trees.read(agent)])
       if (!all || !own) return undefined
-      return {
-        placed: all.some((member) => member.pid === agent),
-        foreground: true,
-        below: new Set(
-          own.filter((member) => member.pid !== agent).map((m) => `${m.pid}:${m.startedAt}`),
-        ),
-        beside: hasJobUnder(all, shell, new Set(own.map((member) => member.pid))),
-      }
+      return windowsTree(all, own, shell, agent)
     }
     const rows = await this.listing()
     if (!rows) return undefined

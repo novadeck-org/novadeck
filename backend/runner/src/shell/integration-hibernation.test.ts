@@ -6,6 +6,7 @@ import { vi } from "vitest"
 
 import type { Terminals } from "../terminals/index.js"
 import { describe, expect } from "../test.js"
+import { unsealed } from "../testing/sealing.js"
 import { bash, create, fakeAgent, it, type Fixture } from "./integration.test-support.js"
 
 type Options = {
@@ -147,6 +148,17 @@ describe.skipIf(process.platform === "win32" || !existsSync(bash))(
         timeout: 15_000,
       })
       await shell.until(manager, id, "claude args: --resume hib-session-1")
+    })
+
+    it("saves its last screen with the row before the agent is stopped", async ({ shell }) => {
+      const bin = standIn(shell.home, "hib-session-9")
+      const manager = hibernating(shell, bin)
+      const id = await started(shell, manager)
+      await vi.waitFor(() => expect(listed(manager, shell, id)?.sleeping).toBe(true), {
+        timeout: 15_000,
+      })
+      // Saved on the screen of the running agent, not of the shell left after it.
+      expect(unsealed(shell.store.terminal(id)?.transcript, id)).toContain("hib-agent reported")
     })
 
     it("does not announce an exit while it stops, nor list the terminal as gone", async ({

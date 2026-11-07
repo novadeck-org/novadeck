@@ -296,6 +296,18 @@ export class Saves {
     this.save(record, true)
   }
 
+  /**
+   * Saves the record's screen as its transcript now, and waits until it is written: for a
+   * terminal whose screen is about to go. Nothing where transcripts are off or the key is
+   * not there; whatever fails keeps the last copy.
+   */
+  async saveNow(record: SavedRecord): Promise<void> {
+    if (!this.kept || !this.key || !this.options.records || !this.options.redactor) return
+    if (record.closed || this.unopened.has(record.summary.id)) return
+    const job = this.take(record, true)
+    this.settle(job, await this.redact(job))
+  }
+
   /** Saves a terminal's restoring state alone, leaving its transcript as it is; whether it was saved. */
   private saveRow(record: SavedRecord): boolean {
     // A closed terminal is forgotten for good: work still suspended for it, as an agent's

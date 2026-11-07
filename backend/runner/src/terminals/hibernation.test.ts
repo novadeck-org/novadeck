@@ -1,7 +1,7 @@
 import type { AgentActivity } from "@novadeck/protocol"
 
 import { describe, expect, it } from "../test.js"
-import { mayHibernate, vetoOf, type Facts, type Veto } from "./hibernation.js"
+import { mayHibernate, vetoOf, windowsTree, type Facts, type Veto } from "./hibernation.js"
 
 const minute = 60_000
 const now = 10_000_000
@@ -144,5 +144,43 @@ describe("when an agent may be stopped to rest", () => {
     expect(vetoOf(but({ draft: true, stamps: { ...quiet().stamps, turn: now } }), now)).toBe(
       "draft",
     )
+  })
+})
+
+describe("an agent's place in a Windows terminal's tree", () => {
+  const member = (pid: number, name: string, parent?: number) => ({
+    pid,
+    startedAt: 1,
+    name,
+    ...(parent !== undefined && { parent }),
+  })
+  // pwsh, codex.cmd's cmd.exe and node.exe, then codex.exe with a tool under it.
+  const wrapped = [
+    member(10, "pwsh.exe", 1),
+    member(11, "cmd.exe", 10),
+    member(12, "node.exe", 11),
+    member(13, "codex.exe", 12),
+    member(14, "rg.exe", 13),
+  ]
+  const under = wrapped.filter((one) => one.pid >= 13)
+
+  it("counts the wrappers between the shell and the agent as its chain, not a job", () => {
+    const tree = windowsTree(wrapped, under, 10, 13)
+    expect(tree).toMatchObject({ placed: true, foreground: true, beside: false })
+    expect([...tree.below]).toEqual(["14:1"])
+  })
+
+  it("still finds a job the shell started beside the wrapper", () => {
+    const job = [...wrapped, member(30, "node.exe", 10)]
+    expect(windowsTree(job, under, 10, 13).beside).toBe(true)
+  })
+
+  it("stays conservative where no parent is told: a wrapper counts as a job", () => {
+    const bare = wrapped.map(({ parent: _parent, ...rest }) => rest)
+    expect(windowsTree(bare, under, 10, 13).beside).toBe(true)
+  })
+
+  it("is not placed where the agent is not in the shell's tree", () => {
+    expect(windowsTree(wrapped.slice(0, 3), under, 10, 13).placed).toBe(false)
   })
 })

@@ -541,6 +541,7 @@ export class Terminals {
         sleepers: () => this.sleepers,
         detailWatched: (id) => this.streams.detailWatched(id),
         trees: () => this.trees,
+        save: (record) => this.saves.saveNow(record),
         end: (record) => this.terminate(record),
         // The shell of an agent stopped to rest has ended: its record is let go at once, not
         // drained as a close's or retained as an exit's, and its terminal rests as a sleeper.

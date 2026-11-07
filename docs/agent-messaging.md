@@ -1450,8 +1450,12 @@ go at once (a drained id would answer CONFLICT, which the adapter reads as succe
 if the terminal was not closed meanwhile, does it rest and one `changed` tell watchers it
 sleeps, so a wake cannot meet the old record.
 
-On Windows the relay's tree names no parents, so a wrapper between the shell and the agent (an
-npm shim) counts as something the shell started beside it: such an agent stays awake.
+On Windows the relay's tree names each process's parent, so a wrapper between the shell and the
+agent (an npm shim, `codex.cmd`) is part of the agent's chain, not a job; where a parent is not
+told, the wrapper counts as something the shell started beside the agent, and that agent stays awake.
+
+Before the agent is stopped its screen is saved as the transcript (`Saves.saveNow`, waited for at
+most two seconds), so a wake that falls back to a plain shell shows the latest screen.
 
 ### The lead's messages mid-turn
 
