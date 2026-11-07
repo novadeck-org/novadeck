@@ -99,10 +99,8 @@ export type RunnerApi = Pick<
   | "murmur"
   | "settings"
   | "companions"
-> & {
-  // A runner of an earlier build has no History.
-  readonly history?: Runner["history"]
-}
+  | "history"
+>
 
 export type RunnerBackendOptions = {
   readonly newId?: () => string
@@ -1220,7 +1218,7 @@ export const runnerBackend = (
   // Murmur, followed the same way.
   const murmur = createRunnerMurmur(runner.murmur, track)
   // History, followed the same way.
-  const history = runner.history && createRunnerHistory(runner.history, track)
+  const history = createRunnerHistory(runner.history, track)
   let following = false
   // Follows a terminal's messages once the runner has it: it answers "not found" before
   // then. Called whenever a shell is created or started afresh.
@@ -1564,7 +1562,7 @@ export const runnerBackend = (
     for (const entry of entries.values()) if (!entry.closed) followWhenReady(entry)
     voice.follow()
     murmur.follow()
-    history?.follow()
+    history.follow()
     inbox.follow()
     window.addEventListener("pagehide", flush)
     // The app waits for these saves, removals and closes before a close or quit can end
@@ -1588,7 +1586,7 @@ export const runnerBackend = (
       inbox.end()
       voice.stop()
       murmur.stop()
-      history?.stop()
+      history.stop()
       // The last changes are saved; nothing retries after this.
       flush()
       halted = true
@@ -1678,7 +1676,7 @@ export const runnerBackend = (
         }),
       ),
     source: createRunnerSource(runner.projects),
-    ...(history ? { history: history.history } : {}),
+    history: history.history,
     resetTitle: (key) => {
       const { terminalId } = key
       if (items.holdsWindow(target(key), terminalId))

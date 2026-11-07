@@ -64,4 +64,11 @@ describe("the demo's History", () => {
       })
     })
   })
+
+  it("keeps every agent restorable until the debug panel says otherwise", () => {
+    const { history } = createDemoHistory(now)
+    expect(history.isRestorable("01")).toBe(true)
+    history.setRestorable("01", false)
+    expect(history.isRestorable("01")).toBe(false)
+  })
 })

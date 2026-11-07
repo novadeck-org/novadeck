@@ -94,7 +94,7 @@ describe("The History panel", () => {
       await expect.element(gone).toHaveAttribute("aria-disabled", "true")
       await expect
         .element(gone)
-        .toHaveAccessibleDescription(/Claude Code deleted this conversation/)
+        .toHaveAccessibleDescription(/Claude Code no longer has this conversation/)
       await expect
         .element(closed().getByRole("button", { name: "Image CDN, unavailable" }))
         .toHaveAccessibleDescription(/folder it ran in is gone/)
@@ -113,6 +113,8 @@ describe("The History panel", () => {
       await expect.element(plug).toHaveFocus()
       await userEvent.keyboard("{Enter}")
       await expect.element(page.getByRole("dialog", { name: /Preferences/ })).toBeVisible()
+      // At that agent's own switch, in the Agents section.
+      await expect.element(page.getByRole("switch", { name: "Codex" })).toHaveFocus()
     })
 
     it("says an agent that isn't installed can't be connected, and offers nothing", async () => {

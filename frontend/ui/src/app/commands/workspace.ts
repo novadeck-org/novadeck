@@ -580,8 +580,9 @@ export const createWorkspaceCommands = (ctx: CommandContext): WorkspaceCommands 
         if (found) return reveal(found.id)
       }
     },
-    openAgentSettings: () => {
+    openAgentSettings: (agent) => {
       recent.setSwitcher(null)
+      ui.update((state) => ({ ...state, agentFocus: agent }))
       go({ dialog: "preferences", section: "general" })
     },
     reveal,

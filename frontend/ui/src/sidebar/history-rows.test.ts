@@ -101,7 +101,7 @@ describe("History's rows", () => {
       expect(gone("conversation")).toMatchObject({
         inert: true,
         end: { text: "Unavailable" },
-        reason: "Claude Code deleted this conversation",
+        reason: "Claude Code no longer has this conversation",
       })
       expect(gone("folder").reason).toBe("The folder it ran in is gone")
     })
@@ -219,7 +219,7 @@ describe("History's rows", () => {
         availability: { state: "gone", reason: "conversation" },
       })
       const lines = rowTooltip(closed, rowView(closed, now, undefined), now).split("\n")
-      expect(lines[0]).toBe("Claude Code deleted this conversation")
+      expect(lines[0]).toBe("Claude Code no longer has this conversation")
       expect(lines[1]).toBe("Coupon codes, closed by @fox")
       expect(lines[2]).toMatch(/^Closed .*40/)
       expect(lines[3]).toBe("Coupon codes in the cart and at checkout")

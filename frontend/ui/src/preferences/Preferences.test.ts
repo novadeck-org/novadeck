@@ -154,3 +154,25 @@ describe("the Appearance tab", () => {
     expect(panel()?.textContent).toContain("Theme's bell (Afterglow)")
   })
 })
+
+describe("coming from a row that needs an agent connected", () => {
+  it("brings that agent's switch into view and focuses it, once", async () => {
+    let done = 0
+    const agent = (name: "claude" | "codex") => ({
+      agent: name,
+      available: true,
+      connected: false,
+      busy: false,
+    })
+    await show({
+      tab: "general",
+      agents: { list: [agent("claude"), agent("codex")], onChange: () => {} },
+      focusAgent: "codex",
+      onFocusedAgent: () => done++,
+    })
+    for (let frame = 0; frame < 8; frame++) await nextFrame()
+
+    expect(document.activeElement?.getAttribute("aria-labelledby")).toBe("agent-codex")
+    expect(done).toBe(1)
+  })
+})

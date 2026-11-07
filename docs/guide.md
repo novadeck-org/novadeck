@@ -400,7 +400,8 @@ answers leaves the project there, and it comes back.
 
 Closing a terminal doesn't end it for good. It moves to **History**, a panel on the
 sidebar's rail after Sessions, with one list per project, newest first. A terminal comes
-back for 30 days; after that its row goes by itself. A rail order you saved before History
+back for 30 days; after that its row goes by itself. Closing a terminal no longer always
+asks (see "Closing asks first" below), because what it loses can be got back from here. A rail order you saved before History
 existed puts its toggle at the end. There is no button to delete one.
 Where a backend keeps no History, as in a browser demo without it, the panel isn't there
 and closing is final.
@@ -427,11 +428,11 @@ no opener, no taskbar items, messages or asks, and keeps its handle unless anoth
 terminal took it. Closing it adds a new row with a new date.
 
 A row that can't be restored is hatched and says why in its tooltip, and to assistive
-technology. Two other states stand where the date was:
+technology. Four other states stand where the date was:
 
-- **Unavailable.** The agent deleted the conversation, or the folder is gone.
-- **Not connected.** The agent isn't connected. The plug icon opens Preferences, where
-  the agents' switches are; it isn't offered for an agent that isn't installed or while
+- **Unavailable.** The agent no longer has the conversation, or the folder is gone.
+- **Not connected.** The agent isn't connected. The plug icon opens Preferences at that
+  agent's switch; it isn't offered for an agent that isn't installed or while
   its connection changes.
 - **An @handle** (not hatched). The conversation is open in another terminal; clicking
   goes there.
@@ -439,7 +440,8 @@ technology. Two other states stand where the date was:
 
 ### Closing asks first
 
-Novadeck asks before closing a terminal only when closing loses something you can't get
+Closing no longer always asks, because a closed terminal stays listed in History for 30
+days. Novadeck asks before closing a terminal only when closing loses something you can't get
 back from History: a program is running in its shell (on Windows too), its agent is in
 the middle of a turn, or it can't be restored, such as a running agent with no session yet
 or one that isn't connected. An agent waiting at its prompt that can be restored closes
@@ -510,7 +512,9 @@ agent.
   hidden or not; the others start when their session is shown.
 - **Transcripts.** Each terminal's recent output is kept, and a restored terminal shows
   it read-only above a separator and its fresh prompt (on Windows, scrolled up just above
-  a fresh screen); a resumed agent shows its own history instead. Transcripts are on by default and can be turned off in Preferences,
+  a fresh screen); a resumed agent shows its own history instead. A closed plain terminal's
+  output is kept for the 30 days its row stays in History; an agent's row keeps none.
+  Transcripts are on by default and can be turned off in Preferences,
   which also forgets the saved ones. A changed terminal's transcript is saved about every
   30 seconds, and when its shell exits or restarts. What looks like a secret (a known
   token prefix, a value named like a secret, a key, a long key-like run) is masked before

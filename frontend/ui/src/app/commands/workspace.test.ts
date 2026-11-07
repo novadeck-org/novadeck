@@ -362,6 +362,13 @@ describe("workspace commands", () => {
       expect(app.state().roster.terminals.map((item) => item.id)).not.toContain("01")
     })
 
+    it("remembers which agent's switch Preferences should show, when a plug opens it", () => {
+      const app = asBackendSays({ state: "idle" })
+      app.commands.openAgentSettings("codex")
+      expect(app.ui.getSnapshot().agentFocus).toBe("codex")
+      expect(app.ui.getSnapshot().location.route.dialog).toBe("preferences")
+    })
+
     it("does not take an agent that ran and left for one that runs", () => {
       const app = asBackendSays({ state: "idle", agentRan: true })
       app.commands.close("01")

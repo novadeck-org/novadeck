@@ -19,6 +19,12 @@ import { channel } from "./channel"
 
 // Test support: a runner adapter over a runner the test scripts step by step.
 
+// A runner whose History holds nothing and never changes.
+export const noHistory = {
+  list: async () => [],
+  watch: () => channel<never>().iterator,
+}
+
 // A runner whose terminals' companions hold nothing and never change.
 export const noCompanions = {
   watch: () => channel<never>().iterator,
@@ -224,6 +230,7 @@ export const scripted = ({
       restart: note("restart", restart),
       attach: () => new Promise(() => {}),
     },
+    history: noHistory,
     feedback: {
       watch: () => {
         const next = channel<FeedbackDraft[]>()

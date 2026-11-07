@@ -150,8 +150,23 @@ const rowsOf = (projectId: string, samples: readonly Sample[], now: number): Clo
   }))
 }
 
+// What the debug panel changes: the demo's agents are all restorable, so this is the way to
+// see the close question for one that can't be (no session yet, or not connected).
+export type DemoHistoryControl = {
+  readonly setRestorable: (terminalId: string, restorable: boolean) => void
+  readonly isRestorable: (terminalId: string) => boolean
+  // Called whenever a terminal's restorable state changes by `setRestorable`.
+  readonly onRestorable: (listener: () => void) => void
+}
+
+// Whether a backend's History is the demo's, which the debug panel changes.
+export const isDemoHistory = (
+  history: Backend["history"],
+): history is NonNullable<Backend["history"]> & DemoHistoryControl =>
+  history !== undefined && "setRestorable" in history
+
 export type DemoHistory = {
-  readonly history: NonNullable<Backend["history"]>
+  readonly history: NonNullable<Backend["history"]> & DemoHistoryControl
   // Takes the row a terminal is restored from: it shows as restoring, then goes.
   readonly restore: (id: string) => ClosedTerminal | undefined
   // Keeps a terminal the person closed as the newest row of its project.
@@ -176,8 +191,19 @@ export const createDemoHistory = (now: number, withSamples = true): DemoHistory 
     timers.add(timer)
   }
   let kept = 0
+  const unrestorable = new Set<string>()
+  let restorableChanged = (): void => {}
   return {
     history: {
+      setRestorable: (terminalId, restorable) => {
+        if (restorable) unrestorable.delete(terminalId)
+        else unrestorable.add(terminalId)
+        restorableChanged()
+      },
+      isRestorable: (terminalId) => !unrestorable.has(terminalId),
+      onRestorable: (listener) => {
+        restorableChanged = listener
+      },
       state,
       list: (projectId) =>
         Promise.resolve(state.getSnapshot().rows.filter((row) => row.projectId === projectId)),
@@ -222,10 +248,13 @@ export const createDemoHistory = (now: number, withSamples = true): DemoHistory 
 
 // What a terminal says of closing it, as the runner does: a program runs in the shell (an
 // agent counts), or its agent can resume. Both are false once nothing runs.
-const closingFacts = (terminal: TerminalMetadata): { busy: boolean; restorable: boolean } =>
+const closingFacts = (
+  terminal: TerminalMetadata,
+  restorable: boolean,
+): { busy: boolean; restorable: boolean } =>
   terminal.state === "running"
     ? terminal.agent
-      ? { busy: true, restorable: true }
+      ? { busy: true, restorable }
       : { busy: true, restorable: false }
     : { busy: false, restorable: false }
 
@@ -246,7 +275,7 @@ export const withHistory = (backend: Backend, history = createDemoHistory(Date.n
     if (!latest || !sink) return
     const updates: BackendAction[] = []
     for (const { key, terminal } of terminalsOf(latest)) {
-      const facts = closingFacts(terminal)
+      const facts = closingFacts(terminal, history.history.isRestorable(key.terminalId))
       if (
         (terminal.busy ?? false) === facts.busy &&
         (terminal.restorable ?? false) === facts.restorable
@@ -264,6 +293,7 @@ export const withHistory = (backend: Backend, history = createDemoHistory(Date.n
     }
     if (updates.length) sink.dispatch(updates)
   }
+  history.history.onRestorable(() => queueMicrotask(settle))
   return {
     ...backend,
     history: history.history,

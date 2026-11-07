@@ -1,4 +1,5 @@
 import { MURMUR_NAME } from "@novadeck/core/addons/murmur"
+import type { AgentName } from "@novadeck/core/harnesses"
 import type { NoticeSound } from "@novadeck/core/sounds"
 import { viewModes } from "@novadeck/core/state"
 import type { PreferencesValue } from "@novadeck/core/types"
@@ -10,7 +11,7 @@ import { Switch } from "@novadeck/toolkit/Switch"
 import { Tabs, TabList, Tab, TabPanel } from "@novadeck/toolkit/Tabs"
 import { views } from "@novadeck/toolkit/views"
 import { X } from "lucide-react"
-import { useRef, useState, type ReactNode } from "react"
+import { useEffect, useRef, useState, type ReactNode } from "react"
 
 import { shortcutGroups } from "../interaction/keymap"
 import { currentPlatform } from "../interaction/shortcuts"
@@ -44,6 +45,13 @@ const sectionTitleClasses = "section-label m-0 text-label font-medium"
 const sectionDescriptionClasses = "settings-description m-0 mt-1.5 text-control leading-5"
 const panelClasses =
   "preferences-panel col-start-1 row-start-1 flex flex-col gap-6 px-6 py-5 data-[state=open]:visible data-[state=open]:opacity-100 data-[state=closed]:invisible data-[state=closed]:pointer-events-none data-[state=closed]:opacity-0 max-[480px]:px-4"
+
+// The switch of an agent in the Agents section, where the page has it.
+const agentSwitch = (agent: AgentName): HTMLElement | null =>
+  document
+    .getElementById(`agent-${agent}`)
+    ?.closest("li")
+    ?.querySelector<HTMLElement>("[role=switch]") ?? null
 
 // A titled group of settings; the title names the region unless a label is given.
 const Section = ({
@@ -102,6 +110,8 @@ export const Preferences = ({
   onExitComplete,
   tab,
   onTabChange,
+  focusAgent = null,
+  onFocusedAgent,
   transcripts,
   agents,
   voice,
@@ -118,6 +128,10 @@ export const Preferences = ({
   open: boolean
   tab: PreferencesTab
   onTabChange: (tab: PreferencesTab) => void
+  // An agent whose switch to bring into view and focus once the dialog is open, where the
+  // person came from a row that needs it connected; `onFocusedAgent` says it was done.
+  focusAgent?: AgentName | null
+  onFocusedAgent?: () => void
   value: PreferencesValue
   onChange: (value: PreferencesValue) => void
   onClose: () => void
@@ -162,6 +176,38 @@ export const Preferences = ({
   uninstall?: UninstallValue
 }): React.JSX.Element => {
   const dialog = useRef<HTMLDivElement>(null)
+  const hasAgents = agents !== undefined
+  const focused = useRef(onFocusedAgent)
+  focused.current = onFocusedAgent
+  useEffect(() => {
+    if (!open || !focusAgent) return undefined
+    if (!hasAgents) {
+      focused.current?.()
+      return undefined
+    }
+    // The dialog's content mounts, and the dialog takes focus for itself, a moment after it
+    // opens: take it from there once the switch is on the page, and again while it settles.
+    let frame = 0
+    let tries = 0
+    let held = 0
+    const focusSwitch = (): void => {
+      const found = agentSwitch(focusAgent)
+      if (!found) {
+        if (++tries < 30) frame = requestAnimationFrame(focusSwitch)
+        else focused.current?.()
+        return
+      }
+      if (document.activeElement !== found) {
+        found.scrollIntoView?.({ block: "center" })
+        found.focus()
+        held = 0
+      } else held += 1
+      if (held < 3) frame = requestAnimationFrame(focusSwitch)
+      else focused.current?.()
+    }
+    frame = requestAnimationFrame(focusSwitch)
+    return () => cancelAnimationFrame(frame)
+  }, [open, focusAgent, hasAgents])
   const panels = useRef<HTMLDivElement>(null)
   const [openSelect, setOpenSelect] = useState<string | null>(null)
   const changeTab = (next: string): void => {

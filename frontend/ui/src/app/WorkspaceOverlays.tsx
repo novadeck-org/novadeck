@@ -262,11 +262,12 @@ export const WorkspaceOverlays = memo((): React.JSX.Element => {
     (workspace) => orderedTiles(currentState(workspace).roster),
     sameItems,
   )
-  const { dialog, section, preferences, switcher } = useUiState(
+  const { dialog, section, preferences, switcher, agentFocus } = useUiState(
     (state) => ({
       dialog: state.location.route.dialog,
       section: state.location.route.section,
       preferences: state.preferences,
+      agentFocus: state.agentFocus,
       switcher: visibleSwitcher(state.recent.switcher, context, state.location.route.dialog),
     }),
     shallowEqual,
@@ -349,6 +350,8 @@ export const WorkspaceOverlays = memo((): React.JSX.Element => {
           open={settings}
           value={preferences}
           tab={section}
+          focusAgent={agentFocus}
+          onFocusedAgent={() => ui.update((state) => ({ ...state, agentFocus: null }))}
           onTabChange={(next) => go({ section: next })}
           onChange={updatePreferences}
           onClose={closeDialog}

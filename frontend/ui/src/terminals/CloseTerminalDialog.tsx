@@ -20,6 +20,16 @@ const sentences = (terminal: TerminalMetadata): Readonly<Record<CloseReason, str
   unrestorable: "It can't be restored from History once it is closed.",
 })
 
+// What the dialog says, from the terminal as it is now: an agent's turn may end, or a program
+// exit, while the question is up, and then nothing is left to lose.
+export const closeDescription = (terminal: TerminalMetadata, keepsHistory: boolean): string => {
+  const reasons = closeReasons(terminal, keepsHistory)
+  if (reasons.length > 0) return reasons.map((reason) => sentences(terminal)[reason]).join(" ")
+  return keepsHistory
+    ? "Nothing in it is running now. It stays in History, so it can be restored."
+    : sentences(terminal).program
+}
+
 // Asks before closing a terminal that would lose something: a program still running in it,
 // or, where History keeps closed terminals, an agent mid-turn or one that can't be restored.
 // Cancel is focused first, as the safe choice; Escape and a click outside cancel too.
@@ -35,11 +45,7 @@ export const CloseTerminalDialog = ({
     title={(shown) =>
       `Close ${shown.handle ? `${handleText(shown.handle)} · ` : ""}“${shown.name}”?`
     }
-    description={(shown) =>
-      closeReasons(shown, keepsHistory)
-        .map((reason) => sentences(shown)[reason])
-        .join(" ") || sentences(shown).program
-    }
+    description={(shown) => closeDescription(shown, keepsHistory)}
     confirmLabel="Close terminal"
     cancelLabel="Cancel"
     onConfirm={onConfirm}

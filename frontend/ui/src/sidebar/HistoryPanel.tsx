@@ -169,19 +169,25 @@ export const HistoryPanel = ({
   // Rows say when they closed against the day it is, which is read when the panel opens.
   const [now, setNow] = useState(() => Date.now())
   // The rows are read when the panel opens, so what the runner checked is what shows.
+  // And again when the window is looked at, as another window may have changed what a row needs.
   useEffect(() => {
     if (!active) return
     let current = true
-    list().then(
-      () => {
-        if (!current) return
-        setNow(Date.now())
-        setFailed(false)
-      },
-      () => current && setFailed(true),
-    )
+    const read = (): void => {
+      list().then(
+        () => {
+          if (!current) return
+          setNow(Date.now())
+          setFailed(false)
+        },
+        () => current && setFailed(true),
+      )
+    }
+    read()
+    window.addEventListener("focus", read)
     return () => {
       current = false
+      window.removeEventListener("focus", read)
     }
   }, [active, list])
   const matches = rows.filter((row) => rowMatches(row, typed))

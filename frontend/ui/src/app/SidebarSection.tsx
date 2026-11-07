@@ -128,7 +128,13 @@ export const SidebarSection = memo((): React.JSX.Element => {
     backend.agents?.state.subscribe ?? always,
     () => backend.agents?.state.getSnapshot() ?? noAgents,
   )
-  const readHistory = useCallback(() => historyFeed!.list(projectId), [historyFeed, projectId])
+  // Reading the rows also looks at which agents are connected again: another window may
+  // have connected one since, and the runner says nothing of it.
+  const refreshAgents = backend.agents?.refresh
+  const readHistory = useCallback(() => {
+    refreshAgents?.()
+    return historyFeed!.list(projectId)
+  }, [historyFeed, projectId, refreshAgents])
   const history = useMemo(
     () =>
       historyFeed

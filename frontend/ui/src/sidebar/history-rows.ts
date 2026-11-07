@@ -126,7 +126,7 @@ export const rowView = (
         end: { kind: "word", text: "Unavailable" },
         reason:
           availability.reason === "conversation"
-            ? `${agentName(row.agent)} deleted this conversation`
+            ? `${agentName(row.agent)} no longer has this conversation`
             : "The folder it ran in is gone",
         connect: undefined,
       }
