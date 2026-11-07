@@ -61,6 +61,9 @@ export const historyHost = (parts: HistoryParts): HistoryHost => ({
   transcriptOf: (agent, sessionId) =>
     [...parts.records.values()].find((record) => record.agents[agent]?.sessionId === sessionId)
       ?.agents[agent]?.transcript,
+  restoredHandle: (row) =>
+    [...parts.records.values()].find((record) => !record.closed && record.restoredFrom === row)
+      ?.summary.handle,
   restoredAs: (terminalId, row) => {
     const record = parts.records.get(terminalId)
     return record && !record.closed && record.restoredFrom === row ? summaryOf(record) : undefined

@@ -70,7 +70,7 @@ describe("telling the person above the prompt", () => {
   it("leaves the prompt as it was, under the note, with the cursor after it", async () => {
     const screen = createScreen({ cols: 40, rows: 6, scrollback: 100 })
     await drawn(screen, "one\r\n$ ")
-    await drawn(screen, noteAbove("Claude Code wasn't resumed.", screen))
+    await drawn(screen, noteAbove("Claude Code wasn't resumed.", screen)!)
     expect(rows(screen)).toEqual(["one", "Claude Code wasn't resumed.", "$ "])
     expect([screen.buffer.active.cursorY, screen.buffer.active.cursorX]).toEqual([2, 2])
   })
@@ -78,15 +78,26 @@ describe("telling the person above the prompt", () => {
   it("scrolls once where the prompt is on the screen's last row, losing nothing", async () => {
     const screen = createScreen({ cols: 40, rows: 3, scrollback: 100 })
     await drawn(screen, "one\r\ntwo\r\n$ ")
-    await drawn(screen, noteAbove("Not resumed.", screen))
+    await drawn(screen, noteAbove("Not resumed.", screen)!)
     expect(rows(screen)).toEqual(["one", "two", "Not resumed.", "$ "])
     expect([screen.buffer.active.cursorY, screen.buffer.active.cursorX]).toEqual([2, 2])
+  })
+
+  it("draws nothing on the alternate screen, where a program repaints", async () => {
+    const screen = createScreen({ cols: 40, rows: 6, scrollback: 100 })
+    await drawn(screen, "\x1b[?1049h\x1b[3;3Hui")
+    expect(noteAbove("Not resumed.", screen)).toBeNull()
+  })
+
+  it("is the note on a line of its own, for a pseudoconsole that scrolls it in", () => {
+    const screen = createScreen({ cols: 40, rows: 6, scrollback: 100 })
+    expect(noteAbove("Not resumed.", screen, true)).toBe("\x1b[0;2mNot resumed.\x1b[0m\r\n")
   })
 
   it("makes room for a note that wraps", async () => {
     const screen = createScreen({ cols: 10, rows: 6, scrollback: 100 })
     await drawn(screen, "$ ")
-    await drawn(screen, noteAbove("a".repeat(15), screen))
+    await drawn(screen, noteAbove("a".repeat(15), screen)!)
     expect(rows(screen)).toEqual(["aaaaaaaaaa", "aaaaa", "$ "])
   })
 })

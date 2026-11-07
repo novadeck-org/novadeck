@@ -47,7 +47,12 @@ export const showRestored = (
 export const noteAbove = (
   note: string,
   screen: Pick<Screen, "buffer" | "rows" | "cols">,
-): string => {
+  scrolled = false,
+): string | null => {
+  // A program owns the alternate screen and repaints it: a line inserted there is overwritten.
+  if (screen.buffer.active.type === "alternate") return null
+  // A Windows pseudoconsole takes its draws into the scrollback, as a replay does.
+  if (scrolled) return `${dim(note)}\r\n`
   const { cursorX: x, cursorY: y } = screen.buffer.active
   const lines = Math.max(1, Math.ceil(note.length / screen.cols))
   // Room below the prompt for the lines the note takes: else the screen scrolls up first.
@@ -61,15 +66,17 @@ export const noteAbove = (
 
 /**
  * Tells the person `note` in a terminal that is open: above its prompt, drawn and sent to
- * every window that shows it. A failure is logged and goes no further.
+ * every window that shows it; nothing on the alternate screen, where a program draws. A failure is logged and goes no further.
  */
 export const showNote = (
-  terminal: { print(what: (screen: Screen) => string): Promise<void> },
+  terminal: {
+    print(what: (screen: Screen, scrolled: boolean) => string | null): Promise<void>
+  },
   note: string,
   terminalId: string,
 ): Promise<void> =>
   terminal
-    .print((screen) => noteAbove(note, screen))
+    .print((screen, scrolled) => noteAbove(note, screen, scrolled))
     .catch((error: unknown) =>
       log.warn("terminals.replay-failed", "Novadeck could not show a terminal's earlier screen", {
         data: { terminalId },

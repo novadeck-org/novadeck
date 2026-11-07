@@ -196,9 +196,11 @@ export type Terminal = {
   /**
    * Draws `text` on the screen behind the draws queued before it, as the terminal's own
    * output: attached windows see it too, as they do not a replay. A function chooses the
-   * text from the screen as it stands then, in the same step.
+   * text from the screen as it stands then, in the same step, or null to draw nothing;
+   * `scrolled` says the platform is a Windows pseudoconsole, which takes the draw into the
+   * scrollback as a replay does, for the cursor moves of a live screen are not its own.
    */
-  print(text: string | ((screen: Screen) => string)): Promise<void>
+  print(text: string | ((screen: Screen, scrolled: boolean) => string | null)): Promise<void>
   /**
    * Resizes the pty now, and the screen once the draws queued before are on it. While a
    * hold is in force, the latest size from `owner` waits until it settles.
@@ -746,7 +748,9 @@ export const createTerminal = (options: TerminalOptions): HostedTerminal => {
     replay: (text, separator) => enqueue(() => replayOn(run.screen, text, separator, conpty)),
     print: (what) =>
       enqueue(async () => {
-        const text = typeof what === "string" ? what : what(run.screen)
+        const text = typeof what === "string" ? what : what(run.screen, conpty)
+        if (!text) return
+        if (conpty) return replayOn(run.screen, text, undefined, conpty)
         await written(run.screen, text)
         fire("drawn")
         emitOutput(text)

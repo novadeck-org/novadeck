@@ -625,6 +625,22 @@ describe("a terminal's restart", () => {
 })
 
 describe("a terminal's events", () => {
+  it("draw nothing for a print that chooses none", async () => {
+    const { terminal } = terminalOf()
+    const attachment = terminal.attach("viewer", { mode: "observe" })
+    await terminal.print(() => null)
+    await terminal.print("x")
+    const events = await drain(terminal, "viewer", attachment, 2)
+    expect(events.map((event) => event.type)).toEqual(["snapshot", "output"])
+  })
+
+  it("scroll a print in on a Windows pseudoconsole, as a replay", async () => {
+    const { terminal } = terminalOf({ platform: "win32" })
+    const seen: boolean[] = []
+    await terminal.print((_screen, scrolled) => (seen.push(scrolled), "noted\r\n"))
+    expect(seen).toEqual([true])
+  })
+
   it("carry what is printed, which a replay's draw does not", async () => {
     const { terminal } = terminalOf()
     const attachment = terminal.attach("viewer", { mode: "observe" })

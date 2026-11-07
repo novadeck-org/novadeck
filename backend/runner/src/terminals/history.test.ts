@@ -144,6 +144,7 @@ const setup = (
         void archived.push({ record, write, settled }),
     ),
     transcriptOf: vi.fn<() => undefined>(() => undefined),
+    restoredHandle: vi.fn<() => string | undefined>(() => undefined),
     restoredAs: vi.fn<() => TerminalSummary | undefined>(() => undefined),
     ran: vi.fn<() => boolean>(() => true),
     announce: vi.fn<(record: Record) => void>(),
@@ -348,6 +349,33 @@ describe("keeping a terminal as it closes", () => {
     )
     expect(store.rows.get("t-1")?.transcript).toBe("v1.sealed")
     watching.stop()
+  })
+
+  it("does not leave a row restoring when keeping its screen throws", async () => {
+    const { history, store } = setup({
+      archive: () => {
+        throw new Error("redactor")
+      },
+    })
+    history.closing(live(), null)
+    expect(store.rows.has("t-1")).toBe(true)
+    expect((await history.list("p1"))[0]!.availability).toEqual({ state: "ready" })
+  })
+
+  it("loses neither row when writing the new one fails", () => {
+    const { history, store } = setup()
+    store.rows.set("old-1", agentRow())
+    store.records.insertClosed = () => {
+      throw new Error("disk")
+    }
+    history.closing(
+      live({
+        bound: bound("claude", "conv-0001"),
+        agents: { claude: { sessionId: "conv-0001", seq: 6, cwd: folder } },
+      }),
+      null,
+    )
+    expect(store.rows.has("old-1")).toBe(true)
   })
 
   it("keeps nothing while its project is going", () => {
@@ -715,8 +743,14 @@ describe("restoring a row", () => {
     const { history, store } = setup()
     store.rows.set("old-1", row({ transcript: "v1.sealed" }))
     const record = live()
-    await restoring({ history, store } as Setup, record, { opened: false })
-    expect(store.rows.has("old-1")).toBe(true)
+    let beside: string | undefined
+    const s = setup({ restoredHandle: () => beside })
+    s.store.rows.set("old-1", row({ transcript: "v1.sealed" }))
+    await restoring(s, record, { opened: false })
+    beside = "moth"
+    expect(s.store.rows.has("old-1")).toBe(true)
+    // The terminal beside it is where a click goes, not another restore.
+    expect((await s.history.list("p1"))[0]!.availability).toEqual({ state: "open", handle: "moth" })
     expect((await history.list("p1"))[0]!.availability).toEqual({ state: "ready" })
     // A row with no output has nothing to lose.
     store.rows.set("old-2", row({ id: "old-2" }))
@@ -822,7 +856,9 @@ describe("confirming an agent's restore", () => {
     const record = live()
     await restoring(s, record, { resumes: false })
     expect(s.released).toEqual(["t-1"])
-    await vi.waitFor(() => expect(s.said[0]).toMatch(/can't run the command/))
+    // The terminal's creation says why; the History does not say it twice.
+    await new Promise((resolve) => setTimeout(resolve, 30))
+    expect(s.said).toEqual([])
   })
 
   it("stops showing the row as restoring after a wait, and keeps the restore pending", async () => {

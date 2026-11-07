@@ -92,6 +92,8 @@ export type HistoryHost = {
   readonly releaseClaim: (terminalId: string) => void
   /** Keeps the terminal's screen for a row (see `Saves.archive`); `settled` runs when that is done or given up. */
   readonly archive: (record: Closing, write: (sealed: string) => void, settled: () => void) => void
+  /** The handle of a running terminal restored from the row, if one is. */
+  readonly restoredHandle: (row: string) => string | undefined
   /** The summary of the terminal restored from the row as `terminalId`, if one is running. */
   readonly restoredAs: (terminalId: string, row: string) => TerminalSummary | undefined
   /** The transcript path the running terminal's session reported at bind. */
@@ -251,6 +253,8 @@ export class ClosedTerminals {
       // A plain shell that stood in for a restore that did not open: the row it came from stands.
       const origin =
         record.restoredFrom === undefined ? undefined : records.closedTerminal(record.restoredFrom)
+      // Its row no longer reads as open beside it, once this terminal is closed.
+      if (origin) queueMicrotask(() => this.announce(origin))
       if (agent === null && origin && origin.agent !== null) return
       const { summary } = record
       const row: ClosedRecord = {
@@ -274,13 +278,19 @@ export class ClosedTerminals {
       if (agent === null) {
         // Not restorable until its screen is written, or given up: restored before, it would lose it.
         this.archiving.add(row.id)
-        this.host.archive(
-          record,
-          (sealed) => this.keep(row.id, sealed),
-          () => {
-            if (this.archiving.delete(row.id)) this.announce(row)
-          },
-        )
+        try {
+          this.host.archive(
+            record,
+            (sealed) => this.keep(row.id, sealed),
+            () => {
+              if (this.archiving.delete(row.id)) this.announce(row)
+            },
+          )
+        } catch (error) {
+          // Nothing will settle it: the row is as restorable as it will be.
+          if (this.archiving.delete(row.id)) this.announce(row)
+          throw error
+        }
       }
     } catch (error) {
       log.error("history.keep-failed", "Novadeck could not keep a closed terminal", { err: error })
@@ -323,15 +333,20 @@ export class ClosedTerminals {
   private insert(row: ClosedRecord): void {
     const records = this.host.records!
     const session = row.agent === null ? undefined : row.agents[row.agent]?.sessionId
-    if (row.agent !== null && session !== undefined)
-      for (const older of records.closed(row.projectId))
-        if (
-          older.id !== row.id &&
-          older.agent === row.agent &&
-          older.agents[row.agent]?.sessionId === session
-        )
-          this.gone(older)
+    // Written before the older rows go, so a failed write loses neither.
+    const older =
+      row.agent !== null && session !== undefined
+        ? records
+            .closed(row.projectId)
+            .filter(
+              (one) =>
+                one.id !== row.id &&
+                one.agent === row.agent &&
+                one.agents[row.agent!]?.sessionId === session,
+            )
+        : []
     records.insertClosed(row)
+    for (const one of older) this.gone(one)
     this.announce(row)
   }
 
@@ -478,7 +493,11 @@ export class ClosedTerminals {
     if (this.archiving.has(row.id) || (!restoringIsOwn && this.restoring.has(row.id)))
       return { state: "restoring" }
     const agent = resumeOf(row)
-    if (agent === undefined) return { state: "ready" }
+    if (agent === undefined) {
+      // A plain row whose saved output did not open stays, with its terminal running beside it.
+      const beside = this.host.restoredHandle(row.id)
+      return beside === undefined ? { state: "ready" } : { state: "open", handle: beside }
+    }
     const report = row.agents[agent]
     if (!report) return { state: "gone", reason: "conversation" }
     let asked = pass?.connected.get(agent)
@@ -665,7 +684,8 @@ export class ClosedTerminals {
       timer: setTimeout(() => this.timedOut(record), this.times.restoreMs),
     }
     record.restoring.timer.unref()
-    if (!resumes) this.failed(record, "its shell can't run the command that resumes it")
+    // The terminal's creation tells the person why, in its own note.
+    if (!resumes) this.failed(record, undefined, false)
     else this.observe(record)
   }
 
