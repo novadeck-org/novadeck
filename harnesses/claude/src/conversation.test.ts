@@ -2,9 +2,29 @@ import { mkdirSync, mkdtempSync, rmSync, symlinkSync, writeFileSync } from "node
 import { tmpdir } from "node:os"
 import { join } from "node:path"
 
-import { afterEach, beforeEach, describe, expect, it } from "vitest"
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 
 import { conversation, conversations } from "./conversation.js"
+
+// How many folders were listed, and how many at once at most: what a pass over many rows is
+// judged by, rather than by the seconds it took, which a loaded CI runner decides.
+const reads = vi.hoisted(() => ({ count: 0, open: 0, most: 0 }))
+vi.mock("node:fs/promises", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("node:fs/promises")>()
+  return {
+    ...actual,
+    readdir: async (...args: Parameters<typeof actual.readdir>) => {
+      reads.count += 1
+      reads.open += 1
+      reads.most = Math.max(reads.most, reads.open)
+      try {
+        return await actual.readdir(...args)
+      } finally {
+        reads.open -= 1
+      }
+    },
+  }
+})
 
 const id = "5f1c1d1e-8a4b-4c1d-9e2f-0a1b2c3d4e5f"
 let home = ""
@@ -68,27 +88,25 @@ describe("Claude Code's conversation", () => {
     expect(await conversation(install(), id, { transcript })).toBe("gone")
   })
 
-  it("reads each project once for a pass over many rows, without stalling the loop", async () => {
+  it("reads each project once for a pass over many rows, a few at a time", async () => {
     const projects = join(home, ".claude", "projects")
-    for (let n = 0; n < 3000; n += 1) mkdirSync(join(projects, `-p${n}`), { recursive: true })
+    const folders = 300
+    for (let n = 0; n < folders; n += 1) mkdirSync(join(projects, `-p${n}`), { recursive: true })
     const ids = Array.from(
       { length: 500 },
       (_, n) => `00000000-0000-4000-8000-${String(n).padStart(12, "0")}`,
     )
     for (const one of ids.slice(0, 250)) writeFileSync(join(projects, "-p7", `${one}.jsonl`), "")
-    let worst = 0
-    let last = Date.now()
-    const watch = setInterval(() => {
-      worst = Math.max(worst, Date.now() - last)
-      last = Date.now()
-    }, 10)
-    const started = Date.now()
+    reads.count = 0
+    reads.most = 0
     const scan = conversations(install())
     const answers = await Promise.all(ids.map((one) => scan.conversation(one)))
-    clearInterval(watch)
     expect(answers.filter((one) => one === "found")).toHaveLength(250)
     expect(answers.filter((one) => one === "gone")).toHaveLength(250)
-    expect(Date.now() - started).toBeLessThan(8000)
-    expect(worst).toBeLessThan(400)
-  }, 30_000)
+    // The projects folder once, then each project once, for all 500 rows together.
+    expect(reads.count).toBe(folders + 1)
+    // The reader's pool, so a long list never queues every folder at the event loop at once.
+    expect(reads.most).toBeGreaterThan(1)
+    expect(reads.most).toBeLessThanOrEqual(32)
+  })
 })

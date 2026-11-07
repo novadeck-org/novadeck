@@ -2,9 +2,28 @@ import { chmodSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:f
 import { tmpdir } from "node:os"
 import { join } from "node:path"
 
-import { afterEach, beforeEach, describe, expect, it } from "vitest"
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 
 import { fileIn, lister, presence, rulesOf, sessionName } from "./conversation.js"
+
+// Each folder listing, counted, and how many were open at once at most.
+const reads = vi.hoisted(() => ({ count: 0, open: 0, most: 0 }))
+vi.mock("node:fs/promises", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("node:fs/promises")>()
+  return {
+    ...actual,
+    readdir: async (...args: Parameters<typeof actual.readdir>) => {
+      reads.count += 1
+      reads.open += 1
+      reads.most = Math.max(reads.most, reads.open)
+      try {
+        return await actual.readdir(...args)
+      } finally {
+        reads.open -= 1
+      }
+    },
+  }
+})
 
 let root = ""
 beforeEach(() => {
@@ -60,5 +79,21 @@ describe("looking for a conversation's file", () => {
       expect(sessionName.test(bad)).toBe(false)
     expect(rulesOf({ platform: "win32" }).join("C:\\Users\\a", "x")).toBe("C:\\Users\\a\\x")
     expect(rulesOf({ platform: "darwin" }).join("/Users/a", "x")).toBe("/Users/a/x")
+  })
+})
+
+describe("a lister", () => {
+  it("reads a folder once however often it is asked, at most 32 at a time", async () => {
+    const folders = 100
+    for (let n = 0; n < folders; n += 1) mkdirSync(join(root, `f${n}`))
+    reads.count = 0
+    reads.most = 0
+    const list = lister()
+    const asked = Array.from({ length: folders * 3 }, (_, n) => list(join(root, `f${n % folders}`)))
+    const listings = await Promise.all(asked)
+    expect(listings.every((one) => one.kind === "names")).toBe(true)
+    expect(reads.count).toBe(folders)
+    expect(reads.most).toBeGreaterThan(1)
+    expect(reads.most).toBeLessThanOrEqual(32)
   })
 })
