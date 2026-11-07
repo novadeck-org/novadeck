@@ -69,6 +69,7 @@ export const keptSummary = (
   started: false,
   sleeping: false,
   restingAgent: null,
+  lastTurnAt: null,
   command: null,
   lastProgram: null,
   cwd: "/tmp",

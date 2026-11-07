@@ -151,6 +151,10 @@ export const terminalSummary = z.strictObject({
   // The agent that sleeps there or is waking there, whose session a `create` resumes;
   // null for a terminal with a shell or nothing to resume.
   restingAgent: agentName.nullable(),
+  // When a sleeping terminal's agent last ended a turn, in epoch milliseconds, as its
+  // standing `done` or its stored finished turns tell; null for any other terminal, or when
+  // none is kept. A terminal with a shell says it by its agent's activity.
+  lastTurnAt: z.number().nullable(),
 })
 
 // `terminals.requests` items: an agent in terminal `from` asked, through Novadeck's MCP

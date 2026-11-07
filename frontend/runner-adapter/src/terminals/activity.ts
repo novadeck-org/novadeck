@@ -35,7 +35,8 @@ const statusKey = (status: TerminalStatus): string => {
     return `exited:${status.exitCode}:${status.signal}:${status.cause ?? ""}`
   if (status.state === "failed") return `failed:${status.message}`
   if (status.state === "running") return `running:${JSON.stringify(status.agent ?? null)}`
-  if (status.state === "sleeping") return `sleeping:${status.agent}:${status.reported ?? false}`
+  if (status.state === "sleeping")
+    return `sleeping:${status.agent}:${status.reported ?? false}:${status.endedAt ?? ""}`
   return status.state
 }
 

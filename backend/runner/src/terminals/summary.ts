@@ -17,6 +17,7 @@ export const noAgent = {
   reported: null,
   sleeping: false,
   restingAgent: null,
+  lastTurnAt: null,
 } as const
 
 /** A terminal's whole summary: its record's half and its host's. */
@@ -37,6 +38,8 @@ export type Resting = {
   readonly waking: boolean
   /** The standing report of the agent's session, so a done mark survives its sleep. */
   readonly reported: TerminalSummary["reported"]
+  /** When its agent last ended a turn, where the runner kept it. */
+  readonly lastTurnAt: number | null
 }
 
 /** A terminal kept only as saved, as clients see it: no shell, its last facts. */
@@ -62,5 +65,6 @@ export const savedSummaryOf = (terminal: ListedTerminal, resting?: Resting): Ter
     sleeping: !resting.waking,
     restingAgent: resting.agent,
     reported: resting.reported,
+    lastTurnAt: resting.lastTurnAt,
   }),
 })

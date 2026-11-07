@@ -391,7 +391,10 @@ describe("a terminal drawn by a backend's mount", () => {
 // What an observer is told, should the page have one: jsdom has none.
 class FakeObserver {
   static all: FakeObserver[] = []
-  constructor(private readonly report: (entries: Partial<IntersectionObserverEntry>[]) => void) {
+  constructor(
+    private readonly report: (entries: Partial<IntersectionObserverEntry>[]) => void,
+    readonly options?: IntersectionObserverInit,
+  ) {
     FakeObserver.all.push(this)
   }
   observe(): void {}
@@ -414,7 +417,10 @@ describe("a sleeping agent's terminal", () => {
     vi.stubGlobal("IntersectionObserver", FakeObserver)
     FakeObserver.all = []
   }
-  afterEach(() => vi.unstubAllGlobals())
+  afterEach(() => {
+    vi.unstubAllGlobals()
+    vi.restoreAllMocks()
+  })
 
   it("is seen in Focus while it is the one displayed", () => {
     const { created, mounts, change } = show({ terminal: sleeper(), view: "focus" })
@@ -444,6 +450,20 @@ describe("a sleeping agent's terminal", () => {
     expect(mounts[0]!.update).toHaveBeenLastCalledWith(expect.objectContaining({ seen: true }))
   })
 
+  it("is measured against the layout's viewport, not the window", () => {
+    sees()
+    const inViewport = (inner: ReactNode): ReactNode =>
+      createElement("div", { "data-workspace-viewport": "" }, inner)
+    const { container } = show({
+      terminal: sleeper(),
+      view: "canvas",
+      renderWindow: inViewport,
+    })
+    expect(FakeObserver.all[0]!.options?.root).toBe(
+      container.querySelector("[data-workspace-viewport]"),
+    )
+  })
+
   it("watches nothing for a terminal that runs", () => {
     sees()
     const { created } = show({ view: "grid" })
@@ -461,6 +481,37 @@ describe("a sleeping agent's terminal", () => {
     const screen = container.querySelector(".wake-screen")!
     expect(screen.getAttribute("aria-hidden")).toBe("true")
     expect(screen.getAttribute("role")).toBeNull()
+  })
+
+  it("stands its words where the rows are, once xterm opens after the first measure", () => {
+    const rect = (top: number, left: number) => ({ top, left, width: 100, height: 100 }) as DOMRect
+    vi.spyOn(Element.prototype, "getBoundingClientRect").mockImplementation(function (
+      this: Element,
+    ) {
+      if (this.classList.contains("xterm-rows")) return rect(12, 8)
+      if (this.classList.contains("xterm-screen")) return rect(2, 2)
+      return rect(0, 0)
+    })
+    vi.spyOn(HTMLElement.prototype, "offsetWidth", "get").mockReturnValue(100)
+    vi.stubGlobal(
+      "ResizeObserver",
+      class {
+        observe(): void {}
+        unobserve(): void {}
+        disconnect(): void {}
+      },
+    )
+    const { container, created } = show({ terminal: sleeper() })
+    const screen = container.querySelector<HTMLElement>(".wake-screen")!
+    // Before xterm opens there is nothing to measure.
+    expect(screen.style.getPropertyValue("--wake-pad")).toBe("")
+    const host = created[0]!.element
+    const xterm = document.createElement("div")
+    xterm.innerHTML = '<div class="xterm-screen"><div class="xterm-rows"></div></div>'
+    act(() => void host.append(xterm))
+    return vi.waitFor(() =>
+      expect(screen.style.getPropertyValue("--wake-pad")).toBe("12px 0 0 8px"),
+    )
   })
 
   it("says it is waking, naming the agent, once its shell starts to resume it", () => {

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "../test"
-import { seenIn } from "./useSeen"
+import { seenIn, viewportOf } from "./useSeen"
 
 const viewport = { width: 1000, height: 800 }
 const entry = (ratio: number, width: number, height: number, isIntersecting = true) => ({
@@ -27,5 +27,15 @@ describe("a tile counts as seen", () => {
 
   it("not without a viewport to measure against", () => {
     expect(seenIn({ ...entry(0.05, 1000, 800), rootBounds: null })).toBe(false)
+  })
+})
+
+describe("the view a tile is measured against", () => {
+  it("is the layout's viewport around it, not the window", () => {
+    document.body.innerHTML =
+      '<div data-workspace-viewport><div><div id="tile"></div></div></div><div id="loose"></div>'
+    const view = document.querySelector("[data-workspace-viewport]")
+    expect(viewportOf(document.getElementById("tile")!)).toBe(view)
+    expect(viewportOf(document.getElementById("loose")!)).toBeNull()
   })
 })

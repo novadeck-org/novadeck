@@ -64,6 +64,7 @@ export const sleeper = (summary: TerminalSummary): TerminalStatus | undefined =>
         state: "sleeping",
         agent: summary.restingAgent,
         ...(summary.reported ? { reported: true as const } : {}),
+        ...(summary.lastTurnAt !== null ? { endedAt: summary.lastTurnAt } : {}),
       }
     : undefined
 

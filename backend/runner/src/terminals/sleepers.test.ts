@@ -52,6 +52,7 @@ const setup = (
     connected?: boolean
     done?: boolean
     watched?: boolean
+    turnAt?: number
     create?: (row: ListedTerminal) => Promise<unknown>
   } = {},
 ) => {
@@ -83,6 +84,7 @@ const setup = (
     saves: () => ({ terminals: () => rows }),
     inbox: () => ({
       reports: () => ({ tell: null, done: options.done ? { subject: "x", at: 5 } : null }),
+      lastTurnAt: () => options.turnAt ?? null,
     }),
     claims: () => new Claims({ boundElsewhere: () => false }),
     connected: () => Promise.resolve(options.connected ?? true),
@@ -251,6 +253,19 @@ describe("sleepers", () => {
     fine.sleepers.start()
     await expect(fine.sleepers.verdict("a")).resolves.toEqual({ waking: true })
     await expect(fine.sleepers.verdict("none")).resolves.toBeUndefined()
+  })
+
+  it("says when a sleeper's agent last ended a turn: its stored turn or its done, the later", () => {
+    const sleeping = row("a", "claude", { claude: { sessionId: "one", seq: 1 } })
+    const none = setup([sleeping])
+    none.sleepers.start()
+    expect(none.sleepers.summaryOf(sleeping).lastTurnAt).toBeNull()
+    const turn = setup([sleeping], { turnAt: 9 })
+    turn.sleepers.start()
+    expect(turn.sleepers.summaryOf(sleeping).lastTurnAt).toBe(9)
+    const both = setup([sleeping], { turnAt: 3, done: true })
+    both.sleepers.start()
+    expect(both.sleepers.summaryOf(sleeping).lastTurnAt).toBe(5)
   })
 
   it("reads the deliveries once for every sleeper with a done mark in a listing", () => {

@@ -378,6 +378,18 @@ describe("a sleeper's Inbox", () => {
     ])
   })
 
+  it("keeps a completed turn too, and says when the newest ended", ({ resources }) => {
+    const { run, inbox } = restarted(resources)
+    const owner = run.messaging.inboxOwner("B")
+    expect(inbox.lastTurnAt("B")).toBeNull()
+    inbox.recordTurn(owner!, 5, { outcome: "completed", reply: "Done.", error: null, files: [] })
+    inbox.recordTurn(owner!, 9, { outcome: "completed", reply: "More.", error: null, files: [] })
+    inbox.reconcile("B")
+    inbox.prune()
+    expect(inbox.list().filter((entry) => entry.content.kind === "turn")).toHaveLength(2)
+    expect(inbox.lastTurnAt("B")).toBe(9)
+  })
+
   it("lapses an ask once its terminal stops resting on the session", ({ resources }) => {
     const { run, inbox, id } = restarted(resources)
     run.messaging.rest("B", here, "fox", null, { agent: "claude", sessionId: "another" })

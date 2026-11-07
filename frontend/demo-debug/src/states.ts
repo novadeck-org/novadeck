@@ -1,3 +1,4 @@
+import { finishGraceMs } from "@novadeck/core/agents/finish"
 import type { AgentName } from "@novadeck/core/harnesses"
 import type { Inbox, InboxRow } from "@novadeck/core/inbox"
 import type { BackendAction, TerminalKey } from "@novadeck/core/port"
@@ -58,6 +59,13 @@ const crowd = 12
 const crowdWaits = dealKinds(crowd).filter((kind) => kind !== "done").length
 // How long clearing waits between the agents working and resting, for the app to see both.
 const calmMs = 100
+// How long an agent that sleeps after a turn keeps running past its end: the Inbox row of a
+// completed turn is stored only once it has stood for `finishGraceMs`, while its terminal
+// still runs the agent.
+const sinceTurnEndMs = finishGraceMs + calmMs
+const sleepAfterMs = turnMs + sinceTurnEndMs
+// How long ago the "Asleep, done" tile's agent finished, so its tab shows an age.
+const doneAgoMs = 4 * 60_000
 // How long a screen takes to arrive, as the runner's.
 const attachMs = 2500
 
@@ -271,7 +279,10 @@ const gallery: readonly {
   { name: "Agent exited", state: (key) => agentRanHere(key) },
   { name: "Starting", state: (key) => starting(key) },
   { name: "Asleep", state: (key, harness) => sleeping(key, harness) },
-  { name: "Asleep, done", state: (key, harness) => sleeping(key, harness, true) },
+  {
+    name: "Asleep, done",
+    state: (key, harness) => sleeping(key, harness, true, Date.now() - doneAgoMs),
+  },
   {
     name: "Asleep, asks (MCP)",
     state: (key, harness) => sleeping(key, harness),
@@ -280,12 +291,12 @@ const gallery: readonly {
   {
     name: "Asleep, reply unread",
     agent: (verbs, key) => verbs.finish(key, undefined, "completed", { after: turnMs }),
-    after: (key, harness) => sleeping(key, harness),
+    after: (key, harness) => sleeping(key, harness, false, Date.now() - sinceTurnEndMs),
   },
   {
     name: "Asleep, stopped with an error",
     agent: (verbs, key) => verbs.finish(key, undefined, "failed", { after: turnMs }),
-    after: (key, harness) => sleeping(key, harness),
+    after: (key, harness) => sleeping(key, harness, false, Date.now() - sinceTurnEndMs),
   },
   { name: "Waking", state: (key, harness) => waking(key, harness) },
   {
@@ -337,7 +348,7 @@ const everyState = (
     gallery.forEach(({ after }, index) => {
       if (!after) return
       const key = keys[index]!
-      later(turnMs + calmMs, () => {
+      later(sleepAfterMs, () => {
         verbs.release(key)
         dispatch(after(key, harness))
       })
@@ -479,9 +490,9 @@ export const createDemoStates = (
   const sleepsAfter = (label: string, outcome: "completed" | "failed", hint: string) =>
     onSelected(label, hint, (key, { dispatch, harness, workspace }) => {
       verbs.finish(key, terminalOf(workspace(), key), outcome, { after: turnMs })
-      later(turnMs + calmMs, () => {
+      later(sleepAfterMs, () => {
         verbs.release(key)
-        dispatch(sleeping(key, harness))
+        dispatch(sleeping(key, harness, false, Date.now() - sinceTurnEndMs))
       })
     })
   const groups: readonly DemoActionGroup[] = [

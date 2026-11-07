@@ -227,7 +227,8 @@ const sameStatus = (terminal: TerminalMetadata, status: TerminalStatus): boolean
     return (
       terminal.state === "sleeping" &&
       terminal.agent === status.agent &&
-      terminal.reported === status.reported
+      terminal.reported === status.reported &&
+      terminal.endedAt === status.endedAt
     )
   return terminal.state === status.state
 }
@@ -249,6 +250,7 @@ const statusFields = (status: TerminalStatus): TerminalStatus => {
       state: status.state,
       agent: status.agent,
       ...(status.reported ? { reported: status.reported } : {}),
+      ...(status.endedAt !== undefined ? { endedAt: status.endedAt } : {}),
     }
   return { state: status.state }
 }

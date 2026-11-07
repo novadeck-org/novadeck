@@ -1211,6 +1211,7 @@ describe("runner backend", () => {
                   started: true,
                   sleeping: false,
                   restingAgent: null,
+                  lastTurnAt: null,
                   command: null,
                   lastProgram: null,
                   cwd: home!.project.cwd,

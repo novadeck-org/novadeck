@@ -281,8 +281,14 @@ export const demoScreensOptions = (
 export const createDemoTerminals = (engine: DemoEngine, setup: DemoTerminalSetup = {}) => {
   const { options, link, start, stop } = demoScreensOptions(engine, setup)
   const screens = createTerminalScreens(options)
+  // Who hears of a surface wanting a terminal seen: a backend with sleepers (see `wakes.ts`).
+  let seeing: ((key: TerminalKey) => () => void) | undefined
   return {
-    mountTerminal: createTerminalMount(screens),
+    mountTerminal: createTerminalMount(screens, (key) => seeing?.(key) ?? (() => {})),
+    // The backend that wakes sleepers hears each terminal a surface wants seen.
+    wakeWith: (next: (key: TerminalKey) => () => void): void => {
+      seeing = next
+    },
     setFont: screens.setFont,
     typeInto: screens.typeInto,
     link,

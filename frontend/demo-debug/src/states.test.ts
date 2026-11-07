@@ -1,3 +1,4 @@
+import { finishGraceMs } from "@novadeck/core/agents/finish"
 import { harnesses, type AgentName } from "@novadeck/core/harnesses"
 import { inboxType, type Inbox, type InboxRow } from "@novadeck/core/inbox"
 import type { BackendAction, TerminalKey } from "@novadeck/core/port"
@@ -307,7 +308,14 @@ describe("demo states", () => {
   it("lets the agents that end a turn and then sleep go, leaving their turns to the Inbox", async () => {
     const { run, added, terminal, released } = panel("04")
     await run("Every state at once")
-    vi.advanceTimersByTime(3200)
+    // Not before the completed turn's row is stored: that waits out the finish's grace while
+    // the terminal still runs its agent.
+    vi.advanceTimersByTime(3000 + finishGraceMs)
+    const early = added.find(
+      (one) => terminal(terminalSlot(one.terminalId))?.name === "Asleep, reply unread",
+    )!
+    expect(terminal(terminalSlot(early.terminalId))).not.toMatchObject({ state: "sleeping" })
+    vi.advanceTimersByTime(500)
     const asleep = ["Asleep, reply unread", "Asleep, stopped with an error"].map((name) => {
       const found = added.find((one) => terminal(terminalSlot(one.terminalId))?.name === name)!
       expect(released).toContainEqual(found)

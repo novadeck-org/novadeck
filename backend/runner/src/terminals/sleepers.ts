@@ -272,10 +272,13 @@ export class Sleepers {
    */
   private arm(terminalId: string): void {
     if (this.timers.has(terminalId)) return
-    const timer = setTimeout(() => {
-      this.timers.delete(terminalId)
-      void this.alone(terminalId)
-    }, this.host.watched() ? watchedGraceMs : graceMs)
+    const timer = setTimeout(
+      () => {
+        this.timers.delete(terminalId)
+        void this.alone(terminalId)
+      },
+      this.host.watched() ? watchedGraceMs : graceMs,
+    )
     timer.unref()
     this.timers.set(terminalId, timer)
   }
@@ -362,10 +365,12 @@ export class Sleepers {
   summaryOf(row: ListedTerminal, delivered = this.deliveries()): TerminalSummary {
     const resting = this.resting(row.id)
     if (!resting) return savedSummaryOf(row)
+    const reported = this.reported(row, delivered)
     return savedSummaryOf(row, {
       agent: resting.agent,
       waking: this.wakes.has(row.id),
-      reported: this.reported(row, delivered),
+      reported,
+      lastTurnAt: this.lastTurnAt(row.id, reported),
     })
   }
 
@@ -376,6 +381,12 @@ export class Sleepers {
   deliveries(): () => ReadonlyMap<string, number> {
     let all: ReadonlyMap<string, number> | undefined
     return () => (all ??= this.host.messaging().deliveredAt())
+  }
+
+  /** When the sleeper's agent last ended a turn: its stored finished turn, or its standing done. */
+  private lastTurnAt(id: string, reported: TerminalSummary["reported"]): number | null {
+    const turn = this.host.inbox().lastTurnAt(id)
+    return turn === null ? (reported?.at ?? null) : Math.max(turn, reported?.at ?? 0)
   }
 
   /** The agent's standing `done`, as a terminal that runs shows it (`standingDone`). */

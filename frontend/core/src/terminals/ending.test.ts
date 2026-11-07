@@ -490,6 +490,14 @@ describe("a terminal's note", () => {
       )
     })
 
+    it("says it is waking after its ask, set apart by a dot", () => {
+      const waking: TerminalMetadata = { ...terminal, state: "starting", restoredProcess: "claude" }
+      expect(terminalNote(waking, { need: "ask", subject: "Which one?" }, undefined).text).toBe(
+        "Asks: Which one? · Waking…",
+      )
+      expect(terminalNote(waking, { need: undefined }, undefined).text).toBe("Waking…")
+    })
+
     it("keeps its done report and its ask, saying it is asleep after them", () => {
       expect(terminalNote(asleep, marks, undefined).text).toBe("Asleep · wakes when you open it")
       expect(terminalNote(asleep, marks, "unread").text).toBe("Asleep · reply unread")

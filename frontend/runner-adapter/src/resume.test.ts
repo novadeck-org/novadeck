@@ -19,6 +19,7 @@ const exited = (terminalId: string): TerminalSummary => ({
   started: true,
   sleeping: false,
   restingAgent: null,
+  lastTurnAt: null,
   command: null,
   lastProgram: "claude",
   cwd: "/tmp",

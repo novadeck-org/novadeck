@@ -257,7 +257,10 @@ export const TerminalTab = ({
               <span className="terminal-tab-starting truncate italic">starting…</span>
             ) : phase === "waking" ? (
               // The agent is on its way back; hard-blinking cursor in the glyph's place.
-              <span className="terminal-tab-waking truncate">waking…</span>
+              <>
+                <span className="terminal-tab-waking truncate">waking…</span>
+                {needMark}
+              </>
             ) : phase === "done" ? (
               // How its turn ended is its glyph's (tabs.css), in words its description's;
               // beside its program, how long ago, set apart by colour alone, as the line

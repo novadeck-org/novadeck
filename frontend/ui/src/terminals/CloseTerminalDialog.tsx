@@ -33,7 +33,7 @@ export const CloseTerminalDialog = ({
         ? `${shown.agent} is asleep in it, with its session saved.`
         : // Waking: the agent is on its way back, and the session is still what closing ends.
           shown.state === "starting" && shown.restoredProcess
-          ? `${shown.restoredProcess} is asleep in it, with its session saved.`
+          ? `${shown.restoredProcess} is waking in it, with its session saved.`
           : `${shown.process || "A program"} is still running in it.`
     }
     confirmLabel="Close terminal"

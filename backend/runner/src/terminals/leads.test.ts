@@ -24,7 +24,13 @@ const terminal = (handle: string, ledBy: string | null): Record =>
 // Leads over a runner of fakes: terminals with the agent each runs and who leads them
 // (`ledBy` is the lead's handle), and a record of what was sent, noticed and saved.
 const setup = (terminals: {
-  [handle: string]: { agent: AgentName | null; ledBy?: string; asleep?: true; refused?: string; lands?: true }
+  [handle: string]: {
+    agent: AgentName | null
+    ledBy?: string
+    asleep?: true
+    refused?: string
+    lands?: true
+  }
 }) => {
   // A sleeper has no record: the sleepers hear of the wake it is asked for.
   const records = new Map(

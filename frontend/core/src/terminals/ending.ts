@@ -334,17 +334,18 @@ export const terminalNote = (
     const { attention: _attention, ...agent } = terminal.agent
     return { ...terminal, agent }
   })()
-  const said = joinNote([
-    snoozed
-      ? `Snoozed${marks.subject ? `: ${marks.subject}` : ""}`
-      : needText(heard, marks.need, marks.subject, marks.dialog),
+  const need = snoozed
+    ? `Snoozed${marks.subject ? `: ${marks.subject}` : ""}`
+    : needText(heard, marks.need, marks.subject, marks.dialog)
+  const state =
     unheardText(terminal) ??
-      (phase === "paused" ? pausedText(terminal, now) : undefined) ??
-      (phase === "waiting" ? waitingNote(terminal, now) : undefined) ??
-      (phase === "done" ? doneText(failed) : undefined) ??
-      (phase === "waking" ? wakingText : undefined) ??
-      (brightened && phase !== "sleeping" ? "Reply unread" : undefined),
-  ])
+    (phase === "paused" ? pausedText(terminal, now) : undefined) ??
+    (phase === "waiting" ? waitingNote(terminal, now) : undefined) ??
+    (phase === "done" ? doneText(failed) : undefined) ??
+    (phase === "waking" ? wakingText : undefined) ??
+    (brightened && phase !== "sleeping" ? "Reply unread" : undefined)
+  // Waking is a state of its own, set apart by a dot as "asleep" is, not read on from the need.
+  const said = phase === "waking" && need && state ? `${need} · ${state}` : joinNote([need, state])
   // An asleep terminal says so after whatever else it says.
   const text =
     terminal.state !== "sleeping"

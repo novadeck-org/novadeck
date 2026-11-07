@@ -52,6 +52,7 @@ describe.skipIf(process.platform === "win32" || !existsSync(bash))(
       expect(listed.find((each) => each.id === plain)).toMatchObject({
         sleeping: false,
         restingAgent: null,
+        lastTurnAt: null,
       })
     })
 

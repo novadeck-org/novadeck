@@ -47,6 +47,12 @@ export const seenIn = (
 // grows to cover it.
 const thresholds = Array.from({ length: 26 }, (_, step) => step / 100)
 
+// The scrolling view a tile sits in: the layout's own viewport, so a node filling the canvas
+// counts as covering the view even with the sidebar and the companion pane taking the window's
+// rest. Null (the window) where the tile is in none.
+export const viewportOf = (element: Element): Element | null =>
+  element.closest("[data-workspace-viewport]")
+
 // Whether at least a quarter of `element` is really in sight, or it fills most of the view. Used only while `enabled` (a
 // sleeping terminal's tile), so a running one costs no observer. Where the browser has no
 // observer it counts as in sight, as Canvas does for its nodes.
@@ -60,7 +66,7 @@ export const useInSight = (element: Element | null, enabled: boolean): boolean =
         const last = entries.at(-1)
         if (last) setInSight(seenIn(last))
       },
-      { threshold: thresholds },
+      { root: viewportOf(element), threshold: thresholds },
     )
     observer.observe(element)
     return () => {

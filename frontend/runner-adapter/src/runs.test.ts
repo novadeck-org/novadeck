@@ -34,6 +34,7 @@ const summary = (change: Partial<TerminalSummary>): TerminalSummary => ({
   started: true,
   sleeping: false,
   restingAgent: null,
+  lastTurnAt: null,
   command: null,
   lastProgram: null,
   cwd: "/tmp",

@@ -255,7 +255,8 @@ this tab. A ↺ beside an action marks one that boots the demo again.
 Terminals:
 
 - **Selected terminal:** put the selected terminal in each of its states: starting, asleep (an
-  agent with a saved session and no process), waking (that agent on its way back), loading
+  agent with a saved session and no process; once seen for a moment, in Focus or in sight in Grid
+  and Canvas, it wakes by itself: waking, then its agent resting), waking (that agent on its way back), loading
   output, back at the prompt, running a long program, Claude Code, Codex or Antigravity, a failed
   paste, and each way to end (clean exit, exit code, killed, killed for memory, failed to
   start). Each one that changes the state calls off what the terminal's agent had
