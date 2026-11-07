@@ -325,6 +325,7 @@ export const createDemoChat = (
       agent: found.terminal.process,
       session: `demo-${terminalKeyId(found.key)}`,
       slice: transcript?.slice ?? null,
+      box: transcript?.box ?? null,
       doorbell: noDoorbell,
       loaded: true,
       items: transcript?.items ?? [],
@@ -339,7 +340,6 @@ export const createDemoChat = (
       prompts: [],
       // Its transcripts hold nothing the chat can't read.
       unread: false,
-      box: null,
     }
   }
   const entryOf = (key: TerminalKey) => {
@@ -514,6 +514,11 @@ export const createDemoChat = (
     conversations: {
       conversation: storeOf,
       refused: promptRefused,
+      // The person empties the agent's box from the chat.
+      clearBox: async (key) => {
+        storeOf(key).update((conversation) => ({ ...conversation, box: null }))
+        return true
+      },
       send: async (key, prompt, options) => {
         const found = agentFor(key)
         const name = chatAgents[chatAgent(found.terminal)!]

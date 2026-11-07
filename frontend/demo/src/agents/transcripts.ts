@@ -1,5 +1,6 @@
 import type {
   ChatAnswer,
+  ChatBox,
   ChatDialog,
   ChatItem,
   ChatRequest,
@@ -16,6 +17,8 @@ export type DemoTranscript = {
   readonly requests: readonly ChatRequest[]
   // The terminal's own rows showing at its input.
   readonly slice?: ChatSlice
+  // What its agent's own box holds, which a message sent now goes out with.
+  readonly box?: ChatBox
   // What answering a request does, by the request's id: only for those the demo can answer.
   readonly outcomes?: Readonly<
     Record<string, (answer: ChatAnswer, dialog: ChatDialog) => DemoOutcome>
@@ -324,6 +327,13 @@ export const agentTranscripts = (now: number): Readonly<Record<string, DemoTrans
     },
   },
   "03": {
+    // More than the chat can read whole, so it stays in the agent's box.
+    box: {
+      text: "and leave the checkout specs out of the report",
+      mode: "prompt",
+      tail: true,
+      known: false,
+    },
     items: written("03", now, [
       user("Run the whole test suite and look into anything flaky."),
       say(

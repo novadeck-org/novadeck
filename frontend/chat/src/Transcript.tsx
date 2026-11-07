@@ -1,7 +1,7 @@
 import { sameBlock, type ChatBlock } from "@novadeck/core/conversation/turns"
 import { counted } from "@novadeck/core/units"
 import { Markdown } from "@novadeck/toolkit/Markdown"
-import { memo } from "react"
+import { memo, useMemo } from "react"
 
 import { withBubbles, type SentBubble } from "./bubbles"
 import { Mark } from "./Mark"
@@ -53,11 +53,9 @@ const BlockView = memo(
             data-role="agent"
             aria-label={`Message from ${block.author}`}
           >
-            <div className="chat-bubble">
-              <p className="chat-author">From {block.author}</p>
-              <Markdown text={block.text} />
-              {block.truncated && <Shortened />}
-            </div>
+            <p className="chat-author">{block.author}</p>
+            <Markdown text={block.text} />
+            {block.truncated && <Shortened />}
           </article>
         )
       case "note":
@@ -75,43 +73,77 @@ const BlockView = memo(
     sameBlock(before.block, after.block),
 )
 
-// How a prompt shown before the record has it reads, under its words.
-const sentNote = (bubble: SentBubble, agent: string): string => {
-  switch (bubble.state) {
-    case "queued":
-      return "Queued"
-    case "sending":
-      return "Sending…"
-    case "unrecorded":
-      return "Sent, but not in the agent's record."
-    case "in-box":
-      return `It's back in ${agent}'s box in the terminal.`
-  }
+// What became of a prompt the record never got, under its words.
+const sentNote = (state: "unrecorded" | "in-box", agent: string): string =>
+  state === "unrecorded"
+    ? "Sent, but not in the agent's record."
+    : `It's back in ${agent}'s box in the terminal.`
+
+// What the person does about such a prompt: send it again or take it back to edit, or look in the
+// terminal first, where it may have gone after all.
+export type SentActions = {
+  // Absent while the box holds words, which sending would take with it, or isn't a plain message.
+  readonly onResend?: ((bubble: SentBubble) => void) | undefined
+  readonly onEdit?: ((bubble: SentBubble) => void) | undefined
+  readonly onShowTerminal?: (() => void) | undefined
 }
 
 const SentView = memo(
   ({
     bubble,
     agent,
-    onShowTerminal,
+    actions: { onResend, onEdit, onShowTerminal },
   }: {
     readonly bubble: SentBubble
     readonly agent: string
-    readonly onShowTerminal: (() => void) | undefined
+    readonly actions: SentActions
   }): React.JSX.Element => {
-    const settled = bubble.state === "unrecorded" || bubble.state === "in-box"
+    const { state } = bubble
     return (
-      <article className="chat-message" data-role="user" data-sent={bubble.state} aria-label="You">
+      <article className="chat-message" data-role="user" data-sent={state} aria-label="You">
         <Mark />
-        <p className="chat-text">{bubble.text}</p>
-        <p className="chat-sent" role={settled ? "status" : undefined}>
-          <span>{sentNote(bubble, agent)}</span>
-          {settled && onShowTerminal && (
-            <button type="button" className="button quiet nodrag nopan" onClick={onShowTerminal}>
-              Show terminal
-            </button>
+        <p className="chat-text">
+          {bubble.text}
+          {(state === "queued" || state === "sending") && (
+            <>
+              {" "}
+              <span className="chat-sent-tag">{state}</span>
+            </>
           )}
         </p>
+        {(state === "unrecorded" || state === "in-box") && (
+          <p className="chat-sent" role="status">
+            <span>{sentNote(state, agent)}</span>
+            {state === "unrecorded" && onResend && (
+              <button
+                type="button"
+                className="chat-key nodrag nopan"
+                onClick={() => onResend(bubble)}
+              >
+                send again
+              </button>
+            )}
+            {state === "unrecorded" && onEdit && (
+              <button
+                type="button"
+                className="chat-key nodrag nopan"
+                onClick={() => onEdit(bubble)}
+              >
+                edit
+              </button>
+            )}
+            {onShowTerminal && (
+              <button
+                type="button"
+                className="chat-key nodrag nopan"
+                aria-label="Show terminal"
+                onClick={onShowTerminal}
+              >
+                terminal
+              </button>
+            )}
+          </p>
+        )}
       </article>
     )
   },
@@ -126,16 +158,20 @@ export const Transcript = ({
   agent,
   working,
   sent = noBubbles,
+  onResend,
+  onEdit,
   onShowTerminal,
-}: {
+}: SentActions & {
   readonly blocks: readonly ChatBlock[]
   readonly agent: string
   readonly working: boolean
   readonly sent?: readonly SentBubble[]
-  // Shows the agent's terminal, from a prompt the record doesn't have.
-  readonly onShowTerminal?: () => void
 }): React.JSX.Element => {
   const last = blocks.at(-1)
+  const actions = useMemo(
+    () => ({ onResend, onEdit, onShowTerminal }),
+    [onResend, onEdit, onShowTerminal],
+  )
   return (
     <>
       {withBubbles(blocks, sent).map((each) =>
@@ -151,7 +187,7 @@ export const Transcript = ({
             key={`sent:${each.bubble.ref}`}
             bubble={each.bubble}
             agent={agent}
-            onShowTerminal={onShowTerminal}
+            actions={actions}
           />
         ),
       )}

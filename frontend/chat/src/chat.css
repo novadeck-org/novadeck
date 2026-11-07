@@ -12,7 +12,8 @@
 
    Hooks: data-compact on `.chat` in a Grid or Canvas window; data-role="user" |
    "assistant" | "agent" on a message, data-sent="queued" | "sending" | "unrecorded" |
-   "in-box" on the person's prompt the agent's record doesn't hold yet, its note `.chat-sent`;
+   "in-box" on the person's prompt the agent's record doesn't hold yet, its tag `.chat-sent-tag`,
+   what became of it `.chat-sent`;
    data-kind="run" | "read" | "write" | "search" | "web" | "agent" | "plan" | "other",
    data-running and data-failed on a tool line, aria-expanded on its button, `.chat-tool-failed`
    on what says a call failed; data-sign="+" |
@@ -23,7 +24,8 @@
    `.chat-tab`, data-shown on its page `.chat-page`, data-missing on a form's field, data-on on
    its `.chat-pick`; data-working or data-ended on the status; data-terminal on an error settled in the terminal; aria-disabled
    on Stop, :disabled on Send; data-mode on the prompt, `.chat-reply` above it while it replies
-   to the agent's question or holds words whose question went.
+   to the agent's question or holds words whose question went, `.chat-box` with data-refused
+   on what the agent's own input holds.
 
    Tokens, each optional (its fallback in brackets):
    --chat-bg (the window's bg, then paper), --chat-fg (the terminal's fg, then ink): the ground
@@ -34,9 +36,7 @@
    --chat-error-fg (the terminal's red, then danger-fg): what failed.
    --chat-added-fg (the terminal's green, then success-fg): what an edit added.
    --chat-line-color (line): the hairlines.
-   --chat-user-bg (soft), --chat-user-fg (the text's), --chat-user-border-color
-   (transparent), --chat-user-radius (radius-panel): another agent's message.
-   --chat-agent-bg (shell), --chat-agent-border-color (line): another agent's message. */
+   */
 
 .chat {
   --_font: var(--chat-font, var(--font-mono));
@@ -180,23 +180,23 @@
 .chat-message[data-role="user"]:not(:first-child, [data-sent]) {
   margin-top: var(--_lh);
 }
+/* Another agent's words: its handle, dim, then what it said. The mark is only ever the person's. */
 .chat-message[data-role="agent"] {
-  max-width: min(92%, 640px);
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  column-gap: 2ch;
 }
-.chat-bubble {
-  padding: 8px 12px;
-  border: var(--border-width) solid var(--chat-user-border-color, transparent);
-  border-radius: var(--chat-user-radius, var(--radius-panel));
-  background-color: var(--chat-user-bg, var(--color-soft));
-  color: var(--chat-user-fg, currentColor);
+.chat-message[data-role="agent"] > :not(.chat-author) {
+  grid-column: 2;
 }
-.chat-message[data-role="agent"] .chat-bubble {
-  border-color: var(--chat-agent-border-color, var(--color-line));
-  background-color: var(--chat-agent-bg, var(--color-shell));
-  color: inherit;
+.chat-author {
+  max-width: 24ch;
+  margin: 0;
+  overflow-wrap: anywhere;
+  color: var(--_muted);
 }
-/* The person's prompt before the agent's record has it: dim while queued or on its way; a note
-   under it once it never arrived. */
+/* The person's prompt before the agent's record has it: dim and tagged while queued or on its
+   way; what became of it under it once it never arrived. */
 .chat-message[data-sent] {
   color: var(--_muted);
   font-weight: 400;
@@ -204,25 +204,25 @@
 .chat-message[data-sent] .chat-mark {
   color: inherit;
 }
+.chat-sent-tag {
+  margin-left: 1ch;
+  white-space: nowrap;
+}
 .chat-sent {
   display: flex;
-  align-items: center;
-  gap: 2ch;
+  flex-wrap: wrap;
+  gap: 0 2ch;
   margin: 0;
   color: var(--_muted);
 }
-.chat-message[data-sent="unrecorded"] .chat-sent,
-.chat-message[data-sent="in-box"] .chat-sent {
+.chat-message[data-sent="unrecorded"] .chat-sent > span,
+.chat-message[data-sent="in-box"] .chat-sent > span {
   color: var(--_red);
 }
 .chat-text {
   margin: 0;
   white-space: pre-wrap;
   overflow-wrap: anywhere;
-}
-.chat-author {
-  margin: 0 0 4px;
-  color: var(--_muted);
 }
 .chat-shortened,
 .chat-tool-note {
@@ -958,7 +958,7 @@
 }
 .chat-unread-actions {
   display: flex;
-  gap: 4px;
+  gap: 2ch;
 }
 .chat-unrecorded {
   display: flex;
@@ -990,8 +990,12 @@
   gap: 2ch;
   color: var(--_muted);
 }
-.chat-reply-cancel {
+.chat-reply > .chat-key,
+.chat-box-head > .chat-key {
   flex-shrink: 0;
+}
+.chat-box[data-refused] .chat-box-head > span {
+  color: var(--_red);
 }
 .chat-box {
   flex-direction: column;
@@ -1005,12 +1009,15 @@
   gap: 2ch;
 }
 .chat-box-text {
-  max-height: calc(5 * var(--_lh));
+  max-height: calc(3 * var(--_lh));
   margin: 0;
   overflow: auto;
+  color: var(--_mid);
   font: inherit;
   white-space: pre-wrap;
   overflow-wrap: anywhere;
+  scrollbar-width: thin;
+  scrollbar-color: var(--_line) transparent;
 }
 .chat-composer-box {
   display: grid;
