@@ -314,6 +314,7 @@ export const withConversations = (
     demoWakes({
       dispatch: (actions) => sink?.dispatch(actions),
       terminal: (key) => terminalOf(latest, key),
+      held: terminals.holds,
       turns,
     }),
   )

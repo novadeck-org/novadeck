@@ -289,6 +289,8 @@ export const createDemoTerminals = (engine: DemoEngine, setup: DemoTerminalSetup
     wakeWith: (next: (key: TerminalKey) => () => void): void => {
       seeing = next
     },
+    // Whether the debug layer holds this sleeper asleep (see `DemoTerminalRuntime.holds`).
+    holds: (key: TerminalKey): boolean => setup.runtime?.holds?.(key) ?? false,
     setFont: screens.setFont,
     typeInto: screens.typeInto,
     link,

@@ -9,6 +9,7 @@ import type { TerminalMetadata, Workspace } from "@novadeck/core/types"
 import type { DemoAgentVerbs, DemoWaiting } from "@novadeck/demo/agents/link"
 import { isDemoInbox } from "@novadeck/demo/inbox"
 import type { DemoScreenState } from "@novadeck/demo/terminals/runtime"
+import { demoWakes } from "@novadeck/demo/terminals/wakes"
 import { terminalOf } from "@novadeck/demo/workspace"
 
 import { createDemoAgents } from "./agents"
@@ -72,6 +73,40 @@ const attachMs = 2500
 const pause = (ms: number): Promise<void> => new Promise((resolve) => setTimeout(resolve, ms))
 
 const later = (ms: number, run: () => void): void => void setTimeout(run, ms)
+
+// The longest `afterTold` waits for the Inbox to store a turn's row.
+const toldCapMs = 10_000
+
+// Runs `run` once the Inbox has stored the row of the turn `key`'s agent ends from now: its
+// terminal's tab reads that row as unread, and a terminal put to sleep before it is stored
+// (a completed turn's waits out `finishGraceMs` while its terminal still runs the agent) has
+// none. Where the Inbox keeps no turns, or none comes, it runs after `sleepAfterMs`, or the cap.
+const afterTold = (inbox: () => Inbox | undefined, key: TerminalKey, run: () => void): void => {
+  const turns = inbox()?.turns
+  if (!turns) return later(sleepAfterMs, run)
+  const since = Date.now()
+  let stop = (): void => {}
+  let cap: ReturnType<typeof setTimeout> | undefined
+  const go = (): void => {
+    clearTimeout(cap)
+    stop()
+    // Not inside the store's own notification: the dispatch it makes is its own commit.
+    later(0, run)
+  }
+  cap = setTimeout(go, toldCapMs)
+  stop = turns.subscribe(() => {
+    const told = turns
+      .getSnapshot()
+      ?.some(
+        (row) =>
+          row.projectId === key.projectId &&
+          row.workspaceSessionId === key.workspaceSessionId &&
+          row.terminalId === key.terminalId &&
+          row.at >= since,
+      )
+    if (told) go()
+  })
+}
 
 // An action on the selected terminal, or the note that asks for one.
 const onSelected = (
@@ -325,10 +360,15 @@ type PanelAsks = Set<string>
 const agentDone = (row: InboxRow): boolean =>
   row.kind === "update" && row.update.type === "done" && row.id.startsWith("entry:demo-done-")
 
+// Marks the terminal a set of actions puts to sleep as one the panel holds asleep, and hands
+// the actions back.
+type Hold = (key: TerminalKey, actions: BackendAction[]) => BackendAction[]
+
 const everyState = (
   verbs: DemoAgentVerbs,
   inbox: () => Inbox | undefined,
   panelAsks: PanelAsks,
+  hold: Hold,
 ): DemoAction => ({
   label: "Every state at once",
   hint: `${gallery.length} terminals, one per state`,
@@ -340,7 +380,7 @@ const everyState = (
     dispatch(
       gallery.flatMap(({ name, state }, index) => {
         const key = keys[index]!
-        return [rename(key, name), ...(state?.(key, harness) ?? [])]
+        return [rename(key, name), ...hold(key, state?.(key, harness) ?? [])]
       }),
     )
     const agents = verbs.as(harness)
@@ -348,9 +388,9 @@ const everyState = (
     gallery.forEach(({ after }, index) => {
       if (!after) return
       const key = keys[index]!
-      later(sleepAfterMs, () => {
+      afterTold(inbox, key, () => {
         verbs.release(key)
-        dispatch(after(key, harness))
+        dispatch(hold(key, after(key, harness)))
       })
     })
     const own = inbox()
@@ -466,6 +506,15 @@ export const createDemoStates = (
   const screens = createStore<ReadonlyMap<string, DemoScreenState>>(new Map())
   // The terminals whose next pasted file fails to save.
   const pasteFails = new Set<string>()
+  // The sleepers the panel set, which stay asleep, whoever looks, until its Wake action.
+  const held = new Set<string>()
+  const hold: Hold = (key, actions) => {
+    // Where the actions leave it: `waking` passes through sleeping on its way.
+    const last = actions.findLast((action) => action.type === "terminal/status")
+    if (last?.type === "terminal/status" && last.status.state === "sleeping")
+      held.add(terminalKeyId(key))
+    return actions
+  }
   // Sets what a terminal's screen is doing for a while, then shows its output again.
   const showScreen = (key: TerminalKey, screen: DemoScreenState, ms: number): void => {
     const id = terminalKeyId(key)
@@ -490,9 +539,9 @@ export const createDemoStates = (
   const sleepsAfter = (label: string, outcome: "completed" | "failed", hint: string) =>
     onSelected(label, hint, (key, { dispatch, harness, workspace }) => {
       verbs.finish(key, terminalOf(workspace(), key), outcome, { after: turnMs })
-      later(sleepAfterMs, () => {
+      afterTold(inbox, key, () => {
         verbs.release(key)
-        dispatch(sleeping(key, harness, false, Date.now() - sinceTurnEndMs))
+        dispatch(hold(key, sleeping(key, harness, false, Date.now() - sinceTurnEndMs)))
       })
     })
   const groups: readonly DemoActionGroup[] = [
@@ -509,7 +558,20 @@ export const createDemoStates = (
         setting(
           "Asleep",
           "The agent has a saved session and no process",
-          (key, { dispatch, harness }) => dispatch(sleeping(key, harness)),
+          (key, { dispatch, harness }) => dispatch(hold(key, sleeping(key, harness))),
+        ),
+        onSelected(
+          "Wake",
+          "A sleeper the panel set wakes, then rests with its agent back",
+          (key, { dispatch, workspace, note }) => {
+            if (terminalOf(workspace(), key)?.state !== "sleeping") return note("It isn't asleep.")
+            held.delete(terminalKeyId(key))
+            demoWakes({
+              dispatch,
+              terminal: (each) => terminalOf(workspace(), each),
+              turns: verbs,
+            })(key)
+          },
         ),
         setting("Waking", "Its agent is on the way back", (key, { dispatch, harness }) =>
           dispatch(waking(key, harness)),
@@ -581,7 +643,7 @@ export const createDemoStates = (
       title: "New terminals",
       harnesses: true,
       actions: [
-        everyState(verbs, inbox, panelAsks),
+        everyState(verbs, inbox, panelAsks, hold),
         failingTerminal(
           "Quick failure",
           "Fails right after starting",
@@ -816,6 +878,7 @@ export const createDemoStates = (
     chat: chat.wrap,
     screens,
     failPaste: (key) => pasteFails.delete(terminalKeyId(key)),
+    holds: (key) => held.has(terminalKeyId(key)),
     restart: (key, dispatch) => {
       verbs.release(key)
       dispatch(backToPrompt(key))

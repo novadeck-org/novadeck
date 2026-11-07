@@ -8,7 +8,7 @@ const key: TerminalKey = { projectId: "p", workspaceSessionId: "s", terminalId: 
 const base = { id: "t", name: "Agent", directory: "~", command: "", process: "" }
 
 // A demo that holds one terminal, whose status follows the actions dispatched to it.
-const setup = (start: TerminalMetadata) => {
+const setup = (start: TerminalMetadata, held: (key: TerminalKey) => boolean = () => false) => {
   let terminal = start
   const rested: string[] = []
   const kept: unknown[] = []
@@ -19,6 +19,7 @@ const setup = (start: TerminalMetadata) => {
           terminal = { ...base, state: "starting", restoredProcess: "claude" }
     },
     terminal: () => terminal,
+    held,
     turns: {
       as: (agent) =>
         ({
@@ -60,6 +61,18 @@ describe("the demo's sleepers", () => {
     wake(key)()
     vi.advanceTimersByTime(dwellMs + wakingMs)
     expect(state()).toBe("sleeping")
+  })
+
+  it("stay asleep, seen or not, while the debug layer holds them", () => {
+    let held = true
+    const { wake, state } = setup({ ...base, state: "sleeping", agent: "claude" }, () => held)
+    wake(key)
+    vi.advanceTimersByTime(dwellMs + wakingMs)
+    expect(state()).toBe("sleeping")
+    held = false
+    wake(key)
+    vi.advanceTimersByTime(dwellMs)
+    expect(state()).toBe("starting")
   })
 
   it("leave a terminal that is no sleeper as it is", () => {

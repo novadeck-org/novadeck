@@ -1,16 +1,17 @@
 import { finishGraceMs } from "@novadeck/core/agents/finish"
 import { harnesses, type AgentName } from "@novadeck/core/harnesses"
-import { inboxType, type Inbox, type InboxRow } from "@novadeck/core/inbox"
+import { inboxType, type Inbox, type InboxRow, type InboxTurn } from "@novadeck/core/inbox"
 import type { BackendAction, TerminalKey } from "@novadeck/core/port"
 import { workspaceFromSeed } from "@novadeck/core/seed"
 import { workspaceReducer } from "@novadeck/core/state"
-import { createWorkspaceStore } from "@novadeck/core/store"
+import { createStore, createWorkspaceStore, type Store } from "@novadeck/core/store"
 import { terminalNote, terminalPhase } from "@novadeck/core/terminals/ending"
 import { isAgentProgram } from "@novadeck/core/terminals/process"
 import type { AgentStatus, AgentUsage, TerminalMetadata, Workspace } from "@novadeck/core/types"
 import type { DemoAgentVerbs } from "@novadeck/demo/agents/link"
 import { demoTurns } from "@novadeck/demo/agents/turns"
 import { createMockTerminal, demoSeed, demoTerminalId, terminalSlot } from "@novadeck/demo/samples"
+import { dwellMs, wakingMs } from "@novadeck/demo/terminals/wakes"
 import { createDemo } from "@novadeck/demo/variants"
 import { terminalOf } from "@novadeck/demo/workspace"
 import { afterEach, beforeEach, vi } from "vitest"
@@ -149,7 +150,10 @@ const verbs = (
 // A panel over a real workspace, with the terminal on screen as given. It records what the
 // panel does that the app would take for a person's move: adding a terminal the way "+"
 // does (which selects it and shows the Terminals panel), and the verbs it calls on the agents.
-const panel = (selected: string | undefined, { keeping }: { keeping?: number } = {}) => {
+const panel = (
+  selected: string | undefined,
+  { keeping, turns }: { keeping?: number; turns?: Store<readonly InboxTurn[] | undefined> } = {},
+) => {
   // `keeping` shrinks the workspace to that many terminals besides the selected one.
   const kept =
     keeping === undefined
@@ -215,7 +219,7 @@ const panel = (selected: string | undefined, { keeping }: { keeping?: number } =
   const read = vi.fn<NonNullable<Inbox["readFinishes"]>>()
   const states = createDemoStates(
     verbs(calls, released, workspace),
-    () => ({ readFinishes: read }) as unknown as Inbox,
+    () => ({ readFinishes: read, ...(turns ? { turns } : {}) }) as unknown as Inbox,
   )
   const find = (label: string) =>
     states.groups.flatMap((group) => group.actions).find((action) => action.label === label)!
@@ -324,6 +328,59 @@ describe("demo states", () => {
     for (const each of asleep) expect(each).toMatchObject({ state: "sleeping" })
   })
 
+  it("sleeps a reply's tile only once the Inbox has stored its turn, however long that takes", async () => {
+    const turns = createStore<readonly InboxTurn[] | undefined>([])
+    const { run, added, terminal } = panel("04", { turns })
+    await run("Every state at once")
+    const tile = added.find(
+      (one) => terminal(terminalSlot(one.terminalId))?.name === "Asleep, reply unread",
+    )!
+    const row = (at: number): InboxTurn => ({
+      id: `turn:${tile.terminalId}:${at}`,
+      projectId: tile.projectId,
+      workspaceSessionId: tile.workspaceSessionId,
+      terminalId: tile.terminalId,
+      handle: "fox",
+      agent: "claude",
+      at,
+      outcome: "completed",
+      reply: "All green.",
+      error: null,
+      files: [],
+    })
+    // Well past when the timers alone would have put it to sleep: the row is not stored yet.
+    vi.advanceTimersByTime(8000)
+    expect(terminal(terminalSlot(tile.terminalId))).not.toMatchObject({ state: "sleeping" })
+    turns.update(() => [row(Date.now())])
+    vi.advanceTimersByTime(1)
+    expect(terminal(terminalSlot(tile.terminalId))).toMatchObject({ state: "sleeping" })
+  })
+
+  it("sleeps the selected terminal's reply only once the Inbox has stored its turn", () => {
+    const turns = createStore<readonly InboxTurn[] | undefined>([])
+    const { run, terminal } = panel("04", { turns })
+    run("Asleep, reply unread")
+    vi.advanceTimersByTime(8000)
+    expect(terminal("04")).not.toMatchObject({ state: "sleeping" })
+    turns.update(() => [
+      {
+        id: "turn:04",
+        projectId: project.id,
+        workspaceSessionId: session.id,
+        terminalId: id("04"),
+        handle: "fox",
+        agent: "claude",
+        at: Date.now(),
+        outcome: "completed",
+        reply: null,
+        error: null,
+        files: [],
+      },
+    ])
+    vi.advanceTimersByTime(1)
+    expect(terminal("04")).toMatchObject({ state: "sleeping" })
+  })
+
   it("gives the agent tiles their states through the verbs, not the terminal's metadata", async () => {
     const { run, calls } = panel("04")
     await run("Every state at once")
@@ -378,6 +435,41 @@ describe("demo states", () => {
   })
 
   context("with a terminal selected", () => {
+    it("holds the sleeper it set asleep, until the Wake action wakes it", () => {
+      const { run, terminal, states, notes } = panel("04")
+      run("Wake")
+      expect(notes).toEqual(["It isn't asleep."])
+      run("Asleep")
+      expect(terminal("04")).toMatchObject({ state: "sleeping" })
+      expect(states.holds(key("04"))).toBe(true)
+      expect(states.holds(key("05"))).toBe(false)
+      run("Wake")
+      expect(states.holds(key("04"))).toBe(false)
+      vi.advanceTimersByTime(dwellMs)
+      expect(terminal("04")).toMatchObject({ state: "starting" })
+      vi.advanceTimersByTime(wakingMs)
+      expect(terminal("04")).toMatchObject({ state: "running", agent: { working: false } })
+    })
+
+    it("holds every sleeper the gallery sets, not the waking ones", async () => {
+      const { run, added, terminal, states } = panel("04")
+      await run("Every state at once")
+      vi.advanceTimersByTime(6000)
+      const held = (name: string) => {
+        const found = added.find((one) => terminal(terminalSlot(one.terminalId))?.name === name)!
+        return states.holds(found)
+      }
+      for (const name of [
+        "Asleep",
+        "Asleep, done",
+        "Asleep, asks (MCP)",
+        "Asleep, reply unread",
+        "Asleep, stopped with an error",
+      ])
+        expect(held(name), name).toBe(true)
+      expect(held("Waking")).toBe(false)
+    })
+
     it("ends its shell as the action says", () => {
       const { run, terminal } = panel("04")
       run("Killed (SIGKILL)")

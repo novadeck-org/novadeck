@@ -12,17 +12,19 @@ export const wakingMs = 1500
 export type DemoWakes = {
   readonly dispatch: (actions: readonly BackendAction[]) => void
   readonly terminal: (key: TerminalKey) => TerminalMetadata | undefined
+  // Whether the debug layer holds this sleeper asleep, which no one looking wakes.
+  readonly held?: (key: TerminalKey) => boolean
   readonly turns: Pick<DemoTurns, "as">
 }
 
 // Says a terminal is seen until the returned release. Letting go during the dwell cancels the
 // wake; once it is waking, it runs to its end.
 export const demoWakes =
-  ({ dispatch, terminal, turns }: DemoWakes) =>
+  ({ dispatch, terminal, held, turns }: DemoWakes) =>
   (key: TerminalKey): (() => void) => {
     const timer = setTimeout(() => {
       const asleep = terminal(key)
-      if (asleep?.state !== "sleeping") return
+      if (asleep?.state !== "sleeping" || held?.(key)) return
       const { agent, reported } = asleep
       dispatch([
         {
