@@ -243,9 +243,12 @@ for (const setup of setups) {
             ),
         ),
       ).toBe(true)
-      expect((await terminal.transcript()).find((item) => item.ring !== null)?.ring).toMatchObject({
-        replies: true,
-      })
+      // Its record follows what the model got, so it's waited for.
+      const line = await terminal.poll(
+        async () => (await terminal.transcript()).find((item) => item.ring !== null),
+        "the reply line in its transcript",
+      )
+      expect(line.ring).toMatchObject({ replies: true })
       const history = terminal.messages().threads.flatMap((thread) => thread.messages)
       expect(history.filter((message) => message.inbox === "answer")).toMatchObject([
         {
