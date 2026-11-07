@@ -166,6 +166,12 @@ export type TerminalMetadata = {
   openedBy?: string | null
   // Whether an agent has run in it since it opened, running now or since exited.
   agentRan?: boolean
+  // Whether closing it can be undone from History: the backend can bring it back as it
+  // is. Absent reads as false, and where the backend says nothing of History.
+  restorable?: boolean
+  // Whether a program runs in its shell besides the prompt, known on every OS. Absent
+  // reads as false.
+  busy?: boolean
   // Who its name is from, where its backend tells.
   titleSource?: TitleSource
   // Never present: a window has one, which tells tiles apart (see `isWindow`).

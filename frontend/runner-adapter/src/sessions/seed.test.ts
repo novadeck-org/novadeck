@@ -203,6 +203,34 @@ describe("runner seed", () => {
     })
   })
 
+  context("with terminals the runner says can be restored or run a program", () => {
+    const listing: RunnerListing = [
+      {
+        project: project(1),
+        sessions: [
+          {
+            session: fresh(10),
+            terminals: [
+              summary(40, 10, { restorable: true, busy: true }),
+              summary(41, 10, { restorable: false, busy: false }),
+              summary(42, 10),
+            ],
+          },
+        ],
+      },
+    ]
+    const { terminals } = workspaceFromSeed(runnerSeed(listing), defaults).projects[0]!.history[0]!
+      .state.roster
+
+    it("keeps both where they are true, and nothing where they are false or absent", () => {
+      expect(terminals[0]).toMatchObject({ restorable: true, busy: true })
+      for (const terminal of terminals.slice(1)) {
+        expect(terminal).not.toHaveProperty("restorable")
+        expect(terminal).not.toHaveProperty("busy")
+      }
+    })
+  })
+
   context("with terminals agents name by handle", () => {
     const listing: RunnerListing = [
       {

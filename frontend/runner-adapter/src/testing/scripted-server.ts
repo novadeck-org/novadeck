@@ -269,6 +269,10 @@ export const scriptedRunner = ({
       clearBox: api.agents.clearBox.handler(unplayed("agents.clearBox")),
       set: api.agents.set.handler(unplayed("agents.set")),
     },
+    history: {
+      list: api.history.list.handler(() => []),
+      watch: api.history.watch.handler(idle),
+    },
     companions: {
       list: api.companions.list.handler(() => ({ items: [], windows: [] })),
       watch: api.companions.watch.handler(idle),
