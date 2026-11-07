@@ -97,11 +97,17 @@ describe.skipIf(!supported)(order.map((setup) => setup.name).join(" → "), () =
         expect(sender.handle).toBe("fox")
         const calls = run.model.mark()
         await sender.submit("Ask moth for the word")
-        await run.model.waitFor((call) => delivered(call, "fox"), {
+        // The woken terminal answers on its own screen, not the sender's: the proof is the model
+        // call that carried the message, made in the conversation it held before it was stopped.
+        const rung = await run.model.waitFor((call) => delivered(call, "fox"), {
           after: calls,
           timeoutMs: 120_000,
         })
-        await sender.until("Heron, as asked.")
+        expect(
+          rung.turns.some(
+            (one) => one.role === "user" && one.text.includes("Remember the word heron"),
+          ),
+        ).toBe(true)
         const woke = run.deck.terminals
           .list(run.deck.sessionId)
           .find((one) => one.id === sleeper.id)
