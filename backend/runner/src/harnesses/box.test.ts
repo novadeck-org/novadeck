@@ -14,6 +14,7 @@ import {
   isEmpty,
   sameText,
   showsTail,
+  tailOf,
   wrappedRows,
   type BoxProfile,
 } from "@novadeck/tui-input/box"
@@ -513,9 +514,64 @@ describe("Antigravity's word that an Escape stopped the turn", () => {
 })
 
 describe("the viewport of Claude Code's input box", () => {
-  it("is what was probed on the screens it was, and never below one row on a small one", () => {
-    expect([24, 40, 60].map((rows) => claude.viewport!(rows))).toEqual([7, 15, 25])
-    for (const rows of [0, 4, 10, 11, 12]) expect(claude.viewport!(rows)).toBeGreaterThanOrEqual(1)
+  it("is what was probed on the screens it was, and 3 rows on a small one", () => {
+    expect([12, 13, 14, 15, 16, 20, 24, 40, 60].map((rows) => claude.viewport!(rows))).toEqual([
+      3, 3, 3, 3, 3, 5, 7, 15, 25,
+    ])
+  })
+})
+
+describe("the viewport of Codex's input box", () => {
+  it("is what was probed on small screens", () => {
+    expect([6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16].map((rows) => codex.viewport!(rows))).toEqual([
+      2, 3, 4, 4, 4, 4, 4, 4, 5, 6, 6,
+    ])
+  })
+})
+
+const blanks = (count: number): readonly string[] => Array.from({ length: count }, () => "")
+
+// A paste that landed anywhere but the box: the line's end shows, and the box stays as it was,
+// so none of them takes that end for the line (`tailOf`, in place of the paste check's far rows).
+describe("the end of a line outside the box", () => {
+  const line = `[Novadeck Inbox reply, n7Q2] ${"and say so in the changelog ".repeat(10)}[n7Q2]`
+  const end = "the changelog [n7Q2]"
+  const rule = "─".repeat(40)
+  it.each([
+    ["claude", claude, [end, "", rule, "❯ ", rule, "  footer", ...blanks(8)], 3],
+    ["codex", codex, [end, "", "› ", "", "  footer", ...blanks(9)], 2],
+    ["agy", agy, [end, "", rule, "> ", rule, "  footer", ...blanks(8)], 3],
+  ] as const)("isn't what %s's box shows", (_, profile, rows, cursor) => {
+    const shown = screenWith({ rows, columns: 40, cursor: { row: cursor, column: 2 } })
+    const box = profile.read(shown)
+    expect(box && isEmpty(box)).toBe(true)
+    expect(box && tailOf(profile, box, rows.length, line)).toBeUndefined()
+  })
+})
+
+describe("a box of nothing but blank rows", () => {
+  const rule = "─".repeat(40)
+  // Claude Code at 40x14, its words scrolled out over three blank lines (2.1.287, 2026-11-07).
+  const blank = screenWith({
+    rows: ["history", rule, "❯ ", "  ", "  ", rule, "  footer", ""],
+    columns: 40,
+    cursor: { row: 4, column: 2 },
+  })
+
+  it("isn't an empty box, for no ring to take it for one", () => {
+    const shown = claude.read(blank)
+    expect(shown?.text).toBe("")
+    expect(shown && isEmpty(shown)).toBe(false)
+  })
+
+  it("is one, one row tall", () => {
+    const empty = screenWith({
+      rows: ["history", rule, "❯ ", rule, "  footer", ""],
+      columns: 40,
+      cursor: { row: 2, column: 2 },
+    })
+    const shown = claude.read(empty)
+    expect(shown && isEmpty(shown)).toBe(true)
   })
 })
 

@@ -530,11 +530,22 @@ describe("a line taller than its box", () => {
   const end = long.slice(-40)
 
   /** Delivers the line over an empty box that then shows `rows`, read as its last two rows. */
-  const deliverTo = async (rows: readonly string[], extra: Partial<BoxProfile> = {}) => {
+  const deliverTo = async (
+    rows: readonly string[],
+    extra: Partial<BoxProfile> = {},
+    above = "",
+  ) => {
     const written: string[] = []
     const shown = (box: readonly string[]) =>
       screen({
-        rows: ["history", "", ...box, "footer", "", ...Array<string>(4 - box.length).fill("")],
+        rows: [
+          "history",
+          box.length === 1 ? "" : above,
+          ...box,
+          "footer",
+          "",
+          ...Array<string>(4 - box.length).fill(""),
+        ],
         columns: 40,
         cursor: { row: 1 + box.length, column: 0 },
       })
@@ -583,7 +594,7 @@ describe("a line taller than its box", () => {
     const { delivered, written } = await deliverTo(
       ["> ↑ 6 more lines", end.slice(0, 20), end.slice(20)],
       {
-        viewport: undefined,
+        viewport: () => 99,
         cut: ({ text }) => text.startsWith("↑"),
         uncut: (text) => text.replace(/^↑ \d+ more lines?\n/, ""),
       },
@@ -600,6 +611,21 @@ describe("a line taller than its box", () => {
 
   it("presses no Enter where a key follows the line", async () => {
     const { delivered, written } = await deliverTo([`> ${end.slice(0, 20)}`, `${end.slice(20)}x`])
+    expect(delivered).toMatchObject({ entered: false, reason: "not-landed" })
+    expect(enters(written)).toBe(0)
+  })
+
+  // The box's own reading is what says where the line went, as what is above it may be redrawn.
+  it("presses no Enter where the line's end shows outside the box", async () => {
+    const { delivered, written } = await deliverTo([">", ""], {}, end)
+    expect(delivered).toMatchObject({ entered: false, reason: "not-landed" })
+    expect(enters(written)).toBe(0)
+  })
+
+  it("presses no Enter where the line's end lands under something drawn over the box", async () => {
+    const { delivered, written } = await deliverTo([`> ${end.slice(0, 20)}`, end.slice(20)], {
+      overlay: (drawn) => drawn.rows.some((row) => row.includes("n7Q2")),
+    })
     expect(delivered).toMatchObject({ entered: false, reason: "not-landed" })
     expect(enters(written)).toBe(0)
   })

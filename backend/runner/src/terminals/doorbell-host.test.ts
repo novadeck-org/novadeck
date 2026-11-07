@@ -25,6 +25,7 @@ import {
   type DoorbellBound,
   type DoorbellRecord,
 } from "./doorbell-host.js"
+import { closingNonce } from "./leftover.js"
 
 const bound = (agent: AgentName, instance?: string) =>
   ({ agent, ...(instance && { instance }) }) as unknown as Binding
@@ -271,7 +272,7 @@ const drawn = ({ height, columns, rows }: Pair["after"]): ScreenText => {
 
 // A reply line of 299 characters in each harness's box at 40x14, as the boxes draw it
 // (2026-11-07, e2e/probes/reply-overflow.e2e.ts): only its end shows.
-const rule = "─".repeat(40)
+const frame = "─".repeat(40)
 const padded = (rows: readonly string[]) => [
   ...Array.from({ length: 14 - rows.length }, () => ""),
   ...rows,
@@ -279,11 +280,11 @@ const padded = (rows: readonly string[]) => [
 const tails = {
   claude: {
     rows: padded([
-      rule,
+      frame,
       "❯ say so in the changelog merge it",
       "  and say so in the changelog merge it",
       "  and say [n7Q2]",
-      rule,
+      frame,
       "",
     ]),
     last: 11,
@@ -303,7 +304,7 @@ const tails = {
   },
   agy: {
     rows: padded([
-      rule,
+      frame,
       "> ↑ 2 more lines",
       "  in the changelog merge it and say so",
       "  in the changelog merge it and say so",
@@ -312,13 +313,28 @@ const tails = {
       "  in the changelog merge it and say so",
       "  in the changelog merge it and say",
       "  [n7Q2]",
-      rule,
+      frame,
       "                    Gemini 3.1 Pro · low",
       "",
     ]),
     last: 10,
   },
 } as const
+
+describe("the nonce closing what a box shows", () => {
+  it("is a reply line's, or a plain line's after its comma, wrapped anywhere", () => {
+    expect(closingNonce("say so\n[n7Q2]")).toBe("n7Q2")
+    expect(closingNonce("messages waiting,\n n7Q2]")).toBe("n7Q2")
+    expect(closingNonce("mess\nages waiting, n7\nQ2]")).toBe("n7Q2")
+  })
+
+  it("is none for anything else", () => {
+    expect(closingNonce("words")).toBeUndefined()
+    expect(closingNonce("[n7Q2] and on")).toBeUndefined()
+    expect(closingNonce("n7Q2]")).toBeUndefined()
+    expect(closingNonce("[not a nonce!]")).toBeUndefined()
+  })
+})
 
 describe.each([
   { agent: "claude", recording: "a" },
@@ -403,8 +419,9 @@ describe.each([
   })
 
   it.runIf(agent === "claude")("is finished though it fills the box of a small pane", () => {
-    // 14 rows, a viewport of 2: its line wrapped to fill that. Nothing is known to be out of
-    // sight, and a message left waiting for good is worse than any words going out with it.
+    // 14 rows: its line wrapped over two of them. Nothing is known to be out of sight, and a
+    // message left waiting for good is worse than any words going out with it.
+    const rule = "─".repeat(40)
     const line = doorbellLine("n7Q2")
     const cut = line.indexOf(" ", 30)
     const rows = [

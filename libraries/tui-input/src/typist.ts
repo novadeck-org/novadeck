@@ -362,16 +362,18 @@ export const createTypist = (
           // What the program counts up by itself, redrawn as the paste lands, is no change.
           const settled = stillRows(after.rows)
           const shown = settled.join("\n")
-          const showing = (boxCheck ? tail(after, text) : undefined) ?? text
-          const checked = checkPaste(before.rows, after.rows, showing, {
-            vanish,
-            ticking: rows,
-            still: stillRows,
-          })
-          const accepted = checked.accepted && alone(after, text)
+          const end = boxCheck ? tail(after, text) : undefined
+          // What the box's text is read from: Codex draws a dim arrow into its first row. On so
+          // short a screen a program redraws what's above the box as it grows (Claude Code's
+          // history, at 14 rows), and the box is what says where the line went.
+          const checked = end
+            ? checkPaste(before.bright, after.bright, end, { ticking: rows, still: stillRows })
+            : checkPaste(before.rows, after.rows, text, { vanish, ticking: rows, still: stillRows })
+          const arrived = checked.accepted || (end !== undefined && checked.reason === "elsewhere")
+          const accepted = arrived && alone(after, text)
           if (!accepted && now() >= until)
             trace(
-              `ring ${nonce}: paste not accepted: ${checked.accepted ? "not alone in the box" : checked.reason}`,
+              `ring ${nonce}: paste not accepted: ${arrived ? "not alone in the box" : checked.reason}`,
             )
           // Accepted twice running on the same screen, so it isn't caught mid-draw.
           if (accepted && landed === shown) {

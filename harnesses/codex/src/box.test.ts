@@ -1,6 +1,6 @@
 import type { ScreenText } from "@novadeck/emulator/headless"
 import { loadProbe } from "@novadeck/harness-core/testing/probes"
-import { fillsViewport } from "@novadeck/tui-input/box"
+import { fillsViewport, isEmpty } from "@novadeck/tui-input/box"
 import { describe, expect, it } from "vitest"
 
 import { box } from "./box.js"
@@ -247,11 +247,36 @@ describe("Codex's box with text that fills its last row", () => {
       "  three",
       full,
       "",
+      "",
       "  footer",
-      ...Array<string>(7).fill(""),
+      ...Array<string>(6).fill(""),
     ]
     const shown = box.read(drawn(tall, { row: 5, column: 2 }))
     expect(shown && fillsViewport(box, shown, tall.length)).toBe(true)
+  })
+
+  it("counts a row of wide characters by its cells", () => {
+    const wide = "  " + "你".repeat(18) + "x"
+    const shown = rows.map((row) => (row === full ? wide : row))
+    expect(box.read(drawn(shown, { row: 3, column: 2 }))?.last).toBe(3)
+  })
+
+  it("isn't parked where its row holds text, or text follows", () => {
+    const typed = rows.map((row, at) => (at === 3 ? "  more" : row))
+    expect(box.read(drawn(typed, { row: 3, column: 2 }))?.text).toContain("more")
+    const below = rows.map((row, at) => (at === 4 ? "  more of my draft" : row))
+    expect(box.read(drawn(below, { row: 3, column: 2 }))).toBeUndefined()
+  })
+
+  it("holds something where a dim arrow closes its blank first row", () => {
+    const arrow = `› ${" ".repeat(36)}↑`
+    const screen = {
+      ...drawn(["", arrow, "", "  footer", ""], { row: 1, column: 2 }),
+      bright: ["", "›", "", "  footer", ""],
+    }
+    const shown = box.read(screen)
+    expect(shown?.text).toBe("")
+    expect(shown && isEmpty(shown)).toBe(false)
   })
 
   it("still finds no box for a cursor on a blank row anywhere else", () => {

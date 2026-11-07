@@ -1,10 +1,13 @@
 import type { ScreenText } from "@novadeck/emulator/headless"
 import { cells } from "@novadeck/emulator/width"
 import type { SliceProfile } from "@novadeck/harness-core/slices"
+
+import { cells } from "@novadeck/emulator/width"
 import {
   agreeing,
   eraseRows,
   footerRows,
+  isEmpty,
   leaveShell,
   markedBox,
   sameText,
@@ -170,8 +173,10 @@ export const box: BoxProfile = {
   // From 0.163.0 a text taller than this shows only its tail, an `↑` drawn dim at the end of
   // the box's first row: 12, 16, 22 and 29 rows on screens of 24, 30, 40 and 50 rows (probed
   // 2026-10-18, the `tall` states of fixtures/input-box.probe.json). Earlier versions grow
-  // the box to `room` instead, so a box this tall shows the whole text there.
-  viewport: (rows) => Math.floor((2 * (rows - 6)) / 3),
+  // the box to `room` instead, so a box this tall shows the whole text there. Below 14 rows it
+  // keeps 4 where it can: 2, 3 and 4 on 6, 7 and 8 rows, 4 from there to 13 (0.167.0, 2026-11-07,
+  // e2e/probes/reply-overflow.e2e.ts).
+  viewport: (rows) => Math.max(Math.floor((2 * (rows - 6)) / 3), Math.min(rows - 4, 4)),
 }
 
 /**

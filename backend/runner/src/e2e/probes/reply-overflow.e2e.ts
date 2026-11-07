@@ -125,6 +125,21 @@ for (const setup of setups)
         return result
       }
 
+      // How tall the box really gets on short screens, against what its profile says.
+      if (process.env.PROBE_HEIGHTS) {
+        for (let rows = 6; rows <= 16; rows += 1) {
+          terminal.resize(40, rows)
+          await sleep(1_200)
+          const tried = await tryLength(limit)
+          found.push({ rows, ...tried, screen: seen })
+        }
+        writeFileSync(
+          join(out, `reply-heights-${setup.agent}.json`),
+          `${JSON.stringify(found, null, 2)}\n`,
+        )
+        return
+      }
+
       // Every length around a size's overflow: a box that can't be read at one would hold a ring.
       if (process.env.PROBE_SWEEP) {
         const [cols, rows] = process.env.PROBE_SWEEP.split("x").map(Number) as [number, number]

@@ -50,7 +50,13 @@ describe("a turn past midnight", () => {
   it("keeps a prompt that came with the date, and the date before any tool", () => {
     const after = turnsOf([message("Go"), calling, output, message(`${context}\nNext`)])
     expect(after.at(-1)).toMatchObject({ role: "user" })
-    expect(turnsOf([message(context), message("Go")])).toHaveLength(1)
+    const before = turnsOf([message(context), message("Go")])
+    expect(before).toHaveLength(1)
+    expect(before[0]?.text).toContain("2026-11-07")
+    const twice = `${context}\nNext\n${context}`
+    expect(turnsOf([message("Go"), calling, output, message(twice)]).at(-1)).toMatchObject({
+      role: "user",
+    })
   })
 })
 

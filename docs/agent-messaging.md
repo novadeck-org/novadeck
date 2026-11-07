@@ -1666,10 +1666,13 @@ text in `record.terminal.screen` (`@xterm/headless`), with its paste mode. The r
    only when:
    - the line, joined across the rows it wraps over (whitespace aside), appears on the
      screen exactly once, and did not before (in a box too short for it, `hidesText`, the
-     end of the line that shows, which is why that end must be the line's own, nonce and
-     all); and
+     end of the line that shows, as drawn undimmed, which is why that end must be the line's
+     own, nonce and all); and
    - every row that changed is one the line occupies or within 3 rows of them, which
-     covers a vanishing placeholder, footer hints and the box growing. When the box
+     covers a vanishing placeholder, footer hints and the box growing. This one isn't asked
+     of a box too short for the line: on so short a screen a program redraws what is above
+     the box (Claude Code its history at 14 rows), and the box's own reading says where the
+     line went. When the box
      grows by a row, the rows above it may move up one and those below down one; they
      are compared moved. A line that wraps lets it grow a row more for each row past
      its first. Or, for a ring of a Ready terminal only (a first screen, or one

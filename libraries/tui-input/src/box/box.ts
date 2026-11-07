@@ -24,6 +24,11 @@ export type InputBox = {
   readonly last: number
   /** Whether it draws, apart from the text, that it shows only part of what it holds. */
   readonly scrolled?: true
+  /**
+   * Whether it shows nothing but holds more than an empty box does: rows of blank lines typed,
+   * maybe under words scrolled out of sight. A blank box is one row tall.
+   */
+  readonly blanks?: true
 }
 
 /** The markers leading a box's first row: in its prompt mode, and in its shell mode. */
@@ -245,7 +250,8 @@ export const pastesWhole = (profile: BoxProfile, text: string): boolean => {
 }
 
 /** Whether the box holds nothing. */
-export const isEmpty = (box: InputBox): boolean => compact(box.text) === ""
+export const isEmpty = (box: InputBox): boolean =>
+  compact(box.text) === "" && !box.blanks && !box.scrolled
 
 /**
  * The text of the rows `first` to `last`, whose first row starts with one of `markers`: the rows
@@ -283,7 +289,14 @@ const read = (
   // of the text faint, it is the placeholder, not a draft of one letter.
   const letter = compact(text).length === 1 && compact(faint).length > 1 && home
   if (compact(text) !== "" && !letter) return { text, mode, first, last }
-  return { text: compact(faint) === "" || home ? "" : faint, mode, first, last }
+  const blanks = compact(faint) === "" && last > first
+  return {
+    text: compact(faint) === "" || home ? "" : faint,
+    mode,
+    first,
+    last,
+    ...(blanks && { blanks }),
+  }
 }
 
 /** Whether a row starts with a box's marker, in either mode. */

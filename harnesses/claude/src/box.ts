@@ -115,9 +115,10 @@ export const box: BoxProfile = {
   escapeHold: { holds: queueing, ms: 5_000 },
   collapses: (text) => text.split("\n").length > 3 || text.length > 900,
   room: (rows) => rows - 4,
-  // Probed on 24, 40 and 60 rows: 7, 15 and 25 (2.1.287, `e2e/probes/interrupted-paste.e2e.ts`).
-  // Never below 1 on a screen of 11 rows or fewer, which the formula takes to nothing.
-  viewport: (rows) => Math.max(Math.floor(rows / 2) - 5, 1),
+  // Probed on 24, 40 and 60 rows: 7, 15 and 25 (2.1.287, `e2e/probes/interrupted-paste.e2e.ts`);
+  // 3 from 12 to 16 rows (2026-11-07, `e2e/probes/reply-overflow.e2e.ts`). Below 12 a tall text
+  // pushes the box's frame off the screen, and it reads as no box.
+  viewport: (rows) => Math.max(Math.floor(rows / 2) - 5, 3),
   still,
 }
 
