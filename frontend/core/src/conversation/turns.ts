@@ -347,7 +347,9 @@ export const sameBlock = (a: ChatBlock, b: ChatBlock): boolean => {
       b.kind === "doorbell" &&
       a.id === b.id &&
       a.replies === b.replies &&
-      a.messages?.length === b.messages?.length
+      (a.messages ?? []).map(({ id, text }) => `${id}\n${text}`).join("\n") ===
+        (b.messages ?? []).map(({ id, text }) => `${id}\n${text}`).join("\n") &&
+      (a.messages === null) === (b.messages === null)
     )
   return (
     a.kind === b.kind &&
