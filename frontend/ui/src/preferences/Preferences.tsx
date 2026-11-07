@@ -178,7 +178,9 @@ export const Preferences = ({
   const dialog = useRef<HTMLDivElement>(null)
   const hasAgents = agents !== undefined
   const focused = useRef(onFocusedAgent)
-  focused.current = onFocusedAgent
+  useEffect(() => {
+    focused.current = onFocusedAgent
+  }, [onFocusedAgent])
   useEffect(() => {
     if (!open || !focusAgent) return undefined
     if (!hasAgents) {

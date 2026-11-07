@@ -174,6 +174,8 @@ export type DemoHistory = {
   readonly stop: () => void
 }
 
+const nothing = (): void => {}
+
 export const createDemoHistory = (now: number, withSamples = true): DemoHistory => {
   const state = createStore<HistoryState>({
     rows: withSamples ? [...rowsOf("storefront", storefront, now)] : [],
@@ -192,7 +194,7 @@ export const createDemoHistory = (now: number, withSamples = true): DemoHistory 
   }
   let kept = 0
   const unrestorable = new Set<string>()
-  let restorableChanged = (): void => {}
+  let restorableChanged = nothing
   return {
     history: {
       setRestorable: (terminalId, restorable) => {

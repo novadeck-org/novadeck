@@ -170,7 +170,12 @@ describe("coming from a row that needs an agent connected", () => {
       focusAgent: "codex",
       onFocusedAgent: () => done++,
     })
-    for (let frame = 0; frame < 8; frame++) await nextFrame()
+    const frames = async (left: number): Promise<void> => {
+      if (left === 0) return
+      await nextFrame()
+      await frames(left - 1)
+    }
+    await frames(8)
 
     expect(document.activeElement?.getAttribute("aria-labelledby")).toBe("agent-codex")
     expect(done).toBe(1)
