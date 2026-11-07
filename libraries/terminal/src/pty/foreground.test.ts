@@ -192,6 +192,18 @@ describe("children on a Unix shell's terminal", () => {
     ).toBe(false)
   })
 
+  it("leaves out the processes it is told to, such as the agent's own chain", () => {
+    const listed = rows("10 1 pts/3 zsh\n11 10 pts/3 npx\n")
+    expect(hasTerminalChild(listed, 10, new Set([11]))).toBe(false)
+    expect(
+      hasTerminalChild(
+        rows("10 1 pts/3 zsh\n11 10 pts/3 npx\n12 10 pts/3 sleep\n"),
+        10,
+        new Set([11]),
+      ),
+    ).toBe(true)
+  })
+
   it("is idle with no child, and tells nothing for a shell with no terminal or none listed", () => {
     expect(hasTerminalChild(rows("10 1 pts/3 zsh\n"), 10)).toBe(false)
     expect(hasTerminalChild(rows("10 1 ? zsh\n11 10 ? sleep\n"), 10)).toBeUndefined()
@@ -229,6 +241,13 @@ describe("a Windows shell's children, from the relay's tree", () => {
     ])
     await expect(hasChildProcess(10, trees)).resolves.toBe(false)
     expect(trees.read).toHaveBeenCalledWith(10)
+  })
+
+  it("leaves out the processes it is told to, such as the agent's tree", async () => {
+    onWindows()
+    const members = [at(10, "pwsh.exe"), at(11, "claude.exe"), at(12, "node.exe")]
+    await expect(hasChildProcess(10, tree(members), new Set([11, 12]))).resolves.toBe(false)
+    await expect(hasChildProcess(10, tree(members), new Set([11]))).resolves.toBe(true)
   })
 
   it("counts any other process when the relay names none", async () => {

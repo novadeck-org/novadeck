@@ -289,6 +289,24 @@ describe("a terminal host's terminals", () => {
     expect(host.draining("a")).toBe(false)
   })
 
+  it("discards an ended terminal at once, with no drain and no eviction heard", async () => {
+    const { host, evicted, open, exit } = hostOf()
+    open("a")
+    open("b")
+    host.discard("a")
+    expect(host.terminal("a")).toBeDefined()
+    await exit("a", 0)
+    host.discard("a")
+    expect(host.terminal("a")).toBeUndefined()
+    expect(host.draining("a")).toBe(false)
+    expect(evicted).toEqual([])
+    // A terminal whose program runs stays, and the id can be opened again.
+    host.discard("b")
+    expect(host.terminal("b")).toBeDefined()
+    open("a")
+    expect(host.terminal("a")).toBeDefined()
+  })
+
   it("removes nothing it doesn't hold open, and never opens an id twice", () => {
     const { host, open } = hostOf()
     host.remove("nothing")
