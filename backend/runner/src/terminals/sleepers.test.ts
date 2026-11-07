@@ -10,7 +10,15 @@ import type { Record } from "./record.js"
 import { Claims } from "./resumes.js"
 import { wakeMs } from "./resumes.js"
 import type { ListedTerminal } from "./saved-terminals.js"
-import { graceMs, keysHeldMs, Sleepers, type SleepersHost } from "./sleepers.js"
+import {
+  aloneGapMs,
+  aloneLimit,
+  graceMs,
+  keysHeldMs,
+  Sleepers,
+  watchedGraceMs,
+  type SleepersHost,
+} from "./sleepers.js"
 
 const row = (id: string, program: string | null, agents: ListedTerminal["agents"]) =>
   ({
@@ -39,7 +47,13 @@ type Calls = string[]
 
 const setup = (
   rows: ListedTerminal[],
-  options: { wanted?: Set<string>; connected?: boolean; done?: boolean } = {},
+  options: {
+    wanted?: Set<string>
+    connected?: boolean
+    done?: boolean
+    watched?: boolean
+    create?: (row: ListedTerminal) => Promise<unknown>
+  } = {},
 ) => {
   const calls: Calls = []
   const resting = new Map<string, { agent: AgentName; sessionId: string }>()
@@ -78,9 +92,10 @@ const setup = (
     closed: () => false,
     record: () => undefined,
     stopping: () => false,
+    watched: () => options.watched ?? false,
     create: (each: ListedTerminal) => {
       calls.push(`create ${each.id}`)
-      return Promise.resolve()
+      return options.create?.(each) ?? Promise.resolve()
     },
     changed: (each: ListedTerminal) => calls.push(`changed ${each.id}`),
     ended: (id: string) => calls.push(`ended stream ${id}`),
@@ -144,6 +159,43 @@ describe("sleepers", () => {
     expect(calls).not.toContain("create a")
     await vi.advanceTimersByTimeAsync(graceMs)
     expect(calls).toContain("create a")
+  })
+
+  it("waits longer for a client's create while one watches", async () => {
+    vi.useFakeTimers()
+    const { sleepers, calls } = setup(
+      [row("a", "claude", { claude: { sessionId: "one", seq: 1, turn: "waking" } })],
+      { watched: true },
+    )
+    sleepers.start()
+    await vi.advanceTimersByTimeAsync(graceMs + 1_000)
+    expect(calls).not.toContain("create a")
+    await vi.advanceTimersByTimeAsync(watchedGraceMs - graceMs)
+    expect(calls).toContain("create a")
+  })
+
+  it("starts its own creates a few at a time with a gap, when a crowd wakes", async () => {
+    vi.useFakeTimers()
+    const ids = Array.from({ length: aloneLimit * 2 + 1 }, (_, i) => `t${i}`)
+    const finish: (() => void)[] = []
+    const { sleepers, calls } = setup(
+      ids.map((id) => row(id, "claude", { claude: { sessionId: id, seq: 1, turn: "waking" } })),
+      {
+        create: () =>
+          new Promise<void>((resolve) => {
+            finish.push(resolve)
+          }),
+      },
+    )
+    sleepers.start()
+    await vi.advanceTimersByTimeAsync(graceMs)
+    // The gap spaces the starts; the limit caps those under way.
+    expect(calls.filter((call) => call.startsWith("create"))).toHaveLength(1)
+    await vi.advanceTimersByTimeAsync(aloneGapMs * 10)
+    expect(calls.filter((call) => call.startsWith("create"))).toHaveLength(aloneLimit)
+    finish.splice(0).forEach((resolve) => resolve())
+    await vi.advanceTimersByTimeAsync(aloneGapMs * 10)
+    expect(calls.filter((call) => call.startsWith("create"))).toHaveLength(aloneLimit * 2)
   })
 
   it("creates a terminal a client first listed as waking, which only the runner now starts", async () => {
@@ -260,7 +312,7 @@ describe("sleepers", () => {
     const { sleepers } = setup([])
     const file = join(folder(), "resume")
     writeFileSync(file, "claude --resume one")
-    const record = { woken: Date.now(), resumeFile: file, resumeClaim: undefined }
+    const record = { woken: Date.now(), resumeFile: file }
     expect(sleepers.holdsKeys(record)).toBe(true)
     // Taken by the shell.
     rmSync(file)
@@ -275,20 +327,8 @@ describe("sleepers", () => {
     expect(sleepers.holdsKeys({ woken: undefined, resumeFile: file })).toBe(false)
   })
 
-  it("holds keys for the window where the resume went as an argument, as on Windows cmd", () => {
+  it("holds no keys where the resume went as an argument, as on Windows cmd", () => {
     const { sleepers } = setup([])
-    const claim = "claude:one"
-    expect(
-      sleepers.holdsKeys({ woken: Date.now(), resumeFile: undefined, resumeClaim: claim }),
-    ).toBe(true)
-    expect(
-      sleepers.holdsKeys({
-        woken: Date.now() - keysHeldMs - 1,
-        resumeFile: undefined,
-        resumeClaim: claim,
-      }),
-    ).toBe(false)
-    // A plain shell resumed nothing.
     expect(sleepers.holdsKeys({ woken: Date.now(), resumeFile: undefined })).toBe(false)
   })
 })

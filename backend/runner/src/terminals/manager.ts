@@ -66,7 +66,14 @@ import { TerminalPeers } from "./peers-host.js"
 import type { Record } from "./record.js"
 import { createTranscriptRedactor } from "./redaction.js"
 import { showRestored } from "./restored.js"
-import { cancelResume, Claims, endExpecting, restartedTask, resumeNote } from "./resumes.js"
+import {
+  cancelResume,
+  Claims,
+  endExpecting,
+  restartedTask,
+  resumeNote,
+  sessionHeldElsewhere,
+} from "./resumes.js"
 import { Sampler, shellProcess } from "./sampling.js"
 import { hasRun, keptState, type TerminalRecords } from "./saved-terminals.js"
 import { Saves } from "./saving.js"
@@ -304,12 +311,7 @@ export class Terminals {
     })
     this.claims = new Claims({
       boundElsewhere: (terminalId, agent, session) =>
-        [...this.records.values()].some(
-          (other) =>
-            other.summary.id !== terminalId &&
-            other.bound?.binding.agent === agent &&
-            other.bound.binding.sessionId === session,
-        ),
+        sessionHeldElsewhere(this.records.values(), terminalId, agent, session),
     })
     // Read once now, so the first terminal doesn't wait for it; see `Launcher.environment`.
     // After the deletes, as the relay, or PowerShell, that reads it gets this environment.
@@ -477,6 +479,7 @@ export class Terminals {
       closed: (id) => this.closedIds.has(id),
       record: (id) => this.records.get(id),
       stopping: () => this.stopping,
+      watched: () => this.streams.watched(),
       create: async (row, resume) => {
         const owner = `wake:${row.id}`
         const { id, sessionId, cwd } = row

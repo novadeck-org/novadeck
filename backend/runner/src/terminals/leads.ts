@@ -305,10 +305,12 @@ export class Leads {
     const target = await host.peers().target(peerOf(caller), to)
     if (!target.ok) return target
     // Closed, or the runner stopped, while the terminals were described.
-    const led = host.records().get(target.terminalId)
+    let led = host.records().get(target.terminalId)
     if (!led) {
       const woken = await host.sleepers().verdict(target.terminalId)
       if (woken) return refused(wakingOrWhy(target.handle, woken))
+      // A create may have landed during the judgment: the terminal is live now.
+      led = host.records().get(target.terminalId)
     }
     if (host.stopping() || host.records().get(call.terminalId) !== caller || !led)
       return unansweredCalls.lead
@@ -392,10 +394,12 @@ export class Leads {
     if (to === caller.summary.handle) return refused("You can't release yourself.")
     const target = await host.peers().target(peerOf(caller), to)
     if (!target.ok) return target
-    const led = host.records().get(target.terminalId)
+    let led = host.records().get(target.terminalId)
     if (!led) {
       const woken = await host.sleepers().verdict(target.terminalId)
       if (woken) return refused(wakingOrWhy(target.handle, woken))
+      // A create may have landed during the judgment: the terminal is live now.
+      led = host.records().get(target.terminalId)
     }
     if (host.stopping() || host.records().get(call.terminalId) !== caller || !led)
       return unansweredCalls.release

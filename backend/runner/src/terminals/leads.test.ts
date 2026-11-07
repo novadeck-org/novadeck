@@ -24,7 +24,7 @@ const terminal = (handle: string, ledBy: string | null): Record =>
 // Leads over a runner of fakes: terminals with the agent each runs and who leads them
 // (`ledBy` is the lead's handle), and a record of what was sent, noticed and saved.
 const setup = (terminals: {
-  [handle: string]: { agent: AgentName | null; ledBy?: string; asleep?: true; refused?: string }
+  [handle: string]: { agent: AgentName | null; ledBy?: string; asleep?: true; refused?: string; lands?: true }
 }) => {
   // A sleeper has no record: the sleepers hear of the wake it is asked for.
   const records = new Map(
@@ -83,6 +83,11 @@ const setup = (terminals: {
           const handle = Object.keys(terminals).find((each) => `id-${each}` === id)
           const sleeper = handle ? terminals[handle] : undefined
           if (!sleeper?.asleep) return undefined
+          // Its create lands while the wake is judged: it is a live terminal when this settles.
+          if (sleeper.lands) {
+            records.set(id, terminal(handle ?? "", sleeper.ledBy ?? null))
+            return undefined
+          }
           woken.push(id)
           return sleeper.refused === undefined ? { waking: true } : { why: sleeper.refused }
         },
@@ -225,6 +230,16 @@ describe("an agent asking to lead or release a sleeper", () => {
     expect(asked).toEqual([])
     expect(run.sent).toEqual([])
     expect(run.saved).toEqual([])
+  })
+})
+
+describe("an agent asking to release a sleeper whose create lands during the judgment", () => {
+  it("acts on the live terminal", async () => {
+    const run = setup({
+      moth: { agent: "claude" },
+      owl: { agent: "claude", asleep: true, lands: true, ledBy: "moth" },
+    })
+    await expect(run.release("moth", "owl")).resolves.toMatchObject({ ok: true, handle: "owl" })
   })
 })
 

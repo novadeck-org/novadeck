@@ -35,6 +35,21 @@ export const keysHeldMs = 10_000
  */
 export const graceMs = 3_000
 
+/**
+ * The same wait while a client watches, in milliseconds: its own `create`s come a few at a
+ * time (the adapter's start throttle), so the runner waits for the last of a crowd.
+ */
+export const watchedGraceMs = 10_000
+
+/** How many creates of its own the runner has under way at once, and the gap between starts. */
+export const aloneLimit = 3
+export const aloneGapMs = 150
+
+const pause = (ms: number): Promise<void> =>
+  new Promise((resolve) => {
+    setTimeout(resolve, ms).unref()
+  })
+
 export type SleepersHost = {
   readonly messaging: () => Messaging
   readonly saves: () => Saves
@@ -53,6 +68,8 @@ export type SleepersHost = {
   /** The terminal's record, if the runner holds one. */
   readonly record: (terminalId: string) => Record | undefined
   readonly stopping: () => boolean
+  /** Whether any client watches the terminals. */
+  readonly watched: () => boolean
   /** Starts the terminal's shell resuming its agent, as a client's restore does. */
   readonly create: (row: ListedTerminal, agent: AgentName) => Promise<unknown>
   /** Tells every watcher of a terminal kept only as saved. */
@@ -94,6 +111,10 @@ export class Sleepers {
   private readonly creating = new Set<string>()
   /** The session of each terminal rested here, to find its row. */
   private readonly sessions = new Map<string, string>()
+  /** The runner's own creates under way, and those waiting for a place among them. */
+  private starting = 0
+  private readonly queued: (() => void)[] = []
+  private gate: Promise<void> = Promise.resolve()
 
   constructor(private readonly host: SleepersHost) {}
 
@@ -254,7 +275,7 @@ export class Sleepers {
     const timer = setTimeout(() => {
       this.timers.delete(terminalId)
       void this.alone(terminalId)
-    }, graceMs)
+    }, this.host.watched() ? watchedGraceMs : graceMs)
     timer.unref()
     this.timers.set(terminalId, timer)
   }
@@ -276,7 +297,26 @@ export class Sleepers {
     }
   }
 
+  /**
+   * The runner's own creates go a few at a time with a gap between, as the adapter's
+   * do: a crowd of wakes would otherwise start every shell at once.
+   */
   private async alone(terminalId: string): Promise<void> {
+    if (this.starting < aloneLimit) this.starting += 1
+    else await new Promise<void>((resolve) => this.queued.push(resolve))
+    try {
+      const turn = this.gate
+      this.gate = turn.then(() => pause(aloneGapMs))
+      await turn
+      await this.createAlone(terminalId)
+    } finally {
+      const next = this.queued.shift()
+      if (next) next()
+      else this.starting -= 1
+    }
+  }
+
+  private async createAlone(terminalId: string): Promise<void> {
     const resting = this.resting(terminalId)
     if (
       !this.wakes.has(terminalId) ||
@@ -437,10 +477,11 @@ export class Sleepers {
    * Whether the woken shell has yet to read its resume command and drops the person's
    * keys meanwhile, which would take the command's place at the prompt: for `keysHeldMs`.
    */
-  holdsKeys(record: Pick<Record, "woken" | "resumeFile" | "resumeClaim">): boolean {
-    const { woken, resumeFile, resumeClaim } = record
+  holdsKeys(record: Pick<Record, "woken" | "resumeFile">): boolean {
+    const { woken, resumeFile } = record
     if (woken === undefined || Date.now() - woken >= keysHeldMs) return false
-    // The command goes as an argument where no file is read (Windows cmd): held for the window.
-    return resumeFile === undefined ? resumeClaim !== undefined : existsSync(resumeFile)
+    // The command goes as an argument where no file is read (Windows cmd): no prompt takes
+    // a key's place, so none is held.
+    return resumeFile !== undefined && existsSync(resumeFile)
   }
 }

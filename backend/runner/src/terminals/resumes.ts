@@ -145,6 +145,26 @@ type ResumeCheck =
     }
   | { readonly ok: false; readonly reason: UnavailableReason }
 
+/**
+ * Whether a terminal other than `terminalId` has the agent's session: bound, or, where the
+ * root is a conversation the status line names (Antigravity) and so differs from the bound
+ * session's id, the session its agent works in.
+ */
+export const sessionHeldElsewhere = (
+  records: Iterable<Pick<Record, "summary" | "bound" | "root">>,
+  terminalId: string,
+  agent: AgentName,
+  session: string | undefined,
+): boolean => {
+  for (const other of records) {
+    if (other.summary.id === terminalId) continue
+    if (other.bound?.binding.agent === agent && other.bound.binding.sessionId === session)
+      return true
+    if (other.root?.agent === agent && other.root.sessionId === session) return true
+  }
+  return false
+}
+
 export type ClaimsHost = {
   /** Whether another terminal than this one has the agent's session bound. */
   readonly boundElsewhere: (
