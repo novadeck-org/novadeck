@@ -1,3 +1,7 @@
+import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs"
+import { tmpdir } from "node:os"
+import { join } from "node:path"
+
 import type { Report } from "@novadeck/harness-core/report"
 import { loadProbe } from "@novadeck/harness-core/testing/probes"
 import { hookReport } from "@novadeck/harness-core/testing/reports"
@@ -150,6 +154,23 @@ describe("Antigravity's transcript, as captured", () => {
     const root = "/home/user/t.jsonl"
     await expect(transcripts.locate(root, "c", null)).resolves.toBe(root)
     await expect(transcripts.locate(root, "c", "a")).resolves.toBeUndefined()
+  })
+
+  it("is in the conversation's own folder of brain when the named one holds none", async () => {
+    const home = mkdtempSync(join(tmpdir(), "novadeck-agy-brain-"))
+    try {
+      const id = "3f3ad215-48e4-45b6-b33f-73fd3f378d74"
+      const logs = (session: string) => join(home, "brain", session, ".system_generated", "logs")
+      const reported = join(logs("9ac3ebb4-90ce-4bd1-9611-5183926f1c52"), "transcript.jsonl")
+      await expect(transcripts.locate(reported, id, null)).resolves.toBe(reported)
+      mkdirSync(logs(id), { recursive: true })
+      writeFileSync(join(logs(id), "transcript.jsonl"), "")
+      await expect(transcripts.locate(reported, id, null)).resolves.toBe(
+        join(logs(id), "transcript.jsonl"),
+      )
+    } finally {
+      rmSync(home, { recursive: true, force: true })
+    }
   })
 })
 

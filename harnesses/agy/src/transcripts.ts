@@ -1,6 +1,8 @@
+import { presence, reportedOr, sessionName } from "@novadeck/harness-core/conversation"
 import { parseFields, type Fields } from "@novadeck/harness-core/fields"
 import type { TranscriptDecoder, UserEntry } from "@novadeck/harness-core/harness"
 import { at, entry, noteEntry, textOf } from "@novadeck/harness-core/items"
+import { flavourOf } from "@novadeck/harness-core/paths"
 
 import { callChange, stepOutcome } from "./outcomes.js"
 import { describe } from "./tools.js"
@@ -23,13 +25,35 @@ const typed = (fields: Fields): string | undefined => {
 }
 
 /**
+ * The session's transcript in its own folder of the `brain` the reported path sits under,
+ * where the reported one names another folder: Antigravity keeps each conversation's logs
+ * under `brain/<session>`, whatever folder it runs in. One `stat`.
+ */
+const inOwnFolder = async (reported: string, sessionId: string): Promise<string | undefined> => {
+  if (!sessionName.test(sessionId)) return undefined
+  const rules = flavourOf(reported)
+  for (let dir = rules.dirname(reported); rules.dirname(dir) !== dir; dir = rules.dirname(dir)) {
+    const brain = rules.dirname(dir)
+    if (rules.basename(brain) !== "brain") continue
+    if (rules.basename(dir) === sessionId) return undefined
+    const own = rules.join(brain, sessionId, rules.relative(dir, reported))
+    // eslint-disable-next-line no-await-in-loop -- The nearest brain answers, and ends the loop.
+    return (await presence(own)) === "present" ? own : undefined
+  }
+  return undefined
+}
+
+/**
  * Antigravity's transcript: a JSONL of the conversation's steps, which hooks name. The
  * person's input, the model's responses with their tool calls, and each call's result
  * as the next step, as many steps on as it came in its call's list; its reasoning and
  * its own system steps stay out. It names no subagents.
  */
 export const transcripts: TranscriptDecoder = {
-  locate: (root, _sessionId, subagent) => Promise.resolve(subagent === null ? root : undefined),
+  locate: async (reported, sessionId, subagent) =>
+    subagent === null
+      ? reportedOr(reported, sessionId, () => inOwnFolder(reported, sessionId))
+      : undefined,
   step: (line) => {
     const index = parseFields(line)?.step_index
     return typeof index === "number" ? index : undefined

@@ -264,15 +264,17 @@ const backlogKind = (event: HarnessEvent): string =>
  * again: only what it records after the last record read before counts, as its own time
  * says, so an old record is never news and a new one is never lost.
  */
-export const followRollout: NonNullable<Harness["watch"]> = (run, signal, emit) => {
+export const followRollout: NonNullable<Harness["watch"]> = async (run, signal, emit) => {
   // The latest of each kind the backlog held, until it has all been read.
   let backlog: Map<string, HarnessEvent> | undefined = new Map()
   // When the latest record read was written, and, once the file was rewritten, the time
   // a record of the rewritten file must be past to count.
   let latest = Number.NEGATIVE_INFINITY
   let after = Number.NEGATIVE_INFINITY
+  // Where the session writes it, which may not be where its hooks say.
+  const path = await transcripts.locate(run.transcript, run.sessionId, null)
   return followLines(
-    run.transcript,
+    path ?? run.transcript,
     signal,
     (line) => {
       for (const event of rolloutEvents(line, run)) {
