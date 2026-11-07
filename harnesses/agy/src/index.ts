@@ -4,6 +4,7 @@ import type { Harness, LaunchProfile, MessagingProfile } from "@novadeck/harness
 import { beside } from "@novadeck/harness-core/paths"
 
 import { box, slice } from "./box.js"
+import { conversation } from "./conversation.js"
 import { decode } from "./decode.js"
 import { dialogs } from "./dialogs.js"
 import { antigravityHome } from "./home.js"
@@ -66,6 +67,10 @@ const launch: LaunchProfile = {
   // has listed its tools.
   initialPrompt: () => Promise.resolve(undefined),
   resume: (session, choice = {}) => ["agy", ...launch.choose(choice), "--conversation", session],
+  // Its status line gives the id, and an id it never had starts a new conversation
+  // without a word: a different id, or none once its prompt shows, is a failed resume.
+  resumed: (claim, { sessionId, ready }) =>
+    sessionId === claim ? "worked" : sessionId !== null || ready ? "failed" : "waiting",
   models: () => Promise.resolve(models),
   choose: ({ model, effort }) => [
     ...(model !== undefined ? ["--model", model] : []),
@@ -77,6 +82,7 @@ export const agy = {
   id: "agy",
   // Antigravity installs a plugin folder, which its name must match.
   plugin: join("agy", pluginId),
+  conversation,
   home: antigravityHome,
   // The folders of its conversations, where it writes the plans it asks to be reviewed.
   planFolders: (install) => [join(antigravityHome(install), "brain")],

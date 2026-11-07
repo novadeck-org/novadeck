@@ -3,6 +3,7 @@ import type { Harness, LaunchProfile, MessagingProfile } from "@novadeck/harness
 
 import { bannerMarker, bannerVersion } from "./banner.js"
 import { box, slice } from "./box.js"
+import { conversation } from "./conversation.js"
 import { decode } from "./decode.js"
 import { dialogs } from "./dialogs.js"
 import { codexHome } from "./home.js"
@@ -49,7 +50,22 @@ const launch: LaunchProfile = {
   start: ["codex"],
   // It holds a command-line prompt behind its trust and startup screens.
   initialPrompt: (line) => Promise.resolve(["codex", line]),
-  resume: (session, choice = {}) => ["codex", "resume", ...launch.choose(choice), session],
+  // `tui.resume_cwd=session` keeps the working-directory question from blocking the resume
+  // when the shell's folder is not the session's, as after a `cd` (probed 2026-11-07, 0.167.0,
+  // on Linux, macOS and Windows; `-C <dir>` does the same). It is one plain word, as `choose`'s
+  // `-c` values are, so every shell and the shims' `%*` and `"$@"` pass it whole. The session's
+  // folder, if deleted, still blocks: its availability check says so first.
+  resume: (session, choice = {}) => [
+    "codex",
+    "resume",
+    ...launch.choose(choice),
+    "-c",
+    "tui.resume_cwd=session",
+    session,
+  ],
+  // It has no id before its first prompt: reaching ready with the resume running is its
+  // sign, and an id it never had exits with the shell prompt back instead.
+  resumed: (_claim, { ready }) => (ready ? "worked" : "waiting"),
   // Its cache of the models it lists, in its home; the effort is a config override, left
   // bare (codex reads a value that isn't TOML as a string), so it has no quotes of its own.
   models: (install) => readModels(codexHome(install)),
@@ -62,6 +78,7 @@ const launch: LaunchProfile = {
 export const codex = {
   id: "codex",
   plugin: "codex",
+  conversation,
   home: codexHome,
   connected,
   connect,
