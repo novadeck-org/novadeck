@@ -642,6 +642,9 @@ export const createDeck = async (options: DeckOptions): Promise<Deck> => {
         freshPath: options.freshPath ?? false,
         // The list's order, not each session's shuffle, so scenarios know the handles given.
         handleOrder: () => handleWords,
+        // Seconds, not the setting's minutes, once a scenario turns stopping idle agents on
+        // (`hibernated`); off until then, so no other scenario's agent is stopped mid-test.
+        hibernation: { windowMs: 5_000, sweepMs: 1_000 },
       },
     })
     // The runner carries on without its shell files; a test can't, as no agent would report.
@@ -654,6 +657,7 @@ export const createDeck = async (options: DeckOptions): Promise<Deck> => {
   }
 
   let runner = await start()
+  runner.store.settings.saveRunner({ hibernateAfterMinutes: null })
   // The terminals opened, for `report`.
   const watched: {
     readonly on: Runner

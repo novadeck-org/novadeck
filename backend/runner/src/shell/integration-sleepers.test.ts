@@ -13,7 +13,12 @@ const sleeper = (
   shell: Fixture,
   agent: AgentName,
   sessionId: string,
-  extra: { lastProgram?: string | null; turn?: "running"; ledBy?: string } = {},
+  extra: {
+    lastProgram?: string | null
+    turn?: "running"
+    ledBy?: string
+    launch?: string[]
+  } = {},
 ): string => {
   const id = randomUUID()
   shell.store.saveTerminal({
@@ -27,7 +32,14 @@ const sleeper = (
     command: null,
     lastProgram: extra.lastProgram === undefined ? agent : extra.lastProgram,
     work: null,
-    agents: { [agent]: { sessionId, seq: 1, ...(extra.turn && { turn: extra.turn }) } },
+    agents: {
+      [agent]: {
+        sessionId,
+        seq: 1,
+        ...(extra.turn && { turn: extra.turn }),
+        ...(extra.launch && { launch: extra.launch }),
+      },
+    },
     promptedAt: null,
   })
   return id
@@ -127,6 +139,17 @@ describe.skipIf(process.platform === "win32" || !existsSync(bash))(
       await expect(restore()).resolves.toMatchObject({ id, sleeping: false, started: true })
       await expect(restore()).rejects.toMatchObject({ code: "CONFLICT" })
       await shell.until(manager, id, "claude args: --resume abc-1")
+    })
+
+    it("wakes with the flags its session was launched with", async ({ shell }) => {
+      writeFileSync(join(shell.home, ".bashrc"), 'export PATH="$HOME/bin:$PATH"\n')
+      fakeAgent(shell.home, "claude")
+      const id = sleeper(shell, "claude", "abc-1", {
+        launch: ["--dangerously-skip-permissions"],
+      })
+      const manager = shell.manager()
+      await create(manager, shell, { id, restore: true, resume: "claude" })
+      await shell.until(manager, id, "--dangerously-skip-permissions --resume abc-1")
     })
 
     it("leaves a wake nobody is looking at asleep when it can't resume, and fails it", async ({

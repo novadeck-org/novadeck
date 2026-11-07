@@ -218,6 +218,21 @@ describe("requests on their way to the client", () => {
     controller.abort()
   })
 
+  it("are known by the terminal that asked, until the client's terminal takes its place", async () => {
+    const opens = new OpenRequests()
+    const stream = opens.follow("client")
+    const first = stream.next()
+    const asked = opens.request(request, 1_000, { by: "moth", leads: false })
+    const { value } = await first
+    expect(opens.asked("moth")).toBe(true)
+    expect(opens.asked("wren")).toBe(false)
+    opens.opener(value!.requestId, "client", request.sessionId)
+    expect(opens.asked("moth")).toBe(false)
+    opens.answer({ requestId: value!.requestId, reason: "No." }, "client")
+    await asked
+    opens.finish()
+  })
+
   it("go unanswered when the client takes too long, or goes away", async () => {
     const opens = new OpenRequests()
     const stream = opens.follow("client")

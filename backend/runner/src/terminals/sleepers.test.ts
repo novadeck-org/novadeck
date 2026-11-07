@@ -79,7 +79,11 @@ const setup = (
         return new Map<string, number>()
       },
     }),
-    saves: () => ({ terminals: () => rows }),
+    saves: () => ({
+      terminals: () => rows,
+      saved: (id: string) => rows.find((each) => each.id === id),
+      save: (record: { summary: { id: string } }) => void calls.push(`save ${record.summary.id}`),
+    }),
     inbox: () => ({
       reports: () => ({ tell: null, done: options.done ? { subject: "x", at: 5 } : null }),
       lastTurnAt: () => options.turnAt ?? null,
@@ -117,6 +121,42 @@ describe("sleepers", () => {
     ])
     sleepers.start()
     expect([...resting.keys()]).toEqual(["a"])
+  })
+
+  it("tells before a running agent stops whether it would rest, and on what", () => {
+    const { sleepers } = setup([row("a", "claude", { claude: { sessionId: "one", seq: 1 } })])
+    const running = (id: string, agents: ListedTerminal["agents"]) => ({
+      summary: { id, sessionId: "s" },
+      agents,
+    })
+    const one = { claude: { sessionId: "one", seq: 1 } }
+    expect(sleepers.restable(running("a", one), "claude")).toBe(true)
+    // No session reported, one a harness can't resume, or no row to keep it on.
+    expect(sleepers.restable(running("a", {}), "claude")).toBe(false)
+    expect(
+      sleepers.restable(running("a", { claude: { sessionId: "bad id!", seq: 1 } }), "claude"),
+    ).toBe(false)
+    expect(sleepers.restable(running("z", one), "claude")).toBe(false)
+  })
+
+  it("forgets the flags of a wake whose agent never came, so the next goes bare", () => {
+    const { sleepers, calls } = setup([
+      row("a", "claude", { claude: { sessionId: "one", seq: 1 } }),
+    ])
+    const record = {
+      summary: { id: "a" },
+      resumeClaim: "claude:one",
+      changed: false,
+      agents: { claude: { sessionId: "one", seq: 1, launch: ["--dangerously-skip-permissions"] } },
+    }
+    sleepers.failed(record as never, "its agent did not start")
+    expect(record.agents.claude).toEqual({ sessionId: "one", seq: 1 })
+    expect(record.changed).toBe(true)
+    expect(calls).toContain("save a")
+    // A wake that carried none has nothing to forget, nor to save.
+    calls.length = 0
+    sleepers.failed({ ...record, changed: false } as never, "its agent did not start")
+    expect(calls).not.toContain("save a")
   })
 
   it("leaves a terminal whose last program was node a plain one, whatever agents reported", () => {

@@ -1407,6 +1407,61 @@ runner, and only for the resumed session (its id, or the start of it a Codex tit
 A terminal restored without a resume tells no one. A flag the runner never got to save (a
 crash) is lost.
 
+### Idle agents rest
+
+An idle agent is stopped, so agents do not all run at once, and rests as a sleeper (a saved
+terminal whose session resumes: its Live is `resting`, see `Sessions.rest`). The next message
+to it, or the person looking at it, wakes it on the same session. Every harness, every OS: the
+rule is the same because it reads only the activity, the messaging state and the processes.
+`terminals/hibernation.ts` looks at every terminal each minute (`vetoOf`), after the setting
+"Stop idle agents after" (`hibernateAfterMinutes` in `settings.get`, 30 minutes by default,
+`null` for off; kept in the settings table, so no schema change). An agent rests only if all hold:
+
+- it is a bound agent whose harness resumes the session it reported, the saved row and the
+  project keep it, and a shell here can run the resume (`Sleepers.restable`): a person's plain
+  shell never rests;
+- its activity is idle: no turn, subagent, background job or wake-up (Codex reports no
+  background jobs, so the processes below are what protect its own), no request waiting on the
+  person, no usage limit, no ask open in the Inbox, no approval or request for a terminal
+  waiting for or on it (`Approvals.involves`, `OpenRequests.asked`), and no message, lease or
+  typed reply on its way (`Messaging.occupied`);
+- its box is not a draft (the delivery state is Settled or Ready), and no client is attached,
+  a Grid tile counting, nor reads its chat;
+- its session has ended a turn, or the shell resumed it: a session that never took a turn has
+  nothing saved to resume;
+- the setting's wait has passed since the latest of its last turn end, the person's last key,
+  a client's last attach or detach, and the terminal's start (a wake included).
+
+Nothing the agent started dies with it, because the pty ends as a quit ends it, shell and all.
+So its processes are read, on every OS (`placement` from the process listing on Linux and
+macOS, the relay's tree on Windows), and:
+
+- the agent must descend from the shell, and on Linux and macOS hold the terminal's foreground
+  (a tmux or detached client fails, and no second copy of a session starts);
+- the processes under the agent are recorded once, at its first turn start or `baselineMs` after
+  its session binds, whichever comes first (`Hibernation.look`), so MCP servers are in and
+  nothing a turn started is. Any live process under it that the baseline lacks keeps it awake,
+  and with no baseline it stays awake: a late MCP server only means that agent never rests;
+- any child of the shell beside the agent's own chain keeps it awake (`npm run dev &` before
+  `claude`), by `hasChildProcess`.
+
+The facts are read again, synchronously, after the processes are read, just before the terminal
+is marked `hibernating`. That mark gates the record: `attach` is TERMINAL_NOT_FOUND, `announce`
+tells nothing (the list keeps the running summary), `prompted` and the sampler do nothing, a
+`create` waits, and `lastProgram` is pinned to the bound agent first, so the shell that is left
+is not taken for what resumes. The shell's exit then publishes no exit, does not unregister the
+terminal from messaging and leaves its Inbox rows alone; `host.discard` lets the ended terminal
+go at once (a drained id would answer CONFLICT, which the adapter reads as success). Only then,
+if the terminal was not closed meanwhile, does it rest and one `changed` tell watchers it
+sleeps, so a wake cannot meet the old record.
+
+On Windows the relay's tree names each process's parent, so a wrapper between the shell and the
+agent (an npm shim, `codex.cmd`) is part of the agent's chain, not a job; where a parent is not
+told, the wrapper counts as something the shell started beside the agent, and that agent stays awake.
+
+Before the agent is stopped its screen is saved as the transcript (`Saves.saveNow`, waited for at
+most two seconds), so a wake that falls back to a plain shell shows the latest screen.
+
 ### The lead's messages mid-turn
 
 A terminal's lead directs its work, so its messages don't wait for the turn to end.

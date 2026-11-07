@@ -60,6 +60,12 @@ export type SessionObserved = EventBase &
      * "States").
      */
     readonly atPrompt?: boolean
+    /**
+     * The flags the agent process that told it was launched with, as its harness keeps
+     * them for a resume (`launch.kept`); empty where it was launched with none, absent
+     * where the relay couldn't read them.
+     */
+    readonly launch?: readonly string[]
   }
 
 /**

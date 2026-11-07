@@ -1,6 +1,7 @@
 import type { SQLTagStore } from "node:sqlite"
 
 import {
+  defaultHibernateMinutes,
   murmurCheck,
   runnerSettings,
   voiceCheck,
@@ -41,6 +42,18 @@ const inboxRowsOf = (text: string | undefined): string[] => {
     return order.success ? order.data : []
   } catch {
     return []
+  }
+}
+
+// How long idle agents wait before they are stopped: the default until chosen, none when the
+// person turned it off (saved as `null`), or what can't be read.
+const hibernateOf = (text: string | undefined): RunnerSettings["hibernateAfterMinutes"] => {
+  if (text === undefined) return defaultHibernateMinutes
+  try {
+    const minutes = runnerSettings.shape.hibernateAfterMinutes.safeParse(JSON.parse(text))
+    return minutes.success ? minutes.data : defaultHibernateMinutes
+  } catch {
+    return defaultHibernateMinutes
   }
 }
 
@@ -107,12 +120,14 @@ export class Settings {
     }[]
     const saved = new Map(rows.map((row) => [row.key, row.value]))
     // Transcripts are kept unless turned off; the welcome dialog waits until seen; the Inbox
-    // keeps its own order until the person drags its rows, and snoozes none until they do.
+    // keeps its own order until the person drags its rows, and snoozes none until they do; idle
+    // agents are stopped after the default wait until the person chooses another, or never.
     return {
       transcripts: saved.get("transcripts") !== "false",
       welcomed: saved.get("welcomed") === "true",
       inboxOrder: inboxRowsOf(saved.get("inboxOrder")),
       inboxSnoozed: inboxRowsOf(saved.get("inboxSnoozed")),
+      hibernateAfterMinutes: hibernateOf(saved.get("hibernateAfterMinutes")),
     }
   }
 

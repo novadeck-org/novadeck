@@ -27,6 +27,7 @@ const bindings = (shown?: AgentName) => {
     typing: () => ({ dialogsChanged: () => {}, receiptsChanged: () => {} }),
     murmurChanged: () => {},
     rebound: () => {},
+    looked: () => {},
     announce,
     detailed,
   } as unknown as BindingsHost
@@ -178,6 +179,7 @@ describe("a turn that ends within its grace as its session does", () => {
       typing: () => ({ dialogsChanged: () => {}, receiptsChanged: () => {} }),
       murmurChanged: () => {},
       rebound: () => {},
+      looked: () => {},
       announce: () => {},
       detailed: () => {},
       turns: () => ({ inbox, redactor: undefined }),
@@ -263,6 +265,7 @@ describe("the lead of an agent found gone", () => {
       detailed: () => {},
       save,
       announce: () => {},
+      looked: () => {},
       // Its agent's process is gone.
       alive: () => false,
       stopping,
@@ -484,6 +487,7 @@ describe("the done report that stands", () => {
       }),
       typing: () => ({ dialogsChanged: () => {}, receiptsChanged: () => {} }),
       rebound: () => {},
+      looked: () => {},
       announce,
       detailed: () => {},
     } as unknown as BindingsHost

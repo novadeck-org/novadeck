@@ -84,6 +84,12 @@ export type TerminalHost = {
    * Nothing once the host is shutting down.
    */
   remove(id: string): void
+  /**
+   * Lets ended terminal `id` go at once, as eviction does but for the caller's own reason,
+   * with no listener told and its viewers, if any, not drained: its screen is gone with it.
+   * Nothing for one whose program still runs, or once the host is shutting down.
+   */
+  discard(id: string): void
   /** Ends `owner`'s attachments and control, on every terminal, closed ones too. */
   release(owner: string): void
   /**
@@ -289,6 +295,13 @@ export const createTerminalHost = (options: TerminalHostOptions): TerminalHost =
       open.delete(id)
       drained.set(id, entry)
       settle(id)
+    },
+    discard: (id) => {
+      const entry = open.get(id)
+      if (!entry || stopping || entry.terminal.exit === null) return
+      entry.terminal.gone()
+      entry.terminal.dispose()
+      open.delete(id)
     },
     release: (owner) => {
       for (const [id, entry] of [...open, ...drained]) {

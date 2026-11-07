@@ -44,6 +44,13 @@ export type AgentReport = {
    * the session, as the Inbox's stored turns go once read, so a sleeper's tab keeps its age.
    */
   readonly endedAt?: number
+  /**
+   * The flags the agent was launched with that a resume carries over (`launch.kept`: its
+   * permission mode, sandbox, model and effort), as its hooks reported them; rows saved
+   * without them read as none, and a new session has the flags of the process that
+   * started it.
+   */
+  readonly launch?: readonly string[]
 }
 
 /**

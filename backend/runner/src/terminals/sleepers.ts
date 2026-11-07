@@ -7,6 +7,7 @@ import {
   type TerminalSummary,
 } from "@novadeck/protocol"
 
+import { withoutLaunch } from "../harnesses/bindings.js"
 import { harnesses } from "../harnesses/registry.js"
 import type { Inbox } from "../messaging/inbox.js"
 import { agentLabel } from "../messaging/messages.js"
@@ -167,6 +168,23 @@ export class Sleepers {
       .catch(() => undefined)
   }
 
+  /**
+   * Whether a running terminal's agent would rest as a sleeper if it stopped now (`rest`):
+   * its harness resumes the session it reported, a shell here can run the resume, and a
+   * saved row and project keep it. Asked before a hibernation ends anything.
+   */
+  restable(
+    record: { readonly summary: Pick<AgentSummary, "id" | "sessionId"> } & Pick<Record, "agents">,
+    agent: AgentName,
+  ): boolean {
+    const { id, sessionId } = record.summary
+    if (!this.host.resumes() || this.host.closed(id) || !harnesses[agent].launch.resume)
+      return false
+    const session = record.agents[agent]?.sessionId
+    if (session === undefined || !agentSessionId.safeParse(session).success) return false
+    return this.host.projectOf(sessionId) !== undefined && this.host.saves().saved(id) !== undefined
+  }
+
   /** The shell integration did not come up: no shell can run a resume, so none rests. */
   integrationFailed(): void {
     for (const id of Array.from(this.sessions.keys())) {
@@ -261,7 +279,11 @@ export class Sleepers {
     // Gone, woken by another path, or resting on another session meanwhile.
     const now = this.resting(terminalId)
     if (this.host.stopping() || now?.agent !== agent || now.sessionId !== sessionId) return
-    const check = this.host.claims().check(terminalId, agent, sessionId, connected)
+    // Judged with the flags its session was launched with, as the create that follows is.
+    const launch = this.row(terminalId, this.sessions.get(terminalId))?.agents[agent]?.launch
+    const check = this.host
+      .claims()
+      .check(terminalId, agent, sessionId, connected, undefined, launch)
     if (check.ok) return void this.wake(terminalId)
     const why = wakeRefusal(agent, check.reason)
     this.host.messaging().wakeFailed(terminalId, why)
@@ -529,6 +551,13 @@ export class Sleepers {
   failed(record: Record, why: string): void {
     const { id } = record.summary
     this.host.messaging().wakeEnded(id, why)
+    // A flag the harness rejected would fail every wake: the next goes bare.
+    const agent = record.resumeClaim?.split(":", 1)[0]
+    if (agent !== undefined && isAgentName(agent) && record.agents[agent]?.launch) {
+      record.agents = withoutLaunch(record.agents, agent)
+      record.changed = true
+      this.host.saves().save(record, false)
+    }
   }
 
   /**

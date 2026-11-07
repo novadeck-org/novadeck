@@ -180,6 +180,19 @@ export class Relays {
   }
 
   /**
+   * Whether something is on its way to the terminal's agent: a message that will be
+   * delivered to it soon (`soon`), or a line an Inbox button sent whose turn is yet to
+   * spend it. An agent with such business is not left to be stopped.
+   */
+  occupied(terminalId: string): boolean {
+    const live = this.host.sessions.get(terminalId)
+    if (!live) return false
+    if (live.automatic.length > 0 || live.withdrawing !== null) return true
+    for (const message of this.host.store.messages()) if (this.soon(live, message)) return true
+    return false
+  }
+
+  /**
    * Whether a message will be delivered to the agent at the terminal soon: queued or leased,
    * addressed to its root session or, where none is bound, to the agent about to bind. Not
    * one held for the person's release, gone, or for another session; one held only while

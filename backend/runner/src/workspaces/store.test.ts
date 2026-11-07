@@ -2333,6 +2333,7 @@ describe("saved terminals", () => {
       welcomed: false,
       inboxOrder: [],
       inboxSnoozed: [],
+      hibernateAfterMinutes: 30,
     })
     workspace.settings.saveRunner({ transcripts: false })
     workspace.settings.saveRunner({ welcomed: true })
@@ -2341,7 +2342,22 @@ describe("saved terminals", () => {
       welcomed: true,
       inboxOrder: [],
       inboxSnoozed: [],
+      hibernateAfterMinutes: 30,
     })
+  })
+
+  it("keep how long idle agents wait before they are stopped, and never when turned off", ({
+    kept,
+  }) => {
+    const workspace = kept()
+    expect(workspace.settings.runner().hibernateAfterMinutes).toBe(30)
+    workspace.settings.saveRunner({ hibernateAfterMinutes: 240 })
+    expect(workspace.settings.runner().hibernateAfterMinutes).toBe(240)
+    workspace.settings.saveRunner({ hibernateAfterMinutes: null })
+    expect(workspace.settings.runner().hibernateAfterMinutes).toBeNull()
+    // A value that can't be read is the default, not off.
+    workspace.settings.saveRunner({ hibernateAfterMinutes: 0 })
+    expect(workspace.settings.runner().hibernateAfterMinutes).toBe(30)
   })
 
   it("keep the Inbox's order the person dragged its rows into, and read a broken one as none", ({
@@ -2453,6 +2469,7 @@ describe("the messages", () => {
       welcomed: false,
       inboxOrder: [],
       inboxSnoozed: [],
+      hibernateAfterMinutes: 30,
     })
     expect(reopened.terminalIdentity("a")).toMatchObject({ handle: "moth" })
     expect(reopened.terminalIdentity("b")).toBeUndefined()

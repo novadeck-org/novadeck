@@ -7,6 +7,7 @@ import {
   boundedListing,
   endFollowed,
   parsePs,
+  placement,
   parseStat,
   sharedListing,
   stillRunning,
@@ -297,5 +298,49 @@ describe.skipIf(process.platform === "win32")("ending what is followed", () => {
     await endFollowed([{ pid, started: "same" }], () => Date.now() + 60_000, list)
     await gone
     expect(list).not.toHaveBeenCalled()
+  })
+})
+
+describe("an agent's place in its terminal", () => {
+  it("names the chain down to the agent, its foreground, and what it started", () => {
+    const found = placement(everything, 10, 20)
+    expect(found?.chain).toEqual([20])
+    expect(found?.foreground).toBe(true)
+    expect(pids(found?.below)).toEqual([21, 30, 31, 32])
+  })
+
+  it("puts a wrapper in the chain, and not what sits beside it", () => {
+    const wrapper = row(15, 10, 20)
+    const nested = row(20, 15, 20)
+    const found = placement([shell, wrapper, nested, relay, sibling], 10, 20)
+    expect(found?.chain).toEqual([15, 20])
+    expect(pids(found?.below)).toEqual([21])
+  })
+
+  it("is not the foreground when the shell holds it, or a program of another group does", () => {
+    expect(placement([row(10, 1, 10, { foreground: 10 }), agent], 10, 20)?.foreground).toBe(false)
+    expect(
+      placement([row(10, 1, 10, { foreground: 40 }), agent, sibling], 10, 20)?.foreground,
+    ).toBe(false)
+  })
+
+  it("is nowhere for an agent that does not descend from the shell, or is gone", () => {
+    expect(placement(everything, 10, 50)).toBeUndefined()
+    expect(placement(everything, 10, 99)).toBeUndefined()
+    expect(placement(everything, 10, 10)).toBeUndefined()
+    expect(placement([shell, row(20, 10, 20, { zombie: true })], 10, 20)).toBeUndefined()
+  })
+
+  it("tells each process under the agent by its parent among them", () => {
+    const found = placement(everything, 10, 20)
+    expect(found?.lineage.get("32:at 32")).toBe("31:at 31")
+    expect(found?.lineage.get("31:at 31")).toBe("30:at 30")
+    // The agent itself is no member of what is under it.
+    expect(found?.lineage.get("30:at 30")).toBeUndefined()
+  })
+
+  it("leaves out what has ended but not been reaped", () => {
+    const found = placement([shell, agent, row(30, 20, 30, { zombie: true })], 10, 20)
+    expect(found?.below).toEqual([])
   })
 })

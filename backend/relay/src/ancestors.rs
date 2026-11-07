@@ -4,21 +4,82 @@
 //! the one just below the agent is when the agent started the hook's shell, which on
 //! Windows comes seconds before the relay, behind a cold PowerShell or cmd. The runner
 //! reads the starts only there; on Linux and macOS, where a shell starts at once, they
-//! are sent for what they tell, as the relay reads every platform alike.
+//! are sent for what they tell, as the relay reads every platform alike. Each also carries
+//! the words it was started with where the platform tells (`args`, a program's arguments
+//! without the program, whole words only, so a word that doesn't fit and what follows are
+//! left out; on Windows `commandLine`, the one line it is given, cut at `MOST_ARGS` with
+//! `commandLineCut` set, whose last word may be partial): from the agent's, the runner learns
+//! the flags it was launched with.
 
 use serde_json::{Map, Value};
 
 const MOST: usize = 8;
 
-/// An ancestor as the runner reads it; its start is left out where unknown.
-fn entry(pid: u32, name: String, started: Option<f64>) -> Value {
+/// The most of a process's arguments an ancestor carries, in bytes: its flags come first,
+/// and a long prompt or settings text after them is of no use.
+const MOST_ARGS: usize = 4096;
+
+/// What the platform tells of the words a process was started with.
+#[derive(Debug, PartialEq)]
+enum Args {
+    /// Its arguments, one by one, without its program.
+    #[cfg_attr(windows, allow(dead_code))]
+    Words(Vec<String>),
+    /// The one line it was given, program first, as Windows keeps it, and whether it was cut.
+    #[cfg_attr(not(any(windows, test)), allow(dead_code))]
+    Line { line: String, cut: bool },
+}
+
+/// An ancestor as the runner reads it; its start and arguments are left out where unknown.
+fn entry(pid: u32, name: String, started: Option<f64>, args: Option<Args>) -> Value {
     let mut fields = Map::new();
     fields.insert("pid".into(), pid.into());
     fields.insert("name".into(), name.into());
     if let Some(started) = started.and_then(serde_json::Number::from_f64) {
         fields.insert("startedAt".into(), Value::Number(started));
     }
+    match args {
+        Some(Args::Words(words)) => {
+            fields.insert("args".into(), words.into());
+        }
+        Some(Args::Line { line, cut }) => {
+            fields.insert("commandLine".into(), line.into());
+            if cut {
+                fields.insert("commandLineCut".into(), true.into());
+            }
+        }
+        None => {}
+    }
     Value::Object(fields)
+}
+
+/// The words of a process's arguments that fit `MOST_ARGS`, whole words only.
+#[cfg(any(unix, test))]
+fn fitting(words: impl Iterator<Item = String>) -> Vec<String> {
+    let mut used = 0;
+    let mut kept = Vec::new();
+    for word in words {
+        used += word.len() + 1;
+        if used > MOST_ARGS {
+            break;
+        }
+        kept.push(word);
+    }
+    kept
+}
+
+/// A command line cut to `MOST_ARGS` bytes at a character boundary, and whether it was cut:
+/// its last word may then be partial, which the runner drops.
+#[cfg(any(windows, test))]
+fn fitting_line(line: &str) -> Args {
+    let mut end = line.len().min(MOST_ARGS);
+    while !line.is_char_boundary(end) {
+        end -= 1;
+    }
+    Args::Line {
+        line: line[..end].to_owned(),
+        cut: end < line.len(),
+    }
 }
 
 /// A process as the platform tells it: its name, its parent, and when it started.
@@ -40,7 +101,7 @@ pub fn of_this_process() -> Vec<Value> {
         let Some(process) = process(pid, clock.as_ref()) else {
             break;
         };
-        found.push(entry(pid, process.name, process.started));
+        found.push(entry(pid, process.name, process.started, arguments(pid)));
         pid = process.parent;
     }
     found
@@ -80,6 +141,7 @@ pub fn of_this_process() -> Vec<Value> {
             parent,
             program(&process.file),
             started.map(|ms| ms as f64),
+            processes::command_line(parent).map(|line| fitting_line(&line)),
         ));
         child_started = started;
         pid = parent;
@@ -146,6 +208,25 @@ fn process(pid: u32, clock: Option<&Clock>) -> Option<Process> {
     })
 }
 
+/// A process's arguments without its program, from `/proc`: its command line is those words,
+/// each ended by a zero byte.
+#[cfg(target_os = "linux")]
+fn arguments(pid: u32) -> Option<Args> {
+    let line = std::fs::read(format!("/proc/{pid}/cmdline")).ok()?;
+    Some(Args::Words(words_of(&line)))
+}
+
+/// The words of a zero-ended command line, its program left out.
+#[cfg(any(target_os = "linux", test))]
+fn words_of(line: &[u8]) -> Vec<String> {
+    let line = line.strip_suffix(&[0]).unwrap_or(line);
+    fitting(
+        line.split(|byte| *byte == 0)
+            .skip(1)
+            .map(|word| String::from_utf8_lossy(word).into_owned()),
+    )
+}
+
 /// A `/proc/<pid>/stat` line's name, which may hold spaces and brackets, parent (field 4)
 /// and start in clock ticks after boot (field 22), where the line has it. The name is the
 /// kernel's `comm`: at most 15 bytes, and what a program sets as its title, where macOS
@@ -191,10 +272,53 @@ fn process(pid: u32, _clock: Option<&Clock>) -> Option<Process> {
     })
 }
 
-/// The path a process was started by, from its arguments' record: its argument count,
-/// then that path.
+/// A process's arguments without its program, from the kernel's record of them.
 #[cfg(target_os = "macos")]
-fn started_by(pid: u32) -> Option<String> {
+fn arguments(pid: u32) -> Option<Args> {
+    let record = arguments_record(pid)?;
+    Some(Args::Words(record_words(&record)?))
+}
+
+/// The words of a kernel arguments record: its count, the path the process was started by
+/// and the zero bytes after it, then each argument ended by a zero byte, the program first.
+/// The kernel pads the path to a multiple of eight bytes, so zero bytes past that padding
+/// are empty words, and an empty program name (`argv[0]`), which no other word follows as
+/// the padding does, is told by them: unless the first word names the path, which an
+/// empty one can't.
+#[cfg(any(target_os = "macos", test))]
+fn record_words(record: &[u8]) -> Option<Vec<String>> {
+    let count = usize::try_from(i32::from_ne_bytes(record.get(..4)?.try_into().ok()?)).ok()?;
+    let rest = record.get(4..)?;
+    let end = rest.iter().position(|byte| *byte == 0)?;
+    let (path, rest) = (&rest[..end], &rest[end..]);
+    let zeros = rest
+        .iter()
+        .position(|byte| *byte != 0)
+        .unwrap_or(rest.len());
+    let rest = &rest[zeros..];
+    // The path's own terminator, then its padding to a multiple of eight bytes.
+    let padding = (8 - (path.len() + 1) % 8) % 8;
+    let first = rest.split(|byte| *byte == 0).next().unwrap_or(&[]);
+    let named = !first.is_empty()
+        && (first == path
+            || file_name(&String::from_utf8_lossy(first))
+                == file_name(&String::from_utf8_lossy(path)));
+    let empty_program = zeros - 1 > padding && !named;
+    let words = rest
+        .split(|byte| *byte == 0)
+        .take(count - usize::from(empty_program))
+        .map(|word| String::from_utf8_lossy(word).into_owned());
+    let words: Vec<String> = std::iter::once(String::new())
+        .filter(|_| empty_program)
+        .chain(words)
+        .collect();
+    Some(fitting(words.into_iter().skip(1)))
+}
+
+/// The kernel's record of a process's arguments (`KERN_PROCARGS2`): its argument count,
+/// then the path it was started by, and the arguments after.
+#[cfg(target_os = "macos")]
+fn arguments_record(pid: u32) -> Option<Vec<u8>> {
     use std::mem::size_of;
     use std::ptr::null_mut;
 
@@ -230,7 +354,15 @@ fn started_by(pid: u32) -> Option<String> {
     if asked != 0 {
         return None;
     }
-    let path = record.get(size_of::<libc::c_int>()..length)?;
+    record.truncate(length);
+    Some(record)
+}
+
+/// The path a process was started by, from its arguments' record.
+#[cfg(target_os = "macos")]
+fn started_by(pid: u32) -> Option<String> {
+    let record = arguments_record(pid)?;
+    let path = record.get(std::mem::size_of::<libc::c_int>()..)?;
     let path = &path[..path.iter().position(|byte| *byte == 0)?];
     file_name(&String::from_utf8_lossy(path))
 }
@@ -259,6 +391,11 @@ fn file_name(path: &str) -> Option<String> {
 /// Elsewhere the platform doesn't tell, and the runner goes without.
 #[cfg(all(unix, not(any(target_os = "linux", target_os = "macos"))))]
 fn process(_pid: u32, _clock: Option<&Clock>) -> Option<Process> {
+    None
+}
+
+#[cfg(all(unix, not(any(target_os = "linux", target_os = "macos"))))]
+fn arguments(_pid: u32) -> Option<Args> {
     None
 }
 
@@ -305,12 +442,103 @@ mod tests {
     #[test]
     fn leaves_out_a_start_it_doesnt_know() {
         assert_eq!(
-            entry(7, "sh".into(), None),
+            entry(7, "sh".into(), None, None),
             serde_json::json!({ "pid": 7, "name": "sh" })
         );
         assert_eq!(
-            entry(7, "sh".into(), Some(12.5)),
+            entry(7, "sh".into(), Some(12.5), None),
             serde_json::json!({ "pid": 7, "name": "sh", "startedAt": 12.5 })
+        );
+    }
+
+    #[test]
+    fn carries_the_words_a_process_started_with() {
+        let words = Args::Words(vec!["--model".into(), "opus".into()]);
+        assert_eq!(
+            entry(7, "claude".into(), None, Some(words)),
+            serde_json::json!({ "pid": 7, "name": "claude", "args": ["--model", "opus"] })
+        );
+        let line = fitting_line("claude.exe --model opus");
+        assert_eq!(
+            entry(7, "claude".into(), None, Some(line)),
+            serde_json::json!({ "pid": 7, "name": "claude", "commandLine": "claude.exe --model opus" })
+        );
+        let cut = fitting_line(&format!("claude.exe {}", "x".repeat(MOST_ARGS)));
+        let told = entry(7, "claude".into(), None, Some(cut));
+        assert_eq!(told["commandLineCut"], true);
+        assert_eq!(told["commandLine"].as_str().unwrap().len(), MOST_ARGS);
+    }
+
+    #[test]
+    fn reads_a_command_line_s_words_without_its_program() {
+        assert_eq!(
+            words_of(b"/bin/claude\0--model\0opus\0--effort=high\0"),
+            ["--model", "opus", "--effort=high"]
+        );
+        assert_eq!(words_of(b"claude\0"), Vec::<String>::new());
+        assert_eq!(words_of(b""), Vec::<String>::new());
+        // An empty word is a word.
+        assert_eq!(words_of(b"claude\0\0x\0"), ["", "x"]);
+    }
+
+    #[test]
+    fn reads_a_kernel_arguments_record_s_words() {
+        let mut record = 3i32.to_ne_bytes().to_vec();
+        record.extend(b"/opt/bin/claude\0\0\0");
+        record.extend(b"claude\0--model\0opus\0");
+        record.extend(b"HOME=/x\0");
+        assert_eq!(record_words(&record).unwrap(), ["--model", "opus"]);
+        assert_eq!(record_words(b"\x01"), None);
+        // An empty program name is a word too, whose zero byte the padding doesn't cover:
+        // "/opt/bin/claude" and its terminator are 16 bytes, so there is no padding.
+        let mut record = 4i32.to_ne_bytes().to_vec();
+        record.extend(b"/opt/bin/claude\0");
+        record.extend(b"\0--model\0opus\0--x\0HOME=/x\0");
+        assert_eq!(record_words(&record).unwrap(), ["--model", "opus", "--x"]);
+        // Padded to eight bytes, an empty program name still shows one zero byte more.
+        let mut record = 3i32.to_ne_bytes().to_vec();
+        record.extend(b"/b/claude\0\0\0\0\0\0\0");
+        record.extend(b"\0--model\0opus\0HOME=/x\0");
+        assert_eq!(record_words(&record).unwrap(), ["--model", "opus"]);
+    }
+
+    #[test]
+    fn keeps_whole_words_within_the_most() {
+        let long = "x".repeat(MOST_ARGS);
+        let kept = fitting(["--model".to_owned(), "opus".to_owned(), long].into_iter());
+        assert_eq!(kept, ["--model", "opus"]);
+        let Args::Line { line, cut } = fitting_line(&"é".repeat(MOST_ARGS)) else {
+            unreachable!()
+        };
+        assert!(cut && line.len() <= MOST_ARGS && line.len() >= MOST_ARGS - 1);
+    }
+
+    #[cfg(any(target_os = "linux", target_os = "macos"))]
+    #[test]
+    fn reads_the_arguments_of_a_process_it_started() {
+        let mut child = std::process::Command::new("sh")
+            .args(["-c", "sleep 30", "name", "--model=opus"])
+            .spawn()
+            .unwrap();
+        // A process spawned moments ago may not have run its program yet.
+        let mut found = arguments(child.id());
+        for _ in 0..100 {
+            if found != Some(Args::Words(Vec::new())) {
+                break;
+            }
+            std::thread::sleep(std::time::Duration::from_millis(20));
+            found = arguments(child.id());
+        }
+        child.kill().unwrap();
+        child.wait().unwrap();
+        assert_eq!(
+            found,
+            Some(Args::Words(vec![
+                "-c".into(),
+                "sleep 30".into(),
+                "name".into(),
+                "--model=opus".into()
+            ]))
         );
     }
 

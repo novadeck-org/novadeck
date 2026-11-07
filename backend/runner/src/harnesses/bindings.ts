@@ -2,6 +2,7 @@ import type { SessionObserved, TelemetryObserved } from "@novadeck/harness-core/
 import type { AgentName } from "@novadeck/protocol"
 
 import type { AgentReport } from "../terminals/saved-terminals.js"
+import { harnesses } from "./registry.js"
 
 /**
  * The harness session that holds a terminal's foreground since the shell's last prompt.
@@ -104,6 +105,55 @@ const replaces = (binding: Binding, event: SessionObserved, busy: boolean): bool
   return binding.sessionId === event.sessionId || event.evidence !== "startup"
 }
 
+const launchUnits = (words: readonly string[]): [string, string[]][] => {
+  const found: [string, string[]][] = []
+  for (const word of words) {
+    const last = found.at(-1)
+    if (word.startsWith("-") || last === undefined) {
+      found.push([word, [word]])
+    } else last[1].push(word)
+  }
+  // A config override is named by its key as well, as several differ by it.
+  return found.map(([flag, own]): [string, string[]] => [
+    flag === "-c" || flag === "--config" ? `${flag}:${own[1]?.split("=", 1)[0] ?? ""}` : flag,
+    own,
+  ])
+}
+
+/**
+ * The flags a session was launched with after a process of it reports `told`. A resume gives
+ * back only what its harness forgets (`launch.forgets`), so for those the process is the
+ * authority: one it doesn't tell was dropped on purpose (`claude --resume` run by hand
+ * without the bypass) and is gone. The flags the harness remembers stay as they were, and
+ * the process tells them again only when it was launched with them. A flag the process
+ * tells takes its value. Flags are words that start with `-`, each with the value after
+ * it, if any.
+ */
+export const mergeLaunch = (
+  known: readonly string[] | undefined,
+  told: readonly string[] | undefined,
+  forgets: (unit: readonly string[]) => boolean,
+): readonly string[] | undefined => {
+  if (told === undefined) return known
+  const merged = new Map(launchUnits(known ?? []).filter(([, own]) => !forgets(own)))
+  for (const [flag, own] of launchUnits(told)) merged.set(flag, own)
+  return [...merged.values()].flat()
+}
+
+/**
+ * The agent sessions with `agent`'s launch flags forgotten, so its next resume goes bare:
+ * for a flag its harness started to reject, which would fail every wake.
+ */
+export const withoutLaunch = <Reports extends { readonly [agent in AgentName]?: AgentReport }>(
+  sessions: Reports,
+  agent: AgentName,
+): Reports => {
+  const report = sessions[agent]
+  if (!report?.launch) return sessions
+  const { launch: _, ...rest } = report
+  return { ...sessions, [agent]: rest }
+}
+
 /**
  * The terminal's sessions after an observation, or undefined when it is not this
  * terminal's own or not the latest. Processes that merely inherited the terminal's
@@ -140,6 +190,15 @@ export const observe = (
   const cwd = (same && known.cwd) || event.cwd || state.cwd
   // Where its harness keeps the conversation, as it named it: a hint for finding it again.
   const transcript = event.transcript ?? (same ? known.transcript : undefined)
+  // The flags its process was launched with, as that process tells them; a report that can't
+  // (the relay couldn't read them) leaves what the session had.
+  const launch = same
+    ? mergeLaunch(
+        known.launch,
+        event.launch,
+        (unit) => (harnesses[event.agent].launch.forgets?.(unit).length ?? 0) > 0,
+      )
+    : event.launch
   const sessions = {
     ...state.sessions,
     [event.agent]: {
@@ -150,6 +209,7 @@ export const observe = (
       ...(turn && { turn }),
       ...(told && { told }),
       ...(endedAt !== undefined && { endedAt }),
+      ...(launch !== undefined && launch.length > 0 && { launch }),
     },
   }
   return event.startedAt > (facts.promptedAt ?? 0)

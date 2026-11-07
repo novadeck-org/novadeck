@@ -424,8 +424,21 @@ export type LaunchProfile = {
   /**
    * The words that continue its session by id, with the model and effort `choose` puts,
    * where each is given: after its program, or where its resume command takes its options.
+   * Then the `kept` flags of the launch it resumes (see `kept`), but for the model and effort
+   * `choice` sets itself.
    */
-  readonly resume?: (session: string, choice?: Choice) => readonly string[]
+  readonly resume?: (
+    session: string,
+    choice?: Choice,
+    kept?: readonly string[],
+  ) => readonly string[]
+  /**
+   * The flags of a launch a resume carries over, from the words an agent was started with
+   * after its program, as words `resume` gives: its permission or approval mode, sandbox,
+   * model and effort, which it doesn't remember with the session. Never a prompt, a
+   * positional, the session, a print mode or a flag it doesn't know (`kept-flags.ts`).
+   */
+  readonly kept?: (argv: readonly string[]) => readonly string[]
   /**
    * Whether a resume of `claim` worked, from what the terminal shows so far: its bound
    * session (Claude Code's and Antigravity's id equals the claim) and whether its prompt
@@ -433,6 +446,12 @@ export type LaunchProfile = {
    * `failed` where it shows it started something else; `waiting` while neither is told.
    */
   readonly resumed: (claim: string, seen: ResumeSeen) => "worked" | "waiting" | "failed"
+  /**
+   * Of words `kept` gave, those a flag at a time that its harness forgets on a bare resume
+   * and so are given back: a flag with its value, if it takes one, for each. The rest it
+   * remembers with the session.
+   */
+  readonly forgets?: (kept: readonly string[]) => readonly (readonly string[])[]
   /**
    * The models it can start with on this machine, each with the reasoning efforts it takes;
    * none where that can't be told. It runs no command.

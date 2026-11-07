@@ -145,10 +145,13 @@ export class Streams<R extends { readonly summary: { readonly id: string } }> {
     return this.messages.keys()
   }
 
-  /** Ends the terminal's detail, slice and messages streams, as it is closed. */
-  end(terminalId: string): void {
+  /**
+   * Ends the terminal's detail, slice and messages streams, as it is closed; with
+   * `messages` false, the first two alone, as it rests: its messages are still read.
+   */
+  end(terminalId: string, messages = true): void {
     this.slices.end(terminalId)
-    for (const streams of [this.details, this.messages]) {
+    for (const streams of messages ? [this.details, this.messages] : [this.details]) {
       for (const reader of streams.get(terminalId) ?? []) reader.finish()
       streams.delete(terminalId)
     }

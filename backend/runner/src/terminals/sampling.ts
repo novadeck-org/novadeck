@@ -17,6 +17,7 @@ export type SampledRecord = Pick<
   | "ending"
   | "woken"
   | "shellName"
+  | "hibernating"
 >
 
 // Whether the platform hides a terminal's foreground program, as Windows does: no sample
@@ -275,7 +276,8 @@ export class Sampler<R extends SampledRecord> {
   private sample(): void {
     let running = false
     for (const record of this.host.records()) {
-      if (record.terminal.exit !== null || record.terminal.exiting) continue
+      // A hibernating agent's shell is ending on purpose: what it leaves is no program to resume.
+      if (record.hibernating || record.terminal.exit !== null || record.terminal.exiting) continue
       running = true
       record.foreground = sampleForeground(record.terminal.pty, record.foreground)
       const current = record.foreground.process

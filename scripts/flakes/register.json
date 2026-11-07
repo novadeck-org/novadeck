@@ -436,6 +436,50 @@
       "status": "known",
       "cause": "Unknown, seen once: an update took 1,481 ms against the 750 ms budget, where the test's comment says 60 to 160 ms on a slow shared machine. Many jobs were running at the time, so a slow runner is likely but unproven. A failure here stops Test (macOS) before later packages, such as the runner, have run.",
       "seen": ["#737 run 42212834625 job 127875434063 (macOS)"]
+    },
+    {
+      "id": "terminal-follow-hangup-saved-macos",
+      "jobs": ["^Test \\(macOS\\)$"],
+      "test": "src/pty/follow.test.ts > a hangup followed through an agent > wakes an agent stopped on its way out as soon as the shell has gone",
+      "signature": "ENOENT: no such file or directory, open '[^']*terminal-follow-[^']*/saved'",
+      "status": "known",
+      "cause": "Unknown, macOS only: the stand-in agent's 'saved' file was never written within the test's 6 s, so the followed agent hadn't finished its exit by then; likely the runner's load, as the test passed on the rerun and in code the failing PR didn't touch.",
+      "seen": ["#777 run 42374813227 job 128410227863 (macOS)"]
+    },
+    {
+      "id": "runner-client-slow-viewer-resync-macos",
+      "jobs": ["^Test \\(macOS\\)$"],
+      "test": "src/client.test.ts > runner client over WebSocket > resynchronizes a slow viewer with a fresh snapshot instead of failing",
+      "signature": "WireError: CONTROL_REQUIRED",
+      "status": "known",
+      "cause": "Unknown, macOS only: the slow viewer's write met CONTROL_REQUIRED, as if control moved to another attachment before the resync, and the stream then ended, so the test's `until` helper (src/client.test.ts ~143) threw 'Terminal ended' as an unhandled rejection. That unhandled error keeps the Known Flakes workflow from rerunning it on its own: rerun by hand. Seen once, in code the failing pull request didn't touch.",
+      "seen": ["#777 run 42374813227 job 128418882670 (macOS, rerun)"]
+    },
+    {
+      "id": "claude-conversation-many-rows-windows",
+      "jobs": ["^Test \\(Windows(, [1-3][/-]3)?\\)$"],
+      "test": "src/conversation.test.ts > Claude Code's conversation > reads each project once for a pass over many rows, without stalling the loop",
+      "signature": "AssertionError: expected \\d+ to be less than 8000",
+      "status": "known",
+      "cause": "A time budget: the pass over many rows took 8.7 s on a Windows runner against the test's 8 s limit; a slow runner, not a stall.",
+      "seen": ["#777 run 42380485557 job 128426867982 (Windows)"]
+    },
+    {
+      "id": "test-macos-job-timeout",
+      "jobs": ["^Test \\(macOS\\)$"],
+      "signature": "##\\[error\\]The action 'Run Test \\(macOS\\)' has timed out after \\d+ minutes",
+      "status": "known",
+      "cause": "Not a test: the unsharded macOS test job takes 27 to 33 minutes on other pull requests against its 37-minute step limit, so a slow runner runs out of time with no test failing.",
+      "seen": ["#777 run 42380485557 job 128426868098 (macOS)"]
+    },
+    {
+      "id": "murmur-full-screen-screen-linux",
+      "jobs": ["^Test \\((Linux|macOS|Windows)(, (?:[12][/-]2|[1-3][/-]3))?\\)$"],
+      "test": "src/shell/integration-murmur.test.ts > murmur naming terminals in bash terminals > shows murmur no screen of a full-screen program, and its screen again once the program quits",
+      "signature": "AssertionError: expected \\{ kind: 'shell'",
+      "status": "known",
+      "cause": "Unknown, seen once on Linux: murmur's description held the prompt line with the full-screen program's command, read before the program had entered its alternate screen; passes 5/5 locally, in code the failing pull request didn't touch.",
+      "seen": ["#783 run 42390794494 job 128457913000 (Linux, 3/3)"]
     }
   ]
 }
