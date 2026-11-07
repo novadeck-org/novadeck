@@ -1835,7 +1835,8 @@ describe("a woken shell whose agent has not shown", () => {
   }
 
   const woken = async (terminals: { manager: (options: object) => Terminals }) => {
-    const manager = terminals.manager(ptyOptions)
+    // A short sample, so the wait Windows puts before a lead ends (30 samples) is a moment.
+    const manager = terminals.manager({ ...ptyOptions, processPollMs: 5 })
     const terminal = await manager.create(
       { id: randomUUID(), sessionId: "session", cwd, cols: 80, rows: 24 },
       "creator",
@@ -1857,7 +1858,8 @@ describe("a woken shell whose agent has not shown", () => {
     record.startupRuns = true
     record.woken = undefined
     inside.prompted(record, record.terminal.pty, cwd)
-    expect(record.summary.ledBy).toBeNull()
+    // At once elsewhere; on Windows once the shell has outlived its agent for the wait.
+    await vi.waitFor(() => expect(record.summary.ledBy).toBeNull(), { timeout: 5_000 })
   })
 
   it("stops being woken when the person enters a line there", async ({ terminals }) => {
