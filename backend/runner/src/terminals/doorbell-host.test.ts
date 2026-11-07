@@ -375,7 +375,7 @@ describe.each([
     // Claude Code's hint under its box while messages are queued.
     const queued = {
       ...alone.after,
-      rows: { ...alone.after.rows, 0: "Press up to edit queued messages" },
+      rows: { ...alone.after.rows, [alone.after.height - 1]: "  Press up to edit queued messages" },
     }
     expect(rings.leftover("t", drawn(alone.after))).toBe("n7Q2")
     expect(rings.leftover("t", drawn(queued))).toBeUndefined()

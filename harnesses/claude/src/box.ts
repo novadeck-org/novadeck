@@ -9,6 +9,7 @@ import {
   ruledBox,
   type BoxProfile,
   type Markers,
+  type TurnStatus,
 } from "@novadeck/tui-input/box"
 
 /** The markers leading its box's first row: `❯` as a prompt, `!` in its shell mode. */
@@ -67,8 +68,48 @@ const still = (rows: readonly string[]): readonly string[] =>
 const read = (screen: ScreenText) => agreeing(ruledBox(screen, markers), shellFooter(screen.rows))
 
 /** Whether the screen shows messages queued behind the running turn. */
-const queued = (screen: ScreenText): boolean =>
-  screen.rows.some((row) => row.includes("Press up to edit queued messages"))
+const queued = (screen: ScreenText): boolean => {
+  // In its box or under it: the same words may stand in the conversation above.
+  const first = read(screen)?.first
+  return (
+    first !== undefined &&
+    screen.rows.slice(first).some((row) => row.includes("Press up to edit queued messages"))
+  )
+}
+
+/**
+ * Its status row, while a turn runs: one of its spinner's marks, its words for the turn ending in
+ * `…`, and in brackets its clock and what the turn is doing. It stands last over the box, but
+ * for the effort row and a tip under it: a reply above may hold what reads the same, and an idle
+ * screen has the turn's summary there. Its Stop hook shows as `running Stop hook`, and then the
+ * row goes, or gives way to the next turn's, with its clock at `0s`, where the turn's end started
+ * one from its queue. A turn it took a queued message into goes on as one. Its words may change
+ * as a turn starts, and may be the person's own (`spinnerVerbs`) or a task's (2.1.316, 2026-11-07,
+ * e2e/probes/queued-busy.e2e.ts).
+ */
+const status = (screen: ScreenText): TurnStatus | undefined => {
+  const first = read(screen)?.first
+  if (first === undefined) return undefined
+  // Above the box's top rule, where it stands at the row's start: what stands under it is set
+  // in, its effort row, a tip, a task list's rows, a hint.
+  const row = screen.rows
+    .slice(0, Math.max(first - 1, 0))
+    .findLast((each) => each.trim() !== "" && !/^\s/.test(each))
+  const found = row === undefined ? null : statusRow.exec(row)
+  if (!found) return undefined
+  const clock = /\((?:[^)]*· )?(?:(\d+)h )?(?:(\d+)m )?(\d+)s\b/.exec(row!)
+  const seconds = clock
+    ? Number(clock[1] ?? 0) * 3600 + Number(clock[2] ?? 0) * 60 + Number(clock[3])
+    : undefined
+  return {
+    words: found[1]!.trim(),
+    ending: /running Stop hook/.test(row!),
+    ...(seconds !== undefined && { seconds }),
+  }
+}
+
+/** A status row: one of its spinner's marks, then its words for the turn up to `…`. */
+const statusRow = /^\s*[·✢✳✶✻✽*]\s+([^…]+?)…/
 
 /**
  * Whether messages queued behind the turn may still be in their `UserPromptSubmit` hooks:
@@ -104,6 +145,23 @@ const queueing = (screen: ScreenText): boolean => {
  */
 export const box: BoxProfile = {
   read,
+  takeQueued: {
+    // Up, which its box offers: it moves everything queued to the box at once, a message
+    // still in its prompt hook too (whose hook runs out harmlessly), before any Escape. An
+    // Escape instead races the queue's drain as the turn ends: a message in the real queue,
+    // there once its hook has ended, then starts a turn of its own, which fires no hook
+    // (probed 2026-11-06, 2.1.316, cursor keys in normal mode, `e2e/probes/queued-stop-cause.e2e.ts`).
+    keys: "\x1b[A",
+    // With nothing queued Up recalls the latest prompt, under this rule, which Down leaves.
+    recalled: (screen) => screen.rows.some((row) => /^─+ History \d+\/\d+ ─+$/.test(row.trim())),
+    leave: "\x1b[B",
+    // Its shortcuts panel, `?`, shows under an empty box, the queued row still up; this row of
+    // it stays whole however narrow the screen wraps the rest (fixtures/queued-box.probe.json).
+    blocked: (screen) =>
+      screen.rows
+        .slice(screen.rows.findLastIndex(rule) + 1)
+        .some((row) => row.includes("/ for commands")),
+  },
   // Enter runs a command shown as a placeholder as the text it stands for. It binds its session
   // before any command, so none starts one (`starts`).
   shell: { expands: true, starts: false, footer: shellFooter, leave: leaveShell },
@@ -121,6 +179,7 @@ export const box: BoxProfile = {
   erase: eraseRows,
   overlay,
   queued,
+  status,
   // Hooks overlap, so this is a slow hook's time however many messages are queued (probed
   // 2026-11-06, a hook 1.3 s slow; one on Windows CI took about 1.25 s to start).
   escapeHold: { holds: queueing, ms: 5_000 },

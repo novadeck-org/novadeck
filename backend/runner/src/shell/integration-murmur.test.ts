@@ -1112,13 +1112,16 @@ describe.skipIf(process.platform === "win32" || !existsSync(bash))(
       const terminal = await create(manager, shell)
       const { start, step } = driver(shell, manager)
       await start(terminal.id, "claude", "s-1")
-      const prompt = async (session: string, text: string) =>
-        context(
+      // Each its own turn: a second prompt with no Stop before it is one queued behind a turn.
+      const prompt = async (session: string, text: string) => {
+        await step(terminal.id, { hook: "Stop", payload: { session_id: session } })
+        return context(
           await step(terminal.id, {
             hook: "UserPromptSubmit",
             payload: { session_id: session, prompt: text },
           }),
         )
+      }
       const clear = (session: string) =>
         step(terminal.id, {
           hook: "SessionStart",
@@ -1174,13 +1177,16 @@ describe.skipIf(process.platform === "win32" || !existsSync(bash))(
       const terminal = await create(manager, shell)
       const { start, step } = driver(shell, manager)
       await start(terminal.id, "claude", "s-1")
-      const prompt = async (text: string) =>
-        context(
+      // Each its own turn: a second prompt with no Stop before it is one queued behind a turn.
+      const prompt = async (text: string) => {
+        await step(terminal.id, { hook: "Stop", payload: { session_id: "s-1" } })
+        return context(
           await step(terminal.id, {
             hook: "UserPromptSubmit",
             payload: { session_id: "s-1", prompt: text },
           }),
         )
+      }
       // The first prompt of the session carries the bar's notice and the summary's.
       await prompt("Build the page")
       // Described, so the prompts below are told of pages alone.
@@ -1227,13 +1233,16 @@ describe.skipIf(process.platform === "win32" || !existsSync(bash))(
       const terminal = await create(manager, shell)
       const { start, step } = driver(shell, manager)
       await start(terminal.id, "claude", "s-1")
-      const prompt = async (session: string, text: string) =>
-        context(
+      // Each its own turn: a second prompt with no Stop before it is one queued behind a turn.
+      const prompt = async (session: string, text: string) => {
+        await step(terminal.id, { hook: "Stop", payload: { session_id: session } })
+        return context(
           await step(terminal.id, {
             hook: "UserPromptSubmit",
             payload: { session_id: session, prompt: text },
           }),
         )
+      }
       await prompt("s-1", "Build the page")
       // Described, so the prompts below are told of pages alone.
       await step(terminal.id, {

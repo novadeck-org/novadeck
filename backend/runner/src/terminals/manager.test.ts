@@ -653,9 +653,11 @@ describe("terminal interrupts", () => {
       const script = [
         "stty raw -echo",
         `printf '\\033[10;1H${rule}\\033[11;1H❯\\302\\240\\033[2mPress up to edit queued messages\\033[22m\\033[12;1H${rule}\\033[11;3H'`,
-        "dd bs=1 count=1 >/dev/null 2>&1",
+        // Up, Claude Code's way of taking what is queued: three bytes.
+        "dd bs=1 count=3 >/dev/null 2>&1",
         "printf '\\033[11;1H\\033[K❯\\302\\240Queued words\\033[11;15H'",
-        "dd bs=1 count=2 >/dev/null 2>&1",
+        // The Escape that stops the turn, then the two that clear the box.
+        "dd bs=1 count=3 >/dev/null 2>&1",
         "printf '\\033[11;1H\\033[K❯\\302\\240\\033[11;3H'",
         "sleep 30",
       ].join("; ")

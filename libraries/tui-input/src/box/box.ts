@@ -31,6 +31,34 @@ export type InputBox = {
   readonly blanks?: true
 }
 
+/**
+ * The row a program shows while a turn runs, as a profile reads it: its words, and whether they
+ * say the turn is ending, as a hook run at its end. Programs pick new words for each turn.
+ */
+export type TurnStatus = {
+  readonly words: string
+  readonly ending: boolean
+  /** How long the turn has run, in seconds, where the row shows it. */
+  readonly seconds?: number
+}
+
+/**
+ * Whether `now` shows a turn other than the one `before` showed: a status row that isn't an
+ * ending one, after none, after an ending one, or with its clock gone back, or, with no clock,
+ * other words. A turn a program starts by itself, from its queue, fires no hook: this is how
+ * its screen tells of it.
+ */
+export const newTurn = (before: TurnStatus | undefined, now: TurnStatus | undefined): boolean => {
+  if (now === undefined || now.ending) return false
+  if (before?.ending) return true
+  // With no row before it, one is new only as it starts: not a turn's own row seen late.
+  if (before === undefined) return now.seconds === undefined || now.seconds <= 1
+  // A turn's clock only goes on, and a new one's starts again; its words may change within a
+  // turn, so they tell only where no clock shows.
+  if (now.seconds !== undefined && before.seconds !== undefined) return now.seconds < before.seconds
+  return now.words !== before.words
+}
+
 /** The markers leading a box's first row: in its prompt mode, and in its shell mode. */
 export type Markers = { readonly prompt: string; readonly shell: string }
 
@@ -134,6 +162,24 @@ export type BoxProfile = {
    * holds until the turn ends (or steers the turn with).
    */
   readonly queued: (screen: ScreenText) => boolean
+  /**
+   * The status row of the turn the screen shows running; undefined where none shows. Omitted
+   * where the program's queue fires a hook as its turn starts, so nothing needs the screen.
+   */
+  readonly status?: (screen: ScreenText) => TurnStatus | undefined
+  /**
+   * How an interrupt takes what is queued into the empty box, before its first Escape, where
+   * the program drains its queue as its turn ends, faster than any Escape: `keys` move it,
+   * and where nothing was queued by then they recall an earlier prompt instead, which
+   * `recalled` reads off the screen and `leave` undoes. They don't go where `blocked` says, a
+   * panel of the program's being up. Omitted where Escape does it.
+   */
+  readonly takeQueued?: {
+    readonly keys: string
+    readonly recalled: (screen: ScreenText) => boolean
+    readonly leave: string
+    readonly blocked: (screen: ScreenText) => boolean
+  }
   /**
    * When the screen says an interrupt's first Escape would go wrong yet, and how long, in
    * milliseconds, that Escape waits for it to say otherwise, then goes all the same. A turn
@@ -252,6 +298,24 @@ export const pastesWhole = (profile: BoxProfile, text: string): boolean => {
 /** Whether the box holds nothing. */
 export const isEmpty = (box: InputBox): boolean =>
   compact(box.text) === "" && !box.blanks && !box.scrolled
+
+/**
+ * Whether the keys that take what is queued may go on `screen`: only where it shows a queue,
+ * in a box that reads empty in its prompt mode with no view over it. Over a draft they would
+ * merge it with what they bring, and a queued row alone doesn't rule that out everywhere:
+ * Claude Code draws it in its shell mode's box and under its shortcuts panel too (`blocked`).
+ */
+export const takesQueue = (profile: BoxProfile, screen: ScreenText): boolean => {
+  const box = profile.read(screen)
+  return (
+    box !== undefined &&
+    box.mode === "prompt" &&
+    isEmpty(box) &&
+    profile.queued(screen) &&
+    !profile.overlay(screen) &&
+    profile.takeQueued?.blocked(screen) !== true
+  )
+}
 
 /**
  * The text of the rows `first` to `last`, whose first row starts with one of `markers`: the rows

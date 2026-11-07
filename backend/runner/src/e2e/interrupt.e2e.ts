@@ -1,4 +1,4 @@
-import { existsSync, readFileSync, writeFileSync } from "node:fs"
+import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs"
 import { join } from "node:path"
 import { setTimeout as sleep } from "node:timers/promises"
 
@@ -34,6 +34,22 @@ appendFileSync(join(__dirname, ${JSON.stringify(slowHookLog)}), "ran\\n")
 setTimeout(() => console.log("{}"), ${ms})
 `,
   )
+
+// A Stop hook as slow as a hook's shell can be on Windows, in the project's own settings,
+// beside Novadeck's.
+const seedSlowStopHook = ({ sandbox }: E2E) => {
+  writeFileSync(
+    join(sandbox.project, "slow-stop-hook.cjs"),
+    `setTimeout(() => console.log("{}"), 1000)\n`,
+  )
+  mkdirSync(join(sandbox.project, ".claude"), { recursive: true })
+  writeFileSync(
+    join(sandbox.project, ".claude", "settings.local.json"),
+    JSON.stringify({
+      hooks: { Stop: [{ hooks: [{ type: "command", command: "node slow-stop-hook.cjs" }] }] },
+    }),
+  )
+}
 
 // A hook after each tool, long enough to stay on the spinner through the Stop.
 const slowToolHook = "slow-tool-hook.cjs"
@@ -142,15 +158,24 @@ for (const setup of setups) {
       {
         replyMidStop = false,
         inTool = false,
+        enqueued = false,
         stopped: onStopped,
-      }: { replyMidStop?: boolean; inTool?: boolean; stopped?: () => void } = {},
+      }: {
+        replyMidStop?: boolean
+        inTool?: boolean
+        /** Whether the first is through its hook, and so in the real queue, before the second. */
+        enqueued?: boolean
+        stopped?: () => void | Promise<void>
+      } = {},
     ) => {
       const held = gate()
       const queuedHeld = gate()
+      let queuedCalls = 0
       run.model.use(
         replies("Carry on", "Carried on."),
         own(async (call) => {
           if (asked(call, "Queued")) {
+            queuedCalls += 1
             await queuedHeld.opened
             return { text: "Queued late." }
           }
@@ -172,6 +197,7 @@ for (const setup of setups) {
       await t1.reached("working", { after: mark })
       if (inTool) await t1.until("sleep 2")
       const beta = await t1.prompt("Queued beta")
+      if (enqueued) await t1.until(setup.queued!("Queued beta"))
       const gamma = await t1.prompt("Queued gamma")
       await ready(t1)
       const stopping = t1.interrupt()
@@ -183,7 +209,7 @@ for (const setup of setups) {
       held.open()
       queuedHeld.open()
       await sleep(2500)
-      onStopped?.()
+      await onStopped?.()
 
       expect(stopped.returned).toBe(setup.agent === "codex" ? null : "Queued beta\nQueued gamma")
       // Words given back are the person's draft again, and none went: Claude Code's record
@@ -200,6 +226,8 @@ for (const setup of setups) {
       const shown = await t1.screen()
       if (!replyMidStop) expect(shown).not.toContain("Too late.")
       expect(shown).not.toContain("Queued late.")
+      if (setup.rewind) expect(shown).not.toMatch(setup.rewind.shows)
+      if (setup.queueing) expect(queuedCalls).toBe(0)
 
       const next = t1.mark()
       await t1.prompt("Carry on")
@@ -239,23 +267,81 @@ for (const setup of setups) {
       },
     )
 
+    // A message in the real queue goes as the turn ends, whatever Escape comes then: what is
+    // queued has to be out of the queue first. Each fails 5 of 5 where only Escape stops it
+    // (#757, Linux, no CPU starved): the hook's time is what opens the race.
+    gated(slow, setup.queueing ? undefined : "it holds no Stop for queued messages")(
+      "gives back both of two queued messages where the first is through its hook and the turn ends as the Stop comes",
+      ({ e2e: run }) => {
+        seedSlowHook(run)
+        return twoQueued(run, midHook(run), { replyMidStop: true, enqueued: true })
+      },
+    )
+
+    gated(slow, setup.queueing ? undefined : "it holds no Stop for queued messages")(
+      "gives back both of them where a slow Stop hook runs as the Stop comes",
+      ({ e2e: run }) => {
+        seedSlowHook(run)
+        seedSlowStopHook(run)
+        return twoQueued(run, midHook(run), { replyMidStop: true, enqueued: true })
+      },
+    )
+
+    gated(slow, setup.queueing ? undefined : "its queue has no row a draft hides")(
+      "leaves a draft in the box as it is, however much is queued",
+      async ({ e2e: run }) => {
+        seedSlowHook(run)
+        const held = gate()
+        run.model.use(
+          own(async (call) => {
+            if (!asked(call, "Hold on")) return undefined
+            await held.opened
+            return { text: "Too late." }
+          }),
+        )
+        const t1 = await start(run, setup)
+        const calls = run.model.mark()
+        const mark = t1.mark()
+        await t1.prompt("Hold on")
+        await run.model.waitFor((call) => !call.side && latest(call).includes("Hold on"), {
+          after: calls,
+        })
+        await t1.reached("working", { after: mark })
+        await t1.prompt("Queued beta")
+        await t1.until(setup.queued!("Queued beta"))
+        t1.press("my own draft")
+        await t1.until("my own draft")
+        const stopped = await t1.interrupt()
+        held.open()
+        await sleep(2500)
+        // Nothing was given back, and no queued words came into the box beside the draft.
+        expect(stopped.returned).toBeNull()
+        const box = (await t1.screen()).split("\n").filter((row) => row.includes("my own draft"))
+        expect(box).toHaveLength(1)
+        expect(box[0]).not.toContain("Queued")
+      },
+    )
+
     // The tool ends while the queued messages' hooks run, which outlast it, and its hook takes
     // over the spinner. A Stop that went at once would kill theirs, which run again: the own
-    // prompt's hook and the two queued ones' are all the log may hold.
+    // prompt's hook and the two queued ones' are all the log may hold. A Stop that takes the
+    // queue back first lets them run out, maybe after it.
     gated(slowTool, setup.toolHooking ? undefined : "its spinner tells of no tool's hook")(
       "gives back both of two queued messages where a tool's hook has taken over their spinner",
       async ({ e2e: run }) => {
         seedSlowHook(run, 3500)
         seedSlowToolHook(run)
-        let ran = ""
+        const ran = () => readFileSync(join(run.sandbox.project, slowHookLog), "utf8")
         const onSpinner = (terminal: DeckTerminal) => terminal.until(setup.toolHooking!)
         await twoQueued(run, onSpinner, {
           inTool: true,
-          stopped: () => {
-            ran = readFileSync(join(run.sandbox.project, slowHookLog), "utf8")
+          // Before the next prompt, whose own hook runs too.
+          stopped: async () => {
+            await expect.poll(ran, { timeout: 10_000 }).toBe("ran\nran\nran\n")
+            await sleep(4_000)
+            expect(ran()).toBe("ran\nran\nran\n")
           },
         })
-        expect(ran).toBe("ran\nran\nran\n")
       },
     )
 

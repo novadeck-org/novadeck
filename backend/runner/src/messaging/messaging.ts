@@ -56,6 +56,11 @@ export type MessagingOptions = {
    */
   readonly busy?: (terminalId: string) => boolean
   /**
+   * A Stop ended a turn there, whatever it changed: the screen may say what runs now, which
+   * a turn the queue started tells of no other way (`queueLook`).
+   */
+  readonly stopped?: (terminalId: string) => void
+  /**
    * The platform the harnesses' hooks run on, whose shells may hold a hook back (see
    * `hookShellSlackMs`); the runner's own when omitted.
    */
@@ -140,6 +145,7 @@ export class Messaging {
       now,
       slackMs: hookShellSlackMs(options.platform ?? process.platform),
       leftBehind: (terminalId) => this.leasing.forget(terminalId),
+      ...(options.stopped && { stopped: options.stopped }),
     })
     this.withdrawals = new Withdrawals({ sessions, closed: () => store.closed })
     this.holds = new Holds({ sessions, store, loops, now, busy: options.busy ?? (() => false) })
@@ -361,6 +367,16 @@ export class Messaging {
 
   stalled(terminalId: string): boolean {
     return this.deliveries.stalled(terminalId)
+  }
+
+  /** See `Deliveries.queueLook`. */
+  queueLook(terminalId: string): number | undefined {
+    return this.deliveries.queueLook(terminalId)
+  }
+
+  /** See `Deliveries.queueSeen`. */
+  queueSeen(terminalId: string, stop: number, runs: boolean): void {
+    this.deliveries.queueSeen(terminalId, stop, runs)
   }
 
   queueBar(terminalId: string): number {
