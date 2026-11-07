@@ -920,3 +920,69 @@ describe("Antigravity's box cut short", () => {
     expect(agy.cut?.(box("queued line 1"))).toBe(false)
   })
 })
+
+// What a ring's line or a person's draft may hold that the reader took for something else, read
+// off the screens real runs drew at a few sizes (fixtures/ring-reading.probe.json, from
+// e2e/probes/ring-reading.e2e.ts, 2026-11-07: Claude Code 2.1.316, Codex 0.167.0, Antigravity
+// 1.5.2), beside the views whose footers those words are. Each harness is held to all of them,
+// where it was misread or not.
+describe.each([
+  { name: "Claude Code", harness: "claude", profile: claude },
+  { name: "Codex", harness: "codex", profile: codex },
+  { name: "Antigravity", harness: "agy", profile: agy },
+])("what a box holds in $name, against what it may be taken for", ({ harness, profile }) => {
+  const { screens } = loadProbe<{ screens: { readonly [name: string]: ScreenText } }>(
+    adapterFolder(harness),
+    "ring-reading.probe.json",
+  )
+  const named = (pattern: RegExp) =>
+    Object.entries(screens).filter(([name]) => pattern.test(name)) as [string, ScreenText][]
+
+  it("is probed in every case", () => {
+    for (const pattern of [/^words /, /^rule /, /^blanks /, /views/])
+      expect(named(pattern).length, String(pattern)).toBeGreaterThan(0)
+  })
+
+  // Claude Code's `Showing detailed transcript`, `enter to return · space to reply` and `Esc to
+  // cancel · ctrl+s to scope`, Codex's `reverse-i-search:` and `? / esc close`, Antigravity's
+  // `Keyboard: … esc Close` at a row's start: each read as its view, the line stranded.
+  it("reads a reply saying a view's footer as a line in the box, not as that view", () => {
+    for (const [name, shown] of named(/^(words|keyboard) /)) {
+      const read = profile.read(shown)
+      expect(read && !isEmpty(read), name).toBe(true)
+      expect(profile.overlay(shown), name).toBe(false)
+    }
+  })
+
+  // A row of `─` read as the box's top rule, so no box at all (Claude Code and Antigravity).
+  it("reads a reply or a draft with a row of ─ in it as a box holding it", () => {
+    for (const [name, shown] of named(/^rule /)) {
+      const read = profile.read(shown)
+      expect(read && !isEmpty(read), name).toBe(true)
+      expect(read!.text, name).toContain("────────")
+    }
+  })
+
+  // Words under blank rows, the cursor moved up over them: on Codex its first row read as an
+  // empty box, and a ring went out with the words. A cursor on a blank row reads as no box.
+  it("never reads a draft under blank rows as an empty box, wherever the cursor is", () => {
+    for (const [name, shown] of named(/^blanks /)) {
+      const read = profile.read(shown)
+      expect(read !== undefined && isEmpty(read), name).toBe(false)
+    }
+    // With the cursor back on its first row, Codex reads the words themselves, down to its footer.
+    if (harness === "codex")
+      for (const [name, shown] of named(/^blanks (\d) .*: up \1$/))
+        expect(profile.read(shown)?.text, name).toContain("MY DRAFT BELOW")
+  })
+
+  it("still takes each view for one, and its prompt for none once it closes", () => {
+    for (const [name, shown] of named(/views/)) {
+      const read = profile.read(shown)
+      if (name.endsWith("closed")) {
+        expect(read && isEmpty(read), name).toBe(true)
+        expect(profile.overlay(shown), name).toBe(false)
+      } else expect(!read || profile.overlay(shown), name).toBe(true)
+    }
+  })
+})

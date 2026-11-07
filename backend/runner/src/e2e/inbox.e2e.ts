@@ -428,6 +428,65 @@ for (const setup of setups) {
         await terminal.until("MY UNFINISHED")
       })
 
+    // Words of other views' footers, each at a size where a real screen read it as that view
+    // and the line stayed in the box (Claude Code 2.1.316, Codex 0.167.0, Antigravity 1.5.2,
+    // e2e/probes/ring-reading.e2e.ts), on every harness: the footer is read under the box.
+    for (const [words, columns, rows] of [
+      ["Showing detailed transcript of it", 40, 12],
+      ["enter to return · space to reply", 120, 24],
+      ["Esc to cancel · ctrl+s to scope", 120, 24],
+      ["reverse-i-search: merge", 40, 12],
+      ["? / esc close", 80, 24],
+      ["Keyboard: ctrl+k esc Close", 40, 12],
+    ] as const)
+      it(`rings a reply that says "${words}" at ${columns}x${rows}`, async ({ e2e: run }) => {
+        const finishing = gate()
+        finishing.open()
+        run.model.use(asksAndWorksOn(run, finishing))
+        const terminal = await start(run, setup)
+        await turn(terminal, "Ask and work on", "Worked on.")
+        terminal.resize(columns, rows)
+        await sleep(1_200)
+        const calls = run.model.mark()
+        const ask = run.deck.terminals.inboxEntries().find((each) => each.content.kind === "ask")!
+        // The words alone, no option picked: the line wraps as the probe's did, its words where
+        // they were taken for the view.
+        run.deck.terminals.answerAsk(ask.id, { type: "reply", option: null, text: words })
+        const received = await run.model.waitFor((call) => !call.side && delivered(call, "you"), {
+          after: calls,
+        })
+        expect(
+          received.turns.some((entry) => entry.role === "user" && entry.text.includes(words)),
+        ).toBe(true)
+      })
+
+    // A row of `─` in a reply read as the box's top rule, so as no box, on Claude Code and
+    // Antigravity, at these sizes.
+    for (const [columns, rows] of [
+      [40, 14],
+      [80, 12],
+      [120, 24],
+    ] as const)
+      it(`rings a reply with a row of ─ in it at ${columns}x${rows}`, async ({ e2e: run }) => {
+        const finishing = gate()
+        finishing.open()
+        run.model.use(asksAndWorksOn(run, finishing))
+        const terminal = await start(run, setup)
+        await turn(terminal, "Ask and work on", "Worked on.")
+        terminal.resize(columns, rows)
+        await sleep(1_200)
+        const calls = run.model.mark()
+        const ask = run.deck.terminals.inboxEntries().find((each) => each.content.kind === "ask")!
+        const words = `see ${"─".repeat(Math.min(columns * 2, 160))} merge it`
+        run.deck.terminals.answerAsk(ask.id, { type: "reply", option: 0, text: words })
+        const received = await run.model.waitFor((call) => !call.side && delivered(call, "you"), {
+          after: calls,
+        })
+        expect(
+          received.turns.some((entry) => entry.role === "user" && entry.text.includes(words)),
+        ).toBe(true)
+      })
+
     // Words a person or agent may write, here the footer of Claude Code's agents view: a reply
     // saying them is a line in the box like any other.
     it("rings a reply that says what a view's footer says", async ({ e2e: run }) => {

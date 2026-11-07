@@ -133,10 +133,14 @@ const interruptedShown = (screen: ScreenText): boolean | undefined => {
 /**
  * Whether it shows a panel under its box (the shortcuts `?` opens, the artifacts Ctrl-R
  * opens), each with a "Keyboard: … esc Close|Dismiss" row and its empty box above (probed
- * 1.2.14 in the e2e sandbox, 2026-10-16).
+ * 1.2.14 in the e2e sandbox, 2026-10-16). Read under the box, where one reads: a line or a draft
+ * in it may say those words at a row's start (1.5.2, 2026-11-07, fixtures/ring-reading.probe.json).
  */
-const overlay = (screen: ScreenText): boolean =>
-  footerRows(screen).some((row) => /^Keyboard: .*\besc (Close|Dismiss)\b/.test(row.trim()))
+const overlay = (screen: ScreenText): boolean => {
+  const shown = read(screen)
+  const under = shown ? screen.rows.slice(shown.last + 1) : footerRows(screen)
+  return under.some((row) => /^Keyboard: .*\besc (Close|Dismiss)\b/.test(row.trim()))
+}
 
 /** The rows that say a box shows only part of its text, whatever words a version has for it. */
 const rowAbove = /^↑[^\n]*(?:\n|$)/
@@ -159,6 +163,10 @@ const marked = (box: InputBox | undefined, screen: ScreenText): InputBox | undef
   return { ...box, text: rows.join("\n") }
 }
 
+/** How its box reads off a screen. */
+const read = (screen: ScreenText): InputBox | undefined =>
+  marked(agreeing(ruledBox(withoutPanel(screen), markers), shellFooter(screen.rows)), screen)
+
 /**
  * Antigravity's input box: between two `─` rules, `> ` leading its first row and the rest
  * indented (probed 1.2.14 and 1.3.1, fixtures/input-box.probe.json). Its history above
@@ -169,8 +177,7 @@ const marked = (box: InputBox | undefined, screen: ScreenText): InputBox | undef
  * library compares text without such emoji.
  */
 export const box: BoxProfile = {
-  read: (screen) =>
-    marked(agreeing(ruledBox(withoutPanel(screen), markers), shellFooter(screen.rows)), screen),
+  read,
   // Enter would run a command shown as a placeholder as the placeholder's own text (probed
   // 2026-10-07). A `!` command creates the conversation and binds the session (`starts`;
   // probed 2026-10-08).

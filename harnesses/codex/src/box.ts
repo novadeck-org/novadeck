@@ -25,6 +25,17 @@ export const shellFooter = (rows: readonly string[]): boolean => {
   return last !== undefined && /(^|\s)Shell mode(\s|$)/.test(last.trim())
 }
 
+/**
+ * The rows of its footer: those it drew last, from the blank row above them. A screen with no
+ * blank row there is none it draws; its rows from the cursor down are read, as `footerRows` does.
+ */
+const footer = (screen: ScreenText): readonly string[] => {
+  const { rows } = screen
+  const drawn = rows.findLastIndex((row) => row.trim() !== "")
+  const blank = rows.slice(0, drawn).findLastIndex((row) => row.trim() === "")
+  return blank < 0 ? footerRows(screen) : rows.slice(blank + 1, drawn + 1)
+}
+
 /** The last row it drew. */
 const lastDrawn = ({ rows }: ScreenText): string => rows.findLast((row) => row.trim() !== "") ?? ""
 
@@ -41,9 +52,13 @@ const lastDrawn = ({ rows }: ScreenText): string => rows.findLast((row) => row.t
  * `/statusline` "esc cancel": only on the last row drawn, as `$` and `@` draw "esc close" over
  * a box that is one (probed 0.167.0, 2026-11-06, fixtures/live-slice.probe.json). A prompt or a
  * ring waits while any of these shows, as it would paste into the list.
+ * All are read in its footer, the last rows drawn, under a blank row: the box, a line or a draft
+ * in it, ends above that, and may say these words. Its history search draws its own row under
+ * the footer, with the cursor there, so the box reads down to it; it is still in those last rows
+ * (0.167.0, 2026-11-07, fixtures/ring-reading.probe.json).
  */
 const overlay = (screen: ScreenText): boolean =>
-  footerRows(screen).some((row) =>
+  footer(screen).some((row) =>
     /(^|\s)reverse-i-search:|\? \/ esc close|Side from main thread · (?:ctrl\+|\^|⌃)\/ to switch|· esc (?:back|clear search\/close)\s*$/.test(
       row,
     ),
