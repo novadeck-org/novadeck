@@ -259,7 +259,6 @@ export class Sampler<R extends SampledRecord> {
     for (const record of this.host.records()) {
       if (record.terminal.exit !== null || record.terminal.exiting) continue
       running = true
-      const first = record.foreground === undefined
       record.foreground = sampleForeground(record.terminal.pty, record.foreground)
       const current = record.foreground.process
       const same = sameProcess(current, record.summary.process)
