@@ -405,13 +405,21 @@ for (const setup of setups) {
         const ask = run.deck.terminals.inboxEntries().find((each) => each.content.kind === "ask")!
         run.deck.terminals.answerAsk(ask.id, { type: "reply", option: 0, text: "Merge it." })
         await sleep(unrung * 3)
-        // Nor does the chat's take of the box have them: they stay, in sight once scrolled to.
-        expect((await run.deck.terminals.takeBox(terminal.id)).returned).toBeNull()
-        terminal.press("\x1b[A".repeat(lines - ups))
-        await terminal.until("MY UNFINISHED")
         expect(
           run.model.calls.slice(calls).some((call) => allOf(call).includes("MY UNFINISHED DRAFT")),
         ).toBe(false)
+        // Nor does the chat's take of the box have them: they stay, in sight once scrolled to, a
+        // key at a time, as Codex on Windows doesn't take them all in a burst, and no further
+        // than the words, as an Up past them recalls history.
+        expect((await run.deck.terminals.takeBox(terminal.id)).returned).toBeNull()
+        for (let up = 0; up < lines + 4; up += 1) {
+          // eslint-disable-next-line no-await-in-loop -- As above.
+          if ((await terminal.screen()).includes("MY UNFINISHED")) break
+          terminal.press("\x1b[A")
+          // eslint-disable-next-line no-await-in-loop -- As above.
+          await sleep(200)
+        }
+        await terminal.until("MY UNFINISHED")
       })
 
     // Words a person or agent may write, here the footer of Claude Code's agents view: a reply
