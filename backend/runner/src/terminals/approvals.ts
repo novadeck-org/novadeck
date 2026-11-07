@@ -110,6 +110,13 @@ export class Approvals {
     waiting.settle(answer.approved ? "confirmed" : "declined")
   }
 
+  /** Whether a request waits that `terminalId` made or is the target of. */
+  involves(terminalId: string): boolean {
+    for (const waiting of this.pending.values())
+      if (waiting.from === terminalId || waiting.terminalId === terminalId) return true
+    return false
+  }
+
   /** Takes back the requests that name `terminalId`, as the asker or the target, as it closes. */
   withdraw(terminalId: string): void {
     for (const waiting of this.pending.values())

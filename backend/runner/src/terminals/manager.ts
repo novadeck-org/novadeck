@@ -56,6 +56,7 @@ import { agentProcess, shutdownTreeGraceMs, shutdownTreesMs, treeGraceMs } from 
 import { failed } from "./failures.js"
 import { historyHost } from "./history-host.js"
 import { ClosedTerminals, type Plan } from "./history.js"
+import { Hibernation } from "./hibernation.js"
 import { restored } from "./interrupted.js"
 import { Launcher, startedIn, startFailed } from "./launching.js"
 import { listTerminals } from "./listing.js"
@@ -167,6 +168,8 @@ export class Terminals {
   private readonly claims: Claims
   /** Terminals whose agents sleep, saved with no shell until someone needs them. */
   private readonly sleepers: Sleepers
+  /** Stops idle agents to rest as sleepers. */
+  private readonly hibernation: Hibernation
   private readonly options: Required<
     Omit<
       TerminalOptions,
@@ -202,6 +205,8 @@ export class Terminals {
       | "describer"
       | "murmurTimes"
       | "pty"
+      | "hibernateAfterMinutes"
+      | "hibernation"
     >
   > & {
     env: NodeJS.ProcessEnv
@@ -422,6 +427,7 @@ export class Terminals {
         this.reporting.trackRoot(record, events, statusLine),
       rebound: (record) => this.reporting.rebound(record),
       turns: () => ({ inbox: this.inbox, redactor }),
+      looked: (record) => this.hibernation.look(record),
       alive,
       pollMs: this.options.processPollMs,
     })
@@ -523,6 +529,35 @@ export class Terminals {
       changed: (row) => this.streams.savedChanged(row),
       ended: (id) => this.streams.end(id),
     })
+    this.hibernation = new Hibernation(
+      {
+        stopping: () => this.stopping,
+        records: () => this.records.values(),
+        minutes: () => options.hibernateAfterMinutes?.() ?? null,
+        messaging: () => this.messaging,
+        inbox: () => this.inbox,
+        approvals: () => this.confirms,
+        opens: () => this.opens,
+        sleepers: () => this.sleepers,
+        detailWatched: (id) => this.streams.detailWatched(id),
+        trees: () => this.trees,
+        end: (record) => this.terminate(record),
+        // The shell of an agent stopped to rest has ended: its record is let go at once, not
+        // drained as a close's or retained as an exit's, and its terminal rests as a sleeper.
+        rested: (record) => {
+          const id = record.summary.id
+          this.host.discard(id)
+          this.records.delete(id)
+          this.streams.end(id, false)
+          const saved = this.saves.saved(id)
+          if (saved) {
+            this.sleepers.rest(saved)
+            this.streams.savedChanged(saved)
+          } else this.streams.removed(record.summary)
+        },
+      },
+      options.hibernation,
+    )
     this.feedback = new Feedback({
       owner: (id) => this.messaging.inboxOwner(id),
       exists: (id) =>
@@ -647,6 +682,7 @@ export class Terminals {
     })
     this.launcher.integrate(options.shellFiles)
     this.sleepers.start()
+    this.hibernation.start()
     void this.launcher.integrated().then((found) => !found && this.sleepers.integrationFailed())
   }
 
@@ -664,6 +700,9 @@ export class Terminals {
         this.create({ ...got, ...(made.resume && { resume: made.resume }) }, ownerId, made),
       )
     if (this.stopping) throw new DomainError("CLOSING")
+    // An agent being stopped to rest is a sleeper once it has ended: this create wakes it.
+    const settling = this.hibernation.settling(input.id)
+    if (settling) await settling
     // A closed terminal stays closed, even while its shell is still ending.
     if (this.closedIds.has(input.id)) throw new DomainError("TERMINAL_NOT_FOUND")
     const woken = this.sleepers.metAlone(input.id)
@@ -1067,7 +1106,8 @@ export class Terminals {
       if (
         record.closed ||
         this.records.get(input.terminalId) !== record ||
-        this.closingSessions.has(record.summary.sessionId)
+        this.closingSessions.has(record.summary.sessionId) ||
+        record.hibernating
       )
         throw new DomainError("TERMINAL_NOT_FOUND")
     }
@@ -1337,8 +1377,11 @@ export class Terminals {
     signal?: AbortSignal,
   ): AsyncGenerator<TerminalAttached | TerminalEvent> {
     const record = this.record(input.terminalId)
+    // An agent being stopped to rest is not attached to: it is a sleeper in a moment.
+    if (record.hibernating) throw new DomainError("TERMINAL_NOT_FOUND")
     const pending = this.pending(ownerId)
     const { terminalId } = input
+    record.attachedAt = Date.now()
     try {
       for await (const event of this.host.attach(
         terminalId,
@@ -1349,7 +1392,7 @@ export class Terminals {
           released: () => pending.released,
           // Closed, or closing, while this attachment waited its turn.
           check: () => {
-            if (record.closed || this.records.get(terminalId) !== record)
+            if (record.closed || record.hibernating || this.records.get(terminalId) !== record)
               throw new DomainError("TERMINAL_NOT_FOUND")
           },
         },
@@ -1358,6 +1401,7 @@ export class Terminals {
           ? { type: "attached", terminalId, mode: event.mode }
           : { ...event, terminalId }
     } finally {
+      record.attachedAt = Date.now()
       this.complete(ownerId, pending)
     }
   }
@@ -1547,6 +1591,7 @@ export class Terminals {
     const last = this.saves.shutdown()
     this.stopping = true
     this.sleepers.stop()
+    this.hibernation.stop()
     this.sampler.stop()
     this.startups.stop()
     this.saves.stop()
@@ -1591,7 +1636,8 @@ export class Terminals {
   private announce(record: Record): void {
     markBusy(record)
     // A closed terminal's watchers already heard it is gone; its exit must not add it back.
-    if (!record.closed) this.streams.changed(() => summaryOf(record))
+    // One stopped to rest is told once it has, as a sleeper (see `Hibernation`).
+    if (!record.closed && !record.hibernating) this.streams.changed(() => summaryOf(record))
     this.streams.detailed(record)
     if (!record.closed) {
       this.history.judge(record)
@@ -1662,7 +1708,8 @@ export class Terminals {
    * command still waiting by now was never taken.
    */
   private prompted(record: Record, child: Pty, cwd: string): void {
-    if (record.terminal.pty !== child) return
+    // The shell that is left of an agent stopped to rest has no program to forget.
+    if (record.terminal.pty !== child || record.hibernating) return
     record.promptedAt = Date.now()
     // A restore still to be confirmed has failed once the shell's prompt is back.
     this.history.prompted(record)
@@ -1716,9 +1763,12 @@ export class Terminals {
   private exited(record: Record): void {
     this.bindings.exited(record)
     forgetPrompts(record)
-    // An exited terminal takes no messages; its agent's are gone until it runs again.
-    this.messaging.unregister(record.summary.id)
-    this.inbox.reconcile(record.summary.id)
+    // An exited terminal takes no messages; its agent's are gone until it runs again. One
+    // stopped to rest keeps them, and its Inbox: it is no exit (see `Hibernation`).
+    if (!record.hibernating) {
+      this.messaging.unregister(record.summary.id)
+      this.inbox.reconcile(record.summary.id)
+    }
     this.typing.forget(record.summary.id)
     record.summary = {
       ...record.summary,
@@ -1728,7 +1778,8 @@ export class Terminals {
     }
     cancelResume(record)
     this.history.cancelled(record)
-    this.saves.save(record, true)
+    // Its screen is let go with it, so only what restores it is saved now.
+    this.saves.save(record, !record.hibernating)
     this.announce(record)
   }
 

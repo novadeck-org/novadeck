@@ -287,6 +287,12 @@ export class OpenRequests {
     waiting.settle({ type: "answered", answer })
   }
 
+  /** Whether a request waits for its terminal, asked by the terminal with that handle. */
+  asked(handle: string): boolean {
+    for (const { opener } of this.pending.values()) if (opener?.by === handle) return true
+    return false
+  }
+
   /** Ends the owner's streams; what they still wait for goes without an answer. */
   release(owner: string): void {
     this.followers.release(owner)

@@ -119,6 +119,8 @@ export {
   type WorkspaceSession,
 } from "./projects.js"
 export {
+  defaultHibernateMinutes,
+  maxHibernateMinutes,
   maxInboxOrder,
   maxInboxRowIdLength,
   runnerSettings,

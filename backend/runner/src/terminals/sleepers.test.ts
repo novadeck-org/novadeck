@@ -79,7 +79,10 @@ const setup = (
         return new Map<string, number>()
       },
     }),
-    saves: () => ({ terminals: () => rows }),
+    saves: () => ({
+      terminals: () => rows,
+      saved: (id: string) => rows.find((each) => each.id === id),
+    }),
     inbox: () => ({
       reports: () => ({ tell: null, done: options.done ? { subject: "x", at: 5 } : null }),
       lastTurnAt: () => options.turnAt ?? null,
@@ -117,6 +120,22 @@ describe("sleepers", () => {
     ])
     sleepers.start()
     expect([...resting.keys()]).toEqual(["a"])
+  })
+
+  it("tells before a running agent stops whether it would rest, and on what", () => {
+    const { sleepers } = setup([row("a", "claude", { claude: { sessionId: "one", seq: 1 } })])
+    const running = (id: string, agents: ListedTerminal["agents"]) => ({
+      summary: { id, sessionId: "s" },
+      agents,
+    })
+    const one = { claude: { sessionId: "one", seq: 1 } }
+    expect(sleepers.restable(running("a", one), "claude")).toBe(true)
+    // No session reported, one a harness can't resume, or no row to keep it on.
+    expect(sleepers.restable(running("a", {}), "claude")).toBe(false)
+    expect(
+      sleepers.restable(running("a", { claude: { sessionId: "bad id!", seq: 1 } }), "claude"),
+    ).toBe(false)
+    expect(sleepers.restable(running("z", one), "claude")).toBe(false)
   })
 
   it("leaves a terminal whose last program was node a plain one, whatever agents reported", () => {

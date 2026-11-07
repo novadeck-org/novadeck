@@ -63,6 +63,8 @@ export type BindingsHost = {
   readonly rebound: (record: Record) => void
   /** Where finished turns are stored: the Inbox's entries and the redactor that masks their text. */
   readonly turns: () => TurnsHost
+  /** The terminal's agent state moved (see `Hibernation.look`). */
+  readonly looked: (record: Record) => void
   /** Whether process `pid` still runs. */
   readonly alive: (pid: string) => boolean
   /** How often foreground processes are sampled: how long a shell outlives its agent to count. */
@@ -93,7 +95,8 @@ export class Bindings {
    */
   endExited(record: Record): boolean {
     const binding = record.bound?.binding
-    if (!binding?.instance || this.host.alive(binding.instance)) return false
+    // An agent stopped to rest is gone on purpose: its lead stands.
+    if (record.hibernating || !binding?.instance || this.host.alive(binding.instance)) return false
     record.left = binding
     // The agent's process is gone: the lead it had ends with it.
     this.endLeadGone(record)
@@ -327,6 +330,7 @@ export class Bindings {
       !!agent &&
       harnesses[agent].messaging.exitCommands.includes(entered.trim())
     if (exit || endKeys.some((key) => data.includes(key))) record.endKeyAt = Date.now()
+    record.keyedAt = Date.now()
     this.escaped(record)
   }
 
@@ -586,6 +590,7 @@ export class Bindings {
       }, wait + 1)
       again.unref()
     }
+    this.host.looked(record)
     if (turned || ended) {
       record.changed = true
       this.host.save(record)

@@ -87,6 +87,20 @@ describe("requests to close a terminal, on their way to the client", () => {
     await client.done
   })
 
+  it("knows a terminal it waits for or on, until the request settles", async () => {
+    const approvals = new Approvals()
+    const client = collect(approvals.follow("owner"))
+    expect(approvals.involves("target")).toBe(false)
+    approvals.request(request, () => undefined)
+    expect(approvals.involves("target")).toBe(true)
+    expect(approvals.involves("caller")).toBe(true)
+    expect(approvals.involves("other")).toBe(false)
+    approvals.withdraw("target")
+    expect(approvals.involves("caller")).toBe(false)
+    approvals.finish()
+    await client.done
+  })
+
   it("has no request to make with no client following, nor a second for a terminal that waits", async () => {
     const approvals = new Approvals()
     expect(approvals.refusal("target")).toBe("nobody")

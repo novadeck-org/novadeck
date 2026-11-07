@@ -167,6 +167,23 @@ export class Sleepers {
       .catch(() => undefined)
   }
 
+  /**
+   * Whether a running terminal's agent would rest as a sleeper if it stopped now (`rest`):
+   * its harness resumes the session it reported, a shell here can run the resume, and a
+   * saved row and project keep it. Asked before a hibernation ends anything.
+   */
+  restable(
+    record: { readonly summary: Pick<AgentSummary, "id" | "sessionId"> } & Pick<Record, "agents">,
+    agent: AgentName,
+  ): boolean {
+    const { id, sessionId } = record.summary
+    if (!this.host.resumes() || this.host.closed(id) || !harnesses[agent].launch.resume)
+      return false
+    const session = record.agents[agent]?.sessionId
+    if (session === undefined || !agentSessionId.safeParse(session).success) return false
+    return this.host.projectOf(sessionId) !== undefined && this.host.saves().saved(id) !== undefined
+  }
+
   /** The shell integration did not come up: no shell can run a resume, so none rests. */
   integrationFailed(): void {
     for (const id of Array.from(this.sessions.keys())) {

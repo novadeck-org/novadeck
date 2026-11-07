@@ -821,6 +821,13 @@ export class Inbox {
     return { tell, done }
   }
 
+  /** Whether the terminal has an ask open, waiting for the person's answer. */
+  hasOpenAsk(terminalId: string): boolean {
+    for (const entry of this.byTerminal.get(terminalId)?.values() ?? [])
+      if (entry.state === "open" && entry.content.kind === "ask") return true
+    return false
+  }
+
   /** When the newest finished turn the terminal has stored ended, if it has one. */
   lastTurnAt(terminalId: string): number | null {
     let at: number | null = null
