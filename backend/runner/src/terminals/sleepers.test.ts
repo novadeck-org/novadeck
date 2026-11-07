@@ -280,7 +280,9 @@ describe("sleepers", () => {
     expect(both.sleepers.summaryOf(kept).lastTurnAt).toBe(7)
     // Another session's end is no age of this one.
     const stale = row("b", "claude", { claude: { sessionId: "one", seq: 1, endedAt: 7 } })
-    const other = setup([{ ...stale, agents: { claude: { sessionId: "two", seq: 1, endedAt: 7 } } }])
+    const other = setup([
+      { ...stale, agents: { claude: { sessionId: "two", seq: 1, endedAt: 7 } } },
+    ])
     other.sleepers.start()
     expect(other.sleepers.summaryOf(stale).lastTurnAt).toBeNull()
   })

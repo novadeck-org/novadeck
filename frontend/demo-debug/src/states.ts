@@ -85,11 +85,11 @@ const afterTold = (inbox: () => Inbox | undefined, key: TerminalKey, run: () => 
   const turns = inbox()?.turns
   if (!turns) return later(sleepAfterMs, run)
   const since = Date.now()
-  let stop = (): void => {}
+  let stop: (() => void) | undefined
   let cap: ReturnType<typeof setTimeout> | undefined
   const go = (): void => {
     clearTimeout(cap)
-    stop()
+    stop?.()
     // Not inside the store's own notification: the dispatch it makes is its own commit.
     later(0, run)
   }

@@ -8,7 +8,14 @@ import type { Binding } from "../harnesses/bindings.js"
 import { harnesses } from "../harnesses/registry.js"
 import { describe, expect, it } from "../test.js"
 import { adapterFolder } from "../testing/adapters.js"
-import { interruptedFor, markEnd, markTurn, restored, tellInterrupted, turnOf } from "./interrupted.js"
+import {
+  interruptedFor,
+  markEnd,
+  markTurn,
+  restored,
+  tellInterrupted,
+  turnOf,
+} from "./interrupted.js"
 import type { Record } from "./record.js"
 import type { AgentReport } from "./saved-terminals.js"
 
