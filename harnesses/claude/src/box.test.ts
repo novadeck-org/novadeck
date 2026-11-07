@@ -1,6 +1,6 @@
 import type { ScreenText } from "@novadeck/emulator/headless"
 import { loadProbe } from "@novadeck/harness-core/testing/probes"
-import { takesQueue } from "@novadeck/tui-input/box"
+import { newTurn, takesQueue } from "@novadeck/tui-input/box"
 import { describe, expect, it } from "vitest"
 
 import { box, clearPending } from "./box.js"
@@ -132,5 +132,70 @@ describe("Claude Code's clear hint", () => {
 
   it("ignores a footer which quotes the hint as other text", () => {
     expect(clearPending([rule, "❯ restored", rule, "Earlier: Esc again to clear"])).toBe(false)
+  })
+})
+
+describe("its status row, as a turn ends and one its queue starts begins", () => {
+  // Frames of 2.1.316 at 70x40 (2026-11-07, e2e/probes/queued-busy.e2e.ts), one queued prompt.
+  const frame = (rows: { readonly [row: number]: string }, field = "❯"): ScreenText => {
+    const all = Array.from({ length: 40 }, (_, at) => rows[at] ?? "")
+    const ruled = "─".repeat(70)
+    all[35] = ruled
+    all[36] = field
+    all[37] = ruled
+    all[39] = "  ⏸ manual mode on · ← for agents"
+    return {
+      rows: all,
+      bright: all,
+      columns: 70,
+      cursor: { row: 36, column: 2 },
+      bracketedPaste: true,
+      alternate: false,
+    }
+  }
+  const head = { 1: " ▐▛███▛█   Claude Code v2.1.316", 6: "❯ Hold on" }
+  const running = frame(
+    {
+      ...head,
+      8: "❯ Queued beta",
+      9: "  ctrl+x ctrl+s to send now",
+      33: "✻ Noodling… (3s · ↓ 200 tokens)",
+    },
+    "❯ Press up to edit queued messages",
+  )
+  const ending = frame(
+    {
+      ...head,
+      8: "● Held reply.",
+      10: "❯ Queued beta",
+      33: "✻ Noodling… (running Stop hook · 3s · ↓ 200 tokens)",
+    },
+    "❯ Press up to edit queued messages",
+  )
+  const next = frame({
+    ...head,
+    8: "● Held reply.",
+    10: "✻ Sautéed for 3s · done 1:24 PM",
+    12: "❯ Queued beta",
+    33: "✻ Marinating… (0s · ↓ 200 tokens)",
+  })
+  const done = frame({ ...head, 8: "● Held reply.", 10: "✻ Sautéed for 1s · done 1:24 PM" })
+
+  it("reads the turn's words, and its Stop hook as its ending", () => {
+    expect(box.status!(running)).toEqual({ words: "Noodling", ending: false })
+    expect(box.status!(ending)).toEqual({ words: "Noodling", ending: true })
+  })
+
+  it("reads the next turn's row as a new turn, and a done turn's summary as none", () => {
+    expect(box.status!(next)).toEqual({ words: "Marinating", ending: false })
+    expect(newTurn(box.status!(ending), box.status!(next))).toBe(true)
+    expect(newTurn(box.status!(running), box.status!(next))).toBe(true)
+    expect(box.status!(done)).toBeUndefined()
+    expect(newTurn(box.status!(ending), box.status!(done))).toBe(false)
+  })
+
+  it("isn't fooled by its own turn's row, or by an ending one after it", () => {
+    expect(newTurn(box.status!(running), box.status!(running))).toBe(false)
+    expect(newTurn(box.status!(running), box.status!(ending))).toBe(false)
   })
 })

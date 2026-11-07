@@ -31,6 +31,22 @@ export type InputBox = {
   readonly blanks?: true
 }
 
+/**
+ * The row a program shows while a turn runs, as a profile reads it: its words, and whether they
+ * say the turn is ending, as a hook run at its end. Programs pick new words for each turn.
+ */
+export type TurnStatus = { readonly words: string; readonly ending: boolean }
+
+/**
+ * Whether `now` shows a turn other than the one `before` showed: a status row that isn't an
+ * ending one, after none, after an ending one, or with other words. A turn a program starts
+ * by itself, from its queue, fires no hook: this is how its screen tells of it.
+ */
+export const newTurn = (before: TurnStatus | undefined, now: TurnStatus | undefined): boolean =>
+  now !== undefined &&
+  !now.ending &&
+  (before === undefined || before.ending || now.words !== before.words)
+
 /** The markers leading a box's first row: in its prompt mode, and in its shell mode. */
 export type Markers = { readonly prompt: string; readonly shell: string }
 
@@ -134,6 +150,11 @@ export type BoxProfile = {
    * holds until the turn ends (or steers the turn with).
    */
   readonly queued: (screen: ScreenText) => boolean
+  /**
+   * The status row of the turn the screen shows running; undefined where none shows. Omitted
+   * where the program's queue fires a hook as its turn starts, so nothing needs the screen.
+   */
+  readonly status?: (screen: ScreenText) => TurnStatus | undefined
   /**
    * How an interrupt takes what is queued into the empty box, before its first Escape, where
    * the program drains its queue as its turn ends, faster than any Escape: `keys` move it,

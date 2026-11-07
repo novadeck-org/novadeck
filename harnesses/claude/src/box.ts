@@ -9,6 +9,7 @@ import {
   ruledBox,
   type BoxProfile,
   type Markers,
+  type TurnStatus,
 } from "@novadeck/tui-input/box"
 
 /** The markers leading its box's first row: `❯` as a prompt, `!` in its shell mode. */
@@ -87,6 +88,26 @@ const queued = (screen: ScreenText): boolean => {
  * the turn's own hook, run theirs only as they are sent, whenever Escape comes, so there is
  * nothing to wait for. Only the hint's last words are read, as its keys can be rebound.
  */
+/**
+ * Its status row, over its box while a turn runs: a spinner, a word it picks for each turn, and
+ * after it what the turn is doing. Its Stop hook shows as `running Stop hook` in it, and then
+ * it goes, or gives way to the next turn's, with new words and its clock at `0s`, where the
+ * turn's end started one from its queue. A turn it took a queued message into goes on as one
+ * (2.1.316, 2026-11-07, e2e/probes/queued-busy.e2e.ts).
+ */
+const status = (screen: ScreenText): TurnStatus | undefined => {
+  const first = read(screen)?.first
+  if (first === undefined) return undefined
+  const row = screen.rows
+    .slice(0, first)
+    .findLast((each) => spinnerRow.test(each) || each.trim().startsWith("❯ "))
+  const words = row && spinnerRow.exec(row)?.[1]
+  return words ? { words, ending: /running Stop hook/.test(row) } : undefined
+}
+
+/** A status row: one of its spinner's marks, then its word for the turn. */
+const spinnerRow = /^\s*[·✢✳✶✻✽*]\s+(\S+?)…/
+
 const queueing = (screen: ScreenText): boolean => {
   if (!queued(screen)) return false
   const above = screen.rows.slice(0, read(screen)?.first ?? 0)
@@ -142,6 +163,7 @@ export const box: BoxProfile = {
   erase: eraseRows,
   overlay,
   queued,
+  status,
   // Hooks overlap, so this is a slow hook's time however many messages are queued (probed
   // 2026-11-06, a hook 1.3 s slow; one on Windows CI took about 1.25 s to start).
   escapeHold: { holds: queueing, ms: 5_000 },

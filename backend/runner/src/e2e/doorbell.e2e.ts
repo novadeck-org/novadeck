@@ -2,6 +2,7 @@ import { setTimeout as sleep } from "node:timers/promises"
 
 import { doorbellLine } from "@novadeck/harness-core/prompts"
 
+import { harnesses } from "../harnesses/registry.js"
 import type { Question } from "./agents/agent.js"
 import { setups } from "./agents/index.js"
 import { occurrences, type DeckTerminal } from "./deck.js"
@@ -322,6 +323,57 @@ for (const setup of setups) {
         })
       },
     )
+
+    /* eslint-disable no-await-in-loop -- Each step waits for the one before. */
+    // What the counting of queued turns rests on, on the harness's real screen: a change in how
+    // it words its status row turns that off, so this says so out loud.
+    gated(it, setup.queueing ? undefined : "its queued prompts' hooks don't run early")(
+      "reads from its screen a turn its queue starts, and one ending with none after it",
+      async ({ e2e: run }) => {
+        const status = harnesses[setup.agent].box!.status!
+        for (const queueing of [true, false]) {
+          const held = gate()
+          const queuedHeld = gate()
+          run.model.use(
+            own(async (call) => {
+              if (asked(call, "Queued beta")) {
+                await queuedHeld.opened
+                return { text: "Queued done." }
+              }
+              if (!asked(call, "Hold on")) return undefined
+              await held.opened
+              return { text: "Held reply." }
+            }),
+          )
+          const t1 = await start(run, setup)
+          const mark = t1.mark()
+          await t1.prompt("Hold on")
+          await t1.reached("working", { after: mark })
+          await sleep(1500)
+          if (queueing) {
+            await t1.prompt("Queued beta")
+            await t1.until(/Press up to edit queued messages/)
+            await sleep(1500)
+          }
+          held.open()
+          const seen: (ReturnType<typeof status> | null)[] = []
+          const until = Date.now() + 3_000
+          while (Date.now() < until) {
+            const shown = await t1.screenText()
+            seen.push((shown && status(shown)) ?? null)
+            await sleep(10)
+          }
+          queuedHeld.open()
+          const ending = seen.findIndex((each) => each?.ending === true)
+          expect(ending, JSON.stringify(seen)).toBeGreaterThanOrEqual(0)
+          const after = seen.slice(ending + 1).find((each) => each?.ending !== true)
+          if (queueing) expect(after, JSON.stringify(seen)).toMatchObject({ ending: false })
+          else expect(seen.at(-1), JSON.stringify(seen)).toBeNull()
+        }
+      },
+    )
+
+    /* eslint-enable no-await-in-loop */
 
     gated(it, lacking(setup, "questions"))(
       "rings an agent idle after the person answered its question in the terminal",

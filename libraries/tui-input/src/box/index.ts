@@ -5,6 +5,7 @@ export {
   hidesText,
   footerRows,
   isEmpty,
+  newTurn,
   leaveShell,
   markedBox,
   pastesWhole,
@@ -14,7 +15,7 @@ export {
   takesQueue,
   tailOf,
 } from "./box.js"
-export type { BoxProfile, InputBox, Markers } from "./box.js"
+export type { BoxProfile, InputBox, Markers, TurnStatus } from "./box.js"
 export { cursorAtEnd, leftoverOf, menuRow, toEnd } from "./leftover.js"
 export type { Leftover } from "./leftover.js"
 export { checkPaste } from "./paste.js"
