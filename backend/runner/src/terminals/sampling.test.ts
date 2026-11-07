@@ -70,11 +70,19 @@ describe("the program a fresh shell resumes where no sample names it", () => {
     expect(record.changed).toBe(false)
   })
 
-  it("is left to the sampler where the platform names the foreground", () => {
+  it("is left to the sampler once it has named a program, where the platform names the foreground", () => {
+    on("linux")
+    const record = running("bash")
+    expect(boundProgram(record, "claude")).toBe(false)
+    expect(record.summary.lastProgram).toBe("bash")
+  })
+
+  it("is the agent that binds before the first sample, as Antigravity does within a second of starting", () => {
     on("linux")
     const record = running(null)
-    expect(boundProgram(record, "claude")).toBe(false)
-    expect(record.summary.lastProgram).toBeNull()
+    expect(boundProgram(record, "agy")).toBe(true)
+    expect(record.summary.lastProgram).toBe("agy")
+    expect(record.changed).toBe(true)
   })
 
   it("is let go a sample's time after the person's Ctrl+C or Ctrl+D", () => {

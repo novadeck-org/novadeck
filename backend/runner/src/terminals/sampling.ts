@@ -76,13 +76,16 @@ export const endWaitMs = (record: Pick<Record, "endKeyAt">, pollMs: number): num
 /**
  * An agent's session bound the terminal. Where no sample names the foreground program,
  * the agent is the program a fresh shell resumes, should this one be lost; the sampler
- * says so elsewhere. Whether that changed it, which the caller saves.
+ * says so elsewhere, once it has sampled: an agent that binds and stops within a sample's
+ * time (a poll is a second) would leave no program at all, so a terminal with none yet
+ * takes the agent. Whether that changed it, which the caller saves.
  */
 export const boundProgram = (
   record: Pick<Record, "summary" | "changed">,
   agent: AgentName,
 ): boolean => {
-  if (!foregroundHidden() || record.summary.lastProgram === agent) return false
+  const { lastProgram } = record.summary
+  if (lastProgram === agent || (!foregroundHidden() && lastProgram !== null)) return false
   record.summary = { ...record.summary, lastProgram: agent }
   record.changed = true
   return true
