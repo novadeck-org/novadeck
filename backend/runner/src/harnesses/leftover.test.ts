@@ -30,14 +30,14 @@ describe("what fails closed on a box that shows a part", () => {
 
   it("reads Antigravity's mark though it is drawn dim", () => {
     const dim = { ...tall, bright: row(tall.bright, ">") }
-    expect(leftoverOf(agy, dim)).toMatchObject({ tail: true, box: { above: 21 } })
-    expect(agy.read(dim)!.text).not.toContain("more lines")
+    expect(leftoverOf(agy, dim)).toMatchObject({ tail: true })
+    expect(agy.read(dim)!.text.split("\n")[0]).toBe("↑ 21 more lines")
   })
 
   it.each(["> ↑ 1,024 more lines", "> ↑ weitere Zeilen", "> ↑"])("takes %s for one", (mark) => {
     const changed = { ...tall, rows: row(tall.rows, mark), bright: row(tall.bright, mark) }
     expect(leftoverOf(agy, changed)).toMatchObject({ tail: true })
-    expect(agy.read(changed)!.text.split("\n")[0]).not.toContain("↑")
+    expect(agy.uncut?.(agy.read(changed)!.text)).not.toContain("↑")
   })
 
   it("tells Codex's dim ↑ from one the person typed", () => {
@@ -45,7 +45,7 @@ describe("what fails closed on a box that shows a part", () => {
     const at = codex.read(high)!.first
     const typed = {
       ...high,
-      bright: high.bright.map((each, i) => (i === at ? high.rows[i]! : each)),
+      bright: high.bright.map((each, index) => (index === at ? high.rows[index]! : each)),
     }
     expect(codex.read(typed)!.scrolled).toBeUndefined()
   })
@@ -80,22 +80,19 @@ describe.each(harnesses)("what %s's box holds", (harness, profile) => {
 
   it("reads a box taller than it shows as only its tail, its keys leaving it empty", () => {
     expect(leftoverOf(profile, state("tall"))).toMatchObject({ kind: "text", tail: true })
-    expect(box("tall").text.split("\n")[0]).not.toContain("more lines")
     expect(leftoverOf(profile, state("tall shell"))).toMatchObject({ kind: "shell", tail: true })
     expect(leftoverOf(profile, state("tall cleared")).kind).toBe("empty")
     expect(leftoverOf(profile, state("tall shell cleared")).kind).toBe("empty")
   })
 
-  it("says a box scrolled where its program draws that, and how far where it says", () => {
-    expect(box("tall").scrolled).toBe(harness === "claude" ? undefined : true)
-    expect(box("tall").above).toBe(harness === "agy" ? 21 : undefined)
-    expect(box("draft").scrolled).toBeUndefined()
+  it("says a box is cut where its program draws that", () => {
+    expect(profile.cut?.(box("tall")) ?? false).toBe(harness !== "claude")
+    expect(profile.cut?.(box("draft")) ?? false).toBe(false)
   })
 
   it("takes a tall box with its cursor moved up as a tail too, with no end in sight", () => {
     const moved = state("tall cursor up")
     expect(leftoverOf(profile, moved)).toMatchObject({ tail: true })
-    expect(box("tall cursor up").text).not.toContain("more lines")
     expect(cursorAtEnd(profile, box("tall cursor up"), moved)).toBe(false)
   })
 

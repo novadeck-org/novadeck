@@ -229,17 +229,16 @@ describe("the chat's send queue", () => {
     const asked: unknown[] = []
     let cleared = true
     const { commands, tell } = open("s1", {
-      clearBox: async (at, box) => {
-        asked.push([at, box.text])
+      clearBox: async (at, seen) => {
+        asked.push([at, seen])
         return cleared
       },
     })
     tell({ box: { text: "/typed since", mode: "prompt", tail: false, known: false } })
-    const shown = { text: "/model", mode: "prompt", tail: false, known: false } as const
-    await commands.clearBox(key, shown)
+    await commands.clearBox(key, "/model")
     expect(asked).toEqual([[key, "/model"]])
     cleared = false
-    await expect(commands.clearBox(key, shown)).rejects.toBeInstanceOf(SettleInTerminal)
+    await expect(commands.clearBox(key, "/model")).rejects.toBeInstanceOf(SettleInTerminal)
   })
 
   it("adds nothing a paste that landed unseen left in both", async () => {

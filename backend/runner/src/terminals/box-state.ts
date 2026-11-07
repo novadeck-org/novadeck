@@ -9,9 +9,9 @@ const textMax = 16_384
 export const boxWords = (text: string): string => text.trim().slice(0, textMax)
 
 /** Whether what a client was shown is what the box holds, as far as its rows can say. */
-export const shownBox = (box: InputBox, seen: string, above: number | undefined): boolean => {
+export const shownBox = (box: InputBox, seen: string): boolean => {
   const words = boxWords(box.text)
-  return words === box.text.trim() && sameText(words, seen) && box.above === above
+  return words === box.text.trim() && sameText(words, seen)
 }
 
 /**
@@ -31,13 +31,7 @@ export const boxView = (
   const { box, tail } = state
   const text = box.text.trim()
   if (text === "" || ringLine(text)) return null
-  return {
-    text: boxWords(text),
-    mode: box.mode,
-    tail,
-    known: known(text),
-    ...(box.above !== undefined && { above: box.above }),
-  }
+  return { text: boxWords(text), mode: box.mode, tail, known: known(text) }
 }
 
 const same = (a: AgentBox | null, b: AgentBox | null): boolean =>
@@ -47,8 +41,7 @@ const same = (a: AgentBox | null, b: AgentBox | null): boolean =>
     a.text === b.text &&
     a.mode === b.mode &&
     a.tail === b.tail &&
-    a.known === b.known &&
-    a.above === b.above)
+    a.known === b.known)
 
 export type BoxStatesHost = {
   /** Whether a client reads the terminal's `agents.detail`: none, and no screen is read. */

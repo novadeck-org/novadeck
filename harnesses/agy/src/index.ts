@@ -23,7 +23,7 @@ import {
 import { statusLineLimit, statusLineSettings } from "./settings.js"
 import { conversational, shapes } from "./shapes.js"
 import { makeCmdShim } from "./shim.js"
-import { shown } from "./status-line.js"
+import { shown, startupScreen } from "./status-line.js"
 import { transcripts, typedEntry } from "./transcripts.js"
 
 // A Stop continued with a reason gets it as a lasting system step. A message injected at
@@ -159,6 +159,7 @@ export const agy = {
   dialogs,
   commandFields: ["CommandLine"],
   shown,
+  startupScreen,
   launch,
   messaging,
   box,

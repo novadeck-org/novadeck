@@ -137,29 +137,25 @@ const interruptedShown = (screen: ScreenText): boolean | undefined => {
 const overlay = (screen: ScreenText): boolean =>
   footerRows(screen).some((row) => /^Keyboard: .*\besc (Close|Dismiss)\b/.test(row.trim()))
 
+/** The rows that say a box shows only part of its text, whatever words a version has for it. */
+const rowAbove = /^↑[^\n]*(?:\n|$)/
+const rowBelow = /(?:^|\n)↓[^\n]*$/
+
 /**
- * Its box with what it says of the text it doesn't show taken off the text: from 1.5 a text
- * taller than the box shows only a part, an `↑ 21 more lines` row over it and, with the cursor
- * moved up, an `↓ 14 more lines` row under it (probed 2026-11-06, 1.5.2, the `tall` states of
- * fixtures/leftover.probe.json, 20 rows of text on a screen of 40). The rows are read as drawn,
- * dim or not, and any that leads with the arrow counts, whatever follows it: a box that holds
- * more than it shows, taken for all of it, loses the rest.
+ * Its box, with the rows that say it shows only a part in its text however they are drawn: a
+ * text is read off its bright cells, and a box that holds more than it shows, taken for all of
+ * it, loses the rest. From 1.5 a text taller than the box has an `↑ 21 more lines` row over it
+ * and, with the cursor moved up, an `↓ 14 more lines` row under it (probed 2026-11-06, 1.5.2, the
+ * `tall` states of fixtures/leftover.probe.json).
  */
-const parted = (box: InputBox | undefined, screen: ScreenText): InputBox | undefined => {
+const marked = (box: InputBox | undefined, screen: ScreenText): InputBox | undefined => {
   if (!box) return box
-  const top = screen.rows[box.first]?.slice(markers.prompt.length).trimStart() ?? ""
-  const above = top.startsWith("↑")
-  const below = screen.rows[box.last]?.trimStart().startsWith("↓") === true
-  if (!above && !below) return box
+  const top = screen.rows[box.first]?.slice(markers.prompt.length).trim() ?? ""
+  const bottom = screen.rows[box.last]?.trim() ?? ""
   const rows = box.text.split("\n")
-  const whole = rows.length === box.last - box.first + 1
-  const hidden = /^↑ ([\d,]+)/.exec(top)?.[1]?.replaceAll(",", "")
-  return {
-    ...box,
-    text: rows.slice(above ? 1 : 0, below && whole ? -1 : undefined).join("\n"),
-    scrolled: true,
-    ...(hidden !== undefined && { above: Number(hidden) }),
-  }
+  if (top.startsWith("↑")) rows[0] = top
+  if (bottom.startsWith("↓")) rows[box.last - box.first] = bottom
+  return { ...box, text: rows.join("\n") }
 }
 
 /**
@@ -173,7 +169,7 @@ const parted = (box: InputBox | undefined, screen: ScreenText): InputBox | undef
  */
 export const box: BoxProfile = {
   read: (screen) =>
-    parted(agreeing(ruledBox(withoutPanel(screen), markers), shellFooter(screen.rows)), screen),
+    marked(agreeing(ruledBox(withoutPanel(screen), markers), shellFooter(screen.rows)), screen),
   // Enter would run a command shown as a placeholder as the placeholder's own text (probed
   // 2026-10-07). A `!` command creates the conversation and binds the session (`starts`;
   // probed 2026-10-08).
@@ -189,6 +185,11 @@ export const box: BoxProfile = {
   textWidth: (columns) => columns - 4,
   stands: (text) => /\[(?:Pasted text #\d+|Image\b)/.test(text),
   collapsed: ({ text }) => /^\[Pasted text #\d+ (?:\+\d+ lines?|\d+ chars?)\]$/.test(text.trim()),
+  // A text taller than its box scrolls under a row saying how much, which reads as part of
+  // the text: 30 queued lines on 40 rows came back as `↑ 10 more lines` and the last 20, and
+  // scrolled up the row stands last, as `↓` (probed 2026-11-06, 1.5.2).
+  cut: ({ text }) => rowAbove.test(text) || rowBelow.test(text),
+  uncut: (text) => text.replace(rowAbove, "").replace(rowBelow, ""),
   // 15 lines showed whole, even of 100 characters each; 16 did not. One line of 1,000
   // characters showed whole, 1,024 did not.
   // Ctrl-U clears the line the cursor is on and Backspace joins the line before it; the

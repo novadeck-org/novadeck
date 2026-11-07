@@ -104,13 +104,6 @@ export type PromptInput = {
   readonly ref?: string | undefined
 }
 
-/** What `agents.clearBox` gives: what the person was shown of the box. */
-export type ClearBoxInput = {
-  readonly terminalId: string
-  readonly seen: string
-  readonly above?: number | undefined
-}
-
 /**
  * What a prompt given resolves with: its receipt's ref, whether one follows, and the words it
  * took out of the agent's box to go, null for none.
@@ -311,20 +304,15 @@ export class Typing {
   }
 
   /**
-   * Empties the agent's box, as the person asked to, of the text `seen` they were shown, with
-   * `above` the rows it said it hid then (see `Handovers.clear`). That's all that can be told of
-   * a tail, so one is left while a prompt may have come back over it. Prompts whose words went
-   * no longer wait.
+   * Empties the agent's box, as the person asked to, of the text `seen` they were shown (see
+   * `Handovers.clear`). That's all that can be told of a tail, so one is left while a prompt may
+   * have come back over it. Prompts whose words went no longer wait.
    */
-  async clearBox(
-    terminalId: string,
-    seen: string,
-    above?: number | undefined,
-  ): Promise<{ cleared: boolean }> {
+  async clearBox(terminalId: string, seen: string): Promise<{ cleared: boolean }> {
     this.promptable(terminalId)
     const { cleared, went } = await this.handovers.clear(
       terminalId,
-      (box, tail) => shownBox(box, seen, above) && !(tail && this.receipts.waiting(terminalId)),
+      (box, tail) => shownBox(box, seen) && !(tail && this.receipts.waiting(terminalId)),
     )
     if (went !== undefined) this.receipts.taken(terminalId, went)
     return { cleared }

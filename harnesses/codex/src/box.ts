@@ -113,6 +113,7 @@ const turnUnseen = (screen: ScreenText, prompt?: string): boolean => {
  */
 export const box: BoxProfile = {
   read,
+  cut: ({ scrolled }) => scrolled === true,
   // Enter runs a command shown as a placeholder as the text it stands for. Its commands run
   // without a session, as it binds none (`starts`).
   shell: { expands: true, starts: false, footer: shellFooter, leave: leaveShell },

@@ -33,10 +33,10 @@ export const boxNote = (label: string, box: ChatBox): string => {
     return `${label}'s terminal input is in shell mode, with this in it. Your next message leaves it.`
   if (/^\s*[/!]/.test(box.text))
     return `${label}'s terminal input holds a command. Clear it to send here.`
+  if (box.tail) return `${label}'s terminal input ends with this. There may be more above it.`
   if (box.known)
     return `${label}'s terminal input holds your message. It comes back here as you send.`
-  const holds = box.tail ? "ends with this" : "holds this"
-  return `${label}'s terminal input ${holds}. It goes with your next message.`
+  return `${label}'s terminal input holds this. It goes with your next message.`
 }
 
 // Where the person writes to the agent. Enter sends what's typed into the agent's own
@@ -77,8 +77,8 @@ export const Composer = ({
   // back on a failure, is the owner's, which may outlive this box.
   readonly onSend: (text: string) => Promise<void>
   readonly onStop: () => Promise<void>
-  // Empties the agent's own box of the `box` it's given, as shown. Rejects where it didn't.
-  readonly onClearBox: (box: ChatBox) => Promise<void>
+  // Empties the agent's own box of the text shown of it. Rejects where it didn't.
+  readonly onClearBox: (seen: string) => Promise<void>
   // Keyboard navigation asks for focus here; call `onInputFocused` once it's there.
   readonly focusInput: boolean
   readonly onInputFocused: () => void
@@ -140,11 +140,11 @@ export const Composer = ({
       },
     )
   }
-  const clearBox = (shown: ChatBox): void => {
+  const clearBox = (seen: string): void => {
     if (clearing) return
     setClearing(true)
     setError(null)
-    onClearBox(shown).then(
+    onClearBox(seen).then(
       () => mounted.current && setClearing(false),
       (failure: unknown) => {
         if (!mounted.current) return
@@ -208,7 +208,7 @@ export const Composer = ({
               className="button quiet chat-reply-cancel"
               aria-label={`Clear ${label}'s terminal input`}
               disabled={clearing}
-              onClick={() => clearBox(box)}
+              onClick={() => clearBox(box.text)}
             >
               <X size={12} aria-hidden />
               Clear

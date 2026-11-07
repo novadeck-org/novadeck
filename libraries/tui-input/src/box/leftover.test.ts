@@ -42,6 +42,15 @@ describe("leftoverOf", () => {
     expect(menuRow("1 thing")).toBe(false)
   })
 
+  it("calls a box that says it is cut a tail, as one as tall as its viewport", () => {
+    const cut = { cut: ({ text }: InputBox) => text.startsWith("↑") }
+    expect(leftoverOf(profile(box("↑ 10 more lines\nwords"), cut), shown)).toMatchObject({
+      kind: "text",
+      tail: true,
+    })
+    expect(leftoverOf(profile(box("words"), cut), shown)).toMatchObject({ tail: false })
+  })
+
   it("tells text from what its program runs as a command", () => {
     expect(leftoverOf(profile(box("words")), shown).kind).toBe("text")
     expect(leftoverOf(profile(box("see /tmp")), shown).kind).toBe("text")

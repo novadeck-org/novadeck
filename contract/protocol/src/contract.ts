@@ -320,17 +320,11 @@ export const contract = {
       .input(z.strictObject({ terminalId: id, text: z.string().min(1).max(16_384) }))
       .output(z.strictObject({ placed: z.boolean() })),
     // Empties the agent's input box as the person asked, of whatever it holds, which is gone
-    // for good: `seen` and `above` are its `text` and `above` as `agents.detail`'s `box` showed
-    // them, and a box that no longer holds that is left. `cleared` false leaves it as it was,
-    // or as the keys left it, the box still in `box` (see docs/backend-api.md, "One input").
+    // for good: `seen` is its `text` as `agents.detail`'s `box` showed it to them, and a box
+    // that no longer holds that is left. `cleared` false leaves it as it was, or as the keys
+    // left it, the box still in `box` (see docs/backend-api.md, "One input").
     clearBox: procedure
-      .input(
-        z.strictObject({
-          terminalId: id,
-          seen: z.string().min(1).max(16_384),
-          above: z.number().int().nonnegative().optional(),
-        }),
-      )
+      .input(z.strictObject({ terminalId: id, seen: z.string().min(1).max(16_384) }))
       .output(z.strictObject({ cleared: z.boolean() })),
     // Answers a request waiting on the person through its dialog in the agent's TUI, as the
     // person would with its keys: the harness's adapter reads the dialog, checks it is the

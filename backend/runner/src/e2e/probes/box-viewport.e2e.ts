@@ -89,7 +89,6 @@ for (const setup of setups) {
             shown,
             viewport: profile.viewport?.(rows) ?? null,
             scrolled: read?.scrolled ?? false,
-            above: read?.above ?? null,
             screen: screen ? screenRecord(screen) : null,
           })
         }

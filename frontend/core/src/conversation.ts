@@ -210,16 +210,14 @@ export type ChatPrompt = {
 
 // What the agent's own input box holds on its screen, which a message sent now goes out with,
 // so that nothing goes unseen: `text` as the box shows it, `mode` whether that is its shell
-// mode's, `tail` where that may be only the end of it, `above` the rows the agent says it hides
-// over that, where it says, and `known` where all of it is a prompt of the person's that came
-// back there, which the next message takes out and hands back to the chat's box rather than
-// sending along.
+// mode's, `tail` where that may be only the end of it, and `known` where all of it is a prompt
+// of the person's that came back there, which the next message takes out and hands back to the
+// chat's box rather than sending along.
 export type ChatBox = {
   readonly text: string
   readonly mode: "prompt" | "shell"
   readonly tail: boolean
   readonly known: boolean
-  readonly above?: number | undefined
 }
 
 // A terminal's conversation now. `agent` and `session` name the agent's session bound to
@@ -289,9 +287,9 @@ export type Conversations = {
   // Puts the chat's draft in the agent's own box, with no Enter, as the person goes to its
   // terminal: whether it went. Where not, the draft stays the chat's.
   readonly putBox?: (key: TerminalKey, text: string) => Promise<boolean>
-  // Empties the agent's own box, as the person asked, of the `box` shown to them: whether it
-  // reads empty now. Words gone are gone. Rejects as `send` does.
-  readonly clearBox?: (key: TerminalKey, box: ChatBox) => Promise<boolean>
+  // Empties the agent's own box, as the person asked, of the text `box` showed them: whether
+  // it reads empty now. Words gone are gone. Rejects as `send` does.
+  readonly clearBox?: (key: TerminalKey, seen: string) => Promise<boolean>
   // Answers a request through its dialog in the agent's TUI, as the person would with its
   // keys, resolving once it took. Rejects as `send` does; a dialog that can't be answered
   // safely turns `raw`, for the person to answer in the terminal.
@@ -367,11 +365,11 @@ export const returnedBy = (failure: unknown): string | undefined => {
   return typeof returned === "string" ? returned : undefined
 }
 
-// Stop took the turn's Escape, but the words queued behind it are still in the agent's box: the
-// next message sees to them.
+// Stop took the turn's Escape, but the words queued behind it are still in the agent's box, for
+// the terminal or the next message to see to.
 export const notCleared = (): Error =>
   new Error(
-    "Stopped. Your queued message is still in the agent's box, and comes back here or goes out with your next message.",
+    "Stopped. Your queued message is still in the agent's box: send it there, or try it with your next message here.",
   )
 
 // What the person is told when the agent couldn't take what the chat typed for them, by

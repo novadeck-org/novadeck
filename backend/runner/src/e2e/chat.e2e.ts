@@ -1105,11 +1105,10 @@ for (const setup of setups) {
       const box = following(run, t1)
       const calls = run.model.calls.length
       const write = (data: string) => run.deck.terminals.write({ terminalId: t1.id, data }, "e2e")
-      const clear = (seen: string, above?: number) =>
-        run.deck.terminals.clearBox({ terminalId: t1.id, seen, above })
+      const clear = (seen: string) => run.deck.terminals.clearBox({ terminalId: t1.id, seen })
       const clears = async (fits: (shown: AgentBox) => boolean) => {
         const shown = await box.shows((now) => now !== null && fits(now))
-        await expect(clear(shown!.text, shown!.above)).resolves.toEqual({ cleared: true })
+        await expect(clear(shown!.text)).resolves.toEqual({ cleared: true })
         await box.shows((now) => now === null)
       }
 
@@ -1145,11 +1144,9 @@ for (const setup of setups) {
         .typing
       const { ref } = await receipts.expect(t1.id, "On its way")
       receipts.sent(t1.id, ref)
-      await expect(clear(tail!.text, tail!.above)).resolves.toEqual({ cleared: false })
+      await expect(clear(tail!.text)).resolves.toEqual({ cleared: false })
       receipts.failed(t1.id, ref)
-      if (tail!.above !== undefined)
-        await expect(clear(tail!.text, tail!.above + 1)).resolves.toEqual({ cleared: false })
-      await clears((shown) => allIn(shown) && !shown.text.includes("more lines"))
+      await clears(allIn)
 
       // A shell mode's command goes with the mode: what's next is a message, and nothing ran.
       t1.press("!")

@@ -22,10 +22,8 @@ export type InputBox = {
   /** The rows of the screen it spans, first to last. */
   readonly first: number
   readonly last: number
-  /** Whether the program says it shows only part of what the box holds. */
+  /** Whether it draws, apart from the text, that it shows only part of what it holds. */
   readonly scrolled?: true
-  /** How many rows it says lie above what it shows, where it says. */
-  readonly above?: number
 }
 
 /** The markers leading a box's first row: in its prompt mode, and in its shell mode. */
@@ -40,6 +38,13 @@ export type BoxProfile = {
    * (`[Pasted text #1 +39 lines]`), which stands for the pasted text.
    */
   readonly collapsed: (box: InputBox) => boolean
+  /**
+   * Whether the box says it shows only part of its text, where it has words for that, as
+   * Antigravity's `↑ 10 more lines`. Omitted where it doesn't.
+   */
+  readonly cut?: (box: InputBox) => boolean
+  /** What such a box shows of its text, without the rows that say it is cut. */
+  readonly uncut?: (text: string) => string
   /**
    * Whether a box's text holds, anywhere in it, what stands for more than it shows: a paste's
    * placeholder or an attached image. Words read off the box then aren't all it holds, and
@@ -164,16 +169,22 @@ export type BoxProfile = {
 const minViewport = 2
 
 /**
- * Whether the box may show only the tail of what it holds: it says so, or is as tall as the
- * viewport lets it be on a screen of `rows` rows. A text exactly that tall shows whole, which
- * can't be told from one taller. A viewport of one row is every box's: on a screen too small to know
+ * Whether the box is as tall as the viewport lets it be on a screen of `rows` rows, so it may
+ * show only the tail of what it holds. A text exactly that tall shows whole, which can't be
+ * told from one taller. A viewport of one row is every box's: on a screen too small to know
  * it, none is.
  */
 export const fillsViewport = (profile: BoxProfile, box: InputBox, rows: number): boolean => {
-  if (box.scrolled) return true
   const viewport = profile.viewport?.(rows) ?? Infinity
   return viewport >= minViewport && box.last - box.first + 1 >= viewport
 }
+
+/**
+ * Whether the box may hold more than it shows: as tall as its viewport, or saying so itself.
+ * What it shows then isn't all that keys would act on, so nothing may go by those words alone.
+ */
+export const hidesText = (profile: BoxProfile, box: InputBox, rows: number): boolean =>
+  fillsViewport(profile, box, rows) || profile.cut?.(box) === true
 
 /** Whether the box shows the tail of `text`, as a box shows a text taller than its viewport. */
 export const showsTail = (

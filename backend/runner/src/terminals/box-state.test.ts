@@ -30,16 +30,15 @@ const box = (text: string, mode: InputBox["mode"] = "prompt"): InputBox => ({
 })
 
 describe("whether a client was shown what a box holds", () => {
-  it("goes by its words, whitespace aside, and the rows it says it hides", () => {
-    expect(shownBox(box("some words\n"), "some words", undefined)).toBe(true)
-    expect(shownBox(box("some words"), "other words", undefined)).toBe(false)
-    expect(shownBox({ ...box("the end"), above: 21 }, "the end", 21)).toBe(true)
-    expect(shownBox({ ...box("the end"), above: 22 }, "the end", 21)).toBe(false)
+  it("goes by its words, whitespace aside, the rows it says it hides among them", () => {
+    expect(shownBox(box("some words\n"), "some words")).toBe(true)
+    expect(shownBox(box("some words"), "other words")).toBe(false)
+    expect(shownBox(box("↑ 22 more lines\nthe end"), "↑ 21 more lines\nthe end")).toBe(false)
   })
 
   it("is no for words past what a client is shown", () => {
     const long = "word ".repeat(4_000)
-    expect(shownBox(box(long), long.slice(0, 16_384), undefined)).toBe(false)
+    expect(shownBox(box(long), long.slice(0, 16_384))).toBe(false)
   })
 })
 
@@ -80,6 +79,8 @@ describe("boxView", () => {
     const viewport = () => 1
     const tall = profile({ ...box("c"), last: 2 }, { viewport: () => 2 })
     expect(boxView(tall, shown, never, never)?.tail).toBe(true)
+    const cut = profile(box("↑ 10 more lines\nc"), { cut: () => true })
+    expect(boxView(cut, shown, never, never)?.tail).toBe(true)
     expect(boxView(profile(box("c"), { viewport }), shown, never, never)?.tail).toBe(false)
   })
 

@@ -227,6 +227,17 @@ export const unheardAgent = (key: TerminalKey, program: string): BackendAction[]
   setStatus(key, { state: "running" }),
 ]
 
+// An agent one of whose own screens holds it for the person before its first session, as a
+// folder-trust or sign-in screen.
+export const atStartupScreen = (
+  key: TerminalKey,
+  program: string,
+  screen: NonNullable<AgentStatus["startup"]> = "startup",
+): BackendAction[] => [
+  setProcess(key, program),
+  setStatus(key, { state: "running", agent: { working: false, startup: screen } }),
+]
+
 export const resting: AgentStatus = { working: false }
 
 // Context and rate limits, as an agent's records tell them.

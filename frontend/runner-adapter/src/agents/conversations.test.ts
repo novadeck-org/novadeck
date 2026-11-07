@@ -724,15 +724,16 @@ describe("the runner's conversations", () => {
     it("clears the agent's box, a failure telling why", async () => {
       const { conversations, streams } = setup()
       streams.clearBox.mockResolvedValueOnce({ cleared: true })
-      const box = { text: "/model", mode: "prompt", tail: true, known: false, above: 3 } as const
-      await expect(conversations.clearBox?.(key, box)).resolves.toBe(true)
-      expect(streams.clearBox).toHaveBeenCalledWith("t", "/model", 3)
+      await expect(conversations.clearBox?.(key, "/model")).resolves.toBe(true)
+      expect(streams.clearBox).toHaveBeenCalledWith("t", "/model")
       streams.clearBox.mockResolvedValueOnce({ cleared: false })
-      await expect(conversations.clearBox?.(key, box)).resolves.toBe(false)
+      await expect(conversations.clearBox?.(key, "/model")).resolves.toBe(false)
       streams.clearBox.mockRejectedValueOnce(
         new WireError("CONFLICT", "The runner's own words", { data: { reason: "pending" } }),
       )
-      await expect(conversations.clearBox?.(key, box)).rejects.toThrow("waiting for your answer")
+      await expect(conversations.clearBox?.(key, "/model")).rejects.toThrow(
+        "waiting for your answer",
+      )
     })
 
     it("hands on the words a prompt took out of the agent's box", async () => {

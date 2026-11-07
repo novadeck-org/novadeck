@@ -21,7 +21,7 @@ const show = (
     clearBox = async () => {},
   }: {
     readonly send?: (text: string) => Promise<void>
-    readonly clearBox?: (box: ChatBox) => Promise<void>
+    readonly clearBox?: (seen: string) => Promise<void>
     readonly onOpenTerminal?: () => void
     readonly box?: ChatBox | null
   } = {},
@@ -154,8 +154,8 @@ describe("what the agent's own box holds", () => {
     const asked: string[] = []
     const shown = show("", [], {
       box: box({ text: "/model" }),
-      clearBox: async ({ text }) => {
-        asked.push(text)
+      clearBox: async (seen) => {
+        asked.push(seen)
         throw new SettleInTerminal("That didn't clear the agent's input box.")
       },
     })
@@ -170,6 +170,8 @@ describe("what the agent's own box holds", () => {
 
   it("says what becomes of each kind of text", () => {
     expect(boxNote("Claude", box({ tail: true }))).toContain("ends with this")
+    // Its words known, but it may hold more, so it doesn't come back: nothing takes such a box.
+    expect(boxNote("Claude", box({ tail: true, known: true }))).toContain("ends with this")
     expect(boxNote("Claude", box({ known: true }))).toContain("comes back here")
     expect(boxNote("Claude", box({ mode: "shell" }))).toContain("shell mode")
     expect(boxNote("Claude", box({ text: "/model" }))).toContain("Clear it to send here")

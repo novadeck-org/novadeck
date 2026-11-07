@@ -151,7 +151,16 @@ const fake = (options: Options = {}) => {
         discard: () => {},
       }),
     }),
-    { pollMs: 1, steadyMs: 2, emptyMs: 30, keysMs: 40, pasteMs: 40, ringMs: 20 },
+    // Long enough for a slow runner where the keys take, as a confirm's reads count against it;
+    // short where they never do, which waits it out.
+    {
+      pollMs: 1,
+      steadyMs: 2,
+      emptyMs: 30,
+      keysMs: options.noErase || options.partialErase || options.noShell ? 40 : 5_000,
+      pasteMs: options.pasteLost ? 40 : 5_000,
+      ringMs: 20,
+    },
   )
   return {
     handovers,

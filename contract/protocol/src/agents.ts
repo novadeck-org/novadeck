@@ -213,17 +213,15 @@ export type PromptReceipt = z.infer<typeof promptReceipt>
 
 // What an agent's own input box holds on its screen, so a client can show what a prompt would
 // go out with: `text` as the box shows it (a placeholder for a long paste shows as that), in its
-// prompt or shell `mode`; `tail` where the box is as tall as it gets, so that may be only the
-// end of it; `known` where all of it is words Novadeck typed there (a prompt that came back),
-// which the next prompt takes out and hands back, rather than sending along. A line a ring left
+// prompt or shell `mode`; `tail` where the box may hold more than it shows, as tall as it gets
+// or saying so; `known` where all it shows is words Novadeck typed there (a prompt that came
+// back), which the next prompt takes out and hands back, unless it's a `tail`. A line a ring left
 // is the doorbell's to finish: it doesn't show.
 export const agentBox = z.strictObject({
   text: z.string().max(16_384),
   mode: z.enum(["prompt", "shell"]),
   tail: z.boolean(),
   known: z.boolean(),
-  // How many rows the agent says lie above what it shows, where it says.
-  above: z.number().int().nonnegative().optional(),
 })
 export type AgentBox = z.infer<typeof agentBox>
 
