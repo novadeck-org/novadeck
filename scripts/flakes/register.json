@@ -446,8 +446,11 @@
       "test": "src/pty/follow.test.ts > a hangup followed through an agent > wakes an agent stopped on its way out as soon as the shell has gone",
       "signature": "ENOENT: no such file or directory, open '[^']*terminal-follow-[^']*/saved'",
       "status": "known",
-      "cause": "Unknown, macOS only: the stand-in agent's 'saved' file was never written within the test's 6 s, so the followed agent hadn't finished its exit by then; likely the runner's load, as the test passed on the rerun and in code the failing PR didn't touch.",
-      "seen": ["#777 run 42374813227 job 128410227863 (macOS)"]
+      "cause": "Unknown, macOS only: the stand-in agent's 'saved' file isn't written within the test's 5 s bound, so the followed agent was ended before it saved. Three of four macOS runs on 2026-11-07, including a rerun, in code the failing pull requests didn't touch. Skipped on macOS since #785, until someone finds whether it's the bound on a loaded runner or an agent really ended unsaved there.",
+      "seen": [
+        "#777 run 42374813227 job 128410227863 (macOS)",
+        "#785 run 42401124763 job 128492030130 (macOS), and its rerun"
+      ]
     },
     {
       "id": "runner-client-slow-viewer-resync-macos",
