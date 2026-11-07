@@ -11,9 +11,10 @@ export const chatAvailable = (terminal: TerminalMetadata): boolean =>
 
 // Whether a terminal's chat is kept: while an agent runs, and through a restart
 // (`starting`, as when the runner is reached again), which says nothing of whether the
-// agent is gone. They go once the terminal settles on something else, or closes.
+// agent is gone, and through a sleep (the chat stays unavailable while it sleeps, and is
+// there again once the agent wakes). They go once the terminal settles on something else, or closes.
 export const chatKept = (terminal: TerminalMetadata): boolean =>
-  chatAvailable(terminal) || terminal.state === "starting"
+  chatAvailable(terminal) || terminal.state === "starting" || terminal.state === "sleeping"
 
 // The terminals showing their screen though the chat view is on, by session context and
 // terminal id: the person went to answer their agent there. None of it outlives the page.

@@ -323,8 +323,9 @@ export const demoTurns = (requestedMs = demoTurnMs) => {
           }, after),
         ])
       },
-      rest: (key, terminal) => {
+      rest: (key, terminal, keeps) => {
         const { program } = take(key, terminal)
+        if (keeps?.reported) reported.add(terminalKeyId(key))
         status(key, { working: false }, program)
         emit({ type: "rest", key })
       },

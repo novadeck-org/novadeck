@@ -75,6 +75,9 @@ export const keptSummary = (
   restorable: false,
   busy: false,
   started: false,
+  sleeping: false,
+  restingAgent: null,
+  lastTurnAt: null,
   command: null,
   lastProgram: null,
   cwd: "/tmp",
@@ -175,6 +178,8 @@ export const scripted = ({
   const received: BackendAction[] = []
   const statuses = channel<WireStatus>()
   const calls: Call[] = []
+  // The terminals whose messages are followed, in order.
+  const followed: string[] = []
   const note =
     <T>(call: string, answer: (input: unknown) => Promise<T>) =>
     (...input: unknown[]) => {
@@ -229,6 +234,13 @@ export const scripted = ({
       rename: note("rename", async () => {}),
       restart: note("restart", restart),
       attach: () => new Promise(() => {}),
+    },
+    // Each terminal's messages are followed with a stream that says nothing.
+    messages: {
+      watch: (terminalId: string) => {
+        followed.push(terminalId)
+        return channel<never>().iterator
+      },
     },
     history: noHistory,
     feedback: {
@@ -334,6 +346,7 @@ export const scripted = ({
     watches,
     received,
     calls,
+    followed,
     of,
     stop,
     key,

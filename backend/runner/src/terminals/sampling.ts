@@ -1,6 +1,6 @@
 import { basename } from "node:path"
 
-import type { AgentName, ForegroundProcess } from "@novadeck/protocol"
+import { harnesses, type AgentName, type ForegroundProcess } from "@novadeck/protocol"
 import { hasChildProcess, sampleForeground, terminalForeground } from "@novadeck/terminal/pty"
 
 import type { Record } from "./record.js"
@@ -8,7 +8,15 @@ import type { Record } from "./record.js"
 /** What sampling reads of a terminal's record, and what it keeps there. */
 export type SampledRecord = Pick<
   Record,
-  "terminal" | "foreground" | "summary" | "changed" | "bound" | "endKeyAt" | "ending"
+  | "terminal"
+  | "foreground"
+  | "summary"
+  | "changed"
+  | "bound"
+  | "endKeyAt"
+  | "ending"
+  | "woken"
+  | "shellName"
 >
 
 // Whether the platform hides a terminal's foreground program, as Windows does: no sample
@@ -76,16 +84,54 @@ export const endWaitMs = (record: Pick<Record, "endKeyAt">, pollMs: number): num
 /**
  * An agent's session bound the terminal. Where no sample names the foreground program,
  * the agent is the program a fresh shell resumes, should this one be lost; the sampler
- * says so elsewhere. Whether that changed it, which the caller saves.
+ * says so elsewhere, once it has sampled: an agent that binds and stops within a sample's
+ * time (a poll is a second) would leave no program at all, so a terminal with none yet
+ * takes the agent. Whether that changed it, which the caller saves.
  */
 export const boundProgram = (
   record: Pick<Record, "summary" | "changed">,
   agent: AgentName,
 ): boolean => {
-  if (!foregroundHidden() || record.summary.lastProgram === agent) return false
+  const { lastProgram } = record.summary
+  if (lastProgram === agent || (!foregroundHidden() && lastProgram !== null)) return false
   record.summary = { ...record.summary, lastProgram: agent }
   record.changed = true
   return true
+}
+
+/**
+ * The program a foreground process is, as a fresh shell resumes it: its name, or for Node
+ * the agent whose script it runs (an npm-installed Codex is `node` to the system).
+ */
+export const programOf = (process: ForegroundProcess): string => {
+  if (process.name !== "node" && process.name !== "nodejs") return withoutExe(process.name)
+  const script = (process.argv?.[1] ?? "").replaceAll("\\", "/")
+  const found = harnesses.find(
+    ({ id, nodeScript }) =>
+      script.split("/").at(-1) === id || (nodeScript !== undefined && script.endsWith(nodeScript)),
+  )
+  return found?.id ?? process.name
+}
+
+// A program's name without the `.exe` an npm-installed native binary carries on every OS.
+const withoutExe = (name: string): string => name.replace(/\.exe$/i, "")
+
+/**
+ * The program a sample names for a record: `programOf`, and where the platform tells no
+ * command line (macOS), any program but the shell in the foreground while an agent's
+ * session is bound is that agent. macOS names a process after its real file, which for
+ * Claude Code is `claude.exe` from npm or its version (`2.1.319`) from its installer, and
+ * for an npm Codex `node`. A program left running after the binding ended keeps its name.
+ */
+const sampledProgram = (
+  process: ForegroundProcess,
+  record: Pick<Record, "bound" | "shellName">,
+): string => {
+  const program = programOf(process)
+  const bound = record.bound?.binding.agent
+  if (bound === undefined || process.argv !== null) return program
+  const shell = record.shellName === undefined ? undefined : withoutExe(basename(record.shellName))
+  return program.replace(/^-/, "") === shell ? program : bound
 }
 
 export type SamplerHost<R extends SampledRecord> = {
@@ -207,11 +253,12 @@ export class Sampler<R extends SampledRecord> {
    * (see `whenEndCounts`).
    */
   prompted(record: R): void {
-    if (!foregroundHidden() || record.summary.lastProgram === null) return
+    // A woken shell with nothing bound yet keeps its program: the agent may only have failed.
+    if (!foregroundHidden() || record.summary.lastProgram === null || record.woken) return
     const shell = record.terminal.pty
     whenEndCounts(record, this.pollMs, () => {
       if (this.host.stopping() || record.bound !== null) return
-      if (record.terminal.pty !== shell) return
+      if (record.terminal.pty !== shell || record.woken) return
       if (record.terminal.exit !== null || record.terminal.exiting) return
       record.summary = { ...record.summary, lastProgram: null }
       record.changed = true
@@ -232,9 +279,15 @@ export class Sampler<R extends SampledRecord> {
       running = true
       record.foreground = sampleForeground(record.terminal.pty, record.foreground)
       const current = record.foreground.process
-      if (sameProcess(current, record.summary.process)) continue
-      // The program a fresh shell resumes, should this one be lost.
-      const lastProgram = current?.name ?? record.summary.lastProgram
+      const same = sameProcess(current, record.summary.process)
+      // The program a fresh shell resumes, should this one be lost. A sample names it even
+      // when the process is the summary's starting value (a plain shell on macOS), so an agent
+      // that bound and left before the first sample doesn't stay the program a restart resumes.
+      const lastProgram = record.woken
+        ? record.summary.lastProgram
+        : ((current && sampledProgram(current, record)) ?? record.summary.lastProgram)
+      // Unchanged only if the program is too: a binding after the process was first sampled names a node one.
+      if (same && lastProgram === record.summary.lastProgram) continue
       record.summary = { ...record.summary, process: current, lastProgram }
       record.changed = true
       this.host.sampled(record)

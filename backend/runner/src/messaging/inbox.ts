@@ -821,6 +821,14 @@ export class Inbox {
     return { tell, done }
   }
 
+  /** When the newest finished turn the terminal has stored ended, if it has one. */
+  lastTurnAt(terminalId: string): number | null {
+    let at: number | null = null
+    for (const entry of this.byTerminal.get(terminalId)?.values() ?? [])
+      if (isTurn(entry) && (at === null || entry.at > at)) at = entry.at
+    return at
+  }
+
   /** Whether a finished turn of the terminal may be stored: Inbox is open and the terminal exists. */
   accepts(terminalId: string): boolean {
     return !this.closed && this.host.exists(terminalId)

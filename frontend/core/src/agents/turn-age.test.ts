@@ -30,6 +30,22 @@ describe("how long ago an agent's turn ended", () => {
     expect(turnAge(terminal(10_000), 0)).toBe("now")
   })
 
+  it("counts a sleeper's from the end the runner kept", () => {
+    const sleeping: TerminalMetadata = {
+      id: "2",
+      name: "Agent",
+      directory: "~/work",
+      command: "",
+      process: "",
+      state: "sleeping",
+      agent: "claude",
+      endedAt: 0,
+    }
+    expect(turnAge(sleeping, 4 * minute)).toBe("4m")
+    const { endedAt: _endedAt, ...unknown } = sleeping as TerminalMetadata & { endedAt: number }
+    expect(turnAge(unknown, minute)).toBeUndefined()
+  })
+
   it("says nothing where its harness doesn't tell when", () => {
     expect(turnAge(terminal())).toBeUndefined()
     expect(nextTurnAge(terminal())).toBeUndefined()

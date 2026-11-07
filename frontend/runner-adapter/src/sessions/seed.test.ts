@@ -11,7 +11,13 @@ import type {
 import type { Project, TerminalSummary, WorkspaceSession } from "@novadeck/protocol"
 
 import { context, describe, expect, it } from "../test"
-import { cleanlyExited, lostTerminals, runnerSeed, type RunnerListing } from "./seed"
+import {
+  cleanlyExited,
+  lostTerminals,
+  runnerSeed,
+  runnerTerminal,
+  type RunnerListing,
+} from "./seed"
 import { encodeSession } from "./state"
 
 const uuid = (n: number): string => `00000000-0000-4000-8000-${String(n).padStart(12, "0")}`
@@ -38,6 +44,9 @@ const summary = (
   restorable: false,
   busy: false,
   started: true,
+  sleeping: false,
+  restingAgent: null,
+  lastTurnAt: null,
   command: null,
   lastProgram: null,
   cwd: "/work/1",
@@ -445,5 +454,22 @@ describe("runner seed", () => {
         "Terminal",
       ])
     })
+  })
+})
+
+describe("a sleeper the runner keeps", () => {
+  it("carries when its agent's last turn ended", () => {
+    const asleep = summary(1, 1, {
+      started: false,
+      sleeping: true,
+      restingAgent: "claude",
+      lastTurnAt: 1234,
+    })
+    expect(runnerTerminal(asleep)).toMatchObject({
+      state: "sleeping",
+      agent: "claude",
+      endedAt: 1234,
+    })
+    expect(runnerTerminal({ ...asleep, lastTurnAt: null })).not.toHaveProperty("endedAt")
   })
 })

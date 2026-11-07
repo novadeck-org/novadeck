@@ -128,7 +128,13 @@ export const createDebugDemo = (launch: DemoLaunch): Backend => {
     launch.variant,
     {
       theme: launch.theme,
-      runtime: { connection, screens: states.screens, restart, failPaste: states.failPaste },
+      runtime: {
+        connection,
+        screens: states.screens,
+        restart,
+        failPaste: states.failPaste,
+        holds: states.holds,
+      },
     },
     turns,
   )

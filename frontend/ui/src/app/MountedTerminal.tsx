@@ -6,8 +6,9 @@ import type {
   TerminalMount,
   ViewState,
 } from "@novadeck/core/port"
-import { endingText, terminalEnding } from "@novadeck/core/terminals/ending"
+import { endingText, terminalEnding, terminalPhase } from "@novadeck/core/terminals/ending"
 import type { TerminalMetadata, ViewMode } from "@novadeck/core/types"
+import { useShown } from "@novadeck/toolkit/shown"
 import { TerminalEndingBar, TerminalLock, TerminalNotice } from "@novadeck/toolkit/TerminalStatus"
 import {
   useCallback,
@@ -19,6 +20,8 @@ import {
   useSyncExternalStore,
   type ReactNode,
 } from "react"
+
+import { useInSight, usePageVisible } from "../layouts/useSeen"
 
 // Why typing is paused. A failed paste says why, and a copy that it copied, in the same notice.
 const lockNotices: Record<Lock, string> = {
@@ -35,6 +38,39 @@ const lockNotices: Record<Lock, string> = {
 const opening: ViewState = { live: false, resuming: false, waits: false, lock: null, notice: null }
 const ignore = (): (() => void) => () => {}
 
+// The agent a sleeping or waking terminal resumes.
+const agentOf = (terminal: TerminalMetadata): string | undefined =>
+  terminal.state === "sleeping" ? terminal.agent : terminal.restoredProcess
+
+// What stands where the agent will draw: while it sleeps a bare `z`, nothing of its last screen
+// (replaying that would write into the emulator the resuming agent draws in); while it wakes,
+// the words and a blinking cursor, in place of "Starting shell…". The terminal stays locked and
+// its keys are dropped either way.
+// The words are hidden from assistive technology: 170 sleepers would be 170 live regions.
+// The tab and the window say it in words.
+const SleepingScreen = ({
+  phase,
+  agent,
+  legible,
+}: {
+  readonly phase: "sleeping" | "waking"
+  readonly agent: string | undefined
+  readonly legible: boolean
+}): React.JSX.Element => {
+  return (
+    <div aria-hidden className="wake-screen" data-phase={phase} data-legible={legible}>
+      {phase === "sleeping" ? (
+        <span className="wake-z">z</span>
+      ) : (
+        <span>
+          {`waking ${agent ?? "agent"}… `}
+          <span className="wake-cursor">█</span>
+        </span>
+      )}
+    </div>
+  )
+}
+
 // One terminal drawn by a backend's mount, with what lies over it. The backend draws the
 // terminal into an element this keeps for the terminal's life, and tells its state; this
 // draws the window around it and the lock, the notice of a failed paste or a copy and the ending bar
@@ -48,6 +84,7 @@ export const MountedTerminal = ({
   focusInput,
   onInputFocused,
   onScreen,
+  legible = true,
   renderWindow,
 }: {
   readonly mountTerminal: MountTerminal
@@ -61,6 +98,8 @@ export const MountedTerminal = ({
   readonly onInputFocused: () => void
   // Whether the window is where the person can see it.
   readonly onScreen: boolean
+  // False in Canvas while zoomed out too far to read a node.
+  readonly legible?: boolean
   readonly renderWindow: (content: ReactNode) => ReactNode
 }): React.JSX.Element => {
   const [element] = useState(() => {
@@ -71,7 +110,19 @@ export const MountedTerminal = ({
   const [mount, setMount] = useState<TerminalMount | null>(null)
   const name = terminal.name
   const status = terminal.state
-  const props = useMemo(() => ({ name, status, view, onScreen }), [name, status, view, onScreen])
+  // A sleeping agent wakes once it is seen: in Focus, the one displayed (a parked one is not),
+  // in Grid and Canvas, a tile a quarter of which is in sight and legible. Minimized or
+  // hidden does not count; unfocused but visible does. Only a sleeper asks, so a running
+  // terminal costs no observer.
+  const asleep = terminal.state === "sleeping"
+  const shown = useShown()
+  const pageVisible = usePageVisible()
+  const inSight = useInSight(element, asleep && view !== "focus")
+  const seen = asleep && pageVisible && onScreen && (view === "focus" ? shown : inSight && legible)
+  const props = useMemo(
+    () => ({ name, status, view, onScreen, ...(seen ? { seen } : {}) }),
+    [name, status, view, onScreen, seen],
+  )
   const latest = useRef(props)
   const ending = terminalEnding(terminal)
   const { lock, notice } = useSyncExternalStore(
@@ -79,6 +130,8 @@ export const MountedTerminal = ({
     () => mount?.state.getSnapshot() ?? opening,
   )
   const locked = lock !== null
+  // Its agent has no screen to draw yet: a bare one stands in, the lock's notice does not.
+  const phase = terminalPhase(terminal)
   const ended = ending !== null
   const root = useRef<HTMLDivElement | null>(null)
   const held = useRef(false)
@@ -165,7 +218,11 @@ export const MountedTerminal = ({
               <TerminalNotice notice={notice} />
             </div>
           )}
-          {lock && <TerminalLock notice={lockNotices[lock]} />}
+          {phase === "sleeping" || phase === "waking" ? (
+            <SleepingScreen phase={phase} agent={agentOf(terminal)} legible={legible} />
+          ) : (
+            lock && <TerminalLock notice={lockNotices[lock]} />
+          )}
         </div>,
       )}
       {/* Announced from outside the window: the bar is inert while hidden, the content

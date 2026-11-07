@@ -25,6 +25,7 @@ import type {
 import {
   maxInboxOrder,
   maxInboxRowIdLength,
+  type AgentName,
   type AgentIntegration,
   type Approval as RunnerApproval,
   type TerminalExit,
@@ -60,6 +61,7 @@ import {
   runnerSeed,
   runnerTelemetry,
   runnerTerminal,
+  sleeper,
   startingTerminal,
   terminalRuns,
   type RunnerListing,
@@ -204,6 +206,10 @@ type RunnerEntry = {
   requested: boolean
   // Exited or failed, which later activity reports must not undo until it restarts.
   settled: boolean
+  // How many surfaces want it (see `SurfaceRuntime.seen`), and the dwell a sleeper's wake
+  // waits out first.
+  seen: number
+  dwell: ReturnType<typeof setTimeout> | undefined
   closed: boolean
   // The surface's attachment while one is mounted.
   attachment: AttachedTerminal | undefined
@@ -240,6 +246,10 @@ export type SurfaceRuntime = {
   readonly track: <T>(work: Promise<T>) => Promise<T>
   // The surface's screen for boot progress: mounted, first screen drawn, or gone.
   readonly screen: (key: TerminalKey, state: "mounted" | "shown" | "gone") => void
+  // A surface wants the terminal seen: really in sight and legible, the screen it is on
+  // showing. Called again to let go. A sleeping terminal wakes once it has been wanted for a
+  // moment (`dwellMs`); any other is unaffected.
+  readonly seen: (key: TerminalKey) => () => void
   // Whether the terminal still exists and its session is the one on screen, so a screen
   // no view shows right now is kept for the next; one off screen is kept for a while.
   readonly shown: (key: TerminalKey) => boolean
@@ -253,6 +263,8 @@ export type RunnerBackend = {
   readonly idle: () => Promise<void>
   // What Enter does in an exited or failed terminal.
   readonly restart: (key: TerminalKey) => void
+  // For tests: what a mount's seen terminal tells the adapter, and the release.
+  readonly seen: (key: TerminalKey) => () => void
 }
 
 const connectionState = (status: WireStatus): BackendConnectionState => {
@@ -482,6 +494,12 @@ export const runnerBackend = (
     restarts.length = 0
     noteCrashLoop()
     for (const entry of entries.values()) {
+      // A sleeper goes back to sleep, and wakes at once if a surface wants it.
+      const asleep = entry.lost ? sleeperOf(entry.key.terminalId) : undefined
+      if (asleep) {
+        sleep(entry, asleep)
+        continue
+      }
       if (!onScreen(entry)) {
         // Off screen, a tile the crash loop stopped waits again for its session.
         if (entry.lost && sameStatus(entry.status, crashLoop)) {
@@ -572,14 +590,21 @@ export const runnerBackend = (
   // Starting shells shares the runner with everything else, so a session with many
   // lost terminals starts them a few at a time.
   const startLimit = 8
+  // The gap between one start and the next, so a hundred sleepers waking at once reach the
+  // runner as a trickle: it launches whatever it is asked for as soon as it is asked.
+  const startGapMs = 150
   let starting = 0
   const queued: (() => void)[] = []
+  let gate: Promise<void> = Promise.resolve()
   const throttled = async <T>(work: () => Promise<T>): Promise<T> => {
     // A finishing call hands its slot straight to the next in line, so the count
     // never passes the limit.
     if (starting < startLimit) starting += 1
     else await new Promise<void>((resolve) => queued.push(resolve))
     try {
+      const turn = gate
+      gate = turn.then(() => pause(startGapMs))
+      await turn
       return await work()
     } finally {
       const next = queued.shift()
@@ -1023,8 +1048,9 @@ export const runnerBackend = (
   // still has the exited record, a create that restores the runner's saved record when
   // it does not, in the terminal's last directory. Its surface attaches again.
   //
-  // Every replacement shell starts here, while the terminal's `restoredProcess` still
-  // names the program it lost, which resumes when the runner knows its agent session.
+  // Every replacement shell starts here, while the terminal's `sleeping` status or its
+  // `restoredProcess` still names the program it lost, which resumes when the runner knows
+  // its agent session.
   // The program is read first, as the fresh shell's first idle report drops it from the
   // store. It goes with the create or restart as `resume`, and the runner resumes the
   // session that agent last reported there, from the fresh shell's own startup, so the
@@ -1033,11 +1059,15 @@ export const runnerBackend = (
   // controls it", captures a restore without losing the shell), refuses the call and
   // the resume with it. Without a session, or with the agent disconnected, the runner
   // starts a plain shell with the terminal's transcript above it instead.
-  const freshShell = (entry: RunnerEntry): void => {
+  const freshShell = (entry: RunnerEntry, how: { readonly seen?: boolean } = {}): void => {
     if (entry.closed || entry.starting) return
+    // Looked at: the person's own start, or a surface wanting the terminal now.
+    const seen = how.seen ?? entry.seen > 0
+    clearTimeout(entry.dwell)
+    entry.dwell = undefined
     const { terminalId, workspaceSessionId } = entry.key
     const { cols, rows } = entry.size
-    const agent = resumableProgram(restoredOf(entry))
+    const agent = resumeAgent(entry)
     const retry: Retry = { done: ["CONFLICT"], stillWanted, cancelled: () => entry.closed }
     const resume = agent ? { resume: agent } : {}
     const create = async () => {
@@ -1055,6 +1085,9 @@ export const runnerBackend = (
           rows,
           restore: true,
           ...resume,
+          // Whether the person is looking: a wake that can't resume then starts a plain shell
+          // saying why, where an unseen one leaves the sleeper asleep.
+          ...(seen ? { seen: true } : {}),
         })
       }, retry)
     }
@@ -1093,6 +1126,17 @@ export const runnerBackend = (
         entry.starting = false
         if (error instanceof Cancelled) return false
         if (hasCode(error, "TERMINAL_NOT_FOUND")) return closedElsewhere(entry)
+        // The runner left the sleeper as it was, if the wake was not looked at: so does the
+        // terminal, as the runner's kept summary says. A seen wake that fails is failed.
+        if (hasCode(error, "SPAWN_FAILED") && !seen) {
+          // The runner's word may still be on its way: what it rests as is enough.
+          const kept = runnerSummaries.get(terminalId)
+          const asleep = kept && sleeper({ ...kept, started: false, sleeping: true })
+          if (asleep) {
+            sleep(entry, asleep)
+            return false
+          }
+        }
         settle(
           entry,
           error instanceof CrashLoop ? crashLoop : (lostStatus(error) ?? failedToCreate),
@@ -1116,6 +1160,9 @@ export const runnerBackend = (
     if (entry.closed || entry.starting) return
     entry.lost = true
     entry.confirmed = false
+    // A sleeper stays asleep: no crash settles it, as nothing is started for it yet.
+    const asleep = sleeperOf(entry.key.terminalId)
+    if (asleep) return sleep(entry, asleep)
     if (entry.settled) return
     if (restartingOften()) return settle(entry, crashLoop)
     dispatch(statusAction(entry, { state: "starting" }))
@@ -1131,16 +1178,58 @@ export const runnerBackend = (
   }
   // The program the terminal waits to restore, as the workspace last committed it.
   const restoredOf = ({ key }: RunnerEntry): string | undefined => terminalOf(key)?.restoredProcess
+  // The agent a fresh shell resumes: a sleeper's own, else the program the terminal lost.
+  const resumeAgent = (entry: RunnerEntry): AgentName | undefined =>
+    entry.status.state === "sleeping"
+      ? entry.status.agent
+      : (runnerSummaries.get(entry.key.terminalId)?.restingAgent ??
+        resumableProgram(restoredOf(entry)))
+  // The agent the runner is waking for a terminal it has no shell for: not asleep, and wanted.
+  const restingOf = (entry: RunnerEntry): AgentName | undefined => {
+    const summary = runnerSummaries.get(entry.key.terminalId)
+    return summary && !summary.started && !summary.sleeping
+      ? (summary.restingAgent ?? undefined)
+      : undefined
+  }
+  // The status the runner's last summary gives a terminal it keeps asleep, if it does.
+  const sleeperOf = (terminalId: string): TerminalStatus | undefined => {
+    const summary = runnerSummaries.get(terminalId)
+    return summary ? sleeper(summary) : undefined
+  }
+  // How long a surface must want a sleeper before it wakes, so a flick past it wakes nothing.
+  const dwellMs = 250
+  // Shows the terminal asleep, and wakes it at once if a surface has wanted it long enough.
+  const sleep = (entry: RunnerEntry, asleep: TerminalStatus): void => {
+    entry.settled = false
+    dispatch(statusAction(entry, asleep))
+    // It counts as attached while it sleeps, and a wake that failed may end the boot.
+    checkBoot()
+    wake(entry)
+  }
+  // Wakes a sleeper a surface wants, after the dwell; letting go first cancels it.
+  const wake = (entry: RunnerEntry): void => {
+    if (entry.dwell !== undefined || entry.seen === 0 || entry.status.state !== "sleeping") return
+    entry.dwell = setTimeout(() => {
+      entry.dwell = undefined
+      if (entry.seen === 0 || entry.status.state !== "sleeping") return
+      if (entry.closed || entry.starting || entry.settled) return
+      if (restartingOften()) settle(entry, crashLoop)
+      else freshShell(entry, { seen: true })
+    }, dwellMs)
+  }
   // A lost terminal gets its fresh shell once its session shows, but one whose program
   // resumes starts at once, in any session and hidden or not, so the agent is back
-  // when the person looks; the runner spaces their launches out.
+  // when the person looks; the start throttle spaces their launches out. A sleeper waits
+  // to be wanted (see `wake`), on screen or not.
   const wanted = (entry: RunnerEntry): boolean =>
-    onScreen(entry) || resumableProgram(restoredOf(entry)) !== undefined
+    entry.status.state !== "sleeping" &&
+    (onScreen(entry) ||
+      restingOf(entry) !== undefined ||
+      resumableProgram(restoredOf(entry)) !== undefined)
   // Lost terminals of the session on screen, and those with a program to resume, get
   // their fresh shells.
   const reviveOnScreen = (): void => {
-    // The session on screen goes first; the start throttle and the runner's launch gaps
-    // then hold back only the others.
+    // The session on screen goes first; the start throttle then holds back only the others.
     const ordered = [...entries.values()].toSorted(
       (a, b) => Number(onScreen(b)) - Number(onScreen(a)),
     )
@@ -1251,6 +1340,8 @@ export const runnerBackend = (
         confirmedIn: -1,
         requested: false,
         settled: restartable(terminal),
+        seen: 0,
+        dwell: undefined,
         closed: false,
         attachment: undefined,
         status: terminal,
@@ -1266,6 +1357,7 @@ export const runnerBackend = (
     },
     close: (entry, key) => {
       entry.closed = true
+      clearTimeout(entry.dwell)
       closedHere.add(key.terminalId)
       entries.delete(key.terminalId)
       // A removed project's terminals are closed by the runner, as it removes the project.
@@ -1369,11 +1461,27 @@ export const runnerBackend = (
     },
     restart: (key) => {
       const entry = registry.get(key)?.entry
-      if (entry?.settled) freshShell(entry)
+      // The person's Enter: a wake it starts is looked at.
+      if (entry?.settled) freshShell(entry, { seen: true })
     },
     connection,
     track,
     screen: boot.screen,
+    seen: (key) => {
+      const entry = registry.get(key)?.entry
+      if (!entry) return () => {}
+      entry.seen += 1
+      wake(entry)
+      let released = false
+      return () => {
+        if (released) return
+        released = true
+        entry.seen -= 1
+        if (entry.seen > 0) return
+        clearTimeout(entry.dwell)
+        entry.dwell = undefined
+      }
+    },
     shown: (key) => {
       const entry = registry.get(key)?.entry
       return entry !== undefined && !entry.closed && onScreen(entry)
@@ -1421,12 +1529,36 @@ export const runnerBackend = (
         if (entry.closed) return
         if (!entry.confirmed) entry.confirmedIn = round
         entry.confirmed = true
+        // A shell the runner started on its own while no client was connected, as one an
+        // agent's message woke: the listing brings it as started, and it is no longer lost.
+        if (summary.started && entry.lost && !entry.starting) {
+          entry.lost = false
+          entry.ready = Promise.resolve(true)
+          clearTimeout(entry.dwell)
+          entry.dwell = undefined
+          followWhenReady(entry)
+          checkBoot()
+        }
         dispatch([
           ...factActions(entry, summary),
           ...(summary.started ? activityActions(entry, summary) : []),
         ])
         // Kept without a shell, as once its exited record was let go: it needs a fresh one.
-        if (!summary.started && !entry.starting && !entry.lost) markLost(entry)
+        if (summary.started || entry.starting) return
+        if (!entry.lost) return markLost(entry)
+        const asleep = sleeper(summary)
+        if (asleep) {
+          // Asleep, whatever it showed before, even a crash whose record the runner let go:
+          // it wakes if a surface wants it, or a message does.
+          // Its standing report too, which changes while it sleeps.
+          if (!sameStatus(entry.status, asleep) || entry.settled) sleep(entry, asleep)
+        } else if (entry.settled) return
+        else if (entry.status.state === "sleeping" || restingOf(entry)) {
+          // Woken by the runner (a message came for it): the summary alone changes nothing
+          // here, so the fresh shell starts from this report.
+          if (restartingOften()) settle(entry, crashLoop)
+          else freshShell(entry)
+        }
         return
       }
       // Terminals confirmed during this round may have been created after the runner
@@ -1611,7 +1743,7 @@ export const runnerBackend = (
       return terminal
     },
     commit,
-    mountTerminal: createTerminalMount(screens),
+    mountTerminal: createTerminalMount(screens, runtime.seen),
     setFont: screens.setFont,
     telemetry,
     voice: voice.voice,
@@ -1719,6 +1851,7 @@ export const runnerBackend = (
     backend,
     holds: (key) => registry.get(key) !== undefined,
     restart: runtime.restart,
+    seen: runtime.seen,
     idle: async () => {
       while (busy()) {
         flush()

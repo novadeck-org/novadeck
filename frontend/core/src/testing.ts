@@ -16,7 +16,10 @@ export const appearance: PreferencesValue["appearance"] = { theme: "coolant", sc
 const handles = ["moth", "fox", "owl", "crow", "kite", "raven"]
 
 // A plain shell terminal numbered like the ones a person creates.
-export const terminalFixture = (number: number, directory: string): TerminalMetadata => {
+export const terminalFixture = (
+  number: number,
+  directory: string,
+): TerminalMetadata & { state: "idle" } => {
   const id = String(number).padStart(2, "0")
   return {
     id,

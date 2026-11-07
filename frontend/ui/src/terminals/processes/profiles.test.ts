@@ -64,6 +64,20 @@ describe("terminal profile", () => {
     })
   })
 
+  context("while its agent sleeps or is being woken", () => {
+    it("presents that agent's icon", () => {
+      expect(terminalProfile(terminal("", { state: "sleeping", agent: "codex" }))).toEqual({
+        icon: CodexIcon,
+      })
+      expect(
+        terminalProfile(terminal("", { state: "starting", restoredProcess: "claude" })),
+      ).toEqual({ icon: ClaudeIcon })
+      expect(terminalProfile(terminal("", { state: "starting", restoredProcess: "vim" }))).toEqual({
+        icon: Terminal,
+      })
+    })
+  })
+
   context("once the program no longer runs", () => {
     it("presents a plain terminal, whatever program was last seen", () => {
       const states: Partial<TerminalMetadata>[] = [

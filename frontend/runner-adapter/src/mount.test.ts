@@ -80,6 +80,7 @@ const starting = () => {
     size: { cols: 80, rows: 24 },
   }
   const runtime: SurfaceRuntime = {
+    seen: () => () => {},
     entry: () => entry,
     attach: () => new Promise(() => {}),
     upload: () => new Promise(() => {}),
