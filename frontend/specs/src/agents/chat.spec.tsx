@@ -101,15 +101,25 @@ describe("A chat's conversation", () => {
     await expect.element(log.getByRole("code").first()).toBeVisible()
   })
 
-  it("opens a tool call to its input and result", async () => {
+  it("opens a tool call to what it changed, closed until clicked", async () => {
     await openChatDemo()
     const chat = await openChat("Build")
-    const row = chat.getByRole("button", { name: /^Edited .*total\.ts/ })
+    const row = chat.getByRole("button", { name: /^edited .*total\.ts/ })
     await expect.element(row).toHaveAttribute("aria-expanded", "false")
     await row.click()
     await expect.element(row).toHaveAttribute("aria-expanded", "true")
     await expect
-      .element(chat.getByRole("region", { name: "Result" }).getByText(/has been updated/))
+      .element(chat.getByRole("region", { name: "Changes" }).getByText(/cart\/selectors/))
+      .toBeVisible()
+  })
+
+  it("opens a command to what it printed, and says when it failed", async () => {
+    await openChatDemo()
+    const chat = await openChat("Build")
+    const row = chat.getByRole("button", { name: /^ran pnpm build · exit 1/ })
+    await row.click()
+    await expect
+      .element(chat.getByRole("region", { name: "Result" }).getByText(/error during build/))
       .toBeVisible()
   })
 
@@ -152,12 +162,13 @@ describe("Sending a prompt from the chat", () => {
     await openChatDemo()
     const chat = await openChat("Build")
     await userEvent.type(composer(chat), "!")
-    await expect.element(chat.getByText(/Runs in Claude's shell/)).toBeVisible()
+    await expect.element(chat.getByText("shell", { exact: true })).toBeVisible()
+    await expect.element(chat.getByText(/Runs in Claude's shell/)).toBeInTheDocument()
     await expect.element(chat.getByRole("button", { name: "Send" })).toBeDisabled()
     await userEvent.keyboard("ls -la{Enter}")
     await expect.element(composer(chat)).toHaveValue("")
     await expect.element(conversation(chat).getByText("!ls -la")).toBeVisible()
-    await expect.element(conversation(chat).getByText("Ran", { exact: true }).last()).toBeVisible()
+    await expect.element(conversation(chat).getByText("ran", { exact: true }).last()).toBeVisible()
   })
 
   it("keeps Shift+Enter for a new line", async () => {
@@ -196,7 +207,7 @@ describe("Reading the chat", () => {
   it("leaves focus on a tool row the person clicked", async () => {
     await openChatDemo()
     const chat = await openChat("Build")
-    const row = chat.getByRole("button", { name: /^Edited .*total\.ts/ })
+    const row = chat.getByRole("button", { name: /^edited .*total\.ts/ })
     await row.click()
     await expect.element(row).toHaveFocus()
     // The workspace would send typing back to the composer a frame after a click.
@@ -231,7 +242,7 @@ describe("An Antigravity terminal's chat", () => {
   it("shows its conversation and answers a prompt, though it reports no status", async () => {
     await openChatDemo()
     const chat = await openChat("Runtime")
-    await expect.element(chat.getByRole("button", { name: /^Ran / }).first()).toBeVisible()
+    await expect.element(chat.getByRole("button", { name: /^ran / }).first()).toBeVisible()
     await userEvent.type(composer(chat), "Check the logs")
     await userEvent.keyboard("{Enter}")
     await expect.element(conversation(chat).getByText("Check the logs")).toBeVisible()

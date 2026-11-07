@@ -1,62 +1,62 @@
 # exec-approve
-tools: Ran [run] · echo approved > probe-out.txt | Call: exec_command: 3 lines: cmd: echo approved > probe-out.txt → 5 lines: Chunk ID: <id>
+tools: ran [run] · echo approved > probe-out.txt | Call: exec_command: 2 lines: sandbox_permissions: require_escalated → 5 lines: Chunk ID: <id>
 
 # exec-approve-prefix
-tools: Ran [run] · echo approved > probe-out.txt | Call: exec_command: 3 lines: cmd: echo approved > probe-out.txt → 5 lines: Chunk ID: <id>
+tools: ran [run] · echo approved > probe-out.txt | Call: exec_command: 2 lines: sandbox_permissions: require_escalated → 5 lines: Chunk ID: <id>
 
 # exec-approve-session-key-not-offered
-tools: Ran [run] · echo approved > probe-out.txt | Call: exec_command: 3 lines: cmd: echo approved > probe-out.txt → no result recorded.
+tools: ran [run] · echo approved > probe-out.txt | Call: exec_command: 2 lines: sandbox_permissions: require_escalated → no result recorded.
 
 # exec-cancel
-tools: Ran [run] · echo approved > probe-out.txt | Call: exec_command: 3 lines: cmd: echo approved > probe-out.txt → 2 lines: Wall time: <n> seconds
+tools: ran [run] · echo approved > probe-out.txt | Call: exec_command: 2 lines: sandbox_permissions: require_escalated → 2 lines: Wall time: <n> seconds
 note: Interrupted
 
 # exec-decline-key-not-offered
-tools: Ran [run] · echo approved > probe-out.txt | Call: exec_command: 3 lines: cmd: echo approved > probe-out.txt → no result recorded.
+tools: ran [run] · echo approved > probe-out.txt | Call: exec_command: 2 lines: sandbox_permissions: require_escalated → no result recorded.
 
 # exec-long-command
-tools: Ran [run] · echo xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx && echo yyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyy\ | Call: exec_command: 5 lines: cmd: → 2 lines: Wall time: <n> seconds
+tools: ran [run] · echo xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx && echo yyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyy\ | Call: exec_command: 5 lines: cmd: → 2 lines: Wall time: <n> seconds
 note: Interrupted
 
 # exec-two-queued
-tools: Ran [run] · echo first > probe-first.txt | Call: exec_command: 3 lines: cmd: echo first > probe-first.txt → 5 lines: Chunk ID: <id>; Ran [run] · echo second > probe-second.txt | Call: exec_command: 3 lines: cmd: echo second > probe-second.txt → 5 lines: Chunk ID: <id>
+tools: ran [run] · echo first > probe-first.txt | Call: exec_command: 2 lines: sandbox_permissions: require_escalated → 5 lines: Chunk ID: <id>; ran [run] · echo second > probe-second.txt | Call: exec_command: 2 lines: sandbox_permissions: require_escalated → 5 lines: Chunk ID: <id>
 
 # hook-allow
-tools: Ran [run] · echo approved > probe-out.txt | Call: exec_command: 3 lines: cmd: echo approved > probe-out.txt → 5 lines: Chunk ID: <id>
+tools: ran [run] · echo approved > probe-out.txt | Call: exec_command: 2 lines: sandbox_permissions: require_escalated → 5 lines: Chunk ID: <id>
 
 # hook-allow-with-updatedPermissions
-tools: Ran [run] · echo approved > probe-out.txt | Call: exec_command: 3 lines: cmd: echo approved > probe-out.txt → no result recorded.
+tools: ran [run] · echo approved > probe-out.txt | Call: exec_command: 2 lines: sandbox_permissions: require_escalated → no result recorded.
 
 # hook-deny
-tools: Ran [run] · echo approved > probe-out.txt | Call: exec_command: 3 lines: cmd: echo approved > probe-out.txt → 1 line: exec_command failed: CreateProcess { message: "…
+tools: ran [run] · echo approved > probe-out.txt | Call: exec_command: 2 lines: sandbox_permissions: require_escalated → 1 line: exec_command failed: CreateProcess { message: "…
 
 # hook-exit2
-tools: Ran [run] · echo approved > probe-out.txt | Call: exec_command: 3 lines: cmd: echo approved > probe-out.txt → 1 line: exec_command failed: CreateProcess { message: "…
+tools: ran [run] · echo approved > probe-out.txt | Call: exec_command: 2 lines: sandbox_permissions: require_escalated → 1 line: exec_command failed: CreateProcess { message: "…
 
 # hook-mcp-allow
 tools: mcp__probe__touch [other] | Call: 1 line: a.txt → 3 lines: Wall time: <n> seconds
 
 # hook-no-decision
-tools: Ran [run] · echo approved > probe-out.txt | Call: exec_command: 3 lines: cmd: echo approved > probe-out.txt → no result recorded.
+tools: ran [run] · echo approved > probe-out.txt | Call: exec_command: 2 lines: sandbox_permissions: require_escalated → no result recorded.
 
 # hook-novadeck-view
-tools: Ran [run] · echo approved > probe-out.txt | Call: exec_command: 3 lines: cmd: echo approved > probe-out.txt → 5 lines: Chunk ID: <id>
+tools: ran [run] · echo approved > probe-out.txt | Call: exec_command: 2 lines: sandbox_permissions: require_escalated → 5 lines: Chunk ID: <id>
 
 # hook-person-presses-esc
-tools: Ran [run] · echo approved > probe-out.txt | Call: exec_command: 3 lines: cmd: echo approved > probe-out.txt → 2 lines: Wall time: <n> seconds
+tools: ran [run] · echo approved > probe-out.txt | Call: exec_command: 2 lines: sandbox_permissions: require_escalated → 2 lines: Wall time: <n> seconds
 note: Interrupted
 
 # hook-person-presses-y
-tools: Ran [run] · echo approved > probe-out.txt | Call: exec_command: 3 lines: cmd: echo approved > probe-out.txt → 5 lines: Chunk ID: <id>
+tools: ran [run] · echo approved > probe-out.txt | Call: exec_command: 2 lines: sandbox_permissions: require_escalated → 5 lines: Chunk ID: <id>
 
 # hook-rui-pretooluse-block
-tools: Asked [plan] · Which color should the button be? | Call: request_user_input: 1 line: [{"id":"color","header":"Color","question":"Whi… → 1 line: Tool call blocked by PreToolUse hook: The perso…
+tools: asked [plan] · Which color should the button be? | Call: request_user_input: 1 line: [{"id":"color","header":"Color","question":"Whi… → 1 line: Tool call blocked by PreToolUse hook: The perso…
 
 # hook-timeout
-tools: Ran [run] · echo approved > probe-out.txt | Call: exec_command: 3 lines: cmd: echo approved > probe-out.txt → no result recorded.
+tools: ran [run] · echo approved > probe-out.txt | Call: exec_command: 2 lines: sandbox_permissions: require_escalated → no result recorded.
 
 # mcp-elicitation
-tools: mcp__probe__ask_color [other] | Call: empty → 3 lines: Wall time: <n> seconds
+tools: mcp__probe__ask_color [other] → 3 lines: Wall time: <n> seconds
 
 # mcp-tool-approval
 tools: mcp__probe__touch [other] | Call: 1 line: a.txt → 3 lines: Wall time: <n> seconds
@@ -65,13 +65,13 @@ tools: mcp__probe__touch [other] | Call: 1 line: a.txt → 3 lines: Wall time: <
 tools: mcp__probe__touch [other] | Call: 1 line: a.txt → 3 lines: Wall time: <n> seconds
 
 # patch-approve
-tools: Ran [run] · apply_patch <<'EOF' | Call: exec_command: 6 lines: apply_patch <<'EOF' → 7 lines: Wall time: <n> seconds
+tools: ran [run] · apply_patch <<'EOF' +1 −0 → 1 line: 1 + hello
 
 # patch-approve-session
-tools: Ran [run] · apply_patch <<'EOF' | Call: exec_command: 6 lines: apply_patch <<'EOF' → 7 lines: Wall time: <n> seconds
+tools: ran [run] · apply_patch <<'EOF' +1 −0 → 1 line: 1 + hello
 
 # patch-cancel
-tools: Ran [run] · apply_patch <<'EOF' | Call: exec_command: 6 lines: apply_patch <<'EOF' → 2 lines: Wall time: <n> seconds
+tools: ran [run] · apply_patch <<'EOF' | Call: exec_command: 6 lines: apply_patch <<'EOF' → 2 lines: Wall time: <n> seconds
 note: Interrupted
 
 # plan-prompt
@@ -81,51 +81,51 @@ note: Interrupted
 
 
 # request-permissions
-tools: Asked for permissions [plan] · Need network for the build | Call: request_permissions: 2 lines: reason: Need network for the build → 1 line: {"permissions":{"network":{"enabled":true},"fil…
+tools: asked for permissions [plan] · Need network for the build | Call: request_permissions: 1 line: permissions: {"network":{"enabled":true}} → 1 line: {"permissions":{"network":{"enabled":true},"fil…
 
 # rui-async-offered
-tools: Asked [plan] · Which color should the button be? | Call: request_user_input_async: 1 line: [{"title":"Which color should the button be?","… → 1 line: {"accepted":true}
+tools: asked [plan] · Which color should the button be? | Call: request_user_input_async: 1 line: [{"title":"Which color should the button be?","… → 1 line: {"accepted":true}
 
 # rui-async-panel-digit-2
-tools: Asked [plan] · Which color should the button be? | Call: request_user_input_async: 1 line: [{"title":"Which color should the button be?","… → 1 line: {"accepted":true}
+tools: asked [plan] · Which color should the button be? | Call: request_user_input_async: 1 line: [{"title":"Which color should the button be?","… → 1 line: {"accepted":true}
 
 # rui-async-panel-free-text
-tools: Asked [plan] · What should its label say? | Call: request_user_input_async: 1 line: [{"title":"What should its label say?"}] → 1 line: {"accepted":true}
+tools: asked [plan] · What should its label say? | Call: request_user_input_async: 1 line: [{"title":"What should its label say?"}] → 1 line: {"accepted":true}
 
 # rui-async-panel-free-words
-tools: Asked [plan] · What should its label say? | Call: request_user_input_async: 1 line: [{"title":"What should its label say?"}] → 1 line: {"accepted":true}
+tools: asked [plan] · What should its label say? | Call: request_user_input_async: 1 line: [{"title":"What should its label say?"}] → 1 line: {"accepted":true}
 
 # rui-async-panel-other-pasted
-tools: Asked [plan] · Which color should the button be? | Call: request_user_input_async: 1 line: [{"title":"Which color should the button be?","… → 1 line: {"accepted":true}
+tools: asked [plan] · Which color should the button be? | Call: request_user_input_async: 1 line: [{"title":"Which color should the button be?","… → 1 line: {"accepted":true}
 
 # rui-async-panel-other-typed
-tools: Asked [plan] · Which color should the button be? | Call: request_user_input_async: 1 line: [{"title":"Which color should the button be?","… → 1 line: {"accepted":true}
+tools: asked [plan] · Which color should the button be? | Call: request_user_input_async: 1 line: [{"title":"Which color should the button be?","… → 1 line: {"accepted":true}
 
 # rui-async-panel-other-words
-tools: Asked [plan] · Which color should the button be? | Call: request_user_input_async: 1 line: [{"title":"Which color should the button be?","… → 1 line: {"accepted":true}
+tools: asked [plan] · Which color should the button be? | Call: request_user_input_async: 1 line: [{"title":"Which color should the button be?","… → 1 line: {"accepted":true}
 
 # rui-async-panel-two-other
-tools: Asked [plan] · Which color should the button be? | Call: request_user_input_async: 1 line: [{"title":"Which color should the button be?","… → 1 line: {"accepted":true}
+tools: asked [plan] · Which color should the button be? | Call: request_user_input_async: 1 line: [{"title":"Which color should the button be?","… → 1 line: {"accepted":true}
 
 # rui-default-on
-tools: Asked [plan] · Which color should the button be? | Call: request_user_input: 1 line: [{"id":"color","header":"Color","question":"Whi… → 1 line: {"answers":{"color":{"answers":["Green"]}}}
+tools: asked [plan] · Which color should the button be? | Call: request_user_input: 1 line: [{"id":"color","header":"Color","question":"Whi… → 1 line: {"answers":{"color":{"answers":["Green"]}}}
 
 # rui-esc-then-prompt
-tools: Asked [plan] · Which color should the button be? | Call: request_user_input: 1 line: [{"id":"color","header":"Color","question":"Whi… → 1 line: aborted by user after <n>s
+tools: asked [plan] · Which color should the button be? | Call: request_user_input: 1 line: [{"id":"color","header":"Color","question":"Whi… → 1 line: aborted by user after <n>s
 note: Interrupted
 
 # rui-none-of-the-above-notes
-tools: Asked [plan] · Which color should the button be? | Call: request_user_input: 1 line: [{"id":"color","header":"Color","question":"Whi… → 1 line: {"answers":{"color":{"answers":["None of the ab…
+tools: asked [plan] · Which color should the button be? | Call: request_user_input: 1 line: [{"id":"color","header":"Color","question":"Whi… → 1 line: {"answers":{"color":{"answers":["None of the ab…
 
 # rui-plan-digit-1
-tools: Asked [plan] · Which color should the button be? | Call: request_user_input: 1 line: [{"id":"color","header":"Color","question":"Whi… → 1 line: {"answers":{"color":{"answers":["Blue (Recommen…
+tools: asked [plan] · Which color should the button be? | Call: request_user_input: 1 line: [{"id":"color","header":"Color","question":"Whi… → 1 line: {"answers":{"color":{"answers":["Blue (Recommen…
 
 # rui-plan-digit-2
-tools: Asked [plan] · Which color should the button be? | Call: request_user_input: 1 line: [{"id":"color","header":"Color","question":"Whi… → 1 line: {"answers":{"color":{"answers":["Green"]}}}
+tools: asked [plan] · Which color should the button be? | Call: request_user_input: 1 line: [{"id":"color","header":"Color","question":"Whi… → 1 line: {"answers":{"color":{"answers":["Green"]}}}
 
 # rui-plan-esc
-tools: Asked [plan] · Which color should the button be? | Call: request_user_input: 1 line: [{"id":"color","header":"Color","question":"Whi… → 1 line: aborted by user after <n>s
+tools: asked [plan] · Which color should the button be? | Call: request_user_input: 1 line: [{"id":"color","header":"Color","question":"Whi… → 1 line: aborted by user after <n>s
 note: Interrupted
 
 # rui-plan-wrong-key-y
-tools: Asked [plan] · Which color should the button be? | Call: request_user_input: 1 line: [{"id":"color","header":"Color","question":"Whi… → no result recorded.
+tools: asked [plan] · Which color should the button be? | Call: request_user_input: 1 line: [{"id":"color","header":"Color","question":"Whi… → no result recorded.
