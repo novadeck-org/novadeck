@@ -2,7 +2,16 @@ import { agy } from "./agents/agy.js"
 import { claude } from "./agents/claude.js"
 import { codex } from "./agents/codex.js"
 import { describe, e2e, expect, supported } from "./fixture.js"
-import { delivered, own, replies, sends, start, turn } from "./scenarios.js"
+import {
+  delivered,
+  hibernated,
+  hibernateMs,
+  own,
+  replies,
+  sends,
+  start,
+  turn,
+} from "./scenarios.js"
 
 // A sleeping agent woken across harnesses: every harness in one project, against one fake
 // model. Files ending in `.mixed.e2e.ts` run only when every harness is selected, as in CI's
@@ -64,4 +73,40 @@ describe.skipIf(!supported)(order.map((setup) => setup.name).join(" → "), () =
         .toMatchObject({ started: true, sleeping: false })
       expect(run.deck.terminals.reportedSession(sleeper.id, worker.agent)).toBe(before)
     })
+
+  for (const { lead, worker } of pairs)
+    it(
+      `${lead.name} messages a ${worker.name} worker that was stopped when idle, which wakes on its session and replies`,
+      { timeout: hibernateMs + 180_000 },
+      async ({ e2e: run }) => {
+        run.model.use(
+          replies("Remember the word heron", "Remembered."),
+          sends("Ask moth for the word", "moth", "Which word did you remember?"),
+          own((call) => (delivered(call, "fox") ? { text: "Heron, as asked." } : undefined)),
+        )
+        const sleeper = await start(run, worker)
+        expect(sleeper.handle).toBe("moth")
+        await turn(sleeper, "Remember the word heron", "Remembered.")
+        const before = run.deck.terminals.reportedSession(sleeper.id, worker.agent)
+        expect(before).not.toBeNull()
+
+        await hibernated(run, sleeper, worker.agent)
+
+        // The lead is of another harness, started after: its message wakes the worker.
+        const sender = await start(run, lead)
+        expect(sender.handle).toBe("fox")
+        const calls = run.model.mark()
+        await sender.submit("Ask moth for the word")
+        await run.model.waitFor((call) => delivered(call, "fox"), {
+          after: calls,
+          timeoutMs: 120_000,
+        })
+        await sender.until("Heron, as asked.")
+        const woke = run.deck.terminals
+          .list(run.deck.sessionId)
+          .find((one) => one.id === sleeper.id)
+        expect(woke).toMatchObject({ started: true, sleeping: false })
+        expect(run.deck.terminals.reportedSession(sleeper.id, worker.agent)).toBe(before)
+      },
+    )
 })
