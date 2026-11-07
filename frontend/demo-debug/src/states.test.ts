@@ -304,6 +304,18 @@ describe("demo states", () => {
     )
   })
 
+  it("lets the agents that end a turn and then sleep go, leaving their turns to the Inbox", async () => {
+    const { run, added, terminal, released } = panel("04")
+    await run("Every state at once")
+    vi.advanceTimersByTime(3200)
+    const asleep = ["Asleep, reply unread", "Asleep, stopped with an error"].map((name) => {
+      const each = added.find((key) => terminal(terminalSlot(key.terminalId))?.name === name)!
+      expect(released).toContainEqual(each)
+      return terminal(terminalSlot(each.terminalId))
+    })
+    for (const each of asleep) expect(each).toMatchObject({ state: "sleeping" })
+  })
+
   it("gives the agent tiles their states through the verbs, not the terminal's metadata", async () => {
     const { run, calls } = panel("04")
     await run("Every state at once")
@@ -311,7 +323,7 @@ describe("demo states", () => {
       [
         ...Array<string>(3).fill("ask"),
         ...Array<string>(1).fill("ask"),
-        ...Array<string>(6).fill("finish"),
+        ...Array<string>(8).fill("finish"),
         ...Array<string>(4).fill("work"),
       ].toSorted(),
     )

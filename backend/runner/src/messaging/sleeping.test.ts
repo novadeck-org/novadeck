@@ -352,6 +352,20 @@ describe("a sleeper's Inbox", () => {
     expect(inbox.reports("B").done?.subject).toBe("All done")
   })
 
+  it("keeps the turn an agent ended before the restart, so its tab reads unread while it sleeps", ({
+    resources,
+  }) => {
+    const { run, inbox } = restarted(resources)
+    const owner = run.messaging.inboxOwner("B")
+    expect(owner).toMatchObject({ terminalId: "B", agent: "claude", sessionId: saved.sessionId })
+    inbox.recordTurn(owner!, 5, { outcome: "failed", reply: null, error: "Boom", files: [] })
+    inbox.reconcile("B")
+    inbox.prune()
+    expect(inbox.list().filter((entry) => entry.content.kind === "turn")).toMatchObject([
+      { terminalId: "B", content: { outcome: "failed" } },
+    ])
+  })
+
   it("lapses an ask once its terminal stops resting on the session", ({ resources }) => {
     const { run, inbox, id } = restarted(resources)
     run.messaging.rest("B", here, "fox", null, { agent: "claude", sessionId: "another" })

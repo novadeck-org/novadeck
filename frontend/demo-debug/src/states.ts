@@ -200,6 +200,9 @@ const gallery: readonly {
   readonly state?: (key: TerminalKey, harness: AgentName) => BackendAction[]
   readonly agent?: (verbs: DemoAgentVerbs, key: TerminalKey) => void
   readonly asks?: "text" | "action"
+  // What the terminal becomes once its agent's turn has ended: the agent is let go, and
+  // these dispatched, so its turn's Inbox row stays while the agent sleeps.
+  readonly after?: (key: TerminalKey, harness: AgentName) => BackendAction[]
 }[] = [
   {
     name: "Done",
@@ -274,6 +277,16 @@ const gallery: readonly {
     state: (key, harness) => sleeping(key, harness),
     asks: "text",
   },
+  {
+    name: "Asleep, reply unread",
+    agent: (verbs, key) => verbs.finish(key, undefined, "completed", { after: turnMs }),
+    after: (key, harness) => sleeping(key, harness),
+  },
+  {
+    name: "Asleep, stopped with an error",
+    agent: (verbs, key) => verbs.finish(key, undefined, "failed", { after: turnMs }),
+    after: (key, harness) => sleeping(key, harness),
+  },
   { name: "Waking", state: (key, harness) => waking(key, harness) },
   {
     name: "Waking, asks (MCP)",
@@ -321,6 +334,14 @@ const everyState = (
     )
     const agents = verbs.as(harness)
     gallery.forEach(({ agent }, index) => agent?.(agents, keys[index]!))
+    gallery.forEach(({ after }, index) => {
+      if (!after) return
+      const key = keys[index]!
+      later(turnMs + calmMs, () => {
+        verbs.release(key)
+        dispatch(after(key, harness))
+      })
+    })
     const own = inbox()
     if (!isDemoInbox(own)) return
     gallery.forEach(({ asks }, index) => {
@@ -454,6 +475,15 @@ export const createDemoStates = (
       verbs.release(key)
       run(key, context)
     })
+  // The agent ends a turn, then sleeps with the turn's Inbox row standing.
+  const sleepsAfter = (label: string, outcome: "completed" | "failed", hint: string) =>
+    onSelected(label, hint, (key, { dispatch, harness, workspace }) => {
+      verbs.finish(key, terminalOf(workspace(), key), outcome, { after: turnMs })
+      later(turnMs + calmMs, () => {
+        verbs.release(key)
+        dispatch(sleeping(key, harness))
+      })
+    })
   const groups: readonly DemoActionGroup[] = [
     {
       section: "Terminals",
@@ -472,6 +502,16 @@ export const createDemoStates = (
         ),
         setting("Waking", "Its agent is on the way back", (key, { dispatch, harness }) =>
           dispatch(waking(key, harness)),
+        ),
+        sleepsAfter(
+          "Asleep, reply unread",
+          "completed",
+          "Replies, then sleeps; brightened until you look",
+        ),
+        sleepsAfter(
+          "Asleep, stopped with an error",
+          "failed",
+          "Fails, then sleeps; unread once you look away",
         ),
         setting("At the prompt", "Idle shell", (key, { dispatch }) => dispatch(backToPrompt(key))),
         setting("Long program", "Counts as running; closing asks first", (key, { dispatch }) =>
