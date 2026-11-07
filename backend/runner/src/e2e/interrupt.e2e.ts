@@ -165,7 +165,7 @@ for (const setup of setups) {
         inTool?: boolean
         /** Whether the first is through its hook, and so in the real queue, before the second. */
         enqueued?: boolean
-        stopped?: () => void
+        stopped?: () => void | Promise<void>
       } = {},
     ) => {
       const held = gate()
@@ -209,7 +209,7 @@ for (const setup of setups) {
       held.open()
       queuedHeld.open()
       await sleep(2500)
-      onStopped?.()
+      await onStopped?.()
 
       expect(stopped.returned).toBe(setup.agent === "codex" ? null : "Queued beta\nQueued gamma")
       // Words given back are the person's draft again, and none went: Claude Code's record
@@ -324,21 +324,24 @@ for (const setup of setups) {
 
     // The tool ends while the queued messages' hooks run, which outlast it, and its hook takes
     // over the spinner. A Stop that went at once would kill theirs, which run again: the own
-    // prompt's hook and the two queued ones' are all the log may hold.
+    // prompt's hook and the two queued ones' are all the log may hold. A Stop that takes the
+    // queue back first lets them run out, maybe after it.
     gated(slowTool, setup.toolHooking ? undefined : "its spinner tells of no tool's hook")(
       "gives back both of two queued messages where a tool's hook has taken over their spinner",
       async ({ e2e: run }) => {
         seedSlowHook(run, 3500)
         seedSlowToolHook(run)
-        let ran = ""
+        const ran = () => readFileSync(join(run.sandbox.project, slowHookLog), "utf8")
         const onSpinner = (terminal: DeckTerminal) => terminal.until(setup.toolHooking!)
         await twoQueued(run, onSpinner, {
           inTool: true,
-          stopped: () => {
-            ran = readFileSync(join(run.sandbox.project, slowHookLog), "utf8")
+          // Before the next prompt, whose own hook runs too.
+          stopped: async () => {
+            await expect.poll(ran, { timeout: 10_000 }).toBe("ran\nran\nran\n")
+            await sleep(4_000)
+            expect(ran()).toBe("ran\nran\nran\n")
           },
         })
-        expect(ran).toBe("ran\nran\nran\n")
       },
     )
 
