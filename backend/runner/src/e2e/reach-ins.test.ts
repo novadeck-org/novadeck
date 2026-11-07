@@ -30,6 +30,8 @@ const reaching = [
   "probes/agy-stop-boundary.e2e.ts",
   "probes/codex-banner.e2e.ts",
   "probes/interrupt-held-reply.e2e.ts",
+  "probes/queued-box.e2e.ts",
+  "probes/queued-doorbell.e2e.ts",
   "probes/startup-screens.e2e.ts",
   "probes/version.e2e.ts",
   "scope.e2e.ts",

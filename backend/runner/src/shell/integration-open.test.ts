@@ -601,7 +601,11 @@ describe.skipIf(process.platform === "win32" || !existsSync(bash))(
               { type: "send" as "open", request: { to: "fox", text } },
             ]),
           prompt: async (text, ends = false) => {
-            // Antigravity's turn ends with its Stop, which takes what waits for a turn's end.
+            // Antigravity's turn ends with its Stop, which takes what waits for a turn's end. A
+            // prompt of Claude Code's with no Stop before it is one queued behind a turn.
+            const stopped =
+              agent === "claude" && ends ? await step(worker!, { hook: "Stop", payload: {} }) : ""
+            if (stopped) return (JSON.parse(stopped) as { reason: string }).reason
             const out = await step(worker!, {
               hook: agent === "agy" ? (ends ? "Stop" : "PreInvocation") : "UserPromptSubmit",
               payload:
@@ -703,7 +707,7 @@ describe.skipIf(process.platform === "win32" || !existsSync(bash))(
             expect(await sends("Next, the tests.")).toEqual([
               { ok: true, text: expect.stringContaining("Message m-") },
             ])
-            expect(await prompt("more")).toMatch(
+            expect(await prompt("more", agent === "claude")).toMatch(
               /<message [^>]*from="moth"[^>]*lead="[^"]+"[^>]*>Next, the tests.<\/message>/,
             )
             expect(manager.get(worker).ledBy).toBe("moth")
