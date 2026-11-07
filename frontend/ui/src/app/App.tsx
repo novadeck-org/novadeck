@@ -1,5 +1,6 @@
 import { allTeams, leadChain, litTeams, sameLitTeams, sameTeams } from "@novadeck/core/derivations"
 import type { Backend, BackendSelection, CreateBackend, TerminalKey } from "@novadeck/core/port"
+import { activeProject } from "@novadeck/core/state"
 import {
   useCallback,
   useEffect,
@@ -21,6 +22,7 @@ import { readSidebarOrder, writeSidebarOrder } from "../shell/shell-storage"
 import { SidebarRail } from "../shell/SidebarRail"
 import { WorkspacePanels } from "../shell/WorkspacePanels"
 import { ZenDock } from "../shell/ZenDock"
+import { elsewhereSessionsText } from "../sidebar/session-marks"
 import { createTabListStore, TabListContext, type TabListStore } from "../terminals/tab-list"
 import { TeamWire } from "../terminals/TeamWire"
 import { DictationOverlay } from "../voice/DictationOverlay"
@@ -39,6 +41,7 @@ import { currentContext, currentState, currentTarget, sameItems, shallowEqual } 
 import { SidebarSection } from "./SidebarSection"
 import { previewTeamFold, toggleTeamFold, useFoldedLeads } from "./team-fold"
 import { useInboxBadge } from "./useInboxBadge"
+import { useSessionMarks } from "./useSessionMarks"
 import { VisitorBar, VisitorCover } from "./Visitor"
 import { WorkspaceOverlays } from "./WorkspaceOverlays"
 import { WorkspaceProvider } from "./WorkspaceProvider"
@@ -198,14 +201,19 @@ const TeamWireSection = ({
 // The rail and the Zen dock read the bell's badge and rings themselves, so an unread change that
 // leaves them as they were re-renders neither them nor the app around them.
 const RailWithBadge = (
-  props: Omit<ComponentProps<typeof SidebarRail>, "badge" | "bellRings">,
-): React.JSX.Element => (
-  <SidebarRail
-    {...props}
-    badge={useInboxBadge()}
-    bellRings={useUiState((state) => state.bellRings)}
-  />
-)
+  props: Omit<ComponentProps<typeof SidebarRail>, "badge" | "bellRings" | "sessionsAsk">,
+): React.JSX.Element => {
+  const marks = useSessionMarks()
+  const openId = useWorkspaceState((workspace) => activeProject(workspace)!.activeSessionId)
+  return (
+    <SidebarRail
+      {...props}
+      badge={useInboxBadge()}
+      bellRings={useUiState((state) => state.bellRings)}
+      sessionsAsk={elsewhereSessionsText(marks, openId)}
+    />
+  )
+}
 
 const ZenDockWithBadge = (
   props: Omit<ComponentProps<typeof ZenDock>, "badge" | "bellRings">,

@@ -42,3 +42,9 @@
   color: var(--item-detail-fg, var(--color-muted));
   opacity: 0.5;
 }
+/* A session's mark, `.session-status` in the badge slot right after its name: the project
+   rows' glyph (project-status.css), the parent carrying data-project-status, here on the
+   name's 18px line rather than the rows' 20px so it sits level with the name. */
+.session-status > .project-status-mark {
+  line-height: 18px;
+}

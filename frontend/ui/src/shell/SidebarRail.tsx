@@ -62,6 +62,7 @@ export const SidebarRail = ({
   zen,
   badge,
   bellRings,
+  sessionsAsk,
   hasSource = false,
   hasHistory = false,
   order = sidebarPanels,
@@ -76,6 +77,9 @@ export const SidebarRail = ({
   badge: InboxBadge | undefined
   // How many new Inbox rows the bell has rung for, which its dot rings with.
   bellRings: number
+  // What the sessions other than the open one ask of the person, in words, while any does: the
+  // Sessions toggle's dot, name and tooltip.
+  sessionsAsk?: string | undefined
   // Whether the backend has a Source panel to toggle.
   hasSource?: boolean
   // Whether the backend keeps closed terminals, which the History panel lists.
@@ -134,6 +138,7 @@ export const SidebarRail = ({
             count={shown.length}
             badge={id === "inbox" ? badge : undefined}
             bellRings={bellRings}
+            sessionsAsk={id === "sessions" ? sessionsAsk : undefined}
             dragging={dragging}
             focusRequest={focusRequest}
             onFocused={focused}
@@ -156,6 +161,7 @@ const RailToggle = ({
   count,
   badge,
   bellRings,
+  sessionsAsk,
   dragging,
   focusRequest,
   onFocused,
@@ -169,6 +175,8 @@ const RailToggle = ({
   badge: InboxBadge | undefined
   // How many new Inbox rows the bell has rung for, which its dot rings with.
   bellRings: number
+  // What the other sessions ask of the person, on the Sessions toggle.
+  sessionsAsk: string | undefined
   // Some toggle is being dragged, which leaves no tooltip open.
   dragging: boolean
   // Asks the toggle with this id to take the focus, once it has settled in its place.
@@ -204,13 +212,15 @@ const RailToggle = ({
           ? `Terminals · ${shortcutBindings().terminals.display.join(" ")}`
           : badge
             ? `${label} · ${badge.count} waiting`
-            : label
+            : sessionsAsk
+              ? `${label} · ${sessionsAsk}`
+              : label
       }
       tooltipDisabled={dragging}
       value={value}
       id={id}
       className="segment relative inline-flex size-8 shrink-0 items-center justify-center p-2 [&>svg]:shrink-0"
-      aria-label={badge?.label ?? label}
+      aria-label={badge?.label ?? (sessionsAsk ? `${label} · ${sessionsAsk}` : label)}
       aria-keyshortcuts={[
         ...(index > 0 ? ["Alt+ArrowUp"] : []),
         ...(index < count - 1 ? ["Alt+ArrowDown"] : []),
@@ -228,6 +238,7 @@ const RailToggle = ({
     >
       <Icon size={16} />
       {badge && <BellDot rings={bellRings} />}
+      {sessionsAsk && <BellDot rings={0} />}
     </ToggleGroupItem>
   )
 }

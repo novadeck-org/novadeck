@@ -3,7 +3,7 @@ import type { InboxRow } from "@novadeck/core/inbox"
 import { inboxMarks } from "@novadeck/core/inbox/marks"
 import { doneText, terminalGlance } from "@novadeck/core/terminals/ending"
 import { waitingOf, wakeGraceMs } from "@novadeck/core/terminals/waiting"
-import type { TerminalMetadata, WorkspaceProject } from "@novadeck/core/types"
+import type { TerminalMetadata, WorkspaceProject, WorkspaceSession } from "@novadeck/core/types"
 
 // What a project's terminals show at a glance, the most pressing of them, as the switcher
 // marks it, as their tabs do: an agent that asks the person a question (the tab's `?`, the
@@ -96,6 +96,30 @@ const terminalStatus = (
   )
 }
 
+// What each terminal of a session shows, the terminals that show nothing left out, in the
+// roster's order: what the Sessions panel marks, and what a project's status is made of.
+export const sessionStatuses = (
+  project: WorkspaceProject,
+  session: WorkspaceSession,
+  unread: UnreadEnds,
+  rows: readonly InboxRow[],
+  now: number,
+): { readonly terminal: TerminalMetadata; readonly status: ProjectStatus }[] => {
+  const shown: { terminal: TerminalMetadata; status: ProjectStatus }[] = []
+  for (const terminal of session.state.roster.terminals) {
+    const status = terminalStatus(project, session.id, terminal, unread, rows, now)
+    if (status !== undefined) shown.push({ terminal, status })
+  }
+  return shown
+}
+
+// The most pressing of these statuses, or undefined when there are none.
+export const mostPressingOf = (statuses: Iterable<ProjectStatus>): ProjectStatus | undefined => {
+  let status: ProjectStatus | undefined
+  for (const each of statuses) status = pressing(status, each)
+  return status
+}
+
 // The most pressing status among a project's terminals that `counts`.
 const mostPressing = (
   project: WorkspaceProject,
@@ -103,15 +127,14 @@ const mostPressing = (
   rows: readonly InboxRow[],
   now: number,
   counts: (status: ProjectStatus) => boolean,
-): ProjectStatus | undefined => {
-  let status: ProjectStatus | undefined
-  for (const session of project.history)
-    for (const terminal of session.state.roster.terminals) {
-      const each = terminalStatus(project, session.id, terminal, unread, rows, now)
-      if (each !== undefined && counts(each)) status = pressing(status, each)
-    }
-  return status
-}
+): ProjectStatus | undefined =>
+  mostPressingOf(
+    project.history.flatMap((session) =>
+      sessionStatuses(project, session, unread, rows, now)
+        .map(({ status }) => status)
+        .filter(counts),
+    ),
+  )
 
 const any = (): boolean => true
 

@@ -17,6 +17,7 @@ import { useStoreSelector } from "./controller/useStoreSelector"
 import { historyShown, sourceShown } from "./routing"
 import { currentState, currentTarget, sameItems, sameTarget } from "./selectors"
 import { foldsOf } from "./team-fold"
+import { useSessionMarks } from "./useSessionMarks"
 import { renderTab } from "./WorkspaceTab"
 
 // The Sessions panel shows each session's name, visit time and terminals, nothing else.
@@ -56,6 +57,7 @@ export const SidebarSection = memo((): React.JSX.Element => {
     (workspace) => activeProject(workspace)!.history,
     sameSessions,
   )
+  const sessionMarks = useSessionMarks()
   const target = useWorkspaceState(currentTarget, sameTarget)
   const ordered = useWorkspaceState(
     (workspace) => orderedTiles(currentState(workspace).roster),
@@ -156,6 +158,7 @@ export const SidebarSection = memo((): React.JSX.Element => {
       projectId={projectId}
       workspaceSessionId={target.workspaceSessionId}
       workspaceSessions={workspaceSessions}
+      sessionMarks={sessionMarks}
       terminalCount={ordered.length}
       ordered={ordered}
       sidebarPanel={sidebarPanel}

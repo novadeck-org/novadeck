@@ -3,6 +3,8 @@ import { Tooltip } from "@novadeck/toolkit/Tooltip"
 import { Layers2, Plus } from "lucide-react"
 
 import { shortcutBindings } from "../interaction/shortcuts"
+import { statusText } from "../projects/project-status"
+import { sessionNeedText, type SessionMark } from "./session-marks"
 import { sidebarCreateClasses } from "./SidebarPanel"
 
 type WorkspaceSessionSummary = {
@@ -12,6 +14,8 @@ type WorkspaceSessionSummary = {
   visitedAt: number | null
   terminalNames: string[]
   running: number
+  // What its terminals show at a glance; none while they show nothing.
+  mark?: SessionMark | undefined
 }
 
 type SessionsPanelProps = {
@@ -68,6 +72,10 @@ export const SessionsPanel = ({
           const terminalCount = session.terminalNames.length
           const preview = terminalCount ? session.terminalNames.join(", ") : "No terminals yet"
           const visited = formatVisited(session.visitedAt, active)
+          const { mark } = session
+          const need = sessionNeedText(mark)
+          const lines = mark?.lines ?? []
+          const status = mark?.status
 
           return (
             <SidebarItem
@@ -79,14 +87,27 @@ export const SessionsPanel = ({
               icon={<Layers2 size={14} strokeWidth={1.5} />}
               selected={active}
               selectLabel={`Open ${session.name}`}
-              description={`${visited}. ${preview}`}
-              tooltip={`${session.name}\n${visited}\n${preview}`}
+              badge={
+                status && (
+                  <span
+                    className="session-status flex shrink-0 items-center"
+                    data-project-status={status}
+                    role="img"
+                    aria-label={statusText[status]}
+                  >
+                    <span className="project-status-mark" aria-hidden="true" />
+                  </span>
+                )
+              }
+              description={[visited, ...lines, preview].join(". ")}
+              tooltip={[session.name, visited, ...lines, preview].join("\n")}
               onSelect={() => onSelect(session.id)}
               detail={
                 <>
                   <span>
                     {terminalCount} {terminalCount === 1 ? "terminal" : "terminals"}
                   </span>
+                  {need && <span className="session-running">{need}</span>}
                   {session.running > 0 && (
                     <span className="session-running">{session.running} running</span>
                   )}
