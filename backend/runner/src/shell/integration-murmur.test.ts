@@ -990,19 +990,19 @@ describe.skipIf(process.platform === "win32" || !existsSync(bash))(
         ) as Told
         expect(told.ok).toBe(true)
         await expect.poll(() => created.length).toBe(2)
-        const plain = { terminalId: created[1]! }
-        symlinkSync(generic, join(shell.home, `steps-${plain.terminalId}`))
-        await shell.until(manager, plain.terminalId, /^fix-the-docs$/m)
+        const bare = { terminalId: created[1]! }
+        symlinkSync(generic, join(shell.home, `steps-${bare.terminalId}`))
+        await shell.until(manager, bare.terminalId, /^fix-the-docs$/m)
         manager.write(
-          { terminalId: plain.terminalId, data: `agent claude s-mine ${generic}\r` },
+          { terminalId: bare.terminalId, data: `agent claude s-mine ${generic}\r` },
           "client",
         )
-        await shell.until(manager, plain.terminalId, "claude ready")
-        await step(plain.terminalId, {
+        await shell.until(manager, bare.terminalId, "claude ready")
+        await step(bare.terminalId, {
           hook: "UserPromptSubmit",
           payload: { prompt: "fix-the-docs" },
         })
-        expect(manager.get(plain.terminalId)).toMatchObject({
+        expect(manager.get(bare.terminalId)).toMatchObject({
           titleSource: { kind: "default" },
         })
         expect(await listed()).toContain("  started with: fix-the-docs")

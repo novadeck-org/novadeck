@@ -75,18 +75,12 @@ export type SleepersHost = {
   readonly ended: (terminalId: string) => void
 }
 
-/**
- * The agent a saved terminal's last program was: its name, or for `node` (an npm-installed
- * Codex, which older rows kept as the process name) the one agent that reported a session.
- */
+/** The agent a saved terminal's last program was, if it was one (the sampler names an npm Codex `codex`). */
 const programAgent = (
   row: Pick<ListedTerminal, "lastProgram" | "agents">,
 ): AgentName | undefined => {
   const program = row.lastProgram
-  if (isAgentName(program)) return program
-  if (program !== "node" && program !== "nodejs") return undefined
-  const only = Object.keys(row.agents).filter(isAgentName)
-  return only.length === 1 ? only[0] : undefined
+  return isAgentName(program) ? program : undefined
 }
 
 /** A sleeper as the agent layer reads a terminal: its saved row, shaped as a record's half. */

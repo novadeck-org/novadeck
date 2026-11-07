@@ -328,12 +328,15 @@ export class ClosedTerminals {
     if (row) this.announce(row)
   }
 
-  /** Keeps a terminal that was only saved, as it closes: its transcript is already sealed. */
-  closingSaved(saved: SavedTerminal, closedBy: string | null): void {
+  /**
+   * Keeps a terminal that was only saved, as it closes: its transcript is already sealed.
+   * A sleeper passes the agent it rested on, so the row restores that one, not the latest report.
+   */
+  closingSaved(saved: SavedTerminal, closedBy: string | null, resting?: AgentName): void {
     try {
       const { records } = this.host
       if (!records || this.host.going(saved.sessionId)) return
-      const agent = latestAgent(saved.agents)
+      const agent = resting ?? latestAgent(saved.agents)
       if (!this.host.ran(saved.id) && !hasRun(saved.agents)) return
       const row: ClosedRecord = {
         id: saved.id,

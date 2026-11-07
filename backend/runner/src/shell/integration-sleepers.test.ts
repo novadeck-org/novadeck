@@ -73,13 +73,12 @@ describe.skipIf(process.platform === "win32" || !existsSync(bash))(
       expect(sleepers.timers.size).toBe(0)
     })
 
-    it("rests Codex saved as the node process an npm install runs as", async ({ shell }) => {
+    it("leaves a terminal whose last program was node a plain one, as a program is running", async ({
+      shell,
+    }) => {
       const id = sleeper(shell, "codex", "codex-1", { lastProgram: "node" })
       const manager = shell.manager()
-      expect(manager.list().find((each) => each.id === id)).toMatchObject({
-        sleeping: true,
-        restingAgent: "codex",
-      })
+      expect(manager.list().find((each) => each.id === id)).toMatchObject({ sleeping: false })
     })
 
     it("rests nothing where a shell can't run a resume", async ({ shell }) => {

@@ -39,7 +39,8 @@ export const closeReasons = (
   return [
     ...(resting && !terminal.restorable ? (["unrestorable"] as const) : []),
     // The runner counts an agent as a running program too, so only a plain one is asked about.
-    ...(!agent && terminal.busy ? (["program"] as const) : []),
+    // A waking agent is busy only for its resume, and a sleeper has no program: neither is one.
+    ...(!agent && !resting && terminal.busy ? (["program"] as const) : []),
     ...(agent?.working ? (["working"] as const) : []),
     // The waiting the tab shows: a wake-up or a monitor that has passed is over, though the
     // runner keeps it until the next turn.

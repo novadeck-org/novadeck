@@ -436,6 +436,29 @@ describe("keeping a terminal as it closes", () => {
     expect(agent.store.rows.get("k-1")).toMatchObject({ agent: "codex", transcript: null })
   })
 
+  it("keeps a sleeper's row on the agent it rested on, not the latest report", () => {
+    const { history, store } = setup()
+    const saved: SavedTerminal = {
+      id: "k-2",
+      sessionId: "s1",
+      handle: "fox",
+      naming: unnamed,
+      openedBy: null,
+      ledBy: null,
+      command: null,
+      lastProgram: "claude",
+      work: null,
+      cwd: "/w",
+      agents: { claude: { sessionId: "c", seq: 1 }, codex: { sessionId: "x", seq: 5 } },
+      promptedAt: null,
+      interruptions: [],
+      transcript: "v1.sealed",
+      savedAt: 1,
+    }
+    history.closingSaved(saved, null, "claude")
+    expect(store.rows.get("k-2")).toMatchObject({ agent: "claude" })
+  })
+
   it("never lets a failure stop the close", () => {
     const { history, store } = setup()
     store.records.insertClosed = () => {

@@ -1174,7 +1174,8 @@ export class Terminals {
     if (!record) {
       // A terminal kept only as saved closes by forgetting it.
       const saved = this.saves.saved(input.terminalId)
-      if (saved) this.history.closingSaved(saved, closedBy)
+      if (saved)
+        this.history.closingSaved(saved, closedBy, this.sleepers.resting(input.terminalId)?.agent)
       this.forget(input.terminalId)
       if (!saved) throw new DomainError("TERMINAL_NOT_FOUND")
       this.streams.removed(saved)

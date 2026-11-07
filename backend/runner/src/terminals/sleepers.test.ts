@@ -123,14 +123,13 @@ describe("sleepers", () => {
     expect([...resting.keys()]).toEqual(["a"])
   })
 
-  it("rests Codex saved as node, but not node with several agents to choose from", () => {
+  it("leaves a terminal whose last program was node a plain one, whatever agents reported", () => {
     const { sleepers, resting } = setup([
       row("a", "node", { codex: { sessionId: "one", seq: 1 } }),
       row("b", "node", { codex: { sessionId: "two", seq: 1 }, claude: { sessionId: "x", seq: 2 } }),
     ])
     sleepers.start()
-    expect(resting.get("a")).toEqual({ agent: "codex", sessionId: "one" })
-    expect(resting.has("b")).toBe(false)
+    expect(resting.size).toBe(0)
   })
 
   it("wakes a turn the stop cut short, once its claim is judged", async () => {

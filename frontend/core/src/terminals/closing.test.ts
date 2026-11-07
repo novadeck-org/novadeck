@@ -25,7 +25,7 @@ describe("what closing a terminal asks about", () => {
 
   describe("a sleeper or a waking agent", () => {
     const sleeping = { state: "sleeping", agent: "claude" } as const
-    const waking = { state: "starting", restoredProcess: "claude" } as const
+    const waking = { state: "starting", restoredProcess: "claude", busy: true } as const
 
     it("asks while nothing keeps closed terminals, since its session would be lost", () => {
       expect(closeReasons(terminalFixture({ ...sleeping }), false)).toEqual(["asleep"])
@@ -36,6 +36,14 @@ describe("what closing a terminal asks about", () => {
     it("closes without asking where its session can be restored, like an idle agent", () => {
       expect(closeReasons(terminalFixture({ ...sleeping, restorable: true }), true)).toEqual([])
       expect(closeReasons(terminalFixture({ ...waking, restorable: true }), true)).toEqual([])
+    })
+
+    it("does not count the resume it runs, or a sleeper, as a program to lose", () => {
+      expect(closeReasons(terminalFixture({ ...waking, restorable: true }), true)).toEqual([])
+      expect(
+        closeReasons(terminalFixture({ ...sleeping, busy: true, restorable: true }), true),
+      ).toEqual([])
+      expect(closeReasons(terminalFixture({ ...waking }), true)).toEqual(["unrestorable"])
     })
 
     it("asks where its session can't be restored", () => {
