@@ -92,14 +92,18 @@ export const SessionsPanel = ({
                   <span
                     className="session-status flex shrink-0 items-center"
                     data-project-status={status}
-                    role="img"
-                    aria-label={statusText[status]}
+                    aria-hidden="true"
                   >
-                    <span className="project-status-mark" aria-hidden="true" />
+                    <span className="project-status-mark" />
                   </span>
                 )
               }
-              description={[visited, ...lines, preview].join(". ")}
+              description={[
+                ...(status ? [statusText[status]] : []),
+                visited,
+                ...lines,
+                preview,
+              ].join(". ")}
               tooltip={[session.name, visited, ...lines, preview].join("\n")}
               onSelect={() => onSelect(session.id)}
               detail={
@@ -107,9 +111,12 @@ export const SessionsPanel = ({
                   <span>
                     {terminalCount} {terminalCount === 1 ? "terminal" : "terminals"}
                   </span>
-                  {need && <span className="session-running">{need}</span>}
-                  {session.running > 0 && (
-                    <span className="session-running">{session.running} running</span>
+                  {need ? (
+                    <span className="session-running">{need}</span>
+                  ) : (
+                    session.running > 0 && (
+                      <span className="session-running">{session.running} running</span>
+                    )
                   )}
                 </>
               }

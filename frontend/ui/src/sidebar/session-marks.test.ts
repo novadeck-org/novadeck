@@ -108,7 +108,9 @@ describe("A session's detail words", () => {
     const text = (...terminals: TerminalMetadata[]) =>
       sessionNeedText(marksOf(projectOf(terminals)).s1)
     expect(text(needs(1), asks(2))).toBe("1 needs you")
-    expect(text(asks(1), asks(2))).toBe("2 asks")
+    expect(text(needs(1), needs(2), needs(3))).toBe("3 need you")
+    expect(text(asks(1))).toBe("1 question")
+    expect(text(asks(1), asks(2))).toBe("2 questions")
     expect(text(agentIn(1, { reported: true }))).toBe("1 done")
     expect(text(agentIn(1, { working: true }))).toBeUndefined()
   })
@@ -117,9 +119,9 @@ describe("A session's detail words", () => {
 describe("What the other sessions ask", () => {
   const marks = marksOf(projectOf([needs(1)], [needs(2), asks(3)], [agentIn(4, { working: true })]))
   it("leaves out the open session", () => {
-    expect(elsewhereSessionsText(marks, "s1")).toBe("1 needs you · 1 asks")
+    expect(elsewhereSessionsText(marks, "s1")).toBe("1 needs you · 1 question")
     expect(elsewhereSessionsText(marks, "s2")).toBe("1 needs you")
-    expect(elsewhereSessionsText(marks, "s3")).toBe("2 needs you · 1 asks")
+    expect(elsewhereSessionsText(marks, "s3")).toBe("2 need you · 1 question")
   })
   it("is none while only the open session asks", () => {
     expect(elsewhereSessionsText(marksOf(projectOf([needs(1)], [])), "s1")).toBeUndefined()

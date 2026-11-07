@@ -53,6 +53,8 @@ describe("the rail's Sessions dot", () => {
     rerender(rail(undefined, 0, "1 needs you"))
     expect(toggle().querySelector(".bell-dot")).not.toBeNull()
     expect(toggle().getAttribute("aria-label")).toBe("Sessions · 1 needs you")
+    rerender(rail(undefined, 0, "3 need you · 1 question"))
+    expect(toggle().getAttribute("aria-label")).toBe("Sessions · 3 need you · 1 question")
     rerender(rail(undefined, 5, "1 needs you"))
     expect(toggle().querySelector(".bell-dot-ring")).toBeNull()
   })

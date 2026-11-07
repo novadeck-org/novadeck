@@ -73,8 +73,24 @@ describe("The Sessions panel's marks", () => {
 
   it("says what needs the person in the detail line, before what runs", () => {
     const detail = row(panel(), "a").querySelector(".sidebar-item-detail")!
-    expect(detail.textContent).toBe("2 terminals1 needs you1 running")
+    expect(detail.textContent).toBe("2 terminals1 needs you")
     expect(row(panel(), "b").querySelector(".sidebar-item-detail")!.textContent).toBe("0 terminals")
+  })
+
+  it("shows the running count only where nothing needs the person", () => {
+    expect(row(panel(), "c").querySelector(".sidebar-item-detail")!.textContent).toBe(
+      "1 terminal1 running",
+    )
+  })
+
+  it("says the status first in the row's description, for a screen reader", () => {
+    const description = (id: string) =>
+      row(panel(), id).querySelector(".sidebar-item-select")!.getAttribute("aria-description")!
+    expect(description("a")).toMatch(/^Needs you\. Open now\./)
+    expect(description("b")).toMatch(/^Not opened yet\./)
+    expect(
+      row(panel(), "a").querySelector("[data-project-status]")!.getAttribute("aria-hidden"),
+    ).toBe("true")
   })
 
   it("names those terminals in the row's description before the terminal list", () => {

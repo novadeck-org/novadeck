@@ -67,12 +67,16 @@ export const sameSessionMarks = (
   b: Readonly<Record<string, SessionMark>>,
 ): boolean => JSON.stringify(a) === JSON.stringify(b)
 
+const needsYouText = (count: number): string => `${count} ${count === 1 ? "needs" : "need"} you`
+const questionsText = (count: number): string =>
+  `${count} ${count === 1 ? "question" : "questions"}`
+
 // The word the detail line adds after the terminal count: the most pressing of what needs the
 // person, asks, failed or done, with how many; none when no terminal shows one of them.
 export const sessionNeedText = (mark: SessionMark | undefined): string | undefined => {
   if (!mark) return undefined
-  if (mark.needsYou > 0) return `${mark.needsYou} needs you`
-  if (mark.asks > 0) return `${mark.asks} asks`
+  if (mark.needsYou > 0) return needsYouText(mark.needsYou)
+  if (mark.asks > 0) return questionsText(mark.asks)
   if (mark.failed > 0) return `${mark.failed} failed`
   if (mark.done > 0) return `${mark.done} done`
   return undefined
@@ -91,7 +95,7 @@ export const elsewhereSessionsText = (
       needsYou += mark.needsYou
       asks += mark.asks
     }
-  const parts = [needsYou > 0 && `${needsYou} needs you`, asks > 0 && `${asks} asks`].filter(
+  const parts = [needsYou > 0 && needsYouText(needsYou), asks > 0 && questionsText(asks)].filter(
     Boolean,
   )
   return parts.length ? parts.join(" · ") : undefined
