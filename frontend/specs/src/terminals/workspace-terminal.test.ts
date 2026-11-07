@@ -243,12 +243,24 @@ describe("a terminal window across foreground processes", () => {
       }
     })
 
-    it("shows the terminal during a fresh shell startup even while the last program is an agent", async () => {
+    it("shows the agent's window while it wakes, without mounting the terminal again", async () => {
       const page = await open(second)
       try {
         page.process("codex")
         expect(visibleWindow(page.container).dataset.processWindow).toBe("codex")
 
+        page.start()
+        expect(visibleWindow(page.container).dataset.processWindow).toBe("codex")
+        expect(page.lifecycle).toEqual({ mounted: 1, unmounted: 0 })
+      } finally {
+        page.unmount()
+      }
+    })
+
+    it("shows the regular terminal during a fresh shell startup when the last program is a shell", async () => {
+      const page = await open(second)
+      try {
+        page.process("zsh")
         page.start()
         expect(visibleWindow(page.container).dataset.processWindow).toBeUndefined()
         expect(page.lifecycle).toEqual({ mounted: 1, unmounted: 0 })
