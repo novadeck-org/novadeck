@@ -176,7 +176,7 @@
       "test": "src/e2e/interrupt.e2e.ts > Claude Code > gives back both of two queued messages where the turn ends as the Stop waits on their hooks",
       "signature": "expected null to be 'Queued beta\\\\nQueued gamma'",
       "status": "fixed",
-      "cause": "A real gap, not the test: at a turn's end Claude Code drains its queue at once, and a Stop's Escape raced that, so on a slow machine queued work ran though the person pressed Stop. Fixed by #757: the Stop takes what is queued to the box with Up before any Escape. The same test failing this way again is news. Both shapes are forced at normal speed by the tests beside it. The Windows runs are the path where the Escape killed the prompt hooks, which enqueued the messages, and the drain took them, inferred from their times, as those traces hold no hook ends.",
+      "cause": "A real gap, not the test: at a turn's end Claude Code drains its queue at once, and a Stop's Escape raced that, so on a slow machine queued work ran though the person pressed Stop. Fixed by #779 (#757): the Stop takes what is queued to the box with Up before any Escape. The same test failing this way again is news. Both shapes are forced at normal speed by the tests beside it. The Windows runs are the path where the Escape killed the prompt hooks, which enqueued the messages, and the drain took them, inferred from their times, as those traces hold no hook ends.",
       "seen": [
         "#738 run 42254380158 job 128017862149 (Windows)",
         "#739 run 42281974993 job 128113289850 (Windows)"

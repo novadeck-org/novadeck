@@ -203,6 +203,17 @@ describe("its status row, as a turn ends and one its queue starts begins", () =>
     expect(box.status!(shown)).toMatchObject({ words: "Noodling", seconds: 3 })
   })
 
+  it("reads it over a task list and a hint set in under it", () => {
+    const shown = frame({
+      ...head,
+      31: "✻ Noodling… (3s · ↓ 200 tokens)",
+      32: "  ⎿  ☐ First",
+      33: "     ☐ Second",
+      34: "                                        ctrl+g to edit in $EDITOR",
+    })
+    expect(box.status!(shown)).toMatchObject({ words: "Noodling", seconds: 3 })
+  })
+
   it("takes no row of a reply above for it, though it reads the same", () => {
     const shown = frame({
       ...head,

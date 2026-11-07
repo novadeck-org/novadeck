@@ -88,10 +88,11 @@ const queued = (screen: ScreenText): boolean => {
 const status = (screen: ScreenText): TurnStatus | undefined => {
   const first = read(screen)?.first
   if (first === undefined) return undefined
-  // Above the box's top rule.
+  // Above the box's top rule, where it stands at the row's start: what stands under it is set
+  // in, its effort row, a tip, a task list's rows, a hint.
   const row = screen.rows
     .slice(0, Math.max(first - 1, 0))
-    .findLast((each) => each.trim() !== "" && !aside.test(each))
+    .findLast((each) => each.trim() !== "" && !/^\s/.test(each))
   const found = row === undefined ? null : statusRow.exec(row)
   if (!found) return undefined
   const clock = /\((?:[^)]*· )?(?:(\d+)h )?(?:(\d+)m )?(\d+)s\b/.exec(row!)
@@ -107,9 +108,6 @@ const status = (screen: ScreenText): TurnStatus | undefined => {
 
 /** A status row: one of its spinner's marks, then its words for the turn up to `…`. */
 const statusRow = /^\s*[·✢✳✶✻✽*]\s+([^…]+?)…/
-
-/** What stands between its status row and its box: the effort it runs at, and a tip. */
-const aside = /\/effort\s*$|^\s*⎿/
 
 /**
  * Whether messages queued behind the turn may still be in their `UserPromptSubmit` hooks:
