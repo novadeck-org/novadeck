@@ -38,6 +38,7 @@ import type {
 import { sealedShape } from "../terminals/sealing.js"
 import type { Naming } from "../terminals/titles.js"
 import type { Work } from "../terminals/work.js"
+import type { ClosedRecord, ClosedRecords, ListedClosed } from "./closed.js"
 import { Settings } from "./settings.js"
 
 const log = logs.for("store")
@@ -64,7 +65,9 @@ const projectOf = ({ pinned, ...project }: ProjectRow): Project => ({
 // record (`interruptions`), which only the runner's memory held until then.
 // 10: a terminal keeps the title its own agent gave (`own_title`), the lowest layer of its
 // naming above the default.
-const schemaVersion = 10
+// 11: a closed terminal is kept in History (`closed_terminals`) for 30 days, and a terminal
+// remembers whether anything was ever run in it (`ran`).
+const schemaVersion = 11
 const schema = `
   CREATE TABLE projects (
     position INTEGER PRIMARY KEY,
@@ -126,6 +129,9 @@ const schema = `
     interruptions TEXT,
     -- The title its own agent gave through describe.
     own_title TEXT,
+    -- Whether a line was ever entered in it; closing one where none was leaves no row in
+    -- History. New terminals start at 0.
+    ran INTEGER NOT NULL DEFAULT 1 CHECK (ran IN (0, 1)),
     UNIQUE (session_id, handle),
     -- What an item's foreign key names; a save may move a terminal to another session, and
     -- its items go with it.
@@ -265,6 +271,35 @@ const schema = `
   CREATE INDEX companion_items_session ON companion_items(session_id);
   CREATE UNIQUE INDEX companion_windows_project ON companion_windows(session_id)
     WHERE home = 'project';
+  -- Every terminal closed in the last 30 days, with what restores it. A row outlives its
+  -- session, so that has no foreign key; the project's removal takes its rows.
+  CREATE TABLE closed_terminals (
+    id TEXT PRIMARY KEY,
+    project_id TEXT NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
+    session_id TEXT NOT NULL,
+    handle TEXT NOT NULL,
+    -- The agent whose icon it shows; null for a plain terminal.
+    agent TEXT,
+    cwd TEXT NOT NULL,
+    -- The latest session each agent reported, as JSON, without its turn.
+    agent_reports TEXT NOT NULL,
+    -- A plain terminal's screen and scrollback, serialized; the only heavy column, which
+    -- listing never reads.
+    transcript TEXT,
+    -- The layers of its title, as terminals keeps them.
+    person_title TEXT,
+    opener_title TEXT,
+    murmur_title TEXT,
+    own_title TEXT,
+    summary TEXT,
+    command TEXT,
+    last_program TEXT,
+    interruptions TEXT,
+    closed_at REAL NOT NULL,
+    -- The handle of the agent that closed it; null when the person did.
+    closed_by TEXT
+  ) STRICT;
+  CREATE INDEX closed_terminals_project ON closed_terminals(project_id, closed_at);
 `
 /**
  * A step that carries a database forward: the SQL that version's tables needed, or, where
@@ -283,6 +318,31 @@ type Step = string | ((database: DatabaseSync, path: string) => void)
  * dropping it first deletes their rows through ON DELETE CASCADE.
  */
 const migrations: Readonly<Record<number, Step>> = {
+  // Nothing was ever kept after a close, and every open terminal counts as having run.
+  10: `
+    ALTER TABLE terminals ADD COLUMN ran INTEGER NOT NULL DEFAULT 1 CHECK (ran IN (0, 1));
+    CREATE TABLE closed_terminals (
+      id TEXT PRIMARY KEY,
+      project_id TEXT NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
+      session_id TEXT NOT NULL,
+      handle TEXT NOT NULL,
+      agent TEXT,
+      cwd TEXT NOT NULL,
+      agent_reports TEXT NOT NULL,
+      transcript TEXT,
+      person_title TEXT,
+      opener_title TEXT,
+      murmur_title TEXT,
+      own_title TEXT,
+      summary TEXT,
+      command TEXT,
+      last_program TEXT,
+      interruptions TEXT,
+      closed_at REAL NOT NULL,
+      closed_by TEXT
+    ) STRICT;
+    CREATE INDEX closed_terminals_project ON closed_terminals(project_id, closed_at);
+  `,
   // Agents had no title of their own to give: no terminal has one.
   9: `
     ALTER TABLE terminals ADD COLUMN own_title TEXT;
@@ -990,6 +1050,44 @@ const agentsOf = (text: string): SavedTerminal["agents"] => {
   }
 }
 
+type ClosedRow = {
+  id: string
+  project_id: string
+  session_id: string
+  handle: string
+  agent: string | null
+  cwd: string
+  agent_reports: string
+  transcript: string | null
+  person_title: string | null
+  opener_title: string | null
+  murmur_title: string | null
+  own_title: string | null
+  summary: string | null
+  command: string | null
+  last_program: string | null
+  interruptions: string | null
+  closed_at: number
+  closed_by: string | null
+}
+
+const closedOf = (row: Omit<ClosedRow, "transcript">): ListedClosed => ({
+  id: row.id,
+  projectId: row.project_id,
+  sessionId: row.session_id,
+  handle: row.handle,
+  naming: namingOf(row),
+  // An agent of a newer build this one doesn't know shows as a plain terminal.
+  agent: isAgentName(row.agent) ? row.agent : null,
+  lastProgram: row.last_program,
+  command: row.command === null ? null : commandOf(row.command),
+  cwd: row.cwd,
+  agents: agentsOf(row.agent_reports),
+  interruptions: interruptionsOf(row.interruptions),
+  closedAt: row.closed_at,
+  closedBy: row.closed_by,
+})
+
 type MessageRow = {
   id: string
   project_id: string
@@ -1179,31 +1277,43 @@ const column = (rows: unknown): string[] => (rows as { handle: string }[]).map((
 // How much of a sealed-looking transcript `forgetUnsealed` matches against base64's alphabet.
 const checkedChars = 1_024
 
-// Empties every transcript in `database` that is not shaped as a sealed one; see `forgetUnsealed`.
+// Empties every transcript in `database` that is not shaped as a sealed one, in the open
+// terminals and in History; see `forgetUnsealed`. A copy of an earlier version has no History.
 const forgetUnsealedRows = (
   database: DatabaseSync,
   { prefix, minChars }: { readonly prefix: string; readonly minChars: number },
-) =>
-  database
-    .prepare(
-      `UPDATE terminals SET transcript = NULL
-      WHERE transcript IS NOT NULL AND NOT (
-        substr(transcript, 1, ?) = ?
-        AND length(transcript) >= ?
-        AND (length(transcript) - ?) % 4 = 0
-        AND substr(transcript, ?, ?) NOT GLOB '*[^A-Za-z0-9+/=]*'
-      )`,
+): { readonly changes: number } => {
+  const tables = ["terminals"]
+  if (database.prepare("SELECT 1 FROM sqlite_schema WHERE name = 'closed_terminals'").get())
+    tables.push("closed_terminals")
+  let changes = 0
+  for (const table of tables)
+    changes += Number(
+      database
+        .prepare(
+          `UPDATE ${table} SET transcript = NULL
+          WHERE transcript IS NOT NULL AND NOT (
+            substr(transcript, 1, ?) = ?
+            AND length(transcript) >= ?
+            AND (length(transcript) - ?) % 4 = 0
+            AND substr(transcript, ?, ?) NOT GLOB '*[^A-Za-z0-9+/=]*'
+          )`,
+        )
+        .run(
+          prefix.length,
+          prefix,
+          prefix.length + minChars,
+          prefix.length,
+          prefix.length + 1,
+          checkedChars,
+        ).changes,
     )
-    .run(
-      prefix.length,
-      prefix,
-      prefix.length + minChars,
-      prefix.length,
-      prefix.length + 1,
-      checkedChars,
-    )
+  return { changes }
+}
 
-export class WorkspaceStore implements TerminalRecords, MessageRecords, InboxRecords, ItemRecords {
+export class WorkspaceStore
+  implements TerminalRecords, MessageRecords, InboxRecords, ItemRecords, ClosedRecords
+{
   private readonly database: DatabaseSync
   private readonly queries: SQLTagStore
   /** The person's settings, over the same queries. */
@@ -1457,11 +1567,11 @@ export class WorkspaceStore implements TerminalRecords, MessageRecords, InboxRec
       void this.queries.run`
         INSERT INTO terminals (id, session_id, cwd, agent_reports, prompted_at, saved_at, handle,
           person_title, opener_title, murmur_title, own_title, summary, opened_by,
-          led_by, command, last_program, work, interruptions)
+          led_by, command, last_program, work, interruptions, ran)
         VALUES (${terminal.id}, ${terminal.sessionId}, ${terminal.cwd}, ${agents},
           ${terminal.promptedAt}, ${now}, ${handle}, ${person}, ${openerTitle},
           ${murmurTitle}, ${ownTitle}, ${summary}, ${openedBy}, ${ledBy}, ${command},
-          ${lastProgram}, ${work}, ${interruptions})
+          ${lastProgram}, ${work}, ${interruptions}, 0)
         ON CONFLICT (id) DO UPDATE SET session_id = excluded.session_id, cwd = excluded.cwd,
           agent_reports = excluded.agent_reports, prompted_at = excluded.prompted_at,
           saved_at = excluded.saved_at, handle = excluded.handle,
@@ -1476,11 +1586,11 @@ export class WorkspaceStore implements TerminalRecords, MessageRecords, InboxRec
       void this.queries.run`
         INSERT INTO terminals (id, session_id, cwd, agent_reports, prompted_at, transcript, saved_at,
           handle, person_title, opener_title, murmur_title, own_title, summary,
-          opened_by, led_by, command, last_program, work, interruptions)
+          opened_by, led_by, command, last_program, work, interruptions, ran)
         VALUES (${terminal.id}, ${terminal.sessionId}, ${terminal.cwd}, ${agents},
           ${terminal.promptedAt}, ${terminal.transcript}, ${now}, ${handle}, ${person},
           ${openerTitle}, ${murmurTitle}, ${ownTitle}, ${summary}, ${openedBy}, ${ledBy},
-          ${command}, ${lastProgram}, ${work}, ${interruptions})
+          ${command}, ${lastProgram}, ${work}, ${interruptions}, 0)
         ON CONFLICT (id) DO UPDATE SET session_id = excluded.session_id, cwd = excluded.cwd,
           agent_reports = excluded.agent_reports, prompted_at = excluded.prompted_at,
           transcript = excluded.transcript, saved_at = excluded.saved_at,
@@ -1492,6 +1602,19 @@ export class WorkspaceStore implements TerminalRecords, MessageRecords, InboxRec
           last_program = excluded.last_program, work = excluded.work,
           interruptions = excluded.interruptions
       `
+  }
+
+  /** Whether a line was ever entered in the terminal; false for one not kept. */
+  terminalRan(terminalId: string): boolean {
+    const row = this.queries.get`SELECT ran FROM terminals WHERE id = ${terminalId}` as
+      | { ran: number }
+      | undefined
+    return row?.ran === 1
+  }
+
+  /** Records that a line was entered in the terminal, for good; whether it is kept. */
+  markRan(terminalId: string): boolean {
+    return this.queries.run`UPDATE terminals SET ran = 1 WHERE id = ${terminalId}`.changes > 0
   }
 
   removeTerminal(terminalId: string): void {
@@ -1514,7 +1637,10 @@ export class WorkspaceStore implements TerminalRecords, MessageRecords, InboxRec
   }
 
   clearTranscripts(): void {
-    this.forget(() => this.queries.run`UPDATE terminals SET transcript = NULL`)
+    this.forget(() => {
+      void this.queries.run`UPDATE terminals SET transcript = NULL`
+      void this.queries.run`UPDATE closed_terminals SET transcript = NULL`
+    })
   }
 
   /**
@@ -1697,10 +1823,59 @@ export class WorkspaceStore implements TerminalRecords, MessageRecords, InboxRec
    * and from the disk; the ids it took it from.
    */
   clearMurmurTitles(): readonly string[] {
-    const rows = this.forget(
-      () => this.queries.all`
+    const rows = this.forget(() => {
+      void this.queries
+        .run`UPDATE closed_terminals SET murmur_title = NULL WHERE murmur_title IS NOT NULL`
+      return this.queries.all`
         UPDATE terminals SET murmur_title = NULL WHERE murmur_title IS NOT NULL RETURNING id
-      `,
+      `
+    }) as { id: string }[]
+    return rows.map(({ id }) => id)
+  }
+
+  insertClosed(record: ClosedRecord): void {
+    const { naming } = record
+    const interruptions = record.interruptions.length ? JSON.stringify(record.interruptions) : null
+    void referencing(
+      "NOT_FOUND",
+      () => this.queries.run`
+        INSERT OR REPLACE INTO closed_terminals (id, project_id, session_id, handle, agent, cwd,
+          agent_reports, transcript, person_title, opener_title, murmur_title, own_title, summary,
+          command, last_program, interruptions, closed_at, closed_by)
+        VALUES (${record.id}, ${record.projectId}, ${record.sessionId}, ${record.handle},
+          ${record.agent}, ${record.cwd}, ${JSON.stringify(record.agents)}, ${record.transcript},
+          ${naming.person}, ${naming.opener?.title ?? null}, ${naming.murmur?.title ?? null},
+          ${naming.own?.title ?? null}, ${naming.summary}, ${record.command},
+          ${record.lastProgram}, ${interruptions}, ${record.closedAt}, ${record.closedBy})`,
+    )
+  }
+
+  closed(projectId: string): ListedClosed[] {
+    const rows = this.queries.all`
+      SELECT id, project_id, session_id, handle, agent, cwd, agent_reports, person_title,
+        opener_title, murmur_title, own_title, summary, command, last_program, interruptions,
+        closed_at, closed_by
+      FROM closed_terminals WHERE project_id = ${projectId}
+      ORDER BY closed_at DESC, rowid DESC`
+    return (rows as Omit<ClosedRow, "transcript">[]).map(closedOf)
+  }
+
+  closedTerminal(id: string): ClosedRecord | undefined {
+    const row = this.queries.get`SELECT * FROM closed_terminals WHERE id = ${id}` as
+      | ClosedRow
+      | undefined
+    return row && { ...closedOf(row), transcript: row.transcript }
+  }
+
+  removeClosed(id: string): boolean {
+    return (
+      this.forget(() => this.queries.run`DELETE FROM closed_terminals WHERE id = ${id}`).changes > 0
+    )
+  }
+
+  pruneClosed(before: number): string[] {
+    const rows = this.forget(
+      () => this.queries.all`DELETE FROM closed_terminals WHERE closed_at < ${before} RETURNING id`,
     ) as { id: string }[]
     return rows.map(({ id }) => id)
   }

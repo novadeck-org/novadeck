@@ -27,6 +27,7 @@ import { unnamed } from "../terminals/titles.js"
 import { describe, expect, it as base } from "../test.js"
 import { fakeClock } from "../testing/clock.js"
 import { sealed as sealedText } from "../testing/sealing.js"
+import type { ClosedRecord } from "./closed.js"
 import {
   EarlierWorkspaceError,
   setAsideWorkspace,
@@ -257,7 +258,7 @@ describe("workspace metadata", () => {
     expect(first.id).toMatch(/^[0-9a-f]{8}-(?:[0-9a-f]{4}-){3}[0-9a-f]{12}$/)
     const database = new DatabaseSync(path)
     try {
-      expect(database.prepare("PRAGMA user_version").get()?.user_version).toBe(10)
+      expect(database.prepare("PRAGMA user_version").get()?.user_version).toBe(11)
       expect(database.prepare("PRAGMA foreign_key_check").all()).toEqual([])
       expect(() =>
         database
@@ -491,13 +492,13 @@ describe("workspace metadata", () => {
     const path = join(directory(), "workspace.sqlite")
     const future = new DatabaseSync(path)
     future.exec(
-      "CREATE TABLE future_data (value TEXT); INSERT INTO future_data VALUES ('saved'); PRAGMA user_version = 11",
+      "CREATE TABLE future_data (value TEXT); INSERT INTO future_data VALUES ('saved'); PRAGMA user_version = 12",
     )
     future.close()
     expect(() => new WorkspaceStore(path)).toThrow(/newer/)
     const database = new DatabaseSync(path)
     try {
-      expect(database.prepare("PRAGMA user_version").get()?.user_version).toBe(11)
+      expect(database.prepare("PRAGMA user_version").get()?.user_version).toBe(12)
       expect(database.prepare("SELECT value FROM future_data").get()?.value).toBe("saved")
     } finally {
       database.close()
@@ -549,11 +550,12 @@ describe("workspace metadata", () => {
     new WorkspaceStore(path).close()
     const database = new DatabaseSync(path)
     try {
-      expect(database.prepare("PRAGMA user_version").get()?.user_version).toBe(10)
+      expect(database.prepare("PRAGMA user_version").get()?.user_version).toBe(11)
       expect(database.prepare("PRAGMA foreign_key_check").all()).toEqual([])
       // Every old table is gone, and so are the old names.
       expect(Object.keys(rowsOf(database)).toSorted()).toEqual(
         [
+          "closed_terminals",
           "companion_items",
           "companion_windows",
           "inbox_entries",
@@ -1409,6 +1411,45 @@ describe("workspace metadata", () => {
     expect(kept(path).session("s")).toMatchObject({ state: "{}", visitedAt: 1_700_000_000_000.5 })
   })
 
+  it("carries a version 10 database to the very tables a new one is made with, its terminals counted as having run", async ({
+    directory,
+  }) => {
+    const path = join(directory(), "workspace.sqlite")
+    const old = new DatabaseSync(path)
+    old.exec(`${readFileSync(new URL("schemas/10.sql", import.meta.url), "utf8")}
+      PRAGMA user_version = 10;
+      INSERT INTO projects (position, id, name, cwd) VALUES (1, 'p', 'P', '/p');
+      INSERT INTO sessions (position, id, project_id, name) VALUES (1, 's', 'p', 'S');
+      INSERT INTO terminals (id, session_id, handle, cwd, agent_reports, saved_at, own_title)
+        VALUES ('t', 's', 'moth', '/p', '{}', 1, 'Login bug');`)
+    old.close()
+    const migrated = new WorkspaceStore(path)
+    expect(migrated.terminal("t")).toMatchObject({
+      handle: "moth",
+      naming: { own: { title: "Login bug" } },
+    })
+    // Every terminal it held has run; a new one has not, until a line is entered.
+    expect(migrated.terminalRan("t")).toBe(true)
+    migrated.saveTerminal({ ...numbered("u", "fox"), sessionId: "s" })
+    expect(migrated.terminalRan("u")).toBe(false)
+    // History starts empty and takes rows.
+    expect(migrated.closed("p")).toEqual([])
+    migrated.insertClosed(closedRecord("t"))
+    expect(migrated.closed("p")).toHaveLength(1)
+    migrated.close()
+    const fresh = join(directory(), "workspace.sqlite")
+    new WorkspaceStore(fresh).close()
+    const [carried, created] = [path, fresh].map((file) => {
+      const database = new DatabaseSync(file)
+      try {
+        return normalisedSchemaOf(database)
+      } finally {
+        database.close()
+      }
+    })
+    expect(carried).toEqual(created)
+  })
+
   it("keeps its schema as recorded for its version, so a change to it comes with a step", ({
     directory,
   }) => {
@@ -1424,8 +1465,8 @@ describe("workspace metadata", () => {
       // and adds a step in store.ts's migrations, from schemas/<version before>.sql, which
       // is added for it. Then record the new digest here.
       expect({ version, digest }).toEqual({
-        version: 10,
-        digest: "2f94d8d0307c08041e50696d0dbc3457068a199446a08aef0ba45463cde97d78",
+        version: 11,
+        digest: "c44183701a9344e6c73977cc4e768830d55bdd5536021c45fc9308eb2ab76dc7",
       })
     } finally {
       database.close()
@@ -1574,6 +1615,137 @@ describe("a store's transactions", () => {
     ).toThrow(full)
     // The store goes on: the next transaction begins and commits.
     expect(workspace["transaction"](() => "done")).toBe("done")
+  })
+})
+
+const closedRecord = (id: string, over: Partial<ClosedRecord> = {}): ClosedRecord => ({
+  id,
+  projectId: "p",
+  sessionId: "s",
+  handle: "moth",
+  naming: {
+    person: "Mine",
+    opener: { title: "Server" },
+    murmur: { title: "Fixing login" },
+    own: { title: "Login bug" },
+    summary: "Fixes the login bug.",
+  },
+  agent: "claude",
+  lastProgram: "claude",
+  command: "claude",
+  cwd: "/shop/sub",
+  agents: { claude: { sessionId: "cs", seq: 2 } },
+  interruptions: [{ sessionId: "cs", step: 3, at: 9 }],
+  transcript: null,
+  closedAt: 1_000,
+  closedBy: null,
+  ...over,
+})
+
+describe("closed terminals", () => {
+  it("keep what restores them, and list a project's newest first without transcripts", ({
+    kept,
+  }) => {
+    const workspace = kept()
+    workspace["database"].exec(
+      "INSERT INTO projects (id, name, cwd) VALUES ('q', 'Other', '/other')",
+    )
+    workspace.insertClosed(closedRecord("a", { closedAt: 1_000 }))
+    workspace.insertClosed(
+      closedRecord("b", { closedAt: 3_000, agent: null, transcript: "screen", closedBy: "fox" }),
+    )
+    workspace.insertClosed(closedRecord("c", { closedAt: 2_000 }))
+    workspace.insertClosed(closedRecord("d", { projectId: "q" }))
+    const listed = workspace.closed("p")
+    expect(listed.map(({ id }) => id)).toEqual(["b", "c", "a"])
+    const { transcript: _, ...expected } = closedRecord("a")
+    expect(listed[2]).toEqual(expected)
+    expect(listed[0]).not.toHaveProperty("transcript")
+    expect(listed[0]).toMatchObject({ agent: null, closedBy: "fox", projectId: "p" })
+    expect(workspace.closed("q").map(({ id }) => id)).toEqual(["d"])
+    expect(workspace.closed("nobody")).toEqual([])
+  })
+
+  it("read one row whole, with its transcript, and replace one of the same id", ({ kept }) => {
+    const workspace = kept()
+    workspace.insertClosed(closedRecord("a", { transcript: "screen" }))
+    expect(workspace.closedTerminal("a")).toEqual(closedRecord("a", { transcript: "screen" }))
+    expect(workspace.closedTerminal("nope")).toBeUndefined()
+    workspace.insertClosed(closedRecord("a", { closedAt: 5, transcript: null }))
+    expect(workspace.closed("p")).toHaveLength(1)
+    expect(workspace.closedTerminal("a")).toMatchObject({ closedAt: 5, transcript: null })
+  })
+
+  it("refuse a row of a project that doesn't exist", ({ kept }) => {
+    expect(() => kept().insertClosed(closedRecord("a", { projectId: "nope" }))).toThrow(
+      expect.objectContaining({ code: "NOT_FOUND" }),
+    )
+  })
+
+  it("go one at a time, or all before a time, and with their project", ({ kept }) => {
+    const workspace = kept()
+    for (const [id, closedAt] of [
+      ["a", 100],
+      ["b", 200],
+      ["c", 300],
+    ] as const)
+      workspace.insertClosed(closedRecord(id, { closedAt }))
+    expect(workspace.removeClosed("a")).toBe(true)
+    expect(workspace.removeClosed("a")).toBe(false)
+    expect(workspace.pruneClosed(200)).toEqual([])
+    expect(workspace.pruneClosed(201)).toEqual(["b"])
+    expect(workspace.closed("p").map(({ id }) => id)).toEqual(["c"])
+    workspace["database"].exec("DELETE FROM projects WHERE id = 'p'")
+    expect(workspace.closedTerminal("c")).toBeUndefined()
+  })
+
+  it("stay when their agent is disconnected, and outlive their session", ({ kept }) => {
+    const workspace = kept()
+    workspace.insertClosed(closedRecord("a"))
+    workspace.saveTerminal({
+      ...numbered("t", "fox"),
+      agents: { claude: { sessionId: "cs", seq: 1 } },
+    })
+    workspace.forgetAgent("claude")
+    expect(workspace.terminal("t")?.agents).toEqual({})
+    expect(workspace.closedTerminal("a")?.agents).toMatchObject({ claude: { sessionId: "cs" } })
+    workspace["database"].exec("DELETE FROM sessions WHERE id = 's'")
+    expect(workspace.closedTerminal("a")).toBeDefined()
+  })
+
+  it("lose their transcripts and murmur's titles as the open terminals do", ({ kept }) => {
+    const workspace = kept()
+    workspace.insertClosed(closedRecord("a", { transcript: "TOKEN=hunter2" }))
+    workspace.clearTranscripts()
+    expect(workspace.closedTerminal("a")).toMatchObject({ transcript: null, agent: "claude" })
+    workspace.clearMurmurTitles()
+    expect(workspace.closedTerminal("a")?.naming).toMatchObject({
+      murmur: null,
+      own: { title: "Login bug" },
+    })
+  })
+
+  it("lose transcripts that are not sealed when found at a start, the sealed kept", ({ kept }) => {
+    const workspace = kept()
+    const sealed = sealedText("", keptTerminal(workspace, "session", "owl"))
+    workspace.insertClosed(closedRecord("plain", { transcript: "TOKEN=hunter2" }))
+    workspace.insertClosed(closedRecord("sealed", { transcript: sealed }))
+    workspace.forgetUnsealed(sealedShape)
+    expect(workspace.closedTerminal("plain")?.transcript).toBeNull()
+    expect(workspace.closedTerminal("sealed")?.transcript).toBe(sealed)
+  })
+})
+
+describe("a terminal's ran flag", () => {
+  it("starts unset, is set once and for good, and survives saves", ({ kept }) => {
+    const workspace = kept()
+    workspace.saveTerminal(numbered("a", "moth"))
+    expect(workspace.terminalRan("a")).toBe(false)
+    expect(workspace.markRan("a")).toBe(true)
+    workspace.saveTerminal({ ...numbered("a", "moth"), cwd: "/elsewhere" })
+    expect(workspace.terminalRan("a")).toBe(true)
+    expect(workspace.markRan("nope")).toBe(false)
+    expect(workspace.terminalRan("nope")).toBe(false)
   })
 })
 
@@ -1903,6 +2075,33 @@ describe("saved terminals", () => {
           const moving = item(session.id, keptTerminal(workspace, session.id, "dusk"), "/work/y")
           workspace.saveItem(moving)
           workspace.dockItem(moving.id, there)
+        },
+      ],
+      [
+        "a closed terminal",
+        "SECRET_CLOSED_TRANSCRIPT",
+        () => {
+          const id = randomUUID()
+          workspace.insertClosed({
+            ...closedRecord(id),
+            projectId: project.id,
+            sessionId: session.id,
+            transcript: "SECRET_CLOSED_TRANSCRIPT",
+          })
+          workspace.removeClosed(id)
+        },
+      ],
+      [
+        "a pruned closed terminal",
+        "SECRET_PRUNED_TRANSCRIPT",
+        () => {
+          workspace.insertClosed({
+            ...closedRecord(randomUUID()),
+            projectId: project.id,
+            sessionId: session.id,
+            transcript: "SECRET_PRUNED_TRANSCRIPT",
+          })
+          workspace.pruneClosed(Date.now() + 1)
         },
       ],
       [
