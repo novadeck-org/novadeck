@@ -3,7 +3,7 @@ import { activeProject } from "@novadeck/core/state"
 import { useState } from "react"
 
 import { nextStatusChange } from "../projects/project-status"
-import { sameSessionMarks, sessionMarks, type SessionMark } from "../sidebar/session-marks"
+import { sameSessionMarks, sessionMarks, type SessionMark } from "../projects/session-marks"
 import { unreadEnd } from "../terminals/unread-state"
 import { useUiState, useWorkspaceServices, useWorkspaceState } from "./controller/context"
 import { useStoreSelector } from "./controller/useStoreSelector"

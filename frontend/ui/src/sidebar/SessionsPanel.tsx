@@ -3,9 +3,17 @@ import { Tooltip } from "@novadeck/toolkit/Tooltip"
 import { Layers2, Plus } from "lucide-react"
 
 import { shortcutBindings } from "../interaction/shortcuts"
-import { statusText } from "../projects/project-status"
-import { sessionNeedText, type SessionMark } from "./session-marks"
 import { sidebarCreateClasses } from "./SidebarPanel"
+
+// What a session's terminals show at a glance, worded by the shell (projects/session-marks.ts):
+// the status its mark draws (project-status.css), that status in words, the detail line's need
+// word, and the tooltip's lines naming the terminals that need the person or ask.
+export type SessionGlance = {
+  readonly status: string | undefined
+  readonly label: string | undefined
+  readonly need: string | undefined
+  readonly lines: readonly string[]
+}
 
 type WorkspaceSessionSummary = {
   id: string
@@ -15,7 +23,7 @@ type WorkspaceSessionSummary = {
   terminalNames: string[]
   running: number
   // What its terminals show at a glance; none while they show nothing.
-  mark?: SessionMark | undefined
+  mark?: SessionGlance | undefined
 }
 
 type SessionsPanelProps = {
@@ -73,7 +81,7 @@ export const SessionsPanel = ({
           const preview = terminalCount ? session.terminalNames.join(", ") : "No terminals yet"
           const visited = formatVisited(session.visitedAt, active)
           const { mark } = session
-          const need = sessionNeedText(mark)
+          const need = mark?.need
           const lines = mark?.lines ?? []
           const status = mark?.status
 
@@ -98,12 +106,9 @@ export const SessionsPanel = ({
                   </span>
                 )
               }
-              description={[
-                ...(status ? [statusText[status]] : []),
-                visited,
-                ...lines,
-                preview,
-              ].join(". ")}
+              description={[...(mark?.label ? [mark.label] : []), visited, ...lines, preview].join(
+                ". ",
+              )}
               tooltip={[session.name, visited, ...lines, preview].join("\n")}
               onSelect={() => onSelect(session.id)}
               detail={

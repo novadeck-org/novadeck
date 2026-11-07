@@ -7,7 +7,8 @@ import {
   sessionStatuses,
   type ProjectStatus,
   type UnreadEnds,
-} from "../projects/project-status"
+  statusText,
+} from "./project-status"
 
 // What the Sessions panel says of one session's terminals beyond how many there are: the most
 // pressing status they show (what the project rows mark, over this session alone), how many
@@ -100,3 +101,21 @@ export const elsewhereSessionsText = (
   )
   return parts.length ? parts.join(" · ") : undefined
 }
+
+// A session's mark as the Sessions panel shows it: the status its mark draws, that status in
+// words for a screen reader, the detail line's need word and the tooltip's lines. The panel
+// takes it ready-made, as a feature reads no other feature.
+export type SessionGlance = {
+  readonly status: ProjectStatus | undefined
+  readonly label: string | undefined
+  readonly need: string | undefined
+  readonly lines: readonly string[]
+}
+
+export const sessionGlance = (mark: SessionMark | undefined): SessionGlance | undefined =>
+  mark && {
+    status: mark.status,
+    label: mark.status && statusText[mark.status],
+    need: sessionNeedText(mark),
+    lines: mark.lines,
+  }

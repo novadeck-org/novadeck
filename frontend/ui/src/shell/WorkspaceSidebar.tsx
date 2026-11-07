@@ -8,8 +8,8 @@ import type { ComponentProps } from "react"
 
 import { HeldPill, InboxClear, InboxCount, InboxList, InboxMarkAll } from "../inbox/InboxList"
 import { shortcutBindings } from "../interaction/shortcuts"
+import { sessionGlance, type SessionMark } from "../projects/session-marks"
 import { HistoryPanel } from "../sidebar/HistoryPanel"
-import type { SessionMark } from "../sidebar/session-marks"
 import { SessionsPanel } from "../sidebar/SessionsPanel"
 import { SidebarPanel, sidebarCreateClasses } from "../sidebar/SidebarPanel"
 import { SourcePanel } from "../sidebar/SourcePanel"
@@ -123,7 +123,7 @@ export const WorkspaceSidebar = ({
             visitedAt: session.visitedAt,
             terminalNames: terminals.map((terminal) => terminal.name),
             running: terminals.filter((terminal) => terminal.state === "running").length,
-            mark: sessionMarks[session.id],
+            mark: sessionGlance(sessionMarks[session.id]),
           }
         })}
         activeId={workspaceSessionId}

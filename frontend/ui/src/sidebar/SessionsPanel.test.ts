@@ -3,18 +3,15 @@ import { createElement } from "react"
 import { afterEach } from "vitest"
 
 import { describe, expect, it } from "../test"
-import type { SessionMark } from "./session-marks"
-import { SessionsPanel } from "./SessionsPanel"
+import { SessionsPanel, type SessionGlance } from "./SessionsPanel"
 
 const unmounts: (() => void)[] = []
 afterEach(() => unmounts.splice(0).forEach((unmount) => unmount()))
 
-const mark = (extra: Partial<SessionMark>): SessionMark => ({
+const mark = (extra: Partial<SessionGlance>): SessionGlance => ({
   status: undefined,
-  needsYou: 0,
-  asks: 0,
-  failed: 0,
-  done: 0,
+  label: undefined,
+  need: undefined,
   lines: [],
   ...extra,
 })
@@ -29,7 +26,12 @@ const panel = () => {
           visitedAt: null,
           terminalNames: ["One", "Two"],
           running: 1,
-          mark: mark({ status: "unblock", needsYou: 1, lines: ["Needs you: @glint · Polish"] }),
+          mark: mark({
+            status: "unblock",
+            label: "Needs you",
+            need: "1 needs you",
+            lines: ["Needs you: @glint · Polish"],
+          }),
         },
         { id: "b", name: "Quiet", visitedAt: null, terminalNames: [], running: 0 },
         {
@@ -38,7 +40,7 @@ const panel = () => {
           visitedAt: null,
           terminalNames: ["x"],
           running: 1,
-          mark: mark({ status: "running" }),
+          mark: mark({ status: "running", label: "Working" }),
         },
       ],
       activeId: "a",

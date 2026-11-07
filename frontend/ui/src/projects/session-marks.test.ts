@@ -6,8 +6,8 @@ import type {
   WorkspaceSession,
 } from "@novadeck/core/types"
 
-import { projectStatus } from "../projects/project-status"
 import { context, describe, expect, it } from "../test"
+import { projectStatus } from "./project-status"
 import { elsewhereSessionsText, sessionMarks, sessionNeedText } from "./session-marks"
 
 const now = 1_000_000
