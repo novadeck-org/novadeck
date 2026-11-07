@@ -44,7 +44,7 @@ describe("the rail's Inbox dot", () => {
 })
 
 describe("the rail's Sessions dot", () => {
-  it("shows while another session asks, says so in the toggle's name, and never rings", () => {
+  it("shows while another session asks, says so in the toggle's description, and never rings", () => {
     const { container, rerender, unmount } = render(rail(undefined, 0))
     unmounts.push(unmount)
     const toggle = () => container.querySelector("#sessions-toggle")!
@@ -52,9 +52,10 @@ describe("the rail's Sessions dot", () => {
     expect(toggle().getAttribute("aria-label")).toBe("Sessions")
     rerender(rail(undefined, 0, "1 needs you"))
     expect(toggle().querySelector(".bell-dot")).not.toBeNull()
-    expect(toggle().getAttribute("aria-label")).toBe("Sessions · 1 needs you")
+    expect(toggle().getAttribute("aria-label")).toBe("Sessions")
+    expect(toggle().getAttribute("aria-description")).toBe("1 needs you")
     rerender(rail(undefined, 0, "3 need you · 1 question"))
-    expect(toggle().getAttribute("aria-label")).toBe("Sessions · 3 need you · 1 question")
+    expect(toggle().getAttribute("aria-description")).toBe("3 need you · 1 question")
     rerender(rail(undefined, 5, "1 needs you"))
     expect(toggle().querySelector(".bell-dot-ring")).toBeNull()
   })

@@ -220,7 +220,10 @@ const RailToggle = ({
       value={value}
       id={id}
       className="segment relative inline-flex size-8 shrink-0 items-center justify-center p-2 [&>svg]:shrink-0"
-      aria-label={badge?.label ?? (sessionsAsk ? `${label} · ${sessionsAsk}` : label)}
+      aria-label={badge?.label ?? label}
+      // The Sessions toggle keeps its name, so it is found by it; what the other sessions ask
+      // is its description.
+      aria-description={sessionsAsk}
       aria-keyshortcuts={[
         ...(index > 0 ? ["Alt+ArrowUp"] : []),
         ...(index < count - 1 ? ["Alt+ArrowDown"] : []),
