@@ -153,6 +153,18 @@ export const doorbellNonce = (prompt: string): string | undefined => {
 }
 
 /**
+ * What a prompt that is exactly a doorbell line or a reply line says of its ring: its nonce, and
+ * whether it carries the person's Inbox replies; null for any other prompt. A person's words
+ * with a line stuck in them are theirs.
+ */
+export const ringOf = (
+  prompt: string,
+): { readonly nonce: string; readonly replies: boolean } | null => {
+  const nonce = doorbellNonce(prompt)
+  return nonce === undefined ? null : { nonce, replies: replyOnly.test(prompt.trim()) }
+}
+
+/**
  * The person's prompt without any doorbell or reply line left in it, as a line a failed
  * ring left in the box that they then submitted with their own text.
  */

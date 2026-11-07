@@ -42,6 +42,7 @@ describe("what a Claude Code result says", () => {
   it("takes a command moved to the background past its timeout as running (2.1.319)", () => {
     const moved = {
       interrupted: false,
+      ring: null,
       isImage: false,
       noOutputExpected: false,
       backgroundTaskId: "bef890esj",

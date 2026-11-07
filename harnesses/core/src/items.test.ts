@@ -122,3 +122,18 @@ describe("an item's outcome", () => {
     })
   })
 })
+
+describe("an item's ring", () => {
+  const line = "[Novadeck: automatic notice, agent messages waiting, n7Q2]"
+
+  it("marks the doorbell's line, its text left as the record has it", () => {
+    const item = entry("user", "text", line, { at: 1 })
+    expect(item).toMatchObject({ text: line, ring: { nonce: "n7Q2", replies: false } })
+  })
+
+  it("marks no line anyone else says, and no other kind of item", () => {
+    expect(entry("assistant", "text", line, { at: 1 }).ring).toBeNull()
+    expect(entry("tool", "tool-result", line, { at: 1 }).ring).toBeNull()
+    expect(entry("user", "text", "my words", { at: 1 }).ring).toBeNull()
+  })
+})

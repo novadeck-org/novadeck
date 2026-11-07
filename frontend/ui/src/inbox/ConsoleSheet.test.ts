@@ -5,6 +5,7 @@ import {
   type ChatQuestion,
   type Conversation,
   type Conversations,
+  noDoorbell,
 } from "@novadeck/core/conversation"
 import {
   emptyInbox,
@@ -938,6 +939,7 @@ describe("The Console sheet", () => {
       outcome: null,
       scripted: false,
       interrupted: false,
+      ring: null,
       ...fields,
     })
 
@@ -951,6 +953,7 @@ describe("The Console sheet", () => {
       act(() =>
         transcript.update(() => ({
           slice: null,
+          doorbell: noDoorbell,
           agent: "codex",
           session: "x",
           loaded: true,

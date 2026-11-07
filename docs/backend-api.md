@@ -908,6 +908,14 @@ one from an earlier runner.
   interrupted the turn: Claude Code's and Codex's records hold their own, and for
   Antigravity, whose record holds none, the runner adds one where an Escape that stood
   came: after the turn's last steps, before the person's next prompt written after the key.
+  A user item with `ring` is the line Novadeck's doorbell typed, as all three harnesses record
+  it: its nonce, and `replies` where it carries the person's Inbox replies. Only a text that is
+  exactly such a line has one, so a person's words with a line stuck in them stay theirs, and
+  `text` stays as recorded. It comes from the record, so it holds for a session read later.
+  The messages themselves come by hook and are no items: a client tells what a ring brought from
+  `messages.watch`, by `deliveredAt`, from up to 2 s before the ring's `at` to the same before the
+  next prompt's, which is every message of that turn, a tool call's too. Where none match, it
+  says nothing of how many there were, as `messages.watch` lists only what the runner keeps.
   It keeps them with the terminal, by the transcript's latest step at the key, so they
   keep their place after a runner restart. Each line's shapes go through its harness's
   lists (`transcripts.shapes`, `harnesses/core/src/shapes.ts`): the first

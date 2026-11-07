@@ -31,6 +31,7 @@ export const recorded = {
         outcome: null,
         scripted: false,
         interrupted: false,
+        ring: null,
       },
       {
         id: "claude:2",
@@ -46,6 +47,7 @@ export const recorded = {
         outcome: null,
         scripted: false,
         interrupted: false,
+        ring: null,
       },
       {
         id: "claude:3",
@@ -61,6 +63,7 @@ export const recorded = {
         outcome: null,
         scripted: false,
         interrupted: false,
+        ring: null,
       },
       {
         id: "claude:4",
@@ -76,6 +79,7 @@ export const recorded = {
         outcome: null,
         scripted: false,
         interrupted: false,
+        ring: null,
       },
       {
         id: "claude:5",
@@ -91,6 +95,7 @@ export const recorded = {
         outcome: null,
         scripted: false,
         interrupted: false,
+        ring: null,
       },
       {
         id: "claude:6",
@@ -106,6 +111,7 @@ export const recorded = {
         outcome: null,
         scripted: false,
         interrupted: false,
+        ring: null,
       },
       {
         id: "claude:7",
@@ -121,6 +127,7 @@ export const recorded = {
         outcome: null,
         scripted: false,
         interrupted: false,
+        ring: null,
       },
       {
         id: "claude:8",
@@ -136,6 +143,7 @@ export const recorded = {
         outcome: null,
         scripted: false,
         interrupted: false,
+        ring: null,
       },
       {
         id: "claude:9",
@@ -151,6 +159,7 @@ export const recorded = {
         outcome: null,
         scripted: false,
         interrupted: false,
+        ring: null,
       },
       {
         id: "claude:10",
@@ -166,6 +175,7 @@ export const recorded = {
         outcome: null,
         scripted: false,
         interrupted: false,
+        ring: null,
       },
       {
         id: "claude:11",
@@ -181,6 +191,7 @@ export const recorded = {
         outcome: null,
         scripted: false,
         interrupted: false,
+        ring: null,
       },
       {
         id: "claude:12",
@@ -196,6 +207,7 @@ export const recorded = {
         outcome: null,
         scripted: false,
         interrupted: false,
+        ring: null,
       },
       {
         id: "claude:13",
@@ -211,6 +223,7 @@ export const recorded = {
         outcome: null,
         scripted: false,
         interrupted: false,
+        ring: null,
       },
       {
         id: "claude:14",
@@ -226,6 +239,7 @@ export const recorded = {
         outcome: null,
         scripted: false,
         interrupted: false,
+        ring: null,
       },
       {
         id: "claude:15",
@@ -241,6 +255,7 @@ export const recorded = {
         outcome: null,
         scripted: false,
         interrupted: false,
+        ring: null,
       },
       {
         id: "claude:16",
@@ -256,6 +271,7 @@ export const recorded = {
         outcome: null,
         scripted: false,
         interrupted: false,
+        ring: null,
       },
     ],
   },
@@ -278,6 +294,7 @@ export const recorded = {
         outcome: null,
         scripted: false,
         interrupted: false,
+        ring: null,
       },
       {
         id: "codex:2",
@@ -293,6 +310,7 @@ export const recorded = {
         outcome: null,
         scripted: false,
         interrupted: false,
+        ring: null,
       },
       {
         id: "codex:3",
@@ -313,6 +331,7 @@ export const recorded = {
         outcome: null,
         scripted: false,
         interrupted: false,
+        ring: null,
       },
       {
         id: "codex:4",
@@ -328,6 +347,7 @@ export const recorded = {
         outcome: null,
         scripted: false,
         interrupted: false,
+        ring: null,
       },
       {
         id: "codex:5",
@@ -348,6 +368,7 @@ export const recorded = {
         outcome: null,
         scripted: false,
         interrupted: false,
+        ring: null,
       },
       {
         id: "codex:6",
@@ -363,6 +384,7 @@ export const recorded = {
         outcome: null,
         scripted: false,
         interrupted: false,
+        ring: null,
       },
       {
         id: "codex:7",
@@ -382,6 +404,7 @@ export const recorded = {
         outcome: null,
         scripted: false,
         interrupted: false,
+        ring: null,
       },
       {
         id: "codex:8",
@@ -397,6 +420,7 @@ export const recorded = {
         outcome: null,
         scripted: false,
         interrupted: false,
+        ring: null,
       },
       {
         id: "codex:9",
@@ -417,6 +441,7 @@ export const recorded = {
         outcome: null,
         scripted: false,
         interrupted: false,
+        ring: null,
       },
       {
         id: "codex:10",
@@ -432,6 +457,7 @@ export const recorded = {
         outcome: null,
         scripted: false,
         interrupted: false,
+        ring: null,
       },
       {
         id: "codex:11",
@@ -452,6 +478,7 @@ export const recorded = {
         outcome: null,
         scripted: false,
         interrupted: false,
+        ring: null,
       },
       {
         id: "codex:12",
@@ -467,6 +494,7 @@ export const recorded = {
         outcome: null,
         scripted: false,
         interrupted: false,
+        ring: null,
       },
       {
         id: "codex:13",
@@ -482,6 +510,7 @@ export const recorded = {
         outcome: null,
         scripted: false,
         interrupted: false,
+        ring: null,
       },
     ],
   },
@@ -504,6 +533,7 @@ export const recorded = {
         outcome: null,
         scripted: false,
         interrupted: false,
+        ring: null,
       },
       {
         id: "codex-default:2",
@@ -519,6 +549,7 @@ export const recorded = {
         outcome: null,
         scripted: false,
         interrupted: false,
+        ring: null,
       },
       {
         id: "codex-default:3",
@@ -534,6 +565,7 @@ export const recorded = {
         outcome: null,
         scripted: false,
         interrupted: false,
+        ring: null,
       },
       {
         id: "codex-default:4",
@@ -549,6 +581,7 @@ export const recorded = {
         outcome: null,
         scripted: false,
         interrupted: false,
+        ring: null,
       },
       {
         id: "codex-default:5",
@@ -564,6 +597,7 @@ export const recorded = {
         outcome: null,
         scripted: false,
         interrupted: false,
+        ring: null,
       },
       {
         id: "codex-default:6",
@@ -579,6 +613,7 @@ export const recorded = {
         outcome: null,
         scripted: false,
         interrupted: false,
+        ring: null,
       },
       {
         id: "codex-default:7",
@@ -594,6 +629,7 @@ export const recorded = {
         outcome: null,
         scripted: false,
         interrupted: false,
+        ring: null,
       },
       {
         id: "codex-default:8",
@@ -609,6 +645,7 @@ export const recorded = {
         outcome: null,
         scripted: false,
         interrupted: false,
+        ring: null,
       },
     ],
   },
@@ -631,6 +668,7 @@ export const recorded = {
         outcome: null,
         scripted: false,
         interrupted: false,
+        ring: null,
       },
       {
         id: "agy:2",
@@ -646,6 +684,7 @@ export const recorded = {
         outcome: null,
         scripted: false,
         interrupted: false,
+        ring: null,
       },
       {
         id: "agy:3",
@@ -661,6 +700,7 @@ export const recorded = {
         outcome: null,
         scripted: false,
         interrupted: false,
+        ring: null,
       },
       {
         id: "agy:4",
@@ -676,6 +716,7 @@ export const recorded = {
         outcome: null,
         scripted: false,
         interrupted: false,
+        ring: null,
       },
       {
         id: "agy:5",
@@ -691,6 +732,7 @@ export const recorded = {
         outcome: null,
         scripted: false,
         interrupted: false,
+        ring: null,
       },
       {
         id: "agy:6",
@@ -706,6 +748,7 @@ export const recorded = {
         outcome: null,
         scripted: false,
         interrupted: false,
+        ring: null,
       },
       {
         id: "agy:7",
@@ -721,6 +764,7 @@ export const recorded = {
         outcome: null,
         scripted: false,
         interrupted: false,
+        ring: null,
       },
       {
         id: "agy:8",
@@ -736,6 +780,7 @@ export const recorded = {
         outcome: null,
         scripted: false,
         interrupted: false,
+        ring: null,
       },
       {
         id: "agy:9",
@@ -751,6 +796,7 @@ export const recorded = {
         outcome: null,
         scripted: false,
         interrupted: false,
+        ring: null,
       },
       {
         id: "agy:10",
@@ -766,6 +812,7 @@ export const recorded = {
         outcome: null,
         scripted: false,
         interrupted: false,
+        ring: null,
       },
       {
         id: "agy:11",
@@ -781,6 +828,7 @@ export const recorded = {
         outcome: null,
         scripted: false,
         interrupted: false,
+        ring: null,
       },
       {
         id: "agy:12",
@@ -796,6 +844,7 @@ export const recorded = {
         outcome: null,
         scripted: false,
         interrupted: false,
+        ring: null,
       },
       {
         id: "agy:13",
@@ -811,6 +860,7 @@ export const recorded = {
         outcome: null,
         scripted: false,
         interrupted: false,
+        ring: null,
       },
       {
         id: "agy:14",
@@ -826,6 +876,7 @@ export const recorded = {
         outcome: null,
         scripted: false,
         interrupted: false,
+        ring: null,
       },
     ],
   },
