@@ -207,7 +207,9 @@ export const chooseView = async (name: "Focus" | "Grid" | "Canvas"): Promise<voi
 
 export const sidebar = (): Locator => page.getByRole("complementary")
 
-export const sidebarPanel = (name: "Terminals" | "Source" | "Sessions" | "Inbox"): Locator =>
+export const sidebarPanel = (
+  name: "Terminals" | "Source" | "Sessions" | "History" | "Inbox",
+): Locator =>
   page
     .getByRole("radiogroup", { name: "Sidebar actions" })
     // The Inbox adds how many wait to its name, e.g. "Inbox, 3 waiting".

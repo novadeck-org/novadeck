@@ -29,6 +29,7 @@ import { agentTranscripts, type DemoTranscript } from "./agents/transcripts"
 import { demoTurns, type DemoTurns } from "./agents/turns"
 import { withFeedback } from "./feedback"
 import { demoHandle } from "./handles"
+import { withHistory } from "./history"
 import { createDemoInbox, isDemoInbox } from "./inbox"
 import { demoInboxRows, demoEntries, demoPlanStates } from "./inbox/fixtures"
 import { inboxLeadMessages, inboxTranscripts, withInboxLead } from "./inbox/transcripts"
@@ -84,7 +85,11 @@ export const demoBackend = (
     welcome = false,
     seed = demoSeed(Date.now()),
     terminals: setup,
-  }: { welcome?: boolean; seed?: WorkspaceSeed; terminals?: DemoTerminalSetup } = {},
+  }: {
+    welcome?: boolean
+    seed?: WorkspaceSeed
+    terminals?: DemoTerminalSetup
+  } = {},
 ): Backend => {
   const terminals = createDemoTerminals(engine, setup)
   const transcripts = createStore(true)
@@ -241,7 +246,10 @@ export const withMessages = (backend: Backend, now: number): Backend => {
   }))
   let sink: BackendSink | undefined
   let latest: Workspace | undefined
-  const showcase = createShowcase({ agents: [], directory: (key) => directoryOf(latest, key) })
+  const showcase = createShowcase({
+    agents: [],
+    directory: (key) => directoryOf(latest, key),
+  })
   return {
     ...backend,
     seed,
@@ -670,17 +678,19 @@ const plainBackend = (
   }
   const transcripts = agentTranscripts(now)
   if (variant === "messages")
-    return withSource(
-      withInbox(
-        withConversations(
-          withFinishes(withMessages({ ...backend, seed: demoSeed(now, true) }, now), turns),
-          transcripts,
+    return withHistory(
+      withSource(
+        withInbox(
+          withConversations(
+            withFinishes(withMessages({ ...backend, seed: demoSeed(now, true) }, now), turns),
+            transcripts,
+            turns,
+          ),
           turns,
+          demoEntries(now),
         ),
         turns,
-        demoEntries(now),
       ),
-      turns,
     )
   // The Inbox demo's agents elsewhere have done things before their rows came, and one
   // has a lead, for the sheets to show (see `inbox/transcripts.ts`).
@@ -689,7 +699,10 @@ const plainBackend = (
   const conversing = withConversations(
     variant === "agents" || inbox
       ? withFinishes(
-          withStorefrontArtifacts({ ...backend, seed: inbox ? withInboxLead(seed) : seed }),
+          withStorefrontArtifacts({
+            ...backend,
+            seed: inbox ? withInboxLead(seed) : seed,
+          }),
           turns,
         )
       : backend,
@@ -697,17 +710,23 @@ const plainBackend = (
     turns,
   )
   // Only where the storefront's terminals run agents: the plain and welcome shells don't.
-  if (variant === "plain" || variant === "welcome") return withInbox(conversing, turns)
-  if (variant === "agents") return withSource(withPlanShows(withInbox(conversing, turns)), turns)
-  return withSource(
-    withPlanShows(
-      withInbox(
-        { ...conversing, messages: createDemoMessages([inboxLeadMessages(now)]) },
-        turns,
-        demoInboxRows(now),
+  if (variant === "plain" || variant === "welcome") return withHistory(withInbox(conversing, turns))
+  if (variant === "agents")
+    return withHistory(withSource(withPlanShows(withInbox(conversing, turns)), turns))
+  return withHistory(
+    withSource(
+      withPlanShows(
+        withInbox(
+          {
+            ...conversing,
+            messages: createDemoMessages([inboxLeadMessages(now)]),
+          },
+          turns,
+          demoInboxRows(now),
+        ),
       ),
+      turns,
     ),
-    turns,
   )
 }
 

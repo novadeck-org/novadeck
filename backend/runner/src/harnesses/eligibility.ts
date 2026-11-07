@@ -16,6 +16,8 @@ export type UnavailableReason =
   | "invalid-session"
   /** Another terminal is resuming the session, or holds it in its foreground. */
   | "in-use"
+  /** The harness's files no longer hold the conversation (History's check, or a resume that found none). */
+  | "conversation-gone"
 
 const unavailable = (reason: UnavailableReason): Availability => ({ state: "unavailable", reason })
 

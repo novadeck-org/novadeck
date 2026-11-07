@@ -27,7 +27,7 @@ export const tabAction = (label: string): Locator =>
 export const headerAction = (name: string, label: string): Locator =>
   terminal(name).getByRole("button", { name: labelled(label, "") })
 
-/** The question asked before closing a terminal a program still runs in. */
+/** The question asked before closing a terminal that would lose something: a program still running in it, an agent mid-turn, one waiting on background work, or one leading running agents. */
 export const closeConfirmation = (): Locator => page.getByRole("alertdialog")
 
 /** Answers that question with "Close terminal", as closing a running demo terminal asks. */

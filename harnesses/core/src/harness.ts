@@ -7,6 +7,7 @@ import type {
 } from "@novadeck/protocol"
 import type { BoxProfile } from "@novadeck/tui-input/box"
 
+import type { Conversation, ConversationScan, Known } from "./conversation.js"
 import type { DialogAdapter } from "./dialogs.js"
 import type { HarnessEvent, PlanSource, PromptShown } from "./events.js"
 import type { Dialect } from "./hook-command.js"
@@ -63,6 +64,22 @@ export type Harness = {
    * Empty where the path says nothing.
    */
   readonly planFoldersOf?: (transcript: string) => readonly string[]
+  /**
+   * Whether a conversation of this id can still be found in its files, by `stat` and
+   * `readdir` alone: it never opens one. `gone` only where the file is missing from a folder
+   * that holds such files and is there; any other failure is `unknown`.
+   */
+  readonly conversation: (
+    install: Install,
+    sessionId: string,
+    known?: Known,
+  ) => Promise<Conversation>
+  /**
+   * The same check for many rows of one list: each folder is read once for the scan's life,
+   * so make one per pass. `known` is the transcript path the session reported at bind, which
+   * finds a session whose harness a wrapper pointed at another home than `install.env` says.
+   */
+  readonly conversations: (install: Install) => ConversationScan
   /** Whether its own configuration lists Novadeck's plugin as installed. */
   readonly connected: (install: Install) => Promise<boolean>
   /** Its plugin commands, run in order. */
@@ -410,12 +427,29 @@ export type LaunchProfile = {
    */
   readonly resume?: (session: string, choice?: Choice) => readonly string[]
   /**
+   * Whether a resume of `claim` worked, from what the terminal shows so far: its bound
+   * session (Claude Code's and Antigravity's id equals the claim) and whether its prompt
+   * shows (Codex has no id before its first prompt, so reaching ready is its sign).
+   * `failed` where it shows it started something else; `waiting` while neither is told.
+   */
+  readonly resumed: (claim: string, seen: ResumeSeen) => "worked" | "waiting" | "failed"
+  /**
    * The models it can start with on this machine, each with the reasoning efforts it takes;
    * none where that can't be told. It runs no command.
    */
   readonly models: (install: Install) => Promise<readonly Model[]>
   /** The words that go right after its program to start it with this model and effort. */
   readonly choose: (choice: Choice) => readonly string[]
+}
+
+/** What a terminal shows while a resume runs. */
+export type ResumeSeen = {
+  /** The session its hooks bound, if any. */
+  readonly sessionId: string | null
+  /** Whether its prompt shows. */
+  readonly ready: boolean
+  /** How long it has shown, in milliseconds; 0 while it does not. */
+  readonly readyMs: number
 }
 
 /** The model and reasoning effort an agent starts with; none leaves its own. */
