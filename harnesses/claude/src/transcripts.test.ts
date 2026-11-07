@@ -151,13 +151,38 @@ describe("Claude Code's transcript records", () => {
   it("leave out what Claude Code writes for itself, and anything not a record", () => {
     expect(items([{ type: "user", isMeta: true, message: { content: "caveat" } }])).toEqual([])
     expect(
-      items([{ type: "user", isCompactSummary: true, message: { content: "summary" } }]),
-    ).toEqual([])
-    expect(
       items([{ type: "user", message: { content: "<task-notification>\n</task-notification>" } }]),
     ).toEqual([])
     expect(transcripts.items("not json")).toEqual([])
     expect(transcripts.items("[]")).toEqual([])
+  })
+
+  it("say what mode a prompt went in, and what a turn's end left it in", () => {
+    const [mode, prompt] = items([
+      { type: "user", permissionMode: "acceptEdits", message: { content: "Go on" } },
+    ])
+    expect(mode).toMatchObject({ role: "note", note: { type: "mode", mode: "acceptEdits" } })
+    expect(prompt).toMatchObject({ role: "user", text: "Go on" })
+    expect(items([{ type: "permission-mode", permissionMode: "plan" }])).toMatchObject([
+      { note: { type: "mode", mode: "plan" } },
+    ])
+  })
+
+  it("say a compaction, its summary its text", () => {
+    expect(
+      items([{ type: "user", isCompactSummary: true, message: { content: "The summary" } }]),
+    ).toMatchObject([{ role: "note", note: { type: "compaction" }, text: "The summary" }])
+  })
+
+  it("say a plan was approved only by its result's words", () => {
+    const result = (content: string) => ({
+      type: "user",
+      message: { content: [{ type: "tool_result", tool_use_id: "t", content }] },
+    })
+    expect(items([result("User has approved your plan. You can now start coding.")])).toMatchObject(
+      [{ role: "tool" }, { role: "note", note: { type: "plan-approved" } }],
+    )
+    expect(items([result("The user doesn't want to proceed")])).toHaveLength(1)
   })
 
   it("cut long text short, and say so", () => {

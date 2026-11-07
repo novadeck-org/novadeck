@@ -433,12 +433,12 @@ describe("a chat sending a message", () => {
     expect(container.textContent).not.toContain("automatic notice")
     // Where a prompt would stand, with the mark hollow: a prompt, and not the person's.
     const rings = [...container.querySelectorAll('[data-role="doorbell"]')]
-    expect(rings.map((ring) => ring.getAttribute("aria-label"))).toEqual([
+    expect(rings.map((each) => each.getAttribute("aria-label"))).toEqual([
       "Doorbell: doorbell · 1 message",
       "Doorbell: doorbell",
       "Doorbell: doorbell · your reply",
     ])
-    expect(rings.every((ring) => ring.querySelector(".chat-mark[data-hollow]"))).toBe(true)
+    expect(rings.every((each) => each.querySelector(".chat-mark[data-hollow]"))).toBe(true)
     // What it brought follows in ink, under the handle that sent it.
     const brought = rings[0]!.querySelector('[data-role="agent"]')
     expect(brought?.getAttribute("aria-label")).toBe("Message from @moth")
@@ -871,10 +871,7 @@ describe("a reply to the agent's question, as its dialog changes", () => {
       program: "agy",
     })
     const region = [...container.querySelectorAll('[role="status"]')].find(
-      (each) =>
-        each.childElementCount === 0 &&
-        each.tagName === "DIV" &&
-        !each.classList.contains("chat-unread-region"),
+      (each) => each.childElementCount === 0 && each.tagName === "DIV",
     )
     expect(region).toBeDefined()
     await send(container)
@@ -939,46 +936,66 @@ describe("a reply to the agent's question, as its dialog changes", () => {
 })
 
 describe("parts of the conversation the chat can't read", () => {
-  const notice = (container: HTMLElement): string | null =>
-    container.querySelector(".chat-unread")?.textContent ?? null
-  const action = (container: HTMLElement, name: string): HTMLButtonElement =>
-    [...container.querySelectorAll<HTMLButtonElement>(".chat-unread button")].find(
-      (each) => each.getAttribute("aria-label") === name,
-    )!
-
-  it("tells once at the top, until dismissed, for the session alone", () => {
-    const session = `s-${crypto.randomUUID()}`
-    const conversation = createStore<Conversation>({
-      ...noConversation,
-      agent: "claude",
-      session,
-      loaded: true,
-      unread: true,
-    })
-    const chat = inApp(conversation)
-    expect(notice(chat.container)).toContain(
-      "This chat may be missing parts of the conversation. The terminal has all of it.",
+  const gap = (id: string, text: string): ChatItem => ({
+    ...userItem(text),
+    id,
+    role: "note",
+    note: { type: "gap" },
+  })
+  const view = (items: readonly ChatItem[]) =>
+    inApp(
+      createStore<Conversation>({
+        ...noConversation,
+        agent: "claude",
+        session: "s",
+        loaded: true,
+        items,
+      }),
     )
-    // Above the thread, in a region mounted while empty so a screen reader announces it.
-    const region = chat.container.querySelector(".chat")?.firstElementChild
-    expect(region?.getAttribute("role")).toBe("status")
-    expect(region?.firstElementChild?.className).toBe("chat-unread")
-    expect(action(chat.container, "Show terminal")).toBeDefined()
-    act(() => action(chat.container, "Dismiss").click())
-    expect(notice(chat.container)).toBeNull()
-    // The chat leaving the screen and coming back, as the person visits the terminal.
-    chat.show(false)
-    chat.show(true)
-    expect(notice(chat.container)).toBeNull()
-    // Another session in the terminal tells its own.
-    act(() => void conversation.update((current) => ({ ...current, session: `${session}-next` })))
-    expect(notice(chat.container)).not.toBeNull()
+
+  it("marks where it stands among what could be read, the line there to open", () => {
+    const { container } = view([
+      { ...userItem("before"), id: "a" },
+      gap("b", '{"type":"hologram"}'),
+      { ...userItem("after"), id: "c" },
+    ])
+    const mark = container.querySelector('.chat-record[data-kind="gap"]')!
+    const line = mark.querySelector<HTMLButtonElement>("button.chat-tool-summary")!
+    expect(line.textContent).toBe("part of the record the chat can't read")
+    // Closed until clicked, as a tool line is.
+    expect(line.getAttribute("aria-expanded")).toBe("false")
+    act(() => line.click())
+    expect(mark.querySelector('[aria-label="As written"] pre')?.textContent).toBe(
+      '{"type":"hologram"}',
+    )
+    const words = [...container.querySelectorAll(".chat-text")].map((each) => each.textContent)
+    expect(words).toEqual(["before", "after"])
+    const order = mark.compareDocumentPosition(container.querySelectorAll(".chat-text")[1]!)
+    expect(order & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
   })
 
-  it("says nothing where the record holds nothing it can't read", () => {
-    const { container } = inApp(
-      createStore<Conversation>({ ...noConversation, agent: "claude", session: "s", loaded: true }),
+  it("marks the place alone where the line can't be shown", () => {
+    const { container } = view([gap("b", "")])
+    const mark = container.querySelector('.chat-record[data-kind="gap"]')!
+    expect(mark.querySelector("button")).toBeNull()
+    expect(mark.textContent).toBe("part of the record the chat can't read")
+  })
+
+  it("draws a compaction as a line that opens to the summary the agent goes on from", () => {
+    const { container } = view([
+      {
+        ...userItem("Context so far: the logout comes from a minute of slack."),
+        id: "k",
+        role: "note",
+        note: { type: "compaction" },
+      },
+    ])
+    const mark = container.querySelector('.chat-record[data-kind="compaction"]')!
+    const line = mark.querySelector<HTMLButtonElement>("button.chat-tool-summary")!
+    expect(line.textContent).toBe("compacted the conversation · summary kept")
+    act(() => line.click())
+    expect(mark.querySelector('[aria-label="Summary"] pre')?.textContent).toBe(
+      "Context so far: the logout comes from a minute of slack.",
     )
-    expect(notice(container)).toBeNull()
   })
 })

@@ -79,7 +79,7 @@ const receipt = (
 const prompts: readonly ChatPrompt[] = [
   receipt("lost000000000000", "Also list hidden ones", 3, "unrecorded"),
   receipt("boxed00000000000", "And their sizes", 7, "in-box"),
-  receipt("settled000000000", "Open the second too", 11, "settled", 3),
+  receipt("settled000000000", "Open the second too", 11, "settled", 99),
   receipt("going00000000000", "Then sum it up", 12, "pending"),
 ]
 const sends: readonly ChatSend[] = [

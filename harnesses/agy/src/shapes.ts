@@ -22,6 +22,8 @@ export const lists: ShapeLists = {
     "step:USER_EXPLICIT/USER_INPUT",
     "step:MODEL/PLANNER_RESPONSE",
     "step:MODEL/GENERIC",
+    // A compaction, its summary its content (probed 2026-11-07, 1.5.2).
+    "step:SYSTEM/CHECKPOINT",
     "tag:USER_REQUEST",
   ],
   skipped: [

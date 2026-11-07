@@ -42,7 +42,9 @@ export type DemoOutcome = (
 }
 
 export type DemoDraft = Pick<ChatItem, "role" | "kind" | "text"> &
-  Partial<Pick<ChatItem, "tool" | "call" | "author" | "truncated" | "run" | "scripted" | "ring">>
+  Partial<
+    Pick<ChatItem, "tool" | "call" | "author" | "truncated" | "run" | "scripted" | "ring" | "note">
+  >
 
 export const user = (text: string): DemoDraft => ({ role: "user", kind: "text", text })
 export const say = (text: string): DemoDraft => ({
@@ -173,6 +175,7 @@ export const written = (
     scripted: draft.scripted ?? false,
     interrupted: false,
     ring: draft.ring ?? null,
+    ...(draft.note && { note: draft.note }),
   }))
 
 // The line Novadeck's doorbell types into an idle agent's box, as its record keeps it.
@@ -886,6 +889,13 @@ const transcriptsAt = (now: number): Readonly<Record<string, DemoTranscript>> =>
   },
   "06": {
     items: written("06", now, [
+      // The agent went on from a summary of what came before.
+      {
+        role: "note",
+        kind: "text",
+        text: "Context so far: the storefront builds with Vite; checkout totals moved to src/checkout/total.ts last session, and the cart selectors to src/cart/selectors.ts.",
+        note: { type: "compaction" },
+      },
       user("Build the app and tell me how big the bundle is."),
       use(
         "toolu_06a",
@@ -939,6 +949,13 @@ const transcriptsAt = (now: number): Readonly<Record<string, DemoTranscript>> =>
         { kind: "run", title: "Ran", detail: "pnpm preview" },
       ),
       got("toolu_06d", "Command running in background with ID: p4m8c1d."),
+      // A part of the record a newer release wrote, which the chat can't read.
+      {
+        role: "note",
+        kind: "text",
+        text: '{"type":"bundle_report","files":2}',
+        note: { type: "gap" },
+      },
       say("Checking what went into the bundle."),
       use(
         "toolu_06e",

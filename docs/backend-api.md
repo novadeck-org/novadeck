@@ -914,6 +914,9 @@ one from an earlier runner.
   interrupted the turn: Claude Code's and Codex's records hold their own, and for
   Antigravity, whose record holds none, the runner adds one where an Escape that stood
   came: after the turn's last steps, before the person's next prompt written after the key.
+  An item of role `note` is what its harness recorded between turns (`note`): the mode it says
+  it's in, each time it says so, a plan approved, or a compaction, whose summary is its `text`.
+  What each harness says is in [Harness coverage](harness-coverage.md#what-each-says-between-turns).
   A user item with `ring` is the line Novadeck's doorbell typed, as all three harnesses record
   it: its nonce, and `replies` where it carries the person's Inbox replies. Only a text that is
   exactly such a line has one, so a person's words with a line stuck in them stay theirs, and
@@ -924,10 +927,9 @@ one from an earlier runner.
   says nothing of how many there were, as `messages.watch` lists only what the runner keeps.
   It keeps them with the terminal, by the transcript's latest step at the key, so they
   keep their place after a runner restart. Each line's shapes go through its harness's
-  lists (`transcripts.shapes`, `harnesses/core/src/shapes.ts`): the first
+  lists (`transcripts.shapes`, `harnesses/core/src/shapes.ts`): an
   unknown one inside the conversation (a block of a Claude Code user or assistant message or a
-  prompt the person queued mid-turn, a Codex response item, an Antigravity MODEL or USER_EXPLICIT step) sends `unread` once,
-  which the chat shows as a one-line notice that it may be missing parts the terminal has;
+  prompt the person queued mid-turn, a Codex response item, an Antigravity MODEL or USER_EXPLICIT step) leaves a `note` item of type `gap` where it stands, its text the line as written, or none where that line holds the agent's reasoning too, which stays private, and the chat marks the spot;
   other unknown shapes, metadata a harness release adds often, send nothing. The runner
   logs `transcript.unknown` once per unknown shape and harness version per runner
   (metadata up to 16 a version, a conversational shape always), with the harness, its version, the shape's key (a tag's name left out) and

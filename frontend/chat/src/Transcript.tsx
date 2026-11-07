@@ -2,10 +2,11 @@ import { sameBlock, type ChatBlock } from "@novadeck/core/conversation/turns"
 import type { MessageParty } from "@novadeck/core/messages"
 import { counted } from "@novadeck/core/units"
 import { Markdown } from "@novadeck/toolkit/Markdown"
-import { memo, useMemo } from "react"
+import { memo, useId, useMemo, useState } from "react"
 
 import { withBubbles, type SentBubble } from "./bubbles"
 import { Mark } from "./Mark"
+import { shownControls } from "./shown-controls"
 import { ToolCalls } from "./ToolCalls"
 
 const Shortened = (): React.JSX.Element => (
@@ -23,6 +24,68 @@ const ringLabel = ({ messages, replies }: Extract<ChatBlock, { kind: "doorbell" 
 // answer through the Inbox.
 const partyName = (party: MessageParty): string =>
   party.kind === "agent" ? `@${party.handle}` : "you"
+
+// A line of the record that is no one's words: a compaction, a part the chat can't read. It reads
+// as a tool line does, dim, and opens to what it holds, where it holds anything.
+const RecordLine = ({
+  kind,
+  words,
+  said,
+  body,
+  truncated,
+}: {
+  readonly kind: "compaction" | "gap"
+  readonly words: string
+  readonly said: string | null
+  readonly body: string
+  readonly truncated: boolean
+}): React.JSX.Element => {
+  const [open, setOpen] = useState(false)
+  const id = useId()
+  const opens = body !== ""
+  const line = (
+    <>
+      <span className="chat-tool-title">{words}</span>
+      {said && <span className="chat-tool-end"> · {said}</span>}
+    </>
+  )
+  return (
+    <div className="chat-tools chat-record" data-kind={kind}>
+      <ul className="chat-tools-list">
+        <li className="chat-tool">
+          {opens ? (
+            <button
+              type="button"
+              className="chat-tool-summary nodrag nopan"
+              aria-expanded={open}
+              aria-controls={open ? id : undefined}
+              onClick={() => setOpen((value) => !value)}
+            >
+              {line}
+            </button>
+          ) : (
+            <p className="chat-tool-summary">{line}</p>
+          )}
+          {open && (
+            <div id={id} className="chat-tool-body">
+              <section
+                className="chat-tool-part"
+                aria-label={kind === "gap" ? "As written" : "Summary"}
+              >
+                <pre tabIndex={0} className="nodrag nopan nowheel">
+                  {shownControls(body)}
+                </pre>
+                {truncated && (
+                  <p className="chat-tool-note">Shortened here; the rest isn't carried over.</p>
+                )}
+              </section>
+            </div>
+          )}
+        </li>
+      </ul>
+    </div>
+  )
+}
 
 const BlockView = memo(
   ({
@@ -88,6 +151,26 @@ const BlockView = memo(
               </div>
             ))}
           </article>
+        )
+      case "compaction":
+        return (
+          <RecordLine
+            kind="compaction"
+            words="compacted the conversation"
+            said="summary kept"
+            body={block.summary}
+            truncated={block.truncated}
+          />
+        )
+      case "gap":
+        return (
+          <RecordLine
+            kind="gap"
+            words="part of the record the chat can't read"
+            said={null}
+            body={block.raw}
+            truncated={block.truncated}
+          />
         )
       case "tools":
         return <ToolCalls entries={block.entries} live={live} />
