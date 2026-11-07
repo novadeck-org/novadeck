@@ -173,6 +173,31 @@ for (const setup of setups) {
       )
     })
 
+    // Where a paste is keys, a line break is an Enter unless it comes in a burst of typing, so
+    // what's before the first one may decide if the message goes whole (`pastesWhole`, which
+    // guards a message over a draft). Over an empty box, each first line has to get there.
+    gated(it, harnesses[setup.agent].box.pastesAsKeys ? undefined : "its paste is never keys")(
+      "gives its agent a message in lines over an empty box, whatever its first line's length",
+      async ({ e2e: run }) => {
+        run.model.use(
+          own((call) => (asked(call, "its next line") ? { text: "Got it." } : undefined)),
+        )
+        const t1 = await start(run, setup)
+        for (const length of [1, 3, 8, 12, 15, 16, 24, 60]) {
+          const lines = `${"w".repeat(length)}\nits next line of ${length}\nits last`
+          const mark = t1.mark()
+          // eslint-disable-next-line no-await-in-loop -- Each is a turn of its own.
+          const settled = await prompted(t1, lines)
+          // eslint-disable-next-line no-await-in-loop -- As above.
+          await through(t1, ["working", "settled"], { after: mark })
+          // eslint-disable-next-line no-await-in-loop -- As above.
+          await settled()
+          // eslint-disable-next-line no-await-in-loop -- As above.
+          expect(await item(t1, "user", (text) => text.includes(`of ${length}\n`))).toBe(lines)
+        }
+      },
+    )
+
     it("gives its agent a long prompt that its box may show as a placeholder", async ({
       e2e: run,
     }) => {

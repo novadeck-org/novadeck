@@ -104,6 +104,8 @@ type Entry = {
   state: State
   /** The index of the item that settled it. */
   item: number | null
+  /** When the record settled it; null before. */
+  settledAt: number | null
   /** Its box is being read before it is called missing. */
   checking: boolean
   /** When it was found missing, or back in the box; null before. */
@@ -239,6 +241,7 @@ export class Receipts {
       sentAt: null,
       state: "pending",
       item: null,
+      settledAt: null,
       checking: false,
       missedAt: null,
     }
@@ -277,19 +280,25 @@ export class Receipts {
   }
 
   /**
-   * A Stop handed back words queued behind the turn: the prompts still waiting whose words
-   * they hold are withdrawn, as they are the person's draft again.
+   * A Stop that began at `since` handed back words queued behind the turn: the prompts still
+   * waiting whose words they hold are withdrawn, as they are the person's draft again. So is one
+   * the record settled since, and it keeps its `item`: Claude Code records a queued message as
+   * its turn starts, and once that turn is stopped takes it out of the conversation, the model
+   * never seeing it, so that item is no message that went (see docs/harness-coverage.md).
    */
-  withdraw(terminalId: string, returned: string): void {
+  withdraw(terminalId: string, returned: string, since: number): void {
     const track = this.tracks.get(terminalId)
     if (!track) return
     let changed = false
-    for (const entry of track.entries)
+    for (const entry of track.entries) {
       // One back in the agent's box, too: the Stop took the words out of it.
-      if ((entry.state === "pending" || entry.state === "in-box") && inBox(returned, entry.lines)) {
-        done(entry, "withdrawn")
+      const waiting = entry.state === "pending" || entry.state === "in-box"
+      const stopped = entry.state === "settled" && (entry.settledAt ?? 0) >= since
+      if ((waiting || stopped) && inBox(returned, entry.lines)) {
+        done(entry, "withdrawn", entry.item ?? undefined)
         changed = true
       }
+    }
     if (changed) this.host.changed(terminalId)
     this.idle(terminalId, track)
   }
@@ -531,6 +540,7 @@ export class Receipts {
           for (const ref of settledBy(waiting, item.text)) {
             const entry = track.entries.find((each) => each.ref === ref)!
             done(entry, "settled", index + joined)
+            entry.settledAt = this.now()
             changed ||= entry.sentAt !== null
           }
         }
