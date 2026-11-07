@@ -36,7 +36,9 @@ const holder = (parts: HistoryParts, agent: AgentName, sessionId: string): strin
     )
       return record.summary.handle
   const claimant = parts.claims.claimant(`${agent}:${sessionId}`)
-  return claimant === undefined ? undefined : parts.records.get(claimant)?.summary.handle
+  // A closed terminal keeps its claim until its shell ends, but it no longer holds the session.
+  const claiming = claimant === undefined ? undefined : parts.records.get(claimant)
+  return claiming?.closed ? undefined : claiming?.summary.handle
 }
 
 /** What History asks of the runner, answered from the manager's parts. */
@@ -58,6 +60,7 @@ export const historyHost = (parts: HistoryParts): HistoryHost => ({
   drawHandle: parts.drawHandle,
   releaseClaim: (terminalId) => parts.claims.release(terminalId),
   archive: (record, write, settled) => parts.saves.archive(record, write, settled),
+  saved: (record, done) => parts.saves.afterSaved(record, done),
   transcriptOf: (agent, sessionId) =>
     [...parts.records.values()].find((record) => record.agents[agent]?.sessionId === sessionId)
       ?.agents[agent]?.transcript,

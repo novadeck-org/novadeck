@@ -893,16 +893,17 @@ export class Terminals {
       if (unled) this.messaging.endLead(record.summary.id)
       // The resumed agent shows its own history; a shell that resumes none, the transcript.
       const note = resumeNote(judged, input.resume, started.resumes)
+      let shown = Promise.resolve()
       if (!started.resumes && (opened || note)) {
         const [text, at] = [opened?.text ?? "", opened && new Date(opened.at)]
-        void showRestored(record.terminal, text, at, input.id, note)
+        shown = showRestored(record.terminal, text, at, input.id, note)
       }
       this.listen(record)
       this.announce(record)
       this.sampler.start()
       this.saves.save(record, false)
       this.saves.start()
-      plan?.started(record, started.resumes, opened !== null)
+      plan?.started(record, started.resumes, opened !== null, shown)
       return summaryOf(record)
     } finally {
       place.done()
@@ -1323,7 +1324,11 @@ export class Terminals {
     this.inbox.reconcile(terminalId)
     this.typing.forget(terminalId)
     this.murmur?.gone(terminalId)
-    if (claims) this.claims.release(terminalId)
+    if (claims) {
+      this.claims.release(terminalId)
+      // Its row, if History kept one, no longer reads as held by it.
+      this.history.released(terminalId)
+    }
     this.calls.forgetOpener(terminalId)
     // Forgotten while the runner stops too, as a close then still stands.
     this.saves.remove(terminalId)

@@ -250,7 +250,9 @@ export const WorkspaceOverlays = memo((): React.JSX.Element => {
   const closingTerminal = useWorkspaceState(
     (workspace) => closeQuestion({ closing: pending }, workspace) ?? null,
   )
-  const sessionTerminals = useWorkspaceState((workspace) => currentState(workspace).roster.terminals)
+  const sessionTerminals = useWorkspaceState(
+    (workspace) => currentState(workspace).roster.terminals,
+  )
   const { projectName, context, view } = useWorkspaceState(
     (workspace) => ({
       projectName: activeProject(workspace)!.name,

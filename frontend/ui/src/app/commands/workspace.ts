@@ -105,8 +105,8 @@ export type WorkspaceCommands = ShellCommands &
     // Opens Preferences where the agents are connected.
     readonly openAgentSettings: (agent: AgentName) => void
     // Closes the terminal, or asks first while closing would lose something: a program
-    // running in it, or, where the backend keeps History, an agent mid-turn or one that
-    // couldn't be restored.
+    // running in it, or, where the backend keeps History, an agent mid-turn, one waiting on
+    // background work, one leading running agents, or one that couldn't be restored.
     readonly close: (terminalId: string) => void
     // Answers the pending close confirmation.
     readonly confirmClose: () => void
@@ -594,11 +594,11 @@ export const createWorkspaceCommands = (ctx: CommandContext): WorkspaceCommands 
       // Closing ends the shell, so ask first while it would lose something (see
       // `closeReasons`); the confirmation dialog renders from this and answers with
       // confirmClose or cancelClose.
-      if (closing && closeReasons(
-          closing,
-          history !== undefined,
-          currentState(snapshot).roster.terminals,
-        ).length > 0)
+      if (
+        closing &&
+        closeReasons(closing, history !== undefined, currentState(snapshot).roster.terminals)
+          .length > 0
+      )
         return void ui.update((state) => ({
           ...state,
           closing: { context: currentContext(snapshot), id: terminalId },

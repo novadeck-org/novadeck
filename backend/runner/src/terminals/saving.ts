@@ -91,6 +91,8 @@ type Job = {
   readonly abort: AbortController
   /** Taken for the last pass as the runner shuts down, which may write while it stops. */
   last: boolean
+  /** When the screen was taken. */
+  readonly at: number
 }
 
 /**
@@ -140,6 +142,8 @@ export class Saves {
   // The screens of closed terminals on their way to History, each ending when it is written
   // or given up; the redactor takes them before any other, one at a time.
   private readonly archives = new Set<Promise<void>>()
+  // What waits for a terminal's next saved transcript, from a screen taken after it asked.
+  private readonly landings = new WeakMap<SavedRecord, { at: number; done: () => void }>()
   private archiveTail: Promise<void> = Promise.resolve()
 
   constructor(
@@ -282,6 +286,16 @@ export class Saves {
     this.pump()
   }
 
+  /**
+   * Saves the terminal's screen at once and calls `done` when a transcript of it, taken from
+   * now on, is written: the output it shows is then kept in its own saved copy. Never, if
+   * none is written before it closes or transcripts are off.
+   */
+  afterSaved(record: SavedRecord, done: () => void): void {
+    this.landings.set(record, { at: performance.now(), done })
+    this.save(record, true)
+  }
+
   /** Saves a terminal's restoring state alone, leaving its transcript as it is; whether it was saved. */
   private saveRow(record: SavedRecord): boolean {
     // A closed terminal is forgotten for good: work still suspended for it, as an agent's
@@ -402,7 +416,8 @@ export class Saves {
   private take(record: SavedRecord, last: boolean): Job {
     const screen = record.terminal.screen
     record.screenChanged = false
-    this.state(record).taken = performance.now()
+    const at = performance.now()
+    this.state(record).taken = at
     const text = transcriptOf(screen, Number.POSITIVE_INFINITY)
     const job: Job = {
       record,
@@ -418,6 +433,7 @@ export class Saves {
       epoch: this.epoch,
       abort: new AbortController(),
       last,
+      at,
     }
     this.taken.add(job)
     return job
@@ -481,6 +497,11 @@ export class Saves {
       job.last ? "always" : "untilStopped",
     )
     if (!saved) record.screenChanged = true
+    const landing = this.landings.get(record)
+    if (saved && transcript && landing && job.at >= landing.at) {
+      this.landings.delete(record)
+      landing.done()
+    }
   }
 
   /** Whether a result is still wanted: nothing closed, turned off or stopped since it was taken. */

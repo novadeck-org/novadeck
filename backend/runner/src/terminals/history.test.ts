@@ -194,13 +194,13 @@ const summary = { id: "new-1" } as TerminalSummary
 const restoring = async (
   setupped: Setup,
   record: Record,
-  { resumes = true, rowId = "old-1", opened = true } = {},
+  { resumes = true, rowId = "old-1", opened = true, shownBy = Promise.resolve() } = {},
 ): Promise<{ plan: Plan }> => {
   let made: Plan | undefined
   await setupped.history.restore({ id: "new-1", sessionId: "s1", closed: rowId }, (plan) => {
     made = plan
     plan.identity("s1")
-    plan.started(record, resumes, opened)
+    plan.started(record, resumes, opened, shownBy)
     return Promise.resolve(summary)
   })
   return { plan: made! }
@@ -478,6 +478,19 @@ describe("pruning and watching", () => {
   })
 })
 
+describe("a closed terminal's claims", () => {
+  it("tell watchers of its row again once they are given back", async () => {
+    const { history } = setup()
+    history.closing(live(), null)
+    const watching = await follow(history)
+    history.released("t-1")
+    await vi.waitFor(() => expect(watching.later).toHaveLength(1))
+    expect(watching.later[0]).toMatchObject({ type: "changed", closed: { id: "t-1" } })
+    history.released("unknown")
+    watching.stop()
+  })
+})
+
 describe("what a row can do now", () => {
   const state = async (closed: ClosedRecord, over: Parameters<typeof setup>[0] = {}) => {
     const { history, store } = setup(over)
@@ -584,6 +597,27 @@ describe("what a row can do now", () => {
     history.judge(back)
     expect(back.summary.restorable).toBe(true)
   })
+
+  for (const agent of ["claude", "codex", "agy"] as const)
+    it(`judges ${agent} not bound yet by the session it reported`, async () => {
+      vi.spyOn(harnesses[agent], "conversation").mockResolvedValue("found")
+      const { history } = setup()
+      // Resumed or restored: its saved report stands, but no id has bound before its first prompt.
+      const resumed = live(
+        { expecting: agent, agents: { [agent]: { sessionId: "conv-1", seq: 4, cwd: folder } } },
+        { restorable: false },
+      )
+      history.judge(resumed)
+      await vi.waitFor(() => expect(resumed.summary.restorable).toBe(true))
+      // Its conversation gone, it is not restorable, and closing would not keep a ready row.
+      vi.spyOn(harnesses[agent], "conversation").mockResolvedValue("gone")
+      const lost = live(
+        { expecting: agent, agents: { [agent]: { sessionId: "conv-1", seq: 4, cwd: folder } } },
+        { restorable: true },
+      )
+      history.judge(lost)
+      await vi.waitFor(() => expect(lost.summary.restorable).toBe(false))
+    })
 
   /** A running agent whose conversation file is not there, as it is before its first turn. */
   const turning = (now: "working" | "idle" | undefined, over: Partial<Record> = {}) =>
@@ -723,8 +757,11 @@ describe("restoring a row", () => {
     expect((await history.list("p1"))[0]!.availability.state).toBe("ready")
   })
 
-  it("starts a plain terminal in its folder with its saved output, and its row leaves", async () => {
-    const { history, store } = setup()
+  it("starts a plain terminal in its folder with its saved output, and its row leaves once that is saved", async () => {
+    const saves: (() => void)[] = []
+    const { history, store } = setup({
+      saved: (_record: Record, done: () => void) => void saves.push(done),
+    })
     store.rows.set("old-1", row({ transcript: "v1.text", lastProgram: "vim" }))
     const watching = await follow(history)
     const record = live()
@@ -732,11 +769,37 @@ describe("restoring a row", () => {
     expect(plan.saved).toMatchObject({ id: "old-1", transcript: "v1.text", cwd: folder })
     expect(plan.resume).toBeUndefined()
     expect(record.restoredFrom).toBe("old-1")
+    // The output is on the new terminal's screen only: the row stands until it is saved there.
+    await vi.waitFor(() => expect(saves).toHaveLength(1))
+    expect(store.rows.size).toBe(1)
+    saves[0]!()
     expect(store.rows.size).toBe(0)
     await vi.waitFor(() =>
       expect(watching.later).toContainEqual({ type: "removed", id: "old-1", projectId: "p1" }),
     )
     watching.stop()
+  })
+
+  it("waits for the replay before asking for the new terminal's screen", async () => {
+    let shown!: () => void
+    const saves: (() => void)[] = []
+    const s = setup({ saved: (_record: Record, done: () => void) => void saves.push(done) })
+    s.store.rows.set("old-1", row({ transcript: "v1.text" }))
+    await restoring(s, live(), { shownBy: new Promise<void>((resolve) => (shown = resolve)) })
+    expect(saves).toHaveLength(0)
+    shown()
+    await vi.waitFor(() => expect(saves).toHaveLength(1))
+  })
+
+  it("lets the row go with the screen of a new terminal closed before its own was saved", async () => {
+    const s = setup({ saved: vi.fn<() => void>() })
+    s.store.rows.set("old-1", row({ transcript: "v1.text" }))
+    const record = live()
+    await restoring(s, record)
+    s.history.closing(record, null)
+    expect(s.store.rows.has("old-1")).toBe(true)
+    s.archived[0]!.write("v1.sealed")
+    expect([...s.store.rows.keys()]).toEqual(["t-1"])
   })
 
   it("keeps a plain row whose saved output did not open, and the terminal beside it", async () => {

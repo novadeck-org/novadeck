@@ -206,6 +206,24 @@ describe("saving terminals", () => {
     expect(transcripts(fake).map((row) => row.transcript)).toEqual(["screen"])
   })
 
+  it("tells when a screen taken after it asked is written, not one taken before", async () => {
+    const fake = make({}, "manual")
+    await vi.advanceTimersByTimeAsync(0)
+    const done = vi.fn<() => void>()
+    // A screen is in flight, taken before the ask: its result does not count.
+    fake.records[0]!.screenChanged = true
+    fake.saves.save(fake.records[0]!, true)
+    await vi.advanceTimersByTimeAsync(10)
+    fake.saves.afterSaved(fake.records[0]!, done)
+    fake.asked[0]!.settle("early")
+    await vi.advanceTimersByTimeAsync(10)
+    expect(done).not.toHaveBeenCalled()
+    fake.asked[1]!.settle("later")
+    await vi.advanceTimersByTimeAsync(10)
+    expect(done).toHaveBeenCalledTimes(1)
+    fake.saves.stop()
+  })
+
   it("drops a result that arrives after the terminal was closed", async () => {
     const fake = make({}, "manual")
     await vi.advanceTimersByTimeAsync(0)
