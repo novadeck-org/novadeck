@@ -60,6 +60,7 @@ import { type DialogsOptions } from "./dialogs.js"
 import { agentWorking } from "./doorbell-host.js"
 import { agentProcess, shutdownTreeGraceMs, shutdownTreesMs, treeGraceMs } from "./ending.js"
 import { failed } from "./failures.js"
+import { historyHost } from "./history-host.js"
 import { ClosedTerminals, type HistoryRecords, type HistoryTimes, type Plan } from "./history.js"
 import { restored } from "./interrupted.js"
 import { Launcher, startedIn, startFailed } from "./launching.js"
@@ -72,7 +73,7 @@ import type { Record } from "./record.js"
 import { createTranscriptRedactor, type TranscriptRedactor } from "./redaction.js"
 import { showRestored } from "./restored.js"
 import { cancelResume, Claims, endExpecting, restartedTask, resumeNote } from "./resumes.js"
-import { programRuns, Sampler, shellProcess } from "./sampling.js"
+import { markBusy, Sampler, shellProcess } from "./sampling.js"
 import { hasRun, keptState, type TerminalRecords } from "./saved-terminals.js"
 import { Saves } from "./saving.js"
 import type { TranscriptSealer } from "./sealing.js"
@@ -474,7 +475,7 @@ export class Terminals {
       stopping: () => this.stopping,
       records: () => this.records.values(),
       sampled: (record) => {
-        this.refreshBusy(record)
+        markBusy(record)
         this.announce(record)
         this.murmur?.sampled(record.summary.id)
       },
@@ -516,34 +517,21 @@ export class Terminals {
       announce: (record) => this.announce(record),
     })
     this.history = new ClosedTerminals(
-      {
-        records: options.closed,
-        projects: () => options.projects?.() ?? [],
-        projectOf: (sessionId) => this.projectOf(sessionId),
-        going: (sessionId) => this.closingSessions.has(sessionId),
+      historyHost({
+        records: this.records,
+        saves: this.saves,
+        claims: this.claims,
+        kept: options.records,
+        closed: options.closed,
+        projects: options.projects,
+        closingSessions: this.closingSessions,
         stopping: () => this.stopping,
+        projectOf: (sessionId) => this.projectOf(sessionId),
         install: (agent) => this.options.install(agent),
         connected: (agent) => this.launcher.connected(agent),
-        holder: (agent, sessionId) => this.holder(agent, sessionId),
-        terminalsIn: (sessionId) => [
-          ...[...this.records.values()]
-            .filter((record) => !record.closed && record.summary.sessionId === sessionId)
-            .map(({ summary }) => ({ handle: summary.handle, ledBy: summary.ledBy })),
-          ...this.saves.terminals(sessionId),
-        ],
         drawHandle: (sessionId) => this.names.next(sessionId),
-        releaseClaim: (terminalId) => this.claims.release(terminalId),
-        archive: (record, write) => this.saves.archive(record, write),
-        restoredAs: (terminalId, row) => {
-          const record = this.records.get(terminalId)
-          return record && !record.closed && record.restoredFrom === row
-            ? summaryOf(record)
-            : undefined
-        },
-        ran: (terminalId) => this.options.records?.terminalRan?.(terminalId) ?? true,
         announce: (record) => this.announce(record),
-        say: (record, text) => void showRestored(record.terminal, "", null, record.summary.id, text),
-      },
+      }),
       options.historyTimes,
     )
     this.bindings = new Bindings({
@@ -747,15 +735,12 @@ export class Terminals {
    * `command`, the shell runs it at its first prompt; a shell that can't, as without the
    * integration, does not start.
    */
-  create(input: Create, ownerId: string): Promise<TerminalSummary> {
-    if (input.closed === undefined) return this.start(input, ownerId)
+  async create(input: Create, ownerId: string, plan?: Plan): Promise<TerminalSummary> {
     // A closed terminal is brought back from its History row (see `ClosedTerminals.restore`).
-    return this.history.restore(input, (plan, planned) =>
-      this.start({ ...planned, ...(plan.resume && { resume: plan.resume }) }, ownerId, plan),
-    )
-  }
-
-  private async start(input: Create, ownerId: string, plan?: Plan): Promise<TerminalSummary> {
+    if (input.closed !== undefined && !plan)
+      return this.history.restore(input, (made, got) =>
+        this.create({ ...got, ...(made.resume && { resume: made.resume }) }, ownerId, made),
+      )
     if (this.stopping) throw new DomainError("CLOSING")
     // A closed terminal stays closed, even while its shell is still ending.
     if (this.closedIds.has(input.id)) throw new DomainError("TERMINAL_NOT_FOUND")
@@ -772,7 +757,8 @@ export class Terminals {
       // A new terminal's handle is drawn as it is asked for, before anything waits, so
       // terminals asked for together are named, and listed, in the order they were.
       const drawn = input.restore || plan ? undefined : this.names.next(input.sessionId)
-      const saved = plan?.saved ?? (input.restore ? this.saves.saved(input.id, input.sessionId) : undefined)
+      const saved =
+        plan?.saved ?? (input.restore ? this.saves.saved(input.id, input.sessionId) : undefined)
       // Read beside the waits below, which it outlasts on Windows; see `Launcher.environment`.
       const environment = this.launcher.environment()
       const origin = await this.launcher.directory(input.cwd)
@@ -878,7 +864,9 @@ export class Terminals {
         screenChanged: false,
         savedAt: 0,
         ran: saved
-          ? (plan ? true : (this.options.records?.terminalRan?.(input.id) ?? true))
+          ? plan
+            ? true
+            : (this.options.records?.terminalRan?.(input.id) ?? true)
           : input.command !== undefined || started.resumes,
         submitted: started.resumes,
         startupRuns: started.resumes,
@@ -1099,7 +1087,7 @@ export class Terminals {
       record.lineEntered = true
       record.ran = true
     }
-    if (this.refreshBusy(record)) this.announce(record)
+    if (markBusy(record)) this.announce(record)
     if (keys.some(({ kind }) => kind === "enter") && this.bindings.readyOf(record))
       this.bindings.readyEnter(record)
     this.messaging.keys(
@@ -1688,27 +1676,6 @@ export class Terminals {
     }
   }
 
-  /** Whether a program runs in the shell is kept in its summary; whether that changed it. */
-  private refreshBusy(record: Record): boolean {
-    const busy = programRuns(record)
-    if (busy === record.summary.busy) return false
-    record.summary = { ...record.summary, busy }
-    return true
-  }
-
-  /** The handle of the terminal that has `agent`'s session bound or claimed to resume it. */
-  private holder(agent: AgentName, sessionId: string): string | undefined {
-    for (const record of this.records.values())
-      if (
-        !record.closed &&
-        record.bound?.binding.agent === agent &&
-        record.bound.binding.sessionId === sessionId
-      )
-        return record.summary.handle
-    const claimant = this.claims.claimant(`${agent}:${sessionId}`)
-    return claimant === undefined ? undefined : this.records.get(claimant)?.summary.handle
-  }
-
   private pending(ownerId: string): { released: boolean } {
     const pending = { released: false }
     const entries = this.pendingOwners.get(ownerId) ?? new Set<{ released: boolean }>()
@@ -1782,7 +1749,7 @@ export class Terminals {
     record.line = emptyLine
     record.submitted = false
     markPrompt(record, entered)
-    if (this.refreshBusy(record)) this.announce(record)
+    if (markBusy(record)) this.announce(record)
     record.readyEntered = false
     // Whether the startup command (an agent opened or resumed there) ran, so this prompt
     // is the first after it ended.

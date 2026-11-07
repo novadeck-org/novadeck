@@ -148,6 +148,19 @@ export const programRuns = (
   !record.terminal.exiting &&
   (!shellAtPrompt(record) || (record.prompts.length > 0 && record.submitted))
 
+/** Keeps `programRuns` in the terminal's summary; whether that changed it. */
+export const markBusy = (
+  record: Pick<
+    Record,
+    "foreground" | "terminal" | "summary" | "shellName" | "prompts" | "submitted"
+  >,
+): boolean => {
+  const busy = programRuns(record)
+  if (busy === record.summary.busy) return false
+  record.summary = { ...record.summary, busy }
+  return true
+}
+
 /** The shell until the first sample, which may add its command line; Windows reports none. */
 export const shellProcess = (shell: string): ForegroundProcess | null => {
   const name = basename(shell).slice(0, 256)

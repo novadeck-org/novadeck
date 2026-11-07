@@ -532,4 +532,35 @@ describe("saving terminals", () => {
     expect(transcripts(fake).map((row) => row.transcript)).toEqual(["mine"])
     fake.saves.stop()
   })
+
+  it("keeps a closing terminal's last screen masked and sealed, and shutdown waits for it", async () => {
+    const fake = make({}, "manual")
+    await vi.advanceTimersByTimeAsync(0)
+    fake.records = []
+    const kept: string[] = []
+    const closing = record("a", "last secret")
+    fake.saves.archive(closing, (sealed) => kept.push(sealed))
+    // Its saves stop at the close, so this is the only copy.
+    closing.closed = true
+    await vi.advanceTimersByTimeAsync(0)
+    expect(fake.asked.map(({ text }) => text)).toEqual(["last secret"])
+    const done = fake.saves.shutdown()
+    await vi.advanceTimersByTimeAsync(10)
+    expect(kept).toEqual([])
+    fake.asked[0]!.settle("last *")
+    await vi.advanceTimersByTimeAsync(0)
+    await done
+    expect(kept.map((sealed) => unsealed(sealed, "a"))).toEqual(["last *"])
+  })
+
+  it("keeps nothing of a screen that cannot be masked", async () => {
+    const fake = make({}, "manual")
+    await vi.advanceTimersByTimeAsync(0)
+    const kept: string[] = []
+    fake.saves.archive(record("a", "text"), (sealed) => kept.push(sealed))
+    await vi.advanceTimersByTimeAsync(0)
+    fake.asked[0]!.settle(null as never)
+    await vi.advanceTimersByTimeAsync(0)
+    expect(kept).toEqual([])
+  })
 })

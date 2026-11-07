@@ -1,5 +1,6 @@
 import { stat } from "node:fs/promises"
 
+import type { ConversationScan } from "@novadeck/harness-core/conversation"
 import type { Install } from "@novadeck/harness-core/harness"
 import {
   historyLimits,
@@ -51,6 +52,9 @@ export type HistoryTimes = {
 
 const defaults: HistoryTimes = { restoreMs: 60_000, pruneMs: 60 * 60 * 1000, checkMs: 3_000 }
 
+/** The conversation scans of one pass through a list, by agent. */
+type Pass = Map<AgentName, ConversationScan>
+
 /** How many availability checks run at once, so a long list on a slow disk never stalls the runner. */
 const checksAtOnce = 8
 
@@ -82,6 +86,8 @@ export type HistoryHost = {
   readonly archive: (record: Closing, write: (sealed: string) => void) => void
   /** The summary of the terminal restored from the row as `terminalId`, if one is running. */
   readonly restoredAs: (terminalId: string, row: string) => TerminalSummary | undefined
+  /** The transcript path the running terminal's session reported at bind. */
+  readonly transcriptOf: (agent: AgentName, sessionId: string) => string | undefined
   /** Whether a line was ever entered in a terminal kept only as saved. */
   readonly ran: (terminalId: string) => boolean
   /** Tells watchers of the terminal's summary. */
@@ -111,7 +117,11 @@ export type Plan = {
   started(record: Closing, resumes: boolean): void
 }
 
-type RestoreInput = { readonly id: string; readonly sessionId: string; readonly closed?: string | undefined }
+type RestoreInput = {
+  readonly id: string
+  readonly sessionId: string
+  readonly closed?: string | undefined
+}
 
 const clip = (text: string | null, limit: number): string | null =>
   text === null ? null : text.slice(0, limit)
@@ -144,10 +154,7 @@ const folderGone = async (path: string): Promise<boolean> => {
   }
 }
 
-const pooled = async <T, R>(
-  items: readonly T[],
-  work: (item: T) => Promise<R>,
-): Promise<R[]> => {
+const pooled = async <T, R>(items: readonly T[], work: (item: T) => Promise<R>): Promise<R[]> => {
   const out = new Array<R>(items.length)
   let next = 0
   const lane = async (): Promise<void> => {
@@ -284,7 +291,8 @@ export class ClosedTerminals {
   /** A project's closed terminals, newest first, each with whether it can be restored now. */
   async list(projectId: string): Promise<ClosedTerminal[]> {
     const rows = this.host.records?.closed(projectId) ?? []
-    return pooled(rows, (row) => this.wire(row))
+    const pass: Pass = new Map()
+    return pooled(rows, (row) => this.wire(row, pass))
   }
 
   /** Every closed terminal, `synced`, then each later change, until `signal` aborts. */
@@ -295,7 +303,8 @@ export class ClosedTerminals {
     this.early.add(meanwhile)
     let rows: ClosedTerminal[]
     try {
-      rows = await pooled(this.all(), (row) => this.wire(row))
+      const pass: Pass = new Map()
+      rows = await pooled(this.all(), (row) => this.wire(row, pass))
     } finally {
       this.early.delete(meanwhile)
     }
@@ -327,8 +336,8 @@ export class ClosedTerminals {
     return records ? this.host.projects().flatMap((project) => [...records.closed(project)]) : []
   }
 
-  private async wire(row: ListedClosed): Promise<ClosedTerminal> {
-    const availability = await this.availability(row)
+  private async wire(row: ListedClosed, pass?: Pass): Promise<ClosedTerminal> {
+    const availability = await this.availability(row, false, pass)
     const { title } = summaryTitle(row.naming, {
       handle: row.handle,
       command: row.command,
@@ -404,7 +413,11 @@ export class ClosedTerminals {
    * and folder there, and the session not open in another terminal. What can't be told, as a
    * file the process may not read, counts as there; so does a check that takes too long.
    */
-  async availability(row: ListedClosed, restoringIsOwn = false): Promise<ClosedTerminalState> {
+  async availability(
+    row: ListedClosed,
+    restoringIsOwn = false,
+    pass?: Pass,
+  ): Promise<ClosedTerminalState> {
     if (!restoringIsOwn && this.restoring.has(row.id)) return { state: "restoring" }
     const agent = resumeOf(row)
     if (agent === undefined) return { state: "ready" }
@@ -415,7 +428,7 @@ export class ClosedTerminals {
     const holder = this.host.holder(agent, report.sessionId)
     if (holder !== undefined) return { state: "open", handle: holder }
     const checked = await Promise.race([
-      this.files(agent, report, row),
+      this.files(agent, report, row, pass),
       new Promise<ClosedTerminalState>((resolve) =>
         setTimeout(() => resolve({ state: "ready" }), this.times.checkMs).unref(),
       ),
@@ -427,12 +440,20 @@ export class ClosedTerminals {
     agent: AgentName,
     report: AgentReport,
     row: Pick<ListedClosed, "cwd">,
+    pass?: Pass,
   ): Promise<ClosedTerminalState> {
     try {
       if (await folderGone(report.cwd ?? row.cwd)) return { state: "gone", reason: "folder" }
       const install = await this.host.install(agent)
       if (!install) return { state: "ready" }
-      const found = await harnesses[agent].conversation(install, report.sessionId)
+      const known = { transcript: report.transcript }
+      // One scan per agent for a whole list: each folder is read once, whatever the rows.
+      let scan = pass?.get(agent)
+      if (!scan) {
+        scan = harnesses[agent].conversations(install)
+        pass?.set(agent, scan)
+      }
+      const found = await scan.conversation(report.sessionId, known)
       return found === "gone" ? { state: "gone", reason: "conversation" } : { state: "ready" }
     } catch {
       return { state: "ready" }
@@ -444,7 +465,11 @@ export class ClosedTerminals {
     if (!(await this.host.connected(agent).catch(() => true))) return false
     const install = await this.host.install(agent).catch(() => undefined)
     if (!install) return true
-    return (await harnesses[agent].conversation(install, sessionId).catch(() => "unknown")) !== "gone"
+    const known = { transcript: this.host.transcriptOf(agent, sessionId) }
+    return (
+      (await harnesses[agent].conversation(install, sessionId, known).catch(() => "unknown")) !==
+      "gone"
+    )
   }
 
   // Restore
@@ -544,7 +569,8 @@ export class ClosedTerminals {
       .some((terminal) => terminal.handle === row.handle || terminal.ledBy === row.handle)
     // A handle the session gave this very terminal is recorded already.
     const adopted =
-      !taken && (row.sessionId === sessionId || this.host.records?.adoptHandle(sessionId, row.handle))
+      !taken &&
+      (row.sessionId === sessionId || this.host.records?.adoptHandle(sessionId, row.handle))
     return adopted ? row.handle : this.host.drawHandle(sessionId)
   }
 
@@ -649,7 +675,9 @@ export class ClosedTerminals {
             : `${label} was running here, but its conversation didn't open.`
       if (note) this.host.say(record, note)
     })().catch((error: unknown) =>
-      log.error("history.check-failed", "Novadeck could not check a closed terminal", { err: error }),
+      log.error("history.check-failed", "Novadeck could not check a closed terminal", {
+        err: error,
+      }),
     )
   }
 
@@ -684,7 +712,11 @@ export class ClosedTerminals {
    */
   judge(record: Closing): void {
     const bound = record.bound?.binding
-    const key = bound ? `${bound.agent}:${bound.sessionId}` : record.expecting ? "starting" : "shell"
+    const key = bound
+      ? `${bound.agent}:${bound.sessionId}`
+      : record.expecting
+        ? "starting"
+        : "shell"
     if (record.restorableFor === key) return
     record.restorableFor = key
     if (!bound) {

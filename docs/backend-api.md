@@ -541,17 +541,23 @@ not command completion.
   but not processes, live terminal records, or replay cursors. There is no persistent
   process supervisor.
 - `terminals.close({ terminalId })`, or `runner.terminals.close(id)` without an
-  attachment, closes the terminal for good from any connection, whoever controls it. The
+  attachment, closes the terminal from any connection, whoever controls it. The
   runner forgets it as the close begins: `list` omits it, watchers receive `removed`,
-  what restores it is deleted, and nothing saves it again, so a runner that stops before
-  the shell has exited does not bring it back. It then ends the shell; attached viewers
-  still receive `exited`, and later calls report `TERMINAL_NOT_FOUND`. A close reaches a
-  runner that is shutting down too; only a stopped one refuses it, with
-  `CLOSING`. A shell that exits on its own keeps its record until eviction, and
-  the terminal itself until it is closed. A terminal kept only as saved closes the same
-  way. The runner refuses to create a terminal closed in its lifetime again, restoring
-  or not, even one a `create` was restoring as it closed, with `TERMINAL_NOT_FOUND`: a
-  client takes that as the terminal closed elsewhere.
+  what restores it is deleted from the session, and nothing saves it again, so a runner that
+  stops before the shell has exited does not bring it back. It then ends the shell; attached
+  viewers still receive `exited`, and later calls report `TERMINAL_NOT_FOUND`. A close reaches
+  a runner that is shutting down too; only a stopped one refuses it, with `CLOSING`.
+  A close is no longer final: unless nothing ever ran in the terminal (no line entered, no
+  agent session) or its project is being removed, the runner first keeps a row of it in
+  History for 30 days, built from the terminal in memory (an agent's sessions without their
+  turns; a plain terminal's last screen, masked and sealed like any transcript, which the
+  runner's shutdown waits for). Every route does: the person's, an agent's (the row names its
+  handle in `closedBy`), and a terminal kept only as saved. A shell that exits on its own
+  keeps its record until eviction, and the terminal itself until it is closed. The runner
+  refuses to create a terminal closed in its lifetime again under the same id, restoring or
+  not, even one a `create` was restoring as it closed, with `TERMINAL_NOT_FOUND`: a client
+  takes that as the terminal closed elsewhere. Bringing it back is a `create` with
+  `closed` and a new id (see `history.*`).
 - `terminals.restart({ terminalId, cols, rows, resume? })`, or
   `runner.terminals.restart(id, { cols, rows, resume })`, starts a fresh shell in a
   retained exited terminal: the same ID and session, in the shell's last reported

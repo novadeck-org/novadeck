@@ -21,7 +21,7 @@ const seen = (fields: Partial<SessionObserved> = {}): SessionObserved => ({
   ...fields,
 })
 const running: Sessions = {
-  sessions: { claude: { sessionId: "a", seq: 2_000 } },
+  sessions: { claude: { sessionId: "a", seq: 2_000, cwd: "/work" } },
   binding: { agent: "claude", sessionId: "a", instance: null },
   cwd: "/work",
 }
@@ -29,7 +29,7 @@ const running: Sessions = {
 describe("observing a harness session", () => {
   it("binds the session now holding the foreground, in its directory", () => {
     expect(observe(idle, seen({ cwd: "/work" }), facts)).toEqual({
-      sessions: { claude: { sessionId: "a", seq: 2_000 } },
+      sessions: { claude: { sessionId: "a", seq: 2_000, cwd: "/work" } },
       binding: { agent: "claude", sessionId: "a", instance: null },
       cwd: "/work",
     })
@@ -37,7 +37,7 @@ describe("observing a harness session", () => {
 
   it("keeps a session from a hook started before the prompt without binding it", () => {
     expect(observe(idle, seen({ startedAt: 500, cwd: "/work" }), facts)).toEqual({
-      sessions: { claude: { sessionId: "a", seq: 500 } },
+      sessions: { claude: { sessionId: "a", seq: 500, cwd: "/work" } },
       binding: null,
       cwd: "/home",
     })
