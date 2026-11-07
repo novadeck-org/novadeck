@@ -59,7 +59,7 @@ describe("what closing a terminal asks about", () => {
 
     it("asks when an idle agent waits on a job, a wake-up or background tasks", () => {
       const idle = { ...running, restorable: true }
-      const waiting = { jobs: [], wake: { at: 1, reason: null } }
+      const waiting = { jobs: [], wake: { at: Date.now() + 60_000, reason: null } }
       expect(
         closeReasons(
           terminalFixture({ ...idle, agent: { working: false, waiting } } as never),
@@ -75,6 +75,22 @@ describe("what closing a terminal asks about", () => {
           true,
         ),
       ).toEqual(["background"])
+    })
+
+    it("doesn't ask about a wake-up or a monitor that has passed", () => {
+      const now = 10 * 60 * 60_000
+      const hourAgo = now - 60 * 60_000
+      const waiting = {
+        jobs: [{ id: "1", description: "a monitor", command: "", since: 0, until: hourAgo }],
+        wake: { at: hourAgo, reason: null },
+      }
+      const terminal = terminalFixture({
+        ...running,
+        restorable: true,
+        agent: { working: false, waiting },
+      } as never)
+      expect(closeReasons(terminal, true, [], now)).toEqual([])
+      expect(closeReasons(terminal, true, [], hourAgo)).toEqual(["background"])
     })
 
     it("asks when an idle agent leads others that still run, not when they have ended", () => {

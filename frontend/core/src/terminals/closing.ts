@@ -1,4 +1,5 @@
 import type { TerminalMetadata } from "../types"
+import { waitingOf } from "./waiting"
 
 // Why closing a terminal asks first, each a thing the person would lose. Where the backend
 // keeps closed terminals (History), closing can be undone, so it asks only for what
@@ -24,6 +25,7 @@ export const closeReasons = (
   keepsHistory: boolean,
   // Every terminal of its session, to see whom it leads.
   terminals: readonly TerminalMetadata[] = [],
+  now = Date.now(),
 ): readonly CloseReason[] => {
   if (!keepsHistory) return terminal.state === "running" ? ["program"] : []
   const agent = terminal.state === "running" ? terminal.agent : undefined
@@ -31,14 +33,16 @@ export const closeReasons = (
     // The runner counts an agent as a running program too, so only a plain one is asked about.
     ...(!agent && terminal.busy ? (["program"] as const) : []),
     ...(agent?.working ? (["working"] as const) : []),
-    // `restorable` is the backend's word; an agent is never assumed to restore.
-    ...(agent && !agent.working && (agent.waiting || agent.background)
+    // The waiting the tab shows: a wake-up or a monitor that has passed is over, though the
+    // runner keeps it until the next turn.
+    ...(agent && !agent.working && (waitingOf(terminal, now) || agent.background)
       ? (["background"] as const)
       : []),
     ...(terminal.handle &&
     terminals.some((each) => each.ledBy === terminal.handle && each.state === "running")
       ? (["leads"] as const)
       : []),
+    // `restorable` is the backend's word; an agent is never assumed to restore.
     ...(agent && !terminal.restorable ? (["unrestorable"] as const) : []),
   ]
 }
