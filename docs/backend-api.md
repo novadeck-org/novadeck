@@ -1321,6 +1321,26 @@ one from an earlier runner.
   second longer where nothing comes back, and a few seconds more with queued messages. The
   client's `agents.interrupt(terminalId)` is that call, and resolves with the result.
 
+- `history.*` lists the terminals closed in the last 30 days, per project, which
+  `terminals.create({ closed })` restores. A row has the id its terminal had, its project,
+  title, summary, handle (null if none), `agent` (the program's icon; null for a plain
+  terminal, whose last `program` stands in), `cwd`, `closedAt`, `closedBy` (the handle of
+  the agent that closed it; null when the person did) and its `availability`: `ready`,
+  `restoring`, `gone` (`conversation` or `folder`), `disconnected` (the agent) or `open` (the
+  handle of the terminal the conversation is bound in). The runner keeps rows in
+  `closed_terminals`; a plain terminal's saved output is the one heavy column, which neither
+  call carries.
+  - `history.list({ projectId })` answers the project's rows, newest first; a project with
+    none, or one the runner doesn't have, answers none.
+  - `history.watch()` streams every row across projects, `synced`, then `changed` (a close, or a
+    change of availability) and `removed` (a restored or pruned row). The client's
+    `history.watch()` yields `reset` before each fresh sequence, as `terminals.watch()` does.
+  - `terminals.create({ id, sessionId, cols, rows, closed })` restores row `closed` as the
+    new terminal `id`, with nothing else to say. An unknown row is `NOT_FOUND`; one that can't
+    be restored now is `CONFLICT`.
+  - `TerminalSummary` carries `restorable` (closing it can be undone) and `busy` (a program runs
+    in its shell besides the prompt); an absent one reads as false.
+
 - `companions.*` keeps what agents show and the person attaches beside terminals: items,
   each a pointer to a file, a page or a plan, never a copy of it, held by exactly one
   terminal's bar, one undocked window, or the session's project window. Items and windows
