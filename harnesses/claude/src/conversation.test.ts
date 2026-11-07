@@ -6,13 +6,23 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 
 import { conversation, conversations } from "./conversation.js"
 
-// How many folders were listed, and how many at once at most: what a pass over many rows is
-// judged by, rather than by the seconds it took, which a loaded CI runner decides.
-const reads = vi.hoisted(() => ({ count: 0, open: 0, most: 0 }))
+// How many folders were listed, how many at once at most, and how many files were looked at:
+// what a pass over many rows is judged by, rather than by the seconds it took, which a loaded
+// CI runner decides.
+const reads = vi.hoisted(() => ({ count: 0, open: 0, most: 0, files: 0 }))
 vi.mock("node:fs/promises", async (importOriginal) => {
   const actual = await importOriginal<typeof import("node:fs/promises")>()
+  const counted =
+    <T extends (...args: never[]) => unknown>(call: T) =>
+    (...args: Parameters<T>) => {
+      reads.files += 1
+      return call(...args)
+    }
   return {
     ...actual,
+    stat: counted(actual.stat),
+    open: counted(actual.open),
+    readFile: counted(actual.readFile),
     readdir: async (...args: Parameters<typeof actual.readdir>) => {
       reads.count += 1
       reads.open += 1
@@ -99,6 +109,7 @@ describe("Claude Code's conversation", () => {
     for (const one of ids.slice(0, 250)) writeFileSync(join(projects, "-p7", `${one}.jsonl`), "")
     reads.count = 0
     reads.most = 0
+    reads.files = 0
     const scan = conversations(install())
     const answers = await Promise.all(ids.map((one) => scan.conversation(one)))
     expect(answers.filter((one) => one === "found")).toHaveLength(250)
@@ -108,5 +119,7 @@ describe("Claude Code's conversation", () => {
     // The reader's pool, so a long list never queues every folder at the event loop at once.
     expect(reads.most).toBeGreaterThan(1)
     expect(reads.most).toBeLessThanOrEqual(32)
+    // The listings are all it reads: no file is opened or stat'ed for a row.
+    expect(reads.files).toBe(0)
   })
 })
