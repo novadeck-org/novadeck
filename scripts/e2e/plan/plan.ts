@@ -180,11 +180,17 @@ export const quirks = (selected: readonly string[]): readonly Quirk[] =>
     ...(id === "agy" ? { autorun: true as const } : {}),
   }))
 
-// The harnesses whose suite runs longest on Windows and Linux (on Windows 21 and 24 minutes,
-// #285's E2E run), which run there in two jobs each. macOS keeps one job a harness, as its
-// concurrency, not its length, is the limit.
-const sharded = new Set(["claude", "codex"])
-const shardedOn = new Set<string>([systems.linux, systems.windows])
+// The harnesses whose suite runs longest, and the systems where each runs in two jobs: Claude
+// Code and Codex on Windows and Linux (on Windows 21 and 24 minutes, #285's E2E run), and
+// Antigravity on Linux, whose one job took 18.3 to 19.5 of its 20 minutes and ran out with
+// #781's tests (19.1 minutes of tests then, 11.1 of them in the first half's files). macOS keeps
+// one job a harness, as its concurrency, not its length, is the limit.
+const both: ReadonlySet<string> = new Set([systems.linux, systems.windows])
+const shardedOn: ReadonlyMap<string, ReadonlySet<string>> = new Map([
+  ["claude", both],
+  ["codex", both],
+  ["agy", new Set([systems.linux])],
+])
 
 // The first job's files, about half the suite's time (each harness's run on Windows in #285's
 // E2E run: chat 223–284 s, controls 126–136, answers 123–134, requests 55–63, inbox 30–35,
@@ -217,12 +223,13 @@ const jobName = (name: string, os: string, part: number | undefined): string => 
 
 /**
  * The `e2e` job's matrix, each system's rows in turn: a row as it is, or, for a long
- * harness on Windows and Linux, two, one running `firstShard` and one the rest.
+ * harness on a system it is split on (`shardedOn`), two, one running `firstShard` and one the
+ * rest.
  */
 export const rows = (os: readonly string[], each: readonly Setup[]): readonly Row[] =>
   os.flatMap((system) =>
     each.flatMap((setup): Row[] => {
-      if (!sharded.has(setup.agents) || !shardedOn.has(system))
+      if (!shardedOn.get(setup.agents)?.has(system))
         return [{ os: system, job: jobName(setup.name, system, undefined), setup }]
       const rest = firstShard.map((file) => `--exclude src/e2e/${file}`).join(" ")
       return [
