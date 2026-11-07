@@ -6684,7 +6684,7 @@ describe("a prompt queued behind a running turn", () => {
   })
 
   it("takes no word of the screen's for a Stop that a later one followed", () => {
-    const { messaging, prompt, stop, claude } = create()
+    const { messaging, send, prompt, stop, claude } = create()
     prompt("A", claude)
     stop("A", claude)
     const early = messaging.queueLook("A")!
@@ -6692,6 +6692,67 @@ describe("a prompt queued behind a running turn", () => {
     stop("A", claude)
     messaging.queueSeen("A", early, true)
     expect(messaging.queueLook("A")).toBe(early + 1)
+    // Nothing was taken from it: the next prompt is no queued one.
+    sent(send("B", "moth", "The news."))
+    expect(prompt("A", claude).stdout).toContain("The news.")
+  })
+
+  it("counts a prompt behind a turn the screen saw start, for the look after its Stop that says nothing", () => {
+    const { messaging, send, prompt, stop, claude } = create()
+    prompt("A", claude)
+    messaging.keys("A", ["content", "enter"], false)
+    prompt("A", claude)
+    stop("A", claude)
+    messaging.queueSeen("A", messaging.queueLook("A")!, true)
+    // Queued while that turn runs; its own Stop's look sees neither in time.
+    prompt("A", claude)
+    stop("A", claude)
+    sent(send("B", "moth", "The news."))
+    expect(prompt("A", claude).leaseId).toBeNull()
+  })
+
+  it("keeps no count past a look that saw nothing run on, for the Stops after it", () => {
+    const { messaging, send, prompt, stop, claude } = create()
+    prompt("A", claude)
+    messaging.keys("A", ["content", "enter"], false)
+    prompt("A", claude)
+    messaging.keys("A", ["content", "enter"], false)
+    prompt("A", claude)
+    stop("A", claude)
+    messaging.queueSeen("A", messaging.queueLook("A")!, false)
+    prompt("A", claude)
+    stop("A", claude)
+    sent(send("B", "moth", "The news."))
+    expect(prompt("A", claude).stdout).toContain("The news.")
+  })
+
+  it("takes a turn the screen saw start as ended at its own Stop", () => {
+    const { messaging, send, prompt, stop, claude } = create()
+    prompt("A", claude)
+    messaging.keys("A", ["content", "enter"], false)
+    prompt("A", claude)
+    stop("A", claude)
+    messaging.queueSeen("A", messaging.queueLook("A")!, true)
+    // That turn's Stop, then a prompt of the person's at an idle agent, and its Stop.
+    stop("A", claude)
+    prompt("A", claude)
+    stop("A", claude)
+    sent(send("B", "moth", "The news."))
+    expect(prompt("A", claude).stdout).toContain("The news.")
+  })
+
+  it("tells of each Stop that ends a turn, though the delivery stays as it was", () => {
+    const stops: string[] = []
+    const { messaging, prompt, stop, claude } = create(undefined, undefined, {
+      stopped: (terminalId: string) => stops.push(terminalId),
+    })
+    prompt("A", claude)
+    messaging.keys("A", ["content", "enter"], false)
+    prompt("A", claude)
+    stop("A", claude)
+    // The queued turn's own Stop, unheard: delivery is Settled already.
+    stop("A", claude)
+    expect(stops).toEqual(["A", "A"])
   })
 
   it("delivers on a prompt no turn ran before, as ever", () => {

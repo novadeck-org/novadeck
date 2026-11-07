@@ -55,6 +55,8 @@ export type DeliveriesHost = {
   readonly slackMs: number
   /** A turn ended, or a new one began: the last one's delivery is left behind. */
   readonly leftBehind: (terminalId: string) => void
+  /** A Stop ended a turn, whatever it changed (see `MessagingOptions.stopped`). */
+  readonly stopped?: (terminalId: string) => void
 }
 
 /**
@@ -206,12 +208,6 @@ export class Deliveries {
   }
 
   /**
-   * The terminal's screen shows its agent's own box empty and calm, read from `readAt` on, in
-   * the `epoch` it was read in, where its delivery is Drafting, Unknown or Fresh: Settled
-   * again where a turn completed (`completedAt`), else Ready.
-   * Not after a key of the person's since the read, whose text it may not have shown.
-   */
-  /**
    * The Stop the screen is yet to be looked at after, to say whether a turn runs from the
    * queue now (`queueSeen`); undefined where there is none.
    */
@@ -236,6 +232,12 @@ export class Deliveries {
     if (!runs) live.promptsQueued = 0
   }
 
+  /**
+   * The terminal's screen shows its agent's own box empty and calm, read from `readAt` on, in
+   * the `epoch` it was read in, where its delivery is Drafting, Unknown or Fresh: Settled
+   * again where a turn completed (`completedAt`), else Ready.
+   * Not after a key of the person's since the read, whose text it may not have shown.
+   */
   emptied(terminalId: string, epoch: number, readAt = this.host.now()): void {
     const live = this.host.sessions.get(terminalId)
     if (!live || live.keyedAt >= readAt) return
@@ -552,6 +554,8 @@ export class Deliveries {
       // Until the screen says what runs now (`queueSeen`), the count is all there is.
       live.queueConfirmed = false
       live.stops += 1
+      // Told whether or not the delivery changes: a turn the queue started ends in Settled.
+      this.host.stopped?.(live.terminalId)
     }
     // A calm screen whose box reads empty with no queue shown (the doorbell's look) has nothing
     // queued, and no turn running unheard, whose spinner would keep it from calm.

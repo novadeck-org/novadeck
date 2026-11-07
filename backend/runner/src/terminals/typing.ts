@@ -418,6 +418,7 @@ export class Typing {
     this.receipts.forget(terminalId)
     this.boxes.forget(terminalId)
     this.entered.delete(terminalId)
+    this.queueLooks.delete(terminalId)
   }
 
   /** Stops the doorbell and the receipts, as the runner shuts down. */
