@@ -276,6 +276,12 @@ describe("a node process sampled in a terminal", () => {
     second.started.stop()
     expect(second.record.summary.lastProgram).toBe("codex")
   })
+
+  it("stays node where argv tells another script, though an agent is bound", () => {
+    const { record, started } = sampleNode(bound, ["node", "server.js"])
+    started.stop()
+    expect(record.summary.lastProgram).toBe("node")
+  })
 })
 
 describe("whether a shell may be running a program", () => {

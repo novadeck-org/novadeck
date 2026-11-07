@@ -18,6 +18,7 @@ import { harnesses } from "../harnesses/registry.js"
 import { logs } from "../log.js"
 import { agentLabel } from "../messaging/messages.js"
 import type { ClosedRecord, ClosedRecords, ListedClosed } from "../workspaces/closed.js"
+import { savedSession } from "./binding/standing.js"
 import { mention } from "./handles.js"
 import type { Record } from "./record.js"
 import { resumeNote } from "./resumes.js"
@@ -155,19 +156,20 @@ type RestoreInput = {
 const clip = (text: string | null, limit: number): string | null =>
   text === null ? null : text.slice(0, limit)
 
-/** The agent a row resumes: the one with the latest report, whatever program was last seen. */
+/** The agent a row resumes: its own, when it has a session in the row, else the latest report. */
 const resumeOf = (row: Pick<ListedClosed, "agent" | "agents">): AgentName | undefined => {
   if (row.agent === null) return undefined
+  if (row.agents[row.agent]?.sessionId !== undefined) return row.agent
   let best: AgentName | undefined
   for (const [name, report] of Object.entries(row.agents) as [AgentName, AgentReport][])
     if (isAgentName(name) && (!best || report.seq > (row.agents[best]?.seq ?? -1))) best = name
   return best ?? row.agent
 }
 
-/** The agent a woken shell is resuming (its resume claim, `agent:session`), before anything binds. */
-const resumingAgent = (record: Pick<Closing, "resumeClaim">): AgentName | undefined => {
-  const name = record.resumeClaim?.split(":", 1)[0]
-  return isAgentName(name) ? name : undefined
+/** The agent a woken shell is resuming, before anything binds: none once the resume ended or was cancelled. */
+const resumingAgent = (record: Closing): AgentName | undefined => {
+  const agent = savedSession(record)?.agent
+  return isAgentName(agent) ? agent : undefined
 }
 
 /** The agent whose session reported last (the highest `seq`), if any reported. */

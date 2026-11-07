@@ -35,12 +35,14 @@ export const restartedTask = (
  * Removes a resume command the shell has not taken yet, so it never runs; true when
  * one was still waiting.
  */
-export const cancelResume = (record: Pick<Record, "resumeFile">): boolean => {
+export const cancelResume = (record: Pick<Record, "resumeFile" | "resumeClaim">): boolean => {
   const file = record.resumeFile
   if (!file) return false
   record.resumeFile = undefined
   try {
     rmSync(file)
+    // The session is no longer the one this shell resumes.
+    record.resumeClaim = undefined
     return true
   } catch {
     // Taken meanwhile, or unremovable; the shell removes it as it reads it.

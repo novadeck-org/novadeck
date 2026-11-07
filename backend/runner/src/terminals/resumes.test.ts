@@ -1,5 +1,10 @@
+import { mkdtempSync, writeFileSync } from "node:fs"
+import { tmpdir } from "node:os"
+import { join } from "node:path"
+
 import { describe, expect, it } from "../test.js"
 import {
+  cancelResume,
   Claims,
   restartedTask,
   resumeNote,
@@ -156,5 +161,16 @@ describe("a session another terminal holds", () => {
 
   it("is not held by the terminal itself", () => {
     expect(sessionHeldElsewhere([other("a", { root: "convo" })], "a", "agy", "convo")).toBe(false)
+  })
+})
+
+describe("cancelling a resume", () => {
+  it("removes the command and the claim it was resuming", () => {
+    const file = join(mkdtempSync(join(tmpdir(), "resume-")), "cmd")
+    writeFileSync(file, "claude --resume c")
+    const record = { resumeFile: file, resumeClaim: "claude:c" as string | undefined }
+    expect(cancelResume(record)).toBe(true)
+    expect(record.resumeClaim).toBeUndefined()
+    expect(cancelResume(record)).toBe(false)
   })
 })

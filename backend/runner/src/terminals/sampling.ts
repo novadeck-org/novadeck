@@ -113,7 +113,8 @@ export const programOf = (process: ForegroundProcess): string => {
 const sampledProgram = (process: ForegroundProcess, record: Pick<Record, "bound">): string => {
   const program = programOf(process)
   const bound = record.bound?.binding.agent
-  return bound !== undefined && (program === "node" || program === "nodejs") ? bound : program
+  const interpreter = program === "node" || program === "nodejs"
+  return bound !== undefined && interpreter && process.argv === null ? bound : program
 }
 
 export type SamplerHost<R extends SampledRecord> = {
@@ -262,14 +263,13 @@ export class Sampler<R extends SampledRecord> {
       record.foreground = sampleForeground(record.terminal.pty, record.foreground)
       const current = record.foreground.process
       const same = sameProcess(current, record.summary.process)
-      // The program a fresh shell resumes, should this one be lost. The first sample always
-      // names it, whatever the system reports of a plain shell: on macOS that equals the
-      // summary's starting value, and an agent that bound and left before it would otherwise
-      // stay the program a restart resumes.
+      // The program a fresh shell resumes, should this one be lost. A sample names it even
+      // when the process is the summary's starting value (a plain shell on macOS), so an agent
+      // that bound and left before the first sample doesn't stay the program a restart resumes.
       const lastProgram = record.woken
         ? record.summary.lastProgram
         : ((current && sampledProgram(current, record)) ?? record.summary.lastProgram)
-      // A binding that comes after the process was first sampled names a node one too.
+      // Unchanged only if the program is too: a binding after the process was first sampled names a node one.
       if (same && lastProgram === record.summary.lastProgram) continue
       record.summary = { ...record.summary, process: current, lastProgram }
       record.changed = true

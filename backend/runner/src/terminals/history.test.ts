@@ -459,18 +459,37 @@ describe("keeping a terminal as it closes", () => {
     expect(store.rows.get("k-2")).toMatchObject({ agent: "claude" })
   })
 
-  it("keeps a woken terminal on the agent it is resuming, before anything binds", () => {
-    const { history, store } = setup()
-    history.closing(
-      live({
-        ran: true,
-        bound: null,
-        resumeClaim: "claude:c",
-        agents: { claude: { sessionId: "c", seq: 1 }, codex: { sessionId: "x", seq: 5 } },
-      }),
-      null,
-    )
-    expect(store.rows.get("t-1")).toMatchObject({ agent: "claude" })
+  describe("a terminal closed while waking", () => {
+    const two = {
+      claude: { sessionId: "c", seq: 1 },
+      codex: { sessionId: "x", seq: 5 },
+    }
+    const resumed = async (changes: Partial<Record>) => {
+      const { history, store } = setup()
+      history.closing(live({ ran: true, bound: null, agents: two, ...changes }), null)
+      const kept = store.rows.get("t-1")
+      const plan = await new Promise<Plan>(
+        (resolve) =>
+          void history.restore({ id: "n", sessionId: "s1", closed: "t-1" }, (made) => {
+            resolve(made)
+            return Promise.resolve(summary)
+          }),
+      )
+      return { kept, plan }
+    }
+
+    it("keeps the agent it is resuming, and a restore resumes that one", async () => {
+      const { kept, plan } = await resumed({ resumeClaim: "claude:c" })
+      expect(kept).toMatchObject({ agent: "claude" })
+      expect(plan.resume).toBe("claude")
+    })
+
+    it("falls back to the latest report once the resume ended or was cancelled", async () => {
+      expect((await resumed({ resumeClaim: "claude:c", resumeEnded: true })).kept).toMatchObject({
+        agent: "codex",
+      })
+      expect((await resumed({ resumeClaim: undefined })).kept).toMatchObject({ agent: "codex" })
+    })
   })
 
   it("never lets a failure stop the close", () => {
