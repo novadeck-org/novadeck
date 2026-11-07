@@ -4,7 +4,7 @@ import { join } from "node:path"
 
 import { afterEach, beforeEach, describe, expect, it } from "vitest"
 
-import { conversation } from "./conversation.js"
+import { conversation, conversations } from "./conversation.js"
 
 // A UUIDv7 made at 2026-11-06 21:54:21 UTC, as Codex numbers a thread.
 const made = Date.UTC(2026, 10, 6, 21, 54, 21)
@@ -56,12 +56,56 @@ describe("Codex's conversation", () => {
     expect(await conversation(install(), id)).toBe("found")
   })
 
-  it("is gone once archived out of sessions, and unknown with no sessions folder", async () => {
-    expect(await conversation(install(), id)).toBe("unknown")
+  it("is found archived, as Codex offers to unarchive and resume it", async () => {
     rollout(v7(made, "7ab0-80b5-000000000002"), made)
     mkdirSync(join(home, ".codex", "archived_sessions"), { recursive: true })
     writeFileSync(join(home, ".codex", "archived_sessions", `rollout-x-${id}.jsonl`), "")
+    expect(await conversation(install(), id)).toBe("found")
+    // Filed by day in its archive too.
+    const dated = v7(made, "7ab0-80b5-000000000004")
+    mkdirSync(join(home, ".codex", "archived_sessions", ...day(made)), { recursive: true })
+    writeFileSync(
+      join(home, ".codex", "archived_sessions", ...day(made), `rollout-x-${dated}.jsonl`),
+      "",
+    )
+    expect(await conversation(install(), dated)).toBe("found")
+  })
+
+  it("is gone from a day folder that lacks it, and unknown with no sessions folder or day folder", async () => {
+    expect(await conversation(install(), id)).toBe("unknown")
+    mkdirSync(sessions(), { recursive: true })
+    expect(await conversation(install(), id)).toBe("unknown")
+    rollout(v7(made, "7ab0-80b5-000000000002"), made)
     expect(await conversation(install(), id)).toBe("gone")
+  })
+
+  it("finds a session in the home its transcript names, though the environment names another", async () => {
+    const wrapped = join(home, "direnv-home")
+    mkdirSync(join(wrapped, "sessions", ...day(made)), { recursive: true })
+    const transcript = join(wrapped, "sessions", ...day(made), `rollout-t-${id}.jsonl`)
+    writeFileSync(transcript, "")
+    expect(await conversation(install(), id)).toBe("unknown")
+    expect(await conversation(install(), id, { transcript })).toBe("found")
+    // Archived since: the file is gone from the path it reported, the home still has it.
+    rmSync(transcript)
+    mkdirSync(join(wrapped, "archived_sessions"))
+    writeFileSync(join(wrapped, "archived_sessions", `rollout-t-${id}.jsonl`), "")
+    expect(await conversation(install(), id, { transcript })).toBe("found")
+    rmSync(join(wrapped, "archived_sessions", `rollout-t-${id}.jsonl`))
+    expect(await conversation(install(), id, { transcript })).toBe("gone")
+  })
+
+  it("reads the day folders once for a pass over many rows", async () => {
+    const ids = Array.from({ length: 500 }, (_, n) =>
+      v7(made + n, `7ab0-80b5-${String(n).padStart(12, "0")}`),
+    )
+    for (const one of ids.slice(0, 250)) rollout(one, made)
+    const started = Date.now()
+    const scan = conversations(install())
+    const answers = await Promise.all(ids.map((one) => scan.conversation(one)))
+    expect(answers.filter((one) => one === "found")).toHaveLength(250)
+    expect(answers.filter((one) => one === "gone")).toHaveLength(250)
+    expect(Date.now() - started).toBeLessThan(8000)
   })
 
   it("follows CODEX_HOME", async () => {

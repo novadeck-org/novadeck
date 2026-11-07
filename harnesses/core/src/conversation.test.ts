@@ -4,7 +4,7 @@ import { join } from "node:path"
 
 import { afterEach, beforeEach, describe, expect, it } from "vitest"
 
-import { fileIn, names, presence, rulesOf, sessionName } from "./conversation.js"
+import { fileIn, lister, presence, rulesOf, sessionName } from "./conversation.js"
 
 let root = ""
 beforeEach(() => {
@@ -21,8 +21,8 @@ describe("looking for a conversation's file", () => {
       expect(presence(join(root, "file"))).resolves.toBe("present"),
       expect(presence(join(root, "none"))).resolves.toBe("absent"),
       expect(presence(join(root, "file", "below"))).resolves.toBe("absent"),
-      expect(names(join(root, "none"))).resolves.toBe("absent"),
-      expect(names(join(root, "file"))).resolves.toBe("absent"),
+      expect(lister()(join(root, "none"))).resolves.toEqual({ kind: "missing" }),
+      expect(lister()(join(root, "file"))).resolves.toEqual({ kind: "file" }),
     ])
   })
 
@@ -35,7 +35,7 @@ describe("looking for a conversation's file", () => {
       try {
         expect(await presence(join(root, "locked", "a"))).toBe("unreadable")
         expect(await fileIn(join(root, "locked"), join(root, "locked", "a"))).toBe("unknown")
-        expect(await names(join(root, "locked"))).toBe("unreadable")
+        expect(await lister()(join(root, "locked"))).toEqual({ kind: "unreadable" })
       } finally {
         chmodSync(join(root, "locked"), 0o700)
       }
@@ -48,6 +48,10 @@ describe("looking for a conversation's file", () => {
     expect(await fileIn(join(root, "store"), join(root, "store", "a.db"))).toBe("found")
     expect(await fileIn(join(root, "store"), join(root, "store", "b.db"))).toBe("gone")
     expect(await fileIn(join(root, "nothing"), join(root, "nothing", "b.db"))).toBe("unknown")
+    // A file where the folder should be holds nothing, and says nothing of the conversation.
+    expect(await fileIn(join(root, "store", "a.db"), join(root, "store", "a.db", "c.db"))).toBe(
+      "unknown",
+    )
   })
 
   it("takes only ids that are one safe file name, and the install's own path rules", () => {

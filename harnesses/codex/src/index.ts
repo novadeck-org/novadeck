@@ -3,7 +3,7 @@ import type { Harness, LaunchProfile, MessagingProfile } from "@novadeck/harness
 
 import { bannerMarker, bannerVersion } from "./banner.js"
 import { box, slice } from "./box.js"
-import { conversation } from "./conversation.js"
+import { conversation, conversations } from "./conversation.js"
 import { decode } from "./decode.js"
 import { dialogs } from "./dialogs.js"
 import { codexHome } from "./home.js"
@@ -64,8 +64,9 @@ const launch: LaunchProfile = {
     session,
   ],
   // It has no id before its first prompt: reaching ready with the resume running is its
-  // sign, and an id it never had exits with the shell prompt back instead.
-  resumed: (_claim, { ready }) => (ready ? "worked" : "waiting"),
+  // sign (an id it never had exits with the shell prompt back instead), and binding clears
+  // ready, so an id that is the claim counts as well.
+  resumed: (claim, { sessionId, ready }) => (sessionId === claim || ready ? "worked" : "waiting"),
   // Its cache of the models it lists, in its home; the effort is a config override, left
   // bare (codex reads a value that isn't TOML as a string), so it has no quotes of its own.
   models: (install) => readModels(codexHome(install)),
@@ -79,6 +80,7 @@ export const codex = {
   id: "codex",
   plugin: "codex",
   conversation,
+  conversations,
   home: codexHome,
   connected,
   connect,

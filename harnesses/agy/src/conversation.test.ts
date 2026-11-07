@@ -31,4 +31,21 @@ describe("Antigravity's conversation", () => {
     mkdirSync(join(store(), "brain", id), { recursive: true })
     expect(await conversation(install(), id)).toBe("gone")
   })
+
+  it("is unknown when conversations is a file, not a folder", async () => {
+    mkdirSync(store(), { recursive: true })
+    writeFileSync(join(store(), "conversations"), "")
+    expect(await conversation(install(), id)).toBe("unknown")
+  })
+
+  it("reads the home its brain transcript names, though the install's own has none", async () => {
+    const wrapped = join(home, "elsewhere", "antigravity-cli")
+    mkdirSync(join(wrapped, "conversations"), { recursive: true })
+    writeFileSync(join(wrapped, "conversations", `${id}.db`), "")
+    const transcript = join(wrapped, "brain", id, "logs", "00000000.jsonl")
+    expect(await conversation(install(), id)).toBe("unknown")
+    expect(await conversation(install(), id, { transcript })).toBe("found")
+    rmSync(join(wrapped, "conversations", `${id}.db`))
+    expect(await conversation(install(), id, { transcript })).toBe("gone")
+  })
 })

@@ -7,7 +7,7 @@ import type {
 } from "@novadeck/protocol"
 import type { BoxProfile } from "@novadeck/tui-input/box"
 
-import type { Conversation } from "./conversation.js"
+import type { Conversation, ConversationScan, Known } from "./conversation.js"
 import type { DialogAdapter } from "./dialogs.js"
 import type { HarnessEvent, PlanSource, PromptShown } from "./events.js"
 import type { Dialect } from "./hook-command.js"
@@ -66,11 +66,20 @@ export type Harness = {
   readonly planFoldersOf?: (transcript: string) => readonly string[]
   /**
    * Whether a conversation of this id can still be found in its files, by `stat` and
-   * `readdir` alone: it never opens one. `gone` only where the file is missing and the
-   * folder that holds such files is there; any other failure is `unknown`. Cheap enough to
-   * run for each row of a list.
+   * `readdir` alone: it never opens one. `gone` only where the file is missing from a folder
+   * that holds such files and is there; any other failure is `unknown`.
    */
-  readonly conversation: (install: Install, sessionId: string) => Promise<Conversation>
+  readonly conversation: (
+    install: Install,
+    sessionId: string,
+    known?: Known,
+  ) => Promise<Conversation>
+  /**
+   * The same check for many rows of one list: each folder is read once for the scan's life,
+   * so make one per pass. `known` is the transcript path the session reported at bind, which
+   * finds a session whose harness a wrapper pointed at another home than `install.env` says.
+   */
+  readonly conversations: (install: Install) => ConversationScan
   /** Whether its own configuration lists Novadeck's plugin as installed. */
   readonly connected: (install: Install) => Promise<boolean>
   /** Its plugin commands, run in order. */

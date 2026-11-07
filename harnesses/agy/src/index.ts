@@ -4,7 +4,7 @@ import type { Harness, LaunchProfile, MessagingProfile } from "@novadeck/harness
 import { beside } from "@novadeck/harness-core/paths"
 
 import { box, slice } from "./box.js"
-import { conversation } from "./conversation.js"
+import { conversation, conversations } from "./conversation.js"
 import { decode } from "./decode.js"
 import { dialogs } from "./dialogs.js"
 import { antigravityHome } from "./home.js"
@@ -83,6 +83,7 @@ export const agy = {
   // Antigravity installs a plugin folder, which its name must match.
   plugin: join("agy", pluginId),
   conversation,
+  conversations,
   home: antigravityHome,
   // The folders of its conversations, where it writes the plans it asks to be reviewed.
   planFolders: (install) => [join(antigravityHome(install), "brain")],
