@@ -5,6 +5,16 @@ import { Layers2, Plus } from "lucide-react"
 import { shortcutBindings } from "../interaction/shortcuts"
 import { sidebarCreateClasses } from "./SidebarPanel"
 
+// What a session's terminals show at a glance, worded by the shell (projects/session-marks.ts):
+// the status its mark draws (project-status.css), that status in words, the detail line's need
+// word, and the tooltip's lines naming the terminals that need the person or ask.
+export type SessionGlance = {
+  readonly status: string | undefined
+  readonly label: string | undefined
+  readonly need: string | undefined
+  readonly lines: readonly string[]
+}
+
 type WorkspaceSessionSummary = {
   id: string
   name: string
@@ -12,6 +22,8 @@ type WorkspaceSessionSummary = {
   visitedAt: number | null
   terminalNames: string[]
   running: number
+  // What its terminals show at a glance; none while they show nothing.
+  mark?: SessionGlance | undefined
 }
 
 type SessionsPanelProps = {
@@ -68,6 +80,10 @@ export const SessionsPanel = ({
           const terminalCount = session.terminalNames.length
           const preview = terminalCount ? session.terminalNames.join(", ") : "No terminals yet"
           const visited = formatVisited(session.visitedAt, active)
+          const { mark } = session
+          const need = mark?.need
+          const lines = mark?.lines ?? []
+          const status = mark?.status
 
           return (
             <SidebarItem
@@ -79,16 +95,33 @@ export const SessionsPanel = ({
               icon={<Layers2 size={14} strokeWidth={1.5} />}
               selected={active}
               selectLabel={`Open ${session.name}`}
-              description={`${visited}. ${preview}`}
-              tooltip={`${session.name}\n${visited}\n${preview}`}
+              badge={
+                status && (
+                  <span
+                    className="session-status flex shrink-0 items-center"
+                    data-project-status={status}
+                    aria-hidden="true"
+                  >
+                    <span className="project-status-mark" />
+                  </span>
+                )
+              }
+              description={[...(mark?.label ? [mark.label] : []), visited, ...lines, preview].join(
+                ". ",
+              )}
+              tooltip={[session.name, visited, ...lines, preview].join("\n")}
               onSelect={() => onSelect(session.id)}
               detail={
                 <>
                   <span>
                     {terminalCount} {terminalCount === 1 ? "terminal" : "terminals"}
                   </span>
-                  {session.running > 0 && (
-                    <span className="session-running">{session.running} running</span>
+                  {need ? (
+                    <span className="session-running">{need}</span>
+                  ) : (
+                    session.running > 0 && (
+                      <span className="session-running">{session.running} running</span>
+                    )
                   )}
                 </>
               }

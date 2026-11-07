@@ -8,6 +8,7 @@ import type { ComponentProps } from "react"
 
 import { HeldPill, InboxClear, InboxCount, InboxList, InboxMarkAll } from "../inbox/InboxList"
 import { shortcutBindings } from "../interaction/shortcuts"
+import { sessionGlance, type SessionMark } from "../projects/session-marks"
 import { HistoryPanel } from "../sidebar/HistoryPanel"
 import { SessionsPanel } from "../sidebar/SessionsPanel"
 import { SidebarPanel, sidebarCreateClasses } from "../sidebar/SidebarPanel"
@@ -20,6 +21,8 @@ type Props = Omit<ComponentProps<typeof TerminalTabs>, "terminals"> & {
   projectId: string
   workspaceSessionId: string
   workspaceSessions: WorkspaceSession[]
+  // What each session's terminals show at a glance, by its id.
+  sessionMarks: Readonly<Record<string, SessionMark>>
   terminalCount: number
   ordered: readonly Tile[]
   sidebarPanel: PanelId
@@ -67,6 +70,7 @@ export const WorkspaceSidebar = ({
   projectId,
   workspaceSessionId,
   workspaceSessions,
+  sessionMarks,
   terminalCount,
   ordered,
   sidebarPanel,
@@ -119,6 +123,7 @@ export const WorkspaceSidebar = ({
             visitedAt: session.visitedAt,
             terminalNames: terminals.map((terminal) => terminal.name),
             running: terminals.filter((terminal) => terminal.state === "running").length,
+            mark: sessionGlance(sessionMarks[session.id]),
           }
         })}
         activeId={workspaceSessionId}
