@@ -274,6 +274,10 @@ describe("approval dialog", () => {
       expect(text).toContain("Novadeck\\u{200B}")
       expect(text).toContain("…”")
       expect(text).not.toContain("x".repeat(60))
+      const strip = dialog()?.querySelector(".modal-subject")?.textContent ?? ""
+      expect(strip).toContain("Novadeck\\u{200B}")
+      expect(strip).toContain("…")
+      expect(strip).not.toContain("x".repeat(60))
     })
   })
 

@@ -16,6 +16,13 @@
   font-size: var(--text-caption);
   line-height: 20px;
   color: var(--tab-subagent-fg, var(--color-muted));
+  /* A big team scrolls in its well, so the answers stay on screen. */
+  max-height: min(320px, 45vh);
+  overflow-y: auto;
+}
+/* A branch keeps its spaces: they carry a sub-team's step under a last teammate. */
+.close-team-row .terminal-tab-branch {
+  white-space: pre;
 }
 .close-team-row {
   cursor: default;

@@ -40,8 +40,9 @@ export const SubjectDetail = ({
 
 // From an asking agent to what it acts on.
 export const SubjectArrow = (): React.JSX.Element => (
-  <span className="modal-subject-arrow" aria-label="to">
+  <span className="modal-subject-arrow">
     <ArrowRight size={14} strokeWidth={1.5} aria-hidden="true" />
+    <span className="sr-only"> to </span>
   </span>
 )
 
