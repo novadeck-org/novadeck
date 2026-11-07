@@ -4,8 +4,8 @@ import type { Runner } from "@novadeck/runner-client"
 
 import type { RunnerBackendOptions } from "./backend"
 
-// The switches in Preferences the runner keeps: whether it keeps transcripts, which agents it
-// connects, and whether the person has seen the first-run choice. Each shows a change at once;
+// The switches in Preferences the runner keeps: whether it keeps transcripts, how long it lets
+// idle agents run, which agents it connects, and whether the person has seen the first-run choice. Each shows a change at once;
 // one the runner doesn't take goes back to what it still does.
 
 type RunnerSwitchCalls = {
@@ -21,10 +21,15 @@ export const runnerSwitches = (
     transcriptsAvailable,
     agents: integrations,
     welcomed,
-  }: Pick<RunnerBackendOptions, "transcripts" | "transcriptsAvailable" | "agents" | "welcomed">,
+    hibernateAfterMinutes,
+  }: Pick<
+    RunnerBackendOptions,
+    "transcripts" | "transcriptsAvailable" | "agents" | "welcomed" | "hibernateAfterMinutes"
+  >,
   track: <T>(work: Promise<T>) => Promise<T>,
-): Pick<Backend, "transcripts" | "agents"> => {
+): Pick<Backend, "transcripts" | "hibernation" | "agents"> => {
   const transcripts = createStore(kept ?? true)
+  const hibernateAfter = createStore(hibernateAfterMinutes ?? null)
   const agents = createStore<readonly AgentConnection[]>(
     (integrations ?? []).map((agent) => ({ ...agent, busy: false })),
   )
@@ -78,6 +83,21 @@ export const runnerSwitches = (
               // Unsaved, the switch shows what the runner still does.
               void track(runner.settings.set({ transcripts: enabled })).catch(() =>
                 transcripts.update(() => before),
+              )
+            },
+          },
+        }
+      : {}),
+    ...(hibernateAfterMinutes !== undefined
+      ? {
+          hibernation: {
+            after: hibernateAfter,
+            set: (minutes) => {
+              const before = hibernateAfter.getSnapshot()
+              hibernateAfter.update(() => minutes)
+              // Unsaved, the choice shows what the runner still does.
+              void track(runner.settings.set({ hibernateAfterMinutes: minutes })).catch(() =>
+                hibernateAfter.update(() => before),
               )
             },
           },

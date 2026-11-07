@@ -261,6 +261,14 @@ export type BackendFields = {
     readonly available: boolean
     readonly set: (enabled: boolean) => void
   }
+  // Optional. How long an idle agent runs before the backend stops it: its session rests,
+  // and the next message to it, or a look at it, starts it again where it left off. Absent
+  // where the backend stops none.
+  readonly hibernation?: {
+    // The idle minutes before an agent is stopped; null for never.
+    readonly after: Store<number | null>
+    readonly set: (minutes: number | null) => void
+  }
   // Optional. The agents whose sessions resume after a restart once connected: each
   // connection installs a small plugin into the agent, and disconnecting removes it.
   // Absent where the backend cannot connect agents.
