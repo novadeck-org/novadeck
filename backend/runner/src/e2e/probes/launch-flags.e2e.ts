@@ -160,3 +160,41 @@ for (const setup of setups) {
     },
   )
 }
+
+// Whether a bare `codex resume` of a session launched with `--dangerously-bypass-hook-trust`
+// stops at the "Hooks need review" screen, Novadeck's hooks being untrusted. Its answer decides
+// whether that flag is given back (`forgets` in the Codex harness).
+const codexSetup = setups.find((setup) => setup.agent === "codex")
+if (codexSetup) {
+  describe.skipIf(!supported || process.env.NOVADECK_E2E_PROBES === undefined)(
+    "probe: hook trust bypass kept on resume in Codex",
+    () => {
+      const it = e2e.seeded({ hooksTrusted: false }, codexSetup)
+      it("shows whether a bare resume asks to review the hooks", async ({ e2e: run }) => {
+        run.model.use(replies("Remember the word heron", "Remembered."))
+        const found: Record<string, unknown> = {}
+        const bypassed = await run.deck.open("codex --dangerously-bypass-hook-trust")
+        await prompted(bypassed, codexSetup)
+        found.launchedAskedToReview = /Hooks need review/.test(await bypassed.screen())
+        await bypassed.submit("Remember the word heron")
+        await bypassed.until("Remembered.")
+        await new Promise((resolve) => setTimeout(resolve, 6000))
+        // Whether its hooks ran, so Novadeck knows the session.
+        const session = run.deck.terminals.reportedSession(bypassed.id, "codex")
+        found.session = session
+        found.launchedScreen = await bypassed.screen()
+        if (session) {
+          await run.deck.restart()
+          const bare = await run.deck.open(harnesses.codex.launch.resume!(session).join(" "))
+          await new Promise((resolve) => setTimeout(resolve, 10_000))
+          found.bareScreen = await bare.screen()
+          found.bareAsksToReview = /Hooks need review/.test(String(found.bareScreen))
+        }
+        if (out) {
+          mkdirSync(out, { recursive: true })
+          writeFileSync(join(out, "codex.hook-trust.probe.json"), JSON.stringify(found, null, 2))
+        }
+      })
+    },
+  )
+}

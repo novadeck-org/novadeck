@@ -105,6 +105,36 @@ const replaces = (binding: Binding, event: SessionObserved, busy: boolean): bool
 }
 
 /**
+ * The flags a session was launched with after a process of it reports `told`: a resume gives
+ * back only what the harness forgets, so the process that resumed it tells a part of what
+ * the session was launched with, and the rest stays. A flag the process tells again takes
+ * its value. Flags are words that start with `-`, each with the value after it, if any.
+ */
+export const mergeLaunch = (
+  known: readonly string[] | undefined,
+  told: readonly string[] | undefined,
+): readonly string[] | undefined => {
+  if (told === undefined) return known
+  const units = (words: readonly string[]): [string, string[]][] => {
+    const found: [string, string[]][] = []
+    for (const word of words) {
+      const last = found.at(-1)
+      if (word.startsWith("-") || last === undefined) {
+        found.push([word, [word]])
+      } else last[1].push(word)
+    }
+    // A config override is named by its key as well, as several differ by it.
+    return found.map(([flag, own]): [string, string[]] => [
+      flag === "-c" || flag === "--config" ? `${flag}:${own[1]?.split("=", 1)[0] ?? ""}` : flag,
+      own,
+    ])
+  }
+  const merged = new Map(units(known ?? []))
+  for (const [flag, own] of units(told)) merged.set(flag, own)
+  return [...merged.values()].flat()
+}
+
+/**
  * The terminal's sessions after an observation, or undefined when it is not this
  * terminal's own or not the latest. Processes that merely inherited the terminal's
  * environment report too: a tmux server or an editor started from it, while its shell
@@ -142,7 +172,7 @@ export const observe = (
   const transcript = event.transcript ?? (same ? known.transcript : undefined)
   // The flags its process was launched with, as that process tells them; a report that can't
   // (the relay couldn't read them) leaves what the session had.
-  const launch = event.launch ?? (same ? known.launch : undefined)
+  const launch = same ? mergeLaunch(known.launch, event.launch) : event.launch
   const sessions = {
     ...state.sessions,
     [event.agent]: {

@@ -110,6 +110,10 @@ const kept: KeptFlags = {
     "--dangerously-skip-permissions": "--dangerously-skip-permissions",
     "--sandbox": "--sandbox",
   },
+  // Probed 2026-11-07 (1.5.2, launch-flags.e2e.ts): a bare `--conversation` brings back none of
+  // its mode, model or effort (the footer shows the defaults again), so all are given back,
+  // though a `/model` changed since is undone by the launch's. `--sandbox` shows nowhere to probe.
+  forgets: ["--mode", "--model", "--effort", "--dangerously-skip-permissions", "--sandbox"],
   takesValue: nonSession.takesValue,
   takesMany: nonSession.takesMany,
   print: nonSession.print,

@@ -79,7 +79,7 @@ describe("the flags a resumed Codex keeps", () => {
     expect(kept!(["--no-daemon", "--unknown", "-m", "gpt-5"])).toEqual(["--model", "gpt-5"])
   })
 
-  it("come after the model and effort asked for, which replace the launch's own", () => {
+  it("give back only the hook trust bypass, which its session doesn't hold", () => {
     const launched = kept!([
       "-m",
       "gpt-5",
@@ -87,20 +87,13 @@ describe("the flags a resumed Codex keeps", () => {
       "model_reasoning_effort=high",
       "--ask-for-approval",
       "never",
-      "-c",
-      "sandbox_mode=read-only",
+      "--dangerously-bypass-hook-trust",
     ])
+    expect(launched).toContain("--ask-for-approval")
     expect(resume!("s-1", {}, launched)).toEqual([
       "codex",
       "resume",
-      "--model",
-      "gpt-5",
-      "-c",
-      "model_reasoning_effort=high",
-      "--ask-for-approval",
-      "never",
-      "-c",
-      "sandbox_mode=read-only",
+      "--dangerously-bypass-hook-trust",
       "s-1",
     ])
     expect(resume!("s-1", { model: "o4", effort: "low" }, launched)).toEqual([
@@ -110,12 +103,10 @@ describe("the flags a resumed Codex keeps", () => {
       "o4",
       "-c",
       "model_reasoning_effort=low",
-      "--ask-for-approval",
-      "never",
-      "-c",
-      "sandbox_mode=read-only",
+      "--dangerously-bypass-hook-trust",
       "s-1",
     ])
+    expect(resume!("s-1", {}, kept!(["-s", "read-only"]))).toEqual(["codex", "resume", "s-1"])
     expect(resume!("s-1")).toEqual(["codex", "resume", "s-1"])
   })
 })

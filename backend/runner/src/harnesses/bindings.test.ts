@@ -200,8 +200,34 @@ describe("the launch flags a session keeps", () => {
     const later = observe(first, seen({ startedAt: 3_000 }), facts)!
     expect(later.sessions.claude).toEqual({ sessionId: "a", seq: 3_000, launch: flags })
     // The same process reporting again says what it has.
-    const changed = observe(first, seen({ startedAt: 3_000, launch: ["--model", "opus"] }), facts)!
-    expect(changed.sessions.claude?.launch).toEqual(["--model", "opus"])
+    const changed = observe(
+      first,
+      seen({ startedAt: 3_000, launch: ["--permission-mode", "auto"] }),
+      facts,
+    )!
+    expect(changed.sessions.claude?.launch).toEqual(["--permission-mode", "auto"])
+  })
+
+  it("keep what a resumed process, given back only the flags its harness forgets, doesn't tell", () => {
+    const flags = ["--permission-mode", "plan", "--effort", "high", "-c", "a=1", "-c", "b=2"]
+    const first = observe(idle, seen({ launch: flags }), facts)!
+    const resumed = observe(
+      first,
+      seen({ startedAt: 3_000, launch: ["--effort", "low", "-c", "b=3"] }),
+      facts,
+    )!
+    expect(resumed.sessions.claude?.launch).toEqual([
+      "--permission-mode",
+      "plan",
+      "--effort",
+      "low",
+      "-c",
+      "a=1",
+      "-c",
+      "b=3",
+    ])
+    const bare = observe(first, seen({ startedAt: 3_000, launch: [] }), facts)!
+    expect(bare.sessions.claude?.launch).toEqual(flags)
   })
 
   it("are none for a new session whose process didn't say, and none when it has no flags", () => {
@@ -212,8 +238,8 @@ describe("the launch flags a session keeps", () => {
       facts,
     )!
     expect(next.sessions.claude).toEqual({ sessionId: "b", seq: 3_000 })
-    const bare = observe(first, seen({ startedAt: 3_000, launch: [] }), facts)!
-    expect(bare.sessions.claude).toEqual({ sessionId: "a", seq: 3_000 })
+    const bare = observe(idle, seen({ launch: [] }), facts)!
+    expect(bare.sessions.claude).toEqual({ sessionId: "a", seq: 2_000 })
   })
 })
 

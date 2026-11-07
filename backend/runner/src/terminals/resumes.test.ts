@@ -43,21 +43,19 @@ describe("the session an agent asks to resume in a new terminal", () => {
     })
 
   it("resumes with the flags the session was launched with, the model asked for replacing theirs", () => {
-    const launch = ["--permission-mode", "plan", "--model", "opus"]
+    const launch = ["--permission-mode", "plan", "--model", "opus", "--effort", "high"]
     expect(claims().check("t1", "claude", "s-1", true, undefined, launch)).toEqual({
       ok: true,
-      argv: ["claude", "--permission-mode", "plan", "--model", "opus", "--resume", "s-1"],
+      argv: ["claude", "--effort", "high", "--resume", "s-1"],
       key: "claude:s-1",
     })
     expect(claims().check("t1", "claude", "s-1", true, { model: "sonnet" }, launch)).toMatchObject({
-      argv: ["claude", "--model", "sonnet", "--permission-mode", "plan", "--resume", "s-1"],
+      argv: ["claude", "--model", "sonnet", "--effort", "high", "--resume", "s-1"],
     })
     expect(claims().resumable("t1", "claude", "s-1", true, launch)?.argv).toEqual([
       "claude",
-      "--permission-mode",
-      "plan",
-      "--model",
-      "opus",
+      "--effort",
+      "high",
       "--resume",
       "s-1",
     ])
@@ -65,11 +63,17 @@ describe("the session an agent asks to resume in a new terminal", () => {
 
   it("judges a restored terminal's resume with the flags its saved row kept", () => {
     const saved = {
-      agents: { codex: { sessionId: "s-1", seq: 1, launch: ["--sandbox", "read-only"] } },
+      agents: {
+        codex: {
+          sessionId: "s-1",
+          seq: 1,
+          launch: ["--sandbox", "read-only", "--dangerously-bypass-hook-trust"],
+        },
+      },
     }
     expect(claims().judge({ id: "t1", resume: "codex" }, saved, true)).toMatchObject({
       ok: true,
-      argv: ["codex", "resume", "--sandbox", "read-only", "s-1"],
+      argv: ["codex", "resume", "--dangerously-bypass-hook-trust", "s-1"],
     })
     const old = { agents: { codex: { sessionId: "s-1", seq: 1 } } }
     expect(claims().judge({ id: "t1", resume: "codex" }, old, true)).toMatchObject({

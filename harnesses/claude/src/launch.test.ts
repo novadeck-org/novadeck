@@ -57,8 +57,18 @@ describe("the flags a resumed Claude Code keeps", () => {
     expect(kept!(["--model", "--effort", "low"])).toEqual([])
   })
 
-  it("come after the model and effort asked for, which replace the launch's own", () => {
+  it("give back only what a resume doesn't bring back, after the model and effort asked for", () => {
     const launched = kept!([
+      "--permission-mode",
+      "plan",
+      "--model",
+      "opus",
+      "--effort",
+      "high",
+      "--dangerously-skip-permissions",
+    ])
+    // All are kept with the session; Claude Code brings back the mode and model itself.
+    expect(launched).toEqual([
       "--permission-mode",
       "plan",
       "--model",
@@ -69,12 +79,16 @@ describe("the flags a resumed Claude Code keeps", () => {
     ])
     expect(resume!("s-1", {}, launched)).toEqual([
       "claude",
-      "--permission-mode",
-      "plan",
-      "--model",
-      "opus",
       "--effort",
       "high",
+      "--dangerously-skip-permissions",
+      "--resume",
+      "s-1",
+    ])
+    expect(resume!("s-1", { effort: "low" }, launched)).toEqual([
+      "claude",
+      "--effort",
+      "low",
       "--dangerously-skip-permissions",
       "--resume",
       "s-1",
@@ -83,22 +97,8 @@ describe("the flags a resumed Claude Code keeps", () => {
       "claude",
       "--model",
       "sonnet",
-      "--permission-mode",
-      "plan",
       "--effort",
       "high",
-      "--dangerously-skip-permissions",
-      "--resume",
-      "s-1",
-    ])
-    expect(resume!("s-1", { model: "m", effort: "low" }, launched)).toEqual([
-      "claude",
-      "--model",
-      "m",
-      "--effort",
-      "low",
-      "--permission-mode",
-      "plan",
       "--dangerously-skip-permissions",
       "--resume",
       "s-1",

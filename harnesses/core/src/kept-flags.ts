@@ -20,6 +20,13 @@ export type KeptFlags = {
   readonly config?: { readonly options: readonly string[]; readonly keys: readonly string[] }
   /** That a long option may be written with one dash, as Go's `flag` allows. */
   readonly oneDash?: boolean
+  /**
+   * Of those, the flags a resume gives back: only what the harness doesn't bring back with
+   * its session itself, as one it does would undo what the person changed since (`/model`,
+   * Shift+Tab, `/approvals`). The rest are still read and saved with the session, so a
+   * release that forgets more is mended here alone.
+   */
+  readonly forgets: readonly string[]
   /** Its options that take a value, and those among them that take a list (`nonSession`). */
   readonly takesValue: readonly string[]
   readonly takesMany: readonly string[]
@@ -103,14 +110,13 @@ export const keptFlags = (argv: readonly string[], flags: KeptFlags): readonly s
 }
 
 /**
- * The kept words a resume gives beside the `choice` it is asked for: those of a model or
- * an effort `choice` sets itself are left out, so the model an agent last reported
- * (`/model` changed it) is not undone by the one it was started with.
+ * The kept words a resume gives beside the `choice` it is asked for: only those the harness
+ * `forgets`, and but for a model or an effort `choice` sets itself, which replace the launch's.
  */
 export const resumeFlags = (
   kept: readonly string[],
   choice: Choice,
-  flags: Pick<KeptFlags, "bare" | "sets">,
+  flags: Pick<KeptFlags, "bare" | "sets" | "forgets">,
 ): readonly string[] => {
   const bare = new Set(Object.values(flags.bare))
   const words: string[] = []
@@ -119,6 +125,7 @@ export const resumeFlags = (
     const value = bare.has(flag) ? undefined : kept[index + 1]
     const unit = value === undefined ? [flag] : [flag, value]
     index += unit.length - 1
+    if (!flags.forgets.includes(flag)) continue
     const sets = flags.sets(flag, value)
     if ((sets === "model" && choice.model !== undefined) || (sets === "effort" && choice.effort))
       continue

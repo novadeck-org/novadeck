@@ -76,6 +76,11 @@ const kept: KeptFlags = {
     "--dangerously-skip-permissions": "--dangerously-skip-permissions",
     "--allow-dangerously-skip-permissions": "--allow-dangerously-skip-permissions",
   },
+  // Probed 2026-11-07 (2.1.316, launch-flags.e2e.ts): a bare `--resume` brings back the model
+  // and the permission mode (`plan`, `acceptEdits`) but not the effort. `--dangerously-skip-permissions`
+  // sits behind a warning dialog the probe's sandbox can't pass, so it is unprobed: it is
+  // given back, as a resume that stalls unseen is the worse failure.
+  forgets: ["--effort", "--dangerously-skip-permissions", "--allow-dangerously-skip-permissions"],
   takesValue: valued,
   takesMany: many,
   print: ["-p", "--print"],

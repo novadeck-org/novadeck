@@ -279,17 +279,29 @@ fn now() -> u64 {
         .map_or(0, |since| since.as_millis() as u64)
 }
 
-/// A tree member as the relay prints it: its pid, its start, and its program's file name
+/// A tree member as the relay prints it: its pid, its start, its program's file name
 /// from the snapshot (empty for a process the snapshot no longer lists), which lets the
-/// runner tell a shell's own launcher or console host from a program it started.
-fn member_json(member: &Member, files: &HashMap<u32, String>) -> Value {
+/// runner tell a shell's own launcher or console host from a program it started, and the
+/// pid of its parent as the snapshot records it (`parent`, left out for a process the
+/// snapshot no longer lists), which lets it tell a wrapper between a shell and its agent,
+/// such as an npm shim's `codex.cmd`, from a job the shell started.
+fn member_json(
+    member: &Member,
+    files: &HashMap<u32, String>,
+    parents: &HashMap<u32, u32>,
+) -> Value {
     let name = files.get(&member.pid).map_or("", String::as_str);
-    json!({ "pid": member.pid, "startedAt": member.started, "name": name })
+    let mut fields = json!({ "pid": member.pid, "startedAt": member.started, "name": name });
+    if let Some(parent) = parents.get(&member.pid) {
+        fields["parent"] = json!(parent);
+    }
+    fields
 }
 
 /// `novadeck-relay tree <pid>[:<started-ms>]...`: each root's tree, as JSON, a line for
 /// each root as it was named: `{"root":"<pid>[:<started-ms>]","processes":[{"pid":<pid>,
-/// "startedAt":<ms>,"name":"<program file>"},...]}`. False where Windows refused the snapshot, which tells nothing
+/// "startedAt":<ms>,"name":"<program file>","parent":<pid>},...]}` (`parent` as the snapshot
+/// records it, absent for a process it no longer lists). False where Windows refused the snapshot, which tells nothing
 /// of any tree.
 pub fn print_trees(roots: &[(String, Root)]) -> bool {
     let before = now();
@@ -309,7 +321,7 @@ pub fn print_trees(roots: &[(String, Root)]) -> bool {
     for (named, root) in roots {
         let members: Vec<Value> = tree(*root, &parents, &started, before)
             .iter()
-            .map(|member| member_json(member, &files))
+            .map(|member| member_json(member, &files, &parents))
             .collect();
         // A runner gone meanwhile reads none of it; `println!` would panic on that.
         let _ = writeln!(stdout, "{}", json!({ "root": named, "processes": members }));
@@ -333,6 +345,23 @@ pub fn end(members: &[Member]) {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn prints_a_member_with_its_recorded_parent_where_the_snapshot_has_it() {
+        let member = Member {
+            pid: 7,
+            started: 99,
+        };
+        let files = HashMap::from([(7, "codex.exe".to_owned())]);
+        assert_eq!(
+            member_json(&member, &files, &HashMap::from([(7, 3)])),
+            json!({ "pid": 7, "startedAt": 99, "name": "codex.exe", "parent": 3 })
+        );
+        assert_eq!(
+            member_json(&member, &HashMap::new(), &HashMap::new()),
+            json!({ "pid": 7, "startedAt": 99, "name": "" })
+        );
+    }
 
     // Process starts by pid, and the tree a root has in them, as pids.
     fn pids(
@@ -362,7 +391,7 @@ mod tests {
             started: 200,
         };
         assert_eq!(
-            member_json(&known, &files),
+            member_json(&known, &files, &HashMap::new()),
             json!({ "pid": 11, "startedAt": 200, "name": "bash.exe" })
         );
         let gone = Member {
@@ -370,7 +399,7 @@ mod tests {
             started: 300,
         };
         assert_eq!(
-            member_json(&gone, &files),
+            member_json(&gone, &files, &HashMap::new()),
             json!({ "pid": 12, "startedAt": 300, "name": "" })
         );
     }

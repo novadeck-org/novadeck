@@ -120,6 +120,13 @@ const kept: KeptFlags = {
     "--full-auto": "--full-auto",
   },
   config: { options: ["-c", "--config"], keys: configKeys },
+  // Probed 2026-11-07 (0.167.0, launch-flags.e2e.ts): a bare `codex resume` brings back the
+  // model, the effort, the sandbox, the approval policy and the full bypass (`/status` matched
+  // the launch's), so none of those is given back; all are still read and saved with the
+  // session. Hook trust is not the session's: launched with `--dangerously-bypass-hook-trust`
+  // and untrusted hooks, its hooks ran, and a bare `codex resume` of that session showed
+  // "Hooks need review" and ran none (same probe, `codex.hook-trust.probe.json`).
+  forgets: ["--dangerously-bypass-hook-trust"],
   takesValue: nonSession.takesValue,
   takesMany: nonSession.takesMany,
   print: nonSession.print,
