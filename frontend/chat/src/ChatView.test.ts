@@ -783,10 +783,7 @@ describe("a reply to the agent's question, as its dialog changes", () => {
       program: "agy",
     })
     const region = [...container.querySelectorAll('[role="status"]')].find(
-      (each) =>
-        each.childElementCount === 0 &&
-        each.tagName === "DIV" &&
-        !each.classList.contains("chat-unread-region"),
+      (each) => each.childElementCount === 0 && each.tagName === "DIV",
     )
     expect(region).toBeDefined()
     await send(container)
@@ -851,46 +848,41 @@ describe("a reply to the agent's question, as its dialog changes", () => {
 })
 
 describe("parts of the conversation the chat can't read", () => {
-  const notice = (container: HTMLElement): string | null =>
-    container.querySelector(".chat-unread")?.textContent ?? null
-  const action = (container: HTMLElement, name: string): HTMLButtonElement =>
-    [...container.querySelectorAll<HTMLButtonElement>(".chat-unread button")].find(
-      (each) => each.textContent === name,
-    )!
-
-  it("tells once at the top, until dismissed, for the session alone", () => {
-    const session = `s-${crypto.randomUUID()}`
-    const conversation = createStore<Conversation>({
-      ...noConversation,
-      agent: "claude",
-      session,
-      loaded: true,
-      unread: true,
-    })
-    const chat = inApp(conversation)
-    expect(notice(chat.container)).toContain(
-      "This chat may be missing parts of the conversation. The terminal has all of it.",
+  const gap = (id: string, text: string): ChatItem => ({
+    ...userItem(text),
+    id,
+    role: "note",
+    note: { type: "gap" },
+  })
+  const view = (items: readonly ChatItem[]) =>
+    inApp(
+      createStore<Conversation>({
+        ...noConversation,
+        agent: "claude",
+        session: "s",
+        loaded: true,
+        items,
+      }),
     )
-    // Above the thread, in a region mounted while empty so a screen reader announces it.
-    const region = chat.container.querySelector(".chat")?.firstElementChild
-    expect(region?.getAttribute("role")).toBe("status")
-    expect(region?.firstElementChild?.className).toBe("chat-unread")
-    expect(action(chat.container, "Show terminal")).toBeDefined()
-    act(() => action(chat.container, "Dismiss").click())
-    expect(notice(chat.container)).toBeNull()
-    // The chat leaving the screen and coming back, as the person visits the terminal.
-    chat.show(false)
-    chat.show(true)
-    expect(notice(chat.container)).toBeNull()
-    // Another session in the terminal tells its own.
-    act(() => void conversation.update((current) => ({ ...current, session: `${session}-next` })))
-    expect(notice(chat.container)).not.toBeNull()
+
+  it("marks where it stands among what could be read, the line there to open", () => {
+    const { container } = view([
+      { ...userItem("before"), id: "a" },
+      gap("b", '{"type":"hologram"}'),
+      { ...userItem("after"), id: "c" },
+    ])
+    const mark = container.querySelector("details.chat-note")!
+    expect(mark.textContent).toContain("part of the record the chat can't read")
+    expect(mark.textContent).toContain('{"type":"hologram"}')
+    const words = [...container.querySelectorAll(".chat-text")].map((each) => each.textContent)
+    expect(words).toEqual(["before", "after"])
+    const order = mark.compareDocumentPosition(container.querySelectorAll(".chat-text")[1]!)
+    expect(order & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
   })
 
-  it("says nothing where the record holds nothing it can't read", () => {
-    const { container } = inApp(
-      createStore<Conversation>({ ...noConversation, agent: "claude", session: "s", loaded: true }),
-    )
-    expect(notice(container)).toBeNull()
+  it("marks the place alone where the line can't be shown", () => {
+    const { container } = view([gap("b", "")])
+    expect(container.querySelector("details.chat-note")).toBeNull()
+    expect(container.querySelector("p.chat-note")?.textContent).toContain("can't read")
   })
 })

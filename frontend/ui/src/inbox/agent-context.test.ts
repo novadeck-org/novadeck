@@ -175,7 +175,6 @@ describe("an Inbox row's agent context", () => {
         items: transcript,
         requests: [],
         prompts: [],
-        unread: false,
         box: null,
       }))
     })

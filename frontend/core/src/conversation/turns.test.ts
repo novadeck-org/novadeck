@@ -455,6 +455,16 @@ describe("what a harness says between turns", () => {
     expect(block).toMatchObject({ kind: "compaction", summary: "So far" })
   })
 
+  it("gives a gap the line as written, where it stands", () => {
+    const blocks = groupItems([
+      item({ role: "user", text: "mine" }),
+      item({ role: "note", text: "{}", note: { type: "gap" } }),
+      item({ role: "assistant", text: "said" }),
+    ])
+    expect(blocks.map(({ kind }) => kind)).toEqual(["user", "gap", "assistant"])
+    expect(blocks[1]).toMatchObject({ raw: "{}" })
+  })
+
   it("adds no message to what's around it", () => {
     const blocks = groupItems([
       item({ role: "user", text: "mine" }),

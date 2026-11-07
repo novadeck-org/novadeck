@@ -474,33 +474,20 @@ describe("A request that waits on the person", () => {
 })
 
 describe("A chat whose agent's record holds parts it can't read", () => {
-  const notice =
-    /^This chat may be missing parts of the conversation\. The terminal has all of it\./
+  const mark = /part of the record the chat can't read/
 
-  it("says so in one line at the top, which shows the terminal or goes on dismiss", async () => {
-    await openChatDemo("/", { unread: true })
+  it("marks the spot, where the line as written opens", async () => {
+    await openChatDemo("/", { gap: true })
     const chat = await openChat("Checkout implementation")
-    const line = chat.getByRole("status").filter({ hasText: notice })
-    await expect.element(line).toBeVisible()
-    await line.getByRole("button", { name: "Dismiss" }).click()
-    await expect.element(line).not.toBeInTheDocument()
-    // Dismissed, it stays away as the person goes to the terminal and comes back.
-    const other = await openChat("Runtime")
-    const otherLine = other.getByRole("status").filter({ hasText: notice })
-    await otherLine.getByRole("button", { name: "Show terminal" }).click()
-    await expect.element(other).not.toBeInTheDocument()
-    await expect.element(commandInput("Runtime")).toHaveFocus()
-    await openChat("Checkout implementation")
-    await expectStaysAbsent(chatOf("Checkout implementation").getByText(notice))
+    await chat.getByText(mark).click()
+    await expect.element(chat.getByText('{"type":"hologram"}')).toBeVisible()
   })
 
   it("says nothing while its conversation holds nothing unread", async () => {
-    // The UI's half only: which unknown shapes count as unread (none of metadata's, which
-    // the runner only logs) is the runner's, which its unit tests check per harness.
     await openChatDemo()
     const chat = await openChat("Checkout implementation")
     await expect.element(conversation(chat)).toBeVisible()
-    await expectStaysAbsent(chat.getByText(notice))
+    await expectStaysAbsent(chat.getByText(mark))
   })
 })
 

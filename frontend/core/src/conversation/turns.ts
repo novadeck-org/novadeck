@@ -70,6 +70,14 @@ export type ChatBlock =
       readonly summary: string
       readonly truncated: boolean
     }
+  // A part of the record the backend can't read, where it stands: the line as written, empty
+  // where it can't be shown.
+  | {
+      readonly kind: "gap"
+      readonly id: string
+      readonly raw: string
+      readonly truncated: boolean
+    }
   // Consecutive tool calls, which the chat folds into one run.
   | {
       readonly kind: "tools"
@@ -243,6 +251,8 @@ export const groupItems = (
           summary: item.text,
           truncated: item.truncated,
         })
+      else if (note.type === "gap")
+        blocks.push({ kind: "gap", id: item.id, raw: item.text, truncated: item.truncated })
       else if (note.type === "plan-approved")
         blocks.push({ kind: "note", id: item.id, text: "plan approved" })
       else {
@@ -329,6 +339,8 @@ export const sameBlock = (a: ChatBlock, b: ChatBlock): boolean => {
     return a.kind === "note" && b.kind === "note" && a.id === b.id && a.text === b.text
   if (a.kind === "compaction" || b.kind === "compaction")
     return a.kind === "compaction" && b.kind === "compaction" && a.id === b.id
+  if (a.kind === "gap" || b.kind === "gap")
+    return a.kind === "gap" && b.kind === "gap" && a.id === b.id
   if (a.kind === "doorbell" || b.kind === "doorbell")
     return (
       a.kind === "doorbell" &&

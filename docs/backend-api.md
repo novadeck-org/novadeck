@@ -921,10 +921,9 @@ one from an earlier runner.
   says nothing of how many there were, as `messages.watch` lists only what the runner keeps.
   It keeps them with the terminal, by the transcript's latest step at the key, so they
   keep their place after a runner restart. Each line's shapes go through its harness's
-  lists (`transcripts.shapes`, `harnesses/core/src/shapes.ts`): the first
+  lists (`transcripts.shapes`, `harnesses/core/src/shapes.ts`): an
   unknown one inside the conversation (a block of a Claude Code user or assistant message or a
-  prompt the person queued mid-turn, a Codex response item, an Antigravity MODEL or USER_EXPLICIT step) sends `unread` once,
-  which the chat shows as a one-line notice that it may be missing parts the terminal has;
+  prompt the person queued mid-turn, a Codex response item, an Antigravity MODEL or USER_EXPLICIT step) leaves a `note` item of type `gap` where it stands, its text the line as written, or none where that line holds the agent's reasoning too, which stays private, and the chat marks the spot;
   other unknown shapes, metadata a harness release adds often, send nothing. The runner
   logs `transcript.unknown` once per unknown shape and harness version per runner
   (metadata up to 16 a version, a conversational shape always), with the harness, its version, the shape's key (a tag's name left out) and
