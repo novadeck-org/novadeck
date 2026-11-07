@@ -112,7 +112,7 @@ describe("the composer's failed send", () => {
     const alert = container.querySelector('[role="alert"]')!
     expect(alert.textContent).toContain("already holds text")
     const open = [...alert.querySelectorAll("button")].find(
-      (each) => each.textContent === "Open terminal",
+      (each) => each.getAttribute("aria-label") === "Open terminal",
     )!
     act(() => open.click())
     expect(opened).toEqual(["terminal"])
@@ -148,6 +148,26 @@ describe("what the agent's own box holds", () => {
     expect(whole.querySelector(".chat-box")?.textContent).toContain("goes with your next message")
     const end = show("", [], { box: box({ tail: true }) })
     expect(end.querySelector(".chat-box-text")?.textContent).toBe("…half a thought")
+  })
+
+  it("marks a command, which nothing is sent over", () => {
+    expect(
+      show("", [], { box: box({ text: "/model" }) })
+        .querySelector(".chat-box")
+        ?.hasAttribute("data-refused"),
+    ).toBe(true)
+    expect(
+      show("", [], { box: box() }).querySelector(".chat-box")?.hasAttribute("data-refused"),
+    ).toBe(false)
+    // Only the end of it shows: what starts that end needn't start the input.
+    const tail = box({ text: "/usr/lib", tail: true })
+    expect(
+      show("", [], { box: tail }).querySelector(".chat-box")?.hasAttribute("data-refused"),
+    ).toBe(false)
+    const shell = box({ text: "!ls", mode: "shell" })
+    expect(
+      show("", [], { box: shell }).querySelector(".chat-box")?.hasAttribute("data-refused"),
+    ).toBe(false)
   })
 
   it("shows nothing where the box holds nothing", () => {
