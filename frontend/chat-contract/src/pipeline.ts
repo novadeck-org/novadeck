@@ -58,10 +58,6 @@ const textOf = (element: Element): string => {
     .join(" ⏎ ")
 }
 
-// The fold's line: its count and the titles, which the chat sets in spans of their own.
-const foldText = (fold: Element): string =>
-  [...fold.querySelectorAll("span")].map((span) => textOf(span)).join(" · ")
-
 const clip = (text: string, to: number): string =>
   text.length > to ? `${text.slice(0, to - 1)}…` : text
 
@@ -72,10 +68,11 @@ const click = (element: Element): void => {
 }
 
 // What an opened part of a tool row (its call, its result) shows: its line count and first
-// line, and whether the chat says it was shortened.
+// line, and whether the chat says it was shortened. A diff is a line to each span.
 const partOf = (part: Element | null): string => {
   if (!part) return "none"
-  const body = part.querySelector("pre")?.textContent ?? ""
+  const diff = [...part.querySelectorAll(".chat-diff")].map((line) => line.textContent)
+  const body = diff.length > 0 ? diff.join("\n") : (part.querySelector("pre")?.textContent ?? "")
   const shortened = part.querySelector(".chat-tool-note") ? ", shortened" : ""
   if (body === "(empty)") return `empty${shortened}`
   const lines = body.replace(/\n$/, "").split("\n")
@@ -84,22 +81,36 @@ const partOf = (part: Element | null): string => {
   return `${lines.length} ${lines.length === 1 ? "line" : "lines"}${shortened}: ${clip(first.trim(), 48)}`
 }
 
-// A row as the chat draws it: its title, its kind (which picks the icon) and its detail, then
-// the call it opens to (the label the chat gives it, its lines) and the result.
+// A row as the chat draws it: its title, its kind, its detail and what came of it, then the call
+// it opens to (the label the chat gives it, its lines) and the result or the diff.
 const rowOf = (row: Element): string => {
-  const title = row.querySelector(".chat-tool-title")?.textContent ?? ""
-  const detail = row.querySelector(".chat-tool-detail")?.textContent
-  const summary = row.querySelector("button.chat-tool-summary")
+  const summary = row.querySelector(":scope > button.chat-tool-summary")
+  const title = summary?.querySelector(".chat-tool-title")?.textContent ?? ""
+  const detail = summary?.querySelector(".chat-tool-detail")?.textContent
+  const end = summary?.querySelector(".chat-tool-end")?.textContent?.replace(/\s+/g, " ").trim()
   if (summary?.getAttribute("aria-expanded") === "false") click(summary)
-  const call = row.querySelector('section[aria-label^="Call"]')
-  const result = row.querySelector('section[aria-label="Result"]')
-  const note = result ? "" : (row.querySelector(".chat-tool-note")?.textContent ?? "")
+  const part = (label: string): Element | null =>
+    row.querySelector(`:scope > .chat-tool-body > section[aria-label${label}]`)
+  const call = part('^="Call"')
+  const result = part('="Result"') ?? part('="Changes"')
+  const note = result
+    ? ""
+    : (row.querySelector(":scope > .chat-tool-body > .chat-tool-note")?.textContent ?? "")
   return [
-    `${title} [${row.getAttribute("data-kind")}]${detail ? ` · ${detail}` : ""}`,
+    `${title} [${row.getAttribute("data-kind")}]${detail ? ` · ${detail}` : ""}${end ? ` ${end}` : ""}`,
     call ? ` | ${call.getAttribute("aria-label")}: ${partOf(call)}` : "",
     ` → ${result ? partOf(result) : note.replace(/…$/, "").toLowerCase()}`,
   ].join("")
 }
+
+// The rows of a list, each opened, with the rows drawn under it once it is: the calls made inside
+// its script.
+const rowsOf = (list: Element): readonly string[] =>
+  [...list.querySelectorAll(":scope > li.chat-tool")].flatMap((row) => {
+    const line = rowOf(row)
+    const under = row.querySelector(":scope > .chat-tool-body > .chat-tools-list")
+    return [line, ...(under ? rowsOf(under).map((each) => `in script: ${each}`) : [])]
+  })
 
 const unknownBlock = (block: Element): Error =>
   new Error(`The chat rendered a block this contract does not know: ${block.outerHTML}`)
@@ -112,22 +123,22 @@ const lineOf = (block: Element): { line: string; rows: number } => {
     // A fold that starts open (a live run's) says so; a finished one starts shut.
     const state = fold?.getAttribute("aria-expanded")
     if (fold && state !== "true" && state !== "false") throw unknownBlock(block)
-    const folded = fold ? `[${state === "true" ? "open: " : ""}${foldText(fold)}] ` : ""
+    const folded = fold ? `[${state === "true" ? "open: " : ""}${textOf(fold)}] ` : ""
     if (fold && state === "false") click(fold)
-    const rows = [...block.querySelectorAll("li.chat-tool")].map(rowOf)
+    const rows = rowsOf(block.querySelector(":scope > .chat-tools-list")!)
     return { line: `tools: ${folded}${rows.join("; ")}`, rows: rows.length }
   }
   if (block.matches(".chat-note")) return { line: `note: ${textOf(block)}`, rows: 0 }
   const sent = block.getAttribute("data-sent")
   if (sent) {
-    const bubble = block.querySelector(".chat-bubble")
+    const prompt = block.querySelector(".chat-text")
     const note = block.querySelector(".chat-sent")
     const words = note?.querySelector("span")
-    if (!bubble || (note && !words)) throw unknownBlock(block)
+    if (!prompt || (note && !words)) throw unknownBlock(block)
     const button = note?.querySelector("button")?.textContent
     const said = words ? textOf(words) : ""
     return {
-      line: `sent (${sent}): ${textOf(bubble)} · ${said}${button ? ` [${button}]` : ""}`,
+      line: `sent (${sent}): ${textOf(prompt)} · ${said}${button ? ` [${button}]` : ""}`,
       rows: 0,
     }
   }

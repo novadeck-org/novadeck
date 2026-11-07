@@ -4,6 +4,7 @@ import { Markdown } from "@novadeck/toolkit/Markdown"
 import { memo } from "react"
 
 import { withBubbles, type SentBubble } from "./bubbles"
+import { Mark } from "./Mark"
 import { ToolCalls } from "./ToolCalls"
 
 const Shortened = (): React.JSX.Element => (
@@ -33,10 +34,9 @@ const BlockView = memo(
       case "user":
         return (
           <article className="chat-message" data-role="user" aria-label="You">
-            <div className="chat-bubble">
-              <p className="chat-text">{block.text}</p>
-              {block.truncated && <Shortened />}
-            </div>
+            <Mark />
+            <p className="chat-text">{block.text}</p>
+            {block.truncated && <Shortened />}
           </article>
         )
       case "assistant":
@@ -110,9 +110,8 @@ const SentView = memo(
     const settled = bubble.state === "unrecorded" || bubble.state === "in-box"
     return (
       <article className="chat-message" data-role="user" data-sent={bubble.state} aria-label="You">
-        <div className="chat-bubble">
-          <p className="chat-text">{bubble.text}</p>
-        </div>
+        <Mark />
+        <p className="chat-text">{bubble.text}</p>
         <p className="chat-sent" role={settled ? "status" : undefined}>
           <span>{sentNote(bubble, agent)}</span>
           {settled && onShowTerminal && (

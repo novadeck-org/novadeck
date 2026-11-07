@@ -10,7 +10,6 @@ import {
 } from "@novadeck/core/conversation/turns"
 import type { Store } from "@novadeck/core/store"
 import type { AgentStatus } from "@novadeck/core/types"
-import { ArrowDown, Loader } from "lucide-react"
 import {
   useCallback,
   useEffect,
@@ -335,7 +334,7 @@ export const ChatView = ({
                   data-working={working || undefined}
                   data-ended={!working || undefined}
                 >
-                  {working && <Loader size={12} aria-hidden className="chat-spinner" />}
+                  {working && <span className="chat-spin" aria-hidden />}
                   {status.text}
                 </p>
               )}
@@ -354,8 +353,7 @@ export const ChatView = ({
                 setAtEnd(true)
               }}
             >
-              <ArrowDown size={14} aria-hidden />
-              <span>Latest</span>
+              latest ↓
             </button>
           )}
         </div>

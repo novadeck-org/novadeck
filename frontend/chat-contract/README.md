@@ -22,14 +22,15 @@ The rendered DOM is read as text, one line per block, and compared with a golden
 ```
 # deny
 user: <text>
-tools: tool [other] | Call: empty → 1 line: The user doesn't want to proceed with this tool…
+tools: tool [other] · failed → 1 line: The user doesn't want to proceed with this tool…
 note: Interrupted
 ```
 
-A tool row reads `title [kind] · detail | Call: <label>: <call lines> → <result lines>`. The
-kind is the chat's `data-kind`, which picks the row's icon. The row is opened, so the call part
-is `inputText`'s text, as the chat shows it, by line count and first line, and the label is
-the one the chat gives it. A run of four or more calls folds in the chat; the golden opens it
+A tool row reads `title [kind] · detail <what came of it> | Call: <label>: <call lines> →
+<result or diff lines>`. The kind is the chat's `data-kind`. The row is opened, so the call part
+is `inputBeyondLine`'s text, as the chat shows it, by line count and first line, there only where
+it says more than the line, and the label is the one the chat gives it. Calls made inside a
+script follow their script's row, each after `in script:`. A run of four or more calls folds in the chat; the golden opens it
 and starts with the fold's own line in brackets. A block is read as a person sees it, so a
 change to how the chat draws a title, a detail, a kind, a call, a note or a fold shows as a
 golden diff.
@@ -64,8 +65,8 @@ The recorded fixtures are thin: mostly redacted, naming a handful of tools. So
 `src/vocabulary/` holds one set of conversations per harness, written by hand in that
 harness's native record shape and read by its real decoder. They are synthetic records that
 pin today's rendering, not recordings; see `src/vocabulary/README.md` for what they name. They
-are what protects a move of the chat's vocabulary (each harness's `describe`, `inputText`, the
-tool kinds, the fold).
+are what protects a move of the chat's vocabulary (each harness's `describe`, `inputBeyondLine`,
+the tool kinds, the fold).
 
 ## Changing a golden
 

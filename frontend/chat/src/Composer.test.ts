@@ -19,11 +19,13 @@ const show = (
     onOpenTerminal = () => {},
     box = null,
     clearBox = async () => {},
+    working = false,
   }: {
     readonly send?: (text: string) => Promise<void>
     readonly clearBox?: (seen: string) => Promise<void>
     readonly onOpenTerminal?: () => void
     readonly box?: ChatBox | null
+    readonly working?: boolean
   } = {},
 ): HTMLElement => {
   const { container, unmount } = render(
@@ -37,7 +39,7 @@ const show = (
       mode: composerMode(draft, null, [], true),
       sending: false,
       replySending: false,
-      working: false,
+      working,
       onSend: send,
       onStop: async () => {},
       onClearBox: clearBox,
@@ -66,7 +68,7 @@ describe("the composer's warning about a message the agent would read as a comma
 
   it("lets a shell command go, saying where it runs, and waits for a command after a lone !", () => {
     const shell = show("! git status")
-    expect(shell.querySelector(".chat-reply")?.textContent).toContain("Runs in Claude's shell")
+    expect(shell.querySelector(".sr-only")?.textContent).toContain("Runs in Claude's shell")
     expect(shell.querySelector('[role="status"]')?.textContent).toBe("")
     expect(shell.querySelector<HTMLButtonElement>('button[aria-label="Send"]')?.disabled).toBe(
       false,
@@ -177,5 +179,38 @@ describe("what the agent's own box holds", () => {
     expect(boxNote("Claude", box({ known: true }))).toContain("comes back here")
     expect(boxNote("Claude", box({ mode: "shell" }))).toContain("shell mode")
     expect(boxNote("Claude", box({ text: "/model" }))).toContain("Clear it to send here")
+  })
+})
+
+describe("the prompt", () => {
+  const key = (container: HTMLElement, name: string) =>
+    container.querySelector<HTMLButtonElement>(`button[aria-label="${name}"]`)
+
+  it("has the person's mark, and Send only with a draft", () => {
+    expect(show("").querySelector(".chat-composer-box .chat-mark")).not.toBeNull()
+    expect(key(show(""), "Send")).toBeNull()
+    expect(key(show("hello"), "Send")?.textContent).toBe("⏎")
+  })
+
+  it("has Stop only while the agent works", () => {
+    expect(key(show(""), "Stop")).toBeNull()
+    expect(key(show("", [], { working: true }), "Stop")?.textContent).toBe("stop")
+  })
+
+  it("says it is in shell mode, with the sentence for a screen reader", () => {
+    const shell = show("! git status")
+    expect(shell.querySelector(".chat-composer")?.getAttribute("data-mode")).toBe("shell")
+    expect(shell.querySelector(".chat-composer-actions")?.textContent).toContain("shell")
+    const said = shell.querySelector("textarea")?.getAttribute("aria-describedby")?.split(" ")
+    const sentence = shell.querySelector(".sr-only")
+    expect(sentence?.textContent).toContain("Runs in Claude's shell")
+    expect(said).toContain(sentence?.id)
+    expect(show("hello").querySelector(".chat-composer")?.getAttribute("data-mode")).toBe("message")
+  })
+
+  it("keeps focus in the box as Send goes with the words", async () => {
+    const shown = show("hello", [], { send: async () => {} })
+    await act(async () => key(shown, "Send")!.click())
+    expect(document.activeElement).toBe(shown.querySelector("textarea"))
   })
 })
