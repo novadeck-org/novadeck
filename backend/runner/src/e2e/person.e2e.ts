@@ -157,11 +157,9 @@ for (const setup of setups) {
         // Its hook runs as it is queued, and a Stop could take the prompt back with all it
         // printed: the turn's Stop gives the message, and the prompt carries none.
         expect(deliveries(prompt)).toEqual([])
-        expect(
-          carried(run, calls)
-            .map((call) => deliveries(call))
-            .flat(),
-        ).toEqual([{ from: "fox", text: "The plan is ready." }])
+        expect(carried(run, calls).flatMap((call) => deliveries(call))).toEqual([
+          { from: "fox", text: "The plan is ready." },
+        ])
         expect(carried(run, calls).some((call) => holding(call, "Then sum it up"))).toBe(false)
       } else {
         // Their prompt's hook delivers the message; no Stop continues the turn with it.
