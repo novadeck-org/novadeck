@@ -167,6 +167,7 @@ export const box: BoxProfile = {
   // the text: 30 queued lines on 40 rows came back as `↑ 10 more lines` and the last 20, and
   // scrolled up the row stands last, as `↓` (probed 2026-11-06, 1.5.2).
   cut: ({ text }) => /^↑ \d+ more lines?\n|\n↓ \d+ more lines?$/.test(text),
+  uncut: (text) => text.replace(/^↑ \d+ more lines?\n/, "").replace(/\n↓ \d+ more lines?$/, ""),
   // 15 lines showed whole, even of 100 characters each; 16 did not. One line of 1,000
   // characters showed whole, 1,024 did not.
   // Ctrl-U clears the line the cursor is on and Backspace joins the line before it; the

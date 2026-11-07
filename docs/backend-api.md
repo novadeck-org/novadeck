@@ -1067,7 +1067,8 @@ one from an earlier runner.
     typing: one leading the paste submitted the box and left the prompt behind. So a space sets
     the prompt apart there, the record told it shares a line, and a prompt of several lines
     with a first line under 16 characters is a `CONFLICT` (`draft`), written nowhere. Enter goes once the box holds the text and then the prompt, or the
-    prompt's placeholder, or in a box as tall as it gets the prompt's tail.
+    prompt's placeholder, or in a box as tall as it gets the prompt's tail, or in a box that
+    says it is cut (Antigravity's `cut`) the end of what it held and then the prompt.
   - **What is Novadeck's goes back.** Where all the box holds is prompts whose receipts are
     `in-box` (`known`), unless it is a `tail`, it is erased first and handed back as `returned`, its receipts
     `withdrawn`. The keys are the adapter's `erase`: Ctrl-U from the last row up, Backspace
@@ -1081,11 +1082,11 @@ one from an earlier runner.
     Backspace leaves it; holding a command, the same keys as erasing and a Backspace, and the
     command goes back as `returned`, with its `!`. One that shows only as a placeholder or a
     tail can't go back, so it stays, and the call is a `CONFLICT` (`shell`).
-  - **What stays refused**, writing nothing: a box that says it is cut (Antigravity's `↑ 10 more
-    lines`), as a paste there couldn't be seen, a box leading with `/` or `!`, which its program
+  - **What stays refused**, writing nothing: a box leading with `/` or `!`, which its program
     would run with the prompt as arguments (`command`); no box, or something over it (`no-box`);
     a shell command over text that isn't Novadeck's, which can't go along (`draft`); and a
-    line a ring left, which is the doorbell's to finish (`ringing`, to try again).
+    line a ring left, which is the doorbell's to finish (`ringing`, to try again). A first line
+    that a tail or a cut box doesn't show can't be read, so such a box goes along as text.
 
   **One input.** While a terminal shows as chat, its terminal inert beneath it, the person
   writes in one place: `agents.takeBox` hands what the agent's box holds to the client's draft,

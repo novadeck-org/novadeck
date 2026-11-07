@@ -251,55 +251,59 @@ for (const setup of setups) {
       },
     )
 
-    // Its words can't all be read, so they stay, for the person: nothing here may take them,
-    // not the Stop, not the chat's own take of what the box holds, not its next message.
-    gated(it, setup.agent === "codex" ? "it steers what is queued into the turn" : undefined)(
-      "leaves a queue taller than the box in it, for nothing to take, and none of it is lost",
-      async ({ e2e: run }) => {
-        const held = gate()
-        run.model.use(
-          own((call) => (asked(call, "Carry on") ? { text: "Carried on." } : undefined)),
-          own(async (call) => {
-            if (!asked(call, "Hold on")) return undefined
-            await held.opened
-            return { text: "Too late." }
-          }),
-        )
-        const t1 = await start(run, setup)
-        const calls = run.model.mark()
-        const mark = t1.mark()
-        const lines = Array.from({ length: 30 }, (_, i) => `queued line ${i + 1}`)
-        await t1.prompt("Hold on")
-        await run.model.waitFor((call) => !call.side && latest(call).includes("Hold on"), {
-          after: calls,
-        })
-        await t1.reached("working", { after: mark })
-        await t1.prompt(lines.join("\n"))
-        await t1.until(/Press up to edit queued messages/)
-        await sleep(1500)
-        await expect(t1.interrupt()).rejects.toMatchObject({ code: "BOX_NOT_CLEARED" })
-        held.open()
-        await sleep(1000)
-        expect((await run.deck.terminals.takeBox(t1.id)).returned).toBeNull()
-        expect(await t1.screen()).toContain("queued line 30")
+    // Its words can't all be read, so they stay: nothing here may take them, not the Stop, not
+    // the chat's own take of what the box holds. The next message goes along with them.
+    for (const [what, message] of [
+      ["a line", "Carry on"],
+      ["a message that shows as a placeholder", `Carry on\n${"and on\n".repeat(40)}and on`],
+      // Antigravity shows long paragraphs whole, taller than it has room for.
+      [
+        "a message taller than the box",
+        `Carry on\n\n${`${"and on ".repeat(150)}\n\n`.repeat(3)}done`,
+      ],
+    ] as const)
+      gated(it, setup.agent === "codex" ? "it steers what is queued into the turn" : undefined)(
+        `leaves a queue taller than the box in it, for nothing to take, and ${what} takes it along`,
+        async ({ e2e: run }) => {
+          const held = gate()
+          run.model.use(
+            own((call) => (asked(call, "Carry on") ? { text: "Carried on." } : undefined)),
+            own(async (call) => {
+              if (!asked(call, "Hold on")) return undefined
+              await held.opened
+              return { text: "Too late." }
+            }),
+          )
+          const t1 = await start(run, setup)
+          const calls = run.model.mark()
+          const mark = t1.mark()
+          const lines = Array.from({ length: 30 }, (_, i) => `queued line ${i + 1}`)
+          await t1.prompt("Hold on")
+          await run.model.waitFor((call) => !call.side && latest(call).includes("Hold on"), {
+            after: calls,
+          })
+          await t1.reached("working", { after: mark })
+          await t1.prompt(lines.join("\n"))
+          await t1.until(/Press up to edit queued messages/)
+          await sleep(1500)
+          await expect(t1.interrupt()).rejects.toMatchObject({ code: "BOX_NOT_CLEARED" })
+          held.open()
+          await sleep(1000)
+          expect((await run.deck.terminals.takeBox(t1.id)).returned).toBeNull()
+          expect(await t1.screen()).toContain("queued line 30")
 
-        // Antigravity's box says it is cut, so no paste there could be seen: a send is refused,
-        // and the person's own Enter sends what it holds. Claude Code's takes the next along.
-        const next = run.model.mark()
-        if (setup.agent === "agy") {
-          await expect(t1.prompt("Carry on")).rejects.toMatchObject({ reason: "draft" })
-          run.deck.terminals.write({ terminalId: t1.id, data: "\r" }, "e2e")
-        } else await t1.prompt("Carry on")
-        const carried = await run.model.waitFor(
-          (call) => !call.side && latest(call).includes("queued line 30"),
-          { after: next },
-        )
-        for (const line of [lines[0]!, lines[9]!, lines[29]!]) {
-          expect(latest(carried)).toContain(line)
-        }
-        if (setup.agent !== "agy") expect(latest(carried)).toContain("Carry on")
-      },
-    )
+          const next = run.model.mark()
+          await t1.prompt(message)
+          const carried = await run.model.waitFor(
+            (call) => !call.side && latest(call).includes("queued line 30"),
+            { after: next },
+          )
+          for (const line of [lines[0]!, lines[9]!, lines[29]!]) {
+            expect(latest(carried)).toContain(line)
+          }
+          expect(latest(carried)).toContain("Carry on")
+        },
+      )
 
     it("clears a long prompt put back in the box, though it shows only its tail, and gives nothing back", async ({
       e2e: run,

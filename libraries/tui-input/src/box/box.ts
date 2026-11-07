@@ -41,6 +41,8 @@ export type BoxProfile = {
    * Antigravity's `↑ 10 more lines`. Omitted where it doesn't.
    */
   readonly cut?: (box: InputBox) => boolean
+  /** What such a box shows of its text, without the rows that say it is cut. */
+  readonly uncut?: (text: string) => string
   /**
    * Whether a box's text holds, anywhere in it, what stands for more than it shows: a paste's
    * placeholder or an attached image. Words read off the box then aren't all it holds, and
