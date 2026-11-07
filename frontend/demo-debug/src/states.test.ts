@@ -290,7 +290,17 @@ describe("demo states", () => {
     })
     // A dialog is no phase: the need mark shows it, the glyph that the agent rests.
     expect(new Set(shown.map((each) => terminalPhase(each)))).toEqual(
-      new Set(["idle", "running", "waiting", "paused", "unheard", "starting", "ended"]),
+      new Set([
+        "idle",
+        "running",
+        "waiting",
+        "paused",
+        "unheard",
+        "starting",
+        "sleeping",
+        "waking",
+        "ended",
+      ]),
     )
   })
 
@@ -450,12 +460,13 @@ describe("demo states", () => {
     it("lets go of the terminals of the gallery's metadata tiles, not its agents'", async () => {
       const { run, released, added } = panel("04")
       await run("Every state at once")
-      // The eleven that set no agent verb: two that ask through MCP (their Inbox rows are the
+      // The sixteen that set no agent verb: four that ask through MCP (their Inbox rows are the
       // demo's own), unheard, at its startup screen, program, a shell an agent opened, one an
-      // agent exited from, starting, and the three ways to end.
-      expect(released).toHaveLength(11)
+      // agent exited from, starting, asleep (twice more with a done report and an ask), waking
+      // (twice, one with an ask), and the three ways to end.
+      expect(released).toHaveLength(16)
       for (const each of released) expect(added).toContainEqual(each)
-      expect(new Set(released.map((each) => each.terminalId)).size).toBe(11)
+      expect(new Set(released.map((each) => each.terminalId)).size).toBe(16)
     })
 
     it("calls its verbs without letting go", () => {
@@ -848,7 +859,9 @@ describe("demo states over the real agents", () => {
       const asks = rows().filter((row) => row.kind === "ask")
       expect(asks.map((row) => row.source.title).toSorted()).toEqual([
         "Asks (MCP)",
+        "Asleep, asks (MCP)",
         "Needs a sign-in",
+        "Waking, asks (MCP)",
         "Working, a side question",
       ])
       expect(new Set(asks.map((row) => row.source.agent))).toEqual(new Set([harness]))

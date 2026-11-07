@@ -39,7 +39,9 @@ import {
   rename,
   runAgent,
   runProgram,
+  sleeping,
   starting,
+  waking,
   unheardAgent,
   withUsage,
 } from "./terminals"
@@ -265,6 +267,19 @@ const gallery: readonly {
   { name: "Opened by an agent", state: (key) => openedByAgent(key, "pnpm") },
   { name: "Agent exited", state: (key) => agentRanHere(key) },
   { name: "Starting", state: (key) => starting(key) },
+  { name: "Asleep", state: (key, harness) => sleeping(key, harness) },
+  { name: "Asleep, done", state: (key, harness) => sleeping(key, harness, true) },
+  {
+    name: "Asleep, asks (MCP)",
+    state: (key, harness) => sleeping(key, harness),
+    asks: "text",
+  },
+  { name: "Waking", state: (key, harness) => waking(key, harness) },
+  {
+    name: "Waking, asks (MCP)",
+    state: (key, harness) => waking(key, harness),
+    asks: "text",
+  },
   { name: "Idle" },
   { name: "Exit code 3", state: (key) => exitedWithCode(key, 3) },
   { name: "Killed", state: (key) => killedBy(key, "SIGKILL") },
@@ -449,6 +464,14 @@ export const createDemoStates = (
         ),
         onSelected("Loading output", "Briefly, as after a reconnect", (key) =>
           showScreen(key, { attaching: true }, attachMs),
+        ),
+        setting(
+          "Asleep",
+          "The agent has a saved session and no process",
+          (key, { dispatch, harness }) => dispatch(sleeping(key, harness)),
+        ),
+        setting("Waking", "Its agent is on the way back", (key, { dispatch, harness }) =>
+          dispatch(waking(key, harness)),
         ),
         setting("At the prompt", "Idle shell", (key, { dispatch }) => dispatch(backToPrompt(key))),
         setting("Long program", "Counts as running; closing asks first", (key, { dispatch }) =>
