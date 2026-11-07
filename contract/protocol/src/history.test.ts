@@ -26,14 +26,14 @@ describe("a closed terminal", () => {
       { state: "gone", reason: "conversation" },
       { state: "gone", reason: "folder" },
       { state: "disconnected", agent: "codex" },
-      { state: "open", handle: "owl" },
+      { state: "open", handle: "owl", terminalId: "00000000-0000-4000-8000-000000000001" },
     ])
       expect(closedTerminalState.safeParse(state).success, JSON.stringify(state)).toBe(true)
     for (const state of [
       { state: "gone" },
       { state: "gone", reason: "other" },
       { state: "disconnected" },
-      { state: "open", handle: "Not A Handle" },
+      { state: "open", handle: "Not A Handle", terminalId: "00000000-0000-4000-8000-000000000001" },
       { state: "unknown" },
     ])
       expect(closedTerminalState.safeParse(state).success, JSON.stringify(state)).toBe(false)

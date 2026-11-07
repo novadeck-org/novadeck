@@ -7,13 +7,13 @@ import type { Store } from "./store"
 
 // Whether a closed terminal can be restored now. `gone` says what is missing, the
 // conversation or the folder it ran in; `disconnected` names the agent whose harness is not
-// connected; `open` gives the handle of the terminal the conversation is bound in.
+// connected; `open` gives the handle and id of the terminal the conversation is bound in.
 export type ClosedTerminalState =
   | { readonly state: "ready" }
   | { readonly state: "restoring" }
   | { readonly state: "gone"; readonly reason: "conversation" | "folder" }
   | { readonly state: "disconnected"; readonly agent: AgentName }
-  | { readonly state: "open"; readonly handle: string }
+  | { readonly state: "open"; readonly handle: string; readonly terminalId: string }
 
 export type ClosedTerminal = {
   // The id the terminal had.

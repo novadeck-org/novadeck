@@ -143,7 +143,7 @@ export const SidebarSection = memo((): React.JSX.Element => {
             list: readHistory,
             connections: backend.agents ? connections : undefined,
             onRestore: commands.restoreClosed,
-            onReveal: (handle: string) => commands.revealHandle(handle, projectId),
+            onReveal: (terminalId: string) => commands.revealTerminal(terminalId, projectId),
             onConnect: commands.openAgentSettings,
           }
         : undefined,

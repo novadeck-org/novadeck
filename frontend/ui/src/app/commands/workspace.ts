@@ -99,9 +99,9 @@ export type WorkspaceCommands = ShellCommands &
     // Brings a closed terminal back from History as a new terminal in the session on
     // screen, selected; its row leaves the list when the backend says it is restored.
     readonly restoreClosed: (row: ClosedTerminal) => void
-    // Brings the open terminal with this handle into view, in this project: the session on
-    // screen first, then its others.
-    readonly revealHandle: (handle: string, projectId: string) => void
+    // Brings the open terminal with this id into view, if it is in this project: the session
+    // on screen first, then its others.
+    readonly revealTerminal: (terminalId: string, projectId: string) => void
     // Opens Preferences where the agents are connected.
     readonly openAgentSettings: (agent: AgentName) => void
     // Closes the terminal, or asks first while closing would lose something: a program
@@ -565,9 +565,8 @@ export const createWorkspaceCommands = (ctx: CommandContext): WorkspaceCommands 
       pulse()
       set("sidebar", false)
     },
-    revealHandle: (handle, projectId) => {
-      // Handles are drawn per session, so only the row's project can hold the one meant, in
-      // the session on screen first.
+    revealTerminal: (terminalId, projectId) => {
+      // The row's project holds the one meant, in the session on screen first.
       const snapshot = workspace.getSnapshot()
       const sessions = snapshot.projects.find((project) => project.id === projectId)?.history ?? []
       const current = currentTarget(snapshot).workspaceSessionId
@@ -576,7 +575,7 @@ export const createWorkspaceCommands = (ctx: CommandContext): WorkspaceCommands 
         ...sessions.filter((session) => session.id !== current),
       ]
       for (const session of ordered) {
-        const found = session.state.roster.terminals.find((terminal) => terminal.handle === handle)
+        const found = session.state.roster.terminals.find((terminal) => terminal.id === terminalId)
         if (found) return reveal(found.id)
       }
     },

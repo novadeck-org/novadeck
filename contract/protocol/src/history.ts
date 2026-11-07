@@ -11,13 +11,13 @@ export const historyLimits = { summary: 4096, program: 256 } as const
 // `ready`; `restoring`, a restore under way; `gone`, with `reason` the conversation's file
 // or the folder it ran in no longer there; `disconnected`, its `agent`'s harness not
 // connected; `open`, the conversation is bound in another terminal, by that terminal's
-// `handle`.
+// `handle` and `terminalId`.
 export const closedTerminalState = z.discriminatedUnion("state", [
   z.strictObject({ state: z.literal("ready") }),
   z.strictObject({ state: z.literal("restoring") }),
   z.strictObject({ state: z.literal("gone"), reason: z.enum(["conversation", "folder"]) }),
   z.strictObject({ state: z.literal("disconnected"), agent: agentName }),
-  z.strictObject({ state: z.literal("open"), handle }),
+  z.strictObject({ state: z.literal("open"), handle, terminalId: id }),
 ])
 
 // A terminal the person or an agent closed, kept for 30 days. Its `id` is the one the

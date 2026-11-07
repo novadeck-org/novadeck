@@ -26,19 +26,25 @@ export type HistoryParts = {
   readonly announce: (record: Record) => void
 }
 
-/** The handle of the terminal that has `agent`'s session bound or claimed to resume it. */
-const holder = (parts: HistoryParts, agent: AgentName, sessionId: string): string | undefined => {
+/** The terminal that has `agent`'s session bound or claimed to resume it. */
+const holder = (
+  parts: HistoryParts,
+  agent: AgentName,
+  sessionId: string,
+): { readonly handle: string; readonly terminalId: string } | undefined => {
   for (const record of parts.records.values())
     if (
       !record.closed &&
       record.bound?.binding.agent === agent &&
       record.bound.binding.sessionId === sessionId
     )
-      return record.summary.handle
+      return { handle: record.summary.handle, terminalId: record.summary.id }
   const claimant = parts.claims.claimant(`${agent}:${sessionId}`)
   // A closed terminal keeps its claim until its shell ends, but it no longer holds the session.
   const claiming = claimant === undefined ? undefined : parts.records.get(claimant)
-  return claiming?.closed ? undefined : claiming?.summary.handle
+  return !claiming || claiming.closed
+    ? undefined
+    : { handle: claiming.summary.handle, terminalId: claiming.summary.id }
 }
 
 /** What History asks of the runner, answered from the manager's parts. */
@@ -51,9 +57,10 @@ export const historyHost = (parts: HistoryParts): HistoryHost => ({
   install: parts.install,
   connected: parts.connected,
   holder: (agent, sessionId) => holder(parts, agent, sessionId),
+  // A terminal closing still holds its handle until its shell ends, so it counts here.
   terminalsIn: (sessionId) => [
     ...[...parts.records.values()]
-      .filter((record) => !record.closed && record.summary.sessionId === sessionId)
+      .filter((record) => record.summary.sessionId === sessionId)
       .map(({ summary }) => ({ handle: summary.handle, ledBy: summary.ledBy })),
     ...parts.saves.terminals(sessionId),
   ],
@@ -64,9 +71,12 @@ export const historyHost = (parts: HistoryParts): HistoryHost => ({
   transcriptOf: (agent, sessionId) =>
     [...parts.records.values()].find((record) => record.agents[agent]?.sessionId === sessionId)
       ?.agents[agent]?.transcript,
-  restoredHandle: (row) =>
-    [...parts.records.values()].find((record) => !record.closed && record.restoredFrom === row)
-      ?.summary.handle,
+  restoredBeside: (row) => {
+    const found = [...parts.records.values()].find(
+      (record) => !record.closed && record.restoredFrom === row,
+    )
+    return found && { handle: found.summary.handle, terminalId: found.summary.id }
+  },
   restoredAs: (terminalId, row) => {
     const record = parts.records.get(terminalId)
     return record && !record.closed && record.restoredFrom === row ? summaryOf(record) : undefined

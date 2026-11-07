@@ -48,7 +48,7 @@ type Props = Omit<ComponentProps<typeof TerminalTabs>, "terminals"> & {
         list: () => Promise<unknown>
         connections: readonly AgentConnection[] | undefined
         onRestore: (row: ClosedTerminal) => void
-        onReveal: (handle: string) => void
+        onReveal: (terminalId: string) => void
         onConnect: (agent: AgentName) => void
       }
     | undefined

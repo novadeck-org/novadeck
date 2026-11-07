@@ -40,6 +40,9 @@ export type HistoryRecords = ClosedRecords & {
   adoptHandle(sessionId: string, handle: string): boolean
 }
 
+/** A running terminal, by the handle the person sees and the id that is unique. */
+type OpenTerminal = { readonly handle: string; readonly terminalId: string }
+
 /** How long History waits, in milliseconds; tests shorten it. */
 export type HistoryTimes = {
   /** How long a restore may wait to be confirmed, as held at a dialog, before its row is ready again. */
@@ -52,7 +55,12 @@ export type HistoryTimes = {
   readonly graceMs: number
 }
 
-const defaults: HistoryTimes = { restoreMs: 60_000, pruneMs: 60 * 60 * 1000, checkMs: 3_000, graceMs: 3_200 }
+const defaults: HistoryTimes = {
+  restoreMs: 60_000,
+  pruneMs: 60 * 60 * 1000,
+  checkMs: 3_000,
+  graceMs: 3_200,
+}
 
 /** What one pass through a list reads once: each agent's conversation scan and whether it is connected. */
 type Pass = {
@@ -82,8 +90,8 @@ export type HistoryHost = {
   readonly stopping: () => boolean
   readonly install: (agent: AgentName) => Promise<Install | undefined>
   readonly connected: (agent: AgentName) => Promise<boolean>
-  /** The handle of the terminal holding or claiming the agent's session, if one does. */
-  readonly holder: (agent: AgentName, sessionId: string) => string | undefined
+  /** The terminal holding or claiming the agent's session, if one does. */
+  readonly holder: (agent: AgentName, sessionId: string) => OpenTerminal | undefined
   /** Each terminal of a session, running or kept, with the handle it leads under. */
   readonly terminalsIn: (
     sessionId: string,
@@ -96,8 +104,8 @@ export type HistoryHost = {
   readonly archive: (record: Closing, write: (sealed: string) => void, settled: () => void) => void
   /** Calls `done` once the terminal's own screen is saved, as its transcript (see `Saves.afterSaved`). */
   readonly saved: (record: Closing, done: () => void) => void
-  /** The handle of a running terminal restored from the row, if one is. */
-  readonly restoredHandle: (row: string) => string | undefined
+  /** The running terminal restored from the row, if one is. */
+  readonly restoredBeside: (row: string) => OpenTerminal | undefined
   /** The summary of the terminal restored from the row as `terminalId`, if one is running. */
   readonly restoredAs: (terminalId: string, row: string) => TerminalSummary | undefined
   /** The transcript path the running terminal's session reported at bind. */
@@ -518,8 +526,8 @@ export class ClosedTerminals {
     const agent = resumeOf(row)
     if (agent === undefined) {
       // A plain row whose saved output did not open stays, with its terminal running beside it.
-      const beside = this.host.restoredHandle(row.id)
-      return beside === undefined ? { state: "ready" } : { state: "open", handle: beside }
+      const beside = this.host.restoredBeside(row.id)
+      return beside === undefined ? { state: "ready" } : { state: "open", ...beside }
     }
     const report = row.agents[agent]
     if (!report) return { state: "gone", reason: "conversation" }
@@ -530,7 +538,7 @@ export class ClosedTerminals {
     }
     if (!(await asked)) return { state: "disconnected", agent }
     const holder = this.host.holder(agent, report.sessionId)
-    if (holder !== undefined) return { state: "open", handle: holder }
+    if (holder !== undefined) return { state: "open", ...holder }
     const checked = await Promise.race([
       this.files(agent, report, row, pass),
       new Promise<ClosedTerminalState>((resolve) =>

@@ -101,7 +101,8 @@ for (const setup of setups) {
           const state = harness.launch.resumed(id, {
             sessionId,
             ready: terminal.summary().ready !== null,
-            readyMs: terminal.summary().ready !== null ? Date.now() - (readySince ??= Date.now()) : 0,
+            readyMs:
+              terminal.summary().ready !== null ? Date.now() - (readySince ??= Date.now()) : 0,
           })
           if (state !== "waiting" || Date.now() > until) return state
           // eslint-disable-next-line no-await-in-loop -- Same.

@@ -63,7 +63,7 @@ const HistoryRow = ({
   now: number
   icon: ReactNode
   onRestore: (row: ClosedTerminal) => void
-  onReveal: (handle: string) => void
+  onReveal: (terminalId: string) => void
   onConnect: (agent: AgentName) => void
 }): React.JSX.Element => {
   const descriptionId = useId()
@@ -86,7 +86,7 @@ const HistoryRow = ({
           aria-disabled={view.inert || undefined}
           onClick={() => {
             if (view.inert) return
-            if (availability.state === "open") onReveal(availability.handle)
+            if (availability.state === "open") onReveal(availability.terminalId)
             else onRestore(row)
           }}
         >
@@ -161,7 +161,7 @@ export const HistoryPanel = ({
   onClose: () => void
   onRestore: (row: ClosedTerminal) => void
   // Goes to the terminal that holds a conversation, by its handle.
-  onReveal: (handle: string) => void
+  onReveal: (terminalId: string) => void
   onConnect: (agent: AgentName) => void
 }): React.JSX.Element => {
   const [typed, setTyped] = useState("")

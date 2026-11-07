@@ -108,7 +108,11 @@ describe("History's rows", () => {
 
     it("goes to the terminal that holds an open conversation, by its handle", () => {
       expect(
-        rowView(row({ availability: { state: "open", handle: "kite" } }), now, undefined),
+        rowView(
+          row({ availability: { state: "open", handle: "kite", terminalId: "t-kite" } }),
+          now,
+          undefined,
+        ),
       ).toMatchObject({
         inert: false,
         end: { kind: "handle", text: "@kite" },

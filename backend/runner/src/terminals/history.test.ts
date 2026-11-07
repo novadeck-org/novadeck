@@ -135,7 +135,7 @@ const setup = (
       Promise.resolve({ env: {}, home: folder, platform: process.platform, plugin: "" }),
     ),
     connected: vi.fn<() => Promise<boolean>>(() => Promise.resolve(true)),
-    holder: vi.fn<() => string | undefined>(() => undefined),
+    holder: vi.fn<() => { handle: string; terminalId: string } | undefined>(() => undefined),
     terminalsIn: vi.fn<() => readonly { handle: string; ledBy: string | null }[]>(() => []),
     drawHandle: vi.fn<() => string>(() => "fox"),
     releaseClaim: vi.fn<(id: string) => void>((id: string) => void released.push(id)),
@@ -144,7 +144,9 @@ const setup = (
         void archived.push({ record, write, settled }),
     ),
     transcriptOf: vi.fn<() => undefined>(() => undefined),
-    restoredHandle: vi.fn<() => string | undefined>(() => undefined),
+    restoredBeside: vi.fn<() => { handle: string; terminalId: string } | undefined>(
+      () => undefined,
+    ),
     restoredAs: vi.fn<() => TerminalSummary | undefined>(() => undefined),
     ran: vi.fn<() => boolean>(() => true),
     announce: vi.fn<(record: Record) => void>(),
@@ -531,9 +533,12 @@ describe("what a row can do now", () => {
       state: "disconnected",
       agent: "codex",
     })
-    expect(await state(agentRow(), { holder: () => "fox" })).toEqual({
+    expect(
+      await state(agentRow(), { holder: () => ({ handle: "fox", terminalId: "t-fox" }) }),
+    ).toEqual({
       state: "open",
       handle: "fox",
+      terminalId: "t-fox",
     })
   })
 
@@ -806,14 +811,18 @@ describe("restoring a row", () => {
     const { history, store } = setup()
     store.rows.set("old-1", row({ transcript: "v1.sealed" }))
     const record = live()
-    let beside: string | undefined
-    const s = setup({ restoredHandle: () => beside })
+    let beside: { handle: string; terminalId: string } | undefined
+    const s = setup({ restoredBeside: () => beside })
     s.store.rows.set("old-1", row({ transcript: "v1.sealed" }))
     await restoring(s, record, { opened: false })
-    beside = "moth"
+    beside = { handle: "moth", terminalId: "t-moth" }
     expect(s.store.rows.has("old-1")).toBe(true)
     // The terminal beside it is where a click goes, not another restore.
-    expect((await s.history.list("p1"))[0]!.availability).toEqual({ state: "open", handle: "moth" })
+    expect((await s.history.list("p1"))[0]!.availability).toEqual({
+      state: "open",
+      handle: "moth",
+      terminalId: "t-moth",
+    })
     expect((await history.list("p1"))[0]!.availability).toEqual({ state: "ready" })
     // A row with no output has nothing to lose.
     store.rows.set("old-2", row({ id: "old-2" }))

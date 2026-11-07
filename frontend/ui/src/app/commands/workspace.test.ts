@@ -460,33 +460,27 @@ describe("workspace commands", () => {
       expect(app.allocated).toHaveLength(2)
     })
 
-    it("reveals a handle in the row's project, the session on screen first", () => {
+    it("reveals a terminal by its id in the row's project, the session on screen first", () => {
       const workspace = twoSessions()
       const [initial, other] = workspace.projects[0]!.history
+      // Handles are unique only per session: two sessions can both hold a @kite.
       initial!.state.roster.terminals[0]!.handle = "kite"
       other!.state.roster.terminals.at(-1)!.handle = "kite"
       const app = openCommands({ workspace, history })
-      app.commands.revealHandle("kite", "project")
+      app.commands.revealTerminal(other!.state.roster.terminals.at(-1)!.id, "project")
+      expect(app.ui.getSnapshot().location.route).toMatchObject({
+        sessionId: "other",
+        terminal: other!.state.roster.terminals.at(-1)!.id,
+      })
+      app.commands.revealTerminal(initial!.state.roster.terminals[0]!.id, "project")
       expect(app.ui.getSnapshot().location.route).toMatchObject({
         sessionId: "initial",
         terminal: initial!.state.roster.terminals[0]!.id,
       })
       // Another project's terminals are not this row's.
-      app.commands.revealHandle("kite", "elsewhere")
+      app.commands.revealTerminal(other!.state.roster.terminals.at(-1)!.id, "elsewhere")
       expect(app.ui.getSnapshot().location.route.sessionId).toBe("initial")
-    })
-
-    it("brings the terminal that holds a conversation into view by its handle", () => {
-      const workspace = twoSessions()
-      const held = workspace.projects[0]!.history[1]!.state.roster.terminals.at(-1)!
-      held.handle = "kite"
-      const app = openCommands({ workspace, history })
-      app.commands.revealHandle("kite", "project")
-      expect(app.ui.getSnapshot().location.route).toMatchObject({
-        sessionId: "other",
-        terminal: held.id,
-      })
-      expect(() => app.commands.revealHandle("nobody", "project")).not.toThrow()
+      expect(() => app.commands.revealTerminal("nobody", "project")).not.toThrow()
     })
   })
 
