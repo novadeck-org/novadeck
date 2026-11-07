@@ -4,7 +4,13 @@
    rises out of its trigger as it opens; a `.modal` drops in. Both key their motion on
    data-state="open" | "closed", which Ark sets and keeps through the closing animation.
    Parts of a `.modal`: `.modal-title`, `.modal-description`, a `.modal-header` closed
-   off by a hairline and a `.modal-footer` strip under one.
+   off by a hairline and a `.modal-footer` strip under one, and a `.modal-subject`: the
+   strip a confirmation opens on, naming what it is about as that thing's window header
+   does (SubjectBar.tsx). Its parts: `.modal-subject-name`, `.modal-subject-detail` (a
+   path or count in the metadata voice; `[data-end]` pushes it to the end),
+   `.modal-subject-arrow` (from an asking agent to what it acts on) and `.modal-subject-new`
+   (a terminal that doesn't exist yet). `[data-terminal]` marks a terminal's, which carries
+   the focused window's indicator at its left edge.
 
    Tokens, each optional (its fallback in brackets):
    --panel-bg (paper), --panel-fg (ink), --panel-border-color (line),
@@ -18,7 +24,11 @@
    --modal-description-fg (muted): a dialog, and the text under its title.
    --modal-header-border-color (line): the hairline under a dialog's header.
    --modal-footer-bg (shell), --modal-footer-fg (muted),
-   --modal-footer-border-color (line): a dialog's footer. */
+   --modal-footer-border-color (line): a dialog's footer.
+   --modal-subject-bg (window-header-bg, else shell), --modal-subject-border-color
+   (window-header-border-color, else line), --modal-subject-icon-fg (window-header-icon-fg,
+   else muted), --modal-subject-indicator-bg (window-indicator-bg, else strong): a
+   dialog's subject strip, as a window header has it. */
 .panel {
   --_bg: var(--panel-bg, var(--color-paper));
   --_fg: var(--panel-fg, var(--color-ink));
@@ -71,6 +81,85 @@
   border-top: var(--border-width) solid var(--modal-footer-border-color, var(--color-line));
   background-color: var(--modal-footer-bg, var(--color-shell));
   color: var(--modal-footer-fg, var(--color-muted));
+}
+/* The subject strip runs edge to edge across the top of a dialog padded p-5 (20px), its
+   corners the dialog's own. */
+.modal-subject {
+  position: relative;
+  display: flex;
+  min-height: 40px;
+  min-width: 0;
+  align-items: center;
+  gap: 0.5rem;
+  margin: -20px -20px 10px;
+  padding: 0 20px;
+  border-bottom: var(--border-width) solid
+    var(--modal-subject-border-color, var(--window-header-border-color, var(--color-line)));
+  border-radius: calc(var(--_radius) - var(--border-width))
+    calc(var(--_radius) - var(--border-width)) 0 0;
+  background-color: var(--modal-subject-bg, var(--window-header-bg, var(--color-shell)));
+  font-size: var(--text-body);
+  line-height: 20px;
+  white-space: nowrap;
+}
+.modal-subject[data-terminal]::before {
+  content: "";
+  position: absolute;
+  top: 50%;
+  left: 0;
+  width: 2px;
+  height: 24px;
+  translate: 0 -50%;
+  background-color: var(
+    --modal-subject-indicator-bg,
+    var(--window-indicator-bg, var(--item-selected-indicator-bg, var(--color-strong)))
+  );
+}
+.modal-subject svg {
+  flex-shrink: 0;
+  color: var(--modal-subject-icon-fg, var(--window-header-icon-fg, var(--color-muted)));
+}
+/* One side of the strip: an asker or what it acts on, each keeping its icon and handle while
+   its name gives way. */
+.modal-subject-side {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  gap: 0.5rem;
+}
+.modal-subject-name {
+  min-width: 0;
+  overflow: hidden;
+  font-weight: var(--font-weight-medium);
+  text-overflow: ellipsis;
+}
+.modal-subject-detail {
+  min-width: 0;
+  overflow: hidden;
+  color: var(--color-muted);
+  font-family: var(--window-metadata-font, var(--font-glyphs));
+  font-size: var(--text-caption);
+  text-overflow: ellipsis;
+}
+.modal-subject-detail[data-end] {
+  flex-shrink: 0;
+  margin-left: auto;
+  padding-left: 0.5rem;
+}
+.modal-subject-arrow {
+  display: inline-flex;
+  flex-shrink: 0;
+  align-self: center;
+  color: var(--color-muted);
+}
+.modal-subject-new {
+  flex-shrink: 0;
+  padding: 0 0.375rem;
+  border: 1px dashed var(--color-line-strong);
+  border-radius: var(--radius-control);
+  color: var(--color-muted);
+  font-size: var(--text-caption);
+  line-height: 18px;
 }
 
 /* A peek rises out of its trigger as it opens and settles back as it closes; Ark sets
