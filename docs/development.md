@@ -9,6 +9,10 @@ pnpm install
 pnpm dev
 ```
 
+A new worktree can come without Electron's binary, which `apps/desktop`'s tests need ("Electron
+failed to install correctly"): `node install.js` in `node_modules/.pnpm/electron@*/node_modules/electron`
+fetches it.
+
 `pnpm dev` launches the Electron desktop application. Development launches keep their own
 data (database, settings, agent launchers) in `novadeck-dev`, beside and apart
 from an installed Novadeck's `novadeck` folder. Run one `pnpm dev` at a time:

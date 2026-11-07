@@ -1094,7 +1094,9 @@ one from an earlier runner.
     "One input"): a box leading with `/` or `!`, which its program
     would run with the prompt as arguments (`command`); no box, or something over it (`no-box`);
     a shell command over text that isn't Novadeck's, which can't go along (`draft`); and a
-    line a ring left, which is the doorbell's to finish (`ringing`, to try again). A first line
+    line a ring left, which is the doorbell's to finish (`ringing`, to try again, as the chat does
+    by itself: its queue holds a message while a ring is under way and after this refusal, for up
+    to a minute, and only then says so). A first line
     that a tail or a cut box doesn't show can't be read, so such a box goes along as text.
 
   **One input.** While a terminal shows as chat, its terminal inert beneath it, the person

@@ -55,7 +55,7 @@ const failures: readonly {
   {
     reason: "ringing",
     label: "Doorbell ringing",
-    hint: "Says to retry in a moment",
+    hint: "Waits behind the ring, then goes",
   },
   {
     reason: null,

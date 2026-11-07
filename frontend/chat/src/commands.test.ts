@@ -1,6 +1,8 @@
 import {
-  SettleInTerminal,
   noConversation,
+  noDoorbell,
+  RingUnderWay,
+  SettleInTerminal,
   withReturned,
   type ChatItem,
   type ChatPrompt,
@@ -9,9 +11,9 @@ import {
 } from "@novadeck/core/conversation"
 import { createStore } from "@novadeck/core/store"
 import { refusing } from "@novadeck/core/testing"
-import { afterEach, vi } from "vitest"
+import { afterEach, beforeEach, vi } from "vitest"
 
-import { createChatCommands, unseenMs } from "./commands"
+import { createChatCommands, ringRetryMs, ringWaitMs, unseenMs } from "./commands"
 import { chatDraftOf } from "./drafts"
 import { chatReplyOf } from "./replies"
 import { chatSendsOf } from "./sends"
@@ -242,6 +244,82 @@ describe("the chat's send queue", () => {
     await commands.takeBox(key)
     expect(asked).toEqual([])
     expect(draft()).toBe("from the chat")
+  })
+
+  describe("while the doorbell rings its agent", () => {
+    beforeEach(() => void vi.useFakeTimers())
+    afterEach(() => void vi.useRealTimers())
+    const ringing = { ...noDoorbell, ringing: true }
+
+    it("holds a message in the queue, and sends it once the ring is over", async () => {
+      const { commands, phases, sent, tell } = open()
+      tell({ doorbell: ringing })
+      void commands.sendChat(key, "behind the ring", null)
+      expect(phases()).toEqual([["behind the ring", "queued"]])
+      expect(sent).toEqual([])
+      tell({ doorbell: noDoorbell })
+      expect(sent).toEqual(["behind the ring"])
+    })
+
+    it("keeps the order of those it holds", async () => {
+      const { commands, sent, tell, receipt } = open()
+      tell({ doorbell: ringing })
+      void commands.sendChat(key, "first", null)
+      void commands.sendChat(key, "second", null)
+      tell({ doorbell: noDoorbell })
+      expect(sent).toEqual(["first"])
+      await vi.advanceTimersByTimeAsync(0)
+      tell({ prompts: [receipt(0, "settled", 0)], items: [userItem(0, "first")] })
+      await vi.advanceTimersByTimeAsync(0)
+      expect(sent).toEqual(["first", "second"])
+    })
+
+    it("tries again what the agent turned away for a ring, with no failure said", async () => {
+      let refusals = 1
+      const { commands, phases, sent, draft } = open("s1", {
+        sends: () => {
+          if (refusals-- > 0) throw new RingUnderWay("Reaching it right now.")
+        },
+      })
+      const going = commands.sendChat(key, "the words", null)
+      await vi.advanceTimersByTimeAsync(0)
+      expect(phases()).toEqual([["the words", "queued"]])
+      expect(draft()).toBe("")
+      await vi.advanceTimersByTimeAsync(ringRetryMs)
+      await expect(going).resolves.toBe(true)
+      expect(sent).toEqual(["the words", "the words"])
+    })
+
+    it("says so once it has waited too long, the words back in the box", async () => {
+      const { commands, draft } = open("s1", {
+        sends: () => {
+          throw new RingUnderWay("Reaching it right now.")
+        },
+      })
+      const going = commands.sendChat(key, "the words", null)
+      const failed = expect(going).rejects.toThrow("Reaching it right now.")
+      await vi.advanceTimersByTimeAsync(ringWaitMs + ringRetryMs)
+      await failed
+      expect(draft()).toBe("the words")
+    })
+
+    it("sends what it held after a ring that never ends, for the agent to say", async () => {
+      const { commands, sent, tell } = open()
+      tell({ doorbell: ringing })
+      void commands.sendChat(key, "the words", null)
+      await vi.advanceTimersByTimeAsync(ringWaitMs)
+      expect(sent).toEqual(["the words"])
+    })
+
+    it("hands back what a Stop takes out of the queue, and sends nothing after", async () => {
+      const { commands, sent, tell, draft } = open()
+      tell({ doorbell: ringing })
+      void commands.sendChat(key, "the words", null)
+      await commands.stopChat(key)
+      tell({ doorbell: noDoorbell })
+      expect(sent).toEqual([])
+      expect(draft()).toBe("the words")
+    })
   })
 
   it("clears the box the person was shown, whatever it holds by now", async () => {
