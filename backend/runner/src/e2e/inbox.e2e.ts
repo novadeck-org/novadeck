@@ -1,6 +1,7 @@
 import { join } from "node:path"
 import { setTimeout as sleep } from "node:timers/promises"
 
+import { harnesses } from "../harnesses/registry.js"
 import { setups } from "./agents/index.js"
 import { describe, e2e, expect, supported, type E2E } from "./fixture.js"
 import { asked, gate, record, text as allOf, tool, type Call, type Rule } from "./model/script.js"
@@ -399,10 +400,55 @@ for (const setup of setups) {
         const ask = run.deck.terminals.inboxEntries().find((each) => each.content.kind === "ask")!
         run.deck.terminals.answerAsk(ask.id, { type: "reply", option: 0, text: "Merge it." })
         await sleep(unrung * 3)
+        // Nor does the chat's take of the box have them: they stay, in sight once scrolled to.
+        expect((await run.deck.terminals.takeBox(terminal.id)).returned).toBeNull()
+        terminal.press("\x1b[A".repeat(lines - ups))
+        await terminal.until("MY UNFINISHED")
         expect(
           run.model.calls.slice(calls).some((call) => allOf(call).includes("MY UNFINISHED DRAFT")),
         ).toBe(false)
       })
+
+    // Words a person or agent may write, here the footer of Claude Code's agents view: a reply
+    // saying them is a line in the box like any other.
+    it("rings a reply that says what a view's footer says", async ({ e2e: run }) => {
+      const finishing = gate()
+      finishing.open()
+      run.model.use(
+        asksAndWorksOn(run, finishing),
+        own((call) => (delivered(call, "you") ? { text: "Merged, as you said." } : undefined)),
+      )
+      const terminal = await start(run, setup)
+      await turn(terminal, "Ask and work on", "Worked on.")
+      terminal.resize(170, 30)
+      const calls = run.model.mark()
+      const ask = run.deck.terminals.inboxEntries().find((each) => each.content.kind === "ask")!
+      const words = "enter to open · then merge it"
+      run.deck.terminals.answerAsk(ask.id, { type: "reply", option: 0, text: words })
+      await run.model.waitFor((call) => !call.side && delivered(call, "you"), { after: calls })
+    })
+
+    // Left opens Claude Code's agents view, whose field reads as a box in prompt mode and whose
+    // Enter starts a session: with text in it, it reads as a view.
+    it("takes Claude Code's agents view for a view at 14 rows, a paste in it", async ({
+      e2e: run,
+      skip,
+    }) => {
+      if (setup.agent !== "claude") skip()
+      run.model.use(replies("Warm up", "Warmed up."))
+      const terminal = await start(run, setup)
+      await turn(terminal, "Warm up", "Warmed up.")
+      terminal.resize(40, 14)
+      await sleep(1_200)
+      const profile = harnesses[setup.agent].box!
+      terminal.press("\x1b[D")
+      await terminal.until("describe a task")
+      terminal.press(`\x1b[200~${"and say so in the changelog ".repeat(6)}[n7Q2]\x1b[201~`)
+      await terminal.until("[n7Q2]")
+      await sleep(300)
+      const shown = (await terminal.screenText())!
+      expect(profile.overlay(shown), shown.rows.join("\n")).toBe(true)
+    })
 
     it("gives the reply at the Stop over a draft of the person's, never typing beside it", async ({
       e2e: run,

@@ -416,6 +416,18 @@ describe.each([
       expect(rings.leftover("t", tail(), typed)).toBeUndefined()
       confirmed = false
     })
+
+    it.runIf(agent === "agy")("isn't what shows while the box is scrolled up from it", () => {
+      const rows = tails[agent].rows.map((row, at) =>
+        at === tails[agent].last ? "  ↓ 2 more lines" : row,
+      )
+      const scrolled = screen({
+        rows,
+        columns: 40,
+        cursor: { row: tails[agent].last - 1, column: 10 },
+      })
+      expect(rings.leftover("t", scrolled, typed)).toBeUndefined()
+    })
   })
 
   it.runIf(agent === "claude")("is finished though it fills the box of a small pane", () => {

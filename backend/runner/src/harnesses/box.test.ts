@@ -549,6 +549,42 @@ describe("the end of a line outside the box", () => {
   })
 })
 
+describe("Claude Code's agents view with a paste in its field", () => {
+  const rule = "─".repeat(40)
+  // 40x14, 2.1.316 (2026-11-07): its field read as a box in prompt mode, ending as the paste did.
+  const view = (footer: string) =>
+    screenWith({
+      rows: ["Needs input", rule, "❯ the changelog [n7Q2]", rule, footer, ...blanks(9)],
+      columns: 40,
+      cursor: { row: 2, column: 22 },
+    })
+
+  it.each([
+    "  enter to create · esc to clear",
+    "  enter to create · esc to clear · ctrl+f to find",
+    "  enter to return · ? for shortcuts",
+    "  enter to open · ? for shortcuts",
+  ])("is a view, for no ring to take its field for the box: %s", (footer) => {
+    expect(claude.overlay(view(footer))).toBe(true)
+  })
+
+  it("leaves a dialog's own words about Enter out of it", () => {
+    expect(claude.overlay(view("  Press enter to confirm or esc to cancel"))).toBe(false)
+    expect(claude.overlay(view("  enter to open the file"))).toBe(false)
+  })
+
+  it("leaves those words in the box to the box, however they're said", () => {
+    const said = "❯ the footer says enter to open · esc to close"
+    const shown = screenWith({
+      rows: ["history", rule, said, rule, "  ⏸ manual mode on", ...blanks(9)],
+      columns: 80,
+      cursor: { row: 2, column: said.length },
+    })
+    expect(claude.overlay(shown)).toBe(false)
+    expect(claude.read(shown)?.text).toContain("enter to open")
+  })
+})
+
 describe("a box of nothing but blank rows", () => {
   const rule = "─".repeat(40)
   // Claude Code at 40x14, its words scrolled out over three blank lines (2.1.287, 2026-11-07).
@@ -562,6 +598,18 @@ describe("a box of nothing but blank rows", () => {
     const shown = claude.read(blank)
     expect(shown?.text).toBe("")
     expect(shown && isEmpty(shown)).toBe(false)
+  })
+
+  it("is empty though a faint suggestion wraps over two rows", () => {
+    const shown = claude.read(
+      screenWith({
+        rows: ["history", rule, "❯ a suggestion that wraps", "  over two rows", rule, "  footer"],
+        bright: ["history", rule, "❯", "", rule, "  footer"],
+        columns: 40,
+        cursor: { row: 2, column: 2 },
+      }),
+    )
+    expect(shown && isEmpty(shown)).toBe(true)
   })
 
   it("is one, one row tall", () => {
@@ -858,6 +906,11 @@ describe("Antigravity's box cut short", () => {
     expect(agy.uncut?.("one\ntwo\n↓ 10 more lines")).toBe("one\ntwo")
     expect(agy.uncut?.("↑ 1 more line\none\n↓ 9 more lines")).toBe("one")
     expect(agy.uncut?.("one\n↑ 10 more lines\ntwo")).toBe("one\n↑ 10 more lines\ntwo")
+  })
+
+  it("is the row alone, what's under it being blank lines the text drops", () => {
+    expect(agy.cut?.(box("↑ 6 more lines"))).toBe(true)
+    expect(agy.uncut?.("↑ 6 more lines")).toBe("")
   })
 
   it("doesn't take the words within the person's text for it", () => {

@@ -3,7 +3,7 @@ import type { AgentName } from "@novadeck/protocol"
 import type { Terminal } from "@novadeck/terminal/host"
 import { foregroundRuns, processGroup, terminalForeground } from "@novadeck/terminal/pty"
 import type { TypingTarget } from "@novadeck/tui-input"
-import { compact, hidesText, isEmpty, tailOf, type BoxProfile } from "@novadeck/tui-input/box"
+import { compact, isEmpty, tailOf, type BoxProfile } from "@novadeck/tui-input/box"
 
 import { blocking } from "../harnesses/activity.js"
 import type { Binding } from "../harnesses/bindings.js"
@@ -227,11 +227,7 @@ export const doorbellHost = <R extends DoorbellRecord>(
         return undefined
       const rows = screen.rows.length
       const whole = leftoverNonce(text.text)
-      const nonce =
-        whole ??
-        (hidesText(box, text, rows)
-          ? closingNonce(box.uncut?.(text.text) ?? text.text)
-          : undefined)
+      const nonce = whole ?? closingNonce(text.text)
       if (nonce === undefined || !messaging.unconfirmed(terminalId, nonce)) return undefined
       // Exactly what the ring typed: an edited line is the person's. A reply line the doorbell
       // no longer knows is left to them too, as is an end it can't match to a line; the plain

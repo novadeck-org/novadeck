@@ -217,6 +217,8 @@ describe("Codex's views over its box", () => {
     expect(
       box.overlay(screenOf("• Working (1s • esc to interrupt)", "› ", "  tab to queue message")),
     ).toBe(false)
+  })
+})
 
 describe("Codex's box with text that fills its last row", () => {
   const drawn = (rows: readonly string[], cursor: { row: number; column: number }): ScreenText => ({

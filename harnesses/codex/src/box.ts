@@ -1,13 +1,10 @@
 import type { ScreenText } from "@novadeck/emulator/headless"
 import { cells } from "@novadeck/emulator/width"
 import type { SliceProfile } from "@novadeck/harness-core/slices"
-
-import { cells } from "@novadeck/emulator/width"
 import {
   agreeing,
   eraseRows,
   footerRows,
-  isEmpty,
   leaveShell,
   markedBox,
   sameText,

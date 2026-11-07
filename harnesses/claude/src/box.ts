@@ -31,14 +31,21 @@ export const clearPending = (rows: readonly string[]): boolean =>
  * Whether it shows a view over its conversation: the agents view Left opens, whose "describe
  * a task for a new session" field reads as an empty box and whose Enter starts a session;
  * the prompt history search Ctrl-R opens; the detailed transcript Ctrl-O toggles (probed
- * 2.1.287 in the e2e sandbox, 2026-10-16).
+ * 2.1.287 in the e2e sandbox, 2026-10-16). With text in that field its footer says Enter creates
+ * a session, or on a narrow screen returns or opens (2.1.316, 2026-11-07), and the text ends as a
+ * line in a box would, so only that tells them apart. It's read under the box's lower rule, as
+ * `footerRows` holds the box too and a prompt may say these words. Without text the field shows
+ * its placeholder, which reads as a draft, whatever the footer.
  */
 const overlay = (screen: ScreenText): boolean =>
   footerRows(screen).some((row) =>
     /enter to return · space to reply|Esc to cancel · ctrl\+s to scope|Showing detailed transcript/.test(
       row,
     ),
-  )
+  ) ||
+  screen.rows
+    .slice(screen.rows.findLastIndex(rule) + 1)
+    .some((row) => /^\s*enter to (?:create|return|open|resume) · /.test(row))
 
 /**
  * A row of its agents list under the footer, of a background agent (`◯`, selected or not):
@@ -116,8 +123,8 @@ export const box: BoxProfile = {
   collapses: (text) => text.split("\n").length > 3 || text.length > 900,
   room: (rows) => rows - 4,
   // Probed on 24, 40 and 60 rows: 7, 15 and 25 (2.1.287, `e2e/probes/interrupted-paste.e2e.ts`);
-  // 3 from 12 to 16 rows (2026-11-07, `e2e/probes/reply-overflow.e2e.ts`). Below 12 a tall text
-  // pushes the box's frame off the screen, and it reads as no box.
+  // 3 from 12 to 17 rows (2026-11-07, `e2e/probes/reply-overflow.e2e.ts`). Below 12 a text of
+  // three rows pushes the box's frame off the screen, and it reads as no box.
   viewport: (rows) => Math.max(Math.floor(rows / 2) - 5, 3),
   still,
 }

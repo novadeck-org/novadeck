@@ -630,6 +630,33 @@ describe("a line taller than its box", () => {
     expect(enters(written)).toBe(0)
   })
 
+  it("presses no Enter where the line's end shows twice", async () => {
+    const { delivered, written } = await deliverTo(
+      [`> ${end.slice(0, 20)}`, end.slice(20)],
+      {},
+      end,
+    )
+    expect(delivered).toMatchObject({ entered: false, reason: "not-landed" })
+    expect(enters(written)).toBe(0)
+  })
+
+  it("presses no Enter where the box shows it in its shell mode", async () => {
+    const shell = async (rows: readonly string[]) => {
+      const read = (drawn: ScreenText) => {
+        const last = drawn.rows.indexOf("footer") - 1
+        const text = drawn.rows
+          .slice(2, last + 1)
+          .map((row) => row.replace(/^>\s?/, ""))
+          .join("\n")
+        return { mode: text === "" ? "prompt" : "shell", text, first: 2, last } as const
+      }
+      return await deliverTo(rows, { read })
+    }
+    const { delivered, written } = await shell([`> ${end.slice(0, 20)}`, end.slice(20)])
+    expect(delivered).toMatchObject({ entered: false, reason: "not-landed" })
+    expect(enters(written)).toBe(0)
+  })
+
   it("presses no Enter where the box isn't full, so it hides nothing", async () => {
     const { delivered, written } = await deliverTo([`> ${end.slice(0, 20)}`, end.slice(20)], {
       viewport: () => 5,

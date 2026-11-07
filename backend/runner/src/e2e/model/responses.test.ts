@@ -47,6 +47,11 @@ describe("a turn past midnight", () => {
     expect(turns.at(-1)).toMatchObject({ role: "tool", text: "seen" })
   })
 
+  it("keeps what isn't the person's or the program's user turn", () => {
+    const developer = { ...message(context), role: "developer" }
+    expect(turnsOf([message("Go"), calling, output, developer]).at(-1)?.text).toBe(context)
+  })
+
   it("keeps a prompt that came with the date, and the date before any tool", () => {
     const after = turnsOf([message("Go"), calling, output, message(`${context}\nNext`)])
     expect(after.at(-1)).toMatchObject({ role: "user" })
