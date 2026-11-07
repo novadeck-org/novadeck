@@ -7,6 +7,7 @@ import type {
 } from "@novadeck/protocol"
 import { Latest } from "@novadeck/wire/server"
 
+import type { ListedTerminal } from "./saved-terminals.js"
 import { Slices, type Slicing } from "./slices.js"
 import { TerminalWatcher } from "./watcher.js"
 
@@ -23,6 +24,8 @@ export type StreamsHost<R> = {
   readonly messages: (terminalId: string) => TerminalMessages
   /** What a look at a terminal's live slice takes, with an agent bound there. */
   readonly slicing: (terminalId: string) => Slicing | undefined
+  /** A terminal kept only as saved, as clients see it (asleep or not). */
+  readonly saved: (terminal: ListedTerminal) => TerminalSummary
 }
 
 /**
@@ -75,6 +78,16 @@ export class Streams<R extends { readonly summary: { readonly id: string } }> {
   /** Tells every watcher of a terminal's summary, made for each as it is told. */
   changed(summary: () => TerminalSummary): void {
     for (const watcher of this.watchers.keys()) watcher.changed(summary())
+  }
+
+  /** Whether any client watches the terminals. */
+  watched(): boolean {
+    return this.watchers.size > 0
+  }
+
+  /** Tells every watcher of a terminal kept only as saved. */
+  savedChanged(terminal: ListedTerminal): void {
+    this.changed(() => this.host.saved(terminal))
   }
 
   /** Tells every watcher a terminal is gone. */
@@ -148,7 +161,11 @@ export class Streams<R extends { readonly summary: { readonly id: string } }> {
 
   /** Ends the watch streams the owner holds, as it is released. */
   release(ownerId: string): void {
-    for (const [watcher, owner] of this.watchers) if (owner === ownerId) watcher.finish()
+    for (const [watcher, owner] of this.watchers) {
+      if (owner !== ownerId) continue
+      watcher.finish()
+      this.watchers.delete(watcher)
+    }
   }
 
   /** Ends every watch stream, as the runner shuts down. */

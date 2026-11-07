@@ -11,6 +11,7 @@ import type { Record } from "./record.js"
 import {
   boundProgram,
   exitKeysMs,
+  programOf,
   Sampler,
   shellBusy,
   endingSamples,
@@ -180,5 +181,21 @@ describe("whether a shell may be running a program", () => {
 
   it("ignores a line entered where the integration never reported a prompt", async () => {
     expect(await shellBusy(shell({ submitted: true, prompts: [] }))).toBe(false)
+  })
+})
+
+describe("the program a foreground process is", () => {
+  it("is its name, and for node the agent whose script it runs", () => {
+    expect(programOf({ name: "claude", argv: null })).toBe("claude")
+    expect(programOf({ name: "bash", argv: ["bash"] })).toBe("bash")
+    expect(
+      programOf({
+        name: "node",
+        argv: ["node", "/usr/lib/node_modules/@openai/codex/bin/codex.js"],
+      }),
+    ).toBe("codex")
+    expect(programOf({ name: "node", argv: ["node", "/home/me/.local/bin/codex"] })).toBe("codex")
+    expect(programOf({ name: "node", argv: ["node", "server.js"] })).toBe("node")
+    expect(programOf({ name: "node", argv: null })).toBe("node")
   })
 })

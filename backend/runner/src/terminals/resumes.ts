@@ -60,8 +60,18 @@ export const endExpecting = (
   murmur?.released(record.summary.id)
 }
 
+/**
+ * How long a wake that carries messages waits for its agent to bind or show its own
+ * prompt, from the `create` that started its shell, in milliseconds.
+ */
+export const wakeMs = 120_000
+
 /** Why an agent can't be started on a session an agent asked to resume, in a sentence for it. */
-export const resumeRefusal = (agent: AgentName, reason: UnavailableReason): string => {
+export const resumeRefusal = (
+  agent: AgentName,
+  reason: UnavailableReason,
+  asleep = false,
+): string => {
   const label = agentLabel(agent)
   switch (reason) {
     case "not-connected":
@@ -72,11 +82,32 @@ export const resumeRefusal = (agent: AgentName, reason: UnavailableReason): stri
     case "invalid-session":
       return `That isn't a ${label} session id: give the id of a past session, as ${label} shows it.`
     case "in-use":
-      return (
-        `That ${label} session is already open in a terminal, or given to one that is starting: ` +
-        "one session runs in one terminal. Close that terminal first, or start a new agent."
-      )
+      return asleep
+        ? `That ${label} session belongs to a terminal where the agent is asleep: one session ` +
+            "runs in one terminal. Message that agent to wake it, or close that terminal first, " +
+            "or start a new agent."
+        : `That ${label} session is already open in a terminal, or given to one that is starting: ` +
+            "one session runs in one terminal. Close that terminal first, or start a new agent."
   }
+}
+
+/**
+ * Why a sleeping agent could not be woken for the messages waiting for it, in a sentence
+ * for their senders: they are gone, and the terminal stays asleep as it was.
+ */
+export const wakeRefusal = (agent: AgentName, reason: UnavailableReason | "timeout"): string => {
+  const label = agentLabel(agent)
+  const why =
+    reason === "timeout"
+      ? `it did not start within ${wakeMs / 1000} seconds`
+      : {
+          "not-connected": `Novadeck isn't connected to ${label}`,
+          unsupported: `${label} can't resume a session by its id here`,
+          "no-session": `Novadeck has no ${label} session saved for it`,
+          "invalid-session": `the ${label} session saved for it isn't one it can run`,
+          "in-use": `that ${label} session is open in another terminal`,
+        }[reason]
+  return `${label} was asleep there and could not be woken: ${why}.`
 }
 
 /**

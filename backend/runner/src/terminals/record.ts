@@ -190,6 +190,13 @@ export type Record = {
    * bound: its first prompt's hooks bind it, so until then nothing says it is idle.
    */
   readyEntered: boolean
+  /**
+   * When this shell was started to wake a sleeping agent (epoch milliseconds), until a
+   * session binds, its prompt shows, or the person types a line there: while it stands, a
+   * prompt back with nothing bound does not end the lead nor let the sampler forget the
+   * program, so the row stays resumable (see `Sleepers`).
+   */
+  woken?: number | undefined
   /** The last delivery epoch whose uncertain box got a screen-settling window. */
   boxDoubtEpoch?: number
   /** `performance.now()` at the last save of its screen, so saves take turns. */

@@ -1,6 +1,6 @@
 import { basename } from "node:path"
 
-import type { AgentName, ForegroundProcess } from "@novadeck/protocol"
+import { harnesses, type AgentName, type ForegroundProcess } from "@novadeck/protocol"
 import { hasChildProcess, sampleForeground, terminalForeground } from "@novadeck/terminal/pty"
 
 import type { Record } from "./record.js"
@@ -8,7 +8,7 @@ import type { Record } from "./record.js"
 /** What sampling reads of a terminal's record, and what it keeps there. */
 export type SampledRecord = Pick<
   Record,
-  "terminal" | "foreground" | "summary" | "changed" | "bound" | "endKeyAt" | "ending"
+  "terminal" | "foreground" | "summary" | "changed" | "bound" | "endKeyAt" | "ending" | "woken"
 >
 
 // Whether the platform hides a terminal's foreground program, as Windows does: no sample
@@ -86,6 +86,20 @@ export const boundProgram = (
   record.summary = { ...record.summary, lastProgram: agent }
   record.changed = true
   return true
+}
+
+/**
+ * The program a foreground process is, as a fresh shell resumes it: its name, or for Node
+ * the agent whose script it runs (an npm-installed Codex is `node` to the system).
+ */
+export const programOf = (process: ForegroundProcess): string => {
+  if (process.name !== "node" && process.name !== "nodejs") return process.name
+  const script = (process.argv?.[1] ?? "").replaceAll("\\", "/")
+  const found = harnesses.find(
+    ({ id, nodeScript }) =>
+      script.split("/").at(-1) === id || (nodeScript !== undefined && script.endsWith(nodeScript)),
+  )
+  return found?.id ?? process.name
 }
 
 export type SamplerHost<R extends SampledRecord> = {
@@ -175,11 +189,12 @@ export class Sampler<R extends SampledRecord> {
    * (see `whenEndCounts`).
    */
   prompted(record: R): void {
-    if (!foregroundHidden() || record.summary.lastProgram === null) return
+    // A woken shell with nothing bound yet keeps its program: the agent may only have failed.
+    if (!foregroundHidden() || record.summary.lastProgram === null || record.woken) return
     const shell = record.terminal.pty
     whenEndCounts(record, this.pollMs, () => {
       if (this.host.stopping() || record.bound !== null) return
-      if (record.terminal.pty !== shell) return
+      if (record.terminal.pty !== shell || record.woken) return
       if (record.terminal.exit !== null || record.terminal.exiting) return
       record.summary = { ...record.summary, lastProgram: null }
       record.changed = true
@@ -202,7 +217,9 @@ export class Sampler<R extends SampledRecord> {
       const current = record.foreground.process
       if (sameProcess(current, record.summary.process)) continue
       // The program a fresh shell resumes, should this one be lost.
-      const lastProgram = current?.name ?? record.summary.lastProgram
+      const lastProgram = record.woken
+        ? record.summary.lastProgram
+        : ((current && programOf(current)) ?? record.summary.lastProgram)
       record.summary = { ...record.summary, process: current, lastProgram }
       record.changed = true
       this.host.sampled(record)

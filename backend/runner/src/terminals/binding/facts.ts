@@ -598,6 +598,21 @@ export class Bindings {
     this.host.announce(record)
   }
 
+  /** Forgets every session `agent` reported in the terminals, as once it is disconnected. */
+  forgetAgent(records: Iterable<Record>, agent: AgentName): void {
+    for (const record of records) {
+      const { [agent]: _forgotten, ...rest } = record.agents
+      record.agents = rest
+      const agentRan = hasRun(rest)
+      // Its binding ends too: a disconnected harness holds no terminal's foreground.
+      if (record.bound?.binding.agent === agent) this.forgotten(record)
+      else if (record.summary.agentRan !== agentRan) {
+        record.summary = { ...record.summary, agentRan }
+        this.host.announce(record)
+      }
+    }
+  }
+
   /**
    * The agent's `done` that still stands (`standingDone`), as the summary shows it: what
    * the person's prompt, a delivered message, another session or the agent's end can undo,

@@ -69,15 +69,19 @@ export const markTurn = (
  * held no turn. A session carries nothing of this run over, so every saved turn is dropped
  * (the terminal then differs from its row, to be saved); what the resumed agent was doing
  * when the runner stopped is kept apart in `started` (`Record.resumeTurn`) for
- * `interruptedFor`. Without a resume there is none to tell.
+ * `interruptedFor`. Without a resume there is none to tell. A terminal woken from sleep
+ * (`keepTurns`) keeps its saved turns until its session reports.
  */
 export const restored = (
   saved: Record["agents"] | undefined,
   resume: AgentName | false | undefined,
   started: Pick<Started, "resumeTurn">,
+  keepTurns = false,
 ): Record["agents"] => {
   const agents = saved ?? {}
   started.resumeTurn = resume ? agents[resume]?.turn : undefined
+  // A woken sleeper keeps its turn until its session binds: a wake that fails loses nothing.
+  if (keepTurns) return agents
   const next = withTurn(agents, null, null, undefined)
   return next === agents ? (saved ?? agents) : next
 }

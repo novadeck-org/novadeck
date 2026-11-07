@@ -8,6 +8,7 @@ import { Approvals } from "./approvals.js"
 import type { Bindings } from "./binding/facts.js"
 import { Leads, leadNotice, nobodyToLead, type LeadsHost } from "./leads.js"
 import type { Record } from "./record.js"
+import type { Sleepers } from "./sleepers.js"
 
 const token = "t".repeat(48)
 
@@ -72,6 +73,7 @@ const setup = (terminals: { [handle: string]: { agent: AgentName | null; ledBy?:
     stopping: () => stopping,
     closingNow: () => false,
     approvals: () => approvals,
+    sleepers: () => ({ peer: () => undefined, ask: () => false }) as unknown as Sleepers,
     messaging: () =>
       ({
         leadOf,

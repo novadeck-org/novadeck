@@ -1,0 +1,363 @@
+import { existsSync } from "node:fs"
+
+import {
+  agentSessionId,
+  isAgentName,
+  type AgentName,
+  type TerminalSummary,
+} from "@novadeck/protocol"
+
+import { harnesses } from "../harnesses/registry.js"
+import { logs } from "../log.js"
+import type { Inbox } from "../messaging/inbox.js"
+import type { Messaging } from "../messaging/messaging.js"
+import { standingDone } from "../messaging/peers.js"
+import type { PeerRecord } from "./peers-host.js"
+import type { Record } from "./record.js"
+import { wakeMs, wakeRefusal, type Claims } from "./resumes.js"
+import type { ListedTerminal } from "./saved-terminals.js"
+import type { Saves } from "./saving.js"
+import { savedSummaryOf, type AgentSummary } from "./summary.js"
+
+const log = logs.for("terminals")
+
+/**
+ * How long the person's keys are dropped while a woken shell has not yet read its resume
+ * command, in milliseconds: a slow rc file can't lock the terminal for longer.
+ */
+export const keysHeldMs = 10_000
+
+/**
+ * How long a wake waits for a client to create the terminal before the runner does it
+ * itself, in milliseconds: with no window open, as on macOS after the last one closed.
+ */
+export const graceMs = 3_000
+
+export type SleepersHost = {
+  readonly messaging: () => Messaging
+  readonly saves: () => Saves
+  readonly inbox: () => Inbox
+  readonly claims: () => Claims
+  /** Whether Novadeck is connected to the harness, whose sessions it may resume. */
+  readonly connected: (agent: AgentName) => Promise<boolean>
+  /** Whether shells here can run a resume command: with the integration, and no custom arguments. */
+  readonly resumes: () => boolean
+  /** The project a session belongs to; undefined when the session is gone. */
+  readonly projectOf: (sessionId: string) => string | undefined
+  /** The runner holds a record of the terminal, running or exited. */
+  readonly held: (terminalId: string) => boolean
+  /** The terminal was closed in this runner's lifetime. */
+  readonly closed: (terminalId: string) => boolean
+  /** The terminal's record, if the runner holds one. */
+  readonly record: (terminalId: string) => Record | undefined
+  readonly stopping: () => boolean
+  /** Whether any client watches the terminals. */
+  readonly watched: () => boolean
+  /** Starts the terminal's shell resuming its agent, as a client's restore does. */
+  readonly create: (row: ListedTerminal, agent: AgentName) => Promise<unknown>
+  /** Tells every watcher of a terminal kept only as saved. */
+  readonly changed: (row: ListedTerminal) => void
+}
+
+/**
+ * The agent a saved terminal's last program was: its name, or for `node` (an npm-installed
+ * Codex, which older rows kept as the process name) the one agent that reported a session.
+ */
+const programAgent = (
+  row: Pick<ListedTerminal, "lastProgram" | "agents">,
+): AgentName | undefined => {
+  const program = row.lastProgram
+  if (isAgentName(program)) return program
+  if (program !== "node" && program !== "nodejs") return undefined
+  const only = Object.keys(row.agents).filter(isAgentName)
+  return only.length === 1 ? only[0] : undefined
+}
+
+/** A sleeper as the agent layer reads a terminal: its saved row, shaped as a record's half. */
+export type Sleeper = PeerRecord & { readonly summary: AgentSummary }
+
+/**
+ * Terminals whose agents sleep: saved, no process, their session resting in messaging
+ * (`Messaging.rest`) until someone needs them. Messaging holds who rests where; this holds
+ * which of them are being woken, and what a wake asks of the terminal it starts.
+ */
+export class Sleepers {
+  /** The terminals whose wake is wanted: their `create` is expected, so they are not asleep. */
+  private readonly wakes = new Set<string>()
+  /** Wakes being judged, so each is asked once. */
+  private readonly judging = new Set<string>()
+  /** The session of each terminal rested here, to find its row. */
+  private readonly sessions = new Map<string, string>()
+
+  constructor(private readonly host: SleepersHost) {}
+
+  /**
+   * Rests every saved terminal whose agent can resume, and starts the wakes already owed:
+   * a turn the stop cut short, and messages waiting for a session. Before any client lists.
+   */
+  start(): void {
+    const { messaging } = this.host
+    const turns: string[] = []
+    for (const row of this.host.saves().terminals()) {
+      const resting = this.rest(row)
+      if (resting && row.agents[resting.agent]?.turn !== undefined) turns.push(row.id)
+    }
+    for (const id of turns) this.ask(id)
+    for (const id of messaging().wakesWanted()) this.ask(id)
+  }
+
+  /**
+   * Rests the terminal's saved row if its agent can resume there: the program last in its
+   * foreground is an agent whose session it reported, and a shell here can run the resume.
+   * Not one whose record the runner holds, nor a closed one.
+   */
+  rest(row: ListedTerminal): { agent: AgentName; sessionId: string } | undefined {
+    const { id } = row
+    if (!this.host.resumes() || this.host.held(id) || this.host.closed(id)) return undefined
+    const agent = programAgent(row)
+    if (!agent || !harnesses[agent].launch.resume) return undefined
+    const sessionId = row.agents[agent]?.sessionId
+    if (sessionId === undefined || !agentSessionId.safeParse(sessionId).success) return undefined
+    const projectId = this.host.projectOf(row.sessionId)
+    if (projectId === undefined) return undefined
+    const resting = { agent, sessionId }
+    this.sessions.set(id, row.sessionId)
+    this.host
+      .messaging()
+      .rest(id, { projectId, sessionId: row.sessionId }, row.handle, row.ledBy, resting)
+    return resting
+  }
+
+  /** The shell integration did not come up: no shell can run a resume, so none rests. */
+  integrationFailed(): void {
+    for (const id of Array.from(this.sessions.keys())) {
+      if (this.host.held(id)) continue
+      const session = this.sessions.get(id)
+      this.host.messaging().unregister(id)
+      this.forget(id)
+      const row = this.row(id, session)
+      if (row) this.host.changed(row)
+    }
+  }
+
+  /**
+   * `agent` is disconnected and `forgetRows` makes the saved rows forget its sessions:
+   * the terminals that slept on one rest no more, and watchers hear of each.
+   */
+  forgetAgent(agent: AgentName, forgetRows: () => void): void {
+    const ids = [...this.sessions.keys()].filter(
+      (id) => !this.host.held(id) && this.host.messaging().resting(id)?.agent === agent,
+    )
+    const sessions = new Map(ids.map((id) => [id, this.sessions.get(id)]))
+    for (const id of ids) {
+      this.host.messaging().unregister(id)
+      this.forget(id)
+    }
+    forgetRows()
+    for (const [id, session] of sessions) {
+      const row = this.row(id, session)
+      if (row) this.host.changed(row)
+    }
+  }
+
+  /** What rests on the terminal's session with no record to run it; undefined for any other. */
+  resting(terminalId: string): { agent: AgentName; sessionId: string } | undefined {
+    if (this.host.held(terminalId)) return undefined
+    return this.host.messaging().resting(terminalId)
+  }
+
+  /** Whether the terminal's agent sleeps: resting with no record, not being woken. */
+  asleep(terminalId: string): boolean {
+    return this.resting(terminalId) !== undefined && !this.wakes.has(terminalId)
+  }
+
+  /**
+   * Asks for the terminal's wake: its summary stops saying it sleeps, and a client that
+   * lists it creates it. A wake that carries messages is judged first, as its `create`
+   * would be: not ok, the messages are gone and the terminal stays asleep. Once for each
+   * wake. Whether it is being woken: true also for one already asked.
+   */
+  ask(terminalId: string): boolean {
+    if (this.wakes.has(terminalId) || this.judging.has(terminalId)) return true
+    const resting = this.resting(terminalId)
+    if (!resting || this.host.stopping()) return false
+    this.judging.add(terminalId)
+    void this.judge(terminalId, resting).finally(() => this.judging.delete(terminalId))
+    return true
+  }
+
+  private async judge(
+    terminalId: string,
+    resting: { agent: AgentName; sessionId: string },
+  ): Promise<void> {
+    const { agent, sessionId } = resting
+    const connected = await this.host.connected(agent).catch(() => false)
+    // Gone, woken by another path, or resting on another session meanwhile.
+    const now = this.resting(terminalId)
+    if (this.host.stopping() || now?.agent !== agent || now.sessionId !== sessionId) return
+    const check = this.host.claims().check(terminalId, agent, sessionId, connected)
+    if (check.ok) return this.wake(terminalId)
+    this.host.messaging().wakeFailed(terminalId, wakeRefusal(agent, check.reason))
+  }
+
+  private wake(terminalId: string): void {
+    this.wakes.add(terminalId)
+    this.publish(terminalId)
+    this.unattended(terminalId)
+  }
+
+  /**
+   * With no client to create the terminal, the runner does it after a short grace, so a
+   * message or a turn the stop cut short never waits on a window being opened.
+   */
+  private unattended(terminalId: string): void {
+    if (this.host.watched()) return
+    setTimeout(() => void this.alone(terminalId), graceMs).unref()
+  }
+
+  /** The last client left: the wakes still wanted are the runner's to start. */
+  unwatched(): void {
+    for (const id of this.wakes) this.unattended(id)
+  }
+
+  private async alone(terminalId: string): Promise<void> {
+    const resting = this.resting(terminalId)
+    if (!this.wakes.has(terminalId) || this.host.watched() || this.host.stopping() || !resting)
+      return
+    const row = this.row(terminalId, this.sessions.get(terminalId))
+    if (!row) return
+    // An unattended create that fails is reported by `create` itself (see `failedStart`).
+    await this.host.create(row, resting.agent).catch(() => undefined)
+  }
+
+  /**
+   * A `create` of the terminal failed before any shell: the wake is over and its messages
+   * are gone, as the terminal stays asleep as it was.
+   */
+  failedStart(terminalId: string, why: string): void {
+    const woke = this.wakes.delete(terminalId)
+    this.judging.delete(terminalId)
+    if (!woke && !this.resting(terminalId)) return
+    this.host.messaging().wakeFailed(terminalId, why)
+    this.publish(terminalId)
+  }
+
+  /** Tells watchers the terminal's summary as its row and resting state say it now. */
+  publish(terminalId: string): void {
+    const row = this.row(terminalId, this.sessions.get(terminalId))
+    if (row) this.host.changed(row)
+  }
+
+  /** The terminal is not a sleeper any more, or was started: its wake, if any, is over. */
+  forget(terminalId: string): void {
+    this.wakes.delete(terminalId)
+    this.judging.delete(terminalId)
+    this.sessions.delete(terminalId)
+  }
+
+  /** A saved terminal's summary: with its agent's sleep, wake and standing report. */
+  summaryOf(row: ListedTerminal): TerminalSummary {
+    const resting = this.resting(row.id)
+    if (!resting) return savedSummaryOf(row)
+    return savedSummaryOf(row, {
+      agent: resting.agent,
+      waking: this.wakes.has(row.id),
+      reported: this.reported(row),
+    })
+  }
+
+  /** The agent's standing `done`, as a terminal that runs shows it (`standingDone`). */
+  private reported(row: ListedTerminal): TerminalSummary["reported"] {
+    const { messaging, inbox } = this.host
+    const reports = inbox().reports(row.id)
+    if (!reports.done) return null
+    const done = standingDone(reports, row.work?.personAt, messaging().deliveredAt(row.id))
+    return done && { subject: done.subject, at: done.at }
+  }
+
+  /** The saved row of a terminal known by its session. */
+  private row(terminalId: string, sessionId: string | undefined): ListedTerminal | undefined {
+    return this.host
+      .saves()
+      .terminals(sessionId)
+      .find(({ id }) => id === terminalId)
+  }
+
+  /** The person ended a sleeper's lead: kept in its row, told to messaging and to watchers. */
+  endLead(terminalId: string): void {
+    this.host.saves().endLead(terminalId)
+    this.host.messaging().endLead(terminalId)
+    this.publish(terminalId)
+  }
+
+  /** The sleeper as the agent layer reads a terminal; undefined for any other. */
+  peer(terminalId: string): Sleeper | undefined {
+    const row = this.resting(terminalId) && this.row(terminalId, this.sessions.get(terminalId))
+    return row ? this.peerOf(row) : undefined
+  }
+
+  /** The sleepers of a session. */
+  sleepersOf(sessionId: string): readonly Sleeper[] {
+    return this.host
+      .saves()
+      .terminals(sessionId)
+      .filter(({ id }) => this.resting(id) !== undefined)
+      .map((row) => this.peerOf(row))
+  }
+
+  private peerOf(row: ListedTerminal): Sleeper {
+    const { cols: _cols, rows: _rows, exit: _exit, run: _run, ...summary } = this.summaryOf(row)
+    return { summary, naming: row.naming, work: row.work, openedBy: row.openedBy, bound: null }
+  }
+
+  /**
+   * A `create` started the terminal's shell: its wake is over, whether it resumes the
+   * agent (`agent`, the one resumed) or starts a plain shell, which keeps the row's lead
+   * and says why on its screen. A woken shell is `woken` until the agent shows, and a wake that carries messages
+   * gives up after `wakeMs` without it.
+   */
+  started(record: Record, agent: AgentName | undefined, why: string): void {
+    const { id } = record.summary
+    const { messaging } = this.host
+    this.wakes.delete(id)
+    this.judging.delete(id)
+    if (!messaging().resting(id)) return
+    // Woken whatever came of it: the row keeps its program and its lead, the person looking.
+    record.woken = Date.now()
+    // A seen wake that judged not ok is a plain shell: nothing waits for an agent there.
+    if (agent === undefined) return messaging().wakeEnded(id, why)
+    if (!messaging().wakeWanted(id)) return
+    const timer = setTimeout(() => this.timedOut(record, agent), wakeMs)
+    timer.unref()
+  }
+
+  private timedOut(record: Record, agent: AgentName): void {
+    const { id } = record.summary
+    const { messaging } = this.host
+    if (this.host.stopping() || this.host.record(id) !== record) return
+    // A bound session ends its rest, and its own prompt showing counts as the agent up.
+    if (messaging().resting(id) === undefined || messaging().shownAgent(id) !== undefined) return
+    log.warn("terminals.wake-timeout", "A woken agent did not start in time", { data: { id } })
+    messaging().wakeEnded(id, wakeRefusal(agent, "timeout"))
+  }
+
+  /**
+   * The woken shell's prompt came back with no session bound: the agent failed (an expired
+   * login, a crash). The row stays resumable and the shell shows why; the messages that
+   * woke it are gone.
+   */
+  failed(record: Record, why: string): void {
+    const { id } = record.summary
+    this.host.messaging().wakeEnded(id, why)
+  }
+
+  /**
+   * Whether the woken shell has yet to read its resume command and drops the person's
+   * keys meanwhile, which would take the command's place at the prompt: for `keysHeldMs`.
+   */
+  holdsKeys(record: Pick<Record, "woken" | "resumeFile">): boolean {
+    const { woken, resumeFile } = record
+    if (woken === undefined || resumeFile === undefined) return false
+    return Date.now() - woken < keysHeldMs && existsSync(resumeFile)
+  }
+}

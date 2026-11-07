@@ -102,6 +102,7 @@ describe("the open call", () => {
       }),
       messaging: () => ({
         refusal: () => undefined,
+        holder: () => undefined,
         send: (_from: string, request: { to: string; text: string }) => {
           sent.push(request)
           plain += 1

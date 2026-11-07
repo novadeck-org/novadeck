@@ -5,6 +5,9 @@ import type { Harness, TranscriptEntry } from "@novadeck/harness-core/harness"
 import { interruptionEntry } from "@novadeck/harness-core/items"
 import { transcriptLimits, type TranscriptChange } from "@novadeck/protocol"
 
+import { DomainError } from "../errors.js"
+import { actorOf } from "../harnesses/detail.js"
+import { harnesses } from "../harnesses/registry.js"
 import { logs } from "../log.js"
 import type { Record } from "./record.js"
 
@@ -259,5 +262,36 @@ export const transcriptChanges = async function* (
     controller.abort()
     signal.removeEventListener("abort", abort)
     await reading
+  }
+}
+
+/**
+ * An actor's conversation in the terminal, as its harness recorded it: every item so far,
+ * then each later one, until the terminal's agent leaves the session it belongs to or
+ * `signal` aborts. An actor the bound session does not have, or whose harness keeps no
+ * transcript Novadeck reads, is NOT_FOUND.
+ */
+export const followTranscript = async function* (
+  record: Record,
+  actor: string,
+  signal?: AbortSignal,
+): AsyncGenerator<TranscriptChange> {
+  const { bound, transcript: root } = record
+  const source = bound && harnesses[bound.binding.agent].transcripts
+  const native = bound && actorOf(bound.binding, bound.activity, actor)
+  if (!bound || !source || !root || native === undefined) throw new DomainError("NOT_FOUND")
+  const path = await source.locate(root, bound.binding.sessionId, native)
+  if (!path || record.bound?.binding !== bound.binding) throw new DomainError("NOT_FOUND")
+  const reader = new AbortController()
+  record.sourceReaders.add(reader)
+  const abort = () => reader.abort()
+  signal?.addEventListener("abort", abort, { once: true })
+  if (signal?.aborted) reader.abort()
+  try {
+    yield* transcriptChanges(path, source, reader.signal, readingOf(record, native))
+  } finally {
+    signal?.removeEventListener("abort", abort)
+    reader.abort()
+    record.sourceReaders.delete(reader)
   }
 }
