@@ -171,7 +171,7 @@ describe("a woken shell whose agent has not shown", () => {
 
   it("lets it go once the person typed a line there, on Windows", () => {
     on("win32")
-    const record = { ...running("claude"), woken: Date.now() }
+    const record: SampledRecord = { ...running("claude"), woken: Date.now() }
     record.woken = undefined
     sampler().prompted(record)
     vi.advanceTimersByTime(graceSamples * pollMs)

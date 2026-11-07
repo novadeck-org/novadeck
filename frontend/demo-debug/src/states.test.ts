@@ -309,9 +309,9 @@ describe("demo states", () => {
     await run("Every state at once")
     vi.advanceTimersByTime(3200)
     const asleep = ["Asleep, reply unread", "Asleep, stopped with an error"].map((name) => {
-      const each = added.find((key) => terminal(terminalSlot(key.terminalId))?.name === name)!
-      expect(released).toContainEqual(each)
-      return terminal(terminalSlot(each.terminalId))
+      const found = added.find((one) => terminal(terminalSlot(one.terminalId))?.name === name)!
+      expect(released).toContainEqual(found)
+      return terminal(terminalSlot(found.terminalId))
     })
     for (const each of asleep) expect(each).toMatchObject({ state: "sleeping" })
   })
