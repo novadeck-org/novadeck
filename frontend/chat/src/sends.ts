@@ -8,7 +8,8 @@ import type { ChatReply } from "./replies"
 // - `text`: the words as sent;
 // - `to`: the question they answer, for a reply, which goes at once and shows as its dialog's
 //   answer; null for a prompt, which takes its turn in the terminal's queue;
-// - `phase`: `queued` while a prompt before it hasn't reached the agent's record yet;
+// - `phase`: `queued` while a prompt before it hasn't reached the agent's record yet, or a
+//   doorbell ring is under way;
 //   `typing` while it goes into the agent's box; `sent` once it went, until its receipt says
 //   whether the record has it; `settled` once the record has it, kept only for its words
 //   until the conversation holds its item.
