@@ -67,15 +67,15 @@ describe("the rail's tooltips", () => {
         ? ["⌘", "Shift", letter]
         : ["Ctrl", "Shift", letter]
       ).join("\u00a0")
-    expect(railTooltip({ panel: "sessions", open: false, base: "terminals" })).toBe(
+    expect(railTooltip({ panel: "sessions", open: false, back: "terminals" })).toBe(
       `Sessions · ${keys("S")}`,
     )
-    expect(railTooltip({ panel: "sessions", open: true, base: "terminals" })).toBe(
+    expect(railTooltip({ panel: "sessions", open: true, back: "terminals" })).toBe(
       `Sessions · back to Terminals · ${keys("S")}`,
     )
-    expect(railTooltip({ panel: "inbox", detail: "2 waiting", open: true, base: "inbox" })).toBe(
+    expect(railTooltip({ panel: "inbox", detail: "2 waiting", open: true, back: "inbox" })).toBe(
       `Inbox · 2 waiting · hide sidebar · ${keys("B")}`,
     )
-    expect(railTooltip({ panel: "history", open: true, base: null })).toBe("History · hide sidebar")
+    expect(railTooltip({ panel: "history", open: true, back: null })).toBe("History · hide sidebar")
   })
 })

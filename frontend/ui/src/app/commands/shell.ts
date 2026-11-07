@@ -26,8 +26,8 @@ export type ShellCommands = {
   // Inbox is no longer the panel that shows.
   readonly peekInbox: () => (() => void) | undefined
   readonly hideSidebar: () => void
-  // Shows the panel, leaving Zen; when it already shows, goes back to the sidebar's base
-  // panel, or hides the sidebar when it is the base.
+  // Shows the panel, leaving Zen; when it already shows, goes back to the panel shown just
+  // before it, or hides the sidebar when there is none.
   readonly toggleSidebar: (panel: SidebarPanel) => void
   readonly enterZen: () => void
   readonly exitZen: () => void
@@ -69,10 +69,15 @@ export const createShellCommands = (ctx: CommandContext): ShellCommands => {
   const show = (next: SidebarPanel, replace = false): void => {
     const { shell: before } = ui.getSnapshot()
     const inZen = Boolean(before.zen)
-    // A sidebar opening takes this panel as its base; one already open keeps its base, or the
-    // panel it showed when it had none yet, as on a sidebar left open from the last visit.
-    const base = sidebarVisible(before, effects.desktop()) ? (before.sidebarBase ?? panel()) : next
-    change((shell) => ({ ...shell, zen: null, sidebarBase: base }))
+    // Switching from an open panel remembers it, for the new panel's toggle to go back to; a
+    // sidebar opening remembers none, and showing the open panel again keeps what it had.
+    const current = panel()
+    const back = !sidebarVisible(before, effects.desktop())
+      ? null
+      : current === next
+        ? before.sidebarBack
+        : current
+    change((shell) => ({ ...shell, zen: null, sidebarBack: back }))
     navigation.go({ panel: next }, replace)
     change(showPanel)
     // The Zen dock the person pressed is gone; focus follows to the rail.
@@ -87,13 +92,13 @@ export const createShellCommands = (ctx: CommandContext): ShellCommands => {
       const { location, shell } = ui.getSnapshot()
       if (location.route.panel === "inbox" && sidebarVisible(shell, desktop)) return undefined
       const was = location.route.panel
-      const { sidebar, sidebarCollapsed, sidebarBase, zen } = shell
+      const { sidebar, sidebarCollapsed, sidebarBack, zen } = shell
       show("inbox", true)
       return () => {
         const now = ui.getSnapshot()
         if (now.location.route.panel !== "inbox" || !sidebarVisible(now.shell, effects.desktop()))
           return
-        change((edited) => ({ ...edited, sidebar, sidebarCollapsed, sidebarBase, zen }))
+        change((edited) => ({ ...edited, sidebar, sidebarCollapsed, sidebarBack, zen }))
         navigation.go({ panel: was }, true)
         if (!effects.desktop()) return
         effects.afterFrame(() => {
@@ -107,12 +112,15 @@ export const createShellCommands = (ctx: CommandContext): ShellCommands => {
       // Visibility before this command: a panel hidden by Zen shows instead of hiding.
       const { shell } = ui.getSnapshot()
       const visible = sidebarVisible(shell, effects.desktop())
-      // The open panel's toggle goes back to the panel the sidebar was opened on, so a look at
-      // the Inbox or Sessions returns to where the person was; the base's own toggle hides.
-      const base = shell.sidebarBase
+      // The open panel's toggle goes back one step, to the panel the person was on before it,
+      // so a look at the Inbox or Sessions returns to where they were; back there, or with no
+      // step to go back, it hides the sidebar.
+      const back = shell.sidebarBack
       if (panel() !== next || !visible) show(next)
-      else if (base && base !== next) navigation.go({ panel: base })
-      else hide()
+      else if (back && back !== next) {
+        change((edited) => ({ ...edited, sidebarBack: null }))
+        navigation.go({ panel: back })
+      } else hide()
     },
     enterZen: () => {
       if (ui.getSnapshot().shell.zen) return

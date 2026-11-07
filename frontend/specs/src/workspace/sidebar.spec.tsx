@@ -34,7 +34,7 @@ describe("sidebar settings", () => {
   })
 
   context("when the open panel's toggle is pressed again", () => {
-    it("goes back to the panel the sidebar opened on, and hides it from that one", async () => {
+    it("goes back one step, to the panel shown before it, then hides from there", async () => {
       await openWorkspace()
       await sidebarPanel("Inbox").click()
       await expect.element(sidebar()).toHaveAccessibleName("Inbox")
@@ -43,8 +43,8 @@ describe("sidebar settings", () => {
 
       await sidebarPanel("Sessions").click()
 
-      await expect.element(sidebar()).toHaveAccessibleName("Terminal sessions")
-      await sidebarPanel("Terminals").click()
+      await expect.element(sidebar()).toHaveAccessibleName("Inbox")
+      await sidebarPanel("Inbox").click()
       await expect.element(sidebar()).not.toBeInTheDocument()
 
       // Opened on the Inbox by its key, the same key hides it again.

@@ -35,21 +35,21 @@ const panelShortcuts: Partial<Record<SidebarPanel, ShortcutName>> = {
 }
 
 // A toggle's tooltip: its panel, what it holds for the person, and, while its panel is open,
-// where a click takes the sidebar: back to the base panel, or hidden on the base's own.
+// where a click takes the sidebar: back to the panel shown before it, or hidden.
 export const railTooltip = ({
   panel,
   detail,
   open,
-  base,
+  back,
 }: {
   panel: SidebarPanel
   detail?: string | undefined
   open: boolean
-  base: SidebarPanel | null
+  back: SidebarPanel | null
 }): string => {
   const action = open
-    ? base && base !== panel
-      ? `back to ${panels[base].label}`
+    ? back && back !== panel
+      ? `back to ${panels[back].label}`
       : "hide sidebar"
     : undefined
   const shortcut = panelShortcuts[panel]
@@ -90,7 +90,7 @@ export const SidebarRail = ({
   mobile = false,
   sidebarVisible,
   sidebarPanel,
-  sidebarBase = null,
+  sidebarBack = null,
   zen,
   badge,
   bellRings,
@@ -104,8 +104,8 @@ export const SidebarRail = ({
   mobile?: boolean
   sidebarVisible: boolean
   sidebarPanel: SidebarPanel
-  // The panel the sidebar was opened on, where the open panel's toggle goes back to.
-  sidebarBase?: SidebarPanel | null
+  // The panel shown before the open one, where the open panel's toggle goes back to.
+  sidebarBack?: SidebarPanel | null
   zen: boolean
   badge: InboxBadge | undefined
   // How many new Inbox rows the bell has rung for, which its dot rings with.
@@ -157,7 +157,7 @@ export const SidebarRail = ({
         value={sidebarVisible ? [sidebarPanel] : []}
         onValueChange={(value) => {
           // Pressing the open panel's toggle leaves none pressed: the command for that panel
-          // decides whether it goes back to the base panel or hides the sidebar.
+          // decides whether it goes back to the panel before it or hides the sidebar.
           toggleSidebar(sidebarPanels.find((panel) => panel === value[0]) ?? sidebarPanel)
         }}
       >
@@ -169,7 +169,7 @@ export const SidebarRail = ({
             index={index}
             count={shown.length}
             open={sidebarVisible && sidebarPanel === id}
-            base={sidebarBase}
+            back={sidebarBack}
             badge={id === "inbox" ? badge : undefined}
             bellRings={bellRings}
             sessionsAsk={id === "sessions" ? sessionsAsk : undefined}
@@ -194,7 +194,7 @@ const RailToggle = ({
   index,
   count,
   open,
-  base,
+  back,
   badge,
   bellRings,
   sessionsAsk,
@@ -207,9 +207,9 @@ const RailToggle = ({
   value: SidebarPanel
   index: number
   count: number
-  // Its panel shows, so a click goes back to the base panel or hides the sidebar.
+  // Its panel shows, so a click goes back to the panel before it or hides the sidebar.
   open: boolean
-  base: SidebarPanel | null
+  back: SidebarPanel | null
   // What the Inbox holds, on its toggle.
   badge: InboxBadge | undefined
   // How many new Inbox rows the bell has rung for, which its dot rings with.
@@ -250,7 +250,7 @@ const RailToggle = ({
         panel: value,
         detail: badge ? `${badge.count} waiting` : sessionsAsk,
         open,
-        base,
+        back,
       })}
       tooltipDisabled={dragging}
       value={value}
