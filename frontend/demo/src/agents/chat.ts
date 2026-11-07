@@ -324,7 +324,7 @@ export const createDemoChat = (
     return {
       agent: found.terminal.process,
       session: `demo-${terminalKeyId(found.key)}`,
-      slice: null,
+      slice: transcript?.slice ?? null,
       doorbell: noDoorbell,
       loaded: true,
       items: transcript?.items ?? [],

@@ -24,7 +24,7 @@ import { driver, standIn } from "./stand-ins.test-support.js"
 // How each agent resumes the session it had, as the stand-in prints it.
 const resumed = {
   claude: "claude args: --resume s-worker",
-  codex: "codex args: resume s-worker",
+  codex: "codex args: resume -c tui.resume_cwd=session s-worker",
   agy: "agy args: --conversation s-worker",
 }
 

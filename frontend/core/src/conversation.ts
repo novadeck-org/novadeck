@@ -407,6 +407,15 @@ export class SettleInTerminal extends Error {
   }
 }
 
+// A message the agent couldn't take as the doorbell rang it: it can go once the ring is over,
+// so the chat holds it in its queue rather than saying so.
+export class RingUnderWay extends Error {
+  constructor(message: string) {
+    super(message)
+    this.name = "RingUnderWay"
+  }
+}
+
 // The agent's box didn't read empty after the clear the person asked for.
 export const boxNotCleared = (): SettleInTerminal =>
   new SettleInTerminal(
@@ -449,7 +458,11 @@ export const conflictFailure = (reason: ConflictReason | undefined, action: Chat
           : "The agent is waiting for your answer. Answer it here, then send again.",
       )
     case "ringing":
-      return new Error(`Another agent's message is reaching it right now. ${retry} in a moment.`)
+      return action === "send"
+        ? new RingUnderWay(
+            `Another agent's message is reaching it right now. ${retry} in a moment.`,
+          )
+        : new Error(`Another agent's message is reaching it right now. ${retry} in a moment.`)
     case "no-paste":
       return new Error(
         `The agent isn't ready for ${action === "send" ? "a message" : "that"} yet. ${retry} in a moment.`,

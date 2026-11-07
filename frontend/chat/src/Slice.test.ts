@@ -3,7 +3,7 @@ import { paletteColour } from "@novadeck/core/conversation/slice"
 import { render } from "@novadeck/test-kit/render"
 import { createElement } from "react"
 
-import { Slice, SliceKeys } from "./Slice"
+import { LiveSlice, Slice, SliceKeys } from "./Slice"
 import { describe, expect, it } from "./test"
 
 const run = (text: string, fields: Partial<ChatSliceRun> = {}): ChatSliceRun => ({
@@ -126,5 +126,71 @@ describe("paletteColour", () => {
     expect(paletteColour(196)).toBe("#ff0000")
     expect(paletteColour(232)).toBe("#080808")
     expect(paletteColour(255)).toBe("#eeeeee")
+  })
+})
+
+describe("focus as the rows start taking keys", () => {
+  // Something with focus as the rows arrive.
+  const inChat = (reason: ChatSlice["reason"]) =>
+    render(
+      createElement(
+        SliceKeys.Provider,
+        { value: () => {} },
+        createElement(
+          "div",
+          { className: "chat" },
+          createElement("textarea", { autoFocus: true }),
+          createElement(Slice, { slice: { ...slice([[run("x")]]), reason }, live: true }),
+        ),
+      ),
+    )
+
+  it("leaves what the person is typing to a dialog that came by itself", async () => {
+    await inChat("dialog")
+    expect(document.activeElement?.tagName).toBe("TEXTAREA")
+  })
+
+  it("comes to a view the person called up", async () => {
+    await inChat("view")
+    expect(document.activeElement?.className).toContain("chat-slice")
+  })
+})
+
+describe("the terminal's rows standing in the chat", () => {
+  const shown = (reason: ChatSlice["reason"], keys: ((pressed: string) => void) | null) =>
+    render(
+      createElement(
+        SliceKeys.Provider,
+        { value: keys },
+        createElement(LiveSlice, {
+          slice: { ...slice([[run("x")]]), reason },
+          agent: "Codex",
+          aside: "skills are under $",
+        }),
+      ),
+    )
+
+  it("says whose they are and what stands beside them", async () => {
+    const { container } = await shown("menu", null)
+    const title = container.querySelector(".chat-live-title")
+    expect(title?.textContent).toContain("Codex's own menu · live from its terminal")
+    expect(title?.textContent).toContain("skills are under $")
+  })
+
+  it("offers a view's keys for the pointer, and gives focus back to the rows", async () => {
+    const pressed: string[] = []
+    const { container } = await shown("view", (keys) => pressed.push(keys))
+    const names = [...container.querySelectorAll(".chat-live-keys button")].map((key) =>
+      key.getAttribute("aria-label"),
+    )
+    expect(names).toEqual(["Up", "Down", "Enter", "Escape"])
+    container.querySelector<HTMLElement>('.chat-live-keys [aria-label="Enter"]')!.click()
+    expect(pressed).toEqual(["\r"])
+    expect(document.activeElement).toBe(container.querySelector(".chat-slice"))
+  })
+
+  it("has no keys for a menu, whose come from the box, or where the terminal takes none", async () => {
+    expect((await shown("menu", () => {})).container.querySelector(".chat-live-keys")).toBeNull()
+    expect((await shown("view", null)).container.querySelector(".chat-live-keys")).toBeNull()
   })
 })

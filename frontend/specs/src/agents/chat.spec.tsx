@@ -266,8 +266,8 @@ describe("Stopping an agent from the chat", () => {
 })
 
 describe("A request that waits on the person", () => {
-  context("when shown as a card", () => {
-    it("names what it asks and its answers, and answering in the terminal goes there", async () => {
+  context("when it shows", () => {
+    it("names what it asks and its answers, which the chat takes itself", async () => {
       await openChatDemo()
       const chat = await openChat("Checkout review")
       const card = requestCard(chat, /^Needs your permission/)
@@ -276,9 +276,23 @@ describe("A request that waits on the person", () => {
         .element(card.getByLabelText("What it asks"))
         .toHaveTextContent("pnpm test --filter checkout")
       await expect.element(card.getByRole("button", { name: "Yes, proceed" })).toBeVisible()
-      await card.getByRole("button", { name: "Answer in terminal" }).click()
-      await expect.element(chat).not.toBeInTheDocument()
-      await expect.element(commandInput("Checkout review")).toHaveFocus()
+      await expect
+        .element(card.getByRole("button", { name: "Answer in terminal" }))
+        .not.toBeInTheDocument()
+    })
+
+    it("takes the keys of a terminal's menu, and leaves the box's words alone", async () => {
+      await openChatDemo()
+      const chat = await openChat("Checkout review")
+      const card = requestCard(chat, /^Needs your permission/)
+      await expect.element(composer(chat)).toHaveFocus()
+      await userEvent.keyboard("hello")
+      await expect.element(composer(chat)).toHaveValue("hello")
+      card.getByRole("button", { name: "Yes, proceed" }).element().focus()
+      await userEvent.keyboard("{ArrowDown}")
+      await expect
+        .element(card.getByRole("button", { name: /^Yes, and don't ask again/ }))
+        .toHaveFocus()
     })
   })
 
@@ -378,22 +392,23 @@ describe("A request that waits on the person", () => {
       await openChatDemo()
       const chat = await openChat("Runtime")
       const card = requestCard(chat, /^Has a question: ask_question/)
-      const submit = card.getByRole("button", { name: "Submit" })
-      await expect.element(submit).toBeDisabled()
-      await expect.element(card.getByText("0 of 2 answered")).toBeVisible()
+      await expect.element(card.getByText("0 of 2 answered")).toBeInTheDocument()
       await expect.element(card.getByText("Fast, runs in a few seconds")).toBeVisible()
       const checks = card.getByRole("group", { name: /Which checks/ })
-      await checks.getByRole("checkbox", { name: "Unit tests" }).click()
-      await checks.getByRole("checkbox", { name: "Lint" }).click()
+      await checks.getByText("Unit tests").click()
+      await checks.getByText("Lint").click()
       await userEvent.type(
         card.getByRole("textbox", { name: /^Other: Which checks/ }),
         "Bundle size",
       )
-      await expect.element(submit).toBeDisabled()
+      await card.getByRole("tab", { name: /Submit/ }).click()
+      const submit = card.getByRole("button", { name: "Submit answers" })
+      await expect.element(submit).toHaveAttribute("aria-disabled", "true")
+      await card.getByRole("tab", { name: /Note|logging/i }).click()
       const note = card.getByRole("radiogroup", { name: /Where should the logging note live/ })
-      await note.getByRole("radio", { name: "The README" }).click()
-      await expect.element(card.getByText("2 of 2 answered")).toBeVisible()
-      await expect.element(submit).toBeEnabled()
+      await note.getByText("The README").click()
+      await expect.element(card.getByText("2 of 2 answered")).toBeInTheDocument()
+      await expect.element(submit).not.toHaveAttribute("aria-disabled")
       await submit.click()
       await expect.element(card).not.toBeInTheDocument()
       await expect
@@ -403,6 +418,43 @@ describe("A request that waits on the person", () => {
             timeout: 5000,
           },
         )
+        .toBeVisible()
+    })
+
+    it("takes the whole dialog from the keyboard, picking only what it is told to", async () => {
+      await openChatDemo()
+      const chat = await openChat("Runtime")
+      const card = requestCard(chat, /^Has a question: ask_question/)
+      const unit = card.getByRole("checkbox", { name: "Unit tests" })
+      unit.element().focus()
+      await userEvent.keyboard(" ")
+      await expect.element(unit).toBeChecked()
+      await userEvent.keyboard("{ArrowDown}")
+      const types = card.getByRole("checkbox", { name: "Type check" })
+      await expect.element(types).toHaveFocus()
+      await expect.element(types).not.toBeChecked()
+      await userEvent.keyboard("{Enter}")
+      const note = card.getByRole("radiogroup", { name: /Where should the logging note live/ })
+      const first = note.getByRole("radio", { name: "notes/logging.md" })
+      const readme = note.getByRole("radio", { name: "The README" })
+      await expect.element(first).toHaveFocus()
+      await userEvent.keyboard("{ArrowDown}")
+      await expect.element(readme).toHaveFocus()
+      await expect.element(first).not.toBeChecked()
+      await expect.element(readme).not.toBeChecked()
+      await userEvent.keyboard("{ArrowLeft}")
+      await expect.element(card.getByRole("checkbox", { name: "Type check" })).toHaveFocus()
+      await userEvent.keyboard("{ArrowRight}")
+      await expect.element(readme).toHaveFocus()
+      await expect.element(readme).not.toBeChecked()
+      await userEvent.keyboard("{Enter}")
+      await expect.element(card.getByRole("button", { name: "Submit answers" })).toHaveFocus()
+      await userEvent.keyboard("{Enter}")
+      await expect.element(card).not.toBeInTheDocument()
+      await expect
+        .element(chat.getByText("Noted: Unit tests; The README", { exact: false }), {
+          timeout: 5000,
+        })
         .toBeVisible()
     })
 
@@ -421,14 +473,17 @@ describe("A request that waits on the person", () => {
       await openChatDemo()
       const chat = await openChat("Runtime")
       const card = requestCard(chat, /^Has a question: ask_question/)
+      await card.getByText("Lint").click()
+      await card.getByRole("tab", { name: /Note|logging/i }).click()
       const note = card.getByRole("radiogroup", { name: /Where should the logging note live/ })
-      await card.getByRole("checkbox", { name: "Lint" }).click()
-      await note.getByRole("radio", { name: "The README" }).click()
+      await note.getByText("The README").click()
+      await card.getByRole("tab", { name: /Note|logging/i }).click()
       await userEvent.type(
         card.getByRole("textbox", { name: /^Other: Where should/ }),
         "In the wiki",
       )
       await expect.element(note.getByRole("radio", { name: "The README" })).not.toBeChecked()
+      await userEvent.keyboard("{Enter}")
       await userEvent.keyboard("{Enter}")
       await expect.element(card).not.toBeInTheDocument()
     })
@@ -439,15 +494,21 @@ describe("A request that waits on the person", () => {
       await openChatDemo()
       const chat = await openChat("Runtime")
       const card = requestCard(chat, /^Has a question: mcp_deploy/)
-      const accept = card.getByRole("button", { name: "Accept" })
+      const accept = card.getByRole("button", { name: "Submit" })
       await expect.element(card.getByText("Configure the deploy target").first()).toBeVisible()
-      await expect.element(accept).toBeDisabled()
-      await userEvent.type(card.getByRole("textbox", { name: "Target name" }), "api")
-      await expect.element(accept).toBeDisabled()
-      await card.getByRole("combobox", { name: "Environment" }).selectOptions("production")
-      await card.getByRole("spinbutton", { name: "Replicas" }).fill("3")
-      await card.getByRole("combobox", { name: "Dry run first" }).selectOptions("Yes")
-      await expect.element(accept).toBeEnabled()
+      await expect.element(accept).toHaveAttribute("aria-disabled", "true")
+      await userEvent.type(card.getByRole("textbox", { name: /^Target name/ }), "api")
+      await expect.element(accept).toHaveAttribute("aria-disabled", "true")
+      await card
+        .getByRole("radiogroup", { name: /^Environment/ })
+        .getByText("production")
+        .click()
+      await card.getByRole("spinbutton", { name: /^Replicas/ }).fill("3")
+      await card
+        .getByRole("radiogroup", { name: /^Dry run first/ })
+        .getByText("Yes")
+        .click()
+      await expect.element(accept).not.toHaveAttribute("aria-disabled")
       await accept.click()
       await expect.element(card).not.toBeInTheDocument()
       await expect
@@ -455,6 +516,22 @@ describe("A request that waits on the person", () => {
           timeout: 5000,
         })
         .toBeVisible()
+    })
+
+    it("takes a pick back with Space, leaving a yes or no unsaid", async () => {
+      await openChatDemo()
+      const chat = await openChat("Runtime")
+      const card = requestCard(chat, /^Has a question: mcp_deploy/)
+      const yes = card.getByRole("radiogroup", { name: /^Dry run first/ }).getByRole("radio", {
+        name: "Yes",
+      })
+      await card
+        .getByRole("radiogroup", { name: /^Dry run first/ })
+        .getByText("Yes")
+        .click()
+      await expect.element(yes).toBeChecked()
+      await userEvent.keyboard(" ")
+      await expect.element(yes).not.toBeChecked()
     })
 
     it("is declined without filling anything", async () => {
@@ -474,7 +551,7 @@ describe("A request that waits on the person", () => {
       await openChatDemo()
       const chat = await openChat("Runtime")
       const card = requestCard(chat, /^Needs your permission/)
-      await expect.element(card.getByText(/can't read this dialog/)).toBeVisible()
+      await expect.element(card.getByText(/can't read this dialog/)).toBeInTheDocument()
       await expect.element(card.getByText("Allow for this session", { exact: false })).toBeVisible()
       await expect.element(card.getByRole("button", { name: "Yes" })).not.toBeInTheDocument()
       await card.getByRole("button", { name: "Answer in terminal" }).click()

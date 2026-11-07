@@ -1,6 +1,7 @@
 import {
   boxNotCleared,
   returnedBy,
+  RingUnderWay,
   promptRef,
   type ChatPrompt,
   type Conversation,
@@ -68,6 +69,14 @@ export type ChatCommands = {
 // that receipt before the chat stops waiting on it, in milliseconds: the backend tells it as
 // the prompt's Enter goes, so only a receipt it dropped first is never seen.
 export const unseenMs = 15_000
+
+// How long a prompt waits in the queue behind rings before the person is told, in milliseconds:
+// a ring takes seconds, so one that outlasts this isn't ending by itself.
+export const ringWaitMs = 60_000
+
+// How long a prompt the agent turned away for a ring waits to try again, in milliseconds: a
+// line a ring left in the box can stand there with no ring under way.
+export const ringRetryMs = 1_000
 
 // The session context a terminal's chat state is kept under.
 const contextOf = (key: TerminalKey) => `${key.projectId}/${key.workspaceSessionId}`
@@ -223,6 +232,38 @@ export const createChatCommands = ({
 
   // Sends the terminal's next queued prompt, once no prompt before it is still on its way:
   // being typed, or sent and not yet in the agent's record.
+  // Since when each prompt has waited behind rings, by ref, and what ends each terminal's wait.
+  const ringWaits = new Map<string, number>()
+  const heldByRing = new Map<string, () => void>()
+
+  // Holds the terminal's queue behind the ring under way, `rest` at the least, then goes on. A
+  // prompt that has waited `ringWaitMs` goes on all the same, for the agent to say.
+  const holdForRing = (key: TerminalKey, ref: string, rest: number): void => {
+    const { terminalId } = key
+    if (heldByRing.has(terminalId)) return
+    const since = ringWaits.get(ref) ?? Date.now()
+    ringWaits.set(ref, since)
+    const conversation = conversations!.conversation(key)
+    let rested = rest === 0
+    const look = (): void => {
+      if (rested && !conversation.getSnapshot().doorbell.ringing) release()
+    }
+    const stop = conversation.subscribe(look)
+    const rests = setTimeout(() => {
+      rested = true
+      look()
+    }, rest)
+    const gives = setTimeout(() => release(), Math.max(rest, since + ringWaitMs - Date.now()))
+    const release = (): void => {
+      clearTimeout(rests)
+      clearTimeout(gives)
+      stop()
+      heldByRing.delete(terminalId)
+      pump(key)
+    }
+    heldByRing.set(terminalId, release)
+  }
+
   const pump = (key: TerminalKey): void => {
     const sends = sendsOf(key)
     const prompts = sends.filter((send) => send.to === null)
@@ -231,6 +272,12 @@ export const createChatCommands = ({
     if (!next) return
     const context = contextOf(key)
     const { terminalId } = key
+    if (heldByRing.has(terminalId)) return
+    const waited = Date.now() - (ringWaits.get(next.ref) ?? Date.now())
+    if (waited < ringWaitMs && conversations!.conversation(key).getSnapshot().doorbell.ringing) {
+      holdForRing(key, next.ref, 0)
+      return
+    }
     update(key, (all) =>
       withSend(all, context, terminalId, next.ref, (send) => ({ ...send, phase: "typing" })),
     )
@@ -240,6 +287,7 @@ export const createChatCommands = ({
     const shown = chatView() && !answering
     conversations!.send(key, next.text, { ref: next.ref, ...(shown && { along: true }) }).then(
       (result) => {
+        ringWaits.delete(next.ref)
         const settle = settles.get(next.ref)
         settles.delete(next.ref)
         settle?.resolve(true)
@@ -254,6 +302,18 @@ export const createChatCommands = ({
       // It didn't go: back in the box with every prompt queued after it, which would only
       // have gone after it.
       (failure: unknown) => {
+        const since = ringWaits.get(next.ref) ?? Date.now()
+        if (failure instanceof RingUnderWay && Date.now() - since < ringWaitMs) {
+          ringWaits.set(next.ref, since)
+          update(key, (all) =>
+            withSend(all, context, terminalId, next.ref, (send) => ({ ...send, phase: "queued" })),
+          )
+          const words = returnedBy(failure)
+          if (words) wordsBack(key, words)
+          holdForRing(key, next.ref, ringRetryMs)
+          return
+        }
+        ringWaits.delete(next.ref)
         handBack(key, (send) => send.ref === next.ref || send.phase === "queued", [
           next.ref,
           failure,

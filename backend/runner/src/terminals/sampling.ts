@@ -132,6 +132,38 @@ export const shellBusy = async (
   return (await hasChildProcess(record.terminal.pty.pid, trees)) === true
 }
 
+/**
+ * Whether a program runs in the terminal's shell besides its prompt, on every OS: one holds
+ * the foreground (an agent too), or, where the shell's integration reported a prompt, a line
+ * was entered whose prompt hasn't come back, which is all Windows, naming no foreground
+ * program, can tell. Unlike `shellBusy` it reads no process, so a summary can carry it.
+ */
+export const programRuns = (
+  record: Pick<
+    Record,
+    "foreground" | "terminal" | "summary" | "shellName" | "prompts" | "submitted" | "startupRuns"
+  >,
+): boolean =>
+  record.terminal.exit === null &&
+  !record.terminal.exiting &&
+  (!shellAtPrompt(record) ||
+    // A command the shell was started with, which runs before its first prompt.
+    record.startupRuns ||
+    (record.prompts.length > 0 && record.submitted))
+
+/** Keeps `programRuns` in the terminal's summary; whether that changed it. */
+export const markBusy = (
+  record: Pick<
+    Record,
+    "foreground" | "terminal" | "summary" | "shellName" | "prompts" | "submitted" | "startupRuns"
+  >,
+): boolean => {
+  const busy = programRuns(record)
+  if (busy === record.summary.busy) return false
+  record.summary = { ...record.summary, busy }
+  return true
+}
+
 /** The shell until the first sample, which may add its command line; Windows reports none. */
 export const shellProcess = (shell: string): ForegroundProcess | null => {
   const name = basename(shell).slice(0, 256)

@@ -9,6 +9,10 @@ pnpm install
 pnpm dev
 ```
 
+A new worktree can come without Electron's binary, which `apps/desktop`'s tests need ("Electron
+failed to install correctly"): `node install.js` in `node_modules/.pnpm/electron@*/node_modules/electron`
+fetches it.
+
 `pnpm dev` launches the Electron desktop application. Development launches keep their own
 data (database, settings, agent launchers) in `novadeck-dev`, beside and apart
 from an installed Novadeck's `novadeck` folder. Run one `pnpm dev` at a time:
@@ -583,7 +587,7 @@ the median is above 8 seconds from the address to Claude Code's terminal drawn (
 now, as main's; the website gives up at 15). The build fails over its budgets
 (`tools/build-kit/src/bundle-checks.ts`, with the numbers in `apps/try/vite.config.ts`): what the page loads first, its scripts and styles gzipped and
 every woff2 font they declare, 1,300 kB, and the demo with its terminal emulator, which
-loads with the connection, 190 kB.
+loads with the connection, 195 kB.
 
 The hero's terminals are real terminal cells, as the desktop app draws them: the theme's
 ANSI palette, boxes in box-drawing characters, text wrapped at the column count. Where xterm

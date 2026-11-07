@@ -1,6 +1,7 @@
 import {
   noConversation,
   returnedBy,
+  RingUnderWay,
   SettleInTerminal,
   WordsLost,
 } from "@novadeck/core/conversation"
@@ -964,6 +965,7 @@ describe("the runner's conversations", () => {
       }
       const ringing = await failing({ reason: "ringing" })
       expect(ringing).not.toBeInstanceOf(SettleInTerminal)
+      expect(ringing).toBeInstanceOf(RingUnderWay)
       expect(ringing).toHaveProperty("message", expect.stringContaining("in a moment"))
       // A reason this client doesn't know is none: the terminal is where to look.
       const unknown = await failing({ reason: "new-one" })

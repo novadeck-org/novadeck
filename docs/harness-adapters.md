@@ -446,6 +446,18 @@ Step 1 implements `plugin`, `fallback`, `home`, `connected`, `connect`, `disconn
 `hook`, `files`, `shims`, `resume` and `continuity`. The other fields arrive with
 the features that need them.
 
+Two more fields serve the History pane. `conversation(install, session)` says whether a
+conversation can still be found, as `found`, `gone` or `unknown`, by `stat` and `readdir`
+alone: `gone` only when its file is missing from a real folder that holds such files, and
+any other error, an empty store or a link to nowhere is `unknown`. The transcript path the
+session reported names its home when a wrapper moved it, and is checked first; `conversations(install)`
+gives a scan that reads each folder once for a whole list. Codex reads the day folder its UUIDv7 id names, plus its
+neighbours, and `archived_sessions` (an archived thread is found); an id with no date is looked for newest day first, within a budget of folders.
+`launch.resumed(claim, seen)` says whether a resume worked from the bound session and
+whether the prompt shows (`worked`, `waiting` or `failed`), so the runner never asks which
+harness it is. Both are measured in the E2E suite (`resume.e2e.ts`), which fails when a
+harness release moves its files.
+
 Use plain objects and functions: no classes, no per-feature `*Adapter` types,
 and no generic `execute(capabilityName, unknownPayload)` entry point.
 

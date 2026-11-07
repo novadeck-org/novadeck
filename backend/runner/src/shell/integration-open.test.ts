@@ -720,7 +720,7 @@ describe.skipIf(process.platform === "win32" || !existsSync(bash))(
       }) => {
         const form = {
           claude: "claude --model opus --resume sess-r",
-          codex: "codex resume --model gpt-a sess-r",
+          codex: 'codex resume --model gpt-a -c "tui.resume_cwd=session" sess-r',
           agy: "agy --conversation sess-r",
         }
         await opened(

@@ -54,6 +54,7 @@ describe("the visitor demo", () => {
       "commit",
       "companions",
       "demo",
+      "history",
       "inbox",
       "mountTerminal",
       "newTerminal",

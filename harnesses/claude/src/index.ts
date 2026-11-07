@@ -6,6 +6,7 @@ import { beside } from "@novadeck/harness-core/paths"
 import type { Report } from "@novadeck/harness-core/report"
 
 import { box, slice } from "./box.js"
+import { conversation, conversations } from "./conversation.js"
 import { decode } from "./decode.js"
 import { dialogs } from "./dialogs.js"
 import { claudeHome } from "./home.js"
@@ -70,6 +71,8 @@ const launch: LaunchProfile = {
   // It holds a command-line prompt behind its trust and startup screens.
   initialPrompt: (line) => Promise.resolve(["claude", line]),
   resume: (session, choice = {}) => ["claude", ...launch.choose(choice), "--resume", session],
+  resumed: (claim, { sessionId }) =>
+    sessionId === null ? "waiting" : sessionId === claim ? "worked" : "failed",
   models: () => Promise.resolve(models),
   choose: ({ model, effort }) => [
     ...(model !== undefined ? ["--model", model] : []),
@@ -85,6 +88,8 @@ export const claude = {
   plugin: "claude",
   // Claude Code's local install is an alias in the person's rc file, not on PATH.
   fallback: (home) => join(home, ".claude", "local", "claude"),
+  conversation,
+  conversations,
   home: claudeHome,
   planFolders: (install) => [join(claudeHome(install), "plans")],
   // Its transcripts are `<home>/projects/<project>/<session>.jsonl`.

@@ -13,6 +13,7 @@
     "./agents/link": "./src/agents/link.ts",
     "./agents/turns": "./src/agents/turns.ts",
     "./feedback": "./src/feedback.ts",
+    "./history": "./src/history.ts",
     "./inbox": "./src/inbox.ts",
     "./inbox/fixtures": "./src/inbox/fixtures.ts",
     "./messages": "./src/messages.ts",

@@ -12,9 +12,11 @@ import {
   type AskAnswer,
   type CompanionChange,
   type CompanionItem,
+  type ClosedTerminal,
   type CompanionWindow,
   type FeedbackDraft,
   type FolderListing,
+  type HistoryChange,
   type InboxEntry,
   type InterruptResult,
   type ItemContent,
@@ -69,6 +71,12 @@ export type TerminalWatchItem = TerminalChange | Reset
  * yields before each fresh sequence of items and windows ending in `synced`.
  */
 export type CompanionWatchItem = CompanionChange | Reset
+
+/**
+ * An item of `runner.history.watch()`: a runner change, or `reset`, which the client
+ * yields before each fresh sequence of closed terminals ending in `synced`.
+ */
+export type HistoryWatchItem = HistoryChange | Reset
 
 export type Runner = {
   readonly status: WireStatus
@@ -172,6 +180,14 @@ export type Runner = {
        * for, as the agent's.
        */
       readonly requestId?: string
+      /**
+       * The History row (`history.list`) to restore as this new terminal, in the row's own
+       * directory: an agent resumes, a plain terminal gets a fresh shell with its saved
+       * output above. Goes with nothing else but `sessionId`, `cols` and `rows`. Rejects
+       * with `NOT_FOUND` for a row the runner doesn't have and `CONFLICT` for one that
+       * can't be restored now.
+       */
+      readonly closed?: string
     }): Promise<TerminalSummary>
     /**
      * Follows agents' requests for a new terminal, made through Novadeck's MCP server,
@@ -330,6 +346,19 @@ export type Runner = {
      * rejects with `AGENT_SETUP_FAILED` saying why when that did not work.
      */
     set(agent: AgentName, connected: boolean): Promise<AgentIntegration>
+  }
+  /** Terminals closed in the last 30 days, per project, to restore. */
+  readonly history: {
+    /** A project's closed terminals, newest first, each with whether it can be restored now. */
+    list(input: { readonly projectId: string }): Promise<ClosedTerminal[]>
+    /**
+     * Follows every closed terminal on the runner, across projects, as `terminals.watch()`
+     * follows terminals: each time the stream opens it yields `reset`, every closed
+     * terminal as `changed`, then `synced`; at `synced`, forget any not reported since.
+     * Later events report a close, a change of availability and `removed` for a restored
+     * or pruned row. Iteration ends only when the runner closes or on `return()`.
+     */
+    watch(): AsyncIterableIterator<HistoryWatchItem, undefined>
   }
   /**
    * What agents show and the person attaches beside terminals: items, each held by a
@@ -671,6 +700,11 @@ export const connectRunner = async (
       clearBox: (terminalId, seen) =>
         call((client) => client.agents.clearBox({ terminalId, seen })),
       set: (agent, connected) => call((client) => client.agents.set({ agent, connected })),
+    },
+    history: {
+      list: (input) => call((client) => client.history.list(input)),
+      watch: () =>
+        followAll(connection, (client, signal) => client.history.watch(undefined, { signal })),
     },
     companions: {
       list: (input) => call((client) => client.companions.list(input)),
