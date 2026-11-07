@@ -94,6 +94,8 @@ describe("the flags a resumed Codex keeps", () => {
       "codex",
       "resume",
       "--dangerously-bypass-hook-trust",
+      "-c",
+      "tui.resume_cwd=session",
       "s-1",
     ])
     expect(resume!("s-1", { model: "o4", effort: "low" }, launched)).toEqual([
@@ -104,9 +106,12 @@ describe("the flags a resumed Codex keeps", () => {
       "-c",
       "model_reasoning_effort=low",
       "--dangerously-bypass-hook-trust",
+      "-c",
+      "tui.resume_cwd=session",
       "s-1",
     ])
-    expect(resume!("s-1", {}, kept!(["-s", "read-only"]))).toEqual(["codex", "resume", "s-1"])
-    expect(resume!("s-1")).toEqual(["codex", "resume", "s-1"])
+    const bare = ["codex", "resume", "-c", "tui.resume_cwd=session", "s-1"]
+    expect(resume!("s-1", {}, kept!(["-s", "read-only"]))).toEqual(bare)
+    expect(resume!("s-1")).toEqual(bare)
   })
 })
