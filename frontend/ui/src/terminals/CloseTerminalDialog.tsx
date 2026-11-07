@@ -5,7 +5,8 @@ import { ConfirmDialog } from "@novadeck/toolkit/ConfirmDialog"
 type CloseTerminalDialogProps = {
   // The terminal waiting to close, or null when nothing asks.
   readonly terminal:
-    | (Pick<TerminalMetadata, "id" | "name" | "process" | "handle"> & TerminalStatus)
+    | (Pick<TerminalMetadata, "id" | "name" | "process" | "handle" | "restoredProcess"> &
+        TerminalStatus)
     | null
   readonly onConfirm: () => void
   readonly onCancel: () => void
@@ -13,7 +14,7 @@ type CloseTerminalDialogProps = {
   readonly returnFocus: (terminalId: string) => HTMLElement | null
 }
 
-// Asks before closing a terminal a program still runs in, or an agent sleeps in, since
+// Asks before closing a terminal a program still runs in, or an agent sleeps or wakes in, since
 // closing ends it or its saved session.
 // Cancel is focused first, as the safe choice; Escape and a click outside cancel too.
 export const CloseTerminalDialog = ({
@@ -30,7 +31,10 @@ export const CloseTerminalDialog = ({
     description={(shown) =>
       shown.state === "sleeping"
         ? `${shown.agent} is asleep in it, with its session saved.`
-        : `${shown.process || "A program"} is still running in it.`
+        : // Waking: the agent is on its way back, and the session is still what closing ends.
+          shown.state === "starting" && shown.restoredProcess
+          ? `${shown.restoredProcess} is asleep in it, with its session saved.`
+          : `${shown.process || "A program"} is still running in it.`
     }
     confirmLabel="Close terminal"
     cancelLabel="Cancel"

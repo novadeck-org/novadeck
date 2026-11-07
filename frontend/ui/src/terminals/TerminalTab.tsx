@@ -302,7 +302,7 @@ export const TerminalTab = ({
             }
           : {})}
         selected={selected}
-        emphasized={phase === "done"}
+        emphasized={phase === "done" && (shell?.state === "sleeping" ? "soft" : true)}
         selectLabel={`Select ${label}${hidden ? " (hidden)" : ""}`}
         {...(description ? { description } : {})}
         {...(companion ? { badge: companion } : {})}

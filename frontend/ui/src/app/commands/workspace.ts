@@ -3,6 +3,7 @@ import { addCompactGridTerminal } from "@novadeck/core/layout/grid-placement"
 import type { TerminalRequest } from "@novadeck/core/port"
 import { tilesOf } from "@novadeck/core/roster"
 import { activeProject, type WorkspaceAction } from "@novadeck/core/state"
+import { terminalPhase } from "@novadeck/core/terminals/ending"
 import type {
   PreferencesValue,
   Project,
@@ -503,9 +504,13 @@ export const createWorkspaceCommands = (ctx: CommandContext): WorkspaceCommands 
         (terminal) => terminal.id === terminalId,
       )
       // Closing ends the shell, so ask first while a program still runs in it, or an agent
-      // sleeps in it with its session saved; the confirmation dialog renders from this and
+      // sleeps or wakes in it with its session saved; the confirmation dialog renders from this and
       // answers with confirmClose or cancelClose.
-      if (closing?.state === "running" || closing?.state === "sleeping")
+      if (
+        closing?.state === "running" ||
+        closing?.state === "sleeping" ||
+        (closing && terminalPhase(closing) === "waking")
+      )
         return void ui.update((state) => ({
           ...state,
           closing: { context: currentContext(snapshot), id: terminalId },

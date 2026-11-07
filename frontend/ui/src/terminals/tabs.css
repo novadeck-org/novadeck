@@ -58,6 +58,8 @@
    warning colour on the tab. --tab-paused-fg (muted): the glyph while an agent is paused at
    its usage limit; its program and time are muted too.
    --tab-unheard-fg (muted): the glyph while Novadeck can't hear from an agent.
+   --tab-sleeping-fg (muted): a sleeping agent's `z`, icon and program.
+   --tab-sleeping-name-fg (the ink at 62%): a sleeping agent's name.
    --tab-waiting-fg (muted): the glyph while an agent waits on something that wakes it, and
    the rows under the tab. --tab-passed-opacity (0.6): the trace of a wake-up that passed.
    --tab-done-fg (success-fg): the glyph while an agent's done report waits unseen.
@@ -241,7 +243,6 @@
 }
 .terminal-tab[data-terminal-sleeping] .sidebar-item-select strong {
   color: var(--tab-sleeping-name-fg, color-mix(in srgb, var(--color-ink) 62%, transparent));
-  font-weight: 600;
 }
 .terminal-tab[data-terminal-sleeping] .sidebar-item-icon {
   color: var(--tab-sleeping-fg, var(--color-muted));

@@ -95,7 +95,7 @@ export const WorkspaceFooter = ({
           <span className="footer-running max-[701px]:hidden ml-2 pl-3">{waiting} waiting</span>
         )}
         {asleep > 0 && (
-          <span className="footer-running max-[701px]:hidden ml-2 pl-3">{asleep} asleep</span>
+          <span className="footer-sleeping max-[701px]:hidden ml-2 pl-3">{asleep} asleep</span>
         )}
         {navigate && (
           <span role="status" className="footer-navigate ml-2 flex items-center gap-1.5 pl-3">

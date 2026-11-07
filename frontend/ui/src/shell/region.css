@@ -1,5 +1,5 @@
 /* The region recipe: the app's chrome. The header (`.app-header`, with the `.brand`
-   link home), the footer (`.app-footer`, its `.footer-running` count, the
+   link home), the footer (`.app-footer`, its `.footer-running` count and `.footer-sleeping` count, the
    `.footer-navigate` note while the person navigates the workspace, `.footer-action`,
    the update chips `.footer-update` in the `.footer-chip` look, a portable
    copy's with its `.update-card`,
@@ -55,8 +55,9 @@
   background-image: var(--region-footer-image, none);
   color: var(--region-footer-fg, var(--color-muted));
 }
-/* The count's divider, in the bar's edge. */
-.footer-running {
+/* The count's divider, in the bar's edge; the asleep count has the same. */
+.footer-running,
+.footer-sleeping {
   border-inline-start: var(--border-width) solid
     var(--region-footer-border-color, var(--color-line));
 }

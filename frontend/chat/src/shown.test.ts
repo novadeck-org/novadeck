@@ -1,6 +1,7 @@
 import {
   answeringInTerminal,
   chatAvailable,
+  chatKept,
   chatShown,
   keepTerminalAnswers,
   noTerminalAnswers,
@@ -52,5 +53,19 @@ describe("answers in the terminal", () => {
       expect(chatShown(true, noTerminalAnswers, "p/s", held)).toBe(false)
       expect(chatShown(true, noTerminalAnswers, "p/s", { ...terminal, state: "idle" })).toBe(false)
     })
+  })
+})
+
+describe("a kept chat", () => {
+  const base = { id: "01", name: "t", directory: "~", command: "" }
+  it("outlives a sleep, though the chat is unavailable while the agent sleeps", () => {
+    const sleeping = { ...base, process: "", state: "sleeping", agent: "claude" } as const
+    expect(chatKept(sleeping)).toBe(true)
+    expect(chatAvailable(sleeping)).toBe(false)
+    expect(chatShown(true, noTerminalAnswers, "p/s", sleeping)).toBe(false)
+  })
+
+  it("goes once the terminal settles on something else", () => {
+    expect(chatKept({ ...base, process: "", state: "idle" })).toBe(false)
   })
 })

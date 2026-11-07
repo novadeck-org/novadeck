@@ -64,6 +64,7 @@
   .wake-cursor {
     color: var(--color-ink);
     animation: wake-blink 1.06s steps(1) infinite;
+    animation-delay: var(--wake-delay, 0ms);
   }
   @media (prefers-reduced-motion: reduce) {
     .wake-cursor {

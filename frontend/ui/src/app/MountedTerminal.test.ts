@@ -456,6 +456,13 @@ describe("a sleeping agent's terminal", () => {
     expect(container.querySelector(".wake-screen")?.textContent).toBe("z")
   })
 
+  it("hides its words from assistive technology instead of adding a live region", () => {
+    const { container } = show({ terminal: sleeper() })
+    const screen = container.querySelector(".wake-screen")!
+    expect(screen.getAttribute("aria-hidden")).toBe("true")
+    expect(screen.getAttribute("role")).toBeNull()
+  })
+
   it("says it is waking, naming the agent, once its shell starts to resume it", () => {
     const { container } = show({
       terminal: { ...terminalFixture(1, "~"), state: "starting", restoredProcess: "codex" },

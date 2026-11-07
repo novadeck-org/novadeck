@@ -329,6 +329,25 @@ describe("workspace commands", () => {
       expect(terminal(app, "01")).toBeDefined()
     })
 
+    it("asks first while an agent wakes, since closing ends its saved session", () => {
+      const workspace = running()
+      const state = workspace.projects[0]!.history[0]!.state
+      const { id, name, directory, command } = state.roster.terminals[0]!
+      state.roster.terminals[0] = {
+        id,
+        name,
+        directory,
+        command,
+        process: "",
+        state: "starting",
+        restoredProcess: "claude",
+      }
+      const app = openCommands({ workspace })
+      app.commands.close("01")
+      expect(app.ui.getSnapshot().closing).toMatchObject({ id: "01" })
+      expect(terminal(app, "01")).toBeDefined()
+    })
+
     it("closes an idle terminal without asking", () => {
       const app = openCommands()
       app.commands.close("01")

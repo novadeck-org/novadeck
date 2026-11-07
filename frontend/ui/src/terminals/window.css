@@ -51,6 +51,8 @@
    --window-phase-need-border-width (2px): its weight while an agent that doesn't work needs
    the person. --window-need-fg (warning-fg): the mark after the name.
    --window-paused-fg (muted): the paused note.
+   --window-phase-sleeping-border-color (line-strong), --window-phase-waking-border-color
+   (strong): the dotted line while an agent sleeps, and while it wakes.
    --window-phase-unheard-border-color (muted): the line while Novadeck can't hear from an
    agent.
    --window-phase-done-border-color (success-fg), --window-phase-done-border-width (2px):

@@ -46,34 +46,73 @@ const agentOf = (terminal: TerminalMetadata): string | undefined =>
 // (replaying that would write into the emulator the resuming agent draws in); while it wakes,
 // the words and a blinking cursor, in place of "Starting shell…". The terminal stays locked and
 // its keys are dropped either way.
+// Where the first terminal row starts inside the screen's slot, so the words stand where the
+// agent will draw. Falls back to the stylesheet's padding while there is no emulator to measure.
+const alignWithRows = (screen: HTMLElement): void => {
+  const host = screen.parentElement
+  const rows = host?.querySelector(".xterm-rows, .xterm-screen")
+  if (!host || !rows) return
+  const outer = host.getBoundingClientRect()
+  const inner = rows.getBoundingClientRect()
+  if (inner.width === 0 || inner.height === 0) return
+  // A canvas node scales its content: measure in the node's own pixels.
+  const scale = outer.width / host.offsetWidth || 1
+  screen.style.setProperty(
+    "--wake-pad",
+    `${(inner.top - outer.top) / scale}px 0 0 ${(inner.left - outer.left) / scale}px`,
+  )
+}
+
+// A blink of its own per terminal, so a grid of waking tiles does not blink as one.
+const blinkDelay = (id: string): string => {
+  let hash = 0
+  for (const char of id) hash = (hash * 31 + char.charCodeAt(0)) % 1060
+  return `${-hash}ms`
+}
+
+// The words are hidden from assistive technology: 170 sleepers would be 170 live regions.
+// The tab and the window say it in words.
 const SleepingScreen = ({
   phase,
   agent,
   legible,
+  id,
 }: {
   readonly phase: "sleeping" | "waking"
   readonly agent: string | undefined
   readonly legible: boolean
-}): React.JSX.Element => (
-  <div
-    role="status"
-    className="wake-screen"
-    data-phase={phase}
-    data-legible={legible}
-    aria-label={phase === "waking" ? "Waking…" : "Asleep"}
-  >
-    {phase === "sleeping" ? (
-      <span aria-hidden className="wake-z">
-        z
-      </span>
-    ) : (
-      <span aria-hidden>
-        {`waking ${agent ?? "agent"}… `}
-        <span className="wake-cursor">█</span>
-      </span>
-    )}
-  </div>
-)
+  readonly id: string
+}): React.JSX.Element => {
+  const ref = useRef<HTMLDivElement>(null)
+  useLayoutEffect(() => {
+    const screen = ref.current
+    if (!screen) return
+    alignWithRows(screen)
+    if (typeof ResizeObserver === "undefined" || !screen.parentElement) return
+    const observer = new ResizeObserver(() => alignWithRows(screen))
+    observer.observe(screen.parentElement)
+    return () => observer.disconnect()
+  }, [])
+  return (
+    <div
+      ref={ref}
+      aria-hidden
+      className="wake-screen"
+      data-phase={phase}
+      data-legible={legible}
+      style={{ "--wake-delay": blinkDelay(id) } as React.CSSProperties}
+    >
+      {phase === "sleeping" ? (
+        <span className="wake-z">z</span>
+      ) : (
+        <span>
+          {`waking ${agent ?? "agent"}… `}
+          <span className="wake-cursor">█</span>
+        </span>
+      )}
+    </div>
+  )
+}
 
 // One terminal drawn by a backend's mount, with what lies over it. The backend draws the
 // terminal into an element this keeps for the terminal's life, and tells its state; this
@@ -223,7 +262,12 @@ export const MountedTerminal = ({
             </div>
           )}
           {phase === "sleeping" || phase === "waking" ? (
-            <SleepingScreen phase={phase} agent={agentOf(terminal)} legible={legible} />
+            <SleepingScreen
+              phase={phase}
+              agent={agentOf(terminal)}
+              legible={legible}
+              id={terminal.id}
+            />
           ) : (
             lock && <TerminalLock notice={lockNotices[lock]} />
           )}
