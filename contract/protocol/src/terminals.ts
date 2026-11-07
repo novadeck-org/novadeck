@@ -143,6 +143,14 @@ export const terminalSummary = z.strictObject({
   // or a message delivered to it came after. The terminal's done mark follows it, not
   // the person looking; null without one.
   reported: z.strictObject({ subject: z.string().max(256), at: z.number() }).nullable(),
+  // Whether the terminal is asleep: saved, with no shell, its agent's session to resume
+  // when someone needs it. A client that sees it wanted creates the terminal as a restore
+  // of that agent; one whose wake the runner already asked for is not asleep, as a `create`
+  // is coming. False for any terminal with a shell.
+  sleeping: z.boolean(),
+  // The agent that sleeps there or is waking there, whose session a `create` resumes;
+  // null for a terminal with a shell or nothing to resume.
+  restingAgent: agentName.nullable(),
 })
 
 // `terminals.requests` items: an agent in terminal `from` asked, through Novadeck's MCP

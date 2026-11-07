@@ -178,6 +178,11 @@ export const contract = {
             // The agent's request this terminal answers (`requests`): it takes the title
             // that agent asked for, as the agent's.
             requestId: id.optional(),
+            // With `restore` and `resume`: the person is looking at the terminal. A
+            // sleeping agent's wake that can't resume it then starts a plain shell saying
+            // why; unseen (as for a message or a turn the stop cut short), it fails with
+            // SPAWN_FAILED and the terminal stays asleep as it was.
+            seen: z.boolean().optional(),
           })
           .refine(({ command, restore, resume }) => !command || (!restore && !resume), {
             message: "A terminal either starts a command or restores what it ran, not both.",

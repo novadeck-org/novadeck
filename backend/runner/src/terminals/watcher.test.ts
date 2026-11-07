@@ -25,6 +25,8 @@ const terminal = (id: string, changes: Partial<TerminalSummary> = {}): TerminalS
   activity: null,
   telemetry: null,
   reported: null,
+  sleeping: false,
+  restingAgent: null,
   process: { name: "sh", argv: null },
   run: 1,
   ...changes,
