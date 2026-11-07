@@ -38,4 +38,16 @@ describe("a terminal's status", () => {
     }).terminals
     expect(terminal).toEqual({ ...identity, state: "starting" })
   })
+
+  it("names the agent a sleeper resumes once it wakes, and clears it once a shell reports", () => {
+    const roster = createRoster([
+      { id: "01", name: "Checkout", directory: "/work", command: "", process: "", state: "idle" },
+    ])
+    const asleep = setTerminalStatus(roster, "01", { state: "sleeping", agent: "claude" })
+    expect(asleep.terminals[0]).toMatchObject({ state: "sleeping", agent: "claude" })
+    const waking = setTerminalStatus(asleep, "01", { state: "starting" })
+    expect(waking.terminals[0]).toMatchObject({ state: "starting", restoredProcess: "claude" })
+    const awake = setTerminalStatus(waking, "01", { state: "idle" })
+    expect(awake.terminals[0]).not.toHaveProperty("restoredProcess")
+  })
 })

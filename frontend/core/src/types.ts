@@ -1,3 +1,4 @@
+import type { AgentName } from "./harnesses"
 import type { Item, ItemId } from "./items"
 import type { Bar } from "./items/companion-bar"
 import type { NoticeSound } from "./sounds"
@@ -125,6 +126,9 @@ export type AgentUsage = {
 export type TerminalStatus =
   | { readonly state: "starting" | "idle" | "finished" }
   | { readonly state: "running"; readonly agent?: AgentStatus }
+  // A saved agent session with no process: the runner starts it again when someone needs it.
+  // `reported`: its agent's `done` still stands.
+  | { readonly state: "sleeping"; readonly agent: AgentName; readonly reported?: true }
   | {
       readonly state: "exited"
       readonly exitCode: number | null

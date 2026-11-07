@@ -65,6 +65,10 @@ export type TerminalMountProps = {
   // go, and takes it again when it is back; the element keeps the last drawing. A mount
   // created off screen takes none until it is on screen. Absent means on screen.
   readonly onScreen?: boolean
+  // Whether the person is looking at it: really in sight and legible, in the view that shows
+  // it. A backend whose terminals can sleep wakes one it is told is seen for a moment; any
+  // other ignores it. Absent means not seen.
+  readonly seen?: boolean
 }
 
 export type TerminalMount = {

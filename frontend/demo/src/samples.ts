@@ -198,6 +198,8 @@ export const demoFinishes: readonly {
 const projectTerminals = (project: Project, withAgents = false): TerminalMetadata[] => {
   const agents = withAgents && showcased.has(project.id)
   const single = withAgents ? projectAgents[project.id] : undefined
+  // The spreads of a terminal's shell and an agent's status are not one status to the compiler
+  // (an agent's name tells the sleeping status apart), so the result is said to be one.
   return terminals.map((terminal) => ({
     ...terminal,
     id: demoTerminalId(
@@ -285,7 +287,7 @@ const projectTerminals = (project: Project, withAgents = false): TerminalMetadat
     ...(agents && terminal.id === "05"
       ? { command: "agy", process: "agy", state: "running" as const }
       : {}),
-  }))
+  })) as TerminalMetadata[]
 }
 
 // What the agents demo's Claude Code in plan mode and Codex say of their tokens and quotas:

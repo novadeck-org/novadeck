@@ -20,5 +20,6 @@ export const showsHandle = (
     terminal.agentRan ||
     terminal.openedBy ||
     terminal.ledBy ||
+    terminal.state === "sleeping" ||
     (terminal.state === "running" && terminal.agent),
   )
