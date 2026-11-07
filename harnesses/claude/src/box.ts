@@ -76,6 +76,42 @@ const queued = (screen: ScreenText): boolean => {
 }
 
 /**
+ * Its status row, while a turn runs: one of its spinner's marks, its words for the turn ending in
+ * `…`, and in brackets its clock and what the turn is doing. It stands last over the box, but
+ * for the effort row and a tip under it: a reply above may hold what reads the same, and an idle
+ * screen has the turn's summary there. Its Stop hook shows as `running Stop hook`, and then the
+ * row goes, or gives way to the next turn's, with its clock at `0s`, where the turn's end started
+ * one from its queue. A turn it took a queued message into goes on as one. Its words may change
+ * as a turn starts, and may be the person's own (`spinnerVerbs`) or a task's (2.1.316, 2026-11-07,
+ * e2e/probes/queued-busy.e2e.ts).
+ */
+const status = (screen: ScreenText): TurnStatus | undefined => {
+  const first = read(screen)?.first
+  if (first === undefined) return undefined
+  // Above the box's top rule.
+  const row = screen.rows
+    .slice(0, Math.max(first - 1, 0))
+    .findLast((each) => each.trim() !== "" && !aside.test(each))
+  const found = row === undefined ? null : statusRow.exec(row)
+  if (!found) return undefined
+  const clock = /\((?:[^)]*· )?(?:(\d+)h )?(?:(\d+)m )?(\d+)s\b/.exec(row!)
+  const seconds = clock
+    ? Number(clock[1] ?? 0) * 3600 + Number(clock[2] ?? 0) * 60 + Number(clock[3])
+    : undefined
+  return {
+    words: found[1]!.trim(),
+    ending: /running Stop hook/.test(row!),
+    ...(seconds !== undefined && { seconds }),
+  }
+}
+
+/** A status row: one of its spinner's marks, then its words for the turn up to `…`. */
+const statusRow = /^\s*[·✢✳✶✻✽*]\s+([^…]+?)…/
+
+/** What stands between its status row and its box: the effort it runs at, and a tip. */
+const aside = /\/effort\s*$|^\s*⎿/
+
+/**
  * Whether messages queued behind the turn may still be in their `UserPromptSubmit` hooks:
  * its spinner, under the latest of them, says "running UserPromptSubmit hooks… 1/2" (hooks
  * of the event, not messages), and "ctrl+x ctrl+s to send now" stands under that message
@@ -88,26 +124,6 @@ const queued = (screen: ScreenText): boolean => {
  * the turn's own hook, run theirs only as they are sent, whenever Escape comes, so there is
  * nothing to wait for. Only the hint's last words are read, as its keys can be rebound.
  */
-/**
- * Its status row, over its box while a turn runs: a spinner, a word it picks for each turn, and
- * after it what the turn is doing. Its Stop hook shows as `running Stop hook` in it, and then
- * it goes, or gives way to the next turn's, with new words and its clock at `0s`, where the
- * turn's end started one from its queue. A turn it took a queued message into goes on as one
- * (2.1.316, 2026-11-07, e2e/probes/queued-busy.e2e.ts).
- */
-const status = (screen: ScreenText): TurnStatus | undefined => {
-  const first = read(screen)?.first
-  if (first === undefined) return undefined
-  const row = screen.rows
-    .slice(0, first)
-    .findLast((each) => spinnerRow.test(each) || each.trim().startsWith("❯ "))
-  const words = row && spinnerRow.exec(row)?.[1]
-  return words ? { words, ending: /running Stop hook/.test(row) } : undefined
-}
-
-/** A status row: one of its spinner's marks, then its word for the turn. */
-const spinnerRow = /^\s*[·✢✳✶✻✽*]\s+(\S+?)…/
-
 const queueing = (screen: ScreenText): boolean => {
   if (!queued(screen)) return false
   const above = screen.rows.slice(0, read(screen)?.first ?? 0)

@@ -182,16 +182,49 @@ describe("its status row, as a turn ends and one its queue starts begins", () =>
   const done = frame({ ...head, 8: "● Held reply.", 10: "✻ Sautéed for 1s · done 1:24 PM" })
 
   it("reads the turn's words, and its Stop hook as its ending", () => {
-    expect(box.status!(running)).toEqual({ words: "Noodling", ending: false })
-    expect(box.status!(ending)).toEqual({ words: "Noodling", ending: true })
+    expect(box.status!(running)).toEqual({ words: "Noodling", ending: false, seconds: 3 })
+    expect(box.status!(ending)).toEqual({ words: "Noodling", ending: true, seconds: 3 })
   })
 
   it("reads the next turn's row as a new turn, and a done turn's summary as none", () => {
-    expect(box.status!(next)).toEqual({ words: "Marinating", ending: false })
+    expect(box.status!(next)).toEqual({ words: "Marinating", ending: false, seconds: 0 })
     expect(newTurn(box.status!(ending), box.status!(next))).toBe(true)
     expect(newTurn(box.status!(running), box.status!(next))).toBe(true)
     expect(box.status!(done)).toBeUndefined()
     expect(newTurn(box.status!(ending), box.status!(done))).toBe(false)
+  })
+
+  it("reads it over the effort row, which may stand between it and the box", () => {
+    const shown = frame({
+      ...head,
+      33: "✻ Noodling… (3s · ↓ 200 tokens)",
+      34: "                    ◐ medium · /effort",
+    })
+    expect(box.status!(shown)).toMatchObject({ words: "Noodling", seconds: 3 })
+  })
+
+  it("takes no row of a reply above for it, though it reads the same", () => {
+    const shown = frame({
+      ...head,
+      8: "● Here is the log:",
+      9: "  * Compiling… x",
+      10: "  ✻ Reticulating… three",
+      12: "✻ Churned for 0s · done 3:17 PM",
+    })
+    expect(box.status!(shown)).toBeUndefined()
+  })
+
+  it("reads words of the person's own, of more than one word", () => {
+    const shown = frame({ ...head, 33: "✶ Thinking hard… (2s · ↓ 40 tokens)" })
+    expect(box.status!(shown)).toEqual({ words: "Thinking hard", ending: false, seconds: 2 })
+  })
+
+  it("goes by its clock: words that change as a turn starts are the same turn, one word for every turn isn't", () => {
+    const at = (words: string, clock: string) =>
+      box.status!(frame({ ...head, 33: `✻ ${words}… (${clock} · ↓ 9 tokens)` }))
+    expect(newTurn(at("Ionizing", "0s"), at("Propagating", "1s"))).toBe(false)
+    expect(newTurn(at("Pondering", "4s"), at("Pondering", "0s"))).toBe(true)
+    expect(newTurn(at("Pondering", "1m 4s"), at("Pondering", "59s"))).toBe(true)
   })
 
   it("isn't fooled by its own turn's row, or by an ending one after it", () => {

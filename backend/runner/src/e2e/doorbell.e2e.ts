@@ -1,6 +1,7 @@
 import { setTimeout as sleep } from "node:timers/promises"
 
 import { doorbellLine } from "@novadeck/harness-core/prompts"
+import { newTurn } from "@novadeck/tui-input/box"
 
 import { harnesses } from "../harnesses/registry.js"
 import type { Question } from "./agents/agent.js"
@@ -406,28 +407,39 @@ for (const setup of setups) {
           )
           const t1 = await start(run, setup)
           const mark = t1.mark()
+          const calls = run.model.mark()
           await t1.prompt("Hold on")
           await t1.reached("working", { after: mark })
-          await sleep(1500)
+          // Its request has gone, so a prompt queued now runs as a turn of its own.
+          await run.model.waitFor((call) => !call.side && asked(call, "Hold on"), { after: calls })
           if (queueing) {
             await t1.prompt("Queued beta")
             await t1.until(/Press up to edit queued messages/)
             await sleep(1500)
           }
           held.open()
+          // Read until a row comes after the turn's ending one, or none has for a while.
           const seen: (ReturnType<typeof status> | null)[] = []
-          const until = Date.now() + 3_000
+          const until = Date.now() + 30_000
+          let quiet = 0
           while (Date.now() < until) {
             const shown = await t1.screenText()
-            seen.push((shown && status(shown)) ?? null)
+            const now = (shown && status(shown)) ?? null
+            seen.push(now)
+            const ended = seen.findIndex((each) => each?.ending === true)
+            if (ended >= 0 && now !== null && !now.ending) break
+            quiet = ended >= 0 && now === null ? quiet + 1 : 0
+            if (quiet >= 100) break
             await sleep(10)
           }
           queuedHeld.open()
           const ending = seen.findIndex((each) => each?.ending === true)
-          expect(ending, JSON.stringify(seen)).toBeGreaterThanOrEqual(0)
+          expect(ending, JSON.stringify(seen.slice(-20))).toBeGreaterThanOrEqual(0)
           const after = seen.slice(ending + 1).find((each) => each?.ending !== true)
-          if (queueing) expect(after, JSON.stringify(seen)).toMatchObject({ ending: false })
-          else expect(seen.at(-1), JSON.stringify(seen)).toBeNull()
+          if (queueing) {
+            expect(after, JSON.stringify(seen.slice(-20))).toMatchObject({ ending: false })
+            expect(newTurn(seen[ending]!, after!)).toBe(true)
+          } else expect(seen.at(-1), JSON.stringify(seen.slice(-20))).toBeNull()
         }
       },
     )
