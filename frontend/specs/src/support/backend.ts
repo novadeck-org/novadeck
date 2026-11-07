@@ -1,4 +1,4 @@
-import type { Conversation, Conversations } from "@novadeck/core/conversation"
+import type { ChatItem, Conversation, Conversations } from "@novadeck/core/conversation"
 import type { PortableInstall } from "@novadeck/core/desktop/portable"
 import type { SandboxState } from "@novadeck/core/desktop/sandbox"
 import type { InboxRow, InboxSource } from "@novadeck/core/inbox"
@@ -174,19 +174,36 @@ const requestedTranscripts = (
     : backend
 }
 
-// `&unread=on` makes every agent's record hold a part of the conversation the runner can't
-// read, as one a harness release added inside a message: the runner tells the chat, which
-// the demo's own transcripts never need. Without it, as for a record's new metadata, which
-// the runner only logs, the chat is told nothing.
-const requestedUnread = (
+// `&gap=on` makes every agent's record hold a part of the conversation the runner can't read,
+// as one a harness release added inside a message: the runner gives the chat a gap there, which
+// the demo's own transcripts never need.
+const requestedGap = (
   backend: ReturnType<typeof createDemoBackend>,
 ): ReturnType<typeof createDemoBackend> => {
   const { conversations } = backend
-  if (addressParams().get("unread") !== "on" || !conversations) return backend
-  return { ...backend, conversations: unreadConversations(conversations) }
+  if (addressParams().get("gap") !== "on" || !conversations) return backend
+  return { ...backend, conversations: gappedConversations(conversations) }
 }
 
-const unreadConversations = (conversations: Conversations): Conversations => ({
+const gapItem: ChatItem = {
+  id: "gap",
+  at: null,
+  role: "note",
+  kind: "text",
+  text: '{"type":"hologram"}',
+  truncated: false,
+  tool: null,
+  call: null,
+  author: null,
+  run: null,
+  outcome: null,
+  scripted: false,
+  interrupted: false,
+  ring: null,
+  note: { type: "gap" },
+}
+
+const gappedConversations = (conversations: Conversations): Conversations => ({
   ...conversations,
   conversation: (key) => {
     const store = conversations.conversation(key)
@@ -197,12 +214,12 @@ const unreadConversations = (conversations: Conversations): Conversations => ({
       const next = store.getSnapshot()
       if (next !== from || !shown) {
         from = next
-        shown = next.session === null ? next : { ...next, unread: true }
+        shown = next.session === null ? next : { ...next, items: [...next.items, gapItem] }
       }
       return shown
     }
-    const unread: Store<Conversation> = { subscribe: store.subscribe, getSnapshot: snapshot }
-    return unread
+    const gapped: Store<Conversation> = { subscribe: store.subscribe, getSnapshot: snapshot }
+    return gapped
   },
 })
 
@@ -435,7 +452,7 @@ const plainSpecBackend = (): ReturnType<typeof createDemoBackend> => {
   const update = requestedUpdate()
   const sandbox = requestedSandbox()
   const portable = requestedPortable()
-  const demo = requestedUnread(
+  const demo = requestedGap(
     requestedTranscripts(
       requestedVersion(
         withoutFeedback(demoWithUpdate(update, portable, createDemoBackend({ theme: pageTheme }))),

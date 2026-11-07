@@ -378,7 +378,10 @@ describe.skipIf(process.platform === "win32" || !existsSync(bash))(
       const texts: string[] = []
       const reading = (async () => {
         for await (const change of manager.transcript(terminal.id, root))
-          if (change.type === "items") texts.push(...change.items.map(({ text }) => text))
+          if (change.type === "items")
+            texts.push(
+              ...change.items.filter(({ role }) => role !== "note").map(({ text }) => text),
+            )
       })()
       await expect.poll(() => texts).toEqual(["first"])
       appendFileSync(transcript, userLine("second"))
@@ -430,7 +433,10 @@ describe.skipIf(process.platform === "win32" || !existsSync(bash))(
         const texts: string[] = []
         const reading = (async () => {
           for await (const change of manager.transcript(terminal.id, root))
-            if (change.type === "items") texts.push(...change.items.map(({ text }) => text))
+            if (change.type === "items")
+              texts.push(
+                ...change.items.filter(({ role }) => role !== "note").map(({ text }) => text),
+              )
         })()
         await expect.poll(() => texts).toEqual(["hi"])
         manager.forgetAgent(agent)
@@ -490,7 +496,10 @@ describe.skipIf(process.platform === "win32" || !existsSync(bash))(
       const texts: string[] = []
       const reading = (async () => {
         for await (const change of manager.transcript(terminal.id, root))
-          if (change.type === "items") texts.push(...change.items.map(({ text }) => text))
+          if (change.type === "items")
+            texts.push(
+              ...change.items.filter(({ role }) => role !== "note").map(({ text }) => text),
+            )
       })()
       await expect.poll(() => texts).toEqual(["hi"])
       manager.forgetAgent("agy")

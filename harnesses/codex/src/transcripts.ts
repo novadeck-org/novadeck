@@ -3,7 +3,7 @@ import { dirname, join } from "node:path"
 
 import { parseFields, type Fields } from "@novadeck/harness-core/fields"
 import type { TranscriptDecoder, TranscriptEntry } from "@novadeck/harness-core/harness"
-import { at, entry, joined, textOf } from "@novadeck/harness-core/items"
+import { at, entry, joined, noteEntry, textOf } from "@novadeck/harness-core/items"
 import { exited } from "@novadeck/harness-core/outcomes"
 import { fileList, shellCall } from "@novadeck/harness-core/tools"
 
@@ -192,6 +192,19 @@ const scripted = (fields: Fields): readonly TranscriptEntry[] => {
  * interrupted reads as their interruption, where it ended. A command or a patch a script ran
  * reads as a call of its own, after the script's, marked `scripted`.
  */
+// What a turn runs under, as its `turn_context` says: plan mode, else the approval policy, which
+// is `on-request` as it starts. It says nothing of a plan's approval: the next turn's context
+// just reads otherwise (probed 2026-11-07, 0.167.0).
+const turnMode = (fields: Fields): readonly TranscriptEntry[] => {
+  const payload = (fields.payload ?? {}) as Fields
+  const { mode } = (payload.collaboration_mode ?? {}) as Fields
+  const policy = payload.approval_policy
+  const word = mode === "plan" ? "plan" : policy === "on-request" ? "default" : policy
+  return typeof word === "string" && word
+    ? [noteEntry({ type: "mode", mode: word }, at(fields.timestamp))]
+    : []
+}
+
 export const transcripts: TranscriptDecoder = {
   locate: async (root, _sessionId, subagent) => {
     if (subagent === null) return root
@@ -207,6 +220,12 @@ export const transcripts: TranscriptDecoder = {
   items: (line) => {
     const fields = parseFields(line)
     if (fields?.type === "event_msg") return [...interruption(fields), ...scripted(fields)]
+    if (fields?.type === "turn_context") return turnMode(fields)
+    if (fields?.type === "compacted") {
+      const { message } = (fields.payload ?? {}) as Fields
+      const text = typeof message === "string" ? message : ""
+      return [noteEntry({ type: "compaction" }, at(fields.timestamp), text)]
+    }
     if (fields?.type !== "response_item") return []
     const payload = (fields.payload ?? {}) as Fields
     const time = at(fields.timestamp)

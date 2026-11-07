@@ -62,6 +62,24 @@ const BlockView = memo(
         return <p className="chat-note">{block.text}</p>
       case "doorbell":
         return <p className="chat-note">{ringLabel(block)}</p>
+      case "gap":
+        return block.raw ? (
+          <details className="chat-note">
+            <summary>part of the record the chat can't read</summary>
+            <pre className="chat-box-text">{block.raw}</pre>
+            {block.truncated && <Shortened />}
+          </details>
+        ) : (
+          <p className="chat-note">part of the record the chat can't read</p>
+        )
+      case "compaction":
+        return (
+          <details className="chat-note">
+            <summary>compacted the conversation</summary>
+            <p className="chat-text">{block.summary}</p>
+            {block.truncated && <Shortened />}
+          </details>
+        )
       case "tools":
         return <ToolCalls entries={block.entries} live={live} />
     }

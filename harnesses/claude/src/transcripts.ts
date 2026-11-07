@@ -2,7 +2,7 @@ import { dirname, join } from "node:path"
 
 import { isFields, parseFields } from "@novadeck/harness-core/fields"
 import type { TranscriptDecoder, TranscriptEntry } from "@novadeck/harness-core/harness"
-import { at, entry, joined, textOf } from "@novadeck/harness-core/items"
+import { at, entry, joined, noteEntry, textOf } from "@novadeck/harness-core/items"
 import { shellCall } from "@novadeck/harness-core/tools"
 
 import { taskNotification } from "./decode.js"
@@ -153,6 +153,15 @@ const textItems = (
     : []
 }
 
+// What its record says of the permission mode: on the record of each prompt, as it was then,
+// and on the `permission-mode` record it writes as a turn ends, so a change made mid-turn, as a
+// plan approved with auto-accept, shows there (probed 2026-11-07, 2.1.316).
+const modeNote = (mode: unknown, time: number | null): readonly TranscriptEntry[] =>
+  typeof mode === "string" && mode ? [noteEntry({ type: "mode", mode }, time)] : []
+
+// The words of the result of an ExitPlanMode the person approved, in place of any other mark.
+const planApproved = /^User has approved your plan\b/
+
 export const transcripts: TranscriptDecoder = {
   locate: (root, sessionId, subagent) => {
     if (subagent === null) return Promise.resolve(root)
@@ -161,7 +170,13 @@ export const transcripts: TranscriptDecoder = {
   },
   items: (line) => {
     const fields = parseFields(line)
-    if (!fields || fields.isMeta === true || fields.isCompactSummary === true) return []
+    if (!fields || fields.isMeta === true) return []
+    if (fields.isCompactSummary === true) {
+      const summary = (fields.message as { content?: unknown } | undefined)?.content
+      const text = typeof summary === "string" ? summary : joined(summary, ["text"])
+      return [noteEntry({ type: "compaction" }, at(fields.timestamp), text)]
+    }
+    if (fields.type === "permission-mode") return modeNote(fields.permissionMode, null)
     if (fields.type === "attachment") {
       const queued = queuedPrompt(fields)
       return queued ? textItems("user", queued.text, at(queued.at), fields) : []
@@ -170,11 +185,12 @@ export const transcripts: TranscriptDecoder = {
     if (role !== "user" && role !== "assistant") return []
     const time = at(fields.timestamp)
     const content = (fields.message as { content?: unknown } | undefined)?.content
-    if (typeof content === "string") return textItems(role, content, time, fields)
+    const mode = role === "user" ? modeNote(fields.permissionMode, time) : []
+    if (typeof content === "string") return [...mode, ...textItems(role, content, time, fields)]
     const parts = Array.isArray(content) ? content : []
     // The record's detail of a result speaks for one result alone.
     const results = parts.filter((part) => isFields(part) && part.type === "tool_result")
-    return parts.flatMap((part) => {
+    const items = parts.flatMap((part) => {
       const {
         type,
         text,
@@ -211,9 +227,11 @@ export const transcripts: TranscriptDecoder = {
               results.length === 1 ? fields.toolUseResult : undefined,
             ),
           }),
+          ...(planApproved.test(output) ? [noteEntry({ type: "plan-approved" }, time)] : []),
         ]
       }
       return []
     })
+    return [...mode, ...items]
   },
 }
