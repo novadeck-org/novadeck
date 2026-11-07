@@ -4,12 +4,34 @@ import { promisify } from "node:util"
 
 /**
  * A process of a terminal's tree: its pid and its start, which together name it alone; and,
- * where the relay tells, its program's file name.
+ * where the relay tells, its program's file name and its parent's pid (none for a process the
+ * snapshot no longer lists the parent of).
  */
 export type Member = {
   readonly pid: number
   readonly startedAt: number
   readonly name?: string
+  readonly parent?: number
+}
+
+/**
+ * The pids from the shell's own child down to `agent`, by the parents `tree` tells; undefined
+ * where the agent is not under the shell or a link has no parent told, so a caller assumes
+ * nothing about a wrapper it cannot see.
+ */
+export const chainTo = (
+  tree: readonly Member[],
+  shell: number,
+  agent: number,
+): readonly number[] | undefined => {
+  const byPid = new Map(tree.map((member) => [member.pid, member]))
+  const chain: number[] = []
+  for (let at = byPid.get(agent); at && chain.length <= tree.length; at = byPid.get(at.parent!)) {
+    if (at.pid === shell) return chain.toReversed()
+    if (at.parent === undefined) return undefined
+    chain.push(at.pid)
+  }
+  return undefined
 }
 
 /**
@@ -149,10 +171,11 @@ export const parseTrees = (output: string): Map<string, readonly Member[]> => {
               Number.isSafeInteger((each as Member).pid) &&
               Number.isSafeInteger((each as Member).startedAt),
           )
-          .map(({ pid, startedAt, name }) => ({
+          .map(({ pid, startedAt, name, parent }) => ({
             pid,
             startedAt,
             ...(typeof name === "string" && name !== "" && { name }),
+            ...(Number.isSafeInteger(parent) && { parent }),
           })),
       )
     } catch {

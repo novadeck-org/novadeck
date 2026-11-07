@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it, vi } from "vitest"
 
-import { anyRunning, parseTrees, Trees, type RunRelay } from "./trees.js"
+import { anyRunning, chainTo, parseTrees, Trees, type RunRelay } from "./trees.js"
 
 // A relay that answers from a table of trees and records how it was run.
 const fake = (known: Record<string, { pid: number; startedAt: number }[]>) => {
@@ -101,5 +101,36 @@ describe("whether a tree's members still run", () => {
   it("is true where a member's pid may not be signalled, as an elevated process's", () => {
     killFails("EPERM")
     expect(anyRunning([{ pid: 10, startedAt: 1 }])).toBe(true)
+  })
+})
+
+describe("the chain from a shell to its agent", () => {
+  const at = (pid: number, parent?: number) => ({
+    pid,
+    startedAt: 1,
+    ...(parent !== undefined && { parent }),
+  })
+
+  it("names a wrapper between them, as codex.cmd is, by the parents told", () => {
+    const tree = [at(10, 1), at(11, 10), at(12, 11), at(13, 12), at(20, 10)]
+    expect(chainTo(tree, 10, 13)).toEqual([11, 12, 13])
+    expect(chainTo(tree, 10, 20)).toEqual([20])
+  })
+
+  it("tells nothing where a link has no parent, the agent is not under the shell, or it loops", () => {
+    expect(chainTo([at(10, 1), at(11), at(12, 11)], 10, 12)).toBeUndefined()
+    expect(chainTo([at(10, 1), at(20, 1)], 10, 20)).toBeUndefined()
+    expect(chainTo([at(10, 1)], 10, 99)).toBeUndefined()
+    expect(chainTo([at(10, 1), at(11, 12), at(12, 11)], 10, 11)).toBeUndefined()
+  })
+
+  it("reads the parent the relay tells, leaving it out when it is not an integer", () => {
+    const output =
+      '{"root":"10","processes":[{"pid":10,"startedAt":1},{"pid":11,"startedAt":2,"parent":10},{"pid":12,"startedAt":3,"parent":"x"}]}'
+    expect(parseTrees(output).get("10")).toEqual([
+      { pid: 10, startedAt: 1 },
+      { pid: 11, startedAt: 2, parent: 10 },
+      { pid: 12, startedAt: 3 },
+    ])
   })
 })
