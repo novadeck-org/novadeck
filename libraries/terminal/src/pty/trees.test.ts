@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it, vi } from "vitest"
 
-import { anyRunning, chainTo, parseTrees, Trees, type RunRelay } from "./trees.js"
+import { anyRunning, chainTo, parseConsole, parseTrees, Trees, type RunRelay } from "./trees.js"
 
 // A relay that answers from a table of trees and records how it was run.
 const fake = (known: Record<string, { pid: number; startedAt: number }[]>) => {
@@ -132,5 +132,32 @@ describe("the chain from a shell to its agent", () => {
       { pid: 11, startedAt: 2, parent: 10 },
       { pid: 12, startedAt: 3 },
     ])
+  })
+})
+
+describe("the processes attached to a terminal's console", () => {
+  it("reads the relay's line, and nothing else", () => {
+    expect(parseConsole('noise\r\n{"pids":[10,11]}\r\n')).toEqual([10, 11])
+    expect(parseConsole('{"pids":[]}')).toEqual([])
+    expect(parseConsole('{"pids":["x"]}')).toBeUndefined()
+    expect(parseConsole("")).toBeUndefined()
+  })
+
+  it("asks the relay by the shell's pid, and tells nothing where it can't answer", async () => {
+    const runs: string[][] = []
+    const answering: RunRelay = async (_relay, args) => {
+      runs.push([...args])
+      return '{"pids":[10,12]}\n'
+    }
+    const trees = new Trees(async () => "relay", answering)
+    await expect(trees.console(10)).resolves.toEqual([10, 12])
+    expect(runs).toEqual([["console", "10"]])
+    const old = new Trees(
+      async () => "relay",
+      () => Promise.reject(new Error("unknown command")),
+    )
+    await expect(old.console(10)).resolves.toBeUndefined()
+    const none = new Trees(async () => undefined, answering)
+    await expect(none.console(10)).resolves.toBeUndefined()
   })
 })

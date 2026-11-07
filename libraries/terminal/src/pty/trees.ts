@@ -96,6 +96,23 @@ export class Trees {
     return (await batch.done)?.get(name)
   }
 
+  /**
+   * The pids of every process attached to the console of the terminal whose shell is
+   * `shell`, as the relay's `console <shell>` prints them in a line `{"pids":[…]}`: what
+   * the tree misses, a process whose parent has ended. Undefined where the relay can't run
+   * it, as one built before the command, or the console can't be read.
+   */
+  async console(shell: number, timeoutMs = relayMs): Promise<readonly number[] | undefined> {
+    const relay = await this.relay()
+    if (relay === undefined) return undefined
+    try {
+      return parseConsole(await this.run(relay, ["console", String(shell)], timeoutMs))
+    } catch (error) {
+      this.unavailable("console", error)
+      return undefined
+    }
+  }
+
   /** Ends each of `members` still running as the process it was; done once all are. */
   async end(members: readonly Member[], timeoutMs = relayMs): Promise<void> {
     if (members.length === 0) return
@@ -151,6 +168,20 @@ export class Trees {
     this.failed.add(subcommand)
     console.error(`The relay couldn't run "${subcommand}"; falling back without it:`, error)
   }
+}
+
+/** The pids of a relay's `console` line; undefined for anything else. */
+export const parseConsole = (output: string): readonly number[] | undefined => {
+  for (const line of output.split(/\r?\n/)) {
+    try {
+      const { pids } = JSON.parse(line) as { pids?: unknown }
+      if (Array.isArray(pids) && pids.every((pid) => Number.isSafeInteger(pid)))
+        return pids as number[]
+    } catch {
+      // Not the line.
+    }
+  }
+  return undefined
 }
 
 /** The relay's trees, by root as it was named, from its lines; one it couldn't read is left out. */
