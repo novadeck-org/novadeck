@@ -221,7 +221,11 @@ describe("the harness registry", () => {
   })
 
   it("tells a resume that worked by each harness's own sign", () => {
-    const seen = (sessionId: string | null, ready: boolean) => ({ sessionId, ready })
+    const seen = (sessionId: string | null, ready: boolean, readyMs = ready ? 10_000 : 0) => ({
+      sessionId,
+      ready,
+      readyMs,
+    })
     for (const id of ["claude", "agy"] as const) {
       const { resumed } = harnesses[id].launch
       expect(resumed("a", seen("a", false))).toBe("worked")
@@ -229,8 +233,12 @@ describe("the harness registry", () => {
     }
     expect(harnesses.claude.launch.resumed("a", seen(null, true))).toBe("waiting")
     expect(harnesses.agy.launch.resumed("a", seen(null, false))).toBe("waiting")
-    // It starts a new conversation without an error, so a prompt with no id is a failure.
-    expect(harnesses.agy.launch.resumed("a", seen(null, true))).toBe("failed")
+    // It starts a new conversation without an error, so a prompt with no id is a failure, but
+    // only after a grace: a good resume reports its id a moment after its prompt shows.
+    expect(harnesses.agy.launch.resumed("a", seen(null, true, 500))).toBe("waiting")
+    expect(harnesses.agy.launch.resumed("a", seen("a", true, 500))).toBe("worked")
+    expect(harnesses.agy.launch.resumed("a", seen(null, true, 3_000))).toBe("failed")
+    expect(harnesses.agy.launch.resumed("a", seen("b", true, 0))).toBe("failed")
     // Codex has no id before its first prompt: ready is its sign, whatever else shows.
     expect(harnesses.codex.launch.resumed("a", seen(null, false))).toBe("waiting")
     expect(harnesses.codex.launch.resumed("a", seen(null, true))).toBe("worked")

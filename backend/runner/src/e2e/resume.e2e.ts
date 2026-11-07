@@ -94,12 +94,14 @@ for (const setup of setups) {
       // answer other than waiting, or waiting once the cap has passed.
       const settle = async (terminal: DeckTerminal, id: string) => {
         const until = Date.now() + resumeCapMs
+        let readySince: number | undefined
         for (;;) {
           // eslint-disable-next-line no-await-in-loop -- Polled one reading at a time.
           const sessionId = (await terminal.detail()).sessionId ?? null
           const state = harness.launch.resumed(id, {
             sessionId,
             ready: terminal.summary().ready !== null,
+            readyMs: terminal.summary().ready !== null ? Date.now() - (readySince ??= Date.now()) : 0,
           })
           if (state !== "waiting" || Date.now() > until) return state
           // eslint-disable-next-line no-await-in-loop -- Same.

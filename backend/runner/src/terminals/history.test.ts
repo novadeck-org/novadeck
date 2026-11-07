@@ -844,8 +844,12 @@ describe("restoring a row", () => {
 })
 
 describe("confirming an agent's restore", () => {
-  const begin = async (agent: AgentName = "claude", over: Parameters<typeof setup>[0] = {}) => {
-    const s = setup(over)
+  const begin = async (
+    agent: AgentName = "claude",
+    over: Parameters<typeof setup>[0] = {},
+    times: Partial<HistoryTimes> = {},
+  ) => {
+    const s = setup(over, times)
     s.store.rows.set("old-1", agentRow(agent))
     const record = live({}, { id: "new-1" })
     await restoring(s, record)
@@ -902,6 +906,35 @@ describe("confirming an agent's restore", () => {
     expect(store.rows.has("old-1")).toBe(true)
     expect(released).toEqual(["new-1"])
     expect(record.restoring).toBeUndefined()
+  })
+
+  it("gives Antigravity a grace to bind after its prompt shows, and confirms a late bind", async () => {
+    const { history, store, record, released } = await begin("agy", {}, { graceMs: 40 })
+    record.summary = { ...record.summary, ready: "agy" } as never
+    history.observe(record)
+    expect(record.restoring).toBeDefined()
+    expect(released).toEqual([])
+    record.bound = bound("agy", "conv-0001")
+    history.observe(record)
+    expect(store.rows.size).toBe(0)
+    expect(record.restoring).toBeUndefined()
+  })
+
+  it("fails an Antigravity resume that never binds once the grace has passed", async () => {
+    const { history, store, record, released } = await begin("agy", {}, { graceMs: 40 })
+    vi.useFakeTimers()
+    try {
+      const at = Date.now()
+      vi.setSystemTime(at)
+      record.summary = { ...record.summary, ready: "agy" } as never
+      history.observe(record)
+      vi.setSystemTime(at + 3_100)
+      vi.advanceTimersByTime(50)
+      expect(released).toEqual(["new-1"])
+      expect(store.rows.has("old-1")).toBe(true)
+    } finally {
+      vi.useRealTimers()
+    }
   })
 
   it("treats typing that cancels the startup as a failure, without a note", async () => {

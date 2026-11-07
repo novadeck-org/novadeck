@@ -58,6 +58,9 @@ const messaging: MessagingProfile = {
   typedEntry,
 }
 
+/** How long a prompt with no id yet may wait for one before the resume counts as failed. */
+const resumeGraceMs = 3_000
+
 const launch: LaunchProfile = {
   start: ["agy"],
   // Never with its task: `-i` submits its prompt within a second of its start, before
@@ -68,9 +71,15 @@ const launch: LaunchProfile = {
   initialPrompt: () => Promise.resolve(undefined),
   resume: (session, choice = {}) => ["agy", ...launch.choose(choice), "--conversation", session],
   // Its status line gives the id, and an id it never had starts a new conversation
-  // without a word: a different id, or none once its prompt shows, is a failed resume.
-  resumed: (claim, { sessionId, ready }) =>
-    sessionId === claim ? "worked" : sessionId !== null || ready ? "failed" : "waiting",
+  // without a word: a different id is a failed resume at once, and none once its prompt has
+  // shown for a grace is too (a good resume reports its id 0.5 to 0.8 s after its banner, a
+  // missing conversation reaches its prompt in about the same time, so the order can race).
+  resumed: (claim, { sessionId, ready, readyMs }) =>
+    sessionId === claim
+      ? "worked"
+      : sessionId !== null || (ready && readyMs >= resumeGraceMs)
+        ? "failed"
+        : "waiting",
   models: () => Promise.resolve(models),
   choose: ({ model, effort }) => [
     ...(model !== undefined ? ["--model", model] : []),

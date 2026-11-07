@@ -448,6 +448,8 @@ export type ResumeSeen = {
   readonly sessionId: string | null
   /** Whether its prompt shows. */
   readonly ready: boolean
+  /** How long it has shown, in milliseconds; 0 while it does not. */
+  readonly readyMs: number
 }
 
 /** The model and reasoning effort an agent starts with; none leaves its own. */

@@ -48,9 +48,11 @@ export type HistoryTimes = {
   readonly pruneMs: number
   /** The longest one availability check is waited for; an unanswered one reads as unknown. */
   readonly checkMs: number
+  /** How long after its prompt shows an unbound resume is looked at again: just over Antigravity's grace. */
+  readonly graceMs: number
 }
 
-const defaults: HistoryTimes = { restoreMs: 60_000, pruneMs: 60 * 60 * 1000, checkMs: 3_000 }
+const defaults: HistoryTimes = { restoreMs: 60_000, pruneMs: 60 * 60 * 1000, checkMs: 3_000, graceMs: 3_200 }
 
 /** What one pass through a list reads once: each agent's conversation scan and whether it is connected. */
 type Pass = {
@@ -115,6 +117,10 @@ export type Restoring = {
   readonly agent: AgentName
   readonly session: string
   readonly timer: NodeJS.Timeout
+  /** When its prompt was first seen, for a harness that gives a missing id a grace. */
+  readySince?: number
+  /** The one look after the grace, when the prompt showed and nothing else had yet. */
+  recheck?: NodeJS.Timeout
 }
 
 /** What a restore starts from: the row, the terminal it makes, and how it learns the outcome. */
@@ -737,12 +743,22 @@ export class ClosedTerminals {
     const waiting = record.restoring
     if (!waiting) return
     const bound = record.bound?.binding
+    const ready = record.summary.ready !== null
+    if (ready) waiting.readySince ??= Date.now()
     const seen = harnesses[waiting.agent].launch.resumed(waiting.session, {
       sessionId: bound?.agent === waiting.agent ? bound.sessionId : null,
-      ready: record.summary.ready !== null,
+      ready,
+      readyMs: waiting.readySince === undefined ? 0 : Date.now() - waiting.readySince,
     })
     if (seen === "worked") this.worked(record, waiting)
     else if (seen === "failed" && !final) this.failed(record)
+    else if (seen === "waiting" && ready && !final && !waiting.recheck) {
+      // A harness that waits a grace for its id says nothing more by itself: look once after it.
+      waiting.recheck = setTimeout(() => {
+        if (record.restoring === waiting) this.observe(record)
+      }, this.times.graceMs)
+      waiting.recheck.unref()
+    }
   }
 
   /** The shell's prompt came back: a resume still not shown to have worked has failed. */
@@ -759,6 +775,7 @@ export class ClosedTerminals {
 
   private worked(record: Closing, waiting: Restoring): void {
     clearTimeout(waiting.timer)
+    clearTimeout(waiting.recheck)
     record.restoring = undefined
     this.gone({ id: waiting.row, projectId: waiting.projectId })
   }
@@ -771,6 +788,7 @@ export class ClosedTerminals {
     const waiting = record.restoring
     if (!waiting) return
     clearTimeout(waiting.timer)
+    clearTimeout(waiting.recheck)
     record.restoring = undefined
     // A claim survives a failed resume, and would hold the session from every other terminal.
     this.host.releaseClaim(record.summary.id)
@@ -814,6 +832,7 @@ export class ClosedTerminals {
     const waiting = record.restoring
     if (!waiting) return
     clearTimeout(waiting.timer)
+    clearTimeout(waiting.recheck)
     record.restoring = undefined
     this.restoring.delete(waiting.row)
     const row = this.host.records?.closedTerminal(waiting.row)
