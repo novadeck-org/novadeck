@@ -57,6 +57,36 @@ describe("what closing a terminal asks about", () => {
       expect(closeReasons(terminalFixture({ ...running, busy: true }), true)).toEqual(["program"])
     })
 
+    it("asks when an idle agent waits on a job, a wake-up or background tasks", () => {
+      const idle = { ...running, restorable: true }
+      const waiting = { jobs: [], wake: { at: 1, reason: null } }
+      expect(
+        closeReasons(
+          terminalFixture({ ...idle, agent: { working: false, waiting } } as never),
+          true,
+        ),
+      ).toEqual(["background"])
+      expect(
+        closeReasons(
+          terminalFixture({
+            ...idle,
+            agent: { working: false, background: { agents: 0, tasks: 2 } },
+          } as never),
+          true,
+        ),
+      ).toEqual(["background"])
+    })
+
+    it("asks when an idle agent leads others that still run, not when they have ended", () => {
+      const lead = terminalFixture({ ...agent(false), restorable: true, handle: "moth" })
+      const led = (state: TerminalMetadata["state"], ledBy: string | null) =>
+        terminalFixture({ id: "02", ...(state === "running" ? running : { state: "idle" }), ledBy })
+      expect(closeReasons(lead, true, [lead, led("running", "moth")])).toEqual(["leads"])
+      expect(closeReasons(lead, true, [lead, led("idle", "moth")])).toEqual([])
+      expect(closeReasons(lead, true, [lead, led("running", "other")])).toEqual([])
+      expect(closeReasons(lead, true, [lead])).toEqual([])
+    })
+
     it("lets a terminal with nothing running in it close", () => {
       expect(closeReasons(terminalFixture({ state: "idle" }), true)).toEqual([])
       expect(

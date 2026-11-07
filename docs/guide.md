@@ -443,9 +443,12 @@ technology. Four other states stand where the date was:
 Closing no longer always asks, because a closed terminal stays listed in History for 30
 days. Novadeck asks before closing a terminal only when closing loses something you can't get
 back from History: a program is running in its shell (on Windows too), its agent is in
-the middle of a turn, or it can't be restored, such as a running agent with no session yet
-or one that isn't connected. An agent waiting at its prompt that can be restored closes
-without asking.
+the middle of a turn, its agent is idle but waiting on a job, a monitor or a wake-up it set
+(or has tasks running in the background), which closing ends and a restore doesn't start
+again, it leads other agents that are still running, which would be left without a lead, or
+it can't be restored, such as a running agent with no session yet or one that isn't
+connected. An agent waiting at its prompt with nothing of that, that can be restored,
+closes without asking.
 
 ## Restoring terminals
 

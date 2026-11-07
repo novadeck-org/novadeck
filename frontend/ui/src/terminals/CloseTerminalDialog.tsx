@@ -8,6 +8,8 @@ type CloseTerminalDialogProps = {
   readonly terminal: TerminalMetadata | null
   // Whether closing can be undone from History, which changes what is worth asking about.
   readonly keepsHistory: boolean
+  // Every terminal of its session, to see whom it leads.
+  readonly terminals: readonly TerminalMetadata[]
   readonly onConfirm: () => void
   readonly onCancel: () => void
   // Where focus goes back when the person keeps the terminal.
@@ -17,13 +19,21 @@ type CloseTerminalDialogProps = {
 const sentences = (terminal: TerminalMetadata): Readonly<Record<CloseReason, string>> => ({
   program: `${terminal.process || "A program"} is still running in it.`,
   working: "Its agent is working on a turn, and closing it stops the turn.",
+  background:
+    "Its agent is waiting on a job or a wake-up it set, or has tasks running in the background. Closing it ends them, and restoring it doesn't start them again.",
+  leads:
+    "It leads other agents that are still running. Closing it leaves them without a lead, and restoring it doesn't give the lead back.",
   unrestorable: "It can't be restored from History once it is closed.",
 })
 
 // What the dialog says, from the terminal as it is now: an agent's turn may end, or a program
 // exit, while the question is up, and then nothing is left to lose.
-export const closeDescription = (terminal: TerminalMetadata, keepsHistory: boolean): string => {
-  const reasons = closeReasons(terminal, keepsHistory)
+export const closeDescription = (
+  terminal: TerminalMetadata,
+  keepsHistory: boolean,
+  terminals: readonly TerminalMetadata[] = [],
+): string => {
+  const reasons = closeReasons(terminal, keepsHistory, terminals)
   if (reasons.length > 0) return reasons.map((reason) => sentences(terminal)[reason]).join(" ")
   return keepsHistory
     ? "Nothing in it is running now. It stays in History, so it can be restored."
@@ -31,11 +41,13 @@ export const closeDescription = (terminal: TerminalMetadata, keepsHistory: boole
 }
 
 // Asks before closing a terminal that would lose something: a program still running in it,
-// or, where History keeps closed terminals, an agent mid-turn or one that can't be restored.
+// or, where History keeps closed terminals, an agent mid-turn, one waiting on background
+// jobs, one that leads running agents, or one that can't be restored.
 // Cancel is focused first, as the safe choice; Escape and a click outside cancel too.
 export const CloseTerminalDialog = ({
   terminal,
   keepsHistory,
+  terminals,
   onConfirm,
   onCancel,
   returnFocus,
@@ -45,7 +57,7 @@ export const CloseTerminalDialog = ({
     title={(shown) =>
       `Close ${shown.handle ? `${handleText(shown.handle)} · ` : ""}“${shown.name}”?`
     }
-    description={(shown) => closeDescription(shown, keepsHistory)}
+    description={(shown) => closeDescription(shown, keepsHistory, terminals)}
     confirmLabel="Close terminal"
     cancelLabel="Cancel"
     onConfirm={onConfirm}

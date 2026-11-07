@@ -594,7 +594,11 @@ export const createWorkspaceCommands = (ctx: CommandContext): WorkspaceCommands 
       // Closing ends the shell, so ask first while it would lose something (see
       // `closeReasons`); the confirmation dialog renders from this and answers with
       // confirmClose or cancelClose.
-      if (closing && closeReasons(closing, history !== undefined).length > 0)
+      if (closing && closeReasons(
+          closing,
+          history !== undefined,
+          currentState(snapshot).roster.terminals,
+        ).length > 0)
         return void ui.update((state) => ({
           ...state,
           closing: { context: currentContext(snapshot), id: terminalId },
