@@ -945,21 +945,6 @@
   padding: calc(var(--_lh) / 2) var(--_pad) 0;
   color: var(--_red);
 }
-/* Parts of the conversation the chat can't read: one line at its top, over the thread. */
-.chat-unread {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  justify-content: space-between;
-  gap: 4px 2ch;
-  margin: 0;
-  padding: 6px var(--_pad);
-  color: var(--_muted);
-}
-.chat-unread-actions {
-  display: flex;
-  gap: 2ch;
-}
 .chat-unrecorded {
   display: flex;
   align-items: center;

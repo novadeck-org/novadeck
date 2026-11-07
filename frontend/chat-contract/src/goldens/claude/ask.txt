@@ -102,10 +102,12 @@ assistant: Done.
 
 # h-plan-allow-setMode
 tools: proposed a plan [plan] | Call: ExitPlanMode: 7 lines: plan: → 1 line: File created successfully at: <sandbox>/home/.c…
+note: plan approved
 assistant: Done.
 
 # h-plan-allow-updatedInput
 tools: proposed a plan [plan] | Call: ExitPlanMode: 7 lines: plan: → 1 line: File created successfully at: <sandbox>/home/.c…
+note: plan approved
 assistant: Done.
 
 # h-plan-allow
@@ -219,6 +221,7 @@ note: Interrupted
 
 # k-plan-1
 tools: proposed a plan [plan] | Call: ExitPlanMode: 7 lines: plan: → 1 line: File created successfully at: <sandbox>/home/.c…
+note: plan approved
 assistant: Done.
 
 # k-plan-3-feedback
@@ -236,6 +239,7 @@ note: Interrupted
 
 # plan-file
 tools: proposed a plan [plan] | Call: ExitPlanMode: 7 lines: plan: → 1 line: File created successfully at: <sandbox>/home/.c…
+note: plan approved
 assistant: Done.
 
 # plan

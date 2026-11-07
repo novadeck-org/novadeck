@@ -3,6 +3,7 @@ import {
   type ToolOutcome,
   type ToolRun,
   type TranscriptItem,
+  type TranscriptNote,
 } from "@novadeck/protocol"
 
 import { cutText, ref } from "./decode.js"
@@ -91,6 +92,16 @@ export function entry(
     ring: role === "user" && kind === "text" ? ringOf(cut) : null,
   }
 }
+
+/** What a harness recorded between turns, as an item: `text` is a compaction's summary. */
+export const noteEntry = (
+  note: TranscriptNote,
+  when: number | null,
+  text = "",
+): TranscriptEntry => ({
+  ...entry("note", "text", text, { at: when }),
+  note,
+})
 
 /**
  * The item that shows where the person interrupted a turn, for a harness whose records hold

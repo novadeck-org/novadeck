@@ -1,12 +1,15 @@
 import { parseFields, type Fields } from "@novadeck/harness-core/fields"
 import type { TranscriptDecoder, UserEntry } from "@novadeck/harness-core/harness"
-import { at, entry, textOf } from "@novadeck/harness-core/items"
+import { at, entry, noteEntry, textOf } from "@novadeck/harness-core/items"
 
 import { callChange, stepOutcome } from "./outcomes.js"
 import { describe } from "./tools.js"
 
 // The person's words within the context Antigravity wraps a prompt in.
 const request = /<USER_REQUEST>\n?([\s\S]*?)\n?<\/USER_REQUEST>/
+
+// How the plan review's Approve goes in, as a prompt (probed 2026-11-07, 1.5.2).
+const planApproved = /^\[Approved\] \S+$/
 
 const contentOf = (fields: Fields): string =>
   typeof fields.content === "string" ? fields.content : ""
@@ -38,7 +41,18 @@ export const transcripts: TranscriptDecoder = {
     const time = at(fields.created_at)
     const content = contentOf(fields)
     const text = typed(fields)
-    if (text !== undefined) return text ? [entry("user", "text", text, { at: time })] : []
+    if (text !== undefined) {
+      if (planApproved.test(text)) return [noteEntry({ type: "plan-approved" }, time)]
+      // A prompt says whether it goes in plan mode, by a <PLAN> in what wraps it; of any other
+      // mode, as accept-edits, the record says nothing, so only leaving the plan shows.
+      const mode = content.includes("<PLAN>") ? "plan" : "not-plan"
+      return [
+        noteEntry({ type: "mode", mode }, time),
+        ...(text ? [entry("user", "text", text, { at: time })] : []),
+      ]
+    }
+    if (fields.source === "SYSTEM" && fields.type === "CHECKPOINT")
+      return [noteEntry({ type: "compaction" }, time, content)]
     if (fields.source !== "MODEL") return []
     if (fields.type === "GENERIC")
       return [

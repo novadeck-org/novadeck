@@ -69,15 +69,26 @@ export const toolOutcome = z.strictObject({
 // pairs a result with its call, `run` says what a call was, and `outcome` what came of it.
 // `scripted` marks a call its harness made inside a script of the agent's, recorded after the
 // script's own call. Text past 16 KiB is cut short and marked `truncated`. Private reasoning
-// is never included. `unread` says, once,
-// that the record holds a part of the conversation its decoder has never seen, which the
-// items leave out: the terminal shows it.
+// is never included.
 // The refinement on an item makes `.pick`, `.omit` and `.partial` of it throw; `.extend` works.
+// What a harness records of what changed between turns: the mode it says it is in, in its own
+// word (`default`, `acceptEdits`, `plan`, ...), on any item that says one, a change or not; a
+// plan approved; a compaction, its summary the item's `text`; or a gap, where the record holds a
+// part of the conversation its decoder has never seen, the line as written its `text`, which
+// is empty where that line holds the agent's reasoning too.
+export const transcriptNote = z.discriminatedUnion("type", [
+  z.strictObject({ type: z.literal("mode"), mode: z.string().min(1).max(64) }),
+  z.strictObject({ type: z.literal("plan-approved") }),
+  z.strictObject({ type: z.literal("compaction") }),
+  z.strictObject({ type: z.literal("gap") }),
+])
+export type TranscriptNote = z.infer<typeof transcriptNote>
+
 export const transcriptItem = z
   .strictObject({
     index: z.number().int().nonnegative(),
     at: z.number().nullable(),
-    role: z.enum(["user", "assistant", "agent", "tool"]),
+    role: z.enum(["user", "assistant", "agent", "tool", "note"]),
     kind: z.enum(["text", "tool-call", "tool-result"]),
     text: z.string().max(transcriptLimits.text),
     truncated: z.boolean(),
@@ -96,6 +107,8 @@ export const transcriptItem = z
     // ring's nonce, and whether the line carries the person's Inbox replies (see
     // docs/agent-messaging.md, "The reply line"); null on every other item.
     ring: z.strictObject({ nonce: z.string().max(64), replies: z.boolean() }).nullable(),
+    // On a `note` item, what its harness recorded between turns.
+    note: transcriptNote.optional(),
   })
   .refine((item) => (item.run !== null) === (item.kind === "tool-call"), {
     message: "A tool call has a run, and no other item does",
@@ -111,7 +124,6 @@ export const transcriptChange = z.discriminatedUnion("type", [
     items: z.array(transcriptItem).min(1).max(transcriptLimits.items),
   }),
   z.strictObject({ type: z.literal("reset") }),
-  z.strictObject({ type: z.literal("unread") }),
 ])
 
 export type TranscriptItem = z.infer<typeof transcriptItem>

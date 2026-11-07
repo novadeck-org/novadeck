@@ -2,7 +2,7 @@ import { stat } from "node:fs/promises"
 
 import { followLines, tailLines } from "@novadeck/harness-core/follow"
 import type { Harness, TranscriptEntry } from "@novadeck/harness-core/harness"
-import { interruptionEntry } from "@novadeck/harness-core/items"
+import { interruptionEntry, noteEntry } from "@novadeck/harness-core/items"
 import { transcriptLimits, type TranscriptChange } from "@novadeck/protocol"
 
 import { logs } from "../log.js"
@@ -108,6 +108,9 @@ export const unknownShape = (
   })
 }
 
+// A shape that holds the agent's reasoning, by its key, in any harness.
+const reasoning = /thinking|reasoning/i
+
 /** What a reading of a transcript tells beside its items. */
 export type Reading = {
   /** The interruptions it doesn't record (see `Interruption`). */
@@ -133,9 +136,10 @@ export const readingOf = (
  * harness writes just after the key (Antigravity's, up to 0.1 s on), before the next prompt.
  * One told only after the next prompt was read joins at the end, and in its place once the
  * transcript is read again. Where its harness gives lines no `step`, none joins.
- * A line holding a shape its harness's decoder has never seen is told to `unknown`, and the
- * first inside the conversation (its harness's `conversational`) sends `unread` once, as
- * the chat may be missing words the terminal shows.
+ * A line holding a shape its harness's decoder has never seen is told to `unknown`, and one
+ * inside the conversation (its harness's `conversational`) leaves a gap among the items, where
+ * the chat may be missing words the terminal shows, its text the line as written. Reasoning
+ * stays private, so a line that holds some gives no text.
  */
 export const transcriptChanges = async function* (
   path: string,
@@ -163,8 +167,6 @@ export const transcriptChanges = async function* (
   // step order, and the interruptions told since the file was read from its start.
   let reached = -1
   const told = new Set<string>()
-  // Whether `unread` was sent; a rewrite keeps it, as the chat does.
-  let unread = false
   let wake: (() => void) | undefined
   let resume: (() => void) | undefined
   const notify = () => {
@@ -198,19 +200,22 @@ export const transcriptChanges = async function* (
     path,
     signal,
     (line) => {
-      for (const shape of shapes?.(line) ?? []) {
+      const found = shapes?.(line) ?? []
+      let gap = false
+      for (const shape of found) {
         if (shape.verdict !== "unknown") continue
         const inside = conversational?.(shape.key) ?? false
         unknown?.(shape.key, inside)
-        if (!inside || unread) continue
-        unread = true
-        queue.push({ type: "unread" })
-        notify()
+        gap ||= inside
       }
       const read = items(line)
       if (read.some((item) => item.role === "user")) interrupted(reached)
       reached = Math.max(reached, step?.(line) ?? reached)
       for (const item of read) collect(item)
+      if (gap) {
+        const reasons = found.some(({ key }) => reasoning.test(key))
+        collect(noteEntry({ type: "gap" }, null, reasons ? "" : line))
+      }
     },
     {
       fromStart: true,
