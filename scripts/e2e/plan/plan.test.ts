@@ -415,13 +415,14 @@ describe("E2E rows", () => {
 })
 
 describe("E2E jobs", () => {
-  it("runs Claude Code and Codex in two halves on Linux and Windows, and macOS whole", () => {
+  it("runs Claude Code and Codex in two halves on Linux and Windows, Antigravity on Linux, and macOS whole", () => {
     expect(plan(nightly, ids).rows.map((row) => row.job)).toEqual([
       "Claude Code (1/2)",
       "Claude Code (2/2)",
       "Codex (1/2)",
       "Codex (2/2)",
-      "Antigravity",
+      "Antigravity (1/2)",
+      "Antigravity (2/2)",
       "Mixed",
       "Claude Code (Windows, 1/2)",
       "Claude Code (Windows, 2/2)",
@@ -464,7 +465,8 @@ describe("E2E jobs", () => {
       "Claude Code (2/2)",
       "Codex (1/2)",
       "Codex (2/2)",
-      "Antigravity",
+      "Antigravity (1/2)",
+      "Antigravity (2/2)",
       "Mixed",
     ])
   })

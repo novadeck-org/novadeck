@@ -396,8 +396,16 @@ export const footerRows = (screen: ScreenText, count = 4, reach = 12): readonly 
 export const rule = (row: string | undefined): boolean => /^─{8,}$/.test((row ?? "").trim())
 
 /**
+ * Whether a row is a rule from the screen's first column, as a box's frame is drawn: a row of
+ * `─` in the box's text is indented under its marker, and a row of it in a reply or a draft
+ * would otherwise read as the box's top.
+ */
+const frameRule = (row: string | undefined): boolean => /^─{8,}\s*$/.test(row ?? "")
+
+/**
  * A box drawn between two horizontal rules, its first row led by one of `markers` (`❯`, `>`): the
- * lowest pair of rules on the screen, the cursor between them.
+ * lowest rule on the screen and the nearest rule from the first column above it, the cursor
+ * between them.
  * It starts at the nearest row led by a marker at or above the cursor, so rows a TUI's
  * redraw left stale between the rules above its first row (it counts a wide character's
  * width differently, and erases the wrong rows) are no part of it. History above the
@@ -406,7 +414,7 @@ export const rule = (row: string | undefined): boolean => /^─{8,}$/.test((row 
 export const ruledBox = (screen: ScreenText, markers: Markers): InputBox | undefined => {
   const bottom = screen.rows.findLastIndex(rule)
   if (bottom < 0) return undefined
-  const top = screen.rows.slice(0, bottom).findLastIndex(rule)
+  const top = screen.rows.slice(0, bottom).findLastIndex(frameRule)
   if (top < 0 || bottom - top < 2) return undefined
   const { cursor } = screen
   if (cursor.row <= top || cursor.row >= bottom) return undefined
@@ -422,8 +430,11 @@ const bodyRow = (row: string | undefined): boolean => /^ {2}.*\S/.test(row ?? ""
  * A box drawn with no frame, its first row led by one of `markers`: rows indented under the
  * marker go up from the cursor to it, and on down from the cursor to the first row that is
  * not one (a blank row, before the program's footer), as a cursor moved up a draft leaves
- * lines of it below. The history above is no part of it: it ends at the nearest row led by a
- * marker.
+ * lines of it below. Blank lines in a draft leave blank rows inside it, so the rows down to the
+ * program's footer go with it too, where any shows text: the footer is the last rows drawn,
+ * under a blank row. Where a row among them isn't a line of a body, there's no telling what
+ * it is, and no box reads. The history above is no part of it: it ends at the nearest row led
+ * by a marker.
  */
 export const markedBox = (screen: ScreenText, markers: Markers): InputBox | undefined => {
   const { cursor } = screen
@@ -440,5 +451,14 @@ export const markedBox = (screen: ScreenText, markers: Markers): InputBox | unde
   if (first < 0) return undefined
   let last = cursor.row
   while (bodyRow(screen.rows[last + 1])) last += 1
+  const drawn = screen.rows.findLastIndex((row) => row.trim() !== "")
+  let footer = drawn
+  while (footer > last + 1 && (screen.rows[footer - 1] ?? "").trim() !== "") footer -= 1
+  const between = screen.rows.slice(last + 1, footer - 1)
+  const lower = between.findLastIndex((row) => row.trim() !== "")
+  if (lower >= 0) {
+    if (!between.every((row) => row.trim() === "" || bodyRow(row))) return undefined
+    last += 1 + lower
+  }
   return read(screen, first, last, markers)
 }
