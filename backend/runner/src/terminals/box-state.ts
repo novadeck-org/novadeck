@@ -1,9 +1,18 @@
 import type { ScreenText } from "@novadeck/emulator/headless"
 import type { AgentBox } from "@novadeck/protocol"
-import { leftoverOf, type BoxProfile } from "@novadeck/tui-input/box"
+import { leftoverOf, sameText, type BoxProfile, type InputBox } from "@novadeck/tui-input/box"
 
 /** The most of a box's text `agents.detail` carries, in UTF-16 code units. */
 const textMax = 16_384
+
+/** What a client is shown of a box's text. */
+export const boxWords = (text: string): string => text.trim().slice(0, textMax)
+
+/** Whether what a client was shown is what the box holds, as far as its rows can say. */
+export const shownBox = (box: InputBox, seen: string): boolean => {
+  const words = boxWords(box.text)
+  return words === box.text.trim() && sameText(words, seen)
+}
 
 /**
  * What an agent's input box holds as a client should show it, so nothing goes along with a
@@ -22,7 +31,7 @@ export const boxView = (
   const { box, tail } = state
   const text = box.text.trim()
   if (text === "" || ringLine(text)) return null
-  return { text: text.slice(0, textMax), mode: box.mode, tail, known: known(text) }
+  return { text: boxWords(text), mode: box.mode, tail, known: known(text) }
 }
 
 const same = (a: AgentBox | null, b: AgentBox | null): boolean =>
@@ -85,6 +94,23 @@ export class BoxStates {
     }
     if (state.looking) state.again = true
     else this.later(terminalId, state, state.lastLook + this.throttleMs - this.now())
+  }
+
+  /**
+   * Reads the terminal's box now, for a client told to look at it: a client that reads it has
+   * what's there by the time this resolves.
+   */
+  async refresh(terminalId: string): Promise<void> {
+    const state = this.states.get(terminalId)
+    if (!state) return
+    const read = await this.host.read(terminalId).catch(() => undefined)
+    if (this.states.get(terminalId) !== state) return
+    const view = read ?? null
+    state.lastLook = this.now()
+    if (!same(view, state.view)) {
+      state.view = view
+      this.host.changed(terminalId)
+    }
   }
 
   /** What the terminal's box holds, as last read; null while nothing is known. */

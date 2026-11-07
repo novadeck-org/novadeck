@@ -1,0 +1,532 @@
+# fullscreen
+long reply: none
+/: menu 30-34
+  |   ❯ /add-dir                    Add a new working directory
+  |     /auto-mode-setup            Teach auto mode about your environment, plus optional rule tweaks
+  |     /autocompact                Set how full the context gets before auto-summarizing
+  |     /background                 Send this session to the background and free the terminal
+  |     /branch                     Create a branch of the current conversation at this point
+<down>: menu 30-34
+  |     /add-dir                    Add a new working directory
+  |   ❯ /auto-mode-setup            Teach auto mode about your environment, plus optional rule tweaks
+  |     /autocompact                Set how full the context gets before auto-summarizing
+  |     /background                 Send this session to the background and free the terminal
+  |     /branch                     Create a branch of the current conversation at this point
+<kill>: none
+@: menu 30-34
+  |     + .claude/
+  |     + README.md
+  |     + .agents/
+  |     + src/
+  |     * claude (agent) – Catch-all for any task that doesn't fit a more specific age…
+s: menu 30-34
+  |     + src/
+  |     * statusline-setup (agent) – Use this agent to configure the user's Claude Code status l…
+  |     * general-purpose (agent) – General-purpose agent for researching complex questions, se…
+  |     + src/auth.ts
+  |     + src/store.ts
+<kill>: none
+/model: menu 30-34
+  |   ❯ /model                      Set the AI model for Claude Code (currently Opus 5.5)
+  |     /auto-mode-setup            Teach auto mode about your environment, plus optional rule tweaks
+  |     /code-review                Review the current diff or a PR for bugs and cleanups
+  |     /update-config              Change settings: hooks, permissions, environment variables
+  |     /loop                       Repeat a prompt or command on an interval (e.g. /loop 5m /foo)
+<enter>: view 24-39
+  | ▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔
+  |    Select model
+  |    Switch between Claude models. Your pick becomes the default for new sessions. For other/previous model names,
+  |    specify with --model.
+  | 
+  |    ❯ 1. Default (recommended) ✔  Use the default model (currently Opus 5.5) · $4/$20 per Mtok
+  |      2. Opus                     Opus 5.5 · Best for everyday, complex tasks · $4/$20 per Mtok
+  |      3. Fable                    Fable 5.1 · Most capable for your hardest and longest-running tasks · $10/$50 per
+  |                                  Mtok
+  |      4. Sonnet                   Sonnet 5.5 · Efficient for routine tasks · $2/$10 per Mtok
+  |      5. Haiku                    Haiku 5.5 · Fastest for quick answers · $0.10/$0.50 per Mtok ($0.50/$2.50 for
+  |                                  prompts over 100k)
+  | 
+  |    ◐ Medium effort (default) ←/→ to adjust
+  | 
+  |    Enter to set as default · s to use this session only · Esc to cancel
+<down>: view 24-39
+  | ▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔
+  |    Select model
+  |    Switch between Claude models. Your pick becomes the default for new sessions. For other/previous model names,
+  |    specify with --model.
+  | 
+  |      1. Default (recommended) ✔  Use the default model (currently Opus 5.5) · $4/$20 per Mtok
+  |    ❯ 2. Opus                     Opus 5.5 · Best for everyday, complex tasks · $4/$20 per Mtok
+  |      3. Fable                    Fable 5.1 · Most capable for your hardest and longest-running tasks · $10/$50 per
+  |                                  Mtok
+  |      4. Sonnet                   Sonnet 5.5 · Efficient for routine tasks · $2/$10 per Mtok
+  |      5. Haiku                    Haiku 5.5 · Fastest for quick answers · $0.10/$0.50 per Mtok ($0.50/$2.50 for
+  |                                  prompts over 100k)
+  | 
+  |    ◐ Medium effort (default) ←/→ to adjust
+  | 
+  |    Enter to set as default · s to use this session only · Esc to cancel
+<esc>: none
+<kill>: none
+/context: menu 30-34
+  |   ❯ /context                    Visualize current context usage as a colored grid
+  |     /doctor                     Health-check your setup and fix issues: installation, unused extensions, duplicated or
+  |                                 bloated memory files, slow hooks, updates, permissions
+  |     /autocompact                Set how full the context gets before auto-summarizing
+  |     /subtask                    Send a subagent off with your full context; its result comes back here
+<enter>: none
+<kill>: none
+/mcp: menu 30-34
+  |   ❯ /mcp                        Manage MCP servers
+  |     /fewer-permission-prompts   Pre-approve safe read-only commands based on your usage
+  |     /doctor                     Health-check your setup and fix issues: installation, unused extensions, duplicated or
+  |                                 bloated memory files, slow hooks, updates, permissions
+  |     /claude-api                 Build and debug apps that use the Claude API
+<enter>: view 31-39
+  | ▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔ ◐ medium · /effort ▔
+  |    Manage MCP servers
+  |    1 server
+  | 
+  |      Built-in MCPs (always available)
+  |    ❯ ✔ plugin:novadeck:novadeck   16 tools
+  | 
+  |    https://code.claude.com/docs/en/mcp for help
+  |    ↑/↓ to navigate · Enter to confirm · Esc to cancel
+<esc>: none
+<kill>: none
+/compact: menu 33-34
+  |   ❯ /compact                    Free up context by summarizing the conversation so far
+  |     /autocompact                Set how full the context gets before auto-summarizing
+<enter>: none
+#compacted: none
+/context: menu 30-34
+  |   ❯ /context                    Visualize current context usage as a colored grid
+  |     /doctor                     Health-check your setup and fix issues: installation, unused extensions, duplicated or
+  |                                 bloated memory files, slow hooks, updates, permissions
+  |     /autocompact                Set how full the context gets before auto-summarizing
+  |     /subtask                    Send a subagent off with your full context; its result comes back here
+<enter>: none
+#ctx: none
+<kill>: none
+mid-turn: none
+/: menu 30-34
+  |   ❯ /add-dir                    Add a new working directory
+  |     /auto-mode-setup            Teach auto mode about your environment, plus optional rule tweaks
+  |     /autocompact                Set how full the context gets before auto-summarizing
+  |     /background                 Send this session to the background and free the terminal
+  |     /branch                     Create a branch of the current conversation at this point
+<down>: menu 30-34
+  |     /add-dir                    Add a new working directory
+  |   ❯ /auto-mode-setup            Teach auto mode about your environment, plus optional rule tweaks
+  |     /autocompact                Set how full the context gets before auto-summarizing
+  |     /background                 Send this session to the background and free the terminal
+  |     /branch                     Create a branch of the current conversation at this point
+<kill>: none
+
+# whole-screen
+after a reply: none
+/: menu 30-34
+  |   ❯ /add-dir                    Add a new working directory
+  |     /auto-mode-setup            Teach auto mode about your environment, plus optional rule tweaks
+  |     /autocompact                Set how full the context gets before auto-summarizing
+  |     /background                 Send this session to the background and free the terminal
+  |     /branch                     Create a branch of the current conversation at this point
+<kill>: none
+#closed: none
+/config: menu 30-34
+  |   ❯ /config                     Open settings
+  |     /update-config              Change settings: hooks, permissions, environment variables
+  |     /doctor                     Health-check your setup and fix issues: installation, unused extensions, duplicated or
+  |                                 bloated memory files, slow hooks, updates, permissions
+  |     /hooks                      View hook configurations for tool events
+<enter>: view 2-39
+  | ▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔ ◐ medium · /effort ▔
+  |    Settings  Status   Config   Usage   Stats
+  | 
+  |    ╭────────────────────────────────────────────────────────────────────────────────────────────────────────────────╮
+  |    │ ⌕ Search settings…                                                                                             │
+  |    ╰────────────────────────────────────────────────────────────────────────────────────────────────────────────────╯
+  | 
+  |    ❯ Auto-compact                                true
+  |      Idle compaction                             true
+  |      Continue automatically at usage limit       true
+  |      Switch models when a message is flagged     Switch automatically ›
+  |      Show tips                                   true
+  |      Reduce motion                               false
+  |      Thinking mode                               true
+  |      Thinking can't be turned off for Opus 5.5
+  |      Session recap                               true
+  |      Rewind code (checkpoints)                   true
+  |      Dynamic workflows                           true
+  |      Ultracode keyword trigger                   true
+  |      Dynamic workflow size                       medium (default)
+  |      Verbose output                              false
+  |      Terminal progress bar                       true
+  |      Show turn duration                          true
+  |      Time format                                 auto ›
+  |      Default permission mode                     Manual
+  |      Worktree base ref                           fresh
+  |      Use auto mode during plan                   true
+  |      Respect .gitignore in file picker           true
+  |      Skip the /copy picker                       false
+  |      Copy on select                              true
+  |      Auto-scroll                                 true
+  |      Open agents view by default                 false
+  |      ← opens agents                              true
+  |      Auto-update channel                         disabled (set by env: DISABLE_UPDATES) ›
+  |      Theme                                       Dark mode ›
+  |      ↓ 14 more
+  | 
+  |    Type to filter · Enter/↓ to select · ↑ to tabs · Esc to clear
+<down>: view 2-39
+  | ▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔ ◐ medium · /effort ▔
+  |    Settings  Status   Config   Usage   Stats
+  | 
+  |    ╭────────────────────────────────────────────────────────────────────────────────────────────────────────────────╮
+  |    │ ⌕ Search settings…                                                                                             │
+  |    ╰────────────────────────────────────────────────────────────────────────────────────────────────────────────────╯
+  | 
+  |    ❯ Auto-compact                                true
+  |      Idle compaction                             true
+  |      Continue automatically at usage limit       true
+  |      Switch models when a message is flagged     Switch automatically ›
+  |      Show tips                                   true
+  |      Reduce motion                               false
+  |      Thinking mode                               true
+  |      Thinking can't be turned off for Opus 5.5
+  |      Session recap                               true
+  |      Rewind code (checkpoints)                   true
+  |      Dynamic workflows                           true
+  |      Ultracode keyword trigger                   true
+  |      Dynamic workflow size                       medium (default)
+  |      Verbose output                              false
+  |      Terminal progress bar                       true
+  |      Show turn duration                          true
+  |      Time format                                 auto ›
+  |      Default permission mode                     Manual
+  |      Worktree base ref                           fresh
+  |      Use auto mode during plan                   true
+  |      Respect .gitignore in file picker           true
+  |      Skip the /copy picker                       false
+  |      Copy on select                              true
+  |      Auto-scroll                                 true
+  |      Open agents view by default                 false
+  |      ← opens agents                              true
+  |      Auto-update channel                         disabled (set by env: DISABLE_UPDATES) ›
+  |      Theme                                       Dark mode ›
+  |      ↓ 14 more
+  | 
+  |    Enter/Space to change · / to search · Esc to close
+
+# classic
+long reply: none
+/: menu 19-38
+  |   ❯ /add-dir                    Add a new working directory
+  |     /auto-mode-setup            Teach auto mode about your environment, plus optional rule tweaks
+  |     /autocompact                Set how full the context gets before auto-summarizing
+  |     /background                 Send this session to the background and free the terminal
+  |     /branch                     Create a branch of the current conversation at this point
+  |     /btw                        Ask a quick side question without interrupting the main conversation
+  |     /bug                        Report a bug or share your conversation
+  |     /cd                         Move this session to a new working directory
+  |     /clear                      Start a new session with empty context; previous session stays on disk (resumable with
+  |                                 /resume)
+  |     /color                      Set the prompt bar color for this session
+  |     /compact                    Free up context by summarizing the conversation so far
+  |     /config                     Open settings
+  |     /context                    Visualize current context usage as a colored grid
+  |     /copy                       Copy Claude's last response to clipboard (or /copy N for the Nth-latest)
+  |     /diff                       Toggle the diff panel showing uncommitted changes
+  |     /effort                     Set effort level for model usage
+  |     /exit                       Exit the CLI
+  |     /export                     Export the current conversation to a file or clipboard
+  |     /fast                       Toggle fast mode (Opus 5.5)
+<down>: menu 19-38
+  |     /add-dir                    Add a new working directory
+  |   ❯ /auto-mode-setup            Teach auto mode about your environment, plus optional rule tweaks
+  |     /autocompact                Set how full the context gets before auto-summarizing
+  |     /background                 Send this session to the background and free the terminal
+  |     /branch                     Create a branch of the current conversation at this point
+  |     /btw                        Ask a quick side question without interrupting the main conversation
+  |     /bug                        Report a bug or share your conversation
+  |     /cd                         Move this session to a new working directory
+  |     /clear                      Start a new session with empty context; previous session stays on disk (resumable with
+  |                                 /resume)
+  |     /color                      Set the prompt bar color for this session
+  |     /compact                    Free up context by summarizing the conversation so far
+  |     /config                     Open settings
+  |     /context                    Visualize current context usage as a colored grid
+  |     /copy                       Copy Claude's last response to clipboard (or /copy N for the Nth-latest)
+  |     /diff                       Toggle the diff panel showing uncommitted changes
+  |     /effort                     Set effort level for model usage
+  |     /exit                       Exit the CLI
+  |     /export                     Export the current conversation to a file or clipboard
+  |     /fast                       Toggle fast mode (Opus 5.5)
+m: menu 19-38
+  |   ❯ /mcp                        Manage MCP servers
+  |     /model                      Set the AI model for Claude Code (currently Opus 5.5)
+  |     /memory                     Edit CLAUDE.md files and memory settings
+  |     /mobile                     Show QR code to download the Claude mobile app
+  |     /plugin (marketplace)       Manage Claude Code plugins
+  |     /sample-command             Say the word sample. (project)
+  |     /auto-mode-setup            Teach auto mode about your environment, plus optional rule tweaks
+  |     /fewer-permission-prompts   Pre-approve safe read-only commands based on your usage
+  |     /terminal-setup             Install Shift+Enter key binding for newlines
+  |     /team-onboarding            Help teammates ramp on Claude Code with a guide from your usage
+  |     /rename                     Rename the current conversation
+  |     /simplify                   Clean up the changed code without changing behavior
+  |     /compact                    Free up context by summarizing the conversation so far
+  |     /theme                      Change the theme
+  |     /permissions                Manage allow and deny tool permission rules
+  |     /resume                     Resume a previous conversation
+  |     /autocompact                Set how full the context gets before auto-summarizing
+  |     /claude-api                 Build and debug apps that use the Claude API
+  |     /dataviz                    Chart and dashboard design guidance
+  |     /code-review                Review the current diff or a PR for bugs and cleanups
+<kill>: none
+@: menu 19-28
+  |     + .claude/
+  |     + README.md
+  |     + .agents/
+  |     + src/
+  |     * claude (agent) – Catch-all for any task that doesn't fit a more specific age…
+  |     * claude-code-guide (agent) – Use this agent when the user asks questions ("Can Claude...…
+  |     * Explore (agent) – Fast read-only search agent for locating code. Use it to fi…
+  |     * general-purpose (agent) – General-purpose agent for researching complex questions, se…
+  |     * Plan (agent) – Software architect agent for designing implementation plans…
+  |     * statusline-setup (agent) – Use this agent to configure the user's Claude Code status l…
+s: menu 19-32
+  |     + src/
+  |     * statusline-setup (agent) – Use this agent to configure the user's Claude Code status l…
+  |     * general-purpose (agent) – General-purpose agent for researching complex questions, se…
+  |     + src/auth.ts
+  |     + src/store.ts
+  |     + src/server.ts
+  |     + .agents/
+  |     + .agents/skills/
+  |     + .claude/commands/
+  |     + .agents/skills/sample-skill/
+  |     + .claude/commands/sample-command.md
+  |     + .agents/skills/sample-skill/SKILL.md
+  |     + /project-root/project/.claude/commands/
+  |     + /project-root/project/.claude/commands/sample-command.md
+<kill>: none
+/model: menu 19-27
+  |   ❯ /model                      Set the AI model for Claude Code (currently Opus 5.5)
+  |     /auto-mode-setup            Teach auto mode about your environment, plus optional rule tweaks
+  |     /code-review                Review the current diff or a PR for bugs and cleanups
+  |     /update-config              Change settings: hooks, permissions, environment variables
+  |     /loop                       Repeat a prompt or command on an interval (e.g. /loop 5m /foo)
+  |     /claude-api                 Build and debug apps that use the Claude API
+  |     /effort                     Set effort level for model usage
+  |     /status                     Show Claude Code status including version, model, account, API connectivity, and tool
+  |                                 statuses
+<enter>: view 16-32
+  | ❯ /model
+  | 
+  | ────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+  |   Select model
+  |   Switch between Claude models. Your pick becomes the default for new sessions. For other/previous model names,
+  |   specify with --model.
+  | 
+  |     1. Default (recommended)  Use the default model (currently Opus 5.5) · $4/$20 per Mtok
+  |   ❯ 2. Opus ✔                 Opus 5.5 · Best for everyday, complex tasks · $4/$20 per Mtok
+  |     3. Fable                  Fable 5.1 · Most capable for your hardest and longest-running tasks · $10/$50 per Mtok
+  |     4. Sonnet                 Sonnet 5.5 · Efficient for routine tasks · $2/$10 per Mtok
+  |     5. Haiku                  Haiku 5.5 · Fastest for quick answers · $0.10/$0.50 per Mtok ($0.50/$2.50 for prompts
+  |                               over 100k)
+  | 
+  |   ◐ Medium effort (default) ←/→ to adjust
+  | 
+  |   Enter to set as default · s to use this session only · Esc to cancel
+<down>: view 16-32
+  | ❯ /model
+  | 
+  | ────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+  |   Select model
+  |   Switch between Claude models. Your pick becomes the default for new sessions. For other/previous model names,
+  |   specify with --model.
+  | 
+  |     1. Default (recommended)  Use the default model (currently Opus 5.5) · $4/$20 per Mtok
+  |     2. Opus ✔                 Opus 5.5 · Best for everyday, complex tasks · $4/$20 per Mtok
+  |   ❯ 3. Fable                  Fable 5.1 · Most capable for your hardest and longest-running tasks · $10/$50 per Mtok
+  |     4. Sonnet                 Sonnet 5.5 · Efficient for routine tasks · $2/$10 per Mtok
+  |     5. Haiku                  Haiku 5.5 · Fastest for quick answers · $0.10/$0.50 per Mtok ($0.50/$2.50 for prompts
+  |                               over 100k)
+  | 
+  |   ● High effort (default) ←/→ to adjust
+  | 
+  |   Enter to set as default · s to use this session only · Esc to cancel
+<esc>: none
+<kill>: none
+mid-turn: none
+/: menu 19-38
+  |   ❯ /add-dir                    Add a new working directory
+  |     /auto-mode-setup            Teach auto mode about your environment, plus optional rule tweaks
+  |     /autocompact                Set how full the context gets before auto-summarizing
+  |     /background                 Send this session to the background and free the terminal
+  |     /branch                     Create a branch of the current conversation at this point
+  |     /btw                        Ask a quick side question without interrupting the main conversation
+  |     /bug                        Report a bug or share your conversation
+  |     /cd                         Move this session to a new working directory
+  |     /clear                      Start a new session with empty context; previous session stays on disk (resumable with
+  |                                 /resume)
+  |     /color                      Set the prompt bar color for this session
+  |     /compact                    Free up context by summarizing the conversation so far
+  |     /config                     Open settings
+  |     /context                    Visualize current context usage as a colored grid
+  |     /copy                       Copy Claude's last response to clipboard (or /copy N for the Nth-latest)
+  |     /diff                       Toggle the diff panel showing uncommitted changes
+  |     /effort                     Set effort level for model usage
+  |     /exit                       Exit the CLI
+  |     /export                     Export the current conversation to a file or clipboard
+  |     /fast                       Toggle fast mode (Opus 5.5)
+<kill>: none
+
+# login
+after a reply: none
+/login: menu 31-34
+  |   ❯ /login                      Switch Anthropic accounts
+  |     /plugin-authoring           Write a mod: a live pane, view or behaviour change in Claude Code
+  |     /plugin                     Manage Claude Code plugins
+  |     /reload-plugins             Activate pending plugin changes in the current session
+<enter>: view 28-39
+  | ▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔ ◐ medium · /effort ▔
+  |    Login
+  | 
+  |    Claude Code can be used with your Claude subscription or billed based on API usage through your Console account.
+  | 
+  |    Select login method:
+  | 
+  |    ❯ 1. Claude account with subscription · Pro, Max, Team, or Enterprise
+  |      2. Anthropic Console account · API usage billing
+  |      3. 3rd-party platform · Amazon Bedrock, Microsoft Foundry, Google Vertex AI
+  | 
+  |    Esc to cancel
+<enter>: view 24-39 secret
+  | ▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔ ◐ medium · /effort ▔
+  |    Login
+  | 
+  |    Browser didn't open? Use the url below to sign in (c to copy)
+  | 
+  | https://claude.com/cai/oauth/authorize?code=true&client_id=00000000-0000-0000-0000-000000000000&response_type=code&redir
+  | ect_uri=https%3A%2F%2Fplatform.claude.com%2Foauth%2Fcode%2Fcallback&scope=org%3Acreate_api_key+user%3Aprofile+user%3Ainf
+  | erence+user%3Asessions%3Aclaude_code+user%3Amcp_servers+user%3Afile_upload+user%3Aplugins&code_challenge=csdMUSW9E4Ac4YX
+  | cEFtZBLE-CUwqTpR0Qxxutx-EfM4&code_challenge_method=S256&state=redacted
+  | 
+  |    Hold Shift while selecting to use your terminal's native copy
+  | 
+  | 
+  |    Paste code here if prompted >
+  | 
+  |    Esc to cancel
+#code: view 24-39 secret
+  | ▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔
+  |    Login
+  | 
+  |    Browser didn't open? Use the url below to sign in (c to copy)
+  | 
+  | https://claude.com/cai/oauth/authorize?code=true&client_id=00000000-0000-0000-0000-000000000000&response_type=code&redir
+  | ect_uri=https%3A%2F%2Fplatform.claude.com%2Foauth%2Fcode%2Fcallback&scope=org%3Acreate_api_key+user%3Aprofile+user%3Ainf
+  | erence+user%3Asessions%3Aclaude_code+user%3Amcp_servers+user%3Afile_upload+user%3Aplugins&code_challenge=csdMUSW9E4Ac4YX
+  | cEFtZBLE-CUwqTpR0Qxxutx-EfM4&code_challenge_method=S256&state=redacted
+  | 
+  |    Hold Shift while selecting to use your terminal's native copy
+  | 
+  | 
+  |    Paste code here if prompted >
+  | 
+  |    Esc to cancel
+secret_typed_value: view 24-39 secret
+  | ▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔
+  |    Login
+  | 
+  |    Browser didn't open? Use the url below to sign in (c to copy)
+  | 
+  | https://claude.com/cai/oauth/authorize?code=true&client_id=00000000-0000-0000-0000-000000000000&response_type=code&redir
+  | ect_uri=https%3A%2F%2Fplatform.claude.com%2Foauth%2Fcode%2Fcallback&scope=org%3Acreate_api_key+user%3Aprofile+user%3Ainf
+  | erence+user%3Asessions%3Aclaude_code+user%3Amcp_servers+user%3Afile_upload+user%3Aplugins&code_challenge=csdMUSW9E4Ac4YX
+  | cEFtZBLE-CUwqTpR0Qxxutx-EfM4&code_challenge_method=S256&state=redacted
+  | 
+  |    Hold Shift while selecting to use your terminal's native copy
+  | 
+  | 
+  |    Paste code here if prompted > ************-value
+  | 
+  |    Esc to cancel
+#typed: view 24-39 secret
+  | ▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔
+  |    Login
+  | 
+  |    Browser didn't open? Use the url below to sign in (c to copy)
+  | 
+  | https://claude.com/cai/oauth/authorize?code=true&client_id=00000000-0000-0000-0000-000000000000&response_type=code&redir
+  | ect_uri=https%3A%2F%2Fplatform.claude.com%2Foauth%2Fcode%2Fcallback&scope=org%3Acreate_api_key+user%3Aprofile+user%3Ainf
+  | erence+user%3Asessions%3Aclaude_code+user%3Amcp_servers+user%3Afile_upload+user%3Aplugins&code_challenge=csdMUSW9E4Ac4YX
+  | cEFtZBLE-CUwqTpR0Qxxutx-EfM4&code_challenge_method=S256&state=redacted
+  | 
+  |    Hold Shift while selecting to use your terminal's native copy
+  | 
+  | 
+  |    Paste code here if prompted > ************-value
+  | 
+  |    Esc to cancel
+<esc>: none
+#back: none
+
+# narrow
+@24,80: none
+/: menu 14-18
+  |   ❯ /add-dir                    Add a new working directory
+  |     /auto-mode-setup            Teach auto mode about your environment, plus
+  |                                 optional rule tweaks
+  |     /autocompact                Set how full the context gets before
+  |                                 auto-summarizing
+<down>: menu 14-18
+  |     /add-dir                    Add a new working directory
+  |   ❯ /auto-mode-setup            Teach auto mode about your environment, plus
+  |                                 optional rule tweaks
+  |     /autocompact                Set how full the context gets before
+  |                                 auto-summarizing
+<kill>: none
+
+# latest
+long reply: none
+/: menu 30-34
+  |   ❯ /add-dir                    Add a new working directory
+  |     /auto-mode-setup            Teach auto mode about your environment, plus optional rule tweaks
+  |     /autocompact                Set how full the context gets before auto-summarizing
+  |     /background                 Send this session to the background and free the terminal
+  |     /branch                     Create a branch of the current conversation at this point
+<down>: menu 30-34
+  |     /add-dir                    Add a new working directory
+  |   ❯ /auto-mode-setup            Teach auto mode about your environment, plus optional rule tweaks
+  |     /autocompact                Set how full the context gets before auto-summarizing
+  |     /background                 Send this session to the background and free the terminal
+  |     /branch                     Create a branch of the current conversation at this point
+<kill>: none
+/model: menu 30-34
+  |   ❯ /model                      Set the AI model for Claude Code (currently Opus 5.5)
+  |     /auto-mode-setup            Teach auto mode about your environment, plus optional rule tweaks
+  |     /code-review                Review the current diff or a PR for bugs and cleanups
+  |     /update-config              Change settings: hooks, permissions, environment variables
+  |     /loop                       Repeat a prompt or command on an interval (e.g. /loop 5m /foo)
+<enter>: view 24-39
+  | ▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔
+  |    Select model
+  |    Switch between Claude models. Your pick becomes the default for new sessions. For other/previous model names,
+  |    specify with --model.
+  | 
+  |    ❯ 1. Default (recommended) ✔  Use the default model (currently Opus 5.5) · $4/$20 per Mtok
+  |      2. Opus                     Opus 5.5 · Best for everyday, complex tasks · $4/$20 per Mtok
+  |      3. Fable                    Fable 5.1 · Most capable for your hardest and longest-running tasks · $10/$50 per
+  |                                  Mtok
+  |      4. Sonnet                   Sonnet 5.5 · Efficient for routine tasks · $2/$10 per Mtok
+  |      5. Haiku                    Haiku 5.5 · Fastest for quick answers · $0.10/$0.50 per Mtok ($0.50/$2.50 for
+  |                                  prompts over 100k)
+  | 
+  |    ◐ Medium effort (default) ←/→ to adjust
+  | 
+  |    Enter to set as default · s to use this session only · Esc to cancel
+<esc>: none
+

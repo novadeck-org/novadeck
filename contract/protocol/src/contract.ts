@@ -42,6 +42,7 @@ import { askAnswer, inboxEntry } from "./inbox.js"
 import { terminalMessages, threadId } from "./messages.js"
 import { clientState, folderListing, project, workspaceSession } from "./projects.js"
 import { runnerSettings, runnerSettingsState } from "./settings.js"
+import { sliceChange } from "./slices.js"
 import {
   approval,
   approvalAnswer,
@@ -275,6 +276,13 @@ export const contract = {
     transcript: procedure
       .input(z.strictObject({ terminalId: id, actor: agentRef }))
       .output(eventIterator(transcriptChange)),
+    // The rows of the terminal's screen that stand for something of its harness's own at its
+    // input (a menu at its box, a view of its own, a dialog no adapter reads): a snapshot, then
+    // another on each change, null while nothing shows. It follows the terminal from agent to
+    // agent and ends when the terminal is closed; an unknown terminal is TERMINAL_NOT_FOUND.
+    // Its own stream, apart from `detail`: it changes on every key, and costs a look at the
+    // screen only while someone reads it.
+    slice: procedure.input(z.strictObject({ terminalId: id })).output(eventIterator(sliceChange)),
     // Gives the terminal's agent a prompt as the person would: the text pasted into its own
     // input box as one bracketed paste, then Enter once the paste shows there, the person's
     // keys held meanwhile. A terminal without an agent bound, or one that takes no
@@ -306,6 +314,14 @@ export const contract = {
         }),
       )
       .output(promptResult),
+    // Writes keys to the agent's terminal as the person's, for what shows in `agents.slice`: a
+    // chat holds no control of the terminal (`terminals.write`). A terminal with no agent, or
+    // one held by a request whose dialog the chat answers, is a CONFLICT. A client sends one key
+    // or edit a call, in order, and Enter on its own: a harness reads Enter right behind text
+    // as part of a paste.
+    keys: procedure
+      .input(z.strictObject({ terminalId: id, keys: z.string().min(1).max(1024) }))
+      .output(z.void()),
     // Takes what the agent's input box holds out of it and gives it to the client, as a chat
     // over the terminal is where the person writes: only what reads whole and steady off the
     // screen. Null where nothing was taken, the box's text then still in `agents.detail`'s
@@ -319,6 +335,13 @@ export const contract = {
     putBox: procedure
       .input(z.strictObject({ terminalId: id, text: z.string().min(1).max(16_384) }))
       .output(z.strictObject({ placed: z.boolean() })),
+    // Empties the agent's input box as the person asked, of whatever it holds, which is gone
+    // for good: `seen` is its `text` as `agents.detail`'s `box` showed it to them, and a box
+    // that no longer holds that is left. `cleared` false leaves it as it was, or as the keys
+    // left it, the box still in `box` (see docs/backend-api.md, "One input").
+    clearBox: procedure
+      .input(z.strictObject({ terminalId: id, seen: z.string().min(1).max(16_384) }))
+      .output(z.strictObject({ cleared: z.boolean() })),
     // Answers a request waiting on the person through its dialog in the agent's TUI, as the
     // person would with its keys: the harness's adapter reads the dialog, checks it is the
     // request's, presses what the answer takes, and resolves once the dialog went as

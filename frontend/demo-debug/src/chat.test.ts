@@ -30,7 +30,7 @@ describe("the debug panel's chat failures", () => {
     const conversations = chat.wrap(inner(sent))
     const draft = chat.actions.find((action) => action.label.includes("Draft"))!
     await draft.run({} as never)
-    await expect(conversations.send(key, "one")).rejects.toBeInstanceOf(SettleInTerminal)
+    await expect(conversations.send(key, "one")).rejects.toThrow("Clear it above")
     await conversations.send(key, "two")
     expect(sent).toEqual(["two"])
     const ringing = chat.actions.find((action) => action.label.includes("Doorbell"))!

@@ -28,6 +28,7 @@ import {
   type RequestAnswer,
   type RunnerSettings,
   type RunnerSettingsState,
+  type SliceChange,
   type TerminalChange,
   type TerminalMessages,
   type TerminalRequest,
@@ -268,6 +269,12 @@ export type Runner = {
      */
     detail(terminalId: string): AsyncIterableIterator<AgentDetail, undefined>
     /**
+     * Follows the terminal's live slice: a snapshot, then another on each change, across
+     * reconnections, with a fresh one when the stream is opened again; `slice` is null while
+     * nothing shows. Iteration ends as `detail`'s does.
+     */
+    slice(terminalId: string): AsyncIterableIterator<SliceChange, undefined>
+    /**
      * Follows an actor's conversation, by the ref `detail` names it by: every item its
      * harness recorded, then each later one. After a reconnection the items follow again
      * from the start, after a `reset`. Iteration ends once the terminal's agent has left
@@ -313,8 +320,11 @@ export type Runner = {
      * the person is to clear the box in the terminal.
      */
     interrupt(terminalId: string): Promise<InterruptResult>
+    /** Writes keys to the terminal's agent as the person's. */
+    keys(terminalId: string, keys: string): Promise<void>
     takeBox(terminalId: string): Promise<{ readonly returned: string | null }>
     putBox(terminalId: string, text: string): Promise<{ readonly placed: boolean }>
+    clearBox(terminalId: string, seen: string): Promise<{ readonly cleared: boolean }>
     /**
      * Installs or removes Novadeck's plugin in the agent through its own commands;
      * rejects with `AGENT_SETUP_FAILED` saying why when that did not work.
@@ -632,6 +642,10 @@ export const connectRunner = async (
         followRestarting(connection, (client, signal) =>
           client.agents.detail({ terminalId }, { signal }),
         ),
+      slice: (terminalId) =>
+        followRestarting(connection, (client, signal) =>
+          client.agents.slice({ terminalId }, { signal }),
+        ),
       transcript: (terminalId, actor) =>
         followRestarting<TranscriptChange>(
           connection,
@@ -651,8 +665,11 @@ export const connectRunner = async (
       answer: (terminalId, request, answer) =>
         call((client) => client.agents.answer({ terminalId, request, answer })),
       interrupt: (terminalId) => call((client) => client.agents.interrupt({ terminalId })),
+      keys: (terminalId, keys) => call((client) => client.agents.keys({ terminalId, keys })),
       takeBox: (terminalId) => call((client) => client.agents.takeBox({ terminalId })),
       putBox: (terminalId, text) => call((client) => client.agents.putBox({ terminalId, text })),
+      clearBox: (terminalId, seen) =>
+        call((client) => client.agents.clearBox({ terminalId, seen })),
       set: (agent, connected) => call((client) => client.agents.set({ agent, connected })),
     },
     companions: {

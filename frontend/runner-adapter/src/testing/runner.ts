@@ -170,15 +170,20 @@ export const recordingRunner = (runner: Runner, io: string[]): RunnerApi => {
     agents: {
       list: () => runner.agents.list(),
       detail: (terminalId) => runner.agents.detail(terminalId),
+      slice: (terminalId) => runner.agents.slice(terminalId),
       transcript: (terminalId, actor) => runner.agents.transcript(terminalId, actor),
       prompt: (terminalId, text, options) =>
         note(`prompt ${terminalId}`, () => runner.agents.prompt(terminalId, text, options)),
       interrupt: (terminalId) =>
         note(`interrupt ${terminalId}`, () => runner.agents.interrupt(terminalId)),
+      keys: (terminalId, keys) =>
+        note(`keys ${terminalId}`, () => runner.agents.keys(terminalId, keys)),
       takeBox: (terminalId) =>
         note(`takeBox ${terminalId}`, () => runner.agents.takeBox(terminalId)),
       putBox: (terminalId, text) =>
         note(`putBox ${terminalId}`, () => runner.agents.putBox(terminalId, text)),
+      clearBox: (terminalId, seen) =>
+        note(`clearBox ${terminalId}`, () => runner.agents.clearBox(terminalId, seen)),
       answer: (terminalId, request, answer) =>
         note(`answer ${terminalId} ${request}`, () =>
           runner.agents.answer(terminalId, request, answer),

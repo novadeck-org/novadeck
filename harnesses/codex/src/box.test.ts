@@ -178,3 +178,43 @@ describe("Codex's turn not yet on its screen", () => {
     expect(box.escapeHold!.ms).toBe(1_000)
   })
 })
+
+describe("Codex's views over its box", () => {
+  const keymap = screenOf(
+    "  Keymap",
+    "› composer submit      enter",
+    "  composer newline     ctrl+j",
+    "",
+    "  left/right group · enter edit shortcut · * custom · - unbound · esc close",
+  )
+  const statusline = screenOf(
+    "  Status line",
+    "› model",
+    "  space toggle · ←/→ reorder · enter save · esc cancel",
+  )
+
+  it("tells a list that reads as a box by what Esc does on the last row", () => {
+    expect(box.overlay(keymap)).toBe(true)
+    expect(box.overlay(statusline)).toBe(true)
+  })
+
+  it("leaves a menu's hint over a box that is one", () => {
+    const menu = screenOf(
+      "› Skill Creator    [Skill] Create or update a skill",
+      "",
+      "  enter insert · esc close",
+      "",
+      "› $s",
+      "",
+      "  fake-model default · /project",
+    )
+    expect(box.overlay(menu)).toBe(false)
+  })
+
+  it("leaves the box at rest, mid-turn too", () => {
+    expect(box.overlay(screenOf("› Ask Codex", "", "  ← for agents · ? for shortcuts"))).toBe(false)
+    expect(
+      box.overlay(screenOf("• Working (1s • esc to interrupt)", "› ", "  tab to queue message")),
+    ).toBe(false)
+  })
+})

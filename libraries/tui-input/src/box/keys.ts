@@ -3,7 +3,7 @@ import { setTimeout as sleep } from "node:timers/promises"
 import type { ScreenText } from "@novadeck/emulator/headless"
 
 import type { BoxProfile, InputBox } from "./box.js"
-import { fillsViewport } from "./box.js"
+import { hidesText } from "./box.js"
 import { cursorAtEnd, toEnd } from "./leftover.js"
 import { sameText } from "./text.js"
 
@@ -65,7 +65,7 @@ export const cursorEnded = async (
 ): Promise<ScreenText | undefined> => {
   if (cursorAtEnd(profile, box, screen)) return screen
   const keys = toEnd(box, screen)
-  if (keys === undefined || fillsViewport(profile, box, screen.rows.length)) return undefined
+  if (keys === undefined || hidesText(profile, box, screen.rows.length)) return undefined
   return await pressKeys(host, timing, keys, (after) => {
     const read = profile.read(after)
     return read !== undefined && sameText(read.text, box.text)

@@ -1,11 +1,13 @@
 import type {
   AgentDetail,
+  SliceChange,
   TerminalChange,
   TerminalMessages,
   TerminalSummary,
 } from "@novadeck/protocol"
 import { Latest } from "@novadeck/wire/server"
 
+import { Slices, type Slicing } from "./slices.js"
 import { TerminalWatcher } from "./watcher.js"
 
 export type StreamsHost<R> = {
@@ -19,6 +21,8 @@ export type StreamsHost<R> = {
   readonly detailOpened: (terminalId: string) => void
   /** A terminal's threads and messages with their states. */
   readonly messages: (terminalId: string) => TerminalMessages
+  /** What a look at a terminal's live slice takes, with an agent bound there. */
+  readonly slicing: (terminalId: string) => Slicing | undefined
 }
 
 /**
@@ -33,7 +37,12 @@ export class Streams<R extends { readonly summary: { readonly id: string } }> {
   /** Each terminal's `messages.watch` readers. */
   private readonly messages = new Map<string, Set<Latest<TerminalMessages>>>()
 
-  constructor(readonly host: StreamsHost<R>) {}
+  /** Each terminal's `agents.slice` readers. */
+  private readonly slices: Slices
+
+  constructor(readonly host: StreamsHost<R>) {
+    this.slices = new Slices((terminalId) => host.slicing(terminalId))
+  }
 
   /**
    * A `changed` for every terminal `list` gives, `synced`, then later changes, until the
@@ -81,6 +90,11 @@ export class Streams<R extends { readonly summary: { readonly id: string } }> {
     )
   }
 
+  /** The terminal's live slice, then another on each change, until it is finished or `signal` aborts. */
+  watchSlice(terminalId: string, signal: AbortSignal | undefined): AsyncGenerator<SliceChange> {
+    return this.slices.watch(terminalId, signal)
+  }
+
   /** The terminal's listing, then another on each change, until it is finished or `signal` aborts. */
   watchMessages(
     terminalId: string,
@@ -96,10 +110,17 @@ export class Streams<R extends { readonly summary: { readonly id: string } }> {
 
   /** Tells the terminal's detail readers of a change; each drops one it already has. */
   detailed(record: R): void {
+    // Its requests are among what changed, which tell what a slice may show.
+    this.slices.changed(record.summary.id)
     const readers = this.details.get(record.summary.id)
     if (!readers) return
     const detail = this.host.detail(record)
     for (const reader of readers) reader.push(detail)
+  }
+
+  /** Tells the terminal's slice readers something reached its screen. */
+  drawn(terminalId: string): void {
+    this.slices.changed(terminalId)
   }
 
   /** Tells the terminal's message watchers what its listing says now. */
@@ -116,8 +137,9 @@ export class Streams<R extends { readonly summary: { readonly id: string } }> {
     return this.messages.keys()
   }
 
-  /** Ends the terminal's detail and messages streams, as it is closed. */
+  /** Ends the terminal's detail, slice and messages streams, as it is closed. */
   end(terminalId: string): void {
+    this.slices.end(terminalId)
     for (const streams of [this.details, this.messages]) {
       for (const reader of streams.get(terminalId) ?? []) reader.finish()
       streams.delete(terminalId)
@@ -134,8 +156,9 @@ export class Streams<R extends { readonly summary: { readonly id: string } }> {
     for (const watcher of this.watchers.keys()) watcher.finish()
   }
 
-  /** Ends every detail and messages stream, as the runner shuts down. */
+  /** Ends every detail, slice and messages stream, as the runner shuts down. */
   finishReaders(): void {
+    this.slices.finish()
     for (const streams of [this.details, this.messages])
       for (const readers of streams.values()) for (const reader of readers) reader.finish()
   }

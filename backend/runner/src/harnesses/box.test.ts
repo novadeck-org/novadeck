@@ -786,3 +786,26 @@ describe("what ticks by itself while background work runs", () => {
     expect(agy.still!(empty)).toEqual(empty)
   })
 })
+
+describe("Antigravity's box cut short", () => {
+  const box = (text: string) => ({ text, mode: "prompt" as const, first: 0, last: 1 })
+
+  it("says so where its own row stands in the text", () => {
+    expect(agy.cut?.(box("↑ 10 more lines\nqueued line 11"))).toBe(true)
+    expect(agy.cut?.(box("↑ 1 more line\nqueued line 2"))).toBe(true)
+    expect(agy.cut?.(box("queued line 1\nqueued line 2\n↓ 10 more lines"))).toBe(true)
+    expect(agy.cut?.(box("↑ 1 more line\nqueued line 2\n↓ 9 more lines"))).toBe(true)
+  })
+
+  it("reads what it shows without those rows", () => {
+    expect(agy.uncut?.("↑ 10 more lines\none\ntwo")).toBe("one\ntwo")
+    expect(agy.uncut?.("one\ntwo\n↓ 10 more lines")).toBe("one\ntwo")
+    expect(agy.uncut?.("↑ 1 more line\none\n↓ 9 more lines")).toBe("one")
+    expect(agy.uncut?.("one\n↑ 10 more lines\ntwo")).toBe("one\n↑ 10 more lines\ntwo")
+  })
+
+  it("doesn't take the words within the person's text for it", () => {
+    expect(agy.cut?.(box("there are ↑ 10 more lines\nsee?"))).toBe(false)
+    expect(agy.cut?.(box("queued line 1"))).toBe(false)
+  })
+})

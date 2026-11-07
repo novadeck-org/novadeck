@@ -1,4 +1,5 @@
 import {
+  SettleInTerminal,
   noConversation,
   withReturned,
   type ChatItem,
@@ -50,6 +51,7 @@ const open = (
     sends,
     takeBox,
     putBox,
+    clearBox,
     chatView = true,
   }: {
     readonly interrupt?: () => Promise<string | null>
@@ -58,6 +60,7 @@ const open = (
     readonly sends?: () => void
     readonly takeBox?: Conversations["takeBox"]
     readonly putBox?: Conversations["putBox"]
+    readonly clearBox?: Conversations["clearBox"]
     readonly chatView?: boolean
   } = {},
 ) => {
@@ -79,6 +82,7 @@ const open = (
     refused: refusing(),
     ...(takeBox && { takeBox }),
     ...(putBox && { putBox }),
+    ...(clearBox && { clearBox }),
   }
   const chat = createChat()
   const commands = createChatCommands({
@@ -169,6 +173,24 @@ describe("the chat's send queue", () => {
     expect(draft()).toBe("came back\nthe message")
   })
 
+  it("leaves the box to a menu of the harness's own, and to the chat's own keys", async () => {
+    const taken = vi.fn<NonNullable<Conversations["takeBox"]>>(async () => "taken")
+    const box = { text: "look at @sr", mode: "prompt", tail: false, known: false } as const
+    const menu = { reason: "menu", columns: 80, rows: [[]], cursor: null, secret: false } as const
+    const withMenu = open("s1", { takeBox: taken })
+    withMenu.tell({ box, slice: menu })
+    await withMenu.commands.takeBox(key)
+    const typing = open("s1", { takeBox: taken })
+    typing.tell({ box })
+    typing.commands.setChatDraft("01", "look at @src")
+    await typing.commands.takeBox(key)
+    const passing = open("s1", { takeBox: taken })
+    passing.tell({ box: { ...box, text: "look at @src/file.ts" } })
+    passing.commands.setChatPassing("01", true)
+    await passing.commands.takeBox(key)
+    expect(taken).not.toHaveBeenCalled()
+  })
+
   it("waits for a take on its way before it puts the draft back", async () => {
     let finish: (words: string) => void = () => {}
     const put: string[] = []
@@ -219,6 +241,22 @@ describe("the chat's send queue", () => {
     await commands.takeBox(key)
     expect(asked).toEqual([])
     expect(draft()).toBe("from the chat")
+  })
+
+  it("clears the box the person was shown, whatever it holds by now", async () => {
+    const asked: unknown[] = []
+    let cleared = true
+    const { commands, tell } = open("s1", {
+      clearBox: async (at, seen) => {
+        asked.push([at, seen])
+        return cleared
+      },
+    })
+    tell({ box: { text: "/typed since", mode: "prompt", tail: false, known: false } })
+    await commands.clearBox(key, "/model")
+    expect(asked).toEqual([[key, "/model"]])
+    cleared = false
+    await expect(commands.clearBox(key, "/model")).rejects.toBeInstanceOf(SettleInTerminal)
   })
 
   it("adds nothing a paste that landed unseen left in both", async () => {

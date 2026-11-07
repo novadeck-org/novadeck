@@ -165,6 +165,7 @@ describe("an Inbox row's agent context", () => {
     expect(seen.at(-1)).toBeUndefined()
     act(() => {
       conversation.update(() => ({
+        slice: null,
         agent: "claude",
         session: "x",
         loaded: true,

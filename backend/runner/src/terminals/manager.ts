@@ -4,6 +4,7 @@ import { hookShellSlackMs } from "@novadeck/harness-core/hook-command"
 import type { AskAnswer, InboxEntry } from "@novadeck/protocol"
 import type {
   AgentDetail,
+  SliceChange,
   AgentName,
   InterruptResult,
   Approval,
@@ -57,6 +58,7 @@ import { Companion } from "./companion.js"
 import { Murmur, type MurmurTimes } from "./descriptions.js"
 import { type DialogsOptions } from "./dialogs.js"
 import { agentWorking } from "./doorbell-host.js"
+import { agentProcess, shutdownTreeGraceMs, shutdownTreesMs, treeGraceMs } from "./ending.js"
 import { failed } from "./failures.js"
 import { restored } from "./interrupted.js"
 import { Launcher, startedIn, startFailed } from "./launching.js"
@@ -73,6 +75,7 @@ import { Sampler, shellProcess } from "./sampling.js"
 import { hasRun, keptState, type TerminalRecords } from "./saved-terminals.js"
 import { Saves } from "./saving.js"
 import type { TranscriptSealer } from "./sealing.js"
+import { slicingOf } from "./slices.js"
 import { StartupWatch } from "./startup-watch.js"
 import { Streams } from "./streams.js"
 import { noAgent, savedSummaryOf, summaryOf, type AgentSummary } from "./summary.js"
@@ -229,20 +232,6 @@ const alive = (pid: string): boolean => {
     return (error as NodeJS.ErrnoException).code === "EPERM"
   }
 }
-
-// How long a closed Windows terminal's programs have to end by themselves once its
-// console closes, as they do on its CTRL_CLOSE_EVENT, saving what they were writing, in
-// milliseconds: within the five seconds Windows gives them. What is left of the terminal's
-// tree then, as a hook's shell in a console of its own, is ended. Shorter as the runner
-// shuts down, which the app gives five seconds in all (apps/desktop/src/main/runner.ts).
-const treeGraceMs = 3_000
-const shutdownTreeGraceMs = 1_000
-
-// How long ending terminals' trees may take in all as the runner shuts down, in
-// milliseconds: every relay run, taskkill and grace then takes its time from this, within
-// the five seconds the app gives the runner, with room for a shell's exit (its own 1 s wait)
-// and for closing the rest of the runner after.
-const shutdownTreesMs = 3_000
 
 const positive = (value: number | undefined, fallback: number): number => {
   const result = value ?? fallback
@@ -416,6 +405,7 @@ export class Terminals {
       scrollback: 1000,
       kill: { graceMs: 1000, treeGraceMs, shutdownTreesMs, shutdownTreeGraceMs },
       trees: this.trees,
+      follows: (id) => agentProcess(this.records.get(id)),
       pty: this.pty,
       failed: failed.terminal,
     })
@@ -497,6 +487,12 @@ export class Terminals {
         ),
       detailOpened: (terminalId) => this.typing.boxes.changed(terminalId),
       messages: (terminalId) => this.messages(terminalId),
+      slicing: (terminalId) =>
+        slicingOf(
+          this.records.get(terminalId),
+          this.typing.dialogs.view(terminalId),
+          this.messaging.shownAgent(terminalId),
+        ),
     })
     this.names = new Names<Record>(options, this.saves, this.streams, {
       stopping: () => this.stopping,
@@ -953,9 +949,19 @@ export class Terminals {
     return this.typing.prompt(input.terminalId, input.text, input.automatic, input.ref, input.along)
   }
 
+  /** Writes keys as the person's, as a chat passes them on (see `Typing.keys`). */
+  keys(input: { terminalId: string; keys: string }): void {
+    this.typing.keys(input.terminalId, input.keys)
+  }
+
   /** Takes what the agent's box holds, for the client's draft (see `Typing.takeBox`). */
   takeBox(terminalId: string): Promise<{ returned: string | null }> {
     return this.typing.takeBox(terminalId)
+  }
+
+  /** Empties the agent's box of what the person was shown (see `Typing.clearBox`). */
+  clearBox(input: { terminalId: string; seen: string }): Promise<{ cleared: boolean }> {
+    return this.typing.clearBox(input.terminalId, input.seen)
   }
 
   /** Puts a client's draft in the agent's box, with no Enter (see `Typing.putBox`). */
@@ -1374,6 +1380,12 @@ export class Terminals {
     yield* this.streams.watchDetail(record, signal)
   }
 
+  /** The terminal's live slice, then another on each change (see `slices.ts`). */
+  async *slice(terminalId: string, signal?: AbortSignal): AsyncGenerator<SliceChange> {
+    if (this.stopping) throw new DomainError("CLOSING")
+    yield* this.streams.watchSlice(this.record(terminalId).summary.id, signal)
+  }
+
   /** Closes another terminal of the caller's project and session (see `Calls.closePeer`). */
   closePeer(call: Call): Promise<CloseAnswer> {
     return this.calls.closePeer(call)
@@ -1632,6 +1644,7 @@ export class Terminals {
     terminal.on("drawn", () => {
       this.typing.doorbellChanged(record.summary.id)
       this.typing.dialogsChanged(record.summary.id)
+      this.streams.drawn(record.summary.id)
       // Once on the screen: a save while it was drawing may have taken the screen before.
       record.screenChanged = true
     })

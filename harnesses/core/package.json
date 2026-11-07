@@ -83,6 +83,11 @@
       "types": "./dist/shapes.d.ts",
       "default": "./dist/shapes.js"
     },
+    "./slices": {
+      "development": "./src/slices.ts",
+      "types": "./dist/slices.d.ts",
+      "default": "./dist/slices.js"
+    },
     "./testing/dialogs": {
       "development": "./src/testing/dialogs.ts",
       "types": "./dist/testing/dialogs.d.ts",
@@ -92,6 +97,11 @@
       "development": "./src/testing/probes.ts",
       "types": "./dist/testing/probes.d.ts",
       "default": "./dist/testing/probes.js"
+    },
+    "./testing/slices": {
+      "development": "./src/testing/slices.ts",
+      "types": "./dist/testing/slices.d.ts",
+      "default": "./dist/testing/slices.js"
     },
     "./testing/reports": {
       "development": "./src/testing/reports.ts",

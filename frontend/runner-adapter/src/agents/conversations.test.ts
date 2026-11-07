@@ -5,7 +5,7 @@ import {
   WordsLost,
 } from "@novadeck/core/conversation"
 import { promptRefusal } from "@novadeck/core/conversation/prompt-refusal"
-import type { AgentDetail, TranscriptChange, TranscriptItem } from "@novadeck/protocol"
+import type { AgentDetail, SliceChange, TranscriptChange, TranscriptItem } from "@novadeck/protocol"
 import { WireError } from "@novadeck/wire"
 import { afterEach, beforeEach, vi } from "vitest"
 
@@ -13,6 +13,7 @@ import { describe, expect, it } from "../test"
 import { channel } from "../testing/channel"
 import {
   createRunnerConversations,
+  enterGapMs,
   failuresToLoaded,
   graceMs,
   loadedMs,
@@ -62,9 +63,12 @@ const key = { projectId: "p", workspaceSessionId: "s", terminalId: "t" }
 
 const setup = () => {
   const details = channel<AgentDetail>()
+  const slices = channel<SliceChange>()
   const transcripts: Record<string, ReturnType<typeof channel<TranscriptChange>>> = {}
   const streams = {
     detail: vi.fn<ConversationStreams["detail"]>(() => details.iterator),
+    slice: vi.fn<ConversationStreams["slice"]>(() => slices.iterator),
+    keys: vi.fn<ConversationStreams["keys"]>(async () => {}),
     transcript: vi.fn<ConversationStreams["transcript"]>((_terminal, actor) => {
       const next = channel<TranscriptChange>()
       transcripts[actor] = next
@@ -76,12 +80,13 @@ const setup = () => {
     })),
     interrupt: vi.fn<ConversationStreams["interrupt"]>(async () => ({ returned: null })),
     takeBox: vi.fn<ConversationStreams["takeBox"]>(async () => ({ returned: null })),
+    clearBox: vi.fn<ConversationStreams["clearBox"]>(async () => ({ cleared: true })),
     putBox: vi.fn<ConversationStreams["putBox"]>(async () => ({ placed: false })),
     answer: vi.fn<ConversationStreams["answer"]>(async () => {}),
   }
   const conversations = createRunnerConversations(streams)
   const store = conversations.conversation(key)
-  return { details, transcripts, streams, conversations, store }
+  return { details, slices, transcripts, streams, conversations, store }
 }
 
 const settle = () => vi.advanceTimersByTimeAsync(0)
@@ -99,6 +104,40 @@ describe("the runner's conversations", () => {
       store.subscribe(() => {})
       expect(streams.detail).toHaveBeenCalledTimes(1)
       stop()
+    })
+
+    it("carries the terminal's live slice, through a new snapshot of the agent", async () => {
+      const { details, slices, store } = setup()
+      store.subscribe(() => {})
+      details.push(detail())
+      await settle()
+      expect(store.getSnapshot().slice).toBeNull()
+      const slice = {
+        reason: "menu" as const,
+        columns: 80,
+        rows: [],
+        cursor: null,
+        secret: false,
+      }
+      slices.push({ slice })
+      await settle()
+      expect(store.getSnapshot().slice).toEqual(slice)
+      details.push(detail())
+      await settle()
+      expect(store.getSnapshot().slice).toEqual(slice)
+      slices.push({ slice: null })
+      await settle()
+      expect(store.getSnapshot().slice).toBeNull()
+    })
+
+    it("ends the slice's stream with the others", async () => {
+      const { details, slices, store } = setup()
+      const unsubscribe = store.subscribe(() => {})
+      details.push(detail())
+      await settle()
+      unsubscribe()
+      await vi.advanceTimersByTimeAsync(graceMs)
+      expect(slices.returned()).toBe(1)
     })
 
     it("counts a session whose transcript stays empty as loaded after a moment", async () => {
@@ -689,6 +728,44 @@ describe("the runner's conversations", () => {
     })
   })
 
+  describe("keys", () => {
+    it("writes them in order, each after the one before", async () => {
+      const { streams, conversations } = setup()
+      const seen: string[] = []
+      let release = (): void => {}
+      streams.keys.mockImplementation(async (_terminal, keys) => {
+        seen.push(keys)
+        if (keys === "/") await new Promise<void>((resolve) => (release = resolve))
+      })
+      void conversations.keys?.(key, "/")
+      void conversations.keys?.(key, "m")
+      await settle()
+      expect(seen).toEqual(["/"])
+      release()
+      await settle()
+      expect(seen).toEqual(["/", "m"])
+    })
+
+    it("holds Enter a moment behind the keys before it", async () => {
+      const { streams, conversations } = setup()
+      void conversations.keys?.(key, "/model")
+      await settle()
+      void conversations.keys?.(key, "\r")
+      await settle()
+      expect(streams.keys).toHaveBeenCalledTimes(1)
+      await vi.advanceTimersByTimeAsync(enterGapMs)
+      expect(streams.keys).toHaveBeenLastCalledWith("t", "\r")
+    })
+
+    it("goes on after a key that failed, and says so", async () => {
+      const { streams, conversations } = setup()
+      streams.keys.mockRejectedValueOnce(new Error("gone"))
+      await expect(conversations.keys?.(key, "/")).rejects.toThrow()
+      await conversations.keys?.(key, "m")
+      expect(streams.keys).toHaveBeenLastCalledWith("t", "m")
+    })
+  })
+
   describe("sending", () => {
     it("gives a failure the words it took out of the agent's box, whatever it was", async () => {
       const { conversations, streams } = setup()
@@ -718,6 +795,21 @@ describe("the runner's conversations", () => {
       expect(streams.putBox).toHaveBeenCalledWith("t", "draft")
       streams.putBox.mockRejectedValueOnce(new WireError("CONFLICT"))
       await expect(conversations.putBox?.(key, "draft")).resolves.toBe(false)
+    })
+
+    it("clears the agent's box, a failure telling why", async () => {
+      const { conversations, streams } = setup()
+      streams.clearBox.mockResolvedValueOnce({ cleared: true })
+      await expect(conversations.clearBox?.(key, "/model")).resolves.toBe(true)
+      expect(streams.clearBox).toHaveBeenCalledWith("t", "/model")
+      streams.clearBox.mockResolvedValueOnce({ cleared: false })
+      await expect(conversations.clearBox?.(key, "/model")).resolves.toBe(false)
+      streams.clearBox.mockRejectedValueOnce(
+        new WireError("CONFLICT", "The runner's own words", { data: { reason: "pending" } }),
+      )
+      await expect(conversations.clearBox?.(key, "/model")).rejects.toThrow(
+        "waiting for your answer",
+      )
     })
 
     it("hands on the words a prompt took out of the agent's box", async () => {
@@ -834,9 +926,18 @@ describe("the runner's conversations", () => {
         )
         return conversations.send(key, "hi").catch((failure: unknown) => failure)
       }
-      const draft = await failing({ reason: "draft" })
-      expect(draft).toBeInstanceOf(SettleInTerminal)
-      expect(draft).toHaveProperty("message", expect.stringContaining("already holds text"))
+      // The chat clears the box itself: none of these sends the person to the terminal.
+      for (const [reason, words] of [
+        ["draft", "already holds text"],
+        ["shell", "shell mode"],
+        ["command", "a command it hasn't run"],
+      ] as const) {
+        // eslint-disable-next-line no-await-in-loop -- Each arms the next send's failure.
+        const box = await failing({ reason })
+        expect(box).not.toBeInstanceOf(SettleInTerminal)
+        expect(box).toHaveProperty("message", expect.stringContaining(words))
+        expect(box).toHaveProperty("message", expect.stringContaining("Clear it above"))
+      }
       const ringing = await failing({ reason: "ringing" })
       expect(ringing).not.toBeInstanceOf(SettleInTerminal)
       expect(ringing).toHaveProperty("message", expect.stringContaining("in a moment"))

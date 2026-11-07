@@ -1,7 +1,7 @@
 import type { ScreenText } from "@novadeck/emulator/headless"
 import { cells } from "@novadeck/emulator/width"
 
-import { fillsViewport, isEmpty, type BoxProfile, type InputBox } from "./box.js"
+import { hidesText, isEmpty, type BoxProfile, type InputBox } from "./box.js"
 
 /**
  * What a program's input box holds as something more would go in, as the screen says. It says
@@ -12,7 +12,7 @@ import { fillsViewport, isEmpty, type BoxProfile, type InputBox } from "./box.js
  * - `command`: it holds what its program runs as a command (a leading `/` or `!`), which more
  *   text would only become the arguments of;
  * - `text`: it holds words, which what follows would go out with.
- * `tail` says the box may show only the end of what it holds (see `fillsViewport`).
+ * `tail` says the box may show only the end of what it holds (see `hidesText`).
  */
 export type Leftover =
   | { readonly kind: "none" }
@@ -26,7 +26,7 @@ export const menuRow = (text: string): boolean => /^\d+[.)]\s/.test(text.trimSta
 export const leftoverOf = (profile: BoxProfile, screen: ScreenText): Leftover => {
   const box = profile.read(screen)
   if (!box || profile.overlay(screen)) return { kind: "none" }
-  const tail = fillsViewport(profile, box, screen.rows.length)
+  const tail = hidesText(profile, box, screen.rows.length)
   if (box.mode === "shell") return { kind: "shell", box, tail }
   if (isEmpty(box)) return { kind: "empty", box }
   if (menuRow(box.text)) return { kind: "none" }
