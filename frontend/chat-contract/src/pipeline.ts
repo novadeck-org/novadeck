@@ -118,6 +118,17 @@ const unknownBlock = (block: Element): Error =>
 // One line of a golden per block, from what the DOM shows. A folded run is opened, each of
 // its rows too, so what they hold is read.
 const lineOf = (block: Element): { line: string; rows: number } => {
+  // A line of the record no one said: what it says, then what it opens to.
+  if (block.matches(".chat-record")) {
+    const line = block.querySelector(".chat-tool-summary")!
+    if (line.matches("button")) click(line)
+    const body = block.querySelector(".chat-tool-part")
+    const kind = block.getAttribute("data-kind")
+    return {
+      line: `${kind}: ${textOf(line)} → ${body ? partOf(body) : "nothing to open"}`,
+      rows: 0,
+    }
+  }
   if (block.matches(".chat-tools")) {
     const fold = block.querySelector("button.chat-tools-fold")
     // A fold that starts open (a live run's) says so; a finished one starts shut.
@@ -130,10 +141,11 @@ const lineOf = (block: Element): { line: string; rows: number } => {
   }
   if (block.matches(".chat-note")) return { line: `note: ${textOf(block)}`, rows: 0 }
   if (block.getAttribute("data-role") === "doorbell") {
-    const brought = [...block.querySelectorAll('[data-role="agent"]')].map((message) => {
+    const brought = [...block.querySelectorAll(":scope > [data-role]")].map((message) => {
       const words = message.cloneNode(true) as Element
       words.querySelector(".chat-author")?.remove()
-      return `${message.querySelector(".chat-author")?.textContent ?? ""}: ${textOf(words)}`
+      const from = message.querySelector(".chat-author")?.textContent ?? "you"
+      return `${from}: ${textOf(words)}`
     })
     const line = textOf(block.querySelector(":scope > .chat-note")!)
     return { line: `doorbell: ${[line, ...brought].join(" | ")}`, rows: 0 }

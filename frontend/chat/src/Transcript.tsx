@@ -13,29 +13,38 @@ const Shortened = (): React.JSX.Element => (
   <p className="chat-shortened">Shortened here; the rest isn't carried over.</p>
 )
 
-// The line a turn the doorbell started stands as: `doorbell` alone where what it brought isn't
-// known, which is no saying that it brought nothing.
-const ringLabel = ({ messages, replies }: Extract<ChatBlock, { kind: "doorbell" }>): string => {
-  if (messages) return `doorbell · ${counted(messages.length, "message")}`
-  return replies ? "doorbell · your reply" : "doorbell"
-}
+// What a turn the doorbell started brought: other agents' messages, and the person's own answers
+// through the Inbox, which are theirs and read as such.
+type Ring = Extract<ChatBlock, { kind: "doorbell" }>
+const fromAgents = ({ messages }: Ring) =>
+  messages?.filter(({ from }) => from.kind === "agent") ?? []
+const fromPerson = ({ messages }: Ring) =>
+  messages?.filter(({ from }) => from.kind === "person") ?? []
 
-// Who a message the doorbell brought is from: another agent by its handle, or the person's own
-// answer through the Inbox.
-const partyName = (party: MessageParty): string =>
-  party.kind === "agent" ? `@${party.handle}` : "you"
+// What the doorbell's line says it brought, after `doorbell`: nothing where that isn't known,
+// which is no saying that it brought nothing.
+const ringBrought = (ring: Ring): string =>
+  [
+    ...(fromAgents(ring).length > 0 ? [counted(fromAgents(ring).length, "message")] : []),
+    ...(ring.replies || fromPerson(ring).length > 0 ? ["your reply"] : []),
+  ].join(", ")
+
+// Another agent's handle.
+const handleOf = (party: MessageParty): string => (party.kind === "agent" ? `@${party.handle}` : "")
 
 // A line of the record that is no one's words: a compaction, a part the chat can't read. It reads
 // as a tool line does, dim, and opens to what it holds, where it holds anything.
 const RecordLine = ({
   kind,
   words,
+  what,
   said,
   body,
   truncated,
 }: {
   readonly kind: "compaction" | "gap"
   readonly words: string
+  readonly what?: string
   readonly said: string | null
   readonly body: string
   readonly truncated: boolean
@@ -46,7 +55,13 @@ const RecordLine = ({
   const line = (
     <>
       <span className="chat-tool-title">{words}</span>
-      {said && <span className="chat-tool-end"> · {said}</span>}
+      {what && (
+        <>
+          {" "}
+          <span className="chat-tool-detail">{what}</span>
+        </>
+      )}
+      {said && opens && <span className="chat-tool-end"> · {said}</span>}
     </>
   )
   return (
@@ -129,34 +144,51 @@ const BlockView = memo(
         )
       case "note":
         return <p className="chat-note">{block.text}</p>
-      case "doorbell":
+      case "doorbell": {
+        const brought = ringBrought(block)
         return (
           <article
             className="chat-message chat-ring"
             data-role="doorbell"
-            aria-label={`Doorbell: ${ringLabel(block)}`}
+            aria-label={brought ? `Doorbell, ${brought}` : "Doorbell"}
           >
             {/* The block hollow: a prompt, and not the person's. */}
             <Mark hollow />
-            <p className="chat-note">{ringLabel(block)}</p>
-            {block.messages?.map((message) => (
-              <div
+            <p className="chat-note">{brought ? `doorbell · ${brought}` : "doorbell"}</p>
+            {fromAgents(block).map((message) => (
+              <article
                 key={message.id}
                 className="chat-message"
                 data-role="agent"
-                aria-label={`Message from ${partyName(message.from)}`}
+                aria-label={`Message from ${handleOf(message.from)}`}
               >
-                <p className="chat-author">{partyName(message.from)}</p>
+                <p className="chat-author">{handleOf(message.from)}</p>
                 <Markdown text={message.text} />
-              </div>
+              </article>
+            ))}
+            {fromPerson(block).map((message) => (
+              <article
+                key={message.id}
+                className="chat-message chat-ring-reply"
+                data-role="user"
+                aria-label="You, from the Inbox"
+              >
+                <Mark />
+                <p className="chat-text">
+                  {message.text} <span className="chat-sent-tag">from the Inbox</span>
+                </p>
+              </article>
             ))}
           </article>
         )
+      }
       case "compaction":
         return (
           <RecordLine
             kind="compaction"
-            words="compacted the conversation"
+            words="compacted"
+            what="the conversation"
+            // Codex keeps its summary sealed: there is none to open, so none is said to be kept.
             said="summary kept"
             body={block.summary}
             truncated={block.truncated}

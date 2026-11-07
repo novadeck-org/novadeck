@@ -18,6 +18,8 @@
    data-running and data-failed on a tool line, aria-expanded on its button, `.chat-tool-failed`
    on what says a call failed; data-sign="+" |
    "-" | " " on a line of a diff (`.chat-diff`); data-folded on a long run of calls;
+   `.chat-ring` (data-role="doorbell") for a turn the doorbell started, data-hollow on its mark;
+   `.chat-record` with data-kind="compaction" | "gap" for a line of the record no one said;
    data-kind="permission" | "question" | "plan" and data-dialog="choices" | "questions" |
    "form" | "raw" | "none" on a request; `.chat-option` a row of a dialog's menu, data-on on the
    one the person is on, data-open on one that takes words; aria-selected on a question's tab
@@ -239,9 +241,16 @@
   margin: 0;
   color: var(--_muted);
 }
-/* What the doorbell brought, in ink, under its line. */
-.chat-ring > .chat-message[data-role="agent"] {
-  max-width: none;
+/* The person's answer the doorbell typed is their line, under the doorbell's. */
+.chat-ring-reply {
+  font-weight: 600;
+}
+/* A record's line with nothing to open is a line, not a key. */
+.chat-record p.chat-tool-summary {
+  cursor: default;
+}
+.chat-record p.chat-tool-summary:hover {
+  color: inherit;
 }
 
 /* The agent's formatted text: the terminal's, flat. The rest of it is the toolkit's

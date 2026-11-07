@@ -987,7 +987,7 @@ const transcriptsAt = (now: number): Readonly<Record<string, DemoTranscript>> =>
 })
 
 // The agents demo's transcripts, by terminal, with what the doorbell brought Codex's review: a
-// question from @moth, rung in while it worked.
+// question from @moth, rung in between its turns.
 export const agentTranscripts = (now: number): Readonly<Record<string, DemoTranscript>> => {
   const all = transcriptsAt(now)
   const review = all["04"]!
