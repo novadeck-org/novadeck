@@ -14,7 +14,7 @@ import {
   openMessagesDemo,
   pauseSwitch,
 } from "../support/messages"
-import { confirmClose, sidebarRenameField, tabAction } from "../support/terminals"
+import { closeLeadOnly, confirmClose, sidebarRenameField, tabAction } from "../support/terminals"
 import {
   expectStaysAbsent,
   recordChanges,
@@ -310,7 +310,7 @@ describe("A terminal an agent opened", () => {
     await openMessagesDemo()
     await terminalTab("Checkout implementation").click()
     await tabAction("Close Checkout implementation").click()
-    await confirmClose()
+    await closeLeadOnly("moth")
     await terminalTab("Checkout review").click()
     await expect.element(page.getByRole("heading", { name: "Checkout review" })).toBeVisible()
     await expectStaysAbsent(page.getByText(/^led by @moth/))
@@ -401,7 +401,7 @@ describe("A team in the sidebar", () => {
     await openMessagesDemo()
     await terminalTab("Checkout implementation").click()
     await tabAction("Close Checkout implementation").click()
-    await confirmClose()
+    await closeLeadOnly("moth")
     await terminalTab("Checkout review").click()
     await expect.poll(() => teamMark("Checkout review")).toBeNull()
     expect(document.querySelectorAll(".team-wire-segment")).toHaveLength(0)

@@ -1,4 +1,16 @@
 import { ConfirmDialog } from "@novadeck/toolkit/ConfirmDialog"
+import { SubjectBar, SubjectDetail, SubjectName, SubjectSide } from "@novadeck/toolkit/SubjectBar"
+import { Terminal } from "lucide-react"
+
+const crashBar = (count: number): React.JSX.Element => (
+  <SubjectBar>
+    <SubjectSide>
+      <Terminal size={14} strokeWidth={1.5} aria-hidden="true" />
+      <SubjectName>Runner</SubjectName>
+    </SubjectSide>
+    <SubjectDetail end>{count} crashes in a minute</SubjectDetail>
+  </SubjectBar>
+)
 
 // Tells the person the backend stopped restarting their terminals after repeated crashes,
 // and offers to try again. "Try again" is focused first, as retrying is the safe choice;
@@ -15,10 +27,9 @@ export const CrashLoopDialog = ({
 }): React.JSX.Element => (
   <ConfirmDialog
     subject={crashes}
-    title={() => "The runner keeps crashing"}
-    description={(count) =>
-      `Novadeck stopped restarting your terminals after ${count} crashes in a minute.`
-    }
+    bar={crashBar}
+    title={() => "It keeps crashing"}
+    description={() => "Novadeck stopped restarting your terminals."}
     confirmLabel="Try again"
     cancelLabel="Not now"
     onConfirm={onRetry}

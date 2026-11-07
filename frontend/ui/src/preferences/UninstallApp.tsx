@@ -2,6 +2,8 @@ import type { OfferedUninstall, UninstallResult } from "@novadeck/core/desktop/u
 import type { AgentName } from "@novadeck/core/harnesses"
 import { Checkbox } from "@novadeck/toolkit/Checkbox"
 import { Dialog, DialogDescription, DialogTitle } from "@novadeck/toolkit/Dialog"
+import { brandName, NovaMark } from "@novadeck/toolkit/NovaLogo"
+import { SubjectBar, SubjectName, SubjectSide } from "@novadeck/toolkit/SubjectBar"
 import { useState } from "react"
 
 import { AddonFailure, AddonRow, addonNoteClasses, addonRowClasses } from "./addon-parts"
@@ -134,7 +136,7 @@ const heading = ({ outcome }: UninstallDialog): string =>
     ? "Novadeck is closing for its uninstaller."
     : outcome?.kind === "removed"
       ? "Novadeck is uninstalled."
-      : "Uninstall Novadeck?"
+      : "Uninstall this app?"
 
 const UninstallBody = ({
   plan,
@@ -155,9 +157,17 @@ const UninstallBody = ({
 }): React.JSX.Element => {
   const { outcome, busy, error, keepData } = dialog
   const title = (
-    <DialogTitle className="modal-title m-0 text-heading font-medium">
-      {heading(dialog)}
-    </DialogTitle>
+    <>
+      <SubjectBar>
+        <SubjectSide>
+          <NovaMark size={14} />
+          <SubjectName>{brandName}</SubjectName>
+        </SubjectSide>
+      </SubjectBar>
+      <DialogTitle className="modal-title m-0 text-heading font-medium">
+        {heading(dialog)}
+      </DialogTitle>
+    </>
   )
   if (outcome?.kind === "uninstalling") {
     return (

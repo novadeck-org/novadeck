@@ -477,7 +477,7 @@ describe("closing terminals", () => {
       const dialog = closeConfirmation()
       await expect.element(dialog).toBeVisible()
       await expect
-        .element(dialog.getByRole("heading", { name: "Close @moth · “Checkout implementation”?" }))
+        .element(dialog.getByRole("heading", { name: "Close this terminal?" }))
         .toBeVisible()
       await expect.element(dialog.getByText("zsh is still running in it.")).toBeVisible()
       await expect.element(dialog.getByRole("button", { name: "Cancel" })).toHaveFocus()
@@ -520,6 +520,51 @@ describe("closing terminals", () => {
 
       await expect.element(terminalTab("Checkout implementation")).not.toBeInTheDocument()
       await expect.poll(visibleTerminalCounts).toEqual(["5 terminals"])
+    })
+  })
+
+  context("when the terminal leads a team", () => {
+    const openLead = async () => {
+      await openWorkspace("/?demo=messages&nested=on")
+      await headerAction("Checkout implementation", "Close Checkout implementation").click()
+    }
+
+    it("asks as a lead, listing its team nested under the lead that leads each", async () => {
+      await openLead()
+
+      const dialog = closeConfirmation()
+      await expect.element(dialog.getByRole("heading", { name: "Close this lead?" })).toBeVisible()
+      const rows = dialog.getByRole("listitem")
+      await expect.element(rows.first()).toBeVisible()
+      await expect.element(dialog.getByText("Closed terminals stay in History.")).toBeVisible()
+      await expect.element(dialog.getByRole("button", { name: "Cancel" })).toHaveFocus()
+      await expect.element(dialog.getByRole("button", { name: "Close @moth only" })).toBeVisible()
+      await expect.element(dialog.getByRole("button", { name: /^Close all \d+$/ })).toBeVisible()
+    })
+
+    it("closes the lead and its whole team when the person closes all", async () => {
+      await openLead()
+
+      await closeConfirmation()
+        .getByRole("button", { name: /^Close all/ })
+        .click()
+
+      await expect.element(closeConfirmation()).not.toBeInTheDocument()
+      await Promise.all(
+        ["Checkout implementation", "Tests", "Runtime", "Checkout review"].map((name) =>
+          expect.element(terminalTab(name)).not.toBeInTheDocument(),
+        ),
+      )
+    })
+
+    it("closes only the lead when the person says so, leaving its team running", async () => {
+      await openLead()
+
+      await closeConfirmation().getByRole("button", { name: "Close @moth only" }).click()
+
+      await expect.element(terminalTab("Checkout implementation")).not.toBeInTheDocument()
+      await expect.element(terminalTab("Tests")).toBeInTheDocument()
+      await expect.element(terminalTab("Checkout review")).toBeInTheDocument()
     })
   })
 

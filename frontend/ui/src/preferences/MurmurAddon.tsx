@@ -8,7 +8,9 @@ import {
   type MurmurState,
 } from "@novadeck/core/addons/murmur"
 import { ConfirmDialog } from "@novadeck/toolkit/ConfirmDialog"
+import { SubjectBar, SubjectDetail, SubjectName, SubjectSide } from "@novadeck/toolkit/SubjectBar"
 import { Switch } from "@novadeck/toolkit/Switch"
+import { Sparkles } from "lucide-react"
 import { useState } from "react"
 
 import {
@@ -26,6 +28,19 @@ import {
   murmurUncheckedText,
 } from "./murmur-addon"
 import { settingsCardClasses } from "./settings"
+
+// What the removal asks about, named as the card names it, and what it frees.
+const removalBar = (shown: MurmurState, asking: "uninstall" | "remove"): React.JSX.Element => (
+  <SubjectBar>
+    <SubjectSide>
+      <Sparkles size={14} strokeWidth={1.5} aria-hidden="true" />
+      <SubjectName>{MURMUR_NAME}</SubjectName>
+    </SubjectSide>
+    <SubjectDetail end>
+      {formatSize(asking === "uninstall" ? murmurInstallSize(shown) : shown.sizes.model)}
+    </SubjectDetail>
+  </SubjectBar>
+)
 
 export type MurmurAddonValue = {
   readonly state: MurmurState
@@ -100,7 +115,8 @@ export const MurmurAddon = ({
   const dialog = (
     <ConfirmDialog
       subject={confirming ? state : null}
-      title={() => (asking === "uninstall" ? `Uninstall ${MURMUR_NAME}?` : `Remove the model?`)}
+      bar={(shown) => removalBar(shown, asking)}
+      title={() => (asking === "uninstall" ? "Uninstall this add-on?" : "Remove the model?")}
       description={(shown) =>
         asking === "uninstall"
           ? `The engine and the model are removed from this computer, freeing ${formatSize(murmurInstallSize(shown))}. You can install them again.`

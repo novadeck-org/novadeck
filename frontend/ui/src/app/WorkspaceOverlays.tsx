@@ -28,9 +28,11 @@ import {
   sameApprovalView,
   type ApprovalView,
 } from "../terminals/ApprovalDialog"
+import { closeTeamTree, sameCloseTeamTree, type CloseTeamRow } from "../terminals/close-team"
 import { CloseTerminalDialog } from "../terminals/CloseTerminalDialog"
 import { visibleSwitcher } from "../terminals/recent"
 import { TerminalSwitcher } from "../terminals/TerminalSwitcher"
+import { CloseTeamRows } from "./CloseTeamRows"
 import {
   useFeatureFlag,
   useUiState,
@@ -61,6 +63,10 @@ const Loaded = ({
   useLayoutEffect(() => onLoaded(dialog), [dialog, onLoaded])
   return null
 }
+
+const closeTeamRows = (rows: readonly CloseTeamRow[]): React.JSX.Element => (
+  <CloseTeamRows rows={rows} />
+)
 
 const always = (): (() => void) => () => {}
 // The backend's transcript setting, for Preferences; undefined where it keeps none.
@@ -264,8 +270,9 @@ export const WorkspaceOverlays = memo((): React.JSX.Element => {
   const closingTerminal = useWorkspaceState(
     (workspace) => closeQuestion({ closing: pending }, workspace) ?? null,
   )
-  const sessionTerminals = useWorkspaceState(
-    (workspace) => currentState(workspace).roster.terminals,
+  const closingTeam = useWorkspaceState(
+    (workspace) => (closingTerminal ? closeTeamTree(workspace, closingTerminal.id) : null),
+    (a, b) => a === b || (a !== null && b !== null && sameCloseTeamTree(a, b)),
   )
   const { projectName, context, view } = useWorkspaceState(
     (workspace) => ({
@@ -322,7 +329,8 @@ export const WorkspaceOverlays = memo((): React.JSX.Element => {
       <CloseTerminalDialog
         terminal={closingTerminal}
         keepsHistory={backend.history !== undefined}
-        terminals={sessionTerminals}
+        team={closingTeam}
+        teamRows={closeTeamRows}
         onConfirm={confirmClose}
         onCancel={cancelClose}
         returnFocus={(id) =>

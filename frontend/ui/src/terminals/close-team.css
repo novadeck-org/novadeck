@@ -1,0 +1,35 @@
+/* The team a lead's close dialog lists (CloseTeamRows.tsx): the folded team's rows (tabs.css,
+   `.team-fold-row`) as mono caption lines on the shell ground, in a hairline well. The rows
+   take the name in the ink and leave the branch, the handle and the count quiet, as the
+   sidebar's do; they aren't buttons, so no pointer and no hover. Parts: `.close-team` (the
+   list), each `.close-team-row`, and `.close-team-note` for the line under it. */
+.close-team {
+  display: flex;
+  flex-direction: column;
+  margin: 6px 0 0;
+  padding: 8px 12px;
+  list-style: none;
+  border: var(--border-width) solid var(--color-line);
+  border-radius: var(--radius-control);
+  background: var(--color-shell);
+  font-family: var(--tab-process-font, var(--font-glyphs));
+  font-size: var(--text-caption);
+  line-height: 20px;
+  color: var(--tab-subagent-fg, var(--color-muted));
+}
+.close-team-row {
+  cursor: default;
+  color: var(--color-ink);
+}
+.close-team-row:hover {
+  color: var(--color-ink);
+}
+.close-team-row .team-fold-mark {
+  height: 20px;
+}
+.close-team-note {
+  margin: 0;
+  color: var(--color-muted);
+  font-size: var(--text-caption);
+  line-height: var(--text-caption--line-height);
+}

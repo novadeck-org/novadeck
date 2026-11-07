@@ -42,7 +42,7 @@ describe("Preferences' Uninstall Novadeck", () => {
       await openPreferencesOn("About")
       await expect.element(about().getByText("Removes the app from this computer.")).toBeVisible()
       await row().click()
-      await expect.element(dialog().getByText("Uninstall Novadeck?")).toBeVisible()
+      await expect.element(dialog().getByText("Uninstall this app?")).toBeVisible()
       await expect.element(dialog().getByText(/Running terminals will end/)).toBeVisible()
       await expect
         .element(dialog().getByRole("checkbox", { name: "Keep my projects and sessions" }))
@@ -73,7 +73,7 @@ describe("Preferences' Uninstall Novadeck", () => {
       await openWorkspace("/?uninstall=no-data")
       await openPreferencesOn("About")
       await row().click()
-      await expect.element(dialog().getByText("Uninstall Novadeck?")).toBeVisible()
+      await expect.element(dialog().getByText("Uninstall this app?")).toBeVisible()
       expect(dialog().getByRole("checkbox").query()).toBeNull()
     })
 
