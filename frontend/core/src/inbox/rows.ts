@@ -89,10 +89,13 @@ const whereOf = (workspace: Workspace): Where[] =>
     ),
   )
 
+// The agent a terminal has, running or asleep with its session saved.
 const agentOf = (terminal: TerminalMetadata): AgentName | null =>
-  terminal.state === "running" && isAgentProgram(terminal.process)
-    ? (terminal.process as AgentName)
-    : null
+  terminal.state === "sleeping"
+    ? terminal.agent
+    : terminal.state === "running" && isAgentProgram(terminal.process)
+      ? (terminal.process as AgentName)
+      : null
 
 const sourceOf = ({ project, session, terminal }: Where, agent: AgentName): InboxSource => ({
   projectId: project.id,

@@ -1,4 +1,4 @@
-import { describe, expect, it } from "../test"
+import { context, describe, expect, it } from "../test"
 import { terminalFixture } from "../testing"
 import type { AgentStatus, TerminalMetadata } from "../types"
 import {
@@ -473,5 +473,46 @@ describe("a terminal's note", () => {
     const marks = { need: "ask" } as const
     const { text: _, ...glance } = terminalNote(agent({ reported: true }), marks, "failed", now)
     expect(terminalGlance(agent({ reported: true }), marks, "failed", now)).toEqual(glance)
+  })
+
+  context("when its agent sleeps", () => {
+    const asleep: TerminalMetadata = { ...terminal, state: "sleeping", agent: "claude" }
+    const marks = { need: undefined }
+
+    it("reads as asleep, never as starting, and waking once its shell starts to resume it", () => {
+      expect(terminalPhase(asleep)).toBe("sleeping")
+      expect(terminalPhase({ ...terminal, state: "starting" })).toBe("starting")
+      expect(terminalPhase({ ...terminal, state: "starting", restoredProcess: "claude" })).toBe(
+        "waking",
+      )
+      expect(terminalPhase({ ...terminal, state: "starting", restoredProcess: "vim" })).toBe(
+        "starting",
+      )
+    })
+
+    it("says it is waking after its ask, set apart by a dot", () => {
+      const waking: TerminalMetadata = { ...terminal, state: "starting", restoredProcess: "claude" }
+      expect(terminalNote(waking, { need: "ask", subject: "Which one?" }, undefined).text).toBe(
+        "Asks: Which one? · Waking…",
+      )
+      expect(terminalNote(waking, { need: undefined }, undefined).text).toBe("Waking…")
+    })
+
+    it("keeps its done report and its ask, saying it is asleep after them", () => {
+      expect(terminalNote(asleep, marks, undefined).text).toBe("Asleep · wakes when you open it")
+      expect(terminalNote(asleep, marks, "unread").text).toBe("Asleep · reply unread")
+      const reported: TerminalMetadata = { ...asleep, reported: true }
+      expect(terminalNote(reported, marks, undefined)).toMatchObject({
+        phase: "done",
+        text: "Done · reported · asleep",
+      })
+      expect(terminalNote(asleep, { need: "ask", subject: "Which one?" }, undefined)).toMatchObject(
+        {
+          phase: "sleeping",
+          need: "ask",
+          text: "Asks: Which one? · asleep",
+        },
+      )
+    })
   })
 })

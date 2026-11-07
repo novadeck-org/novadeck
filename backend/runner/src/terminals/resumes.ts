@@ -41,6 +41,7 @@ export const cancelResume = (record: Pick<Record, "resumeFile">): boolean => {
   record.resumeFile = undefined
   try {
     rmSync(file)
+    // The claim stays: the session's standing reports are read through it (`savedSession`).
     return true
   } catch {
     // Taken meanwhile, or unremovable; the shell removes it as it reads it.
@@ -61,7 +62,11 @@ export const endExpecting = (
 }
 
 /** Why an agent can't be started on a session an agent asked to resume, in a sentence for it. */
-export const resumeRefusal = (agent: AgentName, reason: UnavailableReason): string => {
+export const resumeRefusal = (
+  agent: AgentName,
+  reason: UnavailableReason,
+  asleep = false,
+): string => {
   const label = agentLabel(agent)
   switch (reason) {
     case "not-connected":
@@ -72,13 +77,32 @@ export const resumeRefusal = (agent: AgentName, reason: UnavailableReason): stri
     case "invalid-session":
       return `That isn't a ${label} session id: give the id of a past session, as ${label} shows it.`
     case "in-use":
-      return (
-        `That ${label} session is already open in a terminal, or given to one that is starting: ` +
-        "one session runs in one terminal. Close that terminal first, or start a new agent."
-      )
+      return asleep
+        ? `That ${label} session belongs to a terminal where the agent is asleep: one session ` +
+            "runs in one terminal. Message that agent to wake it, or close that terminal first, " +
+            "or start a new agent."
+        : `That ${label} session is already open in a terminal, or given to one that is starting: ` +
+            "one session runs in one terminal. Close that terminal first, or start a new agent."
     case "conversation-gone":
       return `That ${label} conversation is gone: ${label} no longer has it.`
   }
+}
+
+/**
+ * Why a sleeping agent could not be woken for the messages waiting for it, in a sentence
+ * for their senders: they are gone, and the terminal stays asleep as it was.
+ */
+export const wakeRefusal = (agent: AgentName, reason: UnavailableReason): string => {
+  const label = agentLabel(agent)
+  const why = {
+    "not-connected": `Novadeck isn't connected to ${label}`,
+    unsupported: `${label} can't resume a session by its id here`,
+    "no-session": `Novadeck has no ${label} session saved for it`,
+    "invalid-session": `the ${label} session saved for it isn't one it can run`,
+    "in-use": `that ${label} session is open in another terminal`,
+    "conversation-gone": `${label} no longer has that conversation`,
+  }[reason]
+  return `${label} was asleep there and could not be woken: ${why}.`
 }
 
 /**
@@ -116,6 +140,26 @@ export type ResumeCheck =
       readonly key: string
     }
   | { readonly ok: false; readonly reason: UnavailableReason }
+
+/**
+ * Whether a terminal other than `terminalId` has the agent's session: bound, or, where the
+ * root is a conversation the status line names (Antigravity) and so differs from the bound
+ * session's id, the session its agent works in.
+ */
+export const sessionHeldElsewhere = (
+  records: Iterable<Pick<Record, "summary" | "bound" | "root">>,
+  terminalId: string,
+  agent: AgentName,
+  session: string | undefined,
+): boolean => {
+  for (const other of records) {
+    if (other.summary.id === terminalId) continue
+    if (other.bound?.binding.agent === agent && other.bound.binding.sessionId === session)
+      return true
+    if (other.root?.agent === agent && other.root.sessionId === session) return true
+  }
+  return false
+}
 
 export type ClaimsHost = {
   /** Whether another terminal than this one has the agent's session bound. */

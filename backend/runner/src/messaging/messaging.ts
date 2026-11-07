@@ -11,7 +11,7 @@ import { Holds } from "./holds.js"
 import { HookAnswers, type Answer } from "./hook-answers.js"
 import { Leading } from "./leading.js"
 import { Leasing, type LeasingHost } from "./leasing.js"
-import type { Deliverable, Scope } from "./live.js"
+import type { Deliverable, Live, Scope } from "./live.js"
 import { Loops } from "./loops.js"
 import { MessageStore, type MessagingChange } from "./message-store.js"
 import type { Held, Message } from "./messages.js"
@@ -28,6 +28,7 @@ import {
 } from "./sending.js"
 import { Sessions } from "./sessions.js"
 import { LongWaits } from "./waits.js"
+import { Wakes } from "./wakes.js"
 import { Withdrawals, type Person } from "./withdrawals.js"
 
 export type MessagingOptions = {
@@ -63,6 +64,11 @@ export type MessagingOptions = {
   readonly loops?: Loops
   /** The notes a root session holds grew, for the terminals to keep (`LeasingHost.held`). */
   readonly held?: LeasingHost["held"]
+  /**
+   * A terminal resting with no process gained a message that will be delivered, so its agent
+   * is to be woken (`wakeWanted`). Called once for each time it rests, while it is asked.
+   */
+  readonly onWake?: (terminalId: string) => void
 }
 
 /**
@@ -81,6 +87,7 @@ export type MessagingOptions = {
  * - `Leading` (`leading.ts`): leads, their briefs, and the person's release;
  * - `Sending` (`sending.ts`): agents' messages, the peers listing, and the runner's listing;
  * - `Relays` (`relays.ts`): the person's replies and Novadeck's notices;
+ * - `Wakes` (`wakes.ts`): the messages that wake a terminal asleep, and fail with its wake;
  * - `LongWaits` (`waits.ts`): the log of messages that wait long.
  *
  * Its parts reach each other through narrow hosts; this class's methods only hand on.
@@ -97,6 +104,7 @@ export class Messaging {
   private readonly sending: Sending
   private readonly relays: Relays
   private readonly waits: LongWaits
+  private readonly wakes: Wakes
   private readonly sweeper: ReturnType<typeof setInterval> | undefined
   private readonly restoring: ReturnType<typeof setTimeout> | undefined
   private readonly waitWatch: ReturnType<typeof setInterval> | undefined
@@ -160,6 +168,7 @@ export class Messaging {
       heldFrom: (terminalId) => this.heldFrom(terminalId),
     })
     this.waits = new LongWaits({ sessions, store, now })
+    this.wakes = new Wakes({ sessions, store, onWake: options.onWake })
     this.sweep()
     if (options.sweepMs !== 0) {
       this.sweeper = setInterval(() => this.sweep(), options.sweepMs ?? 60 * 60_000)
@@ -233,8 +242,56 @@ export class Messaging {
     this.sessions.register(terminalId, scope, handle, ledBy)
   }
 
-  unregister(terminalId: string, forGood = false): void {
-    this.sessions.unregister(terminalId, forGood)
+  unregister(terminalId: string, forGood = false, reason?: string): void {
+    this.sessions.unregister(terminalId, forGood, reason)
+  }
+
+  /**
+   * A terminal rests on its saved session with no process: asleep. Its messages are kept
+   * for the session; `register` starts it, `unregister` ends it.
+   */
+  rest(
+    terminalId: string,
+    scope: Scope,
+    handle: string,
+    ledBy: string | null,
+    resting: NonNullable<Live["resting"]>,
+  ): void {
+    this.sessions.rest(terminalId, scope, handle, ledBy, resting)
+  }
+
+  /** The agent session the terminal rests on, asleep or waking until a session binds. */
+  resting(terminalId: string): NonNullable<Live["resting"]> | undefined {
+    return this.sessions.get(terminalId)?.resting ?? undefined
+  }
+
+  /** The terminal that rests on that session, if one does. */
+  holder(agent: AgentName, sessionId: string): string | undefined {
+    return this.sessions.holder(agent, sessionId)
+  }
+
+  /** Whether a queued message addressed to the terminal is held back by nothing: wake it. */
+  wakeWanted(terminalId: string): boolean {
+    return this.wakes.wanted(terminalId)
+  }
+
+  /** Every terminal `wakeWanted` holds for, found in one pass over the messages. */
+  wakesWanted(): ReadonlySet<string> {
+    return this.wakes.allWanted()
+  }
+
+  /** The terminal's wake failed: its waiting messages are gone, for `reason`; it still rests. */
+  wakeFailed(terminalId: string, reason: string): void {
+    this.wakes.failed(terminalId, reason)
+  }
+
+  /**
+   * The wake ended with its shell left and no agent bound: as `wakeFailed`, and the
+   * terminal rests on its session no more. A terminal still asleep rests on, as it was.
+   */
+  wakeEnded(terminalId: string, reason: string): void {
+    this.wakes.failed(terminalId, reason)
+    this.sessions.endRest(terminalId)
   }
 
   rooted(terminalId: string, changes: readonly RootChange[], held?: Held): void {
@@ -490,8 +547,8 @@ export class Messaging {
     return this.sending.list(terminalId, handle)
   }
 
-  deliveredAt(terminalId: string): number | null {
-    return this.sending.deliveredAt(terminalId)
+  deliveredAt(): ReadonlyMap<string, number> {
+    return this.sending.deliveredAt()
   }
 
   // The person's replies and Novadeck's notices: see `Relays`.

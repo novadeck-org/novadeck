@@ -21,7 +21,7 @@ const bindings = (shown?: AgentName) => {
     messaging: () => ({
       shownAgent: () => shown,
       inboxOwner: () => undefined,
-      deliveredAt: () => null,
+      deliveredAt: () => new Map(),
     }),
     turns: () => ({ inbox: noReports, redactor: undefined }),
     typing: () => ({ dialogsChanged: () => {}, receiptsChanged: () => {} }),
@@ -173,7 +173,7 @@ describe("a turn that ends within its grace as its session does", () => {
       messaging: () => ({
         shownAgent: () => undefined,
         inboxOwner: () => owner,
-        deliveredAt: () => null,
+        deliveredAt: () => new Map(),
       }),
       typing: () => ({ dialogsChanged: () => {}, receiptsChanged: () => {} }),
       murmurChanged: () => {},
@@ -254,7 +254,7 @@ describe("the lead of an agent found gone", () => {
         escaped: () => undefined,
         shownAgent: () => undefined,
         inboxOwner: () => undefined,
-        deliveredAt: () => null,
+        deliveredAt: () => new Map(),
       }),
       turns: () => ({ inbox: noReports, redactor: undefined }),
       typing: () => ({ dialogsChanged: () => {}, receiptsChanged: () => {} }),
@@ -469,7 +469,10 @@ describe("the done report that stands", () => {
     const announce = vi.fn<(record: Record) => void>()
     const bound = record({ reported: null })
     const host = {
-      messaging: () => ({ shownAgent: () => undefined, deliveredAt: () => run.deliveredAt }),
+      messaging: () => ({
+        shownAgent: () => undefined,
+        deliveredAt: () => new Map(run.deliveredAt === null ? [] : [["t1", run.deliveredAt]]),
+      }),
       turns: () => ({
         inbox: {
           // As the Inbox answers: for the session bound now, or the saved one asked for.

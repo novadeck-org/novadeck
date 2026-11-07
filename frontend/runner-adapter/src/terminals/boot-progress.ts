@@ -1,5 +1,6 @@
 import type { BootProgress, TerminalKey } from "@novadeck/core/port"
 import { createStore, type Store } from "@novadeck/core/store"
+import type { TerminalStatus } from "@novadeck/core/types"
 
 // What boot progress needs to know of a terminal.
 export type BootEntry = {
@@ -9,6 +10,8 @@ export type BootEntry = {
   readonly closed: boolean
   // Exited or failed: nothing more is coming for it.
   readonly settled: boolean
+  // Its last reported status: a sleeping terminal has no shell coming, and is not settled.
+  readonly status: Pick<TerminalStatus, "state">
 }
 
 export type BootProgressTracker = {
@@ -42,12 +45,17 @@ export const createBootProgress = ({
   const screens = new Map<string, boolean>()
   const finished = (id: string): boolean => {
     const current = entry(id)
-    return !current || current.closed || current.settled
+    return !current || current.closed || current.settled || current.status.state === "sleeping"
   }
   // Counted once the runner has its shell; a surface showing it must also have drawn
   // its first screen before boot is done, but the count never goes back while a view
   // that loads late mounts its surfaces.
-  const attached = (id: string): boolean => finished(id) || ready.has(id)
+  // A terminal that was finished (a sleeper) stays counted when it starts a shell.
+  const attached = (id: string): boolean => {
+    if (!finished(id)) return ready.has(id)
+    ready.add(id)
+    return true
+  }
   const shown = (id: string): boolean => finished(id) || screens.get(id) !== false
   const check = (): void => {
     if (!booting || store.getSnapshot().done) return

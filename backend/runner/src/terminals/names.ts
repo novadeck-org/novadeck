@@ -2,7 +2,6 @@ import { DomainError } from "../errors.js"
 import { handleOrder, nextHandle } from "./handles.js"
 import type { SavedRecord, Saves } from "./saving.js"
 import type { Streams } from "./streams.js"
-import { savedSummaryOf } from "./summary.js"
 import { renamed as renamedTo, summaryTitle } from "./titles.js"
 
 /** What naming reads of a terminal's record, and what it changes there. */
@@ -100,7 +99,7 @@ export class Names<R extends NamedRecord> {
     const renamed = this.saves.rename(terminalId, title)
     const saved = renamed ? this.saves.saved(terminalId) : undefined
     if (!saved) throw new DomainError("TERMINAL_NOT_FOUND")
-    this.streams.changed(() => savedSummaryOf(saved))
+    this.streams.savedChanged(saved)
   }
 
   /**

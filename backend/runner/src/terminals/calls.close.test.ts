@@ -26,9 +26,14 @@ const terminal = (id: string, handle: string, title = "Terminal"): Record =>
 const setup = (
   runs: { readonly [handle: string]: AgentName | null },
   leads: { readonly [handle: string]: string } = {},
+  asleep: readonly string[] = [],
 ) => {
   const ids = Object.keys(runs)
-  const records = new Map(ids.map((handle) => [`id-${handle}`, terminal(`id-${handle}`, handle)]))
+  const records = new Map(
+    ids
+      .filter((handle) => !asleep.includes(handle))
+      .map((handle) => [`id-${handle}`, terminal(`id-${handle}`, handle)]),
+  )
   const approvals = new Approvals()
   const steps: string[] = []
   const notices: { to: string; text: string; always?: true }[] = []
@@ -36,12 +41,15 @@ const setup = (
   const coming = new Map<string, { id: string; sentAt: number; held: boolean }[]>()
   let stopping = false
   const find = (id: string) => [...records.values()].find((record) => record.summary.id === id)
+  // The sleepers: no record, only a row, which a close forgets.
+  const sleeping = new Set(asleep.map((handle) => `id-${handle}`))
+  const rows = new Map(asleep.map((handle) => [`id-${handle}`, terminal(`id-${handle}`, handle)]))
   const host = {
     records: () => records,
     stopping: () => stopping,
     messaging: () =>
       ({
-        leadOf: (id: string) => leads[find(id)?.summary.handle ?? ""],
+        leadOf: (id: string) => leads[(find(id) ?? rows.get(id))?.summary.handle ?? ""],
         waitingFor: () => 0,
         onTheWay: (from: string, to: string) => coming.get(`${from}>${to}`) ?? [],
         goneFrom: () => [],
@@ -52,13 +60,23 @@ const setup = (
       }) as unknown as Messaging,
     peers: () => ({
       target: async (_caller: unknown, to: string): Promise<PeerAnswer> => {
-        const record = [...records.values()].find((each) => each.summary.handle === to)
+        const record = [...records.values(), ...rows.values()].find(
+          (each) => each.summary.handle === to,
+        )
         return record
           ? { ok: true, terminalId: record.summary.id, handle: to, agent: runs[to] ?? null }
           : { ok: false, reason: `"${to}" is no terminal's handle here.` }
       },
     }),
     approvals: () => approvals,
+    sleepers: () => ({
+      peer: (id: string) => (sleeping.has(id) ? { summary: rows.get(id)!.summary } : undefined),
+      resting: (id: string) => (sleeping.has(id) ? { agent: "claude" } : undefined),
+    }),
+    close: async (id: string) => {
+      sleeping.delete(id)
+      steps.push(`closed the row of ${id}`)
+    },
     trees: () => ({ read: async () => undefined }),
     closingNow: () => false,
     closeForGood: (record: Record) => {
@@ -266,6 +284,34 @@ describe("an agent closing a teammate it leads, or a terminal with no agent", ()
     await settle()
     expect(requested).toHaveLength(1)
     expect(run.steps).toEqual([])
+  })
+})
+
+describe("an agent closing a terminal whose agent sleeps", () => {
+  it("closes the row of a sleeper it leads at once, with no shell to end", async () => {
+    const run = setup({ moth: "claude", fox: "codex" }, { fox: "moth" }, ["fox"])
+    const requested = person(run.approvals)
+    await expect(run.close("moth", "fox")).resolves.toMatchObject({
+      ok: true,
+      handle: "fox",
+      ran: "Codex",
+    })
+    expect(requested).toEqual([])
+    expect(run.steps).toEqual(["closed the row of id-fox"])
+  })
+
+  it("asks the person for any other sleeper, and closes its row once they confirm", async () => {
+    const run = setup({ moth: "claude", fox: "codex" }, {}, ["fox"])
+    const requested = person(run.approvals)
+    await expect(run.close("moth", "fox")).resolves.toMatchObject({ ok: true, asked: true })
+    await settle()
+    expect(run.steps).toEqual([])
+    run.approvals.answer({ requestId: requested[0]!.requestId, approved: true }, "person")
+    await settle()
+    expect(run.steps).toEqual(["closed the row of id-fox"])
+    expect(run.notices).toEqual([
+      { to: "id-moth", always: true, text: closeNotice.confirmed("fox", "Terminal", "Codex") },
+    ])
   })
 })
 

@@ -252,6 +252,8 @@ export class Reports {
                 telemetry: null,
               }
       if (next.binding !== null) {
+        // A woken agent came up: the wake worked (see `Record.woken`).
+        record.woken = undefined
         // After a suspended agent, a binding is that agent back from `fg`, or another the
         // person started at the prompt, which its lead never directed.
         if (record.suspended !== null && next.binding.instance !== record.suspended)

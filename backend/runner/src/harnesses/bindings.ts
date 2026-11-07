@@ -124,8 +124,8 @@ export const observe = (
   if (state.binding && !replaces(state.binding, event, facts.busy === true)) return undefined
   const known = state.sessions[event.agent]
   if (known && known.seq >= event.startedAt) return undefined
-  // What the session was doing, and what it was told, stay with it as it reports again:
-  // only a new session starts without (`AgentReport.turn`, `told`).
+  // What the session was doing, what it was told and when its last turn ended stay with it as
+  // it reports again: only a new session starts without (`AgentReport.turn`, `told`, `endedAt`).
   const same = known?.sessionId === event.sessionId
   // The same session reporting again is still written by the same release.
   const kept =
@@ -134,6 +134,7 @@ export const observe = (
       : undefined
   const turn = same ? known.turn : undefined
   const told = same ? known.told : undefined
+  const endedAt = same ? known.endedAt : undefined
   // Where it bound stays its folder: a harness looks a conversation up by it, so a resume
   // must run there, whatever directory a later report names.
   const cwd = (same && known.cwd) || event.cwd || state.cwd
@@ -148,6 +149,7 @@ export const observe = (
       ...(transcript && { transcript }),
       ...(turn && { turn }),
       ...(told && { told }),
+      ...(endedAt !== undefined && { endedAt }),
     },
   }
   return event.startedAt > (facts.promptedAt ?? 0)

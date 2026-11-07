@@ -16,6 +16,7 @@ import { bareHandle, mention } from "./handles.js"
 import { refused, type OpenFailure } from "./opens.js"
 import { peerOf, type TerminalPeers } from "./peers-host.js"
 import type { Record } from "./record.js"
+import type { Sleepers } from "./sleepers.js"
 
 /**
  * What an agent asks to lead, through Novadeck's MCP server: another terminal of its
@@ -55,6 +56,10 @@ type LeadAnswer =
 type ReleaseAnswer =
   | { readonly ok: true; readonly handle: string; readonly title: string }
   | LeadFailure
+
+/** What an agent hears of a terminal whose agent sleeps. */
+const asleepNote = (handle: string): string =>
+  `${mention(handle)}'s agent is asleep, so nothing changed. A message to it wakes it.`
 
 /** What an agent hears when no window of Novadeck is open to ask the person. */
 export const nobodyToLead = "Novadeck isn't open to ask the user, so nothing changed."
@@ -174,6 +179,8 @@ export type LeadsHost = {
   readonly bindings: () => Bindings
   /** Whether the terminal host is closing the terminal, its shell not yet ended. */
   readonly closingNow: (terminalId: string) => boolean
+  /** The terminals whose agents sleep. */
+  readonly sleepers: () => Sleepers
 }
 
 /**
@@ -294,6 +301,8 @@ export class Leads {
     if (!target.ok) return target
     // Closed, or the runner stopped, while the terminals were described.
     const led = host.records().get(target.terminalId)
+    if (!led && host.sleepers().resting(target.terminalId))
+      return refused(asleepNote(target.handle))
     if (host.stopping() || host.records().get(call.terminalId) !== caller || !led)
       return unansweredCalls.lead
     const unfit = this.unfit(caller, led)
@@ -377,6 +386,8 @@ export class Leads {
     const target = await host.peers().target(peerOf(caller), to)
     if (!target.ok) return target
     const led = host.records().get(target.terminalId)
+    if (!led && host.sleepers().resting(target.terminalId))
+      return refused(asleepNote(target.handle))
     if (host.stopping() || host.records().get(call.terminalId) !== caller || !led)
       return unansweredCalls.release
     const lead = host.messaging().leadOf(led.summary.id)
@@ -427,6 +438,29 @@ export class Leads {
   }
 
   /**
+   * The person ends the lead of a terminal whose agent sleeps, from its row. The sleeper is
+   * told nothing, as a notice would wake it; it hears of the end when it wakes.
+   */
+  private releaseSleeper(terminalId: string): void {
+    const { host } = this
+    const row = host.sleepers().peer(terminalId)
+    if (!row) throw new DomainError("TERMINAL_NOT_FOUND")
+    const handle = row.summary.ledBy
+    if (handle === null) return
+    const lead = this.byHandle(row.summary.sessionId, handle)
+    host.messaging().dropLeadMessages(terminalId)
+    host.sleepers().endLead(terminalId)
+    if (lead)
+      host
+        .messaging()
+        .notice(
+          lead.summary.id,
+          leadNotice.personReleasedFrom(row.summary.handle, row.summary.title),
+          { always: true },
+        )
+  }
+
+  /**
    * The person ends a terminal's lead: the same end as the lead's release, told to the
    * terminal and to the lead it had. A terminal with no lead is left as it is; one the
    * runner doesn't hold is TERMINAL_NOT_FOUND.
@@ -435,7 +469,7 @@ export class Leads {
     const { host } = this
     if (host.stopping()) throw new DomainError("CLOSING")
     const led = host.records().get(terminalId)
-    if (!led) throw new DomainError("TERMINAL_NOT_FOUND")
+    if (!led) return this.releaseSleeper(terminalId)
     const handle = led.summary.ledBy
     if (handle === null) return
     const lead = this.byHandle(led.summary.sessionId, handle)

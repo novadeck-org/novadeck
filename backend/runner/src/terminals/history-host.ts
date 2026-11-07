@@ -24,6 +24,11 @@ export type HistoryParts = {
   readonly connected: (agent: AgentName) => Promise<boolean>
   readonly drawHandle: (sessionId: string) => string
   readonly announce: (record: Record) => void
+  /** The terminal resting on the session, asleep or waking, with no agent bound yet. */
+  readonly resting: (
+    agent: AgentName,
+    sessionId: string,
+  ) => { readonly handle: string; readonly terminalId: string } | undefined
 }
 
 /** The terminal that has `agent`'s session bound or claimed to resume it. */
@@ -39,6 +44,10 @@ const holder = (
       record.bound.binding.sessionId === sessionId
     )
       return { handle: record.summary.handle, terminalId: record.summary.id }
+  // A sleeper holds its session though it has no record: a closed row is not one, and
+  // restoring it would run a second copy of the conversation.
+  const resting = parts.resting(agent, sessionId)
+  if (resting) return resting
   const claimant = parts.claims.claimant(`${agent}:${sessionId}`)
   // A closed terminal keeps its claim until its shell ends, but it no longer holds the session.
   const claiming = claimant === undefined ? undefined : parts.records.get(claimant)
@@ -69,8 +78,9 @@ export const historyHost = (parts: HistoryParts): HistoryHost => ({
   archive: (record, write, settled) => parts.saves.archive(record, write, settled),
   saved: (record, done) => parts.saves.afterSaved(record, done),
   transcriptOf: (agent, sessionId) =>
-    [...parts.records.values()].find((record) => record.agents[agent]?.sessionId === sessionId)
-      ?.agents[agent]?.transcript,
+    [...parts.records.values(), ...parts.saves.terminals()].find(
+      (record) => record.agents[agent]?.sessionId === sessionId,
+    )?.agents[agent]?.transcript,
   restoredBeside: (row) => {
     const found = [...parts.records.values()].find(
       (record) => !record.closed && record.restoredFrom === row,

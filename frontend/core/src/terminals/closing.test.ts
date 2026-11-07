@@ -23,6 +23,41 @@ describe("what closing a terminal asks about", () => {
     })
   })
 
+  describe("a sleeper or a waking agent", () => {
+    const sleeping = { state: "sleeping", agent: "claude" } as const
+    const waking = { state: "starting", restoredProcess: "claude", busy: true } as const
+
+    it("asks while nothing keeps closed terminals, since its session would be lost", () => {
+      expect(closeReasons(terminalFixture({ ...sleeping }), false)).toEqual(["asleep"])
+      expect(closeReasons(terminalFixture({ ...waking }), false)).toEqual(["asleep"])
+      expect(closeReasons(terminalFixture({ state: "starting" }), false)).toEqual([])
+    })
+
+    it("closes without asking where its session can be restored, like an idle agent", () => {
+      expect(closeReasons(terminalFixture({ ...sleeping, restorable: true }), true)).toEqual([])
+      expect(closeReasons(terminalFixture({ ...waking, restorable: true }), true)).toEqual([])
+    })
+
+    it("does not count the resume it runs, or a sleeper, as a program to lose", () => {
+      expect(closeReasons(terminalFixture({ ...waking, restorable: true }), true)).toEqual([])
+      expect(
+        closeReasons(terminalFixture({ ...sleeping, busy: true, restorable: true }), true),
+      ).toEqual([])
+      expect(closeReasons(terminalFixture({ ...waking }), true)).toEqual(["unrestorable"])
+    })
+
+    it("asks where its session can't be restored", () => {
+      expect(closeReasons(terminalFixture({ ...sleeping }), true)).toEqual(["unrestorable"])
+      expect(closeReasons(terminalFixture({ ...waking }), true)).toEqual(["unrestorable"])
+    })
+
+    it("still asks when it leads running agents", () => {
+      const lead = terminalFixture({ ...sleeping, restorable: true, handle: "moth" as never })
+      const led = terminalFixture({ ...running, id: "02", ledBy: "moth" as never })
+      expect(closeReasons(lead, true, [lead, led])).toEqual(["leads"])
+    })
+  })
+
   describe("where closing can be undone", () => {
     it("asks when a program runs in the shell, whether or not the OS tells", () => {
       expect(closeReasons(terminalFixture({ state: "idle", busy: true }), true)).toEqual([

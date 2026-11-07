@@ -1,3 +1,4 @@
+import { finishGraceMs } from "@novadeck/core/agents/finish"
 import type { AgentName } from "@novadeck/core/harnesses"
 import type { Inbox, InboxRow } from "@novadeck/core/inbox"
 import type { BackendAction, TerminalKey } from "@novadeck/core/port"
@@ -39,7 +40,9 @@ import {
   rename,
   runAgent,
   runProgram,
+  sleeping,
   starting,
+  waking,
   unheardAgent,
   withUsage,
 } from "./terminals"
@@ -56,12 +59,53 @@ const crowd = 12
 const crowdWaits = dealKinds(crowd).filter((kind) => kind !== "done").length
 // How long clearing waits between the agents working and resting, for the app to see both.
 const calmMs = 100
+// How long an agent that sleeps after a turn keeps running past its end: the Inbox row of a
+// completed turn is stored only once it has stood for `finishGraceMs`, while its terminal
+// still runs the agent.
+const sinceTurnEndMs = finishGraceMs + calmMs
+const sleepAfterMs = turnMs + sinceTurnEndMs
+// How long ago the "Asleep, done" tile's agent finished, so its tab shows an age.
+const doneAgoMs = 4 * 60_000
 // How long a screen takes to arrive, as the runner's.
 const attachMs = 2500
 
 const pause = (ms: number): Promise<void> => new Promise((resolve) => setTimeout(resolve, ms))
 
 const later = (ms: number, run: () => void): void => void setTimeout(run, ms)
+
+// The longest `afterTold` waits for the Inbox to store a turn's row.
+const toldCapMs = 10_000
+
+// Runs `run` once the Inbox has stored the row of the turn `key`'s agent ends from now: its
+// terminal's tab reads that row as unread, and a terminal put to sleep before it is stored
+// (a completed turn's waits out `finishGraceMs` while its terminal still runs the agent) has
+// none. Where the Inbox keeps no turns, or none comes, it runs after `sleepAfterMs`, or the cap.
+const afterTold = (inbox: () => Inbox | undefined, key: TerminalKey, run: () => void): void => {
+  const turns = inbox()?.turns
+  if (!turns) return later(sleepAfterMs, run)
+  const since = Date.now()
+  let stop: (() => void) | undefined
+  let cap: ReturnType<typeof setTimeout> | undefined
+  const go = (): void => {
+    clearTimeout(cap)
+    stop?.()
+    // Not inside the store's own notification: the dispatch it makes is its own commit.
+    later(0, run)
+  }
+  cap = setTimeout(go, toldCapMs)
+  stop = turns.subscribe(() => {
+    const told = turns
+      .getSnapshot()
+      ?.some(
+        (row) =>
+          row.projectId === key.projectId &&
+          row.workspaceSessionId === key.workspaceSessionId &&
+          row.terminalId === key.terminalId &&
+          row.at >= since,
+      )
+    if (told) go()
+  })
+}
 
 // An action on the selected terminal, or the note that asks for one.
 const onSelected = (
@@ -198,6 +242,9 @@ const gallery: readonly {
   readonly state?: (key: TerminalKey, harness: AgentName) => BackendAction[]
   readonly agent?: (verbs: DemoAgentVerbs, key: TerminalKey) => void
   readonly asks?: "text" | "action"
+  // What the terminal becomes once its agent's turn has ended: the agent is let go, and
+  // these dispatched, so its turn's Inbox row stays while the agent sleeps.
+  readonly after?: (key: TerminalKey, harness: AgentName) => BackendAction[]
 }[] = [
   {
     name: "Done",
@@ -265,6 +312,32 @@ const gallery: readonly {
   { name: "Opened by an agent", state: (key) => openedByAgent(key, "pnpm") },
   { name: "Agent exited", state: (key) => agentRanHere(key) },
   { name: "Starting", state: (key) => starting(key) },
+  { name: "Asleep", state: (key, harness) => sleeping(key, harness) },
+  {
+    name: "Asleep, done",
+    state: (key, harness) => sleeping(key, harness, true, Date.now() - doneAgoMs),
+  },
+  {
+    name: "Asleep, asks (MCP)",
+    state: (key, harness) => sleeping(key, harness),
+    asks: "text",
+  },
+  {
+    name: "Asleep, reply unread",
+    agent: (verbs, key) => verbs.finish(key, undefined, "completed", { after: turnMs }),
+    after: (key, harness) => sleeping(key, harness, false, Date.now() - sinceTurnEndMs),
+  },
+  {
+    name: "Asleep, stopped with an error",
+    agent: (verbs, key) => verbs.finish(key, undefined, "failed", { after: turnMs }),
+    after: (key, harness) => sleeping(key, harness, false, Date.now() - sinceTurnEndMs),
+  },
+  { name: "Waking", state: (key, harness) => waking(key, harness) },
+  {
+    name: "Waking, asks (MCP)",
+    state: (key, harness) => waking(key, harness),
+    asks: "text",
+  },
   { name: "Idle" },
   { name: "Exit code 3", state: (key) => exitedWithCode(key, 3) },
   { name: "Killed", state: (key) => killedBy(key, "SIGKILL") },
@@ -286,10 +359,15 @@ type PanelAsks = Set<string>
 const agentDone = (row: InboxRow): boolean =>
   row.kind === "update" && row.update.type === "done" && row.id.startsWith("entry:demo-done-")
 
+// Marks the terminal a set of actions puts to sleep as one the panel holds asleep, and hands
+// the actions back.
+type Hold = (key: TerminalKey, actions: BackendAction[]) => BackendAction[]
+
 const everyState = (
   verbs: DemoAgentVerbs,
   inbox: () => Inbox | undefined,
   panelAsks: PanelAsks,
+  hold: Hold,
 ): DemoAction => ({
   label: "Every state at once",
   hint: `${gallery.length} terminals, one per state`,
@@ -301,11 +379,19 @@ const everyState = (
     dispatch(
       gallery.flatMap(({ name, state }, index) => {
         const key = keys[index]!
-        return [rename(key, name), ...(state?.(key, harness) ?? [])]
+        return [rename(key, name), ...hold(key, state?.(key, harness) ?? [])]
       }),
     )
     const agents = verbs.as(harness)
     gallery.forEach(({ agent }, index) => agent?.(agents, keys[index]!))
+    gallery.forEach(({ after }, index) => {
+      if (!after) return
+      const key = keys[index]!
+      afterTold(inbox, key, () => {
+        verbs.release(key)
+        dispatch(hold(key, after(key, harness)))
+      })
+    })
     const own = inbox()
     if (!isDemoInbox(own)) return
     gallery.forEach(({ asks }, index) => {
@@ -419,6 +505,15 @@ export const createDemoStates = (
   const screens = createStore<ReadonlyMap<string, DemoScreenState>>(new Map())
   // The terminals whose next pasted file fails to save.
   const pasteFails = new Set<string>()
+  // The sleepers the panel set, which stay asleep, whoever looks.
+  const held = new Set<string>()
+  const hold: Hold = (key, actions) => {
+    // Where the actions leave it: `waking` passes through sleeping on its way.
+    const last = actions.findLast((action) => action.type === "terminal/status")
+    if (last?.type === "terminal/status" && last.status.state === "sleeping")
+      held.add(terminalKeyId(key))
+    return actions
+  }
   // Sets what a terminal's screen is doing for a while, then shows its output again.
   const showScreen = (key: TerminalKey, screen: DemoScreenState, ms: number): void => {
     const id = terminalKeyId(key)
@@ -439,6 +534,15 @@ export const createDemoStates = (
       verbs.release(key)
       run(key, context)
     })
+  // The agent ends a turn, then sleeps with the turn's Inbox row standing.
+  const sleepsAfter = (label: string, outcome: "completed" | "failed", hint: string) =>
+    onSelected(label, hint, (key, { dispatch, harness, workspace }) => {
+      verbs.finish(key, terminalOf(workspace(), key), outcome, { after: turnMs })
+      afterTold(inbox, key, () => {
+        verbs.release(key)
+        dispatch(hold(key, sleeping(key, harness, false, Date.now() - sinceTurnEndMs)))
+      })
+    })
   const groups: readonly DemoActionGroup[] = [
     {
       section: "Terminals",
@@ -449,6 +553,24 @@ export const createDemoStates = (
         ),
         onSelected("Loading output", "Briefly, as after a reconnect", (key) =>
           showScreen(key, { attaching: true }, attachMs),
+        ),
+        setting(
+          "Asleep",
+          "The agent has a saved session and no process",
+          (key, { dispatch, harness }) => dispatch(hold(key, sleeping(key, harness))),
+        ),
+        setting("Waking", "Its agent is on the way back", (key, { dispatch, harness }) =>
+          dispatch(waking(key, harness)),
+        ),
+        sleepsAfter(
+          "Asleep, reply unread",
+          "completed",
+          "Replies, then sleeps; brightened until you look",
+        ),
+        sleepsAfter(
+          "Asleep, stopped with an error",
+          "failed",
+          "Fails, then sleeps; unread once you look away",
         ),
         setting("At the prompt", "Idle shell", (key, { dispatch }) => dispatch(backToPrompt(key))),
         setting("Long program", "Counts as running; closing asks first", (key, { dispatch }) =>
@@ -507,7 +629,7 @@ export const createDemoStates = (
       title: "New terminals",
       harnesses: true,
       actions: [
-        everyState(verbs, inbox, panelAsks),
+        everyState(verbs, inbox, panelAsks, hold),
         failingTerminal(
           "Quick failure",
           "Fails right after starting",
@@ -742,6 +864,7 @@ export const createDemoStates = (
     chat: chat.wrap,
     screens,
     failPaste: (key) => pasteFails.delete(terminalKeyId(key)),
+    holds: (key) => held.has(terminalKeyId(key)),
     restart: (key, dispatch) => {
       verbs.release(key)
       dispatch(backToPrompt(key))

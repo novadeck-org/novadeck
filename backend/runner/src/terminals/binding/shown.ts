@@ -266,6 +266,8 @@ export class Shown {
     const binding = record.bound?.binding
     const id = record.summary.id
     if (!binding) {
+      // A woken agent's own prompt showed: the wake worked (see `Record.woken`).
+      record.woken = undefined
       this.host.messaging().shown(id, agent, sessionPrefix ?? null)
       tellInterrupted(record, agent, { prefix: sessionPrefix ?? null }, this.host.messaging())
       record.readyEntered = false

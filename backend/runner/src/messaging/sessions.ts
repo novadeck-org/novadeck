@@ -1,6 +1,8 @@
+import type { AgentName } from "@novadeck/protocol"
+
 import type { Root, RootChange } from "../harnesses/roots.js"
 import type { DeliveryEvent } from "./delivery.js"
-import { addressed, awaiting, started, type Live, type Scope } from "./live.js"
+import { addressed, awaiting, standingOf, started, type Live, type Scope } from "./live.js"
 import type { Loops } from "./loops.js"
 import type { MessageStore } from "./message-store.js"
 import { undelivered, type Held } from "./messages.js"
@@ -27,6 +29,8 @@ export class Sessions {
    * In memory only: after a runner restart, a terminal closed before it isn't known closed.
    */
   private readonly closedForGood = new Set<string>()
+  /** The terminals resting with no process yet: asleep, until `register` starts one. */
+  private readonly asleepIds = new Set<string>()
 
   constructor(private readonly host: SessionsHost) {}
 
@@ -41,6 +45,24 @@ export class Sessions {
   /** Whether the terminal closed for good since this runner started. */
   closed(terminalId: string): boolean {
     return this.closedForGood.has(terminalId)
+  }
+
+  /** Whether the terminal rests with no process started for it: asleep, not yet waking. */
+  asleep(terminalId: string): boolean {
+    return this.asleepIds.has(terminalId)
+  }
+
+  /** The terminals asleep; the live view. */
+  sleepers(): IterableIterator<string> {
+    return this.asleepIds.values()
+  }
+
+  /** The terminal resting on that agent session, if one does: asleep, or woken and not yet bound. */
+  holder(agent: AgentName, sessionId: string): string | undefined {
+    for (const live of this.live.values())
+      if (live.resting?.agent === agent && live.resting.sessionId === sessionId)
+        return live.terminalId
+    return undefined
   }
 
   /** Every running terminal; the live view. */
@@ -64,9 +86,57 @@ export class Sessions {
    * terminals of its project and Novadeck session.
    */
   register(terminalId: string, scope: Scope, handle: string, ledBy: string | null): void {
-    if (this.live.has(terminalId)) return
+    const existing = this.live.get(terminalId)
+    if (existing) {
+      // A sleeper starts: the same record, as it starts, its messages untouched and never
+      // gone, still resting on its session until a root binds.
+      if (!this.asleepIds.delete(terminalId)) return
+      this.become(existing, started(terminalId, scope, handle, ledBy), existing.resting)
+      this.host.store.changed(terminalId)
+      return
+    }
     this.closedForGood.delete(terminalId)
     this.live.set(terminalId, started(terminalId, scope, handle, ledBy))
+  }
+
+  /**
+   * A terminal rests on its saved session with no process: new, or one that ran (a stopped
+   * idle agent). Its messages are untouched, they wait for the session; it is no root, and
+   * never ringable. Resting again while asleep only turns the session it rests on.
+   */
+  rest(
+    terminalId: string,
+    scope: Scope,
+    handle: string,
+    ledBy: string | null,
+    resting: NonNullable<Live["resting"]>,
+  ): void {
+    this.closedForGood.delete(terminalId)
+    const existing = this.live.get(terminalId)
+    const fresh = started(terminalId, scope, handle, ledBy)
+    if (existing) {
+      this.host.loops.reset(terminalId)
+      this.become(existing, fresh, { ...resting })
+    } else this.live.set(terminalId, { ...fresh, resting: { ...resting } })
+    this.asleepIds.add(terminalId)
+    this.host.store.changed(terminalId)
+  }
+
+  /**
+   * A woken terminal's agent will not come, as its shell is back with nothing bound: it no
+   * longer rests on the session, so nothing is addressed to it and its Inbox asks lapse,
+   * and reopen should that session bind there after all. A terminal still asleep rests on.
+   */
+  endRest(terminalId: string): void {
+    const live = this.live.get(terminalId)
+    if (!live?.resting || this.asleepIds.has(terminalId)) return
+    live.resting = null
+    this.host.store.changed(terminalId)
+  }
+
+  /** The record turns into `next` in place, as others hold it by identity. */
+  private become(live: Live, next: Live, resting: Live["resting"]): void {
+    Object.assign(live, next, { resting })
   }
 
   /**
@@ -75,7 +145,7 @@ export class Sessions {
    * as it closes, the brief its lead waits on is let go too; otherwise it is kept, as the
    * terminal may be restored with its lead.
    */
-  unregister(terminalId: string, forGood = false): void {
+  unregister(terminalId: string, forGood = false, reason = "terminal-closed"): void {
     const { store } = this.host
     // Told to those waiting on it, which stop.
     if (forGood && this.host.letBriefGo(terminalId)) store.changed(terminalId)
@@ -84,9 +154,9 @@ export class Sessions {
     if (!live) return
     this.applyRoot(live, [{ type: "ended" }])
     for (const message of store.messages())
-      if (message.to.terminalId === terminalId && undelivered(message))
-        store.gone(message, "terminal-closed")
+      if (message.to.terminalId === terminalId && undelivered(message)) store.gone(message, reason)
     this.live.delete(terminalId)
+    this.asleepIds.delete(terminalId)
     this.host.loops.forget(terminalId)
   }
 
@@ -126,7 +196,9 @@ export class Sessions {
       if (!undelivered(message) || message.state === "leased") continue
       if (message.to.sessionId === null) continue
       const live = this.live.get(message.to.terminalId)
-      if (live?.root && addressed(message, live.root)) continue
+      const standing = live && standingOf(live)
+      // The session it runs, or rests on, asleep or just woken.
+      if (standing && addressed(message, standing)) continue
       // The session the agent showing its prompt there is about to bind.
       if (live && !live.root && awaiting(live, message)) continue
       store.gone(message, "session-not-restored")
@@ -178,7 +250,9 @@ export class Sessions {
     firedAt?: number,
   ): void {
     const { store } = this.host
+    const resting = live.resting
     live.root = root
+    live.resting = null
     live.withdrawing = null
     live.automatic = []
     this.host.loops.reset(live.terminalId)
@@ -196,6 +270,18 @@ export class Sessions {
     })
     for (const message of store.messages()) {
       if (message.to.terminalId !== live.terminalId) continue
+      // A guess at the session a sleeper woke into stands for it: what waited for the saved
+      // session follows, and `correct` moves it on to the session itself.
+      if (
+        guess &&
+        resting &&
+        undelivered(message) &&
+        addressed(message, resting) &&
+        message.to.sessionId !== root.sessionId
+      ) {
+        store.put({ ...message, to: { ...message.to, sessionId: root.sessionId } })
+        continue
+      }
       if (message.to.sessionId === null) {
         if (!undelivered(message)) continue
         if (message.to.agent === root.agent)
