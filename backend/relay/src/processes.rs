@@ -75,9 +75,6 @@ unsafe extern "system" {
     fn TerminateProcess(process: *mut c_void, code: u32) -> i32;
     fn GetExitCodeProcess(process: *mut c_void, code: *mut u32) -> i32;
     fn CloseHandle(handle: *mut c_void) -> i32;
-    fn GetConsoleProcessList(list: *mut u32, count: u32) -> u32;
-    fn FreeConsole() -> i32;
-    fn AttachConsole(pid: u32) -> i32;
 }
 
 /// A process as the snapshot found it: its program's file name and its recorded parent.
@@ -203,47 +200,6 @@ pub fn command_line(pid: u32) -> Option<String> {
     }
     let units = unsafe { std::slice::from_raw_parts(text as *const u16, bytes / 2) };
     Some(String::from_utf16_lossy(units))
-}
-
-/// The processes attached to the console this one is attached to, by pid, this one left
-/// out; None where Windows won't say (no console, or none readable).
-fn console_pids(own: u32) -> Option<Vec<u32>> {
-    let mut room = vec![0u32; 64];
-    // It answers the number attached, and fills the list only if that fits; 0 is a failure.
-    for _ in 0..4 {
-        let found = unsafe { GetConsoleProcessList(room.as_mut_ptr(), room.len() as u32) };
-        if found == 0 {
-            return None;
-        }
-        if found as usize <= room.len() {
-            room.truncate(found as usize);
-            room.retain(|pid| *pid != own);
-            return Some(room);
-        }
-        // More joined since: asked again with room for them and some to spare.
-        room = vec![0u32; found as usize + 16];
-    }
-    None
-}
-
-/// `novadeck-relay console [<pid>]`: the processes attached to a terminal's console, as one
-/// JSON line `{"pids":[<pid>,...]}`, this relay's own pid left out. Run inside the console,
-/// it reads its own; given the pid of a process attached to one (the terminal's shell), it
-/// leaves any console it has and attaches to that one first. False, with nothing printed,
-/// where Windows refuses either.
-pub fn print_console(attach: Option<u32>) -> bool {
-    if let Some(pid) = attach {
-        unsafe { FreeConsole() };
-        if unsafe { AttachConsole(pid) } == 0 {
-            return false;
-        }
-    }
-    let Some(pids) = console_pids(std::process::id()) else {
-        return false;
-    };
-    // A runner gone meanwhile reads none of it; `println!` would panic on that.
-    let _ = writeln!(std::io::stdout().lock(), "{}", json!({ "pids": pids }));
-    true
 }
 
 /// A process of a tree: its pid and when it started, which together name it alone.
@@ -396,15 +352,6 @@ pub fn end(members: &[Member]) {
 #[cfg(test)]
 mod tests {
     use super::*;
-
-    #[test]
-    fn lists_a_console_s_processes_without_its_own() {
-        // A test run with no console, as under a service, has none to list: then it says so.
-        if let Some(pids) = console_pids(std::process::id()) {
-            assert!(!pids.contains(&std::process::id()));
-        }
-        assert_eq!(console_pids(0).is_some(), console_pids(1).is_some());
-    }
 
     #[test]
     fn prints_a_member_with_its_recorded_parent_where_the_snapshot_has_it() {
