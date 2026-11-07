@@ -45,7 +45,9 @@ const overlay = (screen: ScreenText): boolean =>
   ) ||
   screen.rows
     .slice(screen.rows.findLastIndex(rule) + 1)
-    .some((row) => /^\s*enter to (?:create|return|open|resume) · /.test(row))
+    .some((row) =>
+      /^\s*enter to (?:create · esc to clear|(?:return|open|resume) · \? for shortcuts)/.test(row),
+    )
 
 /**
  * A row of its agents list under the footer, of a background agent (`◯`, selected or not):

@@ -571,6 +571,8 @@ describe("Claude Code's agents view with a paste in its field", () => {
   it("leaves a dialog's own words about Enter out of it", () => {
     expect(claude.overlay(view("  Press enter to confirm or esc to cancel"))).toBe(false)
     expect(claude.overlay(view("  enter to open the file"))).toBe(false)
+    // A person's own status line may run under the box.
+    expect(claude.overlay(view("  enter to open · esc to close"))).toBe(false)
   })
 
   it("leaves those words in the box to the box, however they're said", () => {

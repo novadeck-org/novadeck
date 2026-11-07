@@ -4,6 +4,7 @@ import { setTimeout as sleep } from "node:timers/promises"
 import { harnesses } from "../harnesses/registry.js"
 import { setups } from "./agents/index.js"
 import { describe, e2e, expect, supported, type E2E } from "./fixture.js"
+import { agentsViewOutlivesDeck, losesLineBreakKeys } from "./known-gaps.js"
 import { asked, gate, record, text as allOf, tool, type Call, type Rule } from "./model/script.js"
 import { delivered, own, replies, result, start, through, turn, unrung } from "./scenarios.js"
 
@@ -381,12 +382,16 @@ for (const setup of setups) {
         await sleep(1_200)
         const write = (data: string) =>
           run.deck.terminals.write({ terminalId: terminal.id, data }, "e2e")
-        write("MY UNFINISHED DRAFT")
-        await sleep(300)
-        for (let line = 0; line < lines; line += 1) {
-          write(setup.agent === "agy" ? "\x1b\r" : "\n")
-          // eslint-disable-next-line no-await-in-loop -- One key after another.
-          await sleep(120)
+        if (losesLineBreakKeys(setup))
+          write(`\x1b[200~MY UNFINISHED DRAFT${"\n".repeat(lines)}\x1b[201~`)
+        else {
+          write("MY UNFINISHED DRAFT")
+          await sleep(300)
+          for (let line = 0; line < lines; line += 1) {
+            write(setup.agent === "agy" ? "\x1b\r" : "\n")
+            // eslint-disable-next-line no-await-in-loop -- One key after another.
+            await sleep(120)
+          }
         }
         for (let up = 0; up < ups; up += 1) {
           terminal.press("\x1b[A")
@@ -434,7 +439,7 @@ for (const setup of setups) {
       e2e: run,
       skip,
     }) => {
-      if (setup.agent !== "claude") skip()
+      if (setup.agent !== "claude" || agentsViewOutlivesDeck(setup)) skip()
       run.model.use(replies("Warm up", "Warmed up."))
       const terminal = await start(run, setup)
       await turn(terminal, "Warm up", "Warmed up.")
