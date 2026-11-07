@@ -60,7 +60,11 @@ const restored = (summary: TerminalSummary): Pick<TerminalMetadata, "restoredPro
 // one that is not already waking (a `create` for it is coming) sleeps.
 export const sleeper = (summary: TerminalSummary): TerminalStatus | undefined =>
   !summary.started && summary.sleeping && summary.restingAgent
-    ? { state: "sleeping", agent: summary.restingAgent }
+    ? {
+        state: "sleeping",
+        agent: summary.restingAgent,
+        ...(summary.reported ? { reported: true as const } : {}),
+      }
     : undefined
 
 // A terminal as the runner keeps it, or undefined once its shell exited cleanly, which

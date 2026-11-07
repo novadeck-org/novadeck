@@ -50,7 +50,12 @@ export const createBootProgress = ({
   // Counted once the runner has its shell; a surface showing it must also have drawn
   // its first screen before boot is done, but the count never goes back while a view
   // that loads late mounts its surfaces.
-  const attached = (id: string): boolean => finished(id) || ready.has(id)
+  // A terminal that was finished (a sleeper) stays counted when it starts a shell.
+  const attached = (id: string): boolean => {
+    if (!finished(id)) return ready.has(id)
+    ready.add(id)
+    return true
+  }
   const shown = (id: string): boolean => finished(id) || screens.get(id) !== false
   const check = (): void => {
     if (!booting || store.getSnapshot().done) return

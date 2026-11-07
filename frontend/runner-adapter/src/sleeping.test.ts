@@ -156,4 +156,104 @@ describe("a sleeping agent", () => {
     expect(statusOf(app, id(1))).toMatchObject({ state: "sleeping", agent: "claude" })
     app.stop()
   })
+
+  it("resumes at once a wake it first sees as waking, from the runner's agent, unseen off screen", async () => {
+    const waking = keptSummary(id(1), id(9), {
+      lastProgram: "node",
+      restingAgent: "codex",
+      sleeping: false,
+    })
+    const app = scripted({
+      shown: [],
+      background: [{ id: id(1), lastProcess: "node" }],
+      listed: [],
+    })
+    await wait(100)
+    app.changes.push({ type: "changed", terminal: waking })
+    await wait(300)
+    expect(app.of("create")).toEqual([expect.objectContaining({ id: id(1), resume: "codex" })])
+    app.stop()
+  })
+
+  it("resumes a wake it sees as waking while a surface looks, and says it is seen", async () => {
+    const app = scripted({
+      shown: [{ id: id(1), lastProcess: "node" }],
+      listed: [asleep(id(1), { lastProgram: "node", restingAgent: "codex" })],
+    })
+    app.seen(app.key(id(1)))
+    await wait(100)
+    app.changes.push({
+      type: "changed",
+      terminal: asleep(id(1), { lastProgram: "node", restingAgent: "codex", sleeping: false }),
+    })
+    await wait(400)
+    expect(app.of("create")).toEqual([
+      expect.objectContaining({ id: id(1), resume: "codex", seen: true }),
+    ])
+    app.stop()
+  })
+
+  it("shows a sleeper's standing report, and again when it changes while it sleeps", async () => {
+    const app = scripted({
+      shown: [{ id: id(1), lastProcess: "claude" }],
+      listed: [asleep(id(1))],
+      apply: true,
+    })
+    await wait(100)
+    expect(statusOf(app, id(1))).not.toHaveProperty("reported")
+    app.changes.push({
+      type: "changed",
+      terminal: asleep(id(1), { reported: { subject: "done", at: 5 } }),
+    })
+    await wait(100)
+    expect(statusOf(app, id(1))).toMatchObject({ state: "sleeping", reported: true })
+    app.stop()
+  })
+
+  it("stays asleep for a refused unseen wake that was starting, by the runner's latest word", async () => {
+    const app = scripted({
+      shown: [{ id: id(1), lastProcess: "node" }],
+      listed: [asleep(id(1), { lastProgram: "node", restingAgent: "codex", sleeping: false })],
+      apply: true,
+      create: () => Promise.reject(new WireError("SPAWN_FAILED")),
+    })
+    await wait(100)
+    app.changes.push({
+      type: "changed",
+      terminal: asleep(id(1), { lastProgram: "node", restingAgent: "codex" }),
+    })
+    await wait(400)
+    expect(statusOf(app, id(1))).toMatchObject({ state: "sleeping", agent: "codex" })
+    app.stop()
+  })
+
+  it("fails a seen wake the runner cannot spawn, instead of looping asleep and waking", async () => {
+    const app = scripted({
+      shown: [{ id: id(1), lastProcess: "claude" }],
+      listed: [asleep(id(1))],
+      apply: true,
+      create: () => Promise.reject(new WireError("SPAWN_FAILED")),
+    })
+    app.seen(app.key(id(1)))
+    await wait(1_200)
+    expect(statusOf(app, id(1))).toMatchObject({ state: "failed" })
+    expect(app.of("create")).toHaveLength(1)
+    app.stop()
+  })
+
+  it("follows the messages of a shell the runner started itself", async () => {
+    const app = scripted({
+      shown: [{ id: id(1), lastProcess: "claude" }],
+      listed: [asleep(id(1))],
+    })
+    await wait(100)
+    expect(app.followed).toEqual([])
+    app.changes.push({
+      type: "changed",
+      terminal: asleep(id(1), { sleeping: false, started: true }),
+    })
+    await wait(100)
+    expect(app.followed).toEqual([id(1)])
+    app.stop()
+  })
 })

@@ -1044,6 +1044,8 @@ export const runnerBackend = (
   // starts a plain shell with the terminal's transcript above it instead.
   const freshShell = (entry: RunnerEntry, how: { readonly seen?: boolean } = {}): void => {
     if (entry.closed || entry.starting) return
+    // Looked at: the person's own start, or a surface wanting the terminal now.
+    const seen = how.seen ?? entry.seen > 0
     clearTimeout(entry.dwell)
     entry.dwell = undefined
     const { terminalId, workspaceSessionId } = entry.key
@@ -1051,8 +1053,6 @@ export const runnerBackend = (
     const agent = resumeAgent(entry)
     const retry: Retry = { done: ["CONFLICT"], stillWanted, cancelled: () => entry.closed }
     const resume = agent ? { resume: agent } : {}
-    // What a sleeper that fails to wake unseen goes back to.
-    const asleep = entry.status.state === "sleeping" ? entry.status : undefined
     const create = async () => {
       // Its session too, should its creation not have taken.
       await sessionThere(workspaceSessionId)
@@ -1070,7 +1070,7 @@ export const runnerBackend = (
           ...resume,
           // Whether the person is looking: a wake that can't resume then starts a plain shell
           // saying why, where an unseen one leaves the sleeper asleep.
-          ...(how.seen ? { seen: true } : {}),
+          ...(seen ? { seen: true } : {}),
         })
       }, retry)
     }
@@ -1109,10 +1109,16 @@ export const runnerBackend = (
         entry.starting = false
         if (error instanceof Cancelled) return false
         if (hasCode(error, "TERMINAL_NOT_FOUND")) return closedElsewhere(entry)
-        // The runner left the sleeper as it was: so does the terminal.
-        if (asleep && hasCode(error, "SPAWN_FAILED")) {
-          sleep(entry, asleep)
-          return false
+        // The runner left the sleeper as it was, if the wake was not looked at: so does the
+        // terminal, as the runner's latest summary says. A seen wake that fails is failed.
+        if (hasCode(error, "SPAWN_FAILED") && !seen) {
+          // The runner's word may still be on its way: what it rests as is enough.
+          const latest = runnerSummaries.get(terminalId)
+          const asleep = latest && sleeper({ ...latest, started: false, sleeping: true })
+          if (asleep) {
+            sleep(entry, asleep)
+            return false
+          }
         }
         settle(
           entry,
@@ -1157,7 +1163,17 @@ export const runnerBackend = (
   const restoredOf = ({ key }: RunnerEntry): string | undefined => terminalOf(key)?.restoredProcess
   // The agent a fresh shell resumes: a sleeper's own, else the program the terminal lost.
   const resumeAgent = (entry: RunnerEntry): AgentName | undefined =>
-    entry.status.state === "sleeping" ? entry.status.agent : resumableProgram(restoredOf(entry))
+    entry.status.state === "sleeping"
+      ? entry.status.agent
+      : (runnerSummaries.get(entry.key.terminalId)?.restingAgent ??
+        resumableProgram(restoredOf(entry)))
+  // The agent the runner is waking for a terminal it has no shell for: not asleep, and wanted.
+  const restingOf = (entry: RunnerEntry): AgentName | undefined => {
+    const summary = runnerSummaries.get(entry.key.terminalId)
+    return summary && !summary.started && !summary.sleeping
+      ? (summary.restingAgent ?? undefined)
+      : undefined
+  }
   // The status the runner's last summary gives a terminal it keeps asleep, if it does.
   const sleeperOf = (terminalId: string): TerminalStatus | undefined => {
     const summary = runnerSummaries.get(terminalId)
@@ -1169,6 +1185,8 @@ export const runnerBackend = (
   const sleep = (entry: RunnerEntry, asleep: TerminalStatus): void => {
     entry.settled = false
     dispatch(statusAction(entry, asleep))
+    // It counts as attached while it sleeps, and a wake that failed may end the boot.
+    checkBoot()
     wake(entry)
   }
   // Wakes a sleeper a surface wants, after the dwell; letting go first cancels it.
@@ -1188,7 +1206,9 @@ export const runnerBackend = (
   // to be wanted (see `wake`), on screen or not.
   const wanted = (entry: RunnerEntry): boolean =>
     entry.status.state !== "sleeping" &&
-    (onScreen(entry) || resumableProgram(restoredOf(entry)) !== undefined)
+    (onScreen(entry) ||
+      restingOf(entry) !== undefined ||
+      resumableProgram(restoredOf(entry)) !== undefined)
   // Lost terminals of the session on screen, and those with a program to resume, get
   // their fresh shells.
   const reviveOnScreen = (): void => {
@@ -1422,7 +1442,8 @@ export const runnerBackend = (
     },
     restart: (key) => {
       const entry = registry.get(key)?.entry
-      if (entry?.settled) freshShell(entry)
+      // The person's Enter: a wake it starts is looked at.
+      if (entry?.settled) freshShell(entry, { seen: true })
     },
     connection,
     track,
@@ -1496,6 +1517,8 @@ export const runnerBackend = (
           entry.ready = Promise.resolve(true)
           clearTimeout(entry.dwell)
           entry.dwell = undefined
+          followWhenReady(entry)
+          checkBoot()
         }
         dispatch([
           ...factActions(entry, summary),
@@ -1508,13 +1531,14 @@ export const runnerBackend = (
         if (asleep) {
           // Asleep, whatever it showed before, even a crash whose record the runner let go:
           // it wakes if a surface wants it, or a message does.
-          if (entry.status.state !== "sleeping" || entry.settled) sleep(entry, asleep)
+          // Its standing report too, which changes while it sleeps.
+          if (!sameStatus(entry.status, asleep) || entry.settled) sleep(entry, asleep)
         } else if (entry.settled) return
-        else if (entry.status.state === "sleeping") {
+        else if (entry.status.state === "sleeping" || restingOf(entry)) {
           // Woken by the runner (a message came for it): the summary alone changes nothing
           // here, so the fresh shell starts from this report.
           if (restartingOften()) settle(entry, crashLoop)
-          else freshShell(entry, { seen: entry.seen > 0 })
+          else freshShell(entry)
         }
         return
       }

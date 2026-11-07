@@ -62,4 +62,19 @@ describe("boot progress", () => {
       expect(progress.store.getSnapshot().done).toBe(true)
     })
   })
+
+  context("when a sleeper wakes during boot", () => {
+    it("keeps it counted, and ends once its failed wake leaves it asleep", async () => {
+      const sleeper = starting()
+      const state = { ...sleeper.entry, status: { state: "sleeping" } } as {
+        -readonly [K in keyof BootEntry]: BootEntry[K]
+      }
+      const progress = boot({ a: state })
+      progress.begin(["a"])
+      expect(progress.store.getSnapshot()).toMatchObject({ attached: 1, total: 1 })
+      state.status = { state: "starting" }
+      progress.check()
+      expect(progress.store.getSnapshot()).toMatchObject({ attached: 1, total: 1 })
+    })
+  })
 })
