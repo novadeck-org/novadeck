@@ -223,8 +223,8 @@ export const Composer = ({
         </p>
       )}
       {passing && (
-        <p className="chat-reply" id={note}>
-          <span>What you type goes to {label}'s own menu.</span>
+        <p className="sr-only" id={note}>
+          What you type goes to {label}'s own menu.
         </p>
       )}
       {box && !passing && (
