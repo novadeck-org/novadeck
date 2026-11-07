@@ -11,7 +11,8 @@ import { hidesText, isEmpty, tailOf } from "@novadeck/tui-input/box"
 import { harnesses } from "../../harnesses/registry.js"
 import { setups } from "../agents/index.js"
 import { describe, e2e, supported } from "../fixture.js"
-import { start } from "../scenarios.js"
+import { asked, type Call } from "../model/script.js"
+import { own, start } from "../scenarios.js"
 import { paste, probing, sleep } from "./support.js"
 
 const out = process.env.PROBE_OUT ?? join(process.env.HOME ?? ".", "probe-out")
@@ -33,6 +34,53 @@ const lineOf = (length: number): string => {
 for (const setup of setups)
   describe.skipIf(!supported || !probing)(`probe: reply overflow, ${setup.name}`, () => {
     const it = e2e(setup)
+
+    // Text that fills its row on Codex: its erase keys, and a chat send over it as a draft.
+    it("a full row", { timeout: 300_000 }, async ({ e2e: run, skip }) => {
+      if (setup.agent !== "codex") skip()
+      run.model.use(own((call) => (asked(call, "Carry on") ? { text: "Carried on." } : undefined)))
+      const terminal = await start(run, setup)
+      const box = harnesses[setup.agent].box!
+      const rows = 24
+      terminal.resize(40, rows)
+      await sleep(1_200)
+      const found: unknown[] = []
+      for (const length of [75, 112, 149, 186]) {
+        terminal.press(paste(lineOf(length)))
+        await sleep(700)
+        await terminal.settled()
+        const shown = await terminal.screenText()
+        const read = shown && box.read(shown)
+        if (read) terminal.press(box.erase!(read))
+        await sleep(700)
+        const after = await terminal.screenText()
+        const left = after && box.read(after)
+        found.push({ length, read: read?.text.length, last: read?.last, left: left?.text })
+        for (let at = 0; at < 40; at += 1) {
+          const now = await terminal.screenText()
+          const held = now && box.read(now)
+          if (held && isEmpty(held)) break
+          terminal.press("\x15\x7f")
+          await sleep(120)
+        }
+      }
+      terminal.press(paste(lineOf(75)))
+      await sleep(700)
+      await terminal.settled()
+      const mark = run.model.mark()
+      const sent = await terminal.prompt("Carry on").then(
+        () => "sent",
+        (error: unknown) => String(error),
+      )
+      const call = await run.model
+        .waitFor((each: Call) => !each.side && asked(each, "Carry on"), { after: mark })
+        .then((each: Call) => each.turns.at(-1)?.text)
+        .catch((error: unknown) => `no call: ${String(error)}`)
+      writeFileSync(
+        join(out, "reply-full-row.json"),
+        `${JSON.stringify({ found, sent, call }, null, 2)}\n`,
+      )
+    })
 
     it("finds the length", { timeout: 900_000 }, async ({ e2e: run }) => {
       const terminal = await start(run, setup)

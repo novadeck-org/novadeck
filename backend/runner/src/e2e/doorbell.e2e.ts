@@ -333,6 +333,24 @@ for (const setup of setups) {
       expect(states(t1, mark)).not.toContain("ringing")
     })
 
+    // Text that fills its row leaves Codex's cursor on the blank row under it, for the box to
+    // read as no box at all. The doorbell line is one length, so a pane of this width has it.
+    it("rings a pane just wide enough for its line to fill a row", async ({ e2e: run }) => {
+      run.model.use(
+        replies("Warm up", "Warmed up."),
+        sends("Tell moth the news", "moth", "The build is green."),
+        own((call) => (sent(call, "moth") ? { text: "Told moth." } : undefined)),
+        own((call) => (delivered(call, "fox") ? { text: "Noted the news." } : undefined)),
+      )
+      const t1 = await start(run, setup)
+      const t2 = await start(run, setup)
+      await turn(t1, "Warm up", "Warmed up.")
+      t1.resize(doorbellLine("nonce6").length + 3, 40)
+      await sleep(1_000)
+      await t2.submit("Tell moth the news")
+      await t1.reached(holds(t2.handle, t1.handle, "delivered"), { timeoutMs: 45_000 })
+    })
+
     it("rings a second time after a turn of the person's, when Codex draws a Tip under the reply", async ({
       e2e: run,
     }) => {

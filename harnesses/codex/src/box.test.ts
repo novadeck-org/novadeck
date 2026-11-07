@@ -1,5 +1,6 @@
 import type { ScreenText } from "@novadeck/emulator/headless"
 import { loadProbe } from "@novadeck/harness-core/testing/probes"
+import { fillsViewport } from "@novadeck/tui-input/box"
 import { describe, expect, it } from "vitest"
 
 import { box } from "./box.js"
@@ -216,5 +217,47 @@ describe("Codex's views over its box", () => {
     expect(
       box.overlay(screenOf("• Working (1s • esc to interrupt)", "› ", "  tab to queue message")),
     ).toBe(false)
+
+describe("Codex's box with text that fills its last row", () => {
+  const drawn = (rows: readonly string[], cursor: { row: number; column: number }): ScreenText => ({
+    rows,
+    bright: rows,
+    columns: 40,
+    cursor,
+    bracketedPaste: true,
+    alternate: false,
+  })
+  // As 0.167.0 drew a line of 75 characters at 40 columns.
+  const full = "  the changelog merge it and s [zQ7kP2]"
+  const rows = ["", "› [Head, zQ7kP2] merge it and say so in", full, "", "", "  footer", ""]
+
+  it("reads though the cursor is parked on the blank row under it", () => {
+    expect(box.read(drawn(rows, { row: 3, column: 2 }))).toMatchObject({
+      text: `[Head, zQ7kP2] merge it and say so in\n${full.trim()}`,
+      first: 1,
+      last: 3,
+    })
+  })
+
+  it("is as tall as its viewport with that row, for what it hides to be known", () => {
+    const tall = [
+      "",
+      "› one",
+      "  two",
+      "  three",
+      full,
+      "",
+      "  footer",
+      ...Array<string>(7).fill(""),
+    ]
+    const shown = box.read(drawn(tall, { row: 5, column: 2 }))
+    expect(shown && fillsViewport(box, shown, tall.length)).toBe(true)
+  })
+
+  it("still finds no box for a cursor on a blank row anywhere else", () => {
+    expect(box.read(drawn(rows, { row: 4, column: 2 }))).toBeUndefined()
+    expect(box.read(drawn(rows, { row: 3, column: 5 }))).toBeUndefined()
+    const short = rows.map((row) => (row === full ? "  the changelog" : row))
+    expect(box.read(drawn(short, { row: 3, column: 2 }))).toBeUndefined()
   })
 })
