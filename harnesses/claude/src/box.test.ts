@@ -106,11 +106,9 @@ describe("taking what Claude Code has queued", () => {
     expect(box.queued({ ...screen, rows })).toBe(false)
   })
 
-  it("says clearing would lose an image in the box, and no text", () => {
-    const { lossy } = box.takeQueued!
-    const of = (text: string) => ({ text, mode: "prompt" as const, first: 0, last: 0 })
-    expect(lossy(of("[Image #1] look at this"))).toBe(true)
-    expect(lossy(of("look at this"))).toBe(false)
+  it("says an image in the box stands for more than its text", () => {
+    expect(box.stands("[Image #1] look at this")).toBe(true)
+    expect(box.stands("look at this")).toBe(false)
   })
 
   it("reads an Up that found no queue, and only that", () => {

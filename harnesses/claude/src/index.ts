@@ -5,7 +5,7 @@ import type { Harness, LaunchProfile, MessagingProfile } from "@novadeck/harness
 import { beside } from "@novadeck/harness-core/paths"
 import type { Report } from "@novadeck/harness-core/report"
 
-import { box } from "./box.js"
+import { box, slice } from "./box.js"
 import { decode } from "./decode.js"
 import { dialogs } from "./dialogs.js"
 import { claudeHome } from "./home.js"
@@ -137,6 +137,7 @@ export const claude = {
   launch,
   messaging,
   box,
+  slice,
   watch: followTranscript,
   // A subagent's request its person denied, or whose prompt timed out, fires no hook: its own
   // transcript records the call's result.

@@ -566,9 +566,13 @@ not command completion.
   the previous run. A running terminal rejects with `CONFLICT`, and a shell that
   cannot start rejects with `SPAWN_FAILED`, leaving the terminal exited.
 - Closing sends a hangup to the owned shell, escalating if the shell ignores it.
-  It is not a process-tree kill guarantee: daemonized jobs and descendants that
-  ignore hangup may continue, as with an ordinary terminal emulator. Use an OS
-  service/cgroup or a future supervisor if all descendant cleanup is required.
+  Where the terminal's bound agent holds the foreground, what the agent started is
+  read first and waited for, 3 s for a close and 2 s for a shutdown, then gets
+  SIGTERM, and SIGKILL half a second on. Otherwise it is not a process-tree kill
+  guarantee: daemonized jobs and descendants that ignore hangup may continue, as with
+  an ordinary terminal emulator, and so may a daemon an agent left in a group of its
+  own. Use an OS service/cgroup or a future supervisor if all descendant cleanup is
+  required.
 
 ## Shell integration and restoring terminals
 
@@ -803,11 +807,77 @@ one from an earlier runner.
   tells (`unsupported`, `partial`, `complete`). Actors and requests have runner-issued
   refs, never a harness's own ids; the summary's subagents use the same refs. Its `prompts`
   are the receipts of the prompts given through `agents.prompt` in the bound session (see
-  "Prompt receipts" below). Without an agent bound, only `terminalId` is set, and the
-  receipts of prompts given an agent at its own prompt before its session binds. The stream follows the terminal from agent to
+  "Prompt receipts" below), and its `box` what the agent's input box holds (see "A box that
+  isn't empty" below). Without an agent bound, only `terminalId` is set, with the receipts of
+  prompts given an agent at its own prompt before its session binds, and its `box`. The stream follows the terminal from agent to
   agent and ends when the terminal is closed; an unknown one is `TERMINAL_NOT_FOUND`.
   The client's `agents.detail(terminalId)` resubscribes across reconnections and ends
   once the terminal is gone.
+- `agents.slice({ terminalId })` streams the rows of the terminal's screen that stand for
+  something of its harness's own at its input, so the chat can show them live in place of a
+  dialog: a snapshot `{ slice }`, then another on each change, `slice` null while nothing
+  shows. A slice (`liveSlice`) is self-contained: `columns`, `rows` of style runs (`text`,
+  `width` in columns, `fg` and `bg` as a palette index or `#rrggbb`, null for the default, and
+  `bold`, `dim`, `italic`, `underline`, `inverse`), the `cursor` in its rows and columns or
+  null, `reason` and `secret`. `reason` says only what the readers tell: `menu`, the box holds
+  the harness's own key (`/`, `@`, Codex's `$`) and something was drawn for it; `view`, the box is gone, covered
+  (`BoxProfile.overlay`);
+  `dialog`, a request that holds the agent whose `dialog` is `raw`. Nothing reads what the rows mean, so it holds
+  for whatever a harness draws. A request whose dialog is read, or not yet, shows none: that
+  dialog is the chat's to draw. The harness's box rows are left out of a menu: the chat's
+  input holds that text.
+  Where a thing starts is found against the last screen seen at rest (`readSlice` in
+  `harnesses/core/src/slices.ts`): above the box, the rows are walked from the top while they
+  match the resting rows in order, as what is above stays or moves up whole, and the first
+  that doesn't is its top, and a menu there ends one row short of the box, so a row that
+  changed further up is no menu; under it, from the closing rule to the last row drawn, and
+  no more rows than the footer at rest is no menu. The side comes from the harness
+  (`SliceProfile.side`). Fail-safe: a menu above the box with no screen at rest of this size
+  shows nothing; past `sliceLimits` there is no slice, as rows cut short would be the wrong
+  rows; a view with no such screen is the whole screen, which holds the view. A view shows
+  only once it has stayed 120 ms, as a redraw between two frames has no box either. Mid-turn a
+  row that changed above a menu (Codex's `Working (2s)`, streamed text) can land at the
+  slice's top: it can't be told from a menu that grew without reading it. A request that
+  holds the agent keeps its dialog in the chat; a detached one leaves its prompt free, and
+  menus go on showing.
+  `secret` marks rows a harness's reader knows as a secret prompt (Claude Code's `Paste code
+  here`): they are shown, as the terminal's own stream shows them to the same person, but
+  nothing keeps a copy. A slice's rows go to its readers and nowhere else: never to a log, a
+  trace, telemetry or a saved state. The screen is looked at only while someone reads,
+  at most every 50 ms; a terminal nobody watches costs nothing. It is a stream of its own, not
+  part of `agents.detail`, because it changes on every key. It follows the terminal from
+  agent to agent, covers an agent shown at its prompt before a session binds (Antigravity
+  and Codex bind at a first prompt), and ends when the terminal is closed; an unknown one is
+  `TERMINAL_NOT_FOUND`.
+- `agents.keys({ terminalId, keys })` writes keys to the terminal's agent as the person's, for
+  what shows in `agents.slice`: a chat holds no control of the terminal, so `terminals.write`
+  isn't its way in. They wait out what holds the terminal's input, as a prompt's paste, as the
+  person's do. A terminal with no agent is a `CONFLICT`, and so is one with a request that holds
+  the agent and whose dialog the chat can answer; a dialog no adapter read takes keys.
+  The chat's rule for them: when the draft calls up a menu (`opensMenu` in
+  `contract/protocol/src/harnesses.ts`: a leading `/`, a last word starting `@`, on Codex `$` too)
+  over an empty box, the draft goes as keys and what is typed goes after it, as a diff of the
+  draft (what was added, Backspaces for what went, Ctrl-U and the line again for an edit in
+  between), so a paste or an IME goes too. That lasts while the text calls up a menu and fits
+  one row of the box, as one Ctrl-U clears one row: once it doesn't, as a message goes on past a
+  mention, the box is cleared and the words are the chat's again, a long `/` command's refused. Enter goes as a key. Tab, Up, Down and Esc go only while a slice shows, one per
+  press: on an empty box Codex's Esc arms "edit previous" and then opens its transcript,
+  mid-turn a further Esc stops the turn, Up recalls an earlier prompt and Tab queues. After Tab
+  or Enter the text is the harness's, which may complete, run or keep it (Antigravity's Enter
+  completes and a second runs): the draft mirrors `agents.detail`'s `box`, and goes once that
+  reads empty. Enter goes on its own, at least 150 ms behind the keys before it, as Codex reads
+  an Enter right behind text as part of a paste. A view or an unread dialog takes the keys
+  itself while it shows, a paste included, but for what the app keeps (Ctrl+Shift, a modified
+  key, Ctrl+C over a selection). Stop clears the box first, as a menu takes the Esc it would
+  press. A draft the keys can't answer (a mention of a key its harness has no menu for, a line
+  break, a control character, a box that holds text, a request's dialog the chat answers) stays
+  under `PROMPT_REFUSED`'s rule. While keys pass or a menu shows, `One input`'s take leaves the
+  box alone. Leaving the chat with a menu up
+  leaves its text in the terminal's box and the draft goes; coming back to a menu goes on from
+  the box. A command the person runs so has no receipt and hardly a record ("What a harness
+  draws at its input" in docs/harness-coverage.md): the chat echoes what they typed as their
+  words, unless an Enter left the text in the box, with the last of the view it opened under it,
+  never a `secret` one, for as long as it lives.
 - `agents.transcript({ terminalId, actor })` streams an actor's conversation, by the ref
   `agents.detail` names it by, as its harness recorded it: batches of up to 256 items
   from the start of the record in the order the harness wrote them (Antigravity may
@@ -885,13 +955,11 @@ one from an earlier runner.
   The runner holds the person's keys and reads the agent's input box off its screen,
   through the harness's adapter (`harnesses/*/src/box.ts`, which knows how that harness draws it,
   which of its text is a faint suggestion, not the person's, and whether it is in its shell
-  mode): where the box is not on the screen, or still holds anything after waiting up to 3 s
-  for it to read empty and in its prompt mode (the TUI may be clearing the text of the
-  prompt just sent before, or leaving its shell mode after a command's Enter; the person's
-  draft, or what a failed paste left, never clears), the call is a `CONFLICT` that wrote
-  nothing, as the text would merge into it. A box left in its shell mode, even empty, would
-  run any text as a command: a message or command there is a `CONFLICT` writing nothing
-  ("clear it in the terminal first"). Otherwise it writes the text as one bracketed paste
+  mode): where the box is not on the screen, or a view, menu or dialog covers it, the call is a
+  `CONFLICT` that wrote nothing. It waits up to 3 s for the box to read empty and in its
+  prompt mode (the TUI may be clearing the text of the prompt just sent before, or leaving
+  its shell mode after a command's Enter). Whatever the box still holds then is seen to as
+  "A box that isn't empty" says below. Otherwise it writes the text as one bracketed paste
   and presses Enter once the box holds exactly the text (whitespace aside: the TUI wraps and
   indents it) or, for text a TUI may collapse (several lines, or over 200 characters), only
   the placeholder it shows for it, on two reads running; the words already on the screen
@@ -964,10 +1032,116 @@ one from an earlier runner.
   them over and keeps that deadline, so one that is refused at once lets none go earlier. The
   client's `agents.prompt(terminalId, text, { automatic?, ref? })` is that call.
 
-  It resolves with `{ ref, tracked }`: the ref of the prompt's receipt (the `ref` given, 16
-  letters, digits, `_` or `-`, which a client picks so its own copy of the prompt has the
-  same key from the start; one the terminal's receipts already hold is a `CONFLICT` writing
-  nothing; the runner's own without one), and whether a receipt follows it.
+  It resolves with `{ ref, tracked, returned }`: the ref of the prompt's receipt (the `ref`
+  given, 16 letters, digits, `_` or `-`, which a client picks so its own copy of the prompt
+  has the same key from the start; one the terminal's receipts already hold is a `CONFLICT`
+  writing nothing; the runner's own without one), whether a receipt follows it, and the words
+  it took out of the agent's box to go, for the client's draft, null for none.
+
+  **A box that isn't empty** (`libraries/tui-input/src/box/leftover.ts`,
+  `Prompts.room`) never sends the person to the terminal where the screen shows it needn't,
+  for a call with `along`: the chat's own send while it shows, whose person can see the box.
+  Without `along`
+  a box that isn't empty is a `CONFLICT` writing nothing (`draft`, or `shell`): an Inbox line,
+  fixed or typed, and the words that follow an answer, are sent where the box can't be seen.
+  What the box holds is read through the adapter, and each step goes once and is read back;
+  a step that doesn't confirm ends in the next one down, or a refusal with a reason, never
+  the same keys again. Each fallback and refusal logs `chat.box` as a warning, with the
+  harness and its version and no words, so a harness that changed shows up there. What the
+  box holds is also in `agents.detail`'s `box`, so a client can show it before anything goes
+  with it (`agentBox`): its `text`, `mode`, `tail` where the box may hold more than it shows, as tall as it gets or saying so, so that
+  may be only the end of it, and `known`. It is null for an empty box, no box, an empty shell
+  mode, or a line a ring left (below), read as the screen changes while a client reads the
+  detail, throttled, and never for one nobody reads.
+  - **Text goes along.** The cursor goes after the text first, as a paste lands at the
+    cursor: Down to the box's last row, exactly so far, as Down past it recalls history, then
+    End. Where it can't be seen there, or the box may be showing a tail it scrolled in, the call
+    is a `CONFLICT` (`draft`) with nothing pasted. A cursor far past the text's end is none in
+    the box at all (a menu that reads as one parks it there). In a box that may show a tail, a
+    cursor on the end of the last row shown can't be told from the text's end, so a person who
+    scrolled up inside so tall a draft gets the message at the cursor, both still sent. The paste leads with a blank line, which
+    keeps the prompt's lines its own, so its receipt settles against the record's merged item,
+    and closes a picker the text holds open, whose Enter would pick from it (Codex and
+    Antigravity did). Where a paste is keys (`pastesAsKeys`, Codex on Windows, which reads the
+    console's), a line break is an Enter unless it comes in what the program takes for a burst of
+    typing: one leading the paste submitted the box and left the prompt behind. So a space sets
+    the prompt apart there, the record told it shares a line, and a prompt of several lines
+    with a first line under 16 characters is a `CONFLICT` (`draft`), written nowhere. Enter goes once the box holds the text and then the prompt, or the
+    prompt's placeholder, or in a box as tall as it gets the prompt's tail, or in a box that
+    says it is cut (Antigravity's `cut`) the end of what it held and then the prompt.
+  - **What is Novadeck's goes back.** Where all the box holds is prompts whose receipts are
+    `in-box` (`known`), unless it is a `tail`, it is erased first and handed back as `returned`, its receipts
+    `withdrawn`. The keys are the adapter's `erase`: Ctrl-U from the last row up, Backspace
+    between rows, which unlike Escape or Ctrl-C stops no running turn, on every harness.
+    Where the box doesn't read empty after them it goes along as text; where what's left
+    is no longer what the box held, it is a `CONFLICT` (`draft`) that carries what they took in
+    its data as `returned`, as any failure after words came out does, `PROMPT_FAILED` too, for the
+    client's draft. A Stop that couldn't take queued words out (`BOX_NOT_CLEARED`) marks their
+    receipts `in-box` at once.
+  - **Shell mode is left.** A box in its shell mode would run any text as a command. Empty, a
+    Backspace leaves it; holding a command, the same keys as erasing and a Backspace, and the
+    command goes back as `returned`, with its `!`. One that shows only as a placeholder or a
+    tail can't go back, so it stays, and the call is a `CONFLICT` (`shell`).
+  - **What stays refused**, writing nothing, until the person clears it (`agents.clearBox`, under
+    "One input"): a box leading with `/` or `!`, which its program
+    would run with the prompt as arguments (`command`); no box, or something over it (`no-box`);
+    a shell command over text that isn't Novadeck's, which can't go along (`draft`); and a
+    line a ring left, which is the doorbell's to finish (`ringing`, to try again). A first line
+    that a tail or a cut box doesn't show can't be read, so such a box goes along as text.
+
+  **One input.** While a terminal shows as chat, its terminal inert beneath it, the person
+  writes in one place: `agents.takeBox` hands what the agent's box holds to the client's draft,
+  and `agents.putBox` hands a draft back as the terminal shows again (`Handovers`, in
+  `libraries/tui-input`). Each takes its turn in the terminal's input queue, so neither races
+  a ring or a prompt, and neither presses Enter.
+  - `agents.takeBox({ terminalId })` resolves with `{ returned }`, the words as typed: rows
+    the box wrapped joined again (a row the next one's first word wouldn't have fit on, and
+    one filled by a single word mid-word), and a shell mode's command with its `!`. It takes only
+    what reads whole: not a box that may show a tail, nor one holding a paste's placeholder or
+    an image (`BoxProfile.stands`), and only once the box read the same twice, 300 ms apart,
+    and any text of a prompt just sent had the time to clear. With the cursor after the
+    text, the adapter's `erase` (or `shell.leave`) goes once, and must read empty; otherwise
+    `returned` is null and the box stays as it is, or as the keys left it, showing in `box`,
+    which send-along then takes care of. A box holding a command of the program's (a leading
+    `/`) stays too: the chat could neither send that nor put it back. The client doesn't take
+    a shell command beside a message in its draft, or a message beside a command. Any of it
+    shows in `box`, and the client shows it, as what the next message goes out with. Keys that took some of it, or took late, still give what
+    they took, which is in the box no longer, what's left there being taken after it. A ring's line is never taken, with words beside it or
+    not, and an empty shell mode is left as it is. A prompt Novadeck knows comes back as given.
+  - `agents.putBox({ terminalId, text })` resolves with `{ placed }`. It pastes the draft with
+    no Enter, a leading `!` typed as a key first, so it lands in the box's shell mode on every
+    harness (pasted, Antigravity takes it as text). `placed` is false, with nothing typed, where
+    the box isn't empty, or the text has a shape `promptRefusal` refuses: a leading `/`, or a
+    trailing `@name` or `$name`, whose picker would open there and take the next Enter, or a
+    command long enough for a placeholder where the harness's shell mode would run that as
+    text (Antigravity), or text whose first line break would be an Enter (above). It is false too where the words never showed, a `!` that was typed taken
+    back out. The client keeps its draft unless it is true.
+
+  - `agents.clearBox({ terminalId, seen })` resolves with `{ cleared }`. It is the person's own
+    call, from a button on the box's note, for what the two above leave: a command, a placeholder,
+    a tail, a shell mode's command. It empties the box of any of it, leaves the shell mode, and
+    the words are gone for good. `seen` is the `text` of `box` they were shown: a box that reads
+    otherwise is left, with nothing written. The adapter's `erase` (or `shell.leave`) goes once,
+    with the cursor after the text, and the box is read once. On a tail the keys go for 256 rows
+    in that one write, as what it hides can't be counted, and a longer text shows a tail again,
+    for another click. `cleared` is false where it didn't read empty, or there was no box, and
+    the box stays as it was or as the keys left it, as it does for a tail with the cursor moved
+    up, whose end can't be told, or a box longer than `box.text` can show. Of a tail only what
+    shows can be compared, with any row saying how much it hides, so one stays while a prompt
+    waits on the record or is back in the box, as a Stop can put prompts back over it. Prompts
+    whose words went, all of them or as far as the keys got, are withdrawn. A
+    doorbell line beside the person's text goes with it, seen in the note, and the doorbell rings
+    again once the box is empty.
+
+  All of them hold the person's keys for as long as they take: 0.3 s, as long as what a prompt just sent
+  may still show (3 s), and up to 2 s for each of two keys that don't confirm, within a safety
+  cap of 16 s. A take waits up to 10 s for a ring under way first, outside the queue. There is
+  no per-client guard: a second client on one runner, as two `dev:web` tabs, could take what the
+  person types in the other's terminal view. The desktop app has one window, and a terminal
+  shows in one place.
+
+  Every refusal and every step logs `chat.box`, a warning for what it left undone, with the reason, the harness
+  and its version, never the words.
 
   **Prompt receipts.** The runner follows each prompt until the agent's own record holds it,
   so the chat can show it until then and say when it never came, the same in every window
@@ -1139,9 +1313,11 @@ one from an earlier runner.
   (`InterruptResult`): the words with line breaks as line feeds, for the chat to put back
   in the person's draft; `null` when there were none, and always for Codex. It fails
   closed: where the box holds text that can't be cleared and seen empty, that is only a
-  placeholder standing for the words (clearing it would lose them), or can't be read,
-  after the Escape stopped the turn, it rejects with `BOX_NOT_CLEARED` and leaves the box
-  as it is: the person is to clear it in the terminal. The call takes up to about half a
+  placeholder standing for the words (clearing it would lose them), may hold more than it
+  shows (messages queued in a box as tall as its viewport, or one that says it is cut), or
+  can't be read, after the Escape stopped the turn, it rejects with `BOX_NOT_CLEARED` and
+  leaves the box as it is, for the next prompt to see to where it can ("A box that isn't empty"), and otherwise for the terminal.
+  `returned` leaves out Novadeck's own doorbell and reply lines. The call takes up to about half a
   second longer where nothing comes back, and a few seconds more with queued messages. The
   client's `agents.interrupt(terminalId)` is that call, and resolves with the result.
 

@@ -1,0 +1,134 @@
+name: Exit probe
+
+# How long each harness takes to exit once the runner hangs up its terminal
+# (src/e2e/probes/agent-exit.e2e.ts). What that takes is the system's, so unlike the other
+# probes it runs on macOS and Windows too, whenever it or this workflow changes. A row each
+# for every harness alone, and one with all of them at once. It records rather than checks:
+# the numbers are in the job's log and its artifact.
+on:
+  pull_request:
+    types: [opened, synchronize, reopened]
+    paths:
+      - .github/workflows/exit-probe.yml
+      - backend/runner/src/e2e/probes/agent-exit.e2e.ts
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  probe:
+    name: ${{ matrix.setup.name }} (${{ matrix.runner.name }})
+    runs-on: ${{ matrix.runner.os }}
+    timeout-minutes: 60
+    defaults:
+      run:
+        shell: bash
+    strategy:
+      fail-fast: false
+      matrix:
+        runner:
+          - { name: Linux, os: ubuntu-latest }
+          - { name: macOS, os: macos-latest }
+          - { name: Windows, os: windows-latest }
+        setup:
+          - { name: Claude Code, agents: claude }
+          - { name: Codex, agents: codex }
+          - { name: Antigravity, agents: agy }
+          - { name: Mixed, agents: "claude,codex,agy", only: every harness at once }
+    env:
+      NOVADECK_E2E_CACHE: ${{ github.workspace }}/.e2e-cache
+      NOVADECK_E2E_AGENTS: ${{ matrix.setup.agents }}
+      NOVADECK_E2E_HARNESS: pinned
+      NOVADECK_E2E_PROBES: "1"
+      PROBE_OUT: ${{ github.workspace }}/probe-out
+      # A shell moves to its scope some ms after it starts: long enough for what it starts next.
+      PROBE_RC_SLEEP: ${{ matrix.runner.name == 'Linux' && '0.3' || '' }}
+    steps:
+      - name: Check Out Repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Set Up Toolchain
+        id: toolchain
+        continue-on-error: true
+        uses: pnpm/setup@fa36a5ef7dcdefc3a7cb25655c122e00cf6e636e # v3.1.2
+        with:
+          runtime: node@26
+          cache: true
+          require-lockfile: true
+
+      # An immediate retry hit the same registry outage in the flake audit.
+      - name: Wait Before Retrying Toolchain
+        if: steps.toolchain.outcome == 'failure'
+        run: sleep 180
+
+      - name: Set Up Toolchain Again
+        if: steps.toolchain.outcome == 'failure'
+        uses: pnpm/setup@fa36a5ef7dcdefc3a7cb25655c122e00cf6e636e # v3.1.2
+        with:
+          runtime: node@26
+          cache: true
+          require-lockfile: true
+
+      # The e2e jobs' caches, restored only: those jobs save them. A step each, as steps
+      # can't loop, for the row that runs them all.
+      - name: Restore Claude Code
+        if: contains(matrix.setup.agents, 'claude')
+        uses: ./.github/actions/e2e-harness-cache/restore
+        with:
+          cache: ${{ env.NOVADECK_E2E_CACHE }}
+          harness: claude
+
+      - name: Restore Codex
+        if: contains(matrix.setup.agents, 'codex')
+        uses: ./.github/actions/e2e-harness-cache/restore
+        with:
+          cache: ${{ env.NOVADECK_E2E_CACHE }}
+          harness: codex
+
+      - name: Restore Antigravity
+        if: contains(matrix.setup.agents, 'agy')
+        uses: ./.github/actions/e2e-harness-cache/restore
+        with:
+          cache: ${{ env.NOVADECK_E2E_CACHE }}
+          harness: agy
+
+      - name: Build Protocol and Relay
+        run: pnpm --filter @novadeck/protocol... --filter @novadeck/relay build
+
+      - name: Install Harnesses
+        run: node scripts/e2e/install/main.ts
+
+      # As the e2e jobs do: Codex draws its first screen by this.
+      - name: Allow Motion
+        if: runner.os == 'macOS'
+        run: |
+          defaults write com.apple.universalaccess reduceMotion -bool false
+          [ "$(defaults read com.apple.universalaccess reduceMotion)" = 0 ]
+
+      # The Mixed row selects every harness, and runs only the test of them all at once.
+      - name: Run Probe
+        env:
+          ONLY: ${{ matrix.setup.only }}
+        run: |
+          mkdir -p "$PROBE_OUT"
+          probe=(pnpm --filter @novadeck/runner test:e2e src/e2e/probes/agent-exit.e2e.ts)
+          if [ -n "$ONLY" ]; then probe+=(-t "$ONLY"); fi
+          if [ "$RUNNER_OS" != Linux ]; then
+            "${probe[@]}"
+          else
+            node scripts/e2e/isolated/main.ts -- "${probe[@]}"
+          fi
+
+      # Whatever ended the job: the probe saves after every case for this.
+      - name: Upload Probe Findings
+        if: always()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: agent-exit-${{ matrix.setup.name }}-${{ runner.os }}
+          path: ${{ env.PROBE_OUT }}
+          if-no-files-found: ignore
+          retention-days: 14

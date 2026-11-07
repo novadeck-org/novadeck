@@ -27,6 +27,7 @@ const exited = (terminalId: string): TerminalSummary => ({
   process: null,
   agent: null,
   ready: null,
+  startup: null,
   activity: null,
   telemetry: null,
   reported: null,

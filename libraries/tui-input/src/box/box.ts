@@ -22,6 +22,13 @@ export type InputBox = {
   /** The rows of the screen it spans, first to last. */
   readonly first: number
   readonly last: number
+  /** Whether it draws, apart from the text, that it shows only part of what it holds. */
+  readonly scrolled?: true
+  /**
+   * Whether it shows nothing but holds more than an empty box does: rows of blank lines typed,
+   * maybe under words scrolled out of sight. A blank box is one row tall.
+   */
+  readonly blanks?: true
 }
 
 /** The markers leading a box's first row: in its prompt mode, and in its shell mode. */
@@ -37,6 +44,19 @@ export type BoxProfile = {
    */
   readonly collapsed: (box: InputBox) => boolean
   /**
+   * Whether the box says it shows only part of its text, where it has words for that, as
+   * Antigravity's `↑ 10 more lines`. Omitted where it doesn't.
+   */
+  readonly cut?: (box: InputBox) => boolean
+  /** What such a box shows of its text, without the rows that say it is cut. */
+  readonly uncut?: (text: string) => string
+  /**
+   * Whether a box's text holds, anywhere in it, what stands for more than it shows: a paste's
+   * placeholder or an attached image. Words read off the box then aren't all it holds, and
+   * erasing it loses the rest.
+   */
+  readonly stands: (text: string) => boolean
+  /**
    * The keys that clear the text a box holds, for a program that puts text back in its box
    * (an interrupted prompt, messages queued behind a turn): written only over text seen
    * there, as a program's Escape twice may open a picker over an empty box. Omitted where
@@ -46,6 +66,27 @@ export type BoxProfile = {
    * then opens a picker.
    */
   readonly clear?: (box: InputBox, screen?: ScreenText) => string
+  /**
+   * The keys that empty the box whether or not a turn runs, for text Novadeck left there:
+   * `clear` may be Escape, which stops a running turn. Written once, with the cursor on the
+   * box's last row, and read back: a program that took them otherwise shows it. Omitted where
+   * no such keys are known: its box is never emptied so.
+   */
+  readonly erase?: (box: InputBox) => string
+  /**
+   * Whether the program takes a bracketed paste as keys, on `platform` (this one where left
+   * out), so that a line break in a paste is an Enter unless it comes in what the program takes
+   * for a burst of typing: it submits what the box holds, with nothing of the paste. Omitted
+   * where a paste is always text.
+   */
+  readonly pastesAsKeys?: (platform?: NodeJS.Platform) => boolean
+  /**
+   * How many columns before the end of the text a program draws its cursor there; none where
+   * omitted.
+   */
+  readonly caret?: number
+  /** How far a word may reach on a row of the box's text, on a screen `columns` wide. */
+  readonly textWidth: (columns: number) => number
   /**
    * How the box takes a shell command (`!` typed in an empty box, then the command pasted):
    * `expands` where Enter runs a command it shows as a placeholder as the text the
@@ -69,6 +110,11 @@ export type BoxProfile = {
      * undefined for one that can't run there as written means.
      */
     readonly command?: (command: string, platform?: NodeJS.Platform) => string | undefined
+    /**
+     * The keys that leave its shell mode, emptying the box, whether or not a turn runs, with
+     * the cursor on the box's last row. Omitted where no such keys are known.
+     */
+    readonly leave?: (box: InputBox) => string
   }
   /**
    * Whether the screen shows, just above the box, the program's word that whoever types
@@ -93,15 +139,13 @@ export type BoxProfile = {
    * the program drains its queue as its turn ends, faster than any Escape: `keys` move it,
    * and where nothing was queued by then they recall an earlier prompt instead, which
    * `recalled` reads off the screen and `leave` undoes. They don't go where `blocked` says, a
-   * panel of the program's being up, and what `lossy` says clearing would lose stays in the
-   * box. Omitted where Escape does it.
+   * panel of the program's being up. Omitted where Escape does it.
    */
   readonly takeQueued?: {
     readonly keys: string
     readonly recalled: (screen: ScreenText) => boolean
     readonly leave: string
     readonly blocked: (screen: ScreenText) => boolean
-    readonly lossy: (box: InputBox) => boolean
   }
   /**
    * When the screen says an interrupt's first Escape would go wrong yet, and how long, in
@@ -143,25 +187,84 @@ export type BoxProfile = {
 const minViewport = 2
 
 /**
- * Whether the box shows the tail of `text`, as a box shows a text taller than its viewport:
- * it is as tall as the viewport lets it be on a screen of `rows` rows, and what it shows ends
- * the text. A viewport of one row is every box's: on a screen too small to know it, none is.
+ * Whether the box is as tall as the viewport lets it be on a screen of `rows` rows, so it may
+ * show only the tail of what it holds. A text exactly that tall shows whole, which can't be
+ * told from one taller. A viewport of one row is every box's: on a screen too small to know
+ * it, none is.
  */
+export const fillsViewport = (profile: BoxProfile, box: InputBox, rows: number): boolean => {
+  const viewport = profile.viewport?.(rows) ?? Infinity
+  return viewport >= minViewport && box.last - box.first + 1 >= viewport
+}
+
+/**
+ * Whether the box may hold more than it shows: as tall as its viewport, or saying so itself.
+ * What it shows then isn't all that keys would act on, so nothing may go by those words alone.
+ */
+export const hidesText = (profile: BoxProfile, box: InputBox, rows: number): boolean =>
+  fillsViewport(profile, box, rows) || profile.cut?.(box) === true
+
+/**
+ * What shows of `text` in a box that hides the rest of it, without the rows that say so; undefined
+ * unless the box hides text and what it shows is the end of `text`. A line that ends in its
+ * nonce can be told by that end.
+ */
+export const tailOf = (
+  profile: BoxProfile,
+  box: InputBox,
+  rows: number,
+  text: string,
+): string | undefined => {
+  if (!hidesText(profile, box, rows)) return undefined
+  const shown = profile.uncut?.(box.text) ?? box.text
+  return endsText(shown, text) ? shown : undefined
+}
+
+/** Whether the box shows the tail of `text`, as a box shows a text taller than its viewport. */
 export const showsTail = (
   profile: BoxProfile,
   box: InputBox,
   rows: number,
   text: string,
-): boolean => mayShowTail(profile, box, rows) && endsText(box.text, text)
+): boolean => fillsViewport(profile, box, rows) && endsText(box.text, text)
 
-/** Whether the box is as tall as its viewport lets it be, so it may show only its text's tail. */
-export const mayShowTail = (profile: BoxProfile, box: InputBox, rows: number): boolean => {
-  const viewport = profile.viewport?.(rows) ?? Infinity
-  return viewport >= minViewport && box.last - box.first + 1 >= viewport
+/**
+ * Ctrl-U from the box's last row up, Backspace joining each row to the one above: Ctrl-U kills
+ * no more than the row the cursor is on. It stops no turn, as Escape or Ctrl-C would (probed
+ * 2026-11-06 on all three harnesses, idle and mid-turn, on one line, several, a wrapped line and
+ * a placeholder, fixtures/leftover.probe.json).
+ */
+export const eraseRows = ({ first, last }: InputBox): string =>
+  `${"\x15\x7f".repeat(last - first)}\x15`
+
+/**
+ * Leaves a box's shell mode: a Backspace in the empty box, as it leaves the mode where a
+ * command typed the `!` back out; a command is erased first (same probe). Escape would stop a
+ * running turn, and leaves the mode in only one harness then.
+ */
+export const leaveShell = (box: InputBox): string =>
+  isEmpty(box) ? "\x7f" : `${eraseRows(box)}\x7f`
+
+/**
+ * How long a first line must be for a program that takes a paste as keys to have taken it for a
+ * paste by the first line break, which is an Enter otherwise. Long lines always were on Codex
+ * on Windows in CI, and no shorter one is known to be, so what is shorter goes no further.
+ */
+const pasteFirstLine = 16
+
+/**
+ * Whether `text` can go in a paste to this program with no line break in it becoming an Enter:
+ * always where a paste is text, and where it's keys, with one line, or a long first one.
+ */
+export const pastesWhole = (profile: BoxProfile, text: string): boolean => {
+  if (!profile.pastesAsKeys?.()) return true
+  const lines = text.split(/\r\n?|\n/)
+  return lines.length === 1 || (lines[0]?.length ?? 0) >= pasteFirstLine
 }
 
 /** Whether the box holds nothing. */
-export const isEmpty = (box: InputBox): boolean => compact(box.text) === ""
+export const isEmpty = (box: InputBox): boolean =>
+  compact(box.text) === "" && !box.blanks && !box.scrolled
 
 /**
  * Whether the keys that take what is queued may go on `screen`: only where it shows a queue,
@@ -217,7 +320,14 @@ const read = (
   // of the text faint, it is the placeholder, not a draft of one letter.
   const letter = compact(text).length === 1 && compact(faint).length > 1 && home
   if (compact(text) !== "" && !letter) return { text, mode, first, last }
-  return { text: compact(faint) === "" || home ? "" : faint, mode, first, last }
+  const blanks = compact(faint) === "" && last > first
+  return {
+    text: compact(faint) === "" || home ? "" : faint,
+    mode,
+    first,
+    last,
+    ...(blanks && { blanks }),
+  }
 }
 
 /** Whether a row starts with a box's marker, in either mode. */

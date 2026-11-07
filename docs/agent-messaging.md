@@ -76,7 +76,13 @@ driven in a PTY. Hook names are the ones Novadeck's plugins already register.
 
 So every harness can receive a message through a hook without it appearing as the
 person's prompt, and typing Enter is safe only when Novadeck can see nothing but an
-empty prompt. Codex's hooks run only once the person trusts them in its "Hooks need
+empty prompt. The chat is the exception: a prompt the person sends goes along with a draft
+in the box where the screen shows that's safe, which the doorbell doesn't do: a ring still
+waits on a draft. Where the first probe had the paste "append", it lands at the cursor,
+and only with the cursor at the end does it append (probed 2026-11-06; `docs/backend-api.md`,
+"A box that isn't empty", holds the rules, and `leftoverOf` and `Prompts.room`, in
+`libraries/tui-input`, the mechanism, which takes no part of the doorbell's timing and which
+the doorbell could use if that is ever decided). Codex's hooks run only once the person trusts them in its "Hooks need
 review" screen; Novadeck already depends on that, and this design changes no hook
 command, so no new trust is asked for. What the probes did not establish is listed in
 [Before building](#before-building).
@@ -320,7 +326,9 @@ agent session; never a name the model passes.
   there, or the terminal closes first, by the person or an agent's `close_terminal`.
   The expectation ends once any session binds there: from then on only a bound session
   takes messages, and one that waited is never handed to a later session. `agents()`
-  shows such a terminal as "expecting Codex, not started yet".
+  shows such a terminal as "expecting Codex, not started yet", or, once one of the agent's
+  own screens holds it for the person, as "expecting Codex, waiting on the user: its startup
+  screen" (see [Startup screens](#startup-screens)).
 - **Threads.** A message continues the thread of the latest message between the same
   two handles, in either direction, within the last ten minutes; otherwise it starts
   one. Agents never name threads.
@@ -1045,6 +1053,9 @@ facts above, so the prompt's emptiness is known before any message arrives:
   the Stop hook's ask gets a lease (below) and the turn continues, still Working, unless
   the person's replies wait and ride the line, when the turn ends for the doorbell to ring
   them ("The reply line").
+  A draft the chat took out of the box mid-turn still counts as a draft here, as one the
+  person cleared by hand does, until the screen is read at an idle prompt: such a reply
+  comes as the Stop's context.
   Novadeck continues a root turn at most twice, by its own count, then lets it end. A
   prompt right after a Stop Novadeck continued is that continuation, keeping the count,
   as Antigravity starts its model calls from the first again. If the person did submit
@@ -1136,8 +1147,9 @@ activity says a turn runs; `queued`, the harness shows a prompt queued in it; `s
 box is in shell mode; `draft`, there is text in its box (or a paste placeholder); `dialog`, no input
 box reads, as under a menu, picker, trust or approval screen, or a view of the harness
 draws a field like its box (`BoxProfile.overlay`: Claude Code's agents view, which Left
-opens, prompt history search and transcript; Codex's history search, shortcuts panel and `/side` conversation;
-Antigravity's shortcuts and artifacts panels; probed 2026-10-16, where the empty box
+opens, prompt history search and transcript; Codex's history search, shortcuts panel, `/side` conversation
+and its list views, `/model`, `/permissions`, `/config`, `/keymap`, `/statusline`, whose rows read as a
+box holding text; Antigravity's shortcuts and artifacts panels; probed 2026-10-16, where the empty box
 read as the agent's own and a ring would have pasted the line into them); `asking`, a request waits
 on the person. The reason is in the answer to `send`'s `route` and in the terminal's
 `messages.list` as `waits`, and the screen is looked at again after 1 s, doubling to
@@ -1158,7 +1170,7 @@ dialog is a pending request in all three (Codex's `request_user_input` through i
 `PreToolUse` hook), so `asking` comes first; read off the screen alone, Claude Code's
 question list reads as a box holding "1. Blue…" (a draft), its MCP form and Antigravity's
 question and folder-trust screens as no box, and Codex's as one holding the whole
-question. A Codex note field and Antigravity's login screen were not probed. Three rings in a row that
+question. A Codex note field was not probed; Antigravity's login screen reads as no box. Three rings in a row that
 failed after pasting something stop the doorbell (`failed`) until a root turn event or a
 key of the person's; one given up before it pasted, because the box no longer read empty,
 doesn't count. A terminal made Ready by its screen has had turns, so the ring's allowance
@@ -1189,7 +1201,11 @@ changed elsewhere), or the ring abandoned mid-way (a turn the harness started to
 and its Stop left the box Drafting). A confirmed ring's line back in the box is the
 person's: their Escape put it back (Claude Code returns an interrupted prompt to its box),
 or they recalled it from the prompt's history. No person types an unconfirmed ring's line,
-so no key of theirs makes it theirs: from Fresh, Drafting or Unknown, idle with messages
+so no key of theirs makes it theirs. A box too short for the line (`hidesText`: a reply line near
+its 320 characters in a small pane) shows only its end: that counts if it ends the line the ring
+typed under the nonce closing it, read without Antigravity's row of more lines (`uncut`). The
+head can't be read there, so a key of the person's before the line can't be told, and a nonce the
+doorbell no longer knows leaves the box to them. From Fresh, Drafting or Unknown, idle with messages
 waiting, the doorbell submits
 it with Enter alone under the same gate as a ring, after the same wait a failed ring earns,
 pasting nothing (the terminal is Ringing under that line's own nonce, which its doorbell
@@ -1654,9 +1670,14 @@ text in `record.terminal.screen` (`@xterm/headless`), with its paste mode. The r
    showed), which leaves room in the cap for the last looks and the Enter. It is accepted
    only when:
    - the line, joined across the rows it wraps over (whitespace aside), appears on the
-     screen exactly once, and did not before; and
+     screen exactly once, and did not before (in a box too short for it, `hidesText`, the
+     end of the line that shows, as drawn undimmed, which is why that end must be the line's
+     own, nonce and all); and
    - every row that changed is one the line occupies or within 3 rows of them, which
-     covers a vanishing placeholder, footer hints and the box growing. When the box
+     covers a vanishing placeholder, footer hints and the box growing. This one isn't asked
+     of a box too short for the line: on so short a screen a program redraws what is above
+     the box (Claude Code its history at 14 rows), and the box's own reading says where the
+     line went. When the box
      grows by a row, the rows above it may move up one and those below down one; they
      are compared moved. A line that wraps lets it grow a row more for each row past
      its first. Or, for a ring of a Ready terminal only (a first screen, or one
@@ -2064,6 +2085,56 @@ path), so it arrives with the lead's mark and note, and the agent acts on it wit
 waiting for the person to confirm, though what it would ask the person before doing, it
 still asks, in its own terminal. The person sees it in
 the new terminal's Messages view, like any other message.
+
+### Startup screens
+
+An agent can stop at a screen of its own before its first session: folder trust, an update,
+a hooks review, sign-in, onboarding, a resume picker. No harness reports anything Novadeck
+binds on there, so nothing but the screen tells that from a slow start. `StartupWatch`
+(`terminals/startup-watch.ts`) looks once a second at each terminal expecting an agent, while
+no session bound and its prompt never showed, and counts a screen as holding the agent when
+all of these stand for 5 s (15 s on Windows, which starts agents far slower):
+
+- Bracketed paste is on. A startup command runs before the shell's line editor turns that on
+  (fish 3, whose line editor has it on already, turns it off for the command), so the agent has taken
+  the terminal, and whatever the shell printed before it does not count. A foreground program
+  can't say this: an agent's process holds the foreground all the while it loads, and Windows
+  names none. Probed with agents held back 9 s (2026-11-06, Claude Code 2.1.316, Codex 0.167.0,
+  Antigravity 1.5.2, Linux under bash); macOS and Windows rest on the e2e case in
+  `controls.e2e.ts`. Codex turns paste on about 0.2 s before it first draws, so one that stalled
+  just there for the whole delay would have the shell's own text read as its screen; no run has
+  done so. Nor is a load that draws no box of its own after paste comes on told from a screen,
+  should one stand for the delay, but none does: restored by a restarted runner, sessions of
+  159 MB (Claude Code), 328 MB (Codex) and 127 MB (Antigravity) each drew a box within 0.8 s of
+  the shell's start, 0.2 s after paste came on at most, and on one core (Linux, warm disk cache,
+  text turns only).
+- The screen isn't blank, and its text doesn't change. Its text, so that a console's repaints
+  count for nothing.
+- The expected harness's own box doesn't read on it. `startup.probe.json` beside each harness
+  keeps the screens probed: Claude Code's trust, onboarding and resume picker; Codex's trust,
+  hooks review, sign-in, update and resume picker; Antigravity's trust, onboarding and
+  sign-in. Each harness's prompt reads as a box, and none of those as one. An MCP server slow
+  to start holds none of the three behind such a screen: each draws its box first. Claude
+  Code's sign-in and update screens and Antigravity's update screen are not probed: Claude
+  Code stops at a connectivity check without a key, and the sandbox raises neither update
+  screen. Antigravity has no resume picker. All these were read on Linux; macOS and Windows
+  run only the folder-trust case.
+
+Antigravity also says which it is: its status line reads `authenticating` behind its login
+screen, which the state names as "its sign-in screen", and `initializing` behind its trust
+dialog and on the way to any prompt, so that says nothing by itself. Either only names a
+screen the rules above already count. The others' screens read as "its startup screen".
+
+The state ends at once at a bound session or the agent's prompt, at the next look (a second at
+most) at a box or the agent leaving, and once the screen
+has moved for as long as the delay: a key the person presses moves it for one look, so its mark
+doesn't flicker, and a spinner after they answer does end it, as a screen that changes at
+every look. One that steps slower than that keeps the mark until a box or a bound session. A box that stands for six delays
+ends the watch of that shell: an agent that never binds may open a dialog of its own later,
+and Codex may raise a screen over a prompt it drew a few seconds before. It reaches `agents()` and, as
+`TerminalSummary.startup`, the terminal's tab: the need mark, with "Waiting at its startup
+screen" in its tooltip, and the chat view gives way to the screen. It raises no Inbox row: no
+request stands behind it.
 
 ## Naming
 

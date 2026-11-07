@@ -321,6 +321,7 @@ export const createDemoChat = (
     return {
       agent: found.terminal.process,
       session: `demo-${terminalKeyId(found.key)}`,
+      slice: null,
       loaded: true,
       items: transcript?.items ?? [],
       // An agent that reports nothing holds what its screen shows; one that does, what it
@@ -334,6 +335,7 @@ export const createDemoChat = (
       prompts: [],
       // Its transcripts hold nothing the chat can't read.
       unread: false,
+      box: null,
     }
   }
   const entryOf = (key: TerminalKey) => {

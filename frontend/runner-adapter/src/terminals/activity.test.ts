@@ -23,6 +23,7 @@ const summary = (change: Partial<TerminalSummary>): TerminalSummary => ({
   process: { name: "zsh", argv: null },
   agent: null,
   ready: null,
+  startup: null,
   activity: null,
   telemetry: null,
   reported: null,
@@ -31,6 +32,42 @@ const summary = (change: Partial<TerminalSummary>): TerminalSummary => ({
 const named = (name: string, argv: string[] | null = null) => summary({ process: { name, argv } })
 
 describe("terminal activity", () => {
+  context("while a startup screen holds the agent expected there", () => {
+    const startup = { agent: "codex", screen: "startup" } as const
+
+    it("says so, with no session reported", () => {
+      const held = summary({ process: { name: "codex", argv: null }, startup })
+      expect(terminalActivity(held).status).toEqual({
+        state: "running",
+        agent: { working: false, startup: "startup" },
+      })
+    })
+
+    it("names the program where the platform hides it, as Windows does", () => {
+      expect(terminalActivity(summary({ process: null, startup }))).toEqual({
+        status: { state: "running", agent: { working: false, startup: "startup" } },
+        process: "codex",
+      })
+    })
+
+    it("names the agent over a shell script that launched it", () => {
+      expect(terminalActivity(summary({ process: { name: "sh", argv: null }, startup }))).toEqual({
+        status: { state: "running", agent: { working: false, startup: "startup" } },
+        process: "codex",
+      })
+    })
+
+    it("gives way to a session, whatever the summary still says", () => {
+      const bound = summary({
+        process: { name: "codex", argv: null },
+        agent: "codex",
+        activity: null,
+        startup,
+      })
+      expect(terminalActivity(bound).status).toEqual({ state: "running" })
+    })
+  })
+
   context("while a shell waits in the foreground", () => {
     it("is idle and shows a shell", () => {
       expect(terminalActivity(named("zsh"))).toEqual({
@@ -393,6 +430,10 @@ describe("terminal activity", () => {
     })
 
     it("says nothing for another program that holds the foreground", () => {
+      // Windows reports no process: `ready` alone names the agent, so its chat can show.
+      expect(terminalActivity(summary({ process: null, ready: "agy" }))).toMatchObject({
+        process: "agy",
+      })
       const other = summary({ process: { name: "vim", argv: null }, ready: "codex" })
       expect(terminalActivity(other).status).toEqual({ state: "running" })
     })

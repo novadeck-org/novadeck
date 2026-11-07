@@ -29,6 +29,42 @@ const events = (body: string | readonly string[]) =>
 
 const post = (path: string): Request => ({ method: "POST", path, headers: {}, body: "{}" })
 
+describe("a turn past midnight", () => {
+  const context =
+    "<environment_context>\n  <current_date>2026-11-07</current_date>\n</environment_context>"
+  const message = (text: string) => ({
+    type: "message",
+    role: "user",
+    content: [{ type: "input_text", text }],
+  })
+  const calling = { type: "function_call", name: "look", arguments: "{}", call_id: "c1" }
+  const output = { type: "function_call_output", call_id: "c1", output: "seen" }
+  const turnsOf = (input: readonly unknown[]) =>
+    called({ ...post("/responses"), body: JSON.stringify({ model: "m", input }) }).turns
+
+  it("leaves the date Codex put behind a tool's output out of the turns", () => {
+    const turns = turnsOf([message("Go"), calling, output, message(context)])
+    expect(turns.at(-1)).toMatchObject({ role: "tool", text: "seen" })
+  })
+
+  it("keeps what isn't the person's or the program's user turn", () => {
+    const developer = { ...message(context), role: "developer" }
+    expect(turnsOf([message("Go"), calling, output, developer]).at(-1)?.text).toBe(context)
+  })
+
+  it("keeps a prompt that came with the date, and the date before any tool", () => {
+    const after = turnsOf([message("Go"), calling, output, message(`${context}\nNext`)])
+    expect(after.at(-1)).toMatchObject({ role: "user" })
+    const before = turnsOf([message(context), message("Go")])
+    expect(before).toHaveLength(1)
+    expect(before[0]?.text).toContain("2026-11-07")
+    const twice = `${context}\nNext\n${context}`
+    expect(turnsOf([message("Go"), calling, output, message(twice)]).at(-1)).toMatchObject({
+      role: "user",
+    })
+  })
+})
+
 const answer = async (request: Request, reply: (call: Call) => Reply) => {
   const response = await responses.handle(request, async (call) => reply(call))
   return { ...response, events: events(response.body) }

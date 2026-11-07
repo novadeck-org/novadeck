@@ -1,0 +1,934 @@
+{
+  "version": "1.4.12; the tall states 1.5.2",
+  "states": {
+    "empty": {
+      "height": 40,
+      "columns": 120,
+      "cursor": {
+        "row": 11,
+        "column": 1
+      },
+      "rows": {
+        "0": "To run a command as administrator (user \"root\"), use \"sudo <command>\".",
+        "1": "See \"man sudo_root\" for details.",
+        "4": "      ▄▀▀▄        Antigravity CLI 1.4.12",
+        "5": "     ▀▀▀▀▀▀       Gemini API key",
+        "6": "    ▀▀▀▀▀▀▀▀      Gemini 3.1 Pro (Low)",
+        "7": "   ▄▀▀    ▀▀▄     /tmp/novadeck-e2e-fQs5ta/project",
+        "8": "  ▄▀▀      ▀▀▄",
+        "10": "────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────",
+        "11": ">",
+        "12": "────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────",
+        "13": "? for shortcuts                                                                                     Gemini 3.1 Pro · low"
+      },
+      "bright": {
+        "13": "? for shortcuts"
+      }
+    },
+    "draft": {
+      "height": 40,
+      "columns": 120,
+      "cursor": {
+        "row": 11,
+        "column": 11
+      },
+      "rows": {
+        "0": "To run a command as administrator (user \"root\"), use \"sudo <command>\".",
+        "1": "See \"man sudo_root\" for details.",
+        "4": "      ▄▀▀▄        Antigravity CLI 1.4.12",
+        "5": "     ▀▀▀▀▀▀       Gemini API key",
+        "6": "    ▀▀▀▀▀▀▀▀      Gemini 3.1 Pro (Low)",
+        "7": "   ▄▀▀    ▀▀▄     /tmp/novadeck-e2e-fQs5ta/project",
+        "8": "  ▄▀▀      ▀▀▄",
+        "10": "────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────",
+        "11": "> half typed",
+        "12": "────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────",
+        "13": "                                                                                                    Gemini 3.1 Pro · low"
+      },
+      "bright": {
+        "13": ""
+      }
+    },
+    "merged": {
+      "height": 40,
+      "columns": 120,
+      "cursor": {
+        "row": 13,
+        "column": 12
+      },
+      "rows": {
+        "0": "To run a command as administrator (user \"root\"), use \"sudo <command>\".",
+        "1": "See \"man sudo_root\" for details.",
+        "4": "      ▄▀▀▄        Antigravity CLI 1.4.12",
+        "5": "     ▀▀▀▀▀▀       Gemini API key",
+        "6": "    ▀▀▀▀▀▀▀▀      Gemini 3.1 Pro (Low)",
+        "7": "   ▄▀▀    ▀▀▄     /tmp/novadeck-e2e-vuVxhS/project",
+        "8": "  ▄▀▀      ▀▀▄",
+        "10": "────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────",
+        "11": "> half typed",
+        "13": "  the message",
+        "14": "────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────",
+        "15": "                                                                                                    Gemini 3.1 Pro · low"
+      },
+      "bright": {
+        "15": ""
+      }
+    },
+    "cursor mid": {
+      "height": 40,
+      "columns": 120,
+      "cursor": {
+        "row": 11,
+        "column": 7
+      },
+      "rows": {
+        "0": "To run a command as administrator (user \"root\"), use \"sudo <command>\".",
+        "1": "See \"man sudo_root\" for details.",
+        "4": "      ▄▀▀▄        Antigravity CLI 1.4.12",
+        "5": "     ▀▀▀▀▀▀       Gemini API key",
+        "6": "    ▀▀▀▀▀▀▀▀      Gemini 3.1 Pro (Low)",
+        "7": "   ▄▀▀    ▀▀▄     /tmp/novadeck-e2e-aaPocR/project",
+        "8": "  ▄▀▀      ▀▀▄",
+        "10": "────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────",
+        "11": "> half typed",
+        "12": "────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────",
+        "13": "                                                                                                    Gemini 3.1 Pro · low"
+      },
+      "bright": {
+        "13": ""
+      }
+    },
+    "cursor end": {
+      "height": 40,
+      "columns": 120,
+      "cursor": {
+        "row": 11,
+        "column": 11
+      },
+      "rows": {
+        "0": "To run a command as administrator (user \"root\"), use \"sudo <command>\".",
+        "1": "See \"man sudo_root\" for details.",
+        "4": "      ▄▀▀▄        Antigravity CLI 1.4.12",
+        "5": "     ▀▀▀▀▀▀       Gemini API key",
+        "6": "    ▀▀▀▀▀▀▀▀      Gemini 3.1 Pro (Low)",
+        "7": "   ▄▀▀    ▀▀▄     /tmp/novadeck-e2e-sBIyFx/project",
+        "8": "  ▄▀▀      ▀▀▄",
+        "10": "────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────",
+        "11": "> half typed",
+        "12": "────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────",
+        "13": "                                                                                                    Gemini 3.1 Pro · low"
+      },
+      "bright": {
+        "13": ""
+      }
+    },
+    "three lines": {
+      "height": 40,
+      "columns": 120,
+      "cursor": {
+        "row": 13,
+        "column": 11
+      },
+      "rows": {
+        "0": "To run a command as administrator (user \"root\"), use \"sudo <command>\".",
+        "1": "See \"man sudo_root\" for details.",
+        "4": "      ▄▀▀▄        Antigravity CLI 1.4.12",
+        "5": "     ▀▀▀▀▀▀       Gemini API key",
+        "6": "    ▀▀▀▀▀▀▀▀      Gemini 3.1 Pro (Low)",
+        "7": "   ▄▀▀    ▀▀▄     /tmp/novadeck-e2e-i3HaCL/project",
+        "8": "  ▄▀▀      ▀▀▄",
+        "10": "────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────",
+        "11": "> line one",
+        "12": "  line two",
+        "13": "  line three",
+        "14": "────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────",
+        "15": "                                                                                                    Gemini 3.1 Pro · low"
+      },
+      "bright": {
+        "15": ""
+      }
+    },
+    "three lines, cursor up": {
+      "height": 40,
+      "columns": 120,
+      "cursor": {
+        "row": 11,
+        "column": 6
+      },
+      "rows": {
+        "0": "To run a command as administrator (user \"root\"), use \"sudo <command>\".",
+        "1": "See \"man sudo_root\" for details.",
+        "4": "      ▄▀▀▄        Antigravity CLI 1.4.12",
+        "5": "     ▀▀▀▀▀▀       Gemini API key",
+        "6": "    ▀▀▀▀▀▀▀▀      Gemini 3.1 Pro (Low)",
+        "7": "   ▄▀▀    ▀▀▄     /tmp/novadeck-e2e-i3HaCL/project",
+        "8": "  ▄▀▀      ▀▀▄",
+        "10": "────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────",
+        "11": "> line one",
+        "12": "  line two",
+        "13": "  line three",
+        "14": "────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────",
+        "15": "                                                                                                    Gemini 3.1 Pro · low"
+      },
+      "bright": {
+        "15": ""
+      }
+    },
+    "three lines, cursor down": {
+      "height": 40,
+      "columns": 120,
+      "cursor": {
+        "row": 13,
+        "column": 6
+      },
+      "rows": {
+        "0": "To run a command as administrator (user \"root\"), use \"sudo <command>\".",
+        "1": "See \"man sudo_root\" for details.",
+        "4": "      ▄▀▀▄        Antigravity CLI 1.4.12",
+        "5": "     ▀▀▀▀▀▀       Gemini API key",
+        "6": "    ▀▀▀▀▀▀▀▀      Gemini 3.1 Pro (Low)",
+        "7": "   ▄▀▀    ▀▀▄     /tmp/novadeck-e2e-i3HaCL/project",
+        "8": "  ▄▀▀      ▀▀▄",
+        "10": "────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────",
+        "11": "> line one",
+        "12": "  line two",
+        "13": "  line three",
+        "14": "────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────",
+        "15": "                                                                                                    Gemini 3.1 Pro · low"
+      },
+      "bright": {
+        "15": ""
+      }
+    },
+    "wrapped": {
+      "height": 40,
+      "columns": 120,
+      "cursor": {
+        "row": 13,
+        "column": 75
+      },
+      "rows": {
+        "0": "To run a command as administrator (user \"root\"), use \"sudo <command>\".",
+        "1": "See \"man sudo_root\" for details.",
+        "4": "      ▄▀▀▄        Antigravity CLI 1.4.12",
+        "5": "     ▀▀▀▀▀▀       Gemini API key",
+        "6": "    ▀▀▀▀▀▀▀▀      Gemini 3.1 Pro (Low)",
+        "7": "   ▄▀▀    ▀▀▄     /tmp/novadeck-e2e-Uzo23d/project",
+        "8": "  ▄▀▀      ▀▀▄",
+        "10": "────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────",
+        "11": "> wrapping words wrapping words wrapping words wrapping words wrapping words wrapping words wrapping words wrapping",
+        "12": "  words wrapping words wrapping words wrapping words wrapping words wrapping words wrapping words wrapping words",
+        "13": "  wrapping words wrapping words wrapping words wrapping words wrapping words",
+        "14": "────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────",
+        "15": "                                                                                                    Gemini 3.1 Pro · low"
+      },
+      "bright": {
+        "15": ""
+      }
+    },
+    "placeholder": {
+      "height": 40,
+      "columns": 120,
+      "cursor": {
+        "row": 11,
+        "column": 27
+      },
+      "rows": {
+        "0": "To run a command as administrator (user \"root\"), use \"sudo <command>\".",
+        "1": "See \"man sudo_root\" for details.",
+        "4": "      ▄▀▀▄        Antigravity CLI 1.4.12",
+        "5": "     ▀▀▀▀▀▀       Gemini API key",
+        "6": "    ▀▀▀▀▀▀▀▀      Gemini 3.1 Pro (Low)",
+        "7": "   ▄▀▀    ▀▀▄     /tmp/novadeck-e2e-Cywsez/project",
+        "8": "  ▄▀▀      ▀▀▄",
+        "10": "────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────",
+        "11": "> [Pasted text #1 +40 lines]",
+        "12": "────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────",
+        "13": "                                                                                                    Gemini 3.1 Pro · low"
+      },
+      "bright": {
+        "13": ""
+      }
+    },
+    "placeholder merged": {
+      "height": 40,
+      "columns": 120,
+      "cursor": {
+        "row": 13,
+        "column": 12
+      },
+      "rows": {
+        "0": "To run a command as administrator (user \"root\"), use \"sudo <command>\".",
+        "1": "See \"man sudo_root\" for details.",
+        "4": "      ▄▀▀▄        Antigravity CLI 1.4.12",
+        "5": "     ▀▀▀▀▀▀       Gemini API key",
+        "6": "    ▀▀▀▀▀▀▀▀      Gemini 3.1 Pro (Low)",
+        "7": "   ▄▀▀    ▀▀▄     /tmp/novadeck-e2e-Cywsez/project",
+        "8": "  ▄▀▀      ▀▀▄",
+        "10": "────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────",
+        "11": "> [Pasted text #1 +40 lines]",
+        "13": "  the message",
+        "14": "────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────",
+        "15": "                                                                                                    Gemini 3.1 Pro · low"
+      },
+      "bright": {
+        "15": ""
+      }
+    },
+    "long message merged": {
+      "height": 40,
+      "columns": 120,
+      "cursor": {
+        "row": 11,
+        "column": 37
+      },
+      "rows": {
+        "0": "To run a command as administrator (user \"root\"), use \"sudo <command>\".",
+        "1": "See \"man sudo_root\" for details.",
+        "4": "      ▄▀▀▄        Antigravity CLI 1.4.12",
+        "5": "     ▀▀▀▀▀▀       Gemini API key",
+        "6": "    ▀▀▀▀▀▀▀▀      Gemini 3.1 Pro (Low)",
+        "7": "   ▄▀▀    ▀▀▄     /tmp/novadeck-e2e-jPjrEJ/project",
+        "8": "  ▄▀▀      ▀▀▄",
+        "10": "────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────",
+        "11": "> half typed[Pasted text #1 +42 lines]",
+        "12": "────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────",
+        "13": "                                                                                                    Gemini 3.1 Pro · low"
+      },
+      "bright": {
+        "13": ""
+      }
+    },
+    "picker": {
+      "height": 40,
+      "columns": 120,
+      "cursor": {
+        "row": 11,
+        "column": 11
+      },
+      "rows": {
+        "0": "To run a command as administrator (user \"root\"), use \"sudo <command>\".",
+        "1": "See \"man sudo_root\" for details.",
+        "4": "      ▄▀▀▄        Antigravity CLI 1.4.12",
+        "5": "     ▀▀▀▀▀▀       Gemini API key",
+        "6": "    ▀▀▀▀▀▀▀▀      Gemini 3.1 Pro (Low)",
+        "7": "   ▄▀▀    ▀▀▄     /tmp/novadeck-e2e-tPGhiS/project",
+        "8": "  ▄▀▀      ▀▀▄",
+        "10": "────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────",
+        "11": "> see @notes",
+        "12": "────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────",
+        "13": "> notes.md  File        /tmp/novadeck-e2e-tPGhiS/project/notes.md",
+        "21": "  ↑/↓ Navigate · enter Select · tab Complete",
+        "22": "                                                                                                    Gemini 3.1 Pro · low"
+      },
+      "bright": {
+        "13": "> notes.md  File",
+        "22": ""
+      }
+    },
+    "command": {
+      "height": 40,
+      "columns": 120,
+      "cursor": {
+        "row": 11,
+        "column": 4
+      },
+      "rows": {
+        "0": "To run a command as administrator (user \"root\"), use \"sudo <command>\".",
+        "1": "See \"man sudo_root\" for details.",
+        "4": "      ▄▀▀▄        Antigravity CLI 1.4.12",
+        "5": "     ▀▀▀▀▀▀       Gemini API key",
+        "6": "    ▀▀▀▀▀▀▀▀      Gemini 3.1 Pro (Low)",
+        "7": "   ▄▀▀    ▀▀▄     /tmp/novadeck-e2e-nlBVfU/project",
+        "8": "  ▄▀▀      ▀▀▄",
+        "10": "────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────",
+        "11": "> /he",
+        "12": "────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────",
+        "13": "> /help       Show available commands and keybindings",
+        "14": "  /schedule   Run an instruction on a recurring schedule or as a one-time timer.",
+        "15": "  /changelog  Show release notes and changes",
+        "17": "  ↑/↓ Navigate · enter Select · tab Complete",
+        "18": "esc to cancel                                                                                       Gemini 3.1 Pro · low"
+      },
+      "bright": {
+        "13": "> /help",
+        "14": "  /schedule",
+        "15": "  /changelog",
+        "18": "esc to cancel"
+      }
+    },
+    "shell empty": {
+      "height": 40,
+      "columns": 120,
+      "cursor": {
+        "row": 11,
+        "column": 1
+      },
+      "rows": {
+        "0": "To run a command as administrator (user \"root\"), use \"sudo <command>\".",
+        "1": "See \"man sudo_root\" for details.",
+        "4": "      ▄▀▀▄        Antigravity CLI 1.4.12",
+        "5": "     ▀▀▀▀▀▀       Gemini API key",
+        "6": "    ▀▀▀▀▀▀▀▀      Gemini 3.1 Pro (Low)",
+        "7": "   ▄▀▀    ▀▀▄     /tmp/novadeck-e2e-ScUiw8/project",
+        "8": "  ▄▀▀      ▀▀▄",
+        "10": "────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────",
+        "11": "!",
+        "12": "────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────",
+        "13": " activated bash mode · esc to cancel                                                                Gemini 3.1 Pro · low"
+      },
+      "bright": {
+        "13": " activated bash mode · esc to cancel"
+      }
+    },
+    "shell command": {
+      "height": 40,
+      "columns": 120,
+      "cursor": {
+        "row": 11,
+        "column": 7
+      },
+      "rows": {
+        "0": "To run a command as administrator (user \"root\"), use \"sudo <command>\".",
+        "1": "See \"man sudo_root\" for details.",
+        "4": "      ▄▀▀▄        Antigravity CLI 1.4.12",
+        "5": "     ▀▀▀▀▀▀       Gemini API key",
+        "6": "    ▀▀▀▀▀▀▀▀      Gemini 3.1 Pro (Low)",
+        "7": "   ▄▀▀    ▀▀▄     /tmp/novadeck-e2e-o7se7W/project",
+        "8": "  ▄▀▀      ▀▀▄",
+        "10": "────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────",
+        "11": "! ls -la",
+        "12": "────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────",
+        "13": " activated bash mode · esc to cancel                                                                Gemini 3.1 Pro · low"
+      },
+      "bright": {
+        "13": " activated bash mode · esc to cancel"
+      }
+    },
+    "cleared": {
+      "height": 40,
+      "columns": 120,
+      "cursor": {
+        "row": 11,
+        "column": 1
+      },
+      "rows": {
+        "0": "To run a command as administrator (user \"root\"), use \"sudo <command>\".",
+        "1": "See \"man sudo_root\" for details.",
+        "4": "      ▄▀▀▄        Antigravity CLI 1.4.12",
+        "5": "     ▀▀▀▀▀▀       Gemini API key",
+        "6": "    ▀▀▀▀▀▀▀▀      Gemini 3.1 Pro (Low)",
+        "7": "   ▄▀▀    ▀▀▄     /tmp/novadeck-e2e-49pklr/project",
+        "8": "  ▄▀▀      ▀▀▄",
+        "10": "────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────",
+        "11": ">",
+        "12": "────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────",
+        "13": "? for shortcuts                                                                                     Gemini 3.1 Pro · low"
+      },
+      "bright": {
+        "13": "? for shortcuts"
+      }
+    },
+    "left shell": {
+      "height": 40,
+      "columns": 120,
+      "cursor": {
+        "row": 11,
+        "column": 1
+      },
+      "rows": {
+        "0": "To run a command as administrator (user \"root\"), use \"sudo <command>\".",
+        "1": "See \"man sudo_root\" for details.",
+        "4": "      ▄▀▀▄        Antigravity CLI 1.4.12",
+        "5": "     ▀▀▀▀▀▀       Gemini API key",
+        "6": "    ▀▀▀▀▀▀▀▀      Gemini 3.1 Pro (Low)",
+        "7": "   ▄▀▀    ▀▀▄     /tmp/novadeck-e2e-XJKIhi/project",
+        "8": "  ▄▀▀      ▀▀▄",
+        "10": "────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────",
+        "11": ">",
+        "12": "────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────",
+        "13": "? for shortcuts                                                                                     Gemini 3.1 Pro · low"
+      },
+      "bright": {
+        "13": "? for shortcuts"
+      }
+    },
+    "mid-turn draft": {
+      "height": 40,
+      "columns": 120,
+      "cursor": {
+        "row": 15,
+        "column": 11
+      },
+      "rows": {
+        "0": "To run a command as administrator (user \"root\"), use \"sudo <command>\".",
+        "1": "See \"man sudo_root\" for details.",
+        "4": "      ▄▀▀▄        Antigravity CLI 1.4.12",
+        "5": "     ▀▀▀▀▀▀       Gemini API key",
+        "6": "    ▀▀▀▀▀▀▀▀      Gemini 3.1 Pro (Low)",
+        "7": "   ▄▀▀    ▀▀▄     /tmp/novadeck-e2e-NEX79p/project",
+        "8": "  ▄▀▀      ▀▀▄",
+        "10": "────────────────────────────────────────────────────────────",
+        "11": "> Hold on",
+        "12": "⣟  Generating...",
+        "13": "└ Tip: Use /tasks to see background tasks and their status.",
+        "14": "────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────",
+        "15": "> half typed",
+        "16": "────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────",
+        "17": "esc to cancel                                                                                       Gemini 3.1 Pro · low"
+      },
+      "bright": {
+        "17": "esc to cancel"
+      }
+    },
+    "menu model": {
+      "height": 40,
+      "columns": 120,
+      "cursor": {
+        "row": 30,
+        "column": 0
+      },
+      "rows": {
+        "0": "To run a command as administrator (user \"root\"), use \"sudo <command>\".",
+        "1": "See \"man sudo_root\" for details.",
+        "4": "      ▄▀▀▄        Antigravity CLI 1.4.12",
+        "5": "     ▀▀▀▀▀▀       Gemini API key",
+        "6": "    ▀▀▀▀▀▀▀▀      Gemini 3.1 Pro (Low)",
+        "7": "   ▄▀▀    ▀▀▄     /tmp/novadeck-e2e-oe9rvd/project",
+        "8": "  ▄▀▀      ▀▀▄",
+        "10": "────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────",
+        "11": ">",
+        "12": "────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────",
+        "13": "Switch Model",
+        "15": "  Search:  ",
+        "16": "          ────────────────────",
+        "18": "  Gemini 4 Argon",
+        "19": "  Gemini 3.8 Flash",
+        "20": "  Gemini 3.7 Flash",
+        "21": "  Gemini 3.6 Flash",
+        "22": "> Gemini 3.1 Pro   (current)",
+        "24": "  Effort  ◂            ◉──────────────────────○            ▸",
+        "25": "                      low                   high          ",
+        "26": "            Faster responses, lighter reasoning — great for simpler tasks",
+        "28": "Keyboard: ↑/↓ Navigate  ←/→ Effort  enter Select  esc Go Back",
+        "30": "                                                                                                    Gemini 3.1 Pro · low"
+      },
+      "bright": {
+        "15": "  Search:",
+        "22": "> Gemini 3.1 Pro",
+        "24": "  Effort               ◉                                   ▸",
+        "25": "                      low",
+        "26": "",
+        "30": ""
+      }
+    },
+    "menu permissions": {
+      "height": 40,
+      "columns": 120,
+      "cursor": {
+        "row": 25,
+        "column": 0
+      },
+      "rows": {
+        "0": "To run a command as administrator (user \"root\"), use \"sudo <command>\".",
+        "1": "See \"man sudo_root\" for details.",
+        "4": "      ▄▀▀▄        Antigravity CLI 1.4.12",
+        "5": "     ▀▀▀▀▀▀       Gemini API key",
+        "6": "    ▀▀▀▀▀▀▀▀      Gemini 3.1 Pro (Low)",
+        "7": "   ▄▀▀    ▀▀▄     /tmp/novadeck-e2e-jo3WAR/project",
+        "8": "  ▄▀▀      ▀▀▄",
+        "10": "────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────",
+        "11": ">",
+        "12": "────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────",
+        "13": "Permission Config Editor",
+        "15": "Select a config scope to edit:",
+        "17": "> Project",
+        "18": "  Shared with Antigravity",
+        "19": "  Global",
+        "21": "  Rules that apply only to this project (highest priority)",
+        "23": "Keyboard: ↑/↓ Navigate  enter Save  esc Close",
+        "25": "                                                                                                    Gemini 3.1 Pro · low"
+      },
+      "bright": {
+        "15": "",
+        "21": "",
+        "25": ""
+      }
+    },
+    "menu config": {
+      "height": 40,
+      "columns": 120,
+      "cursor": {
+        "row": 39,
+        "column": 0
+      },
+      "rows": {
+        "0": "     ▀▀▀▀▀▀       Gemini API key",
+        "1": "    ▀▀▀▀▀▀▀▀      Gemini 3.1 Pro (Low)",
+        "2": "   ▄▀▀    ▀▀▄     /tmp/novadeck-e2e-T3tHPF/project",
+        "3": "  ▄▀▀      ▀▀▄",
+        "5": "────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────",
+        "6": ">",
+        "7": "────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────",
+        "8": "Settings",
+        "10": "  Search:  ",
+        "11": "          ────────────────────",
+        "13": "> Agent Mode                   default",
+        "14": "  Animation Speed              medium",
+        "15": "  Artifact Review              asks for review",
+        "16": "  Color Scheme                 terminal",
+        "17": "  Conversation Picker Grouping none",
+        "18": "  Copy on Select               on",
+        "19": "  Editor                       auto ($EDITOR)",
+        "20": "  Editor Mode                  default",
+        "21": "  Enable Telemetry             off",
+        "22": "  Non-Workspace Access         off",
+        "23": "  Notifications                off",
+        "24": "  Queued Messages              Queue",
+        "25": "  Rendering Mode               native terminal (inline)",
+        "26": "  Sandbox Mode                 off",
+        "27": "  Show Active Tasks            on",
+        "28": "  Show Feedback Survey         on",
+        "29": "  Show Tips                    on",
+        "30": "  Tool Permission              request-review",
+        "32": "  'default': standard behavior. 'accept-edits': auto-approve file edits, prompt for commands. 'plan': research and plan",
+        "33": "  without making changes",
+        "35": "  [1-18 of 20 items]",
+        "37": "Keyboard: ↑/↓ Navigate  ←/→ Change  enter Select  esc Clear Search/Exit",
+        "39": "                                                                                                    Gemini 3.1 Pro · low"
+      },
+      "bright": {
+        "10": "  Search:",
+        "32": "",
+        "33": "",
+        "39": ""
+      }
+    },
+    "word at the width": {
+      "height": 40,
+      "columns": 120,
+      "cursor": {
+        "row": 12,
+        "column": 11
+      },
+      "rows": {
+        "0": "To run a command as administrator (user \"root\"), use \"sudo <command>\".",
+        "1": "See \"man sudo_root\" for details.",
+        "4": "      ▄▀▀▄        Antigravity CLI 1.4.12",
+        "5": "     ▀▀▀▀▀▀       Gemini API key",
+        "6": "    ▀▀▀▀▀▀▀▀      Gemini 3.1 Pro (Low)",
+        "7": "   ▄▀▀    ▀▀▄     /tmp/novadeck-e2e-Sn4Agb/project",
+        "8": "  ▄▀▀      ▀▀▄",
+        "10": "────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────",
+        "11": "> aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa word",
+        "12": "  next words",
+        "13": "────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────",
+        "14": "                                                                                                    Gemini 3.1 Pro · low"
+      },
+      "bright": {
+        "14": ""
+      }
+    },
+    "word a cell past": {
+      "height": 40,
+      "columns": 120,
+      "cursor": {
+        "row": 12,
+        "column": 16
+      },
+      "rows": {
+        "0": "To run a command as administrator (user \"root\"), use \"sudo <command>\".",
+        "1": "See \"man sudo_root\" for details.",
+        "4": "      ▄▀▀▄        Antigravity CLI 1.4.12",
+        "5": "     ▀▀▀▀▀▀       Gemini API key",
+        "6": "    ▀▀▀▀▀▀▀▀      Gemini 3.1 Pro (Low)",
+        "7": "   ▄▀▀    ▀▀▄     /tmp/novadeck-e2e-lwQoeh/project",
+        "8": "  ▄▀▀      ▀▀▄",
+        "10": "────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────",
+        "11": "> aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "12": "  word next words",
+        "13": "────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────",
+        "14": "                                                                                                    Gemini 3.1 Pro · low"
+      },
+      "bright": {
+        "14": ""
+      }
+    },
+    "narrow, word at the width": {
+      "height": 40,
+      "columns": 80,
+      "cursor": {
+        "row": 9,
+        "column": 11
+      },
+      "rows": {
+        "1": "      ▄▀▀▄        Antigravity CLI 1.4.12",
+        "2": "     ▀▀▀▀▀▀       Gemini API key",
+        "3": "    ▀▀▀▀▀▀▀▀      Gemini 3.1 Pro (Low)",
+        "4": "   ▄▀▀    ▀▀▄     /tmp/novadeck-e2e-uGL6lv/project",
+        "5": "  ▄▀▀      ▀▀▄",
+        "7": "────────────────────────────────────────────────────────────────────────────────",
+        "8": "> aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa word",
+        "9": "  next words",
+        "10": "────────────────────────────────────────────────────────────────────────────────",
+        "11": "                                                            Gemini 3.1 Pro · low"
+      },
+      "bright": {
+        "11": ""
+      }
+    },
+    "narrow, word a cell short": {
+      "height": 40,
+      "columns": 80,
+      "cursor": {
+        "row": 9,
+        "column": 11
+      },
+      "rows": {
+        "1": "      ▄▀▀▄        Antigravity CLI 1.4.12",
+        "2": "     ▀▀▀▀▀▀       Gemini API key",
+        "3": "    ▀▀▀▀▀▀▀▀      Gemini 3.1 Pro (Low)",
+        "4": "   ▄▀▀    ▀▀▄     /tmp/novadeck-e2e-XQVuqi/project",
+        "5": "  ▄▀▀      ▀▀▄",
+        "7": "────────────────────────────────────────────────────────────────────────────────",
+        "8": "> aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa word",
+        "9": "  next words",
+        "10": "────────────────────────────────────────────────────────────────────────────────",
+        "11": "                                                            Gemini 3.1 Pro · low"
+      },
+      "bright": {
+        "11": ""
+      }
+    },
+    "long word after words": {
+      "height": 40,
+      "columns": 120,
+      "cursor": {
+        "row": 13,
+        "column": 44
+      },
+      "rows": {
+        "0": "To run a command as administrator (user \"root\"), use \"sudo <command>\".",
+        "1": "See \"man sudo_root\" for details.",
+        "4": "      ▄▀▀▄        Antigravity CLI 1.4.12",
+        "5": "     ▀▀▀▀▀▀       Gemini API key",
+        "6": "    ▀▀▀▀▀▀▀▀      Gemini 3.1 Pro (Low)",
+        "7": "   ▄▀▀    ▀▀▄     /tmp/novadeck-e2e-JWq8UW/project",
+        "8": "  ▄▀▀      ▀▀▄",
+        "10": "────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────",
+        "11": "> short words",
+        "12": "  xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+        "13": "  xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx and after",
+        "14": "────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────",
+        "15": "                                                                                                    Gemini 3.1 Pro · low"
+      },
+      "bright": {
+        "15": ""
+      }
+    },
+    "narrow, long word": {
+      "height": 40,
+      "columns": 80,
+      "cursor": {
+        "row": 9,
+        "column": 34
+      },
+      "rows": {
+        "1": "      ▄▀▀▄        Antigravity CLI 1.4.12",
+        "2": "     ▀▀▀▀▀▀       Gemini API key",
+        "3": "    ▀▀▀▀▀▀▀▀      Gemini 3.1 Pro (Low)",
+        "4": "   ▄▀▀    ▀▀▄     /tmp/novadeck-e2e-RyJcPB/project",
+        "5": "  ▄▀▀      ▀▀▄",
+        "7": "────────────────────────────────────────────────────────────────────────────────",
+        "8": "> xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+        "9": "  xxxxxxxxxxxxxxxxxxxxxxx and after",
+        "10": "────────────────────────────────────────────────────────────────────────────────",
+        "11": "                                                            Gemini 3.1 Pro · low"
+      },
+      "bright": {
+        "11": ""
+      }
+    },
+    "tall": {
+      "height": 40,
+      "columns": 120,
+      "cursor": {
+        "row": 31,
+        "column": 14
+      },
+      "rows": {
+        "0": "To run a command as administrator (user \"root\"), use \"sudo <command>\".",
+        "1": "See \"man sudo_root\" for details.",
+        "4": "      ▄▀▀▄        Antigravity CLI 1.5.2",
+        "5": "     ▀▀▀▀▀▀       Gemini API key",
+        "6": "    ▀▀▀▀▀▀▀▀      Gemini 3.1 Pro (Low)",
+        "7": "   ▄▀▀    ▀▀▄     /tmp/novadeck-e2e-gvM6EH/project",
+        "8": "  ▄▀▀      ▀▀▄",
+        "10": "────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────",
+        "11": "> ↑ 21 more lines",
+        "12": "  its next line",
+        "13": "  its last linePart 11 of it",
+        "14": "  its next line",
+        "15": "  its last linePart 12 of it",
+        "16": "  its next line",
+        "17": "  its last linePart 13 of it",
+        "18": "  its next line",
+        "19": "  its last linePart 14 of it",
+        "20": "  its next line",
+        "21": "  its last linePart 15 of it",
+        "22": "  its next line",
+        "23": "  its last linePart 16 of it",
+        "24": "  its next line",
+        "25": "  its last linePart 17 of it",
+        "26": "  its next line",
+        "27": "  its last linePart 18 of it",
+        "28": "  its next line",
+        "29": "  its last linePart 19 of it",
+        "30": "  its next line",
+        "31": "  its last line",
+        "32": "────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────",
+        "33": "                                                                                                    Gemini 3.1 Pro · low"
+      },
+      "bright": {
+        "33": ""
+      }
+    },
+    "tall cleared": {
+      "height": 40,
+      "columns": 120,
+      "cursor": {
+        "row": 11,
+        "column": 1
+      },
+      "rows": {
+        "0": "To run a command as administrator (user \"root\"), use \"sudo <command>\".",
+        "1": "See \"man sudo_root\" for details.",
+        "4": "      ▄▀▀▄        Antigravity CLI 1.5.2",
+        "5": "     ▀▀▀▀▀▀       Gemini API key",
+        "6": "    ▀▀▀▀▀▀▀▀      Gemini 3.1 Pro (Low)",
+        "7": "   ▄▀▀    ▀▀▄     /tmp/novadeck-e2e-gvM6EH/project",
+        "8": "  ▄▀▀      ▀▀▄",
+        "10": "────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────",
+        "11": ">",
+        "12": "────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────",
+        "13": "? for shortcuts                                                                                     Gemini 3.1 Pro · low"
+      },
+      "bright": {
+        "13": "? for shortcuts"
+      }
+    },
+    "tall shell": {
+      "height": 40,
+      "columns": 120,
+      "cursor": {
+        "row": 31,
+        "column": 14
+      },
+      "rows": {
+        "0": "To run a command as administrator (user \"root\"), use \"sudo <command>\".",
+        "1": "See \"man sudo_root\" for details.",
+        "4": "      ▄▀▀▄        Antigravity CLI 1.5.2",
+        "5": "     ▀▀▀▀▀▀       Gemini API key",
+        "6": "    ▀▀▀▀▀▀▀▀      Gemini 3.1 Pro (Low)",
+        "7": "   ▄▀▀    ▀▀▄     /tmp/novadeck-e2e-XaL9cQ/project",
+        "8": "  ▄▀▀      ▀▀▄",
+        "10": "────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────",
+        "11": "! ↑ 21 more lines",
+        "12": "  its next line",
+        "13": "  its last linePart 11 of it",
+        "14": "  its next line",
+        "15": "  its last linePart 12 of it",
+        "16": "  its next line",
+        "17": "  its last linePart 13 of it",
+        "18": "  its next line",
+        "19": "  its last linePart 14 of it",
+        "20": "  its next line",
+        "21": "  its last linePart 15 of it",
+        "22": "  its next line",
+        "23": "  its last linePart 16 of it",
+        "24": "  its next line",
+        "25": "  its last linePart 17 of it",
+        "26": "  its next line",
+        "27": "  its last linePart 18 of it",
+        "28": "  its next line",
+        "29": "  its last linePart 19 of it",
+        "30": "  its next line",
+        "31": "  its last line",
+        "32": "────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────",
+        "33": " activated bash mode · esc to cancel                                                                Gemini 3.1 Pro · low"
+      },
+      "bright": {
+        "33": " activated bash mode · esc to cancel"
+      }
+    },
+    "tall shell cleared": {
+      "height": 40,
+      "columns": 120,
+      "cursor": {
+        "row": 11,
+        "column": 1
+      },
+      "rows": {
+        "0": "To run a command as administrator (user \"root\"), use \"sudo <command>\".",
+        "1": "See \"man sudo_root\" for details.",
+        "4": "      ▄▀▀▄        Antigravity CLI 1.5.2",
+        "5": "     ▀▀▀▀▀▀       Gemini API key",
+        "6": "    ▀▀▀▀▀▀▀▀      Gemini 3.1 Pro (Low)",
+        "7": "   ▄▀▀    ▀▀▄     /tmp/novadeck-e2e-XaL9cQ/project",
+        "8": "  ▄▀▀      ▀▀▄",
+        "10": "────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────",
+        "11": ">",
+        "12": "────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────",
+        "13": "? for shortcuts                                                                                     Gemini 3.1 Pro · low"
+      },
+      "bright": {
+        "13": "? for shortcuts"
+      }
+    },
+    "tall cursor up": {
+      "height": 40,
+      "columns": 120,
+      "cursor": {
+        "row": 12,
+        "column": 14
+      },
+      "rows": {
+        "0": "To run a command as administrator (user \"root\"), use \"sudo <command>\".",
+        "1": "See \"man sudo_root\" for details.",
+        "4": "      ▄▀▀▄        Antigravity CLI 1.5.2",
+        "5": "     ▀▀▀▀▀▀       Gemini API key",
+        "6": "    ▀▀▀▀▀▀▀▀      Gemini 3.1 Pro (Low)",
+        "7": "   ▄▀▀    ▀▀▄     /tmp/novadeck-e2e-C75fDk/project",
+        "8": "  ▄▀▀      ▀▀▄",
+        "10": "────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────",
+        "11": "> ↑ 7 more lines",
+        "12": "  its next line",
+        "13": "  its last linePart 4 of it",
+        "14": "  its next line",
+        "15": "  its last linePart 5 of it",
+        "16": "  its next line",
+        "17": "  its last linePart 6 of it",
+        "18": "  its next line",
+        "19": "  its last linePart 7 of it",
+        "20": "  its next line",
+        "21": "  its last linePart 8 of it",
+        "22": "  its next line",
+        "23": "  its last linePart 9 of it",
+        "24": "  its next line",
+        "25": "  its last linePart 10 of it",
+        "26": "  its next line",
+        "27": "  its last linePart 11 of it",
+        "28": "  its next line",
+        "29": "  its last linePart 12 of it",
+        "30": "  its next line",
+        "31": "  its last linePart 13 of it",
+        "32": "  ↓ 14 more lines",
+        "33": "────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────",
+        "34": "                                                                                                    Gemini 3.1 Pro · low"
+      },
+      "bright": {
+        "34": ""
+      }
+    }
+  }
+}

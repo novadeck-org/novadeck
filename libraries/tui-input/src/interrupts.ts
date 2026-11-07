@@ -3,8 +3,9 @@ import { setTimeout as sleep } from "node:timers/promises"
 import type { ScreenText } from "@novadeck/emulator/headless"
 
 import {
+  fillsViewport,
+  hidesText,
   isEmpty,
-  mayShowTail,
   showsTail,
   takesQueue,
   type BoxProfile,
@@ -103,7 +104,7 @@ const inert: InputHold = {
 /**
  * Stops programs' turns as a person's Escape does, and leaves their boxes as they were. The
  * caller runs each in the terminal's input queue. Throws a `BoxNotCleared` where text that
- * is not the turn's own stays in the box.
+ * is not the turn's own stays in the box, as words it can't be sure of having whole do.
  */
 export class Interrupts {
   /** When each terminal's latest interrupt has settled, while it has not, in epoch milliseconds. */
@@ -233,7 +234,8 @@ export class Interrupts {
       // A placeholder stands for words that clearing would lose: they are left, and said. So
       // does a box that may hold more than it shows, where those words aren't known in full.
       if (!profile.clear || (!restored && profile.collapsed(box))) throw new BoxNotCleared()
-      if (queued && mayShowTail(profile, box, rows)) throw new BoxNotCleared()
+      if (!restored && profile.cut?.(box) === true) throw new BoxNotCleared()
+      if (queued && fillsViewport(profile, box, rows)) throw new BoxNotCleared()
       const gone = await this.cleared(terminalId, profile, box, entry, waiting)
       if (gone === undefined) throw new BoxNotCleared()
       return restored ? none : { returned: wordsOf(gone) }
@@ -320,8 +322,8 @@ export class Interrupts {
       if (
         !profile.clear ||
         profile.collapsed(box) ||
-        profile.takeQueued?.lossy(box) === true ||
-        mayShowTail(profile, box, rows)
+        profile.stands(box.text) ||
+        hidesText(profile, box, rows)
       )
         throw new BoxNotCleared()
       const gone = await this.cleared(terminalId, profile, box, undefined, hold)

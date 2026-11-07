@@ -37,9 +37,11 @@ const inApp = (
     send = async () => {},
     answer = async () => {},
     onRef = () => {},
+    onKeys,
   }: {
     readonly draft?: string
     readonly program?: string
+    readonly onKeys?: (keys: string) => Promise<void>
     readonly send?: (text: string) => Promise<SendResult | void>
     readonly answer?: (request: string, answer: ChatAnswer) => Promise<void>
     readonly onRef?: (ref: string) => void
@@ -59,6 +61,7 @@ const inApp = (
   }
   const chat = createChat()
   const commands = createChatCommands({
+    chatView: () => true,
     chat,
     conversations,
     terminalOpen: () => true,
@@ -81,12 +84,14 @@ const inApp = (
           sending: chatSendsOf(state.sends, context, "01"),
           onSend: (text, to) => commands.sendChat(key, text, to),
           onInterrupt: async () => {},
+          onClearBox: async () => {},
           onAnswer: (request, reply) => conversations.answer(key, request, reply),
           onWordsLost: (words) => commands.appendChatDraft(context, "01", words),
           onAnswerInTerminal: () => {},
           focusInput: false,
           onInputFocused: () => {},
           refused: conversations.refused,
+          ...(onKeys && { onKeys }),
         })
       : null
   }
@@ -227,6 +232,106 @@ describe("a chat whose answer's words didn't reach the agent", () => {
   })
 })
 
+describe("a chat over a harness's own menu", () => {
+  const talking: Conversation = {
+    ...noConversation,
+    agent: "claude",
+    session: "s",
+    loaded: true,
+  }
+  const open = (given: Conversation = talking) => {
+    const conversation = createStore(given)
+    const keys: string[] = []
+    const app = inApp(conversation, {
+      onKeys: async (written) => {
+        keys.push(written)
+      },
+    })
+    const field = app.container.querySelector("textarea")!
+    const down = (name: string): void =>
+      void act(() => {
+        field.dispatchEvent(
+          new KeyboardEvent("keydown", { key: name, bubbles: true, cancelable: true }),
+        )
+      })
+    return { ...app, conversation, keys, field, down }
+  }
+
+  it("passes a leading / to the terminal rather than refuse it", () => {
+    const { field, keys, container, sent } = open()
+    set(field, "/")
+    set(field, "/m")
+    expect(keys).toEqual(["/", "m"])
+    expect(container.textContent).toContain("own menu")
+    expect(sent).not.toHaveBeenCalled()
+  })
+
+  it("sends Enter to the terminal, and echoes the command as the person's words", () => {
+    const { field, keys, down, container, sent } = open()
+    set(field, "/status")
+    down("Enter")
+    expect(keys).toEqual(["/status", "\r"])
+    expect(sent).not.toHaveBeenCalled()
+    expect(container.querySelector(".chat-echo")?.textContent).toBe("/status")
+  })
+
+  it("follows the terminal's program before a session binds", () => {
+    const conversation = createStore(noConversation)
+    const keys: string[] = []
+    const { container } = inApp(conversation, {
+      program: "codex",
+      onKeys: async (written) => {
+        keys.push(written)
+      },
+    })
+    set(container.querySelector("textarea")!, "/")
+    expect(keys).toEqual(["/"])
+  })
+
+  it("passes a menu's keys only while one shows", () => {
+    const { field, keys, down, conversation } = open()
+    set(field, "/")
+    down("ArrowDown")
+    down("Escape")
+    expect(keys).toEqual(["/"])
+    act(() =>
+      conversation.update((current) => ({
+        ...current,
+        slice: { reason: "menu", columns: 80, rows: [[]], cursor: null, secret: false },
+      })),
+    )
+    down("ArrowDown")
+    down("Escape")
+    expect(keys).toEqual(["/", "\x1b[B", "\x1b"])
+  })
+
+  it("takes a plain message as it always did", () => {
+    const { field, keys, down, sent } = open()
+    set(field, "hello there")
+    down("Enter")
+    expect(keys).toEqual([])
+    expect(sent).toHaveBeenCalled()
+  })
+
+  it("draws the terminal's own rows, and hands the keys to a view", () => {
+    const { conversation, keys, container } = open()
+    act(() =>
+      conversation.update((current) => ({
+        ...current,
+        slice: { reason: "view", columns: 80, rows: [[]], cursor: null, secret: false },
+      })),
+    )
+    const rows = container.querySelector<HTMLElement>(".chat-slice")!
+    expect(document.activeElement).toBe(rows)
+    act(() => {
+      rows.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape", bubbles: true }))
+    })
+    expect(keys).toEqual(["\x1b"])
+    act(() => conversation.update((current) => ({ ...current, slice: null })))
+    expect(document.activeElement).toBe(container.querySelector("textarea"))
+  })
+})
+
 describe("a chat sending a message", () => {
   it("takes it out of the box as it goes, and queues the next one behind it", async () => {
     const sends: (() => void)[] = []
@@ -285,6 +390,21 @@ describe("a chat sending a message", () => {
     expect(bubbles(container)[0]).toEqual(["first", "sending", "Sending…"])
     await act(async () => conversation.update((now) => ({ ...now, items: [userItem("first")] })))
     expect(bubbles(container).map(([text]) => text)).toEqual(["second"])
+  })
+
+  it("shows no message that a Stop handed back, though the record wrote it", async () => {
+    const conversation = createStore<Conversation>({
+      ...asking,
+      requests: [],
+      items: [userItem("went"), userItem("handed back")],
+      prompts: [
+        { ref: "abcdefghijklmnop", text: null, sentAt: 1, state: "settled", item: 0 },
+        { ref: "bcdefghijklmnopq", text: null, sentAt: 2, state: "withdrawn", item: 1 },
+      ],
+    })
+    const { container } = inApp(conversation)
+    expect(container.textContent).toContain("went")
+    expect(container.textContent).not.toContain("handed back")
   })
 
   it("says so when the agent's record never got it, and offers the terminal", async () => {

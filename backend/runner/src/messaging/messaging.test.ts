@@ -2016,6 +2016,7 @@ const whereabouts = (overrides: Partial<Whereabouts> = {}): Whereabouts => ({
   working: false,
   waiting: null,
   waitsOn: null,
+  startup: null,
   reports: { tell: null, done: null },
   place: (path) => path,
   ...overrides,

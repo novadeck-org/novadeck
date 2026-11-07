@@ -2,7 +2,7 @@ import { setTimeout as sleep } from "node:timers/promises"
 
 import type { ScreenText } from "@novadeck/emulator/headless"
 
-import { isEmpty, type BoxProfile } from "./box/box.js"
+import { isEmpty, tailOf, type BoxProfile } from "./box/box.js"
 import { changedRows, checkPaste } from "./box/paste.js"
 import { sameText } from "./box/text.js"
 import type { InputEntry } from "./queue.js"
@@ -202,11 +202,19 @@ export const createTypist = (
     )
   }
 
+  /** What shows of the line, where the box is too short for all of it (`tailOf`). */
+  const tail = (screen: ScreenText, text: string): string | undefined => {
+    const profile = options.profile?.()
+    const box = profile?.read(screen)
+    return profile && box ? tailOf(profile, box, screen.rows.length, text) : undefined
+  }
+
   /**
    * Whether the box holds the line and nothing else, taking a prompt, with no view over it, as
    * the profile reads it: the paste's check finds the line once on the screen, which a key of the
-   * person's that the program echoed only as the line landed shares a row with. True where the
-   * box isn't looked at (no profile option, or `boxCheck` off).
+   * person's that the program echoed only as the line landed shares a row with. A box too short
+   * for the line shows its end, and started empty, so that is the line. True where the box isn't
+   * looked at (no profile option, or `boxCheck` off).
    */
   const alone = (screen: ScreenText, text: string): boolean => {
     if (!options.profile || !boxCheck) return true
@@ -215,7 +223,7 @@ export const createTypist = (
     return (
       box !== undefined &&
       box.mode === "prompt" &&
-      sameText(box.text, text) &&
+      (sameText(box.text, text) || tail(screen, text) !== undefined) &&
       profile?.overlay(screen) === false
     )
   }
@@ -354,15 +362,18 @@ export const createTypist = (
           // What the program counts up by itself, redrawn as the paste lands, is no change.
           const settled = stillRows(after.rows)
           const shown = settled.join("\n")
-          const checked = checkPaste(before.rows, after.rows, text, {
-            vanish,
-            ticking: rows,
-            still: stillRows,
-          })
-          const accepted = checked.accepted && alone(after, text)
+          const end = boxCheck ? tail(after, text) : undefined
+          // What the box's text is read from: Codex draws a dim arrow into its first row. On so
+          // short a screen a program redraws what's above the box as it grows (Claude Code's
+          // history, at 14 rows), and the box is what says where the line went.
+          const checked = end
+            ? checkPaste(before.bright, after.bright, end, { ticking: rows, still: stillRows })
+            : checkPaste(before.rows, after.rows, text, { vanish, ticking: rows, still: stillRows })
+          const arrived = checked.accepted || (end !== undefined && checked.reason === "elsewhere")
+          const accepted = arrived && alone(after, text)
           if (!accepted && now() >= until)
             trace(
-              `ring ${nonce}: paste not accepted: ${checked.accepted ? "not alone in the box" : checked.reason}`,
+              `ring ${nonce}: paste not accepted: ${arrived ? "not alone in the box" : checked.reason}`,
             )
           // Accepted twice running on the same screen, so it isn't caught mid-draw.
           if (accepted && landed === shown) {

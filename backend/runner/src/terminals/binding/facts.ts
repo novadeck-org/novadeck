@@ -225,7 +225,14 @@ export class Bindings {
    */
   restarted(): Pick<
     Record,
-    "bound" | "suspended" | "root" | "seenEntry" | "watching" | "transcript" | "goneSession"
+    | "bound"
+    | "suspended"
+    | "root"
+    | "seenEntry"
+    | "watching"
+    | "transcript"
+    | "goneSession"
+    | "startupScreen"
   > {
     return {
       bound: null,
@@ -239,8 +246,17 @@ export class Bindings {
    * What the shell held of its agents, which ends with it, as it exits or restarts. The rest
    * of a shell's state (its prompts, line, foreground) the restart sets for the new one.
    */
-  private shellEnded(): Pick<Record, "suspended" | "root" | "seenEntry" | "goneSession"> {
-    return { suspended: null, root: null, seenEntry: undefined, goneSession: undefined }
+  private shellEnded(): Pick<
+    Record,
+    "suspended" | "root" | "seenEntry" | "goneSession" | "startupScreen"
+  > {
+    return {
+      suspended: null,
+      root: null,
+      seenEntry: undefined,
+      goneSession: undefined,
+      startupScreen: undefined,
+    }
   }
 
   /**
@@ -553,6 +569,8 @@ export class Bindings {
     const { bound } = record
     const agent = bound?.binding.agent ?? null
     const ready = this.readyOf(record)
+    // Its prompt or a session ends a startup screen at once, not at the watch's next look.
+    const startup = bound || ready ? null : record.summary.startup
     const activity = bound ? activitySummary(bound.activity) : null
     // Before the early return below: an Escape that settles changes nothing the summary shows.
     this.ends.sight(record, activity)
@@ -570,12 +588,13 @@ export class Bindings {
       summary.agentRan === agentRan &&
       summary.agent === agent &&
       summary.ready === ready &&
+      summary.startup === startup &&
       JSON.stringify(summary.activity) === JSON.stringify(activity) &&
       JSON.stringify(summary.telemetry) === JSON.stringify(telemetry) &&
       JSON.stringify(summary.reported) === JSON.stringify(reported)
     )
       return
-    record.summary = { ...summary, agentRan, agent, ready, activity, telemetry, reported }
+    record.summary = { ...summary, agentRan, agent, ready, startup, activity, telemetry, reported }
     this.host.announce(record)
   }
 

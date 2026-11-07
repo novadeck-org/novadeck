@@ -1,5 +1,7 @@
 import {
+  SettleInTerminal,
   noConversation,
+  withReturned,
   type ChatItem,
   type ChatPrompt,
   type Conversation,
@@ -13,6 +15,7 @@ import { createChatCommands, unseenMs } from "./commands"
 import { chatDraftOf } from "./drafts"
 import { chatReplyOf } from "./replies"
 import { chatSendsOf } from "./sends"
+import { setAnsweringInTerminal } from "./shown"
 import { createChat } from "./state"
 import { describe, expect, it } from "./test"
 
@@ -44,24 +47,42 @@ const open = (
   {
     interrupt = async () => null,
     answer = async () => {},
+    returned = null,
+    sends,
+    takeBox,
+    putBox,
+    clearBox,
+    chatView = true,
   }: {
     readonly interrupt?: () => Promise<string | null>
     readonly answer?: () => Promise<void>
+    readonly returned?: string | null
+    readonly sends?: () => void
+    readonly takeBox?: Conversations["takeBox"]
+    readonly putBox?: Conversations["putBox"]
+    readonly clearBox?: Conversations["clearBox"]
+    readonly chatView?: boolean
   } = {},
 ) => {
   const conversation = createStore<Conversation>({ ...noConversation, session, loaded: true })
   const sent: string[] = []
   const refs: string[] = []
+  let lastOptions: unknown
   const conversations: Conversations = {
     conversation: () => conversation,
     send: async (_key, text, options) => {
       sent.push(text)
       refs.push(options!.ref!)
-      return { tracked: true }
+      lastOptions = options
+      sends?.()
+      return { tracked: true, returned }
     },
     interrupt,
     answer,
     refused: refusing(),
+    ...(takeBox && { takeBox }),
+    ...(putBox && { putBox }),
+    ...(clearBox && { clearBox }),
   }
   const chat = createChat()
   const commands = createChatCommands({
@@ -69,6 +90,7 @@ const open = (
     conversations,
     terminalOpen: () => true,
     context: () => context,
+    chatView: () => chatView,
   })
   const phases = () =>
     chatSendsOf(chat.store.getSnapshot().sends, context, "01").map(({ text, phase }) => [
@@ -103,7 +125,18 @@ const open = (
     // In an object, so awaiting the setup doesn't await the queued send too.
     return { queued }
   }
-  return { commands, sent, phases, draft, reply, receipt, tell, two }
+  return {
+    commands,
+    sent,
+    phases,
+    draft,
+    reply,
+    receipt,
+    tell,
+    two,
+    chat,
+    sentOptions: () => lastOptions,
+  }
 }
 
 describe("the chat's send queue", () => {
@@ -119,6 +152,178 @@ describe("the chat's send queue", () => {
     ])
     tell({ items: [userItem(0, "one")] })
     expect(phases()).toEqual([["two", "sent"]])
+  })
+
+  it("puts words a prompt took out of the agent's box in the chat's, before what's typed", async () => {
+    const { commands, draft } = open("s1", { returned: "came back" })
+    const sending = commands.sendChat(key, "the message", null)
+    commands.setChatDraft("01", "typed since")
+    await expect(sending).resolves.toBe(true)
+    expect(draft()).toBe("came back\ntyped since")
+  })
+
+  it("puts them back as well when the prompt failed after it took them, ahead of its own", async () => {
+    const { commands, draft } = open("s1", {
+      sends: () => {
+        throw withReturned(new Error("It didn't land."), "came back")
+      },
+    })
+    commands.setChatDraft("01", "the message")
+    await expect(commands.sendChat(key, "the message", null)).rejects.toThrow("It didn't land.")
+    expect(draft()).toBe("came back\nthe message")
+  })
+
+  it("leaves the box to a menu of the harness's own, and to the chat's own keys", async () => {
+    const taken = vi.fn<NonNullable<Conversations["takeBox"]>>(async () => "taken")
+    const box = { text: "look at @sr", mode: "prompt", tail: false, known: false } as const
+    const menu = { reason: "menu", columns: 80, rows: [[]], cursor: null, secret: false } as const
+    const withMenu = open("s1", { takeBox: taken })
+    withMenu.tell({ box, slice: menu })
+    await withMenu.commands.takeBox(key)
+    const typing = open("s1", { takeBox: taken })
+    typing.tell({ box })
+    typing.commands.setChatDraft("01", "look at @src")
+    await typing.commands.takeBox(key)
+    const passing = open("s1", { takeBox: taken })
+    passing.tell({ box: { ...box, text: "look at @src/file.ts" } })
+    passing.commands.setChatPassing("01", true)
+    await passing.commands.takeBox(key)
+    expect(taken).not.toHaveBeenCalled()
+  })
+
+  it("waits for a take on its way before it puts the draft back", async () => {
+    let finish: (words: string) => void = () => {}
+    const put: string[] = []
+    const { commands, draft } = open("s1", {
+      takeBox: () => new Promise((resolve) => (finish = resolve)),
+      putBox: async (_key, text) => {
+        put.push(text)
+        return true
+      },
+    })
+    commands.setChatDraft("01", "from the chat")
+    const taking = commands.takeBox(key)
+    const putting = commands.putDraft(key)
+    finish("from the box")
+    await Promise.all([taking, putting])
+    expect(put).toEqual(["from the box\n\nfrom the chat"])
+    expect(draft()).toBe("")
+  })
+
+  it("asks that what the agent's box holds goes along, only while the chat shows", async () => {
+    const { chat, commands, sentOptions } = open()
+    await commands.sendChat(key, "the message", null)
+    expect(sentOptions()).toMatchObject({ along: true })
+    chat.update((state) => ({
+      ...state,
+      answering: setAnsweringInTerminal(state.answering, context, "01", true),
+    }))
+    await commands.sendChat(key, "behind it", null).catch(() => undefined)
+    expect(sentOptions()).not.toHaveProperty("along")
+  })
+
+  it("asks nothing go along where the chat view went off", async () => {
+    const { commands, sentOptions } = open("s1", { chatView: false })
+    await commands.sendChat(key, "the message", null)
+    expect(sentOptions()).not.toHaveProperty("along")
+  })
+
+  it("leaves in the agent's box what doesn't mix with what's written", async () => {
+    const asked: unknown[] = []
+    const { commands, draft, tell } = open("s1", {
+      takeBox: async (at) => {
+        asked.push(at)
+        return "!ls"
+      },
+    })
+    tell({ box: { text: "ls", mode: "shell", tail: false, known: false } })
+    commands.setChatDraft("01", "from the chat")
+    await commands.takeBox(key)
+    expect(asked).toEqual([])
+    expect(draft()).toBe("from the chat")
+  })
+
+  it("clears the box the person was shown, whatever it holds by now", async () => {
+    const asked: unknown[] = []
+    let cleared = true
+    const { commands, tell } = open("s1", {
+      clearBox: async (at, seen) => {
+        asked.push([at, seen])
+        return cleared
+      },
+    })
+    tell({ box: { text: "/typed since", mode: "prompt", tail: false, known: false } })
+    await commands.clearBox(key, "/model")
+    expect(asked).toEqual([[key, "/model"]])
+    cleared = false
+    await expect(commands.clearBox(key, "/model")).rejects.toBeInstanceOf(SettleInTerminal)
+  })
+
+  it("adds nothing a paste that landed unseen left in both", async () => {
+    const { commands, draft } = open("s1", { takeBox: async () => "the words" })
+    commands.setChatDraft("01", "the words")
+    await commands.takeBox(key)
+    expect(draft()).toBe("the words")
+  })
+
+  it("takes what the agent's box holds ahead of what's written, a blank line between", async () => {
+    const { commands, draft } = open("s1", { takeBox: async () => "from the box" })
+    commands.setChatDraft("01", "from the chat")
+    await commands.takeBox(key)
+    expect(draft()).toBe("from the box\n\nfrom the chat")
+  })
+
+  it("leaves the chat's box as it is where nothing was taken", async () => {
+    const { commands, draft } = open("s1", { takeBox: async () => null })
+    commands.setChatDraft("01", "from the chat")
+    await commands.takeBox(key)
+    expect(draft()).toBe("from the chat")
+  })
+
+  it("empties the chat's box once its words are in the agent's", async () => {
+    const put: string[] = []
+    const { commands, draft } = open("s1", {
+      putBox: async (_key, text) => {
+        put.push(text)
+        return true
+      },
+    })
+    commands.setChatDraft("01", "a draft")
+    await commands.putDraft(key)
+    expect(put).toEqual(["a draft"])
+    expect(draft()).toBe("")
+  })
+
+  it("keeps the draft where the agent's box didn't take it, or it changed meanwhile", async () => {
+    const declined = open("s1", { putBox: async () => false })
+    declined.commands.setChatDraft("01", "a draft")
+    await declined.commands.putDraft(key)
+    expect(declined.draft()).toBe("a draft")
+
+    const changing = open("s1", {
+      putBox: async () => {
+        changing.commands.setChatDraft("01", "a draft and more")
+        return true
+      },
+    })
+    changing.commands.setChatDraft("01", "a draft")
+    await changing.commands.putDraft(key)
+    expect(changing.draft()).toBe("a draft and more")
+  })
+
+  it("puts nothing while a reply is written, words are on their way, or nothing's there", async () => {
+    const put: string[] = []
+    const putBox = async (_key: unknown, text: string) => {
+      put.push(text)
+      return true
+    }
+    const { commands, two } = open("s1", { putBox })
+    await commands.putDraft(key)
+    const { queued } = await two()
+    commands.setChatDraft("01", "more")
+    await commands.putDraft(key)
+    expect(put).toEqual([])
+    void queued.catch(() => undefined)
   })
 
   it("puts the queued words back in the box when the one before is back in the agent's", async () => {

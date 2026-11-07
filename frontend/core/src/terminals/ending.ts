@@ -117,9 +117,10 @@ export type TerminalNeed = "unblock" | "ask"
 // What a dialog its agent shows now needs, which shows at once, before the Inbox's row:
 // a question asks, a permission or a plan unblocks.
 const attentionNeed = (terminal: TerminalMetadata): TerminalNeed | undefined => {
-  const attention = terminal.state === "running" ? terminal.agent?.attention : undefined
-  if (!attention) return undefined
-  return attention.kind === "question" ? "ask" : "unblock"
+  const agent = terminal.state === "running" ? terminal.agent : undefined
+  if (agent?.startup) return "unblock"
+  if (!agent?.attention) return undefined
+  return agent.attention.kind === "question" ? "ask" : "unblock"
 }
 
 // The mark: the need the Inbox's rows make (`terminalNeed` in inbox.ts) and the one its
@@ -172,7 +173,9 @@ const waitingText = (what: string, count: number): string =>
 // What the agent in a terminal waits on the person for, in a few words; undefined when
 // nothing waits.
 export const attentionText = (terminal: TerminalMetadata): string | undefined => {
-  const attention = terminal.state === "running" ? terminal.agent?.attention : undefined
+  const agent = terminal.state === "running" ? terminal.agent : undefined
+  if (agent?.startup) return `Waiting at its ${agent.startup} screen`
+  const attention = agent?.attention
   if (!attention) return undefined
   const what =
     attention.kind === "question"
@@ -254,8 +257,10 @@ export type TerminalGlance = {
 
 // Whether a terminal's live dialogs are all its snoozed requests', which make no mark.
 const asleep = (terminal: TerminalMetadata, marks: InboxMarks): boolean => {
-  const dialogs = terminal.state === "running" ? (terminal.agent?.attention?.count ?? 0) : 0
-  return dialogs <= (marks.snoozedRequests ?? 0)
+  const agent = terminal.state === "running" ? terminal.agent : undefined
+  // No Inbox row stands behind a startup screen, so no snooze can set it aside.
+  if (agent?.startup) return false
+  return (agent?.attention?.count ?? 0) <= (marks.snoozedRequests ?? 0)
 }
 
 // `unread` is how the terminal's last turn ended while the person looked away, if it did.

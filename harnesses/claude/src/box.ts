@@ -1,7 +1,10 @@
 import type { ScreenText } from "@novadeck/emulator/headless"
+import type { SliceProfile } from "@novadeck/harness-core/slices"
 import {
   agreeing,
+  eraseRows,
   footerRows,
+  leaveShell,
   rule,
   ruledBox,
   type BoxProfile,
@@ -28,14 +31,23 @@ export const clearPending = (rows: readonly string[]): boolean =>
  * Whether it shows a view over its conversation: the agents view Left opens, whose "describe
  * a task for a new session" field reads as an empty box and whose Enter starts a session;
  * the prompt history search Ctrl-R opens; the detailed transcript Ctrl-O toggles (probed
- * 2.1.287 in the e2e sandbox, 2026-10-16).
+ * 2.1.287 in the e2e sandbox, 2026-10-16). With text in that field its footer says Enter creates
+ * a session, or on a narrow screen returns or opens (2.1.316, 2026-11-07), and the text ends as a
+ * line in a box would, so only that tells them apart. It's read under the box's lower rule, as
+ * `footerRows` holds the box too and a prompt may say these words. Without text the field shows
+ * its placeholder, which reads as a draft, whatever the footer.
  */
 const overlay = (screen: ScreenText): boolean =>
   footerRows(screen).some((row) =>
     /enter to return · space to reply|Esc to cancel · ctrl\+s to scope|Showing detailed transcript/.test(
       row,
     ),
-  )
+  ) ||
+  screen.rows
+    .slice(screen.rows.findLastIndex(rule) + 1)
+    .some((row) =>
+      /^\s*enter to (?:create · esc to clear|(?:return|open|resume) · \? for shortcuts)/.test(row),
+    )
 
 /**
  * A row of its agents list under the footer, of a background agent (`◯`, selected or not):
@@ -108,13 +120,18 @@ export const box: BoxProfile = {
     leave: "\x1b[B",
     // Its shortcuts panel, `?`, shows under an empty box, the queued row still up; this row of
     // it stays whole however narrow the screen wraps the rest (fixtures/queued-box.probe.json).
-    blocked: (screen) => footerRows(screen).some((row) => row.includes("/ for commands")),
-    // An image stands in the box as this: clearing it would lose the image.
-    lossy: ({ text }) => /\[Image #\d+\]/.test(text),
+    blocked: (screen) =>
+      screen.rows
+        .slice(screen.rows.findLastIndex(rule) + 1)
+        .some((row) => row.includes("/ for commands")),
   },
   // Enter runs a command shown as a placeholder as the text it stands for. It binds its session
   // before any command, so none starts one (`starts`).
-  shell: { expands: true, starts: false, footer: shellFooter },
+  shell: { expands: true, starts: false, footer: shellFooter, leave: leaveShell },
+  // On 80 and 120 columns a word reaches 76 and 116, and one too long for a row fills the rest
+  // of the row it starts on, to the same column (fixtures/leftover.probe.json).
+  textWidth: (columns) => columns - 4,
+  stands: (text) => /\[(?:Pasted text #\d+|Image #\d+)/.test(text),
   collapsed: ({ text }) => /^\[Pasted text #\d+(?: \+\d+ lines?)?\]$/.test(text.trim()),
   // Escape twice, over text seen in the box only; it clears a restored prompt or the queued
   // messages an Escape put back, of any number of lines (probed 2026-10-07). Where its footer
@@ -122,6 +139,7 @@ export const box: BoxProfile = {
   // more clears it: a second would land on the empty box and open the rewind picker (seen on
   // Windows CI, when the first pair was still being taken after half a second).
   clear: (_box, screen) => (clearPending(screen?.rows ?? []) ? "\x1b" : "\x1b\x1b"),
+  erase: eraseRows,
   overlay,
   queued,
   // Hooks overlap, so this is a slow hook's time however many messages are queued (probed
@@ -129,8 +147,27 @@ export const box: BoxProfile = {
   escapeHold: { holds: queueing, ms: 5_000 },
   collapses: (text) => text.split("\n").length > 3 || text.length > 900,
   room: (rows) => rows - 4,
-  // Probed on 24, 40 and 60 rows: 7, 15 and 25 (2.1.287, `e2e/probes/interrupted-paste.e2e.ts`).
-  // Never below 1 on a screen of 11 rows or fewer, which the formula takes to nothing.
-  viewport: (rows) => Math.max(Math.floor(rows / 2) - 5, 1),
+  // Probed on 24, 40 and 60 rows: 7, 15 and 25 (2.1.287, `e2e/probes/interrupted-paste.e2e.ts`);
+  // 3 from 12 to 17 rows (2026-11-07, `e2e/probes/reply-overflow.e2e.ts`). Below 12 a text of
+  // three rows pushes the box's frame off the screen, and it reads as no box.
+  viewport: (rows) => Math.max(Math.floor(rows / 2) - 5, 3),
   still,
+}
+
+/**
+ * Where it draws its own: on the alternate screen (its fullscreen renderer) `/` and `@` show
+ * as five rows over the transcript, right above the box; on the normal screen (its classic
+ * renderer, `/tui default`) the list runs under the box to the screen's end. A view takes the
+ * box's place in both. Its `/login` asks for a code in the rows it draws, and shows the end of
+ * what is typed (probed 2.1.316 and 2.1.318, fixtures/live-slice.probe.json).
+ */
+export const slice: SliceProfile = {
+  agent: "claude",
+  side: (screen) => (screen.alternate ? "above" : "below"),
+  // Whole across rows, as a narrow screen wraps it.
+  secret: (rows) =>
+    rows
+      .map((row) => row.trim())
+      .join(" ")
+      .includes("Paste code here"),
 }

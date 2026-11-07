@@ -1,10 +1,10 @@
-import { SettleInTerminal } from "@novadeck/core/conversation"
+import { SettleInTerminal, type ChatBox } from "@novadeck/core/conversation"
 import { refusing } from "@novadeck/core/testing"
 import { render } from "@novadeck/test-kit/render"
 import { act, createElement } from "react"
 import { afterEach } from "vitest"
 
-import { Composer } from "./Composer"
+import { boxNote, Composer } from "./Composer"
 import { composerMode } from "./composer-mode"
 import { describe, expect, it } from "./test"
 
@@ -17,14 +17,21 @@ const show = (
   {
     send = async (text: string) => void sent.push(text),
     onOpenTerminal = () => {},
+    box = null,
+    clearBox = async () => {},
   }: {
     readonly send?: (text: string) => Promise<void>
+    readonly clearBox?: (seen: string) => Promise<void>
     readonly onOpenTerminal?: () => void
+    readonly box?: ChatBox | null
   } = {},
 ): HTMLElement => {
   const { container, unmount } = render(
     createElement(Composer, {
       label: "Claude",
+      box,
+      passing: false,
+      onPress: () => false,
       draft,
       onDraft: () => {},
       mode: composerMode(draft, null, [], true),
@@ -33,6 +40,7 @@ const show = (
       working: false,
       onSend: send,
       onStop: async () => {},
+      onClearBox: clearBox,
       focusInput: false,
       onInputFocused: () => {},
       onCancelReply: () => {},
@@ -120,5 +128,54 @@ describe("the composer's failed send", () => {
     )
     expect(container.querySelector('[role="alert"]')?.textContent).toBe("Send again in a moment.")
     expect(container.querySelector('[role="alert"] button')).toBeNull()
+  })
+})
+
+describe("what the agent's own box holds", () => {
+  const box = (over: Partial<ChatBox> = {}): ChatBox => ({
+    text: "half a thought",
+    mode: "prompt",
+    tail: false,
+    known: false,
+    ...over,
+  })
+
+  it("shows over the composer, with what happens to it, its end marked when that's all it is", () => {
+    const whole = show("", [], { box: box() })
+    expect(whole.querySelector(".chat-box")?.textContent).toContain("half a thought")
+    expect(whole.querySelector(".chat-box")?.textContent).toContain("goes with your next message")
+    const end = show("", [], { box: box({ tail: true }) })
+    expect(end.querySelector(".chat-box-text")?.textContent).toBe("…half a thought")
+  })
+
+  it("shows nothing where the box holds nothing", () => {
+    expect(show("").querySelector(".chat-box")).toBeNull()
+  })
+
+  it("clears the box as the person asks, and says where it didn't", async () => {
+    const asked: string[] = []
+    const shown = show("", [], {
+      box: box({ text: "/model" }),
+      clearBox: async (seen) => {
+        asked.push(seen)
+        throw new SettleInTerminal("That didn't clear the agent's input box.")
+      },
+    })
+    const clear = shown.querySelector<HTMLButtonElement>(
+      'button[aria-label="Clear Claude\'s terminal input"]',
+    )!
+    await act(async () => void clear.click())
+    expect(asked).toEqual(["/model"])
+    expect(shown.textContent).toContain("That didn't clear")
+    expect(clear.disabled).toBe(false)
+  })
+
+  it("says what becomes of each kind of text", () => {
+    expect(boxNote("Claude", box({ tail: true }))).toContain("ends with this")
+    // Its words known, but it may hold more, so it doesn't come back: nothing takes such a box.
+    expect(boxNote("Claude", box({ tail: true, known: true }))).toContain("ends with this")
+    expect(boxNote("Claude", box({ known: true }))).toContain("comes back here")
+    expect(boxNote("Claude", box({ mode: "shell" }))).toContain("shell mode")
+    expect(boxNote("Claude", box({ text: "/model" }))).toContain("Clear it to send here")
   })
 })

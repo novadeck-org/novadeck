@@ -3,7 +3,7 @@ import { join } from "node:path"
 import type { Harness, LaunchProfile, MessagingProfile } from "@novadeck/harness-core/harness"
 import { beside } from "@novadeck/harness-core/paths"
 
-import { box } from "./box.js"
+import { box, slice } from "./box.js"
 import { decode } from "./decode.js"
 import { dialogs } from "./dialogs.js"
 import { antigravityHome } from "./home.js"
@@ -23,7 +23,7 @@ import {
 import { statusLineLimit, statusLineSettings } from "./settings.js"
 import { conversational, shapes } from "./shapes.js"
 import { makeCmdShim } from "./shim.js"
-import { shown } from "./status-line.js"
+import { shown, startupScreen } from "./status-line.js"
 import { transcripts, typedEntry } from "./transcripts.js"
 
 // A Stop continued with a reason gets it as a lasting system step. A message injected at
@@ -159,7 +159,9 @@ export const agy = {
   dialogs,
   commandFields: ["CommandLine"],
   shown,
+  startupScreen,
   launch,
   messaging,
   box,
+  slice,
 } satisfies Harness

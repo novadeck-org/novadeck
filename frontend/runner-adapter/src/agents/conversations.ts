@@ -2,6 +2,7 @@ import {
   noConversation,
   type ChatAction,
   type ChatAnswer,
+  type ChatBox,
   type ChatDialog,
   type ChatItem,
   type ChatPrompt,
@@ -9,6 +10,7 @@ import {
   conflictFailure,
   notCleared,
   SettleInTerminal,
+  withReturned,
   WordsLost,
   type Conversation,
   type Conversations,
@@ -18,8 +20,10 @@ import { createStore, type MutableStore, type Store } from "@novadeck/core/store
 import {
   conflictReason,
   normalisedText,
+  promptFailure,
   promptRefusal as protocolRefusal,
   type AgentDetail,
+  type SliceChange,
   type RequestAnswer,
   type TranscriptChange,
   type TranscriptItem,
@@ -33,6 +37,7 @@ import { hasCode } from "@novadeck/runner-client"
 
 export type ConversationStreams = {
   readonly detail: (terminalId: string) => AsyncIterableIterator<AgentDetail, undefined>
+  readonly slice: (terminalId: string) => AsyncIterableIterator<SliceChange, undefined>
   readonly transcript: (
     terminalId: string,
     actor: string,
@@ -40,9 +45,17 @@ export type ConversationStreams = {
   readonly prompt: (
     terminalId: string,
     text: string,
-    options?: { readonly automatic?: true; readonly ref?: string },
-  ) => Promise<{ readonly ref: string; readonly tracked: boolean }>
+    options?: { readonly automatic?: true; readonly along?: true; readonly ref?: string },
+  ) => Promise<{
+    readonly ref: string
+    readonly tracked: boolean
+    readonly returned?: string | null | undefined
+  }>
   readonly interrupt: (terminalId: string) => Promise<{ readonly returned: string | null }>
+  readonly keys: (terminalId: string, keys: string) => Promise<void>
+  readonly takeBox: (terminalId: string) => Promise<{ readonly returned: string | null }>
+  readonly putBox: (terminalId: string, text: string) => Promise<{ readonly placed: boolean }>
+  readonly clearBox: (terminalId: string, seen: string) => Promise<{ readonly cleared: boolean }>
   readonly answer: (terminalId: string, request: string, answer: RequestAnswer) => Promise<void>
 }
 
@@ -50,6 +63,10 @@ export type RunnerConversations = Conversations & {
   // Stops reading every terminal at once.
   readonly stop: () => void
 }
+
+// How long Enter waits behind the keys before it, in milliseconds: Codex reads an Enter right
+// behind text as part of a paste, and puts a line break in its box.
+export const enterGapMs = 150
 
 // How long a terminal keeps being read after its last subscriber left, in milliseconds.
 export const graceMs = 30_000
@@ -154,6 +171,15 @@ const samePrompts = (a: readonly ChatPrompt[], b: readonly ChatPrompt[]): boolea
       prompt.item === b[index]!.item,
   )
 
+const sameBox = (a: ChatBox | null, b: ChatBox | null): boolean =>
+  a === b ||
+  (a !== null &&
+    b !== null &&
+    a.text === b.text &&
+    a.mode === b.mode &&
+    a.tail === b.tail &&
+    a.known === b.known)
+
 // Dialogs are plain data a snapshot sends again whole, so they are the same when they read
 // the same.
 const sameDialog = (a: ChatDialog | null, b: ChatDialog | null): boolean =>
@@ -186,18 +212,26 @@ const said = (error: unknown): string | undefined =>
 const conflictReasonOf = (error: { readonly data: unknown }) =>
   conflictReason.safeParse(error.data).data?.reason
 
+// The words a prompt took out of the agent's box before it failed, where it says.
+const wordsOf = (error: { readonly data: unknown }) =>
+  promptFailure.safeParse(error.data).data?.returned
+
 // What the person is told when the agent can't take what they sent.
 const failure = (error: unknown, what: string, action: ChatAction): Error => {
   if (hasCode(error, "DISCONNECTED", "CLOSED")) return new Error("The runner is offline.")
   // Refused before anything was written: the text has a shape the agent reads as more than
   // a message, or the agent can't take one now, for the reason the runner gives.
   if (hasCode(error, "PROMPT_REFUSED")) return new Error(said(error) ?? promptRefusal)
-  if (hasCode(error, "CONFLICT")) return conflictFailure(conflictReasonOf(error), action)
+  if (hasCode(error, "CONFLICT"))
+    return withReturned(conflictFailure(conflictReasonOf(error), action), wordsOf(error))
   // Stopped, but the words queued behind the turn stay in the agent's own box.
   if (hasCode(error, "BOX_NOT_CLEARED")) return notCleared()
   if (hasCode(error, "PROMPT_FAILED"))
-    return new SettleInTerminal(
-      "The prompt didn't land in the agent's box. It may be there as a draft.",
+    return withReturned(
+      new SettleInTerminal(
+        "The prompt didn't land in the agent's box. It may be there as a draft.",
+      ),
+      wordsOf(error),
     )
   return new Error(`Couldn't ${what} the agent.`)
 }
@@ -248,6 +282,7 @@ const read = (
   let following: string | null = null
   let transcript: Stream<TranscriptChange> | undefined
   let detail: Stream<AgentDetail> | undefined
+  let slices: Stream<SliceChange> | undefined
   // Settles a read again after a reset once it has been quiet.
   let settling: ReturnType<typeof setTimeout> | undefined
   // Reads that failed in a row without getting further than the one before, when the last
@@ -386,17 +421,21 @@ const read = (
     }
     const requests = requestsOf(snapshot, root)
     const prompts = promptsOf(snapshot, changed ? [] : store.getSnapshot().prompts)
+    const box = snapshot.box ?? null
     store.update((current) => {
       const same =
         !changed &&
         current.agent === snapshot.agent &&
         current.session === session &&
+        sameBox(current.box, box) &&
         sameRequests(current.requests, requests) &&
         samePrompts(current.prompts, prompts)
       if (same) return current
       return {
         agent: snapshot.agent,
         session,
+        slice: current.slice,
+        box: sameBox(current.box, box) ? current.box : box,
         requests: sameRequests(current.requests, requests) ? current.requests : requests,
         prompts: samePrompts(current.prompts, prompts) ? current.prompts : prompts,
         ...(changed
@@ -419,10 +458,25 @@ const read = (
 
   try {
     detail = streams.detail(terminalId)
+    slices = streams.slice(terminalId)
   } catch {
+    end(detail)
     return { stop: () => {} }
   }
   const stream = detail
+  const sliceStream = slices
+  void (async () => {
+    try {
+      for await (const { slice } of sliceStream) {
+        if (!alive) return
+        store.update((current) => ({ ...current, slice }))
+      }
+    } catch {
+      // The terminal is gone, or the runner closed: `detail` tells the same.
+    }
+    // What its stream last said no longer holds.
+    if (alive) store.update((current) => (current.slice ? { ...current, slice: null } : current))
+  })()
   void (async () => {
     try {
       for await (const snapshot of stream) {
@@ -435,6 +489,7 @@ const read = (
     // Its terminal went: so did its conversation, and what waited on it hears so.
     if (!alive) return
     following = null
+    end(slices)
     end(transcript)
     transcript = undefined
     clearTimeout(settling)
@@ -446,6 +501,7 @@ const read = (
     stop: () => {
       alive = false
       end(detail)
+      end(slices)
       end(transcript)
       transcript = undefined
       clearTimeout(settling)
@@ -507,13 +563,50 @@ export const createRunnerConversations = (
     return entry
   }
   const stoppers = new Map<string, () => void>()
+  // The keys on their way to each terminal, and when the last went.
+  const passing = new Map<string, { readonly done: Promise<void>; at: number }>()
 
   return {
     // The runner's terminal ids are unique, so the id alone names the terminal.
     conversation: ({ terminalId }) => entryOf(terminalId).conversation,
     send: ({ terminalId }, text, options) =>
       track(streams.prompt(terminalId, text, options)).then(
-        ({ tracked }) => ({ tracked }),
+        ({ tracked, returned }) => ({ tracked, returned: returned ?? null }),
+        (error: unknown) => {
+          throw failure(error, "reach", "send")
+        },
+      ),
+    // Nothing here is the person's to act on: words not moved stay where they are.
+    keys: ({ terminalId }, keys) => {
+      // In order, each after the one before; Enter on its own, a moment behind them.
+      const last = passing.get(terminalId) ?? { done: Promise.resolve(), at: 0 }
+      const done = last.done
+        .catch(() => {})
+        .then(async () => {
+          const wait = keys === "\r" ? last.at + enterGapMs - Date.now() : 0
+          if (wait > 0) await new Promise((resolve) => setTimeout(resolve, wait))
+          await track(streams.keys(terminalId, keys))
+          entry.at = Date.now()
+        })
+      const entry = { done, at: last.at }
+      passing.set(terminalId, entry)
+      return done.catch((error: unknown) => {
+        throw failure(error, "reach", "send")
+      })
+    },
+    takeBox: ({ terminalId }) =>
+      track(streams.takeBox(terminalId)).then(
+        ({ returned }) => returned,
+        () => null,
+      ),
+    putBox: ({ terminalId }, text) =>
+      track(streams.putBox(terminalId, text)).then(
+        ({ placed }) => placed,
+        () => false,
+      ),
+    clearBox: ({ terminalId }, seen) =>
+      track(streams.clearBox(terminalId, seen)).then(
+        ({ cleared }) => cleared,
         (error: unknown) => {
           throw failure(error, "reach", "send")
         },

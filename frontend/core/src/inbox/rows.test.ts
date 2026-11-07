@@ -185,6 +185,11 @@ const done: Marks = { "p/s": { "01": "done" } }
 const failed: Marks = { "p/s": { "01": "failed" } }
 
 describe("The Inbox's rows", () => {
+  it("makes no row of an agent held at its startup screen: its tab says so", () => {
+    const held = workspaceOf(agentTerminal(1, { working: false, startup: "startup" }))
+    expect(inboxRows(inputs(held, { now: 60 * 60_000 }))).toEqual([])
+  })
+
   describe("a request", () => {
     const waiting = workspaceOf(
       agentTerminal(1, { working: true, attention: { kind: "permission", count: 1 } }),

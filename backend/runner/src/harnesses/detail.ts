@@ -1,5 +1,6 @@
 import { ref } from "@novadeck/harness-core/decode"
 import {
+  type AgentBox,
   agentLimits,
   type AgentDetail,
   type PromptReceipt,
@@ -31,6 +32,7 @@ export const agentDetail = (
   dialogs: ReadonlyMap<string, RequestDialog> = new Map(),
   answered: ReadonlySet<string> = new Set(),
   prompts: readonly PromptReceipt[] = [],
+  box: AgentBox | null = null,
 ): AgentDetail => {
   if (!binding)
     return {
@@ -44,6 +46,7 @@ export const agentDetail = (
       coverage: null,
       // Prompts given an agent at its own prompt before its first session binds.
       prompts: prompts.slice(-agentLimits.prompts),
+      box,
     }
   const root = rootRef(binding)
   const pending = ordered(activity?.pending ?? []).slice(0, agentLimits.requests)
@@ -100,6 +103,7 @@ export const agentDetail = (
       }),
     coverage: harnesses[binding.agent].coverage,
     prompts: prompts.slice(-agentLimits.prompts),
+    box,
   }
 }
 

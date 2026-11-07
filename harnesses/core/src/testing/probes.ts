@@ -23,6 +23,8 @@ export type ScreenRecord = {
   readonly bright?: { readonly [row: string]: string }
   /** Whether the terminal took bracketed pastes; it did unless this says not. */
   readonly bracketedPaste?: boolean
+  /** Whether the alternate screen showed; it did not unless this says so. */
+  readonly alternate?: boolean
   /** What a probe noted of each row's styling, for a reader's eyes: no test reads it. */
   readonly styles?: unknown
 }
@@ -67,6 +69,7 @@ export const screenOf = (record: ScreenRecord): ScreenText => {
     ...(record.columns !== undefined && { columns: record.columns }),
     ...(record.cursor && { cursor: record.cursor }),
     ...(record.bracketedPaste !== undefined && { bracketedPaste: record.bracketedPaste }),
+    ...(record.alternate !== undefined && { alternate: record.alternate }),
   })
 }
 

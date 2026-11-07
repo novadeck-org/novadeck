@@ -1,5 +1,6 @@
 import { ChatView } from "@novadeck/chat/ChatView"
 import { chatDraftOf, chatReplyOf, chatSendsOf, chatShown } from "@novadeck/chat/state"
+import { useBoxHandover } from "@novadeck/chat/use-box-handover"
 import { useChat } from "@novadeck/chat/use-chat"
 import { agentStats } from "@novadeck/core/agents/stats"
 import { ledTerminals, runningLeads, terminalOrigins } from "@novadeck/core/derivations"
@@ -268,6 +269,10 @@ export const WorkspaceTerminal = memo(
       () => (showChat ? conversations?.conversation(terminalKey) : undefined),
       [showChat, conversations, terminalKey],
     )
+    useBoxHandover(conversation, {
+      take: () => void commands.takeBox(terminalKey),
+      put: () => void commands.putDraft(terminalKey),
+    })
     // Keyboard focus waits for the node to be on screen: its input is in a subtree a
     // Canvas node out of sight hides, and a request spent there would be lost. The request
     // stays until the surface can take it.
@@ -296,12 +301,16 @@ export const WorkspaceTerminal = memo(
                 // Words queued behind the stopped turn, the agent's and the chat's, come back
                 // to the box, to send again.
                 onInterrupt={() => commands.stopChat(terminalKey)}
+                onClearBox={(seen) => commands.clearBox(terminalKey, seen)}
                 onAnswer={(request, answer) => conversations!.answer(terminalKey, request, answer)}
                 onWordsLost={(words) => commands.appendChatDraft(chatContext, terminalId, words)}
                 onAnswerInTerminal={() => commands.showTerminal(terminalId)}
                 focusInput={wanted}
                 onInputFocused={onInputFocused}
                 refused={conversations!.refused}
+                onPassing={(on) => commands.setChatPassing(terminalId, on)}
+                onLeftMenu={() => commands.setChatDraft(terminalId, "", chatContext)}
+                onKeys={conversations!.keys && ((keys) => conversations!.keys!(terminalKey, keys))}
               />
             </div>
           )}

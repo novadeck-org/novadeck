@@ -3,6 +3,7 @@ import { setTimeout as sleep } from "node:timers/promises"
 
 import type { ScreenText } from "@novadeck/emulator/headless"
 import type { Background, HarnessEvent } from "@novadeck/harness-core/events"
+import { doorbellLine } from "@novadeck/harness-core/prompts"
 import { loadProbe } from "@novadeck/harness-core/testing/probes"
 import { screen } from "@novadeck/harness-core/testing/screens"
 import type { AgentName } from "@novadeck/protocol"
@@ -24,6 +25,7 @@ import {
   type DoorbellBound,
   type DoorbellRecord,
 } from "./doorbell-host.js"
+import { closingNonce } from "./leftover.js"
 
 const bound = (agent: AgentName, instance?: string) =>
   ({ agent, ...(instance && { instance }) }) as unknown as Binding
@@ -268,6 +270,72 @@ const drawn = ({ height, columns, rows }: Pair["after"]): ScreenText => {
   return screen({ rows: all, columns, cursor: { row, column: all[row]!.trimEnd().length } })
 }
 
+// A reply line of 299 characters in each harness's box at 40x14, as the boxes draw it
+// (2026-11-07, e2e/probes/reply-overflow.e2e.ts): only its end shows.
+const frame = "─".repeat(40)
+const padded = (rows: readonly string[]) => [
+  ...Array.from({ length: 14 - rows.length }, () => ""),
+  ...rows,
+]
+const tails = {
+  claude: {
+    rows: padded([
+      frame,
+      "❯ say so in the changelog merge it",
+      "  and say so in the changelog merge it",
+      "  and say [n7Q2]",
+      frame,
+      "",
+    ]),
+    last: 11,
+  },
+  codex: {
+    rows: padded([
+      "› the changelog merge it and say so in ↑",
+      "  the changelog merge it and say so in",
+      "  the changelog merge it and say so in",
+      "  the changelog merge it and say",
+      "  [n7Q2]",
+      "",
+      "  fake-model default · /tmp/novadeck-e2…",
+      "",
+    ]),
+    last: 10,
+  },
+  agy: {
+    rows: padded([
+      frame,
+      "> ↑ 2 more lines",
+      "  in the changelog merge it and say so",
+      "  in the changelog merge it and say so",
+      "  in the changelog merge it and say so",
+      "  in the changelog merge it and say so",
+      "  in the changelog merge it and say so",
+      "  in the changelog merge it and say",
+      "  [n7Q2]",
+      frame,
+      "                    Gemini 3.1 Pro · low",
+      "",
+    ]),
+    last: 10,
+  },
+} as const
+
+describe("the nonce closing what a box shows", () => {
+  it("is a reply line's, or a plain line's after its comma, wrapped anywhere", () => {
+    expect(closingNonce("say so\n[n7Q2]")).toBe("n7Q2")
+    expect(closingNonce("messages waiting,\n n7Q2]")).toBe("n7Q2")
+    expect(closingNonce("mess\nages waiting, n7\nQ2]")).toBe("n7Q2")
+  })
+
+  it("is none for anything else", () => {
+    expect(closingNonce("words")).toBeUndefined()
+    expect(closingNonce("[n7Q2] and on")).toBeUndefined()
+    expect(closingNonce("n7Q2]")).toBeUndefined()
+    expect(closingNonce("[not a nonce!]")).toBeUndefined()
+  })
+})
+
 describe.each([
   { agent: "claude", recording: "a" },
   { agent: "codex", recording: "b" },
@@ -311,6 +379,74 @@ describe.each([
     }
     expect(rings.leftover("t", drawn(alone.after))).toBe("n7Q2")
     expect(rings.leftover("t", drawn(queued))).toBeUndefined()
+  })
+
+  describe("in a box too short for it", () => {
+    const line = `[Novadeck Inbox reply, n7Q2] ${"and say so in the changelog merge it ".repeat(7)}and say [n7Q2]`
+    const typed = (nonce: string) => (nonce === "n7Q2" ? line : undefined)
+    const tail = (last = tails[agent].rows[tails[agent].last]!) =>
+      screen({
+        rows: tails[agent].rows.map((row, at) => (at === tails[agent].last ? last : row)),
+        // Codex draws its arrow dim, so it isn't the box's text.
+        bright: tails[agent].rows.map((row, at) =>
+          at === tails[agent].last ? last : row.replace(/ ↑$/, ""),
+        ),
+        columns: 40,
+        cursor: { row: tails[agent].last, column: last.length },
+      })
+
+    it("is told by its end, read off the box's own screen", () => {
+      expect(rings.reading("t", tail())).toBe("draft")
+      expect(rings.leftover("t", tail(), typed)).toBe("n7Q2")
+    })
+
+    it("is the person's where the doorbell knows no such line", () => {
+      expect(rings.leftover("t", tail())).toBeUndefined()
+      expect(rings.leftover("t", tail(), () => undefined)).toBeUndefined()
+    })
+
+    it("is the person's where the end isn't the line's", () => {
+      expect(rings.leftover("t", tail("  and so [n7Q2]"), typed)).toBeUndefined()
+      expect(rings.leftover("t", tail("  and say [n7Q2] x"), typed)).toBeUndefined()
+      expect(rings.leftover("t", tail(), () => "another line [n7Q2]")).toBeUndefined()
+    })
+
+    it("is the person's once its ring was confirmed", () => {
+      confirmed = true
+      expect(rings.leftover("t", tail(), typed)).toBeUndefined()
+      confirmed = false
+    })
+
+    it.runIf(agent === "agy")("isn't what shows while the box is scrolled up from it", () => {
+      const rows = tails[agent].rows.map((row, at) =>
+        at === tails[agent].last ? "  ↓ 2 more lines" : row,
+      )
+      const scrolled = screen({
+        rows,
+        columns: 40,
+        cursor: { row: tails[agent].last - 1, column: 10 },
+      })
+      expect(rings.leftover("t", scrolled, typed)).toBeUndefined()
+    })
+  })
+
+  it.runIf(agent === "claude")("is finished though it fills the box of a small pane", () => {
+    // 14 rows: its line wrapped over two of them. Nothing is known to be out of sight, and a
+    // message left waiting for good is worse than any words going out with it.
+    const rule = "─".repeat(40)
+    const line = doorbellLine("n7Q2")
+    const cut = line.indexOf(" ", 30)
+    const rows = [
+      ...Array.from({ length: 8 }, () => ""),
+      rule,
+      `❯ ${line.slice(0, cut)}`,
+      `  ${line.slice(cut + 1)}`,
+      rule,
+      "  footer",
+      "",
+    ]
+    const full = screen({ rows, cursor: { row: 10, column: 10 } })
+    expect(rings.leftover("t", full)).toBe("n7Q2")
   })
 
   it("is the person's once its ring was confirmed: put back by Escape, or recalled", () => {

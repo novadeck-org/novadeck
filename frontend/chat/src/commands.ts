@@ -1,4 +1,6 @@
 import {
+  boxNotCleared,
+  returnedBy,
   promptRef,
   type ChatPrompt,
   type Conversation,
@@ -6,7 +8,7 @@ import {
 } from "@novadeck/core/conversation"
 import type { TerminalKey } from "@novadeck/core/types"
 
-import { chatDraftOf, joinDraft, setChatDraft } from "./drafts"
+import { chatDraftOf, joinDraft, mixes, setChatDraft, takenDraft } from "./drafts"
 import {
   chatReplyOf,
   replyAnswer,
@@ -23,13 +25,16 @@ import {
   type ChatSend,
   type ChatSends,
 } from "./sends"
+import { answeringInTerminal } from "./shown"
 import type { Chat, ChatState } from "./state"
 
 // What the chat does with its words, over the chat's own store.
 export type ChatCommands = {
   // Keeps what the person has typed in the terminal's chat and not sent. An edit lets go
   // of words held from a reply whose question went: they are the person's message now.
-  readonly setChatDraft: (terminalId: string, text: string) => void
+  readonly setChatDraft: (terminalId: string, text: string, context?: string) => void
+  // Says whether the chat passes keys to the terminal's box, which it keeps off meanwhile.
+  readonly setChatPassing: (terminalId: string, on: boolean) => void
   // Adds words to the draft of the terminal in a session, on a line of their own, reading
   // the draft as it is when it changes: whatever the person typed meanwhile stays. They go
   // after it, or before a shell command, so they never become more of its lines.
@@ -43,6 +48,13 @@ export type ChatCommands = {
   // or at a Stop; it rejects with why they didn't go, when they come back, before whatever
   // was typed meanwhile, with every prompt queued after them. A reply goes one at a time.
   readonly sendChat: (key: TerminalKey, text: string, to: ChatReply | null) => Promise<boolean>
+  // Moves what the agent's own box holds into the chat's, ahead of what's written there.
+  readonly takeBox: (key: TerminalKey) => Promise<void>
+  // Moves the chat's draft into the agent's own box, where it can go, as its terminal shows.
+  readonly putDraft: (key: TerminalKey) => Promise<void>
+  // Empties the agent's own box of `seen`, what the chat showed the person, gone for good, as
+  // they asked. Rejects where it didn't.
+  readonly clearBox: (key: TerminalKey, seen: string) => Promise<void>
   // Stops the agent's turn, as Escape in its TUI does. The prompts queued in the chat are
   // never sent after it: they come back to the box after the words the agent handed back,
   // and before what the box holds, their sends resolving false. Rejects as
@@ -69,6 +81,7 @@ export const createChatCommands = ({
   conversations,
   terminalOpen,
   context: currentContext,
+  chatView,
 }: {
   readonly chat: Chat
   // The agents' conversations, where the backend reads them.
@@ -77,6 +90,8 @@ export const createChatCommands = ({
   readonly terminalOpen: (key: TerminalKey) => boolean
   // The current workspace context: `${projectId}/${workspaceSessionId}`.
   readonly context: () => string
+  // Whether the chat view is on, so that terminals show as chats.
+  readonly chatView: () => boolean
 }): ChatCommands => {
   // How each prompt's promise settles, by ref, while it waits in the queue or goes.
   const settles = new Map<
@@ -129,6 +144,26 @@ export const createChatCommands = ({
       if (failed && failed[0] === send.ref) settle?.reject(failed[1])
       else settle?.resolve(false)
     }
+  }
+
+  // Each terminal's latest take of what the agent's box holds.
+  const takes = new Map<string, Promise<void>>()
+
+  // Words a prompt took out of the agent's box are the person's again, ahead of what the box
+  // holds now. Nothing goes back for a terminal that closed meanwhile.
+  const wordsBack = (key: TerminalKey, words: string): void => {
+    if (!terminalOpen(key)) return
+    const context = contextOf(key)
+    const { terminalId } = key
+    chat.update((state) => ({
+      ...state,
+      drafts: setChatDraft(
+        state.drafts,
+        context,
+        terminalId,
+        joinDraft(words, chatDraftOf(state.drafts, context, terminalId)),
+      ),
+    }))
   }
 
   // The prompt's turn is over: it leaves the queue, and the next one goes. Its words being
@@ -199,11 +234,16 @@ export const createChatCommands = ({
     update(key, (all) =>
       withSend(all, context, terminalId, next.ref, (send) => ({ ...send, phase: "typing" })),
     )
-    conversations!.send(key, next.text, { ref: next.ref }).then(
+    // What the agent's box holds goes along only while the chat shows it. Words queued behind
+    // others may go once the person has gone to the terminal, and may be typing there.
+    const answering = answeringInTerminal(chat.store.getSnapshot().answering, context, terminalId)
+    const shown = chatView() && !answering
+    conversations!.send(key, next.text, { ref: next.ref, ...(shown && { along: true }) }).then(
       (result) => {
         const settle = settles.get(next.ref)
         settles.delete(next.ref)
         settle?.resolve(true)
+        if (result?.returned) wordsBack(key, result.returned)
         if (!sendsOf(key).some((send) => send.ref === next.ref)) return
         if (!result?.tracked) return finished(key, next.ref, false)
         update(key, (all) =>
@@ -213,11 +253,14 @@ export const createChatCommands = ({
       },
       // It didn't go: back in the box with every prompt queued after it, which would only
       // have gone after it.
-      (failure: unknown) =>
+      (failure: unknown) => {
         handBack(key, (send) => send.ref === next.ref || send.phase === "queued", [
           next.ref,
           failure,
-        ]),
+        ])
+        const taken = returnedBy(failure)
+        if (taken) wordsBack(key, taken)
+      },
     )
   }
 
@@ -260,9 +303,16 @@ export const createChatCommands = ({
     return true
   }
 
+  // The terminals whose box the chat passes keys to.
+  const passing = new Set<string>()
+
   return {
-    setChatDraft: (terminalId, text) => {
-      const context = currentContext()
+    setChatPassing: (terminalId, on) => {
+      if (on) passing.add(terminalId)
+      else passing.delete(terminalId)
+    },
+    setChatDraft: (terminalId, text, given) => {
+      const context = given ?? currentContext()
       chat.update((state) => {
         const drafts = setChatDraft(state.drafts, context, terminalId, text)
         if (drafts === state.drafts) return state
@@ -284,6 +334,51 @@ export const createChatCommands = ({
           drafts: setChatDraft(state.drafts, context, terminalId, joinDraft(draft, words)),
         }
       }),
+    takeBox: async (key) => {
+      // A shell command and a message don't make one draft: the box stays, and shows.
+      const shown = conversations?.conversation(key).getSnapshot()
+      const box = shown?.box
+      const held = box && `${box.mode === "shell" ? "!" : ""}${box.text}`
+      const draft = chatDraftOf(chat.store.getSnapshot().drafts, contextOf(key), key.terminalId)
+      if (held && !mixes(held, draft)) return
+      // The box's text is the keys the chat passes, or they are on their way out of it.
+      if (passing.has(key.terminalId) || shown?.slice?.reason === "menu") return
+      if (held && draft !== "" && (held.startsWith(draft) || draft.startsWith(held))) return
+      const taking = (conversations?.takeBox?.(key) ?? Promise.resolve(null)).then((words) => {
+        if (!words || !terminalOpen(key)) return
+        const context = contextOf(key)
+        const { terminalId } = key
+        chat.update((state) => ({
+          ...state,
+          drafts: setChatDraft(
+            state.drafts,
+            context,
+            terminalId,
+            takenDraft(words, chatDraftOf(state.drafts, context, terminalId)),
+          ),
+        }))
+      })
+      takes.set(key.terminalId, taking)
+      await taking
+    },
+    putDraft: async (key) => {
+      // Words on their way from the agent's box are part of what goes back.
+      await takes.get(key.terminalId)
+      const context = contextOf(key)
+      const { terminalId } = key
+      const state = chat.store.getSnapshot()
+      const draft = chatDraftOf(state.drafts, context, terminalId)
+      // Words written as a reply are for its question, and those on their way wait for the
+      // ones before them to go.
+      const busy = chatReplyOf(state.replies, context, terminalId) !== null
+      if (!draft.trim() || busy || sendsOf(key).length > 0) return
+      if (!(await conversations?.putBox?.(key, draft))) return
+      chat.update((now) =>
+        chatDraftOf(now.drafts, context, terminalId) === draft
+          ? { ...now, drafts: setChatDraft(now.drafts, context, terminalId, "") }
+          : now,
+      )
+    },
     sendChat: async (key, text, to) => {
       if (!conversations) throw new Error("This backend can't reach the agent.")
       if (to) return await sendReply(key, text, to)
@@ -303,6 +398,10 @@ export const createChatCommands = ({
       }))
       pump(key)
       return await sent
+    },
+    clearBox: async (key, seen) => {
+      if (conversations?.clearBox && !(await conversations.clearBox(key, seen)))
+        throw boxNotCleared()
     },
     stopChat: async (key) => {
       if (!conversations) throw new Error("This backend can't reach the agent.")

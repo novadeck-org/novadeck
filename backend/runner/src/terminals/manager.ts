@@ -4,6 +4,7 @@ import { hookShellSlackMs } from "@novadeck/harness-core/hook-command"
 import type { AskAnswer, InboxEntry } from "@novadeck/protocol"
 import type {
   AgentDetail,
+  SliceChange,
   AgentName,
   InterruptResult,
   Approval,
@@ -57,6 +58,7 @@ import { Companion } from "./companion.js"
 import { Murmur, type MurmurTimes } from "./descriptions.js"
 import { type DialogsOptions } from "./dialogs.js"
 import { agentWorking } from "./doorbell-host.js"
+import { agentProcess, shutdownTreeGraceMs, shutdownTreesMs, treeGraceMs } from "./ending.js"
 import { failed } from "./failures.js"
 import { restored } from "./interrupted.js"
 import { Launcher, startedIn, startFailed } from "./launching.js"
@@ -73,8 +75,10 @@ import { Sampler, shellProcess } from "./sampling.js"
 import { hasRun, keptState, type TerminalRecords } from "./saved-terminals.js"
 import { Saves } from "./saving.js"
 import type { TranscriptSealer } from "./sealing.js"
+import { slicingOf } from "./slices.js"
+import { StartupWatch } from "./startup-watch.js"
 import { Streams } from "./streams.js"
-import { savedSummaryOf, summaryOf, type AgentSummary } from "./summary.js"
+import { noAgent, savedSummaryOf, summaryOf, type AgentSummary } from "./summary.js"
 import { openedWith, renamed as renamedTo, summaryTitle, unnamed, type Naming } from "./titles.js"
 import { readingOf, transcriptChanges } from "./transcripts.js"
 import { Typing, type Prompted, type PromptInput } from "./typing.js"
@@ -229,20 +233,6 @@ const alive = (pid: string): boolean => {
   }
 }
 
-// How long a closed Windows terminal's programs have to end by themselves once its
-// console closes, as they do on its CTRL_CLOSE_EVENT, saving what they were writing, in
-// milliseconds: within the five seconds Windows gives them. What is left of the terminal's
-// tree then, as a hook's shell in a console of its own, is ended. Shorter as the runner
-// shuts down, which the app gives five seconds in all (apps/desktop/src/main/runner.ts).
-const treeGraceMs = 3_000
-const shutdownTreeGraceMs = 1_000
-
-// How long ending terminals' trees may take in all as the runner shuts down, in
-// milliseconds: every relay run, taskkill and grace then takes its time from this, within
-// the five seconds the app gives the runner, with room for a shell's exit (its own 1 s wait)
-// and for closing the rest of the runner after.
-const shutdownTreesMs = 3_000
-
 const positive = (value: number | undefined, fallback: number): number => {
   const result = value ?? fallback
   if (!Number.isSafeInteger(result) || result < 1)
@@ -263,6 +253,7 @@ export class Terminals {
   private readonly confirms = new Approvals()
   /** Samples running terminals' foreground processes. */
   private readonly sampler: Sampler<Record>
+  private readonly startups: StartupWatch<Record>
   /** Who reads the terminals: their watchers, and each one's detail and messages readers. */
   private readonly streams: Streams<Record>
   /** Names terminals: their handles, and the titles people give them. */
@@ -414,6 +405,7 @@ export class Terminals {
       scrollback: 1000,
       kill: { graceMs: 1000, treeGraceMs, shutdownTreesMs, shutdownTreeGraceMs },
       trees: this.trees,
+      follows: (id) => agentProcess(this.records.get(id)),
       pty: this.pty,
       failed: failed.terminal,
     })
@@ -472,6 +464,13 @@ export class Terminals {
         this.murmur?.sampled(record.summary.id)
       },
     })
+    this.startups = new StartupWatch<Record>({
+      stopping: () => this.stopping,
+      records: () => this.records.values(),
+      expected: (terminalId) => this.messaging.expected(terminalId),
+      screen: (terminalId) => this.typing.screenOf(terminalId),
+      changed: (record) => this.announce(record),
+    })
     this.streams = new Streams<Record>({
       stopping: () => this.stopping,
       holds: (terminalId) => this.records.has(terminalId),
@@ -484,8 +483,16 @@ export class Terminals {
           this.typing.dialogs.view(record.summary.id),
           this.typing.dialogs.answered(record.summary.id),
           this.typing.receipts.view(record.summary.id),
+          this.typing.boxes.view(record.summary.id),
         ),
+      detailOpened: (terminalId) => this.typing.boxes.changed(terminalId),
       messages: (terminalId) => this.messages(terminalId),
+      slicing: (terminalId) =>
+        slicingOf(
+          this.records.get(terminalId),
+          this.typing.dialogs.view(terminalId),
+          this.messaging.shownAgent(terminalId),
+        ),
     })
     this.names = new Names<Record>(options, this.saves, this.streams, {
       stopping: () => this.stopping,
@@ -606,6 +613,7 @@ export class Terminals {
         applyFact: (record, fact) => this.bindings.applyFact(record, fact),
         publishAgent: (record, moved) => this.bindings.publishAgent(record, moved),
         detailed: (record) => this.streams.detailed(record),
+        detailWatched: (terminalId) => this.streams.detailWatched(terminalId),
         endExited: (record) => this.bindings.endExited(record),
         queued: (terminalId, work) =>
           void this.reporting.queue(terminalId, () => Promise.resolve(work()), undefined),
@@ -788,11 +796,7 @@ export class Terminals {
           lastProgram: saved?.lastProgram ?? null,
           cwd,
           process: shellProcess(shell),
-          agent: null,
-          ready: null,
-          activity: null,
-          telemetry: null,
-          reported: null,
+          ...noAgent,
         },
         ...started,
         terminal,
@@ -835,7 +839,8 @@ export class Terminals {
       const unled = record.summary.ledBy !== null && !started.resumes
       if (unled) record.summary = { ...record.summary, ledBy: null }
       const resumed = started.resumes ? input.resume : undefined
-      this.register(record, expectedAgent(input.command ?? task?.command, resumed))
+      const expected = expectedAgent(input.command ?? task?.command, resumed)
+      this.register(record, started.resumes ? expected : null)
       if (unled) this.messaging.endLead(record.summary.id)
       // The resumed agent shows its own history; a shell that resumes none, the transcript.
       const note = resumeNote(judged, input.resume, started.resumes)
@@ -901,6 +906,7 @@ export class Terminals {
     )
     this.messaging.expect(id, agent)
     record.expecting = agent
+    if (agent) this.startups.start()
   }
 
   /**
@@ -940,7 +946,27 @@ export class Terminals {
    * `Prompts`), once those before it in the terminal's input queue are done.
    */
   prompt(input: PromptInput): Promise<Prompted> {
-    return this.typing.prompt(input.terminalId, input.text, input.automatic, input.ref)
+    return this.typing.prompt(input.terminalId, input.text, input.automatic, input.ref, input.along)
+  }
+
+  /** Writes keys as the person's, as a chat passes them on (see `Typing.keys`). */
+  keys(input: { terminalId: string; keys: string }): void {
+    this.typing.keys(input.terminalId, input.keys)
+  }
+
+  /** Takes what the agent's box holds, for the client's draft (see `Typing.takeBox`). */
+  takeBox(terminalId: string): Promise<{ returned: string | null }> {
+    return this.typing.takeBox(terminalId)
+  }
+
+  /** Empties the agent's box of what the person was shown (see `Typing.clearBox`). */
+  clearBox(input: { terminalId: string; seen: string }): Promise<{ cleared: boolean }> {
+    return this.typing.clearBox(input.terminalId, input.seen)
+  }
+
+  /** Puts a client's draft in the agent's box, with no Enter (see `Typing.putBox`). */
+  putBox(input: { terminalId: string; text: string }): Promise<{ placed: boolean }> {
+    return this.typing.putBox(input.terminalId, input.text)
   }
 
   /**
@@ -1091,11 +1117,7 @@ export class Terminals {
                     ...record.summary,
                     cwd,
                     process: shellProcess(shell),
-                    agent: null,
-                    ready: null,
-                    activity: null,
-                    telemetry: null,
-                    reported: null,
+                    ...noAgent,
                   } satisfies AgentSummary,
                   foreground: undefined,
                   ...this.bindings.restarted(),
@@ -1358,6 +1380,12 @@ export class Terminals {
     yield* this.streams.watchDetail(record, signal)
   }
 
+  /** The terminal's live slice, then another on each change (see `slices.ts`). */
+  async *slice(terminalId: string, signal?: AbortSignal): AsyncGenerator<SliceChange> {
+    if (this.stopping) throw new DomainError("CLOSING")
+    yield* this.streams.watchSlice(this.record(terminalId).summary.id, signal)
+  }
+
   /** Closes another terminal of the caller's project and session (see `Calls.closePeer`). */
   closePeer(call: Call): Promise<CloseAnswer> {
     return this.calls.closePeer(call)
@@ -1535,6 +1563,7 @@ export class Terminals {
     const last = this.saves.shutdown()
     this.stopping = true
     this.sampler.stop()
+    this.startups.stop()
     this.saves.stop()
     this.streams.finishWatchers()
     this.opens.finish()
@@ -1615,6 +1644,7 @@ export class Terminals {
     terminal.on("drawn", () => {
       this.typing.doorbellChanged(record.summary.id)
       this.typing.dialogsChanged(record.summary.id)
+      this.streams.drawn(record.summary.id)
       // Once on the screen: a save while it was drawing may have taken the screen before.
       record.screenChanged = true
     })
@@ -1697,11 +1727,7 @@ export class Terminals {
     record.summary = {
       ...record.summary,
       process: null,
-      agent: null,
-      ready: null,
-      activity: null,
-      telemetry: null,
-      reported: null,
+      ...noAgent,
     }
     cancelResume(record)
     this.saves.save(record, true)

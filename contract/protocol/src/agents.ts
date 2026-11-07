@@ -211,6 +211,20 @@ export const promptReceipt = z.strictObject({
 })
 export type PromptReceipt = z.infer<typeof promptReceipt>
 
+// What an agent's own input box holds on its screen, so a client can show what a prompt would
+// go out with: `text` as the box shows it (a placeholder for a long paste shows as that), in its
+// prompt or shell `mode`; `tail` where the box may hold more than it shows, as tall as it gets
+// or saying so; `known` where all it shows is words Novadeck typed there (a prompt that came
+// back), which the next prompt takes out and hands back, unless it's a `tail`. A line a ring left
+// is the doorbell's to finish: it doesn't show.
+export const agentBox = z.strictObject({
+  text: z.string().max(16_384),
+  mode: z.enum(["prompt", "shell"]),
+  tail: z.boolean(),
+  known: z.boolean(),
+})
+export type AgentBox = z.infer<typeof agentBox>
+
 // `agents.detail` snapshots: the agent a terminal runs, its root and subagents (root
 // first; a subagent's parent is null where the harness does not say), each request
 // waiting on the person with what it asks about and the answers it offers, and how much
@@ -255,6 +269,8 @@ export const agentDetail = z.strictObject({
   coverage: agentCoverage.nullable(),
   // Optional, as a runner from before prompt receipts sends none; this one always does.
   prompts: z.array(promptReceipt).max(agentLimits.prompts).optional(),
+  // Optional, as a runner from before it sends none; null while the box holds nothing to show.
+  box: agentBox.nullable().optional(),
 })
 
 // An agent Novadeck can connect: whether it is installed here, and whether Novadeck's
@@ -292,8 +308,18 @@ export const conflictReason = z.strictObject({
     "too-tall",
     "shell",
     "no-paste",
+    "command",
   ]),
+  // The words a prompt took out of the agent's box before it failed (see `promptFailure`).
+  returned: z.string().optional(),
 })
+
+/**
+ * What a prompt that failed after it took words out of the agent's box says of them, as
+ * `agents.prompt` would have given them (`promptResult`), for a client to put back in the
+ * person's draft: they are in the box no longer.
+ */
+export const promptFailure = z.object({ returned: z.string() })
 
 /**
  * What `agents.interrupt` gives back: the words the person had queued behind the turn that
@@ -303,6 +329,19 @@ export const conflictReason = z.strictObject({
  * queued message goes to the agent as a steer.
  */
 export const interruptResult = z.strictObject({ returned: z.string().nullable() })
+
+/**
+ * What `agents.prompt` gives: the prompt's receipt's `ref`, whether one follows, and the words
+ * it took out of the agent's input box to go: a prompt of Novadeck's that came back there, or a
+ * command the box's shell mode held (with its `!`), which a client puts back in the person's
+ * draft. Null where it took none; absent from a runner from before it.
+ */
+export const promptResult = z.strictObject({
+  ref: agentRef,
+  tracked: z.boolean(),
+  returned: z.string().nullable().optional(),
+})
+export type PromptResult = z.infer<typeof promptResult>
 export type InterruptResult = z.infer<typeof interruptResult>
 
 export type { AgentName } from "./harnesses.js"

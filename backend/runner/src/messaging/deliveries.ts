@@ -83,6 +83,12 @@ export class Deliveries {
     if (live) live.expecting = agent
   }
 
+  /** The agent expected in the terminal, while no session bound and its prompt never showed. */
+  expected(terminalId: string): AgentName | null {
+    const live = this.host.sessions.get(terminalId)
+    return live && !live.root && !live.shown && !live.untrusted ? live.expecting : null
+  }
+
   /**
    * The agent's own prompt shows in the terminal before any session of its has bound
    * there, as Codex's title or Antigravity's status line tells it: it is Ready, and

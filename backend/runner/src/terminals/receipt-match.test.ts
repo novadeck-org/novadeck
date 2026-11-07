@@ -1,7 +1,14 @@
 import { doorbellLine, replyLine } from "@novadeck/harness-core/prompts"
 
 import { describe, expect, it } from "../test.js"
-import { inBox, missingAt, promptLines, settledBy, type Turns } from "./receipt-match.js"
+import {
+  inBox,
+  knownWords,
+  missingAt,
+  promptLines,
+  settledBy,
+  type Turns,
+} from "./receipt-match.js"
 
 const waiting = (...texts: string[]) =>
   texts.map((text, index) => ({ ref: `r${index}`, lines: promptLines(text) }))
@@ -119,5 +126,36 @@ describe("missingAt", () => {
   it("waits for a read to the end after the due time", () => {
     expect(missingAt(100, idle(null), null, 2_000, slack)).toBeNull()
     expect(missingAt(100, idle(null), 1_000, 2_000, slack)).toBeNull()
+  })
+})
+
+describe("a prompt that went on the same line as what the box held", () => {
+  it("settles by a line that ends with its first, after a space", () => {
+    const joined = { ref: "r", lines: promptLines("the message\nits second"), joined: true }
+    expect(settledBy([joined], "half typed the message\nits second")).toEqual(["r"])
+    expect(settledBy([joined], "half typedthe message\nits second")).toEqual([])
+    expect(settledBy([joined], "half typed the message\nsomething else")).toEqual([])
+  })
+
+  it("is the only one that does, as any other's words may just end a line", () => {
+    const other = { ref: "r", lines: promptLines("ok") }
+    expect(settledBy([other], "that is ok")).toEqual([])
+  })
+})
+
+describe("knownWords", () => {
+  const back = (text: string) => ({ text, lines: promptLines(text) })
+
+  it("gives the words of the prompts that are all the box holds, white space aside", () => {
+    expect(knownWords([back("one two")], "one\n  two")).toBe("one two")
+    expect(knownWords([back("one"), back("two")], "one\ntwo")).toBe("one\ntwo")
+    expect(knownWords([back("one"), back("two")], "one")).toBe("one")
+    expect(knownWords([back("one"), back("two")], "two\none")).toBe("two\none")
+  })
+
+  it("gives nothing where anything else is there, or nothing is back", () => {
+    expect(knownWords([back("one")], "one and more")).toBeUndefined()
+    expect(knownWords([], "one")).toBeUndefined()
+    expect(knownWords([back("")], "")).toBeUndefined()
   })
 })

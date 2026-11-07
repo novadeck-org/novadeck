@@ -1,7 +1,11 @@
 import type { ScreenText } from "@novadeck/emulator/headless"
+import { cells } from "@novadeck/emulator/width"
+import type { SliceProfile } from "@novadeck/harness-core/slices"
 import {
   agreeing,
+  eraseRows,
   footerRows,
+  leaveShell,
   markedBox,
   sameText,
   type BoxProfile,
@@ -21,20 +25,29 @@ export const shellFooter = (rows: readonly string[]): boolean => {
   return last !== undefined && /(^|\s)Shell mode(\s|$)/.test(last.trim())
 }
 
+/** The last row it drew. */
+const lastDrawn = ({ rows }: ScreenText): string => rows.findLast((row) => row.trim() !== "") ?? ""
+
 /**
  * Whether it shows its history search (Ctrl-R: "reverse-i-search:" under its box, which
  * then takes the line as its query), its shortcuts panel (`?`: "? / esc close"), or a
  * `/side` conversation ("Side from main thread · ctrl+/ to switch · ctrl+c to close", `^`
  * for ctrl in 0.161.0, and `⌃` on macOS in 0.163.0, seen in CI 2026-10-18), whose turns
  * are no root's: all drawn with its empty box on screen (probed 0.159.3 in the e2e
- * sandbox, 2026-10-16).
+ * sandbox, 2026-10-16). Also its menus (`/model`, `/permissions`, `/config`), whose first row
+ * leads with the box's marker and whose rows read as a box holding text: their hint row ends
+ * "esc back", or "esc clear search/close" (probed 0.166.0, 2026-11-06, fixtures/leftover.probe.json).
+ * Its other lists end the screen in what Esc does there too, `/keymap` "esc close" and
+ * `/statusline` "esc cancel": only on the last row drawn, as `$` and `@` draw "esc close" over
+ * a box that is one (probed 0.167.0, 2026-11-06, fixtures/live-slice.probe.json). A prompt or a
+ * ring waits while any of these shows, as it would paste into the list.
  */
 const overlay = (screen: ScreenText): boolean =>
   footerRows(screen).some((row) =>
-    /(^|\s)reverse-i-search:|\? \/ esc close|Side from main thread · (?:ctrl\+|\^|⌃)\/ to switch/.test(
+    /(^|\s)reverse-i-search:|\? \/ esc close|Side from main thread · (?:ctrl\+|\^|⌃)\/ to switch|· esc (?:back|clear search\/close)\s*$/.test(
       row,
     ),
-  )
+  ) || /\besc (to )?(back|close|cancel|clear search\/close)\s*$/.test(lastDrawn(screen))
 
 /**
  * Whether it shows a prompt given mid-turn as waiting. It draws one of two lists by when the
@@ -51,7 +64,33 @@ const queued = (screen: ScreenText): boolean =>
       row.trim() === "• Queued follow-up inputs",
   )
 
-const read = (screen: ScreenText) => agreeing(markedBox(screen, markers), shellFooter(screen.rows))
+/**
+ * Its box, read from the row above where text that fills its last row left the cursor: Codex
+ * parks it on the blank row under that text, at its indent, which reads as a cursor out of the
+ * box. That row is still the box's, as its viewport counts it, so it stays the box's last. Every
+ * 37th length of a line at 40 columns did so (0.167.0, 2026-11-07,
+ * e2e/probes/reply-overflow.e2e.ts). Text under the cursor is the cursor elsewhere in a draft,
+ * which reads as no box as it did. Marked as showing only a part where it draws its dim `↑` at
+ * the end of the first row (the `tall` states of fixtures/leftover.probe.json), which says so
+ * whatever the box's height.
+ */
+const read = (screen: ScreenText) => {
+  const { row, column } = screen.cursor
+  const above = screen.bright[row - 1]?.trimEnd() ?? ""
+  const parked =
+    column === 2 &&
+    screen.rows[row]?.trim() === "" &&
+    screen.rows[row + 1]?.trim() === "" &&
+    cells(above) === screen.columns - 1
+  const found = parked
+    ? markedBox({ ...screen, cursor: { row: row - 1, column: above.length } }, markers)
+    : markedBox(screen, markers)
+  const box = agreeing(parked && found ? { ...found, last: row } : found, shellFooter(screen.rows))
+  if (!box) return box
+  const lit = screen.bright[box.first]?.trimEnd() ?? ""
+  const drawn = screen.rows[box.first]?.trimEnd() ?? ""
+  return drawn.endsWith("↑") && !lit.endsWith("↑") ? { ...box, scrolled: true as const } : box
+}
 
 /**
  * The rows it keeps above its box whether or not a turn runs, so none of a turn's: the commands
@@ -99,10 +138,20 @@ const turnUnseen = (screen: ScreenText, prompt?: string): boolean => {
  */
 export const box: BoxProfile = {
   read,
+  cut: ({ scrolled }) => scrolled === true,
   // Enter runs a command shown as a placeholder as the text it stands for. Its commands run
   // without a session, as it binds none (`starts`).
-  shell: { expands: true, starts: false, footer: shellFooter },
+  shell: { expands: true, starts: false, footer: shellFooter, leave: leaveShell },
+  // On 80 and 120 columns a word reaches 77 and 117, and one too long for a row starts a new
+  // row and breaks at the same column (fixtures/leftover.probe.json).
+  textWidth: (columns) => columns - 3,
+  stands: (text) => /\[(?:Pasted Content \d+|Image #\d+|image\b)/.test(text),
   collapsed: ({ text }) => /^\[Pasted Content \d+ chars?\]$/.test(text.trim()),
+  erase: eraseRows,
+  // On Windows it reads the console's keys, and a line break is an Enter unless it comes in what
+  // it takes for a burst of typing: leading a paste, it submitted the box (seen on Windows CI,
+  // 0.167.0, 2026-11-06, in every chat send over a draft).
+  pastesAsKeys: (platform = process.platform) => platform === "win32",
   overlay,
   // A queued message waits "to be submitted after next tool call", and an Escape sends it
   // at once as a steer, which a second Escape stops; the box stays empty (probed). One under
@@ -121,6 +170,19 @@ export const box: BoxProfile = {
   // From 0.163.0 a text taller than this shows only its tail, an `↑` drawn dim at the end of
   // the box's first row: 12, 16, 22 and 29 rows on screens of 24, 30, 40 and 50 rows (probed
   // 2026-10-18, the `tall` states of fixtures/input-box.probe.json). Earlier versions grow
-  // the box to `room` instead, so a box this tall shows the whole text there.
-  viewport: (rows) => Math.floor((2 * (rows - 6)) / 3),
+  // the box to `room` instead, so a box this tall shows the whole text there. Below 14 rows it
+  // keeps 4 where it can: 2, 3 and 4 on 6, 7 and 8 rows, 4 from there to 13 (0.167.0, 2026-11-07,
+  // e2e/probes/reply-overflow.e2e.ts).
+  viewport: (rows) => Math.max(Math.floor((2 * (rows - 6)) / 3), Math.min(rows - 4, 4)),
+}
+
+/**
+ * Where it draws its own: `/`, `$` and `@` above the box, a blank row between, and a view in
+ * the box's place to the screen's end, the transcript moved up (probed 0.167.0,
+ * fixtures/live-slice.probe.json). It asks for no secret in a session: `/logout` ends it.
+ */
+export const slice: SliceProfile = {
+  agent: "codex",
+  side: () => "above",
+  secret: () => false,
 }

@@ -1,9 +1,12 @@
 import { join } from "node:path"
+import { setTimeout as sleep } from "node:timers/promises"
 
+import { harnesses } from "../harnesses/registry.js"
 import { setups } from "./agents/index.js"
 import { describe, e2e, expect, supported, type E2E } from "./fixture.js"
-import { asked, gate, record, tool, type Call, type Rule } from "./model/script.js"
-import { delivered, own, replies, result, start, through, turn } from "./scenarios.js"
+import { agentsViewOutlivesDeck, losesLineBreakKeys } from "./known-gaps.js"
+import { asked, gate, record, text as allOf, tool, type Call, type Rule } from "./model/script.js"
+import { delivered, own, replies, result, start, through, turn, unrung } from "./scenarios.js"
 
 // The schema the model actually sees, after its harness translated the MCP declaration.
 // Antigravity loads it lazily: read_file's result is the model's copy, not the runner's.
@@ -321,6 +324,143 @@ for (const setup of setups) {
         after: calls,
       })
       expect(lined(received)).toBe(true)
+    })
+
+    // A reply near the line's limit fills more rows than a small pane's box has, for its head to
+    // scroll away; the line is the prompt all the same, for auto mode to count it. Its first ring
+    // lands it: a failed ring would leave the rescue of a line left in the box to do it.
+    for (const rows of [14, 12])
+      it(`rings a reply a box of ${rows} rows shows only the end of, and it comes as its prompt`, async ({
+        e2e: run,
+      }) => {
+        const finishing = gate()
+        finishing.open()
+        run.model.use(
+          asksAndWorksOn(run, finishing),
+          own((call) => (delivered(call, "you") ? { text: "Merged, as you said." } : undefined)),
+        )
+        const terminal = await start(run, setup)
+        await turn(terminal, "Ask and work on", "Worked on.")
+        terminal.resize(40, rows)
+        const calls = run.model.mark()
+        const mark = terminal.mark()
+        const ask = run.deck.terminals.inboxEntries().find((each) => each.content.kind === "ask")!
+        const words = `Merge it${" and say so in the changelog".repeat(7)}, thanks.`
+        run.deck.terminals.answerAsk(ask.id, { type: "reply", option: 0, text: words })
+        const received = await run.model.waitFor((call) => !call.side && delivered(call, "you"), {
+          after: calls,
+        })
+        const typed = received.turns.find(
+          (entry) => entry.role === "user" && entry.text.includes(words),
+        )
+        expect(typed?.text).toMatch(
+          /\[Novadeck Inbox reply, ([A-Za-z0-9]+)\] Re your ask .* \[\1\]/,
+        )
+        const states = terminal
+          .history()
+          .slice(mark)
+          .map((each) => each.delivery)
+        expect(states).not.toContain("unknown")
+      })
+
+    // Words scrolled out of a short box over blank lines leave only blank rows to read, or on
+    // Codex a dim arrow with the cursor back at the top: that's a draft, not an empty box, and no
+    // ring may go out with it.
+    for (const [lines, ups] of [
+      [12, 0],
+      [12, 4],
+    ] as const)
+      it(`rings nothing over a draft scrolled out of sight (${lines} blank lines, ${ups} Ups)`, async ({
+        e2e: run,
+      }) => {
+        const finishing = gate()
+        finishing.open()
+        run.model.use(asksAndWorksOn(run, finishing))
+        const terminal = await start(run, setup)
+        await turn(terminal, "Ask and work on", "Worked on.")
+        terminal.resize(40, 14)
+        await sleep(1_200)
+        const write = (data: string) =>
+          run.deck.terminals.write({ terminalId: terminal.id, data }, "e2e")
+        if (losesLineBreakKeys(setup))
+          write(`\x1b[200~MY UNFINISHED DRAFT${"\n".repeat(lines)}\x1b[201~`)
+        else {
+          write("MY UNFINISHED DRAFT")
+          await sleep(300)
+          for (let line = 0; line < lines; line += 1) {
+            write(setup.agent === "agy" ? "\x1b\r" : "\n")
+            // eslint-disable-next-line no-await-in-loop -- One key after another.
+            await sleep(120)
+          }
+        }
+        for (let up = 0; up < ups; up += 1) {
+          terminal.press("\x1b[A")
+          // eslint-disable-next-line no-await-in-loop -- As above.
+          await sleep(150)
+        }
+        await terminal.settled()
+        // The words are out of sight, or the test is of nothing.
+        expect(await terminal.screen()).not.toContain("MY UNFINISHED")
+        const calls = run.model.mark()
+        const ask = run.deck.terminals.inboxEntries().find((each) => each.content.kind === "ask")!
+        run.deck.terminals.answerAsk(ask.id, { type: "reply", option: 0, text: "Merge it." })
+        await sleep(unrung * 3)
+        expect(
+          run.model.calls.slice(calls).some((call) => allOf(call).includes("MY UNFINISHED DRAFT")),
+        ).toBe(false)
+        // Nor does the chat's take of the box have them: they stay, in sight once scrolled to, a
+        // key at a time, as Codex on Windows doesn't take them all in a burst, and no further
+        // than the words, as an Up past them recalls history.
+        expect((await run.deck.terminals.takeBox(terminal.id)).returned).toBeNull()
+        for (let up = 0; up < lines + 4; up += 1) {
+          // eslint-disable-next-line no-await-in-loop -- As above.
+          if ((await terminal.screen()).includes("MY UNFINISHED")) break
+          terminal.press("\x1b[A")
+          // eslint-disable-next-line no-await-in-loop -- As above.
+          await sleep(200)
+        }
+        await terminal.until("MY UNFINISHED")
+      })
+
+    // Words a person or agent may write, here the footer of Claude Code's agents view: a reply
+    // saying them is a line in the box like any other.
+    it("rings a reply that says what a view's footer says", async ({ e2e: run }) => {
+      const finishing = gate()
+      finishing.open()
+      run.model.use(
+        asksAndWorksOn(run, finishing),
+        own((call) => (delivered(call, "you") ? { text: "Merged, as you said." } : undefined)),
+      )
+      const terminal = await start(run, setup)
+      await turn(terminal, "Ask and work on", "Worked on.")
+      terminal.resize(170, 30)
+      const calls = run.model.mark()
+      const ask = run.deck.terminals.inboxEntries().find((each) => each.content.kind === "ask")!
+      const words = "enter to open · then merge it"
+      run.deck.terminals.answerAsk(ask.id, { type: "reply", option: 0, text: words })
+      await run.model.waitFor((call) => !call.side && delivered(call, "you"), { after: calls })
+    })
+
+    // Left opens Claude Code's agents view, whose field reads as a box in prompt mode and whose
+    // Enter starts a session: with text in it, it reads as a view.
+    it("takes Claude Code's agents view for a view at 14 rows, a paste in it", async ({
+      e2e: run,
+      skip,
+    }) => {
+      if (setup.agent !== "claude" || agentsViewOutlivesDeck(setup)) skip()
+      run.model.use(replies("Warm up", "Warmed up."))
+      const terminal = await start(run, setup)
+      await turn(terminal, "Warm up", "Warmed up.")
+      terminal.resize(40, 14)
+      await sleep(1_200)
+      const profile = harnesses[setup.agent].box!
+      terminal.press("\x1b[D")
+      await terminal.until("describe a task")
+      terminal.press(`\x1b[200~${"and say so in the changelog ".repeat(6)}[n7Q2]\x1b[201~`)
+      await terminal.until("[n7Q2]")
+      await sleep(300)
+      const shown = (await terminal.screenText())!
+      expect(profile.overlay(shown), shown.rows.join("\n")).toBe(true)
     })
 
     it("gives the reply at the Stop over a draft of the person's, never typing beside it", async ({

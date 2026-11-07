@@ -950,6 +950,7 @@ describe("The Console sheet", () => {
 
       act(() =>
         transcript.update(() => ({
+          slice: null,
           agent: "codex",
           session: "x",
           loaded: true,
@@ -957,6 +958,7 @@ describe("The Console sheet", () => {
           requests: [],
           prompts: [],
           unread: false,
+          box: null,
         })),
       )
       expect(text(".console-you")).toContain("run the suite")

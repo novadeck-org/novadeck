@@ -19,6 +19,8 @@ import {
   agentRef,
   conflictReason,
   interruptResult,
+  promptFailure,
+  promptResult,
 } from "./agents.js"
 import {
   companionChange,
@@ -40,6 +42,7 @@ import { askAnswer, inboxEntry } from "./inbox.js"
 import { terminalMessages, threadId } from "./messages.js"
 import { clientState, folderListing, project, workspaceSession } from "./projects.js"
 import { runnerSettings, runnerSettingsState } from "./settings.js"
+import { sliceChange } from "./slices.js"
 import {
   approval,
   approvalAnswer,
@@ -76,7 +79,8 @@ export const errors = {
   UPLOAD_TOO_LARGE: { status: 413 },
   SPAWN_FAILED: { status: 500 },
   AGENT_SETUP_FAILED: { status: 500 },
-  PROMPT_FAILED: { status: 409 },
+  // Optional data holds the words it took out of the box first (`promptFailure`).
+  PROMPT_FAILED: { status: 409, data: promptFailure.optional() },
   // A prompt a TUI would read as more than text (`promptRefusal`): a control character, a
   // command (a leading `/` or `!`) or a file or skill mention left open at its end (`@name`,
   // `$name`); or one of nothing but white space. Nothing is written. Words that follow an
@@ -272,11 +276,20 @@ export const contract = {
     transcript: procedure
       .input(z.strictObject({ terminalId: id, actor: agentRef }))
       .output(eventIterator(transcriptChange)),
+    // The rows of the terminal's screen that stand for something of its harness's own at its
+    // input (a menu at its box, a view of its own, a dialog no adapter reads): a snapshot, then
+    // another on each change, null while nothing shows. It follows the terminal from agent to
+    // agent and ends when the terminal is closed; an unknown terminal is TERMINAL_NOT_FOUND.
+    // Its own stream, apart from `detail`: it changes on every key, and costs a look at the
+    // screen only while someone reads it.
+    slice: procedure.input(z.strictObject({ terminalId: id })).output(eventIterator(sliceChange)),
     // Gives the terminal's agent a prompt as the person would: the text pasted into its own
     // input box as one bracketed paste, then Enter once the paste shows there, the person's
     // keys held meanwhile. A terminal without an agent bound, or one that takes no
-    // bracketed paste, is a CONFLICT, as is one whose input box holds a draft already (the
-    // person's, or a failed paste's), which a prompt would merge into; a paste that never
+    // bracketed paste, is a CONFLICT. With `along`, text in the box goes out with the prompt,
+    // what Novadeck knows there comes out and goes back as `returned`, and a shell mode is
+    // left, where the screen shows that's safe; where not, or without `along`, that's a
+    // CONFLICT (see docs/backend-api.md, "A box that isn't empty"); a paste that never
     // showed, or showed other than exactly the text, is PROMPT_FAILED, and what landed of it
     // stays in the box as a draft; text a TUI would read as a command or a file pick (a
     // leading `/` or `!`, a trailing `@name` or `$name`, a control character), or that is
@@ -294,10 +307,41 @@ export const contract = {
           terminalId: id,
           text: z.string().min(1).max(16_384),
           automatic: z.literal(true).optional(),
+          // Whether what the box holds may go along, or come out (see below): only where the
+          // person can see it, as the chat shows it. Without it the box must be empty.
+          along: z.literal(true).optional(),
           ref: agentRef.optional(),
         }),
       )
-      .output(z.strictObject({ ref: agentRef, tracked: z.boolean() })),
+      .output(promptResult),
+    // Writes keys to the agent's terminal as the person's, for what shows in `agents.slice`: a
+    // chat holds no control of the terminal (`terminals.write`). A terminal with no agent, or
+    // one held by a request whose dialog the chat answers, is a CONFLICT. A client sends one key
+    // or edit a call, in order, and Enter on its own: a harness reads Enter right behind text
+    // as part of a paste.
+    keys: procedure
+      .input(z.strictObject({ terminalId: id, keys: z.string().min(1).max(1024) }))
+      .output(z.void()),
+    // Takes what the agent's input box holds out of it and gives it to the client, as a chat
+    // over the terminal is where the person writes: only what reads whole and steady off the
+    // screen. Null where nothing was taken, the box's text then still in `agents.detail`'s
+    // `box` (see docs/backend-api.md, "One input").
+    takeBox: procedure
+      .input(z.strictObject({ terminalId: id }))
+      .output(z.strictObject({ returned: z.string().nullable() })),
+    // Puts a client's draft in the agent's input box, with no Enter, as the person goes to the
+    // terminal: `placed` false where the box isn't empty, or the text would open a picker there,
+    // and the draft stays the client's.
+    putBox: procedure
+      .input(z.strictObject({ terminalId: id, text: z.string().min(1).max(16_384) }))
+      .output(z.strictObject({ placed: z.boolean() })),
+    // Empties the agent's input box as the person asked, of whatever it holds, which is gone
+    // for good: `seen` is its `text` as `agents.detail`'s `box` showed it to them, and a box
+    // that no longer holds that is left. `cleared` false leaves it as it was, or as the keys
+    // left it, the box still in `box` (see docs/backend-api.md, "One input").
+    clearBox: procedure
+      .input(z.strictObject({ terminalId: id, seen: z.string().min(1).max(16_384) }))
+      .output(z.strictObject({ cleared: z.boolean() })),
     // Answers a request waiting on the person through its dialog in the agent's TUI, as the
     // person would with its keys: the harness's adapter reads the dialog, checks it is the
     // request's, presses what the answer takes, and resolves once the dialog went as

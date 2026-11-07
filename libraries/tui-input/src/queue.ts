@@ -60,6 +60,11 @@ export class InputQueue {
 
   constructor(private readonly host: InputQueueHost) {}
 
+  /** Whether an entry of the terminal runs or waits. */
+  busy(terminalId: string): boolean {
+    return this.tails.has(terminalId)
+  }
+
   /** Runs `work` once the entries before it at the terminal are done; its result is the entry's. */
   async run<T>(terminalId: string, work: (entry: InputEntry) => Promise<T>): Promise<T> {
     const previous = this.tails.get(terminalId) ?? Promise.resolve()

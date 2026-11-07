@@ -1,10 +1,14 @@
 import type { ScreenText } from "@novadeck/emulator/headless"
+import type { SliceProfile } from "@novadeck/harness-core/slices"
 import {
   agreeing,
+  eraseRows,
   footerRows,
+  leaveShell,
   rule,
   ruledBox,
   type BoxProfile,
+  type InputBox,
   type Markers,
 } from "@novadeck/tui-input/box"
 
@@ -134,6 +138,27 @@ const interruptedShown = (screen: ScreenText): boolean | undefined => {
 const overlay = (screen: ScreenText): boolean =>
   footerRows(screen).some((row) => /^Keyboard: .*\besc (Close|Dismiss)\b/.test(row.trim()))
 
+/** The rows that say a box shows only part of its text, whatever words a version has for it. */
+const rowAbove = /^↑[^\n]*(?:\n|$)/
+const rowBelow = /(?:^|\n)↓[^\n]*$/
+
+/**
+ * Its box, with the rows that say it shows only a part in its text however they are drawn: a
+ * text is read off its bright cells, and a box that holds more than it shows, taken for all of
+ * it, loses the rest. From 1.5 a text taller than the box has an `↑ 21 more lines` row over it
+ * and, with the cursor moved up, an `↓ 14 more lines` row under it (probed 2026-11-06, 1.5.2, the
+ * `tall` states of fixtures/leftover.probe.json).
+ */
+const marked = (box: InputBox | undefined, screen: ScreenText): InputBox | undefined => {
+  if (!box) return box
+  const top = screen.rows[box.first]?.slice(markers.prompt.length).trim() ?? ""
+  const bottom = screen.rows[box.last]?.trim() ?? ""
+  const rows = box.text.split("\n")
+  if (top.startsWith("↑")) rows[0] = top
+  if (bottom.startsWith("↓")) rows[box.last - box.first] = bottom
+  return { ...box, text: rows.join("\n") }
+}
+
 /**
  * Antigravity's input box: between two `─` rules, `> ` leading its first row and the rest
  * indented (probed 1.2.14 and 1.3.1, fixtures/input-box.probe.json). Its history above
@@ -144,21 +169,54 @@ const overlay = (screen: ScreenText): boolean =>
  * library compares text without such emoji.
  */
 export const box: BoxProfile = {
-  read: (screen) => agreeing(ruledBox(withoutPanel(screen), markers), shellFooter(screen.rows)),
+  read: (screen) =>
+    marked(agreeing(ruledBox(withoutPanel(screen), markers), shellFooter(screen.rows)), screen),
   // Enter would run a command shown as a placeholder as the placeholder's own text (probed
   // 2026-10-07). A `!` command creates the conversation and binds the session (`starts`;
   // probed 2026-10-08).
-  shell: { expands: false, starts: true, footer: shellFooter, command: shellCommandOf },
+  shell: {
+    expands: false,
+    starts: true,
+    footer: shellFooter,
+    command: shellCommandOf,
+    leave: leaveShell,
+  },
+  // On 80 and 120 columns a word reaches 76 and 116; one too long for a row starts a new row
+  // and breaks a column further (fixtures/leftover.probe.json).
+  textWidth: (columns) => columns - 4,
+  stands: (text) => /\[(?:Pasted text #\d+|Image\b)/.test(text),
   collapsed: ({ text }) => /^\[Pasted text #\d+ (?:\+\d+ lines?|\d+ chars?)\]$/.test(text.trim()),
+  // A text taller than its box scrolls under a row saying how much, which reads as part of
+  // the text: 30 queued lines on 40 rows came back as `↑ 10 more lines` and the last 20, and
+  // scrolled up the row stands last, as `↓` (probed 2026-11-06, 1.5.2).
+  cut: ({ text }) => rowAbove.test(text) || rowBelow.test(text),
+  uncut: (text) => text.replace(rowAbove, "").replace(rowBelow, ""),
   // 15 lines showed whole, even of 100 characters each; 16 did not. One line of 1,000
   // characters showed whole, 1,024 did not.
   // Ctrl-U clears the line the cursor is on and Backspace joins the line before it; the
   // queued messages an Escape put back are one to a line (probed 2026-10-07).
-  clear: ({ first, last }) => `${"\x15\x7f".repeat(last - first)}\x15`,
+  clear: eraseRows,
+  erase: eraseRows,
+  // It draws the cursor on the last cell of the text, not the one after it (fixtures/leftover.probe.json).
+  caret: 1,
   overlay,
   interrupted: interruptedShown,
   queued: (screen) => screen.rows.some((row) => row.includes("Press up to edit queued messages")),
   collapses: (text) => text.split("\n").length > 15 || (!text.includes("\n") && text.length > 1024),
   room: (rows) => rows - 4,
   still,
+}
+
+/**
+ * Where it draws its own: `/` and `@` under the box on the normal screen, which scrolls up to
+ * make room, and a view under the box as well, which stays, empty; one too tall for the rows
+ * left goes to the alternate screen. `$` is plain text (probed 1.4.12 and 1.5.2,
+ * fixtures/live-slice.probe.json). No prompt for a secret was reached: a session under an
+ * API key has no login.
+ */
+export const slice: SliceProfile = {
+  agent: "agy",
+  side: () => "below",
+  viewsUnder: true,
+  secret: () => false,
 }
