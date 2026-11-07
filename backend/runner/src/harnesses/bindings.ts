@@ -2,6 +2,7 @@ import type { SessionObserved, TelemetryObserved } from "@novadeck/harness-core/
 import type { AgentName } from "@novadeck/protocol"
 
 import type { AgentReport } from "../terminals/saved-terminals.js"
+import { harnesses } from "./registry.js"
 
 /**
  * The harness session that holds a terminal's foreground since the shell's last prompt.
@@ -120,19 +121,37 @@ const launchUnits = (words: readonly string[]): [string, string[]][] => {
 }
 
 /**
- * The flags a session was launched with after a process of it reports `told`: a resume gives
- * back only what the harness forgets, so the process that resumed it tells a part of what
- * the session was launched with, and the rest stays. A flag the process tells again takes
- * its value. Flags are words that start with `-`, each with the value after it, if any.
+ * The flags a session was launched with after a process of it reports `told`. A resume gives
+ * back only what its harness forgets (`launch.forgets`), so for those the process is the
+ * authority: one it doesn't tell was dropped on purpose (`claude --resume` run by hand
+ * without the bypass) and is gone. The flags the harness remembers stay as they were, and
+ * the process tells them again only when it was launched with them. A flag the process
+ * tells takes its value. Flags are words that start with `-`, each with the value after
+ * it, if any.
  */
 export const mergeLaunch = (
   known: readonly string[] | undefined,
   told: readonly string[] | undefined,
+  forgets: (unit: readonly string[]) => boolean,
 ): readonly string[] | undefined => {
   if (told === undefined) return known
-  const merged = new Map(launchUnits(known ?? []))
+  const merged = new Map(launchUnits(known ?? []).filter(([, own]) => !forgets(own)))
   for (const [flag, own] of launchUnits(told)) merged.set(flag, own)
   return [...merged.values()].flat()
+}
+
+/**
+ * The agent sessions with `agent`'s launch flags forgotten, so its next resume goes bare:
+ * for a flag its harness started to reject, which would fail every wake.
+ */
+export const withoutLaunch = <Reports extends { readonly [agent in AgentName]?: AgentReport }>(
+  sessions: Reports,
+  agent: AgentName,
+): Reports => {
+  const report = sessions[agent]
+  if (!report?.launch) return sessions
+  const { launch: _, ...rest } = report
+  return { ...sessions, [agent]: rest }
 }
 
 /**
@@ -173,7 +192,13 @@ export const observe = (
   const transcript = event.transcript ?? (same ? known.transcript : undefined)
   // The flags its process was launched with, as that process tells them; a report that can't
   // (the relay couldn't read them) leaves what the session had.
-  const launch = same ? mergeLaunch(known.launch, event.launch) : event.launch
+  const launch = same
+    ? mergeLaunch(
+        known.launch,
+        event.launch,
+        (unit) => (harnesses[event.agent].launch.forgets?.(unit).length ?? 0) > 0,
+      )
+    : event.launch
   const sessions = {
     ...state.sessions,
     [event.agent]: {

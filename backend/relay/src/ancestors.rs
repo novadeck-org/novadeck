@@ -6,8 +6,10 @@
 //! reads the starts only there; on Linux and macOS, where a shell starts at once, they
 //! are sent for what they tell, as the relay reads every platform alike. Each also carries
 //! the words it was started with where the platform tells (`args`, a program's arguments
-//! without the program; on Windows `commandLine`, the one line it is given), cut short
-//! past `MOST_ARGS`: from the agent's, the runner learns the flags it was launched with.
+//! without the program, whole words only, so a word that doesn't fit and what follows are
+//! left out; on Windows `commandLine`, the one line it is given, cut at `MOST_ARGS` with
+//! `commandLineCut` set, whose last word may be partial): from the agent's, the runner learns
+//! the flags it was launched with.
 
 use serde_json::{Map, Value};
 
@@ -23,9 +25,9 @@ enum Args {
     /// Its arguments, one by one, without its program.
     #[cfg_attr(windows, allow(dead_code))]
     Words(Vec<String>),
-    /// The one line it was given, program first, as Windows keeps it.
-    #[cfg_attr(not(windows), allow(dead_code))]
-    Line(String),
+    /// The one line it was given, program first, as Windows keeps it, and whether it was cut.
+    #[cfg_attr(not(any(windows, test)), allow(dead_code))]
+    Line { line: String, cut: bool },
 }
 
 /// An ancestor as the runner reads it; its start and arguments are left out where unknown.
@@ -40,8 +42,11 @@ fn entry(pid: u32, name: String, started: Option<f64>, args: Option<Args>) -> Va
         Some(Args::Words(words)) => {
             fields.insert("args".into(), words.into());
         }
-        Some(Args::Line(line)) => {
+        Some(Args::Line { line, cut }) => {
             fields.insert("commandLine".into(), line.into());
+            if cut {
+                fields.insert("commandLineCut".into(), true.into());
+            }
         }
         None => {}
     }
@@ -63,14 +68,18 @@ fn fitting(words: impl Iterator<Item = String>) -> Vec<String> {
     kept
 }
 
-/// A command line cut to `MOST_ARGS` bytes at a character boundary.
+/// A command line cut to `MOST_ARGS` bytes at a character boundary, and whether it was cut:
+/// its last word may then be partial, which the runner drops.
 #[cfg(any(windows, test))]
-fn fitting_line(line: &str) -> String {
+fn fitting_line(line: &str) -> Args {
     let mut end = line.len().min(MOST_ARGS);
     while !line.is_char_boundary(end) {
         end -= 1;
     }
-    line[..end].to_owned()
+    Args::Line {
+        line: line[..end].to_owned(),
+        cut: end < line.len(),
+    }
 }
 
 /// A process as the platform tells it: its name, its parent, and when it started.
@@ -132,7 +141,7 @@ pub fn of_this_process() -> Vec<Value> {
             parent,
             program(&process.file),
             started.map(|ms| ms as f64),
-            processes::command_line(parent).map(|line| Args::Line(fitting_line(&line))),
+            processes::command_line(parent).map(|line| fitting_line(&line)),
         ));
         child_started = started;
         pid = parent;
@@ -271,22 +280,39 @@ fn arguments(pid: u32) -> Option<Args> {
 }
 
 /// The words of a kernel arguments record: its count, the path the process was started by
-/// and the padding after it, then each argument ended by a zero byte, the program first.
+/// and the zero bytes after it, then each argument ended by a zero byte, the program first.
+/// The kernel pads the path to a multiple of eight bytes, so zero bytes past that padding
+/// are empty words, and an empty program name (`argv[0]`), which no other word follows as
+/// the padding does, is told by them: unless the first word names the path, which an
+/// empty one can't.
 #[cfg(any(target_os = "macos", test))]
 fn record_words(record: &[u8]) -> Option<Vec<String>> {
-    let count = i32::from_ne_bytes(record.get(..4)?.try_into().ok()?);
+    let count = usize::try_from(i32::from_ne_bytes(record.get(..4)?.try_into().ok()?)).ok()?;
     let rest = record.get(4..)?;
-    let rest = &rest[rest.iter().position(|byte| *byte == 0)?..];
-    let rest = &rest[rest
+    let end = rest.iter().position(|byte| *byte == 0)?;
+    let (path, rest) = (&rest[..end], &rest[end..]);
+    let zeros = rest
         .iter()
         .position(|byte| *byte != 0)
-        .unwrap_or(rest.len())..];
+        .unwrap_or(rest.len());
+    let rest = &rest[zeros..];
+    // The path's own terminator, then its padding to a multiple of eight bytes.
+    let padding = (8 - (path.len() + 1) % 8) % 8;
+    let first = rest.split(|byte| *byte == 0).next().unwrap_or(&[]);
+    let named = !first.is_empty()
+        && (first == path
+            || file_name(&String::from_utf8_lossy(first))
+                == file_name(&String::from_utf8_lossy(path)));
+    let empty_program = zeros - 1 > padding && !named;
     let words = rest
         .split(|byte| *byte == 0)
-        .take(usize::try_from(count).ok()?)
-        .skip(1)
+        .take(count - usize::from(empty_program))
         .map(|word| String::from_utf8_lossy(word).into_owned());
-    Some(fitting(words))
+    let words: Vec<String> = std::iter::once(String::new())
+        .filter(|_| empty_program)
+        .chain(words)
+        .collect();
+    Some(fitting(words.into_iter().skip(1)))
 }
 
 /// The kernel's record of a process's arguments (`KERN_PROCARGS2`): its argument count,
@@ -432,11 +458,15 @@ mod tests {
             entry(7, "claude".into(), None, Some(words)),
             serde_json::json!({ "pid": 7, "name": "claude", "args": ["--model", "opus"] })
         );
-        let line = Args::Line("claude.exe --model opus".into());
+        let line = fitting_line("claude.exe --model opus");
         assert_eq!(
             entry(7, "claude".into(), None, Some(line)),
             serde_json::json!({ "pid": 7, "name": "claude", "commandLine": "claude.exe --model opus" })
         );
+        let cut = fitting_line(&format!("claude.exe {}", "x".repeat(MOST_ARGS)));
+        let told = entry(7, "claude".into(), None, Some(cut));
+        assert_eq!(told["commandLineCut"], true);
+        assert_eq!(told["commandLine"].as_str().unwrap().len(), MOST_ARGS);
     }
 
     #[test]
@@ -459,6 +489,17 @@ mod tests {
         record.extend(b"HOME=/x\0");
         assert_eq!(record_words(&record).unwrap(), ["--model", "opus"]);
         assert_eq!(record_words(b"\x01"), None);
+        // An empty program name is a word too, whose zero byte the padding doesn't cover:
+        // "/opt/bin/claude" and its terminator are 16 bytes, so there is no padding.
+        let mut record = 4i32.to_ne_bytes().to_vec();
+        record.extend(b"/opt/bin/claude\0");
+        record.extend(b"\0--model\0opus\0--x\0HOME=/x\0");
+        assert_eq!(record_words(&record).unwrap(), ["--model", "opus", "--x"]);
+        // Padded to eight bytes, an empty program name still shows one zero byte more.
+        let mut record = 3i32.to_ne_bytes().to_vec();
+        record.extend(b"/b/claude\0\0\0\0\0\0\0");
+        record.extend(b"\0--model\0opus\0HOME=/x\0");
+        assert_eq!(record_words(&record).unwrap(), ["--model", "opus"]);
     }
 
     #[test]
@@ -466,7 +507,10 @@ mod tests {
         let long = "x".repeat(MOST_ARGS);
         let kept = fitting(["--model".to_owned(), "opus".to_owned(), long].into_iter());
         assert_eq!(kept, ["--model", "opus"]);
-        assert_eq!(fitting_line(&"é".repeat(MOST_ARGS)).len(), MOST_ARGS);
+        let Args::Line { line, cut } = fitting_line(&"é".repeat(MOST_ARGS)) else {
+            unreachable!()
+        };
+        assert!(cut && line.len() <= MOST_ARGS && line.len() >= MOST_ARGS - 1);
     }
 
     #[cfg(any(target_os = "linux", target_os = "macos"))]

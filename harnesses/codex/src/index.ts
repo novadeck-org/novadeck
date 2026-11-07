@@ -1,6 +1,11 @@
 import { hookTranscript, withLaunch } from "@novadeck/harness-core/decode"
 import type { Harness, LaunchProfile, MessagingProfile } from "@novadeck/harness-core/harness"
-import { keptFlags, resumeFlags, type KeptFlags } from "@novadeck/harness-core/kept-flags"
+import {
+  forgottenUnits,
+  keptFlags,
+  resumeFlags,
+  type KeptFlags,
+} from "@novadeck/harness-core/kept-flags"
 
 import { bannerMarker, bannerVersion } from "./banner.js"
 import { box, slice } from "./box.js"
@@ -161,6 +166,7 @@ const launch: LaunchProfile = {
     session,
   ],
   kept: (argv) => keptFlags(argv, kept),
+  forgets: (words) => forgottenUnits(words, kept),
   // Its cache of the models it lists, in its home; the effort is a config override, left
   // bare (codex reads a value that isn't TOML as a string), so it has no quotes of its own.
   models: (install) => readModels(codexHome(install)),

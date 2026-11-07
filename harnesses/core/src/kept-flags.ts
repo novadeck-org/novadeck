@@ -21,10 +21,11 @@ export type KeptFlags = {
   /** That a long option may be written with one dash, as Go's `flag` allows. */
   readonly oneDash?: boolean
   /**
-   * Of those, the flags a resume gives back: only what the harness doesn't bring back with
-   * its session itself, as one it does would undo what the person changed since (`/model`,
-   * Shift+Tab, `/approvals`). The rest are still read and saved with the session, so a
-   * release that forgets more is mended here alone.
+   * Of those, the flags a resume gives back: only what a probe showed the harness doesn't
+   * bring back with its session itself, as one it does would undo what the person changed
+   * since (`/model`, Shift+Tab, `/approvals`), and one that raises permissions would raise
+   * them again. A flag, or `flag=value` where only that value is forgotten. The rest are
+   * still read and saved with the session, so a release that forgets more is mended here alone.
    */
   readonly forgets: readonly string[]
   /** Its options that take a value, and those among them that take a list (`nonSession`). */
@@ -40,9 +41,10 @@ export type KeptFlags = {
  * What a kept value may hold. A resume's words are joined with spaces into the command the
  * person's shell runs, under any shell (sh, zsh, fish, PowerShell, cmd), none of whose
  * quoting is the others': so only characters every one reads as themselves. A model such as
- * `opus[1m]`, which a glob would read, is not kept.
+ * `opus[1m]`, which a glob would read, is not kept, nor a value with a comma, which PowerShell
+ * splits into two arguments.
  */
-const plain = /^[A-Za-z0-9_][A-Za-z0-9_.:@+=,/-]{0,199}$/
+const plain = /^[A-Za-z0-9_][A-Za-z0-9_.:@+=/-]{0,199}$/
 
 const usable = (value: string | undefined): value is string =>
   value !== undefined && plain.test(value)
@@ -109,27 +111,51 @@ export const keptFlags = (argv: readonly string[], flags: KeptFlags): readonly s
   return [...kept.values()].flat()
 }
 
-/**
- * The kept words a resume gives beside the `choice` it is asked for: only those the harness
- * `forgets`, and but for a model or an effort `choice` sets itself, which replace the launch's.
- */
-export const resumeFlags = (
-  kept: readonly string[],
-  choice: Choice,
-  flags: Pick<KeptFlags, "bare" | "sets" | "forgets">,
-): readonly string[] => {
+/** Whether the harness forgets a kept flag, with its value, on a bare resume (`forgets`). */
+const forgot = (
+  flags: Pick<KeptFlags, "forgets">,
+  flag: string,
+  value: string | undefined,
+): boolean =>
+  flags.forgets.includes(flag) ||
+  (value !== undefined && flags.forgets.includes(`${flag}=${value}`))
+
+/** The kept flags as units: a flag with its value, if it takes one. */
+const units = (kept: readonly string[], flags: Pick<KeptFlags, "bare">): string[][] => {
   const bare = new Set(Object.values(flags.bare))
-  const words: string[] = []
+  const found: string[][] = []
   for (let index = 0; index < kept.length; index += 1) {
     const flag = kept[index]!
     const value = bare.has(flag) ? undefined : kept[index + 1]
     const unit = value === undefined ? [flag] : [flag, value]
     index += unit.length - 1
-    if (!flags.forgets.includes(flag)) continue
-    const sets = flags.sets(flag, value)
-    if ((sets === "model" && choice.model !== undefined) || (sets === "effort" && choice.effort))
-      continue
-    words.push(...unit)
+    found.push(unit)
   }
-  return words
+  return found
 }
+
+/** The words of `kept` that are one flag with its value, if any, and that the harness forgets. */
+export const forgottenUnits = (
+  kept: readonly string[],
+  flags: Pick<KeptFlags, "bare" | "forgets">,
+): readonly (readonly string[])[] =>
+  units(kept, flags).filter(([flag, value]) => forgot(flags, flag!, value))
+
+/**
+ * The kept words a resume gives beside the `choice` it is asked for: only those the harness
+ * forgets, and but for a model or an effort `choice` sets itself, which replace the launch's.
+ */
+export const resumeFlags = (
+  kept: readonly string[],
+  choice: Choice,
+  flags: Pick<KeptFlags, "bare" | "sets" | "forgets">,
+): readonly string[] =>
+  forgottenUnits(kept, flags)
+    .filter(([flag, value]) => {
+      const sets = flags.sets(flag!, value)
+      return !(
+        (sets === "model" && choice.model !== undefined) ||
+        (sets === "effort" && choice.effort)
+      )
+    })
+    .flat()

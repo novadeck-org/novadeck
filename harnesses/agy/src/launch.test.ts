@@ -63,4 +63,16 @@ describe("the flags a resumed Antigravity keeps", () => {
     ])
     expect(resume!("c-1")).toEqual(["agy", "--conversation", "c-1"])
   })
+
+  it("don't give back the permission bypass it remembers", () => {
+    const launched = kept!(["--dangerously-skip-permissions", "--sandbox", "--mode", "auto"])
+    expect(resume!("c-1", {}, launched)).toEqual([
+      "agy",
+      "--sandbox",
+      "--mode",
+      "auto",
+      "--conversation",
+      "c-1",
+    ])
+  })
 })

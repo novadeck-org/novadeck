@@ -2,7 +2,12 @@ import { join } from "node:path"
 
 import { hookTranscript, withLaunch } from "@novadeck/harness-core/decode"
 import type { Harness, LaunchProfile, MessagingProfile } from "@novadeck/harness-core/harness"
-import { keptFlags, resumeFlags, type KeptFlags } from "@novadeck/harness-core/kept-flags"
+import {
+  forgottenUnits,
+  keptFlags,
+  resumeFlags,
+  type KeptFlags,
+} from "@novadeck/harness-core/kept-flags"
 import { beside } from "@novadeck/harness-core/paths"
 import type { Report } from "@novadeck/harness-core/report"
 
@@ -77,10 +82,13 @@ const kept: KeptFlags = {
     "--allow-dangerously-skip-permissions": "--allow-dangerously-skip-permissions",
   },
   // Probed 2026-11-07 (2.1.316, launch-flags.e2e.ts): a bare `--resume` brings back the model
-  // and the permission mode (`plan`, `acceptEdits`) but not the effort. `--dangerously-skip-permissions`
-  // sits behind a warning dialog the probe's sandbox can't pass, so it is unprobed: it is
-  // given back, as a resume that stalls unseen is the worse failure.
-  forgets: ["--effort", "--dangerously-skip-permissions", "--allow-dangerously-skip-permissions"],
+  // and the permission mode (`plan`, `acceptEdits`) but not the effort, nor bypass, however
+  // asked for (`--dangerously-skip-permissions` or `--permission-mode bypassPermissions`: the
+  // footer reads "manual mode", with the Bypass Permissions warning accepted in its settings,
+  // `skipDangerousModePermissionPrompt`). Those are given back. `--allow-dangerously-skip-permissions` only offers bypass
+  // in the Shift+Tab cycle and is unprobed: a flag that raises permissions is given back only
+  // where a probe showed it forgotten, as a stall shows in the Inbox and a raise does not.
+  forgets: ["--effort", "--dangerously-skip-permissions", "--permission-mode=bypassPermissions"],
   takesValue: valued,
   takesMany: many,
   print: ["-p", "--print"],
@@ -101,6 +109,7 @@ const launch: LaunchProfile = {
     session,
   ],
   kept: (argv) => keptFlags(argv, kept),
+  forgets: (words) => forgottenUnits(words, kept),
   models: () => Promise.resolve(models),
   choose: ({ model, effort }) => [
     ...(model !== undefined ? ["--model", model] : []),

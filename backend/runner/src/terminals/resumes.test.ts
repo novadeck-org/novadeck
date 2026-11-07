@@ -7,6 +7,7 @@ import { savedSession } from "./binding/standing.js"
 import {
   cancelResume,
   Claims,
+  launchFor,
   restartedTask,
   resumeNote,
   resumeRefusal,
@@ -52,13 +53,20 @@ describe("the session an agent asks to resume in a new terminal", () => {
     expect(claims().check("t1", "claude", "s-1", true, { model: "sonnet" }, launch)).toMatchObject({
       argv: ["claude", "--model", "sonnet", "--effort", "high", "--resume", "s-1"],
     })
-    expect(claims().resumable("t1", "claude", "s-1", true, launch)?.argv).toEqual([
-      "claude",
-      "--effort",
-      "high",
-      "--resume",
-      "s-1",
-    ])
+  })
+
+  it("finds the flags a session was launched with in any row, the newest report first", () => {
+    const rows = [
+      { agents: { claude: { sessionId: "s-1", seq: 1, launch: ["--effort", "low"] } } },
+      { agents: { claude: { sessionId: "s-2", seq: 9, launch: ["--effort", "max"] } } },
+      { agents: { claude: { sessionId: "s-1", seq: 5, launch: ["--effort", "high"] } } },
+      { agents: { codex: { sessionId: "s-1", seq: 7, launch: ["--sandbox", "read-only"] } } },
+      { agents: { claude: { sessionId: "s-3", seq: 5 } } },
+    ]
+    expect(launchFor(rows, "claude", "s-1")).toEqual(["--effort", "high"])
+    expect(launchFor(rows, "codex", "s-1")).toEqual(["--sandbox", "read-only"])
+    expect(launchFor(rows, "claude", "s-3")).toBeUndefined()
+    expect(launchFor(rows, "agy", "s-1")).toBeUndefined()
   })
 
   it("judges a restored terminal's resume with the flags its saved row kept", () => {

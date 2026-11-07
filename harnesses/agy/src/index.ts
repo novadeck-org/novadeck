@@ -2,7 +2,12 @@ import { join } from "node:path"
 
 import { withLaunch } from "@novadeck/harness-core/decode"
 import type { Harness, LaunchProfile, MessagingProfile } from "@novadeck/harness-core/harness"
-import { keptFlags, resumeFlags, type KeptFlags } from "@novadeck/harness-core/kept-flags"
+import {
+  forgottenUnits,
+  keptFlags,
+  resumeFlags,
+  type KeptFlags,
+} from "@novadeck/harness-core/kept-flags"
 import { beside } from "@novadeck/harness-core/paths"
 
 import { box, slice } from "./box.js"
@@ -111,9 +116,12 @@ const kept: KeptFlags = {
     "--sandbox": "--sandbox",
   },
   // Probed 2026-11-07 (1.5.2, launch-flags.e2e.ts): a bare `--conversation` brings back none of
-  // its mode, model or effort (the footer shows the defaults again), so all are given back,
-  // though a `/model` changed since is undone by the launch's. `--sandbox` shows nowhere to probe.
-  forgets: ["--mode", "--model", "--effort", "--dangerously-skip-permissions", "--sandbox"],
+  // its mode, model or effort (the footer shows the defaults again), so those are given back,
+  // though a `/model` changed since is undone by the launch's. `--sandbox` shows nowhere to
+  // probe; it only restricts, so it is given back. `--dangerously-skip-permissions` is
+  // remembered (a command that asks without it did not ask on a bare resume of a session
+  // launched with it), so it is not given back: it raises permissions.
+  forgets: ["--mode", "--model", "--effort", "--sandbox"],
   takesValue: nonSession.takesValue,
   takesMany: nonSession.takesMany,
   print: nonSession.print,
@@ -146,6 +154,7 @@ const launch: LaunchProfile = {
     session,
   ],
   kept: (argv) => keptFlags(argv, kept),
+  forgets: (words) => forgottenUnits(words, kept),
   models: () => Promise.resolve(models),
   choose: ({ model, effort }) => [
     ...(model !== undefined ? ["--model", model] : []),

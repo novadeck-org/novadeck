@@ -1,7 +1,14 @@
 import type { SessionObserved, TelemetryObserved } from "@novadeck/harness-core/events"
 
 import { describe, expect, it } from "../test.js"
-import { observe, versionOf, withVersion, type Facts, type Sessions } from "./bindings.js"
+import {
+  observe,
+  versionOf,
+  withoutLaunch,
+  withVersion,
+  type Facts,
+  type Sessions,
+} from "./bindings.js"
 
 const idle: Sessions = { sessions: {}, binding: null, cwd: "/home" }
 const facts: Facts = {
@@ -219,15 +226,45 @@ describe("the launch flags a session keeps", () => {
     expect(resumed.sessions.claude?.launch).toEqual([
       "--permission-mode",
       "plan",
-      "--effort",
-      "low",
       "-c",
       "a=1",
       "-c",
       "b=3",
+      "--effort",
+      "low",
     ])
+    // The flags the harness remembers stay with the session, those it forgets are gone
+    // once the process doesn't tell them: it was resumed without on purpose.
     const bare = observe(first, seen({ startedAt: 3_000, launch: [] }), facts)!
-    expect(bare.sessions.claude?.launch).toEqual(flags)
+    expect(bare.sessions.claude?.launch).toEqual([
+      "--permission-mode",
+      "plan",
+      "-c",
+      "a=1",
+      "-c",
+      "b=2",
+    ])
+  })
+
+  it("lose a bypass the person resumed the session without", () => {
+    const first = observe(
+      idle,
+      seen({
+        launch: ["--dangerously-skip-permissions", "--permission-mode", "bypassPermissions"],
+      }),
+      facts,
+    )!
+    const bare = observe(first, seen({ startedAt: 3_000, launch: [] }), facts)!
+    expect(bare.sessions.claude).toEqual({ sessionId: "a", seq: 3_000 })
+    // A process that doesn't tell its flags at all leaves the session's.
+    const silent = observe(first, seen({ startedAt: 3_000 }), facts)!
+    expect(silent.sessions.claude?.launch).toEqual(first.sessions.claude?.launch)
+  })
+
+  it("can be forgotten for a session, so its next resume goes bare", () => {
+    const first = observe(idle, seen({ launch: ["--effort", "high"] }), facts)!
+    expect(withoutLaunch(first.sessions, "claude").claude).toEqual({ sessionId: "a", seq: 2_000 })
+    expect(withoutLaunch(first.sessions, "codex")).toBe(first.sessions)
   })
 
   it("are none for a new session whose process didn't say, and none when it has no flags", () => {

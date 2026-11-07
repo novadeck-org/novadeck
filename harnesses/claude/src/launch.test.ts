@@ -52,6 +52,8 @@ describe("the flags a resumed Claude Code keeps", () => {
     expect(kept!(["--model", "opus[1m]"])).toEqual([])
     expect(kept!(["--model", "a b"])).toEqual([])
     expect(kept!(["--model", "$(x)"])).toEqual([])
+    // PowerShell splits it into two arguments.
+    expect(kept!(["--model", "a,b"])).toEqual([])
     expect(kept!(["--model"])).toEqual([])
     // As Commander reads it, the next word is the value, option or not: `--effort` is not one.
     expect(kept!(["--model", "--effort", "low"])).toEqual([])
@@ -104,5 +106,26 @@ describe("the flags a resumed Claude Code keeps", () => {
       "s-1",
     ])
     expect(resume!("s-1")).toEqual(["claude", "--resume", "s-1"])
+  })
+
+  it("give back a bypass however it was asked for, and no other mode or the offer of one", () => {
+    expect(resume!("s-1", {}, kept!(["--permission-mode", "bypassPermissions"]))).toEqual([
+      "claude",
+      "--permission-mode",
+      "bypassPermissions",
+      "--resume",
+      "s-1",
+    ])
+    expect(resume!("s-1", {}, kept!(["--permission-mode", "acceptEdits"]))).toEqual([
+      "claude",
+      "--resume",
+      "s-1",
+    ])
+    // Unprobed, and a raise of permissions: only the stall is the safer failure.
+    expect(resume!("s-1", {}, kept!(["--allow-dangerously-skip-permissions"]))).toEqual([
+      "claude",
+      "--resume",
+      "s-1",
+    ])
   })
 })

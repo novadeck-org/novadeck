@@ -186,12 +186,19 @@ pub fn command_line(pid: u32) -> Option<String> {
     // pointer) the pointer to its text, which sits in the same room.
     let base = room.as_ptr() as usize;
     let bytes = unsafe { *room.as_ptr().cast::<u16>() } as usize;
-    let text = unsafe { *room.as_ptr().add(1).cast::<usize>() };
+    let text = unsafe {
+        room.as_ptr()
+            .cast::<u8>()
+            .add(size_of::<usize>())
+            .cast::<usize>()
+            .read()
+    };
     let at = text.checked_sub(base)?;
-    if bytes % 2 != 0 || at.checked_add(bytes)? > COMMAND_LINE_ROOM {
+    // Whole 16-bit units, aligned for them, inside the room.
+    if bytes % 2 != 0 || text % 2 != 0 || at.checked_add(bytes)? > COMMAND_LINE_ROOM {
         return None;
     }
-    let units = unsafe { std::slice::from_raw_parts((base + at) as *const u16, bytes / 2) };
+    let units = unsafe { std::slice::from_raw_parts(text as *const u16, bytes / 2) };
     Some(String::from_utf16_lossy(units))
 }
 

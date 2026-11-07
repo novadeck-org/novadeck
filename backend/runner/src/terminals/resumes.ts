@@ -161,6 +161,25 @@ export const sessionHeldElsewhere = (
   return false
 }
 
+/**
+ * The flags `session` of `agent` was launched with, as any of the terminals' rows kept them
+ * (`AgentReport.launch`), live or saved: for a resume asked by an agent, in a terminal that
+ * has no row of its own for the session yet. The newest report of the session wins.
+ */
+export const launchFor = (
+  rows: Iterable<Pick<SavedTerminal, "agents">>,
+  agent: AgentName,
+  session: string,
+): readonly string[] | undefined => {
+  let found: { readonly seq: number; readonly launch: readonly string[] } | undefined
+  for (const row of rows) {
+    const report = row.agents[agent]
+    if (report?.sessionId !== session || !report.launch) continue
+    if (!found || report.seq > found.seq) found = { seq: report.seq, launch: report.launch }
+  }
+  return found?.launch
+}
+
 export type ClaimsHost = {
   /** Whether another terminal than this one has the agent's session bound. */
   readonly boundElsewhere: (
@@ -190,9 +209,8 @@ export class Claims {
     agent: AgentName,
     session: string | undefined,
     connected: boolean,
-    launch?: readonly string[],
   ): { argv: readonly string[]; key: string } | undefined {
-    const found = this.check(terminalId, agent, session, connected, undefined, launch)
+    const found = this.check(terminalId, agent, session, connected)
     return found.ok ? { argv: found.argv, key: found.key } : undefined
   }
 

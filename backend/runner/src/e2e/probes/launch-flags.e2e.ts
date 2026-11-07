@@ -6,7 +6,7 @@
 // restarts (its launch flags carried over). Runs only with NOVADECK_E2E_PROBES=1, by path;
 // with PROBE_OUT set it writes $PROBE_OUT/<agent>.launch-flags.probe.json, the screens
 // and launch words each step showed.
-import { mkdirSync, writeFileSync } from "node:fs"
+import { mkdirSync, readFileSync, writeFileSync } from "node:fs"
 import { join } from "node:path"
 
 import type { AgentName } from "@novadeck/protocol"
@@ -16,7 +16,7 @@ import type { Record as TerminalRecord } from "../../terminals/record.js"
 import type { SavedTerminal } from "../../terminals/saved-terminals.js"
 import { setups } from "../agents/index.js"
 import { describe, e2e, expect, supported } from "../fixture.js"
-import { prompted, replies, turn } from "../scenarios.js"
+import { answers, own, prompted, replies, result, turn } from "../scenarios.js"
 
 const out = process.env.PROBE_OUT
 
@@ -96,6 +96,15 @@ for (const setup of setups) {
           return terminal.screen()
         }
 
+        // Claude Code's Bypass Permissions warning, accepted as a person's settings record it.
+        if (agent === "claude") {
+          const path = join(run.sandbox.home, ".claude", "settings.json")
+          const settings = JSON.parse(readFileSync(path, "utf8")) as object
+          writeFileSync(
+            path,
+            JSON.stringify({ ...settings, skipDangerousModePermissionPrompt: true }),
+          )
+        }
         run.model.use(
           replies("Remember the word heron", "Remembered."),
           replies("Carry on", "Carried on."),
@@ -193,6 +202,62 @@ if (codexSetup) {
         if (out) {
           mkdirSync(out, { recursive: true })
           writeFileSync(join(out, "codex.hook-trust.probe.json"), JSON.stringify(found, null, 2))
+        }
+      })
+    },
+  )
+}
+
+// Whether Antigravity's `--dangerously-skip-permissions` is remembered by a bare resume: its
+// footer shows no such mode, so a tool call that needs approval tells, by whether the approval
+// dialog appears. Its answer decides whether the flag is given back (`forgets`).
+const agySetup = setups.find((setup) => setup.agent === "agy")
+if (agySetup?.approval) {
+  const { approval } = agySetup
+  describe.skipIf(!supported || process.env.NOVADECK_E2E_PROBES === undefined)(
+    "probe: skip permissions kept on resume in Antigravity",
+    () => {
+      const it = e2e(agySetup)
+      it("shows whether a bare resume asks again", async ({ e2e: run }) => {
+        run.model.use(
+          replies("Remember the word heron", "Remembered."),
+          answers("Make the file", (call) => approval.request(call)),
+          own((call) => (result(call) !== undefined ? { text: "Made it." } : undefined)),
+        )
+        const found: Record<string, unknown> = {}
+        const asks = async (terminal: {
+          until: (text: string | RegExp, ms?: number) => Promise<string>
+          submit: (text: string) => Promise<void>
+        }): Promise<boolean> => {
+          await terminal.submit("Make the file")
+          return Promise.race([
+            terminal.until(approval.shows, 40_000).then(() => true),
+            terminal.until("Made it.", 40_000).then(() => false),
+          ])
+        }
+        const skipping = await run.deck.open("agy --dangerously-skip-permissions")
+        await skipping.reached("ready", { timeoutMs: 60_000 })
+        await prompted(skipping, agySetup)
+        await turn(skipping, "Remember the word heron", "Remembered.")
+        found.launchedAsked = await asks(skipping)
+        const session = run.deck.terminals.reportedSession(skipping.id, "agy")!
+        expect(session).toBeTruthy()
+        await run.deck.restart()
+        const bare = await run.deck.open(harnesses.agy.launch.resume!(session).join(" "))
+        await bare.reached("ready", { timeoutMs: 60_000 })
+        await prompted(bare, agySetup)
+        found.bareAsked = await asks(bare)
+        // Control: without the flag the same call asks.
+        const plain = await run.deck.open("agy")
+        await plain.reached("ready", { timeoutMs: 60_000 })
+        await prompted(plain, agySetup)
+        found.plainAsked = await asks(plain)
+        if (out) {
+          mkdirSync(out, { recursive: true })
+          writeFileSync(
+            join(out, "agy.skip-permissions.probe.json"),
+            JSON.stringify(found, null, 2),
+          )
         }
       })
     },

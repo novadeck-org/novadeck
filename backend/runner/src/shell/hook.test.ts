@@ -746,6 +746,24 @@ describe("reading a relay's hook", () => {
     ])
   })
 
+  it("drops the last word of a Windows line the relay cut, which may be partial", () => {
+    const line = "codex.exe --model gpt-5 --ask-for-approval nev"
+    const told = (commandLineCut: boolean) => [
+      { pid: 20, name: "codex", commandLine: line, commandLineCut },
+    ]
+    expect(relayHook(hook({ ancestors: told(true) }), "win32")?.report.launch).toEqual([
+      "--model",
+      "gpt-5",
+      "--ask-for-approval",
+    ])
+    expect(relayHook(hook({ ancestors: told(false) }), "win32")?.report.launch).toEqual([
+      "--model",
+      "gpt-5",
+      "--ask-for-approval",
+      "nev",
+    ])
+  })
+
   it("drops what an ancestor was started with when it is too long to be whole, keeping the ancestor", () => {
     const long = "x".repeat(5000)
     const ancestors = [

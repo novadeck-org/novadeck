@@ -447,6 +447,12 @@ export type LaunchProfile = {
    */
   readonly resumed: (claim: string, seen: ResumeSeen) => "worked" | "waiting" | "failed"
   /**
+   * Of words `kept` gave, those a flag at a time that its harness forgets on a bare resume
+   * and so are given back: a flag with its value, if it takes one, for each. The rest it
+   * remembers with the session.
+   */
+  readonly forgets?: (kept: readonly string[]) => readonly (readonly string[])[]
+  /**
    * The models it can start with on this machine, each with the reasoning efforts it takes;
    * none where that can't be told. It runs no command.
    */

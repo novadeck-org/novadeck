@@ -95,6 +95,8 @@ type Ancestor = {
   /** What it was started with, after its program: its words, or on Windows its one line. */
   readonly args?: readonly string[]
   readonly commandLine?: string
+  /** That the relay cut `commandLine` short, so its last word may be partial. */
+  readonly commandLineCut?: boolean
 }
 
 // The most of an ancestor's arguments the relay sends (`ancestors.rs`), as the runner takes them.
@@ -159,7 +161,11 @@ const launchOf = (
 ): string[] | undefined => {
   const found = ancestors.find((each) => String(each.pid) === instance)
   if (found?.args !== undefined) return [...found.args]
-  if (found?.commandLine !== undefined) return windowsWords(found.commandLine).slice(1)
+  if (found?.commandLine !== undefined) {
+    const words = windowsWords(found.commandLine).slice(1)
+    // A line the relay cut ends in a word that may be partial, as a value cut short.
+    return found.commandLineCut ? words.slice(0, -1) : words
+  }
   return undefined
 }
 
@@ -176,8 +182,9 @@ const ancestorsOf = (value: unknown): Ancestor[] =>
         (each.startedAt === undefined ||
           (typeof each.startedAt === "number" && Number.isFinite(each.startedAt))),
     )
-    // What it was started with is told only whole, never cut here, or a flag could lose its value.
-    .map(({ args, commandLine, ...rest }) => ({
+    // What it was started with is taken whole or not at all, never cut here: the relay sends
+    // whole words (the rest left out), or on Windows its line cut and marked, a cut line losing its last word.
+    .map(({ args, commandLine, commandLineCut, ...rest }) => ({
       ...rest,
       ...(Array.isArray(args) &&
         args.length <= maxLaunchWords &&
@@ -185,7 +192,10 @@ const ancestorsOf = (value: unknown): Ancestor[] =>
           args: args as readonly string[],
         }),
       ...(typeof commandLine === "string" &&
-        commandLine.length <= maxLaunchLength && { commandLine }),
+        commandLine.length <= maxLaunchLength && {
+          commandLine,
+          ...(commandLineCut === true && { commandLineCut }),
+        }),
     }))
 
 // The longest a hook's shell may take to start its relay, past which a start read as its
