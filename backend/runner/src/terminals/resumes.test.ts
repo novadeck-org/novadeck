@@ -165,12 +165,12 @@ describe("a session another terminal holds", () => {
 })
 
 describe("cancelling a resume", () => {
-  it("removes the command and the claim it was resuming", () => {
+  it("removes the command, keeping the claim its standing reports are read through", () => {
     const file = join(mkdtempSync(join(tmpdir(), "resume-")), "cmd")
     writeFileSync(file, "claude --resume c")
     const record = { resumeFile: file, resumeClaim: "claude:c" as string | undefined }
     expect(cancelResume(record)).toBe(true)
-    expect(record.resumeClaim).toBeUndefined()
+    expect(record.resumeClaim).toBe("claude:c")
     expect(cancelResume(record)).toBe(false)
   })
 })

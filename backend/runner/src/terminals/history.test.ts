@@ -484,7 +484,7 @@ describe("keeping a terminal as it closes", () => {
       expect(plan.resume).toBe("claude")
     })
 
-    it("falls back to the latest report once the resume ended or was cancelled", async () => {
+    it("falls back to the latest report once the resume ended, or with no resume", async () => {
       expect((await resumed({ resumeClaim: "claude:c", resumeEnded: true })).kept).toMatchObject({
         agent: "codex",
       })
